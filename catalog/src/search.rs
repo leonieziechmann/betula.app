@@ -16,6 +16,7 @@
 //! finds none either, the modules with the most of the words are listed.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
@@ -299,7 +300,7 @@ pub fn resolve(db: &dyn Database, text: &str) -> Result<Resolution, DbError> {
     let found = queries::search_words_found(db, text)?;
     let mut corrected = Vec::new();
     if found.iter().any(|found| !found) {
-        let vocabulary = Vocabulary::new(&queries::search_titles(db)?);
+        let vocabulary = vocabulary(db)?;
         for (word, found) in typed.iter().zip(&found) {
             if let (false, Some((instead, shown))) = (*found, vocabulary.correct(word)) {
                 corrected.push(Correction { typed: word.clone(), word: instead, shown });
@@ -319,6 +320,24 @@ pub fn resolve(db: &dyn Database, text: &str) -> Result<Resolution, DbError> {
         }
     }
     Ok(Resolution::default())
+}
+
+/// The vocabulary of the titles of the snapshot `db` is (its `content_digest`), made once for it:
+/// a search that types a word no title has would otherwise make it again with every letter (the
+/// titles of 4,938 modules, 40 ms of a laptop and four times that of a phone). A snapshot that
+/// does not say its digest gets one made for the search alone.
+fn vocabulary(db: &dyn Database) -> Result<Arc<Vocabulary>, DbError> {
+    static KEPT: Mutex<Option<(String, Arc<Vocabulary>)>> = Mutex::new(None);
+    let digest = queries::meta(db)?.content_digest;
+    let kept = |digest: &str| KEPT.lock().ok()?.as_ref().filter(|(of, _)| of == digest).map(|(_, vocabulary)| vocabulary.clone());
+    if let Some(vocabulary) = digest.as_deref().and_then(kept) {
+        return Ok(vocabulary);
+    }
+    let vocabulary = Arc::new(Vocabulary::new(&queries::search_titles(db)?));
+    if let (Some(digest), Ok(mut kept)) = (digest, KEPT.lock()) {
+        *kept = Some((digest, vocabulary.clone()));
+    }
+    Ok(vocabulary)
 }
 
 /// The words of the titles, for the correction of a typo: every word with the number of modules

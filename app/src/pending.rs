@@ -22,6 +22,11 @@
 //! phone's filter sheet; the search of the top bar through `go_quietly`, without skeletons). A
 //! link or a step whose address changes nothing the visitor sees (the fragment, the list's
 //! `page`) goes to the router as before.
+//!
+//! The search of the top bar waits longer than a frame where it can (owner, 2026-10-02: typing
+//! lagged): the catalog has the list of what is typed worked out in its worker first
+//! (`prepare_with`, `data::Worker`), so that the router then only builds it, and a key typed
+//! meanwhile drops the step (`typed`).
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -32,6 +37,7 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::location::Location;
 use leptos_router::NavigateOptions;
 
+use crate::data::Later;
 use crate::i18n::use_location;
 use crate::studyplan::PlanAddress;
 
@@ -42,6 +48,11 @@ pub const SLOW_MS: f64 = 50.0;
 /// Set on a `popstate` event the app hands to the router again, so that neither the app's own
 /// listener nor `enhance.js` take it for a new step.
 pub const REPLAY: &str = "betulaReplay";
+
+/// How long after a key in the search of the top bar the visitor is still `typing`: longer than
+/// the pause the search waits for before it goes (`TopBar`), so that the list of what was typed
+/// comes first.
+pub const TYPING_MS: u64 = 400;
 
 /// The page whose frame a skeleton shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -109,6 +120,10 @@ enum Via {
 
 type Navigate = Rc<dyn Fn(&str, NavigateOptions)>;
 
+/// What a page works out ahead for an address a quiet step goes to (`Pending::prepare_with`):
+/// `None` where it has nothing to do for it, else what ends once the page will find it done.
+pub type Prepare = Rc<dyn Fn(&str) -> Option<Later<()>>>;
+
 struct Inner {
     via: Via,
     /// Set by `Bind` inside the router: its navigation and where it is.
@@ -119,6 +134,14 @@ struct Inner {
     due: bool,
     /// How long the router took for a change of each kind the last times, in ms (smoothed).
     took: HashMap<Change, f64>,
+    /// The page that works out ahead what a quiet step leads to, while it is up, with the number
+    /// it was given (`prepare_with`); the numbers count up.
+    prepare: Option<(u64, Prepare)>,
+    prepared: u64,
+    /// The step that is due waits for what its page works out (`prepare_with`).
+    ahead: bool,
+    /// When `typing` goes back to false: a moment after the last key.
+    typing_ends: Option<TimeoutHandle>,
 }
 
 /// The navigation that is on its way to the router, provided by `App` for the whole app. Empty on
@@ -128,6 +151,9 @@ pub struct Pending {
     to: RwSignal<Option<String>>,
     change: RwSignal<Option<Change>>,
     slow: RwSignal<bool>,
+    /// The visitor is typing in the search of the top bar (`typed`): until a moment after the last
+    /// key. What comes later than the list of what was typed waits for it (`typing`).
+    typing: RwSignal<bool>,
     /// The browser's alone, `None` on the server: it holds the router's navigation, an `Rc`, so it
     /// is bound to the thread it was made on. The server renders a page in a task that can go on
     /// on another thread (`leptos_meta` waits a tick for its tags), and such a value dropped
@@ -145,7 +171,21 @@ impl Pending {
             to: RwSignal::new(None),
             change: RwSignal::new(None),
             slow: RwSignal::new(false),
-            inner: cfg!(feature = "csr").then(|| StoredValue::new_local(Inner { via: Via::Link { replace: false, scroll: true }, navigate: None, location: None, turn: 0, due: false, took: HashMap::new() })),
+            typing: RwSignal::new(false),
+            inner: cfg!(feature = "csr").then(|| {
+                StoredValue::new_local(Inner {
+                    via: Via::Link { replace: false, scroll: true },
+                    navigate: None,
+                    location: None,
+                    turn: 0,
+                    due: false,
+                    took: HashMap::new(),
+                    prepare: None,
+                    prepared: 0,
+                    ahead: false,
+                    typing_ends: None,
+                })
+            }),
         };
         provide_context(pending);
         #[cfg(feature = "csr")]
@@ -210,8 +250,67 @@ impl Pending {
 
     /// What the visitor is typing (the search of the top bar): the same, but the result there is
     /// stays until the next one comes, without a skeleton, which would flicker with every letter.
+    /// Where the page works out ahead what the step leads to (`prepare_with`), the step waits for
+    /// that, beside the page's thread, and the page then only builds what it found.
     pub fn go_quietly(&self, to: &str, options: NavigateOptions) {
         self.go_with(to, options, true);
+    }
+
+    /// While a page is up that can work out ahead what a quiet step leads to (the catalog: the
+    /// list of a search, in its worker, `data::Worker`), a quiet step waits for `prepare` before
+    /// the router takes it. The number it returns is for `prepared_by`, when the page goes.
+    pub fn prepare_with(&self, prepare: Prepare) -> u64 {
+        let Some(inner) = self.inner else { return 0 };
+        inner
+            .try_update_value(|inner| {
+                inner.prepared += 1;
+                inner.prepare = Some((inner.prepared, prepare));
+                inner.prepared
+            })
+            .unwrap_or(0)
+    }
+
+    /// A key in the search of the top bar. The quiet step of a text typed before that still waits
+    /// for what its page works out goes no further: the step of what is typed now takes its place,
+    /// and the page is not built for a text that is gone already, while the visitor types on. And
+    /// for a moment (`TYPING_MS`) the visitor is `typing`.
+    pub fn typed(&self) {
+        let Some(inner) = self.inner else { return };
+        if inner.with_value(|inner| inner.due && inner.ahead) {
+            inner.update_value(|inner| {
+                inner.due = false;
+                inner.ahead = false;
+            });
+            self.to.set(None);
+            self.change.set(None);
+            self.slow.set(false);
+        }
+        if !self.typing.get_untracked() {
+            self.typing.set(true);
+        }
+        let typing = self.typing;
+        let ends = set_timeout_with_handle(move || { typing.try_set(false); }, std::time::Duration::from_millis(TYPING_MS)).ok();
+        if let Some(before) = inner.try_update_value(|inner| std::mem::replace(&mut inner.typing_ends, ends)).flatten() {
+            before.clear();
+        }
+    }
+
+    /// Whether the visitor is typing in the search of the top bar (`typed`). „Ähnliche Module"
+    /// wait for it to end: built while the visitor types on, they would hold up the next key.
+    pub fn typing(&self) -> bool {
+        self.typing.get()
+    }
+
+    /// The page that gave `prepare_with` this number has gone: a quiet step waits for nothing then
+    /// (unless another page has taken its place since).
+    pub fn prepared_by(&self, number: u64) {
+        if let Some(inner) = self.inner {
+            inner.try_update_value(|inner| {
+                if inner.prepare.as_ref().is_some_and(|(given, _)| *given == number) {
+                    inner.prepare = None;
+                }
+            });
+        }
     }
 
     fn go_with(&self, to: &str, options: NavigateOptions, quiet: bool) {
@@ -242,6 +341,11 @@ impl Pending {
             self.commit();
         }
         let slow = !quiet && inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
+        // What the page works out ahead for a quiet step (the list of a search, in the catalog's
+        // worker): the step waits for it, and the page then finds it done. So the page's thread
+        // never waits for the queries of what the visitor is typing, only for its rows being built.
+        let prepare = if quiet { inner.with_value(|inner| inner.prepare.as_ref().map(|(_, prepare)| prepare.clone())) } else { None };
+        let ahead = prepare.and_then(|prepare| prepare(&to));
         inner.update_value(|inner| inner.via = via);
         self.to.set(Some(to));
         self.change.set(Some(change));
@@ -250,14 +354,24 @@ impl Pending {
         inner.update_value(|inner| {
             inner.turn = turn;
             inner.due = true;
+            inner.ahead = ahead.is_some();
         });
         // A newer navigation takes the place of this one: it runs only while it is still due.
         let pending = *self;
-        crate::nav::after_paint(move || {
-            if inner.with_value(|inner| inner.due && inner.turn == turn) {
-                pending.commit();
-            }
-        });
+        let due = move || inner.try_with_value(|inner| inner.due && inner.turn == turn).unwrap_or(false);
+        match ahead {
+            Some(ahead) => leptos::task::spawn_local(async move {
+                ahead.await;
+                if due() {
+                    pending.commit();
+                }
+            }),
+            None => crate::nav::after_paint(move || {
+                if due() {
+                    pending.commit();
+                }
+            }),
+        }
     }
 
     /// The router takes the address now; the skeleton goes in the same frame as the page comes.
@@ -265,7 +379,10 @@ impl Pending {
         let (Some(to), Some(inner)) = (self.to.get_untracked(), self.inner) else { return };
         let (via, navigate) = inner.with_value(|inner| (inner.via, inner.navigate.clone()));
         let change = self.change.get_untracked();
-        inner.update_value(|inner| inner.due = false);
+        inner.update_value(|inner| {
+            inner.due = false;
+            inner.ahead = false;
+        });
         // What replaces a skeleton comes as it is: without the entrance of a panel that opens.
         #[cfg(feature = "csr")]
         if self.slow.get_untracked() {

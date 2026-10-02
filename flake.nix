@@ -144,7 +144,8 @@
           };
         };
 
-        # The browser app, as scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm}.
+        # The browser app, as scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm},
+        # and the catalog's search worker, which runs the same bundle (site/pkg/search-worker.js).
         # `cargo build --profile wasm-release --target wasm32-unknown-unknown -p folia-client`, in
         # the same two steps as the web server (the dependencies apart, a fixed version for them).
         clientArgs = rustCommon // {
@@ -179,6 +180,7 @@
             wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
               --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
+            cp client/js/search-worker.js "$out/site/pkg/search-worker.js"
           '';
           # The bundle is the output, not cargo's target directory.
           doInstallCargoArtifacts = false;

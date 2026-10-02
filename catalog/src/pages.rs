@@ -596,8 +596,10 @@ pub fn similar_text(query: &CatalogQuery) -> Option<String> {
 /// „Ähnliche Module" under the results of a search (owner, 2026-10-01: with every search, the
 /// filters applying, at most 10): of the modules the semantic search finds closest to the text of
 /// `query` (`hits`, the closest first), those the rest of its filter holds and the search itself
-/// does not find (they are results already), the closest first, at most `limit`. `query` is the
-/// one the page ran (`CatalogData::effective`); its text is resolved as the list's where it is not.
+/// does not find (they are results already, and so is a module titled as one of them,
+/// `queries::similar_rows`), the closest first, each title once (the closest of the modules that
+/// bear it), at most `limit`. `query` is the one the page ran (`CatalogData::effective`); its text
+/// is resolved as the list's where it is not.
 pub fn similar(db: &dyn Database, query: &CatalogQuery, hits: &[String], limit: usize) -> Result<Vec<CatalogRow>, DbError> {
     if !searches_similar(&query.text) || hits.is_empty() || limit == 0 {
         return Ok(Vec::new());
@@ -607,7 +609,8 @@ pub fn similar(db: &dyn Database, query: &CatalogQuery, hits: &[String], limit: 
         query.text_resolution = Some(search::resolve(db, &query.text)?);
     }
     let mut rows: BTreeMap<String, CatalogRow> = queries::similar_rows(db, &query, hits)?.into_iter().map(|row| (row.id.clone(), row)).collect();
-    Ok(hits.iter().filter_map(|id| rows.remove(id)).take(limit).collect())
+    let mut titles = BTreeSet::new();
+    Ok(hits.iter().filter_map(|id| rows.remove(id)).filter(|row| titles.insert(row.title.clone())).take(limit).collect())
 }
 
 /// What a filter means before a row of the list is read (`catalog` and `catalog_summary`).

@@ -24,7 +24,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `scripts/build-client.sh` into `site/pkg`. |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`pack/src/lib.rs`). |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its queries in the catalog's search worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`catalog/src/url.rs`)
 
@@ -679,7 +679,9 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   server whose own snapshot is older (Radix has not exported the new schema yet) says so in
   `/api/status` and logs `snapshot.outdated`; nothing is downloaded from it, and the site stays a
   classic website until Radix has. The server never answers data queries for the app: its load is
-  cached HTML, static files and one database file.
+  cached HTML, static files and one database file. Once the app runs, `boot.js` hands the bytes of
+  the copy it opened to the catalog's search worker (2026-10-02, „The search of the catalog",
+  „Typing"), which works out the list of a search the visitor types on a copy of its own.
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
@@ -819,7 +821,10 @@ Asked by the owner and not done, measured:
 - **The queries in a Web Worker**, so that the main thread can paint while they run. The larger
   part of a click is building the page (25–75 ms), which stays on the main thread; and every page
   would have to load asynchronously, with loading states, against „Data flow" above. A worker
-  only to warm the kept answers would hold a second copy of the catalog (37 MB) on a phone.
+  only to warm the kept answers would hold a second copy of the catalog (37 MB) on a phone. Done
+  for the search of the top bar since (2026-10-02, „The search of the catalog", „Typing"): a
+  search comes with every pause of the typing, and its queries were what made it lag; a click
+  still runs its page's queries itself.
 - **Warming the answers ahead, in idle time.** A page's loader cannot be split (the start page's
   is 70 ms of a laptop, 280 ms of a phone), and a tap that comes during it waits for it.
 
@@ -975,6 +980,57 @@ description. The list stays the list it was („ich mag das UI da und würde das
   It is loaded when it is first wanted (2026-10-02, before at every start): as a search field takes
   the focus, in the browser's idle time, or when a search asks it; with a mouse once the browser is
   idle („A phone that froze" above).
+  **What the search finds is not among them, not even under another number** (2026-10-02; owner:
+  „Was in der direkten Suche gefunden wird, soll nicht mehr bei den ähnlichen Modulen gezeigt
+  werden"): a module that bears the title of one of the list's rows is left out too, and a title
+  stands there once, the closest of its modules (`queries::similar_rows`, `pages::similar`). 210
+  titles of the offered modules are borne by several numbers (a module per program, an old and a
+  new number; on 2026-10-02) with the same text and so the same vector: a search for one of them by
+  its number or by an abbreviation of its own („14851", „AGAB") found that one, and the closest of
+  all „Ähnliche Module" was the same module under its other number. By id the results were never
+  among them (`similar_rows` leaves out what the search finds), while typing neither: the rows of a
+  list and its „Ähnliche Module" are of the same text.
+- **Typing** (2026-10-02; owner: „Wenn man tippt, dann lagt das ziemlich. Die Suche muss auf jeden
+  Fall asynchron, vielleicht sogar mit Service Worker gebaut werden"). Measured as `e2e/typing.mjs`
+  (§4) measures, on the snapshot of 2026-10-02, a key every 200 ms, the CPU slowed down four times
+  (a phone): every pause of the typing ran the search's queries on the page's thread (its text
+  resolved, the vocabulary of every title made again for a word no title has, the list, its count,
+  what it finds outside the filters, and the 500 hits of „Ähnliche Module") and built the list
+  anew — 600–870 ms in one task, keys waiting up to two thirds of a second, 6–8 s of long tasks
+  while typing one word (without the slowdown 13–15 long tasks a word, up to 180 ms, keys waiting
+  up to 125 ms). Now:
+  - **The queries of what is typed run in a Web Worker** (`data::Worker`, `client/src/worker.rs`,
+    `client/js/search-worker.js`): a copy of the catalog the page opened, which `boot.js` hands over
+    (the Blob it keeps, which the worker reads, once the app runs and the browser is idle),
+    and the app's own bundle, whose `worker_catalog` and `worker_similar` run `pages::catalog` and
+    `pages::similar` there, the same code on the same data as the page would. The search of the top
+    bar goes quietly as before (`Pending::go_quietly`, 140 ms after the last key), but the step now
+    waits until the worker has worked out the list of where it goes (`Pending::prepare_with`, which
+    `CatalogPage` gives the list of an address: its query with the marks and what fits the plan
+    filled in), and the page then takes that list and asks its own copy nothing
+    (`CatalogPage::list`). A key typed meanwhile drops the step (`Pending::typed`): the page is not
+    built for a text that is gone already. „Ähnliche Module" are worked out there too, and come
+    once the visitor stops typing (`Pending::typing`, 400 ms after the last key), since built while
+    the next keys come they would hold them up. Until the worker answers (a second or so after the
+    app starts), where it failed, on a device that says it has less than 2 GB, and on the server's
+    page, everything runs as before on the page's own copy. **Not the service worker:** a browser
+    stops an idle one after some seconds (Chrome: 30), and each start would open the 44 MB again;
+    it keeps the worker's script with the shell (`sw.js`). The worker is a second copy of the
+    catalog in memory (44 MB) and of the bundle's code.
+  - **Building the list costs less**, what is left on the page's thread: the first frame renders
+    the rows a screen holds (`VirtualRows`, the rows around them a frame later), the skeleton rows
+    around the rendered ones are only there for a list longer than it renders at once, the scroll position of a list that replaces another is reset
+    before it is built (setting it after laid the new list out in that task, and the frame laid it
+    out again), and the list's height and the rows' offsets are custom properties no element
+    inherits (`@property --list-h`, `--top`; measuring the rows changed them, and every row was
+    styled again).
+  - **The vocabulary of the titles is made once per snapshot** (`search::vocabulary`, by its
+    `content_digest`), not for every word no title has.
+
+  After (same snapshot, keys, slowdown): 140–270 ms at most in one task, keys waiting mostly less
+  than 160 ms, 2–4 s of long tasks while typing a word; without the slowdown at most five long
+  tasks a word, none over 100 ms, no key waiting more than 60 ms. The rest is the browser laying
+  out and painting the new rows, and the page's own reactions to them (`enhance.js`).
 
 ### From the program's page into the catalog (2026-09-21)
 
@@ -2502,6 +2558,21 @@ corrected and said (and the semantic search is asked for the corrected word), th
 first, „Modul“ orders the matches by title, and typing orders them by relevance again. Last, a
 search the address carries: its list asks before `boot.js` offers the semantic search and still gets
 its „Ähnliche Module“.
+
+```bash
+cd e2e && node typing.mjs
+```
+
+types in the search of the top bar once the catalog's search worker answers („The search of the
+catalog“, „Typing“): four words, a key every 200 ms, two of them with the CPU slowed down four
+times. The page's own copy of the catalog runs none of the search's queries meanwhile, the list
+follows what was typed, and „Ähnliche Module“ (a stand-in for the semantic search that names the
+list's own rows first) hold none of the list's rows; a module searched by its number (14851) does
+not find its namesake (14508, „Anti-Gewalt-Arbeit“) among them. It prints how long the keys waited
+for the page's thread (Event Timing) and its long tasks, and fails where a key waited longer than
+100 ms without the slowdown. Last run (2026-10-02, a cloud container of four cores, the dev
+bundle): without the slowdown keys waited up to 56 ms, the longest task 72 ms; slowed down four
+times up to 163 ms, the longest task 190 ms.
 
 ```bash
 cd e2e && node filters.mjs

@@ -337,6 +337,16 @@ pub fn is_phone() -> bool {
     false
 }
 
+/// How tall the window is, in CSS pixels; `None` on the server.
+pub fn screen_height() -> Option<f32> {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window()?.inner_height().ok()?.as_f64().map(|height| height as f32)
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
 /// What this browser session remembers under `key` (`sessionStorage`). `None` on the server.
 #[allow(unused_variables)]
 pub fn session_get(key: &str) -> Option<String> {

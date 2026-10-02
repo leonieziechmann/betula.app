@@ -862,15 +862,20 @@ html:not(.js) .fit-chip { display: none; }
 .rows .row-wrap { content-visibility: auto; contain-intrinsic-size: auto 58px; }
 /* The virtual list of the browser app (`VirtualRows`): an element as tall as the whole list, so
    the scrollbar has the list's length from the start, and inside it only the rows that are on
-   screen, each at its offset. They are measured, so they need no reserved size. */
-.vlist { position: relative; height: var(--h, 0px); }
-.vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top, 0px); }
+   screen, each at its offset. They are measured, so they need no reserved size. The height and
+   the offsets are inherited by nothing: they change as the rows are measured, and a value every
+   row inherited would have every row of the list styled again each time (a phone's tenth of a
+   second at every pause of the typing of a search). */
+@property --list-h { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.vlist { position: relative; height: var(--list-h); }
+.vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top); }
 .rows.virtual .row-wrap { content-visibility: visible; contain-intrinsic-size: none; }
 /* Above and below the rendered rows the virtual list holds skeleton rows (`.vfill`, each as tall
-   as a row is taken to be: --rh, the average of the measured ones): a fast scroll runs ahead of
-   the list in the compositor's frames, and shows rows that are being filled in instead of an
-   empty panel, as far as the scrollbar can jump. Shaded as the rows they stand for (`odd`: the
-   first of them is). */
+   as a row is taken to be: --rh, the average of the measured ones, set on each fill and inherited
+   by it alone): a fast scroll runs ahead of the list in the compositor's frames, and shows rows
+   that are being filled in instead of an empty panel, as far as the scrollbar can jump. Shaded as
+   the rows they stand for (`odd`: the first of them is). */
 /* Never the browser's scroll anchor: the fill above grows and shrinks with the place in the list,
    its rows with its bottom, and an anchor among them would scroll the list by as much. */
 .vlist > .vfill { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; pointer-events: none; overflow-anchor: none; }

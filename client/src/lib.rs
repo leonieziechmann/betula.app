@@ -15,9 +15,12 @@ use catalog::{Database, DbError, Value};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
+mod worker;
+
 #[wasm_bindgen]
 extern "C" {
-    /// `window.betulaDb.query(sql, params)` → `{ columns: string[], rows: any[][] }`.
+    /// `betulaDb.query(sql, params)` → `{ columns: string[], rows: any[][] }`: the page's copy of
+    /// the catalog (`boot.js`), and in the catalog's worker the worker's (`search-worker.js`).
     #[wasm_bindgen(js_namespace = betulaDb, js_name = query, catch)]
     fn db_query(sql: &str, params: js_sys::Array) -> Result<JsValue, JsValue>;
 }
@@ -272,6 +275,8 @@ pub fn start() {
         // Loaded by `boot.js` once the app runs; nothing waits for it. The catalog's „Ähnliche Module"
         // ask it (`app::pages::catalog`).
         provide_context(app::data::Semantic(Arc::new(BrowserSemantic)));
+        // The same: the catalog's search worker, which the catalog asks once it answers.
+        provide_context(app::data::Worker(Arc::new(worker::BrowserWorker)));
         // The icons point into the sprite of this build (`app::icons`), as the server's page did.
         if let Some(build) = build.clone() {
             provide_context(app::BuildId(build.into()));

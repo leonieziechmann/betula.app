@@ -135,6 +135,25 @@ async function schemaOf(blob) {
   return new DataView(bytes.buffer, 0, 100).getInt32(60);
 }
 
+// The copy of the catalog the page opened (a Blob), until the search worker is started with it.
+let catalogBlob = null;
+
+// The bundle, compiled once: the page runs it, and the catalog's search worker gets the same
+// compiled module (`startSearch`) rather than compiling all of it again beside the page, which
+// held up the page's own frames while the app was new.
+let bundle = null;
+async function compileBundle() {
+  const url = "/pkg/folia_client_bg.wasm" + BUILD;
+  try {
+    return await WebAssembly.compileStreaming(fetch(url));
+  } catch {
+    // A server that does not say `application/wasm`, or a browser that cannot compile as it loads.
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("GET " + url + ": HTTP " + response.status);
+    return WebAssembly.compile(await response.arrayBuffer());
+  }
+}
+
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
@@ -199,6 +218,8 @@ async function openDatabase() {
   ]);
   const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file + BUILD });
   const db = new SQL.Database(new Uint8Array(bytes));
+  // The catalog's search worker opens the same copy (`startSearch`): the Blob, which it reads itself.
+  catalogBlob = current.blob;
   window.betulaDb = {
     etag: current.etag,
     query(sql, params) {
@@ -299,11 +320,110 @@ function startSemantic() {
   };
 }
 
+// The catalog's search in a Web Worker of its own (client/js/search-worker.js; owner, 2026-10-02:
+// typing a search lagged, a phone spent half a second of the page's thread on every pause): the
+// copy of the catalog the page opened (its Blob, which the worker reads) and the app's bundle, which work out
+// the list of a search the visitor types and its „Ähnliche Module" beside the page's thread; the
+// page only builds what they found. Started once the app runs and the browser is idle, like the
+// semantic search; until it answers, and where it failed, the app asks its own copy as it always
+// did. Not on a device with little memory: it is a second copy of the catalog (44 MB). A Web
+// Worker, not the service worker: a browser stops an idle service worker after some seconds, and
+// each start would open the catalog again (semantic/README.md says the same of the model).
+//
+// `window.betulaSearch`, for the app (client/src/worker.rs):
+//   ready          true once it answers
+//   catalog(ask)   a promise: the JSON of the answer (`worker_catalog`); null when a newer question
+//                  of the same kind took its place before this one ran, or the worker failed
+//   similar(ask)   the same for `worker_similar`
+// While one question runs, only the newest of each kind waits, the list's first.
+function startSearch() {
+  const none = async () => null;
+  const search = { ready: false, catalog: none, similar: none };
+  window.betulaSearch = search;
+  const blob = catalogBlob;
+  catalogBlob = null;
+  if (!blob || !("Worker" in window) || (navigator.deviceMemory && navigator.deviceMemory < 2)) return;
+  const start = () => {
+    let worker;
+    try {
+      worker = new Worker("/pkg/search-worker.js" + BUILD);
+    } catch (error) {
+      console.info("[search] no worker:", error);
+      return;
+    }
+    const asked = new Map();
+    let next = 0;
+    // Throws where the message cannot be sent (the compiled bundle, in a browser that cannot hand it on).
+    const send = (message, transfer = []) => {
+      const id = next++;
+      worker.postMessage({ ...message, id }, transfer);
+      return new Promise((resolve, reject) => asked.set(id, { resolve, reject }));
+    };
+    const waiting = new Map();
+    let running = false;
+    let failed = false;
+    // From then on the app asks its own copy: an answer that never comes holds up no search.
+    const fail = (error) => {
+      if (failed) return;
+      failed = true;
+      console.info("[search] the worker failed:", error);
+      search.ready = false;
+      search.catalog = search.similar = none;
+      worker.terminate();
+      for (const { reject } of asked.values()) reject(error);
+      asked.clear();
+      for (const { resolve } of waiting.values()) resolve(null);
+      waiting.clear();
+    };
+    worker.onmessage = ({ data }) => {
+      const question = asked.get(data.id);
+      asked.delete(data.id);
+      if (data.error) question?.reject(new Error(data.error));
+      else question?.resolve(data);
+    };
+    worker.onerror = (event) => fail(new Error(event.message || "the search worker failed"));
+    const pump = () => {
+      if (running || !search.ready || !waiting.size) return;
+      const kind = waiting.has("catalog") ? "catalog" : "similar";
+      const { ask, resolve } = waiting.get(kind);
+      waiting.delete(kind);
+      running = true;
+      send({ type: kind, ask }).then(
+        ({ answer }) => { running = false; resolve(answer ?? null); pump(); },
+        (error) => { running = false; resolve(null); fail(error); },
+      );
+    };
+    const question = (kind) => (ask) => new Promise((resolve) => {
+      waiting.get(kind)?.resolve(null);
+      waiting.set(kind, { ask, resolve });
+      pump();
+    });
+    let opened;
+    try {
+      opened = send({ type: "open", blob, bundle });
+    } catch {
+      // The worker compiles the bundle itself then.
+      opened = send({ type: "open", blob });
+    }
+    opened.then(() => {
+      search.catalog = question("catalog");
+      search.similar = question("similar");
+      search.ready = true;
+    }, fail);
+  };
+  if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 5000 });
+  else setTimeout(start, 1500);
+}
+
 // The app is on its way: a link followed meanwhile waits for it (enhance.js, `betulaStarted`).
 window.__betulaStarting = true;
 try {
   const [app, , programMap] = await Promise.all([
-    import("/pkg/folia_client.js" + BUILD).then(async (module) => { await module.default("/pkg/folia_client_bg.wasm" + BUILD); return module; }),
+    import("/pkg/folia_client.js" + BUILD).then(async (module) => {
+      bundle = await compileBundle();
+      await module.default({ module_or_path: bundle });
+      return module;
+    }),
     openDatabase(),
     loadProgramMap(),
   ]);
@@ -314,11 +434,13 @@ try {
   window.__betulaStarting = false;
   // Once the app runs there is nothing to say: it simply works.
   status("");
+  startSearch();
   startSemantic();
   // Where a link followed meanwhile leads, now within the app (once what it set off has run).
   setTimeout(() => window.betulaStarted?.(true), 0);
 } catch (error) {
   window.__betulaStarting = false;
+  catalogBlob = null;
   // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
   // to know why (`notice`). A link followed meanwhile loads its page.
   console.info("[catalog] browser app not started:", error);
