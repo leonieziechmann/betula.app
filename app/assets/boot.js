@@ -299,6 +299,8 @@ function startSemantic() {
   };
 }
 
+// The app is on its way: a link followed meanwhile waits for it (enhance.js, `betulaStarted`).
+window.__betulaStarting = true;
 try {
   const [app, , programMap] = await Promise.all([
     import("/pkg/folia_client.js" + BUILD).then(async (module) => { await module.default("/pkg/folia_client_bg.wasm" + BUILD); return module; }),
@@ -309,12 +311,17 @@ try {
   window.__betulaApp = true;
   document.documentElement.classList.add("app");
   app.start();
+  window.__betulaStarting = false;
   // Once the app runs there is nothing to say: it simply works.
   status("");
   startSemantic();
+  // Where a link followed meanwhile leads, now within the app (once what it set off has run).
+  setTimeout(() => window.betulaStarted?.(true), 0);
 } catch (error) {
+  window.__betulaStarting = false;
   // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
-  // to know why (`notice`).
+  // to know why (`notice`). A link followed meanwhile loads its page.
   console.info("[catalog] browser app not started:", error);
   status(error.notice || "");
+  window.betulaStarted?.(false);
 }

@@ -131,6 +131,54 @@
     if (appRuns() && e.target.matches("form[data-live-search]")) e.preventDefault();
   });
 
+  // ---- a link followed while the app is starting ----
+  // The app takes the page over a few seconds after it loads (boot.js: the catalog, the bundle,
+  // sql.js; three on a phone). A link followed meanwhile loaded the next page: on a phone a blank
+  // screen, and the whole start again, the catalog read anew, so a tab tapped right after opening
+  // the app froze it for seconds. Now the app is waited for: a tab is current at once, and the app
+  // goes where the link leads as soon as it runs (`betulaStarted`, called by boot.js). Where it
+  // does not start (an error, or nothing for 6 s), the page loads as before. A link with a key
+  // held, into another window, another language or out of the app is left alone, as is a place on
+  // this page.
+  const starting = () => window.__betulaStarting === true && !appRuns();
+  let waiting = null; // { href, tab, timer }: the link followed last while the app was starting
+  const follow = (started) => {
+    const link = waiting;
+    waiting = null;
+    if (!link) return;
+    clearTimeout(link.timer);
+    if (!started || !appRuns()) { location.assign(link.href); return; }
+    // The app's own tab (it knows where the visitor left its area), else the address.
+    const tab = link.tab && document.querySelector(`.bottomnav > .nav[data-area="${link.tab}"]`);
+    if (tab) { tab.click(); return; }
+    const a = Object.assign(document.createElement("a"), { href: link.href, hidden: true });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  };
+  window.betulaStarted = (started) => follow(started);
+  document.addEventListener("click", (e) => {
+    if (!starting() || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const link = e.target.closest?.("a[href]");
+    if (!link || link.target || link.hasAttribute("download") || link.dataset.action || link.dataset.language || /\bexternal\b/.test(link.rel)) return;
+    const url = new URL(link.href, location.href);
+    const path = url.pathname.slice(language().prefix.length) || "/";
+    if (url.origin !== location.origin || !url.pathname.startsWith(language().prefix) || /^\/(api|assets|pkg|access|cards|calendar|models)(\/|$)|\.[a-z0-9]{2,5}$/i.test(path)) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
+    e.preventDefault();
+    // A module's row on a phone is its page (as below, and as the app does).
+    const row = link.matches("a.row[data-id]") && phone() ? link : null;
+    const href = row ? language().prefix + "/catalog/module/" + encodeURIComponent(row.dataset.id) : url.href;
+    const tab = link.matches(".bottomnav > .nav, .rail .nav") ? link.dataset.area : null;
+    if (tab) {
+      for (const nav of document.querySelectorAll(".bottomnav > .nav, .rail .nav")) {
+        if (nav.dataset.area === tab) nav.setAttribute("aria-current", "page"); else nav.removeAttribute("aria-current");
+      }
+    }
+    clearTimeout(waiting?.timer);
+    waiting = { href, tab, timer: setTimeout(() => follow(appRuns()), 6000) };
+  }, true);
+
   // Classic mode on a phone: a module is its own page, never a preview (the app does this by
   // itself, and also knows which row to show when the visitor comes back).
   document.addEventListener("click", (e) => {
