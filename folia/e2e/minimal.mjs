@@ -26,6 +26,29 @@ async function visit(context, path, label) {
 }
 
 const context = await browser.newContext();
+
+// 0. The takeover moves nothing: the site's page and the app's render of it, pixel for pixel.
+{
+  const view = { viewport: { width: 1280, height: 900 } };
+  const site = await browser.newPage(view);
+  await site.route("**/pkg/**", (route) => route.abort());
+  await site.goto(BASE + "/catalog/module/11103");
+  await site.waitForLoadState("networkidle").catch(() => {});
+  const before = await site.screenshot();
+  await site.close();
+  const app = await browser.newPage(view);
+  await app.goto(BASE + "/catalog/module/11103");
+  await app.waitForFunction(() => window.__foliaReady !== undefined, null, { timeout: 120000 });
+  await app.waitForTimeout(300);
+  const after = await app.screenshot();
+  await app.close();
+  out["takeover: the same pixels"] = before.equals(after);
+  if (!before.equals(after)) {
+    const fs = await import("node:fs");
+    fs.writeFileSync("/tmp/takeover-site.png", before);
+    fs.writeFileSync("/tmp/takeover-app.png", after);
+  }
+}
 // 1. A first visit: the site's page paints, the snapshot downloads in the worker, the app takes over.
 const page = await visit(context, "/catalog", "first visit /catalog");
 const rows = await page.locator("a.row").count();

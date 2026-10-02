@@ -86,6 +86,17 @@ async fn next_snapshot(State(state): State<Shared>) -> String {
     etag(&state)
 }
 
+/// The boot script; with FOLIA_SPLIT=1 it loads the UI bundle split at its `#[lazy]` functions
+/// (`folia/site/split`, scripts/build-split.sh). Without `?v=`: the split's loader imports the
+/// main module by its plain name, and two names would be two instances of the bundle.
+fn boot() -> String {
+    if std::env::var("FOLIA_SPLIT").is_ok_and(|v| v == "1") {
+        BOOT.replace("\"/pkg/folia_app.js\" + BUILD", "\"/pkg-split/folia_app.js\"").replace("\"/pkg/folia_app_bg.wasm\" + BUILD", "\"/pkg-split/folia_app_bg.wasm\"")
+    } else {
+        BOOT.to_string()
+    }
+}
+
 fn text(kind: &'static str, body: String) -> Response {
     ([(header::CONTENT_TYPE, kind), (header::CACHE_CONTROL, "no-cache")], body).into_response()
 }
@@ -113,10 +124,11 @@ async fn main() -> Result<(), String> {
         .route("/api/db", get(database))
         .route("/spike/next-snapshot", get(next_snapshot))
         .route("/assets/folia.css", get(|| async { text("text/css", STYLES.to_string()) }))
-        .route("/assets/next-boot.js", get(|| async { text("text/javascript", BOOT.to_string()) }))
+        .route("/assets/next-boot.js", get(|| async { text("text/javascript", boot()) }))
         .route("/assets/next-worker.js", get(|| async { text("text/javascript", WORKER.to_string()) }))
         .route("/assets/icons.svg", get(|| async { text("image/svg+xml", folia_design::icons::sprite()) }))
         .nest_service("/pkg", ServeDir::new("site/pkg"))
+        .nest_service("/pkg-split", ServeDir::new("site/split"))
         .nest_service("/assets", ServeDir::new("../app/assets"))
         .with_state(state);
     let addr: SocketAddr = addr.parse().map_err(|e| format!("{addr}: {e}"))?;

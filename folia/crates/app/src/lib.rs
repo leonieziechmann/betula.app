@@ -4,6 +4,7 @@
 //! page over once the answer is there, so the first render has its data.
 
 use folia_catalog_ui::{ask_of, CatalogPage, ModulePage};
+use leptos::lazy;
 use folia_data::DataClient;
 use folia_shell::{Area, Shell};
 use leptos::prelude::*;
@@ -20,6 +21,17 @@ fn Layout() -> impl IntoView {
     view! { <Shell area=area status=status><Outlet/></Shell> }
 }
 
+/// The module page's code, loaded when a module is first opened (where the bundle is split).
+#[lazy]
+fn module_page() -> AnyView {
+    view! { <ModulePage/> }.into_any()
+}
+
+#[component]
+fn LazyModulePage() -> impl IntoView {
+    view! { <Suspense fallback=|| ()>{Suspend::new(async { module_page().await })}</Suspense> }
+}
+
 #[component]
 fn Bookmarks() -> impl IntoView {
     view! { <div class="work flowing"><section class="panel"><p class="state">"Die Merkliste: eine Route der App allein (Minimalversion)."</p></section></div> }
@@ -32,7 +44,7 @@ fn App() -> impl IntoView {
             <Routes fallback=|| view! { <p class="state">"Nicht gefunden"</p> }>
                 <ParentRoute path=path!("") view=Layout>
                     <Route path=path!("/catalog") view=CatalogPage/>
-                    <Route path=path!("/catalog/module/:id") view=ModulePage/>
+                    <Route path=path!("/catalog/module/:id") view=LazyModulePage/>
                     <Route path=path!("/bookmarks") view=Bookmarks/>
                 </ParentRoute>
             </Routes>

@@ -41,3 +41,10 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
+
+# Splitting the UI bundle per route (wasm-split-cli): the binary as rustc wrote it, with LTO,
+# relocations (RUSTFLAGS="-C link-arg=--emit-relocs") and its symbols.
+[profile.wasm-split]
+inherits = "wasm-release"
+debug = true
+strip = false
