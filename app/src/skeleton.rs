@@ -177,6 +177,30 @@ fn filter_groups(groups: &'static [usize]) -> impl IntoView {
         .collect_view()
 }
 
+/// Skeleton rows as far as a box reaches (the fills of the catalog's virtual list, and a row whose
+/// page is not loaded yet): one row of the list's columns (`.row` gives it its grid, so each column
+/// lies where the rows have it), as tall as the box, each column painting its bar again every row
+/// (app.css, `.sk-cols`). Eight elements however far it reaches, where a row of `rows` has sixteen.
+pub fn fill() -> impl IntoView {
+    view! {
+        <div class="row sk-cols">
+            <span class="t"></span>
+            <span class="resp"></span>
+            <span class="exam"></span>
+            <span class="lp"></span>
+            <span class="turnus"></span>
+            <span class="lang"></span>
+            <span class="events"></span>
+        </div>
+    }
+}
+
+/// Skeleton cards of the catalog's list on a phone, one element each: a card as the rows are
+/// (rounded, framed, its shadow), with its bars in its background (app.css, `.sk-card`).
+pub fn cards(count: usize) -> impl IntoView {
+    (0..count).map(|_| view! { <div class="sk-card"></div> }).collect_view()
+}
+
 /// Rows in the columns of the catalog's list (`.row` gives them its grid, its height and, on a
 /// phone, its card), so that each bar lies where its column will be.
 pub fn rows(count: usize) -> impl IntoView {

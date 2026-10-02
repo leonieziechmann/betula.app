@@ -1135,10 +1135,9 @@ const KEEP_PAGES: usize = 4;
 /// What a row is taken to be as tall as until it has been measured (the stylesheet's rows).
 const ROW_DESKTOP: f32 = 58.0;
 const ROW_PHONE: f32 = 88.0;
-/// Skeleton rows above and below the rendered ones (`skeleton::rows`): what a fast scroll shows
-/// in the frames before the rows of the new place are rendered, instead of an empty list.
-/// Farther out the fills repeat the bars of a row in their background (app.css, `.vfill-rest`).
-const FILL_ROWS: usize = 24;
+/// Skeleton cards a fill has on a phone next to the rendered rows (`skeleton::cards`), before its
+/// one row of the columns goes on (`skeleton::fill`).
+const FILL_CARDS: usize = 24;
 
 /// Where the visitor is in the list: the place of the row at the top of the screen, and the
 /// modules on screen from the top down (where their page is loaded), each with how far the list
@@ -1468,21 +1467,25 @@ fn VirtualRows(
                                 let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
                                 view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }.into_any()
                             }
-                            None => view! { <div class="vrow vfill-row" class:odd=index % 2 == 1 style=top aria-hidden="true">{skeleton::rows(1)}</div> }.into_any(),
+                            None => view! { <div class="vrow vfill-row" class:odd=index % 2 == 1 style=top aria-hidden="true">{skeleton::fill()}</div> }.into_any(),
                         }}
                     }
                 }/>
                 // What lies above and below the rendered rows, as skeleton rows: a fast scroll
                 // passes the rendered rows in the compositor's frames before the list follows it.
                 // After the rows in the order of the page, so that the first `.row` of the list is
-                // a module's; static, only their places change.
+                // a module's; static, only their places change. Each is one row of the columns
+                // painted again every row (`skeleton::fill`), and on a phone the cards nearest the
+                // rows first, an element each: 24 skeleton rows of sixteen elements a side, built
+                // anew with every list, made half the elements of the page, and a filter took half
+                // as long again (2026-10-02).
                 <div class="vfill above" class:odd=move || window.get().0 % 2 == 1 style=move || { layout.track(); format!("height:{:.0}px", offset_of(window.get().0)) } aria-hidden="true">
-                    <div class="vfill-rest"></div>
-                    {skeleton::rows(FILL_ROWS)}
+                    {skeleton::fill()}
+                    {move || phone.get().then(|| skeleton::cards(FILL_CARDS))}
                 </div>
                 <div class="vfill below" class:odd=move || window.get().1 % 2 == 1 style=move || { layout.track(); format!("top:{:.0}px", offset_of(window.get().1)) } aria-hidden="true">
-                    {skeleton::rows(FILL_ROWS)}
-                    <div class="vfill-rest"></div>
+                    {move || phone.get().then(|| skeleton::cards(FILL_CARDS))}
+                    {skeleton::fill()}
                 </div>
             </div>
             {(total > per_page).then(|| view! { <p class="list-end">{(t.catalog.list_end)(&format::count(total as u64, t.locale))}</p> })}
