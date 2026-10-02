@@ -233,15 +233,20 @@ async function loadProgramMap() {
 
 // The semantic search (semantic/README.md): the model (15 MB) runs in a Web Worker of its own,
 // with the index built from the modules' vectors in the local catalog (`v_module_vector`, Radix's).
-// It is loaded only once the app runs and the browser is idle, so it never holds up the page, the
-// catalog or the app; the model comes with a low priority and is kept by the service worker apart
-// from the shell of a build, so it is downloaded once per model, not once per deploy.
+// It is loaded when it is first wanted: as a search field takes the focus (in the browser's idle
+// time, so that it is there by the time the words are), or when a search asks it. Loaded at every
+// start once the browser was idle (until 2026-10-02), it took a phone's main thread at a moment
+// nobody could see coming, and the model's 15 MB on every start, from those who never search too.
+// With a mouse it is still loaded once the browser is idle. The model comes with a low priority
+// and is kept by the service worker apart from the shell of a build, so it is downloaded once per
+// model, not once per deploy.
 //
 // `window.betulaSemantic`, for the app:
 //   ready             a promise: {rows, build, ms} once the search can answer; null when this
 //                     browser has none (no model on the server, no vectors in the catalog yet,
 //                     vectors of another passage model than the query model was made for, data
-//                     saving, a device with little memory, or loading failed)
+//                     saving, a device with little memory, or loading failed). Asking for it
+//                     starts the loading.
 //   search(query, k)  a promise: {hits: [{id, score}], ms}, best first; null when a newer query
 //                     took its place, or when there is no semantic search
 function startSemantic() {
@@ -252,16 +257,20 @@ function startSemantic() {
   const connection = navigator.connection;
   if (!SEMANTIC_MODEL || !("Worker" in window) || (connection && connection.saveData) || (navigator.deviceMemory && navigator.deviceMemory < 2)) return none();
   let semantic = null;
-  const ready = new Promise((resolve) => {
-    const start = () => resolve(load());
-    if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 5000 });
-    else setTimeout(start, 1500);
-  }).catch((error) => {
+  let ready = null;
+  const begin = () => (ready ??= load().catch((error) => {
     console.info("[semantic] not loaded:", error);
     if (semantic) semantic.terminate();
     semantic = null;
     return null;
-  });
+  }));
+  const soon = () => {
+    if (ready) return;
+    if ("requestIdleCallback" in window) requestIdleCallback(begin, { timeout: 3000 });
+    else setTimeout(begin, 500);
+  };
+  document.addEventListener("focusin", (e) => { if (e.target.matches?.('input[type="search"], form[data-live-search] input')) soon(); });
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) soon();
   async function load() {
     // A query is only comparable with passages of the model it was made for. The local copy of the
     // catalog may be older than the server's model (it is replaced at the next start), or Radix may
@@ -280,13 +289,14 @@ function startSemantic() {
     return semantic.ready;
   }
   window.betulaSemantic = {
-    ready,
+    get ready() {
+      return begin();
+    },
     async search(query, k) {
-      if (!(await ready) || !semantic) return null;
+      if (!(await begin()) || !semantic) return null;
       return semantic.search(query, k);
     },
   };
-  return ready;
 }
 
 try {
