@@ -347,6 +347,11 @@ fn TopBar() -> impl IntoView {
         if let Some(handle) = pending.get_value() {
             handle.clear();
         }
+        // The list of a text typed before is not built any more once it is worked out: this key's
+        // takes its place (`Pending::typed`).
+        if let Some(going) = going {
+            going.typed();
+        }
         let run = move || {
             // On top of where the visitor is headed: a filter clicked a moment ago stays.
             let (path, search) = Pending::shown_of(going, location.pathname, location.search);

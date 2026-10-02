@@ -874,6 +874,7 @@ dependencies = [
  "folia-catalog",
  "js-sys",
  "leptos",
+ "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
