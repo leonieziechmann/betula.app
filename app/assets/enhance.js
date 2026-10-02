@@ -949,4 +949,12 @@
       search?.select();
     }
   });
+
+  // A week of „Termine" off screen is not laid out (`content-visibility: auto`, app.css): it paints
+  // nothing but its own background. While it is skipped it says so (`data-skipped`), and that
+  // background is a skeleton of its days: a fast scroll that comes to it before the browser has
+  // laid it out sees the week being filled in, not an empty panel.
+  document.addEventListener("contentvisibilityautostatechange", (e) => {
+    if (e.target.classList?.contains("agenda-week")) e.target.toggleAttribute("data-skipped", e.skipped);
+  }, true);
 })();
