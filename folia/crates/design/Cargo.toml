@@ -1,0 +1,15 @@
+[package]
+name = "folia-design"
+version = "0.1.0"
+edition = "2021"
+description = "Betula's design system: tokens, the page's frame, components and the icon set. Iso: renders on the server (feature ssr) and in the browser (csr)"
+
+[features]
+ssr = ["leptos/ssr"]
+csr = ["leptos/csr"]
+
+[dependencies]
+leptos.workspace = true
+
+[lints]
+workspace = true

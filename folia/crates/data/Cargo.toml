@@ -1,0 +1,18 @@
+[package]
+name = "folia-data"
+version = "0.1.0"
+edition = "2021"
+description = "The UI's way to the data: DataClient talks to the data worker, keeps its answers per snapshot, and hands pages their data asynchronously"
+
+[dependencies]
+leptos = { workspace = true, features = ["csr"] }
+folia-pages = { path = "../pages" }
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
+web-sys = { workspace = true, features = ["Worker", "MessageEvent", "Window", "Performance"] }
+futures-channel = "0.3"
+send_wrapper = "0.6"
+
+[lints]
+workspace = true

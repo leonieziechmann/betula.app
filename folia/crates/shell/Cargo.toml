@@ -1,0 +1,16 @@
+[package]
+name = "folia-shell"
+version = "0.1.0"
+edition = "2021"
+description = "What every page has: the icon rail, the header, the footer and the background. Mounted once by the app, rendered statically by the site"
+
+[features]
+ssr = ["leptos/ssr", "folia-design/ssr"]
+csr = ["leptos/csr", "folia-design/csr"]
+
+[dependencies]
+leptos.workspace = true
+folia-design = { path = "../design" }
+
+[lints]
+workspace = true

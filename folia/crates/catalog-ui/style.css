@@ -1,0 +1,7 @@
+/* folia-catalog-ui (layer features, prefix cat-) */
+@layer features {
+  .cat-pager { display: flex; justify-content: space-between; padding: 12px 16px; }
+  .cat-note { padding: 8px 0; }
+  .cat-text { line-height: 1.55; padding: 0 16px 16px; }
+  .cat-module .hero { padding: 16px; }
+}

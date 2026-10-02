@@ -1,0 +1,43 @@
+# The minimal version of Folia's restructuring (docs/folia-refactor.md §11.1): a thin slice
+# through every new part, beside today's crates, which it uses as they are (`catalog/`). Its own
+# workspace, so that its lock file and features never touch the build that ships.
+[workspace]
+members = ["crates/*"]
+# The browser's crates (folia-app, folia-worker) are built one at a time by scripts/build.sh:
+# built together with the server, leptos would unify `csr` with `ssr`.
+default-members = ["crates/pages", "crates/design", "crates/shell", "crates/catalog-ui", "crates/site", "crates/next-server"]
+resolver = "2"
+
+[workspace.dependencies]
+leptos = "0.8.20"
+leptos_router = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+postcard = { version = "1.1", default-features = false, features = ["use-std"] }
+wasm-bindgen = "=0.2.128"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+folia-catalog = { path = "../catalog" }
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+
+[profile.dev]
+debug = "line-tables-only"
+[profile.dev.package."*"]
+debug = false
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+debug = false
+
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"

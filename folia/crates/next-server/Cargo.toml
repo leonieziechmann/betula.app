@@ -1,0 +1,28 @@
+[package]
+name = "folia-next-server"
+version = "0.1.0"
+edition = "2021"
+description = "The minimal version's server: the site, the app document, the snapshot for the data worker, and the files. Reads a snapshot file instead of asking Radix"
+build = "build.rs"
+
+[[bin]]
+name = "folia-next"
+path = "src/main.rs"
+
+[dependencies]
+folia-catalog = { workspace = true, features = ["native"] }
+folia-pages = { path = "../pages" }
+folia-site = { path = "../site" }
+folia-design = { path = "../design", features = ["ssr"] }
+folia-shell = { path = "../shell", features = ["ssr"] }
+folia-catalog-ui = { path = "../catalog-ui", features = ["ssr"] }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "sync"] }
+tower-http = { version = "0.6", features = ["fs"] }
+
+[dev-dependencies]
+toml = "0.8"
+serde_json = "1"
+
+[lints]
+workspace = true

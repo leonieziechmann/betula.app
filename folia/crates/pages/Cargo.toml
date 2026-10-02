@@ -1,0 +1,16 @@
+[package]
+name = "folia-pages"
+version = "0.1.0"
+edition = "2021"
+description = "What each page asks the data worker for, and what it gets: the messages between the UI and the worker, and the loaders that answer them"
+
+[dependencies]
+folia-catalog.workspace = true
+serde.workspace = true
+postcard.workspace = true
+
+[dev-dependencies]
+folia-catalog = { workspace = true, features = ["native"] }
+
+[lints]
+workspace = true

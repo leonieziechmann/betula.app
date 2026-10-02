@@ -1,0 +1,6 @@
+/* folia-shell (layer shell, prefix sh-). The minimal version's shell scrolls as one: the page and
+   the footer are inside `main`, which today belongs to each page's own scroll area. */
+@layer shell {
+  .sh-content { overflow: auto; }
+  .sh-ground { margin-top: 24px; }
+}

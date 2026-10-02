@@ -59,3 +59,6 @@ node_modules/
 
 # The models of the semantic search (deploy/models.lock, deploy/ship-models.sh)
 /models/
+
+# The minimal version of the restructuring: its bundles
+/folia/site/

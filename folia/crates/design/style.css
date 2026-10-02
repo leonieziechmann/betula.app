@@ -1,0 +1,7 @@
+/* folia-design (layer design, prefix ds-) */
+@layer design {
+  .ds-frame { display: grid; grid-template-columns: var(--w-filters, 280px) 1fr; gap: 8px; }
+  .ds-skeleton { display: grid; gap: 6px; padding: 12px; }
+  .ds-skeleton-row { display: grid; grid-template-columns: 1fr 120px; gap: 12px; height: 46px; align-items: center; }
+  .ds-skeleton-row span { display: block; height: 12px; border-radius: 6px; background: color-mix(in oklch, currentColor 12%, transparent); }
+}

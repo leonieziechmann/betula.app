@@ -1,0 +1,22 @@
+[package]
+name = "folia-catalog-ui"
+version = "0.1.0"
+edition = "2021"
+description = "The catalog: its list and the module page. The views are iso (the site renders them), the pages that load their data are the app's (feature web). Named -ui only while today's folia-catalog exists"
+
+[features]
+ssr = ["leptos/ssr", "folia-design/ssr"]
+csr = ["leptos/csr", "folia-design/csr"]
+# The app's pages, which read their data through DataClient.
+web = ["csr", "dep:folia-data", "dep:leptos_router"]
+
+[dependencies]
+leptos.workspace = true
+leptos_router = { workspace = true, optional = true }
+folia-catalog.workspace = true
+folia-pages = { path = "../pages" }
+folia-design = { path = "../design" }
+folia-data = { path = "../data", optional = true }
+
+[lints]
+workspace = true

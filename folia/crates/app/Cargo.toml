@@ -1,0 +1,23 @@
+[package]
+name = "folia-app"
+version = "0.1.0"
+edition = "2021"
+description = "The browser app of the minimal version: the route table, the services, and the UI bundle's entry"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+leptos = { workspace = true, features = ["csr"] }
+leptos_router.workspace = true
+folia-shell = { path = "../shell", features = ["csr"] }
+folia-data = { path = "../data" }
+folia-catalog-ui = { path = "../catalog-ui", features = ["web"] }
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+js-sys.workspace = true
+web-sys = { workspace = true, features = ["Worker", "Window", "Document", "HtmlElement", "Location", "Performance"] }
+console_error_panic_hook = "0.1"
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "folia-worker"
+version = "0.1.0"
+edition = "2021"
+description = "The data worker: holds the snapshot and answers every page's question off the main thread (docs/folia-refactor.md §6.2). Step 1: sql.js inside the worker"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+folia-catalog.workspace = true
+folia-pages = { path = "../pages" }
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "folia-site"
+version = "0.1.0"
+edition = "2021"
+description = "The public site: the pages the server renders for search engines, link previews and a first paint, from the same views as the app"
+
+[dependencies]
+leptos = { workspace = true, features = ["ssr"] }
+folia-catalog.workspace = true
+folia-pages = { path = "../pages" }
+folia-shell = { path = "../shell", features = ["ssr"] }
+folia-catalog-ui = { path = "../catalog-ui", features = ["ssr"] }
+
+[dev-dependencies]
+folia-catalog = { workspace = true, features = ["native"] }
+
+[lints]
+workspace = true

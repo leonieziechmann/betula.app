@@ -289,7 +289,7 @@ pub struct CatalogQuery {
     /// Derived from `text` by the page (`pages::catalog`, `search::resolve`), never part of a
     /// URL: how the text was searched where the text as typed found nothing (its typos corrected,
     /// or the modules with the most of its words). `None` searches the text as typed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub text_resolution: Option<Resolution>,
     pub program: Option<ProgramScope>,
     /// At least one of these teaches or is responsible for the module (owner decision

@@ -1,0 +1,22 @@
+# The layers of docs/folia-refactor.md §7.2, as the dependency test reads them
+# (crates/next-server/tests/layers.rs). A crate may use crates of lower layers, and of its own
+# layer those listed in `within`. Features never use features.
+order = ["base", "domain", "ui-base", "widgets", "features", "composition"]
+
+[crates]
+folia-catalog = "domain"          # today's crate, used as it is by the minimal version
+folia-pack = "base"
+folia-pages = "domain"
+folia-design = "ui-base"
+folia-data = "ui-base"
+folia-shell = "ui-base"
+folia-catalog-ui = "features"
+folia-app = "composition"
+folia-worker = "composition"
+folia-site = "composition"
+folia-next-server = "composition"
+
+[within]
+folia-pages = ["folia-catalog"]
+folia-shell = ["folia-design"]
+folia-next-server = ["folia-site"]
