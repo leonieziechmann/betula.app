@@ -33,6 +33,10 @@ Owner, 2026-10-02:
 | 6 | Pace | first a minimal version to find the problems while development goes on; once the plan is final, Folia's development pauses until the restructuring is done |
 | — | The repository | „komplett unordentlich": it is ordered and structured as part of this (§7.9) |
 | — | Names | every crate of Folia is `folia-<crate>` |
+| 7 | A new snapshot during a visit | at once („sofort rein mit den neuen daten", §6.2) |
+| 8 | Framework | Leptos stays |
+| 9 | Granularity | not more than 34 crates, rather fewer where they merge sensibly: 26 (§7.3) |
+| 10 | The repository's new order | as proposed (§7.9) |
 
 In one sentence: Folia becomes **a small public site** (a few server-rendered pages for search
 engines, link previews and visitors without JavaScript) **plus a browser app** whose main thread
@@ -48,7 +52,7 @@ The proposal in five lines:
    a page brings its content, sidebars included, built from the design system's frame.
 3. **Workers** (§6): a data worker holds the snapshot and runs every query, loader and
    computation; the semantic search keeps its worker; the service worker stays a cache.
-4. **Crates** (§7): 34 crates in layers; features never use features; a test checks it.
+4. **Crates** (§7): 26 crates in layers; features never use features; a test checks it.
 5. **Steps** (§11): a minimal version first, beside the running development; then, with Folia's
    development paused, the repository put in order and the phases, each merged into `develop`
    with the site working.
@@ -312,8 +316,18 @@ that exists.
 - **The snapshot moves out of `boot.js` into the worker:** `/api/status`, the download (streamed,
   progress as events to the UI), the schema check (`user_version`), keeping it, opening it, the
   update in the background; one download for all tabs (Web Locks), the other tabs told
-  (BroadcastChannel). Possible on top: switching to a new snapshot between two navigations, with a
-  note, instead of at the next start (§12, question 1).
+  (BroadcastChannel).
+- **New data at once** (owner, 2026-10-02: „sofort rein mit den neuen daten"; today a new snapshot
+  is only used from the next start). The worker checks `/api/status` when it starts, when the tab
+  comes back into view and every few minutes while it is open; a new snapshot is downloaded in the
+  background, checked, and opened beside the old one. Then the worker switches: requests from then
+  on are answered from the new one, the kept answers and `DataClient`'s cache are dropped, and the
+  page on screen asks for its data again and shows it in place — no skeleton, no lost scroll
+  position, the visitor's marks and plan untouched (they live in the browser and name modules by
+  id; a module the new catalog no longer has is shown as such, R12). Every tab switches, told by the
+  one that downloaded. Not at once: a snapshot of a newer schema than the build reads — it needs the
+  new build, so it waits for the next page load, as today; and a copy of an older schema is never
+  opened.
 - **What it takes off the main thread** — the costly places, as the code has them:
   - the finder („Passt in meinen Stundenplan"): `fit::candidates` builds a whole timetable for
     every module with dates in the semester (some 1,200 in a winter semester, from about a
@@ -346,7 +360,7 @@ that exists.
 
 ### 6.3 The protocol
 
-`folia-protocol` holds the messages: a request type per question with its answer type, serde, in a
+`folia-pages` holds the messages (its module `ask`): a request type per question with its answer type, serde, in a
 binary format (postcard; already in `Cargo.lock`) in transferable buffers.
 
 ```rust
@@ -452,20 +466,19 @@ app loaded after it.
 ### 7.2 Layers
 
 ```
-composition   folia-app · folia-client             folia-worker           folia-site · folia-server
-features      home · catalog · module · programs · bookmarks · planner · legal
+composition   folia-app (the UI bundle)            folia-worker           folia-site · folia-server
+features      home · catalog · programs · bookmarks · planner
 widgets       folia-widgets
 UI base       folia-shell · folia-stores · folia-data
               folia-design
-data          folia-protocol                       folia-sqlite
-domain        folia-pages (the loaders, what each page shows)
-              folia-query · folia-timetable · folia-plans · folia-map · folia-semantic
+domain        folia-pages (the loaders, what each page shows, the messages to the worker)
+              folia-query · folia-timetable · folia-plans · folia-semantic
               folia-routes
               folia-search
 base          folia-calendar
-              folia-model
-              folia-locale · folia-text · folia-pack
-beside        folia-cards (drawing, server) · folia-assets (build step)
+              folia-model (with the Markdown reader; rusqlite behind its feature `sqlite`)
+              folia-locale · folia-pack
+beside        folia-cards (drawing, server)
 ```
 
 Inside a layer, a crate may use the crates printed below it in that layer.
@@ -478,8 +491,7 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 |---|---|---|
 | `folia-pack` | exists | link codes |
 | `folia-locale` | `catalog::i18n` (`Locale`, `common`), the machinery of `app::i18n`, the number formats of `app::format` | languages and their address prefixes, dates, numbers, semester names, the pattern of a text group |
-| `folia-text` | `catalog::text` | the module texts' Markdown reader |
-| `folia-model` | `catalog::{db, rows, rows_detail, labels}`, the id checks of `catalog::url` | the contract: `Database`, `Value`, `DbError`, `SCHEMA_VERSION`, the rows, the codes with their labels, what an id is |
+| `folia-model` | `catalog::{db, rows, rows_detail, labels, text}`, the id checks of `catalog::url`; behind the feature `sqlite` `catalog::native` | the contract: `Database`, `Value`, `DbError`, `SCHEMA_VERSION`, the rows, the codes with their labels, what an id is, the module texts' Markdown reader; with `sqlite` rusqlite's `Database` (the server, the tests, later the worker) |
 | `folia-calendar` | `catalog::timetable::{day, semester, kind, rowkey, select, cancel, share, subscription}` | days, holidays, semesters, the kinds of events, row keys, a plan's selection, the codes of a shared plan and of a calendar subscription |
 
 **Domain** — runs where the data is (the server, the data worker); only `folia-search` and
@@ -492,16 +504,13 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 | `folia-query` | `catalog::queries`, the SQL half of `catalog::filter` | the contract's statements (R11) and the filter turned into SQL, with what the loader adds to it (the resolution of the search, the derived areas, the visitor's ids) |
 | `folia-timetable` | the rest of `catalog::timetable`, `catalog::exam_reading` | a semester's Termine and their dates, clashes, exams, the views of a week, what fits, the .ics file — pure, no database |
 | `folia-plans` | `catalog::{studyplan, plan, variants}`, the area logic of `catalog::pages` | the rows of a study plan and their areas, the study directions, the Stundenplan's stored documents and the import of a Regelstudienplan |
-| `folia-map` | `catalog::graph` | the layout of the program map (the server lays it out once per snapshot) |
-| `folia-pages` | the loaders and data types of `catalog::pages` | one loader per page and what each page shows (`CatalogData`, `ModuleData` …): the façade the worker and the site call |
+| `folia-pages` | the loaders and data types of `catalog::pages`, `catalog::graph` | one loader per page and what each page shows (`CatalogData`, `ModuleData` …): the façade the worker and the site call; the messages between the UI and the worker (§6.3: a request per loader, its answer the loader's data); the layout of the program map, which the server makes once per snapshot |
 | `folia-semantic` | exists | the semantic search |
 
 **Data:**
 
 | Crate | From today | Holds |
 |---|---|---|
-| `folia-sqlite` | `catalog::native` | rusqlite's `Database`: the server, the tests, later the worker |
-| `folia-protocol` | new | the messages between the UI and the data worker (§6.3) |
 | `folia-worker` | new; the snapshot part of `boot.js`, the answers kept in `client` | the data worker: snapshot, loaders, computations, the semantic worker's port |
 | `folia-data` | `app::data`, the bridge of `client` | `DataClient`, its cache, a fake for tests |
 
@@ -518,27 +527,28 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 
 | Crate | From today | Kind |
 |---|---|---|
-| `folia-home` | `pages::home` | iso |
-| `folia-catalog` | `pages::catalog` (the name is free once today's `folia-catalog` is split up in phase 1) | the list iso, the rest web |
-| `folia-module` | `pages::module` | iso |
+| `folia-home` | `pages::{home, legal}` | iso: the start page, Impressum and Datenschutz |
+| `folia-catalog` | `pages::{catalog, module}` (the name is free once today's `folia-catalog` is split up) | the list and the module page iso, the rest web |
 | `folia-programs` | `pages::{programs, program}` | the overview and the plan iso (site pages), „Mein Plan" and the rest web |
 | `folia-bookmarks` | `pages::bookmarks` | web |
 | `folia-planner` | `pages::studyplan::*` (9,800 lines, the largest feature) | web |
-| `folia-legal` | `pages::legal` | iso |
 
 **Composition and server:**
 
 | Crate | From today | Holds |
 |---|---|---|
-| `folia-app` | `App`, the routes | the route table and the services; thin |
-| `folia-client` | exists | the UI bundle's entry |
+| `folia-app` | `App`, the routes, `client` | the route table and the services, and the UI bundle's entry (a `cdylib`); thin |
 | `folia-site` | new | the site's pages, composed of iso crates; its own short route list |
 | `folia-cards` | `server::{cards, launch, birch, logo}` | the drawn pictures (resvg): cards, launch screens |
-| `folia-assets` | `server/build` | one stylesheet from the crates' styles, the sprite, minifying (a build dependency of the server, as today) |
-| `folia-server` | exists | HTTP, snapshot client, cache, `/api/*`, calendar feeds, gate |
+| `folia-server` | exists | HTTP, snapshot client, cache, `/api/*`, calendar feeds, gate; its build script collects the crates' styles and icons into one stylesheet and one sprite and minifies them (today's `server/build`) |
 
-That is 34 crates, and one of test support (§7.4). Fewer and larger is possible (§12, question 3);
-the layers and their rule matter more than the number.
+That is 26 crates, and one of test support (§7.4). The owner asked for not more than the 34 of the
+first draft, rather fewer (2026-10-02): merged where two had no reason to stand apart — the Markdown
+reader and rusqlite's `Database` into the contract (`folia-model`), the messages and the map's
+layout into `folia-pages`, the module page into the catalog (it is the catalog's route), the legal
+pages into the start page's crate, the UI bundle's entry into `folia-app`, the stylesheet's build
+into the server's build script. What stays apart does so for a reason: a different place it runs
+(server, worker, UI), a different layer, or heavy dependencies (`folia-cards` and its resvg).
 
 **What the server must stop reaching into.** Today it uses page internals of the app:
 `app::pages::catalog::PickerChoices` and `app::pages::programs::ProgramsReady` (made per
@@ -596,7 +606,7 @@ repeats `timetable::subscription::CALENDAR_PREFIX` and goes.
 
 - **Styles:** every UI crate has its stylesheet, its classes under the crate's prefix (`ds-` the
   design system, `sh-` the shell, `cat-` the catalog …) and its cascade layer per layer of §7.2
-  (`@layer tokens, base, design, shell, widgets, features`). `folia-assets` (today's
+  (`@layer tokens, base, design, shell, widgets, features`). the server's build script (today's
   `server/build`) collects them in the order of the layers into the one stylesheet a page loads,
   minified and kept as today. A test fails on a class outside its crate's prefix and on a
   custom property no token defines. `app.css`'s 3,270 lines go to their owners.
@@ -763,12 +773,12 @@ nowhere; what it teaches goes into this document). It holds just enough to meet 
 
 | Part | What it does | The question it answers |
 |---|---|---|
-| crates | `folia-model`, `folia-routes`, `folia-query` (a few loaders), `folia-protocol`, `folia-worker`, `folia-data`, `folia-design` (the frame, a few components), `folia-shell`, one feature, `folia-site`, under `folia/crates/` with their `folia-<crate>` names | do the layers hold, what does an edit cost to build, how large are the two bundles |
+| crates | `folia-model`, `folia-routes`, `folia-query` and `folia-pages` (a few loaders, their messages), `folia-worker`, `folia-data`, `folia-design` (the frame, a few components), `folia-shell`, one feature, `folia-site`, under `folia/crates/` with their `folia-<crate>` names | do the layers hold, what does an edit cost to build, how large are the two bundles |
 | data worker | opens the snapshot and answers the catalog's list and a module's page; sql.js in the worker first, then rusqlite on `sqlite-wasm-rs` with the Origin Private File System | the time of a request with its messages, on a phone; memory; two tabs; the Nix build |
 | shell | rail, header, footer and background mounted once; the catalog's list and the module page inside it, through the design system's frame | no remount on navigation, disposal of what a page made, the skeleton after the threshold |
 | loading in stages | the app document and a site page painting before any WASM, the shell's bundle, the worker, the feature's bundle loaded on demand | does code splitting work without `cargo-leptos`; the times of §6.7 |
 | site | the catalog's list and a module page rendered by `folia-site` from the same view crates | is the design the app's to the pixel; does the takeover move nothing |
-| styles | the frame's and one feature's styles collected by `folia-assets` | the per-crate stylesheet and its test |
+| styles | the frame's and one feature's styles collected by the server's build script | the per-crate stylesheet and its test |
 
 Done when each question has a measured answer in §6–§7, and the plan is changed where an answer
 says so.
@@ -785,7 +795,7 @@ and canary gets it when the owner asks for a release. Sizes are relative.
 | 3 | **Site and app.** `folia-site` renders the site (§4.1), minimal; the Merkliste and the Stundenplan get the app document; the second forms of every control go; sitemap, robots.txt, warm-up and the checks follow. | M |
 | 4 | **Design system and shell.** `folia-design` with the frame, `folia-shell` with rail, header, footer and background mounted once; the per-crate styles and texts. | L |
 | 5 | **The asynchronous seam.** `DataClient` with its async API, first on the main thread's sql.js; the pages move to resources one by one; `pending.rs` shrinks to what the shell keeps. | L |
-| 6 | **The data worker and the stages of loading.** `folia-protocol`, `folia-worker`; `DataClient` switched to it; the snapshot out of `boot.js`; the semantic search behind it; the bundles split as the minimal version found. | L |
+| 6 | **The data worker and the stages of loading.** The messages in `folia-pages`, `folia-worker`; `DataClient` switched to it; the snapshot out of `boot.js`; the semantic search behind it; the bundles split as the minimal version found. | L |
 | 7 | **Features as crates;** `folia-app` becomes the composition root; the dependency test (R24) on. | M |
 | 8 | **Rules and documents:** `docs/folia/frontend.md` rewritten for the new structure, the checks consolidated, measured again (`snappy.mjs`, `folia assets`, `e2e/load`). | S |
 
@@ -812,12 +822,5 @@ What counts as done:
 
 ## 12. Still open
 
-Answered on 2026-10-02 (§0.1): the routes without JavaScript, the program pages, the site's
-functions, a first visit, what the shell is, the pace, the names.
-
-1. **A new snapshot during a visit:** switch to it between two navigations, with a note, or at the
-   next start, as today?
-2. **Leptos** stays (assumed here)?
-3. **Granularity:** 34 crates as in §7.3, or fewer and larger?
-4. **The repository** (§7.9): Radix into `radix/` with its Go module path changed, and the
-   documents split into `docs/radix`, `docs/folia`, `docs/history` — as proposed?
+Nothing the owner has to decide before the minimal version: every question of the first draft is
+answered (§0.1). What the minimal version measures (§11.1) may raise new ones; they come here.
