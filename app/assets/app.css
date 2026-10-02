@@ -1381,6 +1381,16 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
 .home { container: home / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; }
 @media (min-width: 901px) { .home-page { overflow-x: hidden; } }
 .home > .panel, .home-lists { scroll-margin-top: 14px; }
+/* A long page draws only what is near the screen: a panel far off it is neither styled nor laid
+   out until it comes close, and then keeps the height it was drawn with (`auto`). The start page
+   is 17 screens of a phone, the program overview 10; built whole, each cost a phone the better
+   part of a second at every visit, and the start page at every start of the app, which opens on
+   it. A panel cuts its content at its edge anyway (`.panel`), so the paint containment this
+   brings changes nothing. Only its height is a guess: a width of its own (`contain-intrinsic-size`
+   with one value sets both) widened the page past a phone's screen, which then showed it smaller. */
+.home > .panel, .faculty.panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
+/* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
+.jumping .home > .panel, .jumping .faculty.panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
 .block-head h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
 .block-head p { grid-column: 1 / -1; color: var(--text-2); max-width: 86ch; text-wrap: pretty; }
@@ -3058,6 +3068,12 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
      tap beside it, on the page it dims. */
   .filters .panel-head, .sidebar.sheet .panel-head { touch-action: none; cursor: grab; }
   .filters.dragging, .sidebar.sheet.dragging { transition: none; }
+  /* Closed, a sheet's content is neither styled nor laid out (the catalog's filters are a third
+     of its page): it is drawn as the sheet opens, and stays until it has slid down again. Meanwhile
+     it keeps the height it had (at first its highest): with none, the sheet that waits below the
+     screen (105 % of its height) stood on its bottom edge. */
+  .filters:not(.open, :target), .sidebar.sheet:not(.open, :target) { content-visibility: hidden; contain-intrinsic-block-size: auto 84vh; }
+  .filters:not(.dragging), .sidebar.sheet:not(.dragging) { transition: transform .3s var(--ease), content-visibility .3s allow-discrete; }
   html.sheet-open::after { content: ""; position: fixed; inset: 0; z-index: 39; background: rgba(15, 23, 42, .34); }
   /* Open, a sheet holds the page behind it still: the page does not scroll (a touch on it moves
      nothing, enhance.js), and the sheet's list keeps its scroll to itself at either end. */

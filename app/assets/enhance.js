@@ -579,6 +579,12 @@
         const section = document.getElementById(target.getAttribute("href").slice(1));
         if (!section) break;
         e.preventDefault();
+        // The panels drawn only near the screen (app.css, `content-visibility`) are drawn for the
+        // way there: with only their guessed heights the glide ended off the section.
+        root.classList.add("jumping");
+        const done = () => root.classList.remove("jumping");
+        addEventListener("scrollend", done, { once: true });
+        setTimeout(done, 2000);
         section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
         break;
       }
