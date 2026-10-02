@@ -288,8 +288,14 @@ table { border-collapse: collapse; width: 100%; }
 .nav { width: 40px; display: grid; justify-items: center; color: var(--text-3); font-size: 0; text-decoration: none; }
 .nav .ind { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; transition: background .15s, color .15s; }
 .nav .icon { width: 20px; height: 20px; }
-.nav:hover { text-decoration: none; color: var(--text); }
-.nav:hover .ind { background: var(--line); }
+.nav:hover { text-decoration: none; }
+/* Where a pointer hovers. A finger leaves its hover on the tab it tapped until it taps something
+   else (Safari), and after a swipe along the bottom bar the tab tapped before stayed lit beside the
+   current one. */
+@media (hover: hover) {
+  .nav:hover { color: var(--text); }
+  .nav:hover .ind { background: var(--line); }
+}
 .nav[aria-current="page"] { color: var(--text); }
 .nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); }
 .rail nav { display: grid; gap: 2px; }
