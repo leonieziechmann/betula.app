@@ -68,14 +68,26 @@ What shapes the architecture today, and what it costs:
    loader cannot be split (`docs/frontend.md`, „A click answers first").
 3. **Every page builds its frame.** The chrome lives in `App` (rail, top bar, bottom bar, crown,
    wood), but the sidebar, its handle, the page, the panel beside it and the ground at its end are
-   `ui::Frame`, rendered by each page (the catalog writes the same markup itself). Every navigation
-   between pages tears the sidebar down and builds it again; „nothing jumps" is a rule (R17), kept
-   by matching CSS classes, not by structure.
+   `ui::Frame`, rendered by each page — or written out by hand: the catalog and the Merkliste carry
+   copies of its markup, the start page one of `ui::Plain`, `skeleton.rs` replicas of all of them;
+   the resize handle's markup stands six times, and the scroll area has three ids. A change of route
+   remounts the whole page with its sidebar (also `/programs/<slug>` → `/programs/<slug>/areas`,
+   which are two routes), the module page builds a new frame for every module, and the app loses
+   the sidebar's scroll position on the way. „Nothing jumps" is a rule (R17), kept by matching
+   classes and by widths kept on `<html>`, not by structure. And a new page means seven edits: the
+   routes in `lib.rs`, `pending::Shape`, `pending::change`, `skeleton::frame`, `tabs::Area` with its
+   memory, the navigation's items and the top bar's `match`.
 4. **Two large crates hold everything.** `folia-app` has all pages, components and texts in one
    compile unit; `folia-catalog` mixes the data contract with the search, the Stundenplan's whole
    timetable logic, the URL scheme, the program map's layout and i18n.
-5. **Shared files instead of owned ones.** One stylesheet, one folder of texts for all pages, one
-   sprite, one `enhance.js`: a change of one feature edits files every feature shares.
+5. **Shared files instead of owned ones, and patterns written many times.** One stylesheet, one
+   folder of texts for all pages (a new group is three edits in `i18n/mod.rs`), one sprite, one
+   `enhance.js` with a contract of `data-action` attributes and ids every page has to keep: a change
+   of one feature edits files every feature shares. Meanwhile what should exist once exists several
+   times: four stores in `localStorage` with the same mechanics, five closures for „Rückgängig",
+   segmented controls and switches written by hand in nine places, 28 empty states written inline
+   beside `ui::EmptyState`, the preview of a module loaded three times and drawn twice alike,
+   `Ground` rendered (and its query asked) twice on every page.
 6. **Memory and start.** The catalog (44 MB, 4.4 MB in brotli) is kept in IndexedDB and, once
    opened, held whole in sql.js's memory on the main thread. Only the semantic search already runs
    in a Web Worker (`semantic/js`), with its index built on the main thread from rows of sql.js.
@@ -119,8 +131,8 @@ Radix ──/snapshot/catalog.db──▶ folia-server
                                  │    route (title, description, card), the shell's static frame
                                  └─ /api/db  /api/status  cards  calendar feeds  files  sitemap
                                                   │
-┌─ a browser tab ─────────────────────────────────▼──────────────────────────────────────────────┐
-│  main thread                       data worker (new)                  semantic worker (exists)  │
+┌─ a browser tab ─────────────────────────────────▼────────────────────────────────────────────────┐
+│  main thread                       data worker (new)                  semantic worker (exists)   │
 │  UI bundle: Leptos, CSR    ◀─────▶ worker bundle, no Leptos   ◀─────▶ the query model,           │
 │  shell · features · design  typed  SQLite on the snapshot       port   the modules' vectors      │
 │  DataClient (async)         messages page loaders, search,                                       │
@@ -190,15 +202,15 @@ Radix ──/snapshot/catalog.db──▶ folia-server
 
 ```
 ┌──────┬─────────────────────────────────────────────────────────────────┐
-│      │ header: where the visitor is, the search, the page's actions,    │
-│      │         the status of the data                                   │
+│      │ header: where the visitor is, the search, the page's actions,   │
+│      │         the status of the data                                  │
 │ nav  ├─────────────┬────────────────────────────────────┬──────────────┤
 │ rail │ sidebar     │ main: the route's content          │ aside: what  │
 │      │ (filters,   │                                    │ was picked   │
 │      │  sections,  │                                    │ (a module,   │
 │      │  actions)   │                                    │  an area …)  │
 │      ├─────────────┴────────────────────────────────────┴──────────────┤
-│      │ footer: the ground (Impressum, Datenschutz, Datenstand, roots)   │
+│      │ footer: the ground (Impressum, Datenschutz, Datenstand, roots)  │
 └──────┴─────────────────────────────────────────────────────────────────┘
  overlay layer: sheets, dialogs, notes, the search's suggestions
  phone: nav = the bottom bar · sidebar = a sheet (filters) or part of the page · aside = the page
@@ -209,10 +221,11 @@ Radix ──/snapshot/catalog.db──▶ folia-server
 - The shell is mounted once, as the parent route of every page (`<ParentRoute>` with an
   `<Outlet/>` for `main`), and never rebuilt by a navigation: its elements, their scroll
   positions, the resize handles and the widths stay.
-- A route declares its layout in the route table: which regions it uses and the skeleton of each.
-  The shell lays the regions out in the frame after the click (R21) and shows the skeleton
-  wherever the page's content is not there yet. Today `pending.rs` and `skeleton.rs` do this by
-  hand for every kind of page; here it is the shell's job, once.
+- A route declares its layout in the route table: which regions it uses, the skeleton of each,
+  its area (the tab it belongs to) and where the header's search goes. The shell lays the regions
+  out in the frame after the click (R21) and shows the skeleton wherever the page's content is not
+  there yet. Today `pending.rs` and `skeleton.rs` do this by hand for every kind of page, and a new
+  page means seven edits (§1); here it is one entry in the route table.
 - A page puts content into a region with a component that stays part of the page's own tree and
   is mounted into the region's element (a portal):
 
@@ -461,9 +474,9 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 
 | Crate | From today | Holds | Kind |
 |---|---|---|---|
-| `folia-design` | the primitives of `ui.rs`, `icons.rs`, `combobox.rs`, the slider, the gesture of `swipe.rs`, the tokens and the base of `app.css`, parts of `enhance.js` | tokens, base styles, components (button, switch, segmented row, chip, badge, tabs, sheet, picker, slider, skeleton, prose, icon and sprite), behaviours (resize handle, sheet, swipe) | iso |
-| `folia-shell` | the chrome of `App`, `ui::{Frame, Plain, BackLink, ToTop}`, `tabs`, `nav`, `pending`, `skeleton`, `ground`, `languages`, `launch`, parts of `enhance.js` | the shell of §5 | iso (its static frame) |
-| `folia-stores` | the stores of `bookmarks`, `studyplan`, `myprogram`; `local` | what the visitor keeps | web |
+| `folia-design` | the primitives of `ui.rs`, `icons.rs`, `combobox.rs`, the slider, the gesture of `swipe.rs`, the DOM half of `nav`, the tokens and the base of `app.css`, parts of `enhance.js` | tokens, base styles, components (button, switch, segmented row, chip, badge, tabs, sheet, picker, slider, skeleton, empty state, panel head, prose, icon and sprite), behaviours (resize handle, sheet, swipe, carousel) | iso |
+| `folia-shell` | the chrome of `App`, `ui::{Frame, Plain, BackLink, ToTop}`, `tabs`, `local`, `pending`, `skeleton`, `ground`, `languages`, `launch`, the layout half of `nav`, parts of `enhance.js` | the shell of §5 | iso (its static frame) |
+| `folia-stores` | the stores of `bookmarks`, `studyplan`, `myprogram`; the view settings in `localStorage` (`betula.finder`, `betula.plan.shape` …) | what the visitor keeps: one store type for all of them (load, check, save, follow the other tabs), undo and the question before throwing away | web |
 | `folia-widgets` | the view of a module (`pages::module`), the row of a list, `week.rs`, the switches „Merken" and „Einplanen" | what several features show | iso |
 
 **Features** — each its routes' pages, sidebars, texts and styles:
@@ -632,6 +645,10 @@ Today's pages reach into each other in a handful of places; each has a home one 
 | `pages::catalog::phone_layout` | program, Stundenplan, Merkliste | `folia-shell` (which layout is on) |
 | `pages::catalog::finder_on` (the finder's last choice, from `localStorage`) | the Stundenplan's head and module list | `folia-stores` (a view setting) |
 
+And the shared modules lean on pages and on the chrome: `pending` → `local` → `pages::module`,
+`swipe` → `pages::module`, `ui` → `tabs` and `ground`. In the layers they cannot: the design system
+knows no shell, the shell no feature.
+
 ## 9. JavaScript
 
 | File | Today | New |
@@ -653,7 +670,7 @@ them), it may stay a small script owned by its crate; what touches the app's sta
 | R1–R8 | stay. R3: a panic in the data worker ends only the worker, the UI starts it again |
 | R9 server HTML is user-independent | the site only |
 | R10 shortcuts next to their button, R12, R13, R14, R18, R20, R23 | stay |
-| R11 all SQL in `queries.rs` | stays, in `folia-query` |
+| R11 all SQL in `queries.rs` | stays: the SQL is in `folia-query`, and the search's own statements in `folia-search` (§7.4) |
 | R15 what needs JavaScript is hidden without it | the site only |
 | R16 read the source, not a memo of it | stays while the framework behaves so |
 | R17 every page is framed | becomes the shell's structure |
@@ -665,8 +682,9 @@ New:
 
 - **R24 Layers.** A crate depends only on the layers below it; features never on features. A
   workspace test reads `cargo metadata` and fails on a dependency the table of §7 does not allow.
-- **R25 No data on the main thread.** The UI reads data only through `DataClient`; queries and
-  computations run in the worker. A task of the main thread stays under 50 ms on a laptop.
+- **R25 No data on the main thread.** The UI reads data only through `DataClient`, and its bundle
+  has no `Database`; queries and computations run in the worker. Building the page stays on the
+  main thread (§6.4).
 - **R26 Every asynchronous region has its skeleton,** shown only after the threshold.
 - **R27 A crate owns its styles, texts and icons** (§7.6).
 - **R28 UI, worker and service worker of one build** only; the protocol checks it at the handshake.
