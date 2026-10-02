@@ -9,9 +9,11 @@
 // glide as Web Animations, and the tab's own mark takes over once the tab is current; a long pull
 // goes one tab and no further, a short slow one glides back, a short flick goes on; at either end
 // nothing lies further and the tab stays; a finger catches the glide where it is and goes on from
-// there, so two swipes in a row go two tabs; a tap right after a quick swipe is a tap; up or down,
-// the bar scrolls the page. Then the site before the app takes over: a swipe loads the tab's page,
-// as a tap would.
+// there, so two swipes in a row go two tabs, and at either end, where a quick swipe lets go with
+// the lens past the last tab, the row goes on from there with the finger and never against it
+// (owner, 2026-10-02: „Probleme, wenn man schnell swiped über den rand hinaus"); a tap right after
+// a quick swipe is a tap; up or down, the bar scrolls the page. Then the site before the app takes
+// over: a swipe loads the tab's page, as a tap would.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tabbar.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -90,6 +92,21 @@ const context = await browser.newContext(phone);
 const { page, swipe, lift } = await open(context, "/");
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 await page.evaluate(() => { window.__marker = 1; });
+// How far the row went with each move of the finger that has it, as the bar heard the move (before
+// its own listener and after): the finger's px along the bar and the row's, and what the bar did
+// before (a move that takes the gliding bar comes from "glide").
+await page.evaluate(() => {
+  const bar = document.querySelector(".bottomnav");
+  const along = () => new DOMMatrix(getComputedStyle(bar.querySelector(":scope > .nav")).transform).m41;
+  let x = null, before = null;
+  window.__moves = [];
+  addEventListener("pointerdown", (e) => { x = e.clientX; }, true);
+  addEventListener("pointermove", () => { before = { row: along(), swipe: bar.dataset.swipe ?? null }; }, true);
+  document.addEventListener("pointermove", (e) => {
+    if (x !== null && before && bar.dataset.swipe === "drag") window.__moves.push({ finger: e.clientX - x, row: along() - before.row, from: before.swipe });
+    x = e.clientX;
+  });
+});
 const state = () => page.evaluate(barState);
 // Once the row and the lens have glided and the tab's own mark has taken over: the current tab then.
 const settled = async (what, area) => {
@@ -165,6 +182,28 @@ now = await settled("slow pull", "home");
 await swipe(middle, y, -30, 0, { steps: 3, ms: 8 });
 now = await settled("flick", "catalog");
 
+// ---- a quick swipe to the tab at an end of the row lets go with the lens past that tab, over
+// nothing: a finger that catches the glide there takes the row on from where it is, held back, and
+// never against itself (it jumped against the finger: „Probleme, wenn man schnell swiped über den
+// rand hinaus")
+const catchAtEnd = async (what, dx, area) => {
+  await page.evaluate(() => { window.__moves = []; });
+  await swipe(middle, y, dx, 0, { steps: 4 });
+  await swipe(middle, y, Math.sign(dx) * 14, 0, { steps: 3, hold: true });
+  const held = await state();
+  check(held.swipe === "drag" && held.current === area, `${what}: the finger did not take the bar (${held.swipe}, ${held.current})`);
+  await swipe(0, 0, Math.sign(dx) * 60, 0, { steps: 6, hold: true, from: true });
+  await lift();
+  const moves = await page.evaluate(() => window.__moves);
+  check(moves.some((m) => m.from === "glide"), `${what}: the glide was over before the finger came`);
+  const jumps = moves.filter((m) => Math.abs(m.row) > Math.abs(m.finger) + 1.5 || (Math.abs(m.row) > 1.5 && Math.sign(m.row) !== Math.sign(m.finger)));
+  check(!jumps.length, `${what}: the row jumped (${jumps.map((m) => `the finger ${m.finger} px, the row ${m.row.toFixed(1)}`).join("; ")})`);
+  return settled(what, area);
+};
+now = await catchAtEnd("catch at the left end", 110, "home");
+await swipe(middle, y, -110, 0);
+now = await settled("back to the catalog", "catalog");
+
 // ---- along the whole bar, and at the right end no further
 for (const area of AREAS.slice(2)) {
   await swipe(middle, y, -110, 0);
@@ -187,6 +226,9 @@ check(held.lens && held.lens.mid < fifth - 2 && held.lens.mid > fourth + 1, `cat
 check(held.off <= 0.5, `catch: the copy in the lens does not lie over the row (${held.off} px off)`);
 await swipe(0, 0, 60, 0, { steps: 4, from: true });
 now = await settled("caught", "programs");
+await swipe(middle, y, -110, 0);
+now = await settled("to the bookmarks", "bookmarks");
+now = await catchAtEnd("catch at the right end", -110, "studyplan");
 
 // ---- a tap right after a quick swipe is a tap (of the tab under the finger: the row moves, and a
 // short swipe keeps Start there); two swipes in a row, the second while the first glides, go two

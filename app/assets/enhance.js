@@ -333,10 +333,12 @@
   const reachOf = (g, dir) => Math.min(1, dir > 0 ? g.tabs.length - 1 - g.current : g.current);
   // Where a pull puts the lens over the row, `q` px from the current tab's middle (to the right
   // positive): as far as the tab it may reach, then held back; held back from the start where no
-  // tab lies that way.
-  const lensOver = (g, q) => {
-    const dir = Math.sign(q), far = Math.abs(q), room = reachOf(g, dir) * g.step;
-    return dir ? dir * (far <= room ? far : room + band(far - room, TAB_ROOM)) : 0;
+  // tab lies that way. `p0` is where the finger took the lens: a finger that catches the glide of a
+  // quick swipe to the tab at an end of the row takes it past that tab, and the pull goes on from
+  // there, held back only beyond it (held back from the tab, the row jumped against the finger).
+  const lensOver = (g, q, p0) => {
+    const lo = Math.min(-reachOf(g, -1) * g.step, p0), hi = Math.max(reachOf(g, 1) * g.step, p0);
+    return q > hi ? hi + band(q - hi, TAB_ROOM) : q < lo ? lo - band(lo - q, TAB_ROOM) : q;
   };
   // Where a spring towards `x1` stands every TAB_DT s, let go at `x0` (px) going `v0` (px per s),
   // until it can no longer be a tenth of a px away.
@@ -414,7 +416,7 @@
       if (at > d.at) d.speed = 0.7 * ((pull - d.pull) / (at - d.at)) + 0.3 * d.speed;
       d.pull = pull;
       d.at = at;
-      d.p = lensOver(s.g, d.p0 - pull);
+      d.p = lensOver(s.g, d.p0 - pull, d.p0);
       putTabs(s, d.X + s.g.mark.w / 2 - s.g.mids[s.g.current] - d.p, d.X);
     }
     d.trail.push({ at, T: s.T });
