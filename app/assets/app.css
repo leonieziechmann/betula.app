@@ -866,36 +866,51 @@ html:not(.js) .fit-chip { display: none; }
 .vlist { position: relative; height: var(--h, 0px); }
 .vlist > .vrow { position: absolute; left: 0; right: 0; top: var(--top, 0px); }
 .rows.virtual .row-wrap { content-visibility: visible; contain-intrinsic-size: none; }
-/* Above and below the rendered rows the virtual list holds skeleton rows (`.vfill`, as tall as a
-   row is taken to be: --rh, the average of the measured ones): a fast scroll runs ahead of the
-   list in the compositor's frames, and shows rows that are being filled in instead of an empty
-   panel. Past the skeleton rows (`.vfill-rest`) the bars of a row repeat in the background, for
-   a jump of the scrollbar. Shaded as the rows they stand for (`odd`: the first of them is). */
+/* Above and below the rendered rows the virtual list holds skeleton rows (`.vfill`, each as tall
+   as a row is taken to be: --rh, the average of the measured ones): a fast scroll runs ahead of
+   the list in the compositor's frames, and shows rows that are being filled in instead of an
+   empty panel, as far as the scrollbar can jump. Shaded as the rows they stand for (`odd`: the
+   first of them is). */
 /* Never the browser's scroll anchor: the fill above grows and shrinks with the place in the list,
    its rows with its bottom, and an anchor among them would scroll the list by as much. */
 .vlist > .vfill { position: absolute; left: 0; right: 0; display: flex; flex-direction: column; overflow: hidden; overflow: clip; pointer-events: none; overflow-anchor: none; }
 .vfill.above { top: 0; justify-content: flex-end; }
 .vfill.below { bottom: 0; }
-.vfill > .sk-row, .vfill-row > .sk-row { flex: none; min-height: 0; height: var(--rh, 58px); }
 
-/* The bars of `.sk-row`, a tile as tall as a row: the title (14 px) and under it the number
-   (10 px), around the middle; repeated from the skeleton rows outwards. */
-.vfill-rest {
-  --sk-mid: 50%; --sk-x: 15px;
-  flex: 1 0 0; min-height: 0;
-  background:
-    linear-gradient(transparent calc(var(--sk-mid) - 16px), var(--sk) 0 calc(var(--sk-mid) - 2px), transparent 0) var(--sk-x) 0 / min(34%, 280px) var(--rh, 58px) repeat-y,
-    linear-gradient(transparent calc(var(--sk-mid) + 6px), var(--sk) 0 calc(var(--sk-mid) + 16px), transparent 0) var(--sk-x) 0 / min(14%, 110px) var(--rh, 58px) repeat-y;
+/* A fill is one row of the list's columns, as tall as the fill (`skeleton::fill`; so is a row
+   whose page is not loaded yet, `.vfill-row`): `.row` gives it the grid of the rows, with the
+   columns a narrower list leaves out, and each column paints its bar again every row, a tile as
+   tall as a row (24 skeleton rows of sixteen elements a side, until 2026-10-02, were built anew
+   with every list: half the elements of the page). The bars as `skeleton::rows` has them, around
+   the middle of a row (`--sk-off` moves it): the title (14 px, of three lengths in turn) and under
+   it the number (10 px), and one bar a column (10 px). The tiles of the fill above end where its
+   rows do, at its bottom. */
+:is(.vfill, .vfill-row) > .sk-cols { --sk-off: 0px; min-height: 0; padding-block: 0; align-items: stretch; border-radius: 0; transition: none; }
+.vfill > .sk-cols { flex: 1 0 0; }
+.vfill-row > .sk-cols { height: var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > * { padding: 0; border-radius: 0; justify-self: stretch; background-color: transparent; background-repeat: repeat-y; background-position: 0 0; }
+:is(.vfill, .vfill-row) > .sk-cols > .t {
+  background-image:
+    linear-gradient(transparent calc(var(--rh, 58px) * .5 + var(--sk-off) - 16px), var(--sk) 0 calc(var(--rh, 58px) * .5 + var(--sk-off) - 2px), transparent 0),
+    linear-gradient(transparent calc(var(--rh, 58px) * 1.5 + var(--sk-off) - 16px), var(--sk) 0 calc(var(--rh, 58px) * 1.5 + var(--sk-off) - 2px), transparent 0),
+    linear-gradient(transparent calc(var(--rh, 58px) * 2.5 + var(--sk-off) - 16px), var(--sk) 0 calc(var(--rh, 58px) * 2.5 + var(--sk-off) - 2px), transparent 0),
+    linear-gradient(transparent calc(50% + var(--sk-off) + 6px), var(--sk) 0 calc(50% + var(--sk-off) + 16px), transparent 0);
+  background-size: 74% calc(var(--rh, 58px) * 3), 92% calc(var(--rh, 58px) * 3), 56% calc(var(--rh, 58px) * 3), 24% var(--rh, 58px);
 }
-.vfill.above > .vfill-rest { background-position-y: 100%; }
+:is(.vfill, .vfill-row) > .sk-cols > :not(.t) { background-image: linear-gradient(transparent calc(50% + var(--sk-off) - 5px), var(--sk) 0 calc(50% + var(--sk-off) + 5px), transparent 0); }
+:is(.vfill, .vfill-row) > .sk-cols > :is(.resp, .events) { background-size: 56% var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > :is(.exam, .turnus) { background-size: 38% var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > :is(.lp, .lang) { min-width: 36px; background-size: 36px var(--rh, 58px); }
+:is(.vfill, .vfill-row) > .sk-cols > .lp { background-position: 100% 0; }
+.vfill.above > .sk-cols, .vfill.above > .sk-cols > * { background-position-y: 100%; }
+/* The cards of a phone's fill: on a wide screen there are none (`skeleton::cards`). */
+.vfill > .sk-card { display: none; }
 @media (min-width: 901px) {
-  .vfill:not(.odd) > .sk-row:nth-child(even of .sk-row), .vfill.odd > .sk-row:nth-child(odd of .sk-row), .vfill-row.odd > .sk-row { background: var(--row-shade); }
-  /* The shade of every other row goes on past the skeleton rows: a tile of two rows, from the
-     skeleton rows outwards (the tiles above end where they begin). There are an even number of
-     them, so either way the row of the tile's first half is shaded as the fill's first row. */
-  .vfill > .vfill-rest { --sk-shade: linear-gradient(transparent 50%, var(--row-shade) 0); }
-  .vfill.odd > .vfill-rest { --sk-shade: linear-gradient(var(--row-shade) 50%, transparent 0); }
-  .vfill-rest { background-color: transparent; background-image: linear-gradient(transparent calc(50% - 16px), var(--sk) 0 calc(50% - 2px), transparent 0), linear-gradient(transparent calc(50% + 6px), var(--sk) 0 calc(50% + 16px), transparent 0), var(--sk-shade); background-size: min(34%, 280px) var(--rh, 58px), min(14%, 110px) var(--rh, 58px), 100% calc(2 * var(--rh, 58px)); background-position-x: 15px, 15px, 0; }
+  /* The shade of every other row: a tile of two rows from the rendered ones outwards (the tiles
+     above end where they begin), the row of its first half shaded as the fill's first row. */
+  .vfill > .sk-cols { background-image: linear-gradient(transparent 50%, var(--row-shade) 0); background-size: 100% calc(2 * var(--rh, 58px)); background-repeat: repeat-y; }
+  .vfill.odd > .sk-cols { background-image: linear-gradient(var(--row-shade) 50%, transparent 0); }
+  .vfill-row.odd > .sk-cols { border-radius: var(--r-row); background: var(--row-shade); }
 }
 /* The plain lists (the Merkliste, the server's page) lay out only the rows near the screen (above):
    a row the browser skips paints nothing but its own background. So that is where the bars of a
@@ -3001,17 +3016,24 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   /* The virtual list places its rows itself; the gap between the cards is part of every row. */
   .rows.virtual { display: block; }
   .vlist > .vrow { padding-bottom: 8px; }
-  /* The skeleton rows are cards as well, with the gap of a row under each (--rh counts it). */
-  .vfill > .sk-row, .vfill-row > .sk-row { height: calc(var(--rh, 96px) - 8px); margin-bottom: 8px; }
-  .vfill-rest {
-    --sk-mid: calc(50% - 4px); --sk-x: 18px;
-    background:
-      linear-gradient(transparent calc(var(--sk-mid) - 16px), var(--sk) 0 calc(var(--sk-mid) - 2px), transparent 0) var(--sk-x) 0 / min(56%, 280px) var(--rh, 96px) repeat-y,
-      linear-gradient(transparent calc(var(--sk-mid) + 6px), var(--sk) 0 calc(var(--sk-mid) + 16px), transparent 0) var(--sk-x) 0 / min(26%, 110px) var(--rh, 96px) repeat-y,
-      linear-gradient(transparent calc(var(--sk-mid) - 5px), var(--sk) 0 calc(var(--sk-mid) + 5px), transparent 0) right 52px top 0 / 36px var(--rh, 96px) repeat-y,
-      linear-gradient(var(--panel) calc(100% - 8px), transparent 0) 0 0 / 100% var(--rh, 96px) repeat-y;
+  /* The skeleton rows are cards as well, with the gap of a row under each (--rh counts it), their
+     middle 4 px above the tile's. The 24 next to the rendered rows are cards of their own, one
+     element each with its bars in its background, as `skeleton::rows` lays them out (the title's
+     column: the card less its padding, the gap and the credits); past them the fill's row draws
+     a card a tile, flat. */
+  :is(.vfill, .vfill-row) > .sk-cols { --sk-off: -4px; }
+  .vfill > .sk-cols { box-shadow: none; background: linear-gradient(var(--panel) calc(100% - 8px), transparent 0) 0 0 / 100% var(--rh, 96px) repeat-y; }
+  .vfill-row > .sk-cols { height: calc(var(--rh, 96px) - 8px); margin-bottom: 8px; border-radius: var(--r-panel); }
+  .vfill > .sk-card {
+    --sk-t: calc(100% - 122px);
+    display: block; flex: none; height: calc(var(--rh, 96px) - 8px); margin-bottom: 8px; border-radius: var(--r-panel); background-color: var(--panel); box-shadow: var(--shadow-panel);
+    background-image: linear-gradient(var(--sk), var(--sk)), linear-gradient(var(--sk), var(--sk)), linear-gradient(var(--sk), var(--sk));
+    background-repeat: no-repeat;
+    background-size: calc(var(--sk-t) * .74) 14px, calc(var(--sk-t) * .24) 10px, 36px 10px;
+    background-position: 18px calc(50% - 9px), 18px calc(50% + 11px), right 52px center;
   }
-  .vfill.above > .vfill-rest { background-position: var(--sk-x) 100%, var(--sk-x) 100%, right 52px bottom 0, 0 100%; }
+  .vfill > .sk-card:nth-child(3n + 2) { background-size: calc(var(--sk-t) * .92) 14px, calc(var(--sk-t) * .24) 10px, 36px 10px; }
+  .vfill > .sk-card:nth-child(3n) { background-size: calc(var(--sk-t) * .56) 14px, calc(var(--sk-t) * .24) 10px, 36px 10px; }
   .rows:not(.virtual) .row-wrap:where(:not(.unmarked, :has(> .row.missing))) { --sk-x: 18px; border-radius: var(--r-panel); background-color: var(--panel); }
   /* The note stands in line with the cards, as far above them in either list. */
   .plan-note { margin: 0 0 10px; }

@@ -67,7 +67,8 @@ await step("a similar module opens beside the list", () => page.click('.similar 
   () => /open=12101/.test(location.search) && location.search.includes("q=python")
     && document.querySelector('.similar a.row[data-id="12101"]')?.getAttribute("aria-current") === "true");
 await step("the keyboard goes on from the results into them", async () => {
-  await page.focus(".vlist .vrow:last-child a.row");
+  // The last row of the list (the skeleton fills stand after the rows).
+  await page.locator(".vlist .vrow a.row").last().focus();
   await page.keyboard.press("ArrowDown");
 }, () => document.activeElement?.closest(".similar") && document.activeElement.dataset.id === "12101");
 // The semantic search is asked for the text as the list searched it.

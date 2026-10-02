@@ -690,7 +690,14 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   rendered and estimated (at the average of the measured ones) until then; a row above what is
   visible that turns out taller or shorter than estimated moves everything below it, so the list
   scrolls by the difference and nothing jumps under the visitor's eyes. Pages of 50 are loaded
-  when their rows come near (one query, a few milliseconds) and dropped again when far. `page` in
+  when their rows come near (one query, a few milliseconds) and dropped again when far. Above and
+  below the rendered rows stand skeleton rows (`.vfill`; a row whose page is not loaded yet is one
+  too, `.vfill-row`): a fast scroll that runs ahead of the list in the compositor's frames shows
+  rows being filled in, not an empty panel. A fill is one row of the list's columns, as tall as
+  the fill, each column painting its bar again every row (`skeleton::fill`, eight elements however
+  far it reaches), and on a phone the 24 cards next to the rows come first, an element each with
+  their bars in their background (`skeleton::cards`); built as rows of sixteen elements they made
+  half the elements of the page („A phone that froze" below). `page` in
   the URL follows the row at the top of the screen (history entry replaced); a shared link with
   `page=7` starts there, and coming back from a module the list centres on its row
   (`queries::catalog_position`: the row's place in the ordered list, one window query, no pages
@@ -890,6 +897,18 @@ Not done, measured:
   comes to a panel before it is drawn shows it empty for a moment. The catalog's lists paint a
   skeleton there (`.vfill`, the plain lists' `.row-wrap`, „Termine"'s weeks); the panels of the
   start page and the program overview have none yet.
+
+Then the skeletons a fast scroll shows (owner: „Mach das mal auf develop", the same day). They
+had come with 24 skeleton rows above and 24 below the rendered rows of the catalog, sixteen
+elements each and built anew with every list: some 770 of the page's 1,800 elements, styled, laid
+out and painted at every filter, the fill above even at the top of the list, where it has no
+height. Measured on the real catalog with the CPU slowed down four times, twelve filter toggles
+each, the three builds side by side: 1.31 s a toggle with them, 1.13 s with the fills as they are
+now (one row of the columns, and on a phone 24 cards of one element; 1,070 elements), 1.11 s
+without any (style 265, 253 and 224 ms a toggle; paint 274, 207 and 228 ms). They look as
+before; the bars of the fills are square, as they were already past the 24 rows. `snappy.mjs`
+misses its 200 ms for the first frame now and then on the machine of these measurements with any
+of the three, without fills too.
 
 `node e2e/tabbar.mjs` checks the start (§4).
 
