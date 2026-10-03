@@ -43,13 +43,13 @@ use crate::i18n::{self, use_location, Locale};
 use crate::myprogram::{MineResolved, MyProgram};
 use folia_design::nav;
 use crate::pages::module::ModulePanel;
-use crate::pending::{Change, Pending, Prepare};
-use crate::seo::Seo;
-use crate::skeleton::{self, DetailSkeleton, FiltersStandin, RowsSkeleton};
+use folia_shell::pending::{Change, Pending, Prepare};
+use folia_shell::seo::Seo;
+use folia_shell::skeleton::{self, DetailSkeleton, FiltersStandin, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
 use crate::swipe::RowSwipe;
-use crate::tabs::{self, Tabs};
-use crate::frame::ErrorState;
+use folia_shell::tabs::{self, Tabs};
+use folia_shell::frame::ErrorState;
 use folia_design::ui::{Hit, Icon, KindBadge, OfferBadge};
 
 #[component]
@@ -376,7 +376,7 @@ pub fn CatalogPage() -> impl IntoView {
                 }
             }}
             // The end of the page, in its scroll area (on a phone the app's own ground follows the page).
-            <crate::ground::Ground/>
+            <folia_shell::ground::Ground/>
         </div>
     }
 }
@@ -616,7 +616,7 @@ fn elsewhere_note(data: &CatalogData, listed: u64, open: Memo<Option<String>>, t
         ..CatalogQuery::default()
     };
     let target = CatalogUrl { query, ..CatalogUrl::default() };
-    let rel = crate::seo::nofollow(&target.path());
+    let rel = folia_shell::seo::nofollow(&target.path());
     Some(view! { <p class="list-note">{text}" · "<a href=keep_open(target, open, t) rel=rel>{t.catalog.search_show}</a></p> })
 }
 
@@ -884,7 +884,7 @@ fn List(
             _ => "",
         };
         // Another order is a view of the list, no page to crawl.
-        let rel = crate::seo::nofollow(&next.path());
+        let rel = folia_shell::seo::nofollow(&next.path());
         view! { <a class=class href=keep_open(next, open, t) rel=rel aria-current=on.then_some("true")>{text}{arrow}</a> }
     };
 
@@ -892,7 +892,7 @@ fn List(
     let (without_fits, without_fits_rel) = {
         let mut next = current.with_page(1);
         next.query.fits = None;
-        (t.path(&next.path()), crate::seo::nofollow(&next.path()))
+        (t.path(&next.path()), folia_shell::seo::nofollow(&next.path()))
     };
     // An empty list with the finder on is the finder's doing only when the rest of the filter
     // holds modules (a search for nothing is not helped by comparing fewer classes): one count,
@@ -996,7 +996,7 @@ fn List(
                 </div>
                 <div class="active-filters">
                     {move || active.get().into_iter().map(|(group, value, target)| {
-                        let rel = crate::seo::nofollow(&target.path());
+                        let rel = folia_shell::seo::nofollow(&target.path());
                         view! {
                             <span class="tag"><em>{group}</em>" "{value}<a href=keep_open(target, open, t) rel=rel aria-label=t.catalog.remove_filter><Icon name="x"/></a></span>
                         }
@@ -1133,7 +1133,7 @@ fn PlainRows(
 /// pages of the site, and the way a crawler reaches every module: it follows them. The pages of a
 /// filtered list are views: `nofollow`.
 fn pager_link(target: CatalogUrl, way: &'static str, text: &'static str, open: Memo<Option<String>>, t: &'static i18n::Texts) -> impl IntoView {
-    let rel = match crate::seo::nofollow(&target.path()) {
+    let rel = match folia_shell::seo::nofollow(&target.path()) {
         Some(nofollow) => format!("{way} {nofollow}"),
         None => way.to_string(),
     };

@@ -15,6 +15,7 @@ members = [
     "crates/search",
     "crates/semantic",
     "crates/server",
+    "crates/shell",
     "crates/test-support",
     "crates/timetable",
 ]
@@ -35,6 +36,7 @@ default-members = [
     "crates/search",
     "crates/semantic",
     "crates/server",
+    "crates/shell",
     "crates/test-support",
     "crates/timetable",
 ]

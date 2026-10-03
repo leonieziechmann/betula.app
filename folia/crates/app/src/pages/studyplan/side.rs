@@ -33,7 +33,7 @@ use folia_design::format;
 use crate::i18n;
 use crate::myprogram::{po_of, program_name, MyProgram};
 use folia_design::nav;
-use crate::pending::Pending;
+use folia_shell::pending::Pending;
 use crate::studyplan::{Saved, Studyplan};
 use folia_design::ui::Icon;
 use super::export::CalendarGroup;

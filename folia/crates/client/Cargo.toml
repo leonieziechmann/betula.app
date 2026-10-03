@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 folia-app = { path = "../app", features = ["csr"] }
 folia-design = { path = "../design", features = ["csr"] }
 folia-data = { path = "../data" }
+folia-shell = { path = "../shell", features = ["csr"] }
 folia-locale = { path = "../locale" }
 folia-model = { path = "../model" }
 folia-pages = { path = "../pages" }

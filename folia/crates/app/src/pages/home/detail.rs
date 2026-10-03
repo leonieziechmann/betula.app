@@ -37,7 +37,7 @@ use folia_data::use_data;
 use folia_design::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
 use crate::pages::catalog::{duration_choices, years_choices, Choice, Toggle, Tri};
-use crate::seo;
+use folia_shell::seo;
 use folia_design::ui::{Icon, KindBadge, Mark};
 use crate::week::{GridSlot, WeekGrid};
 
@@ -154,7 +154,7 @@ fn Feature(
                         <li><Icon name=icon/><div><b>{point.title}</b><p>{point.text}</p></div></li>
                     }).collect_view()}
                 </ul>
-                {link.map(|(words, path)| view! { <a class="ghost feature-link" href=t.path(path) rel=crate::seo::nofollow(path)>{words}<Icon name="chevron-right"/></a> })}
+                {link.map(|(words, path)| view! { <a class="ghost feature-link" href=t.path(path) rel=folia_shell::seo::nofollow(path)>{words}<Icon name="chevron-right"/></a> })}
             </div>
             <div class="feature-picture" class:bare=bare>{picture}</div>
         </section>

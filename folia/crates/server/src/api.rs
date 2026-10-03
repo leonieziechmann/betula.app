@@ -153,7 +153,7 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
 }
 
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
-/// and every current program with its views. Filters of the lists are not pages (`folia_app::seo`).
+/// and every current program with its views. Filters of the lists are not pages (`folia_shell::seo`).
 /// Each page with the time it last changed where the warm-up has seen it (`lastmod`); the sitemap
 /// is made anew once a round of the warm-up has finished, and its ETag is its content's.
 pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -588,10 +588,10 @@ pub async fn icon_monochrome(State(state): State<AppState>, uri: Uri, headers: H
 }
 
 /// `GET /assets/launch/<width>x<height>[-dark].png`: a launch screen of the installed app on iOS
-/// (`folia_app::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
+/// (`folia_shell::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
 /// Kept like the other assets: it changes with the build at most.
 pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
-    let Some(picture) = folia_app::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(picture) = folia_shell::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
     let (etag, keep) = (format!("\"{}\"", state.build_id), Keep::of(&state, &uri));
     if if_none_match(&headers, &etag) {
         return not_modified(&etag, keep.header());

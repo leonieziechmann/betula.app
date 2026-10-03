@@ -9,9 +9,9 @@ name = "folia_app"
 
 [features]
 # Server rendering (the web server) and the browser app (the WASM bundle) are the two builds of this crate.
-ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http", "folia-design/ssr", "folia-data/ssr"]
+ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr"]
 # The browser app renders fresh from the local database instead of hydrating server HTML.
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-shell/csr"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -21,6 +21,8 @@ leptos_meta = "0.8"
 folia-design = { path = "../design" }
 # Where a page asks for its data.
 folia-data = { path = "../data" }
+# The shell every page stands in.
+folia-shell = { path = "../shell" }
 # The domain: what the pages show and how they load it (folia/crates/<crate>, docs/folia/folia-refactor.md §7).
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }

@@ -270,7 +270,7 @@ pub fn start() {
     // answers are on their way, the server's page stays in front of it as a picture (`boot.js`
     // took it before it called this; `answered` says when it can go).
     body.set_inner_html("");
-    // The same goes for what the server wrote into the head for this page (`folia_app::seo`): the app
+    // The same goes for what the server wrote into the head for this page (`folia_shell::seo`): the app
     // writes its own, and what stayed would describe the first page on every later one.
     let stale = "meta[name=description], meta[name=robots], link[rel=canonical], link[rel=alternate][hreflang], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
     if let Ok(tags) = document.query_selector_all(stale) {
@@ -302,7 +302,7 @@ pub fn start() {
             provide_context(map);
         }
         if let Some(site) = site.clone() {
-            provide_context(folia_app::seo::SiteUrl(site.into()));
+            provide_context(folia_shell::seo::SiteUrl(site.into()));
         }
         view! { <folia_app::App/> }
     });

@@ -120,7 +120,7 @@ mod tests {
         // names a turned picture for a tablet only.
         assert!(PHONES.iter().all(|s| u32::from(s.width.min(s.height)) * u32::from(s.ratio) < 1400));
         assert!(TABLETS.iter().all(|s| u32::from(s.width.min(s.height)) * u32::from(s.ratio) >= 1400));
-        assert!(crate::HEAD_SCRIPT.contains("a<1400?") && crate::HEAD_SCRIPT.contains(&format!("l.href='{PATH}'")));
+        assert!(crate::document::HEAD_SCRIPT.contains("a<1400?") && crate::document::HEAD_SCRIPT.contains(&format!("l.href='{PATH}'")));
         for unknown in ["1179x2556.jpg", "100x100.png", "1179x2556-dim.png", "../1179x2556.png", ""] {
             assert_eq!(Picture::from_file(unknown), None, "{unknown}");
         }

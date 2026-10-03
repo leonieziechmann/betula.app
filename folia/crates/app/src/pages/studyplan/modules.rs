@@ -37,7 +37,7 @@ use folia_design::format;
 use crate::i18n::{self, Locale};
 use crate::myprogram::MineResolved;
 use crate::pages::catalog::finder_on;
-use crate::pending::{Change, Pending};
+use folia_shell::pending::{Change, Pending};
 use folia_design::ui::Icon;
 use super::aside::only_its_events;
 use super::head::{add_module_href, hue, is_past, tone_at};

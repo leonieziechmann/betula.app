@@ -1,4 +1,4 @@
-//! The launch screens of the installed app on iPhones and iPads (`folia_app::launch`), drawn in this
+//! The launch screens of the installed app on iPhones and iPads (`folia_shell::launch`), drawn in this
 //! process like the link-preview cards: the icon of the installed app (the leaf) in the middle of
 //! the page's background, the wordmark and what Betula is at the bottom, in the light and in the
 //! dark scheme. The same picture as Android's splash screen, which shows the maskable icon on the
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use axum::body::Bytes;
-use folia_app::launch::Picture;
+use folia_shell::launch::Picture;
 use resvg::{tiny_skia, usvg};
 use tokio::sync::Semaphore;
 

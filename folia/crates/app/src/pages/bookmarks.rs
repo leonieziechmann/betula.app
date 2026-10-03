@@ -36,11 +36,11 @@ use crate::local::ModuleInPlace;
 use folia_design::nav;
 use crate::pages::catalog::{phone_layout, ListKeys, Row};
 use crate::pages::module::ModulePanel;
-use crate::pending::{Change, Pending, Shape};
-use crate::seo::Seo;
-use crate::skeleton::{AppStandin, DetailSkeleton};
-use crate::tabs::{self, Area, Tabs};
-use crate::frame::ErrorState;
+use folia_shell::pending::{Change, Pending, Shape};
+use folia_shell::seo::Seo;
+use folia_shell::skeleton::{AppStandin, DetailSkeleton};
+use folia_shell::tabs::{self, Area, Tabs};
+use folia_shell::frame::ErrorState;
 use folia_design::ui::Icon;
 
 /// Whether this build is the browser app: only there is anything marked.
@@ -57,7 +57,7 @@ type Loaded = Result<BookmarksData, DataError>;
 #[component]
 fn BookmarksSeo() -> impl IntoView {
     let t = i18n::t();
-    view! { <Seo title=t.bookmarks.title description=t.bookmarks.description path=url::BOOKMARKS card=crate::seo::BOOKMARKS_CARD noindex=true/> }
+    view! { <Seo title=t.bookmarks.title description=t.bookmarks.description path=url::BOOKMARKS card=folia_shell::seo::BOOKMARKS_CARD noindex=true/> }
 }
 
 #[component]
@@ -197,7 +197,7 @@ pub fn BookmarksPage() -> impl IntoView {
                         }.into_any(),
                     }
                 }}
-                <crate::ground::Ground/>
+                <folia_shell::ground::Ground/>
             </div>
         }
         .into_any()

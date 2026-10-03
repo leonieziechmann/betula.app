@@ -23,7 +23,7 @@ use folia_design::format;
 use crate::i18n;
 use crate::myprogram::program_name;
 use folia_design::nav;
-use crate::pending::Pending;
+use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
 use super::{key_of, PlanCtx};
 

@@ -14,6 +14,7 @@ path = "src/main.rs"
 folia-app = { path = "../app", features = ["ssr"] }
 folia-design = { path = "../design", features = ["ssr"] }
 folia-data = { path = "../data", features = ["ssr"] }
+folia-shell = { path = "../shell", features = ["ssr"] }
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }
 folia-model = { path = "../model", features = ["sqlite"] }

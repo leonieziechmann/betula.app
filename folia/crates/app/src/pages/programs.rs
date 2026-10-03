@@ -29,11 +29,11 @@ use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
 use folia_design::nav;
-use crate::pending::Pending;
-use crate::seo::Seo;
-use crate::tabs::{self, Tabs};
-use crate::skeleton::FilterGroupsStandin;
-use crate::frame::{ErrorState, Frame, Plain};
+use folia_shell::pending::Pending;
+use folia_shell::seo::Seo;
+use folia_shell::tabs::{self, Tabs};
+use folia_shell::skeleton::FilterGroupsStandin;
+use folia_shell::frame::{ErrorState, Frame, Plain};
 use folia_design::ui::{Icon, ToggleLink};
 
 /// The browser app (`csr`), or the server rendering the page for everybody.

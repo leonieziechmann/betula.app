@@ -56,13 +56,13 @@ use crate::i18n::{self, use_location};
 use crate::local::ModuleInPlace;
 use crate::myprogram::MyProgram;
 use crate::pages::catalog::phone_layout;
-use crate::pending::{Change, Pending, Shape};
-use crate::seo::Seo;
-use crate::skeleton::{AppStandin, DetailSkeleton};
+use folia_shell::pending::{Change, Pending, Shape};
+use folia_shell::seo::Seo;
+use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use crate::studyplan::Studyplan;
 use folia_routes::url::PlanAddress;
-use crate::tabs::Area;
-use crate::frame::{ErrorState, Frame};
+use folia_shell::tabs::Area;
+use folia_shell::frame::{ErrorState, Frame};
 use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
@@ -409,7 +409,7 @@ fn PlanSeo() -> impl IntoView {
                 .into_any()
             }
             None => view! {
-                <Seo title=t.studyplan.title description=t.studyplan.seo_description path=url::STUDYPLAN card=crate::seo::STUDYPLAN_CARD noindex=true/>
+                <Seo title=t.studyplan.title description=t.studyplan.seo_description path=url::STUDYPLAN card=folia_shell::seo::STUDYPLAN_CARD noindex=true/>
             }
             .into_any(),
         }

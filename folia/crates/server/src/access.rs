@@ -218,9 +218,9 @@ fn resolve(name: &str, docker_secrets: &Path) -> Result<Option<(String, String)>
 pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let Some(gate) = state.gate.as_ref() else { return next.run(request).await };
     let path = request.uri().path();
-    // The launch screens of iOS are the home screen's like its icons (`folia_app::launch`); another name
+    // The launch screens of iOS are the home screen's like its icons (`folia_shell::launch`); another name
     // under their path stays behind the gate.
-    let launch_screen = path.strip_prefix(folia_app::launch::PATH).is_some_and(|file| folia_app::launch::Picture::from_file(file).is_some());
+    let launch_screen = path.strip_prefix(folia_shell::launch::PATH).is_some_and(|file| folia_shell::launch::Picture::from_file(file).is_some());
     // A calendar feed passes when its code decodes: the owner's decision of 2026-09-24, since a
     // calendar service has no password to give. The check characters turn guesses away before any
     // handler runs, and what it shows is the QIS schedule of the modules the code names; every

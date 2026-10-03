@@ -44,10 +44,10 @@ use folia_data::{use_data, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::MyProgram;
-use crate::seo::{self, Seo};
+use folia_shell::seo::{self, Seo};
 use crate::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
-use crate::tabs::{self, Area, Tabs};
-use crate::frame::{BackLink, ErrorState, Frame, Plain};
+use folia_shell::tabs::{self, Area, Tabs};
+use folia_shell::frame::{BackLink, ErrorState, Frame, Plain};
 use folia_design::ui::{Fact, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
 
@@ -570,7 +570,7 @@ pub fn ModuleFull(
                     title=format!("{} ({})", data.module.title, data.module.id)
                     description=derived.description
                     path=url::module_path(&data.module.id)
-                    card=crate::seo::module_card(&data.module.id)
+                    card=folia_shell::seo::module_card(&data.module.id)
                     data=structured(&data, t)
                     noindex=noindex
                 />

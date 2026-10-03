@@ -61,7 +61,7 @@ pub fn Ground() -> impl IntoView {
             </div>
             <div class="ground-foot">
                 <p>
-                    <span>"Folia "<span class="ver">{crate::VERSION}</span></span>
+                    <span>"Folia "<span class="ver">{crate::document::VERSION}</span></span>
                     {move || radix().map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
                 </p>
                 <p>

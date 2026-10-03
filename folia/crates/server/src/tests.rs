@@ -234,7 +234,7 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
     (parts.status, parts.headers, String::from_utf8(body).unwrap())
 }
 
-/// The launch screens of iOS (`folia_app::launch`): the head script of every page names those of its
+/// The launch screens of iOS (`folia_shell::launch`): the head script of every page names those of its
 /// screen, and the server draws each one it can name, as large as its screen, and answers it again
 /// with 304 to its ETag; no other name is there. Needs no snapshot.
 /// The semantic search's model (`semantic`): served under the address its content names, kept
@@ -445,7 +445,7 @@ async fn legal_pages_are_one_step_from_every_page() {
     }
 
     // Any other page, here the program overview, which says that it has no catalog: the ground at
-    // its end (`folia_app::ground`) links both.
+    // its end (`folia_shell::ground`) links both.
     let (status, _, body) = request(&router, folia_routes::url::PROGRAMS, &[]).await;
     let page = String::from_utf8(body).unwrap();
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
@@ -738,7 +738,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     }
     // The Merkliste and the Stundenplan: a picture each, the same for everybody (what a visitor
     // keeps lives in the browser), named by their pages.
-    for (page, card) in [(folia_routes::url::BOOKMARKS, folia_app::seo::BOOKMARKS_CARD), (folia_routes::url::STUDYPLAN, folia_app::seo::STUDYPLAN_CARD)] {
+    for (page, card) in [(folia_routes::url::BOOKMARKS, folia_shell::seo::BOOKMARKS_CARD), (folia_routes::url::STUDYPLAN, folia_shell::seo::STUDYPLAN_CARD)] {
         let body = String::from_utf8(request(&router, page, &[]).await.2).unwrap();
         assert!(head(&body).contains(&format!("content=\"https://catalog.example{card}\"")), "{page}: {body}");
         let (status, headers, png) = request(&router, card, &[]).await;

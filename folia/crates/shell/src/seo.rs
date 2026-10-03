@@ -163,7 +163,7 @@ pub fn Seo(
     // A card says the page's title; the standard picture says what the site is.
     let alt = if card.is_some() { format!("{title} · {SITE_NAME}") } else { t.seo.image_alt.to_string() };
     // A card and the standard picture speak the page's language (`/en/cards/…`, `/en/assets/og.png`).
-    let image = absolute_file(&t.path(card.as_deref().unwrap_or(crate::OG_IMAGE)));
+    let image = absolute_file(&t.path(card.as_deref().unwrap_or(crate::document::OG_IMAGE)));
     let data = (!data.is_empty()).then(|| json_ld(&serde_json::json!({ "@context": "https://schema.org", "@graph": data })));
     view! {
         <Meta name="description" content=description.clone()/>

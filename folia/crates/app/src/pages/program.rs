@@ -49,11 +49,11 @@ use crate::myprogram::{program_name, MineButton, ProgramPlans};
 use folia_design::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::ModulePanel;
-use crate::pending::{Change, Pending};
-use crate::seo::{self, Seo};
-use crate::skeleton::DetailSkeleton;
-use crate::tabs::Area;
-use crate::frame::{BackLink, ErrorState, Frame, Plain};
+use folia_shell::pending::{Change, Pending};
+use folia_shell::seo::{self, Seo};
+use folia_shell::skeleton::DetailSkeleton;
+use folia_shell::tabs::Area;
+use folia_shell::frame::{BackLink, ErrorState, Frame, Plain};
 use folia_design::ui::{EmptyState, Icon, NotFound, OfferBadge, Shortcut};
 
 /// The browser app (`csr`), or the server rendering the page for crawlers and for browsers
@@ -509,7 +509,7 @@ fn ProgramView(
         <Title text=format!("{name}: {view_name} · BTU Cottbus-Senftenberg")/>
         // Older examination regulations stay reachable but are not what a search should find,
         // nor is „Mein Plan".
-        <Seo title=format!("{name}: {view_name}") description=description path=address card=crate::seo::program_card(&p.slug) noindex=!p.is_latest_po || !tab.indexed() data=trail/>
+        <Seo title=format!("{name}: {view_name}") description=description path=address card=folia_shell::seo::program_card(&p.slug) noindex=!p.is_latest_po || !tab.indexed() data=trail/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
             <ProgramHead program=p.clone() plans=plans.clone()/>
 

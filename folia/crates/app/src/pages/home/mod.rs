@@ -74,8 +74,8 @@ use folia_data::{use_ask, PageStatus, ProgramMapHandle};
 use folia_design::format;
 use crate::i18n::{self, Texts};
 use folia_design::nav;
-use crate::seo::{self, Seo};
-use crate::frame::ErrorState;
+use folia_shell::seo::{self, Seo};
+use folia_shell::frame::ErrorState;
 use folia_design::ui::{Icon, Mark, Wordmark};
 
 /// A way into the catalog: a filter people come for, with the number of modules behind it. The
@@ -261,7 +261,7 @@ pub fn HomePage() -> impl IntoView {
             }).collect_view()}
         </section>
         </div></div>
-        <crate::ground::Ground/>
+        <folia_shell::ground::Ground/>
         </div>
     }
     })
@@ -300,7 +300,7 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
             <div class="home-hero-text">
                 // On a phone the start page carries the brand, and at the end of its line the switch
                 // between the languages (`languages`): the phone has no rail to hold it.
-                <div class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span><crate::languages::Languages/></div>
+                <div class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span><folia_shell::languages::Languages/></div>
                 <p class="eyebrow-pill"><i></i>{t.home.eyebrow}</p>
                 <h1>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</h1>
                 <p class="lead">{t.home.lead}</p>

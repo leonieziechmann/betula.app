@@ -4,7 +4,6 @@
 pub mod app;
 pub mod bookmarks;
 pub mod catalog;
-pub mod ground;
 pub mod home;
 pub mod home_detail;
 pub mod legal;
@@ -14,7 +13,6 @@ pub mod myprogram;
 pub mod planner;
 pub mod program;
 pub mod programs;
-pub mod seo;
 pub mod studyplan;
 pub mod studyplan_aside;
 pub mod studyplan_exams;
@@ -36,7 +34,7 @@ folia_design::texts! {
     combobox = folia_design::i18n::combobox,
     common = folia_design::i18n::common,
     format = folia_design::i18n::format,
-    ground = crate::i18n::ground,
+    ground = folia_shell::i18n::ground,
     home = crate::i18n::home,
     home_detail = crate::i18n::home_detail,
     legal = crate::i18n::legal,
@@ -47,7 +45,7 @@ folia_design::texts! {
     plans_data = folia_plans::i18n,
     program = crate::i18n::program,
     programs = crate::i18n::programs,
-    seo = crate::i18n::seo,
+    seo = folia_shell::i18n::seo,
     studyplan = crate::i18n::studyplan,
     studyplan_aside = crate::i18n::studyplan_aside,
     studyplan_exams = crate::i18n::studyplan_exams,

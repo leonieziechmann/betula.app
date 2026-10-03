@@ -68,7 +68,7 @@ use leptos::prelude::*;
 use folia_design::format;
 use crate::i18n::{self, Locale};
 use folia_design::nav;
-use crate::pending::Pending;
+use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
 use crate::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
 use super::head::{hue, kind_word, tone_at, NothingPlanned};

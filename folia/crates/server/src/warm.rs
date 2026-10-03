@@ -70,7 +70,7 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
             };
             // Each page in a task of its own: a render that panics costs this page, not the rest
             // of the warm-up. On 2026-09-26 one ended it after a few hundred pages, and no later
-            // snapshot was warmed until a restart (a value of the browser's in `folia_app::pending`,
+            // snapshot was warmed until a restart (a value of the browser's in `folia_shell::pending`,
             // dropped on another thread). A page lost so keeps the date it had (`Changes::finish`).
             let (state, page) = match tokio::spawn(ask(pages.clone(), request)).await {
                 Ok(answer) => answer,

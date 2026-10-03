@@ -25,7 +25,7 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use crate::i18n;
-use crate::pending::Pending;
+use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
 use super::import::{now_secs, taken_parts};
 use super::PlanCtx;
