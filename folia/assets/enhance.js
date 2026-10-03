@@ -1,12 +1,12 @@
-// Small behaviours shared by the server-rendered pages and the browser app. Everything works
-// without this file (links and forms). Before the app has taken over (`window.__betulaApp`), it
-// makes the classic site smoother: filters apply on change, panels keep their scroll position
-// across page loads. In both modes: the shortcuts (Esc closes the preview or leaves the module
-// page, F opens the previewed module full screen, Ctrl+K or "/" jumps to the search; in the app
-// M marks the module the visitor is at and P plans it into the Studienplan), the theme
-// switch, the filter sheet, the swipe along the phone's bottom bar from tab to tab, the widths of
-// the filter panel and the module preview (dragged, kept in localStorage), the room the panels
-// make for the ground at the end of a page, and the way back to the top of a page („Nach oben").
+// Small behaviours shared by the pages of the site and the browser app. The site works without this
+// file (it is links); before the app has taken over (`window.__betulaApp`) panels keep their scroll
+// position across page loads, and a link followed while the app is starting waits for it. In both
+// modes: the shortcuts (Esc closes the preview or leaves the module page, F opens the previewed
+// module full screen, Ctrl+K or "/" jumps to the search; in the app M marks the module the visitor
+// is at and P plans it into the Studienplan), the theme switch, the filter sheet, the swipe along
+// the phone's bottom bar from tab to tab, the widths of the filter panel and the module preview
+// (dragged, kept in localStorage), the room the panels make for the ground at the end of a page,
+// and the way back to the top of a page („Nach oben").
 (() => {
   const root = document.documentElement;
   // The page's language, as its address says it (`folia_locale::Locale::split`): the prefix of its
@@ -88,34 +88,6 @@
   restoreScroll();
   addEventListener("pagehide", () => { if (!appRuns()) saveScroll(); });
 
-  function submit(form) {
-    saveScroll();
-    for (const el of form.elements) if (el.name && el.value === "" && el.type !== "checkbox") el.disabled = true; // keep the URL clean
-    if (form.requestSubmit) form.requestSubmit(); else form.submit();
-  }
-  let timer;
-  document.addEventListener("change", (e) => {
-    const form = e.target.closest("form[data-autosubmit]");
-    if (!form || appRuns()) return; // the app has its own handlers
-    if (phone()) return; // the sheet has its own apply button
-    clearTimeout(timer);
-    timer = setTimeout(() => submit(form), e.target.type === "number" || e.target.type === "text" ? 350 : 0);
-  }, true);
-
-  // Classic mode: the credit slider writes into the two number fields, which the form submits.
-  document.addEventListener("input", (e) => {
-    const slider = e.target.type === "range" && !appRuns() ? e.target.closest(".slider") : null;
-    if (!slider) return;
-    const [low, high] = slider.querySelectorAll("input");
-    if (e.target === low && +low.value > +high.value) low.value = high.value;
-    if (e.target === high && +high.value < +low.value) high.value = low.value;
-    slider.style.setProperty("--from", low.value / low.max);
-    slider.style.setProperty("--to", high.value / high.max);
-    const fields = slider.closest("form")?.elements;
-    if (fields?.ects_min) fields.ects_min.value = +low.value > 0 ? low.value : "";
-    if (fields?.ects_max) fields.ects_max.value = +high.value < +high.max ? high.value : "";
-  });
-
   // The switch between the languages (app::languages): the language it leads to is kept before the
   // page is left, so that every later visit opens in it (`language_script` in the head).
   const keepLanguage = (e) => {
@@ -177,15 +149,6 @@
     }
     clearTimeout(waiting?.timer);
     waiting = { href, tab, timer: setTimeout(() => follow(appRuns()), 6000) };
-  }, true);
-
-  // Classic mode on a phone: a module is its own page, never a preview (the app does this by
-  // itself, and also knows which row to show when the visitor comes back).
-  document.addEventListener("click", (e) => {
-    const row = e.target.closest?.("a.row[data-id]");
-    if (!row || appRuns() || !phone() || e.defaultPrevented) return;
-    e.preventDefault();
-    location.href = language().prefix + "/catalog/module/" + encodeURIComponent(row.dataset.id);
   }, true);
 
   // A tap beside the open sheet, on the dimmed page (the target is then the document itself).

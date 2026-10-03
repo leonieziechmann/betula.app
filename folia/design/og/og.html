@@ -17,7 +17,7 @@
    theme: a head of its own whose clearing fits this wordmark (<season>-og-head.svg), then the
    site's tile. The masks are pictures here, coloured by a filter: a CSS mask does not load from
    a file:// page. */
-@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; src: url("../../app/assets/inter-latin.woff2") format("woff2"), local("Inter"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; src: url("../../assets/inter-latin.woff2") format("woff2"), local("Inter"); }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 1200px; height: 630px; }
 body { background: #f1f2f4; color: #10151f; font: 450 28px/1.35 "Inter", system-ui, sans-serif; letter-spacing: -.012em; -webkit-font-smoothing: antialiased; position: relative; overflow: hidden; }
@@ -63,8 +63,8 @@ svg.crown { position: absolute; left: 0; top: 0; width: 1120px; height: 96px; }
     const layers = [[tone, "og-head", "crown"]].concat(catkins ? [[catkins, "og-head-ck", "crown-ck"]] : []);
     document.querySelector("svg.crown").innerHTML = layers.map(([colour, head, tile], i) =>
       `<filter id="tone${i}" x="0" y="0" width="1" height="1"><feFlood flood-color="${colour}"/><feComposite in2="SourceAlpha" operator="in"/></filter>` +
-      `<g filter="url(#tone${i})"><image href="../../app/assets/birch/${season}-${head}.svg" width="540" height="96"/>` +
-      `<image href="../../app/assets/birch/${season}-${tile}.svg" x="540" width="1800" height="96"/></g>`).join("");
+      `<g filter="url(#tone${i})"><image href="../../assets/birch/${season}-${head}.svg" width="540" height="96"/>` +
+      `<image href="../../assets/birch/${season}-${tile}.svg" x="540" width="1800" height="96"/></g>`).join("");
   });
 </script>
 </head>

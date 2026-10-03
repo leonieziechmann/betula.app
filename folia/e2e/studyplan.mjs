@@ -187,36 +187,40 @@ async function persistence() {
 }
 
 // ---------- 5: without the app ----------
+// A route of the app (docs/folia/folia-refactor.md §4.2): the server writes its tags and the plan's
+// skeleton; without JavaScript the <noscript> says what the plan needs.
 async function withoutTheApp() {
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
   const page = await context.newPage();
   const response = await page.goto(base + "/studyplan?sem=2026W&open=12104", { waitUntil: "domcontentloaded" });
   const plain = await page.evaluate(() => ({
-    title: document.querySelector(".sp-body .state-title")?.textContent ?? "",
+    title: document.querySelector(".state .state-title")?.textContent ?? "",
     h1: document.querySelectorAll("h1").length,
     heading: document.querySelector(".crumb h1")?.textContent,
     rail: document.querySelector('.rail .nav[data-area="studyplan"]')?.getClientRects().length ?? -1,
     bottom: document.querySelector('.bottomnav .nav[data-area="studyplan"]')?.getClientRects().length ?? -1,
     robots: document.querySelector('meta[name="robots"]')?.content ?? "",
     aside: Boolean(document.querySelector(".detail")),
-    hint: document.querySelector(".sidebar .storage-hint")?.textContent ?? "",
+    skeleton: document.querySelector(".app-standin")?.getClientRects().length ?? -1,
   }));
   check(response.status() === 200 && plain.title === "Dein Stundenplan erscheint, sobald die App geladen ist." && plain.h1 === 1 && plain.heading === "Stundenplan", `without JavaScript the plan does not explain itself: ${JSON.stringify(plain)}`);
   check(plain.rail === 0 && plain.bottom === 0, `without JavaScript the rail offers the plan: ${JSON.stringify(plain)}`);
-  check(plain.robots.startsWith("noindex") && !plain.aside && plain.hint.includes("nur in diesem Browser"), `without JavaScript: ${JSON.stringify(plain)}`);
-  // A phone: the frame is the app's, its sidebar a closed sheet, so nothing of the page vanishes
-  // when the app takes over (R15); the explanation says where the plan lives.
+  check(plain.robots.startsWith("noindex") && !plain.aside && plain.skeleton === 0, `without JavaScript: ${JSON.stringify(plain)}`);
   await page.setViewportSize({ width: 390, height: 844 });
-  // The sidebar becomes the closed sheet by sliding down (`transition: transform .3s`): it is
-  // measured once it has arrived, not on its way (`finished` resolves without JavaScript too).
-  await page.evaluate(() => Promise.all(document.querySelector(".sidebar").getAnimations().map((animation) => animation.finished)));
   const phone = await page.evaluate(() => {
-    const sidebar = document.querySelector(".sidebar");
-    const state = document.querySelector(".sp-body .state").getBoundingClientRect();
-    return { sheet: sidebar.classList.contains("sheet"), closed: sidebar.getBoundingClientRect().top >= innerHeight, state: state.height > 0 && state.bottom <= innerHeight, wide: document.documentElement.scrollWidth > innerWidth };
+    const state = document.querySelector(".state").getBoundingClientRect();
+    return { state: state.height > 0 && state.bottom <= innerHeight, wide: document.documentElement.scrollWidth > innerWidth };
   });
-  check(phone.sheet && phone.closed && phone.state && !phone.wide, `a phone without JavaScript: ${JSON.stringify(phone)}`);
+  check(phone.state && !phone.wide, `a phone without JavaScript: ${JSON.stringify(phone)}`);
   await context.close();
+  // With JavaScript, until the app runs: the plan's skeleton, and no explanation.
+  const waiting = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+  await waiting.route("**/pkg/**", (route) => route.abort());
+  const before = await waiting.newPage();
+  await before.goto(base + "/studyplan", { waitUntil: "load" });
+  const standin = await before.evaluate(() => ({ skeleton: document.querySelector(".app-standin .sk-frame, .app-standin .work")?.getClientRects().length ?? 0, explained: [...document.querySelectorAll(".state")].filter((el) => el.getClientRects().length).length }));
+  check(standin.skeleton > 0 && standin.explained === 0, `before the app runs the plan is not its skeleton: ${JSON.stringify(standin)}`);
+  await waiting.close();
 }
 
 // ---------- 10: the placeholders' boxes ----------

@@ -4,7 +4,7 @@
 //! semester; then `--heavy` codes of `MAX_MODULES` modules with events, the dearest feed there is.
 //!
 //! ```text
-//! cargo run --release -p folia-catalog --features native --example loadtest_feeds -- <catalog-*.db> [2026W] [--heavy N]
+//! cargo run --release -p folia-pages --example loadtest_feeds -- <catalog-*.db> [2026W] [--heavy N]
 //! ```
 //!
 //! One line per feed: path, program slug, Fachsemester (0 = heavy), number of modules.

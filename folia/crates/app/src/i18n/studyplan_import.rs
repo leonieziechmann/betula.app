@@ -55,7 +55,7 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     import: "Import",
-    source: "Source",
+    source: "DataClient",
     standard_plan: "Standard study plan",
     my_plan: "My plan",
     soon: "soon",

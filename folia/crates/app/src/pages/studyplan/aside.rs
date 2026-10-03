@@ -33,7 +33,7 @@ use folia_calendar::select::{HiddenBy, Town, TownChoice};
 use folia_calendar::semester::{of_fachsemester, SemesterKey};
 use folia_model::labels::{Campus, Code, Rhythm, TurnusSeason};
 use folia_model::rows::CatalogRow;
-use folia_pages as pages;
+use folia_pages::ask::{StudyplanAsk, StudyplanModulesAsk};
 use folia_pages::StudyplanData;
 use folia_plans::studyplan::{Placeholder, PlanDoc};
 use folia_routes::url::{PlanView, StudyplanUrl};
@@ -308,12 +308,12 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
         let loaded = match place.sem {
             Some(sem) if sem == place.shown => Loaded::Page,
             Some(sem) => Loaded::Other(ctx.source.with_value(|source| match source {
-                Some(source) => source.run(|db| pages::studyplan(db, sem, &place.ids, t.locale)),
+                Some(source) => source.now(&StudyplanAsk { key: sem, ids: place.ids.clone(), program: None, locale: t.locale }),
                 None => Err(unavailable()),
             })),
             None => Loaded::Nowhere(ctx.source.with_value(|source| match source {
                 Some(source) => {
-                    source.run(|db| pages::studyplan_modules(db, std::slice::from_ref(&place.id))).map(|(rows, _)| rows.into_iter().next())
+                    source.now(&StudyplanModulesAsk { ids: vec![place.id.clone()] }).map(|(rows, _)| rows.into_iter().next())
                 }
                 None => Err(unavailable()),
             })),

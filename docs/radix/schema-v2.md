@@ -803,7 +803,7 @@ Open:
 
 - **Schema 11 in Folia's tests.** `folia_model::SCHEMA_VERSION` is 11 (browsers refuse an older snapshot,
   so every instance needs `radix build`, then `export`, before the web build that reads 11 goes
-  live). Pin `STUDYPLAN_DIGEST` (`folia/crates/catalog/src/tests.rs`, `folia/crates/server/src/tests.rs`) to a schema-11
+  live). Pin `STUDYPLAN_DIGEST` (`folia/crates/pages/src/tests.rs`, `folia/crates/server/src/tests.rs`) to a schema-11
   export in `snapshot/`: the digest covers `module_vector`, so the pinned checks are skipped until
   then. The catalog's tests pass against the snapshot of 2026-09-30 migrated to 11 with Radix's
   vectors.

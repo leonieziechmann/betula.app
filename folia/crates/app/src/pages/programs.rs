@@ -17,13 +17,14 @@
 
 use folia_model::labels::DegreeLevel;
 use folia_model::rows::{Department, Program};
+use folia_pages::ask::ProgramsOverviewAsk;
 use folia_pages as pages;
 use folia_pages::ProgramsData;
 use folia_routes::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
-use crate::data::{use_source, PageStatus};
+use crate::data::{use_data, PageStatus};
 use crate::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
@@ -31,6 +32,7 @@ use crate::nav;
 use crate::pending::Pending;
 use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
+use crate::skeleton::FilterGroupsStandin;
 use crate::ui::{ErrorState, Frame, Icon, Plain, ToggleLink};
 
 /// The browser app (`csr`), or the server rendering the page for everybody.
@@ -235,7 +237,7 @@ pub struct ProgramsReady(pub std::sync::Arc<pages::ProgramsData>);
 #[component]
 pub fn ProgramsPage() -> impl IntoView {
     let t = i18n::t();
-    let source = use_source();
+    let source = use_data();
     let status = PageStatus::capture();
     let location = use_location();
     let url = Memo::new(move |_| ProgramsUrl::parse(&location.search.get()));
@@ -243,7 +245,7 @@ pub fn ProgramsPage() -> impl IntoView {
     // ready for the snapshot (`ProgramsReady`) hands it over.
     let loaded = match use_context::<ProgramsReady>() {
         Some(ready) => Ok(group(&ready.0)),
-        None => source.and_then(|source| source.run(pages::programs_overview)).map(|data| group(&data)),
+        None => source.and_then(|source| source.now(&ProgramsOverviewAsk {})).map(|data| group(&data)),
     };
     let all = match loaded {
         Ok(all) => all,
@@ -321,8 +323,12 @@ pub fn ProgramsPage() -> impl IntoView {
         }
     }
 
+    // The site's overview is the list by faculty and its jumps (§4.1): its filters are the app's,
+    // and until it runs their place holds their bars.
     let sidebar = move || {
         view! {
+            {(!APP).then(|| view! { <FilterGroupsStandin groups=&[4, 3, 1]/> })}
+            {APP.then(|| view! {
             <div class="fgroup first">
                 <div class="flabel label">{t.programs.level}</div>
                 <div class="chips">
@@ -366,6 +372,7 @@ pub fn ProgramsPage() -> impl IntoView {
                     />
                 </div>
             </div>
+            })}
             <nav class="fgroup toc jumps" aria-label=t.programs.faculties>
                 <p class="flabel label">{t.programs.faculties}</p>
                 {move || shown.get().faculties.into_iter().map(|faculty| view! {
@@ -463,7 +470,7 @@ fn MineLine() -> impl IntoView {
     let t = i18n::t();
     let mine = MyProgram::expect();
     let resolved = MineResolved::expect();
-    let source = use_source().ok();
+    let source = use_data().ok();
     // Siblings, each from its own source (R16): what the store says, and what the catalog knows —
     // the program while it is in the snapshot (`true`), else the newest PO of its family, if any.
     let stored = Memo::new(move |_| {

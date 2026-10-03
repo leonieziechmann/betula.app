@@ -13,8 +13,8 @@ from fontTools.ttLib import TTFont
 from fontTools.varLib import instancer
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SOURCE = ROOT / "app" / "assets" / "inter-latin.woff2"
-OUT = ROOT / "server" / "assets"
+SOURCE = ROOT / "assets" / "inter-latin.woff2"
+OUT = ROOT / "crates" / "server" / "assets"
 OUT.mkdir(parents=True, exist_ok=True)
 
 for weight in (400, 500, 600, 800):

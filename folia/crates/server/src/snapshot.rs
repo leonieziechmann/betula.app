@@ -55,9 +55,6 @@ pub struct Snapshot {
     /// for) and its own ETag. The ETag is the content's, not the snapshot's: a new layout of the
     /// same catalog (a new Folia) must not be answered with „304, unchanged" from a browser's cache.
     pub program_map: Option<(Arc<folia_pages::graph::ProgramMap>, Kept, String)>,
-    /// What the pickers of the catalog offer (every program, department and person), made once
-    /// here instead of in every render of a page of the catalog (`folia_app::pages::catalog`).
-    pub pickers: Option<folia_app::pages::catalog::PickerChoices>,
     /// The data of the program overview, the same for each of its filters (`folia_app::pages::programs`).
     pub programs: Option<folia_app::pages::programs::ProgramsReady>,
     /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
@@ -95,13 +92,6 @@ impl Snapshot {
                 None
             }
         };
-        let pickers = match folia_pages::catalog_choices(&db) {
-            Ok(choices) => Some(folia_app::pages::catalog::PickerChoices::of(&choices)),
-            Err(error) => {
-                tracing::warn!(component = "snapshot", event = "snapshot.choices_failed", error = %error, "the pickers of the catalog are loaded per page");
-                None
-            }
-        };
         let programs = folia_pages::programs_overview(&db).ok().map(|data| folia_app::pages::programs::ProgramsReady(Arc::new(data)));
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let gzip_path = beside(&path, GZIP);
@@ -122,7 +112,6 @@ impl Snapshot {
             meta: overview.meta,
             activated_at: SystemTime::now(),
             program_map,
-            pickers,
             programs,
             sitemap: Mutex::new(None),
             pool: Mutex::new(vec![db]),

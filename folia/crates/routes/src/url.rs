@@ -45,6 +45,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::{self, SharedPlan};
 use folia_locale::Locale;
 use folia_model::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
+use serde::{Deserialize, Serialize};
 
 use crate::filter::{
     CatalogQuery, ExamPart, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope,
@@ -484,7 +485,7 @@ impl ProgramsUrl {
 }
 
 /// How the list of marked modules is ordered.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BookmarkSort {
     /// The newest mark first: the order of a list one keeps adding to.
     #[default]
@@ -848,7 +849,7 @@ pub const PAGE_SIZE: u64 = 50;
 pub const MAX_AREAS: usize = 20;
 
 /// What a catalog URL says: the filter and the page (1-based).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CatalogUrl {
     pub query: CatalogQuery,
     pub page: u64,

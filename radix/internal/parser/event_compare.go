@@ -108,7 +108,7 @@ func NoEvent(d *model.EventDetail) bool {
 // AwaitsDates reports whether an event does not say yet when it takes place: it has no
 // date, or none with a time and a day. The placeholder QIS enters for an exam whose date
 // is not fixed, 01:00 to 02:30 on a Sunday or without a weekday, is no date either
-// (Folia reads it the same way, folia/crates/catalog/src/exam_reading.rs).
+// (Folia reads it the same way, folia/crates/timetable/src/exam_reading.rs).
 func AwaitsDates(d *model.EventDetail) bool {
 	for _, s := range d.Schedules {
 		first, _ := DayRange(s.Duration)
@@ -127,7 +127,7 @@ func isPlaceholder(s model.EventSchedule) bool {
 
 // Unsettled reports whether the dates of an event are not settled, so that they are worth
 // asking about more often: the event awaits its dates, or one of its dates is the
-// placeholder of an exam or looks wrong the way Folia marks it (folia/crates/catalog/src/exam_reading.rs):
+// placeholder of an exam or looks wrong the way Folia marks it (folia/crates/timetable/src/exam_reading.rs):
 // a time before 06:00 or after 22:00 that is not a deadline („bis 24:00"), an end before the
 // start, or a day more than six months away from the event's own semester.
 func Unsettled(d *model.EventDetail) bool {

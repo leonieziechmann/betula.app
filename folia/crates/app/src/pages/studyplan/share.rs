@@ -19,7 +19,7 @@
 //! reads the offer in the language it was handed on in.
 
 use folia_calendar::share::SharedPlan;
-use folia_pages as pages;
+use folia_pages::ask::SharedPlanAsk;
 use folia_pages::SharedPlanData;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
@@ -99,7 +99,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     // What the code names, from the local copy of the catalog.
     let shared = Memo::new(move |_| {
         let plan = code.with(|code| code.as_deref().and_then(SharedPlan::from_code))?;
-        let data = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::shared_plan(db, &plan, t.locale)).ok()))??;
+        let data = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&SharedPlanAsk { plan: plan.clone(), locale: t.locale }).ok()))??;
         Some((plan, data))
     });
     let offer = Memo::new(move |_| {

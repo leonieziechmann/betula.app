@@ -60,7 +60,7 @@ use folia_calendar::semester::SemesterKey;
 use folia_locale::Locale;
 use folia_model::labels::Campus;
 use folia_model::rows::Semester;
-use folia_pages as pages;
+use folia_pages::ask::HomeAsk;
 use folia_pages::graph::{Cycle, Layout, ProgramMap};
 use folia_pages::HomeData;
 use folia_routes::CatalogQuery;
@@ -70,7 +70,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 
 use crate::combobox::ClosePopups;
-use crate::data::{use_source, PageStatus, ProgramMapHandle};
+use crate::data::{use_data, PageStatus, ProgramMapHandle};
 use crate::format;
 use crate::i18n::{self, Texts};
 use crate::nav;
@@ -135,13 +135,13 @@ fn semester_name(semester: &Semester, locale: Locale) -> String {
 #[component]
 pub fn HomePage() -> impl IntoView {
     let t = i18n::t();
-    let source = use_source();
+    let source = use_data();
     let status = PageStatus::capture();
     let entries = entries(t);
     // The ways in, and after them the selection the filter board of „Betula im Detail" shows: its
     // count comes with theirs, in the same loader.
     let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).chain([detail::example()]).collect();
-    let loaded = source.and_then(|source| source.run(|db| pages::home(db, &queries)));
+    let loaded = source.and_then(|source| source.now(&HomeAsk { entries: queries }));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
     // „Betula im Detail" says how many of the current programs have a checked plan, and how many
     // modules its example finds.

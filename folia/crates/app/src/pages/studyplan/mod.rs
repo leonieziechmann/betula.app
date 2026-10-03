@@ -42,27 +42,26 @@ use folia_calendar::day::Day;
 use folia_calendar::select::Selection;
 use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::{self as shared_plan, SharedPlan};
-use folia_pages as pages;
+use folia_pages::ask::{MetaAsk, SharedPlanAsk, StudyplanAsk};
 use folia_pages::StudyplanData;
 use folia_plans::studyplan::PlanDoc;
-use folia_query as queries;
 use folia_routes::url::{self, PlanView, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 use leptos_meta::Title;
 
-use crate::data::{use_source, DataError, Source};
+use crate::data::{use_data, DataClient, DataError};
 use crate::i18n::{self, use_location};
 use crate::local::{self, ModuleInPlace};
 use crate::myprogram::MyProgram;
 use crate::pages::catalog::phone_layout;
-use crate::pending::{Change, Pending};
+use crate::pending::{Change, Pending, Shape};
 use crate::seo::Seo;
-use crate::skeleton::DetailSkeleton;
+use crate::skeleton::{AppStandin, DetailSkeleton};
 use crate::studyplan::{PlanAddress, Studyplan};
 use crate::tabs::Area;
-use crate::ui::{EmptyState, ErrorState, Frame, Icon};
+use crate::ui::{ErrorState, Frame, Icon};
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
@@ -103,7 +102,7 @@ pub(super) struct PlanCtx {
     pub table: Memo<Option<Timetable>>,
     pub plan: Option<Studyplan>,
     pub mine: Option<MyProgram>,
-    pub source: StoredValue<Option<Source>>,
+    pub source: StoredValue<Option<DataClient>>,
     /// The browser's date, read once when the page was built; `None` on the server. The page reads
     /// the clock for two things only: the default semester and the week „Termine" scrolls to.
     pub today: Option<Day>,
@@ -171,13 +170,13 @@ pub fn StudyplanPage() -> impl IntoView {
     let location = use_location();
     let plan = Studyplan::expect();
     let mine = MyProgram::expect();
-    let source = StoredValue::new(use_source().ok());
+    let source = StoredValue::new(use_data().ok());
     let today = today();
 
     let address = Memo::new(move |_| PlanAddress::parse(&location.search.get()));
     let url = Memo::new(move |_| address.with(|address| address.url.clone()));
     let current = Memo::new(move |_| {
-        let meta = source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| queries::meta(db)).ok()));
+        let meta = source.with_value(|source| source.as_ref().and_then(|source| source.now(&MetaAsk {}).ok()));
         meta.and_then(|meta| meta.current_semester.as_deref().and_then(SemesterKey::parse))
     });
     let wanted = Memo::new(move |_| {
@@ -195,7 +194,7 @@ pub fn StudyplanPage() -> impl IntoView {
     let data = Memo::new(move |_| {
         let (key, ids, program) = wanted.get();
         source.with_value(|source| match source {
-            Some(source) => source.run(|db| pages::studyplan_in(db, key, &ids, program.as_deref(), t.locale)),
+            Some(source) => source.now(&StudyplanAsk { key, ids: ids.clone(), program: program.clone(), locale: t.locale }),
             None => Err(DataError { unavailable: true, message: "no data source was provided".to_string() }),
         })
     });
@@ -388,13 +387,13 @@ pub(super) fn StorageHint() -> impl IntoView {
 fn PlanSeo() -> impl IntoView {
     let t = i18n::t();
     let location = use_location();
-    let source = use_source().ok();
+    let source = use_data().ok();
     // The tags change with the code alone, not with every view of the plan.
     let code = Memo::new(move |_| StudyplanUrl::parse(&location.search.get()).share);
     move || {
         let shared = code.get().and_then(|code| {
             let plan = SharedPlan::from_code(&code)?;
-            let data = source.as_ref()?.run(|db| pages::shared_plan(db, &plan, t.locale)).ok()??;
+            let data = source.as_ref()?.now(&SharedPlanAsk { plan, locale: t.locale }).ok()??;
             (!data.modules.is_empty()).then_some((code, data))
         });
         match shared {
@@ -415,25 +414,14 @@ fn PlanSeo() -> impl IntoView {
     }
 }
 
-/// What the server renders for every address of the plan (R9): the frame, and the explanation in
-/// the place of the plan. The app replaces it with the plan once it runs.
-///
-/// The frame is the app's, a sheet on a phone included: a sidebar in the page that the takeover
-/// turns into a closed sheet would vanish from under the explanation (R15). The sidebar says where
-/// the plan lives (`StorageHint`, as in the app), the explanation what it takes to see it; each
-/// says it once (owner review 2026-09-25).
+/// What the server writes for every address of the plan, a route of the app (§4.2): its tags (a
+/// shared plan's name its modules: a link preview runs no script) and the plan's skeleton.
 fn server_page() -> impl IntoView {
     let t = i18n::t();
     view! {
         <Title text=t.studyplan.title/>
-        <Frame title=t.studyplan.customise sheet=true sidebar=|| view! { <StorageHint/> }>
-            <PlanSeo/>
-            <div class="page-inner sp">
-                <section class="panel sp-body">
-                    <EmptyState title=t.studyplan.server_title hint=t.studyplan.server_hint/>
-                </section>
-            </div>
-        </Frame>
+        <PlanSeo/>
+        <AppStandin shape=Shape::Studyplan title=t.studyplan.server_title hint=t.studyplan.server_hint/>
     }
 }
 

@@ -512,7 +512,7 @@ weeks later. An event whose dates are not settled is looked up every two hours, 
 one request, and in doubt the answer is the same. Not settled (`parser.Unsettled`) means: no
 date, or none with a time and a day; the placeholder QIS enters for an exam without a date,
 01:00 to 02:30 on a Sunday or without a weekday (27.12.2015 in the WiSe 2026/27); a date that
-looks wrong the way Folia marks it (`folia/crates/catalog/src/exam_reading.rs`): a time before 06:00 or after
+looks wrong the way Folia marks it (`folia/crates/timetable/src/exam_reading.rs`): a time before 06:00 or after
 22:00 that is not a deadline, an end before its start, a day more than six months from the
 semester; or an event the search does not show. Every other event is looked up once a night, in
 the off-peak window.

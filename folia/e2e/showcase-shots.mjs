@@ -9,7 +9,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 const base = (process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
-const out = new URL("../app/assets/shots/", import.meta.url);
+const out = new URL("../assets/shots/", import.meta.url);
 mkdirSync(out, { recursive: true });
 
 // clip in CSS pixels; width: the width of the file in pixels.

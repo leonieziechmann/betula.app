@@ -364,7 +364,7 @@ pub const EN: Texts = Texts {
         logs: "Logs",
         disclosure: "Disclosure",
         ending: "Ending it",
-        source: "Source",
+        source: "DataClient",
         recipients: "Recipients",
         objection: "Objection",
     },

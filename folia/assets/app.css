@@ -2905,6 +2905,13 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
    the frame of what comes (the layout classes of the page, so every panel is where the page will
    put its own): grey bars where the text will be. A band of light sweeps over it once the wait is
    long enough to be noticed; the compositor moves it, so it keeps moving while the page is built. */
+/* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the
+   page will be; without JavaScript the <noscript> beside it says what the view needs instead. */
+.app-standin { display: contents; }
+html:not(.js) .app-standin { display: none; }
+/* The filter panel's place on the server's catalog (`skeleton::FiltersStandin`): without JavaScript
+   nothing will take it, and the list has the room. */
+html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .pending-page { position: absolute; inset: 0; z-index: 30; background: var(--bg); }
 .pending-page > .work { height: 100%; }
 /* Another view of the same page: its column waits, the sidebar stays as it is and takes clicks. */
@@ -3178,7 +3185,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
   .detail .scroll { overflow: visible; }
   .back { display: grid !important; }
   .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: var(--bar) 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
-  .pending-page .sidebar { display: none; }
+  .pending-page .sidebar, .app-standin .sidebar, .sk-standin { display: none; }
   .sk-home, .sk-subject { grid-template-columns: minmax(0, 1fr); }
   .sk-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 0; border-top: 1px solid var(--line); }
   .sk-figures > div { min-height: 56px; }

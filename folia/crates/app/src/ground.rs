@@ -4,11 +4,11 @@
 //! by the stylesheet from the masks in `assets/birch` (`design/birch/birch.mjs`), in the tone of
 //! the season the script in `<head>` names; this module only places them.
 
-use folia_pages as pages;
+use folia_pages::ask::GroundAsk;
 use folia_routes::url;
 use leptos::prelude::*;
 
-use crate::data::use_source;
+use crate::data::use_data;
 use crate::format;
 use crate::i18n;
 use crate::seo;
@@ -40,7 +40,7 @@ pub fn Wood() -> impl IntoView {
 #[component]
 pub fn Ground() -> impl IntoView {
     let t = i18n::t();
-    let facts = use_source().ok().and_then(|source| source.run(pages::ground).ok());
+    let facts = use_data().ok().and_then(|data| data.now(&GroundAsk {}).ok());
     let radix = facts.as_ref().and_then(|ground| ground.meta.radix_version.clone());
     let changed = facts.as_ref().and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
     // The semester by its key, in the page's language (the snapshot's label is German).

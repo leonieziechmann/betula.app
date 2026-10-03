@@ -29,7 +29,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
 | `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its queries in the catalog's search worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
-### Routes (`folia/crates/catalog/src/url.rs`)
+### Routes (`folia/crates/routes/src/url.rs`)
 
 | URL | Page |
 |---|---|
@@ -920,7 +920,7 @@ of the three, without fills too.
 
 `node folia/e2e/tabbar.mjs` checks the start (§4).
 
-### The search of the catalog (`folia/crates/catalog/src/search.rs`, 2026-09-30)
+### The search of the catalog (`folia/crates/search/src/lib.rs`, 2026-09-30)
 
 Owner: the search should improve, first with the names of the modules („erstmal eine neue Zeile in
 der db wo keine Sonderzeichen etc drin sind“), typos forgiven; a semantic search („Ähnliche
@@ -1051,7 +1051,7 @@ and as facts, and put the catalog last). The catalog's area filter takes several
 areas for that (`ProgramScope::areas`, any of them). The server's page picks nothing, so its link
 is the program's (no part of the cache key changes). `node folia/e2e/programs.mjs` walks it.
 
-### Exam dates the BTU cannot mean (`folia/crates/catalog/src/exam_reading.rs`, 2026-09-21)
+### Exam dates the BTU cannot mean (`folia/crates/timetable/src/exam_reading.rs`, 2026-09-21)
 
 Owner: Analysis I (11103) listed two exams „So 01:00–02:30, 27.12.2015" under WiSe 2026/27; the
 page should correct that by itself and say that the data is odd. The raw QIS page says exactly
@@ -1082,7 +1082,7 @@ paper or take-home exam is due. The first idea, shifting by twelve hours, would 
 
 The area picker and `areas_for_row` had been built against the synthetic snapshot only. Checked
 against the real one (export of 2026-09-20 23:21, 182 programs, 179 of them with a module tree,
-140 with a validated plan) with `folia/crates/catalog/examples/area_survey.rs`, which opens a snapshot and calls
+140 with a validated plan) with `folia/crates/pages/examples/area_survey.rs`, which opens a snapshot and calls
 the crate's own functions — exactly what the app does — and prints every picker and every row:
 
     cargo run -p folia-pages --example area_survey -- <catalog-*.db> [slug…]
@@ -1119,7 +1119,7 @@ to every elective of the program. Checked by hand, the areas the rows now point 
 few exceptions: „Wahlbereich Volkwirtschaftliche Grundlagen" (a typo in the plan) finds every
 „… Grundlagen" area of Wirtschaftsinformatik instead of „Volkswirtschaftliche Grundlagen", and
 double-degree plans whose areas lie in accounts are not found. The real labels are the tests'
-fixtures (`folia/crates/catalog/src/area_fixtures.rs`: Informatik B.Sc. and M.Sc., Elektrotechnik B.Sc. 2022
+fixtures (`folia/crates/plans/src/area_fixtures.rs`: Informatik B.Sc. and M.Sc., Elektrotechnik B.Sc. 2022
 with its study directions, Elektrotechnik M.Sc. 2018, Architektur, Wirtschaftsingenieurwesen
 dual), and the fixture generator (`radix/internal/catalogbuild/folia_fixture_test.go`) builds its trees
 and the plan of Informatik in the same shapes, so the browser checks see what the real data has.
@@ -1245,7 +1245,7 @@ alles gesprochen wird", the flow through the app and every filter. What changed:
   checked against the page's own words in every language (`i18n/home.rs` and `i18n/home_detail.rs`,
   their tests).
 
-The map (`folia/crates/catalog/src/graph.rs`): a dot per current program, a line where two curricula share
+The map (`folia/crates/pages/src/graph.rs`): a dot per current program, a line where two curricula share
 modules (Jaccard; modules of more than 40 programs are ignored), a force layout without
 randomness. **The server lays it out once, when a snapshot is opened** (`Snapshot::open`,
 event `snapshot.map_built`), for a 4:3 sheet (the carousel; 2:1 until 2026-09-21) and a tall one; nothing is laid out while a page
@@ -1810,7 +1810,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   sends the same cached page to everybody (R9); the stylesheet hides them until the script in
   `<head>` has marked the document, which is before the first paint. What only the browser app
   can do (endless list, pickers) is rendered by the app alone or shown under `html.app`.
-- **R11. All SQL lives in `folia/crates/catalog/src/queries.rs`,** reads only `v_*` views, and every `pub fn`
+- **R11. All SQL lives in `folia/crates/query/src/lib.rs`,** reads only `v_*` views, and every `pub fn`
   there runs against a real snapshot in the tests (the build fails otherwise). One exception, on
   purpose: the nodes of the module tree (`queries::program_area_tree`) come from the table
   `program_area`, because no view has the nodes that hold no module („Komplex Nebenfach") with
@@ -2264,7 +2264,7 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
   `closed_testing_asks_for_the_password_before_anything_else` (what passes and what not),
   `a_studyplan_is_a_calendar_feed` (the gated feed with a snapshot), `broken_calendar_codes_are_404`,
   `the_log_keeps_no_calendar_code`, `calendar_services_may_fetch_feeds`; the shapes in
-  `folia/crates/catalog/src/timetable/subscription.rs`.
+  `folia/crates/calendar/src/subscription.rs`.
 - **Behind the gate** the site is what it was, the page cache included (the gate lies around it);
   only `Cache-Control: public` becomes `private`, so no cache between server and browser keeps a
   page for somebody else. Link previews of messengers show nothing while the gate is on: their

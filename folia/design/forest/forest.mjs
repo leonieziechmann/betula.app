@@ -19,7 +19,7 @@ import { brotliCompressSync, constants } from "node:zlib";
 import { compact } from "./path.mjs";
 import { setPrecision, wood } from "./wood.mjs";
 
-const out = fileURLToPath(new URL("../../app/assets/birch/", import.meta.url));
+const out = fileURLToPath(new URL("../../assets/birch/", import.meta.url));
 const SIDE = 900, COLUMN = 1600, W = 2 * SIDE + COLUMN, H = 1600, FADE = 160;
 setPrecision(1);
 // Outwards from either edge of the column, and under it from its left edge to a little before its

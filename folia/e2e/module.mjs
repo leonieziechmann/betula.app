@@ -83,7 +83,7 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   await context.close();
 }
 
-// ---------- exam dates the BTU cannot mean (folia/crates/catalog/src/exam_reading.rs) ----------
+// ---------- exam dates the BTU cannot mean (folia/crates/timetable/src/exam_reading.rs) ----------
 // Analysis I (11103) lists QIS's placeholder „So 01:00–02:30, 27.12.2015" twice; 12000 has a
 // deadline at 23:45–24:00. In the app's preview and in the server's page without JavaScript.
 {

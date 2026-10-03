@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "../../e2e/node_modules/playwright-core/index.mjs";
 import { icon, ICON, MASKABLE } from "./app-icon.mjs";
 
-const assets = fileURLToPath(new URL("../../app/assets/", import.meta.url));
+const assets = fileURLToPath(new URL("../../assets/", import.meta.url));
 const here = fileURLToPath(new URL("./", import.meta.url));
 const BARK = "#ffffff";
 const INK = "#10151f";

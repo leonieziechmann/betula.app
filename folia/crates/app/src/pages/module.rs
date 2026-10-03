@@ -29,7 +29,7 @@ use folia_model::labels::{
 };
 use folia_model::rows::{Module, Prerequisite, Semester};
 use folia_model::rows_detail::{EventDate, ProgramLink};
-use folia_pages as pages;
+use folia_pages::ask::{ModuleAsk, OverlayAsk};
 use folia_pages::{ModuleData, Overlay};
 use folia_routes::url::{self, ModuleHint, ProgramTab};
 use folia_timetable::exam_reading::{self, ExamReading, Reason, Slot};
@@ -40,7 +40,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
 use crate::bookmarks::{MarkButton, MarkLook};
-use crate::data::{use_source, PageStatus};
+use crate::data::{use_data, PageStatus};
 use crate::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::MyProgram;
@@ -415,7 +415,7 @@ pub fn ModulePanel(
                 <div class="dbody">
                     <Side data=data.clone()/>
                     <Main data=data.clone()/>
-                    <Source data=data.clone()/>
+                    <DataClient data=data.clone()/>
                 </div>
             </div>
         </section>
@@ -512,7 +512,7 @@ pub fn ModulePage() -> impl IntoView {
     let t = i18n::t();
     let params = use_params_map();
     let id = Memo::new(move |_| params.read().get("id").unwrap_or_default());
-    let source = use_source();
+    let source = use_data();
     let status = PageStatus::capture();
     // Where „Einplanen" plans to when the finder sent the visitor here (`?plan=…&fill=…`, a
     // phone's way from the catalog): the browser app's alone, like the plan (the server keys the
@@ -522,7 +522,7 @@ pub fn ModulePage() -> impl IntoView {
 
     move || {
         let id = id.get();
-        match source.clone().and_then(|source| source.run(|db| pages::module(db, &id))) {
+        match source.clone().and_then(|source| source.now(&ModuleAsk { id: id.clone() })) {
             Err(error) => {
                 status.for_error(&error);
                 view! { <Plain><ErrorState error/></Plain> }.into_any()
@@ -584,7 +584,7 @@ pub fn ModuleFull(
                     // Same parts, same order as the preview; side by side where there is room.
                     <div class="module-grid">
                         <aside class="panel dbody"><Side data=data.clone()/></aside>
-                        <div class="panel dbody"><Main data=data.clone()/><Source data=data.clone()/></div>
+                        <div class="panel dbody"><Main data=data.clone()/><DataClient data=data.clone()/></div>
                     </div>
                 </article>
         </Frame>
@@ -741,7 +741,7 @@ fn Main(data: ModuleData) -> impl IntoView {
 }
 
 #[component]
-fn Source(data: ModuleData) -> impl IntoView {
+fn DataClient(data: ModuleData) -> impl IntoView {
     let t = i18n::t();
     let m = data.module;
     view! {
@@ -967,7 +967,7 @@ fn overlay_wanted(newest: Option<SemesterKey>, current: Option<SemesterKey>, oth
 fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterKey>) -> Memo<Overlay> {
     let plan = Studyplan::expect().filter(|_| APP);
     let mine = MyProgram::expect();
-    let source = use_source().ok();
+    let source = use_data().ok();
     let asked = {
         let id = id.to_string();
         Memo::new(move |_| {
@@ -983,12 +983,7 @@ fn plan_overlay(id: &str, newest: Option<SemesterKey>, current: Option<SemesterK
         let (Some((key, others, selection, program)), Some(source)) = (asked.get(), source.as_ref()) else {
             return Overlay::default();
         };
-        source
-            .run(|db| {
-                let plan = pages::studyplan_in(db, key, &others, program.as_deref(), crate::i18n::locale())?;
-                pages::overlay(db, &plan, &id, &selection)
-            })
-            .unwrap_or_default()
+        source.now(&OverlayAsk { key, others, program, module_id: id.clone(), selection, locale: crate::i18n::locale() }).unwrap_or_default()
     })
 }
 

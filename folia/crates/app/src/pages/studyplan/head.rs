@@ -18,7 +18,7 @@ use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::TownChoice;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Rhythm};
-use folia_pages as pages;
+use folia_pages::ask::BookmarksAsk;
 use folia_pages::{BookmarksData, StudyplanData};
 use folia_plans::studyplan::PlanDoc;
 use folia_routes::filter::{CatalogQuery, ProgramScope};
@@ -235,7 +235,7 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
         if ids.is_empty() {
             return None;
         }
-        ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::bookmarks(db, &ids, BookmarkSort::Added, false)).ok()))
+        ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&BookmarksAsk { ids: ids.clone(), sort: BookmarkSort::Added, descending: false }).ok()))
     });
     // The semester and what is planned into it, from the semester's data (its ids are the plan's).
     Memo::new(move |_| {

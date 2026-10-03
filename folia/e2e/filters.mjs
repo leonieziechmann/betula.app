@@ -1,12 +1,11 @@
-// Checks the filter panel of the catalog in the browser app, and its plain version without JavaScript.
+// Checks the filter panel of the catalog in the browser app, and the site's catalog without it.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node filters.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Walks: toggles (with → without → off, the panel is not rebuilt) → rows of toggles fill the width →
 // program picker (typo-tolerant search, arrow keys, Enter, Esc, click outside, clear) → lecturer picker →
 // credit slider → width of the panel (limits, localStorage) → the area picker and the list of a
 // program (plan order, the semester at the row, the second page reached by scrolling, the note of
-// a semester scrolling away, confirmed dates only) → nothing of the panel moves at the takeover
-// (the chips of „Passt in meinen Stundenplan" are the app's, but part of the server's page) → the
-// same panel without JavaScript.
+// a semester scrolling away, confirmed dates only) → nothing moves at the takeover (the site's
+// catalog holds the panel's place) → the site's catalog without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -362,38 +361,40 @@ check(number(inArea) > 0 && number(inArea) < number(all), `area: ${inArea} modul
 check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by picking an area");
 await step("area: the tag takes it out again", () => page.click('.tag:has(em:text("Bereich")) a'), () => !location.search.includes("area="));
 
-// ---- nothing of the panel moves at the takeover. „Passt in meinen Stundenplan" needs the plan,
-// which only the app knows, and does not fit beside „Bestätigt": the server's page has its chips
-// all the same, invisible until the app runs, so every group below stands where it stood.
-const groupTops = (p) => p.evaluate(() => [...document.querySelectorAll("#filters .fgroup")].map((g) => `${g.querySelector(".label")?.textContent.trim().slice(0, 12)} ${g.getBoundingClientRect().top.toFixed(1)}`));
-for (const path of ["/catalog", "/catalog?fits=2026W&fits-skip=exam"]) {
+// ---- nothing moves at the takeover: the site's catalog has no filter panel (docs/folia/
+// folia-refactor.md §4.1), but its place, with the panel's bars, so the list stands where the app's does.
+const boxes = (p) => p.evaluate(() => {
+  const box = (el) => { const r = el?.getBoundingClientRect(); return r ? `${r.left.toFixed(0)},${r.top.toFixed(0)},${r.width.toFixed(0)}` : "none"; };
+  return { panel: box(document.querySelector("#filters, .filters.sk-standin")), list: box(document.querySelector(".panel.list")) };
+});
+for (const path of ["/catalog", "/catalog?turnus=winter"]) {
   const server = await browser.newContext({ viewport: { width: 1500, height: 900 } });
   await server.route("**/pkg/**", (route) => route.abort());
   const before = await server.newPage();
   await before.goto(base + path, { waitUntil: "load" });
   await before.evaluate(() => document.fonts.ready);
-  const was = await groupTops(before);
-  const hidden = await before.evaluate(() => [...document.querySelectorAll("#filters .fit-chip")].filter((el) => getComputedStyle(el).visibility !== "hidden").length);
+  const was = await boxes(before);
+  const standin = await before.locator(".filters.sk-standin").count();
   await server.close();
   const app = await browser.newContext({ viewport: { width: 1500, height: 900 } });
   const after = await app.newPage();
   await after.goto(base + path, { waitUntil: "domcontentloaded" });
   await after.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
   await after.evaluate(() => document.fonts.ready);
-  const is = await groupTops(after);
-  check(was.length > 5 && was.join() === is.join(), `takeover (${path}): the filter groups stood at ${was.join(", ")} and stand at ${is.join(", ")}`);
-  check(hidden === 0, `takeover (${path}): ${hidden} chips of „Passt in meinen Stundenplan" show before the app runs`);
+  const is = await boxes(after);
+  check(standin === 1, `takeover (${path}): the site's page has no stand-in for the filter panel`);
+  check(was.panel === is.panel && was.list === is.list, `takeover (${path}): panel and list stood at ${JSON.stringify(was)} and stand at ${JSON.stringify(is)}`);
   await app.close();
 }
 
-// ---- without JavaScript: the same panel as links and plain fields
+// ---- without JavaScript: the site's catalog, a page of the list at a time, no filters
 const plain = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1300, height: 900 } });
 const still = await plain.newPage();
-await still.goto(base + "/catalog?exam=written&not-exam=presentation", { waitUntil: "domcontentloaded" });
-check((await still.getAttribute('#filters a.chip:has-text("Vortrag")', "data-state")) === "without", "no JS: the excluded chip is not shown as excluded");
-check((await still.locator('#filters select[name="program"] option').count()) > 50, "no JS: no plain program select");
-// What needs JavaScript (shortcut hints, drag handles, the slider, the theme switch, the chips of
-// „Passt in meinen Stundenplan") is not shown.
+await still.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
+const total = await still.locator(".rows a.row").count();
+check((await still.locator("#filters, .filters select, .filters a.chip").count()) === 0, "no JS: the site's catalog has a filter panel");
+check((await still.locator(".filters.sk-standin").evaluate((el) => el.getClientRects().length)) === 0, "no JS: the stand-in of the filter panel shows");
+// What needs JavaScript (shortcut hints, drag handles, the slider, the theme switch) is not shown.
 await still.goto(base + "/catalog?open=11101", { waitUntil: "domcontentloaded" });
 const leftovers = await still.evaluate(() => [...document.querySelectorAll("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
 check(leftovers.length === 0, `no JS: still visible: ${leftovers.join(", ")}`);
@@ -403,15 +404,9 @@ check(/^\/catalog\/module\/[A-Za-z0-9_-]+$/.test(await still.getAttribute(".rows
 await still.click(".rows a.row");
 await still.waitForURL(/\/catalog\/module\//);
 check((await still.locator(".module-page h2").count()) === 1, "no JS: the row's link did not open the module's page");
-await still.goto(base + "/catalog?exam=written&not-exam=presentation", { waitUntil: "domcontentloaded" });
-await still.click('#filters a.chip:has-text("Winter")');
-await still.waitForURL(/turnus=winter/);
-check((await still.getAttribute('#filters a.chip:has-text("Winter")', "data-state")) === "with" && still.url().includes("not-exam=presentation"), "no JS: a toggle link lost the rest of the filter");
-await still.selectOption('#filters select[name="program"]', { index: 5 });
-await still.waitForTimeout(600); // the view transition of the page load holds clicks back for a moment
-await still.click('#filters button[type="submit"]');
-await still.waitForURL(/program=/);
-check(still.url().includes("turnus=winter") && still.url().includes("not-exam=presentation"), `no JS: the form lost what the links had set (${still.url()})`);
+// An address with a filter (a link from elsewhere) still lists what it holds.
+await still.goto(base + "/catalog?turnus=winter", { waitUntil: "domcontentloaded" });
+check((await still.locator(".rows a.row").count()) > 0 && total > 0, "no JS: a filtered address lists nothing");
 
 await browser.close();
 console.log(JSON.stringify({ timings, problems }, null, 2));

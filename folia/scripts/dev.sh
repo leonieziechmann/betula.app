@@ -32,7 +32,12 @@ TARGET_DIR=$(cargo metadata --format-version 1 --no-deps 2>/dev/null \
 [ -n "$TARGET_DIR" ] || TARGET_DIR="${CARGO_TARGET_DIR:-target}"
 
 # The Rust code of the browser app, and of the server besides. What folia/assets holds is live.
-CLIENT_SOURCES=(crates/app/src crates/catalog/src crates/client/src crates/client/js crates/pack/src Cargo.toml Cargo.lock crates/app/Cargo.toml crates/catalog/Cargo.toml crates/client/Cargo.toml crates/pack/Cargo.toml)
+# Every crate but the server's and the semantic search's (built by build-semantic.sh) goes into the
+# browser app.
+CLIENT_SOURCES=(Cargo.toml Cargo.lock)
+for crate in crates/*/; do
+  case "$crate" in crates/server/|crates/semantic/|crates/test-support/) ;; *) CLIENT_SOURCES+=("${crate%/}") ;; esac
+done
 SOURCES=("${CLIENT_SOURCES[@]}" crates/server/src crates/server/build crates/server/Cargo.toml)
 
 build_client() {

@@ -176,9 +176,6 @@ pub fn pages(state: &AppState) -> Router<AppState> {
                 if let Some((map, ..)) = &snapshot.program_map {
                     provide_context(folia_app::data::ProgramMapHandle(map.clone()));
                 }
-                if let Some(pickers) = snapshot.pickers.clone() {
-                    provide_context(pickers);
-                }
                 if let Some(programs) = snapshot.programs.clone() {
                     provide_context(programs);
                 }

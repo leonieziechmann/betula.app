@@ -13,7 +13,7 @@ let html = readFileSync(here("forest.src.html"), "utf8");
 const wood = readFileSync(here("wood.mjs"), "utf8").replace(/^export /gm, "");
 html = html.replace("%%WOOD%%", () => wood);
 for (const season of ["spring", "summer", "autumn", "winter"]) {
-  const svg = readFileSync(here(`../../app/assets/birch/${season}-crown.svg`), "utf8");
+  const svg = readFileSync(here(`../../assets/birch/${season}-crown.svg`), "utf8");
   const uri = "data:image/svg+xml," + svg.replace(/"/g, "'").replace(/[\r\n]+/g, " ").replace(/[%#<>{}|\\^`]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
   html = html.replaceAll(`%%CROWN_${season}%%`, uri);
 }

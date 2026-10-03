@@ -36,7 +36,7 @@ const overview = await get("/programs");
 const programs = links(overview, /href="(\/programs\/[^"/]+)\/plan"/g);
 if (programs.length < 50) failures.push(`/programs lists only ${programs.length} programs`);
 
-// Every program in every view its sidebar links (`ProgramTab` in folia/crates/catalog/src/url.rs): the plan
+// Every program in every view its sidebar links (`ProgramTab` in folia/crates/routes/src/url.rs): the plan
 // and the areas are for search engines, „Mein Plan" is the visitor's and says `noindex`.
 const views = { plan: true, areas: true, "my-plan": false };
 for (const program of programs) {

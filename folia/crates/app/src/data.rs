@@ -9,11 +9,11 @@ use std::sync::Arc;
 use folia_locale::Locale;
 use folia_model::rows::CatalogRow;
 use folia_model::{Database, DbError};
+use folia_pages::ask::{Ask, Kept};
 use folia_pages::CatalogData;
 use folia_routes::filter::CatalogQuery;
 use folia_routes::url::CatalogUrl;
 use leptos::prelude::*;
-use serde::{Deserialize, Serialize};
 
 pub trait CatalogSource: Send + Sync {
     /// Runs `job` with a database on one snapshot, so everything a page loads is consistent.
@@ -81,20 +81,7 @@ pub trait CatalogWorker: Send + Sync {
 #[derive(Clone)]
 pub struct Worker(pub Arc<dyn CatalogWorker>);
 
-/// What a page shows instead of data. Serializable, because the server hands the
-/// outcome of its queries to the browser for hydration.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DataError {
-    /// No snapshot yet: worth retrying. Otherwise the query itself failed.
-    pub unavailable: bool,
-    pub message: String,
-}
-
-impl From<DbError> for DataError {
-    fn from(error: DbError) -> Self {
-        Self { unavailable: matches!(error, DbError::Unavailable(_)), message: error.to_string() }
-    }
-}
+pub use folia_pages::ask::DataError;
 
 impl Source {
     pub fn run<T>(&self, load: impl FnOnce(&dyn Database) -> Result<T, DbError>) -> Result<T, DataError> {
@@ -116,6 +103,54 @@ impl Source {
 pub fn use_source() -> Result<Source, DataError> {
     use_context::<Source>()
         .ok_or_else(|| DbError::Unavailable("no data source was provided".to_string()).into())
+}
+
+/// Where a page asks its questions (`folia_pages::ask`, docs/folia/folia-refactor.md §6.4): every
+/// page and component asks through it, never a `Database` itself. For now it answers on the page's
+/// thread from the host's `Source` (the server's snapshot, the browser's local catalog); the data
+/// worker takes its place without a page noticing.
+#[derive(Clone)]
+pub struct DataClient {
+    source: Source,
+    /// What the answering side keeps besides answers (the finder's candidates).
+    kept: Arc<std::sync::Mutex<Kept>>,
+}
+
+impl DataClient {
+    pub fn new(source: Source) -> Self {
+        Self { source, kept: Arc::new(std::sync::Mutex::new(Kept::default())) }
+    }
+
+    /// The answer to `ask`, now.
+    pub fn now<A: Ask>(&self, ask: &A) -> Result<A::Answer, DataError> {
+        let kept = &self.kept;
+        self.source.run(|db| match kept.lock() {
+            Ok(mut kept) => ask.run(db, &mut kept),
+            Err(_) => ask.run(db, &mut Kept::default()),
+        })
+    }
+}
+
+/// The client the host provided, as `use_source` (call it in the component body). A host that
+/// provides a `Source` and no client gets one over that source.
+pub fn use_data() -> Result<DataClient, DataError> {
+    if let Some(client) = use_context::<DataClient>() {
+        return Ok(client);
+    }
+    use_source().map(DataClient::new)
+}
+
+/// The answer to the question `ask` makes, following what it reads: `None` where it asks nothing
+/// (and while an answer is on its way, once questions travel to the data worker).
+pub fn use_ask<A: Ask + Send + Sync>(ask: impl Fn() -> Option<A> + Send + Sync + 'static) -> Memo<Option<Result<A::Answer, DataError>>>
+where
+    A::Answer: Send + Sync,
+{
+    let client = use_data();
+    Memo::new(move |_| {
+        let question = ask()?;
+        Some(client.as_ref().map_err(Clone::clone).and_then(|client| client.now(&question)))
+    })
 }
 
 /// Sets the HTTP status of a server-rendered page (404 for an unknown module, 503 without

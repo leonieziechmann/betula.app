@@ -28,6 +28,7 @@ use std::collections::{BTreeSet, HashMap};
 use folia_model::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
 use folia_model::rows::{Program, ProgramModule};
 use folia_model::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
+use folia_pages::ask::{ModuleAsk, ProgramAsk};
 use folia_pages as pages;
 use folia_pages::ProgramData;
 use folia_plans::areas::CatalogArea;
@@ -40,7 +41,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
-use crate::data::{use_source, PageStatus};
+use crate::data::{use_data, PageStatus};
 use crate::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::local::{self, ModuleInPlace};
@@ -148,12 +149,12 @@ pub fn ProgramPage() -> impl IntoView {
     // sideways (owner, 2026-09-21). The choice stays; with room the matrix comes back.
     let shape = RwSignal::new(PlanShape::remembered());
     let room = RwSignal::new(true);
-    let source = use_source();
+    let source = use_data();
     let status = PageStatus::capture();
     // The program is loaded once per slug; switching tabs only re-renders.
     let data = Memo::new(move |_| {
         let slug = slug.get();
-        source.clone().and_then(|source| source.run(|db| pages::program(db, &slug)))
+        source.clone().and_then(|source| source.now(&ProgramAsk { slug: slug.clone() }))
     });
 
     // On the desktop a module stands beside the page until „Vollbild" lets it fill the page. On
@@ -614,10 +615,10 @@ fn ProgramAside(
     links: Memo<ProgramUrl>,
 ) -> impl IntoView {
     let t = i18n::t();
-    let source = use_source();
+    let source = use_data();
     let module = Memo::new(move |_| match open.get() {
         None => Ok(None),
-        Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
+        Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
     });
     // What was picked beside the page, before it is there (`pending`): its skeleton, where the
     // wait is seen or where nothing stood beside the page yet — without sliding in again where a
