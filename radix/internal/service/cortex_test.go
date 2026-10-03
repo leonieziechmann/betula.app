@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
+	"github.com/leonieziechmann/betula/cortex/client/cortextest"
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
-	"github.com/leonieziechmann/betula/radix/internal/cortex/client/cortextest"
 )
 
 // With Endpoints.Client every stage asks Cortex, nothing goes to the university directly,

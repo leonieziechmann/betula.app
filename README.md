@@ -33,7 +33,8 @@ statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PD
 
 | Directory | What it holds |
 |---|---|
-| `radix/` | Radix and Cortex, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `cmd/cortex`, `internal/` (Cortex in `internal/cortex/`) |
+| `radix/` | Radix, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `internal/` |
+| `cortex/` | Cortex, one Go module (`github.com/leonieziechmann/betula/cortex`): `cmd/cortex`, `internal/`, and `client/`, the client Radix imports (`radix/go.mod` replaces the module with `../cortex`) |
 | `folia/` | Folia, one Cargo workspace: `crates/<crate>` (package `folia-<crate>`), `assets/` (stylesheet, scripts, icons the server embeds), `e2e/` (browser checks), `design/` (sources of drawings and icons), `scripts/` (builds, the dev server) |
 | `docs/` | `radix/`, `folia/`, `cortex/`, and `history/` for the briefs and plans that are done |
 | `deploy/` | the stacks, the server set-up, `ship.sh` |
@@ -65,8 +66,8 @@ nix build .#radix-image                  # container image with a health check (
 ```
 
 ```bash
-(cd radix && go build -o ../cortex ./cmd/cortex)   # Cortex, also pure Go
-cortex serve                         # one instance on 127.0.0.1:8100, always the leader
+(cd cortex && go build -o ../cortex-bin ./cmd/cortex)   # Cortex, also pure Go; its tests: (cd cortex && go test ./...)
+./cortex-bin serve                   # one instance on 127.0.0.1:8100, always the leader
 radix run --cortex http://127.0.0.1:8100   # Radix fetching through it
 nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cortex.sh ships it)
 ```
@@ -76,9 +77,9 @@ nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cort
 | Package | Role |
 |---|---|
 | `radix/cmd/radix` | command line of Radix |
-| `radix/cmd/cortex` | command line of Cortex: `serve`, `status`, `step-down`, `put`, `get`, `healthcheck` |
-| `radix/internal/cortex/server`, `radix/internal/cortex/store`, `radix/internal/cortex/upstream`, `radix/internal/cortex/cluster`, `radix/internal/cortex/telemetry` | Cortex: the HTTP API; blobs, the SQLite index and its journal; fetching under the host policy; leader election and the follower; its metric registry |
-| `radix/internal/cortex/client` | Go client of Cortex with fail-over between its instances (standard library only; Radix's way through Cortex) |
+| `cortex/cmd/cortex` | command line of Cortex: `serve`, `status`, `step-down`, `put`, `get`, `healthcheck` |
+| `cortex/internal/server`, `cortex/internal/store`, `cortex/internal/upstream`, `cortex/internal/cluster`, `cortex/internal/telemetry` (and its own `metrics`, `oplog`, `dotenv`, `version`) | Cortex: the HTTP API; blobs, the SQLite index and its journal; fetching under the host policy; leader election and the follower; its metric registry |
+| `cortex/client` | Go client of Cortex with fail-over between its instances (standard library only; Radix's way through Cortex) |
 | `radix/internal/service` | the service loop, its stages, `/healthz` and `/status` |
 | `radix/internal/crawl`, `radix/internal/qistree` | polite archiving, directly or through Cortex; QIS program tree walker |
 | `radix/internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |

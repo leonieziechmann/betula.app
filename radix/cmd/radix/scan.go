@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/curriculumscan"
 	"github.com/leonieziechmann/betula/radix/internal/gemini"
 	"github.com/leonieziechmann/betula/radix/internal/model"

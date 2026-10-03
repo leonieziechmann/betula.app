@@ -26,7 +26,7 @@ statute download (§8); the model hosts of Hugging Face have their entries ready
 | 6 | „Cortex ist nur für daten da." | Gemini does not go through Cortex; neither do model weights by default (§12) |
 | 7 | „Also datein sollen auch einfach per web request anfragbar sein. Also so dass man die per rest request ablegen kann und dann per rest auslesen kann." | named files: `PUT` and `GET /v1/files/{name}`, with versions (§4.4) |
 | 8 | „Ja möglichst kein zugang mehr" | Radix's networks are internal; only Cortex has a way out, Gemini is the exception (`deploy/README.md` section 14) |
-| 9 | „Ja go ist super und cortex auch" | Go, in this repository: `radix/cmd/cortex`, `radix/internal/cortex/…` (the Go module of Radix) |
+| 9 | „Ja go ist super und cortex auch" | Go, in this repository: the Go module `cortex/` (`cmd/cortex`, `internal/…`, `client/`), beside `radix/` and `folia/` (owner, 2026-10-03: „mach mal cortex als eigenes Element und nicht bei radix") |
 | 10 | „Bau cortex einfach als generellen chaching service für requests." | any public host, per-host settings by configuration (§5) |
 
 Not through Cortex: Gemini (`generativelanguage.googleapis.com`, POSTs with a key; decision 6),
@@ -521,8 +521,9 @@ unchanged. It is not built (decision 1).
 
 ## 7. Clients
 
-**The Go client**, `internal/cortex/client` (standard library only, so that Radix imports nothing
-of the server):
+**The Go client**, `cortex/client` (package `github.com/leonieziechmann/betula/cortex/client`, standard
+library only; `radix/go.mod` requires the module `cortex/` and replaces it with `../cortex`, so that
+Radix builds against the client in the same commit and imports nothing of the server):
 
 - `client.New("http://cortex_a:8100,http://cortex_b:8100", client.Options{})`: base URLs are a scheme
   and a host (and port), with nothing or `/` after it; a path, credentials, a query or a fragment is
@@ -619,8 +620,10 @@ interrupted.
 certificates; user `10002:10002`; `/data` and `/lock` owned by it; entrypoint `/bin/cortex`,
 command `serve`; `CORTEX_ADDR=0.0.0.0:8100`, `CORTEX_DATA=/data`, `CORTEX_LOG_FORMAT=json`,
 `TZ=Europe/Berlin`; port 8100; volume `/data`; health check `cortex healthcheck` every 10 s, 5 s
-timeout, 30 s start period, 3 retries. `nix build .#cortex` builds the binary alone; a change to
-Cortex alone does not change Radix's image (Radix's source keeps only `internal/cortex/client`).
+timeout, 30 s start period, 3 retries. `nix build .#cortex` builds the binary alone, from the Go module `cortex/` with
+its own `vendorHash`. Radix's build takes of `cortex/` only `go.mod`, `go.sum` and `client/`: a
+change to Cortex's server does not change Radix's image, a change to the client does (and needs
+Radix's `vendorHash` updated, since `go mod vendor` copies the replaced module).
 
 ## 10. Metrics
 

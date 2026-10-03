@@ -17,6 +17,6 @@ services:
   radix:
     environment:
       # Both instances. The client asks the one that answered last and goes on to the other when
-      # it cannot reach it or hears "no-leader" (internal/cortex/client); which of the two leads
+      # it cannot reach it or hears "no-leader" (cortex/client); which of the two leads
       # is Cortex's to decide.
       RADIX_CORTEX_URL: "http://cortex_a:8100,http://cortex_b:8100"

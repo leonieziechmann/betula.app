@@ -90,7 +90,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 ### Through Cortex
 
 With `RADIX_CORTEX_URL` every request of the crawl stages and of `download-statutes` goes to
-Cortex (`internal/cortex/client`), which fetches from the university only what it does not have
+Cortex (its client, `cortex/client`), which fetches from the university only what it does not have
 fresh, at its own floor per host, and keeps every version (`docs/cortex/cortex.md` §8). Gemini is asked
 directly either way. What changes for Radix:
 

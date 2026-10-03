@@ -13,7 +13,7 @@ import (
 	"time"
 	_ "time/tzdata" // off-peak hours are local time; do not depend on the host having zoneinfo
 
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/metrics"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 	"github.com/leonieziechmann/betula/radix/internal/service"

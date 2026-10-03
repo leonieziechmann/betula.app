@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 )
 
@@ -45,7 +45,7 @@ type Options struct {
 	MaxAge    time.Duration // skip pages archived more recently than this; 0 fetches everything
 	Spread    bool          // MaxAge is a period: every page is fetched once per period, at a time of its own (Due)
 	UserAgent string
-	Client    *http.Client // nil: a client of its own; Cortex's (internal/cortex/client) asks Cortex instead of the server
+	Client    *http.Client // nil: a client of its own; Cortex's (cortex/client, the Go module cortex/) asks Cortex instead of the server
 	Progress  func(done, total int, stats Stats)
 }
 

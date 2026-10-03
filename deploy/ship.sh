@@ -44,8 +44,9 @@ set -Eeuo pipefail
 SCRIPT="$(basename "$0")"
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${DEPLOY_DIR}/.." && pwd)"
-# What the two images are built from (flake.nix). A change anywhere else is not a new release.
-BUILD_PATHS=(flake.nix flake.lock folia/Cargo.toml folia/Cargo.lock folia/crates folia/assets radix/go.mod radix/go.sum radix/cmd radix/internal)
+# What the two images are built from (flake.nix; Radix also from Cortex's client, cortex/client).
+# A change anywhere else is not a new release.
+BUILD_PATHS=(flake.nix flake.lock folia/Cargo.toml folia/Cargo.lock folia/crates folia/assets radix/go.mod radix/go.sum radix/cmd radix/internal cortex/go.mod cortex/go.sum cortex/client)
 IMAGES=(radix folia)
 
 log() { printf '[%s] %s\n' "${SCRIPT}" "$*"; }
