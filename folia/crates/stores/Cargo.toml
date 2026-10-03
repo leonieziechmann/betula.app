@@ -8,15 +8,14 @@ description = "What a visitor of Betula keeps in the browser: marked modules, th
 name = "folia_stores"
 
 [features]
-ssr = ["leptos/ssr", "leptos_router/ssr", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr"]
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-shell/csr"]
+ssr = ["leptos/ssr", "leptos_router/ssr", "folia-design/ssr", "folia-data/ssr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr"]
 
 [dependencies]
 leptos = "0.8.20"
 leptos_router = "0.8"
 folia-design = { path = "../design" }
 folia-data = { path = "../data" }
-folia-shell = { path = "../shell" }
 folia-calendar = { path = "../calendar" }
 folia-model = { path = "../model" }
 folia-pack = { path = "../pack" }

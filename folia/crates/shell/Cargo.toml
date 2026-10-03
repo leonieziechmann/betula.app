@@ -8,8 +8,8 @@ description = "The shell of Betula's app: the frame of a page, the areas, a step
 name = "folia_shell"
 
 [features]
-ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "folia-design/ssr", "folia-data/ssr"]
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr"]
+ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "folia-design/ssr", "folia-data/ssr", "folia-stores/ssr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-stores/csr"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -17,6 +17,8 @@ leptos_router = "0.8"
 leptos_meta = "0.8"
 folia-design = { path = "../design" }
 folia-data = { path = "../data" }
+# The chrome shows how many modules are marked and planned.
+folia-stores = { path = "../stores" }
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }
 folia-model = { path = "../model" }
