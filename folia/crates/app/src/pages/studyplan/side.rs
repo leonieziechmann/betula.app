@@ -91,7 +91,10 @@ struct Programs {
 
 impl Programs {
     fn new(ctx: PlanCtx) -> Self {
-        let all = Memo::new(move |_| ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&ProgramsAsk {}).ok())).unwrap_or_default());
+        let all = Memo::new(move |before| match ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&ProgramsAsk {}))) {
+            Some(now) => folia_pages::ask::unless_pending(now, before, Result::unwrap_or_default),
+            None => Vec::new(),
+        });
         let asked = Memo::new(move |_| ctx.url.with(|url| url.import.clone()));
         let stored = Memo::new(move |_| ctx.plan.and_then(|plan| plan.with(|doc| doc.program.clone())));
         let mine = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));

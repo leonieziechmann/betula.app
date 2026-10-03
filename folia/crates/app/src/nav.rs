@@ -350,17 +350,17 @@ pub fn screen_height() -> Option<f32> {
 /// What this browser session remembers under `key` (`sessionStorage`). `None` on the server.
 #[allow(unused_variables)]
 pub fn session_get(key: &str) -> Option<String> {
-    #[cfg(feature = "csr")]
+    #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     {
         web_sys::window()?.session_storage().ok()??.get_item(key).ok()?
     }
-    #[cfg(not(feature = "csr"))]
+    #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
     None
 }
 
 #[allow(unused_variables)]
 pub fn session_set(key: &str, value: &str) {
-    #[cfg(feature = "csr")]
+    #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     if let Some(storage) = web_sys::window().and_then(|w| w.session_storage().ok().flatten()) {
         let _ = storage.set_item(key, value);
     }
@@ -371,18 +371,18 @@ pub fn session_set(key: &str, value: &str) {
 /// server HTML (R9). `None` on the server, and in a browser that refuses storage.
 #[allow(unused_variables)]
 pub fn local_get(key: &str) -> Option<String> {
-    #[cfg(feature = "csr")]
+    #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     {
         web_sys::window()?.local_storage().ok()??.get_item(key).ok()?
     }
-    #[cfg(not(feature = "csr"))]
+    #[cfg(not(all(feature = "csr", target_arch = "wasm32")))]
     None
 }
 
 /// An empty value takes the key out: a browser that keeps nothing stores nothing.
 #[allow(unused_variables)]
 pub fn local_set(key: &str, value: &str) {
-    #[cfg(feature = "csr")]
+    #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     if let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) {
         let _ = if value.is_empty() { storage.remove_item(key) } else { storage.set_item(key, value) };
     }

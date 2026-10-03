@@ -372,7 +372,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
     let words = &t.studyplan_modules;
     let sum = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(|data| credits_sum(data, t.locale))));
     let resolved = MineResolved::expect();
-    let held = Memo::new(move |_| {
+    let held = Memo::new(move |before: Option<&Held>| {
         let (url, current) = (ctx.url.get(), ctx.current.get());
         let mine = resolved.and_then(MineResolved::exact);
         let mut held = ctx.plan.map(|plan| plan.with(|doc| areas_of(doc, key_of(&url, current, doc, ctx.today), mine.as_ref(), t))).unwrap_or_default();
@@ -380,8 +380,12 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         // the catalog, and none where nothing does.
         let ids: Vec<String> = held.areas.iter().flat_map(|area| area.others.iter().map(|(_, id)| id.clone())).collect();
         if !ids.is_empty() {
-            let rows = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&StudyplanModulesAsk { ids: ids.clone() }).ok()));
-            held.rows = rows.map(|(rows, _)| rows).unwrap_or_default();
+            // While they are on their way, the rows before (the same modules, mostly).
+            let rows = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&StudyplanModulesAsk { ids: ids.clone() })));
+            held.rows = match rows {
+                Some(Err(error)) if error.is_pending() => before.map(|before| before.rows.clone()).unwrap_or_default(),
+                rows => rows.and_then(Result::ok).map(|(rows, _)| rows).unwrap_or_default(),
+            };
         }
         held
     });

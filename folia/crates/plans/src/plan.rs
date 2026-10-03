@@ -646,6 +646,7 @@ mod tests {
     const MIT_EET: &str = "Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium";
     const PA_IOT: &str = "Regelstudienplan der Studienrichtungen PA und IoT im grundständigen Studium";
 
+    #[allow(clippy::too_many_arguments)]
     fn total(label: &str, scope: &str, from: i64, to: i64, credits: f64, min: f64, max: f64, entries: &[i64]) -> PlanTotal {
         PlanTotal {
             ord: entries.first().copied().unwrap_or(0),
@@ -668,7 +669,7 @@ mod tests {
     // prints as one column, and „Summe Komplexe des Fachstudiums 44" over three rows of „10–24".
     #[test]
     fn a_plan_is_added_up_the_way_its_regulation_does() {
-        let totals = vec![
+        let totals = [
             total("Summe Studium", "plan", 1, 1, 32.0, 32.0, 32.0, &[1]),
             total("Summe Studium", "plan", 2, 2, 28.0, 28.0, 28.0, &[2]),
             total("Summe Studium", "plan", 3, 3, 30.0, 30.0, 30.0, &[3]),

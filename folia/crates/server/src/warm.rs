@@ -145,7 +145,7 @@ pub fn masks(stylesheet: &str) -> impl Iterator<Item = &str> {
 pub async fn files(router: Router, build: Arc<str>, model: Option<String>) {
     let started = Instant::now();
     let masks: std::collections::BTreeSet<&str> = masks(crate::assets::text("app.css")).collect();
-    let built = [folia_app::STYLESHEET, folia_app::icons::SPRITE, folia_app::ENHANCE_SCRIPT, folia_app::BOOT_SCRIPT, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/pkg/folia_client.js", "/pkg/folia_client_bg.wasm", "/pkg/search-worker.js"];
+    let built = [folia_app::STYLESHEET, folia_app::icons::SPRITE, folia_app::ENHANCE_SCRIPT, folia_app::BOOT_SCRIPT, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/pkg/folia_client.js", "/pkg/folia_client_bg.wasm", "/pkg/data-worker.js"];
     let semantic = ["/pkg/semantic.js", "/pkg/semantic-worker.js", "/pkg/semantic.simd.wasm", "/pkg/semantic.relaxed.wasm"];
     let paths: Vec<String> = built
         .iter()

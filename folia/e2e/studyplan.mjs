@@ -80,6 +80,8 @@ const open = async (options, path, { requests } = {}) => {
     await action();
     try {
       await page.waitForFunction(until, arg, { timeout: 8000 });
+      // The page before stays as a picture in front of the new one while its answers come (pending.rs, `hold`).
+      await page.waitForFunction(() => !document.querySelector(".pending-page.held"), null, { timeout: 2000 });
     } catch {
       problems.push(`${name}: did not happen (${page.url()})`);
     }

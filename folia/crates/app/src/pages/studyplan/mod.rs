@@ -175,9 +175,9 @@ pub fn StudyplanPage() -> impl IntoView {
 
     let address = Memo::new(move |_| PlanAddress::parse(&location.search.get()));
     let url = Memo::new(move |_| address.with(|address| address.url.clone()));
-    let current = Memo::new(move |_| {
-        let meta = source.with_value(|source| source.as_ref().and_then(|source| source.now(&MetaAsk {}).ok()));
-        meta.and_then(|meta| meta.current_semester.as_deref().and_then(SemesterKey::parse))
+    let current = Memo::new(move |before| {
+        let now = source.with_value(|source| source.as_ref().map(|source| source.now(&MetaAsk {})))?;
+        folia_pages::ask::unless_pending(now, before, |meta| meta.ok().and_then(|meta| meta.current_semester.as_deref().and_then(SemesterKey::parse)))
     });
     let wanted = Memo::new(move |_| {
         let (url, current) = (url.get(), current.get());

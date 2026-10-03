@@ -24,8 +24,8 @@
 //! `page`) goes to the router as before.
 //!
 //! The search of the top bar waits longer than a frame where it can (owner, 2026-10-02: typing
-//! lagged): the catalog has the list of what is typed worked out in its worker first
-//! (`prepare_with`, `data::Worker`), so that the router then only builds it, and a key typed
+//! lagged): the catalog has the list of what is typed worked out by the data worker first
+//! (`prepare_with`, `data::DataClient`), so that the router then only builds it, and a key typed
 //! meanwhile drops the step (`typed`).
 
 use std::collections::HashMap;
@@ -140,8 +140,14 @@ struct Inner {
     prepared: u64,
     /// The step that is due waits for what its page works out (`prepare_with`).
     ahead: bool,
+    /// The step that is due is a quiet one (`go_quietly`).
+    quiet: bool,
     /// When `typing` goes back to false: a moment after the last key.
     typing_ends: Option<TimeoutHandle>,
+    /// Where the pages' answers come from: a step waits for those of the page it leads to while
+    /// they are on their way (`hold`).
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    data: Option<crate::data::DataClient>,
 }
 
 /// The navigation that is on its way to the router, provided by `App` for the whole app. Empty on
@@ -183,7 +189,9 @@ impl Pending {
                     prepare: None,
                     prepared: 0,
                     ahead: false,
+                    quiet: false,
                     typing_ends: None,
+                    data: use_context::<crate::data::DataClient>().filter(crate::data::DataClient::is_remote),
                 })
             }),
         };
@@ -257,7 +265,7 @@ impl Pending {
     }
 
     /// While a page is up that can work out ahead what a quiet step leads to (the catalog: the
-    /// list of a search, in its worker, `data::Worker`), a quiet step waits for `prepare` before
+    /// list of a search, in the data worker), a quiet step waits for `prepare` before
     /// the router takes it. The number it returns is for `prepared_by`, when the page goes.
     pub fn prepare_with(&self, prepare: Prepare) -> u64 {
         let Some(inner) = self.inner else { return 0 };
@@ -355,6 +363,7 @@ impl Pending {
             inner.turn = turn;
             inner.due = true;
             inner.ahead = ahead.is_some();
+            inner.quiet = quiet;
         });
         // A newer navigation takes the place of this one: it runs only while it is still due.
         let pending = *self;
@@ -374,6 +383,12 @@ impl Pending {
         }
     }
 
+    /// Whether the step that is due is a quiet one.
+    #[cfg(feature = "csr")]
+    fn quiet_step(&self) -> bool {
+        self.inner.is_some_and(|inner| inner.with_value(|inner| inner.quiet))
+    }
+
     /// The router takes the address now; the skeleton goes in the same frame as the page comes.
     fn commit(&self) {
         let (Some(to), Some(inner)) = (self.to.get_untracked(), self.inner) else { return };
@@ -390,6 +405,12 @@ impl Pending {
         }
         #[cfg(feature = "csr")]
         let started = browser::now();
+        // The page as it is now stays in front of the one the router builds until that one's
+        // answers are in (`hold`); a quiet step had its answer worked out ahead.
+        #[cfg(feature = "csr")]
+        if let Some(data) = inner.with_value(|inner| inner.data.clone()).filter(|_| !self.quiet_step()) {
+            browser::hold(data);
+        }
         match via {
             Via::Link { replace, scroll } => {
                 if let Some(navigate) = navigate {
@@ -594,6 +615,64 @@ mod browser {
         request_animation_frame(move || {
             set_timeout(move || { let _ = root.remove_attribute("data-settling"); }, std::time::Duration::ZERO);
         });
+    }
+
+    /// How long the page before stays in front of the new one at most: an answer that takes
+    /// longer lets the new page show its regions filling in.
+    const HOLD_MS: f64 = 400.0;
+
+    /// The page as it is (`main`'s children, with their scroll positions, without ids) as a
+    /// picture in front of what the router builds now, until no answer is on its way any more in
+    /// two looks a frame apart (or `HOLD_MS`): the new page shows when its data is there, and
+    /// never empty for the moment the data worker takes.
+    pub(super) fn hold(data: crate::data::DataClient) {
+        let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+        let Some(main) = document.get_element_by_id("content") else { return };
+        let Ok(picture) = document.create_element("div") else { return };
+        picture.set_class_name("pending-page held");
+        let _ = picture.set_attribute("aria-hidden", "true");
+        let scrolled: Vec<(i32, i32)> = main.query_selector_all("*").map(|all| (0..all.length()).filter_map(|i| all.item(i)?.dyn_into::<web_sys::Element>().ok()).map(|el| (el.scroll_top(), el.scroll_left())).collect()).unwrap_or_default();
+        let children = main.children();
+        for i in 0..children.length() {
+            if let Some(child) = children.item(i).filter(|child| !child.class_list().contains("pending-page")) {
+                if let Ok(copy) = child.clone_node_with_deep(true) {
+                    let _ = picture.append_child(&copy);
+                }
+            }
+        }
+        if let Ok(named) = picture.query_selector_all("[id]") {
+            for i in 0..named.length() {
+                if let Some(el) = named.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) {
+                    let _ = el.remove_attribute("id");
+                }
+            }
+        }
+        if main.append_child(&picture).is_err() {
+            return;
+        }
+        if let Ok(copies) = picture.query_selector_all("*") {
+            for (i, (top, left)) in scrolled.into_iter().enumerate() {
+                if top != 0 || left != 0 {
+                    if let Some(el) = copies.item(i as u32).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) {
+                        el.set_scroll_top(top);
+                        el.set_scroll_left(left);
+                    }
+                }
+            }
+        }
+        let started = now();
+        let quiet = std::rc::Rc::new(std::cell::Cell::new(0u8));
+        fn look(picture: web_sys::Element, data: crate::data::DataClient, started: f64, quiet: std::rc::Rc<std::cell::Cell<u8>>) {
+            request_animation_frame(move || {
+                quiet.set(if untrack(|| data.waiting()) == 0 { quiet.get() + 1 } else { 0 });
+                if quiet.get() >= 2 || now() - started > HOLD_MS {
+                    picture.remove();
+                } else {
+                    look(picture, data, started, quiet);
+                }
+            });
+        }
+        look(picture, data, started, quiet);
     }
 
     /// The browser's own Back or Forward, handed to the router now: it reads the address

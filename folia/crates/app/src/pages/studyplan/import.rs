@@ -164,12 +164,13 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
     let t = i18n::t();
     let s = &t.studyplan_import;
     let id = Memo::new(move |_| program.with(|program| program.as_ref().map(|program| program.id.clone())));
-    let plans = Memo::new(move |_| {
+    let plans = Memo::new(move |before| {
         let Some(id) = id.get() else { return Plans::NoProgram };
-        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&PlanSourceAsk { program_id: id.clone(), locale: t.locale }).ok().flatten())) {
+        let Some(now) = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&PlanSourceAsk { program_id: id.clone(), locale: t.locale }))) else { return Plans::NoPlan };
+        folia_pages::ask::unless_pending(now, before, |now| match now.ok().flatten() {
             Some(plans) if !plans.variants.is_empty() => Plans::Found(Box::new(plans)),
             _ => Plans::NoPlan,
-        }
+        })
     });
     // The picks belong to the program they were made for.
     let core_pick = RwSignal::new(None::<(String, usize)>);

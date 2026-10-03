@@ -97,14 +97,14 @@ pub fn BookmarksPage() -> impl IntoView {
     });
 
     let list_source = source.clone();
-    let data: Memo<Loaded> = Memo::new(move |_| {
+    let data: Memo<Loaded> = Memo::new(move |before| {
         let (sort, descending) = order.get();
         let ids = listed.get();
         if ids.is_empty() {
             // Nothing marked (and on the server, always): nothing to ask the catalog.
             return Ok(BookmarksData::default());
         }
-        list_source.clone().and_then(|source| source.now(&BookmarksAsk { ids, sort, descending }))
+        DataError::or_before(list_source.clone().and_then(|source| source.now(&BookmarksAsk { ids, sort, descending })), before)
     });
 
     // What fills the page: the list, or the module opened from it where that is shown in full —
@@ -113,9 +113,12 @@ pub fn BookmarksPage() -> impl IntoView {
     // module on the list, dimmed, as it does in the preview.
     let phone = phone_layout();
     let filling = Memo::new(move |_| url.with(|url| local::filling(url, phone.get())));
-    let preview = Memo::new(move |_| match open.get() {
-        None => Ok(None),
-        Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
+    let preview = Memo::new(move |before| {
+        let now = match open.get() {
+            None => Ok(None),
+            Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
+        };
+        DataError::or_before(now, before)
     });
     // Where the app is going (`pending`): the sidebar shows its order and half of the year at once,
     // the row of a module being opened is marked, a preview being closed is gone.

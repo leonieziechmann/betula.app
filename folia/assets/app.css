@@ -2905,6 +2905,9 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
    the frame of what comes (the layout classes of the page, so every panel is where the page will
    put its own): grey bars where the text will be. A band of light sweeps over it once the wait is
    long enough to be noticed; the compositor moves it, so it keeps moving while the page is built. */
+/* The server's page in front of the app while the app's first answers are on their way (boot.js,
+   `takePicture`): the body's layout (written in by the script), above everything, taking no clicks. */
+.takeover-picture { position: absolute; left: 0; right: 0; z-index: 2147483000; min-height: 100vh; background: var(--bg); color: var(--text); font: 450 14px/1.45 var(--font); letter-spacing: -.006em; -webkit-font-smoothing: antialiased; pointer-events: none; overflow: hidden; }
 /* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the
    page will be; without JavaScript the <noscript> beside it says what the view needs instead. */
 .app-standin { display: contents; }
@@ -2914,6 +2917,9 @@ html:not(.js) .app-standin { display: none; }
 html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .pending-page { position: absolute; inset: 0; z-index: 30; background: var(--bg); }
 .pending-page > .work { height: 100%; }
+/* The page before, held in front of the new one while its answers are on their way (pending.rs,
+   `hold`): a picture, which takes no input; what is under it is the new page. */
+.pending-page.held, .pending-page.held * { pointer-events: none !important; }
 /* Another view of the same page: its column waits, the sidebar stays as it is and takes clicks. */
 .pending-page.columns { background: none; pointer-events: none; }
 .pending-page.columns > .work > .sidebar { visibility: hidden; }

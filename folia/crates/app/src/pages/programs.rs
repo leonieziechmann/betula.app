@@ -24,7 +24,7 @@ use folia_routes::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
-use crate::data::{use_data, PageStatus};
+use crate::data::{use_ask, use_data, PageStatus};
 use crate::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
@@ -237,21 +237,27 @@ pub struct ProgramsReady(pub std::sync::Arc<pages::ProgramsData>);
 #[component]
 pub fn ProgramsPage() -> impl IntoView {
     let t = i18n::t();
-    let source = use_data();
     let status = PageStatus::capture();
     let location = use_location();
     let url = Memo::new(move |_| ProgramsUrl::parse(&location.search.get()));
     // Loaded and grouped once; the URL only decides what of it is shown. A host that has the data
-    // ready for the snapshot (`ProgramsReady`) hands it over.
-    let loaded = match use_context::<ProgramsReady>() {
-        Some(ready) => Ok(group(&ready.0)),
-        None => source.and_then(|source| source.now(&ProgramsOverviewAsk {})).map(|data| group(&data)),
+    // ready for the snapshot (`ProgramsReady`) hands it over; otherwise the page comes once its
+    // answer is there (the shell holds the page before it meanwhile).
+    let ready = use_context::<ProgramsReady>();
+    let has_ready = ready.is_some();
+    let asked = use_ask(move || (!has_ready).then_some(ProgramsOverviewAsk {}));
+    move || {
+    let loaded = match (&ready, asked.get()) {
+        (Some(ready), _) => Ok(group(&ready.0)),
+        (None, Some(answer)) => answer.map(|data| group(&data)),
+        (None, None) => return None,
     };
+    let status = status.clone();
     let all = match loaded {
         Ok(all) => all,
         Err(error) => {
             status.for_error(&error);
-            return view! { <Title text=t.app.programs/><Plain><ErrorState error/></Plain> }.into_any();
+            return Some(view! { <Title text=t.app.programs/><Plain><ErrorState error/></Plain> }.into_any());
         }
     };
     let total: usize = all.iter().map(Faculty::programs).sum();
@@ -402,7 +408,7 @@ pub fn ProgramsPage() -> impl IntoView {
         }
     };
 
-    view! {
+    let page = view! {
         <Title text=t.programs.title/>
         <Frame title=t.programs.filters head sidebar sheet=true>
             <div class="page-inner">
@@ -449,7 +455,9 @@ pub fn ProgramsPage() -> impl IntoView {
             </div>
         </Frame>
     }
-    .into_any()
+    .into_any();
+    Some(page)
+    }
 }
 
 /// „Mein Studiengang: Informatik B.Sc. · PO 2008" in the head of the overview (A.10): the way to the

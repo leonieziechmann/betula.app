@@ -162,7 +162,7 @@ pub fn t() -> &'static Texts {
 /// The language the address being rendered names: the window's in the browser app, the
 /// request's on the server. The default where there is neither (a test).
 pub fn of_address() -> Locale {
-    #[cfg(feature = "csr")]
+    #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     if let Some(path) = web_sys::window().and_then(|window| window.location().pathname().ok()) {
         return Locale::split(&path).0;
     }

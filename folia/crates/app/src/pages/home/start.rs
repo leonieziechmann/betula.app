@@ -71,7 +71,10 @@ pub fn ProgramPick(
     let source = use_data().ok();
     let kept = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some())));
     // Asked of the catalog only once the picker opens: a memo computes when it is first read.
-    let programs = Memo::new(move |_| source.as_ref().and_then(|source| source.now(&ProgramsAsk {}).ok()).unwrap_or_default());
+    let programs = Memo::new(move |before| match source.as_ref() {
+        Some(source) => folia_pages::ask::unless_pending(source.now(&ProgramsAsk {}), before, Result::unwrap_or_default),
+        None => Vec::new(),
+    });
     let items = Signal::derive(move || {
         programs.with(|all| {
             all.iter()

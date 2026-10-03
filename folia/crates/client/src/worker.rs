@@ -1,96 +1,85 @@
-//! The catalog's search beside the page's thread (`folia_app::data::CatalogWorker`; owner, 2026-10-02:
-//! typing a search lagged): a Web Worker with a copy of the local catalog of its own and this
-//! bundle, which runs the loaders of `folia_pages` on it as the page would on its own copy.
+//! The data worker (docs/folia/folia-refactor.md §6.2): a Web Worker with the catalog and this
+//! bundle, which answers every question of the app's pages (`folia_pages::ask`) beside the page's
+//! thread. The page's thread only builds what the answers say.
 //!
-//! Both sides are here. In the worker (`folia/crates/client/js/search-worker.js`, which opens the catalog and
-//! puts `betulaDb` on its global object) the functions `worker_catalog` and `worker_similar`
-//! answer a question in JSON with JSON. On the page `BrowserWorker` asks them through
-//! `window.betulaSearch` (`folia/assets/boot.js`, which starts the worker once the app runs).
+//! Both sides are here. In the worker (`folia/crates/client/js/data-worker.js`, which opens the
+//! catalog and puts `betulaDb` on its global object) `worker_answer` answers a question in JSON
+//! with JSON. On the page `BrowserData` asks it through `window.betulaData` (`folia/assets/boot.js`,
+//! which starts the worker before the app).
 
-use folia_app::data::{CatalogWorker, DataError, Later};
-use folia_locale::Locale;
-use folia_model::rows::CatalogRow;
-use folia_pages as pages;
-use folia_pages::CatalogData;
-use folia_routes::filter::CatalogQuery;
-use folia_routes::url::CatalogUrl;
-use serde::{Deserialize, Serialize};
-use wasm_bindgen::JsCast;
+use std::cell::RefCell;
+use std::sync::Arc;
+
+use folia_app::data::{Answerer, DataClient, Later};
+use folia_pages::ask::{self, Kept, Lane};
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 use crate::LocalDatabase;
 
-/// The list of an address, as the page asks for it: its query as the list runs it (the marks and
-/// what fits the plan filled in, which no address carries), its page and placeholder, the language.
-#[derive(Serialize, Deserialize)]
-struct CatalogAsk {
-    query: CatalogQuery,
-    page: u64,
-    fill: Option<u32>,
-    locale: Locale,
+thread_local! {
+    /// What the worker keeps between questions besides the answers (the finder's candidates).
+    static KEPT: RefCell<Kept> = RefCell::new(Kept::default());
 }
 
-/// „Ähnliche Module" of the query a list ran, of the semantic search's hits.
-#[derive(Serialize, Deserialize)]
-struct SimilarAsk {
-    query: CatalogQuery,
-    hits: Vec<String>,
-    limit: usize,
-}
-
-fn failed(error: impl std::fmt::Display) -> DataError {
-    DataError { unavailable: false, message: error.to_string() }
-}
-
-/// In the worker: `pages::catalog` of the address `ask` names, a `Result<CatalogData, DataError>`.
+/// In the worker: the answer to the question `name` (`Ask::NAME`) with the fields `question` (JSON),
+/// as the JSON of its `Result<Answer, DataError>`; empty for a name no question has.
 #[wasm_bindgen]
-pub fn worker_catalog(ask: &str) -> String {
-    let answer = serde_json::from_str::<CatalogAsk>(ask).map_err(failed).and_then(|ask| {
-        let url = CatalogUrl { query: ask.query, page: ask.page, open: None, fill: ask.fill };
-        pages::catalog(&LocalDatabase, &url, ask.locale).map_err(DataError::from)
-    });
-    serde_json::to_string(&answer).unwrap_or_default()
+pub fn worker_answer(name: &str, question: &str) -> String {
+    KEPT.with_borrow_mut(|kept| ask::answer_json(name, question, &LocalDatabase, kept)).unwrap_or_default()
 }
 
-/// In the worker: `pages::similar` of `ask`, a `Result<Vec<CatalogRow>, DataError>`.
+/// In the worker: a newer snapshot answers from now on, so nothing kept of the one before counts,
+/// neither what the questions keep nor the statements' answers.
 #[wasm_bindgen]
-pub fn worker_similar(ask: &str) -> String {
-    let answer = serde_json::from_str::<SimilarAsk>(ask)
-        .map_err(failed)
-        .and_then(|ask| pages::similar(&LocalDatabase, &ask.query, &ask.hits, ask.limit).map_err(DataError::from));
-    serde_json::to_string(&answer).unwrap_or_default()
+pub fn worker_forget() {
+    KEPT.with_borrow_mut(|kept| *kept = Kept::default());
+    crate::forget_statements();
 }
 
-/// The worker as the page asks it: `window.betulaSearch`, asked anew on every call (like
-/// `BrowserSemantic`), so it holds no JavaScript object of its own.
-pub(crate) struct BrowserWorker;
+thread_local! {
+    /// The page's client, for `snapshot_changed`.
+    static CLIENT: RefCell<Option<DataClient>> = const { RefCell::new(None) };
+}
 
-impl BrowserWorker {
-    fn search() -> Option<JsValue> {
-        js_sys::Reflect::get(&web_sys::window()?.into(), &"betulaSearch".into()).ok().filter(JsValue::is_object)
-    }
-
-    /// `window.betulaSearch[method](ask)`, awaited: the answer's JSON, or `None` without one.
-    async fn ask(method: &str, ask: String) -> Option<String> {
-        let search = Self::search()?;
-        let function: js_sys::Function = js_sys::Reflect::get(&search, &method.into()).ok()?.dyn_into().ok()?;
-        let promise = function.call1(&search, &JsValue::from_str(&ask)).ok()?;
-        wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&promise)).await.ok()?.as_string()
+/// On the page: the data worker answers from a newer snapshot now (`boot.js` hears it): every
+/// answer kept is forgotten, and what shows one asks again and shows the new one in place.
+#[wasm_bindgen]
+pub fn snapshot_changed() {
+    if let Some(client) = CLIENT.with_borrow(Clone::clone) {
+        client.forget();
     }
 }
 
-impl CatalogWorker for BrowserWorker {
-    fn ready(&self) -> bool {
-        Self::search().and_then(|search| js_sys::Reflect::get(&search, &"ready".into()).ok()).and_then(|ready| ready.as_bool()).unwrap_or(false)
-    }
+/// The data worker as the page asks it: `window.betulaData`, asked anew on every call, so it holds
+/// no JavaScript object of its own.
+struct BrowserData;
 
-    fn catalog(&self, url: &CatalogUrl, locale: Locale) -> Later<Option<Result<CatalogData, DataError>>> {
-        let ask = serde_json::to_string(&CatalogAsk { query: url.query.clone(), page: url.page, fill: url.fill, locale });
-        Box::pin(async move { serde_json::from_str(&Self::ask("catalog", ask.ok()?).await?).ok() })
+impl BrowserData {
+    fn data() -> Option<JsValue> {
+        js_sys::Reflect::get(&web_sys::window()?.into(), &"betulaData".into()).ok().filter(JsValue::is_object)
     }
+}
 
-    fn similar(&self, query: &CatalogQuery, hits: &[String], limit: usize) -> Later<Option<Result<Vec<CatalogRow>, DataError>>> {
-        let ask = serde_json::to_string(&SimilarAsk { query: query.clone(), hits: hits.to_vec(), limit });
-        Box::pin(async move { serde_json::from_str(&Self::ask("similar", ask.ok()?).await?).ok() })
+impl Answerer for BrowserData {
+    fn ask(&self, name: &'static str, lane: Lane, question: String) -> Later<Option<String>> {
+        Box::pin(async move {
+            let data = Self::data()?;
+            let function: js_sys::Function = js_sys::Reflect::get(&data, &"ask".into()).ok()?.dyn_into().ok()?;
+            let lane = JsValue::from_str(match lane {
+                Lane::Page => "page",
+                Lane::Typing => "typing",
+            });
+            let promise = function.call3(&data, &JsValue::from_str(name), &lane, &JsValue::from_str(&question)).ok()?;
+            // An empty text: a newer question of the lane took this one's place; `null`: no answer.
+            wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&promise)).await.ok()?.as_string()
+        })
     }
+}
+
+/// The client of the page: the data worker's, where `boot.js` started one.
+pub(crate) fn client() -> Option<DataClient> {
+    let client = BrowserData::data().map(|_| DataClient::remote(Arc::new(BrowserData)))?;
+    CLIENT.with_borrow_mut(|kept| *kept = Some(client.clone()));
+    Some(client)
 }

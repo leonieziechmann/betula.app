@@ -336,8 +336,8 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
     // The server's number is the example's, which its loader counted already; the app counts what
     // is chosen (the local catalog keeps an answer, so choosing again asks nothing).
     let source = use_data().ok().filter(|_| APP);
-    let count = Memo::new(move |_| match &source {
-        Some(source) => chosen.with(|q| source.now(&CatalogCountAsk { query: q.clone() })).ok(),
+    let count = Memo::new(move |before| match &source {
+        Some(source) => folia_pages::ask::unless_pending(chosen.with(|q| source.now(&CatalogCountAsk { query: q.clone() })), before, Result::ok),
         None => example_count,
     });
     let group = |label: String, body: AnyView, hint: Option<&'static str>, key: bool| {

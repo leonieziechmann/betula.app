@@ -365,7 +365,7 @@ impl CatalogQuery {
     /// Whether the list is ordered by how well the modules match the search text: while there
     /// is one and no column was chosen to order by (owner, 2026-09-30).
     pub fn by_relevance(&self) -> bool {
-        self.sort == SortKey::Default && self.search_plan().is_some_and(|plan| plan.len() > 0)
+        self.sort == SortKey::Default && self.search_plan().is_some_and(|plan| !plan.is_empty())
     }
 
 }

@@ -614,7 +614,7 @@ pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descendi
 /// One semester of a Studienplan: the planned modules' rows, and what the semester's timetable is
 /// derived from. Which modules these are is personal, so only two callers load it: the browser
 /// with the ids of its store, and the server with the ids a subscription code carries (R9).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct StudyplanData {
     pub key: SemesterKey,
     /// The language the data was loaded for: `label` is written in it, and so is what is written
@@ -814,7 +814,7 @@ fn catalog_rows(db: &dyn Database, ids: &[String]) -> Result<(Vec<CatalogRow>, V
 /// What the import and a placeholder need of a program: its study plans as the regulation prints
 /// them, which of them fill a row of another, its areas, and the catalog's rows of the modules
 /// its plans name.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlanSource {
     pub program: Program,
     /// `variants::plan_variants`, in the order of the document; empty for a program without a plan.
@@ -844,7 +844,7 @@ pub fn plan_source(db: &dyn Database, program_id: &str, locale: Locale) -> Resul
 }
 
 /// „Mein Studiengang" as the snapshot has it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct MyProgramInfo {
     /// The stored program; when it is gone from the snapshot, the newest PO of its family.
     pub program: Program,
@@ -884,7 +884,7 @@ pub fn my_program(db: &dyn Database, program_id: &str) -> Result<Option<MyProgra
 }
 
 /// What „Passt in meinen Stundenplan" leaves in the catalog (A.7).
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct FitResult {
     /// The semester has a dated teaching row. Without one nothing is checked, and only the
     /// planned modules are left out.
@@ -976,7 +976,7 @@ pub fn fit(
 /// A module's week beside the Studienplan of its semester (A.9): the other planned modules'
 /// Termine, the module's own Termine that clash with them, and the lines under its week and under
 /// its exams.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Overlay {
     /// The planned modules' shown recurring Termine with a weekday and a time, each slot once, by
     /// weekday and time.
@@ -995,7 +995,7 @@ pub struct Overlay {
 
 /// A recurring slot of another planned module in a module's week: the module, its short name for
 /// the slot's label (`StudyplanData::slot_names`: its abbreviation), the weekday (1 = Monday) and the minutes.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct OverlaySlot {
     pub module: String,
     pub short: String,
@@ -1297,7 +1297,7 @@ pub fn calendar(db: &dyn Database, subscription: &Subscription, locale: Locale) 
 
 /// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it
 /// over name it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SharedPlanData {
     pub key: SemesterKey,
     /// The semester's name in the language `shared_plan` was asked for („WiSe 2026/27", "Winter
@@ -1311,7 +1311,7 @@ pub struct SharedPlanData {
     pub program: Option<Program>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SharedModule {
     pub id: String,
     /// What the week grid names the module by: its abbreviation (the program's where the code names
