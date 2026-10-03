@@ -638,6 +638,7 @@ Cortex serves a registry of its own: no `radix_*` family appears there. No metri
 | `cortex_host_queue{host}`, `cortex_host_in_flight{host}`, `cortex_host_paused{host}` | waiting requests, requests in flight, the breaker (1 or 0; for `*.suffix` and `other` the number of paused hosts) |
 | `cortex_role`, `cortex_epoch`, `cortex_journal_seq`, `cortex_leader_changes_total` | 1 for the leader, 0 for the follower; the epoch and seq of the newest journal entry; role changes |
 | `cortex_replication_lag_seconds`, `cortex_replication_lag_entries` | the follower's distance (0 on the leader) |
+| `cortex_blobs_missing` | blobs the index references that the instance does not have yet: a follower after a snapshot, a leader promoted meanwhile; `48-cortex.sh` hands over only at 0 |
 | `cortex_entries`, `cortex_versions`, `cortex_files`, `cortex_blobs`, `cortex_blob_bytes`, `cortex_blob_original_bytes` | the store: from a background count at most about a minute old (no sample until the first one); blob bytes as stored and before compression |
 | `cortex_pruned_total{what}` | retention: `versions`, `file_versions`, `files`, `entries`, `blobs`, `journal_entries` |
 | `cortex_http_requests_total{route,code}` | every request, by route (`fetch`, `entries`, `files`, `blobs`, `livez`, `healthz`, `status`, `metrics`, `step_down`, `prune`, `journal`, `snapshot`, `other`) |

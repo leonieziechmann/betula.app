@@ -155,7 +155,7 @@ func TestMetricsAreCortexsOwn(t *testing.T) {
 	}
 	for _, family := range []string{
 		"cortex_requests_total", "cortex_coalesced_total", "cortex_role", "cortex_epoch", "cortex_journal_seq",
-		"cortex_replication_lag_seconds", "cortex_replication_lag_entries", "cortex_leader_changes_total",
+		"cortex_replication_lag_seconds", "cortex_replication_lag_entries", "cortex_blobs_missing", "cortex_leader_changes_total",
 		"cortex_http_requests_total", "cortex_log_problems_total", "cortex_upstream_requests_total",
 		"cortex_upstream_request_duration_seconds", "cortex_upstream_bytes_total", "cortex_host_queue", "cortex_host_in_flight",
 		"cortex_host_paused", "cortex_entries", "cortex_versions", "cortex_files", "cortex_blobs", "cortex_blob_bytes",

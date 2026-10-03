@@ -133,15 +133,19 @@ Why this order, and what can go wrong:
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
 - The dashboard "Radix" shows what the collector does, from its `GET /metrics` (Prometheus job `radix`):
-  requests to b-tu.de and QIS by endpoint and status, pages that changed, the archive per endpoint
-  (newest and oldest fetch), cycles and stages, builds and snapshots, warnings and errors by event.
+  what it asked for by endpoint and status (to Cortex, or to the university without it: tile
+  "Fetches through"), and, from Cortex's metrics, how much of that Cortex answered from its store
+  and what reached b-tu.de, QIS and OPUS by host, status and answer time, and which of these hosts
+  Cortex paused; then pages that changed, the archive per endpoint (newest and oldest fetch),
+  cycles and stages, builds and snapshots, warnings and errors by event. Cortex serves every
+  instance, so its panels do not follow the Instance filter.
   Prometheus reaches every instance's Radix over the `cortex` overlay (`stacks/betula.yml`; Radix
   is no longer on `monitoring`); a new instance file needs its `tasks.<stack>_radix` line in
   `config/monitoring/prometheus.yml`. An image from before `/metrics` answers 404 there, so the
   rule "Monitoring target is down" fires until a current one runs.
 - The dashboard "Cortex" (`betula-cortex.json`, Prometheus job `cortex`: `cortex_a:8100` and
   `cortex_b:8100` over the `cortex` overlay) shows which instance leads, the follower's lag and
-  missing blobs, every host's queue, requests in flight and breaker, the clients' requests by
+  missing blobs (`cortex_blobs_missing`), every host's queue, requests in flight and breaker, the clients' requests by
   source and result, what went upstream by host and status, the store, and warnings and errors by
   event (`docs/cortex.md` §10).
 - The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access

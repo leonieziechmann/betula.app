@@ -6,7 +6,7 @@
     "betula"
   ],
   "schemaVersion": 42,
-  "version": 1,
+  "version": 2,
   "id": null,
   "editable": true,
   "graphTooltip": 1,
@@ -557,7 +557,7 @@
     {
       "type": "stat",
       "title": "Requests",
-      "description": "Requests of the clients to /v1/fetch in the selected time range. A request the follower forwards counts on both instances.",
+      "description": "Requests to GET /v1/fetch in the selected range. A request a follower passed to the leader is counted once, by the instance that answered it.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -570,7 +570,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(increase(cortex_requests_total{job=\"cortex\", instance=~\"$instance\"}[$__range]))",
+          "expr": "sum(increase(cortex_requests_total{job=\"cortex\", instance=~\"$instance\", result!=\"forwarded\"}[$__range]))",
           "legendFormat": "requests",
           "range": false,
           "instant": true
@@ -1032,7 +1032,7 @@
       "id": 15,
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 10
       }
@@ -1100,8 +1100,76 @@
       "id": 16,
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
+        "w": 6,
+        "x": 6,
+        "y": 10
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Blobs missing",
+      "description": "Blobs the index references that the instance does not have yet: a follower after a snapshot fetches them from the leader, a leader promoted meanwhile from the other instance. While above 0 that instance answers 503 blob-missing for them, /healthz says unhealthy, and 48-cortex.sh does not hand over to it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "max by (instance) (cortex_blobs_missing{job=\"cortex\", instance=~\"$instance\"})",
+          "legendFormat": "{{instance}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
         "y": 10
       }
     },
@@ -1165,11 +1233,11 @@
           "sort": "desc"
         }
       },
-      "id": 17,
+      "id": 18,
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
+        "w": 6,
+        "x": 18,
         "y": 10
       }
     },
@@ -1247,7 +1315,7 @@
           "mode": "single"
         }
       },
-      "id": 18,
+      "id": 19,
       "gridPos": {
         "h": 4,
         "w": 24,
@@ -1260,7 +1328,7 @@
       "title": "Hosts",
       "collapsed": false,
       "panels": [],
-      "id": 19,
+      "id": 20,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1340,7 +1408,7 @@
           "sort": "desc"
         }
       },
-      "id": 20,
+      "id": 21,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1422,7 +1490,7 @@
           "mode": "single"
         }
       },
-      "id": 21,
+      "id": 22,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1435,7 +1503,7 @@
       "title": "Requests from the clients",
       "collapsed": false,
       "panels": [],
-      "id": 22,
+      "id": 23,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1446,7 +1514,7 @@
     {
       "type": "timeseries",
       "title": "Requests by result",
-      "description": "What Cortex did with each request to /v1/fetch. hit: served from the store; miss, stale, refresh: fetched upstream first; stale_if_error: upstream failed and the stored answer was served; offline_miss: offline and not stored (504); forwarded: the follower handed it to the leader, which counts it once more.",
+      "description": "Requests per bar by how they were answered: from the store, fetched upstream (not stored, too old, refresh), or passed by a follower to the leader, which counts it again with its own result.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1495,19 +1563,14 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "hit (from the store, fresh)"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "not_modified"
-            },
-            "properties": [
+                "value": "from Cortex's store"
+              },
               {
-                "id": "displayName",
-                "value": "not_modified (304 to the client)"
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
               }
             ]
           },
@@ -1519,7 +1582,14 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "miss (fetched, not stored yet)"
+                "value": "fetched: not stored yet"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
               }
             ]
           },
@@ -1531,7 +1601,14 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "stale (fetched again, too old)"
+                "value": "fetched: stored copy too old"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "light-blue"
+                }
               }
             ]
           },
@@ -1543,7 +1620,33 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "refresh (fetched on request)"
+                "value": "fetched: refresh asked"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "not_modified"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "not modified (304)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-green"
+                }
               }
             ]
           },
@@ -1555,7 +1658,14 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "stale_if_error (stored, upstream failed)"
+                "value": "stored copy, the university failed"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
               }
             ]
           },
@@ -1567,7 +1677,14 @@
             "properties": [
               {
                 "id": "displayName",
-                "value": "offline_miss (offline, not stored)"
+                "value": "not stored (offline)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
               }
             ]
           },
@@ -1580,132 +1697,7 @@
               {
                 "id": "displayName",
                 "value": "error"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "forwarded"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "forwarded (follower to leader)"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^hit.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "green"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^not_modified.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "light-green"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^miss.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "blue"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^stale \\(.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "light-blue"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^refresh.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "purple"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^stale_if_error.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "orange"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "^offline_miss.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "yellow"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "error"
-            },
-            "properties": [
+              },
               {
                 "id": "color",
                 "value": {
@@ -1717,15 +1709,19 @@
           },
           {
             "matcher": {
-              "id": "byRegexp",
-              "options": "^forwarded.*"
+              "id": "byName",
+              "options": "forwarded"
             },
             "properties": [
+              {
+                "id": "displayName",
+                "value": "passed to the leader (follower)"
+              },
               {
                 "id": "color",
                 "value": {
                   "mode": "fixed",
-                  "fixedColor": "#8e8e8e"
+                  "fixedColor": "text"
                 }
               }
             ]
@@ -1747,7 +1743,7 @@
         }
       },
       "interval": "5m",
-      "id": 23,
+      "id": 24,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1757,8 +1753,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Requests by source",
-      "description": "The same requests by the source the client named (Radix: the endpoint of the crawl, e.g. module_page; unknown when none was given).",
+      "title": "Requests by source (who asks)",
+      "description": "Requests per bar by the source the client named (Radix names its crawl endpoints and statute). A forwarded request counts once.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1771,7 +1767,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (source) (increase(cortex_requests_total{job=\"cortex\", instance=~\"$instance\"}[$__interval]))",
+          "expr": "sum by (source) (increase(cortex_requests_total{job=\"cortex\", instance=~\"$instance\", result!=\"forwarded\"}[$__interval]))",
           "legendFormat": "{{source}}",
           "range": true,
           "instant": false
@@ -1798,7 +1794,116 @@
           },
           "decimals": 0
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "module_catalog"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "b-tu.de · module list"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "module_page"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "b-tu.de · module pages"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_module_list"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · module table"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_fues_list"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · FÜS list"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_module_page"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · module descriptions"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_tree"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · program tree"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_event_entry"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · event search (dates)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_event"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · event pages"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "statute"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "OPUS · statutes"
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "legend": {
@@ -1815,7 +1920,7 @@
         }
       },
       "interval": "5m",
-      "id": 24,
+      "id": 25,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1828,7 +1933,7 @@
       "title": "Upstream: what Cortex fetched",
       "collapsed": false,
       "panels": [],
-      "id": 25,
+      "id": 26,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1896,7 +2001,7 @@
         }
       },
       "interval": "5m",
-      "id": 26,
+      "id": 27,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2055,7 +2160,7 @@
         }
       },
       "interval": "5m",
-      "id": 27,
+      "id": 28,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2134,7 +2239,7 @@
         }
       },
       "interval": "5m",
-      "id": 28,
+      "id": 29,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2201,7 +2306,7 @@
         }
       },
       "interval": "5m",
-      "id": 29,
+      "id": 30,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2269,7 +2374,7 @@
         }
       },
       "interval": "5m",
-      "id": 30,
+      "id": 31,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2353,7 +2458,7 @@
         }
       },
       "interval": "5m",
-      "id": 31,
+      "id": 32,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2366,7 +2471,7 @@
       "title": "Store",
       "collapsed": false,
       "panels": [],
-      "id": 32,
+      "id": 33,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2470,7 +2575,7 @@
           "sort": "desc"
         }
       },
-      "id": 33,
+      "id": 34,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2549,7 +2654,7 @@
           "sort": "desc"
         }
       },
-      "id": 34,
+      "id": 35,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2617,7 +2722,7 @@
         }
       },
       "interval": "1h",
-      "id": 35,
+      "id": 36,
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -2630,7 +2735,7 @@
       "title": "Containers and problems",
       "collapsed": false,
       "panels": [],
-      "id": 36,
+      "id": 37,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2640,8 +2745,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Memory and CPU of Cortex",
-      "description": "The container of each instance (limits: 256 MB, 0.5 CPU). Bodies stream to disk, so memory stays flat while big files arrive.",
+      "title": "Memory of Cortex",
+      "description": "The container of each instance (limits: 256 MB, 0: working set.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2655,19 +2760,7 @@
           },
           "editorMode": "code",
           "expr": "sum by (service) (container_memory_working_set_bytes{stack=\"cortex\", service=~\"cortex_.+\"})",
-          "legendFormat": "{{service}} memory",
-          "range": true,
-          "instant": false
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum by (service) (rate(container_cpu_usage_seconds_total{stack=\"cortex\", service=~\"cortex_.+\"}[$__rate_interval]))",
-          "legendFormat": "{{service}} CPU",
+          "legendFormat": "{{service}}",
           "range": true,
           "instant": false
         }
@@ -2692,24 +2785,7 @@
             "axisSoftMin": 0
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* CPU$"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": {
@@ -2726,11 +2802,78 @@
           "sort": "desc"
         }
       },
-      "id": 37,
+      "id": 38,
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 6,
         "x": 0,
+        "y": 67
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU of Cortex",
+      "description": "The container of each instance (limits: 256 MB, 0: share of one processor.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (service) (rate(container_cpu_usage_seconds_total{stack=\"cortex\", service=~\"cortex_.+\"}[$__rate_interval]))",
+          "legendFormat": "{{service}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 39,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
         "y": 67
       }
     },
@@ -2810,7 +2953,7 @@
         }
       },
       "interval": "30m",
-      "id": 38,
+      "id": 40,
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -2848,7 +2991,7 @@
         "dedupStrategy": "none",
         "sortOrder": "Descending"
       },
-      "id": 39,
+      "id": 41,
       "gridPos": {
         "h": 10,
         "w": 24,
@@ -2886,7 +3029,7 @@
         "dedupStrategy": "none",
         "sortOrder": "Descending"
       },
-      "id": 40,
+      "id": 42,
       "gridPos": {
         "h": 12,
         "w": 24,

@@ -90,6 +90,9 @@ func init() {
 	gauge("cortex_replication_lag_entries", "Journal entries of the leader the follower has not applied (0 on the leader).", func(s *Server) float64 {
 		return float64(s.node.Follower().LagEntries)
 	})
+	gauge("cortex_blobs_missing", "Blobs the index references that this instance does not have yet (a follower after a snapshot, or a leader promoted while it fetched them); 48-cortex.sh hands over only at 0.", func(s *Server) float64 {
+		return float64(s.node.Follower().BlobsMissing)
+	})
 }
 
 // maxSources is how many values the source label of cortex_requests_total takes at most, beside
