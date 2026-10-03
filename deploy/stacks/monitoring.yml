@@ -29,7 +29,8 @@
 #                   ("betula" = your ssh alias for deploy@betula.app.) Without the secret the
 #                   deploy stops with "secret not found".
 #                   Login: user "betula" (GRAFANA_ADMIN_USER, see the grafana service) + that password.
-#   - overlay net   monitoring (external, attachable; vps/30-docker.sh creates it)
+#   - overlay nets  monitoring and cortex (external, attachable, cortex internal; vps/30-docker.sh
+#                   creates them)
 #   - directories   /opt/betula/config/monitoring and /var/log/journal (journald Storage=persistent,
 #                   vps/10-base.sh). A missing bind source makes Swarm reject the task ("bind source
 #                   path does not exist"); 40-stacks.sh checks every bind source before it deploys.
@@ -194,9 +195,14 @@ services:
     volumes:
       - prometheus-data:/prometheus
       - /opt/betula/config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # The only member of this stack on the shared overlays: it scrapes edge_traefik:8082 over
+    # "monitoring", and Cortex (cortex_a:8100, cortex_b:8100) and every instance's Radix
+    # (tasks.<stack>_radix:8090) over "cortex", which is internal: Radix is on internal networks
+    # only (stacks/betula.yml).
     networks:
       default: {}
-      monitoring: {}   # the only member of this stack on the shared overlay: it scrapes edge_traefik:8082 and <stack>_radix:8090
+      monitoring: {}
+      cortex: {}
     labels:
       app.betula.config-rev: "${MONITORING_CONFIG_REV:-0}"
     cap_drop: [ALL]
@@ -293,6 +299,8 @@ networks:
   default:
     driver: overlay
   monitoring:
+    external: true
+  cortex:
     external: true
 
 volumes:

@@ -21,34 +21,63 @@
         # while, so take the versioned attribute when it exists.
         buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
 
-        radix = buildGoModule {
-          pname = "betula-radix";
-          version = self.shortRev or self.dirtyShortRev or "dev";
-          src = pkgs.lib.cleanSourceWith {
-            src = ./.;
-            # Only the Go module (all Go code and what it embeds lives below cmd/ and internal/):
-            # a change to the Rust workspace, the docs or deploy/ rebuilds nothing here.
-            filter = path: type:
-              let
-                rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
-                top = builtins.head (pkgs.lib.splitString "/" rel);
-              in
-              builtins.elem top [ "go.mod" "go.sum" "cmd" "internal" ];
-          };
-          subPackages = [ "cmd/radix" ];
+        # goSource KEEP -> the repository with only the paths KEEP says yes to. KEEP gets each path
+        # relative to the root ("internal/oplog/oplog.go"); a directory it says no to is not
+        # looked into.
+        goSource = keep: pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type: keep (pkgs.lib.removePrefix (toString ./. + "/") (toString path));
+        };
+        # isIn PATHS REL: REL is one of PATHS or lies below one. leadsTo PATHS REL: REL is a
+        # directory on the way to one of them.
+        isIn = paths: rel: builtins.any (p: rel == p || pkgs.lib.hasPrefix (p + "/") rel) paths;
+        leadsTo = paths: rel: builtins.any (p: pkgs.lib.hasPrefix (rel + "/") p) paths;
 
-          # Update after changing go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
+        # The Go module: all Go code and what it embeds lives below cmd/ and internal/. A change to
+        # the Rust workspace, the docs or deploy/ rebuilds nothing here.
+        goPaths = [ "go.mod" "go.sum" "cmd" "internal" ];
+        goSrc = goSource (isIn goPaths);
+        # What Cortex is built from: its own packages and the packages of the module they import
+        # (never Radix's: docs/cortex.md). deploy/ship-cortex.sh reads this line for the release
+        # tag, so it stays one line; a package missing here fails the build.
+        cortexPaths = [ "go.mod" "go.sum" "cmd/cortex" "internal/cortex" "internal/metrics" "internal/oplog" "internal/secrets" "internal/version" ];
+        # Radix fetches through Cortex's client, and imports nothing else of Cortex.
+        cortexClient = [ "internal/cortex/client" ];
+
+        # What both Go builds share. The dependencies are vendored from the whole module, not from
+        # each build's own source (overrideModAttrs: buildGoModule runs "go mod vendor" over the
+        # source of its goModules): one vendorHash for both, whatever each imports, and with one
+        # name for both, one store path that is fetched once. So the flake's source has to hold the
+        # whole module for either build (deploy/ship-cortex.sh exports it, not only cortexPaths).
+        goCommon = {
+          version = self.shortRev or self.dirtyShortRev or "dev";
+          # Update after changing go.mod / go.sum, or after the first import of a package of a
+          # dependency that nothing imported before ("go mod vendor" copies packages, not
+          # modules): set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
           vendorHash = "sha256-tFFT73vB3oTjpQaybpzq3I+alljd2zaXod+L7whFK7A=";
+          overrideModAttrs = _: {
+            name = "betula-go-modules";
+            src = goSrc;
+          };
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";
           ldflags = [ "-s" "-w" ];
 
-          # The tests are network-free and run during the build.
+          # The tests are network-free and run during the build (those of subPackages).
           doCheck = true;
-
-          meta.mainProgram = "radix";
         };
+
+        radix = buildGoModule (goCommon // {
+          pname = "betula-radix";
+          # The module without Cortex but with its client, so that a change to Cortex alone does
+          # not change Radix's image.
+          src = goSource (rel:
+            isIn goPaths rel
+            && (isIn cortexClient rel || leadsTo cortexClient rel || !(isIn [ "cmd/cortex" "internal/cortex" ] rel)));
+          subPackages = [ "cmd/radix" ];
+          meta.mainProgram = "radix";
+        });
 
         radix-image = pkgs.dockerTools.buildLayeredImage {
           name = "betula-radix";
@@ -76,6 +105,60 @@
               Timeout = 10000000000;
               StartPeriod = 120000000000;
               StartInterval = 5000000000; # while starting: a new task counts as started after seconds, not after an interval
+              Retries = 3;
+            };
+          };
+        };
+
+        # ---------------------------------------------------------------- Cortex (Go)
+
+        # The cache between the application and the internet (docs/cortex.md, stacks/cortex.yml).
+        # A binary of its own from the same module. Its source is only what it is built from, so
+        # that a change to Radix does not change Cortex's image either.
+        cortex = buildGoModule (goCommon // {
+          pname = "betula-cortex";
+          src = goSource (rel: isIn cortexPaths rel || leadsTo cortexPaths rel);
+          subPackages = [ "cmd/cortex" ];
+          meta.mainProgram = "cortex";
+        });
+
+        cortex-image = pkgs.dockerTools.buildLayeredImage {
+          name = "betula-cortex";
+          tag = "latest";
+          # /bin/cortex, and the CA certificates of the hosts it fetches from over https.
+          contents = [ cortex pkgs.cacert ];
+          # /data holds the index and the blobs, /lock the leader's lock file (a volume that both
+          # instances mount, stacks/cortex.yml). Both belong to the user Cortex runs as: a fresh
+          # named volume mounted there takes that owner over.
+          fakeRootCommands = ''
+            mkdir -p data lock tmp
+            chown 10002:10002 data lock
+            chmod 1777 tmp
+          '';
+          config = {
+            Entrypoint = [ "/bin/cortex" ];
+            Cmd = [ "serve" ];
+            User = "10002:10002";
+            Env = [
+              "CORTEX_ADDR=0.0.0.0:8100"
+              "CORTEX_DATA=/data"
+              "CORTEX_LOG_FORMAT=json"
+              "TZ=Europe/Berlin"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            ];
+            ExposedPorts = { "8100/tcp" = { }; };
+            Volumes = { "/data" = { }; };
+            WorkingDir = "/data";
+            # Liveness (/livez): the process serves and its index answers. Not /healthz, which
+            # fails while no leader is known or the follower lags: no reason to kill a process
+            # that still serves. A leader that hangs is killed after three failed checks (half a
+            # minute), and the lock it held goes to the follower.
+            Healthcheck = {
+              Test = [ "CMD" "/bin/cortex" "healthcheck" ];
+              Interval = 10000000000; # 10 s, in nanoseconds
+              Timeout = 5000000000;
+              StartPeriod = 30000000000;
+              StartInterval = 2000000000; # a new task counts as started after seconds, not after an interval
               Retries = 3;
             };
           };
@@ -252,7 +335,7 @@
       in
       {
         packages = {
-          inherit radix radix-image folia folia-client folia-semantic folia-image;
+          inherit radix radix-image cortex cortex-image folia folia-client folia-semantic folia-image;
           default = radix;
         };
 

@@ -23,6 +23,14 @@
 # same host, agree on FOLIA_ACCESS_GATE and at most one of them says RADIX_CRAWL=on. This script
 # never moves the traffic of a host; vps/55-switch.sh does.
 #
+# Radix's way to the internet (owner, 2026-10-02: none but Cortex, where possible). Its networks in
+# stacks/betula.yml are internal. While the stack cortex runs (vps/48-cortex.sh), betula.cortex.yml
+# sends what it fetches through Cortex. betula.egress.yml gives it a way out of its own only when
+# it crawls and Cortex does not run, or its release cannot fetch through Cortex (one from before
+# it, such as the previous tag of a rollback: the image is asked, "run -h"), or when the secret
+# gemini-api-key exists (Gemini does not go through Cortex); an offline Radix never has one.
+# Checked after the deploy on what swarm was told.
+#
 # Environment (all optional):
 #   PUBLIC_ADDRESSES="..."  this machine's public addresses, if they are not on an interface (NAT)
 #   CONVERGE_TIMEOUT=600    seconds to wait for the stack (Radix counts as started after its
@@ -39,13 +47,28 @@ require_ubuntu
 APP_FILE="${STACKS_DIR}/betula.yml"
 GEMINI_FILE="${STACKS_DIR}/betula.gemini.yml"
 OFFLINE_FILE="${STACKS_DIR}/betula.offline.yml"
+CORTEX_FILE="${STACKS_DIR}/betula.cortex.yml"
+EGRESS_FILE="${STACKS_DIR}/betula.egress.yml"
 GEMINI_SECRET="gemini-api-key"
 GATE_SECRET="folia-access-password"
 TAG_PATTERN='^[A-Za-z0-9][A-Za-z0-9_.-]{0,100}$'
+# What betula.cortex.yml gives Radix as RADIX_CORTEX_URL (checked after the deploy).
+CORTEX_URL="http://cortex_a:8100,http://cortex_b:8100"
+# Seconds to wait for a stack cortex that is deployed but not converged (48-cortex.sh updates one
+# instance at a time, a task restarts) before Radix is deployed without it.
+CORTEX_WAIT=120
 # Set by preflight: the other stacks routed for this instance's host (blue-green), and the
 # priority this instance's router is deployed with.
 SIBLINGS=()
 ROUTER_PRIORITY=""
+# Set by deploy_app: on when Radix fetches through Cortex (betula.cortex.yml), on when it has a
+# way to the internet of its own (betula.egress.yml), and both in words for the report; whether
+# the release can fetch through Cortex (yes, no; empty when it was not asked: offline, or no
+# Cortex). Why Cortex counts as running or not is CORTEX_DETAIL (cortex_look, lib-stacks.sh).
+VIA_CORTEX="off"
+WITH_EGRESS="off"
+RADIX_WAYS=""
+RADIX_SUPPORT=""
 
 usage() {
   die "usage: $(basename "$0") <instance> [<tag>]   (instances: $(instance_names | tr '\n' ' '))"
@@ -149,6 +172,36 @@ priority_to_deploy() {
   fi
 }
 
+# cortex_running - true when the stack cortex runs (cortex_look, lib-stacks.sh: decided on the
+# replicas, so an instance whose last update swarm rolled back still runs). One with a task that
+# is still (re)starting is waited for up to CORTEX_WAIT seconds first, so that an update of Cortex
+# at the wrong moment does not decide how Radix is deployed; one that cannot come back by itself
+# (an update stopped half way, both scaled to 0) is not. Sets CORTEX_DETAIL.
+cortex_running() {
+  local deadline=$((SECONDS + CORTEX_WAIT)) said=0 look
+  while :; do
+    look=0
+    cortex_look || look=$?
+    case "${look}" in
+      0) return 0 ;;
+      1) return 1 ;;
+    esac
+    [[ "${SECONDS}" -lt "${deadline}" ]] || return 1
+    if [[ "${said}" -eq 0 ]]; then
+      log "the stack cortex is not converged (${CORTEX_DETAIL}); waiting up to ${CORTEX_WAIT} s"
+      said=1
+    fi
+    sleep 5
+  done
+}
+
+# radix_image_cortex -> whether the release RADIX_IMAGE fetches through Cortex when it is given
+# RADIX_CORTEX_URL: yes, no or unknown (radix_cortex_support, lib-stacks.sh). Asked in a
+# container without a network, which ends at once: "run -h" prints the flags of run and exits.
+radix_image_cortex() {
+  { docker run --rm --network none --cap-drop ALL "${RADIX_IMAGE}" run -h 2>&1 || true; } | radix_cortex_support
+}
+
 # ---------------------------------------------------------------- steps
 
 preflight() {
@@ -163,10 +216,15 @@ preflight() {
   require_cmd docker ip
   require_swarm_manager
   local net
-  for net in edge monitoring; do
+  for net in edge monitoring cortex; do
     facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
     [[ "${facts}" == "overlay swarm true" ]] || die "overlay network ${net} is missing or not attachable (run vps/30-docker.sh)"
   done
+  # Radix's way to Cortex and Prometheus must not be a way to the internet. Docker sets the flag
+  # when it creates a network and never changes it.
+  facts="$(docker network inspect cortex --format '{{.Internal}}' 2>/dev/null || true)"
+  [[ "${facts}" == "true" ]] ||
+    die "overlay network cortex is not internal: it would give Radix a way to the internet. Remove it once nothing uses it (docker network inspect cortex), then run vps/30-docker.sh"
   stack_exists edge || die "stack edge is not deployed: nothing would route to the application (run vps/40-stacks.sh)"
 
   log "instance ${INSTANCE_STACK}: https://${INSTANCE_HOST}, closed testing ${INSTANCE_GATE}, crawling ${INSTANCE_CRAWL}, release ${TAG}"
@@ -200,7 +258,9 @@ preflight() {
 deploy_app() {
   step "Stack ${INSTANCE_STACK} (Radix, Folia)"
   local -a files=("${APP_FILE}")
+  local gemini=no
   if secret_exists "${GEMINI_SECRET}"; then
+    gemini=yes
     log "secret ${GEMINI_SECRET} exists: adding ${GEMINI_FILE##*/}"
     files+=("${GEMINI_FILE}")
   else
@@ -220,6 +280,54 @@ deploy_app() {
     export RADIX_EMBED_MODEL FOLIA_SEMANTIC_MODEL FOLIA_SEMANTIC_PASSAGE_MODEL
   else
     warn "${MODELS_FILE##*/} is left out: ${MODELS_DETAIL}. ${INSTANCE_STACK} runs without the semantic search"
+  fi
+  # Cortex: while its stack runs, Radix fetches through it. Through one that does not run, every
+  # fetch would fail, so then a Radix that crawls fetches directly, with a way out (below). The
+  # same for a release of Radix that cannot fetch through Cortex: it ignores RADIX_CORTEX_URL and
+  # fetches directly, which behind internal networks alone fails, quietly, every cycle.
+  VIA_CORTEX="off"
+  RADIX_SUPPORT=""
+  local direct="no Cortex"
+  if cortex_running; then
+    if [[ "${INSTANCE_CRAWL}" == "on" ]]; then
+      RADIX_SUPPORT="$(radix_image_cortex)"
+      [[ "${RADIX_SUPPORT}" == "yes" || "${RADIX_SUPPORT}" == "no" ]] ||
+        die "cannot tell whether ${RADIX_IMAGE} fetches through Cortex: \"docker run --rm --network none ${RADIX_IMAGE} run -h\" does not list the flags of run. Nothing was deployed"
+    fi
+    if [[ "${RADIX_SUPPORT}" == "no" ]]; then
+      direct="release ${TAG} of Radix cannot fetch through Cortex"
+      warn "the stack cortex runs (${CORTEX_DETAIL}), but ${RADIX_IMAGE} is a release from before Cortex (its run has no --cortex): ${CORTEX_FILE##*/} is left out, and Radix fetches from the university directly, with a way out of its own. A newer release fetches through Cortex (deploy/ship.sh ${INSTANCE_STACK})"
+    else
+      VIA_CORTEX="on"
+      log "the stack cortex runs (${CORTEX_DETAIL}): adding ${CORTEX_FILE##*/} (Radix fetches through Cortex)"
+      files+=("${CORTEX_FILE}")
+    fi
+  elif stack_exists cortex; then
+    warn "the stack cortex is deployed but does not run (${CORTEX_DETAIL}): ${CORTEX_FILE##*/} is left out. Bring Cortex back (docker service ps --no-trunc cortex_a cortex_b; bash ${BETULA_ROOT}/vps/48-cortex.sh), then run this again"
+  else
+    log "${CORTEX_FILE##*/} is left out: ${CORTEX_DETAIL}"
+  fi
+  # A way to the internet of its own, only for a Radix that crawls and only where it needs one:
+  # without Cortex for everything, with Cortex for Gemini (Cortex is for data only). Offline it
+  # sends nothing and gets none.
+  WITH_EGRESS="off"
+  if [[ "${INSTANCE_CRAWL}" == "on" && ( "${VIA_CORTEX}" == "off" || "${gemini}" == "yes" ) ]]; then
+    WITH_EGRESS="on"
+  fi
+  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+    RADIX_WAYS="is offline and has no way to the internet"
+  elif [[ "${VIA_CORTEX}" == "off" ]]; then
+    RADIX_WAYS="fetches from the university directly, through ${INSTANCE_STACK}_egress (${direct})"
+  elif [[ "${WITH_EGRESS}" == "on" ]]; then
+    RADIX_WAYS="fetches through Cortex; ${INSTANCE_STACK}_egress is its way to Gemini (secret ${GEMINI_SECRET})"
+  else
+    RADIX_WAYS="fetches through Cortex and has no way to the internet of its own"
+  fi
+  if [[ "${WITH_EGRESS}" == "on" ]]; then
+    log "adding ${EGRESS_FILE##*/}: Radix ${RADIX_WAYS}"
+    files+=("${EGRESS_FILE}")
+  else
+    log "${EGRESS_FILE##*/} is left out: Radix ${RADIX_WAYS}"
   fi
   if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
     # Last, so that its command and its health URL win over the files before it.
@@ -265,6 +373,36 @@ deploy_app() {
     [[ "$(sed -n -E 's#^(RADIX_EMBED_MODEL|FOLIA_SEMANTIC_MODEL)=(.*)$#\2#p' <<<"${env}")" == "${want}" ]] ||
       die "service ${INSTANCE_STACK}_${svc} was not given the model ${want:-(none)}: look at ${MODELS_FILE}"
   done
+  # And that Radix was given Cortex exactly when it runs, and no way to the internet but the one
+  # meant: Docker gives a container a way out as soon as ONE of its networks is not internal, so
+  # every network but ${INSTANCE_STACK}_egress has to be, and that one is there exactly when
+  # betula.egress.yml was added.
+  env="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+  want=""
+  if [[ "${VIA_CORTEX}" == "on" ]]; then want="${CORTEX_URL}"; fi
+  [[ "$(sed -n 's#^RADIX_CORTEX_URL=##p' <<<"${env}")" == "${want}" ]] ||
+    die "service ${INSTANCE_STACK}_radix was not given RADIX_CORTEX_URL=${want:-(none)}: look at ${CORTEX_FILE}"
+  local name internal egress="off" attached=""
+  while read -r name internal; do
+    [[ -n "${name}" ]] || continue
+    attached+="${name} "
+    if [[ "${name}" == "${INSTANCE_STACK}_egress" ]]; then
+      egress="on"
+      [[ "${internal}" == "false" ]] ||
+        die "the network ${name} is internal, so ${EGRESS_FILE##*/} gives Radix no way out: it was made like that before (Docker never changes the flag). Remove it once nothing uses it (docker network rm ${name}) and run this again"
+    elif [[ "${internal}" != "true" ]]; then
+      die "service ${INSTANCE_STACK}_radix was attached to the network ${name}, which is not internal (${internal}): a way to the internet no file of this deploy meant. Look at the networks of ${APP_FILE} and the files after it"
+    fi
+  done < <(service_networks "${INSTANCE_STACK}_radix")
+  [[ " ${attached}" == *" cortex "* && " ${attached}" == *" ${INSTANCE_STACK}_snapshot "* ]] ||
+    die "service ${INSTANCE_STACK}_radix is attached to '${attached% }', not to cortex (Cortex, Prometheus) and ${INSTANCE_STACK}_snapshot (Folia): look at the networks of ${APP_FILE}"
+  if [[ "${egress}" != "${WITH_EGRESS}" ]]; then
+    if [[ "${WITH_EGRESS}" == "on" ]]; then
+      die "service ${INSTANCE_STACK}_radix was not attached to ${INSTANCE_STACK}_egress, the way to the internet it needs: look at ${EGRESS_FILE}"
+    fi
+    die "service ${INSTANCE_STACK}_radix was attached to ${INSTANCE_STACK}_egress although ${EGRESS_FILE##*/} was left out, so it has a way to the internet it must not have: look at the networks of ${APP_FILE} and the files after it"
+  fi
+  log "${INSTANCE_STACK}_radix is on ${attached% }: it ${RADIX_WAYS}"
   wait_for_stack "${INSTANCE_STACK}"
 }
 
@@ -281,6 +419,12 @@ report() {
     log "Radix is offline: nothing is fetched from the university, the catalog stays as it was exported (RADIX_CRAWL=on in ${INSTANCE_STACK}.env brings it back)"
   else
     log "a Radix without a snapshot needs a cycle for its first one (minutes with a seeded database, hours without); until then the site says that the catalog is not available yet"
+  fi
+  log "Radix ${RADIX_WAYS}"
+  if [[ "${INSTANCE_CRAWL}" == "on" && "${VIA_CORTEX}" == "off" ]] && ! stack_exists cortex; then
+    log "once Cortex runs (deploy/ship-cortex.sh), run this again: Radix then fetches through it, with a way out of its own only while the secret ${GEMINI_SECRET} exists"
+  elif [[ "${RADIX_SUPPORT}" == "no" ]]; then
+    warn "${RADIX_IMAGE} cannot fetch through Cortex, so Radix has a way to the internet of its own: a release from after Cortex (deploy/ship.sh ${INSTANCE_STACK}) fetches through it"
   fi
   if [[ "${INSTANCE_HOST}" == "${SITE_HOST}" ]] && stack_exists placeholder; then
     log "the application owns https://${SITE_HOST} now; once it works: docker stack rm placeholder"

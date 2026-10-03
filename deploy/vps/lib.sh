@@ -174,7 +174,10 @@ sudoers_rules() {
 }
 
 # Source address of the default route: the address the internet sees unless the host is behind NAT.
+# Nothing without ip (iproute2), as when there is no default route: under pipefail the missing
+# command would fail the caller's assignment, and with it a whole verify run (verify2 D6).
 default_ipv4() {
+  have_cmd ip || return 0
   ip -4 -o route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p'
 }
 
