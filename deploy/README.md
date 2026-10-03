@@ -147,7 +147,7 @@ Why this order, and what can go wrong:
   `cortex_b:8100` over the `cortex` overlay) shows which instance leads, the follower's lag and
   missing blobs (`cortex_blobs_missing`), every host's queue, requests in flight and breaker, the clients' requests by
   source and result, what went upstream by host and status, the store, and warnings and errors by
-  event (`docs/cortex.md` §10).
+  event (`docs/cortex/cortex.md` §10).
 - The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access
   log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
   in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
@@ -190,7 +190,7 @@ also has to be named in the two log rules of
 or its errors stay silent.
 
 Once per server: the DNS record of the instance's name, and the password of closed testing as a
-swarm secret - the value travels on stdin, never in argv (`docs/frontend.md`, "Closed testing"):
+swarm secret - the value travels on stdin, never in argv (`docs/folia/frontend.md`, "Closed testing"):
 
 ```bash
 <password manager CLI> | ssh betula docker secret create folia-access-password -
@@ -202,7 +202,7 @@ does not go through Cortex, so while Cortex runs the secret is also what gives a
 way to the internet (`stacks/betula.egress.yml`, section 14).
 
 **Through Cortex.** While the stack `cortex` runs (section 14), `50-app.sh` adds
-`stacks/betula.cortex.yml`: Radix fetches through Cortex (`RADIX_CORTEX_URL`, `docs/operations.md`
+`stacks/betula.cortex.yml`: Radix fetches through Cortex (`RADIX_CORTEX_URL`, `docs/radix/operations.md`
 §1), and its networks are all internal. A crawling colour gets a way out of its own
 (`stacks/betula.egress.yml`) only while Cortex does not run, while the secret `gemini-api-key`
 exists, or while its release is from before Cortex (`50-app.sh` asks the image, `radix run -h`,
@@ -247,7 +247,7 @@ to the university's servers - no crawl, no cycle - and hands the snapshot it has
 data stays as it was fetched. A new release builds the catalog once more from the archived pages
 at start (no network) and exports it if its parsers and rules make something else of them; the
 old snapshot is served meanwhile and stays if that build or its validation fails (`level=ERROR`,
-`docs/operations.md` §1). `canary.env` says `off` for the time of the closed test (owner,
+`docs/radix/operations.md` §1). `canary.env` says `off` for the time of the closed test (owner,
 2026-09-21): the crawler's User-Agent names betula.app, and while that site shows only a login
 page, requests in its name invite a block. `50-app.sh` makes sure there is a snapshot to serve (a
 seeded volume that never ran gets one from its database: `radix build`, then `radix export`, in
@@ -256,7 +256,7 @@ checks that swarm really starts `serve-snapshot`; `91-verify-stacks.sh app` chec
 reminds with a WARN that the data does not change. Back online: `RADIX_CRAWL=on`, sync,
 `50-app.sh <instance>`; Radix then fetches what has aged in the meantime at its usual pace (one
 request at a time with a pause after each, bulk only between 1 and 6 o'clock, a cap per source
-and cycle: `docs/operations.md` §1), through Cortex while it runs. `radix scan-curriculum` with
+and cycle: `docs/radix/operations.md` §1), through Cortex while it runs. `radix scan-curriculum` with
 `docker exec` works in both modes; its Gemini enrichment only where Radix has a way out (a
 crawling colour with the secret, section 14), else with the deterministic reader alone.
 
@@ -334,7 +334,7 @@ hence a tag per commit and never `latest`. Old versions stay until you remove th
 (`docker image rm ...`); the weekly prune timer only removes untagged images.
 
 Study plans travel with a seeded database. On the server they come from `radix download-statutes`
-and `radix scan-curriculum` (`docs/operations.md`), run with `docker exec` in the Radix container
+and `radix scan-curriculum` (`docs/radix/operations.md`), run with `docker exec` in the Radix container
 (the Gemini key is the optional secret above). `download-statutes` goes through Cortex wherever
 the container has `RADIX_CORTEX_URL`, in every colour.
 
@@ -399,7 +399,7 @@ section 9); `docker service logs edge_traefik` reads them from there.
 | What | When |
 |---|---|
 | Ubuntu security updates | daily (unattended-upgrades); services using an updated library are restarted, except docker/containerd |
-| **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/operations.md) |
+| **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/radix/operations.md) |
 | Reboot after a kernel panic | after 60 s |
 | Containers | swarm restarts a task that exits or turns unhealthy; after a boot everything comes back by itself |
 | Cortex's leader dies | the follower takes the lock over within about 100 ms and leads; swarm restarts the dead one, which comes back as the follower (after a crash usually from a copy of the leader's index, which drops what it had not passed on). Nothing fails back (section 14) |
@@ -433,7 +433,7 @@ days as `{job="journal"}`. Not in Docker's local log files, which only rotate by
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
 removes them (`91-verify-stacks.sh accesslog` checks; `90-verify-host.sh journald` checks the oldest
 journal entry). The placeholder's nginx writes no access log. The privacy notice of the site names the
-first two rows („Zugriffsprotokoll" in `app/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
+first two rows („Zugriffsprotokoll" in `folia/crates/app/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
 `stacks/edge.yml` (loses abuse analysis) or shorten the period, in `loki.yml` and
 `vps/files/journald-betula.conf` together.
 
@@ -655,7 +655,7 @@ database for one `deploy` by hand.
 
 The semantic search needs two model files that are too large for git and the images: Radix's
 passage model (`e5-de-en-server.bin`, 35 MB, the modules' vectors) and the browser's query model
-(`e5-de-en.bin`, 15 MB, what a visitor types; `semantic/README.md` says how both are made). They
+(`e5-de-en.bin`, 15 MB, what a visitor types; `folia/crates/semantic/README.md` says how both are made). They
 reach the services through the server's **model store**, not through a registry, a CDN or the images:
 
 ```
@@ -683,7 +683,7 @@ workstation models/  ──ship-models.sh: only what the store lacks, checked on
   address names its content, `immutable`, and the service worker keeps it in a cache no build drops.
 - **The pair.** A query is only comparable with passages of the model it was made for, so the lock
   names both, and they change together. The browser checks it once more against the snapshot
-  (`docs/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
+  (`docs/radix/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
   model (about a day), the semantic search simply is not offered.
 - **Offline too.** A Radix with `RADIX_CRAWL=off` computes the vectors its database lacks as well,
   with the encoder alone (no Gemini: nothing goes out), and publishes them part by part. Canary,
@@ -718,7 +718,7 @@ of the lock, so after a change of the lock, `ship-models.sh` first. On the serve
 
 ## 14. Cortex
 
-Cortex is the cache between the application and the internet (`docs/cortex.md`): every request of
+Cortex is the cache between the application and the internet (`docs/cortex/cortex.md`): every request of
 Radix's crawl and of the statute download goes to it, and it fetches from the university only what
 it does not have fresh, at one floor per host for every instance and colour together, and keeps
 every version. One Cortex per host, not per instance: two instances of one image in the stack
@@ -783,7 +783,7 @@ and fetches directly, as before; running step 5 again once Cortex runs moves it 
 | a new release | `SSH_TARGET=betula bash deploy/ship-cortex.sh` (the tag changes only with what the image is built from; the same tag twice changes nothing) |
 | a release that is loaded already, the rollback | `bash /opt/betula/vps/48-cortex.sh <tag>` (`docker image ls betula-cortex`) |
 | a change to `stacks/cortex.yml` | sync, `bash /opt/betula/vps/48-cortex.sh` (the release that runs) |
-| the host policy | `config/cortex/hosts.json`, sync: read again within 30 s, no restart (`docs/cortex.md` §5) |
+| the host policy | `config/cortex/hosts.json`, sync: read again within 30 s, no restart (`docs/cortex/cortex.md` §5) |
 | a follower that fetches the blobs of a whole index (a fresh volume, away more than 7 days) | `CATCHUP_TIMEOUT=3600 bash /opt/betula/vps/48-cortex.sh <tag>` goes on where a stopped run ended (default 600 s) |
 | a follower that cannot reach the leader | `48-cortex.sh` stops after `STALL_TIMEOUT` (60 s) of `no_leader`, or of no progress while its lag grows, and names the leader's URL: `docker service logs cortex_X 2>&1 \| grep replica.failed`, not a longer `CATCHUP_TIMEOUT`. One huge blob (a model of gigabytes) may need `STALL_TIMEOUT=<seconds>` |
 | an update that failed | swarm rolled the instance back (the other one is untouched, the script exits 1); it shows `rollback_completed` until its next update, still counts as running for `50-app.sh` and is a WARN in `91-verify-stacks.sh cortex` (a FAIL in section services). The previous tag again, or a fixed one |
@@ -838,7 +838,7 @@ answers. Cortex's `ERROR` lines reach the log alert like every stack's (`stack=~
   process ends, and the follower leads within about 100 ms (measured: median about 75 ms from
   `kill -9` to the first acknowledged write). There is no timeout during which both could write.
 - **A planned stop loses nothing.** A step-down or `SIGTERM` waits for every write in flight and
-  keeps serving its journal until the successor has all of it (`docs/cortex.md` §6.7): measured 0
+  keeps serving its journal until the successor has all of it (`docs/cortex/cortex.md` §6.7): measured 0
   writes lost over step-downs and `SIGTERM`s under load, also with a follower 2,500 entries behind.
 - **A crash loses a moment.** Replication is asynchronous (owner, 2026-10-02: „Ja die letzen 5 min
   sind egal"): over 29 `kill -9` of the leader under load, no acknowledged write older than 5 s was

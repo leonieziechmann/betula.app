@@ -6,7 +6,7 @@
 #                      instances never claim the same router in Traefik.
 #   APP_HOST           the public host name, e.g. canary.betula.app
 #   FOLIA_ACCESS_GATE  on: the whole site asks for the password in the secret folia-access-password
-#                      (docs/frontend.md, "Closed testing"). off: open to everybody. Default: on.
+#                      (docs/folia/frontend.md, "Closed testing"). off: open to everybody. Default: on.
 #   RADIX_CRAWL        on: Radix keeps the catalog fresh. off: it sends nothing to the university
 #                      and only serves the snapshot it has; 50-app.sh then adds the override
 #                      betula.offline.yml to this file. Default: on.
@@ -31,11 +31,11 @@
 # and there is no registry that knows these images.
 #
 # The monitoring stack reads both services' logs as JSON lines with level / event / msg (rule
-# "betula: ERROR in the logs": level=ERROR means a human is needed, docs/operations.md section 2)
+# "betula: ERROR in the logs": level=ERROR means a human is needed, docs/radix/operations.md section 2)
 # for the stacks named in its rules (betula and canary).
 #
-# What the facts below are based on: docs/operations.md (Radix), flake.nix (both images),
-# server/src/config.rs and server/src/main.rs (web server), docs/frontend.md.
+# What the facts below are based on: docs/radix/operations.md (Radix), flake.nix (both images),
+# folia/crates/server/src/config.rs and folia/crates/server/src/main.rs (web server), docs/folia/frontend.md.
 #
 # The messages of "${NAME:?message}" below contain no "-" on purpose: docker stack deploy looks
 # for "-" before it looks for ":?", so "${X:?for example betula-radix:1}" is read as "the
@@ -108,7 +108,7 @@ services:
       resources:
         limits:
           cpus: "1.0"             # the build must not starve the web server; never above the host's 4 CPUs
-          memory: 1G              # docs/operations.md
+          memory: 1G              # docs/radix/operations.md
           pids: 256
 
   folia:
@@ -130,7 +130,7 @@ services:
       # it the app simply has no semantic search.
       # Canonical links, link previews and the sitemap are written with it.
       FOLIA_PUBLIC_URL: "https://${APP_HOST:?APP_HOST is not set}"
-      # Rendered pages kept in memory, compressed (server/src/cache.rs); part of the memory limit
+      # Rendered pages kept in memory, compressed (folia/crates/server/src/cache.rs); part of the memory limit
       # below. 256 MiB hold every page of the sitemap (about 36 MiB, rendered after each new
       # snapshot while the server is idle: FOLIA_WARM_CACHE) and some 13,000 filtered lists.
       FOLIA_HTML_CACHE_MB: "256"
@@ -138,7 +138,7 @@ services:
       # thread more for everything else (FOLIA_RENDER_PLACES, FOLIA_FEED_PLACES, FOLIA_WORKERS: 0 =
       # derived from the limit); a page that finds every place taken for FOLIA_RENDER_WAIT_MS is
       # answered 503 with Retry-After instead of joining a queue that only grows
-      # (server/src/busy.rs; docs/frontend.md, "Load").
+      # (folia/crates/server/src/busy.rs; docs/folia/frontend.md, "Load").
       # Closed unless somebody says "off": a deploy that forgets the variable must not publish
       # the site. On without the secret, the server refuses to start instead of serving it openly.
       FOLIA_ACCESS_GATE: "${FOLIA_ACCESS_GATE:-on}"
@@ -163,7 +163,7 @@ services:
       # Radix, for the snapshot (FOLIA_SNAPSHOT_URL); the only network the two share.
       snapshot: {}
     cap_drop: [ALL]
-    stop_grace_period: 30s          # graceful shutdown on SIGTERM (server/src/main.rs)
+    stop_grace_period: 30s          # graceful shutdown on SIGTERM (folia/crates/server/src/main.rs)
     deploy:
       replicas: 1
       placement:

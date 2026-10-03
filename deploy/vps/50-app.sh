@@ -275,7 +275,7 @@ deploy_app() {
     files+=("${MODELS_FILE}")
     RADIX_EMBED_MODEL="/models/${MODEL_PASSAGE}"
     FOLIA_SEMANTIC_MODEL="/models/${MODEL_QUERY}"
-    # Radix's id of a model: the first 16 hex digits of its sha256 (internal/embed).
+    # Radix's id of a model: the first 16 hex digits of its sha256 (radix/internal/embed).
     FOLIA_SEMANTIC_PASSAGE_MODEL="${MODEL_PASSAGE:0:16}"
     export RADIX_EMBED_MODEL FOLIA_SEMANTIC_MODEL FOLIA_SEMANTIC_PASSAGE_MODEL
   else

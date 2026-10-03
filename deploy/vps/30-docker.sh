@@ -45,7 +45,7 @@ SWARM_ADDR_POOL_MASK=24
 OVERLAY_NETWORKS=(edge monitoring cortex)
 # Of those, the ones without a way out of the host. "cortex" joins Cortex (stacks/cortex.yml) and
 # the services that fetch through it: Radix's networks are internal, so Cortex, which has a
-# network with a way out of its own, is its way to the internet (docs/cortex.md).
+# network with a way out of its own, is its way to the internet (docs/cortex/cortex.md).
 INTERNAL_NETWORKS=(cortex)
 # Must match "default-address-pools" in files/docker-daemon.json (local bridges, docker_gwbridge).
 BRIDGE_POOL_REGEX='^172\.30\.'

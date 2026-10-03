@@ -1,4 +1,4 @@
-# Stack "cortex": Cortex, the cache between the application and the internet (docs/cortex.md).
+# Stack "cortex": Cortex, the cache between the application and the internet (docs/cortex/cortex.md).
 # Infrastructure of the host, not of an instance: one Cortex for every instance and colour. Two
 # instances of the same image, cortex_a and cortex_b, each with a volume of its own. One of them
 # leads: it holds the flock on /lock/leader.lock, fetches upstream and writes; the other follows
@@ -91,7 +91,7 @@ x-cortex: &cortex
       order: stop-first
     resources:
       limits:
-        # I/O and network, little else (docs/cortex.md): bodies stream to disk, never into memory.
+        # I/O and network, little else (docs/cortex/cortex.md): bodies stream to disk, never into memory.
         cpus: "0.5"
         memory: 256M
         pids: 256

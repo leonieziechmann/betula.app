@@ -1,0 +1,107 @@
+[workspace]
+members = [
+    "crates/app",
+    "crates/calendar",
+    "crates/client",
+    "crates/locale",
+    "crates/model",
+    "crates/pack",
+    "crates/pages",
+    "crates/plans",
+    "crates/query",
+    "crates/routes",
+    "crates/search",
+    "crates/semantic",
+    "crates/server",
+    "crates/test-support",
+    "crates/timetable",
+]
+# `client` is the WASM build of the app (feature csr); building it together with the server
+# (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
+default-members = [
+    "crates/app",
+    "crates/calendar",
+    "crates/locale",
+    "crates/model",
+    "crates/pack",
+    "crates/pages",
+    "crates/plans",
+    "crates/query",
+    "crates/routes",
+    "crates/search",
+    "crates/semantic",
+    "crates/server",
+    "crates/test-support",
+    "crates/timetable",
+]
+resolver = "2"
+
+# Leptos view types make full debug info enormous (a 1.8 GB server binary).
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+# Drawing the link-preview cards (folia/crates/server/src/cards.rs) is pixel work: unoptimised it takes a
+# third of a second per card, which would make the dev server turn previews away as "busy".
+[profile.dev.package.tiny-skia]
+opt-level = 3
+[profile.dev.package.tiny-skia-path]
+opt-level = 3
+[profile.dev.package.resvg]
+opt-level = 3
+[profile.dev.package.usvg]
+opt-level = 3
+[profile.dev.package.rustybuzz]
+opt-level = 3
+[profile.dev.package.ttf-parser]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.flate2]
+opt-level = 3
+[profile.dev.package.miniz_oxide]
+opt-level = 3
+[profile.dev.package.crc32fast]
+opt-level = 3
+# The same for brotli (folia/crates/server/src/encoding.rs): every page is compressed with it as it is rendered,
+# and every file of the app at brotli's best, which takes 0.4 s for the stylesheet optimised.
+[profile.dev.package.brotli]
+opt-level = 3
+[profile.dev.package.brotli-decompressor]
+opt-level = 3
+
+# The encoder of the semantic search (semantic/) is arithmetic in loops: unoptimised, embedding
+# the catalog's modules takes the dev server hours instead of minutes.
+[profile.dev.package.folia-semantic]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+
+# The browser app while working on it: built in seconds, not in minutes. Everything
+# `wasm-release` does for size (opt-level "z", fat LTO, a single codegen unit) is slow and
+# none of it helps while iterating. `scripts/build-client.sh --dev` builds with this one.
+[profile.wasm-dev]
+inherits = "dev"
+# Not 0: unoptimised the bundle is 39 MB (155 MB once wasm-bindgen has run), which the browser
+# then has to parse on every reload. opt-level 1 costs a second per rebuild and keeps it at 12 MB.
+opt-level = 1
+# Localhost only, and the Rust names stay in the WASM anyway: debug info would just add weight.
+debug = false
+
+# The WASM bundle of the browser app: size first.
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+# The Web Worker of the semantic search (scripts/build-semantic.sh) is built with wasm-release too,
+# but it is arithmetic, not UI: optimised for speed rather than size.
+[profile.wasm-release.package.folia-semantic]
+opt-level = 3

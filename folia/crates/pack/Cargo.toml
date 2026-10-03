@@ -1,0 +1,22 @@
+[package]
+name = "folia-pack"
+version = "0.1.0"
+edition = "2021"
+description = "Values packed into the characters a link carries as they are: a bit format for serde, base 66, two check characters"
+
+[lib]
+name = "folia_pack"
+
+[dependencies]
+serde = "1.0"
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+# What the helpers of fields look like to any other format.
+serde_json = "1.0"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

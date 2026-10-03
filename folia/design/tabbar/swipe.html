@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Prototype: the swipe along the phone's bottom bar the other way round (owner, 2026-10-01: „Dazu
+     würde ich probieren dann die ganze Leiste zu bewegen und den selector stehen zu lassen und erst
+     wenn man los lässt geht das dann wieder zur original Location zurück"; then, of the first
+     version's three ways: „nur tabs + ein Element am besten. Aber die Animationen fühlen sich noch
+     ein wenig klunky an"). The row of tabs follows the finger inside a frame that stays, under a
+     mark that stays, so a finger to the left brings the tab on the right under it, one tab a swipe.
+     Let go, the row springs back from where it is and as fast as it went, and the mark goes to the
+     new tab from a standstill: three Web Animations of a damped spring, which a finger can catch on
+     their way. "Wie Version 1" is the first version's glide, to compare. Open it at a phone's width,
+     or on a phone. -->
+<title>Betula Tableiste</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<style>
+/* Layout: on a phone the prototype is the app itself, full screen, with its settings on top of the
+   page; on a wider screen a phone stands beside the notes. The tokens are Betula's own
+   (folia/assets/app.css), the bar's measures those of `.bottomnav` in its phone layout. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --bark: #ffffff;
+  --bark-ink: #10151f;
+  --wood: color-mix(in oklab, var(--text) 8%, var(--bg));
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --t-ice: oklch(.55 .09 240); --t-sun: oklch(.64 .12 75); --t-violet: oklch(.53 .1 300); --t-teal: oklch(.56 .08 190); --t-coral: oklch(.6 .12 35);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --shadow-device: 0 40px 90px -40px rgba(15, 23, 42, .6);
+  --r-panel: 9px; --r-ctl: 9px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11;
+    --panel: #12151c;
+    --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07);
+    --text: #eceff5;
+    --text-2: #a4adc0;
+    --text-3: #6a748a;
+    --invert: #e9edf5;
+    --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --bark: #e9edf5;
+    --bark-ink: #0d1017;
+    --wood: color-mix(in oklab, var(--text) 6.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-coral: oklch(.8 .09 35);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-pop: 0 0 0 1px rgba(255, 255, 255, .15), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --shadow-device: 0 40px 90px -40px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11;
+  --panel: #12151c;
+  --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07);
+  --text: #eceff5;
+  --text-2: #a4adc0;
+  --text-3: #6a748a;
+  --invert: #e9edf5;
+  --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --bark: #e9edf5;
+  --bark-ink: #0d1017;
+  --wood: color-mix(in oklab, var(--text) 6.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-coral: oklch(.8 .09 35);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, .15), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --shadow-device: 0 40px 90px -40px rgba(0, 0, 0, .9);
+}
+
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { height: 100%; }
+body {
+  margin: 0; min-height: 100%; background: var(--wood); color: var(--text);
+  font: 450 14px/1.45 var(--font); letter-spacing: -.006em;
+  -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+}
+[hidden] { display: none !important; }
+h1, h2, h3, p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+button { font: inherit; color: inherit; letter-spacing: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-s); }
+.icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- the stage: notes beside a phone ---------- */
+.stage { min-height: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 40px 64px; padding-block: 32px; padding-inline: 24px; }
+.notes { flex: 1 1 340px; max-width: 440px; min-width: 0; display: grid; gap: 20px; }
+.eyebrow { font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.notes h1 { font-size: 30px; line-height: 1.12; font-weight: 760; letter-spacing: -.024em; text-wrap: balance; }
+.notes h2 { font-size: 13px; font-weight: 680; color: var(--text); }
+.lead { font-size: 15.5px; line-height: 1.55; color: var(--text-2); }
+.facts-block { display: grid; gap: 8px; }
+.facts { display: grid; gap: 7px; font-size: 13.5px; color: var(--text-2); }
+.facts li { position: relative; padding-left: 16px; }
+.facts li::before { content: ""; position: absolute; left: 2px; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
+
+/* The settings of the prototype: beside the phone, or on a phone at the top of its page. */
+.proto { display: grid; gap: 14px; padding: 16px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.proto-head { display: grid; gap: 8px; justify-items: start; }
+.tag { padding: 3px 8px; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.proto-hint { color: var(--text-2); font-size: 13px; }
+.opt { display: grid; gap: 6px; min-width: 0; }
+.opt-label { font-size: 12px; font-weight: 620; color: var(--text-3); }
+.opt-note { font-size: 12.5px; line-height: 1.45; color: var(--text-2); min-height: 4.35em; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 3px; border-radius: var(--r-ctl); background: var(--panel-3); }
+.seg-item { position: relative; display: flex; min-width: 0; }
+.seg-item input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.seg-item span { flex: 1; min-width: 0; min-height: 32px; padding: 0 6px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 580; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.seg-item input:checked + span { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.seg-item input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) { .seg-item span:hover { color: var(--text); } }
+.log { display: flex; gap: 8px; align-items: baseline; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.log b { flex: none; font-weight: 620; color: var(--text-3); }
+
+/* ---------- the phone ---------- */
+.device {
+  --safe-t: 44px; --safe-b: 22px;
+  position: relative; flex: none; isolation: isolate; width: 390px; height: 800px; height: min(800px, calc(100dvh - 64px)); min-height: 560px;
+  border-radius: 48px; background: var(--bg); overflow: hidden; overflow: clip;
+  box-shadow: 0 0 0 11px var(--device), 0 0 0 12px var(--device-ring), var(--shadow-device);
+}
+.status { position: absolute; z-index: 31; top: 0; left: 0; right: 0; height: var(--safe-t); padding: 4px 34px 0; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(var(--bg) 55%, transparent); font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; pointer-events: none; }
+.status i { width: 24px; height: 11px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--text); position: relative; }
+.status i::after { content: ""; position: absolute; inset: 3px 6px 3px 3px; border-radius: 1px; background: var(--text); }
+.home-ind { position: absolute; z-index: 31; left: 50%; bottom: 8px; width: 128px; height: 5px; margin-left: -64px; border-radius: 3px; background: var(--text); opacity: .85; pointer-events: none; }
+.screen { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--safe-t) 0 calc(var(--safe-b) + 96px); }
+#proto-phone:not(:empty) { padding: 12px 12px 4px; }
+
+/* ---------- the pages behind the bar (examples, no data) ---------- */
+.page { display: grid; gap: 12px; padding: 4px 12px 0; }
+.ph { display: flex; align-items: baseline; gap: 10px; padding: 14px 4px 2px; }
+.ph h1 { font-size: 24px; line-height: 1.2; font-weight: 760; letter-spacing: -.022em; }
+.ph .sub { color: var(--text-3); font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.sec { padding: 10px 4px 0; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 16px 4px 4px; }
+.logo { width: 32px; height: 32px; flex: none; border-radius: 7px; box-shadow: var(--shadow-panel); }
+.logo svg { display: block; width: 100%; height: 100%; }
+.logo rect { fill: var(--bark); }
+.logo path { fill: var(--bark-ink); }
+.brand small { color: var(--text-3); font-size: 13px; }
+.wordmark { display: inline-block; font: 800 22px/1 var(--font); letter-spacing: -.01em; white-space: nowrap; color: var(--text); }
+.wordmark .sc { font-size: .72em; font-weight: 400; letter-spacing: .02em; }
+.wordmark .e { margin: 0 -.347em 0 -.022em; }
+.wordmark .u { margin-left: -.03em; }
+.wordmark .la { margin-left: -.055em; }
+.search { height: 48px; padding: 0 14px; display: flex; align-items: center; gap: 10px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 15px; }
+.card { display: grid; gap: 6px; padding: 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.card h2 { font-size: 18px; line-height: 1.3; font-weight: 700; letter-spacing: -.012em; text-wrap: balance; }
+.card p { color: var(--text-2); }
+.kicker { font-size: 12px; font-weight: 650; color: var(--accent-ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 30px; padding: 0 11px; display: inline-flex; align-items: center; border-radius: 15px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 560; }
+.rows { display: grid; gap: 8px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 13px 14px 13px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.row-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.row-main b { font-size: 14.5px; line-height: 1.3; font-weight: 620; }
+.meta { color: var(--text-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.row .icon { color: var(--text-3); }
+.row .icon.on { color: var(--text); fill: currentColor; }
+.week { display: grid; grid-template-columns: 26px repeat(5, minmax(0, 1fr)); grid-template-rows: auto repeat(4, 46px); gap: 4px; padding: 12px 10px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); font-size: 11px; }
+.week .d { text-align: center; font-weight: 650; color: var(--text-3); }
+.week .t { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.slot { min-width: 0; padding: 4px 5px; border-radius: 6px; border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 16%, var(--panel)); font-size: 10.5px; font-weight: 640; line-height: 1.2; overflow: hidden; }
+.slot small { display: block; font-weight: 500; color: var(--text-2); }
+
+/* ---------- the bar (as `.bottomnav` in app.css) ----------
+   .dock holds the bar and the lens. The bar draws its ground and frame, and inside the frame the row
+   of tabs (.track), each with its own mark. While a finger is down (data-swipe="drag") and while all
+   finds its place again ("glide"), the lens stands in for the current tab's mark: the mark in its
+   colour with a copy of the row inside, light, moved so that it lies exactly over the row below.
+   What is under the lens is light, the rest dark, cut at the lens's edge. Everything that moves
+   moves by its transform alone, each on a layer of its own (will-change), and the glide is a Web
+   Animation, run by the compositor. Once all is in place the tab's own mark takes over in the same
+   frame ("settle"). */
+.dock { position: absolute; z-index: 30; left: 10px; right: 10px; bottom: calc(10px + var(--safe-b)); height: 62px; touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.bar { position: absolute; inset: 0; border-radius: 16px; background: color-mix(in srgb, var(--panel) 90%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
+/* The row moves inside the frame, which keeps it and fades it out at its two ends. */
+.clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 7px), transparent); mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 7px), transparent); }
+.track, .lens-track { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.track { position: absolute; inset: 5px; will-change: transform; }
+.nav { position: relative; min-width: 0; display: grid; justify-items: center; align-content: center; color: var(--text-3); font-size: 11px; font-weight: 560; -webkit-tap-highlight-color: transparent; }
+.nav .ind { position: relative; width: 52px; height: 30px; border-radius: var(--r-ctl); display: grid; place-items: center; transition: background .15s, color .15s; }
+.nav .icon { width: 20px; height: 20px; }
+.nav .label { max-width: 100%; white-space: nowrap; }
+.nav[aria-current="page"] { color: var(--text); }
+.nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); }
+@media (hover: hover) { .track .nav:hover { color: var(--text); } .track .nav:hover .ind { background: var(--line); } .track .nav[aria-current="page"]:hover .ind { background: var(--invert); } }
+.nav-count { position: absolute; top: -1px; right: 9px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--panel); font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0; }
+.nav[aria-current="page"] .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
+/* The lens stands at the dock's left edge and is moved where it belongs by its transform, so that
+   neither a swipe nor a glide lays anything out again. */
+.lens { position: absolute; z-index: 2; left: 0; top: var(--lens-y, 0px); width: var(--lens-w, 52px); height: var(--lens-h, 30px); border-radius: var(--r-ctl); background: var(--invert); pointer-events: none; overflow: hidden; visibility: hidden; will-change: transform; }
+/* A count pokes out of its mark at the top (top: -1px): the lens lets it, and cuts all else. */
+@supports (clip-path: inset(-3px 0 0 0 round 9px)) { .lens { overflow: visible; clip-path: inset(-3px 0 0 0 round var(--r-ctl)); } }
+.lens-track { position: absolute; left: 0; top: var(--lt-y, 0px); width: var(--lt-w, 0px); height: var(--lt-h, 0px); will-change: transform; }
+.lens-track .nav { color: transparent; }
+.lens-track .ind { background: none; color: var(--on-invert); transition: none; }
+.lens-track .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .lens { visibility: visible; }
+/* Each name dark as it comes close to the lens (--near, 0–1, set as things move). */
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .track .nav { color: color-mix(in srgb, var(--text) calc(var(--near, 0) * 100%), var(--text-3)); }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .track .ind { background: none; color: var(--text-3); transition: none; }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .track .nav-count { background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--panel); }
+.dock[data-swipe="settle"] .ind { transition: none; }
+
+/* On a phone the prototype is the app: the phone's own screen, no frame. */
+@media (max-width: 560px), (pointer: coarse) and (max-height: 500px) {
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); }
+  .stage { height: 100%; min-height: 0; display: block; padding: 0; }
+  .notes { display: none; }
+  .device { --safe-t: 0px; --safe-b: 0px; width: 100%; height: 100%; min-height: 0; border-radius: 0; box-shadow: none; }
+  .status, .home-ind { display: none; }
+}
+</style>
+
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <symbol id="house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="layout-list" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7"/><path d="M14 9h7"/><path d="M14 15h7"/><path d="M14 20h7"/></symbol>
+  <symbol id="graduation-cap" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></symbol>
+  <symbol id="bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="calendar-range" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M17 14h-6"/><path d="M13 18H7"/><path d="M7 14h.01"/><path d="M17 18h.01"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+</svg>
+
+<div class="stage">
+  <section class="notes" aria-labelledby="notes-title">
+    <p class="eyebrow">Betula · Handy-Ansicht · Version 2</p>
+    <h1 id="notes-title">Wischen in der Tableiste</h1>
+    <p class="lead">Die Tabs gleiten mit dem Finger im stehenden Rahmen, die Markierung bleibt stehen. Wischst du nach links, rückt der Tab rechts darunter. Lässt du los, gleiten die Tabs zurück und die Markierung geht mit dem neuen Tab mit.</p>
+    <div id="proto-home">
+      <section class="proto" id="proto" aria-label="Einstellungen des Prototyps">
+        <div class="proto-head">
+          <span class="tag">Prototyp · Version 2</span>
+          <p class="proto-hint">Wische unten auf der Leiste nach links oder rechts. Du kannst auch mitten in der Bewegung wieder zugreifen.</p>
+        </div>
+        <div class="opt" role="radiogroup" aria-labelledby="motion-label" aria-describedby="motion-note">
+          <span class="opt-label" id="motion-label">Animation beim Loslassen</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="motion" value="spring" id="motion-spring"><span>Neu: Feder</span></label>
+            <label class="seg-item"><input type="radio" name="motion" value="curve" id="motion-curve"><span>Wie Version 1</span></label>
+          </div>
+          <p class="opt-note" id="motion-note"></p>
+        </div>
+        <p class="log" aria-live="polite"><b>Zuletzt</b><span id="log">Noch nicht gewischt.</span></p>
+      </section>
+    </div>
+    <div class="facts-block">
+      <h2>Neu gegenüber Version 1</h2>
+      <ul class="facts">
+        <li>Kein harter Richtungswechsel mehr: Beim Loslassen behalten die Tabs den Schwung des Fingers und federn erst dann zurück.</li>
+        <li>Die Markierung läuft aus dem Stand los und schwingt am Ziel ein kleines Stück nach, wie die anderen Markierungen der App.</li>
+        <li>Du kannst die Leiste mitten in der Bewegung wieder greifen, ohne Sprung. Zwei schnelle Wische gehen zwei Tabs weit.</li>
+        <li>Die Bewegung läuft im Compositor des Browsers. Sie stockt also nicht, wenn die neue Seite gerade aufgebaut wird.</li>
+      </ul>
+    </div>
+    <div class="facts-block">
+      <h2>Wie bisher</h2>
+      <ul class="facts">
+        <li>Gewechselt wird ab einem Drittel des Weges zum nächsten Tab oder bei einem schnellen Wisch, pro Wisch ein Tab.</li>
+        <li>Wo kein Tab mehr kommt, geben die Tabs nur ein kleines Stück nach. Hoch und runter scrollt die Seite, Tippen bleibt Tippen.</li>
+        <li>Am Rechner geht es mit der Maus: auf der Leiste ziehen.</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="device">
+    <div class="status" aria-hidden="true"><span>9:41</span><i></i></div>
+    <div class="screen" id="screen">
+      <div id="proto-phone"></div>
+      <main class="page" id="page"></main>
+    </div>
+    <div class="dock" id="dock">
+      <nav class="bar" aria-label="Navigation">
+        <div class="clip"><div class="track" id="track"></div></div>
+      </nav>
+      <div class="lens" id="lens" aria-hidden="true"><div class="lens-track" id="lens-track"></div></div>
+    </div>
+    <div class="home-ind" aria-hidden="true"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const dock = $("dock"), track = $("track"), lens = $("lens"), copy = $("lens-track");
+  const screen = $("screen"), page = $("page"), log = $("log");
+
+  // ---- the tabs, as in folia/crates/app/src/lib.rs (NavItems); the counts are examples ----
+  const TABS = [
+    { area: "home", label: "Start", icon: "house" },
+    { area: "catalog", label: "Module", icon: "layout-list" },
+    { area: "programs", label: "Studium", icon: "graduation-cap" },
+    { area: "bookmarks", label: "Merkliste", icon: "bookmark", count: 3, counted: "3 gemerkt" },
+    { area: "studyplan", label: "Stundenplan", icon: "calendar-range", count: 5, counted: "5 eingeplant" },
+  ];
+  const icon = (name, cls = "") => `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true"><use href="#${name}"/></svg>`;
+  const tabHTML = (t, tag) => `<${tag} class="nav" data-area="${t.area}"${tag === "button" ? ` type="button" title="${t.label}"` : ""}><span class="ind">${icon(t.icon)}${t.count ? `<span class="nav-count"${tag === "button" ? ` aria-label="${t.counted}"` : ""}>${t.count}</span>` : ""}</span><span class="label">${t.label}</span></${tag}>`;
+  track.innerHTML = TABS.map((t) => tabHTML(t, "button")).join("");
+  copy.innerHTML = TABS.map((t) => tabHTML(t, "span")).join("");
+  const tabs = [...track.children];
+
+  // ---- the pages behind the bar: examples, so that a change of tab shows ----
+  const MODULES = [
+    { title: "Algorithmen und Datenstrukturen", meta: "8 LP · Sommersemester · Deutsch", marked: true },
+    { title: "Mathematik I für Informatik", meta: "8 LP · Wintersemester · Deutsch" },
+    { title: "Grundlagen der Elektrotechnik", meta: "6 LP · Wintersemester · Deutsch" },
+    { title: "Theoretische Informatik", meta: "6 LP · Wintersemester · Deutsch" },
+    { title: "Datenbanksysteme", meta: "6 LP · Sommersemester · Deutsch", marked: true },
+    { title: "Rechnernetze", meta: "6 LP · Wintersemester · Deutsch" },
+    { title: "Software Engineering", meta: "8 LP · Sommersemester · Deutsch" },
+    { title: "Betriebssysteme", meta: "6 LP · Wintersemester · Deutsch" },
+    { title: "Machine Learning", meta: "6 LP · Sommersemester · Englisch", marked: true },
+    { title: "Computergrafik", meta: "6 LP · Wintersemester · Deutsch" },
+  ];
+  const row = (m) => `<li class="row"><div class="row-main"><b>${m.title}</b><span class="meta">${m.meta}</span></div>${icon("bookmark", m.marked ? "on" : "")}</li>`;
+  const plain = (title, meta) => `<li class="row"><div class="row-main"><b>${title}</b><span class="meta">${meta}</span></div>${icon("chevron-right")}</li>`;
+  const SLOTS = [
+    { day: 1, at: 1, name: "Mathe I", kind: "Vorlesung", c: "--t-ice" },
+    { day: 3, at: 2, name: "Mathe I", kind: "Übung", c: "--t-ice" },
+    { day: 2, at: 2, name: "Theo. Inf.", kind: "Vorlesung", c: "--t-violet" },
+    { day: 4, at: 1, name: "Theo. Inf.", kind: "Übung", c: "--t-violet" },
+    { day: 3, at: 1, name: "GdE", kind: "Vorlesung", c: "--t-sun" },
+    { day: 4, at: 3, name: "Rechnernetze", kind: "Vorlesung", c: "--t-teal" },
+    { day: 5, at: 2, name: "Betriebssyst.", kind: "Vorlesung", c: "--t-coral" },
+  ];
+  const PAGES = {
+    home: () => `
+      <header class="brand">
+        <span class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M0 7h13v3H0zM23 12h9v3h-9zM0 17h5v3H0zM17 22h15v3H17z"/></svg></span>
+        <span class="wordmark" role="img" aria-label="Betula"><span aria-hidden="true"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span></span>
+        <small>inoffiziell</small>
+      </header>
+      <div class="search">${icon("search")}Module suchen</div>
+      <section class="card">
+        <span class="kicker">BTU Cottbus–Senftenberg</span>
+        <h2>Module, Studiengänge und Stundenpläne an einem Ort</h2>
+        <p>Durchsuchen, merken und einplanen. Was du dir merkst, bleibt in deinem Browser.</p>
+      </section>
+      <h2 class="sec">Zuletzt angesehen</h2>
+      <ul class="rows">${[MODULES[3], MODULES[0], MODULES[5]].map(row).join("")}</ul>`,
+    catalog: () => `
+      <header class="ph"><h1>Module</h1><span class="sub">10 Beispiele</span></header>
+      <div class="chips"><span class="chip">WiSe 2026/27</span><span class="chip">Informatik B.Sc.</span><span class="chip">6–8 LP</span></div>
+      <ul class="rows">${MODULES.map(row).join("")}</ul>`,
+    programs: () => `
+      <header class="ph"><h1>Studium</h1></header>
+      <section class="card"><span class="kicker">Mein Studiengang</span><h2>Informatik B.Sc.</h2><p>6 Semester · 180 LP</p></section>
+      <h2 class="sec">Studiengänge</h2>
+      <ul class="rows">${[["Informatik", "B.Sc. · M.Sc."], ["Elektrotechnik", "B.Sc. · M.Sc."], ["Maschinenbau", "B.Sc. · M.Sc."], ["Wirtschaftsingenieurwesen", "B.Sc. · M.Sc."], ["Architektur", "B.A. · M.A."], ["Bauingenieurwesen", "B.Sc. · M.Sc."]].map(([t, m]) => plain(t, m)).join("")}</ul>`,
+    bookmarks: () => `
+      <header class="ph"><h1>Merkliste</h1><span class="sub">3 Module</span></header>
+      <ul class="rows">${MODULES.filter((m) => m.marked).map(row).join("")}</ul>`,
+    studyplan: () => `
+      <header class="ph"><h1>Stundenplan</h1><span class="sub">WiSe 2026/27</span></header>
+      <div class="week" role="img" aria-label="Wochenplan mit fünf Modulen">
+        <span></span>${["Mo", "Di", "Mi", "Do", "Fr"].map((d) => `<span class="d">${d}</span>`).join("")}
+        ${["8", "10", "12", "14"].map((h, i) => `<span class="t" style="grid-row: ${i + 2}; grid-column: 1">${h}</span>`).join("")}
+        ${SLOTS.map((s) => `<span class="slot" style="grid-row: ${s.at + 1}; grid-column: ${s.day + 1}; --c: var(${s.c})">${s.name}<small>${s.kind}</small></span>`).join("")}
+      </div>
+      <h2 class="sec">Eingeplant</h2>
+      <ul class="rows">${[MODULES[1], MODULES[2], MODULES[3], MODULES[5], MODULES[7]].map((m) => plain(m.title, m.meta)).join("")}</ul>`,
+  };
+
+  let current = 1; // Module: a tab on either side
+  const scrolls = {};
+  const render = () => { page.innerHTML = PAGES[TABS[current].area](); };
+  // The tab `i` is the current one, and its page shows at once, without a movement of its own
+  // (owner: „keine Seitenanimationen"). Each tab keeps where its page was scrolled to.
+  const select = (i) => {
+    if (i === current) return;
+    scrolls[TABS[current].area] = screen.scrollTop;
+    tabs[current].removeAttribute("aria-current");
+    current = i;
+    tabs[i].setAttribute("aria-current", "page");
+    render();
+    screen.scrollTop = scrolls[TABS[i].area] || 0;
+  };
+  tabs[current].setAttribute("aria-current", "page");
+  render();
+
+  // ---- the setting: the glide of version 2, or the one of version 1 to compare ----
+  const KEY = "betula-tabbar-proto-v2";
+  const settings = { motion: "spring" };
+  const CHOICES = { motion: ["spring", "curve"] };
+  const NOTES = {
+    spring: "Die Tabs behalten den Schwung des Fingers und federn zurück, die Markierung läuft aus dem Stand los und schwingt leicht nach. Greifst du mitten in der Bewegung zu, bleibt alles, wo es gerade ist.",
+    curve: "Zum Vergleich wie in Version 1: eine feste Kurve ohne den Schwung des Fingers. Greifst du mitten in der Bewegung zu, springt alles ans Ziel.",
+  };
+  try {
+    const kept = JSON.parse(localStorage.getItem(KEY) || "{}");
+    for (const k in CHOICES) if (CHOICES[k].includes(kept[k])) settings[k] = kept[k];
+  } catch {}
+  const showSettings = () => {
+    for (const input of document.querySelectorAll("#proto input[type=radio]")) input.checked = settings[input.name] === input.value;
+    $("motion-note").textContent = NOTES[settings.motion];
+  };
+  $("proto").addEventListener("change", (e) => {
+    const { name, value } = e.target;
+    if (!(name in CHOICES) || !CHOICES[name].includes(value)) return;
+    drag = null;
+    if (dock.dataset.swipe) settle();
+    settings[name] = value;
+    try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch {}
+    showSettings();
+  });
+  showSettings();
+  // On a phone the settings go to the top of the page, beside the phone otherwise.
+  const narrow = matchMedia("(max-width: 560px), (pointer: coarse) and (max-height: 500px)");
+  const placeSettings = () => (narrow.matches ? $("proto-phone") : $("proto-home")).append($("proto"));
+  narrow.addEventListener?.("change", placeSettings);
+  placeSettings();
+
+  // ---- motion ----
+  // A spring as the marks of the app have one that slide (app.css --spring, „quick, a little past
+  // the mark and back"), here a real one: how long a swing takes (s) and how much of it is damped
+  // (1: nothing goes past the mark). It starts from where a thing is and as fast as it goes, so that
+  // letting go changes nothing but the force on it. Without motion (prefers-reduced-motion) short
+  // and without a swing.
+  const SPRING = { response: 0.3, damping: 0.75 };
+  const CALM = { response: 0.2, damping: 0.99 };
+  const DT = 1 / 120; // s from one keyframe of a glide to the next
+  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Where a spring towards `x1` stands every DT s, let go at `x0` (px) going `v0` (px per s), until
+  // it can no longer be a tenth of a px away.
+  const spring = (x0, v0, x1, { response, damping: z }) => {
+    const w0 = (2 * Math.PI) / response, wd = w0 * Math.sqrt(1 - z * z), a = x0 - x1, b = (v0 + z * w0 * a) / wd;
+    const out = [], far = Math.hypot(a, b);
+    for (let t = 0; t < 1.5; t += DT) {
+      const fade = Math.exp(-z * w0 * t);
+      out.push(x1 + fade * (a * Math.cos(wd * t) + b * Math.sin(wd * t)));
+      if (far * fade < 0.1) break;
+    }
+    out.push(x1);
+    return out;
+  };
+  // The glide of version 1: cubic-bezier(.3, 1.35, .5, 1) over 320 ms, whatever the finger did.
+  const bezier = (x1, y1, x2, y2) => (x) => {
+    let lo = 0, hi = 1, s = x;
+    for (let i = 0; i < 30; i++) {
+      s = (lo + hi) / 2;
+      if (3 * (1 - s) ** 2 * s * x1 + 3 * (1 - s) * s * s * x2 + s ** 3 < x) lo = s;
+      else hi = s;
+    }
+    return 3 * (1 - s) ** 2 * s * y1 + 3 * (1 - s) * s * s * y2 + s ** 3;
+  };
+  const OLD = bezier(0.3, 1.35, 0.5, 1), OLD_CALM = bezier(0.2, 0.7, 0.2, 1);
+  const curve = (x0, x1, ms, ease) => {
+    const n = Math.max(1, Math.round(ms / 1000 / DT)), out = [];
+    for (let k = 0; k <= n; k++) out.push(x0 + (x1 - x0) * ease(k / n));
+    return out;
+  };
+  const sample = (values, k) => {
+    const i = Math.min(Math.floor(k), values.length - 1), j = Math.min(i + 1, values.length - 1);
+    return values[i] + (values[j] - values[i]) * Math.min(1, Math.max(0, k - i));
+  };
+
+  // ---- the swipe along the bar ----
+  // As enhance.js: a finger that moves along the bar rather than up or down has it. The row of tabs
+  // follows the finger inside its frame and the lens stays where it is: a finger to the left brings
+  // the tab on the right under it. As far as the tab beside, then less and less, and less and less
+  // from the start where no tab lies that way. Let go a third of the way to that tab or further, or
+  // flicked, and it is the current one; the row glides back to its place, the lens to that tab.
+  const SLOP = 8; // px a finger moves before it counts as a swipe or a scroll (enhance.js: 8)
+  const ROOM = 14; // px a pull goes past the last tab it may reach, at most (enhance.js: 14)
+  const FLICK = 0.45; // px per ms, of a move less than FLICK_MS before the finger went
+  const FLICK_MS = 100;
+  const unit = (v) => Math.min(1, Math.max(0, v));
+  const band = (over, room) => (room > 0 ? room * (1 - 1 / (1 + over / (3 * room))) : 0);
+  const snap = (v) => { const dot = 1 / (devicePixelRatio || 1); return Math.round(v / dot) * dot; };
+
+  let geo = null; // the tabs where they stand at rest
+  let pos = null; // where the row (T, px from its place) and the lens (X, its left edge) stand
+  let drag = null; // the finger on the bar
+  let glide = null; // the row and the lens on their way, once the finger has gone
+  let pending = null; // the tab whose page shows one frame after letting go
+  let swiped = 0; // until when a click on the bar is the end of a swipe, not a tap
+  const near = [];
+
+  // The tabs at rest, measured as a swipe begins: the left edge and the middle of each tab's mark
+  // from the dock's left edge, and where the row lies; the lens and its copy take their size.
+  const measure = () => {
+    const box = dock.getBoundingClientRect(), r = track.getBoundingClientRect();
+    const marks = tabs.map((tab) => tab.querySelector(".ind").getBoundingClientRect());
+    geo = {
+      lefts: marks.map((m) => m.left - box.left),
+      mids: marks.map((m) => m.left + m.width / 2 - box.left),
+      w: marks[0].width,
+      step: (marks[marks.length - 1].left - marks[0].left) / (marks.length - 1),
+      row: r.left - box.left,
+    };
+    const sizes = { "--lens-y": marks[0].top - box.top, "--lens-w": marks[0].width, "--lens-h": marks[0].height, "--lt-y": r.top - marks[0].top, "--lt-w": r.width, "--lt-h": r.height };
+    for (const [prop, px] of Object.entries(sizes)) if (dock.style.getPropertyValue(prop) !== px + "px") dock.style.setProperty(prop, px + "px");
+  };
+  // Each name dark as it comes close to the middle of the lens.
+  const colour = (T, X) => {
+    const middle = X + geo.w / 2;
+    tabs.forEach((tab, i) => {
+      const v = unit(1 - Math.abs(geo.mids[i] + T - middle) / geo.step).toFixed(2);
+      if (near[i] !== v) { near[i] = v; tab.style.setProperty("--near", v); }
+    });
+  };
+  // The row T px from its place and the lens's left edge at X, on whole device pixels; the copy in
+  // the lens lies over the row.
+  const paint = (T, X) => {
+    pos = { T, X };
+    const t = snap(T), x = snap(X);
+    track.style.transform = `translateX(${t}px)`;
+    lens.style.transform = `translateX(${x}px)`;
+    copy.style.transform = `translateX(${geo.row + t - x}px)`;
+    colour(T, X);
+  };
+
+  // How many tabs a swipe may go that way (`dir` +1: to the right): one, where there is one.
+  const reach = (from, dir) => Math.min(1, dir > 0 ? tabs.length - 1 - from : from);
+  // Where a pull puts the lens over the row (`q` px from the current tab, to the right positive):
+  // as far as it may reach, then held back; held back from the start where no tab lies that way.
+  const lensAt = (d, q) => {
+    const dir = Math.sign(q), far = Math.abs(q), room = reach(d.from, dir) * geo.step;
+    return dir ? dir * (far <= room ? far : room + band(far - room, ROOM)) : 0;
+  };
+
+  // The finger takes the bar: at rest, or caught on its way, where it is just then.
+  const take = (d) => {
+    let caught = null;
+    if (glide) {
+      if (settings.motion === "curve") settle(); // version 1: everything where it was going at once
+      else caught = catchGlide();
+    }
+    flushSelect();
+    if (caught) {
+      for (const el of [track, lens, copy]) el.style.transform = "";
+      measure();
+      paint(caught.T, caught.X);
+    } else {
+      measure();
+      paint(0, geo.lefts[current]);
+    }
+    d.from = current;
+    d.base = pos;
+    // Where the lens stands over the row, from the middle of the current tab.
+    d.p0 = d.p = pos.X + geo.w / 2 - pos.T - geo.mids[current];
+    d.trail = [{ t: d.at, T: pos.T }];
+    dock.dataset.swipe = "drag";
+    try { dock.setPointerCapture(d.id); } catch {}
+  };
+  // The finger at `x` at the time `at` (the event's): the row follows (a finger that wobbles moves
+  // nothing). How fast the finger goes is kept for a flick, mostly of the last moves, and where the
+  // row was when, for how fast it goes once the finger has gone.
+  const follow = (d, x, at) => {
+    const dx = x - d.x, pull = dx > SLOP ? dx - SLOP : dx < -SLOP ? dx + SLOP : 0;
+    if (pull !== d.pull) {
+      if (at > d.at) d.speed = 0.7 * ((pull - d.pull) / (at - d.at)) + 0.3 * d.speed;
+      d.pull = pull;
+      d.at = at;
+      d.p = lensAt(d, d.p0 - pull);
+      paint(d.base.X + geo.w / 2 - geo.mids[d.from] - d.p, d.base.X);
+    }
+    d.trail.push({ t: at, T: pos.T });
+    while (d.trail.length > 2 && at - d.trail[0].t > 100) d.trail.shift();
+  };
+  // The tab the lens goes to: the one a third of the way to which the finger has taken it, the
+  // way the finger went (from a sixth when flicked); where the finger went nowhere, the nearest.
+  const decide = (d, at) => {
+    const way = Math.sign(d.p - d.p0), v = -d.speed;
+    const flicked = way !== 0 && at - d.at < FLICK_MS && Math.sign(v) === way && Math.abs(v) > FLICK;
+    const s = d.p / geo.step, s0 = d.p0 / geo.step, lead = flicked ? 5 / 6 : 2 / 3;
+    let n = way > 0 ? Math.floor(s + lead) : way < 0 ? Math.ceil(s - lead) : Math.round(s);
+    if (flicked && Math.abs(d.p - d.p0) >= 12) n = way > 0 ? Math.max(n, Math.floor(s0) + 1) : Math.min(n, Math.ceil(s0) - 1);
+    return d.from + Math.max(-reach(d.from, -1), Math.min(reach(d.from, 1), n));
+  };
+  // How fast the row went at the end (px per ms), over its last 80 ms: nothing if it was held.
+  const rowSpeed = (trail, at) => {
+    const recent = trail.filter((s) => at - s.t <= 80), a = recent[0], b = recent[recent.length - 1];
+    return recent.length > 1 && b.t - a.t > 4 ? Math.max(-1, Math.min(1, (b.T - a.T) / (b.t - a.t))) : 0;
+  };
+
+  // Let go: the row glides back to its place, from where it is and as fast as it goes, and the lens
+  // to the tab `to`, from a standstill; the copy in the lens goes with both. Three Web Animations of
+  // keyframes every DT, which the compositor runs; the names follow on the main thread.
+  const glideTo = (to, v) => {
+    const { T, X } = pos, end = geo.lefts[to];
+    let Ts, Xs;
+    if (settings.motion === "spring") {
+      const s = reduced() ? CALM : SPRING;
+      Ts = spring(T, reduced() ? 0 : v * 1000, 0, s);
+      Xs = spring(X, 0, end, s);
+    } else {
+      const [ms, ease] = reduced() ? [160, OLD_CALM] : [320, OLD];
+      Ts = curve(T, 0, ms, ease);
+      Xs = curve(X, end, ms, ease);
+    }
+    const n = Math.max(Ts.length, Xs.length);
+    while (Ts.length < n) Ts.push(Ts[Ts.length - 1]);
+    while (Xs.length < n) Xs.push(Xs[Xs.length - 1]);
+    const t = Ts.map(snap), x = Xs.map(snap);
+    const frames = (values) => values.map((value) => ({ transform: `translateX(${value}px)` }));
+    const timing = { duration: (n - 1) * DT * 1000, easing: "linear", fill: "forwards" };
+    dock.dataset.swipe = "glide";
+    const anims = [track.animate(frames(t), timing), lens.animate(frames(x), timing), copy.animate(frames(t.map((value, k) => geo.row + value - x[k])), timing)];
+    glide = { to, Ts, Xs, anims, frame: 0, timer: setTimeout(() => settle(), timing.duration + 250) };
+    selectSoon(to);
+    const tick = () => {
+      if (!glide) return;
+      const ms = glide.anims[0].currentTime ?? 0, k = ms / 1000 / DT;
+      pos = { T: sample(glide.Ts, k), X: sample(glide.Xs, k) };
+      colour(pos.T, pos.X);
+      if (k >= n - 1) settle();
+      else glide.frame = requestAnimationFrame(tick);
+    };
+    glide.frame = requestAnimationFrame(tick);
+  };
+  // A finger takes the bar on its way: where the row and the lens stand just then.
+  const catchGlide = () => {
+    const g = glide, k = (g.anims[0].currentTime ?? 0) / 1000 / DT;
+    cancelAnimationFrame(g.frame);
+    clearTimeout(g.timer);
+    g.anims.forEach((a) => a.cancel());
+    glide = null;
+    return { T: sample(g.Ts, k), X: sample(g.Xs, k) };
+  };
+  // At rest: the tab's own mark takes over from the lens, in one frame, without its fade.
+  const settle = () => {
+    if (glide) {
+      cancelAnimationFrame(glide.frame);
+      clearTimeout(glide.timer);
+      glide.anims.forEach((a) => a.cancel());
+      glide = null;
+    }
+    flushSelect();
+    pos = null;
+    dock.dataset.swipe = "settle";
+    for (const el of [track, lens, copy]) el.style.transform = "";
+    tabs.forEach((tab, i) => { tab.style.removeProperty("--near"); near[i] = undefined; });
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (dock.dataset.swipe === "settle") delete dock.dataset.swipe; }));
+  };
+  // The page of the tab the lens goes to shows after the first frame of the glide, so that building
+  // it cannot hold that frame back.
+  const selectSoon = (to) => {
+    flushSelect();
+    const p = { to, frame: 0, timer: 0 };
+    p.frame = requestAnimationFrame(() => { p.timer = setTimeout(flushSelect, 0); });
+    pending = p;
+  };
+  const flushSelect = () => {
+    const p = pending;
+    if (!p) return;
+    pending = null;
+    cancelAnimationFrame(p.frame);
+    clearTimeout(p.timer);
+    select(p.to);
+  };
+
+  const say = (text) => { log.textContent = text; };
+  const report = (d, to) => {
+    const from = TABS[d.from].label;
+    if (!d.pull) return say(`Zurückgezogen, ${from} bleibt`);
+    const side = d.pull < 0 ? "Nach links gewischt" : "Nach rechts gewischt";
+    if (to !== d.from) say(`${side}: ${from} → ${TABS[to].label}`);
+    else if (!reach(d.from, d.pull < 0 ? 1 : -1)) say(`${side}: dort kommt kein Tab mehr, ${from} bleibt`);
+    else say(`${side}: zu kurz, ${from} bleibt`);
+  };
+  // The finger goes: lifted at `x` at the time `at`, or taken by the browser (`x` null: a scroll, a
+  // pinch, a gesture of the system), which goes back to the tab it came from.
+  const letGo = (x, at) => {
+    const d = drag;
+    drag = null;
+    if (!d?.taken) return; // a tap: the tab's own, and a glide under it goes on
+    swiped = performance.now() + 400;
+    try { dock.releasePointerCapture(d.id); } catch {}
+    let to = d.from, v = 0;
+    if (x !== null) {
+      follow(d, x, at);
+      to = decide(d, at);
+      v = rowSpeed(d.trail, at);
+      report(d, to);
+    }
+    glideTo(to, v);
+  };
+
+  document.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) return;
+    letGo(null); // a finger the page never heard go
+    swiped = 0; // a new touch: its click is a tap
+    if (e.button !== 0 || !dock.contains(e.target)) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp, speed: 0, pull: 0, taken: false };
+  });
+  document.addEventListener("pointermove", (e) => {
+    const d = drag;
+    if (!d || e.pointerId !== d.id) return;
+    if (!(e.buttons & 1)) { letGo(null); return; } // let go where the page did not hear it
+    if (!d.taken) {
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+      // The first move past the slop decides: along the bar the finger has it, else the page.
+      if (Math.abs(dx) <= Math.abs(dy)) { drag = null; return; }
+      d.taken = true;
+      take(d);
+    }
+    follow(d, e.clientX, e.timeStamp);
+  });
+  document.addEventListener("pointerup", (e) => { if (e.pointerId === drag?.id) letGo(e.clientX, e.timeStamp); });
+  document.addEventListener("pointercancel", (e) => { if (e.pointerId === drag?.id) letGo(null); });
+  // The moves of a swipe are the bar's alone: left to the browser, a quick one ends in a fling.
+  document.addEventListener("touchmove", (e) => { if (drag?.taken && e.cancelable) e.preventDefault(); }, { passive: false });
+  // Whatever the browser makes of a finger that swiped, it is no tap.
+  dock.addEventListener("click", (e) => { if (performance.now() < swiped) { e.preventDefault(); e.stopPropagation(); } }, true);
+  dock.addEventListener("dragstart", (e) => e.preventDefault());
+  // A tap on a tab: that tab at once, as in the app; a glide still on its way ends first.
+  track.addEventListener("click", (e) => {
+    const tab = e.target.closest(".nav");
+    if (!tab) return;
+    if (glide) settle();
+    const i = tabs.indexOf(tab);
+    if (i !== current) say(`Getippt: ${TABS[i].label}`);
+    select(i);
+  });
+  // For the tests: the glide on its way.
+  window.__tabbarGlide = () => glide && { to: glide.to, Ts: glide.Ts.slice(), Xs: glide.Xs.slice() };
+})();
+</script>

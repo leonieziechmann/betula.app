@@ -1,0 +1,34 @@
+[package]
+name = "folia-client"
+version = "0.1.0"
+edition = "2021"
+description = "The browser app of Betula (WASM): the app's components on the local sql.js database"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+folia-app = { path = "../app", features = ["csr"] }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+folia-pages = { path = "../pages" }
+folia-routes = { path = "../routes" }
+leptos = { version = "0.8.20", features = ["csr"] }
+# Must be the version of the wasm-bindgen CLI that scripts/build-client.sh runs.
+wasm-bindgen = "=0.2.128"
+js-sys = "0.3"
+# The semantic search answers with promises (`window.betulaSemantic`). Part of the build through leptos anyway.
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Window", "Document", "HtmlElement", "Element", "Node", "NodeList", "Location"] }
+# The questions and answers of the catalog's search worker (src/worker.rs), as JSON. Part of the
+# build through leptos anyway.
+serde = { version = "1.0", features = ["derive"] }
+# The map of the programs arrives as JSON (`window.betulaMap`). Part of the build through leptos anyway.
+serde_json = "1.0"
+console_error_panic_hook = "0.1"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

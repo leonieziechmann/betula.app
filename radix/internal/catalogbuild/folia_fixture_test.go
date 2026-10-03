@@ -1,0 +1,648 @@
+package catalogbuild
+
+// A synthetic catalog for developing the web tier without a crawl: several programs with
+// trees, areas and a plan, hundreds of modules with varied facets, a lecture for every ninth
+// module, spread over the week of the semester the snapshot presents. Written only when
+// BETULA_FIXTURE_DIR names a directory:
+//
+//	BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteFoliaFixture -count=1
+//
+// The numbers are made up; nothing here says anything about the BTU.
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
+)
+
+type fixtureProgram struct {
+	name, stg, abschl, degree, pversion, po string
+	areas                                   []fixtureArea
+}
+
+type fixtureArea struct {
+	label    string
+	children []fixtureArea
+	modules  []string
+}
+
+func fixtureTreePage(p fixtureProgram, links ...string) string {
+	var b strings.Builder
+	b.WriteString(`<html><body><div class="Kruemelpfad">
+		<div class="KruemelpfadEintrag"><a class="regular" href="` + treeBase + `auswahlBaum">Oberste Ebene</a></div>
+		<div class="KruemelpfadEintrag"><a class="regular" href="` + treeBase + `x">Studiengang: ` + p.name + `</a></div>
+		<div class="KruemelpfadEintrag"><a class="regular" href="` + treeBase + `y">Module für Abschluss: ` + p.degree + `</a></div>
+		<div class="KruemelpfadEintrag"> PO-Version: ` + p.po + ` </div></div>
+		<a href="https://opus4.kobv.de/opus4-btu/files/` + p.stg + `/po.pdf" target="_blank" title="Prüfungsordnung ABl. 12/2024"><img src="/QIS/images/pruefungsordnung.svg"></a>
+		<ul class="treelist">`)
+	for i := 0; i+1 < len(links); i += 2 {
+		fmt.Fprintf(&b, `<li><a class="regular" href="%s%s">%s</a></li>`, treeBase, links[i], links[i+1])
+	}
+	b.WriteString(`</ul></body></html>`)
+	return b.String()
+}
+
+// fixtureSlot is a date row of an event of the fixture, as QIS prints it: „Di.", „09:15 bis
+// 10:45", „A/B", „14.04.2026 bis 21.07.2026", and the room where the row names one.
+type fixtureSlot struct{ day, time, rhythm, dates, room string }
+
+// fixtureEventPage is the page of eventPageHTML (build_test.go) for an event of the fixture, whose
+// type, semester and dates vary; the pages of the build's own tests all meet on Tuesday at 9:15 in
+// the summer of 2026.
+func fixtureEventPage(title, eventType, semester string, slots ...fixtureSlot) string {
+	var rows strings.Builder
+	for _, slot := range slots {
+		room := ""
+		if slot.room != "" {
+			room = `<a href="#">` + slot.room + `</a>`
+		}
+		rows.WriteString(`
+		<tr><td>` + slot.day + `</td><td>` + slot.time + `</td><td>` + slot.rhythm + `</td><td>` + slot.dates + `</td><td>` + room + `</td><td><a href="#">Meyer</a></td></tr>`)
+	}
+	return `<html><body><h1>` + title + ` - Einzelansicht</h1>
+	<table summary="Grunddaten zur Veranstaltung"><tr><th>Veranstaltungsart</th><td>` + eventType + `</td><th>Semester</th><td>` + semester + `</td></tr>
+		<tr><th>SWS</th><td>2</td><th>Max. Teilnehmer/-innen</th><td>80</td></tr></table>
+	<table summary="Übersicht über alle Veranstaltungstermine"><caption>Termine Gruppe: 1</caption>
+		<tr><th>Tag</th><th>Zeit</th><th>Rhythmus</th><th>Dauer</th><th>Raum</th><th>Lehrperson</th></tr>` + rows.String() + `</table>
+	</body></html>`
+}
+
+// fixtureSemester is the semester of key as QIS names it, the Monday its lectures begin and the
+// number of weeks they run, as BTU's run: in summer from the second Monday of April for 15 weeks,
+// in winter from the first Monday of October for 17, the Christmas break inside (2026: 13.04. to
+// 24.07.2026 and 05.10.2026 to 29.01.2027).
+func fixtureSemester(key string) (label string, first time.Time, weeks int) {
+	year, _ := strconv.Atoi(key[:len(key)-1])
+	firstMonday := func(month time.Month) time.Time {
+		day := time.Date(year, month, 1, 0, 0, 0, 0, time.UTC)
+		return day.AddDate(0, 0, (8-int(day.Weekday()))%7)
+	}
+	if strings.HasSuffix(key, "W") {
+		return fmt.Sprintf("WS %d/%02d", year, (year+1)%100), firstMonday(time.October), 17
+	}
+	return fmt.Sprintf("SS %d", year), firstMonday(time.April).AddDate(0, 0, 7), 15
+}
+
+func TestWriteFoliaFixture(t *testing.T) {
+	dir := os.Getenv("BETULA_FIXTURE_DIR")
+	if dir == "" {
+		t.Skip("BETULA_FIXTURE_DIR not set")
+	}
+	db, err := catalogdb.Open(filepath.Join(t.TempDir(), "fixture.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	put := func(source, key, body string) {
+		t.Helper()
+		if err := db.PutPage(catalogdb.RawPage{Source: source, Key: key, URL: key, HTTPStatus: 200, Body: []byte(body),
+			FetchedAt: time.Date(2026, 9, 19, 15, 0, 0, 0, time.UTC)}); err != nil {
+			t.Fatalf("PutPage failed: %v", err)
+		}
+	}
+
+	// ---- modules ----
+	prefixes := []string{"Grundlagen der", "Einführung in die", "Vertiefung", "Angewandte", "Theoretische", "Praktische", "Numerische", "Verteilte", "Digitale", "Moderne", "Experimentelle", "Höhere"}
+	subjects := []string{"Informatik", "Mathematik", "Physik", "Elektrotechnik", "Regelungstechnik", "Thermodynamik", "Datenanalyse", "Softwaretechnik", "Rechnernetze", "Betriebssysteme", "Künstliche Intelligenz", "Robotik", "Signalverarbeitung", "Werkstoffkunde", "Baukonstruktion", "Stadtplanung", "Energiesysteme", "Optimierung", "Statistik", "Strömungsmechanik", "Bildverarbeitung", "Informationssysteme", "Kryptographie", "Mechanik", "Chemie"}
+	suffixes := []string{"", "", " I", " II", " für Ingenieurinnen und Ingenieure", " und ihre Anwendungen", " in der Praxis"}
+	departments := []string{
+		"Fakultät 1 - MINT - Mathematik, Informatik, Physik, Elektro- und Informationstechnik",
+		"Fakultät 2 - Umwelt und Naturwissenschaften",
+		"Fakultät 3 - Maschinenbau, Elektro- und Energiesysteme",
+		"Fakultät 5 - Wirtschaft, Recht und Gesellschaft",
+		"Fakultät 6 - Architektur, Bauingenieurwesen und Stadtplanung",
+	}
+	persons := []string{"Prof. Dr. rer. nat. Köhler, Ekkehard", "Prof. Dr.-Ing. Meer, Klaus", "Prof. Dr. Lambers, Leen", "Prof. Dr. Hofstedt, Petra", "Dr. Wachsmuth, Gerd", "Prof. Dr.-Ing. Schmidt, Anna", "Prof. Dr. Neumann, Jonas"}
+	surnames := []string{"Bauer", "Fischer", "Weber", "Wagner", "Becker", "Schulz", "Hoffmann", "Koch", "Richter", "Klein", "Wolf", "Schröder", "Zimmermann", "Braun", "Krüger", "Hartmann", "Lange", "Werner", "Krause", "Lehmann", "Huber", "Mayer", "Herrmann", "König", "Walter", "Peters", "Möller", "Kaiser", "Fuchs", "Lang"}
+	forenames := []string{"Anna", "Jonas", "Mia", "Lukas", "Lena", "Paul"}
+	for i, surname := range surnames {
+		for j := 0; j < 4; j++ {
+			title := []string{"Prof. Dr.", "Dr.", "Prof. Dr.-Ing.", "Dr. rer. nat."}[(i+j)%4]
+			persons = append(persons, fmt.Sprintf("%s %s, %s", title, surname, forenames[(i*3+j)%len(forenames)]))
+		}
+	}
+	turnus := []string{"jedes Wintersemester", "jedes Sommersemester", "jedes Semester", "jedes Wintersemester ungerader Jahre", "unregelmäßig"}
+	languages := []string{"Deutsch", "Deutsch", "Englisch", "Deutsch / Englisch"}
+	exams := []string{"Klausur, 90 min.", "mündliche Prüfung, 30 min.", "Hausarbeit", "Klausur, 120 min. oder mündliche Prüfung", "Vortrag und schriftliche Ausarbeitung"}
+	credits := []string{"6", "6", "5", "8", "4", "10", "3", "12"}
+	// Teaching forms mixed as on the real module pages (a lecture in three modules of five, an
+	// exercise or a seminar in two, a practical in one of six, a project in one of nine), each with
+	// the workload of 6 LP, in turn down the list. It is two nines long, so that the modules with a
+	// lecture event, every ninth (below), come to the first of each nine, which states a lecture.
+	teaching := [][]string{
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 4 SWS", "Übung / 2 SWS", "Selbststudium / 90 Stunden"},
+		{"Seminar / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Projekt / 4 SWS", "Exkursion / 1 SWS", "Selbststudium / 105 Stunden"},
+		{"Vorlesung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Übung / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 1 SWS", "Praktikum / 1 SWS", "Selbststudium / 120 Stunden"},
+		{"Seminar / 4 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Praktikum / 2 SWS", "Selbststudium / 150 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Übung / 2 SWS", "Seminar / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 4 SWS", "Selbststudium / 120 Stunden"},
+		{"Seminar / 2 SWS", "Projekt / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 1 SWS", "Seminar / 1 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Praktikum / 2 SWS", "Selbststudium / 120 Stunden"},
+		{"Vorlesung / 2 SWS", "Übung / 2 SWS", "Tutorium / 1 SWS", "Selbststudium / 105 Stunden"},
+	}
+
+	const total = 1200
+	seed := uint32(7)
+	next := func(n int) int {
+		seed = seed*1664525 + 1013904223
+		return int(seed>>8) % n
+	}
+	type mod struct {
+		id, title string
+		programs  []string // "degree / name / PO po"
+	}
+	modules := make([]*mod, 0, total)
+	titles := make(map[string]int)
+	for i := 0; i < total; i++ {
+		title := prefixes[next(len(prefixes))] + " " + subjects[next(len(subjects))] + suffixes[next(len(suffixes))]
+		titles[title]++
+		if titles[title] > 1 {
+			title = fmt.Sprintf("%s (%d)", title, titles[title])
+		}
+		id := fmt.Sprintf("%05d", 20001+i)
+		// Ids and titles the tests of the web tier and its browser checks look for. No generated
+		// title names Datenbanken („Informationssysteme" stands in its place), so that a search for
+		// „datenbank" finds a short list, as in the real catalog (folia/e2e/ground.mjs). What else
+		// folia/e2e/module.mjs reads of 12330, 12000 and 11103 is below.
+		switch i {
+		case 0:
+			id, title = "11101", "Lineare Algebra"
+		case 1:
+			id, title = "11112", "Algorithmen und Datenstrukturen"
+		case 289:
+			id, title = "12330", "Datenbanken"
+		case 290:
+			id, title = "12000", "Veranstaltungsmanagement und Recht"
+		case 349:
+			id, title = "11103", "Analysis I"
+		}
+		modules = append(modules, &mod{id: id, title: title})
+	}
+
+	// ---- programs and their trees ----
+	informatik := fixtureProgram{name: "Informatik", stg: "079", abschl: "82", degree: "Bachelor (universitär)", pversion: "2008", po: "2008 - 2. SÄ 2024"}
+	informatikMaster := fixtureProgram{name: "Informatik", stg: "079", abschl: "88", degree: "Master (universitär)", pversion: "2008", po: "2008 - 3. SÄ 2024"}
+	maschinenbau := fixtureProgram{name: "Maschinenbau", stg: "055", abschl: "82", degree: "Bachelor (universitär)", pversion: "2020", po: "2020"}
+	architektur := fixtureProgram{name: "Architektur", stg: "010", abschl: "82", degree: "Bachelor (universitär)", pversion: "2015", po: "2015"}
+
+	cursor := 0
+	take := func(n int) []string {
+		ids := make([]string, 0, n)
+		for i := 0; i < n && cursor < total; i++ {
+			ids = append(ids, modules[cursor].id)
+			cursor++
+		}
+		return ids
+	}
+	// The tree as the real one of Informatik B.Sc. reads (snapshot of 2026-09-21): complexes
+	// whose labels say nothing about Pflicht or Wahlpflicht — the plan says what is compulsory —
+	// and the Komplex Nebenfach with Praktische Mathematik and the subjects to choose from below
+	// it. The thesis sits directly in the Fachstudium.
+	informatik.areas = []fixtureArea{
+		{label: "Grundstudium", children: []fixtureArea{
+			{label: "Komplex Informatik", modules: take(9), children: []fixtureArea{
+				{label: "Proseminar oder Praktikum", modules: take(3)},
+			}},
+			{label: "Komplex Mathematik", modules: take(3)},
+			{label: "Komplex Nebenfach", children: []fixtureArea{
+				{label: "Wahlpflichtmodule Praktische Mathematik", modules: take(5)},
+				{label: "Mathematik", modules: take(8)},
+				{label: "Physik", modules: take(4)},
+				{label: "Maschinenbau / Elektrotechnik", modules: take(6)}, // the separator in a label, as the real tree has it
+				{label: "Wirtschaftswissenschaften", modules: take(5)},
+				{label: "Bauingenieurwesen", modules: take(4)},
+			}},
+		}},
+		{label: "Fachstudium", modules: take(1), children: []fixtureArea{
+			{label: "Grundlagen der Informatik", modules: take(7)},
+			{label: "Praktische Informatik", modules: take(10)},
+			{label: "Angewandte und Technische Informatik", modules: take(9)},
+			{label: "Seminar oder Praktikum aus der Informatik", modules: take(4)},
+		}},
+	}
+	// Informatik M.Sc. as the real tree reads: the Informatik-Vertiefung, and the Komplex
+	// Nebenfach with Mathematik and the Anwendungen below it — Mathematik twice.
+	informatikMaster.areas = []fixtureArea{
+		{label: "Informatik-Vertiefung", children: []fixtureArea{
+			{label: "Grundlagen der Informatik", modules: take(6)},
+			{label: "Praktische Informatik", modules: take(11)},
+			{label: "Angewandte und Technische Informatik", modules: take(16)},
+			{label: "Seminare oder Praktika", modules: take(8)},
+		}},
+		{label: "Komplex Nebenfach", children: []fixtureArea{
+			{label: "Mathematik", modules: take(6)},
+			{label: "Anwendungen", children: []fixtureArea{
+				{label: "Mathematik", modules: take(8)},
+				{label: "Physik", modules: take(4)},
+				{label: "Maschinenbau / Elektrotechnik", modules: take(6)},
+				{label: "Wirtschaftsingenieurwesen", modules: take(4)},
+				{label: "Bauingenieurwesen", modules: take(3)},
+			}},
+		}},
+	}
+	maschinenbau.areas = []fixtureArea{
+		{label: "Grundlagen", children: []fixtureArea{
+			{label: "Pflichtmodule Mathematik und Naturwissenschaften", modules: take(12)},
+			{label: "Pflichtmodule Ingenieurwissenschaften", modules: take(18)},
+		}},
+		{label: "Vertiefung", children: []fixtureArea{
+			{label: "Wahlpflichtmodule Energietechnik", modules: take(22)},
+			{label: "Wahlpflichtmodule Produktionstechnik", modules: take(22)},
+			{label: "Wahlpflichtmodule Fahrzeugtechnik", modules: take(18)},
+		}},
+		{label: "Bachelor-Arbeit", modules: take(1)},
+	}
+	// Architektur as the real tree reads: an account on top, and in each field its
+	// Pflichtmodule and Wahlpflichtmodule, labels that say nothing but the kind.
+	architektur.areas = []fixtureArea{
+		{label: "Gesamtkonto Bachelor", children: []fixtureArea{
+			{label: "Entwerfen", children: []fixtureArea{{label: "Pflichtmodule", modules: take(14)}}},
+			{label: "Städtebau", children: []fixtureArea{{label: "Wahlpflichtmodule", modules: take(16)}}},
+			{label: "Baukonstruktion", children: []fixtureArea{{label: "Wahlpflichtmodule", modules: take(14)}}},
+		}},
+		{label: "Bachelor-Arbeit", modules: take(1)},
+	}
+	// 60 of the modules are on the FÜS list.
+	fuesIDs := take(60)
+
+	byID := make(map[string]*mod, total)
+	for _, m := range modules {
+		byID[m.id] = m
+	}
+	programs := []fixtureProgram{informatik, informatikMaster, maschinenbau, architektur}
+	// Many more programs, drawing on the modules of the pool (a module can be in several), so
+	// that the pickers of the filter panel have long lists and the overview has its faculties.
+	subjectNames := []string{"Physik", "Mathematik", "Bauingenieurwesen", "Stadtplanung", "Umweltwissenschaften", "Chemie", "Biotechnologie", "Wirtschaftsingenieurwesen", "Betriebswirtschaftslehre", "Wirtschaftsinformatik", "Medizininformatik", "Verfahrenstechnik", "Energietechnik", "Cyber Security", "Künstliche Intelligenz", "Landnutzung", "Kultur und Technik", "Pflegewissenschaft", "Soziale Arbeit", "Musikpädagogik", "Materialwissenschaft", "Nachhaltige Technik", "Robotik", "Data Science", "Umweltingenieurwesen", "Technologien Biogener Rohstoffe", "Wirtschaftsrecht", "Industrial Engineering", "Angewandte Mathematik", "Geoinformatik", "Weltkulturerbe", "Bauen und Erhalten", "Elektrische Energiesysteme", "Mikroelektronik", "Photonik", "Wirtschaftsmathematik", "Physiotherapie", "Hebammenwissenschaft", "Sicherheit und Gefahrenabwehr", "Digitale Medien", "Automotive Engineering", "Luftfahrttechnik", "Prozessinformatik", "Betriebliche Bildung", "Public Management", "Umweltrecht", "Wasserwirtschaft", "Bergbau", "Geologie", "Ökologie", "Biomedizintechnik", "Sportwissenschaft", "Europäische Studien", "Regionalentwicklung", "Textiltechnik"}
+	pool := func(from, n int) []string {
+		ids := make([]string, 0, n)
+		for i := 0; i < n; i++ {
+			ids = append(ids, modules[(from+i*7)%total].id)
+		}
+		return ids
+	}
+	for i, name := range subjectNames {
+		stg := fmt.Sprintf("%03d", 100+i)
+		bachelor := fixtureProgram{name: name, stg: stg, abschl: "82", degree: "Bachelor (universitär)", pversion: "2021", po: "2021"}
+		if i%7 == 3 {
+			bachelor.degree = "Bachelor (universitär) - Dual, praxisintegrierend"
+		}
+		bachelor.areas = []fixtureArea{
+			{label: "Pflichtmodule " + name, modules: pool(i*40+60, 12)},
+			{label: "Wahlpflichtmodule " + name, modules: pool(i*40+300, 16)},
+			{label: "Bachelor-Arbeit", modules: pool(i*40+599, 1)},
+		}
+		master := fixtureProgram{name: name, stg: stg, abschl: "88", degree: "Master (universitär)", pversion: "2022", po: "2022"}
+		if i%11 == 5 {
+			master.degree = "Master (universitär) - Doppelabschluss"
+		}
+		master.areas = []fixtureArea{
+			{label: "Pflichtmodule", modules: pool(i*40+700, 6)},
+			{label: "Wahlpflichtmodule Vertiefung " + name, modules: pool(i*40+900, 14)},
+			{label: "Master-Arbeit", modules: pool(i*40+1150, 1)},
+		}
+		programs = append(programs, bachelor, master)
+	}
+	poKey := func(p fixtureProgram) string {
+		return "auswahlBaum|studiengang:stg=" + p.stg + "|abschluss:abschl=" + p.abschl + "|stgSpecials:vert=,schwp=,kzfa=H,pversion=" + p.pversion
+	}
+	for _, p := range programs {
+		ref := p.degree + " / " + p.name + " / PO " + p.po
+		var putArea func(key string, area fixtureArea, konto *int)
+		putArea = func(key string, area fixtureArea, konto *int) {
+			var links []string
+			for _, child := range area.children {
+				*konto++
+				childKey := key + fmt.Sprintf("|konto:%d", *konto)
+				links = append(links, childKey, child.label)
+				putArea(childKey, child, konto)
+			}
+			for i, id := range area.modules {
+				links = append(links, key+fmt.Sprintf("|pruefung:%d", i+1), id+" "+byID[id].title)
+				byID[id].programs = append(byID[id].programs, ref)
+			}
+			put(catalogdb.SourceQISTree, treeBase+key, fixtureTreePage(p, links...))
+		}
+		konto := 0
+		root := poKey(p)
+		var links []string
+		for _, area := range p.areas {
+			konto++
+			childKey := root + fmt.Sprintf("|konto:%d", konto)
+			links = append(links, childKey, area.label)
+			putArea(childKey, area, &konto)
+		}
+		put(catalogdb.SourceQISTree, treeBase+root, fixtureTreePage(p, links...))
+	}
+
+	// ---- the lectures: every ninth module has one ----
+	// They are dated in the semester the snapshot will present, the calendar's (currentSemester),
+	// so that the finder and the Stundenplan compare real slots whenever the snapshot is made:
+	// lectures of the summer in a snapshot of October would leave them nothing to compare.
+	semesterKey := currentSemesterKey(time.Now())
+	semester, lectures, weeks := fixtureSemester(semesterKey)
+	// Room names as QIS prints them, one campus each, the lectures taking turns; their short forms
+	// are ZHG/HS.A, SD/11.301 and SFB/14C.103. Each campus teaches in its own grid of times, as the
+	// real schedules do.
+	rooms := []string{"Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus", "Gebäude 11 - Hörsaal SD - 11.301 Hörsaal C - Campus Sachsendorf", "Gebäude 14.C - SFB - 14C.103 Hörsaal - Campus Senftenberg"}
+	grids := [][]string{
+		{"07:30 bis 09:00", "09:15 bis 10:45", "11:30 bis 13:00", "13:45 bis 15:15", "15:30 bis 17:00", "17:30 bis 19:00"}, // Zentralcampus
+		{"07:30 bis 09:00", "09:15 bis 10:45", "11:00 bis 12:30", "13:30 bis 15:00", "15:15 bis 16:45", "17:00 bis 18:30"}, // Sachsendorf
+		{"08:00 bis 09:30", "10:00 bis 11:30", "12:30 bis 14:00", "14:30 bis 16:00", "16:30 bis 18:00", "18:30 bis 20:00"}, // Senftenberg
+	}
+	// The k-th lecture takes the slot of its campus's week (five days, six times) seven on from the
+	// campus's lecture before it, so that lectures close in the list never meet at the same time;
+	// the 31st to 45th of a campus share a slot with one of the first 15. A planned module then
+	// clashes with two to eight others and leaves the rest to fit. Every ninth meets fortnightly:
+	// in the A weeks, or in the B weeks when it is the second in its slot, beside one of the A weeks.
+	lecture := func(k int) fixtureSlot {
+		campus, turn := k%3, k/3
+		at := (7*turn + 11*campus) % 30
+		rhythm, week, every := "A/B", 0, 1
+		if k%9 == 4 {
+			rhythm, every = "A", 2
+			if turn >= 30 {
+				rhythm, week = "B", 1
+			}
+		}
+		first := lectures.AddDate(0, 0, 7*week+at%5)
+		last := first.AddDate(0, 0, 7*every*((weeks-1-week)/every))
+		return fixtureSlot{
+			day: []string{"Mo.", "Di.", "Mi.", "Do.", "Fr."}[at%5], time: grids[campus][at/5], rhythm: rhythm,
+			dates: first.Format("02.01.2006") + " bis " + last.Format("02.01.2006"), room: rooms[campus],
+		}
+	}
+	// Exam dates folia/e2e/module.mjs reads as it reads the real ones: Analysis I's exam as QIS enters one
+	// whose date is not fixed (twice: Sunday, 27.12.2015, 01:00 to 02:30), and the day a term paper
+	// of Veranstaltungsmanagement und Recht is due (23:45 to 24:00 on the Sunday that ends the
+	// last week of lectures).
+	placeholder := fixtureSlot{day: "So.", time: "01:00 bis 02:30", rhythm: "Einzel", dates: "am 27.12.2015"}
+	due := fixtureSlot{day: "So.", time: "23:45 bis 24:00", rhythm: "Einzel", dates: "am " + lectures.AddDate(0, 0, 7*weeks-1).Format("02.01.2006")}
+	examDates := map[string][]fixtureSlot{"11103": {placeholder, placeholder}, "12000": {due}}
+
+	// ---- module pages, the lists ----
+	var list strings.Builder
+	list.WriteString(`<table><tbody class="list">`)
+	var fues strings.Builder
+	fues.WriteString(`<table summary="Suchergebnis"><tr><th>Nr.</th><th>Modultitel</th><th>Sprache</th><th>LP</th><th>FÜS</th><th>Teilnehmerbeschränkung</th></tr>`)
+	// Datenbanken and Veranstaltungsmanagement und Recht are FÜS modules, as the real ones are.
+	isFues := map[string]bool{"12330": true, "12000": true}
+	for _, id := range fuesIDs {
+		isFues[id] = true
+	}
+	eventNo, examNo := 200000, 300000
+	var events []string
+	link := func(no int, kind string) string {
+		return fmt.Sprintf(`<li><a href="https://www.b-tu.de/qisserver3/rds?state=verpublish&veranstaltung.veranstid=%d">%d %s</a></li>`, no, no, kind)
+	}
+	for i, m := range modules {
+		fmt.Fprintf(&list, `<tr><td class="moduleNumber"><a href="/modul/%s">%s</a></td><td class="title">%s</td></tr>`, m.id, m.id, m.title)
+		if isFues[m.id] {
+			fmt.Fprintf(&fues, `<tr><td>%s</td><td><a href="#">%s</a></td><td>Deutsch</td><td>6</td><td>ja</td><td></td></tr>`, m.id, m.title)
+		}
+		assignment := "<li>keine Zuordnung vorhanden</li>"
+		if len(m.programs) > 0 {
+			assignment = ""
+			for _, ref := range m.programs {
+				assignment += "<li>" + ref + "</li>"
+			}
+		}
+		extra := `<tr><td>Zuordnung zu Studiengängen:</td><td><ul>` + assignment + `</ul></td></tr>`
+		if isFues[m.id] {
+			extra += `<tr><td>&nbsp;</td><td>Das Modul ist für das Fachübergreifende Studium zugelassen.</td></tr>`
+		}
+		// The module's events of the semester, as its page links them.
+		var held []string
+		if i%9 == 0 {
+			eventNo++
+			held = append(held, link(eventNo, "Vorlesung"))
+			events = append(events, fmt.Sprintf("%d", eventNo), fixtureEventPage(m.title, "Vorlesung", semester, lecture(i/9)))
+		}
+		if dates, ok := examDates[m.id]; ok {
+			examNo++
+			held = append(held, link(examNo, "Prüfung"))
+			events = append(events, fmt.Sprintf("%d", examNo), fixtureEventPage(m.title, "Prüfung", semester, dates...))
+		}
+		if len(held) > 0 {
+			extra += `<tr><td>Veranstaltungen im aktuellen Semester:</td><td><ul>` + strings.Join(held, "") + `</ul></td></tr>`
+		}
+		// The remarks name the programs with their degree label, as the live pages do; that is
+		// where „B.Sc." and „M.Sc." come from. No kind is stated here: the tree states it.
+		var remarks []string
+		for _, ref := range m.programs {
+			parts := strings.Split(ref, " / ")
+			// Not every program is named with its label (Architektur reads „Bachelor" then).
+			if len(parts) < 3 || parts[1] == "Architektur" {
+				continue
+			}
+			label := "B.Sc."
+			if strings.HasPrefix(parts[0], "Master") {
+				label = "M.Sc."
+			}
+			remarks = append(remarks, fmt.Sprintf("• Studiengang %s %s: Modul des Curriculums", parts[1], label))
+		}
+		if i%13 == 0 {
+			remarks = append(remarks, "• Das Modul wird in Kooperation mit der Praxis angeboten.")
+		}
+		if len(remarks) > 0 {
+			extra += `<tr><td>Bemerkungen:</td><td>` + strings.Join(remarks, " ") + `</td></tr>`
+		}
+		// Every module draws its facets, in this order, also one that keeps its own: the modules
+		// after it keep theirs.
+		department, person, language := departments[next(len(departments))], persons[next(len(persons))], languages[next(len(languages))]
+		offered, lp, examForm := turnus[next(len(turnus))], credits[next(len(credits))], exams[next(len(exams))]
+		if m.id == "12330" {
+			// The four badges of the real Datenbanken (6 LP, jedes Semester, DE, FÜS), which leave
+			// the preview no room for „Einplanen" and „Merken" side by side (folia/e2e/module.mjs).
+			offered, lp, language = "jedes Semester", "6", "Deutsch"
+		}
+		var page strings.Builder
+		page.WriteString(`<html><body><div class="tx-btusysteme"><h1>` + m.id + ` - ` + m.title + ` <small>Modulübersicht</small></h1><table>
+		<tr><td>Modulnummer:</td><td>` + m.id + `</td></tr>
+		<tr><td>Modultitel:</td><td>` + m.title + `</td></tr>
+		<tr><td>&nbsp;</td><td>` + m.title + ` (EN)</td></tr>
+		<tr><td>Einrichtung:</td><td>` + department + `</td></tr>
+		<tr><td>Verantwortlich:</td><td><ul><li>` + person + `</li></ul></td></tr>
+		<tr><td>Lehr- und Prüfungssprache:</td><td>` + language + `</td></tr>
+		<tr><td>Dauer:</td><td>1 Semester</td></tr>
+		<tr><td>Angebotsturnus:</td><td>` + offered + `</td></tr>
+		<tr><td>Leistungspunkte:</td><td>` + lp + `</td></tr>
+		<tr><td>Empfohlene Voraussetzungen:</td><td>keine</td></tr>
+		<tr><td>Zwingende Voraussetzungen:</td><td>keine</td></tr>
+		<tr><td>Lehrformen und Arbeitsumfang:</td><td><ul><li>` + strings.Join(teaching[i%len(teaching)], "</li><li>") + `</li></ul></td></tr>
+		<tr><td>Modulprüfung:</td><td>Modulabschlussprüfung (MAP)</td></tr>
+		<tr><td>Prüfungsleistung/en für Modulprüfung:</td><td>` + examForm + `</td></tr>
+		<tr><td>Bewertung der Modulprüfung:</td><td>Prüfungsleistung - benotet</td></tr>
+		<tr><td>Teilnehmerbeschränkung:</td><td>keine</td></tr>
+		<tr><td>Inhalte:</td><td>Dieses Modul behandelt die Grundlagen von ` + m.title + `. Es vermittelt Begriffe, Methoden und Werkzeuge und übt sie an Beispielen ein.
+
+Im zweiten Teil werden Anwendungen aus Forschung und Praxis vorgestellt.</td></tr>
+		<tr><td>Lernziele:</td><td>Die Studierenden können die Konzepte von ` + m.title + ` erklären und auf neue Aufgaben anwenden.</td></tr>
+		` + extra + `
+	</table></div></body></html>`)
+		put(catalogdb.SourceModulePage, m.id, page.String())
+	}
+	list.WriteString(`</tbody></table>`)
+	fues.WriteString(`</table>`)
+	put(catalogdb.SourceModuleCatalog, "list", list.String())
+	put(catalogdb.SourceQISFUESList, "list", fues.String())
+	for i := 0; i+1 < len(events); i += 2 {
+		put(catalogdb.SourceQISEvent, events[i], events[i+1])
+	}
+
+	// ---- a validated plan for Informatik B.Sc.: the compulsory modules of the two complexes over
+	// the first three semesters, then the rows the real plan has that name no module ----
+	var entries []catalogdb.PlanEntry
+	compulsory := append(append([]string{}, informatik.areas[0].children[0].modules...), informatik.areas[0].children[1].modules...)
+	for i, id := range compulsory {
+		semester := i/4 + 1
+		if semester > 3 {
+			semester = 3
+		}
+		entries = append(entries, catalogdb.PlanEntry{ModuleID: id, ModuleName: byID[id].title, Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 6, KindRaw: "Pflicht", SubjectArea: "Grundstudium"})
+	}
+	requirement := func(name string, semester int, credits float64, area string) {
+		entries = append(entries, catalogdb.PlanEntry{ModuleName: name, Semester: semester, StartSemester: semester, EndSemester: semester, Credits: credits, KindRaw: "Wahlpflicht", SubjectArea: area})
+	}
+	requirement("Anwendungsfach", 2, 6, "Grundstudium")
+	requirement("Proseminar oder Praktikum", 3, 6, "Grundstudium")
+	requirement("Modul aus dem Bereich Praktische Mathematik", 3, 6, "Grundstudium")
+	requirement("Anwendungsfach", 3, 6, "Grundstudium")
+	requirement("Fachübergreifendes Studium", 3, 6, "Grundstudium")
+	requirement("Wahlpflicht: Komplex Grundlagen der Informatik / Komplex Praktische Informatik / Komplex Angewandte und Technische Informatik", 4, 6, "Fachstudium")
+	requirement("Komplex Grundlagen der Informatik", 4, 12, "Fachstudium")
+	requirement("Anwendungsfach", 4, 6, "Grundstudium")
+	requirement("Komplex Praktische Informatik", 5, 12, "Fachstudium")
+	requirement("Komplex Angewandte und Technische Informatik", 5, 6, "Fachstudium")
+	requirement("Komplex Praktische Informatik", 6, 6, "Fachstudium")
+	requirement("Seminar oder Praktikum", 6, 6, "Fachstudium")
+	thesis := informatik.areas[1].modules[0]
+	entries = append(entries, catalogdb.PlanEntry{ModuleID: thesis, ModuleName: byID[thesis].title, Semester: 6, StartSemester: 6, EndSemester: 6, Credits: 12, KindRaw: "Abschlussarbeit"})
+	if err := db.SavePlan(catalogdb.Plan{ProgramID: "079-82-2008", SourceFile: "po.pdf", LayoutJSON: "{}", Entries: entries}); err != nil {
+		t.Fatalf("SavePlan failed: %v", err)
+	}
+
+	// Elektrotechnik B.Sc. 2022: one study plan per study direction, as the browser checks
+	// expect it (two plans of 180 LP, 30 LP in the first semester, rows that name no module).
+	elektrotechnik := fixtureProgram{name: "Elektrotechnik", stg: "042", abschl: "82", degree: "Bachelor (universitär)", pversion: "2022", po: "2022"}
+	etPool := func(from, n int) []string { return pool(from, n) }
+	// The tree as the real one reads: Grundstudium and Hauptstudium (phases, no headings), the
+	// electives of Informatik in a node below it that says nothing but its kind and direction.
+	elektrotechnik.areas = []fixtureArea{
+		{label: "Grundstudium", children: []fixtureArea{
+			{label: "Pflichtmodule Mathematik und Physik", modules: etPool(5, 12)},
+			{label: "Pflichtmodule Elektrotechnik", modules: etPool(105, 18)},
+			{label: "Informatik (MIT)", children: []fixtureArea{{label: "Wahlpflichtmodul (MIT)", modules: etPool(205, 8)}}},
+			{label: "Informatik (EET)", children: []fixtureArea{{label: "Wahlpflichtmodul (EET)", modules: etPool(305, 8)}}},
+			{label: "Informatik (PAu)", modules: etPool(605, 6)},
+			{label: "Informatik (IoT)", modules: etPool(705, 6)},
+		}},
+		{label: "Hauptstudium", modules: etPool(805, 1), children: []fixtureArea{
+			{label: "Studienrichtungsspezifische Vertiefungsmodule (MIT)", modules: etPool(405, 23)},
+			{label: "Studienrichtungsspezifische Vertiefungsmodule (EET)", modules: etPool(505, 20)},
+		}},
+	}
+	programs = append(programs, elektrotechnik)
+	{
+		p := elektrotechnik
+		ref := p.degree + " / " + p.name + " / PO " + p.po
+		var putArea func(key string, area fixtureArea, konto *int)
+		putArea = func(key string, area fixtureArea, konto *int) {
+			var links []string
+			for _, child := range area.children {
+				*konto++
+				childKey := key + fmt.Sprintf("|konto:%d", *konto)
+				links = append(links, childKey, child.label)
+				putArea(childKey, child, konto)
+			}
+			for i, id := range area.modules {
+				links = append(links, key+fmt.Sprintf("|pruefung:%d", i+1), id+" "+byID[id].title)
+				if !strings.Contains(strings.Join(byID[id].programs, "\n"), ref) {
+					byID[id].programs = append(byID[id].programs, ref)
+				}
+			}
+			put(catalogdb.SourceQISTree, treeBase+key, fixtureTreePage(p, links...))
+		}
+		konto := 0
+		root := poKey(p)
+		var links []string
+		for _, area := range p.areas {
+			konto++
+			childKey := root + fmt.Sprintf("|konto:%d", konto)
+			links = append(links, childKey, area.label)
+			putArea(childKey, area, &konto)
+		}
+		put(catalogdb.SourceQISTree, treeBase+root, fixtureTreePage(p, links...))
+		var etEntries []catalogdb.PlanEntry
+		common := append(append([]string{}, elektrotechnik.areas[0].children[0].modules...), elektrotechnik.areas[0].children[1].modules...)
+		for v, spec := range []string{"Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium", "Regelstudienplan der Studienrichtungen PA und IoT im grundständigen Studium"} {
+			// 20 modules of 6 LP over four semesters (30 LP each), two semesters of electives
+			// (24 LP each) and the thesis (12 LP): 180 LP per study direction.
+			for i, id := range common[:20] {
+				semester := i/5 + 1
+				etEntries = append(etEntries, catalogdb.PlanEntry{ModuleID: id, ModuleName: byID[id].title, Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 6, KindRaw: "Pflicht", StudySection: "Grundstudium", Specialization: spec})
+			}
+			for semester := 5; semester <= 6; semester++ {
+				etEntries = append(etEntries, catalogdb.PlanEntry{ModuleName: "Wahlpflichtmodule der Studienrichtung", Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 18, KindRaw: "Wahlpflicht", StudySection: "Studienrichtung", Specialization: spec})
+				etEntries = append(etEntries, catalogdb.PlanEntry{ModuleName: "Wahlpflichtmodul aus der Informatik", Semester: semester, StartSemester: semester, EndSemester: semester, Credits: 6, KindRaw: "Wahlpflicht", StudySection: "Studienrichtung", Specialization: spec})
+			}
+			thesis := elektrotechnik.areas[1].modules[0]
+			etEntries = append(etEntries, catalogdb.PlanEntry{ModuleID: thesis, ModuleName: byID[thesis].title, Semester: 6, StartSemester: 6, EndSemester: 6, Credits: 12, KindRaw: "Abschlussarbeit", Specialization: spec})
+			_ = v
+		}
+		if err := db.SavePlan(catalogdb.Plan{ProgramID: "042-82-2022", SourceFile: "po-et.pdf", LayoutJSON: "{}", Entries: etEntries}); err != nil {
+			t.Fatalf("SavePlan (Elektrotechnik) failed: %v", err)
+		}
+	}
+
+	if _, err := Build(context.Background(), db); err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	// The fixture is a catalog like any other: it passes validate (without the BTU baselines),
+	// short names included.
+	checks, err := db.Validate(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("Validate failed: %v", err)
+	}
+	for _, c := range checks {
+		if c.Status == catalogdb.StatusFail {
+			t.Errorf("validate: %s = %d %v", c.Name, c.Value, c.Samples)
+		}
+	}
+	// The lectures are in the semester the snapshot presents, and planning any one of them leaves
+	// nine in ten of the others free (another day, another time, or the other of the A and B weeks).
+	var current string
+	if err := db.SQL().QueryRow("SELECT value FROM meta WHERE key = 'current_semester'").Scan(&current); err != nil || current != semesterKey {
+		t.Errorf("current semester %q (err %v), the lectures are in %s", current, err, semesterKey)
+	}
+	var dated, most int
+	err = db.SQL().QueryRow(`
+		SELECT (SELECT COUNT(DISTINCT module_id) FROM v_module_schedule WHERE semester_key = ?1), COALESCE(MAX(n), 0) FROM (
+			SELECT COUNT(DISTINCT b.module_id) AS n FROM v_module_schedule a
+			JOIN v_module_schedule b ON b.semester_key = a.semester_key AND b.module_id <> a.module_id AND b.weekday = a.weekday
+				AND b.start_time < a.end_time AND a.start_time < b.end_time AND (a.rhythm = b.rhythm OR 'weekly' IN (a.rhythm, b.rhythm))
+			WHERE a.semester_key = ?1 GROUP BY a.module_id)`, semesterKey).Scan(&dated, &most)
+	if err != nil || dated == 0 || most*10 > dated {
+		t.Errorf("%d modules with a lecture in %s, one of them meets %d others (err %v)", dated, semesterKey, most, err)
+	}
+	snap, err := db.Export(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("Export failed: %v", err)
+	}
+	t.Logf("fixture snapshot: %s (%d bytes)", filepath.Join(dir, snap.File), snap.Bytes)
+}

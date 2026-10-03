@@ -87,13 +87,15 @@ line="$(sed -n -E 's/^[[:space:]]*cortexPaths = \[(.*)\];[[:space:]]*$/\1/p' fla
 read -r -a TAG_PATHS <<<"${line//\"/}"
 [[ "${#TAG_PATHS[@]}" -gt 0 ]] || die "flake.nix has no line 'cortexPaths = [ ... ];' that says what the image is built from"
 for path in "${TAG_PATHS[@]}"; do
-  [[ "${path}" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]*$ && "${path}" != *..* ]] || die "flake.nix: cortexPaths names '${path}', which is not a path of the repository"
+  [[ "${path}" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]*$ && "${path}" != *..* ]] || die "flake.nix: cortexPaths names '${path}', which is not a path of the Go module radix/"
 done
+# cortexPaths are relative to the Go module radix/; git wants them from the repository's root.
+TAG_PATHS=("${TAG_PATHS[@]/#/radix/}")
 TAG_PATHS+=(flake.nix flake.lock)
 # What the build gets: the whole Go module. The flake vendors the module's dependencies from all
 # of it (one vendorHash for Radix and Cortex), so without Radix's packages the vendored set, and
 # with it the hash, would differ; the binary is built from cortexPaths alone all the same.
-EXPORT_PATHS=(flake.nix flake.lock go.mod go.sum cmd internal)
+EXPORT_PATHS=(flake.nix flake.lock radix/go.mod radix/go.sum radix/cmd radix/internal)
 
 # The last commit that changed what the image is built from: anything else is not a new release,
 # and must not restart Cortex under a new tag.

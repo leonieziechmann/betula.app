@@ -1,5 +1,5 @@
 # Optional override for stacks/betula.yml: Radix fetches through Cortex (stacks/cortex.yml,
-# docs/cortex.md), the cache between the application and the internet. Every request of the
+# docs/cortex/cortex.md), the cache between the application and the internet. Every request of the
 # crawl and of the statute download goes to Cortex, which fetches from the university only what
 # it does not have fresh, at its own polite pace per host, and keeps every version. Gemini is
 # asked directly all the same (owner, 2026-10-02: Cortex is for data only).
