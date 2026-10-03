@@ -1,4 +1,4 @@
-// Starts the browser app: starts the data worker (folia/crates/client/js/data-worker.js), which finds,
+// Starts the browser app: starts the data worker (folia/crates/worker/js/data-worker.js), which finds,
 // fetches and opens the catalog (kept in IndexedDB by the snapshot's ETag), loads the WASM bundle
 // and lets it take the page over once the worker has answered for it. Until then, and whenever
 // anything here fails, the server-rendered site keeps working as it is.
@@ -188,7 +188,7 @@ function startSemantic() {
   };
 }
 
-// The data worker (folia/crates/client/js/data-worker.js, docs/folia/folia-refactor.md §6.2): the
+// The data worker (folia/crates/worker/js/data-worker.js, docs/folia/folia-refactor.md §6.2): the
 // catalog and the app's bundle beside the page's thread, which answer every question of the app's
 // pages; the page builds what they say. A Web Worker, not the service worker: a browser stops an
 // idle service worker after some seconds, and each start would open the catalog again.

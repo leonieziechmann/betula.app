@@ -433,7 +433,7 @@ days as `{job="journal"}`. Not in Docker's local log files, which only rotate by
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
 removes them (`91-verify-stacks.sh accesslog` checks; `90-verify-host.sh journald` checks the oldest
 journal entry). The placeholder's nginx writes no access log. The privacy notice of the site names the
-first two rows („Zugriffsprotokoll" in `folia/crates/app/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
+first two rows („Zugriffsprotokoll" in `folia/crates/home/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
 `stacks/edge.yml` (loses abuse analysis) or shorten the period, in `loki.yml` and
 `vps/files/journald-betula.conf` together.
 

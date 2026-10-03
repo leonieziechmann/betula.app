@@ -1,4 +1,4 @@
-// Checks the swipe on a row of the catalog and of the Merkliste on a phone (folia/crates/app/src/swipe.rs;
+// Checks the swipe on a row of the catalog and of the Merkliste on a phone (folia/crates/widgets/src/swipe.rs;
 // owner, 2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann
 // darunter freigelegt wird was die Aktion macht (also Icon und Text)", „Mach das auch in der
 // Merkliste"), with real touches (`Input.dispatchTouchEvent`, as tabbar.mjs): the card follows the

@@ -583,7 +583,7 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option
     }
 }
 
-/// A step within a page that shows its modules in place (`crate::local`), as far as what fills
+/// A step within a page that shows its modules in place (`folia_widgets::local`), as far as what fills
 /// the page decides it: a module coming to fill it is a page of its own, the module's, and the
 /// page coming back where a module filled it is `after_module` (the page's column, or on a phone
 /// whatever else is picked there). `None` where the same fills the page before and after: the

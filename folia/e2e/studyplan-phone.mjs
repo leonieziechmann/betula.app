@@ -1,4 +1,4 @@
-// Checks the Stundenplan on a phone (owner, 2026-09-27; folia/crates/app/src/pages/studyplan/week.rs
+// Checks the Stundenplan on a phone (owner, 2026-09-27; folia/crates/planner/src/studyplan/week.rs
 // `WeekCarousel`): „Woche" is a grid there too, as wide as the window; where the plan has Termine of
 // A or B weeks only, a carousel of „A-Woche", „B-Woche" and „A/B" with its tabs under it (none in
 // the head), which a finger swipes and carries while it moves, the page scrolling under any other

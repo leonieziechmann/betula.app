@@ -14,7 +14,7 @@
 //! them (the plan's, else „Mein Studiengang"). Nothing of what is hidden or chosen, no
 //! placeholders, no Standort. Folia's own log writes the page's path without its query, and the
 //! card's path as one fixed text (`redacted_path`); the edge's access log keeps the address like
-//! every address. The privacy notice says so („Stundenplan teilen" in folia/crates/app/src/pages/legal.rs): a
+//! every address. The privacy notice says so („Stundenplan teilen" in folia/crates/home/src/legal.rs): a
 //! field added here is a word added there.
 //!
 //! A code outlives releases like a calendar's (a link in a chat is opened weeks later): it names

@@ -16,7 +16,7 @@
 //!
 //! „Einplanen" (`PlanButton`) plans a module from its preview and its page: into the semester
 //! `target_semester` aims at, and for the placeholder the finder was asked for (`PlanHint`). A row
-//! of the catalog swiped to the right on a phone presses it too (`crate::swipe`, `press`).
+//! of the catalog swiped to the right on a phone presses it too (`folia_widgets::swipe`, `press`).
 
 use std::collections::BTreeSet;
 
@@ -463,7 +463,7 @@ impl Aim {
 }
 
 /// What „Einplanen" aims at for a module now, asked once and not through a memo: for what presses
-/// it without being its switch, a row swiped to the right (`crate::swipe`), which asks when the
+/// it without being its switch, a row swiped to the right (`folia_widgets::swipe`), which asks when the
 /// finger starts. `current` and `newest` as for `PlanButton`.
 pub fn aim_now(plan: Studyplan, id: &str, current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>) -> Aim {
     plan.with_untracked(|doc| aim_of(id, current, newest, turnus, hint, doc))
@@ -543,7 +543,7 @@ fn tooltip_text(aim: &Aim, pressed: bool, t: &'static Texts) -> String {
     format!("{what}{elsewhere} (P)")
 }
 
-/// What a row swiped to the right says (`crate::swipe`), as (word, line, word once done): the
+/// What a row swiped to the right says (`folia_widgets::swipe`), as (word, line, word once done): the
 /// switch's „Einplanen" with the semester it plans into and the placeholder it plans for, or
 /// „Entfernen" with the semester it takes the module out of — what the swipe does, where the
 /// switch's label says what the module is.

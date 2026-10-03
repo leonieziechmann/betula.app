@@ -1,4 +1,4 @@
-// Checks that a click answers in the next frame (folia/crates/app/src/pending.rs): what was clicked shows its
+// Checks that a click answers in the next frame (folia/crates/shell/src/pending.rs): what was clicked shows its
 // new state at once, what still has to be computed stands there as a skeleton, and the result
 // follows and replaces it.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node snappy.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)

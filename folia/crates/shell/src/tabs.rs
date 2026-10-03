@@ -29,7 +29,7 @@ pub enum Area {
     Catalog,
     Programs,
     /// „Merkliste": the visitor's marked modules. It is one page, and a module opened from it is
-    /// shown on it (`crate::local`), beside the list or in full.
+    /// shown on it (`folia_widgets::local`), beside the list or in full.
     Bookmarks,
     /// „Studienplan": the visitor's plan. One page as well; a module opened from it stands beside
     /// the plan, and fills it after „Vollbild" (`folia_routes::url::PlanAddress`).
@@ -37,7 +37,7 @@ pub enum Area {
 }
 
 impl Area {
-    /// The area shows the modules it lists in place (`crate::local`): beside its page and in full,
+    /// The area shows the modules it lists in place (`folia_widgets::local`): beside its page and in full,
     /// without leaving the area. What is opened there stays the area's: a module's own page
     /// reached from it (a link on the module's page) does not become what the catalog remembers,
     /// and its „Zurück" leads back into the area (`Tabs::came_from`).

@@ -54,7 +54,7 @@
 
   --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
   --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
-  /* A skeleton (folia/crates/app/src/skeleton.rs): the grey of its bars and the light that sweeps over it. */
+  /* A skeleton (folia/crates/shell/src/skeleton.rs): the grey of its bars and the light that sweeps over it. */
   --sk: rgba(15, 23, 42, .07);
   --sk-shine: rgba(255, 255, 255, .6);
   --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
@@ -66,7 +66,7 @@
   --filters: clamp(232px, var(--w-filters), min(440px, 42vw));
   --preview-w: 480px;
 
-  /* The birch around the app (owner, 2026-09-25; design/birch, folia/crates/app/src/ground.rs). The crown is
+  /* The birch around the app (owner, 2026-09-25; design/birch, folia/crates/shell/src/ground.rs). The crown is
      a cut-out silhouette in the tone of the season (`data-season` from the script in <head>;
      summer without it); what hangs behind is the same tone at half strength. The ground at the end
      of a page is Lausitz sand, a little deeper towards the bottom; the roots are a step darker. */
@@ -684,7 +684,7 @@ html:not(.js) .fit-chip { display: none; }
 .people-hint span { display: block; }
 .people-hint b { display: inline-block; width: 14px; color: var(--text-2); font-weight: 700; }
 
-/* Pickers with a search (folia/crates/app/src/combobox.rs). The popup is fixed to the window, so the
+/* Pickers with a search (folia/crates/design/src/combobox.rs). The popup is fixed to the window, so the
    panel does not clip it; on a phone it opens in place, across its panel. */
 .combo { position: relative; }
 .combo-trigger { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 600; text-align: left; transition: background .12s; }
@@ -940,7 +940,7 @@ html:not(.js) .fit-chip { display: none; }
 .state p { color: var(--text-2); margin-bottom: 14px; }
 .state-detail { font-family: var(--mono); font-size: 11.5px; color: var(--text-3); }
 
-/* ---------- marked modules („Merken", folia/crates/app/src/bookmarks.rs) ----------
+/* ---------- marked modules („Merken", folia/crates/stores/src/bookmarks.rs) ----------
    Marking belongs to the browser app, so its buttons stay out of sight until the app runs (.app):
    server HTML shows every module unmarked, to everybody (R9). Where a button is part of server
    HTML its place is kept (visibility, not display), so nothing moves at the takeover; without
@@ -1112,7 +1112,7 @@ button.action:hover { background: var(--panel-3); }
 .fact dt { color: var(--text-3); font-size: 11.5px; }
 .fact dd { margin: 0; font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
 /* A column per day, equal ones; a fitted grid (the Stundenplan's) gives each day its share of the
-   week instead, more where modules stand side by side (--cols, folia/crates/app/src/week.rs). */
+   week instead, more where modules stand side by side (--cols, folia/crates/widgets/src/week.rs). */
 .week { display: grid; grid-template-columns: 30px var(--cols, repeat(var(--days, 5), minmax(0, 1fr))); gap: 0 5px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 10px 10px 12px 4px; }
 .week .d { text-align: center; font-size: 11.5px; font-weight: 650; color: var(--text-3); padding-bottom: 8px; }
 .week .hours { grid-row: 2; display: grid; grid-auto-rows: 48px; font-size: 10.5px; color: var(--text-3); text-align: right; padding-right: 4px; }
@@ -2423,10 +2423,10 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 
 .bottomnav { display: none; }
 
-/* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/app/src/studyplan.rs) ----------
+/* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
    The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
    the main column (.sp-body) that fills the page's height. The views are built by the parts of
-   folia/crates/app/src/pages/studyplan/*.rs; the markup each rule expects is named beside it. A module's tone is
+   folia/crates/planner/src/studyplan/*.rs; the markup each rule expects is named beside it. A module's tone is
    a `t-…` class (--tint), as on the start page and in the week grid. */
 /* One column that never grows past the page: its grid items hold lines that do not wrap. */
 .page-inner.sp { min-height: 100%; grid-template-columns: minmax(0, 1fr); }
@@ -2900,7 +2900,7 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 .gate-problem { margin-top: 8px; padding: 9px 12px; border-radius: var(--r-ctl); background: var(--no-soft); color: var(--no); font-size: 13px; font-weight: 550; }
 .gate-panel .button { width: 100%; min-height: 48px; margin-top: 14px; justify-content: center; font-size: 15px; }
 
-/* ---------- waiting: the frame of what comes (folia/crates/app/src/pending.rs, folia/crates/app/src/skeleton.rs) ----------
+/* ---------- waiting: the frame of what comes (folia/crates/shell/src/pending.rs, folia/crates/shell/src/skeleton.rs) ----------
    A click answers in the next frame; what still has to be computed stands there as a skeleton, in
    the frame of what comes (the layout classes of the page, so every panel is where the page will
    put its own): grey bars where the text will be. A band of light sweeps over it once the wait is
@@ -3065,7 +3065,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .narrow-only { display: inline; }
   /* A row of the catalog's list, or of the Merkliste, is swiped sideways (owner, 2026-09-30:
      „Nach links wischen merken nach rechts wischen planen … dass dann darunter freigelegt wird
-     was die Aktion macht (also Icon und Text)"; folia/crates/app/src/swipe.rs). The row keeps a finger that
+     was die Aktion macht (also Icon und Text)"; folia/crates/widgets/src/swipe.rs). The row keeps a finger that
      moves sideways (up and down it scrolls the page, two fingers zoom). While the finger has the
      card (data-swipe="drag", following it without a transition) and while the card glides back
      ("glide"), the row is the card's place: it clips the card, which moves by --swipe together

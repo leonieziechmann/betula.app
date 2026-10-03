@@ -38,7 +38,7 @@ pub const PATH: &str = "/access";
 /// The name of the secret: `/run/secrets/folia-access-password`, `FOLIA_ACCESS_PASSWORD[_FILE]`.
 pub const SECRET: &str = "folia-access-password";
 /// The site's only cookie. The privacy notice describes it, its content and its 90 days
-/// („Cookies" in folia/crates/app/src/pages/legal.rs): change it with them.
+/// („Cookies" in folia/crates/home/src/legal.rs): change it with them.
 const COOKIE: &str = "betula_access";
 /// How long a visit lasts. A new password ends all of them earlier.
 const VISIT: Duration = Duration::from_secs(90 * 24 * 60 * 60);

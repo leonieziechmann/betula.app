@@ -91,12 +91,13 @@ if (dir) {
       if (waited > 600000) throw new Error("the server did not take the newer snapshot");
       await page.waitForTimeout(1000);
     }
-    const scrolled = await page.evaluate(() => { const list = document.querySelector("#catalog-scroll, .work.flowing"); list.scrollTop = 400; return list.scrollTop; });
+    const scrolled = await page.evaluate(() => { const list = document.querySelector("#catalog-scroll, .work.flowing"); list.scrollTop = 400; return { top: list.scrollTop, height: list.scrollHeight, rows: document.querySelectorAll(".rows a.row").length }; });
     t = Date.now();
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     await page.waitForFunction(() => document.querySelector(".ground")?.textContent.includes("02.01.2031"), null, { timeout: 60000 });
     timings["a newer snapshot in place"] = Date.now() - t;
-    check((await page.evaluate(() => document.querySelector("#catalog-scroll, .work.flowing").scrollTop)) === scrolled, "the list did not stay where it was when the new data came");
+    const after = await page.evaluate(() => { const list = document.querySelector("#catalog-scroll, .work.flowing"); return { top: list.scrollTop, height: list.scrollHeight, rows: document.querySelectorAll(".rows a.row").length }; });
+    check(after.top === scrolled.top, `the list did not stay where it was when the new data came: ${JSON.stringify({ before: scrolled, after })}`);
     check(await page.evaluate(() => Boolean(document.querySelector(".detail h2") && location.search.includes("turnus=winter"))), "the page did not stay the page it was");
     // The other tab, told by the first one's worker.
     await second.waitForFunction(() => document.querySelector(".ground")?.textContent.includes("02.01.2031"), null, { timeout: 30000 }).catch(() => problems.push("the other tab did not get the newer snapshot"));
