@@ -36,10 +36,10 @@ use leptos::prelude::*;
 use folia_data::use_data;
 use folia_design::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
-use crate::pages::catalog::{duration_choices, years_choices, Choice, Toggle, Tri};
+use folia_widgets::choices::{duration_choices, years_choices, Choice, Toggle, Tri};
 use folia_shell::seo;
 use folia_design::ui::{Icon, KindBadge, Mark};
-use crate::week::{GridSlot, WeekGrid};
+use folia_widgets::week::{GridSlot, WeekGrid};
 
 /// The browser app (`csr`): only there do the board's chips switch, and count what they choose.
 const APP: bool = cfg!(feature = "csr");
@@ -408,9 +408,9 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
                 <p class="flabel label sub">{c.department}</p>
                 {field("building-2", c.all_departments.to_string(), false)}
                 <p class="flabel label sub">{c.duration}</p>
-                {choose(chosen, c.duration, duration_choices(t))}
+                {choose(chosen, c.duration, duration_choices(t.locale))}
                 <p class="flabel label sub">{c.years_only}</p>
-                {choose(chosen, c.years, years_choices(t))}
+                {choose(chosen, c.years, years_choices(t.locale))}
                 <p class="flabel label sub">{c.location}</p>
                 {chips(campuses)}
                 {chips(vec![chip(c.show_not_offered, None, Toggle::show_not_offered())])}

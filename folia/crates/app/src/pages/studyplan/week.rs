@@ -1,7 +1,7 @@
 //! The views „Woche" and „Termine" of one semester of the Studienplan.
 //!
 //! „Woche" is the Regelwoche (`Timetable::regular_week`): a slot per recurring Termin at its
-//! weekday and time in the week grid (`crate::week`, fitted to the page's height), and the dates of
+//! weekday and time in the week grid (`folia_widgets::week`, fitted to the page's height), and the dates of
 //! an event that do not recur gathered into one slot („3 Termine"). The week is there before
 //! anything is planned, an empty frame with „Noch keine Termine" in its middle and the ways to
 //! modules under it (`NothingPlanned`, owner 2026-09-25; on a phone the words and the ways alone,
@@ -70,7 +70,7 @@ use crate::i18n::{self, Locale};
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
-use crate::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
+use folia_widgets::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
 use super::head::{hue, kind_word, tone_at, NothingPlanned};
 use super::PlanCtx;
 

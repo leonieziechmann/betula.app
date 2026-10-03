@@ -34,7 +34,7 @@ use folia_design::format;
 use crate::i18n::{self, Locale};
 use folia_stores::myprogram::MineResolved;
 use folia_design::nav;
-use crate::pages::catalog::finder_on;
+use folia_widgets::finder::finder_on;
 use folia_design::ui::Icon;
 use super::week::{has_ab, AllSwitch, WeekSwitch};
 use super::{key_of, PlanCtx, SheetToggle};

@@ -19,6 +19,7 @@ members = [
     "crates/stores",
     "crates/test-support",
     "crates/timetable",
+    "crates/widgets",
 ]
 # `client` is the WASM build of the app (feature csr); building it together with the server
 # (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
@@ -41,6 +42,7 @@ default-members = [
     "crates/stores",
     "crates/test-support",
     "crates/timetable",
+    "crates/widgets",
 ]
 resolver = "2"
 

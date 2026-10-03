@@ -11,13 +11,13 @@
 //! lists none. What it compares is kept in the browser for the next time it is switched on
 //! (`finder_on`).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use folia_calendar::semester::SemesterKey;
-use folia_model::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
+use folia_model::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm};
 use folia_model::rows::{CatalogRow, Department, Program};
 use folia_pages::ask::{CatalogAsk, CatalogChoicesAsk, CatalogCountAsk, CatalogPositionAsk, CatalogRowsAsk, CatalogSummaryAsk, FitAsk, MetaAsk, ModuleAsk, SimilarAsk};
 use folia_pages as pages;
@@ -27,7 +27,7 @@ use folia_plans::plan::SemesterPlan;
 use folia_plans::studyplan::PlanDoc;
 use folia_routes::filter::{
     CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope,
-    SortKey, TurnusFilter,
+    SortKey,
 };
 use folia_routes::url::{self, CatalogUrl, PAGE_SIZE, ProgramTab};
 use leptos::prelude::*;
@@ -35,22 +35,24 @@ use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
-use folia_stores::bookmarks::{Bookmarks, MarkButton, MarkLook};
+use folia_stores::bookmarks::Bookmarks;
 use folia_design::combobox::{ClosePopups, ComboItem, Combobox};
 use folia_data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale};
 use folia_stores::myprogram::{MineResolved, MyProgram};
 use folia_design::nav;
-use crate::pages::module::ModulePanel;
+use folia_widgets::module::ModulePanel;
 use folia_shell::pending::{Change, Pending, Prepare};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{self, DetailSkeleton, FiltersStandin, RowsSkeleton};
 use folia_stores::studyplan::{PlanHint, Studyplan};
-use crate::swipe::RowSwipe;
 use folia_shell::tabs::{self, Tabs};
 use folia_shell::frame::ErrorState;
-use folia_design::ui::{Hit, Icon, KindBadge, OfferBadge};
+use folia_design::ui::{Hit, Icon};
+use folia_widgets::choices::{duration_choices, years_choices, Choice, Held, Toggle, Tri};
+use folia_widgets::finder::{finder_on, finder_text, FitView, Finder, FINDER_KEY};
+use folia_widgets::list::{phone_layout, ListKeys, Row};
 
 #[component]
 pub fn CatalogPage() -> impl IntoView {
@@ -381,21 +383,6 @@ pub fn CatalogPage() -> impl IntoView {
     }
 }
 
-/// Whether the phone layout is in use, kept up to date while the window changes its size. A list
-/// needs it because its rows lead to the module's page there and to a preview elsewhere.
-pub(crate) fn phone_layout() -> RwSignal<bool> {
-    let phone = RwSignal::new(nav::is_phone());
-    Effect::new(move |_| {
-        let handle = window_event_listener(leptos::ev::resize, move |_| {
-            if phone.get_untracked() != nav::is_phone() {
-                phone.set(nav::is_phone());
-            }
-        });
-        on_cleanup(move || handle.remove());
-    });
-    phone
-}
-
 /// „Gemerkt" is a filter like any other, but what is marked lives in the browser: the URL says
 /// only whether the filter is on, and the query gets the ids here, where they never reach a link
 /// or the server (R20). Marking a module while the filter is on changes the list, and only then.
@@ -425,48 +412,6 @@ struct Fitted {
     view: FitView,
     /// The local catalog could not answer: the list says so instead of listing nothing.
     failed: Option<DataError>,
-}
-
-/// What the finder says beside the list: a small note at a row that fits only in part or could
-/// not be checked („Übung 1 von 3 frei", „keine festen Termine"), and a line under the tags when
-/// the semester has no dates yet.
-#[derive(Clone, Debug, Default, PartialEq)]
-struct FitView {
-    /// By module id, as the finder words them.
-    notes: BTreeMap<String, String>,
-    /// The modules whose note says why they could not be checked (`FitResult::unknown`): a quiet
-    /// note, where a partial fit's warns.
-    quiet: BTreeSet<String>,
-    /// The modules checked that do not clash.
-    fitting: BTreeSet<String>,
-    /// „keine Termine im WiSe 2026/27": with „auch ohne Termine", what a listed module that was
-    /// not checked says.
-    undated_note: Option<String>,
-    /// „SoSe 2027: noch keine Termine veröffentlicht.": nothing could be checked.
-    line: Option<String>,
-}
-
-impl FitView {
-    /// The note at a module's row, and whether it is a quiet one (not checked, rather than
-    /// fitting only in part). `no_termine`: the row says „noch keine Termine" itself, so a note
-    /// that would only say the same again („keine festen Termine", „keine Termine im WiSe
-    /// 2026/27") is left out (owner, 2026-09-23: „Viel Redundanz").
-    fn note_of(&self, id: &str, no_termine: bool) -> Option<(String, bool)> {
-        match self.notes.get(id) {
-            Some(note) if no_termine && note.starts_with(folia_timetable::i18n::texts(crate::i18n::locale()).no_fixed_dates) => None,
-            Some(note) => Some((note.clone(), self.quiet.contains(id))),
-            None => self.undated_note.clone().filter(|_| !no_termine && !self.fitting.contains(id)).map(|note| (note, true)),
-        }
-    }
-}
-
-/// What the catalog's list tells its rows and its head of the Studienplan (`CatalogPage` provides
-/// it; other lists of modules have none): the finder's view, and what „Einplanen" aims at, which
-/// a row takes along to the module's page on a phone.
-#[derive(Clone, Copy)]
-struct Finder {
-    view: Memo<FitView>,
-    hint: Memo<Option<PlanHint>>,
 }
 
 /// Fills `fits_ids` from the plan when the query has the finder switch on, like `with_marks` the
@@ -524,35 +469,6 @@ fn semester_label(key: &str, locale: Locale) -> String {
 /// (`studyplan::target_semester`), not another one.
 fn finder_semester(doc: &PlanDoc, fill: Option<u32>, current: SemesterKey) -> SemesterKey {
     fill.and_then(|pid| doc.placeholders.iter().find(|placeholder| placeholder.pid == pid)).map_or(current, |placeholder| placeholder.semester)
-}
-
-/// Where this browser remembers what „Passt in meinen Stundenplan" compares, for the next time it
-/// is switched on (owner, 2026-09-26: the choice below it is kept, not reset with every switch):
-/// the part of the address that says it (`fits-skip=exam&fits-undated=1`), nothing while it
-/// compares everything. A view setting like the width of the panel (R13): never in server HTML.
-const FINDER_KEY: &str = "betula.finder";
-
-/// The finder switched on for `semester` (the catalog's switch, „+ Modul" and „Modul finden" of the
-/// Stundenplan): comparing what it compared when this browser had it on last, everything the
-/// first time. The server's page knows nothing of it (R9).
-pub(crate) fn finder_on(semester: SemesterKey) -> FitsFilter {
-    finder_kept(nav::local_get(FINDER_KEY).as_deref(), semester)
-}
-
-/// `finder_on` with what is stored. Read as the address is read (what comes from storage is
-/// checked like what comes from a URL, R20), and a choice that compares no class at all is none.
-fn finder_kept(stored: Option<&str>, semester: SemesterKey) -> FitsFilter {
-    let all = FitsFilter::all(&semester.key());
-    let Some(stored) = stored.filter(|stored| !stored.is_empty()) else { return all };
-    CatalogUrl::parse(&format!("fits={}&{stored}", all.semester)).query.fits.filter(|kept| kept.lectures || kept.exercises || kept.exams).unwrap_or(all)
-}
-
-/// What `FINDER_KEY` keeps of the finder: its pairs of the address without the semester, written
-/// by the address's own codec. Empty while it compares everything (`nav::local_set` then takes
-/// the key out).
-fn finder_text(fits: &FitsFilter) -> String {
-    let only_finder = CatalogUrl { query: CatalogQuery { fits: Some(fits.clone()), ..CatalogQuery::default() }, ..CatalogUrl::default() };
-    only_finder.to_query_string().split('&').filter(|pair| !pair.starts_with("fits=")).collect::<Vec<_>>().join("&")
 }
 
 /// What to leave out when nothing fits: the classes compared besides the lectures, which have to
@@ -1547,150 +1463,6 @@ fn VirtualRows(
     }
 }
 
-/// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
-/// a link; the mark at its end is a button next to the link, not inside it.
-#[component]
-pub(crate) fn Row(
-    row: CatalogRow,
-    /// Where the row leads on the desktop: in the app its list with this module previewed next
-    /// to it, on the server's page the module's own page. On a phone it leads to the module's
-    /// own page either way, unless the list shows its modules `in_place`.
-    #[prop(into)] preview: Signal<String>,
-    /// This module is the one previewed.
-    #[prop(into)] current: Signal<bool>,
-    phone: RwSignal<bool>,
-    with_program: bool,
-    /// In the list of marked modules a module whose mark was taken away stays where it is,
-    /// dimmed, so that a slip is one click to undo.
-    #[prop(optional)] dim_unmarked: bool,
-    /// The list shows its modules in place (a local view, `crate::local`): on a phone as well
-    /// the row leads to `preview`, where the module is the page, not to the module's own page.
-    #[prop(optional)] in_place: bool,
-    /// Every other row of the list is shaded. The list says which, from the row's place in the
-    /// whole list: the virtual list renders only the rows on screen, so the stylesheet cannot count.
-    #[prop(optional)] shaded: bool,
-    /// On a phone the row is swiped to mark the module (to the left) and to plan it (to the right,
-    /// `crate::swipe`): the lists of the catalog and of the marked modules in the browser app.
-    #[prop(optional)] swipe: bool,
-) -> impl IntoView {
-    let t = i18n::t();
-    let language = format::languages(row.teaches_german, row.teaches_english);
-    let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
-        Some(TurnusSeason::Winter) => ("snowflake", t.catalog.row_winter.to_string()),
-        Some(TurnusSeason::Summer) => ("sun", t.catalog.row_summer.to_string()),
-        Some(TurnusSeason::Both) => ("repeat", t.catalog.row_every.to_string()),
-        Some(TurnusSeason::Irregular) => ("shuffle", t.catalog.row_irregular.to_string()),
-        None => ("minus", row.turnus_season.as_ref().map(|s| s.label(t.locale).to_string()).unwrap_or_else(|| t.catalog.row_unknown.to_string())),
-    };
-    let events = (t.catalog.events)(row.teaching_events);
-    let has_events = row.teaching_events > 0;
-    let target = row.id.clone();
-    let finder = use_context::<Finder>();
-    // The preview next to the list; on a phone the module's own page, or where the list shows it
-    // in place, the module filling the list's page. The module's page takes along what „Einplanen"
-    // aims at from the catalog (`?plan=…&fill=…`), as the preview's „Vollbild" does. `preview` is a
-    // path of the app; the link carries the language's prefix.
-    let href = move || {
-        t.path(&if phone.get() && !in_place {
-            let hint = finder.and_then(|finder| finder.hint.get()).map(|hint| hint.query()).unwrap_or_default();
-            format!("{}{hint}", url::module_path(&target))
-        } else {
-            preview.get()
-        })
-    };
-    let unmarked = dim_unmarked.then(|| {
-        let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
-        Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))
-    });
-    // With „Passt in meinen Stundenplan" on: how the module fits, where it fits only in part
-    // („Übung 1 von 3 frei") or could not be checked. One memo a row (R5); the catalog's list
-    // alone has it.
-    let fit_note = finder.map(|finder| {
-        let id = row.id.clone();
-        Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
-    });
-    let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
-    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.turnus_season.as_ref().and_then(|turnus| turnus.known()), finder.map(|finder| finder.hint), phone));
-    let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
-    let link = view! {
-        <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
-            <div class="t">
-                <b>{row.title.clone()}</b>
-                <small>
-                    <span class="mono">{row.id.clone()}</span>
-                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone()/> })}
-                    // Inside a program the study plan's semester stands at the row (the
-                    // list is in plan order, without headings between the semesters).
-                    {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}
-                    <OfferBadge status=row.offer_status.clone()/>
-                    {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
-                    {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
-                    {fit_note}
-                    <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
-                </small>
-            </div>
-            <span class="resp">{row.responsible.clone()}</span>
-            <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
-            <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
-            <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-            <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
-            <span class="events" class:none=!has_events>
-                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                {if has_events { events } else { t.catalog.events_none.to_string() }}
-            </span>
-        </a>
-    };
-    // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
-    // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
-    let mark = APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> });
-    match swipe {
-        // What lies under the card comes while the row is swiped, before the card in the order of
-        // the page, so the card covers it.
-        Some(swipe) => view! {
-            <div
-                class="row-wrap swipes"
-                class:shaded=shaded
-                class:unmarked=unmarked
-                node_ref=swipe.wrap()
-                data-swipe=move || swipe.phase_attr()
-                data-side=move || swipe.side_attr()
-                data-armed=move || swipe.armed_attr()
-                data-done=move || swipe.done_attr()
-                style=move || swipe.style()
-                on:pointerdown=move |ev| swipe.down(ev)
-                on:pointermove=move |ev| swipe.moving(ev)
-                on:pointerup=move |ev| swipe.up(ev)
-                on:pointercancel=move |ev| swipe.cancel(ev)
-                on:touchmove=move |ev| swipe.touch_move(ev)
-                on:click:capture=move |ev| swipe.click(ev)
-                on:dragstart=move |ev| swipe.drag_start(ev)
-            >
-                {swipe.ground_view()}
-                {link}
-                {mark}
-            </div>
-        }
-        .into_any(),
-        None => view! {
-            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked>
-                {link}
-                {mark}
-            </div>
-        }
-        .into_any(),
-    }
-}
-
-/// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,
-/// and the list of marked modules.
-#[component]
-pub(crate) fn ListKeys() -> impl IntoView {
-    let t = i18n::t();
-    view! {
-        <span class="keys" title=t.catalog.keys_title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span>
-    }
-}
-
 /// Whether this build is the browser app. The server renders the catalog as a page of the site:
 /// the list a page at a time, its rows links to the modules' pages, and no filter panel (§4.1).
 const APP: bool = cfg!(feature = "csr");
@@ -1803,159 +1575,6 @@ fn changed(query: Memo<CatalogQuery>, change: impl FnOnce(&mut CatalogQuery)) ->
     next
 }
 
-/// A filter value is off, wanted, or unwanted („keine Vorträge").
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Tri {
-    Off,
-    With,
-    Without,
-}
-
-impl Tri {
-    /// The chip's `data-state`, which the stylesheet draws.
-    pub(crate) fn code(self) -> &'static str {
-        match self {
-            Tri::Off => "off",
-            Tri::With => "with",
-            Tri::Without => "without",
-        }
-    }
-
-    /// The chip's `aria-checked`: an unwanted value is „mixed".
-    pub(crate) fn checked(self) -> &'static str {
-        match self {
-            Tri::Off => "false",
-            Tri::With => "true",
-            Tri::Without => "mixed",
-        }
-    }
-}
-
-type ReadTri = dyn Fn(&CatalogQuery) -> Tri + Send + Sync;
-type WriteTri = dyn Fn(&mut CatalogQuery, Tri) + Send + Sync;
-type Held = dyn Fn(&CatalogQuery) -> bool + Send + Sync;
-
-/// How a chip reads its state from the filter and writes it back. The board of the filters on the
-/// start page (`home::detail`) switches its chips with the same toggles.
-#[derive(Clone)]
-pub(crate) struct Toggle {
-    pub(crate) read: Arc<ReadTri>,
-    pub(crate) write: Arc<WriteTri>,
-    /// Off → with → without → off. Otherwise only off ↔ with.
-    pub(crate) excludes: bool,
-    /// When the filter is such that the chip has to stay as it is (the last class the finder
-    /// compares), and why: it is no link then.
-    held: Option<(Arc<Held>, &'static str)>,
-}
-
-impl Toggle {
-    fn new(read: impl Fn(&CatalogQuery) -> Tri + Send + Sync + 'static, write: impl Fn(&mut CatalogQuery, Tri) + Send + Sync + 'static) -> Self {
-        Self { read: Arc::new(read), write: Arc::new(write), excludes: true, held: None }
-    }
-
-    /// A value that is wanted when in the first list and unwanted when in the second.
-    fn in_lists<T: PartialEq + Copy + Send + Sync + 'static>(
-        value: T,
-        lists: fn(&CatalogQuery) -> (&Vec<T>, &Vec<T>),
-        lists_mut: fn(&mut CatalogQuery) -> (&mut Vec<T>, &mut Vec<T>),
-    ) -> Self {
-        Self::new(
-            move |q| {
-                let (with, without) = lists(q);
-                if with.contains(&value) {
-                    Tri::With
-                } else if without.contains(&value) {
-                    Tri::Without
-                } else {
-                    Tri::Off
-                }
-            },
-            move |q, state| {
-                let (with, without) = lists_mut(q);
-                with.retain(|v| *v != value);
-                without.retain(|v| *v != value);
-                match state {
-                    Tri::With => with.push(value),
-                    Tri::Without => without.push(value),
-                    Tri::Off => {}
-                }
-            },
-        )
-    }
-
-    pub(crate) fn teaching_form(form: TeachingForm) -> Self {
-        Self::in_lists(form, |q| (&q.teaching_forms, &q.teaching_forms_exclude), |q| (&mut q.teaching_forms, &mut q.teaching_forms_exclude))
-    }
-
-    pub(crate) fn exam_part(part: ExamPart) -> Self {
-        Self::in_lists(part, |q| (&q.exam_parts, &q.exam_parts_exclude), |q| (&mut q.exam_parts, &mut q.exam_parts_exclude))
-    }
-
-    pub(crate) fn language(language: Language) -> Self {
-        Self::in_lists(language, |q| (&q.languages, &q.languages_exclude), |q| (&mut q.languages, &mut q.languages_exclude))
-    }
-
-    pub(crate) fn campus(campus: Campus) -> Self {
-        Self::in_lists(campus, |q| (&q.campuses, &q.campuses_exclude), |q| (&mut q.campuses, &mut q.campuses_exclude))
-    }
-
-    /// „Only such modules" / „no such modules" on a yes-no property.
-    pub(crate) fn flag(get: fn(&CatalogQuery) -> Option<bool>, set: fn(&mut CatalogQuery, Option<bool>)) -> Self {
-        Self::new(
-            move |q| match get(q) {
-                Some(true) => Tri::With,
-                Some(false) => Tri::Without,
-                None => Tri::Off,
-            },
-            move |q, state| {
-                set(
-                    q,
-                    match state {
-                        Tri::With => Some(true),
-                        Tri::Without => Some(false),
-                        Tri::Off => None,
-                    },
-                )
-            },
-        )
-    }
-
-    /// A season of the turnus (winter, summer, irregular): wanted in the first of its two fields,
-    /// unwanted in the second.
-    pub(crate) fn turnus(fields: fn(&TurnusFilter) -> (bool, bool), fields_mut: fn(&mut TurnusFilter) -> (&mut bool, &mut bool)) -> Self {
-        Self::new(
-            move |q| match fields(&q.turnus) {
-                (true, _) => Tri::With,
-                (_, true) => Tri::Without,
-                _ => Tri::Off,
-            },
-            move |q, state| {
-                let (with, without) = fields_mut(&mut q.turnus);
-                (*with, *without) = (state == Tri::With, state == Tri::Without);
-            },
-        )
-    }
-
-    /// „Auch nicht angebotene zeigen": every offer status instead of the default ones.
-    pub(crate) fn show_not_offered() -> Self {
-        Self {
-            excludes: false,
-            ..Self::new(
-                |q| if q.offer.as_ref().is_some_and(|offer| offer.contains(&OfferStatus::NotOffered)) { Tri::With } else { Tri::Off },
-                |q, state| q.offer = (state == Tri::With).then(|| OfferStatus::ALL.to_vec()),
-            )
-        }
-    }
-
-    pub(crate) fn after(&self, state: Tri) -> Tri {
-        match state {
-            Tri::Off => Tri::With,
-            Tri::With if self.excludes => Tri::Without,
-            Tri::With | Tri::Without => Tri::Off,
-        }
-    }
-}
-
 /// A toggle: a link to the list with the next state of its value. The small box on its left
 /// shows the state (empty, ticked, crossed), so that it reads as a switch and not as a button.
 #[component]
@@ -2034,43 +1653,6 @@ fn Chip(
             {opens.then(|| view! { <Icon name="chevron-right" class="chip-more"/> })}
         </a>
     }
-}
-
-/// One of a few: a row of links that fills the width, the chosen one raised.
-pub(crate) struct Choice {
-    pub(crate) label: String,
-    title: Option<&'static str>,
-    count: Option<Signal<Option<u64>>>,
-    pub(crate) is_on: Arc<dyn Fn(&CatalogQuery) -> bool + Send + Sync>,
-    pub(crate) choose: Arc<dyn Fn(&mut CatalogQuery) + Send + Sync>,
-}
-
-impl Choice {
-    pub(crate) fn new(
-        label: impl Into<String>,
-        is_on: impl Fn(&CatalogQuery) -> bool + Send + Sync + 'static,
-        choose: impl Fn(&mut CatalogQuery) + Send + Sync + 'static,
-    ) -> Self {
-        Self { label: label.into(), title: None, count: None, is_on: Arc::new(is_on), choose: Arc::new(choose) }
-    }
-}
-
-/// „Dauer": any, one semester, two.
-pub(crate) fn duration_choices(t: &'static i18n::Texts) -> Vec<Choice> {
-    vec![
-        Choice::new(t.catalog.any, |q| q.duration_semesters.is_none(), |q| q.duration_semesters = None),
-        Choice::new((t.catalog.semesters)(1), |q| q.duration_semesters == Some(1), |q| q.duration_semesters = Some(1)),
-        Choice::new((t.catalog.semesters)(2), |q| q.duration_semesters == Some(2), |q| q.duration_semesters = Some(2)),
-    ]
-}
-
-/// „Nur in geraden / ungeraden Jahren": any, even, odd.
-pub(crate) fn years_choices(t: &'static i18n::Texts) -> Vec<Choice> {
-    vec![
-        Choice::new(t.catalog.any, |q| q.turnus.year_parity.is_none(), |q| q.turnus.year_parity = None),
-        Choice::new(t.catalog.even, |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
-        Choice::new(t.catalog.odd, |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
-    ]
 }
 
 fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, label: &'static str, choices: Vec<Choice>, t: &'static i18n::Texts) -> impl IntoView {
@@ -2523,9 +2105,9 @@ fn Filters(
                         <div class="flabel label">{t.catalog.department}</div>
                         {department_picker}
                         <div class="flabel label">{t.catalog.duration}</div>
-                        {segmented(query, open, fill, t.catalog.duration, duration_choices(t), t)}
+                        {segmented(query, open, fill, t.catalog.duration, duration_choices(t.locale), t)}
                         <div class="flabel label">{t.catalog.years_only}</div>
-                        {segmented(query, open, fill, t.catalog.years, years_choices(t), t)}
+                        {segmented(query, open, fill, t.catalog.years, years_choices(t.locale), t)}
                         <div class="flabel label">{t.catalog.location}</div>
                         <div class="chips">
                             {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
@@ -2625,6 +2207,8 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
 
     fn ids(ids: &[&str]) -> Vec<String> {
@@ -2731,27 +2315,6 @@ mod tests {
         assert_eq!(finder_semester(&PlanDoc::default(), Some(2), current), current);
     }
 
-    #[test]
-    fn switched_on_again_the_finder_compares_what_it_compared_last() {
-        let summer = SemesterKey::parse("2027S").unwrap();
-        // The first time: every class compared, modules without dates left out.
-        assert_eq!(finder_kept(None, summer), FitsFilter::all("2027S"));
-        // What it compared is kept as the address says it, and holds for any semester.
-        let chosen = FitsFilter { exams: false, undated: true, ..FitsFilter::all("2026W") };
-        assert_eq!(finder_text(&chosen), "fits-skip=exam&fits-undated=1");
-        assert_eq!(finder_kept(Some(&finder_text(&chosen)), summer), FitsFilter { semester: "2027S".to_string(), ..chosen });
-        let lectures_only = FitsFilter { exercises: false, exams: false, ..FitsFilter::all("2026W") };
-        assert_eq!(finder_kept(Some(&finder_text(&lectures_only)), summer), FitsFilter { semester: "2027S".to_string(), ..lectures_only });
-        // Everything compared keeps nothing: the key goes.
-        assert_eq!(finder_text(&FitsFilter::all("2026W")), "");
-        assert_eq!(finder_kept(Some(""), summer), FitsFilter::all("2027S"));
-        // Read as an address is read: what it does not know is left out, another semester or
-        // another filter changes nothing, and a choice that compares nothing is none.
-        let odd = finder_kept(Some("fits-skip=EXAM,yoga&fits=1999W&marked=only&fits-undated=yes"), summer);
-        assert_eq!(odd, FitsFilter { exams: false, ..FitsFilter::all("2027S") });
-        assert_eq!(finder_kept(Some("fits-skip=lecture,exercise,exam"), summer), FitsFilter::all("2027S"));
-        assert_eq!(finder_kept(Some("&&=#?"), summer), FitsFilter::all("2027S"));
-    }
 
     #[test]
     fn what_the_finder_adds_to_the_list_stays_out_of_its_address() {

@@ -18,7 +18,7 @@
 //! that panel holds the numbers of the view one is looking at.
 //!
 //! „Vollbild" of the module beside the page shows the module's whole page in place
-//! (`&full=1`, a local view, `crate::local`): the address stays in the programs area, so the tab,
+//! (`&full=1`, a local view, `folia_widgets::local`): the address stays in the programs area, so the tab,
 //! the history and „Zurück" do too. On a phone nothing stands beside a page: whatever is picked —
 //! a module, an area, a row of the plan — is the page, opened with one tap and one history entry,
 //! and „Zurück" leads to what it was picked from.
@@ -44,11 +44,11 @@ use leptos_router::hooks::use_params_map;
 use folia_data::{use_data, DataError, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
-use crate::local::ModuleInPlace;
+use folia_widgets::local::ModuleInPlace;
 use folia_stores::myprogram::{program_name, MineButton, ProgramPlans};
 use folia_design::nav;
-use crate::pages::catalog::phone_layout;
-use crate::pages::module::ModulePanel;
+use folia_widgets::list::phone_layout;
+use folia_widgets::module::ModulePanel;
 use folia_shell::pending::{Change, Pending};
 use folia_shell::seo::{self, Seo};
 use folia_shell::skeleton::DetailSkeleton;

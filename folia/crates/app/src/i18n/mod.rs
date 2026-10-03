@@ -3,11 +3,9 @@
 
 pub mod app;
 pub mod bookmarks;
-pub mod catalog;
 pub mod home;
 pub mod home_detail;
 pub mod legal;
-pub mod module;
 pub mod program;
 pub mod programs;
 pub mod studyplan;
@@ -20,14 +18,13 @@ pub mod studyplan_modules;
 pub mod studyplan_share;
 pub mod studyplan_side;
 pub mod studyplan_week;
-pub mod week;
 
 pub use folia_design::i18n::{app_path, locale, of_address, use_location, Locale};
 
 folia_design::texts! {
     app = crate::i18n::app,
     bookmarks = crate::i18n::bookmarks,
-    catalog = crate::i18n::catalog,
+    catalog = folia_widgets::i18n::catalog,
     combobox = folia_design::i18n::combobox,
     common = folia_design::i18n::common,
     format = folia_design::i18n::format,
@@ -36,7 +33,7 @@ folia_design::texts! {
     home_detail = crate::i18n::home_detail,
     legal = crate::i18n::legal,
     marks = folia_stores::i18n::marks,
-    module = crate::i18n::module,
+    module = folia_widgets::i18n::module,
     myprogram = folia_stores::i18n::myprogram,
     planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
@@ -55,5 +52,5 @@ folia_design::texts! {
     studyplan_week = crate::i18n::studyplan_week,
     timetable_data = folia_timetable::i18n,
     ui = folia_design::i18n::ui,
-    week = crate::i18n::week,
+    week = folia_widgets::i18n::week,
 }

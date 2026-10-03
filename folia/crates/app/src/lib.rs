@@ -10,10 +10,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod i18n;
-pub mod local;
 pub mod pages;
-pub mod swipe;
-pub mod week;
 
 use folia_routes::url;
 use leptos::prelude::*;
@@ -30,7 +27,8 @@ use folia_stores::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
 use crate::pages::studyplan::StudyplanPage;
-use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
+use crate::pages::{catalog::CatalogPage, home::HomePage, program::ProgramPage, programs::ProgramsPage};
+use folia_widgets::module::ModulePage;
 use folia_shell::pending::Pending;
 use folia_stores::studyplan::Studyplan;
 use folia_shell::tabs::{Area, Tabs};

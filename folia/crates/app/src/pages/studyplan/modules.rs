@@ -36,7 +36,7 @@ use leptos_router::NavigateOptions;
 use folia_design::format;
 use crate::i18n::{self, Locale};
 use folia_stores::myprogram::MineResolved;
-use crate::pages::catalog::finder_on;
+use folia_widgets::finder::finder_on;
 use folia_shell::pending::{Change, Pending};
 use folia_design::ui::Icon;
 use super::aside::only_its_events;

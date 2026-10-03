@@ -2,7 +2,7 @@
 //! catalog's, in the same frame: a sidebar as wide as the filter panel, the list, and the preview
 //! of the module that is open (`/bookmarks?…&open=<id>`) floating at the right edge.
 //!
-//! A module opened here stays here (a local view, `crate::local`): „Vollbild" of the preview
+//! A module opened here stays here (a local view, `folia_widgets::local`): „Vollbild" of the preview
 //! shows the module's whole page in the list's place (`&full=1`), and on a phone a tap on a row
 //! does, so the address, the tab, the history and „Zurück" stay the marked modules' — as on a
 //! program's page — and the catalog's tab does not hear of the module.
@@ -32,10 +32,10 @@ use folia_stores::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, B
 use folia_data::{use_data, DataError};
 use folia_design::format;
 use crate::i18n::{self, use_location};
-use crate::local::ModuleInPlace;
+use folia_widgets::local::ModuleInPlace;
 use folia_design::nav;
-use crate::pages::catalog::{phone_layout, ListKeys, Row};
-use crate::pages::module::ModulePanel;
+use folia_widgets::list::{phone_layout, ListKeys, Row};
+use folia_widgets::module::ModulePanel;
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};

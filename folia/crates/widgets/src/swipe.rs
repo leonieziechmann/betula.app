@@ -43,7 +43,7 @@ use folia_stores::bookmarks::Bookmarks;
 use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use folia_design::nav;
-use crate::pages::module::semesters_of;
+use crate::module::semesters_of;
 use folia_stores::studyplan::{self, Aim, PlanHint, Studyplan};
 use folia_design::ui::Icon;
 

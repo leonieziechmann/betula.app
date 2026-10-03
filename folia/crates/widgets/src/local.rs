@@ -29,7 +29,7 @@ use leptos::prelude::*;
 
 use folia_data::{use_data, PageStatus};
 use crate::i18n;
-use crate::pages::module::ModuleFull;
+use crate::module::ModuleFull;
 use folia_shell::tabs::Area;
 use folia_shell::frame::{ErrorState, Plain};
 use folia_design::ui::NotFound;

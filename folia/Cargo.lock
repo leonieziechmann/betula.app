@@ -855,6 +855,7 @@ dependencies = [
  "folia-shell",
  "folia-stores",
  "folia-timetable",
+ "folia-widgets",
  "http",
  "leptos",
  "leptos_axum",
@@ -1132,6 +1133,34 @@ dependencies = [
  "folia-search",
  "folia-test-support",
  "serde",
+]
+
+[[package]]
+name = "folia-widgets"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pack",
+ "folia-pages",
+ "folia-plans",
+ "folia-query",
+ "folia-routes",
+ "folia-search",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

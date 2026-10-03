@@ -6,7 +6,7 @@
 //! from its store and the local copy of the catalog. The address says only how the plan is shown
 //! (`StudyplanUrl`): which semester, which view, the module beside the plan and the Termin it
 //! points at, and the Regelstudienplan being taken over; `full=1` lets that module fill the page
-//! with its whole page, inside the plan's area (a local view, `crate::local`).
+//! with its whole page, inside the plan's area (a local view, `folia_widgets::local`).
 //!
 //! The page is one frame (`ui::Frame`, R17): the sidebar „Anpassen" (`side.rs`: the program,
 //! `import.rs`, view, what is shown, Standort, calendar, the plan as a whole and the saved plans),
@@ -53,9 +53,9 @@ use leptos_meta::Title;
 
 use folia_data::{use_data, DataClient, DataError};
 use crate::i18n::{self, use_location};
-use crate::local::ModuleInPlace;
+use folia_widgets::local::ModuleInPlace;
 use folia_stores::myprogram::MyProgram;
-use crate::pages::catalog::phone_layout;
+use folia_widgets::list::phone_layout;
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
