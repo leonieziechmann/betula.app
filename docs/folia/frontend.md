@@ -3,15 +3,18 @@
 > Betula has three parts named after the birch: **Cortex** (the bark: the cache between Betula and
 > the internet, `docs/cortex/cortex.md`), **Radix** (the root: the Go collector, `docs/radix/operations.md`)
 > and **Folia** (the leaves: this web tier, the Cargo workspace `folia/` with its crates in
-> `folia/crates/<crate>`, each `folia-<crate>`: the domain — `folia-locale`, `folia-model`,
-> `folia-calendar`, `folia-search`, `folia-routes`, `folia-query`, `folia-timetable`, `folia-plans`,
-> `folia-pages`, `folia-pack`, `folia-semantic` — and `folia-app`, `folia-client`, `folia-server` with
-> the binary `folia`; docs/folia/folia-refactor.md §7 has the map).
+> `folia/crates/<crate>`, each `folia-<crate>`, in the layers of `folia/layers.toml`: the domain —
+> `folia-locale`, `folia-pack`, `folia-model`, `folia-calendar`, `folia-search`, `folia-routes`,
+> `folia-query`, `folia-timetable`, `folia-plans`, `folia-semantic`, `folia-pages` — the data
+> (`folia-data`), the UI — `folia-design`, `folia-stores`, `folia-shell`, `folia-widgets` and the
+> features `folia-home`, `folia-catalog`, `folia-programs`, `folia-bookmarks`, `folia-planner` — and
+> `folia-worker`, `folia-app`, `folia-client`, `folia-server` with the binary `folia`;
+> docs/folia/folia-refactor.md §7 has the map).
 
-> State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
-> JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
-> again, and the app starts without a network (a service worker keeps its shell, IndexedDB the
-> catalog). Not yet: user data beyond the marked modules, context search.
+> State: 2026-10-03. The site's pages are server-rendered and minimal; with JavaScript the
+> browser app takes the page over and nothing is loaded again. Its questions go to the data
+> worker, which keeps the catalog (sql.js, IndexedDB) beside the page's thread and shows a newer
+> snapshot in place; the app starts without a network (a service worker keeps its shell).
 > Decisions and their evidence: `docs/history/frontend-phase0.md`.
 
 ## 1. Overview
@@ -23,12 +26,16 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 
 | Crate | Role |
 |---|---|
-| `catalog/` | The data contract in Rust: row structs, labels, `CatalogQuery` → SQL, every query, the page loaders (`pages.rs`) and the URL scheme (`url.rs`). No I/O; callers hand in a `Database`. Compiles natively and to WASM. |
-| `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
-| `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
+| domain | The data contract and what is computed from it, without I/O (callers hand in a `Database`), native and WASM: `model` (rows, labels, `Database`), `calendar`, `search`, `routes` (every address, `url.rs`), `query` (the SQL, R11), `timetable`, `plans`, `pages` (one loader per page, and the questions of the app's pages, `ask.rs`). |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`folia/crates/pack/src/lib.rs`). |
-| `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its queries in the catalog's search worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `data/` | `DataClient`: where every page asks its questions. On the server it answers them on its thread from the active snapshot; in the browser it sends them to the data worker. |
+| `design/`, `stores/`, `shell/`, `widgets/` | The UI below the pages (Leptos, feature `ssr` for the server, `csr` for the browser): building blocks and the languages, what a visitor keeps, the shell (chrome, frame, a step between pages, the ground), what several pages show. |
+| `home/`, `catalog/`, `programs/`, `bookmarks/`, `planner/` | The features: each its pages and their texts. None uses another. |
+| `app/` | The composition: the document and `App` with its routes. |
+| `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
+| `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
+| `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -642,12 +649,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 
 ### Data flow
 
-- **Pages are synchronous functions of their route parameters.** SQLite answers in 1–7 ms on
-  both sides (rusqlite on the server, sql.js in the browser), so there are no async resources,
-  no loading states between pages and nothing to serialize into the HTML. A page calls one
-  loader of `folia_pages` through `Source::run`; everything it shows comes from one snapshot.
-  What the browser app shows between a click and the page is the page's skeleton, one frame
-  before the page is built („A click answers first" below), not a state the page waits in.
+- **Pages ask, through one seam** (2026-10-03, docs/folia/folia-refactor.md §6.4). Every question a
+  page has is a type of `folia_pages::ask` (24 of them, one per loader, with its answer), asked
+  through `folia_data::DataClient`: `get` in a reactive scope (the answer kept, or the question on
+  its way and the scope run again when it is there), `ask` in a handler, `use_ask` for a memo that
+  keeps the answer before while the new one comes. On the server the client answers on its thread
+  from the active snapshot (rusqlite), so a page renders complete in one pass; in the browser the
+  data worker answers. Everything a page shows comes from one snapshot.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
   request renders (5–100 ms) and later ones are a memory copy (2 ms), brotli included; the cache
   keeps the compressed page only, and the pages of the sitemap are rendered into it after every new
@@ -661,31 +669,27 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   browser keeps without asking (`immutable`, „Caching and compression" in §3): the page's `304`
   is how a new build reaches it.
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
-- **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
-  the local copy of the snapshot (`/api/db`: 44 MB, 4.4 MB in brotli, 7.6 MB in gzip, 2026-09-30;
-  kept in IndexedDB with its ETag, as a Blob that the browser reads away from the page, „A phone
-  that froze" below; sql.js) and loads the WASM bundle (34 MB, 1.7 MB in brotli, 2.8 MB
-  in gzip) in parallel; then `client::start()` replaces the
-  server-rendered body by the app. Not hydration: the local copy may be older than the server's
-  page, so the app renders fresh with the same components. From then on links, filters and the
-  search are client-side navigation on the local database (measured: takeover 1.2 s on a first
-  visit, preview 130 ms, filter 150 ms including the test driver). Until the takeover, and if
-  anything fails, the site stays a classic website served from the HTML cache; a link followed
-  while the app is starting waits for it (2026-10-02), and loads its page only where the app does
-  not start. A newer snapshot is
-  downloaded in the background and used from the next start, unless the copy is of an older
-  schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
-  schema from its SQLite header (`user_version`) and compares it with the build's
-  (`folia_model::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
-  network an older copy is replaced first, as on a first visit; offline the app does not start, and
-  the status says so. Before, a returning visitor worked on the old copy until the download behind
-  it had finished, and after 0008 the plan page failed with „no such column: source_pages". A
-  server whose own snapshot is older (Radix has not exported the new schema yet) says so in
-  `/api/status` and logs `snapshot.outdated`; nothing is downloaded from it, and the site stays a
-  classic website until Radix has. The server never answers data queries for the app: its load is
-  cached HTML, static files and one database file. Once the app runs, `boot.js` hands the bytes of
-  the copy it opened to the catalog's search worker (2026-10-02, „The search of the catalog",
-  „Typing"), which works out the list of a search the visitor types on a copy of its own.
+- **The browser app (owner decision: all queries run in the browser, 2026-10-03 in its data
+  worker).** `assets/boot.js` starts the data worker (`folia/crates/worker/js/data-worker.js`, with
+  its own bundle `folia-worker`) and loads the app's bundle in parallel. The worker finds the copy
+  of the snapshot it kept in IndexedDB (by its ETag, as a Blob), asks the server what it has
+  (`/api/status`), downloads a new one (`/api/db`: 44 MB, 4.4 MB in brotli; one tab at a time, a
+  Web Lock) and opens it in sql.js; the page's thread holds no catalog. Then `client::start()`
+  replaces the server-rendered body by the app, the server's page staying in front of it as a
+  picture until the app's first answers are in (`betulaAnswered`). Not hydration: the copy may be
+  older than the server's page, so the app renders fresh with the same components. From then on
+  links, filters and the search are client-side navigation; a step keeps the page before in front
+  of the new one until its answers are there (`pending::hold`, at most 400 ms). Until the takeover,
+  and if anything fails, the site stays a website served from the HTML cache.
+  A copy of an older schema than the build reads is never opened (`user_version` in the SQLite
+  header against `folia_model::SCHEMA_VERSION`): with the network it is replaced first, offline the
+  app does not start, and the status says so. A server whose own snapshot is older says so in
+  `/api/status` (`snapshot.outdated`), and nothing is downloaded from it. A newer snapshot is
+  shown at once (owner, 2026-10-02): the worker looks when the tab comes back into view and every
+  five minutes, opens a new one beside the one in use and answers from it; the page shows the
+  answers it had until each new one is there (`DataClient::forget`), so it stays where it is, and
+  the other tabs open the copy the first one kept (a BroadcastChannel). The server never answers
+  data queries for the app: its load is cached HTML, static files and one database file.
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
@@ -2495,6 +2499,10 @@ BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteF
 
 What `cargo test` checks:
 
+- `layers` (`folia-test-support`, needs no snapshot): every crate uses only what its layer may
+  (`folia/layers.toml`): the layers below its own and those before it in its own, features no
+  feature, the UI no `folia-query`.
+
 - `pack` (needs no snapshot): every shape of serde's data model there and back, the codes of
   fixed values (the format is frozen), a field added at the end read from older codes, versioned
   codes (the layout in four bits, another layout named, never read as a plain code), what the
@@ -2564,12 +2572,24 @@ search the address carries: its list asks before `boot.js` offers the semantic s
 its „Ähnliche Module“.
 
 ```bash
+cd e2e && WORKER_SNAPSHOT_DIR=../../snapshot node worker.mjs
+```
+
+checks the data worker: the page's thread holds no catalog (no sql.js, no `betulaDb`), the list
+is on screen in every frame up to the takeover, a filter and a module beside the list are
+answered by the worker, a second tab downloads nothing. With `WORKER_SNAPSHOT_DIR` (the
+directory `radix serve-snapshot` serves, Folia polling it often: `FOLIA_SNAPSHOT_POLL=2`) it
+writes a newer snapshot, waits until the server has it (in a debug build after the brotli of the
+one before, minutes) and checks that the open page shows it in place, staying where it was, and
+that the other tab gets it too; then it puts the pointer back.
+
+```bash
 cd e2e && node typing.mjs
 ```
 
-types in the search of the top bar once the catalog's search worker answers („The search of the
+types in the search of the top bar once the data worker answers („The search of the
 catalog“, „Typing“): four words, a key every 200 ms, two of them with the CPU slowed down four
-times. The page's own copy of the catalog runs none of the search's queries meanwhile, the list
+times. The page's thread runs none of the search's queries meanwhile, the list
 follows what was typed, and „Ähnliche Module“ (a stand-in for the semantic search that names the
 list's own rows first) hold none of the list's rows; a module searched by its number (14851) does
 not find its namesake (14508, „Anti-Gewalt-Arbeit“) among them. It prints how long the keys waited
