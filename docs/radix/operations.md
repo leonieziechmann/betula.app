@@ -1,8 +1,9 @@
 # Operating Radix
 
-Radix runs as one long-lived process. It keeps the raw archive fresh at a polite pace,
-rebuilds the catalog, publishes a new snapshot when the content changed, and serves the
-snapshots over HTTP. The web server is an HTTP client of it; they share no files.
+Radix runs as one long-lived process. It keeps the raw archive fresh at a polite pace (directly,
+or through Cortex, the cache between Betula and the internet: `docs/cortex/cortex.md`), rebuilds the
+catalog, publishes a new snapshot when the content changed, and serves the snapshots over HTTP.
+The web server is an HTTP client of it; they share no files.
 
 ## 1. Running it
 
@@ -71,7 +72,9 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--addr` | `RADIX_ADDR` | `127.0.0.1:8090` |
 | `--interval` | `RADIX_INTERVAL` | `30m` |
 | `--offpeak` | `RADIX_OFFPEAK` | `1-6` |
-| `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times) |
+| `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times). Through Cortex its floor per host holds on top, for every client together |
+| `--cortex` | `RADIX_CORTEX_URL` | none: Radix fetches directly. Cortex's instances, comma-separated (`http://cortex_a:8100,http://cortex_b:8100`), each a scheme and a host with no path (Radix exits with code 2 otherwise). Also a flag of the four `crawl-*` commands and `download-statutes` |
+| `--cortex-max-age` | `RADIX_CORTEX_MAX_AGE` | `1h`: a page Cortex fetched within this long is taken from Cortex without asking the university again; negative: the host's `max_age` in Cortex's policy |
 | `--list-max-age` | `RADIX_LIST_MAX_AGE` | `40h` (every second night) |
 | `--module-max-age`, `--qis-module-max-age`, `--qis-module-unsettled-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_UNSETTLED_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `720h`, `168h`, `720h` |
 | `--event-list-max-age`, `--event-unsettled-max-age` | `RADIX_EVENT_LIST_MAX_AGE`, `RADIX_EVENT_UNSETTLED_MAX_AGE` | `12h`, `2h` |
@@ -83,6 +86,35 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--embed-workers`, `--semantic-budget` | `RADIX_EMBED_WORKERS`, `RADIX_SEMANTIC_BUDGET` | one less than the processors the container may use (`GOMAXPROCS`, at least 1): worker processes of about 170 MB each (260 MB while loading); `20m` |
 | `--summary-model`, `--gemini-rpm`, `--gemini-rpd` | `GEMINI_SUMMARY_MODEL`, `RADIX_GEMINI_RPM`, `RADIX_GEMINI_RPD` | `gemini-3.5-flash-lite`, `10`, `900` (a guess at the free tier's limits, which Google does not publish: set the project's figures from AI Studio; the day begins at midnight Pacific time, as Google's does) |
 | `--log-format`, `--log-level`, `--log-file` | `RADIX_LOG_FORMAT`, `RADIX_LOG_LEVEL`, `RADIX_LOG_FILE` | `json` for `run` (else `text`), `info`, none |
+
+### Through Cortex
+
+With `RADIX_CORTEX_URL` every request of the crawl stages and of `download-statutes` goes to
+Cortex (`internal/cortex/client`), which fetches from the university only what it does not have
+fresh, at its own floor per host, and keeps every version (`docs/cortex/cortex.md` §8). Gemini is asked
+directly either way. What changes for Radix:
+
+- **The mode is `cache`, with `max_age` 1 h** (`--cortex-max-age`) and `stale=never`: a page that
+  is due is fetched, unless another client of Cortex fetched it within the hour; a failure stays a
+  failure, so the retries, `crawl.aborted` and the degraded cycle work as before. One request may
+  take up to 3 minutes (the client's timeout): Cortex queues the requests per host.
+- **`fetched_at` is when Cortex had the page from the university** (`Cortex-Checked-At`), not when
+  Radix asked: a page served from Cortex's store is not taken for a fresh one, and its day in its
+  period stays right. The archive's `fetched_at` never goes backwards: an answer older than the
+  archived page is not stored.
+- **An answer Cortex gave itself is a failed attempt** (`Cortex-Error`: `502 upstream-failed`, `429
+  host-busy`, `503 host-paused`, `404 not-found` of a wrong URL, …), never the page and never
+  archived as a 404. It is retried, given up and counted towards `crawl.aborted` as a failure of
+  the university would be; its `Retry-After` is not read. A host Cortex paused for its breaker
+  answers at once, so a stage can end as `crawl.aborted` until the pause is over.
+- **`crawl.slow` warns more often**: the time includes Cortex's queue for the host. Radix's own
+  pause after each request (`--module-delay`, `--qis-delay`) runs also after a page Cortex served
+  from its store.
+- **Statutes:** `download-statutes --force` fetches in mode `refresh` (from OPUS, not from Cortex's
+  store); a bot-protection page instead of a PDF arrives as Cortex's `502 wrong-type` and is
+  `statutes.blocked` as before; another Cortex error reads `unexpected status N (Cortex: <code>)`.
+- `RADIX_CRAWL=off` (`serve-snapshot`) sends nothing, with or without Cortex. Offline through
+  Cortex (`mode=offline`) is not built for Radix yet.
 
 ### HTTP endpoints
 
@@ -101,15 +133,16 @@ for `--stale-after`.
 
 `GET /metrics` is what the Grafana dashboard „Radix" shows (`deploy/config/monitoring/grafana/dashboards/betula-radix.json`;
 Prometheus job `radix`, which finds every instance's Radix as `tasks.<stack>_radix` on the
-`monitoring` overlay). The counters start at zero with the process; the `radix_archive_*` gauges
+`cortex` overlay). The counters start at zero with the process; the `radix_archive_*` gauges
 are read from the archive (at most once a minute) and so survive a restart. `source` is a source
 of the archive: `module_catalog` and `module_page` are b-tu.de, `qis_module_list`, `qis_fues_list`,
 `qis_module_page`, `qis_tree`, `qis_event_entry` (the event search) and `qis_event` are QIS.
 
 | Metric | What it says |
 |---|---|
-| `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer |
-| `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received |
+| `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer. Through Cortex: requests to Cortex in the university's place, a page from its store included; `code` is the university's status as Cortex stored it, and an error of Cortex's own counts as `error`. What reached the university is `cortex_upstream_requests_total` (`docs/cortex/cortex.md` §10) |
+| `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received; through Cortex the time includes its queue for the host, and a page from its store takes milliseconds |
+| `radix_crawl_via_cortex` | 1 when `run` fetches through Cortex (`RADIX_CORTEX_URL`), 0 when it asks the university itself; absent in `serve-snapshot`. The dashboard „Radix" uses it to count what reached the university: a Radix without Cortex directly, every other request through Cortex's `cortex_upstream_requests_total` |
 | `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up); the event search counts each event it lists |
 | `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
 | `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
@@ -161,6 +194,7 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | INFO | `crawl.pages_due` | why event pages are fetched: `never_fetched`, `changed_in_list` (other dates, or the event no longer shown), `past_age` (their day in their period has come), and how many the event search vouches for. `build.finished` counts the events whose dates come from the search (`events_from_list`) |
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
+| INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache` or `refresh`; `max_age`) |
 | INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned`, `retention.archive_pruned` | progress, with counts and durations |
 
 CLI commands use the same log and these exit codes: `0` success, `1` failure (pages failed,
@@ -301,7 +335,10 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 one by one against the same database. They can run next to a service: readers never block, and a
 writer waits up to 60 s for the other writer (a build holds the write lock for about 20 s). Their
 `-max-age` is a plain age: a crawl command fetches every page older than it, without the days of
-their own over which the service spreads its rhythms.
+their own over which the service spreads its rhythms. The `crawl-*` commands and
+`download-statutes` take `--cortex` and `--cortex-max-age` as `run` does (above, „Through Cortex");
+in a container whose Radix has `RADIX_CORTEX_URL`, `docker exec … radix download-statutes` goes
+through Cortex by itself.
 
 `relink-plans` matches the stored plans against the catalog again and rewrites only the link from
 a plan row to a module, from the name and code the scan stored. That is what a change to the

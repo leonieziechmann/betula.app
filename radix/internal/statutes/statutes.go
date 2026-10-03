@@ -15,11 +15,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
 )
 
 // UserAgent is a plain bot identification. A desktop browser user agent makes the
 // OPUS server answer with a JavaScript challenge instead of the PDF.
 const UserAgent = "Betula-Radix/1.0 (+https://betula.app; info@betula.app)"
+
+// Source names the downloads of regulations to Cortex (its metrics and logs).
+const Source = "statute"
 
 // ErrBotProtection means the server answered with a challenge page instead of a PDF.
 // The challenge is not worked around; the document has to be fetched by hand.
@@ -54,7 +59,8 @@ func Locate(dir, programName, docURL string) (string, bool) {
 }
 
 // Download fetches docURL to its local path unless a copy exists (or force is set).
-// It returns the path and whether the existing copy was used.
+// It returns the path and whether the existing copy was used. client may be Cortex's
+// (internal/cortex/client); its requests name the source "statute".
 func Download(ctx context.Context, client *http.Client, dir, programName, docURL string, force bool) (string, bool, error) {
 	if docURL == "" {
 		return "", false, errors.New("empty document URL")
@@ -70,7 +76,7 @@ func Download(ctx context.Context, client *http.Client, dir, programName, docURL
 		client = http.DefaultClient
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, docURL, nil)
+	req, err := http.NewRequestWithContext(cortexclient.WithSource(ctx, Source), http.MethodGet, docURL, nil)
 	if err != nil {
 		return "", false, err
 	}
@@ -83,6 +89,14 @@ func Download(ctx context.Context, client *http.Client, dir, programName, docURL
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		switch code := cortexclient.ErrorCode(resp); {
+		case resp.StatusCode == http.StatusBadGateway && code == "wrong-type":
+			// Cortex takes nothing but a PDF from OPUS (its expect_type): a challenge page
+			// arrives as this error instead of as the page.
+			return "", false, ErrBotProtection
+		case code != "":
+			return "", false, fmt.Errorf("unexpected status %d (Cortex: %s)", resp.StatusCode, code)
+		}
 		return "", false, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 

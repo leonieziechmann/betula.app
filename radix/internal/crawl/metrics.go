@@ -8,11 +8,11 @@ import (
 	"github.com/leonieziechmann/betula/radix/internal/metrics"
 )
 
-// What the crawl sends to the university, by source (catalogdb.Source*): every request,
-// retries included, and what became of each page.
+// What the crawl sends to the university, directly or through Cortex, by source
+// (catalogdb.Source*): every request, retries included, and what became of each page.
 var (
 	requestsTotal = metrics.Default.NewCounter("radix_crawl_requests_total",
-		"HTTP requests sent to the university, retries included, by source and answer (status code, or \"error\" without one).",
+		"HTTP requests sent to the university (or to Cortex in its place), retries included, by source and answer (the university's status code, or \"error\" without one, as for an error of Cortex's own).",
 		"source", "code")
 	requestSeconds = metrics.Default.NewHistogram("radix_crawl_request_duration_seconds",
 		"Time from request to the end of the body.",

@@ -11,6 +11,7 @@ import (
 
 	"github.com/leonieziechmann/betula/radix/internal/catalogbuild"
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
+	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/crawl"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 	"github.com/leonieziechmann/betula/radix/internal/service"
@@ -72,6 +73,7 @@ func runCrawlModules(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-modules", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 4, 500, 24*time.Hour)
+	cortex := addCortexFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -79,11 +81,13 @@ func runCrawlModules(ctx context.Context, args []string) {
 
 	db := openDB(*dbPath)
 	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
 
-	if stats, err := service.CrawlLists(ctx, db, service.BTUEndpoints(), service.Pace{Delay: pace().Delay, MaxAge: time.Hour}); err != nil || stats.Failed > 0 {
+	if stats, err := service.CrawlLists(ctx, db, ep, service.Pace{Delay: pace().Delay, MaxAge: time.Hour}); err != nil || stats.Failed > 0 {
 		finishCrawl("crawl-modules", stats, err)
 	}
-	stats, err := service.CrawlModules(ctx, db, service.BTUEndpoints(), pace())
+	stats, err := service.CrawlModules(ctx, db, ep, pace())
 	finishCrawl("crawl-modules", stats, err)
 }
 
@@ -93,6 +97,7 @@ func runCrawlQISModules(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-qis-modules", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 1, 500, 24*time.Hour)
+	cortex := addCortexFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -100,12 +105,14 @@ func runCrawlQISModules(ctx context.Context, args []string) {
 
 	db := openDB(*dbPath)
 	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
 
-	stats, changedRows, err := service.CrawlQISModuleList(ctx, db, service.BTUEndpoints(), service.Pace{Delay: pace().Delay, MaxAge: time.Hour})
+	stats, changedRows, err := service.CrawlQISModuleList(ctx, db, ep, service.Pace{Delay: pace().Delay, MaxAge: time.Hour})
 	if err != nil || stats.Failed > 0 {
 		finishCrawl("crawl-qis-modules", stats, err)
 	}
-	stats, err = service.CrawlQISModules(ctx, db, service.BTUEndpoints(), service.ModulePace{Pace: pace(), UnsettledMaxAge: pace().MaxAge}, changedRows)
+	stats, err = service.CrawlQISModules(ctx, db, ep, service.ModulePace{Pace: pace(), UnsettledMaxAge: pace().MaxAge}, changedRows)
 	finishCrawl("crawl-qis-modules", stats, err)
 }
 
@@ -120,6 +127,7 @@ func runCrawlEvents(ctx context.Context, args []string) {
 	unsettledMaxAge := fs.Duration("unsettled-max-age", def.EventList.UnsettledMaxAge, "Look an event with unsettled dates up again after this long")
 	pageMaxAge := fs.Duration("page-max-age", def.Events.ConfirmedMaxAge, "Fetch the page of an event the event search vouches for again after this long")
 	unsettledPageMaxAge := fs.Duration("unsettled-page-max-age", def.Events.UnsettledMaxAge, "Fetch the page of an event the event search confirms while its dates are not settled again after this long")
+	cortex := addCortexFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -127,13 +135,15 @@ func runCrawlEvents(ctx context.Context, args []string) {
 
 	db := openDB(*dbPath)
 	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
 
 	list := service.EventListPace{Pace: service.Pace{Delay: 4 * pace().Delay, MaxAge: *listMaxAge}, UnsettledMaxAge: *unsettledMaxAge}
-	if stats, err := service.CrawlEventList(ctx, db, service.BTUEndpoints(), list, true); err != nil || stats.Failed > 0 {
+	if stats, err := service.CrawlEventList(ctx, db, ep, list, true); err != nil || stats.Failed > 0 {
 		finishCrawl("crawl-events", stats, err)
 	}
 	pages := service.EventPagePace{Pace: pace(), ConfirmedMaxAge: *pageMaxAge, UnsettledMaxAge: *unsettledPageMaxAge, EntryFresh: 2 * *listMaxAge}
-	stats, err := service.CrawlEvents(ctx, db, service.BTUEndpoints(), pages, true)
+	stats, err := service.CrawlEvents(ctx, db, ep, pages, true)
 	finishCrawl("crawl-events", stats, err)
 }
 
@@ -142,6 +152,7 @@ func runCrawlTree(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("crawl-tree", flag.ExitOnError)
 	dbPath := fs.String("db", defaultDBPath, "Database path")
 	pace := addPaceFlags(fs, 1, 1000, 7*24*time.Hour)
+	cortex := addCortexFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -149,8 +160,10 @@ func runCrawlTree(ctx context.Context, args []string) {
 
 	db := openDB(*dbPath)
 	defer db.Close()
+	ep := service.BTUEndpoints()
+	ep.Client = cortex.client(cortexclient.ModeCache)
 
-	stats, err := service.CrawlTree(ctx, db, service.BTUEndpoints(), pace())
+	stats, err := service.CrawlTree(ctx, db, ep, pace())
 	finishCrawl("crawl-tree", stats, err)
 }
 

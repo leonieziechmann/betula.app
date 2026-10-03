@@ -13,6 +13,7 @@ import (
 	"time"
 	_ "time/tzdata" // off-peak hours are local time; do not depend on the host having zoneinfo
 
+	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/metrics"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 	"github.com/leonieziechmann/betula/radix/internal/service"
@@ -69,6 +70,7 @@ func runService(ctx context.Context, args []string) {
 	archiveGrace := fs.Duration("archive-grace", envDuration("RADIX_ARCHIVE_GRACE", def.ArchiveGrace), "Remove archived pages nothing leads to any more this long after their fetch, 0 keeps them (env RADIX_ARCHIVE_GRACE)")
 	staleAfter := fs.Duration("stale-after", envDuration("RADIX_STALE_AFTER", def.StaleAfter), "Report unhealthy without a successful cycle for this long (env RADIX_STALE_AFTER)")
 	once := fs.Bool("once", false, "Run a single cycle and exit (exit code 1 if it failed)")
+	cortex := addCortexFlags(fs)
 	semanticOpts := addSemanticFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
@@ -101,6 +103,8 @@ func runService(ctx context.Context, args []string) {
 	cfg.EventRetention = *retention
 	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
+	cfg.Endpoints.Client = cortex.client(cortexclient.ModeCache)
+	declareFetchPath(cfg.Endpoints.Client != nil)
 
 	if strings.EqualFold(*offpeak, "any") {
 		cfg.OffPeakStart, cfg.OffPeakEnd = 0, 0
@@ -161,6 +165,16 @@ func declareBuildInfo(mode string) {
 		[]string{"build", "mode"}, func(emit func(float64, ...string)) { emit(1, build, mode) })
 	metrics.Default.NewGaugeFunc("radix_start_time_seconds",
 		"When the process started (Unix time).", nil, func(emit func(float64, ...string)) { emit(started) })
+}
+
+// declareFetchPath says in GET /metrics whether the crawl goes through Cortex: the crawl's
+// radix_crawl_* metrics then count requests to Cortex, most of them answered from its store,
+// and what reached the university is Cortex's cortex_upstream_requests_total.
+func declareFetchPath(viaCortex bool) {
+	v := metrics.Bool(viaCortex)
+	metrics.Default.NewGaugeFunc("radix_crawl_via_cortex",
+		"1 when the crawl and the statute download go through Cortex (RADIX_CORTEX_URL), 0 when Radix asks the university itself.",
+		nil, func(emit func(float64, ...string)) { emit(v) })
 }
 
 // runHealthcheck asks a running service for its health. It exists so that a container

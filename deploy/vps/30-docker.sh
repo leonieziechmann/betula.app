@@ -42,7 +42,11 @@ CONFLICTING_PACKAGES=(docker.io docker-doc docker-compose docker-compose-v2 dock
 
 SWARM_ADDR_POOL="${SWARM_ADDR_POOL:-10.200.0.0/16}"
 SWARM_ADDR_POOL_MASK=24
-OVERLAY_NETWORKS=(edge monitoring)
+OVERLAY_NETWORKS=(edge monitoring cortex)
+# Of those, the ones without a way out of the host. "cortex" joins Cortex (stacks/cortex.yml) and
+# the services that fetch through it: Radix's networks are internal, so Cortex, which has a
+# network with a way out of its own, is its way to the internet (docs/cortex/cortex.md).
+INTERNAL_NETWORKS=(cortex)
 # Must match "default-address-pools" in files/docker-daemon.json (local bridges, docker_gwbridge).
 BRIDGE_POOL_REGEX='^172\.30\.'
 
@@ -337,20 +341,40 @@ init_swarm() {
   docker swarm update --task-history-limit 2 >/dev/null
 }
 
+# is_internal_network NAME - true for the networks of INTERNAL_NETWORKS.
+is_internal_network() {
+  local net
+  for net in "${INTERNAL_NETWORKS[@]}"; do
+    [[ "$1" == "${net}" ]] && return 0
+  done
+  return 1
+}
+
 create_overlay_networks() {
-  step "Overlay networks: ${OVERLAY_NETWORKS[*]}"
-  local net facts
+  step "Overlay networks: ${OVERLAY_NETWORKS[*]} (internal: ${INTERNAL_NETWORKS[*]})"
+  local net facts internal
+  local -a flags
   for net in "${OVERLAY_NETWORKS[@]}"; do
-    if facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null)"; then
-      [[ "${facts}" == "overlay swarm true" ]] ||
-        die "network ${net} exists but is '${facts}' (wanted 'overlay swarm true'); remove it by hand once nothing uses it"
+    internal=false
+    if is_internal_network "${net}"; then
+      internal=true
+    fi
+    # Checked, never changed: Docker sets "internal" when it creates a network and cannot change
+    # it afterwards, and a network that is in use cannot be removed.
+    if facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null)"; then
+      [[ "${facts}" == "overlay swarm true ${internal}" ]] ||
+        die "network ${net} exists but is '${facts}' (driver, scope, attachable, internal; wanted 'overlay swarm true ${internal}'); remove it by hand once nothing uses it"
       log "network ${net} exists"
     else
       # Attachable: the stacks reference them as external networks, and a one-off
       # "docker run --network edge ..." for debugging has to be possible.
-      docker network create --driver overlay --attachable \
+      flags=(--driver overlay --attachable)
+      if [[ "${internal}" == "true" ]]; then
+        flags+=(--internal)
+      fi
+      docker network create "${flags[@]}" \
         --label "app.betula.managed-by=vps/30-docker.sh" "${net}" >/dev/null
-      log "network ${net} created"
+      log "network ${net} created (internal: ${internal})"
     fi
   done
 }

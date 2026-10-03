@@ -1,8 +1,13 @@
 # Betula
 
 An unofficial catalog of the modules, study programs and study plans of BTU Cottbus-Senftenberg
-(https://betula.app). Betula is the birch; its two parts are named after the tree:
+(https://betula.app). Betula is the birch; its three parts are named after the tree:
 
+- **Cortex** (the bark, Go): the cache between Betula and the internet. The crawl's requests
+  pass through it (`RADIX_CORTEX_URL`): it fetches from public hosts at one polite pace per host
+  for all its clients together, keeps every answer that changed (gzip, 180 days of history),
+  stores named files over REST, and has a hot spare that takes over within a moment
+  (`docs/cortex/cortex.md`).
 - **Radix** (the root, Go): collects the course data (modules, study programs, study plans,
   events), keeps it up to date as a long-running service, and publishes it as SQLite snapshots
   over HTTP.
@@ -10,13 +15,14 @@ An unofficial catalog of the modules, study programs and study plans of BTU Cott
   redistributes them to browsers, which query the database locally through documented read views.
 
 ```
-QIS (module descriptions, tree, events), b-tu.de/modul ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
-statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
+QIS (module descriptions, tree, events), b-tu.de/modul ──Cortex──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
+statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
 ```
 
 | | |
 |---|---|
 | [docs/radix/operations.md](docs/radix/operations.md) | running it as a service, configuration, secrets, log events, notifications, container / Docker Swarm / systemd |
+| [docs/cortex/cortex.md](docs/cortex/cortex.md) | Cortex: storage, the API, politeness and safety per host, the hot spare, clients, configuration, metrics, log events |
 | [docs/radix/schema-v2.md](docs/radix/schema-v2.md) | pipeline, tables, the read views (the contract for consumers), what is still open |
 | [docs/radix/data-sources.md](docs/radix/data-sources.md) | where every fact comes from, which source wins, and the evidence |
 | [docs/radix/backend-data-overhaul.md](docs/radix/backend-data-overhaul.md) | the brief this design follows |
@@ -27,12 +33,12 @@ statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrich
 
 | Directory | What it holds |
 |---|---|
-| `radix/` | Radix, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `internal/` |
+| `radix/` | Radix and Cortex, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `cmd/cortex`, `internal/` (Cortex in `internal/cortex/`) |
 | `folia/` | Folia, one Cargo workspace: `crates/<crate>` (package `folia-<crate>`), `assets/` (stylesheet, scripts, icons the server embeds), `e2e/` (browser checks), `design/` (sources of drawings and icons), `scripts/` (builds, the dev server) |
-| `docs/` | `radix/`, `folia/`, and `history/` for the briefs and plans that are done |
+| `docs/` | `radix/`, `folia/`, `cortex/`, and `history/` for the briefs and plans that are done |
 | `deploy/` | the stacks, the server set-up, `ship.sh` |
 | `research/` | experiments that are not part of the product (the semantic search's training and demos) |
-| `flake.nix` | the two binaries and their container images |
+| `flake.nix` | the three binaries and their container images |
 
 ## Quick start
 
@@ -58,13 +64,23 @@ nix build .#radix-image                  # container image with a health check (
 (cd radix && go test ./...)         # network-free, no API key needed
 ```
 
+```bash
+(cd radix && go build -o ../cortex ./cmd/cortex)   # Cortex, also pure Go
+cortex serve                         # one instance on 127.0.0.1:8100, always the leader
+radix run --cortex http://127.0.0.1:8100   # Radix fetching through it
+nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cortex.sh ships it)
+```
+
 ### Layout
 
 | Package | Role |
 |---|---|
 | `radix/cmd/radix` | command line of Radix |
+| `radix/cmd/cortex` | command line of Cortex: `serve`, `status`, `step-down`, `put`, `get`, `healthcheck` |
+| `radix/internal/cortex/server`, `radix/internal/cortex/store`, `radix/internal/cortex/upstream`, `radix/internal/cortex/cluster`, `radix/internal/cortex/telemetry` | Cortex: the HTTP API; blobs, the SQLite index and its journal; fetching under the host policy; leader election and the follower; its metric registry |
+| `radix/internal/cortex/client` | Go client of Cortex with fail-over between its instances (standard library only; Radix's way through Cortex) |
 | `radix/internal/service` | the service loop, its stages, `/healthz` and `/status` |
-| `radix/internal/crawl`, `radix/internal/qistree` | polite archiving; QIS program tree walker |
+| `radix/internal/crawl`, `radix/internal/qistree` | polite archiving, directly or through Cortex; QIS program tree walker |
 | `radix/internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
 | `radix/internal/catalogbuild`, `radix/internal/normalize`, `radix/internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms included); HTML parsers |
 | `radix/internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` and the `blocked.tsv` of forms never derived |
@@ -156,7 +172,7 @@ go run ./cmd/radix scan-curriculum --name Informatik --degree Bachelor --force -
 ```
 
 `--name` is a substring filter; use `--program-id` (e.g. `079-82-2008`) for a single program.
-The PDFs are expected in `statutes/` (`radix download-statutes`).
+The PDFs are expected in `statutes/` (`radix download-statutes`, through Cortex with `--cortex`).
 To store validated results, omit `--dry-run`. The previous plan of the program is replaced in
 one transaction (`catalogdb.SavePlan`); the next `build` derives the membership statements.
 Failed validation preserves the existing records.

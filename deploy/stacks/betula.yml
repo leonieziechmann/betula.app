@@ -69,16 +69,26 @@ services:
     volumes:
       # Working database, snapshots and the statutes directory. Worth a backup (README.md).
       - radix-data:/data
+    # Internal networks only: Radix has no way to the internet of its own (owner, 2026-10-02).
+    # Docker gives a container a way out as soon as ONE of its networks is not internal, so Radix
+    # is on neither the stack's "default" nor "monitoring" (both are not internal, and the flag of
+    # an existing network cannot be changed). What it fetches goes through Cortex
+    # (stacks/cortex.yml): 50-app.sh adds betula.cortex.yml while the stack cortex runs. A Radix
+    # that crawls while Cortex does not run, or that has the Gemini key (Gemini does not go
+    # through Cortex), is given a way out with betula.egress.yml; an offline one never.
     networks:
-      # Folia reaches http://radix:8090/snapshot/catalog.db. Not "internal": Radix has to reach
-      # the university's servers.
-      default: {}
-      # Prometheus scrapes http://<stack>_radix:8090/metrics over this overlay (job radix in
+      # Folia reaches http://radix:8090/snapshot/catalog.db over this one; the two are its only
+      # members.
+      snapshot: {}
+      # Cortex at http://cortex_a:8100 and http://cortex_b:8100, and Prometheus, which scrapes
+      # http://tasks.<stack>_radix:8090/metrics over it (job radix in
       # config/monitoring/prometheus.yml; dashboard "Radix"). Every instance's Radix is
       # "radix" here too, so nothing on this network may ask for the bare name: Folia stays off it.
-      monitoring: {}
-    # No ports: nothing but Traefik publishes anything. /status for a human:
-    #   ssh -L 8090:<address of the container on docker_gwbridge>:8090 betula   (same recipe as for Grafana, README.md)
+      cortex: {}
+    # No ports: nothing but Traefik publishes anything. Without a network that leads out, Radix has
+    # no address on docker_gwbridge either; /status for a human, from Prometheus, which is on
+    # "cortex" too (the dot: busybox wget and the search list, 91-verify-stacks.sh):
+    #   docker exec "$(docker ps -q -f name=monitoring_prometheus | head -n 1)" wget -qO- http://<stack>_radix.:8090/status
     cap_drop: [ALL]
     stop_grace_period: 60s        # SIGTERM stops it cleanly; a build transaction takes about 20 s
     deploy:
@@ -150,6 +160,8 @@ services:
     networks:
       default: {}
       edge: {}
+      # Radix, for the snapshot (FOLIA_SNAPSHOT_URL); the only network the two share.
+      snapshot: {}
     cap_drop: [ALL]
     stop_grace_period: 30s          # graceful shutdown on SIGTERM (folia/crates/server/src/main.rs)
     deploy:
@@ -208,9 +220,16 @@ services:
 networks:
   default:
     driver: overlay
+  # Internal: no way out of the host. Docker sets the flag when it creates a network and ignores
+  # a change later, so this is a network of its own, with a name that is new to every stack, and
+  # not the stack's "default", which exists already and is not internal.
+  snapshot:
+    driver: overlay
+    internal: true
   edge:
     external: true
-  monitoring:
+  # Internal and attachable, made by vps/30-docker.sh; Cortex and Prometheus are on it as well.
+  cortex:
     external: true
 
 volumes:

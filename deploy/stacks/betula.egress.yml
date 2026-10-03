@@ -1,0 +1,27 @@
+# Optional override for stacks/betula.yml: gives Radix a way to the internet. Its networks in
+# betula.yml are all internal (owner, 2026-10-02: only Cortex has a way out); this file adds one
+# that is not.
+#
+# vps/50-app.sh adds this file while the instance's file says RADIX_CRAWL=on and
+#   - the stack cortex does not run (no betula.cortex.yml): Radix fetches from the university
+#     directly, as it did before Cortex, or
+#   - the swarm secret gemini-api-key exists (betula.gemini.yml): Gemini does not go through
+#     Cortex, so "scan-curriculum" and the summaries of the semantic search need the way out.
+# Offline (RADIX_CRAWL=off) Radix sends nothing, and never gets it. Docker has no allowlist per
+# host for a container's way out: while this file is deployed, Radix could reach any host.
+#
+# Left out on a later deploy, the service leaves the network again; the network object
+# <stack>_egress stays behind unused ("docker stack deploy --prune" only removes services).
+# 50-app.sh and 91-verify-stacks.sh read the networks of the service, not whether the network exists.
+
+services:
+  radix:
+    networks:
+      egress: {}
+
+networks:
+  # A network of its own with Radix as its only member: not internal, so Docker gives the container
+  # a way out (docker_gwbridge), and nothing else reaches Radix through it. Folia keeps talking to
+  # Radix over the internal "snapshot" only.
+  egress:
+    driver: overlay

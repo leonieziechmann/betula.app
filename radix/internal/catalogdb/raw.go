@@ -42,13 +42,18 @@ type RawPage struct {
 
 // PutPage stores the latest response for (source, key), replacing the previous
 // one. changed_at only moves when the body differs from the archived body.
+//
+// fetched_at never goes backwards: a response fetched before the archived one (one that
+// Cortex answered from its store, older than a page fetched directly since) is not
+// stored, neither its body nor its time.
 func (db *DB) PutPage(p RawPage) error {
 	_, err := db.PutPageChanged(p)
 	return err
 }
 
 // PutPageChanged is PutPage and reports whether the body differs from the archived
-// one (true for a page that was not archived before).
+// one (true for a page that was not archived before; false for a response older than
+// the archived page, which is not stored).
 func (db *DB) PutPageChanged(p RawPage) (bool, error) {
 	changed, err := db.putPage(p)
 	return changed, err
@@ -83,7 +88,9 @@ func (db *DB) putPage(p RawPage) (bool, error) {
 	err := db.sql.QueryRow("SELECT content_hash FROM raw_page WHERE source = ? AND key = ?", p.Source, p.Key).Scan(&previous)
 	changed := err != nil || previous != hash
 
-	_, err = db.sql.Exec(`
+	// The times are fixed-width RFC 3339 in UTC, so that their order as text is their order
+	// in time.
+	res, err := db.sql.Exec(`
 		INSERT INTO raw_page (source, key, source_url, fetched_at, changed_at, http_status, content_hash, body_gz)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(source, key) DO UPDATE SET
@@ -94,8 +101,19 @@ func (db *DB) putPage(p RawPage) (bool, error) {
 			http_status = excluded.http_status,
 			content_hash = excluded.content_hash,
 			body_gz = excluded.body_gz
+		WHERE excluded.fetched_at >= raw_page.fetched_at
 	`, p.Source, p.Key, p.URL, fetchedAt, fetchedAt, p.HTTPStatus, hash, bodyGz)
-	return changed, err
+	if err != nil {
+		return changed, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil // older than the archived page
+	}
+	return changed, nil
 }
 
 // GetPage returns the archived response for (source, key).

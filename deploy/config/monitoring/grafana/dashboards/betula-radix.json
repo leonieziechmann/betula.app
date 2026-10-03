@@ -1,12 +1,12 @@
 {
   "uid": "betula-radix",
   "title": "Radix",
-  "description": "What Radix, the collector, does: requests to b-tu.de and QIS by endpoint, what changed, its cycles and the snapshots it publishes. From GET /metrics of each instance's Radix (job radix). Provisioned from deploy/config/monitoring/grafana/dashboards - edit there.",
+  "description": "What Radix, the collector, does: what it asked for by endpoint, and, when it fetches through Cortex, how much of it Cortex answered from its store and what reached the university; what changed, its cycles and the snapshots it publishes. From GET /metrics of each instance's Radix (job radix) and of Cortex (job cortex). Provisioned from deploy/config/monitoring/grafana/dashboards - edit there.",
   "tags": [
     "betula"
   ],
   "schemaVersion": 42,
-  "version": 1,
+  "version": 2,
   "id": null,
   "editable": true,
   "graphTooltip": 1,
@@ -595,8 +595,89 @@
     },
     {
       "type": "stat",
-      "title": "Requests to the university",
-      "description": "HTTP requests Radix sent to b-tu.de / QIS in the selected time range, retries included.",
+      "title": "Fetches through",
+      "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself. An instance that serves its snapshot offline fetches nothing.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "max by (stack) (radix_crawl_via_cortex{stack=~\"$stack\"})",
+          "legendFormat": "{{stack}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "offline",
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "university",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Cortex",
+                  "index": 1
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 8,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Requests Radix sent",
+      "description": "HTTP requests Radix sent in the selected range, retries included. Through Cortex they go to Cortex, which answers most of them from its store (below, „Through Cortex\"); without it they go to b-tu.de / QIS.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -651,18 +732,18 @@
         "showPercentChange": false,
         "wideLayout": true
       },
-      "id": 8,
+      "id": 9,
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 0,
+        "x": 4,
         "y": 5
       }
     },
     {
       "type": "stat",
       "title": "Failed requests",
-      "description": "Requests without a 200 or 404 answer (timeouts, 5xx, …) in the selected range. Each is retried twice; a page given up is an ERROR in the log.",
+      "description": "Requests without a final answer (anything but 200 and 404), retries included. Through Cortex an error of Cortex itself counts here too.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -725,11 +806,143 @@
         "showPercentChange": false,
         "wideLayout": true
       },
-      "id": 9,
+      "id": 10,
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 4,
+        "x": 8,
+        "y": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Reached the university",
+      "description": "Requests that reached b-tu.de, QIS or OPUS in the selected range: what a Radix without Cortex sent, plus what Cortex fetched from these hosts for every client.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "(sum(increase(radix_crawl_requests_total{stack=~\"$stack\"}[$__range]) unless on(stack) (radix_crawl_via_cortex{stack=~\"$stack\"} == 1)) or vector(0)) + (sum(increase(cortex_upstream_requests_total{job=\"cortex\", host=~\"qis.b-tu.de|www.b-tu.de|b-tu.de|opus4.kobv.de\"}[$__range])) or vector(0))",
+          "legendFormat": "requests",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "0",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 11,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 5
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Answered from Cortex's store",
+      "description": "Of Radix's requests to Cortex in the selected range, the share Cortex answered from its store without asking the university. Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result=~\"hit|not_modified\"}[$__range])) / sum(increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result!=\"forwarded\"}[$__range]))",
+          "legendFormat": "share",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "noValue": "–",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "textMode": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      },
+      "id": 12,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
         "y": 5
       }
     },
@@ -791,11 +1004,11 @@
         "showPercentChange": false,
         "wideLayout": true
       },
-      "id": 10,
+      "id": 13,
       "gridPos": {
         "h": 4,
         "w": 4,
-        "x": 8,
+        "x": 20,
         "y": 5
       }
     },
@@ -857,12 +1070,12 @@
         "showPercentChange": false,
         "wideLayout": true
       },
-      "id": 11,
+      "id": 14,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 12,
-        "y": 5
+        "w": 8,
+        "x": 0,
+        "y": 9
       }
     },
     {
@@ -927,12 +1140,12 @@
         "showPercentChange": false,
         "wideLayout": true
       },
-      "id": 12,
+      "id": 15,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 16,
-        "y": 5
+        "w": 8,
+        "x": 8,
+        "y": 9
       }
     },
     {
@@ -997,31 +1210,31 @@
         "showPercentChange": false,
         "wideLayout": true
       },
-      "id": 13,
+      "id": 16,
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 5
+        "w": 8,
+        "x": 16,
+        "y": 9
       }
     },
     {
       "type": "row",
-      "title": "Requests to the university, by endpoint",
+      "title": "What Radix asked for, by endpoint",
       "collapsed": false,
       "panels": [],
-      "id": 14,
+      "id": 17,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 13
       }
     },
     {
       "type": "timeseries",
       "title": "Requests by endpoint",
-      "description": "HTTP requests sent per endpoint, retries included, per bar.",
+      "description": "HTTP requests Radix sent per endpoint, retries included, per bar: to Cortex when it fetches through Cortex, else to the university.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1175,18 +1388,18 @@
         }
       },
       "interval": "10m",
-      "id": 15,
+      "id": 18,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 14
       }
     },
     {
       "type": "bargauge",
       "title": "Requests per endpoint, selected range",
-      "description": "All requests of the selected range per endpoint.",
+      "description": "The same, summed over the selected range.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1340,18 +1553,18 @@
           "values": false
         }
       },
-      "id": 16,
+      "id": 19,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 10
+        "y": 14
       }
     },
     {
       "type": "timeseries",
       "title": "Answers by status code",
-      "description": "What the university answered. 200 and 404 are final answers; everything else (5xx, \"error\" = no answer at all) is retried after 30 s and 60 s.",
+      "description": "The status of each answer. Through Cortex it is the university's status as Cortex stored it; error means no answer, or an error of Cortex itself.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1484,18 +1697,18 @@
         }
       },
       "interval": "10m",
-      "id": 17,
+      "id": 20,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 18
+        "y": 22
       }
     },
     {
       "type": "timeseries",
-      "title": "Response time p95 by endpoint",
-      "description": "95th percentile of the time from request to the end of the body. Above 15 s a request is logged as crawl.slow.",
+      "title": "Answer time p95 by endpoint, as Radix sees it",
+      "description": "95th percentile of the time from request to the end of the body. Through Cortex: a hit from its store (milliseconds), or Cortex's queue for the host plus the university's answer. The university's own answer time is in „University answer time p95\" below. Above 15 s a request is logged as crawl.slow.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1648,18 +1861,18 @@
         }
       },
       "interval": "10m",
-      "id": 18,
+      "id": 21,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 18
+        "y": 22
       }
     },
     {
       "type": "timeseries",
       "title": "Data received by endpoint",
-      "description": "Bytes of response bodies per bar.",
+      "description": "Bytes of the answers Radix received per endpoint (from Cortex or the university).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1812,12 +2025,769 @@
         }
       },
       "interval": "10m",
-      "id": 19,
+      "id": 22,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 18
+        "y": 22
+      }
+    },
+    {
+      "type": "row",
+      "title": "Through Cortex: what reached the university",
+      "collapsed": false,
+      "panels": [],
+      "id": 23,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "How Cortex answered Radix",
+      "description": "Radix's requests to Cortex per bar, by how Cortex answered: from its store, or fetched from the university (not stored yet, stored copy older than Radix's max age, refresh). Counted on the instance that answered; a request a follower passed to the leader counts once. Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (result) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result!=\"forwarded\"}[$__interval]))",
+          "legendFormat": "{{result}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "hit"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "from Cortex's store"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "miss"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "fetched: not stored yet"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stale"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "fetched: stored copy too old"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "light-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "refresh"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "fetched: refresh asked"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "not_modified"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "not modified (304)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "stale_if_error"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "stored copy, the university failed"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "offline_miss"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "not stored (offline)"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "error"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "10m",
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 31
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Answered from Cortex's store, by endpoint",
+      "description": "Per endpoint, the share of Radix's requests in the selected range that Cortex answered from its store. Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sort_desc(sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result=~\"hit|not_modified\"}[$__range])) / sum by (source) (increase(cortex_requests_total{job=\"cortex\", source=~\"module_catalog|module_page|qis_module_list|qis_fues_list|qis_module_page|qis_tree|qis_event_entry|qis_event|statute\", result!=\"forwarded\"}[$__range])))",
+          "legendFormat": "{{source}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "module_catalog"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "b-tu.de · module list"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "module_page"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "b-tu.de · module pages"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_module_list"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · module table"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_fues_list"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · FÜS list"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_module_page"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · module descriptions"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_tree"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · program tree"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_event_entry"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · event search (dates)"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis_event"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS · event pages"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "statute"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "OPUS · statutes"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 31
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests that reached the university, by host",
+      "description": "What Cortex sent to b-tu.de, QIS and OPUS per bar, retries and redirects included, for every client. A Radix without Cortex shows its requests above instead. Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (host) (increase(cortex_upstream_requests_total{job=\"cortex\", host=~\"qis.b-tu.de|www.b-tu.de|b-tu.de|opus4.kobv.de\"}[$__interval]))",
+          "legendFormat": "{{host}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis.b-tu.de"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opus4.kobv.de"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "OPUS"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "10m",
+      "id": 26,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 39
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "University answers by status code",
+      "description": "The status of the university's answers to Cortex; error means no answer (network error, timeout). Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (code) (increase(cortex_upstream_requests_total{job=\"cortex\", host=~\"qis.b-tu.de|www.b-tu.de|b-tu.de|opus4.kobv.de\"}[$__interval]))",
+          "legendFormat": "{{code}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "10m",
+      "id": 27,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 39
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "University answer time p95",
+      "description": "95th percentile of the university's own answer time, measured by Cortex from request to the end of the body. Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (host, le) (rate(cortex_upstream_request_duration_seconds_bucket{job=\"cortex\", host=~\"qis.b-tu.de|www.b-tu.de|b-tu.de|opus4.kobv.de\"}[$__interval])))",
+          "legendFormat": "{{host}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "always",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis.b-tu.de"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opus4.kobv.de"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "OPUS"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "10m",
+      "id": 28,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 39
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "University hosts paused by Cortex",
+      "description": "Cortex stops asking a host for a while after 10 failures in a row, or when the host answers 429/503 with Retry-After. Meanwhile Radix's requests for that host fail (Radix asks with stale=never). Cortex serves every instance, so these numbers are not split by the Instance filter.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "max by (host) (cortex_host_paused{job=\"cortex\", host=~\"qis.b-tu.de|www.b-tu.de|b-tu.de|opus4.kobv.de\"})",
+          "legendFormat": "{{host}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "rgba(128, 128, 128, 0.25)",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "asked",
+                  "index": 0
+                },
+                "1": {
+                  "text": "paused",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "qis.b-tu.de"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "QIS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "opus4.kobv.de"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "OPUS"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "id": 29,
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 47
       }
     },
     {
@@ -1825,12 +2795,12 @@
       "title": "Changes",
       "collapsed": false,
       "panels": [],
-      "id": 20,
+      "id": 30,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 51
       }
     },
     {
@@ -1954,12 +2924,12 @@
         }
       },
       "interval": "10m",
-      "id": 21,
+      "id": 31,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 27
+        "y": 52
       }
     },
     {
@@ -2119,12 +3089,12 @@
         }
       },
       "interval": "10m",
-      "id": 22,
+      "id": 32,
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 27
+        "y": 52
       }
     },
     {
@@ -2417,12 +3387,12 @@
           }
         ]
       },
-      "id": 23,
+      "id": 33,
       "gridPos": {
         "h": 11,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 60
       }
     },
     {
@@ -2570,12 +3540,12 @@
         }
       },
       "interval": "30m",
-      "id": 24,
+      "id": 34,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 46
+        "y": 71
       }
     },
     {
@@ -2639,12 +3609,12 @@
           "sort": "desc"
         }
       },
-      "id": 25,
+      "id": 35,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 46
+        "y": 71
       }
     },
     {
@@ -2707,12 +3677,12 @@
         }
       },
       "interval": "30m",
-      "id": 26,
+      "id": 36,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 46
+        "y": 71
       }
     },
     {
@@ -2720,12 +3690,12 @@
       "title": "Cycles",
       "collapsed": false,
       "panels": [],
-      "id": 27,
+      "id": 37,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 79
       }
     },
     {
@@ -2849,12 +3819,12 @@
         }
       },
       "interval": "30m",
-      "id": 28,
+      "id": 38,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 55
+        "y": 80
       }
     },
     {
@@ -2916,12 +3886,12 @@
           "sort": "desc"
         }
       },
-      "id": 29,
+      "id": 39,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 55
+        "y": 80
       }
     },
     {
@@ -3000,12 +3970,12 @@
         }
       },
       "interval": "30m",
-      "id": 30,
+      "id": 40,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 55
+        "y": 80
       }
     },
     {
@@ -3082,18 +4052,18 @@
           "mode": "single"
         }
       },
-      "id": 31,
+      "id": 41,
       "gridPos": {
         "h": 5,
         "w": 12,
         "x": 0,
-        "y": 63
+        "y": 88
       }
     },
     {
       "type": "timeseries",
-      "title": "Memory and CPU of Radix",
-      "description": "The container of each instance's Radix (limits: 1 GB, 1 CPU). The build is the big consumer.",
+      "title": "Memory of Radix",
+      "description": "The container of each instance's Radix (limits: 1 GB, 1 CPU): working set.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3107,19 +4077,7 @@
           },
           "editorMode": "code",
           "expr": "sum by (stack) (container_memory_working_set_bytes{stack=~\"$stack\", service=~\".+_radix\"})",
-          "legendFormat": "{{stack}} memory",
-          "range": true,
-          "instant": false
-        },
-        {
-          "refId": "B",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "sum by (stack) (rate(container_cpu_usage_seconds_total{stack=~\"$stack\", service=~\".+_radix\"}[$__rate_interval]))",
-          "legendFormat": "{{stack}} CPU",
+          "legendFormat": "{{stack}}",
           "range": true,
           "instant": false
         }
@@ -3144,24 +4102,7 @@
             "axisSoftMin": 0
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".* CPU$"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": {
@@ -3178,12 +4119,79 @@
           "sort": "desc"
         }
       },
-      "id": 32,
+      "id": 42,
       "gridPos": {
         "h": 5,
-        "w": 12,
+        "w": 6,
         "x": 12,
-        "y": 63
+        "y": 88
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU of Radix",
+      "description": "The container of each instance's Radix (limits: 1 GB, 1 CPU): share of one processor.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (stack) (rate(container_cpu_usage_seconds_total{stack=~\"$stack\", service=~\".+_radix\"}[$__rate_interval]))",
+          "legendFormat": "{{stack}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 43,
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 88
       }
     },
     {
@@ -3191,12 +4199,12 @@
       "title": "Web server and problems",
       "collapsed": false,
       "panels": [],
-      "id": 33,
+      "id": 44,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 93
       }
     },
     {
@@ -3305,12 +4313,12 @@
         }
       },
       "interval": "30m",
-      "id": 34,
+      "id": 45,
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 69
+        "y": 94
       }
     },
     {
@@ -3389,12 +4397,12 @@
         }
       },
       "interval": "30m",
-      "id": 35,
+      "id": 46,
       "gridPos": {
         "h": 8,
         "w": 16,
         "x": 8,
-        "y": 69
+        "y": 94
       }
     },
     {
@@ -3427,12 +4435,12 @@
         "dedupStrategy": "none",
         "sortOrder": "Descending"
       },
-      "id": 36,
+      "id": 47,
       "gridPos": {
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 77
+        "y": 102
       }
     }
   ]

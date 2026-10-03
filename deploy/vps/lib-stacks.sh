@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Helpers shared by 40-stacks.sh and 91-verify-stacks.sh. Sourced AFTER lib.sh, never executed.
+# Helpers shared by 40-stacks.sh, 48-cortex.sh, 50-app.sh and 91-verify-stacks.sh. Sourced AFTER
+# lib.sh, never executed.
 # Both scripts run as the deploy user (group docker), not as root: "docker stack deploy"
 # substitutes ${VAR} in the stack files from the environment, and sudo would reset it.
 # shellcheck shell=bash
@@ -65,13 +66,41 @@ service_label() {
   docker service inspect "$1" --format "{{index .Spec.Labels \"$2\"}}" 2>/dev/null || true
 }
 
-# service_state SERVICE -> "ok 1/1" | "wait <why>" | "failed <why>"
+# service_networks SERVICE -> the networks swarm attaches the service's tasks to, "<name>
+# <internal>" per line (internal is true or false; "unknown" for a network that cannot be
+# inspected). Read from the service spec: what swarm was told, not whether a network exists (a
+# network a service left stays behind; "docker stack deploy --prune" only removes services).
+service_networks() {
+  local id line
+  for id in $(docker service inspect "$1" --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}} {{end}}' 2>/dev/null || true); do
+    line="$(docker network inspect "${id}" --format '{{.Name}} {{.Internal}}' 2>/dev/null || true)"
+    printf '%s\n' "${line:-${id} unknown}"
+  done
+}
+
+# service_container SERVICE -> the ID of a running container of the service on this node (nothing
+# when none runs here).
+service_container() {
+  local ids
+  ids="$(docker ps -q --no-trunc --filter "label=com.docker.swarm.service.name=$1" --filter status=running 2>/dev/null || true)"
+  printf '%s' "${ids%%$'\n'*}"
+}
+
+# service_state SERVICE [now] -> "ok 1/1" | "wait <why>" | "failed <why>"
 #   ok      every desired task is RUNNING (with a healthcheck, swarm reports "running" only once
 #           the container is healthy; before that the task is "starting") and no update is in flight
 #   wait    still converging
 #   failed  swarm gave up by itself (update paused or rolled back): waiting longer will not help
+# That answers whether the last deploy of the service landed (wait_for_stack, right after it).
+# With "now" the question is whether the service runs, however its last update went: one that
+# swarm rolled back left the definition before it running, and an update in flight still has its
+# tasks, so both count by their replicas (the update is named after them: "ok 1/1 (update
+# rollback_completed)"). Swarm keeps "rollback_completed" until the service's next update, which
+# for an instance of Cortex comes only with another release or a change to stacks/cortex.yml
+# (vps/48-cortex.sh). Only an update that swarm stopped half way and leaves to a human (paused,
+# rollback_paused) is failed then as well.
 service_state() {
-  local svc=$1 line replicas running desired update
+  local svc=$1 now=${2:-} line replicas running desired update note=""
   line="$(docker service ls --filter "name=${svc}" --format '{{.Name}} {{.Replicas}}')"
   # --filter name= is a prefix match (edge_traefik would also match edge_traefik2).
   replicas="$(awk -v n="${svc}" '$1 == n { print $2 }' <<<"${line}")"
@@ -83,20 +112,84 @@ service_state() {
   desired="${BASH_REMATCH[2]}"
   update="$(docker service inspect "${svc}" --format '{{if .UpdateStatus}}{{.UpdateStatus.State}}{{end}}' 2>/dev/null || true)"
   case "${update}" in
-    paused | rollback_paused | rollback_completed)
+    paused | rollback_paused)
       printf 'failed update %s (%s running)' "${update}" "${replicas}"
       return 0
       ;;
+    rollback_completed)
+      if [[ "${now}" != "now" ]]; then
+        printf 'failed update %s (%s running)' "${update}" "${replicas}"
+        return 0
+      fi
+      note=" (update ${update})"
+      ;;
     updating | rollback_started)
-      printf 'wait update %s (%s running)' "${update}" "${replicas}"
-      return 0
+      if [[ "${now}" != "now" ]]; then
+        printf 'wait update %s (%s running)' "${update}" "${replicas}"
+        return 0
+      fi
+      note=" (update ${update})"
       ;;
   esac
   if [[ "${running}" -eq "${desired}" ]]; then
-    printf 'ok %s' "${replicas}"
+    printf 'ok %s%s' "${replicas}" "${note}"
   else
-    printf 'wait %s running' "${replicas}"
+    printf 'wait %s running%s' "${replicas}" "${note}"
   fi
+}
+
+# radix_cortex_support -> reads what "radix run -h" printed (stdin) and says whether that release
+# of Radix fetches through Cortex when it is given RADIX_CORTEX_URL: "yes" when the flags of run
+# include --cortex, "no" when they are listed without it (a release from before Cortex: it ignores
+# the variable and fetches directly), "unknown" when the text lists no flags of run at all. Go's
+# flag package prints them as "Usage of run:", then "  -cortex string" and so on.
+radix_cortex_support() {
+  local text
+  text="$(cat)"
+  if grep -qE '^[[:space:]]+--?cortex([[:space:]]|$)' <<<"${text}"; then
+    printf 'yes'
+  elif grep -qxF 'Usage of run:' <<<"${text}"; then
+    printf 'no'
+  else
+    printf 'unknown'
+  fi
+}
+
+# Set by cortex_look: how the two instances of Cortex are, in words.
+CORTEX_DETAIL=""
+
+# cortex_look - one look at whether the stack cortex (vps/48-cortex.sh) runs, as the application
+# needs it: 50-app.sh decides by it whether Radix fetches through Cortex, 91-verify-stacks.sh
+# checks by the same rule. Returns
+#   0  it runs: cortex_a and cortex_b each run every task they should (service_state ... now),
+#      and at least one of them has one
+#   1  it does not, and waiting will not change that: the stack is not deployed, swarm stopped an
+#      update of an instance half way (paused, rollback_paused), or both are scaled to 0
+#   2  not yet: a task of an instance is (re)starting
+# Decided on the replicas, not on how the last update went: an instance whose update swarm
+# rolled back runs the definition before it, and says so until its next update. Sets
+# CORTEX_DETAIL.
+cortex_look() {
+  local a b
+  CORTEX_DETAIL=""
+  if ! stack_exists cortex; then
+    CORTEX_DETAIL="the stack cortex is not deployed (deploy/ship-cortex.sh)"
+    return 1
+  fi
+  a="$(service_state cortex_a now)"
+  b="$(service_state cortex_b now)"
+  CORTEX_DETAIL="cortex_a ${a#* }, cortex_b ${b#* }"
+  if [[ "${a}" == failed\ * || "${b}" == failed\ * ]]; then
+    return 1
+  fi
+  if [[ "${a}" == ok\ * && "${b}" == ok\ * ]]; then
+    if [[ "${a}" == ok\ 0/* && "${b}" == ok\ 0/* ]]; then
+      CORTEX_DETAIL+=": both are scaled to 0"
+      return 1
+    fi
+    return 0
+  fi
+  return 2
 }
 
 # ---------------------------------------------------------------- stack files
@@ -263,7 +356,7 @@ load_instance() {
   done <"${file}"
   [[ "${INSTANCE_STACK}" == "${name}" ]] || die "${file}: STACK_NAME is '${INSTANCE_STACK}', the file says '${name}'; they have to agree"
   case "${INSTANCE_STACK}" in
-    edge | placeholder | monitoring) die "${file}: '${INSTANCE_STACK}' is the name of another stack" ;;
+    edge | placeholder | monitoring | cortex) die "${file}: '${INSTANCE_STACK}' is the name of another stack" ;;
   esac
   [[ "${INSTANCE_HOST}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || die "${file}: APP_HOST '${INSTANCE_HOST}' is not a host name"
   [[ "${INSTANCE_GATE}" == "on" || "${INSTANCE_GATE}" == "off" ]] || die "${file}: FOLIA_ACCESS_GATE is '${INSTANCE_GATE}', not on or off"

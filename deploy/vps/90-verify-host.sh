@@ -620,9 +620,10 @@ check_docker() {
   else
     warning "swarm advertise address ${value} differs from the default IPv4 $(default_ipv4)"
   fi
-  for net in edge monitoring; do
-    facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
-    expect "network ${net} (driver scope attachable)" "${facts}" "overlay swarm true"
+  # As vps/30-docker.sh creates them: cortex is internal (no way out of the host), the others are not.
+  for net in edge:false monitoring:false cortex:true; do
+    facts="$(docker network inspect "${net%%:*}" --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null || true)"
+    expect "network ${net%%:*} (driver scope attachable internal)" "${facts}" "overlay swarm true ${net#*:}"
   done
 
   # published-port filter

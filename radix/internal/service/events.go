@@ -235,7 +235,7 @@ func CrawlEventList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Ev
 	start := time.Now()
 	requests := (len(due) + eventListBatch - 1) / eventListBatch
 	log.Info("event list started", "event", "crawl.started", "events", len(due), "requests", requests, "all", all, "delay_ms", pace.Delay.Milliseconds())
-	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, Backoff: pace.Backoff})
+	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, Backoff: pace.Backoff, Client: ep.Client})
 	var notListed []string
 	for from := 0; from < len(due); from += eventListBatch {
 		batch := due[from:min(from+eventListBatch, len(due))]
@@ -244,12 +244,12 @@ func CrawlEventList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Ev
 			Key:    fmt.Sprintf("search:%s..%s", batch[0], batch[len(batch)-1]),
 			URL:    fmt.Sprintf(ep.EventListURL, strings.Join(batch, ","), len(batch)),
 		}
-		body, err := fetcher.Download(ctx, job)
+		// fetchedAt is when QIS gave the answer: through Cortex, possibly before this request.
+		body, fetchedAt, err := fetcher.Download(ctx, job)
 		if err != nil {
 			stats.Failed = fetcher.Stats().Failed
 			return stats, err
 		}
-		fetchedAt := time.Now()
 		list, err := parser.SplitEventList(bytes.NewReader(body))
 		if err != nil {
 			return stats, fmt.Errorf("event search for %d events from %s: %w", len(batch), batch[0], err)
@@ -467,7 +467,7 @@ func CrawlEvents(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Event
 	for i, d := range due {
 		jobs[i] = d.job
 	}
-	stats, err := crawl.Run(ctx, db, jobs, crawl.Options{Workers: pace.Workers, Delay: pace.Delay, Backoff: pace.Backoff})
+	stats, err := crawl.Run(ctx, db, jobs, crawl.Options{Workers: pace.Workers, Delay: pace.Delay, Backoff: pace.Backoff, Client: ep.Client})
 	stats.Skipped += notDue
 	return stats, err
 }
