@@ -19,6 +19,7 @@ use folia_model::rows_detail::DateRow;
 use folia_routes::filter::{CatalogQuery, FitsFilter};
 use folia_routes::url::{BookmarkSort, CatalogUrl};
 use folia_timetable::fit::CandidateSet;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -35,19 +36,45 @@ pub struct DataError {
     pub message: String,
 }
 
+/// What `DataError::pending` says: no error, the answer is on its way.
+const PENDING: &str = "the answer is on its way";
+
+impl DataError {
+    /// The answer is on its way (the data worker has not answered yet): a page shows what it
+    /// showed before, or nothing, never an error.
+    pub fn pending() -> Self {
+        Self { unavailable: true, message: PENDING.to_string() }
+    }
+
+    pub fn is_pending(&self) -> bool {
+        self.unavailable && self.message == PENDING
+    }
+
+    /// `now`, or while it is pending the answer before it, where there was one: what is shown stays
+    /// until the new answer is there (docs/folia/folia-refactor.md §6.4).
+    pub fn or_before<T: Clone>(now: Result<T, DataError>, before: Option<&Result<T, DataError>>) -> Result<T, DataError> {
+        match (&now, before) {
+            (Err(error), Some(before)) if error.is_pending() => before.clone(),
+            _ => now,
+        }
+    }
+}
+
 impl From<DbError> for DataError {
     fn from(error: DbError) -> Self {
         Self { unavailable: matches!(error, DbError::Unavailable(_)), message: error.to_string() }
     }
 }
 
-/// How questions of one kind wait (§6.3): one of a lane replaces another of the same lane that
-/// has not been answered yet, so typing never piles up work.
+/// What kind of wait a question is (§6.3). Every question is answered, in turn: „newest wins" by
+/// kind would drop the question of another part of the page that asks the same kind at the same
+/// time, and the steps of what is typed are dropped before they ask (`Pending::typed`). The lane
+/// says which questions follow the keys, for a worker that answers them differently one day.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lane {
-    /// What a page shows: every question is answered.
+    /// What a page shows.
     Page,
-    /// What follows the keys or a slider: only the newest of its kind counts.
+    /// What follows the keys or a slider.
     Typing,
 }
 
@@ -59,8 +86,8 @@ pub struct Kept {
 }
 
 /// A question of a page, its answer, and the loader that answers it.
-pub trait Ask: Clone + Debug + PartialEq + Serialize + 'static {
-    type Answer: Clone + Debug + PartialEq + 'static;
+pub trait Ask: Clone + Debug + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static {
+    type Answer: Clone + Debug + PartialEq + Serialize + DeserializeOwned + Send + Sync + 'static;
     /// Its name in the messages to the data worker and in the keys of kept answers.
     const NAME: &'static str;
     const LANE: Lane = Lane::Page;
@@ -196,3 +223,61 @@ ask!(
         Ok((rows(&q.own)?, rows(&q.others)?))
     }
 );
+
+/// Answers the question named `name` (an `Ask::NAME`) whose fields `question` holds in JSON, with
+/// the JSON of its `Result<Answer, DataError>`: what the data worker does with every message.
+/// `None` for a name no question has.
+pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kept) -> Option<String> {
+    fn answer<A: Ask>(question: &str, db: &dyn Database, kept: &mut Kept) -> String {
+        let answer: Result<A::Answer, DataError> = serde_json::from_str::<A>(question)
+            .map_err(|error| DataError { unavailable: false, message: format!("{}: {error}", A::NAME) })
+            .and_then(|ask| ask.run(db, kept).map_err(DataError::from));
+        serde_json::to_string(&answer).unwrap_or_default()
+    }
+    macro_rules! dispatch {
+        ($($ask:ident),* $(,)?) => {
+            match name {
+                $(n if n == $ask::NAME => Some(answer::<$ask>(question, db, kept)),)*
+                _ => None,
+            }
+        };
+    }
+    dispatch!(
+        GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
+        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, StudyplanAsk, StudyplanModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk,
+        OverlayAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use folia_test_support::open;
+
+    /// What the data worker answers (`answer_json`) is what the question answers where it is asked
+    /// (`Ask::run`), read back as the page reads it: every question crosses in JSON and comes back
+    /// whole.
+    fn same<A: Ask>(ask: A) {
+        let db = open();
+        let here = ask.run(&db, &mut Kept::default()).map_err(DataError::from);
+        let json = answer_json(A::NAME, &serde_json::to_string(&ask).unwrap(), &db, &mut Kept::default()).unwrap_or_else(|| panic!("{} is not answered", A::NAME));
+        let there: Result<A::Answer, DataError> = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{}: {e}", A::NAME));
+        assert_eq!(here, there, "{}", A::NAME);
+    }
+
+    #[test]
+    fn the_worker_answers_what_the_page_would() {
+        let url = CatalogUrl { query: CatalogQuery { text: "Analysis".into(), ..Default::default() }, page: 1, open: None, fill: None };
+        same(CatalogAsk { url, locale: Locale::En });
+        same(GroundAsk {});
+        same(ModuleAsk { id: "11103".into() });
+        same(ModuleAsk { id: "00000".into() });
+        same(ProgramAsk { slug: "bachelor-informatik-2008".into() });
+        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into()], sort: BookmarkSort::Added, descending: false });
+        let key = SemesterKey::parse("2026W").unwrap();
+        same(StudyplanAsk { key, ids: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), locale: Locale::De });
+        same(PlanRowsAsk { key, own: vec!["12104".into()], others: vec!["12107".into()] });
+        same(MetaAsk {});
+        assert_eq!(answer_json("NoSuchAsk", "{}", &open(), &mut Kept::default()), None);
+    }
+}

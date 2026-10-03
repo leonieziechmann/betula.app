@@ -1,8 +1,10 @@
-//! The browser app: the same Leptos components as on the server, rendered in the browser
-//! against the local copy of the catalog (sql.js, opened by `folia/assets/boot.js`).
+//! The browser app: the same Leptos components as on the server, rendered in the browser. Their
+//! questions go to the data worker (`worker`), which runs this same bundle with the catalog in
+//! sql.js (`LocalDatabase`, opened by `js/data-worker.js`).
 //!
-//! `start()` is called once the database is open. It replaces the server-rendered page by
-//! the app; from then on every click is handled here and no page is loaded again.
+//! `start()` is called once the data worker has opened the catalog. It replaces the
+//! server-rendered page by the app; from then on every click is handled here and no page is
+//! loaded again.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -14,13 +16,14 @@ use folia_model::db::Rows;
 use folia_model::{Database, DbError, Value};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 
 mod worker;
 
 #[wasm_bindgen]
 extern "C" {
-    /// `betulaDb.query(sql, params)` → `{ columns: string[], rows: any[][] }`: the page's copy of
-    /// the catalog (`boot.js`), and in the catalog's worker the worker's (`search-worker.js`).
+    /// `betulaDb.query(sql, params)` → `{ columns: string[], rows: any[][] }`: the catalog, in the
+    /// data worker (`data-worker.js`).
     #[wasm_bindgen(js_namespace = betulaDb, js_name = query, catch)]
     fn db_query(sql: &str, params: js_sys::Array) -> Result<JsValue, JsValue>;
 }
@@ -252,8 +255,13 @@ pub fn start() {
     if let Some(root) = document.document_element() {
         let _ = root.set_attribute("lang", folia_app::i18n::of_address().code());
     }
+    // The page's questions go to the data worker (`worker`), where `boot.js` started one;
+    // otherwise to the local copy on this thread.
+    let data = worker::client();
     // Not hydration: the local database may be older than the server's page, so the app renders
-    // fresh. Same components, same markup, so nothing visibly changes.
+    // fresh. Same components, same markup, so nothing visibly changes; and while the app's first
+    // answers are on their way, the server's page stays in front of it as a picture (`boot.js`
+    // took it before it called this; `answered` says when it can go).
     body.set_inner_html("");
     // The same goes for what the server wrote into the head for this page (`folia_app::seo`): the app
     // writes its own, and what stayed would describe the first page on every later one.
@@ -270,13 +278,15 @@ pub fn start() {
     let map = program_map();
     let site = web_sys::window().and_then(|w| w.location().origin().ok());
     let build = build_of_page(&document);
+    let client = data.clone();
     leptos::mount::mount_to_body(move || {
         provide_context(Source(Arc::new(LocalSource)));
+        if let Some(data) = client.clone() {
+            provide_context(data);
+        }
         // Loaded by `boot.js` once the app runs; nothing waits for it. The catalog's „Ähnliche Module"
         // ask it (`folia_app::pages::catalog`).
         provide_context(folia_app::data::Semantic(Arc::new(BrowserSemantic)));
-        // The same: the catalog's search worker, which the catalog asks once it answers.
-        provide_context(folia_app::data::Worker(Arc::new(worker::BrowserWorker)));
         // The icons point into the sprite of this build (`folia_app::icons`), as the server's page did.
         if let Some(build) = build.clone() {
             provide_context(folia_app::BuildId(build.into()));
@@ -289,4 +299,41 @@ pub fn start() {
         }
         view! { <folia_app::App/> }
     });
+    answered(data);
+}
+
+/// Tells `boot.js` (`window.betulaAnswered`) once the app's first answers are in: no question on
+/// its way in two looks a frame apart, or after `TAKEOVER_MS` whatever is still on its way.
+fn answered(data: Option<folia_app::data::DataClient>) {
+    const TAKEOVER_MS: f64 = 4000.0;
+    let tell = || {
+        if let Some(window) = web_sys::window() {
+            if let Ok(function) = js_sys::Reflect::get(&window, &"betulaAnswered".into()).and_then(|f| f.dyn_into::<js_sys::Function>()) {
+                let _ = function.call0(&window);
+            }
+        }
+    };
+    let Some(data) = data else { return tell() };
+    let started = js_sys::Date::now();
+    wasm_bindgen_futures::spawn_local(async move {
+        let mut quiet = 0;
+        loop {
+            sleep(16).await;
+            quiet = if untrack(|| data.waiting()) == 0 { quiet + 1 } else { 0 };
+            if quiet >= 2 || js_sys::Date::now() - started > TAKEOVER_MS {
+                break;
+            }
+        }
+        tell();
+    });
+}
+
+/// A timer as a future (no crate for it: one promise).
+async fn sleep(ms: i32) {
+    let promise = js_sys::Promise::new(&mut |resolve, _| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, ms);
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }

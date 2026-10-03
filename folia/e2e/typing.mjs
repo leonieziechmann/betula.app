@@ -1,7 +1,7 @@
 // Checks typing in the search of the top bar (docs/folia/frontend.md, „The search of the catalog",
-// „Typing"): once the catalog's search worker answers (`window.betulaSearch`), the page's own copy
-// of the catalog runs none of a search's queries while the visitor types, the list follows what
-// was typed, and „Ähnliche Module" hold none of its rows. And how long the keys wait: a word typed
+// „Typing"): the page's thread holds no copy of the catalog (the data worker answers its questions,
+// docs/folia/folia-refactor.md §6.2), the list follows what was typed, and „Ähnliche Module" hold
+// none of its rows. And how long the keys wait: a word typed
 // a key every 200 ms, as it is and with the CPU slowed down four times (a phone), the keys' wait
 // for the page's thread (Event Timing) and its long tasks; without the slowdown no key may wait
 // longer than KEY_WAIT_MS.
@@ -22,12 +22,12 @@ page.on("console", (m) => { if (m.type() === "error") problems.push("console: " 
 page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
 await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
-await page.waitForFunction(() => window.betulaSearch?.ready === true, null, { timeout: 60000 }).catch(() => problems.push("the search worker never answered"));
-await page.evaluate(() => {
+if (await page.evaluate(() => typeof window.betulaDb !== "undefined" || typeof window.initSqlJs !== "undefined")) problems.push("the page's thread holds a copy of the catalog");
+await page.evaluate(async () => {
   window.__marker = 1;
   // The semantic search as boot.js offers it, answering as its worker does: the modules in a fixed
   // order of the text, the list's own first (as the real one finds them first).
-  const ids = window.betulaDb.query("SELECT module_id FROM v_module_folded ORDER BY module_id", []).rows.map((row) => row[0]);
+  const ids = (await window.betulaData.query("SELECT module_id FROM v_module_folded ORDER BY module_id")).rows.map((row) => row[0]);
   window.betulaSemantic = {
     ready: Promise.resolve({ rows: ids.length }),
     search: async (query, k) => {
@@ -37,13 +37,6 @@ await page.evaluate(() => {
       const rest = ids.filter((_, i) => (i + h) % 7 === 0);
       return { hits: [...new Set([...listed, ...rest])].slice(0, k).map((id, i) => ({ id, score: 0.9 - i / 1000 })) };
     },
-  };
-  // What the page's own copy is asked: the search's queries read the folded names.
-  const query = window.betulaDb.query.bind(window.betulaDb);
-  window.__searched = 0;
-  window.betulaDb.query = (sql, params) => {
-    if (sql.includes("v_module_folded")) window.__searched++;
-    return query(sql, params);
   };
   window.__keys = [];
   window.__long = [];
@@ -59,7 +52,7 @@ for (const [rate, word] of [[1, "datenbanksysteme"], [1, "maschinelles lernen"],
   await cdp.send("Emulation.setCPUThrottlingRate", { rate });
   await page.fill("#topsearch", "");
   await page.waitForTimeout(800);
-  await page.evaluate(() => { window.__keys = []; window.__long = []; window.__searched = 0; });
+  await page.evaluate(() => { window.__keys = []; window.__long = []; });
   for (const key of word) {
     await page.keyboard.type(key);
     await page.waitForTimeout(GAP_MS);
@@ -71,13 +64,11 @@ for (const [rate, word] of [[1, "datenbanksysteme"], [1, "maschinelles lernen"],
   const seen = await page.evaluate(() => ({
     keys: window.__keys,
     long: window.__long,
-    searched: window.__searched,
     listed: [...document.querySelectorAll(".vlist a.row")].map((row) => row.dataset.id),
     similar: [...document.querySelectorAll(".similar a.row")].map((row) => row.dataset.id),
   }));
   const worst = Math.round(Math.max(0, ...seen.keys));
   measured[`${word} (CPU ×${rate})`] = { worstKeyWaitMs: worst, longTasks: seen.long.length, longestTaskMs: Math.round(Math.max(0, ...seen.long)), longTasksMs: Math.round(seen.long.reduce((sum, ms) => sum + ms, 0)) };
-  if (seen.searched) problems.push(`${word}: the page's own copy ran ${seen.searched} queries of the search while it was typed`);
   const twice = seen.similar.filter((id) => seen.listed.includes(id));
   if (twice.length) problems.push(`${word}: „Ähnliche Module“ repeat rows of the list: ${twice.join(", ")}`);
   if (shown && seen.listed.length && !seen.similar.length) problems.push(`${word}: no „Ähnliche Module“ under the results`);

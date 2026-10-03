@@ -117,7 +117,7 @@ try {
   // 2. The same copy with the network: replaced before the app starts.
   await page.reload({ waitUntil: "domcontentloaded" });
   check(await started(120000), "online, an older copy: the app did not start");
-  const opened = await page.evaluate(() => window.betulaDb?.etag);
+  const opened = await page.evaluate(() => window.betulaData?.etag);
   check(opened === server.etag, `online, an older copy: the app opened ${opened}, not the server's copy ${server.etag}`);
   const replacing = await statuses();
   check(loading(replacing), `online, an older copy: the status never said that the data is loading (${JSON.stringify(replacing)})`);
@@ -131,7 +131,7 @@ try {
   await page.evaluate((args) => window.__plant(args), ['"an-older-export"', schema]);
   await page.reload({ waitUntil: "domcontentloaded" });
   check(await started(60000), "the build's schema, an older ETag: the app did not start");
-  check((await page.evaluate(() => window.betulaDb?.etag)) === '"an-older-export"', "the build's schema, an older ETag: the app did not start on the copy it had");
+  check((await page.evaluate(() => window.betulaData?.etag)) === '"an-older-export"', "the build's schema, an older ETag: the app did not start on the copy it had");
   check(!loading(await statuses()), "the build's schema, an older ETag: the app waited for a download");
   const followed = await until((etag) => window.__copy().then((copy) => copy?.etag === etag), server.etag, 60000);
   check(followed, "the build's schema, an older ETag: the server's copy did not replace it in the background");
@@ -140,7 +140,7 @@ try {
   await page.evaluate((etag) => window.__break(etag), '"unreadable"');
   await page.reload({ waitUntil: "domcontentloaded" });
   check(await started(120000), "an unreadable copy: the app did not start");
-  check((await page.evaluate(() => window.betulaDb?.etag)) === server.etag, "an unreadable copy: the app did not start on the server's copy");
+  check((await page.evaluate(() => window.betulaData?.etag)) === server.etag, "an unreadable copy: the app did not start on the server's copy");
   const mended = await page.evaluate(() => window.__copy());
   check(mended?.etag === server.etag && mended?.schema === server.schema_version, `an unreadable copy: kept ${JSON.stringify(mended)}`);
 } catch (error) {

@@ -1,10 +1,11 @@
-// Starts the browser app: opens the local copy of the catalog (sql.js, cached in IndexedDB by
-// the snapshot's ETag), loads the WASM bundle and lets it take the page over. Until then, and
-// whenever anything here fails, the server-rendered site keeps working as it is.
+// Starts the browser app: starts the data worker (folia/crates/client/js/data-worker.js), which finds,
+// fetches and opens the catalog (kept in IndexedDB by the snapshot's ETag), loads the WASM bundle
+// and lets it take the page over once the worker has answered for it. Until then, and whenever
+// anything here fails, the server-rendered site keeps working as it is.
 //
 // The service worker (`/sw.js`) keeps the shell of the app — the page, the scripts, the styles,
-// the bundle — so that the app starts without a network as well: the catalog itself is here in
-// IndexedDB, and the worker never touches it.
+// the bundle — so that the app starts without a network as well: the catalog itself is in
+// IndexedDB (the data worker's), and the service worker never touches it.
 const DB_NAME = "betula-catalog";
 const STORE = "snapshots";
 // The build of the page, as it linked this script (`?v=<build>`, `app::BuildId`). The bundle and
@@ -61,6 +62,8 @@ function applyStatus() {
 // The app re-renders the top bar; keep the status visible across that.
 new MutationObserver(applyStatus).observe(document.documentElement, { childList: true, subtree: true });
 
+// IndexedDB, where the map of the programs is kept beside the catalog (the data worker keeps the
+// catalog in the same store).
 function idb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
@@ -86,61 +89,9 @@ async function idbPut(key, value) {
     tx.onerror = () => reject(tx.error);
   });
 }
-async function idbDelete(key) {
-  const db = await idb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).delete(key);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
 
-// The catalog as it came, as a Blob, kept under `catalog`. IndexedDB keeps a Blob as a file of
-// its own and hands it back without reading it, and reading it (`arrayBuffer`) happens away from
-// the page. As bytes (an ArrayBuffer of 45 MB under `current`, until 2026-10-02) every start
-// copied them into the page in one piece, half a second of a phone's main thread, and every
-// update twice more. A copy under the old name is taken over once, and then deleted: a build of
-// before, which reads only that name (a release rolled back), fetches the catalog anew rather
-// than failing on a Blob.
-const KEPT = "catalog";
-const KEPT_BEFORE = "current";
-async function download(total) {
-  const response = await fetch("/api/db");
-  if (!response.ok) throw new Error("GET /api/db: HTTP " + response.status);
-  const reader = response.body.getReader();
-  const chunks = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (total) status(T.loadingShare(Math.min(99, Math.round((received / total) * 100))));
-  }
-  return new Blob(chunks);
-}
-
-// The schema of a copy of the catalog, from the header of the SQLite file, without opening it
-// (`user_version`: four bytes at offset 60, big-endian). 0 for what is not a SQLite file, and for
-// a copy the browser can no longer read (its file gone): either is replaced as an older one is.
-async function schemaOf(blob) {
-  let bytes;
-  try {
-    bytes = new Uint8Array(await blob.slice(0, 100).arrayBuffer());
-  } catch {
-    return 0;
-  }
-  if (bytes.length < 100 || new TextDecoder().decode(bytes.subarray(0, 15)) !== "SQLite format 3") return 0;
-  return new DataView(bytes.buffer, 0, 100).getInt32(60);
-}
-
-// The copy of the catalog the page opened (a Blob), until the search worker is started with it.
-let catalogBlob = null;
-
-// The bundle, compiled once: the page runs it, and the catalog's search worker gets the same
-// compiled module (`startSearch`) rather than compiling all of it again beside the page, which
-// held up the page's own frames while the app was new.
+// The bundle, compiled once: the page runs it, and the data worker gets the same compiled module
+// (the data worker compiles its own, at the same time).
 let bundle = null;
 async function compileBundle() {
   const url = "/pkg/folia_client_bg.wasm" + BUILD;
@@ -152,89 +103,6 @@ async function compileBundle() {
     if (!response.ok) throw new Error("GET " + url + ": HTTP " + response.status);
     return WebAssembly.compile(await response.arrayBuffer());
   }
-}
-
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("cannot load " + src));
-    document.head.appendChild(script);
-  });
-}
-
-async function openDatabase() {
-  // What the server has now; offline this fails and the cached copy is used as it is.
-  let server = null;
-  try {
-    const response = await fetch("/api/status", { cache: "no-store" });
-    if (response.ok) server = (await response.json()).snapshot;
-  } catch {}
-  // A copy of an older schema than this build reads is never opened: the queries of what came
-  // since would fail on it („no such column"). An older one on the server is not even fetched
-  // (Radix has not exported the new schema yet); without another, the site stays a classic website.
-  const serverFits = server && server.schema_version >= SCHEMA;
-
-  let current = await idbGet(KEPT); // { etag, blob }
-  if (!current) {
-    const before = await idbGet(KEPT_BEFORE).catch(() => null); // { etag, bytes }
-    if (before?.bytes) {
-      current = { etag: before.etag, blob: new Blob([before.bytes]) };
-      idbPut(KEPT, current).then(() => idbDelete(KEPT_BEFORE)).catch(() => {});
-    }
-  } else {
-    // What a build of before kept meanwhile (a release rolled back and forth again).
-    idbDelete(KEPT_BEFORE).catch(() => {});
-  }
-  if (current && (await schemaOf(current.blob)) < SCHEMA) {
-    // Replaced before the app starts, as on a first visit. Offline there is nothing to replace
-    // it with: the app does not start, and the page stays the one the service worker kept.
-    if (!server) {
-      const error = new Error("the local copy of the catalog is older than this build, and the server is not reachable");
-      error.notice = T.offline;
-      throw error;
-    }
-    current = null;
-  }
-  if (!current) {
-    if (!server) throw new Error("no local copy of the catalog and the server is not reachable");
-    if (!serverFits) throw new Error(`the server's catalog is of schema ${server.schema_version}, this build reads ${SCHEMA}`);
-    status(T.loading);
-    current = { etag: server.etag, blob: await download(server.bytes) };
-    await idbPut(KEPT, current);
-    idbDelete(KEPT_BEFORE).catch(() => {});
-    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  } else if (serverFits && server.etag !== current.etag) {
-    // Work with the copy we have; fetch the new one in the background for the next start.
-    download(0)
-      .then((blob) => idbPut(KEPT, { etag: server.etag, blob }))
-      .catch((error) => console.warn("[catalog] update failed", error));
-  }
-
-  const [bytes] = await Promise.all([
-    current.blob.arrayBuffer(),
-    loadScript("/assets/sql-wasm.js" + BUILD),
-  ]);
-  const SQL = await window.initSqlJs({ locateFile: (file) => "/assets/" + file + BUILD });
-  const db = new SQL.Database(new Uint8Array(bytes));
-  // The catalog's search worker opens the same copy (`startSearch`): the Blob, which it reads itself.
-  catalogBlob = current.blob;
-  window.betulaDb = {
-    etag: current.etag,
-    query(sql, params) {
-      const statement = db.prepare(sql);
-      try {
-        statement.bind(params);
-        const columns = statement.getColumnNames();
-        const rows = [];
-        while (statement.step()) rows.push(statement.get());
-        return { columns, rows };
-      } finally {
-        statement.free();
-      }
-    },
-  };
 }
 
 // The map of the programs on the landing page. The server lays it out once per snapshot; the app
@@ -253,7 +121,8 @@ async function loadProgramMap() {
 }
 
 // The semantic search (folia/crates/semantic/README.md): the model (15 MB) runs in a Web Worker of its own,
-// with the index built from the modules' vectors in the local catalog (`v_module_vector`, Radix's).
+// with the index built from the modules' vectors in the catalog (`v_module_vector`, Radix's), which
+// the data worker reads.
 // It is loaded when it is first wanted: as a search field takes the focus (in the browser's idle
 // time, so that it is there by the time the words are), or when a search asks it. Loaded at every
 // start once the browser was idle (until 2026-10-02), it took a phone's main thread at a moment
@@ -296,14 +165,14 @@ function startSemantic() {
     // A query is only comparable with passages of the model it was made for. The local copy of the
     // catalog may be older than the server's model (it is replaced at the next start), or Radix may
     // still be computing the vectors of a new passage model: then no search, rather than a wrong one.
-    const made = window.betulaDb.query("SELECT value FROM meta WHERE key = 'semantic_model'", []).rows;
+    const made = (await window.betulaData.query("SELECT value FROM meta WHERE key = 'semantic_model'")).rows;
     const vectorsOf = made.length ? made[0][0] : null;
     if (SEMANTIC_MODEL.passage && vectorsOf !== SEMANTIC_MODEL.passage) {
       console.info(`[semantic] the catalog's vectors are of the passage model ${vectorsOf}, the query model is for ${SEMANTIC_MODEL.passage}`);
       return null;
     }
     const { Semantic, indexFromVectors } = await import("/pkg/semantic.js" + BUILD);
-    const rows = window.betulaDb.query("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id", []).rows;
+    const rows = (await window.betulaData.query("SELECT module_id, scale, vector FROM v_module_vector ORDER BY module_id")).rows;
     // Radix has not computed the vectors of this snapshot yet: nothing to find, nothing to load.
     if (!rows.length) return null;
     semantic = new Semantic({ model: SEMANTIC_MODEL.url, index: indexFromVectors(rows) });
@@ -320,99 +189,97 @@ function startSemantic() {
   };
 }
 
-// The catalog's search in a Web Worker of its own (folia/crates/client/js/search-worker.js; owner, 2026-10-02:
-// typing a search lagged, a phone spent half a second of the page's thread on every pause): the
-// copy of the catalog the page opened (its Blob, which the worker reads) and the app's bundle, which work out
-// the list of a search the visitor types and its „Ähnliche Module" beside the page's thread; the
-// page only builds what they found. Started once the app runs and the browser is idle, like the
-// semantic search; until it answers, and where it failed, the app asks its own copy as it always
-// did. Not on a device with little memory: it is a second copy of the catalog (44 MB). A Web
-// Worker, not the service worker: a browser stops an idle service worker after some seconds, and
-// each start would open the catalog again (folia/crates/semantic/README.md says the same of the model).
+// The data worker (folia/crates/client/js/data-worker.js, docs/folia/folia-refactor.md §6.2): the
+// catalog and the app's bundle beside the page's thread, which answer every question of the app's
+// pages; the page builds what they say. A Web Worker, not the service worker: a browser stops an
+// idle service worker after some seconds, and each start would open the catalog again.
 //
-// `window.betulaSearch`, for the app (folia/crates/client/src/worker.rs):
-//   ready          true once it answers
-//   catalog(ask)   a promise: the JSON of the answer (`worker_catalog`); null when a newer question
-//                  of the same kind took its place before this one ran, or the worker failed
-//   similar(ask)   the same for `worker_similar`
-// While one question runs, only the newest of each kind waits, the list's first.
-function startSearch() {
-  const none = async () => null;
-  const search = { ready: false, catalog: none, similar: none };
-  window.betulaSearch = search;
-  const blob = catalogBlob;
-  catalogBlob = null;
-  if (!blob || !("Worker" in window) || (navigator.deviceMemory && navigator.deviceMemory < 2)) return;
-  const start = () => {
-    let worker;
-    try {
-      worker = new Worker("/pkg/search-worker.js" + BUILD);
-    } catch (error) {
-      console.info("[search] no worker:", error);
-      return;
-    }
-    const asked = new Map();
-    let next = 0;
-    // Throws where the message cannot be sent (the compiled bundle, in a browser that cannot hand it on).
-    const send = (message, transfer = []) => {
-      const id = next++;
-      worker.postMessage({ ...message, id }, transfer);
-      return new Promise((resolve, reject) => asked.set(id, { resolve, reject }));
-    };
-    const waiting = new Map();
-    let running = false;
-    let failed = false;
-    // From then on the app asks its own copy: an answer that never comes holds up no search.
-    const fail = (error) => {
-      if (failed) return;
-      failed = true;
-      console.info("[search] the worker failed:", error);
-      search.ready = false;
-      search.catalog = search.similar = none;
-      worker.terminate();
-      for (const { reject } of asked.values()) reject(error);
-      asked.clear();
-      for (const { resolve } of waiting.values()) resolve(null);
-      waiting.clear();
-    };
-    worker.onmessage = ({ data }) => {
-      const question = asked.get(data.id);
-      asked.delete(data.id);
-      if (data.error) question?.reject(new Error(data.error));
-      else question?.resolve(data);
-    };
-    worker.onerror = (event) => fail(new Error(event.message || "the search worker failed"));
-    const pump = () => {
-      if (running || !search.ready || !waiting.size) return;
-      const kind = waiting.has("catalog") ? "catalog" : "similar";
-      const { ask, resolve } = waiting.get(kind);
-      waiting.delete(kind);
-      running = true;
-      send({ type: kind, ask }).then(
-        ({ answer }) => { running = false; resolve(answer ?? null); pump(); },
-        (error) => { running = false; resolve(null); fail(error); },
-      );
-    };
-    const question = (kind) => (ask) => new Promise((resolve) => {
-      waiting.get(kind)?.resolve(null);
-      waiting.set(kind, { ask, resolve });
-      pump();
-    });
-    let opened;
-    try {
-      opened = send({ type: "open", blob, bundle });
-    } catch {
-      // The worker compiles the bundle itself then.
-      opened = send({ type: "open", blob });
-    }
-    opened.then(() => {
-      search.catalog = question("catalog");
-      search.similar = question("similar");
-      search.ready = true;
-    }, fail);
+// `window.betulaData`, for the app (folia/crates/client/src/worker.rs) and for this script:
+//   ask(name, lane, question)  a promise: the JSON of the answer to the question `name` with the
+//                              fields `question` (JSON); null when the worker failed
+//   query(sql)                 a promise: {columns, rows} of a statement of this script's own
+//   etag                       the ETag of the snapshot the worker answers from
+function startData() {
+  const worker = new Worker("/pkg/data-worker.js" + BUILD);
+  const asked = new Map();
+  let next = 0;
+  let failed = null;
+  const send = (message) => {
+    if (failed) return Promise.reject(failed);
+    const id = next++;
+    worker.postMessage({ ...message, id });
+    return new Promise((resolve, reject) => asked.set(id, { resolve, reject }));
   };
-  if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 5000 });
-  else setTimeout(start, 1500);
+  const fail = (error) => {
+    if (failed) return;
+    failed = error;
+    console.error("[data] the worker failed:", error);
+    worker.terminate();
+    for (const { reject } of asked.values()) reject(error);
+    asked.clear();
+  };
+  worker.onmessage = ({ data }) => {
+    // What the worker says by itself: how far the first download is, and a newer snapshot in use.
+    if (data.event === "progress") return status(data.share ? T.loadingShare(data.share) : T.loading);
+    if (data.event === "snapshot") {
+      window.betulaData.etag = data.etag;
+      return window.betulaSnapshot?.();
+    }
+    const question = asked.get(data.id);
+    asked.delete(data.id);
+    if (data.error) {
+      const error = new Error(data.error);
+      if (data.notice === "offline") error.notice = T.offline;
+      question?.reject(error);
+    } else question?.resolve(data);
+  };
+  worker.onerror = (event) => fail(new Error(event.message || "the data worker failed"));
+  // Back in view: the worker looks for a newer snapshot (and every few minutes by itself).
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !failed) worker.postMessage({ type: "look" }); });
+  window.betulaData = {
+    // Every question is answered, in turn. (A newer question of a kind taking the place of a
+    // waiting one, „newest wins", would drop the question of another part of the page that asks
+    // the same kind at the same time; the steps of what is typed are dropped before they ask,
+    // `Pending::typed`.)
+    ask(name, lane, question) {
+      return send({ type: "ask", name, question }).then(({ answer }) => answer ?? null, () => null);
+    },
+    query(sql) {
+      return send({ type: "query", sql, params: [] });
+    },
+  };
+  // The worker compiles its own copy of the bundle meanwhile: the download does not wait for the
+  // page's. Without a catalog (offline on a first visit, an older schema) the site stays a website.
+  return send({ type: "start", schema: SCHEMA }).then(({ etag }) => {
+    window.betulaData.etag = etag;
+  });
+}
+
+// The server's page as a picture in front of the app while the app's first answers are on their
+// way (`betulaAnswered`, called by the app): the app replaces the page at once, and its first frame
+// would otherwise show its regions empty for the moment the data worker takes. The picture is the
+// body's children with the body's layout and every scroll position, without ids (nothing finds it
+// instead of the app's own), outside the body, and gone once the app has its answers.
+function takePicture() {
+  const body = document.body;
+  const picture = document.createElement("div");
+  picture.className = "takeover-picture";
+  picture.setAttribute("aria-hidden", "true");
+  const style = getComputedStyle(body);
+  for (const property of ["display", "gridTemplateColumns", "gridTemplateRows", "padding"]) picture.style[property] = style[property];
+  picture.style.top = -scrollY + "px";
+  const scrolled = [...body.querySelectorAll("*")].map((el) => [el.scrollTop, el.scrollLeft]);
+  for (const child of body.children) picture.appendChild(child.cloneNode(true));
+  picture.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+  document.documentElement.appendChild(picture);
+  const copies = picture.querySelectorAll("*");
+  scrolled.forEach(([top, left], i) => {
+    if ((top || left) && copies[i]) {
+      copies[i].scrollTop = top;
+      copies[i].scrollLeft = left;
+    }
+  });
+  return picture;
 }
 
 // The app is on its way: a link followed meanwhile waits for it (enhance.js, `betulaStarted`).
@@ -424,23 +291,32 @@ try {
       await module.default({ module_or_path: bundle });
       return module;
     }),
-    openDatabase(),
+    // The data worker finds, fetches and opens the catalog before the app takes the page over:
+    // the app's first questions go there.
+    startData(),
     loadProgramMap(),
   ]);
+  window.betulaSnapshot = () => app.snapshot_changed();
   window.betulaMap = programMap || null;
-  window.__betulaApp = true;
+  const picture = takePicture();
+  // The app has taken the page over once its first answers are in and the picture goes: from then
+  // on it is the app (`__betulaApp`, which enhance.js and the checks go by).
+  window.betulaAnswered = () => {
+    window.betulaAnswered = null;
+    picture.remove();
+    window.__betulaApp = true;
+    window.__betulaStarting = false;
+    // Once the app runs there is nothing to say: it simply works.
+    status("");
+    // Where a link followed meanwhile leads, now within the app (once what it set off has run).
+    setTimeout(() => window.betulaStarted?.(true), 0);
+  };
   document.documentElement.classList.add("app");
   app.start();
-  window.__betulaStarting = false;
-  // Once the app runs there is nothing to say: it simply works.
-  status("");
-  startSearch();
   startSemantic();
-  // Where a link followed meanwhile leads, now within the app (once what it set off has run).
-  setTimeout(() => window.betulaStarted?.(true), 0);
 } catch (error) {
   window.__betulaStarting = false;
-  catalogBlob = null;
+  document.querySelector(".takeover-picture")?.remove();
   // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
   // to know why (`notice`). A link followed meanwhile loads its page.
   console.info("[catalog] browser app not started:", error);

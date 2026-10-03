@@ -41,7 +41,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
-use crate::data::{use_data, PageStatus};
+use crate::data::{use_data, DataError, PageStatus};
 use crate::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::local::{self, ModuleInPlace};
@@ -152,9 +152,9 @@ pub fn ProgramPage() -> impl IntoView {
     let source = use_data();
     let status = PageStatus::capture();
     // The program is loaded once per slug; switching tabs only re-renders.
-    let data = Memo::new(move |_| {
+    let data = Memo::new(move |before| {
         let slug = slug.get();
-        source.clone().and_then(|source| source.now(&ProgramAsk { slug: slug.clone() }))
+        DataError::or_before(source.clone().and_then(|source| source.now(&ProgramAsk { slug: slug.clone() })), before)
     });
 
     // On the desktop a module stands beside the page until „Vollbild" lets it fill the page. On
@@ -616,9 +616,12 @@ fn ProgramAside(
 ) -> impl IntoView {
     let t = i18n::t();
     let source = use_data();
-    let module = Memo::new(move |_| match open.get() {
-        None => Ok(None),
-        Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
+    let module = Memo::new(move |before| {
+        let now = match open.get() {
+            None => Ok(None),
+            Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
+        };
+        DataError::or_before(now, before)
     });
     // What was picked beside the page, before it is there (`pending`): its skeleton, where the
     // wait is seen or where nothing stood beside the page yet — without sliding in again where a

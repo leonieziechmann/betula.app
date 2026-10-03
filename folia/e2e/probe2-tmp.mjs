@@ -1,0 +1,16 @@
+import { chromium } from "playwright-core";
+const browser = await chromium.launch({ executablePath: process.env.SMOKE_BROWSER_PATH });
+const page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
+page.on("console", (m) => console.log("console:", m.text().slice(0, 300)));
+page.on("pageerror", (e) => console.log("pageerror:", e.message));
+await page.goto("http://127.0.0.1:8080/catalog?program=bachelor-informatik-2008");
+await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
+const rows = () => page.evaluate(() => [...document.querySelectorAll(".vrow")].map((r) => r.dataset.i).join(","));
+console.log("start", await rows());
+await page.evaluate(() => { const r = document.getElementById("catalog-scroll"); r.scrollTop = r.scrollHeight; });
+await page.waitForTimeout(1500);
+console.log("end", await rows());
+await page.evaluate(() => { document.getElementById("catalog-scroll").scrollTop = 0; });
+await page.waitForTimeout(1500);
+console.log("top", await rows(), await page.evaluate(() => document.querySelectorAll(".rows a.row").length));
+await browser.close();

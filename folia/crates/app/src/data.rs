@@ -6,13 +6,8 @@
 
 use std::sync::Arc;
 
-use folia_locale::Locale;
-use folia_model::rows::CatalogRow;
 use folia_model::{Database, DbError};
-use folia_pages::ask::{Ask, Kept};
-use folia_pages::CatalogData;
-use folia_routes::filter::CatalogQuery;
-use folia_routes::url::CatalogUrl;
+use folia_pages::ask::{Ask, Kept, Lane};
 use leptos::prelude::*;
 
 pub trait CatalogSource: Send + Sync {
@@ -58,29 +53,6 @@ pub trait SemanticSearch: Send + Sync {
 #[derive(Clone)]
 pub struct Semantic(pub Arc<dyn SemanticSearch>);
 
-/// The catalog's search beside the page's thread (owner, 2026-10-02: typing a search lagged, „die
-/// Suche muss auf jeden Fall asynchron"): in the browser app a Web Worker with a copy of the local
-/// catalog of its own, which runs the same loaders of `folia_pages` as the page does (`client`,
-/// `boot.js`: `window.betulaSearch`). The list of a search the visitor types is worked out there
-/// before the address changes (`Pending::prepare_with`), and so is the list's „Ähnliche Module".
-/// None on the server; in the browser it answers once it is loaded, and until then, or where it
-/// failed, the page asks its `Source` as it always did.
-pub trait CatalogWorker: Send + Sync {
-    /// Whether it answers now: it is loaded once the app runs and the browser is idle, and is
-    /// none for good where it failed or the device has little memory.
-    fn ready(&self) -> bool;
-    /// `pages::catalog` of `url` (its query as the list runs it, marks and what fits the plan filled
-    /// in) in `locale`. `None` where it gave no answer: a newer question of the same kind took its
-    /// place before this one ran, or the worker failed.
-    fn catalog(&self, url: &CatalogUrl, locale: Locale) -> Later<Option<Result<CatalogData, DataError>>>;
-    /// `pages::similar` of `query` and the semantic search's `hits`, at most `limit`; `None` as for
-    /// `catalog`.
-    fn similar(&self, query: &CatalogQuery, hits: &[String], limit: usize) -> Later<Option<Result<Vec<CatalogRow>, DataError>>>;
-}
-
-#[derive(Clone)]
-pub struct Worker(pub Arc<dyn CatalogWorker>);
-
 pub use folia_pages::ask::DataError;
 
 impl Source {
@@ -105,29 +77,210 @@ pub fn use_source() -> Result<Source, DataError> {
         .ok_or_else(|| DbError::Unavailable("no data source was provided".to_string()).into())
 }
 
-/// Where a page asks its questions (`folia_pages::ask`, docs/folia/folia-refactor.md §6.4): every
-/// page and component asks through it, never a `Database` itself. For now it answers on the page's
-/// thread from the host's `Source` (the server's snapshot, the browser's local catalog); the data
-/// worker takes its place without a page noticing.
-#[derive(Clone)]
-pub struct DataClient {
-    source: Source,
-    /// What the answering side keeps besides answers (the finder's candidates).
-    kept: Arc<std::sync::Mutex<Kept>>,
+/// Where the answers come from when the client has none at hand: the data worker (the browser,
+/// `client`), asked a question by its name and its fields in JSON; the answer is the JSON of a
+/// `Result<Answer, DataError>`, an empty text where a newer question of the same lane took the
+/// place of this one before it ran, and `None` where none came (the worker went away).
+pub trait Answerer: Send + Sync {
+    fn ask(&self, name: &'static str, lane: Lane, question: String) -> Later<Option<String>>;
 }
 
+enum Backend {
+    /// The host's `Source` on this thread (the server; the browser until the worker answers),
+    /// with what the answering side keeps besides answers (the finder's candidates).
+    Local(Source, std::sync::Mutex<Kept>),
+    Remote(Arc<dyn Answerer>),
+}
+
+/// What a question that a newer one of its lane replaced is answered.
+const DROPPED: &str = "a newer question took its place";
+
+/// How many answers a client keeps (the oldest goes); the answers of a visit's pages are a few
+/// hundred kilobytes each at most.
+const KEPT_ANSWERS: usize = 160;
+
+struct Inner {
+    backend: Backend,
+    /// Answers by their question (`Ask::key`), with when each was last used.
+    answers: std::sync::Mutex<(std::collections::HashMap<String, (Arc<dyn std::any::Any + Send + Sync>, u64)>, u64)>,
+    /// Questions on their way, each with what tells those that asked it that its answer is there.
+    asked: std::sync::Mutex<std::collections::HashMap<String, ArcTrigger>>,
+    /// Counts the snapshots: every answer of the one before is forgotten, and what showed one
+    /// asks again (`forget`).
+    generation: ArcRwSignal<u64>,
+    /// How many questions are on their way (the takeover and a change of page wait for none).
+    waiting: ArcRwSignal<usize>,
+}
+
+/// Where a page asks its questions (`folia_pages::ask`, docs/folia/folia-refactor.md §6.4): every
+/// page and component asks through it, never a `Database` itself. It keeps the answers by their
+/// question until the snapshot changes. A local client answers at once; a remote one (the data
+/// worker) later, and what asked is told when the answer is there.
+#[derive(Clone)]
+pub struct DataClient(Arc<Inner>);
+
 impl DataClient {
+    /// A client that answers from `source`, on this thread.
     pub fn new(source: Source) -> Self {
-        Self { source, kept: Arc::new(std::sync::Mutex::new(Kept::default())) }
+        Self::with(Backend::Local(source, std::sync::Mutex::new(Kept::default())))
     }
 
-    /// The answer to `ask`, now.
-    pub fn now<A: Ask>(&self, ask: &A) -> Result<A::Answer, DataError> {
-        let kept = &self.kept;
-        self.source.run(|db| match kept.lock() {
+    /// A client that asks `answerer`.
+    pub fn remote(answerer: Arc<dyn Answerer>) -> Self {
+        Self::with(Backend::Remote(answerer))
+    }
+
+    fn with(backend: Backend) -> Self {
+        Self(Arc::new(Inner {
+            backend,
+            answers: std::sync::Mutex::new((std::collections::HashMap::new(), 0)),
+            asked: std::sync::Mutex::new(std::collections::HashMap::new()),
+            generation: ArcRwSignal::new(0),
+            waiting: ArcRwSignal::new(0),
+        }))
+    }
+
+    fn kept<A: Ask>(&self, key: &str) -> Option<Result<A::Answer, DataError>> {
+        let mut answers = self.0.answers.lock().ok()?;
+        let (map, clock) = &mut *answers;
+        *clock += 1;
+        let (answer, used) = map.get_mut(key)?;
+        *used = *clock;
+        answer.downcast_ref::<Result<A::Answer, DataError>>().cloned()
+    }
+
+    /// Keeps an answer, a failed one too: what asked it shows the failure rather than asking
+    /// again at once (a worker that went away would be asked without end). The next snapshot
+    /// (`forget`) asks everything again.
+    fn keep<A: Ask>(&self, key: String, answer: &Result<A::Answer, DataError>) {
+        let Ok(mut answers) = self.0.answers.lock() else { return };
+        let (map, clock) = &mut *answers;
+        *clock += 1;
+        if map.len() >= KEPT_ANSWERS && !map.contains_key(&key) {
+            if let Some(oldest) = map.iter().min_by_key(|(_, (_, used))| *used).map(|(key, _)| key.clone()) {
+                map.remove(&oldest);
+            }
+        }
+        map.insert(key, (Arc::new(answer.clone()), *clock));
+    }
+
+    /// The answer, on this thread: `None` for a remote client.
+    fn local<A: Ask>(&self, ask: &A) -> Option<Result<A::Answer, DataError>> {
+        let Backend::Local(source, kept) = &self.0.backend else { return None };
+        Some(source.run(|db| match kept.lock() {
             Ok(mut kept) => ask.run(db, &mut kept),
             Err(_) => ask.run(db, &mut Kept::default()),
-        })
+        }))
+    }
+
+    /// The answer to `ask` if it is at hand (kept, or a local client's), else `None`, and then the
+    /// question is on its way: whatever read this in a reactive scope runs again once the answer
+    /// is there. Never waits.
+    #[track_caller]
+    pub fn get<A: Ask>(&self, ask: &A) -> Option<Result<A::Answer, DataError>> {
+        self.0.generation.track();
+        let key = ask.key();
+        if let Some(answer) = self.kept::<A>(&key) {
+            return Some(answer);
+        }
+        if let Some(answer) = self.local(ask) {
+            self.keep::<A>(key, &answer);
+            return Some(answer);
+        }
+        self.send(ask.clone(), key).track();
+        None
+    }
+
+    /// The answer to `ask`, when it is there.
+    pub async fn ask<A: Ask>(&self, ask: A) -> Result<A::Answer, DataError> {
+        let key = ask.key();
+        if let Some(answer) = self.kept::<A>(&key) {
+            return answer;
+        }
+        if let Some(answer) = self.local(&ask) {
+            self.keep::<A>(key, &answer);
+            return answer;
+        }
+        let answer = self.from_remote(&ask).await;
+        self.keep::<A>(key, &answer);
+        answer
+    }
+
+    /// The answer at hand or none, without asking: what a page shows while it waits.
+    pub fn peek<A: Ask>(&self, ask: &A) -> Option<Result<A::Answer, DataError>> {
+        self.kept::<A>(&ask.key()).or_else(|| self.local(ask))
+    }
+
+    /// The answer to `ask`, now: kept, or worked out on this thread. A remote client that has
+    /// none answers that it is on its way (`DataError::pending`), and asks for it meanwhile:
+    /// what read this in a reactive scope runs again once the answer is there.
+    #[track_caller]
+    pub fn now<A: Ask>(&self, ask: &A) -> Result<A::Answer, DataError> {
+        self.get(ask).unwrap_or_else(|| Err(DataError::pending()))
+    }
+
+    async fn from_remote<A: Ask>(&self, ask: &A) -> Result<A::Answer, DataError> {
+        let Backend::Remote(answerer) = &self.0.backend else { return Err(DataError { unavailable: true, message: "no answerer".to_string() }) };
+        let question = serde_json::to_string(ask).map_err(|error| DataError { unavailable: false, message: error.to_string() })?;
+        match answerer.ask(A::NAME, A::LANE, question).await {
+            Some(json) if json.is_empty() => Err(DataError { unavailable: true, message: DROPPED.to_string() }),
+            Some(json) => serde_json::from_str(&json).unwrap_or_else(|error| Err(DataError { unavailable: false, message: format!("{}: {error}", A::NAME) })),
+            None => Err(DataError { unavailable: true, message: "no answer came".to_string() }),
+        }
+    }
+
+    /// Sends `ask` to the remote side, once while it is on its way; what tells that its answer is
+    /// there.
+    fn send<A: Ask>(&self, ask: A, key: String) -> ArcTrigger {
+        let (trigger, first) = match self.0.asked.lock() {
+            Ok(mut asked) => match asked.get(&key) {
+                Some(trigger) => (trigger.clone(), false),
+                None => {
+                    let trigger = ArcTrigger::new();
+                    asked.insert(key.clone(), trigger.clone());
+                    (trigger, true)
+                }
+            },
+            Err(_) => return ArcTrigger::new(),
+        };
+        if !first {
+            return trigger;
+        }
+        self.0.waiting.update(|n| *n += 1);
+        let client = self.clone();
+        leptos::task::spawn_local(async move {
+            let answer = client.from_remote(&ask).await;
+            // Replaced by a newer question of its lane: nothing to keep, and nobody to tell (what
+            // asked it asks the newer one).
+            let dropped = matches!(&answer, Err(error) if error.message == DROPPED);
+            if !dropped {
+                client.keep::<A>(key.clone(), &answer);
+            }
+            let trigger = client.0.asked.lock().ok().and_then(|mut asked| asked.remove(&key));
+            client.0.waiting.update(|n| *n = n.saturating_sub(1));
+            if let Some(trigger) = trigger.filter(|_| !dropped) {
+                trigger.notify();
+            }
+        });
+        trigger
+    }
+
+    /// Whether the answers come from elsewhere (the data worker), so they take a moment.
+    pub fn is_remote(&self) -> bool {
+        matches!(self.0.backend, Backend::Remote(_))
+    }
+
+    /// How many questions are on their way (reactive).
+    pub fn waiting(&self) -> usize {
+        self.0.waiting.get()
+    }
+
+    /// Forgets every answer (a new snapshot): what shows one asks again.
+    pub fn forget(&self) {
+        if let Ok(mut answers) = self.0.answers.lock() {
+            answers.0.clear();
+        }
+        self.0.generation.update(|n| *n = n.wrapping_add(1));
     }
 }
 
@@ -141,15 +294,16 @@ pub fn use_data() -> Result<DataClient, DataError> {
 }
 
 /// The answer to the question `ask` makes, following what it reads: `None` where it asks nothing
-/// (and while an answer is on its way, once questions travel to the data worker).
-pub fn use_ask<A: Ask + Send + Sync>(ask: impl Fn() -> Option<A> + Send + Sync + 'static) -> Memo<Option<Result<A::Answer, DataError>>>
-where
-    A::Answer: Send + Sync,
-{
+/// and until the first answer is there. While the answer to a new question is on its way, the
+/// answer to the one before stays (what a page shows stays until the new data is there, §6.4).
+pub fn use_ask<A: Ask>(ask: impl Fn() -> Option<A> + Send + Sync + 'static) -> Memo<Option<Result<A::Answer, DataError>>> {
     let client = use_data();
-    Memo::new(move |_| {
+    Memo::new(move |before: Option<&Option<Result<A::Answer, DataError>>>| {
         let question = ask()?;
-        Some(client.as_ref().map_err(Clone::clone).and_then(|client| client.now(&question)))
+        match client.as_ref() {
+            Ok(client) => client.get(&question).or_else(|| before.cloned().flatten()),
+            Err(error) => Some(Err(error.clone())),
+        }
     })
 }
 

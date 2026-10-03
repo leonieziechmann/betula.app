@@ -41,7 +41,7 @@ const BUILT = [
   "/assets/sql-wasm.wasm",
   "/pkg/folia_client.js",
   "/pkg/folia_client_bg.wasm",
-  "/pkg/search-worker.js",
+  "/pkg/data-worker.js",
 ];
 const PRECACHE = [
   "/",

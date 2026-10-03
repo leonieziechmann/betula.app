@@ -912,6 +912,38 @@ site keeps it: it is the same markup, not a second form. „Mein Plan" stays as 
 static text in both. Still in `folia-app`, rendered by the server: `folia-site` comes with the iso
 crates it is composed of (phases 4 and 7).
 
+**Phases 5 and 6 (2026-10-03), the asynchronous seam and the data worker.** Every question a page
+asks is a type of `folia_pages::ask` (24 of them: one per loader, and the few statements a page
+asked directly), with its answer and the loader it runs; `answer_json` answers one by its name in
+JSON, what the worker does with every message. `folia_app::data::DataClient` is where a page asks:
+`get` (reactive: the answer kept, else the question sent and `None`, and the scope runs again when
+its own answer is there), `ask` (a future, for handlers), `now` (`get`, with
+`DataError::pending` while the answer is on its way), `use_ask` and `DataError::or_before` (what is
+shown stays until the new answer is there). The server and the tests answer on their thread
+(`DataClient::new`), the browser through the data worker (`DataClient::remote`). Where it went other
+than §6:
+
+- **The data worker runs the app's bundle with sql.js** (step one of §6.2), as the search worker did,
+  which it replaces: `folia/crates/client/js/data-worker.js`. The page's thread has no catalog any
+  more (no sql.js, no `betulaDb`). The worker's own bundle without Leptos and rusqlite in it are
+  step two, still open.
+- **The snapshot is the worker's**: it finds the copy kept in IndexedDB (not Cache Storage: the same
+  store `boot.js` used, which a worker reads as well, so nothing is downloaded again after the
+  update), checks the schema, downloads (one tab at a time, a Web Lock; progress to the header's
+  pill), keeps and opens it. It looks for a newer snapshot when the tab comes back into view and
+  every five minutes; a newer one is opened beside the one in use and answers from then on, the page
+  forgets its answers and asks again (`snapshot_changed`), and the other tabs open the copy the
+  first one kept (a BroadcastChannel).
+- **No skeleton for the moment an answer takes, without a route table:** the takeover keeps the
+  server's page in front of the app as a picture (`boot.js`, `takePicture`) until the app's first
+  answers are in (`betulaAnswered`, no question on its way in two looks a frame apart); a step of
+  the app keeps a picture of the page before in front of the new one the same way (`pending::hold`,
+  at most 400 ms). The checks and `enhance.js` take the end of the picture as the takeover
+  (`__betulaApp`).
+- **The messages are JSON**, not postcard (R29 holds all the same: nothing that crosses skips a
+  field). The heavy computations of the Stundenplan (`clash::weigh` and the rest) still run on the
+  page's thread over the rows the worker sends; the finder (`FitAsk`) runs in the worker.
+
 ## 12. Still open
 
 Nothing the owner has to decide before the minimal version: every question of the first draft is

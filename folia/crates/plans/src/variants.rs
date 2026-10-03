@@ -9,6 +9,7 @@
 //! `queries::program_plan_entries` and `program_plan_totals` return, so it runs in the browser and
 //! on the server alike.
 
+use serde::{Deserialize, Serialize};
 use folia_locale::Locale;
 use folia_model::labels::ModuleKind;
 use folia_model::rows_detail::{PlanEntry, PlanTotal};
@@ -20,7 +21,7 @@ use crate::plan;
 
 /// One study plan of a program. Most programs have exactly one; where the regulations print one
 /// plan per study direction, each is its own plan with its own semesters and its own sum.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PlanVariant {
     /// What the chips say: the name of the plan without its boilerplate; for a plan without a
     /// name, „Regelstudienplan" in the language `plan_variants` was asked for.
@@ -257,7 +258,7 @@ pub fn variant_for<'a>(variants: &'a [PlanVariant], caption: &str) -> Option<&'a
 /// A page that fills one row of a larger plan: variant `page` supplements `core` through the
 /// core's row `ord` (a `PlanEntry::ord`; `core` and `page` are positions in `plan_variants`'
 /// result).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Supplement {
     pub core: usize,
     pub ord: i64,

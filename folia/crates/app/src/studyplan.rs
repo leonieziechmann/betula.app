@@ -407,15 +407,26 @@ fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl Into
         said.set(Some(!was));
         let (id, source) = (id.clone(), source.clone());
         nav::after_paint(move || {
-            if was {
-                let events = plan.with_untracked(|doc| only_its_events(source.as_ref(), doc, semester, &id));
-                plan.update(|doc| doc.unplan(semester, &id, &events));
-            } else {
-                plan.update(|doc| {
-                    doc.plan(semester, &id, now(), None);
-                });
+            match (was, source) {
+                (true, Some(source)) => {
+                    let ask = plan.with_untracked(|doc| only_its_events_ask(doc, semester, &id));
+                    leptos::task::spawn_local(async move {
+                        let events = source.ask(ask).await.map(|(mine, theirs)| events_alone(&mine, &theirs)).unwrap_or_default();
+                        plan.update(|doc| doc.unplan(semester, &id, &events));
+                        said.try_set(None);
+                    });
+                }
+                (true, None) => {
+                    plan.update(|doc| doc.unplan(semester, &id, &[]));
+                    said.try_set(None);
+                }
+                (false, _) => {
+                    plan.update(|doc| {
+                        doc.plan(semester, &id, now(), None);
+                    });
+                    said.try_set(None);
+                }
             }
-            said.try_set(None);
         });
     };
     let icon = move || match pressed.get() {
@@ -551,9 +562,19 @@ pub(crate) fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String
 /// semester's own choices; `then` runs once the plan has it.
 pub(crate) fn press(plan: Studyplan, source: Option<DataClient>, id: String, aim: Aim, was: bool, then: impl FnOnce() + 'static) {
     nav::after_paint(move || {
-        let events = if was { plan.with_untracked(|doc| only_its_events(source.as_ref(), doc, aim.target, &id)) } else { Vec::new() };
-        plan.update(|doc| toggle_in(doc, &id, &aim, was, &events, now()));
-        then();
+        // Planned in: nothing to ask. Taken out: which of its events no other module has, asked
+        // first (its rows and theirs), and nothing where the catalog cannot say (`only_its_events`).
+        let (Some(source), true) = (source, was) else {
+            plan.update(|doc| toggle_in(doc, &id, &aim, was, &[], now()));
+            then();
+            return;
+        };
+        let ask = plan.with_untracked(|doc| only_its_events_ask(doc, aim.target, &id));
+        leptos::task::spawn_local(async move {
+            let events = source.ask(ask).await.map(|(mine, theirs)| events_alone(&mine, &theirs)).unwrap_or_default();
+            plan.update(|doc| toggle_in(doc, &id, &aim, was, &events, now()));
+            then();
+        });
     });
 }
 
@@ -578,10 +599,12 @@ fn toggle_in(doc: &mut PlanDoc, id: &str, aim: &Aim, was_pressed: bool, only_its
 /// catalog after the click has answered, with the questions the week beside the module asks, so
 /// the answers are the visit's. Nothing when the catalog cannot say, which keeps those lines (the
 /// safe direction).
-fn only_its_events(source: Option<&DataClient>, doc: &PlanDoc, semester: SemesterKey, id: &str) -> Vec<u32> {
-    let Some(source) = source else { return Vec::new() };
+/// What tells which events of `id` no other module of the plan has (`events_alone`): the rows of
+/// the module and of the plan's others in `semester`. Where the catalog cannot say, none, which
+/// keeps the semester's own lines (the safe direction).
+fn only_its_events_ask(doc: &PlanDoc, semester: SemesterKey, id: &str) -> PlanRowsAsk {
     let others: Vec<String> = doc.modules_in(semester).into_iter().filter(|other| other != id).collect();
-    source.now(&PlanRowsAsk { key: semester, own: vec![id.to_string()], others }).map(|(mine, theirs)| events_alone(&mine, &theirs)).unwrap_or_default()
+    PlanRowsAsk { key: semester, own: vec![id.to_string()], others }
 }
 
 /// The events of `own` rows that none of `others` has, each once.

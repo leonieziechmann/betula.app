@@ -8,7 +8,7 @@ use folia_pages::ask::GroundAsk;
 use folia_routes::url;
 use leptos::prelude::*;
 
-use crate::data::use_data;
+use crate::data::use_ask;
 use crate::format;
 use crate::i18n;
 use crate::seo;
@@ -40,11 +40,13 @@ pub fn Wood() -> impl IntoView {
 #[component]
 pub fn Ground() -> impl IntoView {
     let t = i18n::t();
-    let facts = use_data().ok().and_then(|data| data.now(&GroundAsk {}).ok());
-    let radix = facts.as_ref().and_then(|ground| ground.meta.radix_version.clone());
-    let changed = facts.as_ref().and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
+    // The data's facts, once they are there: the rest of the ground stands from the first frame.
+    let facts = use_ask(|| Some(GroundAsk {}));
+    let fact = move |of: fn(&folia_pages::Ground) -> Option<String>| move || facts.get().and_then(Result::ok).as_ref().and_then(of);
+    let radix = fact(|ground| ground.meta.radix_version.clone());
+    let changed = move || facts.get().and_then(Result::ok).and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
     // The semester by its key, in the page's language (the snapshot's label is German).
-    let semester = facts.as_ref().and_then(|ground| ground.current_semester.as_ref().map(|s| folia_calendar::semester::SemesterKey::parse(&s.key).map_or_else(|| s.label.clone(), |key| key.label(t.locale))));
+    let semester = move || facts.get().and_then(Result::ok).and_then(|ground| ground.current_semester.as_ref().map(|s| folia_calendar::semester::SemesterKey::parse(&s.key).map_or_else(|| s.label.clone(), |key| key.label(t.locale))));
     view! {
         <footer class="ground">
             <div class="ground-top">
@@ -60,11 +62,11 @@ pub fn Ground() -> impl IntoView {
             <div class="ground-foot">
                 <p>
                     <span>"Folia "<span class="ver">{crate::VERSION}</span></span>
-                    {radix.map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
+                    {move || radix().map(|version| view! { <span>"Radix "<span class="ver">{version}</span></span> })}
                 </p>
                 <p>
-                    {changed.map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
-                    {semester.map(|label| view! { <span>{label}</span> })}
+                    {move || changed().map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
+                    {move || semester().map(|label| view! { <span>{label}</span> })}
                     <a href=seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
                 </p>
             </div>

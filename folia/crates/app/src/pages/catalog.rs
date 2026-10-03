@@ -11,7 +11,6 @@
 //! lists none. What it compares is kept in the browser for the next time it is switched on
 //! (`finder_on`).
 
-use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -38,7 +37,7 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_data, DataClient, DataError, Later, PageStatus, Semantic, Worker};
+use crate::data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
 use crate::format;
 use crate::i18n::{self, use_location, Locale};
 use crate::myprogram::{MineResolved, MyProgram};
@@ -103,46 +102,44 @@ pub fn CatalogPage() -> impl IntoView {
     let status = PageStatus::capture();
     let phone = phone_layout();
 
-    // The list of a search being typed, worked out by the catalog's worker before the address
-    // changes (`prepare` below): `list` finds it here and asks the local catalog nothing.
-    let prepared: StoredValue<Option<(CatalogUrl, Result<CatalogData, DataError>)>> = StoredValue::new(None);
     let list_source = source.clone();
-    let list = Memo::new(move |_| {
+    let list = Memo::new(move |before: Option<&Result<(CatalogUrl, CatalogData), DataError>>| {
         // Start at the page the URL names at this moment; later page changes are scrolling. The
         // list is the base of its rows, pager, sort and tag links and of the address scrolling
         // writes, so it carries `fill`, tracked rather than read once like `page`: a row whose
         // link named another placeholder than the address would plan into the wrong one.
         let query = asked.get()?;
         let current = CatalogUrl { query, page: page.get_untracked(), open: None, fill: fill.get() };
-        if let Some(data) = prepared.try_with_value(|kept| kept.as_ref().filter(|(of, _)| *of == current).map(|(_, data)| data.clone())).flatten() {
-            return data.map(|data| (current, data));
-        }
-        list_source.clone().and_then(|source| source.now(&CatalogAsk { url: current.clone(), locale: crate::i18n::locale() })).map(|data| (current, data))
+        let now = list_source.clone().and_then(|source| source.now(&CatalogAsk { url: current.clone(), locale: crate::i18n::locale() })).map(|data| (current, data));
+        // While the list of a new filter is on its way, the list before stays.
+        DataError::or_before(now, before)
     });
     // While the catalog is up, the search of the top bar has the list of what is typed worked out
-    // by the catalog's worker before it goes there (owner, 2026-10-02: typing lagged, a phone
-    // spent half a second of its thread on every pause): `Pending::go_quietly` waits for it, and
-    // the page then only builds the rows. The list of an address is the list `list` asks for: its
-    // query with what fits the plan and the marks filled in, the page and the placeholder it names.
-    // Without the worker (not loaded yet, failed, the server) the step goes on at once, as before.
-    if let (true, Some(going), Some(worker)) = (APP, Pending::expect(), use_context::<Worker>()) {
-        let prepare_source = source.clone().ok();
+    // by the data worker before it goes there (owner, 2026-10-02: typing lagged, a phone spent half
+    // a second of its thread on every pause): `Pending::go_quietly` waits for it, and the page then
+    // finds the answer kept and only builds the rows. The list of an address is the list `list`
+    // asks for: its query with the marks and what fits the plan filled in, the page and the
+    // placeholder it names. A client that answers on this thread has nothing to work out ahead.
+    if let (true, Some(going), Ok(data)) = (APP, Pending::expect(), source.clone()) {
         let prepare: Prepare = Rc::new(move |to: &str| -> Option<Later<()>> {
             let (path, search) = to.split('#').next().unwrap_or(to).split_once('?').unwrap_or((to, ""));
-            if path != url::CATALOG || !worker.0.ready() {
+            if path != url::CATALOG {
                 return None;
             }
             let target = CatalogUrl::parse(search);
-            let fitted = untrack(|| with_fits(target.query, plan, mine, prepare_source.as_ref(), t));
-            if fitted.failed.is_some() {
-                return None;
-            }
-            let current = CatalogUrl { query: untrack(|| with_marks(fitted.query, bookmarks)), page: target.page, open: None, fill: target.fill };
-            let (worker, locale) = (worker.clone(), crate::i18n::locale());
+            let marked = untrack(|| with_marks(target.query.clone(), bookmarks));
+            let fit = untrack(|| fit_ask(&marked, plan, mine));
+            let (data, locale) = (data.clone(), crate::i18n::locale());
             Some(Box::pin(async move {
-                if let Some(answer) = worker.0.catalog(&current, locale).await {
-                    prepared.try_set_value(Some((current, answer)));
-                }
+                let query = match (marked.fits.clone(), fit) {
+                    (Some(filter), Some(fit)) => match data.ask(fit).await {
+                        Ok(result) => self::fitted(marked, &filter, Some(&result), t).query,
+                        Err(_) => return,
+                    },
+                    (Some(filter), None) => self::fitted(marked, &filter, None, t).query,
+                    (None, _) => marked,
+                };
+                let _ = data.ask(CatalogAsk { url: CatalogUrl { query, page: target.page, open: None, fill: target.fill }, locale }).await;
             }))
         });
         let number = going.prepare_with(prepare);
@@ -263,9 +260,12 @@ pub fn CatalogPage() -> impl IntoView {
     // starting at the top.
     let last_filter: StoredValue<Option<CatalogQuery>> = StoredValue::new(None);
     let top_row: StoredValue<Option<Anchor>> = StoredValue::new(None);
-    let preview = Memo::new(move |_| match open.get() {
-        None => Ok(None),
-        Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
+    let preview = Memo::new(move |before| {
+        let now = match open.get() {
+            None => Ok(None),
+            Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
+        };
+        DataError::or_before(now, before)
     });
     // The module being opened or closed beside the list (`Some` while that is on its way): its row
     // is marked at once, and a closed preview is gone at once.
@@ -468,39 +468,28 @@ struct Finder {
     hint: Memo<Option<PlanHint>>,
 }
 
-// The finder's last answer and what it was for, so a list that asks again with the same plan
-// asks nothing (R16: it only saves work; the candidates themselves the answering side keeps,
-// `folia_pages::ask::Kept`).
-thread_local! {
-    static FIT_LAST: RefCell<Option<(FitAsk, FitResult)>> = const { RefCell::new(None) };
-}
-
 /// Fills `fits_ids` from the plan when the query has the finder switch on, like `with_marks` the
 /// marks, and reads the plan only then (A.7, D.7). Without a plan (the server's page) the ids
 /// stay unfilled, and the query then lists nothing. What the list says about them is in the
 /// language of `t`.
 fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>, source: Option<&DataClient>, t: &'static i18n::Texts) -> Fitted {
     let Some(filter) = query.fits.clone() else { return Fitted { query, ..Fitted::default() } };
-    let (Some(plan), Some(source)) = (plan, source) else { return fitted(query, &filter, None, t) };
+    let (Some(asked), Some(source)) = (fit_ask(&query, plan, mine), source) else { return fitted(query, &filter, None, t) };
+    match source.now(&asked) {
+        Ok(result) => fitted(query, &filter, Some(&result), t),
+        Err(error) => Fitted { failed: Some(error), ..fitted(query, &filter, None, t) },
+    }
+}
+
+/// The finder's question for `query`: the switch, the semester's planned modules and what the
+/// plan hides and has chosen there. `None` without the switch or without a plan.
+fn fit_ask(query: &CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>) -> Option<FitAsk> {
+    let (filter, plan) = (query.fits.clone()?, plan?);
     let key = SemesterKey::parse(&filter.semester);
     let planned = key.map(|key| plan.modules_in(key)).unwrap_or_default();
     let town = mine.map(MyProgram::town).unwrap_or_default();
     let selection = key.map(|key| plan.selection(key, town)).unwrap_or_default();
-    let asked = FitAsk { filter: filter.clone(), plan: planned, selection, locale: crate::i18n::locale() };
-    let kept = FIT_LAST.with(|last| last.try_borrow().ok().and_then(|last| last.as_ref().filter(|(of, _)| *of == asked).map(|(_, result)| result.clone())));
-    if let Some(result) = kept {
-        return fitted(query, &filter, Some(&result), t);
-    }
-    let answer = source.now(&asked);
-    FIT_LAST.with(|last| {
-        if let Ok(mut last) = last.try_borrow_mut() {
-            *last = answer.as_ref().ok().map(|result| (asked, result.clone()));
-        }
-    });
-    match answer {
-        Ok(result) => fitted(query, &filter, Some(&result), t),
-        Err(error) => Fitted { failed: Some(error), ..fitted(query, &filter, None, t) },
-    }
+    Some(FitAsk { filter, plan: planned, selection, locale: crate::i18n::locale() })
 }
 
 /// The query and the view of a finder's answer (`None`: no plan to check against). A semester
@@ -636,8 +625,7 @@ fn elsewhere_note(data: &CatalogData, listed: u64, open: Memo<Option<String>>, t
 /// applying, at most 10, rows as the list's: marking, the preview and the keyboard work as there).
 /// Only the browser app has the semantic search (`data::Semantic`), and it answers once its model
 /// is loaded: until then, and where it adds nothing, nothing stands here. Which of its modules
-/// stand here the catalog's worker works out where it answers (`data::Worker`), beside the page's
-/// thread like the list of the search; the local catalog of the page otherwise.
+/// stand here the data worker works out, beside the page's thread like the list of the search.
 #[component]
 fn SimilarModules(
     current: CatalogUrl,
@@ -650,9 +638,8 @@ fn SimilarModules(
 ) -> impl IntoView {
     let t = i18n::t();
     let (Some(semantic), Ok(source), Some(text)) = (use_context::<Semantic>(), use_data(), pages::similar_text(&query)) else { return ().into_any() };
-    let worker = use_context::<Worker>();
     let found = LocalResource::new(move || {
-        let (semantic, source, worker, query, text) = (semantic.clone(), source.clone(), worker.clone(), query.clone(), text.clone());
+        let (semantic, source, query, text) = (semantic.clone(), source.clone(), query.clone(), text.clone());
         async move {
             // Nothing where a newer search took this one's place: its list has its own.
             let hits = semantic.0.search(&text, pages::SIMILAR_CANDIDATES).await.unwrap_or_default();
@@ -660,11 +647,7 @@ fn SimilarModules(
             if ids.is_empty() {
                 return Vec::new();
             }
-            match worker.filter(|worker| worker.0.ready()) {
-                // `None`: a newer list asked since, which has its own.
-                Some(worker) => worker.0.similar(&query, &ids, pages::SIMILAR_SHOWN).await.and_then(Result::ok).unwrap_or_default(),
-                None => source.now(&SimilarAsk { query: query.clone(), hits: ids, limit: pages::SIMILAR_SHOWN }).unwrap_or_default(),
-            }
+            source.ask(SimilarAsk { query: query.clone(), hits: ids, limit: pages::SIMILAR_SHOWN }).await.unwrap_or_default()
         }
     });
     // Built once the visitor stops typing (`Pending::typing`): they come a moment after the list, and
@@ -1282,6 +1265,9 @@ fn VirtualRows(
     };
 
     // The pages whose rows are in `first..end` are loaded; pages far from there are dropped.
+    let alive_load = alive.clone();
+    // The pages asked for and not answered yet: asked once.
+    let asking: StoredValue<std::collections::BTreeSet<usize>> = StoredValue::new(std::collections::BTreeSet::new());
     let ensure_loaded = move |first: usize, end: usize| {
         let Some(source) = source.clone() else { return };
         let (first_page, last_page) = (first / per_page + 1, end.saturating_sub(1) / per_page + 1);
@@ -1290,22 +1276,38 @@ fn VirtualRows(
         if missing.is_empty() && far.is_empty() {
             return;
         }
-        let fetched: Vec<(usize, Vec<CatalogRow>)> = missing
-            .into_iter()
-            .filter_map(|p| {
-                let offset = u64::try_from((p - 1) * per_page).ok()?;
-                let rows = source.now(&CatalogRowsAsk { query: query.get_value(), offset, limit: PAGE_SIZE }).ok()?.rows;
-                Some((p, rows))
-            })
-            .collect();
-        loaded.update(|loaded| {
-            for p in far {
-                loaded.remove(&p);
+        if !far.is_empty() {
+            loaded.update(|loaded| {
+                for p in far {
+                    loaded.remove(&p);
+                }
+            });
+        }
+        // Each missing page as its answer comes (at once where it is kept; the rows are skeletons
+        // meanwhile). A page answered after the list was replaced is not this list's any more.
+        for p in missing {
+            let Ok(offset) = u64::try_from((p - 1) * per_page) else { continue };
+            let ask = CatalogRowsAsk { query: query.get_value(), offset, limit: PAGE_SIZE };
+            if let Some(Ok(page)) = source.peek(&ask) {
+                loaded.update(|loaded| {
+                    loaded.insert(p, page.rows);
+                });
+                continue;
             }
-            for (p, rows) in fetched {
-                loaded.insert(p, rows);
+            if !asking.try_update_value(|asking| asking.insert(p)).unwrap_or(false) {
+                continue;
             }
-        });
+            let (source, alive) = (source.clone(), alive_load.clone());
+            leptos::task::spawn_local(async move {
+                let answer = source.ask(ask).await;
+                asking.try_update_value(|asking| asking.remove(&p));
+                if let (Ok(page), true) = (answer, alive.load(Ordering::Relaxed)) {
+                    loaded.try_update(|loaded| {
+                        loaded.insert(p, page.rows);
+                    });
+                }
+            });
+        }
     };
 
     // Where the visitor is: which rows to render, which pages to hold, and what `page` in the
@@ -2383,10 +2385,11 @@ fn Filters(
     // Switched on it checks against the semester „Einplanen" would plan into: a placeholder's
     // („Modul finden", `fill`) or the snapshot's current one, comparing what it compared the last
     // time it was on (`finder_on`).
-    let current = use_data().ok().and_then(|data| data.now(&MetaAsk {}).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key));
+    let meta = use_ask(|| Some(MetaAsk {}));
+    let current = Memo::new(move |_| meta.get().and_then(Result::ok).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key)));
     let plan = Studyplan::expect().filter(|_| APP);
     let fits_on = Memo::new(move |_| query.with(|q| q.fits.is_some()));
-    let finder_chip = current.map(|current| {
+    let finder_chip = move || current.get().map(|current| {
         // `fill` and the plan are sources of their own (R16): neither is derived from the other.
         let aim = move || plan.map_or(current, |plan| {
             let fill = fill.get();

@@ -65,7 +65,9 @@ pub fn back_href(url: &impl LocalView, phone: bool) -> String {
 pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
     let t = i18n::t();
     let status = PageStatus::capture();
-    match use_data().and_then(|data| data.now(&ModuleAsk { id: id.clone() })) {
+    let data = use_data();
+    // Follows its answer: from the data worker it comes a moment later.
+    move || match data.clone().and_then(|data| data.now(&ModuleAsk { id: id.clone() })) {
         Err(error) => {
             status.for_error(&error);
             view! { <Plain><ErrorState error/></Plain> }.into_any()
@@ -74,7 +76,7 @@ pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
             status.set(404);
             view! { <Plain><NotFound title=t.module.not_found hint=t.module.not_found_hint/></Plain> }.into_any()
         }
-        Ok(Some(data)) => view! { <ModuleFull data back_area=area back_to=Some(back) noindex=true/> }.into_any(),
+        Ok(Some(data)) => view! { <ModuleFull data back_area=area back_to=Some(back.clone()) noindex=true/> }.into_any(),
     }
 }
 

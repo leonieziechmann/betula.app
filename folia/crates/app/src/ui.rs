@@ -33,9 +33,13 @@ pub fn Wordmark(#[prop(optional)] small: bool) -> impl IntoView {
     }
 }
 
-/// A query failed or there is no snapshot: say so, never an empty list.
+/// A query failed or there is no snapshot: say so, never an empty list. An answer still on its
+/// way (`DataError::pending`) is no error: nothing shows (the shell holds the page meanwhile).
 #[component]
 pub fn ErrorState(error: DataError) -> impl IntoView {
+    if error.is_pending() {
+        return ().into_any();
+    }
     let t = i18n::t();
     let (title, hint) = if error.unavailable { (t.ui.unavailable_title, t.ui.unavailable_hint) } else { (t.ui.failed_title, t.ui.failed_hint) };
     view! {
@@ -47,6 +51,7 @@ pub fn ErrorState(error: DataError) -> impl IntoView {
             <p><a class="button" href="">{t.ui.reload}</a></p>
         </section>
     }
+    .into_any()
 }
 
 #[component]

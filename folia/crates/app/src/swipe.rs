@@ -242,6 +242,11 @@ impl RowSwipe {
         }
         let (x, y) = (f64::from(ev.client_x()), f64::from(ev.client_y()));
         self.finger.set_value(Some(Finger { id: ev.pointer_id(), x, y, taken: false, pull: 0.0, at: ev.time_stamp(), speed: 0.0, width: 0.0 }));
+        // What the plan's side needs is asked now, so that it is there by the time the finger has
+        // moved far enough to take the card (`read`).
+        if let (Some(_), Some(source)) = (self.plan, self.source.get_value()) {
+            let _ = untrack(|| source.get(&ModuleSemestersAsk { id: self.id.get_value() }));
+        }
     }
 
     pub fn moving(self, ev: PointerEvent) {
@@ -396,10 +401,11 @@ impl RowSwipe {
         let (t, id) = (self.t, self.id.get_value());
         let marked = self.bookmarks.map(|bookmarks| bookmarks.is_marked_untracked(&id));
         let aim = self.plan.and_then(|plan| {
-            // The semesters the switch aims with, asked of the local catalog as the module's page
-            // asks them; without a current semester (a snapshot always names one) its newest.
+            // The semesters the switch aims with, as the module's page has them, asked when the
+            // finger came down (`down`): without them yet, the row offers the mark alone. Without
+            // a current semester (a snapshot always names one) its newest.
             let source = self.source.get_value()?;
-            let (current, newest) = source.now(&ModuleSemestersAsk { id: id.clone() }).map(|(semesters, schedule)| semesters_of(&semesters, &schedule)).ok()?;
+            let (current, newest) = source.peek(&ModuleSemestersAsk { id: id.clone() })?.map(|(semesters, schedule)| semesters_of(&semesters, &schedule)).ok()?;
             let hint = self.hint.and_then(|hint| hint.get_untracked());
             Some(studyplan::aim_now(plan, &id, current.or(newest)?, newest, self.turnus, hint.as_ref()))
         });
