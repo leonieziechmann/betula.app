@@ -3316,7 +3316,7 @@
     {
       "type": "timeseries",
       "title": "Warnings and errors by event",
-      "description": "Log records at WARN and ERROR per event name (docs/operations.md, section 2). Retries, slow answers and 404s are WARN; given-up pages, failed stages and failed checks are ERROR.",
+      "description": "Log records at WARN and ERROR per event name (docs/radix/operations.md, section 2). Retries, slow answers and 404s are WARN; given-up pages, failed stages and failed checks are ERROR.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

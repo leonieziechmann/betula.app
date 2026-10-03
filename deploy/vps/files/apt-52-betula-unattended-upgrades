@@ -7,7 +7,7 @@
 // Kernel and libc fixes only take effect after a reboot. The time is host-local ("shutdown -r
 // 04:30") and the host runs on Europe/Berlin (HOST_TIMEZONE in vps/lib.sh): the quietest hour
 // for a German audience, in summer and in winter. Interrupting Radix is always safe
-// (docs/operations.md: every page is archived on its own, builds are single transactions).
+// (docs/radix/operations.md: every page is archived on its own, builds are single transactions).
 Unattended-Upgrade::Automatic-Reboot "true";
 Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
 Unattended-Upgrade::Automatic-Reboot-Time "04:30";

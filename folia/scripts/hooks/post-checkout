@@ -1,0 +1,26 @@
+#!/bin/sh
+# A new worktree gets its build cache the moment it exists. `git worktree add` runs this hook
+# with the null commit as the previous HEAD; it then forks the main checkout's cache for this
+# worktree (scripts/build-cache.sh setup, ~20 s) and drops the caches of worktrees that are gone
+# (gc). Branch switches and file checkouts pass a real commit and leave at the first test.
+#
+# Active through `git config core.hooksPath scripts/hooks` (docs/folia/frontend.md §3). It never
+# fails the checkout: a worktree without its cache is slower, not broken.
+
+case "$1" in
+  '' | *[!0]*) exit 0 ;;
+esac
+[ -f folia/scripts/build-cache.sh ] || exit 0
+
+# git hands its hooks its own view of the repository; let the script find the new worktree
+# from the directory it runs in instead.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
+
+echo "build cache for the new worktree (scripts/build-cache.sh):"
+bash folia/scripts/build-cache.sh setup || echo "setup failed: run 'bash scripts/build-cache.sh setup' by hand" >&2
+
+# Deleting a gone worktree's cache takes Windows half a minute per 2 GB, and nothing here
+# waits for it: gc only touches caches whose worktree no longer exists, never this one. It
+# runs on after the hook returns, without holding on to git's output.
+nohup bash folia/scripts/build-cache.sh gc >/dev/null 2>&1 &
+exit 0

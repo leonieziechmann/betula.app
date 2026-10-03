@@ -168,7 +168,7 @@ also has to be named in the two log rules of
 or its errors stay silent.
 
 Once per server: the DNS record of the instance's name, and the password of closed testing as a
-swarm secret - the value travels on stdin, never in argv (`docs/frontend.md`, "Closed testing"):
+swarm secret - the value travels on stdin, never in argv (`docs/folia/frontend.md`, "Closed testing"):
 
 ```bash
 <password manager CLI> | ssh betula docker secret create folia-access-password -
@@ -215,7 +215,7 @@ to the university's servers - no crawl, no cycle - and hands the snapshot it has
 data stays as it was fetched. A new release builds the catalog once more from the archived pages
 at start (no network) and exports it if its parsers and rules make something else of them; the
 old snapshot is served meanwhile and stays if that build or its validation fails (`level=ERROR`,
-`docs/operations.md` §1). `canary.env` says `off` for the time of the closed test (owner,
+`docs/radix/operations.md` §1). `canary.env` says `off` for the time of the closed test (owner,
 2026-09-21): the crawler's User-Agent names betula.app, and while that site shows only a login
 page, requests in its name invite a block. `50-app.sh` makes sure there is a snapshot to serve (a
 seeded volume that never ran gets one from its database: `radix build`, then `radix export`, in
@@ -224,7 +224,7 @@ checks that swarm really starts `serve-snapshot`; `91-verify-stacks.sh app` chec
 reminds with a WARN that the data does not change. Back online: `RADIX_CRAWL=on`, sync,
 `50-app.sh <instance>`; Radix then fetches what has aged in the meantime at its usual pace (one
 request at a time with a pause after each, bulk only between 1 and 6 o'clock, a cap per source
-and cycle: `docs/operations.md` §1). `radix scan-curriculum` with `docker exec` works in both
+and cycle: `docs/radix/operations.md` §1). `radix scan-curriculum` with `docker exec` works in both
 modes.
 
 By hand, on the server: `bash /opt/betula/vps/50-app.sh canary <tag>` deploys a release that is
@@ -301,7 +301,7 @@ hence a tag per commit and never `latest`. Old versions stay until you remove th
 (`docker image rm ...`); the weekly prune timer only removes untagged images.
 
 Study plans travel with a seeded database. On the server they come from `radix download-statutes`
-and `radix scan-curriculum` (`docs/operations.md`), run with `docker exec` in the Radix container
+and `radix scan-curriculum` (`docs/radix/operations.md`), run with `docker exec` in the Radix container
 (the Gemini key is the optional secret above).
 
 ## 5. Secrets
@@ -361,7 +361,7 @@ section 9); `docker service logs edge_traefik` reads them from there.
 | What | When |
 |---|---|
 | Ubuntu security updates | daily (unattended-upgrades); services using an updated library are restarted, except docker/containerd |
-| **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/operations.md) |
+| **Reboot** | 04:30 Europe/Berlin, only when an update asks for it (kernel, libc). All containers restart; the site is away for about a minute. Interrupting Radix is safe (docs/radix/operations.md) |
 | Reboot after a kernel panic | after 60 s |
 | Containers | swarm restarts a task that exits or turns unhealthy; after a boot everything comes back by itself |
 | Canary follows master | every two minutes a look at GitHub for a new build of master; one that is there goes to https://canary.betula.app with the public site's data (section 12). Off: `sudo bash /opt/betula/vps/60-canary.sh off` |
@@ -393,7 +393,7 @@ days as `{job="journal"}`. Not in Docker's local log files, which only rotate by
 stopped containers from before the journald driver still have such files, and `40-stacks.sh edge`
 removes them (`91-verify-stacks.sh accesslog` checks; `90-verify-host.sh journald` checks the oldest
 journal entry). The placeholder's nginx writes no access log. The privacy notice of the site names the
-first two rows („Zugriffsprotokoll" in `app/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
+first two rows („Zugriffsprotokoll" in `folia/crates/app/src/i18n/legal.rs`, in every language). Levers: drop `ClientHost` in
 `stacks/edge.yml` (loses abuse analysis) or shorten the period, in `loki.yml` and
 `vps/files/journald-betula.conf` together.
 
@@ -604,7 +604,7 @@ database for one `deploy` by hand.
 
 The semantic search needs two model files that are too large for git and the images: Radix's
 passage model (`e5-de-en-server.bin`, 35 MB, the modules' vectors) and the browser's query model
-(`e5-de-en.bin`, 15 MB, what a visitor types; `semantic/README.md` says how both are made). They
+(`e5-de-en.bin`, 15 MB, what a visitor types; `folia/crates/semantic/README.md` says how both are made). They
 reach the services through the server's **model store**, not through a registry, a CDN or the images:
 
 ```
@@ -632,7 +632,7 @@ workstation models/  ──ship-models.sh: only what the store lacks, checked on
   address names its content, `immutable`, and the service worker keeps it in a cache no build drops.
 - **The pair.** A query is only comparable with passages of the model it was made for, so the lock
   names both, and they change together. The browser checks it once more against the snapshot
-  (`docs/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
+  (`docs/radix/schema-v2.md`, „Semantic search"): while Radix computes the vectors of a new passage
   model (about a day), the semantic search simply is not offered.
 - **Offline too.** A Radix with `RADIX_CRAWL=off` computes the vectors its database lacks as well,
   with the encoder alone (no Gemini: nothing goes out), and publishes them part by part. Canary,

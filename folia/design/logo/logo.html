@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Betula: mark and wordmark</title>
+<style>
+/* Open this file directly (file://): the font comes from the app's own copy of Inter. */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; src: url("../../app/assets/inter-latin.woff2") format("woff2"), local("Inter"); }
+:root { --font: "Inter", system-ui, sans-serif; }
+body { margin: 40px auto; max-width: 760px; padding: 0 20px; font: 450 14px/1.5 var(--font); color: #10151f; background: #f1f2f4; }
+h1 { font-size: 20px; letter-spacing: -.02em; margin: 0 0 4px; }
+h2 { font-size: 13px; font-weight: 600; color: #4b5565; margin: 32px 0 8px; }
+p, li { color: #4b5565; max-width: 64ch; }
+code, pre { font: 12px/1.5 ui-monospace, Consolas, monospace; }
+pre { background: #fff; border-radius: 9px; padding: 14px 16px; overflow: auto; box-shadow: 0 0 0 1px rgba(15, 23, 42, .08); color: #10151f; }
+table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 4px 18px 4px 0; border-bottom: 1px solid rgba(15, 23, 42, .08); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.tile { border-radius: 12px; min-height: 128px; display: flex; align-items: center; justify-content: center; gap: 18px; }
+.light { background: #fff; color: #10151f; --bark: #fff; --bark-ink: #10151f; --sub: #8790a0; box-shadow: 0 0 0 1px rgba(15, 23, 42, .08); }
+.dark { background: #0a0c11; color: #eceff5; --bark: #e9edf5; --bark-ink: #0d1017; --sub: #6a748a; }
+.tile small { font-size: 13px; color: var(--sub); }
+.app { gap: 10px; min-height: 72px; }
+.app > span { display: flex; align-items: baseline; gap: 10px; }
+.mark { display: block; flex: none; border-radius: 22%; }
+.light .mark { box-shadow: 0 0 0 1px rgba(15, 23, 42, .08); }
+.mark rect { fill: var(--bark); }
+.mark path { fill: var(--bark-ink); }
+
+/* ---- the wordmark, as in folia/assets/app.css ---- */
+.wordmark { display: inline-block; font: 800 22px/1 var(--font); letter-spacing: -.01em; white-space: nowrap; }
+.wordmark .sc { font-size: .72em; font-weight: 400; letter-spacing: .02em; }
+.wordmark .e { margin: 0 -.347em 0 -.022em; }
+.wordmark .u { margin-left: -.03em; }
+.wordmark .la { margin-left: -.055em; }
+.wordmark.small .sc { font-size: .68em; font-weight: 500; }
+.wordmark.small .e { margin: 0 -.319em 0 .02em; }
+.wordmark.small .la { margin-left: -.03em; }
+.app-icon { display: block; flex: none; }
+.round { border-radius: 50%; overflow: hidden; }
+figure { margin: 0; display: grid; justify-items: center; gap: 6px; font-size: 12px; color: var(--sub); }
+</style>
+</head>
+<body>
+<h1>Betula: mark and wordmark</h1>
+<p>Betula is the birch, the pioneer tree of Lusatia's post-mining land, and the letters B, T and U stand in its name. The mark is birch bark that also reads as the rows of a list. Running text says “Betula”; only the wordmark stresses B-T-U. The subtitle always says “inoffiziell”.</p>
+
+<h2>Wordmark, display cut (28 px and larger)</h2>
+<div class="grid">
+  <div class="tile light"><span class="wordmark" style="font-size:58px"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span></div>
+  <div class="tile dark"><span class="wordmark" style="font-size:58px"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span></div>
+</div>
+
+<h2>Mark and wordmark</h2>
+<div class="grid">
+  <div class="tile light"><svg class="mark" width="56" height="56" viewBox="0 0 96 96"><rect width="96" height="96"/><path d="M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z"/></svg><span class="wordmark" style="font-size:44px"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span></div>
+  <div class="tile dark"><svg class="mark" width="56" height="56" viewBox="0 0 96 96"><rect width="96" height="96"/><path d="M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z"/></svg><span class="wordmark" style="font-size:44px"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span></div>
+</div>
+
+<h2>In the app: 32 px mark, small cut at 22 px</h2>
+<div class="grid">
+  <div class="tile light app"><svg class="mark" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32"/><path d="M0 7h13v3H0zM23 12h9v3h-9zM0 17h5v3H0zM17 22h15v3H17z"/></svg><span><span class="wordmark small"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span><small>Modulkatalog · inoffiziell</small></span></div>
+  <div class="tile dark app"><svg class="mark" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32"/><path d="M0 7h13v3H0zM23 12h9v3h-9zM0 17h5v3H0zM17 22h15v3H17z"/></svg><span><span class="wordmark small"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span><small>Modulkatalog · inoffiziell</small></span></div>
+</div>
+
+<h2>How the wordmark is spaced</h2>
+<p>Measured on Inter 800 (em): the stem of the T starts .252 from its origin, its bar ends .587 above the baseline, capitals are .728 high. Small capitals at .72 em reach .524, which leaves .063 of air under the bar; the E is pulled right until the same .063 lies between it and the stem. B–E, T–U and U–L are closed to about .07. Under 28 px the small cut takes over: small capitals at .68 em in weight 500, and .09 of air, so the E and the T do not clot at one pixel per gap.</p>
+<pre>&lt;span class="wordmark" role="img" aria-label="Betula"&gt;
+  &lt;span aria-hidden="true"&gt;&lt;span&gt;B&lt;/span&gt;&lt;span class="sc e"&gt;E&lt;/span&gt;&lt;span&gt;T&lt;/span&gt;&lt;span class="u"&gt;U&lt;/span&gt;&lt;span class="sc la"&gt;LA&lt;/span&gt;&lt;/span&gt;
+&lt;/span&gt;</pre>
+<p>Every run keeps its own element and there is no white space between them: the margins hang on the elements.</p>
+
+<h2>The mark on its grids</h2>
+<p>A light square (corner radius 22 %) with four dark bars that enter from the edges, left and right in turn, in lengths of about 42, 29, 17 and 46 % of the width. Same rhythm at every size; small sizes get relatively heavier bars.</p>
+<table>
+  <tr><th>Size</th><th>File</th><th>Bar</th><th>Gap</th><th>To the edges</th><th>Bars start at y</th><th>Lengths</th></tr>
+  <tr><td>96 and up</td><td><code>icon.svg</code></td><td>8</td><td>8</td><td>20</td><td>20 · 36 · 52 · 68</td><td>40 · 28 · 16 · 44</td></tr>
+  <tr><td>32</td><td><code>icon-32.svg</code>, the app, the favicon</td><td>3</td><td>2</td><td>7</td><td>7 · 12 · 17 · 22</td><td>13 · 9 · 5 · 15</td></tr>
+  <tr><td>16</td><td><code>icon-16.svg</code></td><td>2</td><td>1</td><td>3</td><td>3 · 6 · 9 · 12</td><td>7 · 5 · 3 · 8</td></tr>
+</table>
+<p>Colours: bark <code>#ffffff</code> with ink <code>#10151f</code>; on dark surfaces bark <code>#e9edf5</code> with ink <code>#0d1017</code> (<code>--bark</code>, <code>--bark-ink</code>). On a light page the square gets the hairline the panels have. No accent colour, none of the university's colours, and never its lowercase “b-tu” mark.</p>
+
+<h2>The icon of the installed app</h2>
+<p>What a home screen shows is not the mark but a birch leaf that carries it: white, on the green of the birch leaf, with the mark's four bars on it as the marks of bark, entering from its edges left and right in turn as they enter the square. The mark's bars run out to the edges of its square, and a launcher that cuts a circle out of it leaves a white disc with stubs (owner, 2026-09-26); the leaf stands whole in the middle of any shape, and in one colour for Android's themed icons. Google Search shows the leaf too, beside the site's results (owner, 2026-10-01). The site keeps the mark: the tab, the rail, the link previews.</p>
+<div class="grid">
+  <div class="tile light"><svg class="app-icon" width="112" height="112" viewBox="0 0 96 96" aria-hidden="true"><defs><linearGradient id="leaf0" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6dac78"/><stop offset="1" stop-color="#2d6945"/></linearGradient></defs><rect width="96" height="96" rx="21" fill="url(#leaf0)"/><path d="M48 65.9Q48.8 72.6 45.5 78.2" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M48 14.7C49.6 23.6 59.9 37 67.6 49.2C71.7 55.3 71.5 60.4 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C24.5 60.4 24.3 55.3 28.4 49.2C36.1 37 46.4 23.6 48 14.7Z" fill="#fff"/><path d="M48.9 31.3H40.12C39.15 32.85 38.13 34.42 37.08 36H48.9ZM50.4 40.2H61.7C62.75 41.77 63.8 43.34 64.82 44.9H50.4ZM38.8 49.1H28.46C28.44 49.13 28.42 49.17 28.4 49.2C27.32 50.81 26.53 52.35 26.04 53.8H38.8ZM42.7 58H70.57C70.42 59.9 69.59 61.5 68.13 62.7H42.7Z" fill="#10151f"/></svg><figure><span class="round"><svg class="app-icon" width="72" height="72" viewBox="0 0 96 96" aria-hidden="true"><defs><linearGradient id="leaf1" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6dac78"/><stop offset="1" stop-color="#2d6945"/></linearGradient></defs><rect width="96" height="96" fill="url(#leaf1)"/><path d="M48 65.9Q48.8 72.6 45.5 78.2" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M48 14.7C49.6 23.6 59.9 37 67.6 49.2C71.7 55.3 71.5 60.4 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C24.5 60.4 24.3 55.3 28.4 49.2C36.1 37 46.4 23.6 48 14.7Z" fill="#fff"/><path d="M48.9 31.3H40.12C39.15 32.85 38.13 34.42 37.08 36H48.9ZM50.4 40.2H61.7C62.75 41.77 63.8 43.34 64.82 44.9H50.4ZM38.8 49.1H28.46C28.44 49.13 28.42 49.17 28.4 49.2C27.32 50.81 26.53 52.35 26.04 53.8H38.8ZM42.7 58H70.57C70.42 59.9 69.59 61.5 68.13 62.7H42.7Z" fill="#10151f"/></svg></span>as a launcher cuts it</figure><figure><svg class="app-icon" width="72" height="72" viewBox="0 0 96 96" aria-hidden="true"><defs><linearGradient id="leaf2" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6dac78"/><stop offset="1" stop-color="#2d6945"/></linearGradient></defs><rect width="96" height="96" rx="16" fill="url(#leaf2)"/><path d="M48 65.9Q48.8 72.6 45.5 78.2" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/><path d="M48 14.7C49.6 23.6 59.9 37 67.6 49.2C71.7 55.3 71.5 60.4 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C24.5 60.4 24.3 55.3 28.4 49.2C36.1 37 46.4 23.6 48 14.7Z" fill="#fff"/><path d="M48.9 31.3H40.12C39.15 32.85 38.13 34.42 37.08 36H48.9ZM50.4 40.2H61.7C62.75 41.77 63.8 43.34 64.82 44.9H50.4ZM38.8 49.1H28.46C28.44 49.13 28.42 49.17 28.4 49.2C27.32 50.81 26.53 52.35 26.04 53.8H38.8ZM42.7 58H70.57C70.42 59.9 69.59 61.5 68.13 62.7H42.7Z" fill="#10151f"/></svg>iOS</figure></div>
+  <div class="tile dark"><figure><span class="round" style="color:#24421f"><svg class="app-icon" width="72" height="72" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#d7e8cf"/><path d="M48 65.9Q48.8 72.6 45.5 78.2" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/><path d="M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z" fill="currentColor"/></svg></span>themed, light</figure><figure><span class="round" style="color:#c3e3b8"><svg class="app-icon" width="72" height="72" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" fill="#2a3a27"/><path d="M48 65.9Q48.8 72.6 45.5 78.2" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/><path d="M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z" fill="currentColor"/></svg></span>themed, dark</figure></div>
+</div>
+<p>Drawn by <code>app-icon.mjs</code> on the grid of 96 (<code>app-icon.svg</code>). The leaf is three cubic curves on its right, mirrored to the left: the tip at 48 / 14.7, widest at 67.6, the base at 68.2, a broad rounded wedge; the stem curves from 48 / 65.9 to 45.5 / 78.2, 3.6 wide. The bars are 4.7 high, 4.2 apart (tops at 31.3, 40.2, 49.1, 58) and end at 48.9, 50.4, 38.8 and 42.7 inside the leaf: long, middle, short, longest, the rhythm of the mark. They are cut to the leaf by computation, not by a clip path. Colours: the green from <code>#6dac78</code> at the top (the owner's tone, oklch .6867 .0996 149) to <code>#2d6945</code> at the bottom (oklch .47 .085 155), a vertical gradient that keeps the PNGs small; the leaf white, its marks <code>#10151f</code>.</p>
+<table>
+  <tr><th>Picture</th><th>For</th></tr>
+  <tr><td><code>apple-touch-icon.png</code> (180)</td><td>iOS: full bleed, iOS rounds it (and turns transparency black)</td></tr>
+  <tr><td><code>icon-192.png</code>, <code>icon-512.png</code></td><td>desktops and taskbars: rounded (21 of 96), transparent corners. The 192 is also Google Search's: the start page links it as an <code>icon</code>, the largest picture there Google reads (it reads no SVG)</td></tr>
+  <tr><td><code>icon-maskable-512.png</code>, <code>-1024.png</code></td><td>Android's launchers and the splash screen of the installed app. A launcher shows the middle 87 % (Chromium maps the web's safe circle of 80 % onto Android's 66 of 108 dp, and the mask shows 72), so the leaf is drawn at .873 there and looks as large as in the plain icons; its far ends stay 30 % from the middle, inside the safe circle of 40 %. The splash screen draws the icon at about 220 dp: 1024 px keep it sharp.</td></tr>
+  <tr><td><code>icon-monochrome-512.png</code></td><td>Android's themed icons (Material You): the leaf in white on transparent, the bars cut out; the launcher tints it in the colours of the wallpaper</td></tr>
+  <tr><td><code>/assets/launch/&lt;w&gt;x&lt;h&gt;[-dark].png</code></td><td>the launch screens of iOS, drawn by the server (<code>folia/crates/server/src/launch.rs</code>): the icon in the middle of the page's background, the wordmark and “Modulkatalog · inoffiziell” at the bottom, light and dark</td></tr>
+</table>
+</body>
+</html>

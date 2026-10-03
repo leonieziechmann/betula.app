@@ -41,9 +41,10 @@ __pycache__/
 # Exported catalog snapshots, and the web server's copies of them
 /snapshot/
 /web-data/
+/folia/web-data/
 
-# Built browser app (scripts/build-client.sh)
-/site/
+# Built browser app (folia/scripts/build-client.sh)
+/folia/site/
 
 # Node tooling of the browser tests
 node_modules/
@@ -54,8 +55,9 @@ config.yaml
 .env
 node_modules/
 
-# Machine-local cargo settings (scripts/build-cache.sh)
+# Machine-local cargo settings (folia/scripts/build-cache.sh)
 /.cargo/config.toml
+/folia/.cargo/config.toml
 
 # The models of the semantic search (deploy/models.lock, deploy/ship-models.sh)
 /models/
