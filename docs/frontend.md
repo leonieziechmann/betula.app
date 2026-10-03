@@ -1,6 +1,7 @@
 # Folia, the web tier: architecture, rules, how to run it
 
-> Betula has two parts named after the birch: **Radix** (the root: the Go collector, `docs/operations.md`)
+> Betula has three parts named after the birch: **Cortex** (the bark: the cache between Betula and
+> the internet, `docs/cortex.md`), **Radix** (the root: the Go collector, `docs/operations.md`)
 > and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`,
 > `folia-pack` and `folia-server` with the binary `folia`).
 

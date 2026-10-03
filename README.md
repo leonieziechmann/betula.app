@@ -1,8 +1,13 @@
 # Betula
 
 An unofficial catalog of the modules, study programs and study plans of BTU Cottbus-Senftenberg
-(https://betula.app). Betula is the birch; its two parts are named after the tree:
+(https://betula.app). Betula is the birch; its three parts are named after the tree:
 
+- **Cortex** (the bark, Go): the cache between Betula and the internet. The crawl's requests
+  pass through it (`RADIX_CORTEX_URL`): it fetches from public hosts at one polite pace per host
+  for all its clients together, keeps every answer that changed (gzip, 180 days of history),
+  stores named files over REST, and has a hot spare that takes over within a moment
+  (`docs/cortex.md`).
 - **Radix** (the root, Go): collects the course data (modules, study programs, study plans,
   events), keeps it up to date as a long-running service, and publishes it as SQLite snapshots
   over HTTP.
@@ -10,13 +15,14 @@ An unofficial catalog of the modules, study programs and study plans of BTU Cott
   redistributes them to browsers, which query the database locally through documented read views.
 
 ```
-QIS (module descriptions, tree, events), b-tu.de/modul ──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
-statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
+QIS (module descriptions, tree, events), b-tu.de/modul ──Cortex──crawl──▶ raw page archive ──build──▶ canonical tables + views ──validate──▶ export ──HTTP──▶ Folia ──▶ browsers
+statute PDFs (OPUS) ──Cortex──download-statutes──scan-curriculum (PDF geometry + optional Gemini enrichment)──▶ validated study plans
 ```
 
 | | |
 |---|---|
 | [docs/operations.md](docs/operations.md) | running it as a service, configuration, secrets, log events, notifications, container / Docker Swarm / systemd |
+| [docs/cortex.md](docs/cortex.md) | Cortex: storage, the API, politeness and safety per host, the hot spare, clients, configuration, metrics, log events |
 | [docs/schema-v2.md](docs/schema-v2.md) | pipeline, tables, the read views (the contract for consumers), what is still open |
 | [docs/data-sources.md](docs/data-sources.md) | where every fact comes from, which source wins, and the evidence |
 | [docs/backend-data-overhaul.md](docs/backend-data-overhaul.md) | the brief this design follows |
@@ -44,13 +50,23 @@ nix build .#radix-image                  # container image with a health check (
 go test ./...                          # network-free, no API key needed
 ```
 
+```bash
+go build -o cortex ./cmd/cortex      # Cortex, also pure Go
+cortex serve                         # one instance on 127.0.0.1:8100, always the leader
+radix run --cortex http://127.0.0.1:8100   # Radix fetching through it
+nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cortex.sh ships it)
+```
+
 ### Layout
 
 | Package | Role |
 |---|---|
 | `cmd/radix` | command line of Radix |
+| `cmd/cortex` | command line of Cortex: `serve`, `status`, `step-down`, `put`, `get`, `healthcheck` |
+| `internal/cortex/server`, `internal/cortex/store`, `internal/cortex/upstream`, `internal/cortex/cluster`, `internal/cortex/telemetry` | Cortex: the HTTP API; blobs, the SQLite index and its journal; fetching under the host policy; leader election and the follower; its metric registry |
+| `internal/cortex/client` | Go client of Cortex with fail-over between its instances (standard library only; Radix's way through Cortex) |
 | `internal/service` | the service loop, its stages, `/healthz` and `/status` |
-| `internal/crawl`, `internal/qistree` | polite archiving; QIS program tree walker |
+| `internal/crawl`, `internal/qistree` | polite archiving, directly or through Cortex; QIS program tree walker |
 | `internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
 | `internal/catalogbuild`, `internal/normalize`, `internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms included); HTML parsers |
 | `internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` and the `blocked.tsv` of forms never derived |
@@ -142,7 +158,7 @@ go run ./cmd/radix scan-curriculum --name Informatik --degree Bachelor --force -
 ```
 
 `--name` is a substring filter; use `--program-id` (e.g. `079-82-2008`) for a single program.
-The PDFs are expected in `statutes/` (`radix download-statutes`).
+The PDFs are expected in `statutes/` (`radix download-statutes`, through Cortex with `--cortex`).
 To store validated results, omit `--dry-run`. The previous plan of the program is replaced in
 one transaction (`catalogdb.SavePlan`); the next `build` derives the membership statements.
 Failed validation preserves the existing records.
