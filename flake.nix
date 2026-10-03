@@ -229,8 +229,8 @@
         };
 
         # The browser app, as folia/scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm},
-        # and the data worker, which runs the same bundle (site/pkg/data-worker.js).
-        # `cargo build --profile wasm-release --target wasm32-unknown-unknown -p folia-client`, in
+        # and the data worker with its own bundle (site/pkg/data-worker.js, folia_worker{.js,_bg.wasm}).
+        # `cargo build --profile wasm-release --target wasm32-unknown-unknown -p folia-client -p folia-worker`, in
         # the same two steps as the web server (the dependencies apart, a fixed version for them).
         clientArgs = rustCommon // {
           pname = "betula-folia-client";
@@ -238,7 +238,7 @@
           CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
           # nixpkgs' rustc brings the wasm32 standard library, but no rust-lld to link with.
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "lld";
-          buildPhaseCargoCommand = "cargoWithProfile build --locked -p folia-client";
+          buildPhaseCargoCommand = "cargoWithProfile build --locked -p folia-client -p folia-worker";
         };
         folia-client-deps = craneLib.buildDepsOnly (clientArgs // {
           version = "0";
@@ -264,7 +264,10 @@
             wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
               --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
-            cp crates/client/js/data-worker.js "$out/site/pkg/data-worker.js"
+            wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
+              --out-dir "$out/site/pkg" --out-name folia_worker \
+              target/wasm32-unknown-unknown/wasm-release/folia_worker.wasm
+            cp crates/worker/js/data-worker.js "$out/site/pkg/data-worker.js"
           '';
           # The bundle is the output, not cargo's target directory.
           doInstallCargoArtifacts = false;

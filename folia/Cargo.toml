@@ -25,9 +25,11 @@ members = [
     "crates/test-support",
     "crates/timetable",
     "crates/widgets",
+    "crates/worker",
 ]
 # `client` is the WASM build of the app (feature csr); building it together with the server
-# (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
+# (feature ssr) would unify both into one leptos. It and `worker` (the data worker's bundle) are
+# built with scripts/build-client.sh.
 default-members = [
     "crates/app",
     "crates/bookmarks",

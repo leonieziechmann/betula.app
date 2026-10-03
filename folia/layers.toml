@@ -40,4 +40,4 @@ crates = ["folia-home", "folia-catalog", "folia-programs", "folia-bookmarks", "f
 
 [[layer]]
 name = "composition"
-crates = ["folia-app", "folia-client", "folia-server"]
+crates = ["folia-worker", "folia-app", "folia-client", "folia-server"]

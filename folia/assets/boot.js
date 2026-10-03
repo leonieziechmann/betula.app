@@ -90,8 +90,7 @@ async function idbPut(key, value) {
   });
 }
 
-// The bundle, compiled once: the page runs it, and the data worker gets the same compiled module
-// (the data worker compiles its own, at the same time).
+// The app's bundle, compiled as it loads. (The data worker loads a bundle of its own, `folia-worker`.)
 let bundle = null;
 async function compileBundle() {
   const url = "/pkg/folia_client_bg.wasm" + BUILD;
@@ -248,8 +247,8 @@ function startData() {
       return send({ type: "query", sql, params: [] });
     },
   };
-  // The worker compiles its own copy of the bundle meanwhile: the download does not wait for the
-  // page's. Without a catalog (offline on a first visit, an older schema) the site stays a website.
+  // The worker loads its own bundle meanwhile: the download does not wait for the page's. Without
+  // a catalog (offline on a first visit, an older schema) the site stays a website.
   return send({ type: "start", schema: SCHEMA }).then(({ etag }) => {
     window.betulaData.etag = etag;
   });

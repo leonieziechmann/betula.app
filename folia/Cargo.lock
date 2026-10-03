@@ -933,15 +933,11 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "folia-app",
- "folia-catalog",
  "folia-data",
- "folia-design",
- "folia-model",
  "folia-pages",
  "folia-shell",
  "js-sys",
  "leptos",
- "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1286,6 +1282,16 @@ dependencies = [
  "serde_json",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "folia-worker"
+version = "0.1.0"
+dependencies = [
+ "folia-model",
+ "folia-pages",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]

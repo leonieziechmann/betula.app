@@ -42,6 +42,8 @@ const BUILT = [
   "/pkg/folia_client.js",
   "/pkg/folia_client_bg.wasm",
   "/pkg/data-worker.js",
+  "/pkg/folia_worker.js",
+  "/pkg/folia_worker_bg.wasm",
 ];
 const PRECACHE = [
   "/",

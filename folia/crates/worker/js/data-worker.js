@@ -1,8 +1,8 @@
-// The data worker (docs/folia/folia-refactor.md §6.2): the catalog in sql.js and the app's bundle,
-// whose `worker_answer` (folia/crates/client/src/worker.rs) answers every question of the app's
-// pages (`folia_pages::ask`) beside the page's thread. The page's thread has no copy of the
+// The data worker (docs/folia/folia-refactor.md §6.2): the catalog in sql.js and the worker's own
+// bundle (`folia-worker`, without Leptos), whose `worker_answer` answers every question of the
+// app's pages (`folia_pages::ask`) beside the page's thread. The page's thread has no copy of the
 // catalog: it asks here and builds what the answers say. scripts/build-client.sh puts this file
-// into site/pkg; `boot.js` starts it.
+// and the bundle into site/pkg; `boot.js` starts it.
 //
 // The snapshot is the worker's too: it finds the copy kept in IndexedDB (by the snapshot's ETag),
 // asks the server what it has (`/api/status`), downloads a new one (one tab at a time: a Web Lock),
@@ -15,8 +15,8 @@
 // schema is never opened.
 //
 // Messages from the page (each answer carries the `id` of its request):
-//   {id, type: "start", schema, bundle}   find, fetch and open the catalog (`schema`: the build's
-//                                         SCHEMA_VERSION; `bundle`: the compiled module, or none)
+//   {id, type: "start", schema}           find, fetch and open the catalog (`schema`: the build's
+//                                         SCHEMA_VERSION)
 //                                         → {etag} | {error, notice?}
 //   {id, type: "ask", name, question}     a question by its name and its fields in JSON → {answer}:
 //                                         the JSON of its Result<Answer, DataError>
@@ -160,13 +160,13 @@ function use(next) {
   before?.db.close();
 }
 
-async function start(build, compiled) {
+async function start(build) {
   schema = build;
   importScripts("/assets/sql-wasm.js" + BUILD);
   const [sql, bundle] = await Promise.all([
     self.initSqlJs({ locateFile: (file) => "/assets/" + file + BUILD }),
-    import("/pkg/folia_client.js" + BUILD).then(async (bundle) => {
-      await bundle.default({ module_or_path: compiled ?? "/pkg/folia_client_bg.wasm" + BUILD });
+    import("/pkg/folia_worker.js" + BUILD).then(async (bundle) => {
+      await bundle.default({ module_or_path: "/pkg/folia_worker_bg.wasm" + BUILD });
       return bundle;
     }),
   ]);
@@ -260,8 +260,8 @@ if (channel) {
 }
 
 const handlers = {
-  start({ schema, bundle }) {
-    return start(schema, bundle);
+  start({ schema }) {
+    return start(schema);
   },
   ask({ name, question }) {
     return { answer: app.worker_answer(name, question) };
