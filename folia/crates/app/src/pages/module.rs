@@ -19,27 +19,30 @@
 
 use std::collections::BTreeSet;
 
-use catalog::exam_reading::{self, ExamReading, Reason, Slot};
-use catalog::labels::{Campus, Labelled, OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TurnusSeason};
-use catalog::pages::{self, ModuleData, Overlay};
-use catalog::rows::{Module, Prerequisite, Semester};
-use catalog::rows_detail::{EventDate, ProgramLink};
-use catalog::timetable::day::{clock, minutes, Day};
-use catalog::timetable::grid;
-use catalog::timetable::ics::TZID;
-use catalog::timetable::kind::{class_of, kinds_of, Class, EventKind, KindSet};
-use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, ModuleHint, ProgramTab};
+use folia_calendar::day::{clock, minutes, Day};
+use folia_calendar::kind::{class_of, kinds_of, Class, EventKind, KindSet};
+use folia_calendar::rowkey::RowKey;
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::{
+    Campus, Labelled, OfferStatus, PrerequisiteKind, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind,
+    TurnusSeason,
+};
+use folia_model::rows::{Module, Prerequisite, Semester};
+use folia_model::rows_detail::{EventDate, ProgramLink};
+use folia_pages as pages;
+use folia_pages::{ModuleData, Overlay};
+use folia_routes::url::{self, ModuleHint, ProgramTab};
+use folia_timetable::exam_reading::{self, ExamReading, Reason, Slot};
+use folia_timetable::grid;
+use folia_timetable::ics::TZID;
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
-use crate::i18n::{self, use_location, Locale, Texts};
-
 use crate::bookmarks::{MarkButton, MarkLook};
 use crate::data::{use_source, PageStatus};
 use crate::format;
+use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::MyProgram;
 use crate::seo::{self, Seo};
 use crate::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
@@ -97,7 +100,7 @@ fn derive(data: &ModuleData, t: &'static Texts) -> Derived {
             .contents
             .clone()
             .or_else(|| m.learning_outcomes.clone())
-            .map(|text| seo::excerpt(&(t.module.description)(&m.title, &m.id, &credits, &catalog::text::plain(&text)), 300))
+            .map(|text| seo::excerpt(&(t.module.description)(&m.title, &m.id, &credits, &folia_model::text::plain(&text)), 300))
             .unwrap_or_else(|| (t.module.description_bare)(&m.title, &m.id, &credits)),
     }
 }
@@ -151,7 +154,7 @@ fn structured(data: &ModuleData, t: &'static Texts) -> Vec<serde_json::Value> {
     let languages: Vec<&str> = [(m.teaches_german, "de"), (m.teaches_english, "en")].iter().filter(|(taught, _)| *taught == Some(true)).map(|(_, code)| *code).collect();
     if let Some(course) = course.as_object_mut() {
         if let Some(text) = m.contents.as_ref().or(m.learning_outcomes.as_ref()) {
-            course.insert("description".into(), seo::excerpt(&catalog::text::plain(text), 500).into());
+            course.insert("description".into(), seo::excerpt(&folia_model::text::plain(text), 500).into());
         }
         if let Some(credits) = m.credits {
             course.insert("numberOfCredits".into(), serde_json::json!({ "@type": "QuantitativeValue", "value": credits, "unitText": "ECTS" }));
@@ -803,7 +806,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             })
     };
 
-    // An exam date is shown as read (`catalog::exam_reading`): the BTU's placeholder is no time,
+    // An exam date is shown as read (`folia_timetable::exam_reading`): the BTU's placeholder is no time,
     // a deadline reads „bis 24:00", and the original stays in the row.
     let exam_semester_row = exam_semester.as_ref().and_then(|(key, _)| data.semesters.iter().find(|s| s.key == *key));
     let exams: Vec<(EventDate, Option<ExamReading>)> = exams
@@ -1179,8 +1182,8 @@ fn Programs(data: ModuleData) -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn exam(weekday: Option<i64>, start: Option<&str>, end: Option<&str>, day: Option<&str>) -> EventDate {
         EventDate {
@@ -1215,7 +1218,7 @@ mod tests {
             event_title: "Allgemeine Betriebswirtschaftslehre II".into(),
             event_type: Some(kind.into()),
             group_name: Some(group.into()),
-            rhythm: Some(catalog::labels::Code::parse(rhythm)),
+            rhythm: Some(folia_model::labels::Code::parse(rhythm)),
             last_date: Some(last.into()),
             ..exam(Some(weekday), Some(times.0), Some(times.1), Some(first))
         }
@@ -1317,7 +1320,7 @@ mod tests {
         let at = key(text);
         Semester {
             key: at.key(),
-            season: catalog::labels::Code::parse(if at.winter { "winter" } else { "summer" }),
+            season: folia_model::labels::Code::parse(if at.winter { "winter" } else { "summer" }),
             year: i64::from(at.year),
             label: at.label(Locale::De),
             starts_on: String::new(),
@@ -1330,7 +1333,7 @@ mod tests {
 
     #[test]
     fn einplanen_aims_with_the_teaching_not_with_retakes() {
-        use catalog::studyplan::PlanDoc;
+        use folia_plans::studyplan::PlanDoc;
         let semesters = [semester("2026S", false), semester("2026W", true), semester("2027S", false)];
         let aim = |schedule: &[EventDate]| {
             let (current, newest) = semesters_of(&semesters, schedule);
@@ -1352,7 +1355,7 @@ mod tests {
 
     #[test]
     fn the_plan_beside_a_week_keeps_the_week_s_frame() {
-        use catalog::pages::OverlaySlot;
+        use folia_pages::OverlaySlot;
         // Analysis I's Übung on Tuesday 09:15 and its lecture on Thursday 11:30.
         let rows = [
             teaching("150132", "Übung", "1-Gruppe", 2, ("09:15", "10:45"), "weekly", "2026-10-13", "2027-01-26"),
@@ -1415,9 +1418,9 @@ mod tests {
     }
 
     fn read(date: &EventDate) -> ExamReading {
-        let winter = catalog::rows::Semester {
+        let winter = folia_model::rows::Semester {
             key: "2026W".into(),
-            season: catalog::labels::Code::parse("winter"),
+            season: folia_model::labels::Code::parse("winter"),
             year: 2026,
             label: "WiSe 2026/27".into(),
             starts_on: "2026-10-01".into(),
@@ -1474,7 +1477,7 @@ mod tests {
     /// Analysis I as the page shows it, with these Termine and exam dates: taught in the
     /// Informatik B.Sc., whose plan places it in the first semester, and requiring module 11000.
     fn analysis(schedule: Vec<EventDate>, exams: Vec<EventDate>) -> ModuleData {
-        use catalog::labels::Code;
+        use folia_model::labels::Code;
         let module = Module {
             id: "11101".into(),
             title: "Analysis I".into(),
@@ -1555,7 +1558,7 @@ mod tests {
             schedule,
             exams,
             programs: vec![informatik],
-            plan_places: vec![catalog::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
+            plan_places: vec![folia_model::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
             semesters: vec![semester("2026S", "SoSe 2026", "2026-04-01", "2026-09-30"), semester("2026W", "WiSe 2026/27", "2026-10-01", "2027-03-31")],
         }
     }

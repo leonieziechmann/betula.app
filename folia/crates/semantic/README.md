@@ -152,7 +152,7 @@ real queries of students are the better test.
 ```rust
 // The index of the semantic search, from the snapshot's vectors (computed by Radix).
 let mut index = semantic::Index::new(384);
-for v in catalog::queries::module_vectors(&db)? {
+for v in folia_query::module_vectors(&db)? {
     index.push_codes(v.module_id, v.scale, &v.vector)?;   // packed, as Radix published it
 }
 let search = semantic::Search::new(std::fs::read(browser_model)?, &index.to_bytes()?)?;
@@ -200,7 +200,7 @@ dedicated worker lives as long as the page and keeps the model loaded between qu
 ## In the app
 
 The catalog shows what it finds under the results of a search, as „Ähnliche Module“
-(`app::pages::catalog::SimilarModules`, `catalog::pages::similar`; docs/folia/frontend.md, „The search of
+(`folia_app::pages::catalog::SimilarModules`, `folia_pages::similar`; docs/folia/frontend.md, „The search of
 the catalog“): with every search of three letters or digits, the 500 modules closest to its text,
 of which those the filters hold and the search itself does not find, at most 10, the closest
 first, as rows of the list. Nothing waits for it: the rows come once the search answers, and once
@@ -247,7 +247,7 @@ are of the passage model its query model was made for (`meta.semantic_model`,
 
 ## Not done yet
 
-- a schema-11 snapshot for Folia's tests (`catalog::tests` and the pinned digests);
+- a schema-11 snapshot for Folia's tests (`folia_test_support` and the pinned digests);
 - Unicode composition (NFC): neither side composes „e“ + U+0301 into „é“ (a query typed so is
   cut differently from one with „é“, on both sides alike). Keyboards and the catalog write the
   composed form; composing would have to happen in Rust, for both.

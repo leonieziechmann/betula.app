@@ -1,15 +1,39 @@
 [workspace]
 members = [
     "crates/app",
-    "crates/catalog",
+    "crates/calendar",
     "crates/client",
+    "crates/locale",
+    "crates/model",
     "crates/pack",
+    "crates/pages",
+    "crates/plans",
+    "crates/query",
+    "crates/routes",
+    "crates/search",
     "crates/semantic",
     "crates/server",
+    "crates/test-support",
+    "crates/timetable",
 ]
 # `client` is the WASM build of the app (feature csr); building it together with the server
 # (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
-default-members = ["crates/app", "crates/catalog", "crates/pack", "crates/semantic", "crates/server"]
+default-members = [
+    "crates/app",
+    "crates/calendar",
+    "crates/locale",
+    "crates/model",
+    "crates/pack",
+    "crates/pages",
+    "crates/plans",
+    "crates/query",
+    "crates/routes",
+    "crates/search",
+    "crates/semantic",
+    "crates/server",
+    "crates/test-support",
+    "crates/timetable",
+]
 resolver = "2"
 
 # Leptos view types make full debug info enormous (a 1.8 GB server binary).

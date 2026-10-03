@@ -1,7 +1,7 @@
 //! How values read on a page. Unknown values get an honest text, never a guess.
 
-use catalog::labels::{Code, StudyVariant, TurnusParity, TurnusSeason};
-use catalog::Locale;
+use folia_locale::Locale;
+use folia_model::labels::{Code, StudyVariant, TurnusParity, TurnusSeason};
 
 use crate::i18n;
 
@@ -47,7 +47,7 @@ pub fn count(value: u64, locale: Locale) -> String {
 /// returned as it is.
 pub fn date(iso: &str, locale: Locale) -> String {
     let day = iso.split('T').next().unwrap_or(iso);
-    match catalog::timetable::day::Day::parse(day) {
+    match folia_calendar::day::Day::parse(day) {
         Some(day) => day.date(locale),
         None => iso.to_string(),
     }
@@ -93,7 +93,7 @@ pub fn languages(german: Option<bool>, english: Option<bool>) -> Option<&'static
 
 /// „Mo 09:15–10:45", "Mon 09:15–10:45"
 pub fn time_slot(weekday: Option<i64>, start: Option<&str>, end: Option<&str>, locale: Locale) -> Option<String> {
-    let day = weekday.and_then(|weekday| locale.texts().common.weekday_short(weekday)).map(str::to_string);
+    let day = weekday.and_then(|weekday| locale.texts().weekday_short(weekday)).map(str::to_string);
     let time = match (start, end) {
         (Some(start), Some(end)) => Some(format!("{start}–{end}")),
         (Some(start), None) => Some(start.to_string()),
@@ -108,8 +108,8 @@ pub fn time_slot(weekday: Option<i64>, start: Option<&str>, end: Option<&str>, l
 }
 
 /// The short name students use for an exam form, for table columns.
-pub fn exam_short(form: &Code<catalog::labels::ExamForm>, locale: Locale) -> String {
-    use catalog::labels::ExamForm;
+pub fn exam_short(form: &Code<folia_model::labels::ExamForm>, locale: Locale) -> String {
+    use folia_model::labels::ExamForm;
     let t = &i18n::texts(locale).format;
     match form.known() {
         Some(ExamForm::Map) => "MAP".to_string(),

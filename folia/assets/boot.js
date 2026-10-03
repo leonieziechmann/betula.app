@@ -12,7 +12,7 @@ const STORE = "snapshots";
 // stylesheet: a service worker of another build has nothing under these addresses.
 const BUILD = new URL(import.meta.url).search;
 // The schema of the catalog the queries of this build are written for: a snapshot's `PRAGMA
-// user_version`, the number of Radix's last migration (`catalog::SCHEMA_VERSION`, which the server
+// user_version`, the number of Radix's last migration (`folia_model::SCHEMA_VERSION`, which the server
 // writes in here). A copy of an older schema lacks columns they select, so it is never opened.
 // A name and not a string: a minifier folds `Number("…")` into NaN before the server can write
 // the number in (folia/crates/server/build/main.rs).
@@ -22,7 +22,7 @@ const SCHEMA = __SCHEMA__;
 // id of the passage model it was made for, or null when the server does not know it. A name, as SCHEMA.
 const SEMANTIC_MODEL = __SEMANTIC_MODEL__;
 
-// What this script says, in the page's language as its address says it (`catalog::Locale::split`;
+// What this script says, in the page's language as its address says it (`folia_locale::Locale::split`;
 // docs/folia/i18n.md). The first is the default, without a prefix. (Offline the service worker may
 // answer with a page it kept in another language; the address is still the visitor's.)
 const LANGUAGES = [

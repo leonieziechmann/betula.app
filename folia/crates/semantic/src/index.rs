@@ -59,7 +59,7 @@ impl Index {
     }
 
     /// Adds a document whose vector is packed already: a module's as Radix publishes it
-    /// (`v_module_vector`, `catalog::queries::module_vectors`), `packed` and its `scale`.
+    /// (`v_module_vector`, `folia_query::module_vectors`), `packed` and its `scale`.
     pub fn push_codes(&mut self, id: impl Into<String>, scale: f32, packed: &[u8]) -> Result<(), String> {
         if packed.len() * 2 != self.dims {
             return Err(format!("a vector of {} bytes for an index of {} values", packed.len(), self.dims));

@@ -869,6 +869,35 @@ What counts as done:
   (`build-client.sh --dev`).
 - The dependency test (R24) green; every crate with its own tests.
 
+### 11.3 How the phases went
+
+**Phase 1 (2026-10-03), the repository in order.** As §7.9 drew it. The flake builds Radix from
+`radix/` and the workspace from `folia/` (only `Cargo.*`, `crates/` and `assets/` are its source:
+a change to the checks or the scripts builds no new image); `deploy/ship.sh`'s `BUILD_PATHS` and the
+images workflow name the same directories. The Go module's vendor hash did not change. The libraries
+are `folia_<crate>` (`folia_app`, `folia_pack`, `folia_semantic`), so the semantic search's module
+leaves cargo as `folia_semantic.wasm` (`build-semantic.sh` and the flake copy it to the names the
+browser loads, as before).
+
+**Phase 2 (2026-10-03), the domain out of `catalog`.** Nine crates and the test support, as §7.3 and
+§7.4 have them; the 293 tests of `catalog` run in their crates. Where the cut went other than planned:
+
+- `folia-model` also holds `meta` (the search reads the snapshot's digest, and the test support the
+  pinned one) and `ids` with `MAX_PLANNED` (a plan's cap, which `folia-plans` checks and the
+  statements apply); `folia-query` re-exports both.
+- The words of the contract are split by crate: `Locale::texts` has the common ones, and
+  `folia_calendar::i18n` (the holidays), `folia_plans::i18n` and `folia_timetable::i18n` each have a
+  `texts(locale)`. The app's `Texts` names the three (`data`, `plans_data`, `timetable_data`).
+- The filter's SQL is the trait `folia_query::sql::CatalogSql` (`to_sql`, `order_by`,
+  `order_terms`) on `folia_routes::CatalogQuery`, which keeps `text_resolution`.
+- `Subscription::of`, the timetable's half of a calendar subscription, is
+  `folia_timetable::export::subscription_of`; the shared plan's address is
+  `folia_routes::url::share_path`.
+- Fixtures other crates' tests use sit behind a feature `fixtures` (`folia_timetable::model::tests`,
+  `folia_plans::area_fixtures`); no crate depends on one above it, not even in its tests (the two
+  tests that loaded a page moved into `folia-pages`).
+- `queries::search_suggestions` (no caller) and its row went, as did `url::CALENDAR_PREFIX`.
+
 ## 12. Still open
 
 Nothing the owner has to decide before the minimal version: every question of the first draft is

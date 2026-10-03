@@ -1,6 +1,6 @@
 //! Texts of the Stundenplan's modules (`pages/studyplan/modules.rs`): the list of the planned
 //! modules beside the week, their placeholders and „Modul hinzufügen". What a placeholder is
-//! called is the data contract's (`catalog::i18n::plans`), the unit of credits the app's
+//! called is the data contract's (`folia_plans::i18n`), the unit of credits the app's
 //! (`common`).
 
 pub struct Texts {

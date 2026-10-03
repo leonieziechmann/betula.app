@@ -13,23 +13,22 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::filter::{CatalogQuery, ProgramScope};
-use catalog::labels::{Campus, Code, Rhythm};
-use catalog::pages::{self, BookmarksData, StudyplanData};
-use catalog::studyplan::PlanDoc;
-use catalog::timetable::clash::{self, Overlap, Weeks, When};
-use catalog::timetable::day::{clock, Day};
-use catalog::timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
-use catalog::timetable::model::{Attendance, Basis, Event, Row, Timetable};
-use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::select::TownChoice;
-use catalog::timetable::semester::SemesterKey;
-use catalog::timetable::views::short_title;
-use catalog::url::{BookmarkSort, CatalogUrl, PlanView, Season};
+use folia_calendar::day::{clock, Day};
+use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::TownChoice;
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::{Campus, Code, Rhythm};
+use folia_pages as pages;
+use folia_pages::{BookmarksData, StudyplanData};
+use folia_plans::studyplan::PlanDoc;
+use folia_routes::filter::{CatalogQuery, ProgramScope};
+use folia_routes::url::{BookmarkSort, CatalogUrl, PlanView, Season};
+use folia_timetable::clash::{self, Overlap, Weeks, When};
+use folia_timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
+use folia_timetable::model::{Attendance, Basis, Event, Row, Timetable};
+use folia_timetable::views::short_title;
 use leptos::prelude::*;
 
-use super::week::{has_ab, AllSwitch, WeekSwitch};
-use super::{key_of, PlanCtx, SheetToggle};
 use crate::bookmarks::Bookmarks;
 use crate::format;
 use crate::i18n::{self, Locale};
@@ -37,6 +36,8 @@ use crate::myprogram::MineResolved;
 use crate::nav;
 use crate::pages::catalog::finder_on;
 use crate::ui::Icon;
+use super::week::{has_ab, AllSwitch, WeekSwitch};
+use super::{key_of, PlanCtx, SheetToggle};
 
 /// The tones of the plan's modules, in the order of `app.css`'s `t-…` classes: the first planned
 /// module of a semester is ice, the ninth ice again (the timetable's `Event::tone`, 1–8).
@@ -55,7 +56,7 @@ pub(super) fn tone_at(position: usize) -> u8 {
 
 /// „Mo" … „So", "Mon" … "Sun" by `Day::weekday` (1 = Monday); nothing for what is no weekday.
 pub(super) fn weekday_name(weekday: u8, locale: Locale) -> &'static str {
-    locale.texts().common.weekday_short(i64::from(weekday)).unwrap_or_default()
+    locale.texts().weekday_short(i64::from(weekday)).unwrap_or_default()
 }
 
 /// „Mo 08.02.2027", "Mon 8 Feb 2027".
@@ -457,7 +458,7 @@ impl Note {
 pub(super) fn kind_word(event: &Event, locale: Locale) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or(locale.texts().plans.session, |kind| kind.label(locale)).to_string(),
+        None => event.kinds.iter().next().map_or(folia_plans::i18n::texts(locale).session, |kind| kind.label(locale)).to_string(),
     }
 }
 
@@ -495,7 +496,7 @@ fn campus_name(campus: &Code<Campus>, t: &i18n::Texts) -> String {
 fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)], about: &About, t: &i18n::Texts) -> (String, Option<String>) {
     let list = |module: &str| termine.iter().find(|(id, _)| id == module).map_or(&[][..], |(_, list)| list.as_slice());
     let issue = |termin: &Termin| list(&termin.module_id).iter().find(|at| at.day == warning.day && at.termin == *termin);
-    let both = || (t.data.plans.other_dates_fit.to_string(), None);
+    let both = || (t.plans_data.other_dates_fit.to_string(), None);
     let (Some(a), Some(b)) = (issue(&warning.a), issue(&warning.b)) else {
         return both();
     };
@@ -503,7 +504,7 @@ fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminA
         let module = &mine.termin.module_id;
         if let Some(index) = list(module).iter().position(|at| at.day == avoid && at != mine && exams::collision(at, other).is_none()) {
             let day = avoid.day_month(t.locale);
-            let fits = if index == 0 { (t.data.plans.first_sitting_fits)(&day) } else { (t.data.plans.second_sitting_fits)(&day) };
+            let fits = if index == 0 { (t.plans_data.first_sitting_fits)(&day) } else { (t.plans_data.second_sitting_fits)(&day) };
             return (format!("{}: {fits}", about.title(module, t)), Some(module.clone()));
         }
     }
@@ -890,19 +891,19 @@ pub(super) fn DerivedLine(ctx: PlanCtx) -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use catalog::rows_detail::EventDate;
-    use catalog::studyplan::Placeholder;
-    use catalog::timetable::clash::Clash;
-    use catalog::timetable::kind::EventKind;
-    use catalog::timetable::day::minutes;
-    use catalog::timetable::facts::SemesterFacts;
-    use catalog::timetable::kind::{kinds_of, Class};
-    use catalog::timetable::model::Row;
-    use catalog::timetable::occur::Occurrences;
-    use catalog::timetable::select::Town;
+    use folia_calendar::day::minutes;
+    use folia_calendar::kind::EventKind;
+    use folia_calendar::kind::{kinds_of, Class};
+    use folia_calendar::select::Town;
+    use folia_model::rows_detail::EventDate;
+    use folia_plans::studyplan::Placeholder;
+    use folia_timetable::clash::Clash;
+    use folia_timetable::facts::SemesterFacts;
+    use folia_timetable::model::Row;
+    use folia_timetable::occur::Occurrences;
 
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -1319,7 +1320,7 @@ mod tests {
 
     #[test]
     fn the_merkliste_offers_what_the_semester_could_take() {
-        let row = |id: &str| catalog::rows::CatalogRow {
+        let row = |id: &str| folia_model::rows::CatalogRow {
             id: id.into(),
             title: format!("Modul {id}"),
             title_de: None,

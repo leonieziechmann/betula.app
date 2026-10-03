@@ -2,7 +2,7 @@
 //! town, and what the local catalog knows of that program.
 //!
 //! Owner clarification (2026-09-24): „Mein Studiengang" is the app's alone and kept in
-//! `localStorage` (`betula.myprogram.v1`, the text of `catalog::studyplan::MineDoc`), like the
+//! `localStorage` (`betula.myprogram.v1`, the text of `folia_plans::studyplan::MineDoc`), like the
 //! Merkliste: empty on the server (R9), in no request, and never dragged along in addresses. The
 //! store is where every page reads it (the Studienplan's Fachsemester and import, the finder,
 //! the Standort); the program's slug stands only in a catalog address that is filtered by it.
@@ -13,14 +13,15 @@
 //! overview names it; links to its page show the stored Studienrichtung (`program_href`). All of
 //! it only while the stored program is in the snapshot (`MyProgramInfo::exact`).
 
-use catalog::filter::{CatalogQuery, ProgramScope};
-use catalog::pages::{self, MyProgramInfo};
-use catalog::rows::Program;
-use catalog::studyplan::MineDoc;
-use catalog::timetable::select::TownChoice;
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
-use catalog::variants::{PlanVariant, Supplement};
+use folia_calendar::select::TownChoice;
+use folia_calendar::semester::SemesterKey;
+use folia_model::rows::Program;
+use folia_pages as pages;
+use folia_pages::MyProgramInfo;
+use folia_plans::studyplan::MineDoc;
+use folia_plans::variants::{PlanVariant, Supplement};
+use folia_routes::filter::{CatalogQuery, ProgramScope};
+use folia_routes::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 
 use crate::data::{use_source, Source};
@@ -392,7 +393,7 @@ fn replaced_name(doc: &MineDoc, program_id: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use catalog::timetable::select::Town;
+    use folia_calendar::select::Town;
 
     use super::*;
 
@@ -423,7 +424,7 @@ mod tests {
             id: "079-82-2008".into(),
             slug: "bachelor-informatik-2008".into(),
             name: "Informatik".into(),
-            degree_level: catalog::labels::Code::parse("bachelor"),
+            degree_level: folia_model::labels::Code::parse("bachelor"),
             study_variant: None,
             degree_label: Some("B.Sc.".into()),
             degree_raw: "Bachelor".into(),
@@ -526,8 +527,8 @@ mod tests {
         use std::path::PathBuf;
         use std::sync::Mutex;
 
-        use catalog::native::NativeDatabase;
-        use catalog::{Database, DbError};
+        use folia_model::native::NativeDatabase;
+        use folia_model::{Database, DbError};
 
         use crate::data::CatalogSource;
 
@@ -555,7 +556,7 @@ mod tests {
     fn a_link_to_mein_studiengang_shows_the_kept_plan() {
         let source = snapshot();
         let program = |id: &str| source.run(|db| pages::my_program(db, id)).unwrap().expect("the program is in the snapshot").program;
-        let plans = |id: &str| source.run(|db| pages::plan_source(db, id, catalog::Locale::De)).unwrap().expect("the program has plans");
+        let plans = |id: &str| source.run(|db| pages::plan_source(db, id, folia_locale::Locale::De)).unwrap().expect("the program has plans");
 
         let elektrotechnik = program("048-82-2022");
         let two = plans("048-82-2022");

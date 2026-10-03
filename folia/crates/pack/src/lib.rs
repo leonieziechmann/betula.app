@@ -3,8 +3,8 @@
 //!
 //! For what has to travel in a link and nowhere else: the marked modules on their way to another
 //! device (`/bookmarks#m=…`, `folia/crates/app/src/bookmarks.rs`), the timetable a calendar subscribes to
-//! (`/calendar/<code>.ics`, `catalog::timetable::subscription`), and a Stundenplan handed on
-//! (`/studyplan?share=…`, `catalog::timetable::share`).
+//! (`/calendar/<code>.ics`, `folia_calendar::subscription`), and a Stundenplan handed on
+//! (`/studyplan?share=…`, `folia_calendar::share`).
 //! A value becomes a code of the unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`, RFC
 //! 3986), which no browser, server or chat program escapes or cuts, and comes back as the same value:
 //!
@@ -14,15 +14,15 @@
 //! #[derive(Serialize, Deserialize, PartialEq, Debug)]
 //! struct Plan {
 //!     semester: u16,
-//!     #[serde(with = "pack::set")]
+//!     #[serde(with = "folia_pack::set")]
 //!     events: Vec<u32>,
 //! }
 //!
 //! let plan = Plan { semester: 2026, events: vec![301_512, 301_517, 301_530, 302_048] };
-//! let code = pack::to_code("plan", &plan)?;
+//! let code = folia_pack::to_code("plan", &plan)?;
 //! assert_eq!(code, "2_w9p_YZ_8713UL");
-//! assert_eq!(pack::from_code::<Plan>("plan", &code)?, plan);
-//! # Ok::<(), pack::Error>(())
+//! assert_eq!(folia_pack::from_code::<Plan>("plan", &code)?, plan);
+//! # Ok::<(), folia_pack::Error>(())
 //! ```
 //!
 //! **Small.** A value is written as bits, not bytes: no field names, a `bool` in one bit, a number

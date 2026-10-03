@@ -1,5 +1,5 @@
 //! „Stundenplan teilen" (owner, 2026-09-26): a link that hands the semester shown on
-//! (`/studyplan?share=<code>`, `catalog::timetable::share`), and on the page it opens, the offer to
+//! (`/studyplan?share=<code>`, `folia_calendar::share`), and on the page it opens, the offer to
 //! take its modules over.
 //!
 //! The link is the visitor's own act, and the exception R20 makes for it is what it carries: the
@@ -18,16 +18,17 @@
 //! The link copied is in the page's language (`/en/studyplan?share=…`), so that whoever opens it
 //! reads the offer in the language it was handed on in.
 
-use catalog::pages::{self, SharedPlanData};
-use catalog::timetable::share::{self, SharedPlan};
+use folia_calendar::share::SharedPlan;
+use folia_pages as pages;
+use folia_pages::SharedPlanData;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use super::import::{now_secs, taken_parts};
-use super::PlanCtx;
 use crate::i18n;
 use crate::pending::Pending;
 use crate::ui::Icon;
+use super::import::{now_secs, taken_parts};
+use super::PlanCtx;
 
 /// „Link zum Teilen kopieren" in the sidebar's group „Plan": the address that hands the semester
 /// shown on, in the page's language, copied whole (`data-absolute`). Greyed out while nothing is
@@ -54,9 +55,9 @@ pub(super) fn ShareAction(ctx: PlanCtx) -> impl IntoView {
 
 /// The address that hands the modules `ids` of the semester `key` on, named as in `program`; `None`
 /// when none of them can travel. A path of the app: the link writes it as `t.path(…)`.
-fn share_path(key: catalog::timetable::semester::SemesterKey, ids: &[String], program: Option<&str>) -> Option<String> {
+fn share_path(key: folia_calendar::semester::SemesterKey, ids: &[String], program: Option<&str>) -> Option<String> {
     let code = SharedPlan::of(key, ids, program)?.code().ok()?;
-    Some(share::path(&code))
+    Some(folia_routes::url::share_path(&code))
 }
 
 /// What the offer says of a shared plan.
@@ -212,11 +213,11 @@ fn offer_text(offer: Offer, t: &i18n::Texts) -> (String, bool) {
 
 #[cfg(test)]
 mod tests {
-    use catalog::pages::SharedModule;
-    use catalog::timetable::semester::SemesterKey;
+    use folia_calendar::semester::SemesterKey;
+    use folia_pages::SharedModule;
 
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn data(modules: &[(&str, &str)]) -> SharedPlanData {
         SharedPlanData {

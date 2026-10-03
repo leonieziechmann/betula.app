@@ -22,25 +22,26 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
-use catalog::labels::ModuleKind;
-use catalog::pages::{self, StudyplanData};
-use catalog::rows::{CatalogRow, Program};
-use catalog::studyplan::{self, Placeholder, PlaceholderLine, PlanDoc};
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, CatalogUrl, StudyplanUrl};
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::ModuleKind;
+use folia_model::rows::{CatalogRow, Program};
+use folia_pages as pages;
+use folia_pages::StudyplanData;
+use folia_plans::studyplan::{self, Placeholder, PlaceholderLine, PlanDoc};
+use folia_routes::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
+use folia_routes::url::{self, CatalogUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use super::aside::only_its_events;
-use super::head::{add_module_href, hue, is_past, tone_at};
-use super::{key_of, PlanCtx};
 use crate::format;
 use crate::i18n::{self, Locale};
 use crate::myprogram::MineResolved;
 use crate::pages::catalog::finder_on;
 use crate::pending::{Change, Pending};
 use crate::ui::Icon;
+use super::aside::only_its_events;
+use super::head::{add_module_href, hue, is_past, tone_at};
+use super::{key_of, PlanCtx};
 
 /// How the note of a module taken out of the list begins (`PlanCtx::undo`), the module's id after
 /// it: the import's note and „Plan geleert" are the others. A key the list finds its note by, never
@@ -550,9 +551,9 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use catalog::labels::Code;
-    use catalog::rows::{CatalogRow, Meta};
-    use catalog::rows_detail::{DateCount, DateRow, EventDate};
+    use folia_model::labels::Code;
+    use folia_model::rows::{CatalogRow, Meta};
+    use folia_model::rows_detail::{DateCount, DateRow, EventDate};
 
     use super::*;
 
@@ -620,7 +621,7 @@ mod tests {
     fn first_semester() -> StudyplanData {
         StudyplanData {
             key: key("2026W"),
-            locale: catalog::Locale::De,
+            locale: folia_locale::Locale::De,
             label: "WiSe 2026/27".into(),
             semester: None,
             meta: Meta { current_semester: Some("2026W".into()), ..Default::default() },

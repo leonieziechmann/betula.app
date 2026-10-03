@@ -17,8 +17,8 @@
 //! from outside: ids that could not be ids are dropped (they end up in links and queries), a
 //! module counts once, and the list has an upper limit.
 
-use catalog::pages::MAX_BOOKMARKS;
-use catalog::url::is_module_id;
+use folia_model::ids::is_module_id;
+use folia_pages::MAX_BOOKMARKS;
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -208,7 +208,7 @@ const TRANSFER: &str = "m=";
 /// another kind is never taken for a list.
 const KIND: &str = "bookmarks";
 /// The layout of `Transfer` that codes are written in, four bits of the code
-/// (`pack::to_versioned_code`; owner, 2026-09-25). A change beyond adding a field at the end takes
+/// (`folia_pack::to_versioned_code`; owner, 2026-09-25). A change beyond adding a field at the end takes
 /// the next one.
 const VERSION: u8 = 1;
 
@@ -217,7 +217,7 @@ const VERSION: u8 = 1;
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 struct Transfer {
     /// The ids that are numbers.
-    #[serde(with = "pack::set")]
+    #[serde(with = "folia_pack::set")]
     numbers: Vec<u64>,
     /// Every other id (the catalog has none). Empty, this costs nothing: it ends the code.
     others: Vec<String>,
@@ -244,7 +244,7 @@ impl Transfer {
 /// The fragment (without `#`) that carries these modules; `None` for a list longer than a code
 /// may be (thousands of ids that are no module numbers, which the catalog does not have).
 pub fn transfer_fragment(ids: &[String]) -> Option<String> {
-    pack::to_versioned_code(KIND, VERSION, &Transfer::of(ids)).ok().map(|code| format!("{TRANSFER}{code}"))
+    folia_pack::to_versioned_code(KIND, VERSION, &Transfer::of(ids)).ok().map(|code| format!("{TRANSFER}{code}"))
 }
 
 /// A fragment that carries a list, but not one that can be read: cut short, or a character of it
@@ -257,7 +257,7 @@ pub fn ids_from_fragment(fragment: &str) -> Result<Vec<String>, BrokenLink> {
     let Some(code) = fragment.trim_start_matches('#').strip_prefix(TRANSFER) else {
         return Ok(Vec::new());
     };
-    let listed = pack::from_versioned_code::<Transfer>(KIND, VERSION, code.trim()).map_err(|_| BrokenLink)?.ids();
+    let listed = folia_pack::from_versioned_code::<Transfer>(KIND, VERSION, code.trim()).map_err(|_| BrokenLink)?.ids();
     let mut ids: Vec<String> = Vec::new();
     for id in listed.into_iter().filter(|id| is_module_id(id)) {
         if !ids.contains(&id) {
@@ -386,7 +386,7 @@ mod tests {
         };
         assert_ne!(swapped, fragment);
         // A code of a later layout than this build reads.
-        let later = format!("m={}", pack::to_versioned_code(KIND, VERSION + 1, &Transfer::of(&owned(&["12204", "11101"]))).unwrap());
+        let later = format!("m={}", folia_pack::to_versioned_code(KIND, VERSION + 1, &Transfer::of(&owned(&["12204", "11101"]))).unwrap());
         for broken in [typed_wrong, swapped, fragment[..fragment.len() - 1].to_string(), format!("{fragment}A"), "m=".to_string(), "m=12204".to_string(), later] {
             assert_eq!(ids_from_fragment(&broken), Err(BrokenLink), "{broken}");
         }

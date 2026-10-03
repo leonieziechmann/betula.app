@@ -2,10 +2,10 @@
 //! grid and a phone's list of days, the buttons of its slots, and the agenda „Termine". What QIS
 //! says (an event's type, its title, rooms, a rhythm in its own words, the reason for a cancelled
 //! date) stands as it says it; weekdays, dates and holidays are the data contract's
-//! (`catalog::i18n`).
+//! (`folia_locale`).
 
-use catalog::timetable::day::Day;
-use catalog::Locale;
+use folia_calendar::day::Day;
+use folia_locale::Locale;
 
 pub struct Texts {
     // ---- the Regelwoche ----

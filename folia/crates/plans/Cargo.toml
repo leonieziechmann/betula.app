@@ -1,0 +1,28 @@
+[package]
+name = "folia-plans"
+version = "0.1.0"
+edition = "2021"
+description = "Study plans: the rows of a Regelstudienplan and their areas, study directions, the Stundenplan's documents"
+
+[features]
+# The real module trees of `area_fixtures`, for the tests of other crates.
+fixtures = []
+
+[dependencies]
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+folia-pack = { path = "../pack" }
+folia-routes = { path = "../routes" }
+folia-search = { path = "../search" }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+folia-query = { path = "../query" }
+folia-test-support = { path = "../test-support" }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

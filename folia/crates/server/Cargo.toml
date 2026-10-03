@@ -12,7 +12,13 @@ path = "src/main.rs"
 
 [dependencies]
 folia-app = { path = "../app", features = ["ssr"] }
-folia-catalog = { path = "../catalog", features = ["native"] }
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model", features = ["sqlite"] }
+folia-pages = { path = "../pages" }
+folia-query = { path = "../query" }
+folia-routes = { path = "../routes" }
+folia-search = { path = "../search" }
 leptos = { version = "0.8.20", features = ["ssr"] }
 leptos_axum = "0.8"
 # The routes of every language (`main::pages`) are the app's routes under the language's prefix.

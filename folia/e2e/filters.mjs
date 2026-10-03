@@ -322,7 +322,7 @@ check(await page.evaluate(() => document.getElementById("filters").__same === tr
 await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle")'), () => !location.search.includes("semester=") && !document.querySelector(".plan-note"));
 await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
 // Only the areas a student chooses from are offered (the fixed complexes are not), named without
-// „Wahlpflichtmodule", in sections (catalog::pages::catalog_areas): the own electives first,
+// „Wahlpflichtmodule", in sections (folia_plans::areas::catalog_areas): the own electives first,
 // without a heading, then the Nebenfach — never a phase of the studies or „Komplex" as a heading,
 // never a heading twice, never a heading over a single area.
 const areaNames = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).filter((name) => name !== "Alle Bereiche"));

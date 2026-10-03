@@ -14,31 +14,35 @@
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use catalog::filter::{CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter};
-use catalog::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
-use catalog::pages::{self, CatalogArea, CatalogChoices, CatalogData, CatalogSummary, FitResult};
-use catalog::plan::SemesterPlan;
-use catalog::queries;
-use catalog::rows::{CatalogRow, Department, Program};
-use catalog::studyplan::PlanDoc;
-use catalog::timetable::fit::CandidateSet;
-use catalog::timetable::select::Selection;
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, CatalogUrl, ProgramTab, PAGE_SIZE};
+use folia_calendar::select::Selection;
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
+use folia_model::rows::{CatalogRow, Department, Program};
+use folia_pages as pages;
+use folia_pages::{CatalogChoices, CatalogData, CatalogSummary, FitResult};
+use folia_plans::areas::CatalogArea;
+use folia_plans::plan::SemesterPlan;
+use folia_plans::studyplan::PlanDoc;
+use folia_query as queries;
+use folia_routes::filter::{
+    CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope,
+    SortKey, TurnusFilter,
+};
+use folia_routes::url::{self, CatalogUrl, PAGE_SIZE, ProgramTab};
+use folia_timetable::fit::CandidateSet;
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
-
-use crate::i18n::{self, use_location, Locale};
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_source, DataError, Later, PageStatus, Semantic, Source, Worker};
 use crate::format;
+use crate::i18n::{self, use_location, Locale};
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::nav;
 use crate::pages::module::ModulePanel;
@@ -451,7 +455,7 @@ impl FitView {
     /// 2026/27") is left out (owner, 2026-09-23: „Viel Redundanz").
     fn note_of(&self, id: &str, no_termine: bool) -> Option<(String, bool)> {
         match self.notes.get(id) {
-            Some(note) if no_termine && note.starts_with(crate::i18n::locale().texts().timetable.no_fixed_dates) => None,
+            Some(note) if no_termine && note.starts_with(folia_timetable::i18n::texts(crate::i18n::locale()).no_fixed_dates) => None,
             Some(note) => Some((note.clone(), self.quiet.contains(id))),
             None => self.undated_note.clone().filter(|_| !no_termine && !self.fitting.contains(id)).map(|note| (note, true)),
         }
@@ -598,7 +602,7 @@ fn keep_open(target: CatalogUrl, open: Memo<Option<String>>, t: &'static i18n::T
     move || t.path(&target.with_open(open.get().as_deref()).path())
 }
 
-/// What the search did with its text where the text as typed found no module (`catalog::search`):
+/// What the search did with its text where the text as typed found no module (`folia_search`):
 /// the typo it corrected, or that no module has all the words. Nothing otherwise.
 fn search_line(query: &CatalogQuery, t: &'static i18n::Texts) -> Option<String> {
     let resolution = query.text_resolution.as_ref()?;
@@ -1309,7 +1313,7 @@ fn VirtualRows(
             .into_iter()
             .filter_map(|p| {
                 let offset = u64::try_from((p - 1) * per_page).ok()?;
-                let rows = source.run(|db| catalog::queries::catalog_page(db, &query.get_value(), offset, PAGE_SIZE)).ok()?.rows;
+                let rows = source.run(|db| folia_query::catalog_page(db, &query.get_value(), offset, PAGE_SIZE)).ok()?.rows;
                 Some((p, rows))
             })
             .collect();
@@ -1460,7 +1464,7 @@ fn VirtualRows(
         // visitor stays where they were.
         let position = |id: &str| {
             let source = start_source.clone()?;
-            let index = source.run(|db| catalog::queries::catalog_position(db, &start_query, id)).ok().flatten()?;
+            let index = source.run(|db| folia_query::catalog_position(db, &start_query, id)).ok().flatten()?;
             Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1)))
         };
         // A row of the page the list starts with, the one the address names: where the top of

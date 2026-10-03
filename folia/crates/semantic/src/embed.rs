@@ -4,11 +4,11 @@
 //!
 //! `embed MODEL.bin --passages`: one passage per line (a module's, without „passage: “), one line
 //! per passage with its vector as Radix publishes it — the bits of the scale, then the packed
-//! values in hex (`semantic::quantize`) — computed in `Mode::Int8` as the WASM module does in Radix
+//! values in hex (`folia_semantic::quantize`) — computed in `Mode::Int8` as the WASM module does in Radix
 //! (`radix/internal/embed`, whose test compares).
 //!
 //! `embed MODEL.bin --search INDEX.bin [--k N]`: one query per line, one line per query with what
-//! `semantic::Search` makes of it — a hash of the embedding's bits, then the hits with the bits of
+//! `folia_semantic::Search` makes of it — a hash of the embedding's bits, then the hits with the bits of
 //! their scores — the line `js/parity.mjs` writes for the browser's builds and compares.
 
 use std::io::{BufRead, Write};
@@ -28,17 +28,17 @@ fn main() -> Result<(), String> {
         .map(|n| n.parse().map_err(|e| format!("--bench: {e}")))
         .transpose()?;
     let mode = match option("--mode").map(String::as_str) {
-        None | Some("expand") => semantic::Mode::Expand,
-        Some("f32") => semantic::Mode::F32,
-        Some("int8") => semantic::Mode::Int8,
+        None | Some("expand") => folia_semantic::Mode::Expand,
+        Some("f32") => folia_semantic::Mode::F32,
+        Some("int8") => folia_semantic::Mode::Int8,
         Some(other) => return Err(format!("--mode {other}: expand, f32 or int8")),
     };
     if args.iter().any(|a| a == "--passages") {
-        let model = semantic::Model::from_bytes_with(std::fs::read(path).map_err(|e| format!("{path}: {e}"))?, semantic::Mode::Int8)?;
+        let model = folia_semantic::Model::from_bytes_with(std::fs::read(path).map_err(|e| format!("{path}: {e}"))?, folia_semantic::Mode::Int8)?;
         let stdout = std::io::stdout();
         let mut out = stdout.lock();
         for line in std::io::stdin().lock().lines() {
-            let (scale, packed) = semantic::quantize(&model.embed_passage(&line.map_err(|e| e.to_string())?));
+            let (scale, packed) = folia_semantic::quantize(&model.embed_passage(&line.map_err(|e| e.to_string())?));
             let hex: String = packed.iter().map(|b| format!("{b:02x}")).collect();
             writeln!(out, "{:08x}\t{hex}", scale.to_bits()).map_err(|e| e.to_string())?;
         }
@@ -47,7 +47,7 @@ fn main() -> Result<(), String> {
     if let Some(index) = option("--search") {
         let k: usize = option("--k").map_or(Ok(10), |k| k.parse().map_err(|e| format!("--k: {e}")))?;
         let index = std::fs::read(index).map_err(|e| format!("{index}: {e}"))?;
-        let search = semantic::Search::new(std::fs::read(path).map_err(|e| format!("{path}: {e}"))?, &index)?;
+        let search = folia_semantic::Search::new(std::fs::read(path).map_err(|e| format!("{path}: {e}"))?, &index)?;
         let stdout = std::io::stdout();
         let mut out = stdout.lock();
         for line in std::io::stdin().lock().lines() {
@@ -58,7 +58,7 @@ fn main() -> Result<(), String> {
         return Ok(());
     }
     let started = Instant::now();
-    let model = semantic::Model::from_bytes_with(
+    let model = folia_semantic::Model::from_bytes_with(
         std::fs::read(path).map_err(|e| format!("{path}: {e}"))?,
         mode,
     )?;

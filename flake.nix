@@ -207,7 +207,7 @@
           installPhaseCommand = ''
             mkdir -p "$out/site/pkg"
             for build in simd relaxed; do
-              cp "target/semantic-$build/wasm32-unknown-unknown/wasm-release/semantic.wasm" "$out/site/pkg/semantic.$build.wasm"
+              cp "target/semantic-$build/wasm32-unknown-unknown/wasm-release/folia_semantic.wasm" "$out/site/pkg/semantic.$build.wasm"
             done
             cp crates/semantic/js/worker.js "$out/site/pkg/semantic-worker.js"
             cp crates/semantic/js/semantic.js "$out/site/pkg/semantic.js"

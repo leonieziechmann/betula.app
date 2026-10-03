@@ -469,9 +469,10 @@ pub const EN: Texts = Texts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use folia_locale::Locale;
+
     use crate::i18n;
-    use catalog::Locale;
+    use super::*;
 
     /// Every language has the same chapters with as much in them, and the words written out
     /// read as they should.

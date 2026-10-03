@@ -22,16 +22,16 @@
 //! - „Speicher im Browser": R20 (docs/folia/frontend.md) and the stores (`bookmarks`, `studyplan`,
 //!   `myprogram`, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
 //!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `folia/crates/server/src/semantic.rs`);
-//! - „Kalender-Abo": `catalog::timetable::subscription` (what a code carries), `folia/crates/server/src/api.rs`,
+//! - „Kalender-Abo": `folia_calendar::subscription` (what a code carries), `folia/crates/server/src/api.rs`,
 //!   the ways to subscribe in `pages/studyplan/export.rs`;
-//! - „Stundenplan teilen": `catalog::timetable::share` (what a code carries), the page's tags and
+//! - „Stundenplan teilen": `folia_calendar::share` (what a code carries), the page's tags and
 //!   its picture (`pages/studyplan/mod.rs`, `folia/crates/server/src/api.rs`), the link and the offer
 //!   (`pages/studyplan/share.rs`), Folia's log without the code (`access_log` in `folia/crates/server/src/main.rs`);
 //! - „Cookies": the gate's cookie (`folia/crates/server/src/access.rs`), the only one;
 //! - „Namen von Lehrenden": `v_module_lecturer` (docs/radix/schema-v2.md), and how long Radix keeps what
 //!   it read (`--event-retention`, `--archive-grace`, docs/radix/operations.md).
 
-use catalog::url;
+use folia_routes::url;
 use leptos::prelude::*;
 use leptos_meta::Title;
 

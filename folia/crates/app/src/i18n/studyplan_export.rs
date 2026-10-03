@@ -1,6 +1,6 @@
 //! Texts of the Stundenplan as a calendar (`pages/studyplan/export.rs`): the file to download and
 //! the calendar subscription. (The calendar's own words, and its name in Outlook, are the feed's:
-//! `catalog::i18n::timetable`.)
+//! `folia_timetable::i18n`.)
 
 pub struct Texts {
     /// „Kalender": the group's heading.

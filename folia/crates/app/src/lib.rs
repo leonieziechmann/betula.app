@@ -31,7 +31,7 @@ pub mod tabs;
 pub mod ui;
 pub mod week;
 
-use catalog::url;
+use folia_routes::url;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
@@ -365,7 +365,7 @@ fn TopBar() -> impl IntoView {
                 next.page = 1;
                 // What is typed is searched for the best matches first: an order chosen before
                 // gives way to relevance (owner, 2026-09-30), and a column orders the matches again.
-                next.query.sort = catalog::filter::SortKey::Default;
+                next.query.sort = folia_routes::filter::SortKey::Default;
                 next.query.descending = false;
                 next.path()
             };

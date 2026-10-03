@@ -30,11 +30,11 @@ use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode, Uri};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use catalog::url::CatalogUrl;
+use folia_routes::url::CatalogUrl;
 use tokio::sync::watch;
 
-use crate::encoding::{self, Coding};
 use crate::AppState;
+use crate::encoding::{self, Coding};
 
 const MAX_PAGE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_KEY_BYTES: usize = 2048;
@@ -172,7 +172,7 @@ fn evict(inner: &mut Inner, target: usize) {
 /// (`share=<code>`) is: the page names its modules for link previews. The language is part of
 /// the key (`/en/catalog?…`): the key of a page in a language is the page's key in its prefix.
 pub fn cache_key(uri: &Uri) -> String {
-    let (locale, path) = catalog::Locale::split(uri.path());
+    let (locale, path) = folia_locale::Locale::split(uri.path());
     locale.path(&page_key(path, uri.query().unwrap_or_default()))
 }
 
@@ -182,23 +182,23 @@ fn page_key(path: &str, query: &str) -> String {
         "" => "/",
         path => path,
     };
-    if path == catalog::url::CATALOG {
+    if path == folia_routes::url::CATALOG {
         // The list with its filters.
         CatalogUrl::parse(query).with_open(None).with_fill(None).path()
-    } else if path == catalog::url::PROGRAMS {
+    } else if path == folia_routes::url::PROGRAMS {
         // The program overview with its filters; the search text folded, as the page matches it.
-        let mut overview = catalog::url::ProgramsUrl::parse(query);
-        overview.text = catalog::search::fold(&overview.text);
+        let mut overview = folia_routes::url::ProgramsUrl::parse(query);
+        overview.text = folia_search::fold(&overview.text);
         overview.path()
     } else if path.starts_with("/programs/") {
         // A program's page shows one of its study plans.
-        let tab = path.rsplit('/').next().and_then(catalog::url::ProgramTab::from_segment).unwrap_or_default();
-        let url = catalog::url::ProgramUrl::parse("", tab, query);
-        format!("{path}{}", catalog::url::ProgramUrl { open: None, full: false, area: None, req: None, ..url }.query())
-    } else if path == catalog::url::STUDYPLAN {
+        let tab = path.rsplit('/').next().and_then(folia_routes::url::ProgramTab::from_segment).unwrap_or_default();
+        let url = folia_routes::url::ProgramUrl::parse("", tab, query);
+        format!("{path}{}", folia_routes::url::ProgramUrl { open: None, full: false, area: None, req: None, ..url }.query())
+    } else if path == folia_routes::url::STUDYPLAN {
         // One page for every view of the plan; one for each plan handed on by a link.
-        match catalog::url::StudyplanUrl::parse(query).share {
-            Some(code) => catalog::timetable::share::path(&code),
+        match folia_routes::url::StudyplanUrl::parse(query).share {
+            Some(code) => folia_routes::url::share_path(&code),
             None => path.to_string(),
         }
     } else {
@@ -207,12 +207,12 @@ fn page_key(path: &str, query: &str) -> String {
 }
 
 /// Whether the page of a cache key is one search engines list (and the sitemap names), not a view
-/// of one (`catalog::url::listed`): an address without a query, the plan of a further study
+/// of one (`folia_routes::url::listed`): an address without a query, the plan of a further study
 /// direction (`/programs/<slug>/plan?variant=<n>`) and a further page of the unfiltered catalog
 /// (`/catalog?page=<n>`), but not what the visitor keeps in the browser (the Merkliste, the
 /// Stundenplan, „Mein Plan"). Keys are canonical spellings (`cache_key`), so these stand alone.
 fn listed(key: &str) -> bool {
-    catalog::url::listed(catalog::Locale::split(key).1)
+    folia_routes::url::listed(folia_locale::Locale::split(key).1)
 }
 
 /// How browsers keep a page: they ask again every time, and the ETag makes that a 304 from
@@ -374,8 +374,8 @@ mod tests {
         assert_eq!(key("/catalog/module/12104?plan=2026W&fill=p3"), "/catalog/module/12104");
         // The Studienplan is one explanation for every address; the plan is the browser's.
         assert_eq!(key("/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38&import=mine"), "/studyplan");
-        let semester = catalog::timetable::semester::SemesterKey::parse("2026W").unwrap();
-        let code = catalog::timetable::share::SharedPlan::of(semester, &["12104".to_string()], None).unwrap().code().unwrap();
+        let semester = folia_calendar::semester::SemesterKey::parse("2026W").unwrap();
+        let code = folia_calendar::share::SharedPlan::of(semester, &["12104".to_string()], None).unwrap().code().unwrap();
         assert_eq!(key(&format!("/studyplan?view=dates&share={code}&open=12104")), format!("/studyplan?share={code}"));
         assert_eq!(key("/studyplan?share=not-a-code"), "/studyplan");
         assert_eq!(key("/programs/x/plan?variant=2&open=11101&full=1&area=3&req=4"), "/programs/x/plan?variant=2");

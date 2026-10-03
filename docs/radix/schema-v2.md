@@ -29,7 +29,7 @@ Migrations live in `radix/internal/catalogdb/migrations/NNNN_name.sql`, are appl
 a transaction each, and are recorded in `PRAGMA user_version`. A gap, a duplicate number, a
 failing statement or a database newer than the binary is an error. Every connection runs with
 `foreign_keys = ON`. The snapshot keeps `user_version`, and Folia is built for the newest
-migration: a new one raises `catalog::SCHEMA_VERSION` (a test of the `catalog` crate fails until
+migration: a new one raises `folia_model::SCHEMA_VERSION` (a test of `folia-pages` fails until
 it does), browsers do not open a local copy of an older schema, and a Folia that serves an older
 snapshot logs `snapshot.outdated` (docs/folia/frontend.md, data flow).
 
@@ -130,7 +130,7 @@ each item of a list and no blank line anywhere, so a paragraph could not be told
   from the start („1." „2.", „a)" „b)", „(1)" „(2)", „I." „II.", „3.1." „3.2."); a number that starts
   no sequence stays text („1. Semester"). CommonMark numbers with digits only, so a list labelled
   otherwise is a bullet list whose items begin with their label („- (a) Absorption"), and Folia
-  shows the labels as its markers (`catalog::text`). A list after a numbered item, or after an item
+  shows the labels as its markers (`folia_model::text`). A list after a numbered item, or after an item
   that ends with a colon, belongs to it; what stands between two numbered items belongs to the
   first; a line after the last item of a list follows the list, unless it goes on with the item's
   sentence or the items before it have more than their first line too; a line that ends with a
@@ -165,7 +165,7 @@ about 1 ms in SQLite.
 |---|---|
 | `get_total_count` | `SELECT COUNT(*) FROM v_module_facets WHERE …` with the same filter as the list, without `LIMIT`, so the header is exact |
 | `get_all_study_programs` | `v_program` (`slug`, `name`, `degree_display`, `po_version`, `is_latest_po`) |
-| `query_filtered_modules` | `v_module_facets f JOIN v_module m` for cards. Program filter: `JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = ? AND pm.relation = 'curricular'` (or `IN ('curricular','fues')`). Semester in program: `pm.plan_semester`. Kind: `pm.kind`. Turnus: `offered_winter`, `offered_summer`, `turnus_parity`. Teaching forms: `has_*`. Duration: `duration_semesters`. Exam: `exam_form`, `exam_*`. Graded: `is_graded`. Limitation: `is_limited`, `participant_limit`. Campus: `at_*`. Language: `teaches_*`. Department: `department_id`. Lecturer include/exclude: `EXISTS (SELECT 1 FROM v_module_lecturer …)`. Text search: `v_module_folded` (`catalog::search`). |
+| `query_filtered_modules` | `v_module_facets f JOIN v_module m` for cards. Program filter: `JOIN v_program_module pm ON pm.module_id = f.module_id AND pm.program_id = ? AND pm.relation = 'curricular'` (or `IN ('curricular','fues')`). Semester in program: `pm.plan_semester`. Kind: `pm.kind`. Turnus: `offered_winter`, `offered_summer`, `turnus_parity`. Teaching forms: `has_*`. Duration: `duration_semesters`. Exam: `exam_form`, `exam_*`. Graded: `is_graded`. Limitation: `is_limited`, `participant_limit`. Campus: `at_*`. Language: `teaches_*`. Department: `department_id`. Lecturer include/exclude: `EXISTS (SELECT 1 FROM v_module_lecturer …)`. Text search: `v_module_folded` (`folia_search`). |
 | `extract_module_ids`, `evaluate_prerequisites` | `v_module_prerequisite` (IDs are extracted once, at build time) |
 | `get_module_detail` | `v_module` + `v_module_teaching_form`, `v_module_text_item`, `v_module_successor`, `v_module_lecturer` |
 | `get_module_events` | `v_module_schedule` (recurring) and `v_module_exam` (exams, shown separately) |
@@ -410,7 +410,7 @@ with the model again.
 
 A thesis and the FÜS take their kind from their name. The thesis
 matters beyond its row: a program's faculty is the department of its thesis module
-(`catalog::pages::faculties`), and the model called 105 of 199 Bachelor and Master theses „Pflicht"
+(`folia_pages::faculties`), and the model called 105 of 199 Bachelor and Master theses „Pflicht"
 — Elektrotechnik B.Sc. 2022 and its dual variant lost their thesis and moved from MINT to Fakultät 3
 in the program overview. `ClassifyRequirement` now wins for these two kinds, and both of its rules
 name the thing instead of mentioning it: „PhD Thesis Writing Skills" and „Status Seminar ERM:
@@ -715,13 +715,13 @@ below, which the catalog shows as „Ähnliche Module“).
 
 | Column | What it holds |
 |---|---|
-| `title_de`, `title_en` | `normalize.SearchText` of the title: lower case, ß → ss, the diacritics of the common Latin letters removed (`normalize.SearchFold`, what Folia's `catalog::search::fold` does to a query), the words separated by one space, and after them once more as one word each part of the title written in parts („informatik b sc bsc“ for „Informatik B.Sc.“); NULL without the title |
+| `title_de`, `title_en` | `normalize.SearchText` of the title: lower case, ß → ss, the diacritics of the common Latin letters removed (`normalize.SearchFold`, what Folia's `folia_search::fold` does to a query), the words separated by one space, and after them once more as one word each part of the title written in parts („informatik b sc bsc“ for „Informatik B.Sc.“); NULL without the title |
 | `initials` | the first letters of the words of each title, the fillers („und“, „der“, „für“ …) left out, one word per title: „ti“ for „Theoretische Informatik“, „ad“ for „Algorithmen und Datenstrukturen“; NULL where no title has two |
 | `abbrevs` | the module's abbreviations, each folded into one word („aupb“ for „AuP-b“, „amo“ for „AMÖ“): its own, every other one a program gives it, and the known short forms of words of its titles (`abbrev.KnownFormsIn`, the `knownForms` of the derivation: „bwl“ for a title with Betriebswirtschaftslehre, 33 modules on 2026-09-30); separated by one space |
 
 The folding of Radix and Folia's folding of a query must agree character for character, and so
 must the fillers the initials leave out: `radix/internal/normalize/testdata/search.tsv` holds
-`normalize.SearchFold`, `SearchWords` and `SearchFillers` to the same cases as `catalog::search`
+`normalize.SearchFold`, `SearchWords` and `SearchFillers` to the same cases as `folia_search`
 (`TestSearchTerms` in Go, `search::tests::folding_is_radixs` in Rust, which reads the file from
 there). `v_module_search` stays as it was, for the readers of older schemas. `validate` fails when a module
 or one of its titles has nothing folded, which a database migrated to schema 12 but not built again
@@ -801,7 +801,7 @@ export.
 
 Open:
 
-- **Schema 11 in Folia's tests.** `catalog::SCHEMA_VERSION` is 11 (browsers refuse an older snapshot,
+- **Schema 11 in Folia's tests.** `folia_model::SCHEMA_VERSION` is 11 (browsers refuse an older snapshot,
   so every instance needs `radix build`, then `export`, before the web build that reads 11 goes
   live). Pin `STUDYPLAN_DIGEST` (`folia/crates/catalog/src/tests.rs`, `folia/crates/server/src/tests.rs`) to a schema-11
   export in `snapshot/`: the digest covers `module_vector`, so the pinned checks are skipped until

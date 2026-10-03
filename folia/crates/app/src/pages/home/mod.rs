@@ -43,7 +43,7 @@
 //! page (`ground::Wood`, owner, 2026-09-29); it took the place of the branches with small crowns
 //! of leaves that grew out of the panels.
 //!
-//! The map (`catalog::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
+//! The map (`folia_pages::graph`) is laid out by the web server once per snapshot, on a 4:3 sheet and
 //! a tall one for phones; this page only draws it (`data::ProgramMapHandle`). The dialog is in the
 //! server's HTML too (closed), so its dots are links that search engines follow; without
 //! JavaScript the picture of the map leads to the program overview.
@@ -56,14 +56,16 @@ mod start;
 
 use std::sync::Arc;
 
-use catalog::filter::{ExamPart, Language, TurnusFilter};
-use catalog::graph::{Cycle, Layout, ProgramMap};
-use catalog::labels::Campus;
-use catalog::pages::{self, HomeData};
-use catalog::rows::Semester;
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, CatalogUrl, ProgramTab};
-use catalog::{CatalogQuery, Locale};
+use folia_calendar::semester::SemesterKey;
+use folia_locale::Locale;
+use folia_model::labels::Campus;
+use folia_model::rows::Semester;
+use folia_pages as pages;
+use folia_pages::graph::{Cycle, Layout, ProgramMap};
+use folia_pages::HomeData;
+use folia_routes::CatalogQuery;
+use folia_routes::filter::{ExamPart, Language, TurnusFilter};
+use folia_routes::url::{self, CatalogUrl, ProgramTab};
 use leptos::prelude::*;
 use leptos_meta::Title;
 

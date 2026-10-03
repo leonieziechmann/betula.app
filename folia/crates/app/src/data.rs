@@ -2,15 +2,16 @@
 //!
 //! The host provides a `Source` through context: the web server a pool of rusqlite
 //! connections on the active snapshot, the browser the downloaded snapshot in sql.js.
-//! Pages run the loaders of `catalog::pages` through it and never see the difference.
+//! Pages run the loaders of `folia_pages` through it and never see the difference.
 
 use std::sync::Arc;
 
-use catalog::filter::CatalogQuery;
-use catalog::pages::CatalogData;
-use catalog::rows::CatalogRow;
-use catalog::url::CatalogUrl;
-use catalog::{Database, DbError, Locale};
+use folia_locale::Locale;
+use folia_model::rows::CatalogRow;
+use folia_model::{Database, DbError};
+use folia_pages::CatalogData;
+use folia_routes::filter::CatalogQuery;
+use folia_routes::url::CatalogUrl;
 use leptos::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -22,12 +23,12 @@ pub trait CatalogSource: Send + Sync {
 #[derive(Clone)]
 pub struct Source(pub Arc<dyn CatalogSource>);
 
-/// The map of the programs on the landing page (`catalog::graph`). The web server lays it out
+/// The map of the programs on the landing page (`folia_pages::graph`). The web server lays it out
 /// once per snapshot and hands it to the pages it renders; the browser app gets the same map as
 /// `/api/map.json` (`boot.js`). Nobody computes it while a page renders; a host without a map
 /// simply provides none and the page leaves the section out.
 #[derive(Clone)]
-pub struct ProgramMapHandle(pub Arc<catalog::graph::ProgramMap>);
+pub struct ProgramMapHandle(pub Arc<folia_pages::graph::ProgramMap>);
 
 /// One module the semantic search found: its id and how close its description is to the query
 /// (the cosine of their vectors, higher is closer; folia/crates/semantic/README.md).
@@ -59,7 +60,7 @@ pub struct Semantic(pub Arc<dyn SemanticSearch>);
 
 /// The catalog's search beside the page's thread (owner, 2026-10-02: typing a search lagged, „die
 /// Suche muss auf jeden Fall asynchron"): in the browser app a Web Worker with a copy of the local
-/// catalog of its own, which runs the same loaders of `catalog::pages` as the page does (`client`,
+/// catalog of its own, which runs the same loaders of `folia_pages` as the page does (`client`,
 /// `boot.js`: `window.betulaSearch`). The list of a search the visitor types is worked out there
 /// before the address changes (`Pending::prepare_with`), and so is the list's „Ähnliche Module".
 /// None on the server; in the browser it answers once it is loaded, and until then, or where it

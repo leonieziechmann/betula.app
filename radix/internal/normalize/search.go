@@ -8,12 +8,12 @@ import (
 )
 
 // Search terms (docs/radix/schema-v2.md, „Search“): what Folia's search compares a query with, folded
-// once by the build instead of by every reader. Folia folds the query with catalog::search::fold,
+// once by the build instead of by every reader. Folia folds the query with folia_search::fold,
 // so SearchFold folds as that does, character for character, and SearchWords parts a text where
 // that parts it: testdata/search.tsv holds both to the same cases (Folia's tests read it too).
 
 // SearchFillers are left out of a title's initials („Algorithmen und Datenstrukturen“ is „ad“),
-// as Folia leaves them out of its initials and of a query (catalog::search::FILLERS; the same
+// as Folia leaves them out of its initials and of a query (folia_search::FILLERS; the same
 // line of testdata/search.tsv holds both to one list).
 var SearchFillers = []string{"of", "and", "und", "der", "die", "das", "in", "im", "fur", "the", "zur", "zum", "von", "mit"}
 

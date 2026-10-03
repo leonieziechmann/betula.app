@@ -33,8 +33,8 @@
 
 use std::time::Duration;
 
-use catalog::labels::TurnusSeason;
-use catalog::queries;
+use folia_model::labels::TurnusSeason;
+use folia_query as queries;
 use leptos::ev::{DragEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
@@ -580,8 +580,8 @@ fn decide(offset: f64, speed: f64, recent: bool, width: f64) -> Option<Side> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     #[test]
     fn the_card_follows_the_finger_past_the_slop_and_is_held_back_where_nothing_is() {

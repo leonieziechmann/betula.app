@@ -14,15 +14,15 @@ fn main() -> Result<(), String> {
     };
     let option = |name: &str| args.iter().position(|a| a == name).and_then(|i| args.get(i + 1));
     let mode = match option("--mode").map(String::as_str) {
-        None | Some("f32") => semantic::Mode::F32,
-        Some("int8") => semantic::Mode::Int8,
-        Some("expand") => semantic::Mode::Expand,
+        None | Some("f32") => folia_semantic::Mode::F32,
+        Some("int8") => folia_semantic::Mode::Int8,
+        Some("expand") => folia_semantic::Mode::Expand,
         Some(other) => return Err(format!("--mode {other}")),
     };
     let limit: usize = option("--limit").map_or(Ok(usize::MAX), |n| n.parse().map_err(|e| format!("--limit: {e}")))?;
 
     let started = Instant::now();
-    let model = semantic::Model::from_bytes_with(std::fs::read(model).map_err(|e| format!("{model}: {e}"))?, mode)?;
+    let model = folia_semantic::Model::from_bytes_with(std::fs::read(model).map_err(|e| format!("{model}: {e}"))?, mode)?;
     eprintln!("model: {} positions, loaded in {:.1} s", model.positions(), started.elapsed().as_secs_f64());
 
     let db = rusqlite::Connection::open_with_flags(db, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| e.to_string())?;
@@ -33,7 +33,7 @@ fn main() -> Result<(), String> {
         .query_map([], |row| {
             let (id, de, en, contents, outcomes): (String, String, Option<String>, Option<String>, Option<String>) =
                 (row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?);
-            Ok((id, semantic::module_text(&de, en.as_deref(), contents.as_deref(), outcomes.as_deref())))
+            Ok((id, folia_semantic::module_text(&de, en.as_deref(), contents.as_deref(), outcomes.as_deref())))
         })
         .map_err(|e| e.to_string())?
         .take(limit)
@@ -42,7 +42,7 @@ fn main() -> Result<(), String> {
 
     let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
     let started = Instant::now();
-    let index = semantic::Index::build(&model, &documents, threads)?;
+    let index = folia_semantic::Index::build(&model, &documents, threads)?;
     let seconds = started.elapsed().as_secs_f64();
     let bytes = index.to_bytes()?;
     std::fs::write(out, &bytes).map_err(|e| format!("{out}: {e}"))?;

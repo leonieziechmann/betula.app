@@ -35,20 +35,20 @@
 
 use std::collections::BTreeMap;
 
-use catalog::pages::StudyplanData;
-use catalog::timetable::export::{self, same_subscription};
-use catalog::timetable::ics;
-use catalog::timetable::model::Timetable;
-use catalog::timetable::select::Selection;
-use catalog::timetable::semester::SemesterKey;
-use catalog::timetable::subscription::{self, Subscription};
+use folia_calendar::select::Selection;
+use folia_calendar::semester::SemesterKey;
+use folia_calendar::subscription;
+use folia_pages::StudyplanData;
+use folia_timetable::export::{self, same_subscription};
+use folia_timetable::ics;
+use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 
-use super::PlanCtx;
 use crate::data::DataError;
 use crate::i18n::{self, Locale};
 use crate::nav;
 use crate::ui::Icon;
+use super::PlanCtx;
 
 /// The id of the ways to subscribe, which „Abonnieren" opens.
 const WAYS_ID: &str = "sp-sub";
@@ -96,10 +96,10 @@ fn abo_of(table: &Timetable, selection: &Selection, program: Option<&str>, subsc
     if table.modules.is_empty() {
         return None;
     }
-    let (current, _) = Subscription::of(table.key, &table.modules, program, selection, Some(table));
+    let (current, _) = folia_timetable::export::subscription_of(table.key, &table.modules, program, selection, Some(table));
     let offer = match current.code() {
         Ok(code) => Offer::Code(code),
-        Err(pack::Error::TooLong) => Offer::TooLong,
+        Err(folia_pack::Error::TooLong) => Offer::TooLong,
         Err(_) => Offer::Nothing,
     };
     let stale = subscribed.get(&table.key).is_some_and(|stored| !same_subscription(stored, &current, table));
@@ -128,7 +128,7 @@ fn ways(origin: &str, host: &str, code: &str, label: &str, locale: Locale) -> Wa
         outlook: format!(
             "https://outlook.office.com/calendar/0/addfromweb?url={}&name={}",
             component(&format!("{origin}{path}")),
-            component(&(locale.texts().timetable.feed_name)(label))
+            component(&(folia_timetable::i18n::texts(locale).feed_name)(label))
         ),
         apple: webcal,
         path,
@@ -509,17 +509,17 @@ pub(super) fn CalendarGroup(ctx: PlanCtx) -> impl IntoView {
 mod tests {
     use std::collections::BTreeSet;
 
-    use catalog::labels::Code;
-    use catalog::rows::Meta;
-    use catalog::rows_detail::EventDate;
-    use catalog::timetable::facts::SemesterFacts;
-    use catalog::timetable::kind::{kinds_of, Class};
-    use catalog::timetable::model::{Attendance, Event, Row};
-    use catalog::timetable::occur::Occurrences;
-    use catalog::timetable::rowkey::RowKey;
+    use folia_calendar::kind::{kinds_of, Class};
+    use folia_calendar::rowkey::RowKey;
+    use folia_model::labels::Code;
+    use folia_model::rows::Meta;
+    use folia_model::rows_detail::EventDate;
+    use folia_timetable::facts::SemesterFacts;
+    use folia_timetable::model::{Attendance, Event, Row};
+    use folia_timetable::occur::Occurrences;
 
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()

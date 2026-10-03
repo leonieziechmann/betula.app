@@ -5,7 +5,7 @@ edition = "2021"
 description = "Semantic search over the catalog: multilingual-e5-small for German and English (trimmed vocabulary, quantised weights), no dependencies, natively for the server and as WASM in a Web Worker of the browser"
 
 [lib]
-name = "semantic"
+name = "folia_semantic"
 
 # The command line of research/semantic-search (parity.py, evaluate.py): texts in, embeddings out.
 # Not in src/bin/, which the repository's .gitignore leaves out.

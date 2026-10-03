@@ -1,21 +1,22 @@
-//! The catalog's search beside the page's thread (`app::data::CatalogWorker`; owner, 2026-10-02:
+//! The catalog's search beside the page's thread (`folia_app::data::CatalogWorker`; owner, 2026-10-02:
 //! typing a search lagged): a Web Worker with a copy of the local catalog of its own and this
-//! bundle, which runs the loaders of `catalog::pages` on it as the page would on its own copy.
+//! bundle, which runs the loaders of `folia_pages` on it as the page would on its own copy.
 //!
 //! Both sides are here. In the worker (`folia/crates/client/js/search-worker.js`, which opens the catalog and
 //! puts `betulaDb` on its global object) the functions `worker_catalog` and `worker_similar`
 //! answer a question in JSON with JSON. On the page `BrowserWorker` asks them through
 //! `window.betulaSearch` (`folia/assets/boot.js`, which starts the worker once the app runs).
 
-use app::data::{CatalogWorker, DataError, Later};
-use catalog::filter::CatalogQuery;
-use catalog::pages::{self, CatalogData};
-use catalog::rows::CatalogRow;
-use catalog::url::CatalogUrl;
-use catalog::Locale;
+use folia_app::data::{CatalogWorker, DataError, Later};
+use folia_locale::Locale;
+use folia_model::rows::CatalogRow;
+use folia_pages as pages;
+use folia_pages::CatalogData;
+use folia_routes::filter::CatalogQuery;
+use folia_routes::url::CatalogUrl;
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 
 use crate::LocalDatabase;
 

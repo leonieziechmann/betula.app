@@ -5,7 +5,7 @@ edition = "2021"
 description = "The web app of Betula: Leptos components, rendered on the server and again in the browser"
 
 [lib]
-name = "app"
+name = "folia_app"
 
 [features]
 # Server rendering (the web server) and the browser app (the WASM bundle) are the two builds of this crate.
@@ -17,7 +17,16 @@ csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen"]
 leptos = "0.8.20"
 leptos_router = "0.8"
 leptos_meta = "0.8"
-folia-catalog = { path = "../catalog" }
+# The domain: what the pages show and how they load it (folia/crates/<crate>, docs/folia/folia-refactor.md §7).
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+folia-pages = { path = "../pages" }
+folia-plans = { path = "../plans" }
+folia-query = { path = "../query" }
+folia-routes = { path = "../routes" }
+folia-search = { path = "../search" }
+folia-timetable = { path = "../timetable" }
 # The marked modules on their way to another device, as a code in the fragment of a link.
 folia-pack = { path = "../pack" }
 serde = { version = "1.0", features = ["derive"] }
@@ -32,8 +41,8 @@ send_wrapper = "0.6"
 web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
 
 [dev-dependencies]
-# The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`), as the catalog's do.
-folia-catalog = { path = "../catalog", features = ["native"] }
+# The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`), as the domain's do.
+folia-model = { path = "../model", features = ["sqlite"] }
 
 [lints.clippy]
 unwrap_used = "deny"

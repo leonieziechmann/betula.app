@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-use catalog::timetable::day::Day;
+use folia_calendar::day::Day;
 use serde::{Deserialize, Serialize};
 
 /// The record's file in the data directory.

@@ -24,8 +24,8 @@
 //! The browser app only: the server's pages lay nothing beside themselves and fill themselves with
 //! nothing else (docs/folia/frontend.md), so they leave `open` and `full` out before they get here.
 
-use catalog::pages;
-use catalog::url::LocalView;
+use folia_pages as pages;
+use folia_routes::url::LocalView;
 use leptos::prelude::*;
 
 use crate::data::{use_source, PageStatus};
@@ -80,7 +80,7 @@ pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
 
 #[cfg(test)]
 mod tests {
-    use catalog::url::{BookmarksUrl, ProgramTab, ProgramUrl};
+    use folia_routes::url::{BookmarksUrl, ProgramTab, ProgramUrl};
 
     use super::*;
 

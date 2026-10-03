@@ -1,8 +1,11 @@
 # Folia, the web tier: architecture, rules, how to run it
 
 > Betula has two parts named after the birch: **Radix** (the root: the Go collector, `docs/radix/operations.md`)
-> and **Folia** (the leaves: this web tier, the crates `folia-catalog`, `folia-app`, `folia-client`,
-> `folia-pack` and `folia-server` with the binary `folia`).
+> and **Folia** (the leaves: this web tier, the Cargo workspace `folia/` with its crates in
+> `folia/crates/<crate>`, each `folia-<crate>`: the domain — `folia-locale`, `folia-model`,
+> `folia-calendar`, `folia-search`, `folia-routes`, `folia-query`, `folia-timetable`, `folia-plans`,
+> `folia-pages`, `folia-pack`, `folia-semantic` — and `folia-app`, `folia-client`, `folia-server` with
+> the binary `folia`; docs/folia/folia-refactor.md §7 has the map).
 
 > State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
 > JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
@@ -37,7 +40,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`), „Wahlpflicht & Bereiche“ (`areas`) and „Mein Plan“ (`my-plan`: a placeholder so far, the visitor's, so `noindex` and not in the sitemap, `ProgramTab::indexed`). „Mein Plan“ took the place of „Alle Module“ on 2026-09-25: the program's modules are its catalog (`/catalog?program=<slug>`), and `…/modules` is a 404. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
-| `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`catalog::timetable::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
+| `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/impressum`, `/datenschutz` | The legal pages (`folia/crates/app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -51,7 +54,7 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 German pages; the same page in English is the same address under `/en` (`/en/catalog?…`, the start
 page `/en`), and so are the cards, the manifest and the calendar feed (`/en/cards/…`,
 `/en/manifest.webmanifest`, `/en/calendar/<code>.ics`). `/de/…` leads to the plain address. The
-paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R23).
+paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split`, R23).
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
@@ -110,7 +113,7 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
     compares everything), a view setting like the width of the panel (R13), read back like an
     address (`pages::catalog::finder_on`).
   - **Pickers** (`folia/crates/app/src/combobox.rs`: program, area, lecturers, department) have a search that
-    forgives typos and knows initials and abbreviations (`catalog::fuzzy`: „infomatik bsc"), arrow
+    forgives typos and knows initials and abbreviations (`folia_search::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
     opens in place, under its button and across the panel the picker stands in (owner,
     2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen … von ganz
@@ -214,13 +217,13 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
   formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in
   the page's words are Markdown since schema 10 (docs/radix/schema-v2.md §3, „Module texts"), read by
-  `catalog::text` and set by `ui::Prose`: paragraphs apart by a gap, lists with their markers in
+  `folia_model::text` and set by `ui::Prose`: paragraphs apart by a gap, lists with their markers in
   the margin (a list labelled „(1)", „a)", „IV." with its labels there), strong and emphasized
   words, the line breaks the text keeps. The text is justified (Blocksatz) and hyphenated by the
   rules of its own language — the `lang` of the module's page (`v_module.page_lang`), so a German
   text on the English page breaks as German — never into syllables of fewer than three letters;
   a column too narrow for it is set ragged (Blocksatz, under „Look and interaction"). Nothing but
-  text reaches the page: `catalog::text` reads the CommonMark Radix writes — paragraphs, lists,
+  text reaches the page: `folia_model::text` reads the CommonMark Radix writes — paragraphs, lists,
   strong and emphasized text, line breaks, escapes — by CommonMark's rules and nothing else, so a
   „#", a „<b>" or a „[link](…)" a text holds anyway stands as it is. The reader is the catalog's
   own: pulldown-cmark made the browser's app 60 KB larger (brotli), the reader and the views
@@ -416,7 +419,7 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   plan are the quieter links. Tried before and dropped as clutter (owner, 2026-09-20): cards,
   and the rows set in several text columns; rows of unequal height with nothing to line up on.
   **The faculty is derived, not stated** (no source names a program's faculty):
-  `catalog::pages::faculties` takes the department of the thesis module, else the department
+  `folia_pages::faculties` takes the department of the thesis module, else the department
   that offers at least half of the offered curriculum, else what the programs of the same
   subject agree on. The sidebar says so, and programs without a clear answer have a section of
   their own („unknown stays unknown", R12). The 2026-09-19 snapshot: 106 by thesis, 34 by
@@ -511,7 +514,7 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   links the module's page and the catalog narrowed down to the area instead, and shows the row as
   text (see „The server's pages lay nothing beside themselves"). **No source links a row to an area**
   (`area_rules` is prose about credits), so the name does the work and the panel says so
-  (`catalog::plan::areas_for_row`, rewritten 2026-09-21 after the owner found „Komplex Praktische
+  (`folia_plans::plan::areas_for_row`, rewritten 2026-09-21 after the owner found „Komplex Praktische
   Informatik" pointing at four areas, and checked the same day against all 1 059 rows of the real
   plans that name no module): only areas a student chooses from come into question (a
   requirement row never means the Pflichtmodule); the words that say what kind of thing a name is
@@ -641,7 +644,7 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
 - **Pages are synchronous functions of their route parameters.** SQLite answers in 1–7 ms on
   both sides (rusqlite on the server, sql.js in the browser), so there are no async resources,
   no loading states between pages and nothing to serialize into the HTML. A page calls one
-  loader of `catalog::pages` through `Source::run`; everything it shows comes from one snapshot.
+  loader of `folia_pages` through `Source::run`; everything it shows comes from one snapshot.
   What the browser app shows between a click and the page is the page's skeleton, one frame
   before the page is built („A click answers first" below), not a state the page waits in.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
@@ -672,7 +675,7 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   downloaded in the background and used from the next start, unless the copy is of an older
   schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
   schema from its SQLite header (`user_version`) and compares it with the build's
-  (`catalog::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
+  (`folia_model::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
   network an older copy is replaced first, as on a first visit; offline the app does not start, and
   the status says so. Before, a returning visitor worked on the old copy until the download behind
   it had finished, and after 0008 the plan page failed with „no such column: source_pages". A
@@ -711,7 +714,7 @@ paths inside the app never carry the prefix (`catalog::Locale::path`/`split`, R2
   row; the headings between the semesters are gone (the semester filter is for that) — so the
   elective modules, which the plan places in no semester, are simply the rows after the last
   semester, and the area picker lists them by area.
-- **A semester lists what can be chosen for it, too** (`catalog::plan`, 2026-09-21): a plan
+- **A semester lists what can be chosen for it, too** (`folia_plans::plan`, 2026-09-21): a plan
   places the compulsory modules in semesters and asks for the rest with rows that name no module
   („Wahlpflichtmodule der Informatik, 12 LP"), so „3. Semester" used to show two modules where
   five are to be taken. Now `pages::catalog` reads the plan's requirement rows of the semester,
@@ -1082,7 +1085,7 @@ against the real one (export of 2026-09-20 23:21, 182 programs, 179 of them with
 140 with a validated plan) with `folia/crates/catalog/examples/area_survey.rs`, which opens a snapshot and calls
 the crate's own functions — exactly what the app does — and prints every picker and every row:
 
-    cargo run -p folia-catalog --features native --example area_survey -- <catalog-*.db> [slug…]
+    cargo run -p folia-pages --example area_survey -- <catalog-*.db> [slug…]
 
 **Before** (heading = the node directly above, runs of equal headings, commit 42f004a): 10
 headings that came twice in one picker, 194 headings over a single area, 66 headings that only
@@ -1510,7 +1513,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   „Routes"). The cache counts both as pages, not as views (`cache::listed`).
 - **A crawler is led to pages, never to views** (2026-09-30: Googlebot had fetched 250,000
   addresses, walking the filters — every filtered list links more filters, orders and pages).
-  `catalog::url::listed` says what a page is, by its address: one without a query, a further page
+  `folia_routes::url::listed` says what a page is, by its address: one without a query, a further page
   of the unfiltered catalog (`/catalog?page=<n>`; `page` comes after every filter, so
   `/catalog?turnus=winter&page=2` is a view) and the plan of a further study direction
   (`…/plan?variant=<n>`); not the Merkliste, the Stundenplan or „Mein Plan“, which are the
@@ -1545,7 +1548,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     level), and its Termine as `hasCourseInstance`: a `CourseInstance` per semester the page
     shows, with a `Schedule` per slot of the week (days, times, first and last date, `P1W`/`P2W`,
     `Europe/Berlin`) and the exam dates as `EducationEvent`s (`subEvent`) with the day's offset
-    (`+01:00`/`+02:00`, `catalog::timetable::day::berlin_offset`). A Termin without a time of the
+    (`+01:00`/`+02:00`, `folia_calendar::day::berlin_offset`). A Termin without a time of the
     week has no slot; an exam date the page marks (QIS's placeholder, a doubtful time) is not
     stated. Exams of another semester than the teaching are an instance of their own.
   - the program: degree, the semesters and credits its validated plans agree on
@@ -1825,7 +1828,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `folia/crates/app/src/pages/legal.rs`): a new store, or a new way for stored data into an address, is a
   change of that text too. `folia/e2e/bookmarks.mjs` watches every request of a session for marks.
   Exceptions, decided by the owner (2026-09-23/24/25): the address of a calendar subscription
-  (`/calendar/<code>.ics`, `catalog::timetable::subscription`) carries the semester, the planned
+  (`/calendar/<code>.ics`, `folia_calendar::subscription`) carries the semester, the planned
   modules, what is hidden or chosen (kinds, events, Termine, the Standort) and the program whose
   abbreviations name the modules in its entries (the plan's, else „Mein Studiengang"; 2026-09-25)
   as a `pack` code of kind `calendar`; the server resolves it anew on every fetch and keeps
@@ -1842,7 +1845,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   EEG"; a preview runs no JavaScript and has no storage, so only the address can carry them):
   `/studyplan?share=<code>` carries the semester, the planned modules in their order and the
   program whose abbreviations name them, as a `pack` code of kind `studyplan`
-  (`catalog::timetable::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
+  (`folia_calendar::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
   kopieren" in the sidebar's group „Plan"), whoever opens it is offered the modules to take over
   (`folia/crates/app/src/pages/studyplan/share.rs`), and the server's page names them in its tags and its
   picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
@@ -2396,7 +2399,7 @@ in that directory); `folia/e2e/load/lab.ps1` starts the lab on Windows:
 
 ```bash
 betula-load discover -base http://127.0.0.1:18080 -out pages.tsv -max 40000     # what a crawler finds
-cargo run --release -p folia-catalog --features native --example loadtest_feeds -- <catalog-*.db> 2026W --heavy 20 > feeds.tsv
+cargo run --release -p folia-pages --example loadtest_feeds -- <catalog-*.db> 2026W --heavy 20 > feeds.tsv
 betula-load run -base http://127.0.0.1:18080 -scenario crawl-cold -pages pages.tsv -rates 50,100,200 -step 30s -probe -pid <folia>
 betula-load run -base http://127.0.0.1:18080 -scenario "crawl-cold=30,crawl-warm=20,nojs=10,js-first=5,js-return=15,ics=20" -pages pages.tsv -hot 3000 -feeds feeds.tsv -rates 25,50,100,200
 betula-load run -base https://canary.betula.app -scenario ics -feeds feeds.tsv -rates 5,10,20 -abort-p99 5s   # the server, what is open there
@@ -2846,7 +2849,7 @@ to the result.
   program, the semester planner. A note per marked module would fit the same store.
 - **The timetable as a calendar subscription** is built (2026-09-24): `/calendar/<code>.ics`,
   one semester of the Studienplan per code (semester, planned modules, hidden kinds, events and
-  Termine, chosen Termine, the Standort; `catalog::timetable::subscription`), made anew from the
+  Termine, chosen Termine, the Standort; `folia_calendar::subscription`), made anew from the
   active snapshot on every fetch. R20 has the owner's decision, §3 the gate and the log, „Der
   Studienplan" in §1 the rest; the privacy notice's part is „Kalender-Abo"
   (`folia/crates/app/src/pages/legal.rs`), which lists what a code carries. The note of 2026-09-23 (a code of
@@ -2855,7 +2858,7 @@ to the result.
   kompakt wie möglich … so wie die Infos bei der Ansicht auf der Seite"): „VL EvS" in „ZHG/HS.C",
   „Ü AuP · 1 von 3", „Prüfung EvS · 2. Termin"; its description says it all in full (what QIS calls
   the event, the modules with number and title, the rooms as QIS names them, and what the rows say;
-  `catalog::timetable::export`). A program's abbreviations differ from a module's own in about 7 %
+  `folia_timetable::export`). A program's abbreviations differ from a module's own in about 7 %
   of its compulsory modules, and the download must be the feed, so the code carries the program;
   and it names the layout of its fields in four bits (`subscription::VERSION`), so a later layout
   is read beside it. Codes of the time before are not read (canary only). Still open: the edge logs

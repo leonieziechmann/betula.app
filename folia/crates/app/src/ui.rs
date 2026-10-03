@@ -1,8 +1,8 @@
 //! Small building blocks every page uses. (The full design system is phase 3; these
 //! already follow its rules: classes from the stylesheet, no inline styles.)
 
-use catalog::labels::{Code, ModuleKind, OfferStatus};
-use catalog::text::{self, Block, Inline, Item, List, ListKind};
+use folia_model::labels::{Code, ModuleKind, OfferStatus};
+use folia_model::text::{self, Block, Inline, Item, List, ListKind};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
@@ -58,8 +58,8 @@ pub fn NotFound(#[prop(into)] title: String, #[prop(into)] hint: String) -> impl
             <h1>{title}</h1>
             <p>{hint}</p>
             <p>
-                <a class="button" href=t.path(catalog::url::CATALOG)>{t.common.to_catalog}</a>" "
-                <a class="button button-quiet" href=t.path(catalog::url::PROGRAMS)>{t.common.to_programs}</a>
+                <a class="button" href=t.path(folia_routes::url::CATALOG)>{t.common.to_catalog}</a>" "
+                <a class="button button-quiet" href=t.path(folia_routes::url::PROGRAMS)>{t.common.to_programs}</a>
             </p>
         </section>
     }
@@ -111,7 +111,7 @@ pub fn Fact(#[prop(into)] label: String, value: Option<String>, #[prop(default =
     }
 }
 
-/// A free text of a module, which is Markdown (`catalog::text`): its paragraphs and lists, its
+/// A free text of a module, which is Markdown (`folia_model::text`): its paragraphs and lists, its
 /// strong and emphasized words and the line breaks it keeps, set in Blocksatz (app.css „prose").
 /// `lang` is the language the text is written in, which need not be the page's: a German text on
 /// the English page is hyphenated by the German rules and read out in German.

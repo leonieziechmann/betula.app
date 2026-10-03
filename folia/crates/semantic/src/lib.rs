@@ -12,8 +12,8 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), String> {
-//! let model = semantic::Model::from_bytes_with(std::fs::read("e5-de-en.bin").map_err(|e| e.to_string())?, semantic::Mode::Int8)?;
-//! let index = semantic::Index::from_bytes(&std::fs::read("index.bin").map_err(|e| e.to_string())?)?;
+//! let model = folia_semantic::Model::from_bytes_with(std::fs::read("e5-de-en.bin").map_err(|e| e.to_string())?, folia_semantic::Mode::Int8)?;
+//! let index = folia_semantic::Index::from_bytes(&std::fs::read("index.bin").map_err(|e| e.to_string())?)?;
 //! for hit in index.search(&model.embed_query("coding lernen"), 10) {
 //!     println!("{:.3} {}", hit.score, hit.id);
 //! }
@@ -40,6 +40,7 @@ use std::collections::HashMap;
 
 use reader::Reader;
 use tensor::{gelu, softmax, Linear, Norm, Scratch, Tensor};
+
 pub use index::{quantize, Hit, Index};
 pub use tensor::Mode;
 pub use tokenizer::Tokenizer;

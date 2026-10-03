@@ -4,8 +4,8 @@
 //! by the stylesheet from the masks in `assets/birch` (`design/birch/birch.mjs`), in the tone of
 //! the season the script in `<head>` names; this module only places them.
 
-use catalog::pages;
-use catalog::url;
+use folia_pages as pages;
+use folia_routes::url;
 use leptos::prelude::*;
 
 use crate::data::use_source;
@@ -44,7 +44,7 @@ pub fn Ground() -> impl IntoView {
     let radix = facts.as_ref().and_then(|ground| ground.meta.radix_version.clone());
     let changed = facts.as_ref().and_then(|ground| ground.meta.data_changed_at.as_deref().map(|date| format::date(date, t.locale)));
     // The semester by its key, in the page's language (the snapshot's label is German).
-    let semester = facts.as_ref().and_then(|ground| ground.current_semester.as_ref().map(|s| catalog::timetable::semester::SemesterKey::parse(&s.key).map_or_else(|| s.label.clone(), |key| key.label(t.locale))));
+    let semester = facts.as_ref().and_then(|ground| ground.current_semester.as_ref().map(|s| folia_calendar::semester::SemesterKey::parse(&s.key).map_or_else(|| s.label.clone(), |key| key.label(t.locale))));
     view! {
         <footer class="ground">
             <div class="ground-top">

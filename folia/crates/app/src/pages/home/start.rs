@@ -22,8 +22,8 @@
 //! (`data-action="search"` in `enhance.js`; without JavaScript the link opens the catalog), and
 //! the foot leads to the sections that explain Betula, for those who want to read first.
 
-use catalog::queries;
-use catalog::url::{self, StudyplanUrl};
+use folia_query as queries;
+use folia_routes::url::{self, StudyplanUrl};
 use leptos::prelude::*;
 
 use crate::bookmarks::Bookmarks;

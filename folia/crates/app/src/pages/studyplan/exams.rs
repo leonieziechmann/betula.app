@@ -6,7 +6,7 @@
 //! stands under „Ohne festen Termin"; one line names the planned modules the data has no exam for.
 //!
 //! Each sitting has an eye: hiding a sitting is how a student takes the other one (a module's
-//! sittings are alternatives of each other, `catalog::timetable::exams`), and the warnings follow
+//! sittings are alternatives of each other, `folia_timetable::exams`), and the warnings follow
 //! at once (the timetable is worked out again in Rust, no query, R21). A hidden sitting stays in
 //! the list, dimmed, so the eye can bring it back; one the kind „Prüfung" or the Standort hides
 //! says so, and its eye shows the kind again or (the Standort decides) does nothing.
@@ -19,21 +19,21 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::labels::{Campus, Code};
-use catalog::pages::StudyplanData;
-use catalog::timetable::day::{clock, Day};
-use catalog::timetable::exams::{self, Exam, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
-use catalog::timetable::kind::EventKind;
-use catalog::timetable::model::Timetable;
-use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::select::{HiddenBy, Town};
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::StudyplanUrl;
+use folia_calendar::day::{clock, Day};
+use folia_calendar::kind::EventKind;
+use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::{HiddenBy, Town};
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::{Campus, Code};
+use folia_pages::StudyplanData;
+use folia_routes::url::StudyplanUrl;
+use folia_timetable::exams::{self, Exam, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
+use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 
-use super::PlanCtx;
 use crate::i18n::{self, Locale};
 use crate::ui::Icon;
+use super::PlanCtx;
 
 /// „Prüfungen": the sittings by date, the warnings above them, and what has no date.
 #[component]
@@ -353,7 +353,7 @@ fn campus_name(campus: &Code<Campus>, locale: Locale) -> String {
 
 /// „Fr 12.03.2027", "Fri 12 Mar 2027".
 fn day_name(day: Day, t: &i18n::Texts) -> String {
-    format!("{} {}", t.data.common.weekday_short(i64::from(day.weekday())).unwrap_or_default(), day.date(t.locale))
+    format!("{} {}", t.data.weekday_short(i64::from(day.weekday())).unwrap_or_default(), day.date(t.locale))
 }
 
 // ---------- warnings ----------
@@ -385,9 +385,9 @@ fn warning_line(at: usize, warning: &ExamWarning, about: &About, termine: &[(Str
 /// of the other module's Termin in the warning („Mathematik IT-1: Zweittermin 11.03. passt", „…:
 /// Erstermin 25.02. passt" where it is that module's earliest), else „andere Termine passen" (only
 /// a change of both avoids it). The notes of the semester say it in the same words, the data
-/// contract's (`catalog::i18n::plans`).
+/// contract's (`folia_plans::i18n`).
 fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)], about: &About, t: &i18n::Texts) -> String {
-    let words = &t.data.plans;
+    let words = t.plans_data;
     let list = |module: &str| termine.iter().find(|(id, _)| id == module).map_or(&[][..], |(_, list)| list.as_slice());
     let issue = |termin: &Termin| list(&termin.module_id).iter().find(|at| at.day == warning.day && at.termin == *termin);
     if let (Some(a), Some(b)) = (issue(&warning.a), issue(&warning.b)) {
@@ -426,7 +426,7 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
     let eye = Memo::new(move |_| state.with(|state| (state.eye(keyed), state.reason(town, t))));
     let small = Memo::new(move |_| {
         let (later, reason) = state.with(|state| (state.later, state.reason(town, t)));
-        let second = later.then(|| t.data.timetable.second_sitting.to_string());
+        let second = later.then(|| t.timetable_data.second_sitting.to_string());
         let parts: Vec<String> = second.into_iter().chain(reason).chain(Some(sitting.place.clone()).filter(|place| !place.is_empty())).collect();
         parts.join(" · ")
     });
@@ -476,10 +476,10 @@ fn sitting_view(ctx: PlanCtx, states: Memo<BTreeMap<String, State>>, sitting: Si
 
 #[cfg(test)]
 mod tests {
-    use catalog::rows_detail::{DateRow, EventDate};
-    use catalog::timetable::facts::SemesterFacts;
-    use catalog::timetable::model::Input;
-    use catalog::timetable::select::Selection;
+    use folia_calendar::select::Selection;
+    use folia_model::rows_detail::{DateRow, EventDate};
+    use folia_timetable::facts::SemesterFacts;
+    use folia_timetable::model::Input;
 
     use super::*;
 

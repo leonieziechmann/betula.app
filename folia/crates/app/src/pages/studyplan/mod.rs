@@ -38,28 +38,22 @@ mod share;
 mod side;
 mod week;
 
-use catalog::pages::{self, StudyplanData};
-use catalog::queries;
-use catalog::studyplan::PlanDoc;
-use catalog::timetable::clash::Weeks;
-use catalog::timetable::day::Day;
-use catalog::timetable::model::Timetable;
-use catalog::timetable::select::Selection;
-use catalog::timetable::semester::SemesterKey;
-use catalog::timetable::share::{self as shared_plan, SharedPlan};
-use catalog::url::{self, PlanView, StudyplanUrl};
+use folia_calendar::day::Day;
+use folia_calendar::select::Selection;
+use folia_calendar::semester::SemesterKey;
+use folia_calendar::share::{self as shared_plan, SharedPlan};
+use folia_pages as pages;
+use folia_pages::StudyplanData;
+use folia_plans::studyplan::PlanDoc;
+use folia_query as queries;
+use folia_routes::url::{self, PlanView, StudyplanUrl};
+use folia_timetable::clash::Weeks;
+use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 use leptos_meta::Title;
-use crate::i18n::{self, use_location};
 
-use self::aside::PlanModulePanel;
-use self::exams::ExamsView;
-use self::export::CalendarGroup;
-use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
-use self::modules::ModuleList;
-use self::side::PlanSidebar;
-use self::week::{DatesView, WeekLoose, WeekView};
 use crate::data::{use_source, DataError, Source};
+use crate::i18n::{self, use_location};
 use crate::local::{self, ModuleInPlace};
 use crate::myprogram::MyProgram;
 use crate::pages::catalog::phone_layout;
@@ -69,6 +63,13 @@ use crate::skeleton::DetailSkeleton;
 use crate::studyplan::{PlanAddress, Studyplan};
 use crate::tabs::Area;
 use crate::ui::{EmptyState, ErrorState, Frame, Icon};
+use self::aside::PlanModulePanel;
+use self::exams::ExamsView;
+use self::export::CalendarGroup;
+use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
+use self::modules::ModuleList;
+use self::side::PlanSidebar;
+use self::week::{DatesView, WeekLoose, WeekView};
 
 /// The browser app (`csr`), or the server rendering the one explanation it has.
 const APP: bool = cfg!(feature = "csr");
@@ -402,7 +403,7 @@ fn PlanSeo() -> impl IntoView {
                 let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX), t.locale);
                 let description = (t.studyplan.shared_description)(&count, &names);
                 view! {
-                    <Seo title=(t.studyplan.shared_title)(&data.label) description path=shared_plan::path(&code) card=shared_plan::card_path(&code) noindex=true/>
+                    <Seo title=(t.studyplan.shared_title)(&data.label) description path=url::share_path(&code) card=shared_plan::card_path(&code) noindex=true/>
                 }
                 .into_any()
             }
