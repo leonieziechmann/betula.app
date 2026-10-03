@@ -1357,14 +1357,27 @@ fn VirtualRows(
     // after this has run.
     let (at_start, alive_start) = (follow.clone(), alive.clone());
     let start_source = use_data().ok();
+    // Once: the effect runs again while a position it asked for is on its way, and not when the
+    // answers change after that (a newer snapshot keeps the list where the visitor is).
+    let started = StoredValue::new(false);
     Effect::new(move |_| {
+        if started.get_value() {
+            return;
+        }
+        let asking = std::cell::Cell::new(false);
         // A list that replaces another (a filter changed) starts at the top, scrolled there before
         // it was built (`CatalogPage`). One of the same filter (the plan or the marks changed what
         // it holds) keeps the first row on screen that is still in it where it stood, so the
         // visitor stays where they were.
         let position = |id: &str| {
             let source = start_source.clone()?;
-            let index = source.now(&CatalogPositionAsk { query: start_query.clone(), id: id.to_string() }).ok().flatten()?;
+            let index = match source.now(&CatalogPositionAsk { query: start_query.clone(), id: id.to_string() }) {
+                Err(error) if error.is_pending() => {
+                    asking.set(true);
+                    None
+                }
+                answer => answer.ok().flatten(),
+            }?;
             Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1)))
         };
         // A row of the page the list starts with, the one the address names: where the top of
@@ -1383,6 +1396,10 @@ fn VirtualRows(
             (None, None) if start_page > 1 => Some(((start_page - 1) * per_page, 0.0)),
             (None, None) => None,
         };
+        if asking.get() {
+            return;
+        }
+        started.set_value(true);
         let (follow, alive) = (at_start.clone(), alive_start.clone());
         let go = move |center: bool| {
             // The list may have been replaced by then (a filter, a moment after coming back).
