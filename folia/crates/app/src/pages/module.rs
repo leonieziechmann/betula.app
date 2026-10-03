@@ -41,13 +41,14 @@ use leptos_router::hooks::use_params_map;
 
 use crate::bookmarks::{MarkButton, MarkLook};
 use crate::data::{use_data, PageStatus};
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::MyProgram;
 use crate::seo::{self, Seo};
 use crate::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
 use crate::tabs::{self, Area, Tabs};
-use crate::ui::{BackLink, ErrorState, Fact, Frame, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Plain, Prose, Shortcut};
+use crate::frame::{BackLink, ErrorState, Frame, Plain};
+use folia_design::ui::{Fact, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
 
 /// The browser app (`csr`): only there is a plan to meet.

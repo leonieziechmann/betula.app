@@ -30,17 +30,18 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
 use crate::data::{use_data, DataError};
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, use_location};
 use crate::local::{self, ModuleInPlace};
-use crate::nav;
+use folia_design::nav;
 use crate::pages::catalog::{phone_layout, ListKeys, Row};
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending, Shape};
 use crate::seo::Seo;
 use crate::skeleton::{AppStandin, DetailSkeleton};
 use crate::tabs::{self, Area, Tabs};
-use crate::ui::{ErrorState, Icon};
+use crate::frame::ErrorState;
+use folia_design::ui::Icon;
 
 /// Whether this build is the browser app: only there is anything marked.
 const APP: bool = cfg!(feature = "csr");

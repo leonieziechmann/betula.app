@@ -294,7 +294,7 @@ pub fn start() {
         // Loaded by `boot.js` once the app runs; nothing waits for it. The catalog's „Ähnliche Module"
         // ask it (`folia_app::pages::catalog`).
         provide_context(folia_app::data::Semantic(Arc::new(BrowserSemantic)));
-        // The icons point into the sprite of this build (`folia_app::icons`), as the server's page did.
+        // The icons point into the sprite of this build (`folia_design::icons`), as the server's page did.
         if let Some(build) = build.clone() {
             provide_context(folia_app::BuildId(build.into()));
         }

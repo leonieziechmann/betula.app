@@ -40,7 +40,7 @@ use folia_timetable::grid::{self, Placed, Span};
 use leptos::prelude::*;
 
 use crate::i18n;
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 
 /// The fewest hours a grid spans, so that one short slot still reads as a time of day.
 pub const MIN_HOURS: u16 = 4;

@@ -34,11 +34,11 @@ use folia_pages::ask::CatalogCountAsk;
 use leptos::prelude::*;
 
 use crate::data::use_data;
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
 use crate::pages::catalog::{duration_choices, years_choices, Choice, Toggle, Tri};
 use crate::seo;
-use crate::ui::{Icon, KindBadge, Mark};
+use folia_design::ui::{Icon, KindBadge, Mark};
 use crate::week::{GridSlot, WeekGrid};
 
 /// The browser app (`csr`): only there do the board's chips switch, and count what they choose.

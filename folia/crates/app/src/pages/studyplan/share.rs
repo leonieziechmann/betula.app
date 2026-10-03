@@ -26,7 +26,7 @@ use leptos_router::NavigateOptions;
 
 use crate::i18n;
 use crate::pending::Pending;
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 use super::import::{now_secs, taken_parts};
 use super::PlanCtx;
 
@@ -132,7 +132,7 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
         let ids: Vec<String> = data.modules.iter().map(|module| module.id.clone()).collect();
         let program = plan.program.clone();
         let (store, undo) = (ctx.plan, ctx.undo);
-        crate::nav::after_paint(move || {
+        folia_design::nav::after_paint(move || {
             if let Some(store) = store {
                 let note = store.update(|doc| {
                     let before = doc.clone();
@@ -203,7 +203,7 @@ fn offer_text(offer: Offer, t: &i18n::Texts) -> (String, bool) {
     match offer {
         Offer::Take { names, count, new } => {
             let question = if new == count { s.take_all.to_string() } else { (s.take_missing)(new) };
-            (format!("{}: {names}. {question}", crate::format::modules(i64::try_from(count).unwrap_or(i64::MAX), t.locale)), true)
+            (format!("{}: {names}. {question}", folia_design::format::modules(i64::try_from(count).unwrap_or(i64::MAX), t.locale)), true)
         }
         Offer::Held { names } => ((s.held)(&names), false),
         Offer::Elsewhere { names } => ((s.elsewhere)(&names), false),

@@ -61,7 +61,8 @@ use crate::seo::Seo;
 use crate::skeleton::{AppStandin, DetailSkeleton};
 use crate::studyplan::{PlanAddress, Studyplan};
 use crate::tabs::Area;
-use crate::ui::{ErrorState, Frame, Icon};
+use crate::frame::{ErrorState, Frame};
+use folia_design::ui::Icon;
 use self::aside::PlanModulePanel;
 use self::exams::ExamsView;
 use self::export::CalendarGroup;
@@ -399,7 +400,7 @@ fn PlanSeo() -> impl IntoView {
         match shared {
             Some((code, data)) => {
                 let names = data.modules.iter().map(|module| module.name.as_str()).collect::<Vec<_>>().join(", ");
-                let count = crate::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX), t.locale);
+                let count = folia_design::format::modules(i64::try_from(data.modules.len()).unwrap_or(i64::MAX), t.locale);
                 let description = (t.studyplan.shared_description)(&count, &names);
                 view! {
                     <Seo title=(t.studyplan.shared_title)(&data.label) description path=url::share_path(&code) card=shared_plan::card_path(&code) noindex=true/>

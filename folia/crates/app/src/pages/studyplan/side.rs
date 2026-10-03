@@ -28,14 +28,14 @@ use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use crate::combobox::{ComboItem, Combobox};
-use crate::format;
+use folia_design::combobox::{ComboItem, Combobox};
+use folia_design::format;
 use crate::i18n;
 use crate::myprogram::{po_of, program_name, MyProgram};
-use crate::nav;
+use folia_design::nav;
 use crate::pending::Pending;
 use crate::studyplan::{Saved, Studyplan};
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 use super::export::CalendarGroup;
 use super::import::ImportGroup;
 use super::share::ShareAction;

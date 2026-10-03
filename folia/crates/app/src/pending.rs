@@ -336,7 +336,7 @@ impl Pending {
     /// What going from where the router is to `to` changes; `None` without the router.
     fn change_to(&self, to: &str) -> Option<Change> {
         let from = self.inner?.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))?;
-        change(&from.0, &from.1, path_of(to), search_of(to), crate::nav::is_phone())
+        change(&from.0, &from.1, path_of(to), search_of(to), folia_design::nav::is_phone())
     }
 
     fn start(&self, to: String, via: Via, change: Change, quiet: bool) {
@@ -375,7 +375,7 @@ impl Pending {
                     pending.commit();
                 }
             }),
-            None => crate::nav::after_paint(move || {
+            None => folia_design::nav::after_paint(move || {
                 if due() {
                     pending.commit();
                 }
@@ -731,7 +731,7 @@ mod browser {
             let Some(to_path) = crate::i18n::app_path(&pathname) else { return };
             let Some((from_path, from_search)) = here(&pending) else { return };
             let to = format!("{to_path}{}{}", target.search(), target.hash());
-            let Some(change) = super::change(&from_path, &from_search, to_path, &target.search(), crate::nav::is_phone()) else { return };
+            let Some(change) = super::change(&from_path, &from_search, to_path, &target.search(), folia_design::nav::is_phone()) else { return };
             ev.prevent_default();
             let scroll = !link.has_attribute("noscroll") && !link.has_attribute("data-noscroll");
             pending.start(to, Via::Link { replace: false, scroll }, change, false);
@@ -745,7 +745,7 @@ mod browser {
             let (Ok(address), Ok(search), Ok(hash)) = (location.pathname(), location.search(), location.hash()) else { return };
             let Some(path) = crate::i18n::app_path(&address) else { return };
             let Some((from_path, from_search)) = here(&pending) else { return };
-            let Some(change) = super::change(&from_path, &from_search, path, &search, crate::nav::is_phone()) else { return };
+            let Some(change) = super::change(&from_path, &from_search, path, &search, folia_design::nav::is_phone()) else { return };
             ev.stop_immediate_propagation();
             pending.start(format!("{path}{search}{hash}"), Via::History, change, false);
         });

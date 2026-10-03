@@ -22,8 +22,8 @@ use folia_pages::MAX_BOOKMARKS;
 use leptos::prelude::*;
 
 use crate::i18n;
-use crate::nav;
-use crate::ui::{Icon, Shortcut};
+use folia_design::nav;
+use folia_design::ui::{Icon, Shortcut};
 
 const STORAGE_KEY: &str = "betula.bookmarks.v1";
 

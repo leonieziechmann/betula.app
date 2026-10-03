@@ -256,7 +256,7 @@ fn in_every_language() -> Router<AppState> {
 pub fn files() -> Router<AppState> {
     Router::new()
         .route(folia_app::STYLESHEET, get(api::stylesheet))
-        .route(folia_app::icons::SPRITE, get(api::icons))
+        .route(folia_design::icons::SPRITE, get(api::icons))
         .route(folia_app::FAVICON, get(api::favicon))
         .route(folia_app::FONT, get(api::font))
         .route("/assets/shots/{file}", get(api::showcase_shot))

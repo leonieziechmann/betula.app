@@ -32,7 +32,7 @@ use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 
 use crate::i18n::{self, Locale};
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 use super::PlanCtx;
 
 /// „Prüfungen": the sittings by date, the warnings above them, and what has no date.
@@ -387,7 +387,7 @@ fn warning_line(at: usize, warning: &ExamWarning, about: &About, termine: &[(Str
 /// a change of both avoids it). The notes of the semester say it in the same words, the data
 /// contract's (`folia_plans::i18n`).
 fn avoid_text(warning: &ExamWarning, avoid: Day, termine: &[(String, Vec<TerminAt>)], about: &About, t: &i18n::Texts) -> String {
-    let words = t.plans_data;
+    let words = &t.plans_data;
     let list = |module: &str| termine.iter().find(|(id, _)| id == module).map_or(&[][..], |(_, list)| list.as_slice());
     let issue = |termin: &Termin| list(&termin.module_id).iter().find(|at| at.day == warning.day && at.termin == *termin);
     if let (Some(a), Some(b)) = (issue(&warning.a), issue(&warning.b)) {

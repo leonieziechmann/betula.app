@@ -25,15 +25,16 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 
 use crate::data::{use_ask, use_data, PageStatus};
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
-use crate::nav;
+use folia_design::nav;
 use crate::pending::Pending;
 use crate::seo::Seo;
 use crate::tabs::{self, Tabs};
 use crate::skeleton::FilterGroupsStandin;
-use crate::ui::{ErrorState, Frame, Icon, Plain, ToggleLink};
+use crate::frame::{ErrorState, Frame, Plain};
+use folia_design::ui::{Icon, ToggleLink};
 
 /// The browser app (`csr`), or the server rendering the page for everybody.
 const APP: bool = cfg!(feature = "csr");

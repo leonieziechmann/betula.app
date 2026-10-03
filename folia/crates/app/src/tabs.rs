@@ -19,7 +19,7 @@ use folia_routes::url;
 use leptos::prelude::*;
 
 use crate::i18n::use_location;
-use crate::nav;
+use folia_design::nav;
 
 const STORAGE_KEY: &str = "betula.tabs";
 

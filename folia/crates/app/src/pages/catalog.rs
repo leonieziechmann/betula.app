@@ -36,12 +36,12 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
-use crate::combobox::{ClosePopups, ComboItem, Combobox};
+use folia_design::combobox::{ClosePopups, ComboItem, Combobox};
 use crate::data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, use_location, Locale};
 use crate::myprogram::{MineResolved, MyProgram};
-use crate::nav;
+use folia_design::nav;
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending, Prepare};
 use crate::seo::Seo;
@@ -49,7 +49,8 @@ use crate::skeleton::{self, DetailSkeleton, FiltersStandin, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
 use crate::swipe::RowSwipe;
 use crate::tabs::{self, Tabs};
-use crate::ui::{ErrorState, Hit, Icon, KindBadge, OfferBadge};
+use crate::frame::ErrorState;
+use folia_design::ui::{Hit, Icon, KindBadge, OfferBadge};
 
 #[component]
 pub fn CatalogPage() -> impl IntoView {

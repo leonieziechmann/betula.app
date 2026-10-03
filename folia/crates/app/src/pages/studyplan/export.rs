@@ -46,8 +46,8 @@ use leptos::prelude::*;
 
 use crate::data::DataError;
 use crate::i18n::{self, Locale};
-use crate::nav;
-use crate::ui::Icon;
+use folia_design::nav;
+use folia_design::ui::Icon;
 use super::PlanCtx;
 
 /// The id of the ways to subscribe, which „Abonnieren" opens.

@@ -42,10 +42,10 @@ use leptos::wasm_bindgen::JsCast;
 use crate::bookmarks::Bookmarks;
 use crate::data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
-use crate::nav;
+use folia_design::nav;
 use crate::pages::module::semesters_of;
 use crate::studyplan::{self, Aim, PlanHint, Studyplan};
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 
 /// How far a finger moves, in px, before it is a swipe or a scroll: a little further than along the
 /// bottom bar (8), a row being something to tap, and a tap may wobble.
@@ -635,7 +635,7 @@ mod tests {
         assert_eq!((remove.word, remove.line.as_deref(), remove.done), ("Remove", Some("from saved modules"), "Removed"));
         // Every icon the ground shows is one of the set.
         for icon in ["bookmark", "bookmark-minus", "calendar-plus", "calendar-minus", "calendar-check-2"] {
-            assert!(crate::icons::markup(icon).is_some(), "{icon}");
+            assert!(folia_design::icons::markup(icon).is_some(), "{icon}");
         }
     }
 }

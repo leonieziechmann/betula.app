@@ -9,6 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 folia-app = { path = "../app", features = ["csr"] }
+folia-design = { path = "../design", features = ["csr"] }
 folia-locale = { path = "../locale" }
 folia-model = { path = "../model" }
 folia-pages = { path = "../pages" }

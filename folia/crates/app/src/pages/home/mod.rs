@@ -69,13 +69,14 @@ use folia_routes::url::{self, CatalogUrl, ProgramTab};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
-use crate::combobox::ClosePopups;
+use folia_design::combobox::ClosePopups;
 use crate::data::{use_ask, PageStatus, ProgramMapHandle};
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, Texts};
-use crate::nav;
+use folia_design::nav;
 use crate::seo::{self, Seo};
-use crate::ui::{ErrorState, Icon, Mark, Wordmark};
+use crate::frame::ErrorState;
+use folia_design::ui::{Icon, Mark, Wordmark};
 
 /// A way into the catalog: a filter people come for, with the number of modules behind it. The
 /// tint colours its icon (`t-…` in app.css), after what it is about: winter cool, summer warm.

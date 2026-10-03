@@ -2,6 +2,7 @@
 members = [
     "crates/app",
     "crates/calendar",
+    "crates/design",
     "crates/client",
     "crates/locale",
     "crates/model",
@@ -21,6 +22,7 @@ members = [
 default-members = [
     "crates/app",
     "crates/calendar",
+    "crates/design",
     "crates/locale",
     "crates/model",
     "crates/pack",

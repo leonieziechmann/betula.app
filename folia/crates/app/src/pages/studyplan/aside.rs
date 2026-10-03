@@ -45,12 +45,13 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use crate::data::DataError;
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, Locale};
 use crate::myprogram::MyProgram;
-use crate::nav;
+use folia_design::nav;
 use crate::pending::Pending;
-use crate::ui::{ErrorState, Icon, Shortcut};
+use crate::frame::ErrorState;
+use folia_design::ui::{Icon, Shortcut};
 use super::head::blocked_line;
 use super::{full_href, key_of, PlanCtx};
 
@@ -1108,7 +1109,7 @@ fn termine_of<'a>(termine: &'a [(String, Vec<TerminAt>)], module: &str) -> &'a [
 /// the other module's („Analysis I am 25.02. passt"), else „andere Termine passen" (only a change
 /// of both avoids it).
 fn avoid_text(day: Day, avoid: Day, mine: (&Termin, &[TerminAt]), theirs: (&Termin, &[TerminAt]), name: &str, texts: &i18n::Texts) -> String {
-    let words = texts.plans_data;
+    let words = &texts.plans_data;
     let both = || words.other_dates_fit.to_string();
     let my_issue = mine.1.iter().find(|at| at.day == day && at.termin == *mine.0);
     let their_issue = theirs.1.iter().find(|at| at.day == day && at.termin == *theirs.0);

@@ -42,18 +42,19 @@ use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
 use crate::data::{use_data, DataError, PageStatus};
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::local::{self, ModuleInPlace};
 use crate::myprogram::{program_name, MineButton, ProgramPlans};
-use crate::nav;
+use folia_design::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending};
 use crate::seo::{self, Seo};
 use crate::skeleton::DetailSkeleton;
 use crate::tabs::Area;
-use crate::ui::{BackLink, EmptyState, ErrorState, Frame, Icon, NotFound, OfferBadge, Plain, Shortcut};
+use crate::frame::{BackLink, ErrorState, Frame, Plain};
+use folia_design::ui::{EmptyState, Icon, NotFound, OfferBadge, Shortcut};
 
 /// The browser app (`csr`), or the server rendering the page for crawlers and for browsers
 /// without JavaScript.

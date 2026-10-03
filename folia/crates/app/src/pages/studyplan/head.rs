@@ -30,12 +30,12 @@ use folia_timetable::views::short_title;
 use leptos::prelude::*;
 
 use crate::bookmarks::Bookmarks;
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, Locale};
 use crate::myprogram::MineResolved;
-use crate::nav;
+use folia_design::nav;
 use crate::pages::catalog::finder_on;
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 use super::week::{has_ab, AllSwitch, WeekSwitch};
 use super::{key_of, PlanCtx, SheetToggle};
 

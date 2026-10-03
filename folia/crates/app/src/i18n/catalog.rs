@@ -604,7 +604,7 @@ pub const EN: Texts = Texts {
     page_of: |page, pages| format!("Page {page} of {pages}"),
     next: "Next",
 
-    plan_lead: |semester| format!("In the {} semester, the standard study plan also asks for:", super::format::ordinal(i64::from(semester))),
+    plan_lead: |semester| format!("In the {} semester, the standard study plan also asks for:", folia_design::i18n::format::ordinal(i64::from(semester))),
     quoted: |text| format!("\u{201c}{text}\u{201d}"),
     or: "or",
     plan_not_in_catalog: |name| format!("{name}: not in the catalogue under this name"),

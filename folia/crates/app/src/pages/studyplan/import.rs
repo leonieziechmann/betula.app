@@ -19,12 +19,12 @@ use folia_plans::studyplan::{self, MineDoc, PlanDoc};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use crate::format;
+use folia_design::format;
 use crate::i18n;
 use crate::myprogram::program_name;
-use crate::nav;
+use folia_design::nav;
 use crate::pending::Pending;
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 use super::{key_of, PlanCtx};
 
 /// The id of „Übernehmen".

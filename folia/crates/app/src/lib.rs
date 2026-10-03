@@ -10,17 +10,14 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod bookmarks;
-pub mod combobox;
 pub mod data;
-pub mod format;
+pub mod frame;
 pub mod ground;
 pub mod i18n;
-pub mod icons;
 pub mod languages;
 pub mod launch;
 pub mod local;
 pub mod myprogram;
-pub mod nav;
 pub mod pages;
 pub mod pending;
 pub mod seo;
@@ -28,7 +25,6 @@ pub mod skeleton;
 pub mod studyplan;
 pub mod swipe;
 pub mod tabs;
-pub mod ui;
 pub mod week;
 
 use folia_routes::url;
@@ -40,6 +36,7 @@ use leptos_router::{path, NavigateOptions, SsrMode};
 use crate::bookmarks::Bookmarks;
 use crate::ground::{Crown, Ground, Wood};
 use crate::i18n::use_location;
+use folia_design::ui;
 use crate::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
@@ -48,7 +45,7 @@ use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, pro
 use crate::pending::Pending;
 use crate::studyplan::Studyplan;
 use crate::tabs::{Area, Tabs};
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 
 /// The release of Folia as the owner names it (2026-09-21: Folia and Radix are both
 /// alpha-0.2.0; 2026-09-22: Folia alpha-0.2.1 with the phone's filter sheet; 2026-09-23:
@@ -98,28 +95,7 @@ pub const BOOT_SCRIPT: &str = "/assets/boot.js";
 /// registers it; the web server writes its build into it).
 pub const SERVICE_WORKER: &str = "/sw.js";
 
-/// The build of the server that writes the page (given by the host, server side only). The
-/// document links the stylesheet and the scripts with it (`/assets/app.css?v=<build>`), and
-/// `boot.js` hands the same `?v=` on to the bundle and to sql.js. A service worker of another
-/// build has nothing under such an address and asks the network, so a page always gets the
-/// stylesheet, the scripts and the bundle of its own build — also on the first load after a
-/// deploy, which the worker of the old build still answers. Every visitor gets the same build,
-/// so the server's HTML stays the same for everybody (R9).
-#[derive(Clone)]
-pub struct BuildId(pub std::sync::Arc<str>);
-
-impl BuildId {
-    /// The address under which a page of this build asks for `path`.
-    pub fn asset(&self, path: &str) -> String {
-        format!("{path}?v={}", self.0)
-    }
-}
-
-/// `path` as the page being rendered links it: with the build its host gave (`BuildId`), plain
-/// where no host gave one.
-pub fn asset(path: &str) -> String {
-    use_context::<BuildId>().map_or_else(|| path.to_string(), |build| build.asset(path))
-}
+pub use folia_design::{asset, BuildId};
 
 /// Runs before the first paint: marks the document as scripted, names the season the birch is
 /// drawn in (`data-season`: March–May spring, June–August summer, September–November autumn,
@@ -229,7 +205,7 @@ pub fn App() -> impl IntoView {
             <div class="main">
                 <TopBar/>
                 <main class="content" id="content" aria-busy=move || pending.busy().then_some("true")>
-                    <Routes fallback=move || view! { <ui::Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></ui::Plain> }>
+                    <Routes fallback=move || view! { <crate::frame::Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></crate::frame::Plain> }>
                         <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
                         <Route path=path!("/catalog/module/:id") view=ModulePage ssr=SsrMode::Async/>

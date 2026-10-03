@@ -32,8 +32,8 @@ use leptos::prelude::*;
 use crate::data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
-use crate::nav;
-use crate::ui::{Icon, Shortcut};
+use folia_design::nav;
+use folia_design::ui::{Icon, Shortcut};
 
 const STORAGE_KEY: &str = "betula.studyplan.v1";
 

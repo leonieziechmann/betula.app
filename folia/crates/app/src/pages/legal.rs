@@ -37,7 +37,8 @@ use leptos_meta::Title;
 
 use crate::i18n::{self, legal::Texts, Locale};
 use crate::seo::Seo;
-use crate::ui::{Frame, Icon};
+use crate::frame::Frame;
+use folia_design::ui::Icon;
 
 /// True while the texts below are not final. Keep it in step with them; `deploy/ship.sh` reads
 /// this line.

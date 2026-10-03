@@ -353,8 +353,8 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
                 <main class="gate-main">
                     // The lockup stands on the page like in the app: on a panel the light mark would vanish.
                     <div class="gate-brand">
-                        <span class="logo"><folia_app::ui::Mark/></span>
-                        <span><folia_app::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
+                        <span class="logo"><folia_design::ui::Mark/></span>
+                        <span><folia_design::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
                     </div>
                     <section class="gate-panel">
                         <h1>{t.gate_title}</h1>

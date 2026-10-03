@@ -9,10 +9,10 @@ use folia_routes::url;
 use leptos::prelude::*;
 
 use crate::data::use_ask;
-use crate::format;
+use folia_design::format;
 use crate::i18n;
 use crate::seo;
-use crate::ui::{Icon, Wordmark};
+use folia_design::ui::{Icon, Wordmark};
 
 /// The crown: the edge of a birch's crown hangs in from above along the whole top, behind the
 /// mark, the title and the search, on every screen the same. Drawing only, and the same for

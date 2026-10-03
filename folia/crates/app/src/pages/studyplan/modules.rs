@@ -33,12 +33,12 @@ use folia_routes::url::{self, CatalogUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use crate::format;
+use folia_design::format;
 use crate::i18n::{self, Locale};
 use crate::myprogram::MineResolved;
 use crate::pages::catalog::finder_on;
 use crate::pending::{Change, Pending};
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 use super::aside::only_its_events;
 use super::head::{add_module_href, hue, is_past, tone_at};
 use super::{key_of, PlanCtx};

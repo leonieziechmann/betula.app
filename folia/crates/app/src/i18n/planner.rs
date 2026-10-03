@@ -64,7 +64,7 @@ pub const EN: Texts = Texts {
     plan_hint: |semester| format!("Plan for {semester}"),
     other_semester: "Another semester",
     semesters_of: |title| format!("{title}: semesters"),
-    semester_of_study: |n, semester| format!("{} sem. · {semester}", super::format::ordinal(i64::from(n))),
+    semester_of_study: |n, semester| format!("{} sem. · {semester}", folia_design::i18n::format::ordinal(i64::from(n))),
     planned_mark: "planned",
     remove: "Remove",
     out_of: |semester| format!("from {semester}"),

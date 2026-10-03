@@ -32,7 +32,8 @@ use crate::data::{use_data, PageStatus};
 use crate::i18n;
 use crate::pages::module::ModuleFull;
 use crate::tabs::Area;
-use crate::ui::{ErrorState, NotFound, Plain};
+use crate::frame::{ErrorState, Plain};
+use folia_design::ui::NotFound;
 
 /// What fills the page of an area that shows its modules in place: the module it has open, where
 /// that is shown in full — after „Vollbild" (`full`), and on a phone always. `None`: the area's own

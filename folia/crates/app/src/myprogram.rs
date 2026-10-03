@@ -26,8 +26,8 @@ use leptos::prelude::*;
 
 use crate::data::{use_data, DataClient};
 use crate::i18n;
-use crate::nav;
-use crate::ui::Icon;
+use folia_design::nav;
+use folia_design::ui::Icon;
 
 const STORAGE_KEY: &str = "betula.myprogram.v1";
 

@@ -16,7 +16,7 @@ use leptos::prelude::*;
 
 use crate::i18n::{self, Locale};
 use crate::tabs::location_of;
-use crate::ui::Icon;
+use folia_design::ui::Icon;
 
 /// The switch: for every other language a button with the icon of languages and its code („EN"),
 /// named in its own language.

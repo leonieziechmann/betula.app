@@ -496,7 +496,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         folia_query::catalog_count(&db, &url.query).unwrap()
     };
     assert!(expected > 100);
-    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", folia_app::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
+    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", folia_design::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
     let etag = headers[header::ETAG].to_str().unwrap().to_string();
     // The same filter written differently is the same page.
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;

@@ -45,13 +45,13 @@ pub fn AppStandin(shape: Shape, title: &'static str, hint: &'static str) -> impl
     view! {
         <div class="app-standin" aria-hidden="true">{frame(shape)}</div>
         <noscript>
-            <crate::ui::Plain>
+            <crate::frame::Plain>
                 <section class="panel">
-                    <crate::ui::EmptyState title hint>
+                    <folia_design::ui::EmptyState title hint>
                         <a class="btn secondary" href=crate::i18n::t().path(folia_routes::url::CATALOG)>{crate::i18n::t().common.to_catalog}</a>
-                    </crate::ui::EmptyState>
+                    </folia_design::ui::EmptyState>
                 </section>
-            </crate::ui::Plain>
+            </crate::frame::Plain>
         </noscript>
     }
 }

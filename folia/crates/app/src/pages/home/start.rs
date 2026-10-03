@@ -27,13 +27,13 @@ use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 
 use crate::bookmarks::Bookmarks;
-use crate::combobox::{ComboItem, Combobox};
+use folia_design::combobox::{ComboItem, Combobox};
 use crate::data::use_data;
 use crate::i18n::{self, home::Step};
 use crate::myprogram::{program_href, program_name, po_of, MineResolved, MyProgram};
-use crate::nav;
+use folia_design::nav;
 use crate::studyplan::Studyplan;
-use crate::ui::{Icon, Shortcut};
+use folia_design::ui::{Icon, Shortcut};
 
 /// The browser app (`csr`): only there is anything stored, and only there does a picker work.
 const APP: bool = cfg!(feature = "csr");
