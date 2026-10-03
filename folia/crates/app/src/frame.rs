@@ -6,7 +6,7 @@ use leptos::prelude::*;
 
 use leptos_meta::Title;
 
-use crate::data::DataError;
+use folia_data::DataError;
 use crate::i18n;
 use folia_design::ui::{Icon, Shortcut};
 

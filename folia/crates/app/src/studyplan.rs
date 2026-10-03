@@ -25,11 +25,11 @@ use folia_calendar::semester::{fachsemester, SemesterKey};
 use folia_model::labels::{Code, TurnusSeason};
 use folia_model::rows_detail::DateRow;
 use folia_plans::studyplan::{PlanDoc, SavedPlans};
-use folia_routes::url::{self, LocalView, ModuleHint, StudyplanUrl};
+use folia_routes::url::ModuleHint;
 use folia_pages::ask::PlanRowsAsk;
 use leptos::prelude::*;
 
-use crate::data::{use_data, DataClient};
+use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
 use folia_design::nav;
@@ -640,62 +640,8 @@ fn now() -> u64 {
     0
 }
 
-/// The Studienplan's address as a local view (`url::LocalView`, `crate::local`), so that `open`
-/// and `full` mean what they mean on every page that has them: `open=<id>` is the module beside
-/// the plan, and `full=1` lets it fill the plan's place with the module's whole page, inside the
-/// Studienplan's area (tab, history and „Zurück" stay the plan's, the catalog's tab never hears of
-/// it). What stands beside the plan is the plan's own panel of the module (its Termine and what is
-/// chosen of them), not the module's preview, so on a phone `open` alone shows that panel as the
-/// page and only `full` fills it with the module: the plan asks `local::filling` as a desktop
-/// does. `StudyplanUrl` says the rest; `full` is written last.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct PlanAddress {
-    pub url: StudyplanUrl,
-    /// The module of `open` fills the page. Nothing without `open`.
-    pub full: bool,
-}
-
-impl PlanAddress {
-    /// Tolerant like every address: `full` only as `full=1` and only with a module in `open`.
-    pub fn parse(raw_query: &str) -> Self {
-        let url = StudyplanUrl::parse(raw_query);
-        let (_, full) = url::local_from_pairs(&url::parse_pairs(raw_query));
-        Self { full: full && url.open.is_some(), url }
-    }
-
-    pub fn path(&self) -> String {
-        let path = self.url.path();
-        match (self.full, &self.url.open) {
-            (true, Some(_)) => format!("{path}&full=1"),
-            _ => path,
-        }
-    }
-}
-
-impl LocalView for PlanAddress {
-    fn open(&self) -> Option<&str> {
-        self.url.open.as_deref()
-    }
-
-    fn full(&self) -> bool {
-        self.full
-    }
-
-    /// The Termin the panel pointed at stays while the module does.
-    fn with_module(&self, open: Option<&str>, full: bool) -> Self {
-        let url = if open == self.url.open.as_deref() { self.url.clone() } else { self.url.with_open(open, None) };
-        Self { full: full && url.open.is_some(), url }
-    }
-
-    fn path(&self) -> String {
-        PlanAddress::path(self)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use folia_routes::url::PlanView;
-
     use crate::i18n::{DE, EN};
     use super::*;
 
@@ -788,27 +734,6 @@ mod tests {
         assert_eq!(target_semester(now, Some(now), None, Some(&gone_but_checked), &with_placeholder), key("2027S"));
     }
 
-    #[test]
-    fn the_plan_is_a_local_view() {
-        let beside = PlanAddress::parse("sem=2026W&open=12104&row=148369-aaf38");
-        assert!(!beside.full && beside.url.row.as_deref() == Some("148369-aaf38"));
-        // „Vollbild": the same page filled with the module; the Termin pointed at stays.
-        let full = beside.with_full(true);
-        assert_eq!(full.path(), "/studyplan?sem=2026W&open=12104&row=148369-aaf38&full=1");
-        assert_eq!(PlanAddress::parse("sem=2026W&open=12104&row=148369-aaf38&full=1"), full);
-        assert_eq!(full.with_full(false), beside);
-        // Another module: its own Termine, no row of the one before.
-        assert_eq!(beside.with_open(Some("12107")).path(), "/studyplan?sem=2026W&open=12107");
-        assert_eq!(beside.with_open(None).path(), "/studyplan?sem=2026W");
-        // `full` is nothing without a module, nor anything but `full=1`.
-        assert_eq!(PlanAddress::parse("view=dates&full=1"), PlanAddress { url: StudyplanUrl { view: PlanView::Dates, ..Default::default() }, full: false });
-        assert!(!PlanAddress::parse("open=12104&full=yes").full);
-        assert!(!PlanAddress::parse("open=<x>&full=1").full);
-        // Only „Vollbild" fills the plan's page, on a phone as well: `open` alone is the panel.
-        assert_eq!(crate::local::filling(&full, false).as_deref(), Some("12104"));
-        assert_eq!(crate::local::filling(&beside, false), None);
-        assert_eq!(crate::local::back_href(&full, false), "/studyplan?sem=2026W&open=12104&row=148369-aaf38");
-    }
 
     fn placeholder(pid: u32, semester: &str, name: &str) -> folia_plans::studyplan::Placeholder {
         folia_plans::studyplan::Placeholder {

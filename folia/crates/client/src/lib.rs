@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use folia_app::data::{CatalogSource, Source};
+use folia_data::{CatalogSource, Source};
 use folia_model::db::Rows;
 use folia_model::{Database, DbError, Value};
 use leptos::prelude::*;
@@ -196,9 +196,9 @@ fn install_panic_hook() {
 
 /// The map of the programs as `boot.js` got it from the server (`window.betulaMap`, JSON). The
 /// app does not lay anything out; without a map the landing page leaves the section out.
-fn program_map() -> Option<folia_app::data::ProgramMapHandle> {
+fn program_map() -> Option<folia_data::ProgramMapHandle> {
     let text = js_sys::Reflect::get(&web_sys::window()?.into(), &"betulaMap".into()).ok()?.as_string()?;
-    serde_json::from_str(&text).ok().map(|map| folia_app::data::ProgramMapHandle(Arc::new(map)))
+    serde_json::from_str(&text).ok().map(|map| folia_data::ProgramMapHandle(Arc::new(map)))
 }
 
 /// The semantic search as `boot.js` loads it (`window.betulaSemantic`): asked anew on every call,
@@ -220,12 +220,12 @@ impl BrowserSemantic {
     }
 }
 
-impl folia_app::data::SemanticSearch for BrowserSemantic {
-    fn ready(&self) -> folia_app::data::Later<bool> {
+impl folia_data::SemanticSearch for BrowserSemantic {
+    fn ready(&self) -> folia_data::Later<bool> {
         Box::pin(async { BrowserSemantic::call("ready", &[]).await.is_some() })
     }
 
-    fn search(&self, query: &str, k: usize) -> folia_app::data::Later<Option<Vec<folia_app::data::SemanticHit>>> {
+    fn search(&self, query: &str, k: usize) -> folia_data::Later<Option<Vec<folia_data::SemanticHit>>> {
         let args = [JsValue::from_str(query), JsValue::from_f64(k as f64)];
         Box::pin(async move {
             let answer = BrowserSemantic::call("search", &args).await?;
@@ -235,7 +235,7 @@ impl folia_app::data::SemanticSearch for BrowserSemantic {
                 .filter_map(|hit| {
                     let module_id = js_sys::Reflect::get(&hit, &"id".into()).ok()?.as_string()?;
                     let score = js_sys::Reflect::get(&hit, &"score".into()).ok()?.as_f64()? as f32;
-                    Some(folia_app::data::SemanticHit { module_id, score })
+                    Some(folia_data::SemanticHit { module_id, score })
                 })
                 .collect();
             Some(hits)
@@ -293,7 +293,7 @@ pub fn start() {
         }
         // Loaded by `boot.js` once the app runs; nothing waits for it. The catalog's „Ähnliche Module"
         // ask it (`folia_app::pages::catalog`).
-        provide_context(folia_app::data::Semantic(Arc::new(BrowserSemantic)));
+        provide_context(folia_data::Semantic(Arc::new(BrowserSemantic)));
         // The icons point into the sprite of this build (`folia_design::icons`), as the server's page did.
         if let Some(build) = build.clone() {
             provide_context(folia_app::BuildId(build.into()));
@@ -311,7 +311,7 @@ pub fn start() {
 
 /// Tells `boot.js` (`window.betulaAnswered`) once the app's first answers are in: no question on
 /// its way in two looks a frame apart, or after `TAKEOVER_MS` whatever is still on its way.
-fn answered(data: Option<folia_app::data::DataClient>) {
+fn answered(data: Option<folia_data::DataClient>) {
     const TAKEOVER_MS: f64 = 4000.0;
     let tell = || {
         if let Some(window) = web_sys::window() {

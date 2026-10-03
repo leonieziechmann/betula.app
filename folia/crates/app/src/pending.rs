@@ -37,9 +37,9 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::location::Location;
 use leptos_router::NavigateOptions;
 
-use crate::data::Later;
+use folia_data::Later;
 use crate::i18n::use_location;
-use crate::studyplan::PlanAddress;
+use folia_routes::url::PlanAddress;
 
 /// A change of this kind that took this long the last time (smoothed) gets a skeleton: below it,
 /// the result comes about as soon as a skeleton would, and the skeleton would only flash.
@@ -147,7 +147,7 @@ struct Inner {
     /// Where the pages' answers come from: a step waits for those of the page it leads to while
     /// they are on their way (`hold`).
     #[cfg_attr(not(feature = "csr"), allow(dead_code))]
-    data: Option<crate::data::DataClient>,
+    data: Option<folia_data::DataClient>,
 }
 
 /// The navigation that is on its way to the router, provided by `App` for the whole app. Empty on
@@ -191,7 +191,7 @@ impl Pending {
                     ahead: false,
                     quiet: false,
                     typing_ends: None,
-                    data: use_context::<crate::data::DataClient>().filter(crate::data::DataClient::is_remote),
+                    data: use_context::<folia_data::DataClient>().filter(folia_data::DataClient::is_remote),
                 })
             }),
         };
@@ -589,7 +589,7 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option
 /// whatever else is picked there). `None` where the same fills the page before and after: the
 /// step is the page's own business then (another view or order, what stands beside the page).
 fn local_change(from: &impl LocalView, to: &impl LocalView, phone: bool, after_module: Change) -> Option<Change> {
-    match (crate::local::filling(from, phone), crate::local::filling(to, phone)) {
+    match (folia_routes::local::filling(from, phone), folia_routes::local::filling(to, phone)) {
         (before, Some(now)) if before.as_ref() != Some(&now) => Some(Change::Page(Shape::Module)),
         (Some(_), None) => Some(after_module),
         _ => None,
@@ -625,7 +625,7 @@ mod browser {
     /// picture in front of what the router builds now, until no answer is on its way any more in
     /// two looks a frame apart (or `HOLD_MS`): the new page shows when its data is there, and
     /// never empty for the moment the data worker takes.
-    pub(super) fn hold(data: crate::data::DataClient) {
+    pub(super) fn hold(data: folia_data::DataClient) {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
         let Some(main) = document.get_element_by_id("content") else { return };
         let Ok(picture) = document.create_element("div") else { return };
@@ -662,7 +662,7 @@ mod browser {
         }
         let started = now();
         let quiet = std::rc::Rc::new(std::cell::Cell::new(0u8));
-        fn look(picture: web_sys::Element, data: crate::data::DataClient, started: f64, quiet: std::rc::Rc<std::cell::Cell<u8>>) {
+        fn look(picture: web_sys::Element, data: folia_data::DataClient, started: f64, quiet: std::rc::Rc<std::cell::Cell<u8>>) {
             request_animation_frame(move || {
                 quiet.set(if untrack(|| data.waiting()) == 0 { quiet.get() + 1 } else { 0 });
                 if quiet.get() >= 2 || now() - started > HOLD_MS {

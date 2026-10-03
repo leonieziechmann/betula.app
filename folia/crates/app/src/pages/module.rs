@@ -40,7 +40,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
 use crate::bookmarks::{MarkButton, MarkLook};
-use crate::data::{use_data, PageStatus};
+use folia_data::{use_data, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::MyProgram;

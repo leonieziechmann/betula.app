@@ -37,7 +37,7 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use folia_design::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
+use folia_data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale};
 use crate::myprogram::{MineResolved, MyProgram};

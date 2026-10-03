@@ -24,7 +24,7 @@ use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 
-use crate::data::{use_data, DataClient};
+use folia_data::{use_data, DataClient};
 use crate::i18n;
 use folia_design::nav;
 use folia_design::ui::Icon;
@@ -530,7 +530,7 @@ mod tests {
         use folia_model::native::NativeDatabase;
         use folia_model::{Database, DbError};
 
-        use crate::data::CatalogSource;
+        use folia_data::CatalogSource;
 
         struct Snapshot(Mutex<NativeDatabase>);
         impl CatalogSource for Snapshot {
@@ -546,7 +546,7 @@ mod tests {
             let file = pointer.split("\"file\"").nth(1).and_then(|rest| rest.split('"').nth(1)).expect("snapshot/current.json names a file");
             dir.join(file)
         });
-        DataClient::new(crate::data::Source(std::sync::Arc::new(Snapshot(Mutex::new(NativeDatabase::open(&path).expect("the test snapshot opens"))))))
+        DataClient::new(folia_data::Source(std::sync::Arc::new(Snapshot(Mutex::new(NativeDatabase::open(&path).expect("the test snapshot opens"))))))
     }
 
     /// A link to the visitor's own program shows the kept Studienrichtung (A.10), looked up in the

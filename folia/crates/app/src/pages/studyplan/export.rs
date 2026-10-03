@@ -44,7 +44,7 @@ use folia_timetable::ics;
 use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 
-use crate::data::DataError;
+use folia_data::DataError;
 use crate::i18n::{self, Locale};
 use folia_design::nav;
 use folia_design::ui::Icon;

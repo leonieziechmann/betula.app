@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 folia-app = { path = "../app", features = ["ssr"] }
 folia-design = { path = "../design", features = ["ssr"] }
+folia-data = { path = "../data", features = ["ssr"] }
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }
 folia-model = { path = "../model", features = ["sqlite"] }

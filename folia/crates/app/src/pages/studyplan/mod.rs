@@ -51,15 +51,16 @@ use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 use leptos_meta::Title;
 
-use crate::data::{use_data, DataClient, DataError};
+use folia_data::{use_data, DataClient, DataError};
 use crate::i18n::{self, use_location};
-use crate::local::{self, ModuleInPlace};
+use crate::local::ModuleInPlace;
 use crate::myprogram::MyProgram;
 use crate::pages::catalog::phone_layout;
 use crate::pending::{Change, Pending, Shape};
 use crate::seo::Seo;
 use crate::skeleton::{AppStandin, DetailSkeleton};
-use crate::studyplan::{PlanAddress, Studyplan};
+use crate::studyplan::Studyplan;
+use folia_routes::url::PlanAddress;
 use crate::tabs::Area;
 use crate::frame::{ErrorState, Frame};
 use folia_design::ui::Icon;
@@ -159,7 +160,7 @@ fn today() -> Option<Day> {
 /// Where „Modul ansehen" of the module beside the plan leads: the same page, filled with the
 /// module's whole page (`full=1`, a local view); its „Zurück" returns here.
 pub(super) fn full_href(url: &StudyplanUrl, id: &str) -> String {
-    local::full_href(&PlanAddress { url: url.clone(), full: false }, id)
+    folia_routes::local::full_href(&PlanAddress { url: url.clone(), full: false }, id)
 }
 
 #[component]
@@ -235,7 +236,7 @@ pub fn StudyplanPage() -> impl IntoView {
 
     // What fills the page: the plan, or the module after „Vollbild" (on a phone as well: the
     // module beside the plan is the plan's panel of it, which is the page there anyway).
-    let filling = Memo::new(move |_| address.with(|address| local::filling(address, false)));
+    let filling = Memo::new(move |_| address.with(|address| folia_routes::local::filling(address, false)));
     let empty = Memo::new(move |_| plan.is_none_or(Studyplan::is_empty));
 
     // The module beside the plan, and a pick on its way there (`pending`): the panel follows the
@@ -264,7 +265,7 @@ pub fn StudyplanPage() -> impl IntoView {
 
     let page = move || {
         if let Some(id) = filling.get() {
-            let back = address.with_untracked(|address| local::back_href(address, false));
+            let back = address.with_untracked(|address| folia_routes::local::back_href(address, false));
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {

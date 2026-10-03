@@ -44,7 +44,7 @@ use folia_timetable::occur::Every;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use crate::data::DataError;
+use folia_data::DataError;
 use folia_design::format;
 use crate::i18n::{self, Locale};
 use crate::myprogram::MyProgram;

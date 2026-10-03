@@ -1,8 +1,10 @@
-//! Where a page gets its data from.
+//! Where a page gets its data from (docs/folia/folia-refactor.md §6.4): every page asks its
+//! questions (`folia_pages::ask`) through a `DataClient`, never a database itself.
 //!
-//! The host provides a `Source` through context: the web server a pool of rusqlite
-//! connections on the active snapshot, the browser the downloaded snapshot in sql.js.
-//! Pages run the loaders of `folia_pages` through it and never see the difference.
+//! The web server's client answers them on its thread, from a pool of rusqlite connections on the
+//! active snapshot (a `Source`); the browser's sends them to the data worker, which answers them
+//! from the snapshot in sql.js, and tells what asked when the answer is there. The pages never see
+//! the difference.
 
 use std::sync::Arc;
 

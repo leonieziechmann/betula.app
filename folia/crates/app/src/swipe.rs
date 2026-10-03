@@ -40,7 +40,7 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 
 use crate::bookmarks::Bookmarks;
-use crate::data::{use_data, DataClient};
+use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use folia_design::nav;
 use crate::pages::module::semesters_of;

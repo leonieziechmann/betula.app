@@ -8,7 +8,7 @@ use folia_pages::ask::GroundAsk;
 use folia_routes::url;
 use leptos::prelude::*;
 
-use crate::data::use_ask;
+use folia_data::use_ask;
 use folia_design::format;
 use crate::i18n;
 use crate::seo;

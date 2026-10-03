@@ -10,7 +10,6 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod bookmarks;
-pub mod data;
 pub mod frame;
 pub mod ground;
 pub mod i18n;

@@ -33,7 +33,7 @@ use folia_routes::url::{self, CatalogUrl, ProgramTab};
 use folia_pages::ask::CatalogCountAsk;
 use leptos::prelude::*;
 
-use crate::data::use_data;
+use folia_data::use_data;
 use folia_design::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
 use crate::pages::catalog::{duration_choices, years_choices, Choice, Toggle, Tri};

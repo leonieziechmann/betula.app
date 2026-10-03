@@ -70,7 +70,7 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 
 use folia_design::combobox::ClosePopups;
-use crate::data::{use_ask, PageStatus, ProgramMapHandle};
+use folia_data::{use_ask, PageStatus, ProgramMapHandle};
 use folia_design::format;
 use crate::i18n::{self, Texts};
 use folia_design::nav;

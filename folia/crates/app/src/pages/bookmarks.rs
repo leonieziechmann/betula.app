@@ -29,10 +29,10 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
-use crate::data::{use_data, DataError};
+use folia_data::{use_data, DataError};
 use folia_design::format;
 use crate::i18n::{self, use_location};
-use crate::local::{self, ModuleInPlace};
+use crate::local::ModuleInPlace;
 use folia_design::nav;
 use crate::pages::catalog::{phone_layout, ListKeys, Row};
 use crate::pages::module::ModulePanel;
@@ -113,7 +113,7 @@ pub fn BookmarksPage() -> impl IntoView {
     // (`local`). What is listed stays meanwhile: a mark taken away on the module's page leaves the
     // module on the list, dimmed, as it does in the preview.
     let phone = phone_layout();
-    let filling = Memo::new(move |_| url.with(|url| local::filling(url, phone.get())));
+    let filling = Memo::new(move |_| url.with(|url| folia_routes::local::filling(url, phone.get())));
     let preview = Memo::new(move |before| {
         let now = match open.get() {
             None => Ok(None),
@@ -137,7 +137,7 @@ pub fn BookmarksPage() -> impl IntoView {
     (move || {
         if let Some(id) = filling.get() {
             left_at.set_value(Some(id.clone()));
-            let back = url.with_untracked(|url| local::back_href(url, phone.get_untracked()));
+            let back = url.with_untracked(|url| folia_routes::local::back_href(url, phone.get_untracked()));
             return view! { <ModuleInPlace id area=Area::Bookmarks back/> }.into_any();
         }
         if let Some(id) = left_at.try_update_value(Option::take).flatten() {
@@ -179,7 +179,7 @@ pub fn BookmarksPage() -> impl IntoView {
                             // „Vollbild" stays among the marked modules: the module fills the list's place.
                             // Both are paths of the app, as `ModulePanel` takes them: the panel writes
                             // them as links.
-                            let full_href = local::full_href(&here, &data.module.id);
+                            let full_href = folia_routes::local::full_href(&here, &data.module.id);
                             view! {
                                 <ModulePanel data close_href full_href=Some(full_href)/>
                                 <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>

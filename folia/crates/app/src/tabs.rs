@@ -32,7 +32,7 @@ pub enum Area {
     /// shown on it (`crate::local`), beside the list or in full.
     Bookmarks,
     /// „Studienplan": the visitor's plan. One page as well; a module opened from it stands beside
-    /// the plan, and fills it after „Vollbild" (`crate::studyplan::PlanAddress`).
+    /// the plan, and fills it after „Vollbild" (`folia_routes::url::PlanAddress`).
     Studyplan,
 }
 

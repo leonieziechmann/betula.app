@@ -41,10 +41,10 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
-use crate::data::{use_data, DataError, PageStatus};
+use folia_data::{use_data, DataError, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
-use crate::local::{self, ModuleInPlace};
+use crate::local::ModuleInPlace;
 use crate::myprogram::{program_name, MineButton, ProgramPlans};
 use folia_design::nav;
 use crate::pages::catalog::phone_layout;
@@ -163,7 +163,7 @@ pub fn ProgramPage() -> impl IntoView {
     // history entry of its own (one tap, one step back), never a preview and then a page.
     let phone = phone_layout();
     let drawn = Signal::derive(move || if phone.get() || !room.get() { PlanShape::List } else { shape.get() });
-    let filling = Memo::new(move |_| match here.with(|here| local::filling(here, phone.get())) {
+    let filling = Memo::new(move |_| match here.with(|here| folia_routes::local::filling(here, phone.get())) {
         Some(id) => Filling::Module(id),
         None if phone.get() => match (area.get(), req.get()) {
             (Some(id), _) => Filling::Area(id),
@@ -196,7 +196,7 @@ pub fn ProgramPage() -> impl IntoView {
             // the module beside it again on the desktop, without it on a phone (and to the area
             // it was picked from, where it was).
             Filling::Module(id) => {
-                let back = here.with_untracked(|here| local::back_href(here, phone.get_untracked()));
+                let back = here.with_untracked(|here| folia_routes::local::back_href(here, phone.get_untracked()));
                 view! { <ModuleInPlace id area=Area::Programs back/> }.into_any()
             }
             Filling::Area(_) | Filling::Req(_) => {
@@ -637,7 +637,7 @@ fn ProgramAside(
         }
         match module.get() {
             Ok(Some(Some(module))) => {
-                let full_href = local::full_href(&links.get(), &module.module.id);
+                let full_href = folia_routes::local::full_href(&links.get(), &module.module.id);
                 view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
             }
             Ok(Some(None)) | Err(_) => view! {

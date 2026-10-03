@@ -39,7 +39,7 @@ use axum::response::Response;
 use axum::Router;
 use axum::routing::get;
 use clap::Parser;
-use folia_app::data::{CatalogSource, Source};
+use folia_data::{CatalogSource, Source};
 use folia_model::{Database, DbError};
 use leptos::prelude::*;
 use leptos_axum::{generate_route_list, AxumRouteListing, LeptosRoutes};
@@ -174,7 +174,7 @@ pub fn pages(state: &AppState) -> Router<AppState> {
             provide_context(build.clone());
             if let Some(snapshot) = store.current() {
                 if let Some((map, ..)) = &snapshot.program_map {
-                    provide_context(folia_app::data::ProgramMapHandle(map.clone()));
+                    provide_context(folia_data::ProgramMapHandle(map.clone()));
                 }
                 if let Some(programs) = snapshot.programs.clone() {
                     provide_context(programs);

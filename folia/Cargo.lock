@@ -842,6 +842,7 @@ name = "folia-app"
 version = "1.0.3"
 dependencies = [
  "folia-calendar",
+ "folia-data",
  "folia-design",
  "folia-locale",
  "folia-model",
@@ -881,6 +882,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "folia-app",
+ "folia-data",
  "folia-design",
  "folia-locale",
  "folia-model",
@@ -893,6 +895,18 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "folia-data"
+version = "1.0.3"
+dependencies = [
+ "folia-model",
+ "folia-pages",
+ "http",
+ "leptos",
+ "leptos_axum",
+ "serde_json",
 ]
 
 [[package]]
@@ -1017,6 +1031,7 @@ dependencies = [
  "flate2",
  "folia-app",
  "folia-calendar",
+ "folia-data",
  "folia-design",
  "folia-locale",
  "folia-model",

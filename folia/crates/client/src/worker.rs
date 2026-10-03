@@ -10,7 +10,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use folia_app::data::{Answerer, DataClient, Later};
+use folia_data::{Answerer, DataClient, Later};
 use folia_pages::ask::{self, Kept, Lane};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;

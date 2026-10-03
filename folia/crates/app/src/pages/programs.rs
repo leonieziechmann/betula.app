@@ -24,7 +24,7 @@ use folia_routes::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
-use crate::data::{use_ask, use_data, PageStatus};
+use folia_data::{use_ask, use_data, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
