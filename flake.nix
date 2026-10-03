@@ -17,20 +17,20 @@
         pkgs = import nixpkgs { inherit system; };
         craneLib = crane.mkLib pkgs;
 
-        # go.mod asks for Go 1.27. nixpkgs' default `go` lags behind a new release for a
+        # radix/go.mod asks for Go 1.27. nixpkgs' default `go` lags behind a new release for a
         # while, so take the versioned attribute when it exists.
         buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
 
         radix = buildGoModule {
           pname = "betula-radix";
           version = self.shortRev or self.dirtyShortRev or "dev";
+          # Only the Go module radix/ (all Go code and what it embeds): a change to the Rust
+          # workspace folia/, the docs or deploy/ rebuilds nothing here.
           src = pkgs.lib.cleanSourceWith {
-            src = ./.;
-            # Only the Go module (all Go code and what it embeds lives below cmd/ and internal/):
-            # a change to the Rust workspace, the docs or deploy/ rebuilds nothing here.
+            src = ./radix;
             filter = path: type:
               let
-                rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
+                rel = pkgs.lib.removePrefix (toString ./radix + "/") (toString path);
                 top = builtins.head (pkgs.lib.splitString "/" rel);
               in
               builtins.elem top [ "go.mod" "go.sum" "cmd" "internal" ];
@@ -83,28 +83,29 @@
 
         # ---------------------------------------------------------------- Folia (Rust)
 
-        # Only the Cargo workspace: a change to the Go module or the docs rebuilds nothing here.
+        # Only the Cargo workspace folia/ (its crates and the assets the server embeds): a change
+        # to the Go module, the docs or Folia's e2e checks and scripts rebuilds nothing here.
         rustSrc = pkgs.lib.cleanSourceWith {
-          src = ./.;
+          src = ./folia;
           filter = path: type:
             let
-              rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
+              rel = pkgs.lib.removePrefix (toString ./folia + "/") (toString path);
               top = builtins.head (pkgs.lib.splitString "/" rel);
             in
-            builtins.elem top [ "Cargo.toml" "Cargo.lock" "app" "catalog" "client" "pack" "semantic" "server" ];
+            builtins.elem top [ "Cargo.toml" "Cargo.lock" "crates" "assets" ];
         };
 
-        cargoLock = builtins.fromTOML (builtins.readFile ./Cargo.lock);
+        cargoLock = builtins.fromTOML (builtins.readFile ./folia/Cargo.lock);
         lockedVersion = name:
           (pkgs.lib.findFirst (p: p.name == name) (throw "${name} is not in Cargo.lock") cargoLock.package).version;
-        foliaVersion = (builtins.fromTOML (builtins.readFile ./server/Cargo.toml)).package.version;
+        foliaVersion = (builtins.fromTOML (builtins.readFile ./folia/crates/server/Cargo.toml)).package.version;
 
         # What both Rust builds share. No hash to keep up to date: every crate is fetched by its
         # checksum in Cargo.lock.
         rustCommon = {
           src = rustSrc;
           strictDeps = true;
-          # The tests need a catalog snapshot (docs/frontend.md §4); they run on the workstation.
+          # The tests need a catalog snapshot (docs/folia/frontend.md §4); they run on the workstation.
           doCheck = false;
         };
 
@@ -129,7 +130,7 @@
         });
 
         # The wasm-bindgen CLI has to be exactly the version of the crate the browser app is built
-        # with (client/Cargo.toml pins it), and nixpkgs rarely has that one. After a change of the
+        # with (folia/crates/client/Cargo.toml pins it), and nixpkgs rarely has that one. After a change of the
         # version: set both hashes to pkgs.lib.fakeHash, build, copy the hash Nix prints, twice.
         wasm-bindgen-cli = pkgs.buildWasmBindgenCli rec {
           src = pkgs.fetchCrate {
@@ -144,7 +145,7 @@
           };
         };
 
-        # The browser app, as scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm},
+        # The browser app, as folia/scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm},
         # and the catalog's search worker, which runs the same bundle (site/pkg/search-worker.js).
         # `cargo build --profile wasm-release --target wasm32-unknown-unknown -p folia-client`, in
         # the same two steps as the web server (the dependencies apart, a fixed version for them).
@@ -173,21 +174,21 @@
             craneLib.removeReferencesToRustToolchainHook
           ];
           # Without the names of its functions and its producers (--remove-name-section,
-          # --remove-producers-section), as scripts/build-client.sh builds it: the names were 29 of
-          # the bundle's 33.8 MB (docs/frontend.md §3).
+          # --remove-producers-section), as folia/scripts/build-client.sh builds it: the names were 29 of
+          # the bundle's 33.8 MB (docs/folia/frontend.md §3).
           installPhaseCommand = ''
             mkdir -p "$out/site/pkg"
             wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
               --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
-            cp client/js/search-worker.js "$out/site/pkg/search-worker.js"
+            cp crates/client/js/search-worker.js "$out/site/pkg/search-worker.js"
           '';
           # The bundle is the output, not cargo's target directory.
           doInstallCargoArtifacts = false;
         });
 
-        # The Web Worker of the semantic search, as scripts/build-semantic.sh builds it into
-        # site/pkg: the crate semantic/ twice (WASM SIMD, and relaxed SIMD for the browsers that
+        # The Web Worker of the semantic search, as folia/scripts/build-semantic.sh builds it into
+        # site/pkg: the crate folia/crates/semantic twice (WASM SIMD, and relaxed SIMD for the browsers that
         # have it), and its two scripts. Nothing to build ahead: the crate has no dependencies.
         folia-semantic = craneLib.mkCargoDerivation (rustCommon // {
           pname = "betula-folia-semantic";
@@ -208,8 +209,8 @@
             for build in simd relaxed; do
               cp "target/semantic-$build/wasm32-unknown-unknown/wasm-release/semantic.wasm" "$out/site/pkg/semantic.$build.wasm"
             done
-            cp semantic/js/worker.js "$out/site/pkg/semantic-worker.js"
-            cp semantic/js/semantic.js "$out/site/pkg/semantic.js"
+            cp crates/semantic/js/worker.js "$out/site/pkg/semantic-worker.js"
+            cp crates/semantic/js/semantic.js "$out/site/pkg/semantic.js"
           '';
           doInstallCargoArtifacts = false;
         });

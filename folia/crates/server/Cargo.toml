@@ -1,0 +1,67 @@
+[package]
+name = "folia-server"
+version = "1.0.3"
+edition = "2021"
+description = "Folia, the web server of Betula: fetches snapshots from Radix, renders the app, serves the snapshot to browsers"
+# Minifies the stylesheet, the scripts and the SVGs of folia/assets, which the server embeds.
+build = "build/main.rs"
+
+[[bin]]
+name = "folia"
+path = "src/main.rs"
+
+[dependencies]
+folia-app = { path = "../app", features = ["ssr"] }
+folia-catalog = { path = "../catalog", features = ["native"] }
+leptos = { version = "0.8.20", features = ["ssr"] }
+leptos_axum = "0.8"
+# The routes of every language (`main::pages`) are the app's routes under the language's prefix.
+leptos_router = "0.8"
+axum = { version = "0.8", features = ["tokio", "http1", "http2"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "fs", "time", "sync", "net", "io-util"] }
+tokio-util = { version = "0.7", features = ["io"] }
+futures-util = "0.3"
+# The snapshot endpoint is plain HTTP inside the deployment's network; no TLS stack to build.
+reqwest = { version = "0.12", default-features = false, features = ["stream"] }
+flate2 = "1"
+# What goes out compressed goes out as brotli (src/encoding.rs): every browser takes it, and it is
+# a tenth to two fifths smaller than gzip.
+brotli = "8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+clap = { version = "4", features = ["derive", "env"] }
+# The access gate (src/access.rs): the cookie of a visit is signed, a guess is compared in
+# constant time.
+hmac = "0.12"
+sha2 = "0.10"
+# Link-preview cards (src/cards.rs): SVG to PNG in this process, with our own font files only.
+resvg = { version = "0.45", default-features = false, features = ["text"] }
+# The shaper resvg sets text with, used directly to measure lines before they are set.
+rustybuzz = "0.20"
+# The cards are written as palette PNGs (a fifth of the size of tiny-skia's true-colour ones).
+png = "0.17"
+# `oneshot` for the warm-up of the page cache (src/warm.rs), which asks the page router directly.
+# Axum depends on it already.
+tower = { version = "0.5", features = ["util"] }
+
+# The minifiers of build/main.rs: they run when the server is built, none of them is in it. No
+# default features: lightningcss without its bundler and source maps, oxc's printer without
+# source maps. The oxc crates go together, one version for all.
+[build-dependencies]
+# Its visitor puts a scroll animation's timeline back where Chrome reads it (`TimelineApart`).
+lightningcss = { version = "1.0.0-alpha.72", default-features = false, features = ["visitor"] }
+oxc_allocator = "0.152"
+oxc_codegen = { version = "0.152", default-features = false }
+# The syntax the minified scripts may use (`SYNTAX` in build/main.rs).
+oxc_compat = "0.152"
+oxc_minifier = "0.152"
+oxc_parser = "0.152"
+oxc_span = "0.152"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

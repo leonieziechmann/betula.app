@@ -35,7 +35,7 @@ BASE_PACKAGES=(
   unattended-upgrades # automatic security updates and the 04:30 reboot
   needrestart        # restarts services that still run an outdated library after an upgrade
   jq                 # validates daemon.json; 91-verify-stacks.sh reads the Loki/Prometheus answers;
-                     # Radix logs JSON lines (docs/operations.md)
+                     # Radix logs JSON lines (docs/radix/operations.md)
   bind9-dnsutils     # dig: 40-stacks.sh checks that a host name resolves to this server before it
                      # lets Traefik request a certificate (Let's Encrypt rate limits)
   # No rsync: deploy/sync.sh streams a tar archive over ssh (Git Bash on Windows has no rsync),

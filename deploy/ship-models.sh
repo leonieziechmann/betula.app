@@ -11,7 +11,7 @@
 # lock's sha256 here and once more on the server before it gets its name there. Nothing that is in
 # the store is ever overwritten.
 #
-# The models are not built here: semantic/README.md says how (pack.py, poc/semantic-search).
+# The models are not built here: folia/crates/semantic/README.md says how (pack.py, research/semantic-search).
 #
 # Environment:
 #   SSH_TARGET, SSH_OPTS, DEPLOY_HOST, DEPLOY_USER   as in deploy/sync.sh
@@ -90,7 +90,7 @@ for i in "${!SUMS[@]}"; do
   grep -qxF -- "${SUMS[$i]}" <<<"${missing}" || continue
   file="${MODELS_DIR}/${NAMES[$i]}"
   [[ -f "${file}" ]] ||
-    die "the server lacks ${NAMES[$i]} (${SUMS[$i]:0:16}), and there is no ${file} to send (MODELS_DIR names another directory; semantic/README.md says how the models are made)"
+    die "the server lacks ${NAMES[$i]} (${SUMS[$i]:0:16}), and there is no ${file} to send (MODELS_DIR names another directory; folia/crates/semantic/README.md says how the models are made)"
   [[ "$(size_of "${file}")" == "${BYTES[$i]}" && "$(sha256 "${file}")" == "${SUMS[$i]}" ]] ||
     die "${file} is not the model models.lock names (${SUMS[$i]:0:16}, ${BYTES[$i]} bytes): another build of it? The lock and the file go together"
   log "sending ${NAMES[$i]} (${SUMS[$i]:0:16}, $((BYTES[$i] / 1000000)) MB)"

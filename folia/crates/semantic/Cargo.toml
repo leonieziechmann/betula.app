@@ -1,0 +1,29 @@
+[package]
+name = "folia-semantic"
+version = "0.1.0"
+edition = "2021"
+description = "Semantic search over the catalog: multilingual-e5-small for German and English (trimmed vocabulary, quantised weights), no dependencies, natively for the server and as WASM in a Web Worker of the browser"
+
+[lib]
+name = "semantic"
+
+# The command line of research/semantic-search (parity.py, evaluate.py): texts in, embeddings out.
+# Not in src/bin/, which the repository's .gitignore leaves out.
+[[bin]]
+name = "embed"
+path = "src/embed.rs"
+
+[features]
+# The exports of the browser's Web Worker (src/wasm.rs, js/worker.js), for wasm32 only:
+# scripts/build-semantic.sh builds them as a cdylib.
+worker = []
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+
+[dev-dependencies]
+# examples/index.rs reads a snapshot, as the server does (the library itself has no dependencies).
+rusqlite = { version = "0.32", features = ["bundled"] }

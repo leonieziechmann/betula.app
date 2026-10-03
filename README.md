@@ -16,14 +16,28 @@ statute PDFs (OPUS) ──scan-curriculum (PDF geometry + optional Gemini enrich
 
 | | |
 |---|---|
-| [docs/operations.md](docs/operations.md) | running it as a service, configuration, secrets, log events, notifications, container / Docker Swarm / systemd |
-| [docs/schema-v2.md](docs/schema-v2.md) | pipeline, tables, the read views (the contract for consumers), what is still open |
-| [docs/data-sources.md](docs/data-sources.md) | where every fact comes from, which source wins, and the evidence |
-| [docs/backend-data-overhaul.md](docs/backend-data-overhaul.md) | the brief this design follows |
+| [docs/radix/operations.md](docs/radix/operations.md) | running it as a service, configuration, secrets, log events, notifications, container / Docker Swarm / systemd |
+| [docs/radix/schema-v2.md](docs/radix/schema-v2.md) | pipeline, tables, the read views (the contract for consumers), what is still open |
+| [docs/radix/data-sources.md](docs/radix/data-sources.md) | where every fact comes from, which source wins, and the evidence |
+| [docs/radix/backend-data-overhaul.md](docs/radix/backend-data-overhaul.md) | the brief this design follows |
+| [docs/folia/frontend.md](docs/folia/frontend.md) | Folia: the web server and the browser app, flags, endpoints, checks |
+| [docs/folia/folia-refactor.md](docs/folia/folia-refactor.md) | Folia's restructuring: site and app, shell, workers, crates |
+
+## Repository
+
+| Directory | What it holds |
+|---|---|
+| `radix/` | Radix, one Go module (`github.com/leonieziechmann/betula/radix`): `cmd/radix`, `internal/` |
+| `folia/` | Folia, one Cargo workspace: `crates/<crate>` (package `folia-<crate>`), `assets/` (stylesheet, scripts, icons the server embeds), `e2e/` (browser checks), `design/` (sources of drawings and icons), `scripts/` (builds, the dev server) |
+| `docs/` | `radix/`, `folia/`, and `history/` for the briefs and plans that are done |
+| `deploy/` | the stacks, the server set-up, `ship.sh` |
+| `research/` | experiments that are not part of the product (the semantic search's training and demos) |
+| `flake.nix` | the two binaries and their container images |
 
 ## Quick start
 
 ```bash
+cd radix
 go build -o radix ./cmd/radix      # pure Go, no CGO; Windows, Linux, macOS
 radix run                            # service: crawl politely, build, validate, export, serve
 radix run --once                     # a single cycle
@@ -36,56 +50,56 @@ radix help                           # all commands
 
 The module fields come from the module description in QIS, not from `b-tu.de/modul`: that page
 is a copy BTU's CMS renders, and it lags — in September 2026 it still named the events of the
-summer while QIS already had the winter schedule (`docs/data-sources.md` §10).
+summer while QIS already had the winter schedule (`docs/radix/data-sources.md` §10).
 
 ```bash
 nix build .#radix                    # static binary; the tests run inside the build
-nix build .#radix-image                  # container image with a health check (docs/operations.md)
-go test ./...                          # network-free, no API key needed
+nix build .#radix-image                  # container image with a health check (docs/radix/operations.md)
+(cd radix && go test ./...)         # network-free, no API key needed
 ```
 
 ### Layout
 
 | Package | Role |
 |---|---|
-| `cmd/radix` | command line of Radix |
-| `internal/service` | the service loop, its stages, `/healthz` and `/status` |
-| `internal/crawl`, `internal/qistree` | polite archiving; QIS program tree walker |
-| `internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
-| `internal/catalogbuild`, `internal/normalize`, `internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms included); HTML parsers |
-| `internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` and the `blocked.tsv` of forms never derived |
-| `internal/gemini`, `internal/curriculumscan`, `internal/statutes`, `internal/planaudit` | study plans from regulation PDFs, with audit trail |
-| `internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
-| `internal/oplog`, `internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
-| `catalog/`, `app/`, `client/`, `pack/`, `server/` | Folia, the web tier in Rust (`docs/frontend.md`): the data contract with every SQL query, the Leptos app, the codes that carry a value in a link (a compact bit format for serde in base 66, with two check characters), and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
-| `e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
+| `radix/cmd/radix` | command line of Radix |
+| `radix/internal/service` | the service loop, its stages, `/healthz` and `/status` |
+| `radix/internal/crawl`, `radix/internal/qistree` | polite archiving; QIS program tree walker |
+| `radix/internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
+| `radix/internal/catalogbuild`, `radix/internal/normalize`, `radix/internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms included); HTML parsers |
+| `radix/internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` and the `blocked.tsv` of forms never derived |
+| `radix/internal/gemini`, `radix/internal/curriculumscan`, `radix/internal/statutes`, `radix/internal/planaudit` | study plans from regulation PDFs, with audit trail |
+| `radix/internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |
+| `radix/internal/oplog`, `radix/internal/snapshothttp` | structured operational log; snapshot HTTP endpoints |
+| `folia/crates/{catalog,app,client,pack,semantic,server}` | Folia, the web tier in Rust (`docs/folia/frontend.md`): the data contract with every SQL query, the Leptos app, the codes that carry a value in a link (a compact bit format for serde in base 66, with two check characters), and the web server that fetches snapshots over HTTP, renders and caches the pages and serves `/api/db`. |
+| `folia/e2e/` | crawl of the server-rendered site; Playwright smoke walk for the browser app |
 
 ### Web tier
 
 ```bash
-./radix.exe serve-snapshot --addr 127.0.0.1:8090
+radix/radix serve-snapshot --addr 127.0.0.1:8090
 ```
 
 ```bash
-git config core.hooksPath scripts/hooks   # once per clone: new worktrees set themselves up
-bash scripts/build-cache.sh setup         # once in the main checkout: its build cache and flags
-bash scripts/dev.sh --watch               # the browser app and the server, built again on every change
+git config core.hooksPath folia/scripts/hooks   # once per clone: new worktrees set themselves up
+bash folia/scripts/build-cache.sh setup         # once in the main checkout: its build cache and flags
+bash folia/scripts/dev.sh --watch               # the browser app and the server, built again on every change
 ```
 
-Then open http://127.0.0.1:8080. `scripts/dev.sh` builds the browser app for localhost when it is
-stale (`scripts/build-client.sh --dev`, seconds instead of minutes) and runs the server with
-`app/assets` live: an edit of the stylesheet, a script or an SVG is there with the next reload,
+Then open http://127.0.0.1:8080. `folia/scripts/dev.sh` builds the browser app for localhost when it is
+stale (`folia/scripts/build-client.sh --dev`, seconds instead of minutes) and runs the server with
+`folia/assets` live: an edit of the stylesheet, a script or an SVG is there with the next reload,
 without a build; `--watch` builds again and restarts when Rust code changes, and
-`bash scripts/dev.sh sizes` lists what ships. What ships is minified when the server is built
-(`server/build/main.rs`). Folia talks to Radix only through the snapshot
-endpoint. Flags, endpoints, log events and checks: `docs/frontend.md`. `cargo test --workspace`
-needs an exported snapshot (`radix export`), or the one betula.app serves: `curl --compressed -o
+`bash folia/scripts/dev.sh sizes` lists what ships. What ships is minified when the server is built
+(`folia/crates/server/build/main.rs`). Folia talks to Radix only through the snapshot
+endpoint. Flags, endpoints, log events and checks: `docs/folia/frontend.md`. `cargo test --workspace` (in
+`folia/`) needs an exported snapshot (`radix export`), or the one betula.app serves: `curl --compressed -o
 snapshot/catalog.db https://betula.app/api/db`, then `FOLIA_TEST_SNAPSHOT=snapshot/catalog.db`
-(`docs/frontend.md` §4 also names it for `serve-snapshot`). `scripts/build-client.sh` without `--dev` builds the
+(`docs/folia/frontend.md` §4 also names it for `serve-snapshot`). `folia/scripts/build-client.sh` without `--dev` builds the
 bundle that ships.
 A new worktree forks the main checkout's build cache as `git worktree add` creates it, so only
 the workspace's own crates compile; what that costs and how the caches are kept and dropped:
-`docs/frontend.md` §3.
+`docs/folia/frontend.md` §3.
 
 ### Credentials
 
@@ -111,20 +125,20 @@ slots, and subtotal rows retain their meaning. There is no credit-balancing
 algorithm that moves modules between semesters.
 
 The PDF parser runs in the Go binary: no Python, CGO or external PDF commands. The PDF reader is
-pinned in `go.mod`. The key is resolved by `internal/secrets` (see above); `--model` or `GEMINI_MODEL` selects the model.
+pinned in `radix/go.mod`. The key is resolved by `radix/internal/secrets` (see above); `--model` or `GEMINI_MODEL` selects the model.
 
 **What a plan adds up to is read as well.** A row may print a range („Komplex Grundlagen der
 Informatik, 10-24 LP"), and three such rows are anything between 30 and 72 LP: the rows alone do
 not say what a degree costs. The regulation does, in the lines it prints over its own rows, and
 `plan_total` keeps each of them with the rows it counts — the line over those three rows, and the
 line over the whole table. A line is kept only where its rows reach the printed value, so a sum is
-evidence and not an assumption (`internal/gemini/plan_totals.go`, `docs/schema-v2.md` §6).
+evidence and not an assumption (`radix/internal/gemini/plan_totals.go`, `docs/radix/schema-v2.md` §6).
 
 **A plan is read from its own regulation.** An issue of the Amtliches Mitteilungsblatt may print
 the Bachelor's and the Master's Prüfungsordnung of one subject one after the other, each with its
 own plan. A program reads only the pages its own regulation stands on, as the issue's table of
 contents names them; a document whose regulations cannot be told apart, or that has none for the
-program's degree, goes to review (`internal/gemini/pdf_regulations.go`).
+program's degree, goes to review (`radix/internal/gemini/pdf_regulations.go`).
 
 A plan row is linked to a catalog module only where the catalog identifies it beyond doubt: by the
 printed module number, or by a title that names exactly one module. Titles repeat across the
@@ -133,7 +147,7 @@ current, one read by Maschinenbau and one by Elektrotechnik — so where a title
 modules the program itself claims (its module pages, its QIS tree) decide. Claiming none or
 several leaves the row unlinked, as does a row that names no module at all („Anwendungsfach",
 „Komplex Praktische Informatik"). `relink-plans` applies this matching to the stored plans without
-reading a PDF again (`docs/operations.md`, „One-off commands").
+reading a PDF again (`docs/radix/operations.md`, „One-off commands").
 
 Validate without changing curriculum records:
 

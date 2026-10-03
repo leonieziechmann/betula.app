@@ -10,3 +10,9 @@ deploys an hour; `deploy/README.md` section 12).
   to `develop` builds and deploys nothing.
 - `master` takes nothing but `develop`, and only when the owner asks for a release: every push to
   `master` that changes the sources is built on GitHub and deployed to https://canary.betula.app.
+
+## Layout
+
+`radix/` is the Go module (run `go` there), `folia/` the Cargo workspace (run `cargo` and
+`folia/scripts/*` there; crates under `folia/crates/<crate>`, package `folia-<crate>`). Docs live
+in `docs/radix`, `docs/folia`, `docs/history`; experiments in `research/`. The README has the table.
