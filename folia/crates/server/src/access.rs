@@ -22,10 +22,10 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::extract::{Query, Request, State};
+use axum::Form;
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::Form;
 use hmac::{Hmac, Mac};
 use leptos::prelude::*;
 use serde::Deserialize;
@@ -54,18 +54,18 @@ const OPEN: &[&str] = &[
     "/healthz",
     crate::api::LIVENESS,
     "/robots.txt",
-    app::STYLESHEET,
-    app::FONT,
-    app::FAVICON,
-    app::FAVICON_ICO,
-    app::TOUCH_ICON,
+    folia_app::STYLESHEET,
+    folia_app::FONT,
+    folia_app::FAVICON,
+    folia_app::FAVICON_ICO,
+    folia_app::TOUCH_ICON,
     "/apple-touch-icon-precomposed.png",
-    app::ICON_192,
-    app::ICON_512,
-    app::ICON_MASKABLE,
-    app::ICON_MASKABLE_LARGE,
-    app::ICON_MONOCHROME,
-    app::MANIFEST,
+    folia_app::ICON_192,
+    folia_app::ICON_512,
+    folia_app::ICON_MASKABLE,
+    folia_app::ICON_MASKABLE_LARGE,
+    folia_app::ICON_MONOCHROME,
+    folia_app::MANIFEST,
 ];
 
 type Signature = Hmac<Sha256>;
@@ -218,16 +218,16 @@ fn resolve(name: &str, docker_secrets: &Path) -> Result<Option<(String, String)>
 pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let Some(gate) = state.gate.as_ref() else { return next.run(request).await };
     let path = request.uri().path();
-    // The launch screens of iOS are the home screen's like its icons (`app::launch`); another name
+    // The launch screens of iOS are the home screen's like its icons (`folia_app::launch`); another name
     // under their path stays behind the gate.
-    let launch_screen = path.strip_prefix(app::launch::PATH).is_some_and(|file| app::launch::Picture::from_file(file).is_some());
+    let launch_screen = path.strip_prefix(folia_app::launch::PATH).is_some_and(|file| folia_app::launch::Picture::from_file(file).is_some());
     // A calendar feed passes when its code decodes: the owner's decision of 2026-09-24, since a
     // calendar service has no password to give. The check characters turn guesses away before any
     // handler runs, and what it shows is the QIS schedule of the modules the code names; every
     // other path under `/calendar/` stays behind the gate. Its answer is `private` already.
     // Every language's manifest is the home screen's, like the icons.
-    let manifest = catalog::Locale::split(path).1 == app::MANIFEST;
-    if OPEN.contains(&path) || launch_screen || manifest || catalog::timetable::subscription::is_feed_path(path) {
+    let manifest = folia_locale::Locale::split(path).1 == folia_app::MANIFEST;
+    if OPEN.contains(&path) || launch_screen || manifest || folia_calendar::subscription::is_feed_path(path) {
         return next.run(request).await;
     }
     if !gate.admits(request.headers()) {
@@ -250,7 +250,7 @@ fn turn_away(request: &Request) -> Response {
         return (StatusCode::UNAUTHORIZED, [(header::CACHE_CONTROL, "no-store")], "Betula is in closed testing: open /access and enter the password.\n").into_response();
     }
     let wanted = way_back(request.uri().path_and_query().map(|wanted| wanted.as_str()));
-    let location = if wanted == "/" { PATH.to_string() } else { format!("{PATH}?next={}", catalog::url::encode(&wanted)) };
+    let location = if wanted == "/" { PATH.to_string() } else { format!("{PATH}?next={}", folia_routes::url::encode(&wanted)) };
     (StatusCode::FOUND, [(header::LOCATION, location), (header::CACHE_CONTROL, "no-store".to_string())]).into_response()
 }
 
@@ -318,18 +318,18 @@ pub async fn enter(State(state): State<AppState>, headers: HeaderMap, Form(login
 
 /// The texts of the login page: in the language of the page the visitor is on the way to.
 fn language_of(next: &str) -> &'static crate::texts::Texts {
-    crate::texts::texts(catalog::Locale::split(next).0)
+    crate::texts::texts(folia_locale::Locale::split(next).0)
 }
 
 /// The login page: a document of its own with the site's stylesheet, no app and no script but
 /// the one that applies the remembered theme. Works without JavaScript. The stylesheet carries
-/// the build like on every page (`app::BuildId`). It speaks the language of the page the visitor
+/// the build like on every page (`folia_app::BuildId`). It speaks the language of the page the visitor
 /// is on the way to.
 fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<&'static str>) -> Response {
-    let locale = catalog::Locale::split(next).0;
-    let (t, app_texts) = (crate::texts::texts(locale), app::i18n::texts(locale));
+    let locale = folia_locale::Locale::split(next).0;
+    let (t, app_texts) = (crate::texts::texts(locale), folia_app::i18n::texts(locale));
     let next = next.to_string();
-    let stylesheet = app::BuildId(state.build_id.clone()).asset(app::STYLESHEET);
+    let stylesheet = folia_app::BuildId(state.build_id.clone()).asset(folia_app::STYLESHEET);
     let html = view! {
         <!DOCTYPE html>
         <html lang=locale.code()>
@@ -338,23 +338,23 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
                 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
                 <meta name="color-scheme" content="light dark"/>
                 <meta name="robots" content="noindex, nofollow"/>
-                <meta name="theme-color" content=app::THEME_LIGHT/>
+                <meta name="theme-color" content=folia_app::THEME_LIGHT/>
                 <title>{format!("{} · Betula", t.gate_title)}</title>
-                <link rel="icon" href=app::FAVICON_ICO sizes="32x32"/>
-                <link rel="icon" type="image/svg+xml" href=app::FAVICON/>
-                <link rel="apple-touch-icon" href=app::TOUCH_ICON/>
+                <link rel="icon" href=folia_app::FAVICON_ICO sizes="32x32"/>
+                <link rel="icon" type="image/svg+xml" href=folia_app::FAVICON/>
+                <link rel="apple-touch-icon" href=folia_app::TOUCH_ICON/>
                 // `as` comes first: after a value the macro would read it as a cast.
-                <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=app::FONT/>
+                <link as="font" rel="preload" type="font/woff2" crossorigin="anonymous" href=folia_app::FONT/>
                 <link rel="stylesheet" href=stylesheet/>
-                <style inner_html=app::VIEW_TRANSITION_STYLE></style>
-                <script inner_html=app::HEAD_SCRIPT></script>
+                <style inner_html=folia_app::VIEW_TRANSITION_STYLE></style>
+                <script inner_html=folia_app::HEAD_SCRIPT></script>
             </head>
             <body class="gate">
                 <main class="gate-main">
                     // The lockup stands on the page like in the app: on a panel the light mark would vanish.
                     <div class="gate-brand">
-                        <span class="logo"><app::ui::Mark/></span>
-                        <span><app::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
+                        <span class="logo"><folia_app::ui::Mark/></span>
+                        <span><folia_app::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
                     </div>
                     <section class="gate-panel">
                         <h1>{t.gate_title}</h1>

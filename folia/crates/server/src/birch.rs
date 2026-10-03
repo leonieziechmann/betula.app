@@ -12,7 +12,7 @@
 //! the wood's shapes fade out at its top, the fade drawn into them.
 
 /// The season the crown is drawn in, as the site follows the year (the script in `<head>`,
-/// `app::shell`): March–May spring, June–August summer, September–November autumn,
+/// `folia_app::shell`): March–May spring, June–August summer, September–November autumn,
 /// December–February winter.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
 pub enum Season {
@@ -38,7 +38,7 @@ impl Season {
     /// The season at a moment (seconds since 1970, UTC). The site's script goes by the visitor's
     /// clock, so in the night a month ends the two may differ for an hour or two.
     pub fn at(unix_seconds: u64) -> Season {
-        let day = catalog::timetable::day::Day(i32::try_from(unix_seconds / 86_400).unwrap_or(0));
+        let day = folia_calendar::day::Day(i32::try_from(unix_seconds / 86_400).unwrap_or(0));
         Season::of_month(day.ymd().1)
     }
 

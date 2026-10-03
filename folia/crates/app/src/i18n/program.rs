@@ -1,5 +1,5 @@
 //! Texts of a study program's page (`pages/program.rs`). The names of its views are the labels of
-//! `catalog::url::ProgramTab`.
+//! `folia_routes::url::ProgramTab`.
 
 pub struct Texts {
     /// The heading of the sidebar.

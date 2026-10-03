@@ -1,0 +1,18 @@
+[package]
+name = "folia-routes"
+version = "0.1.0"
+edition = "2021"
+description = "Every address of the site, and the catalog's filter as the address writes it"
+
+[dependencies]
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+folia-search = { path = "../search" }
+serde = { version = "1.0", features = ["derive"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

@@ -41,7 +41,7 @@ pub struct Texts {
     /// What to do when a list is empty: „Nimm Filter zurück oder suche nach einem anderen Begriff."
     pub advice_filters: &'static str,
 
-    // ---- the search (`catalog::search`) ----
+    // ---- the search (`folia_search`) ----
     /// Above a list whose search corrected a typo: „Keine Treffer für „algoritmen“. Ergebnisse
     /// für „Algorithmen“:"; the values are the text as typed and as searched.
     pub search_corrected: fn(&str, &str) -> String,

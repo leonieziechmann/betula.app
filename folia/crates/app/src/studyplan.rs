@@ -1,7 +1,7 @@
 //! The Studienplan in this browser: its store, and where „Einplanen" plans a module to.
 //!
 //! What a visitor plans is theirs alone (R20, owner decision 2026-09-24): the plan lives in this
-//! browser's `localStorage` (`betula.studyplan.v1`, the text of `catalog::studyplan::PlanDoc`) and
+//! browser's `localStorage` (`betula.studyplan.v1`, the text of `folia_plans::studyplan::PlanDoc`) and
 //! nowhere else. It is empty on the server and in a browser that refuses storage (R9), never part
 //! of a URL, and it reaches no request: the pages ask the local copy of the catalog about it. Its
 //! text is read like a URL (`PlanDoc::restored`): a line that fails is dropped alone, lines of a
@@ -20,13 +20,13 @@
 
 use std::collections::BTreeSet;
 
-use catalog::labels::{Code, TurnusSeason};
-use catalog::queries;
-use catalog::rows_detail::DateRow;
-use catalog::studyplan::{PlanDoc, SavedPlans};
-use catalog::timetable::select::{Selection, TownChoice};
-use catalog::timetable::semester::{fachsemester, SemesterKey};
-use catalog::url::{self, LocalView, ModuleHint, StudyplanUrl};
+use folia_calendar::select::{Selection, TownChoice};
+use folia_calendar::semester::{fachsemester, SemesterKey};
+use folia_model::labels::{Code, TurnusSeason};
+use folia_model::rows_detail::DateRow;
+use folia_plans::studyplan::{PlanDoc, SavedPlans};
+use folia_query as queries;
+use folia_routes::url::{self, LocalView, ModuleHint, StudyplanUrl};
 use leptos::prelude::*;
 
 use crate::data::{use_source, Source};
@@ -124,7 +124,7 @@ impl Studyplan {
 
 const SAVED_KEY: &str = "betula.studyplan.saved.v1";
 
-/// The plans saved in this browser („Plan speichern", `catalog::studyplan::SavedPlans`): kept like
+/// The plans saved in this browser („Plan speichern", `folia_plans::studyplan::SavedPlans`): kept like
 /// the plan (R20: in `localStorage` alone, never in an address or a request, read like anything
 /// from outside). Only the Stundenplan's sidebar reads them, so it makes the store itself; another
 /// tab's change follows.
@@ -679,10 +679,10 @@ impl LocalView for PlanAddress {
 
 #[cfg(test)]
 mod tests {
-    use catalog::url::PlanView;
+    use folia_routes::url::PlanView;
 
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(target_semester(key("2027S"), None, Some(TurnusSeason::Winter), None, &doc), key("2027W"));
         // A placeholder's hint without a semester plans into the placeholder's semester.
         let mut with_placeholder = PlanDoc::default();
-        with_placeholder.placeholders.push(catalog::studyplan::Placeholder {
+        with_placeholder.placeholders.push(folia_plans::studyplan::Placeholder {
             pid: 3,
             semester: key("2027W"),
             program_id: "079-82-2008".into(),
@@ -795,8 +795,8 @@ mod tests {
         assert_eq!(crate::local::back_href(&full, false), "/studyplan?sem=2026W&open=12104&row=148369-aaf38");
     }
 
-    fn placeholder(pid: u32, semester: &str, name: &str) -> catalog::studyplan::Placeholder {
-        catalog::studyplan::Placeholder {
+    fn placeholder(pid: u32, semester: &str, name: &str) -> folia_plans::studyplan::Placeholder {
+        folia_plans::studyplan::Placeholder {
             pid,
             semester: key(semester),
             program_id: "079-82-2008".into(),
@@ -923,7 +923,7 @@ mod tests {
             module_id: module.into(),
             ord: Some(1),
             cancelled_dates: None,
-            date: catalog::rows_detail::EventDate {
+            date: folia_model::rows_detail::EventDate {
                 semester_key: "2026W".into(),
                 semester_label: "WiSe 2026/27".into(),
                 event_id: event.into(),

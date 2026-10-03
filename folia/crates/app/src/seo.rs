@@ -23,7 +23,7 @@
 
 use std::sync::Arc;
 
-use catalog::timetable::day::{berlin_offset, clock, minutes, Day};
+use folia_calendar::day::{berlin_offset, clock, minutes, Day};
 use leptos::prelude::*;
 use leptos_meta::{Link, Meta, Script};
 
@@ -57,7 +57,7 @@ pub fn absolute_file(path: &str) -> String {
 /// The `rel` of a link to `path` (a path of the app with its query, before `Texts::path` puts the
 /// language in front): `nofollow` where it leads to no page search engines list (`url::listed`).
 pub fn nofollow(path: &str) -> Option<&'static str> {
-    (!catalog::url::listed(path)).then_some("nofollow")
+    (!folia_routes::url::listed(path)).then_some("nofollow")
 }
 
 /// The pictures the server draws for link previews (`folia/crates/server/src/cards.rs`): 1200 × 630, the title

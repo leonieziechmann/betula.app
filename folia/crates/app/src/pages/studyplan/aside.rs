@@ -26,25 +26,24 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::labels::{Campus, Code, Rhythm, TurnusSeason};
-use catalog::pages::{self, StudyplanData};
-use catalog::rows::CatalogRow;
-use catalog::studyplan::{PlanDoc, Placeholder};
-use catalog::timetable::clash;
-use catalog::timetable::day::{clock, Day};
-use catalog::timetable::exams::{self, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
-use catalog::timetable::kind::{fold, EventKind, KindSet};
-use catalog::timetable::model::{Attendance, Basis, Event, Row, Timetable};
-use catalog::timetable::occur::Every;
-use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::select::{HiddenBy, Town, TownChoice};
-use catalog::timetable::semester::{of_fachsemester, SemesterKey};
-use catalog::url::{PlanView, StudyplanUrl};
+use folia_calendar::day::{clock, Day};
+use folia_calendar::kind::{fold, EventKind, KindSet};
+use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::{HiddenBy, Town, TownChoice};
+use folia_calendar::semester::{of_fachsemester, SemesterKey};
+use folia_model::labels::{Campus, Code, Rhythm, TurnusSeason};
+use folia_model::rows::CatalogRow;
+use folia_pages as pages;
+use folia_pages::StudyplanData;
+use folia_plans::studyplan::{Placeholder, PlanDoc};
+use folia_routes::url::{PlanView, StudyplanUrl};
+use folia_timetable::clash;
+use folia_timetable::exams::{self, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
+use folia_timetable::model::{Attendance, Basis, Event, Row, Timetable};
+use folia_timetable::occur::Every;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use super::head::blocked_line;
-use super::{full_href, key_of, PlanCtx};
 use crate::data::DataError;
 use crate::format;
 use crate::i18n::{self, Locale};
@@ -52,6 +51,8 @@ use crate::myprogram::MyProgram;
 use crate::nav;
 use crate::pending::Pending;
 use crate::ui::{ErrorState, Icon, Shortcut};
+use super::head::blocked_line;
+use super::{full_href, key_of, PlanCtx};
 
 /// The group QIS gives a row that belongs to no group.
 const UNNAMED_GROUP: &str = "[unbenannt]";
@@ -708,7 +709,7 @@ where
         <div class="sp-rowline" aria-current=move || current.get().then_some("true") data-hidden=move || hidden.get().then_some("") data-off=move || off.get().then_some("")>
             {first}
             {move || clash.get().then(|| view! { <small class="clash">{t.studyplan_aside.clash}</small> })}
-            {move || second.get().then(|| view! { <small>{t.data.timetable.second_sitting}</small> })}
+            {move || second.get().then(|| view! { <small>{t.timetable_data.second_sitting}</small> })}
             {key.is_some().then_some(move || eye.get().then(|| view! {
                 <button class="eye" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-label=label title=label>
                     {move || eye_icon(pressed.get())}
@@ -871,7 +872,7 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) 
                 })
                 .collect()
         };
-        Block { exam: true, index, event: event_number(&exam.event_id), head: head_text(texts.data.timetable.exam, &exam.title, title), qis: exam.source_url.clone(), items }
+        Block { exam: true, index, event: event_number(&exam.event_id), head: head_text(texts.timetable_data.exam, &exam.title, title), qis: exam.source_url.clone(), items }
     });
     // The other town's course of a module taught in both comes last: first what the student
     // attends, its exams included.
@@ -1107,7 +1108,7 @@ fn termine_of<'a>(termine: &'a [(String, Vec<TerminAt>)], module: &str) -> &'a [
 /// the other module's („Analysis I am 25.02. passt"), else „andere Termine passen" (only a change
 /// of both avoids it).
 fn avoid_text(day: Day, avoid: Day, mine: (&Termin, &[TerminAt]), theirs: (&Termin, &[TerminAt]), name: &str, texts: &i18n::Texts) -> String {
-    let words = &texts.data.plans;
+    let words = texts.plans_data;
     let both = || words.other_dates_fit.to_string();
     let my_issue = mine.1.iter().find(|at| at.day == day && at.termin == *mine.0);
     let their_issue = theirs.1.iter().find(|at| at.day == day && at.termin == *theirs.0);
@@ -1225,9 +1226,9 @@ fn exam_text(rows: &[&ExamRow], texts: &i18n::Texts) -> RowText {
             let latest = rows.iter().filter_map(|row| if let ExamShape::Sitting { to, .. } = row.shape { Some(to) } else { None }).max().unwrap_or(*to);
             format!("{} {}–{}", dated(*day, texts), clock(*from), clock(latest))
         }
-        ExamShape::Deadline { day } => format!("{} {} {}", weekday_name(day.weekday(), texts), day.day_month(texts.locale), texts.data.timetable.by_midnight),
+        ExamShape::Deadline { day } => format!("{} {} {}", weekday_name(day.weekday(), texts), day.day_month(texts.locale), texts.timetable_data.by_midnight),
         ExamShape::Window { first, last } => format!("{} {}", (words.span)(*first, *last), words.by_arrangement),
-        ExamShape::DayOnly { day } => format!("{} {}", dated(*day, texts), texts.data.timetable.time_open),
+        ExamShape::DayOnly { day } => format!("{} {}", dated(*day, texts), texts.timetable_data.time_open),
         ExamShape::Open => words.date_open.to_string(),
     };
     let detail = campuses(rows.iter().map(|row| row.date.campus.as_ref()), texts.locale).into_iter().collect();
@@ -1281,7 +1282,7 @@ fn dated(day: Day, texts: &i18n::Texts) -> String {
 
 /// The weekday as a line names it, 1 = Monday: „Mo", "Mon"; nothing for what is no weekday.
 fn weekday_name(weekday: u8, texts: &i18n::Texts) -> &'static str {
-    texts.data.common.weekday_short(i64::from(weekday)).unwrap_or_default()
+    texts.data.weekday_short(i64::from(weekday)).unwrap_or_default()
 }
 
 /// A row's weekday as QIS states it, 1 = Monday.
@@ -1299,7 +1300,7 @@ fn group_of(row: &Row) -> Option<&str> {
 fn kind_word(event: &Event, texts: &i18n::Texts) -> String {
     match event.type_raw.as_deref().map(str::trim).filter(|kind| !kind.is_empty()) {
         Some(kind) => kind.to_string(),
-        None => event.kinds.iter().next().map_or(texts.data.plans.session, |kind| kind.label(texts.locale)).to_string(),
+        None => event.kinds.iter().next().map_or(texts.plans_data.session, |kind| kind.label(texts.locale)).to_string(),
     }
 }
 
@@ -1362,10 +1363,10 @@ fn covers(p: &Placeholder, sem: SemesterKey, start: Option<SemesterKey>) -> bool
 
 #[cfg(test)]
 mod tests {
-    use catalog::rows_detail::{DateRow, EventDate, ModuleSws};
-    use catalog::timetable::facts::SemesterFacts;
-    use catalog::timetable::model::Input;
-    use catalog::timetable::select::Selection;
+    use folia_calendar::select::Selection;
+    use folia_model::rows_detail::{DateRow, EventDate, ModuleSws};
+    use folia_timetable::facts::SemesterFacts;
+    use folia_timetable::model::Input;
 
     use super::*;
 

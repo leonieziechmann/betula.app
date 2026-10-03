@@ -32,15 +32,15 @@ mod warm;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use app::data::{CatalogSource, Source};
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue};
 use axum::middleware::{self, Next};
 use axum::response::Response;
-use axum::routing::get;
 use axum::Router;
-use catalog::{Database, DbError};
+use axum::routing::get;
 use clap::Parser;
+use folia_app::data::{CatalogSource, Source};
+use folia_model::{Database, DbError};
 use leptos::prelude::*;
 use leptos_axum::{generate_route_list, AxumRouteListing, LeptosRoutes};
 
@@ -125,7 +125,7 @@ async fn access_log(State(state): State<AppState>, request: Request, next: Next)
     // card of a shared Stundenplan (`/cards/studyplan/<code>.png`): the log, kept 30 days, writes
     // every path under them as one fixed text, valid code or not. (A page's query, where a shared
     // plan's code travels, is never written.)
-    let path = catalog::timetable::share::redacted_path(catalog::timetable::subscription::redacted_path(request.uri().path())).to_string();
+    let path = folia_calendar::share::redacted_path(folia_calendar::subscription::redacted_path(request.uri().path())).to_string();
     let mut response = next.run(request).await;
 
     let headers = response.headers_mut();
@@ -161,20 +161,20 @@ async fn access_log(State(state): State<AppState>, request: Request, next: Next)
 /// `router`, and what the warm-up asks for directly (`warm`), past the gate and the access log.
 pub fn pages(state: &AppState) -> Router<AppState> {
     let source = Source(Arc::new(ActiveSnapshot(state.store.clone())));
-    let routes = localized_routes(generate_route_list(app::App));
+    let routes = localized_routes(generate_route_list(folia_app::App));
     let options = state.leptos.clone();
     // What every rendered page gets from its host: the data, the name of the site from outside,
     // the build its stylesheet and scripts are linked with, and the map of the programs the
     // active snapshot was opened with.
     let provide = {
-        let (store, site, build) = (state.store.clone(), app::seo::SiteUrl(state.public_url.clone()), app::BuildId(state.build_id.clone()));
+        let (store, site, build) = (state.store.clone(), folia_app::seo::SiteUrl(state.public_url.clone()), folia_app::BuildId(state.build_id.clone()));
         move || {
             provide_context(source.clone());
             provide_context(site.clone());
             provide_context(build.clone());
             if let Some(snapshot) = store.current() {
                 if let Some((map, ..)) = &snapshot.program_map {
-                    provide_context(app::data::ProgramMapHandle(map.clone()));
+                    provide_context(folia_app::data::ProgramMapHandle(map.clone()));
                 }
                 if let Some(pickers) = snapshot.pickers.clone() {
                     provide_context(pickers);
@@ -193,19 +193,19 @@ pub fn pages(state: &AppState) -> Router<AppState> {
             provide.clone(),
             {
                 let options = options.clone();
-                move || app::shell(options.clone())
+                move || folia_app::shell(options.clone())
             },
         )
-        .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(provide, app::shell))
+        .fallback(leptos_axum::file_and_error_handler_with_context::<AppState, _>(provide, folia_app::shell))
         .layer(middleware::from_fn_with_state(state.clone(), cache::html_cache))
 }
 
 /// The app's routes in every language: as they are for the default language, under its prefix for
 /// every other (`/en/catalog`; the start page is `/en`). Each page learns its language from its
-/// address (`app::i18n`).
+/// address (`folia_app::i18n`).
 fn localized_routes(routes: Vec<AxumRouteListing>) -> Vec<AxumRouteListing> {
-    let mut all = Vec::with_capacity(routes.len() * catalog::Locale::ALL.len());
-    for locale in catalog::Locale::ALL.iter().copied().filter(|locale| !locale.prefix().is_empty()) {
+    let mut all = Vec::with_capacity(routes.len() * folia_locale::Locale::ALL.len());
+    for locale in folia_locale::Locale::ALL.iter().copied().filter(|locale| !locale.prefix().is_empty()) {
         for route in &routes {
             let regenerate: Vec<leptos_router::static_routes::RegenerationFn> = Vec::new();
             all.push(AxumRouteListing::new(locale.path(route.path()), route.mode().clone(), route.methods(), regenerate));
@@ -222,7 +222,7 @@ async fn language_redirect(uri: axum::http::Uri) -> Response {
     use axum::response::IntoResponse;
     let path = uri.path();
     let target = match path.strip_prefix("/de").filter(|rest| rest.is_empty() || rest.starts_with('/')) {
-        Some(rest) => catalog::Locale::default().path(if rest.is_empty() { "/" } else { rest }),
+        Some(rest) => folia_locale::Locale::default().path(if rest.is_empty() { "/" } else { rest }),
         None => path.trim_end_matches('/').to_string(),
     };
     let target = match uri.query() {
@@ -236,15 +236,15 @@ async fn language_redirect(uri: axum::http::Uri) -> Response {
 /// manifest, the cards of link previews and the calendar feed (`/cards/…`, `/en/cards/…`).
 fn in_every_language() -> Router<AppState> {
     let mut router = Router::new();
-    for locale in catalog::Locale::ALL.iter().copied() {
+    for locale in folia_locale::Locale::ALL.iter().copied() {
         let at = |path: &str| locale.path(path);
         router = router
-            .route(&at(app::MANIFEST), get(api::manifest))
-            .route(&at(app::OG_IMAGE), get(api::og_image))
+            .route(&at(folia_app::MANIFEST), get(api::manifest))
+            .route(&at(folia_app::OG_IMAGE), get(api::og_image))
             .route(&at("/cards/module/{file}"), get(api::module_card))
             .route(&at("/cards/program/{file}"), get(api::program_card))
-            .route(&at(app::seo::BOOKMARKS_CARD), get(api::bookmarks_card_png))
-            .route(&at(app::seo::STUDYPLAN_CARD), get(api::studyplan_card_png))
+            .route(&at(folia_app::seo::BOOKMARKS_CARD), get(api::bookmarks_card_png))
+            .route(&at(folia_app::seo::STUDYPLAN_CARD), get(api::studyplan_card_png))
             .route(&at("/cards/studyplan/{file}"), get(api::shared_plan_card))
             // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
             // (axum refuses two routes for one path at startup).
@@ -258,28 +258,28 @@ fn in_every_language() -> Router<AppState> {
 /// directly (`warm::files`), past the gate and the access log.
 pub fn files() -> Router<AppState> {
     Router::new()
-        .route(app::STYLESHEET, get(api::stylesheet))
-        .route(app::icons::SPRITE, get(api::icons))
-        .route(app::FAVICON, get(api::favicon))
-        .route(app::FONT, get(api::font))
+        .route(folia_app::STYLESHEET, get(api::stylesheet))
+        .route(folia_app::icons::SPRITE, get(api::icons))
+        .route(folia_app::FAVICON, get(api::favicon))
+        .route(folia_app::FONT, get(api::font))
         .route("/assets/shots/{file}", get(api::showcase_shot))
         .route("/assets/birch/{file}", get(api::birch))
-        .route(app::ENHANCE_SCRIPT, get(api::enhance_script))
-        .route(app::BOOT_SCRIPT, get(api::boot_script))
-        .route(app::SERVICE_WORKER, get(api::service_worker))
+        .route(folia_app::ENHANCE_SCRIPT, get(api::enhance_script))
+        .route(folia_app::BOOT_SCRIPT, get(api::boot_script))
+        .route(folia_app::SERVICE_WORKER, get(api::service_worker))
         .route("/assets/sql-wasm.js", get(api::sql_js))
         .route("/assets/sql-wasm.wasm", get(api::sql_wasm))
         .route("/pkg/{file}", get(api::package))
         .route("/models/{file}", get(api::semantic_model))
-        .route(app::FAVICON_ICO, get(api::favicon_ico))
-        .route(app::TOUCH_ICON, get(api::touch_icon))
+        .route(folia_app::FAVICON_ICO, get(api::favicon_ico))
+        .route(folia_app::TOUCH_ICON, get(api::touch_icon))
         // iOS asks for this name too before it reads the page.
         .route("/apple-touch-icon-precomposed.png", get(api::touch_icon))
-        .route(app::ICON_192, get(api::icon_192))
-        .route(app::ICON_512, get(api::icon_512))
-        .route(app::ICON_MASKABLE, get(api::icon_maskable))
-        .route(app::ICON_MASKABLE_LARGE, get(api::icon_maskable_large))
-        .route(app::ICON_MONOCHROME, get(api::icon_monochrome))
+        .route(folia_app::ICON_192, get(api::icon_192))
+        .route(folia_app::ICON_512, get(api::icon_512))
+        .route(folia_app::ICON_MASKABLE, get(api::icon_maskable))
+        .route(folia_app::ICON_MASKABLE_LARGE, get(api::icon_maskable_large))
+        .route(folia_app::ICON_MONOCHROME, get(api::icon_monochrome))
         .route("/assets/launch/{file}", get(api::launch_screen))
 }
 

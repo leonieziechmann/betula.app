@@ -1,0 +1,27 @@
+[package]
+name = "folia-timetable"
+version = "0.1.0"
+edition = "2021"
+description = "The timetable of a Studienplan: dates, clashes, exams, the views of a week, what fits, the calendar file"
+
+[features]
+# The fixtures of `model::tests`, for the tests of other crates.
+fixtures = []
+
+[dependencies]
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+folia-search = { path = "../search" }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+folia-pack = { path = "../pack" }
+folia-query = { path = "../query" }
+folia-test-support = { path = "../test-support" }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

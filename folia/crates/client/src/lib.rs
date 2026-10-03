@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
 
-use app::data::{CatalogSource, Source};
-use catalog::db::Rows;
-use catalog::{Database, DbError, Value};
+use folia_app::data::{CatalogSource, Source};
+use folia_model::db::Rows;
+use folia_model::{Database, DbError, Value};
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
@@ -176,7 +176,7 @@ fn install_panic_hook() {
         if let Some(document) = web_sys::window().and_then(|w| w.document()) {
             if let (Ok(banner), Some(body)) = (document.create_element("div"), document.body()) {
                 banner.set_class_name("fatal");
-                let t = app::i18n::texts(app::i18n::of_address());
+                let t = folia_app::i18n::texts(folia_app::i18n::of_address());
                 banner.set_inner_html(&format!("{} <a href=\"\">{}</a>", t.ui.crashed, t.ui.reload_page));
                 let _ = body.append_child(&banner);
             }
@@ -186,9 +186,9 @@ fn install_panic_hook() {
 
 /// The map of the programs as `boot.js` got it from the server (`window.betulaMap`, JSON). The
 /// app does not lay anything out; without a map the landing page leaves the section out.
-fn program_map() -> Option<app::data::ProgramMapHandle> {
+fn program_map() -> Option<folia_app::data::ProgramMapHandle> {
     let text = js_sys::Reflect::get(&web_sys::window()?.into(), &"betulaMap".into()).ok()?.as_string()?;
-    serde_json::from_str(&text).ok().map(|map| app::data::ProgramMapHandle(Arc::new(map)))
+    serde_json::from_str(&text).ok().map(|map| folia_app::data::ProgramMapHandle(Arc::new(map)))
 }
 
 /// The semantic search as `boot.js` loads it (`window.betulaSemantic`): asked anew on every call,
@@ -210,12 +210,12 @@ impl BrowserSemantic {
     }
 }
 
-impl app::data::SemanticSearch for BrowserSemantic {
-    fn ready(&self) -> app::data::Later<bool> {
+impl folia_app::data::SemanticSearch for BrowserSemantic {
+    fn ready(&self) -> folia_app::data::Later<bool> {
         Box::pin(async { BrowserSemantic::call("ready", &[]).await.is_some() })
     }
 
-    fn search(&self, query: &str, k: usize) -> app::data::Later<Option<Vec<app::data::SemanticHit>>> {
+    fn search(&self, query: &str, k: usize) -> folia_app::data::Later<Option<Vec<folia_app::data::SemanticHit>>> {
         let args = [JsValue::from_str(query), JsValue::from_f64(k as f64)];
         Box::pin(async move {
             let answer = BrowserSemantic::call("search", &args).await?;
@@ -225,7 +225,7 @@ impl app::data::SemanticSearch for BrowserSemantic {
                 .filter_map(|hit| {
                     let module_id = js_sys::Reflect::get(&hit, &"id".into()).ok()?.as_string()?;
                     let score = js_sys::Reflect::get(&hit, &"score".into()).ok()?.as_f64()? as f32;
-                    Some(app::data::SemanticHit { module_id, score })
+                    Some(folia_app::data::SemanticHit { module_id, score })
                 })
                 .collect();
             Some(hits)
@@ -233,7 +233,7 @@ impl app::data::SemanticSearch for BrowserSemantic {
     }
 }
 
-/// The build the server wrote the page with: the `?v=` of its stylesheet (`app::BuildId`), which
+/// The build the server wrote the page with: the `?v=` of its stylesheet (`folia_app::BuildId`), which
 /// stays in the head when the app takes the body over.
 fn build_of_page(document: &web_sys::Document) -> Option<String> {
     let href = document.query_selector("link[rel=stylesheet]").ok()??.get_attribute("href")?;
@@ -247,15 +247,15 @@ pub fn start() {
     install_panic_hook();
     let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
     let Some(body) = document.body() else { return };
-    // The language of the address (`app::i18n`): the page the service worker kept for a start
+    // The language of the address (`folia_app::i18n`): the page the service worker kept for a start
     // without a network may be of another one.
     if let Some(root) = document.document_element() {
-        let _ = root.set_attribute("lang", app::i18n::of_address().code());
+        let _ = root.set_attribute("lang", folia_app::i18n::of_address().code());
     }
     // Not hydration: the local database may be older than the server's page, so the app renders
     // fresh. Same components, same markup, so nothing visibly changes.
     body.set_inner_html("");
-    // The same goes for what the server wrote into the head for this page (`app::seo`): the app
+    // The same goes for what the server wrote into the head for this page (`folia_app::seo`): the app
     // writes its own, and what stayed would describe the first page on every later one.
     let stale = "meta[name=description], meta[name=robots], link[rel=canonical], link[rel=alternate][hreflang], meta[property^='og:'], meta[name^='twitter:'], script[type='application/ld+json']";
     if let Ok(tags) = document.query_selector_all(stale) {
@@ -273,20 +273,20 @@ pub fn start() {
     leptos::mount::mount_to_body(move || {
         provide_context(Source(Arc::new(LocalSource)));
         // Loaded by `boot.js` once the app runs; nothing waits for it. The catalog's „Ähnliche Module"
-        // ask it (`app::pages::catalog`).
-        provide_context(app::data::Semantic(Arc::new(BrowserSemantic)));
+        // ask it (`folia_app::pages::catalog`).
+        provide_context(folia_app::data::Semantic(Arc::new(BrowserSemantic)));
         // The same: the catalog's search worker, which the catalog asks once it answers.
-        provide_context(app::data::Worker(Arc::new(worker::BrowserWorker)));
-        // The icons point into the sprite of this build (`app::icons`), as the server's page did.
+        provide_context(folia_app::data::Worker(Arc::new(worker::BrowserWorker)));
+        // The icons point into the sprite of this build (`folia_app::icons`), as the server's page did.
         if let Some(build) = build.clone() {
-            provide_context(app::BuildId(build.into()));
+            provide_context(folia_app::BuildId(build.into()));
         }
         if let Some(map) = map.clone() {
             provide_context(map);
         }
         if let Some(site) = site.clone() {
-            provide_context(app::seo::SiteUrl(site.into()));
+            provide_context(folia_app::seo::SiteUrl(site.into()));
         }
-        view! { <app::App/> }
+        view! { <folia_app::App/> }
     });
 }

@@ -15,10 +15,10 @@
 //! it), never in the URL and never in server HTML (R9, R13). On the server and without
 //! JavaScript every tab is the plain link to its area.
 
-use catalog::url;
+use folia_routes::url;
 use leptos::prelude::*;
-use crate::i18n::use_location;
 
+use crate::i18n::use_location;
 use crate::nav;
 
 const STORAGE_KEY: &str = "betula.tabs";

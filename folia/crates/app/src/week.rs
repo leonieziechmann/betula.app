@@ -2,7 +2,7 @@
 //!
 //! One component draws both: a module's page shows its own Termine in it, the Studienplan its
 //! Regelwoche. Callers hand over slots in minutes; the grid finds the days and hours it needs and
-//! puts slots that overlap on a day side by side (`catalog::timetable::grid`), so that a single
+//! puts slots that overlap on a day side by side (`folia_timetable::grid`), so that a single
 //! date no longer covers the weekly group beneath it. The geometry is data only, written into
 //! custom properties in half-hours (`--days`, `--first`, `--span` and, fitted, the widths of the
 //! days `--cols` on `.week`; `--from`, `--to`,
@@ -36,7 +36,7 @@
 
 use std::collections::BTreeMap;
 
-use catalog::timetable::grid::{self, Placed, Span};
+use folia_timetable::grid::{self, Placed, Span};
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -370,7 +370,7 @@ pub fn WeekGrid(
     move || {
         slots.with(|slots| {
             let Layout { span, week, slots: styles, frames, framed } = layout(slots, min_hours, fit)?;
-            let days = &t.data.common.weekdays_short;
+            let days = &t.data.weekdays_short;
             let heads: Vec<String> = (0..usize::from(span.days))
                 .map(|i| heads.as_ref().and_then(|heads| heads.get(i).cloned()).or_else(|| days.get(i).map(|head| head.to_string())).unwrap_or_default())
                 .collect();

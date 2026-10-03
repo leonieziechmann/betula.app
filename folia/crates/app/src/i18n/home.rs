@@ -707,10 +707,11 @@ pub const EN: Texts = Texts {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use folia_locale::Locale;
+    use folia_routes::url::ProgramTab;
+
     use crate::i18n;
-    use catalog::url::ProgramTab;
-    use catalog::Locale;
+    use super::*;
 
     /// Every language asks the same questions, and where an answer names a button, it names it
     /// as the page labels it.

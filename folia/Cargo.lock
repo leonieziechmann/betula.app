@@ -841,8 +841,16 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 name = "folia-app"
 version = "1.0.3"
 dependencies = [
- "folia-catalog",
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
  "folia-pack",
+ "folia-pages",
+ "folia-plans",
+ "folia-query",
+ "folia-routes",
+ "folia-search",
+ "folia-timetable",
  "http",
  "leptos",
  "leptos_axum",
@@ -856,13 +864,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "folia-catalog"
+name = "folia-calendar"
 version = "0.1.0"
 dependencies = [
+ "folia-locale",
+ "folia-model",
  "folia-pack",
- "rusqlite",
+ "folia-test-support",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -871,7 +880,10 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "folia-app",
- "folia-catalog",
+ "folia-locale",
+ "folia-model",
+ "folia-pages",
+ "folia-routes",
  "js-sys",
  "leptos",
  "serde",
@@ -882,11 +894,91 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-locale"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "folia-model"
+version = "0.1.0"
+dependencies = [
+ "folia-locale",
+ "rusqlite",
+ "serde",
+]
+
+[[package]]
 name = "folia-pack"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "folia-pages"
+version = "0.1.0"
+dependencies = [
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
+ "folia-plans",
+ "folia-query",
+ "folia-routes",
+ "folia-search",
+ "folia-test-support",
+ "folia-timetable",
+ "rusqlite",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "folia-plans"
+version = "0.1.0"
+dependencies = [
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
+ "folia-pack",
+ "folia-query",
+ "folia-routes",
+ "folia-search",
+ "folia-test-support",
+ "serde",
+]
+
+[[package]]
+name = "folia-query"
+version = "0.1.0"
+dependencies = [
+ "folia-calendar",
+ "folia-model",
+ "folia-routes",
+ "folia-search",
+ "folia-test-support",
+ "serde",
+]
+
+[[package]]
+name = "folia-routes"
+version = "0.1.0"
+dependencies = [
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
+ "folia-search",
+ "serde",
+]
+
+[[package]]
+name = "folia-search"
+version = "0.1.0"
+dependencies = [
+ "folia-model",
+ "serde",
 ]
 
 [[package]]
@@ -905,7 +997,13 @@ dependencies = [
  "clap",
  "flate2",
  "folia-app",
- "folia-catalog",
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
+ "folia-pages",
+ "folia-query",
+ "folia-routes",
+ "folia-search",
  "futures-util",
  "hmac",
  "leptos",
@@ -930,6 +1028,27 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "folia-test-support"
+version = "0.1.0"
+dependencies = [
+ "folia-model",
+]
+
+[[package]]
+name = "folia-timetable"
+version = "0.1.0"
+dependencies = [
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
+ "folia-pack",
+ "folia-query",
+ "folia-search",
+ "folia-test-support",
+ "serde",
 ]
 
 [[package]]

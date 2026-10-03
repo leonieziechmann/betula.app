@@ -9,7 +9,7 @@
 // make for the ground at the end of a page, and the way back to the top of a page („Nach oben").
 (() => {
   const root = document.documentElement;
-  // The page's language, as its address says it (`catalog::Locale::split`): the prefix of its
+  // The page's language, as its address says it (`folia_locale::Locale::split`): the prefix of its
   // addresses and its words (docs/folia/i18n.md). The first is the default, without a prefix.
   const LANGUAGES = [
     { prefix: "", linkCopied: "Link kopiert", copied: "Kopiert" },

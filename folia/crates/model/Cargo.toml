@@ -1,0 +1,24 @@
+[package]
+name = "folia-model"
+version = "0.1.0"
+edition = "2021"
+description = "The data contract of the catalog snapshot: the database seam, rows, codes and labels, ids, the module texts"
+
+[features]
+# A rusqlite-backed `Database` (`native`) for the web server and the tests. The browser supplies its
+# own implementation on top of sql.js, so rusqlite is never compiled to WASM.
+sqlite = ["dep:rusqlite"]
+
+[dependencies]
+folia-locale = { path = "../locale" }
+serde = { version = "1.0", features = ["derive"] }
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+
+[dev-dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

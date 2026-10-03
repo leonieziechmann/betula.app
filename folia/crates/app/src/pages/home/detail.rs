@@ -24,13 +24,13 @@
 //! without JavaScript; the only numbers are the snapshot's, and a picture without them leaves them
 //! out.
 
-use catalog::filter::{ExamPart, Language, TurnusFilter};
-use catalog::labels::{Campus, Code, Labelled, ModuleKind, TeachingForm};
-use catalog::queries;
-use catalog::timetable::day::clock;
-use catalog::timetable::kind::EventKind;
-use catalog::url::{self, CatalogUrl, ProgramTab};
-use catalog::CatalogQuery;
+use folia_calendar::day::clock;
+use folia_calendar::kind::EventKind;
+use folia_model::labels::{Campus, Code, Labelled, ModuleKind, TeachingForm};
+use folia_query as queries;
+use folia_routes::CatalogQuery;
+use folia_routes::filter::{ExamPart, Language, TurnusFilter};
+use folia_routes::url::{self, CatalogUrl, ProgramTab};
 use leptos::prelude::*;
 
 use crate::data::use_source;

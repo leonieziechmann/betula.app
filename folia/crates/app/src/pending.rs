@@ -31,7 +31,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use catalog::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
+use folia_routes::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 use leptos_router::location::Location;

@@ -1,27 +1,27 @@
 //! The server against a fake Radix that serves a real snapshot over HTTP, the way the
 //! real one does (`ETag`, `If-None-Match` → 304). Needs a snapshot like the tests of the
-//! `catalog` crate (`FOLIA_TEST_SNAPSHOT`, else `snapshot/current.json`).
+//! domain crates (`folia-test-support`: `FOLIA_TEST_SNAPSHOT`, else `snapshot/current.json`).
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
 use axum::Router;
-use catalog::native::NativeDatabase;
-use catalog::timetable::semester::SemesterKey;
-use catalog::timetable::share::{self, SharedPlan};
-use catalog::timetable::subscription::{self, Subscription};
+use axum::routing::get;
+use folia_calendar::semester::SemesterKey;
+use folia_calendar::share::{self, SharedPlan};
+use folia_calendar::subscription::{self, Subscription};
+use folia_model::native::NativeDatabase;
 use leptos::prelude::LeptosOptions;
 use tower::ServiceExt;
 
+use crate::AppState;
 use crate::cache::HtmlCache;
 use crate::snapshot::{sync_once, SnapshotStore, Sync, SyncError};
-use crate::AppState;
 
 fn snapshot_file() -> PathBuf {
     if let Ok(path) = std::env::var("FOLIA_TEST_SNAPSHOT") {
@@ -51,7 +51,7 @@ const FIRST_SEMESTER_CODE: &str = "b3MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0";
 const ESCAPED_PATH: &str = "/calendar/%623MOclrbw-CLbf8P0dlhmewCCVwqAX4Y41XPC~Uv0.ics";
 
 /// Codes `pack` writes with the kind `calendar` that no calendar reads, made once with
-/// `pack::to_versioned_code("calendar", 1, …)` of a `Subscription` for 2026W (`Subscription::code`
+/// `folia_pack::to_versioned_code("calendar", 1, …)` of a `Subscription` for 2026W (`Subscription::code`
 /// refuses to write them): 61 modules (11100 to 11160), one more than a semester of a plan holds;
 /// no module.
 const TOO_MANY_MODULES_CODE: &str = "DbEGRK-jjZ5";
@@ -63,7 +63,7 @@ const NO_MODULE_CODE: &str = "JKXwB75";
 /// unless it happens to be the pinned one.
 fn feed_snapshot(test: &str) -> (PathBuf, bool) {
     use std::io::Write;
-    let digest = |file: &PathBuf| NativeDatabase::open(file).and_then(|db| catalog::queries::meta(&db)).unwrap().content_digest;
+    let digest = |file: &PathBuf| NativeDatabase::open(file).and_then(|db| folia_query::meta(&db)).unwrap().content_digest;
     if let Some(path) = std::env::var("FOLIA_STUDYPLAN_SNAPSHOT").ok().filter(|path| !path.is_empty()) {
         let file = PathBuf::from(&path);
         assert_eq!(digest(&file).as_deref(), Some(STUDYPLAN_DIGEST), "FOLIA_STUDYPLAN_SNAPSHOT={path} is not the snapshot the Studienplan's checks were pinned to");
@@ -234,7 +234,7 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
     (parts.status, parts.headers, String::from_utf8(body).unwrap())
 }
 
-/// The launch screens of iOS (`app::launch`): the head script of every page names those of its
+/// The launch screens of iOS (`folia_app::launch`): the head script of every page names those of its
 /// screen, and the server draws each one it can name, as large as its screen, and answers it again
 /// with 304 to its ETag; no other name is there. Needs no snapshot.
 /// The semantic search's model (`semantic`): served under the address its content names, kept
@@ -303,7 +303,7 @@ async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("launch")).unwrap()));
     let page = String::from_utf8(request(&router, "/", &[]).await.2).unwrap();
     let head = page.split("</head>").next().unwrap_or_default();
-    assert!(head.contains(app::HEAD_SCRIPT) && app::HEAD_SCRIPT.contains("apple-touch-startup-image"), "{page}");
+    assert!(head.contains(folia_app::HEAD_SCRIPT) && folia_app::HEAD_SCRIPT.contains("apple-touch-startup-image"), "{page}");
     let (status, headers, png) = request(&router, "/assets/launch/1179x2556-dark.png", &[]).await;
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
     assert!(png.starts_with(b"\x89PNG") && png[16..24] == [0, 0, 4, 155, 0, 0, 9, 252], "1179 x 2556");
@@ -342,7 +342,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 
     // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
     // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
-    for path in [app::STYLESHEET, "/assets/app.css?v=test", app::FONT, app::FAVICON, app::FAVICON_ICO, app::TOUCH_ICON, app::ICON_192, app::ICON_MASKABLE_LARGE, app::ICON_MONOCHROME, app::MANIFEST, "/assets/launch/750x1334.png"] {
+    for path in [folia_app::STYLESHEET, "/assets/app.css?v=test", folia_app::FONT, folia_app::FAVICON, folia_app::FAVICON_ICO, folia_app::TOUCH_ICON, folia_app::ICON_192, folia_app::ICON_MASKABLE_LARGE, folia_app::ICON_MONOCHROME, folia_app::MANIFEST, "/assets/launch/750x1334.png"] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
     // Only the launch screens a page names: another name under their path stays behind the gate.
@@ -371,7 +371,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap(), headers["x-robots-tag"].to_str().unwrap()), (StatusCode::OK, "no-store", "noindex, nofollow"));
     assert!(html.starts_with("<!DOCTYPE html>") && html.contains("<form method=\"post\" action=\"/access\">") && html.contains("type=\"password\""), "{html}");
     assert!(html.contains("name=\"next\"") && !html.contains("<script>alert") && !html.contains("role=\"alert\""), "{html}");
-    assert!(html.split("</head>").next().unwrap().contains(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)), "the login page fades like the site: {html}");
+    assert!(html.split("</head>").next().unwrap().contains(&format!("<style>{}</style>", folia_app::VIEW_TRANSITION_STYLE)), "the login page fades like the site: {html}");
     assert!(html.contains("rel=\"stylesheet\" href=\"/assets/app.css?v=test\""), "the stylesheet of this build: {html}");
 
     // A wrong password stays on the form and says so; the right one opens the gate for this
@@ -396,7 +396,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
     let (status, headers, _) = request(&router, "/assets/boot.js", &with_cookie).await;
     assert_eq!((status, headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::OK, "private, no-cache"));
     assert_eq!(request(&router, "/assets/boot.js?v=test", &with_cookie).await.1[header::CACHE_CONTROL], "private, max-age=31536000, immutable", "kept for a year, by this browser alone");
-    assert_eq!(request(&router, app::STYLESHEET, &with_cookie).await.1[header::CACHE_CONTROL], "public, no-cache", "what is open anyway stays shared");
+    assert_eq!(request(&router, folia_app::STYLESHEET, &with_cookie).await.1[header::CACHE_CONTROL], "public, no-cache", "what is open anyway stays shared");
     assert_eq!(request(&router, "/assets/app.css?v=test", &with_cookie).await.1[header::CACHE_CONTROL], crate::api::Keep::IMMUTABLE);
     let (status, headers, _) = request(&router, "/access?next=%2Fcatalog", &with_cookie).await;
     assert_eq!((status, headers[header::LOCATION].to_str().unwrap()), (StatusCode::SEE_OTHER, "/catalog"));
@@ -428,29 +428,29 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 #[tokio::test(flavor = "multi_thread")]
 async fn legal_pages_are_one_step_from_every_page() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("legal")).unwrap()));
-    for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
+    for path in [folia_routes::url::IMPRINT, folia_routes::url::PRIVACY] {
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path} needs no snapshot");
-        for text in [app::pages::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", app::pages::legal::EMAIL)] {
+        for text in [folia_app::pages::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", folia_app::pages::legal::EMAIL)] {
             assert!(page.contains(text), "{path}: {text}");
         }
         let head = page.split("</head>").next().unwrap_or_default();
-        assert_eq!(head.contains("noindex"), app::pages::legal::PLACEHOLDER, "{path}");
+        assert_eq!(head.contains("noindex"), folia_app::pages::legal::PLACEHOLDER, "{path}");
     }
-    let (_, _, body) = request(&router, catalog::url::PRIVACY, &[]).await;
+    let (_, _, body) = request(&router, folia_routes::url::PRIVACY, &[]).await;
     let privacy = String::from_utf8(body).unwrap();
-    for part in &app::pages::legal::PRIVACY {
-        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&app::i18n::legal::DE));
+    for part in &folia_app::pages::legal::PRIVACY {
+        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&folia_app::i18n::legal::DE));
     }
 
     // Any other page, here the program overview, which says that it has no catalog: the ground at
-    // its end (`app::ground`) links both.
-    let (status, _, body) = request(&router, catalog::url::PROGRAMS, &[]).await;
+    // its end (`folia_app::ground`) links both.
+    let (status, _, body) = request(&router, folia_routes::url::PROGRAMS, &[]).await;
     let page = String::from_utf8(body).unwrap();
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
     let ground = page.split("<footer class=\"ground\">").nth(1).and_then(|rest| rest.split("</footer>").next()).unwrap_or_default();
-    for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
+    for path in [folia_routes::url::IMPRINT, folia_routes::url::PRIVACY] {
         assert!(ground.contains(&format!("href=\"{path}\"")), "the ground: {ground}");
     }
 }
@@ -491,12 +491,12 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!((status, headers["x-cache"].to_str().unwrap()), (StatusCode::OK, "miss"));
     assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache", "a page of the old build must not outlive a deploy in the browser");
     let expected = {
-        let db = catalog::native::NativeDatabase::open(&snapshot_file()).unwrap();
-        let url = catalog::url::CatalogUrl::parse("form=exercise&turnus=winter&status=all");
-        catalog::queries::catalog_count(&db, &url.query).unwrap()
+        let db = folia_model::native::NativeDatabase::open(&snapshot_file()).unwrap();
+        let url = folia_routes::url::CatalogUrl::parse("form=exercise&turnus=winter&status=all");
+        folia_query::catalog_count(&db, &url.query).unwrap()
     };
     assert!(expected > 100);
-    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", app::format::count(expected, catalog::Locale::De))), "the header shows the exact total {expected}");
+    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", folia_app::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
     let etag = headers[header::ETAG].to_str().unwrap().to_string();
     // The same filter written differently is the same page.
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;
@@ -565,13 +565,13 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
-    for path in [catalog::url::IMPRINT, catalog::url::PRIVACY] {
+    for path in [folia_routes::url::IMPRINT, folia_routes::url::PRIVACY] {
         assert!(home.contains(&format!("href=\"{path}\"")), "the start page links {path}");
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path}");
-        assert!(page.contains(app::pages::legal::NAME), "{path} names who runs Betula");
-        assert_eq!(head(&page).contains("noindex"), app::pages::legal::PLACEHOLDER, "{path}");
+        assert!(page.contains(folia_app::pages::legal::NAME), "{path} names who runs Betula");
+        assert_eq!(head(&page).contains("noindex"), folia_app::pages::legal::PLACEHOLDER, "{path}");
     }
 
     // What a link preview and a home screen read: the card of the page with an absolute picture,
@@ -584,7 +584,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     }
     // What Google Search shows beside a result: of the pictures the start page links as `icon` or
     // `apple-touch-icon`, the largest it can read (no SVG). That has to be the icon of the app,
-    // square and larger than 48 px (`app::ICON_192`); the mark (`/favicon.ico`) is 48 at most.
+    // square and larger than 48 px (`folia_app::ICON_192`); the mark (`/favicon.ico`) is 48 at most.
     let mut largest = (0, String::new());
     for link in head(&home).split("<link ").skip(1).filter_map(|tag| tag.split('>').next()) {
         if !(link.contains("rel=\"icon\"") || link.contains("rel=\"apple-touch-icon\"")) || link.contains("image/svg+xml") {
@@ -606,10 +606,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
             largest = (width, href.to_string());
         }
     }
-    assert_eq!(largest, (192, app::ICON_192.to_string()), "{}", head(&home));
+    assert_eq!(largest, (192, folia_app::ICON_192.to_string()), "{}", head(&home));
     // The fade between pages is opted into in the head itself: from the stylesheet alone the
-    // browser may learn of it too late (`app::VIEW_TRANSITION_STYLE`).
-    assert_eq!(head(&home).matches(&format!("<style>{}</style>", app::VIEW_TRANSITION_STYLE)).count(), 1, "{home}");
+    // browser may learn of it too late (`folia_app::VIEW_TRANSITION_STYLE`).
+    assert_eq!(head(&home).matches(&format!("<style>{}</style>", folia_app::VIEW_TRANSITION_STYLE)).count(), 1, "{home}");
     // The stylesheet and the scripts are linked with the build that wrote the page, so that a
     // service worker of another build never answers them from its cache; the address still
     // leads to the file, whatever build it names.
@@ -661,21 +661,21 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!((headers[header::CONTENT_ENCODING].to_str().unwrap(), headers[header::CONTENT_TYPE].to_str().unwrap()), ("br", "application/wasm"));
     assert_eq!(crate::encoding::unbrotli(&wasm).as_deref(), Some(&include_bytes!("../../../assets/sql-wasm.wasm")[..]));
     // What is compressed already goes out as it is.
-    let (_, headers, font) = request(&router, app::FONT, &[("accept-encoding", "br")]).await;
+    let (_, headers, font) = request(&router, folia_app::FONT, &[("accept-encoding", "br")]).await;
     assert!(headers.get(header::CONTENT_ENCODING).is_none() && font == include_bytes!("../../../assets/inter-latin.woff2"));
     // The worker knows the build too: it keeps the files under the addresses this build links.
     // Both are served minified (`assets`), with what the server knows written in.
-    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    let (_, _, worker) = request(&router, folia_app::SERVICE_WORKER, &[]).await;
     let worker = String::from_utf8(worker).unwrap();
     assert_eq!(worker, crate::assets::text("sw.js").replace("__BUILD__", "test"));
     assert!(!worker.contains("__BUILD__") && ["\"test\"", "'test'", "`test`"].iter().any(|build| worker.contains(build)), "{worker}");
     // The boot knows the schema its build reads, and opens no local copy of an older one.
     let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
     let boot = String::from_utf8(boot).unwrap();
-    assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", "null"));
+    assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &folia_model::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", "null"));
     assert!(!boot.contains("__SCHEMA__") && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
     // Every answer names the build that gave it; the worker keeps only the answers of its own.
-    for path in ["/", "/catalog", "/assets/app.css?v=test", app::SERVICE_WORKER, "/manifest.webmanifest"] {
+    for path in ["/", "/catalog", "/assets/app.css?v=test", folia_app::SERVICE_WORKER, "/manifest.webmanifest"] {
         let (_, headers, _) = request(&router, path, &[]).await;
         assert_eq!(headers.get(crate::BUILD_HEADER).and_then(|value| value.to_str().ok()), Some("test"), "{path}");
     }
@@ -738,7 +738,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     }
     // The Merkliste and the Stundenplan: a picture each, the same for everybody (what a visitor
     // keeps lives in the browser), named by their pages.
-    for (page, card) in [(catalog::url::BOOKMARKS, app::seo::BOOKMARKS_CARD), (catalog::url::STUDYPLAN, app::seo::STUDYPLAN_CARD)] {
+    for (page, card) in [(folia_routes::url::BOOKMARKS, folia_app::seo::BOOKMARKS_CARD), (folia_routes::url::STUDYPLAN, folia_app::seo::STUDYPLAN_CARD)] {
         let body = String::from_utf8(request(&router, page, &[]).await.2).unwrap();
         assert!(head(&body).contains(&format!("content=\"https://catalog.example{card}\"")), "{page}: {body}");
         let (status, headers, png) = request(&router, card, &[]).await;
@@ -749,10 +749,10 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // picture, which shows them; a code whose modules the catalog does not know has none.
     let semester = SemesterKey::parse("2026W").unwrap();
     let code = SharedPlan::of(semester, &["11101".to_string()], None).unwrap().code().unwrap();
-    let shared = String::from_utf8(request(&router, &share::path(&code), &[]).await.2).unwrap();
+    let shared = String::from_utf8(request(&router, &folia_routes::url::share_path(&code), &[]).await.2).unwrap();
     let card = share::card_path(&code);
     assert!(head(&shared).contains(&format!("content=\"https://catalog.example{card}\"")) && head(&shared).contains("1 Modul: "), "{shared}");
-    let plain = String::from_utf8(request(&router, catalog::url::STUDYPLAN, &[]).await.2).unwrap();
+    let plain = String::from_utf8(request(&router, folia_routes::url::STUDYPLAN, &[]).await.2).unwrap();
     assert!(!plain.contains(&code), "the plain page is another page than the shared one");
     let (status, headers, png) = request(&router, &card, &[]).await;
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/png"));
@@ -793,12 +793,12 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let map_etag = headers[header::ETAG].to_str().unwrap().to_string();
     assert_eq!(status, StatusCode::OK);
     assert!(map_etag.starts_with("\"map-") && map_etag != "\"aaaa1111\"", "{map_etag}");
-    let map: catalog::graph::ProgramMap = serde_json::from_slice(&body).unwrap();
+    let map: folia_pages::graph::ProgramMap = serde_json::from_slice(&body).unwrap();
     assert_eq!(Some(&map), active.program_map.as_ref().map(|(map, ..)| map.as_ref()));
     assert!(map.programs.len() > 100 && map.wide.dots.len() == map.programs.len() && map.tall.dots.len() == map.programs.len());
     assert_eq!(request(&router, "/api/map.json", &[("if-none-match", map_etag.as_str())]).await.0, StatusCode::NOT_MODIFIED);
     assert_eq!(request(&router, "/api/map.json", &[("if-none-match", "\"aaaa1111\"")]).await.0, StatusCode::OK);
-    assert_eq!(request(&router, app::OG_IMAGE, &[]).await.0, StatusCode::OK);
+    assert_eq!(request(&router, folia_app::OG_IMAGE, &[]).await.0, StatusCode::OK);
 
     // Unknown things are 404 and never cached.
     for path in ["/catalog/module/00000", "/programs/no-such-program", "/no-such-page"] {
@@ -833,7 +833,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(status_json["snapshot"]["etag"], "\"aaaa1111\"");
     assert!(status_json["html_cache"]["pages"].as_u64().unwrap() >= 2);
     // And its schema, which a browser compares with the one its build reads before it fetches it.
-    let schema = catalog::native::NativeDatabase::open(&snapshot_file()).unwrap().schema_version().unwrap();
+    let schema = folia_model::native::NativeDatabase::open(&snapshot_file()).unwrap().schema_version().unwrap();
     assert_eq!((status_json["snapshot"]["schema_version"].as_i64(), active.schema_version), (Some(schema), schema));
 
     // A broken export must not replace a good snapshot.
@@ -847,12 +847,12 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     // after a restart where Radix does not export again. The status names its schema, so that no
     // browser fetches it for the app.
     let mut older = real.clone();
-    older[60..64].copy_from_slice(&((catalog::SCHEMA_VERSION - 1) as u32).to_be_bytes());
+    older[60..64].copy_from_slice(&((folia_model::SCHEMA_VERSION - 1) as u32).to_be_bytes());
     *radix.current.lock().unwrap() = Some(("\"dddd4444\"".to_string(), older));
     assert!(matches!(sync_once(&store, &client, &url).await, Ok(Sync::Activated)));
     let (_, _, status_body) = request(&router, "/api/status", &[]).await;
     let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
-    assert_eq!((status_json["snapshot"]["etag"].as_str(), status_json["snapshot"]["schema_version"].as_i64()), (Some("\"dddd4444\""), Some(catalog::SCHEMA_VERSION - 1)));
+    assert_eq!((status_json["snapshot"]["etag"].as_str(), status_json["snapshot"]["schema_version"].as_i64()), (Some("\"dddd4444\""), Some(folia_model::SCHEMA_VERSION - 1)));
     assert_eq!(request(&router, "/catalog", &[]).await.0, StatusCode::OK);
 
     // A new good export starts a new generation: old pages are gone, old ETags no longer match.
@@ -895,7 +895,7 @@ async fn a_studyplan_is_a_calendar_feed() {
     // The feed is the loader's calendar of the code, byte for byte: the text the page offers as a
     // download is made by the same function from the same rows.
     let db = NativeDatabase::open(&file).unwrap();
-    assert_eq!(ics, catalog::pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap(), catalog::Locale::De).unwrap());
+    assert_eq!(ics, folia_pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap(), folia_locale::Locale::De).unwrap());
     if pinned {
         let text = unfolded(&ics);
         assert!(text.contains("UID:148701-a2633-20261013@betula.app") && text.contains("UID:148369-a4d12-") && text.contains("Entwicklung von Softwaresystemen"), "{text}");
@@ -968,7 +968,7 @@ async fn a_studyplan_is_a_calendar_feed() {
 async fn broken_calendar_codes_are_404() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("calendar-404")).unwrap()));
     // The Merkliste's code of the same kind of list: its kind is part of the check characters.
-    let bookmarks = app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
+    let bookmarks = folia_app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
     let bookmarks = bookmarks.strip_prefix("m=").unwrap();
     // These have the shape of a feed's address; what they carry is what no calendar reads.
     for code in [bookmarks, TOO_MANY_MODULES_CODE, NO_MODULE_CODE, "Ab.ics"] {
@@ -1031,7 +1031,7 @@ async fn the_log_keeps_no_shared_plan() {
     let semester = SemesterKey::parse("2026W").unwrap();
     let code = SharedPlan::of(semester, &["12104".to_string(), "11101".to_string()], Some("079-82-2008")).unwrap().code().unwrap();
     let router = crate::router(state(SnapshotStore::new(temp_dir("log-share")).unwrap()));
-    let asked = [share::card_path(&code), share::path(&code), "/cards/studyplan/secret.png".to_string()];
+    let asked = [share::card_path(&code), folia_routes::url::share_path(&code), "/cards/studyplan/secret.png".to_string()];
     let log = Captured::default();
     let logging = log.start();
     for path in &asked {
@@ -1062,7 +1062,7 @@ async fn calendar_services_may_fetch_feeds() {
     let (status, _, robots) = request(&router, "/robots.txt", &[]).await;
     let robots = String::from_utf8(robots).unwrap();
     assert!(status == StatusCode::OK && !robots.contains("calendar") && robots.contains("\nDisallow: /api/\n"), "{robots}");
-    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    let (_, _, worker) = request(&router, folia_app::SERVICE_WORKER, &[]).await;
     // The rule it goes by, as the minified worker writes it.
     assert!(String::from_utf8(worker).unwrap().contains("=/^\\/(api\\/|access|sw\\.js$|([a-z]{2}\\/)?(cards|calendar)\\/)/"));
 }
@@ -1134,7 +1134,7 @@ fn links(html: &str) -> Vec<(String, bool)> {
 
 /// Googlebot had fetched 250,000 views of the catalog by 2026-09-30: every filter it followed had
 /// links to more. A crawler that keeps to robots.txt and follows no `nofollow` meets pages only
-/// (`catalog::url::listed`), and every one of them: every link it may follow leads to a page it
+/// (`folia_routes::url::listed`), and every one of them: every link it may follow leads to a page it
 /// may fetch, robots.txt lets it fetch every page of the sitemap and every page of the catalog
 /// (`/catalog?page=<n>`, the way to every module) and keeps it out of the views of the lists. The
 /// link previews of X, LinkedIn and Facebook fetch a filtered list somebody shares all the same.
@@ -1175,8 +1175,8 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     // snapshot has none.
     let versioned = {
         let db = NativeDatabase::open(&snapshot_file()).unwrap();
-        let programs = catalog::queries::programs(&db).unwrap();
-        programs.into_iter().filter(|p| p.is_latest_po).find(|p| !catalog::queries::program_versions(&db, &p.id).unwrap().is_empty()).map(|p| p.slug)
+        let programs = folia_query::programs(&db).unwrap();
+        programs.into_iter().filter(|p| p.is_latest_po).find(|p| !folia_query::program_versions(&db, &p.id).unwrap().is_empty()).map(|p| p.slug)
     };
     let mut pages = vec![
         "/".to_string(),
@@ -1195,14 +1195,14 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
         format!("/programs/{slug}/my-plan"),
         "/bookmarks".to_string(),
         "/studyplan".to_string(),
-        catalog::url::IMPRINT.to_string(),
-        catalog::url::PRIVACY.to_string(),
+        folia_routes::url::IMPRINT.to_string(),
+        folia_routes::url::PRIVACY.to_string(),
     ];
     pages.extend(versioned.iter().flat_map(|versioned| [format!("/programs/{versioned}/plan"), format!("/programs/{versioned}/my-plan")]));
     // Every page is checked before the test fails, so that it lists all there is.
     let mut problems = Vec::new();
     let mut followed = std::collections::BTreeSet::new();
-    for page in pages.iter().flat_map(|page| catalog::Locale::ALL.iter().map(move |locale| locale.path(page))) {
+    for page in pages.iter().flat_map(|page| folia_locale::Locale::ALL.iter().map(move |locale| locale.path(page))) {
         let (status, _, body) = request(&router, &page, &[]).await;
         assert_eq!(status, StatusCode::OK, "{page}");
         for (href, nofollow) in links(&String::from_utf8(body).unwrap()) {
@@ -1210,7 +1210,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
             if nofollow || !address.starts_with('/') || address.starts_with("//") {
                 continue;
             }
-            if !catalog::url::listed(catalog::Locale::split(address).1) || !robots_allow(&robots, "Googlebot", address) {
+            if !folia_routes::url::listed(folia_locale::Locale::split(address).1) || !robots_allow(&robots, "Googlebot", address) {
                 problems.push(format!("{page} lets a crawler follow {href}"));
             }
             followed.insert(address.to_string());
@@ -1259,7 +1259,7 @@ async fn a_busy_server_turns_work_away_and_stays_alive() {
 
     assert_eq!(request(&router, crate::api::LIVENESS, &[]).await.0, StatusCode::OK);
     assert_eq!(request(&router, "/catalog/module/11101", &[]).await.1["x-cache"], "hit");
-    assert_eq!(request(&router, app::STYLESHEET, &[]).await.0, StatusCode::OK);
+    assert_eq!(request(&router, folia_app::STYLESHEET, &[]).await.0, StatusCode::OK);
 }
 
 /// A page asked for many times at once is rendered once: the others wait for that render and
@@ -1366,12 +1366,12 @@ async fn live_assets_come_from_disk() {
     assert_ne!(headers[header::ETAG].to_str().unwrap(), etag);
     // What is not read from disk is not kept as immutable either: the browser app is built again
     // under the same address.
-    let (_, headers, _) = request(&router, &format!("{}?v=test", app::FONT), &[]).await;
+    let (_, headers, _) = request(&router, &format!("{}?v=test", folia_app::FONT), &[]).await;
     assert_eq!(headers[header::CACHE_CONTROL], crate::cache::REVALIDATE);
 
     let (_, _, boot) = request(&router, "/assets/boot.js?v=test", &[]).await;
-    assert_eq!(String::from_utf8(boot).unwrap(), format!("const SCHEMA = {};\n", catalog::SCHEMA_VERSION));
-    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    assert_eq!(String::from_utf8(boot).unwrap(), format!("const SCHEMA = {};\n", folia_model::SCHEMA_VERSION));
+    let (_, _, worker) = request(&router, folia_app::SERVICE_WORKER, &[]).await;
     assert_eq!(worker, crate::api::LIVE_SERVICE_WORKER.as_bytes(), "the worker keeps nothing");
     assert_eq!(request(&router, "/assets/birch/roots.svg", &[]).await.2, b"<svg/>");
     // Nothing but the files of the server, and one of them missing on disk is not found.
@@ -1393,7 +1393,7 @@ async fn icons_point_into_the_sprite() {
     let sprite = String::from_utf8(sprite).unwrap();
     assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "image/svg+xml"));
     assert!(sprite.contains("<symbol id=\"check\" viewBox=\"0 0 24 24\"><path d=\"M20 6 9 17l-5-5\"/></symbol>"));
-    let (_, _, worker) = request(&router, app::SERVICE_WORKER, &[]).await;
+    let (_, _, worker) = request(&router, folia_app::SERVICE_WORKER, &[]).await;
     assert!(String::from_utf8(worker).unwrap().contains("/assets/icons.svg"), "the service worker keeps the sprite");
 }
 
@@ -1488,13 +1488,13 @@ async fn a_page_in_english_stays_in_english() {
         format!("/programs/{slug}/my-plan"),
         "/bookmarks".to_string(),
         "/studyplan".to_string(),
-        catalog::url::IMPRINT.to_string(),
-        catalog::url::PRIVACY.to_string(),
+        folia_routes::url::IMPRINT.to_string(),
+        folia_routes::url::PRIVACY.to_string(),
     ];
     // Every page is checked before the test fails, so that it lists what is left.
     let mut problems = Vec::new();
     for page in &pages {
-        let english = catalog::Locale::En.path(page);
+        let english = folia_locale::Locale::En.path(page);
         let (status, _, body) = request(&router, &english, &[]).await;
         let html = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{english}");
@@ -1546,7 +1546,7 @@ async fn a_page_in_english_stays_in_english() {
     let (status, _, body) = request(&router, "/en/manifest.webmanifest", &[]).await;
     let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!((status, manifest["lang"].as_str(), manifest["start_url"].as_str()), (StatusCode::OK, Some("en"), Some("/en")));
-    let (_, _, body) = request(&router, app::MANIFEST, &[]).await;
+    let (_, _, body) = request(&router, folia_app::MANIFEST, &[]).await;
     let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!((manifest["lang"].as_str(), manifest["start_url"].as_str()), (Some("de"), Some("/")));
     // The sitemap names every page in every language, each with its alternates.
@@ -1560,6 +1560,6 @@ async fn a_page_in_english_stays_in_english() {
     let (_, _, german) = request(&router, &format!("/cards/module/{module}.png"), &[]).await;
     assert_ne!(card, german, "the card says „Modul“ in German and \"Module\" in English");
     let (status, _, picture) = request(&router, "/en/assets/og.png", &[]).await;
-    let (_, _, german) = request(&router, app::OG_IMAGE, &[]).await;
+    let (_, _, german) = request(&router, folia_app::OG_IMAGE, &[]).await;
     assert!(status == StatusCode::OK && picture.starts_with(b"\x89PNG") && picture != german, "the standard picture in English");
 }

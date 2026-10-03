@@ -16,9 +16,9 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::body::Bytes;
-use catalog::native::NativeDatabase;
-use catalog::rows::Meta;
-use catalog::{Database, DbError};
+use folia_model::native::NativeDatabase;
+use folia_model::rows::Meta;
+use folia_model::{Database, DbError};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
@@ -36,7 +36,7 @@ pub struct Snapshot {
     pub bytes: u64,
     /// The schema of the file (`PRAGMA user_version`, the number of Radix's last migration).
     /// `/api/status` names it, so that a browser does not download a copy that is older than
-    /// the one its build reads (`catalog::SCHEMA_VERSION`).
+    /// the one its build reads (`folia_model::SCHEMA_VERSION`).
     pub schema_version: i64,
     /// The same file gzip-compressed, made once per snapshot.
     pub gzip: Option<(PathBuf, u64)>,
@@ -54,12 +54,12 @@ pub struct Snapshot {
     /// (pages and `/api/map.json` only hand it on), with its JSON (compressed when first asked
     /// for) and its own ETag. The ETag is the content's, not the snapshot's: a new layout of the
     /// same catalog (a new Folia) must not be answered with „304, unchanged" from a browser's cache.
-    pub program_map: Option<(Arc<catalog::graph::ProgramMap>, Kept, String)>,
+    pub program_map: Option<(Arc<folia_pages::graph::ProgramMap>, Kept, String)>,
     /// What the pickers of the catalog offer (every program, department and person), made once
-    /// here instead of in every render of a page of the catalog (`app::pages::catalog`).
-    pub pickers: Option<app::pages::catalog::PickerChoices>,
-    /// The data of the program overview, the same for each of its filters (`app::pages::programs`).
-    pub programs: Option<app::pages::programs::ProgramsReady>,
+    /// here instead of in every render of a page of the catalog (`folia_app::pages::catalog`).
+    pub pickers: Option<folia_app::pages::catalog::PickerChoices>,
+    /// The data of the program overview, the same for each of its filters (`folia_app::pages::programs`).
+    pub programs: Option<folia_app::pages::programs::ProgramsReady>,
     /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
     /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, and its XML.
     pub sitemap: Mutex<Option<(u64, String, Arc<Kept>)>>,
@@ -78,13 +78,13 @@ impl Snapshot {
         let db = NativeDatabase::open(&path)?;
         let schema_version = db.schema_version()?;
         // The queries of the landing page touch modules, programs, semesters and meta.
-        let overview = catalog::pages::overview(&db)?;
+        let overview = folia_pages::overview(&db)?;
         if overview.modules == 0 || overview.programs == 0 {
             return Err(DbError::Unavailable(format!("{}: the catalog is empty", path.display())));
         }
         // A snapshot without a map is still a catalog: the landing page leaves the section out.
         let started = Instant::now();
-        let program_map = match catalog::pages::program_map(&db).map_err(|e| e.to_string()).and_then(|map| serde_json::to_vec(&map).map(|json| (map, json)).map_err(|e| e.to_string())) {
+        let program_map = match folia_pages::program_map(&db).map_err(|e| e.to_string()).and_then(|map| serde_json::to_vec(&map).map(|json| (map, json)).map_err(|e| e.to_string())) {
             Ok((map, json)) => {
                 tracing::info!(component = "snapshot", event = "snapshot.map_built", programs = map.programs.len(), links = map.links.len(), ms = started.elapsed().as_millis() as u64, "program map laid out");
                 let etag = content_etag("map", &json);
@@ -95,14 +95,14 @@ impl Snapshot {
                 None
             }
         };
-        let pickers = match catalog::pages::catalog_choices(&db) {
-            Ok(choices) => Some(app::pages::catalog::PickerChoices::of(&choices)),
+        let pickers = match folia_pages::catalog_choices(&db) {
+            Ok(choices) => Some(folia_app::pages::catalog::PickerChoices::of(&choices)),
             Err(error) => {
                 tracing::warn!(component = "snapshot", event = "snapshot.choices_failed", error = %error, "the pickers of the catalog are loaded per page");
                 None
             }
         };
-        let programs = catalog::pages::programs_overview(&db).ok().map(|data| app::pages::programs::ProgramsReady(Arc::new(data)));
+        let programs = folia_pages::programs_overview(&db).ok().map(|data| folia_app::pages::programs::ProgramsReady(Arc::new(data)));
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let gzip_path = beside(&path, GZIP);
         let gzip_bytes = std::fs::read(&gzip_path).ok().map(Bytes::from);
@@ -219,8 +219,8 @@ impl SnapshotStore {
         // Served all the same: the pages that do not need the newer columns work, and a refused
         // snapshot would leave the server without any data after a restart where Radix does not
         // export again (RADIX_CRAWL=off).
-        if schema_version < catalog::SCHEMA_VERSION {
-            tracing::error!(component = "snapshot", event = "snapshot.outdated", etag = %etag, schema_version, needs = catalog::SCHEMA_VERSION, "the snapshot is older than the schema this build reads: pages that need the newer columns fail, and browsers do not start the app on it until Radix exports a new one");
+        if schema_version < folia_model::SCHEMA_VERSION {
+            tracing::error!(component = "snapshot", event = "snapshot.outdated", etag = %etag, schema_version, needs = folia_model::SCHEMA_VERSION, "the snapshot is older than the schema this build reads: pages that need the newer columns fail, and browsers do not start the app on it until Radix exports a new one");
         }
         self.remove_other_files(&keep);
     }

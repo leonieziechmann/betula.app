@@ -10,21 +10,22 @@
 //! 4 Module, 1 Platzhalter · Rückgängig" stands under it until the next change of the kind
 //! (`PlanCtx::undo`, which „Plan leeren" shares).
 
-use catalog::labels::Season;
-use catalog::pages::{self, PlanSource};
-use catalog::rows::Program;
-use catalog::studyplan::{self, MineDoc, PlanDoc};
-use catalog::timetable::semester::SemesterKey;
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::Season;
+use folia_model::rows::Program;
+use folia_pages as pages;
+use folia_pages::PlanSource;
+use folia_plans::studyplan::{self, MineDoc, PlanDoc};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use super::{key_of, PlanCtx};
 use crate::format;
 use crate::i18n;
 use crate::myprogram::program_name;
 use crate::nav;
 use crate::pending::Pending;
 use crate::ui::Icon;
+use super::{key_of, PlanCtx};
 
 /// The id of „Übernehmen".
 const GO_ID: &str = "sp-import-go";
@@ -56,7 +57,7 @@ fn cores(source: &PlanSource) -> Vec<usize> {
 fn default_core(source: &PlanSource, caption: Option<&str>, variant: Option<usize>) -> Option<usize> {
     let cores = cores(source);
     let stored = caption
-        .and_then(|caption| catalog::variants::variant_for(&source.variants, caption))
+        .and_then(|caption| folia_plans::variants::variant_for(&source.variants, caption))
         .and_then(|found| source.variants.iter().position(|variant| std::ptr::eq(variant, found)));
     let named = variant.and_then(|variant| variant.checked_sub(1)).map(|index| source.supplements.iter().find(|s| s.page == index).map_or(index, |s| s.core));
     stored.into_iter().chain(named).find(|index| cores.contains(index)).or_else(|| cores.first().copied())
@@ -339,8 +340,8 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()

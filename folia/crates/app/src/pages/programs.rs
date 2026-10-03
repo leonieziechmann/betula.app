@@ -7,18 +7,19 @@
 //! segments of the same control.
 //!
 //! The sidebar filters (degree, form of study, study plan) and jumps to the faculties; the
-//! search of the top bar narrows by name. All of it is in the URL (`catalog::url::ProgramsUrl`).
+//! search of the top bar narrows by name. All of it is in the URL (`folia_routes::url::ProgramsUrl`).
 //!
-//! No source states a program's faculty. It is derived (`catalog::pages::faculties`), the
+//! No source states a program's faculty. It is derived (`folia_pages::faculties`), the
 //! sidebar says on what grounds, and programs without a clear answer have a section of their own.
 //!
 //! In the browser app the head names the visitor's own program („Mein Studiengang", A.10) and
 //! leads to it.
 
-use catalog::labels::DegreeLevel;
-use catalog::pages::{self, ProgramsData};
-use catalog::rows::{Department, Program};
-use catalog::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
+use folia_model::labels::DegreeLevel;
+use folia_model::rows::{Department, Program};
+use folia_pages as pages;
+use folia_pages::ProgramsData;
+use folia_routes::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
@@ -111,7 +112,7 @@ fn group(data: &ProgramsData) -> Vec<Faculty> {
             subject.programs.sort_by_key(|p| (level_order(p), p.study_variant.is_some(), std::cmp::Reverse(p.po_year)));
             subject.title = subject.programs.iter().map(|p| p.name.clone()).min_by_key(|name| name.chars().count()).unwrap_or_default();
         }
-        faculty.subjects.sort_by_key(|subject| catalog::search::fold(&subject.title));
+        faculty.subjects.sort_by_key(|subject| folia_search::fold(&subject.title));
     }
     faculties.sort_by_key(|faculty| match &faculty.department {
         Some(d) => (d.code.parse::<u32>().map_or(1, |_| 0), d.code.parse::<u32>().unwrap_or(0), d.code.clone()),
@@ -132,7 +133,7 @@ fn matches(program: &Program, url: &ProgramsUrl, locale: Locale) -> bool {
     (url.levels.is_empty() || url.levels.contains(&LevelGroup::of(&program.degree_level)))
         && (url.forms.is_empty() || FormGroup::of(program.study_variant.as_ref()).is_some_and(|form| url.forms.contains(&form)))
         && (!url.with_plan || program.has_plan)
-        && catalog::search::matches(&text, &url.text)
+        && folia_search::matches(&text, &url.text)
 }
 
 /// The columns of the matrix: the cycles of study. Lehramt counts to the cycle it is part of.

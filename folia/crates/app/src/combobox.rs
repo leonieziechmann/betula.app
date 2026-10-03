@@ -1,6 +1,6 @@
 //! A picker with a search field, for long lists (programs, lecturers, departments).
 //!
-//! Type a few letters (word starts, initials and typos are understood, `catalog::fuzzy`), move
+//! Type a few letters (word starts, initials and typos are understood, `folia_search::fuzzy`), move
 //! with the arrow keys, Enter takes the marked entry, Esc closes. It belongs to the browser app;
 //! pages rendered without it use a plain `<select>` in its place.
 //!
@@ -12,7 +12,7 @@
 //!   closes exactly when the focus leaves the picker, however that happens;
 //! - the selection is known by id, never by its label.
 
-use catalog::fuzzy;
+use folia_search::fuzzy;
 use leptos::ev::{FocusEvent, KeyboardEvent, MouseEvent};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;

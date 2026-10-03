@@ -1,13 +1,13 @@
 //! Texts of what stands beside the Stundenplan (`pages/studyplan/aside.rs`): a planned module, its
 //! Termine and what the plan shows of them, where it stands in the plan, and its notes. What QIS
 //! says (an event's type and title, rooms, groups, a rhythm in its own words) stands as it says
-//! it; weekdays, dates and semesters are the data contract's (`catalog::i18n`), and so are the
+//! it; weekdays, dates and semesters are the data contract's (`folia_locale`), and so are the
 //! words of what avoids an exam warning (`plans`) and of an exam („Prüfung", „Uhrzeit offen",
 //! „bis 24:00", `timetable`).
 
-use catalog::timetable::day::Day;
-use catalog::timetable::kind::EventKind;
-use catalog::Locale;
+use folia_calendar::day::Day;
+use folia_calendar::kind::EventKind;
+use folia_locale::Locale;
 
 use super::studyplan_week::days;
 

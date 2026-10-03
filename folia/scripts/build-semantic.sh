@@ -30,7 +30,7 @@ for build in simd relaxed; do
   # directory of their own, so that the two builds do not overwrite each other's artifacts.
   CARGO_ENCODED_RUSTFLAGS="-Ctarget-feature=$features" cargo rustc -p folia-semantic --lib --features worker \
     --crate-type cdylib --target wasm32-unknown-unknown --profile wasm-release --target-dir "$TARGET_DIR/semantic-$build"
-  cp "$TARGET_DIR/semantic-$build/wasm32-unknown-unknown/wasm-release/semantic.wasm" "site/pkg/semantic.$build.wasm"
+  cp "$TARGET_DIR/semantic-$build/wasm32-unknown-unknown/wasm-release/folia_semantic.wasm" "site/pkg/semantic.$build.wasm"
 done
 cp site/pkg/semantic.simd.wasm ../radix/internal/embed/semantic.wasm
 cp crates/semantic/js/worker.js site/pkg/semantic-worker.js

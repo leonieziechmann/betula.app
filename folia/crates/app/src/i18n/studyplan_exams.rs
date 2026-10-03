@@ -1,10 +1,10 @@
 //! Texts of the Stundenplan's exams (`pages/studyplan/exams.rs`): the sittings by date, the
 //! warnings above them, what has no date. Weekdays and dates are the data contract's, and so are
-//! the words of what avoids a warning (`catalog::i18n::plans`) and of a later sitting („2.
-//! Termin", `catalog::i18n::timetable`).
+//! the words of what avoids a warning (`folia_plans::i18n`) and of a later sitting („2.
+//! Termin", `folia_timetable::i18n`).
 
-use catalog::timetable::day::Day;
-use catalog::Locale;
+use folia_calendar::day::Day;
+use folia_locale::Locale;
 
 use super::studyplan_week::days;
 

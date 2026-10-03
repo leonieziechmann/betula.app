@@ -1,5 +1,5 @@
 //! Fields that know more about their values than serde can say: integers that make a set or a list,
-//! and bytes. Put on a field with `#[serde(with = "pack::set")]` (or `list`, `bytes`).
+//! and bytes. Put on a field with `#[serde(with = "folia_pack::set")]` (or `list`, `bytes`).
 
 use std::fmt;
 
@@ -12,8 +12,8 @@ use crate::Error;
 
 /// The names under which the helpers hand their integers to serde. A writer of codes knows them;
 /// any other format sees a newtype around a sequence of integers, and writes that.
-const SET: &str = "$pack::set";
-const LIST: &str = "$pack::list";
+const SET: &str = "$folia_pack::set";
+const LIST: &str = "$folia_pack::list";
 
 #[derive(Clone, Copy)]
 pub(crate) enum Shape {
@@ -165,7 +165,7 @@ fn collect<C: FromIterator<T>, T: TryFrom<u64>, E: de::Error>(values: Vec<u64>) 
     values.into_iter().map(|value| T::try_from(value).map_err(|_| E::custom(format!("{value} is too large for its field")))).collect()
 }
 
-/// A set of unsigned integers (`u8` to `u64`): `#[serde(with = "pack::set")]` on a field that holds
+/// A set of unsigned integers (`u8` to `u64`): `#[serde(with = "folia_pack::set")]` on a field that holds
 /// them, a `Vec<u32>`, a `BTreeSet<u64>` or anything else that iterates over them and collects them.
 ///
 /// Written in ascending order, each number as its distance from the one before, in the Exp-Golomb
@@ -198,7 +198,7 @@ pub mod set {
     }
 }
 
-/// A list of unsigned integers (`u8` to `u64`) in its order: `#[serde(with = "pack::list")]` on a
+/// A list of unsigned integers (`u8` to `u64`) in its order: `#[serde(with = "folia_pack::list")]` on a
 /// field that holds them.
 ///
 /// Written as the first number, then each step from the one before, up or down, in the Exp-Golomb
@@ -227,7 +227,7 @@ pub mod list {
     }
 }
 
-/// Bytes as they are, eight bits each: `#[serde(with = "pack::bytes")]` on a `Vec<u8>` (or anything
+/// Bytes as they are, eight bits each: `#[serde(with = "folia_pack::bytes")]` on a `Vec<u8>` (or anything
 /// that holds bytes and is made from a `Vec<u8>`). Without it, serde hands over a `Vec<u8>` as a
 /// list of numbers, and each takes the bits of its size: 1 for a zero, 14 for 200.
 pub mod bytes {

@@ -1,5 +1,5 @@
 // Checks that the browser app never opens a local copy of the catalog of an older schema than the
-// one its build reads (`catalog::SCHEMA_VERSION`, which the server writes into boot.js). After a
+// one its build reads (`folia_model::SCHEMA_VERSION`, which the server writes into boot.js). After a
 // release that changed the schema, a returning visitor's copy lacks columns the new queries
 // select (2026-09-23: „no such column: source_pages" on a study plan). Such a copy is planted in
 // IndexedDB: the server's own, its header saying one schema less (`user_version`, four bytes at
@@ -24,7 +24,7 @@ const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// What the server has, and the schema the build reads: `catalog::SCHEMA_VERSION` of this checkout,
+// What the server has, and the schema the build reads: `folia_model::SCHEMA_VERSION` of this checkout,
 // which the server writes into boot.js (minified there, under a name of the minifier's).
 const server = (await (await fetch(base + "/api/status")).json()).snapshot;
 const schema = Number(/pub const SCHEMA_VERSION: i64 = (\d+);/.exec(readFileSync(new URL("../catalog/src/db.rs", import.meta.url), "utf8"))?.[1]);

@@ -19,19 +19,19 @@
 //! - What the snapshot does not know (a module the BTU has taken out of its catalog) is named,
 //!   not dropped: unknown stays unknown (R12).
 
-use catalog::pages::{self, BookmarksData};
-use catalog::rows::CatalogRow;
-use catalog::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
+use folia_model::rows::CatalogRow;
+use folia_pages as pages;
+use folia_pages::BookmarksData;
+use folia_routes::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
-
-use crate::i18n::{self, use_location};
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
 use crate::data::{use_source, DataError};
 use crate::format;
+use crate::i18n::{self, use_location};
 use crate::local::{self, ModuleInPlace};
 use crate::nav;
 use crate::pages::catalog::{phone_layout, ListKeys, Row};

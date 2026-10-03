@@ -8,7 +8,7 @@ import (
 )
 
 // TestSearchTerms holds the folding of the build to testdata/search.tsv, which Folia's tests hold
-// catalog::search::fold to as well: a query and the titles it is compared with fold alike.
+// folia_search::fold to as well: a query and the titles it is compared with fold alike.
 func TestSearchTerms(t *testing.T) {
 	f, err := os.Open("testdata/search.tsv")
 	if err != nil {

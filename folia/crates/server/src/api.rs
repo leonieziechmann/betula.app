@@ -8,19 +8,19 @@ use std::time::Instant;
 use axum::body::{Body, Bytes};
 use axum::extract::{Path, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
-use axum::response::{IntoResponse, Response};
 use axum::Json;
-use catalog::timetable::subscription::{self, Subscription};
-use catalog::Locale;
+use axum::response::{IntoResponse, Response};
+use folia_calendar::subscription::{self, Subscription};
+use folia_locale::Locale;
 use serde_json::json;
 use tokio_util::io::ReaderStream;
 
+use crate::AppState;
 use crate::birch::Season;
 use crate::cache::{not_modified, REVALIDATE};
 use crate::cards::{Card, CardText, Headline};
 use crate::encoding::{self, Coding, Kept};
 use crate::texts::texts;
-use crate::AppState;
 
 fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
     headers
@@ -33,7 +33,7 @@ fn if_none_match(headers: &HeaderMap, etag: &str) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Keep {
     /// A year, and never asked for again, not even on a reload (`immutable`): the address names
-    /// the build of this process (`?v=<build>`, `app::BuildId`), and nothing the process serves
+    /// the build of this process (`?v=<build>`, `folia_app::BuildId`), and nothing the process serves
     /// under it changes while it runs. A new build is a new address, which the page names: the
     /// page itself is asked for again every time (`cache::REVALIDATE`).
     Immutable,
@@ -141,7 +141,7 @@ async fn per_snapshot(headers: &HeaderMap, etag: &str, content_type: &'static st
 }
 
 /// `GET /api/map.json`: the map of the programs for the landing page of the browser app. Laid out
-/// when the snapshot was opened (`catalog::graph`); this only hands it on.
+/// when the snapshot was opened (`folia_pages::graph`); this only hands it on.
 pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let Some(snapshot) = state.store.current() else {
         return (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "30")], "no snapshot yet").into_response();
@@ -153,7 +153,7 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
 }
 
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
-/// and every current program with its views. Filters of the lists are not pages (`app::seo`).
+/// and every current program with its views. Filters of the lists are not pages (`folia_app::seo`).
 /// Each page with the time it last changed where the warm-up has seen it (`lastmod`); the sitemap
 /// is made anew once a round of the warm-up has finished, and its ETag is its content's.
 pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -193,8 +193,8 @@ pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Respo
 /// The sitemap's XML: every page of `sitemap_paths`, with the time it last changed where
 /// `changes` knows it, and the same page in every language of the site (`hreflang`; the
 /// default language's is also the page for everybody else, `x-default`).
-fn sitemap_xml(snapshot: &crate::snapshot::Snapshot, changes: Option<&crate::lastmod::Changes>, public_url: &str) -> Result<String, catalog::DbError> {
-    use catalog::Locale;
+fn sitemap_xml(snapshot: &crate::snapshot::Snapshot, changes: Option<&crate::lastmod::Changes>, public_url: &str) -> Result<String, folia_model::DbError> {
+    use folia_locale::Locale;
     let escape = |text: &str| text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
     let mut xml = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n");
     let pages = sitemap_pages(snapshot)?;
@@ -219,44 +219,44 @@ fn sitemap_xml(snapshot: &crate::snapshot::Snapshot, changes: Option<&crate::las
 
 /// The pages of the sitemap in every language (`sitemap_pages`), the default language's first.
 /// The warm-up of the cache renders the same list (`warm`).
-pub fn sitemap_paths(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, catalog::DbError> {
+pub fn sitemap_paths(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, folia_model::DbError> {
     let pages = sitemap_pages(snapshot)?;
-    Ok(catalog::Locale::ALL.iter().flat_map(|locale| pages.iter().map(move |page| locale.path(page))).collect())
+    Ok(folia_locale::Locale::ALL.iter().flat_map(|locale| pages.iter().map(move |page| locale.path(page))).collect())
 }
 
 /// The pages of the sitemap as paths of the app (without a language), in its order: the three
 /// entrances, every current program with its views (the plan of each further study direction
 /// after the first's), every module.
-pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, catalog::DbError> {
-    use catalog::url::{ProgramTab, ProgramUrl};
-    type Listed = (Vec<String>, Vec<(catalog::rows::Program, usize)>);
-    let mut listed: Result<Listed, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
+pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, folia_model::DbError> {
+    use folia_routes::url::{ProgramTab, ProgramUrl};
+    type Listed = (Vec<String>, Vec<(folia_model::rows::Program, usize)>);
+    let mut listed: Result<Listed, folia_model::DbError> = Err(folia_model::DbError::Unavailable("not run".to_string()));
     snapshot.with_db(&mut |db| {
-        listed = catalog::queries::module_ids(db).and_then(|modules| {
+        listed = folia_query::module_ids(db).and_then(|modules| {
             let mut programs = Vec::new();
-            for program in catalog::queries::programs(db)?.into_iter().filter(|program| program.is_latest_po) {
-                let plans = if program.has_plan { catalog::pages::study_plans(db, &program.id)? } else { 0 };
+            for program in folia_query::programs(db)?.into_iter().filter(|program| program.is_latest_po) {
+                let plans = if program.has_plan { folia_pages::study_plans(db, &program.id)? } else { 0 };
                 programs.push((program, plans));
             }
             Ok((modules, programs))
         });
     })?;
     let (modules, programs) = listed?;
-    let mut paths = vec![catalog::url::HOME.to_string(), catalog::url::CATALOG.to_string(), catalog::url::PROGRAMS.to_string()];
+    let mut paths = vec![folia_routes::url::HOME.to_string(), folia_routes::url::CATALOG.to_string(), folia_routes::url::PROGRAMS.to_string()];
     for (program, plans) in &programs {
         for tab in ProgramTab::ALL.iter().copied().filter(|tab| tab.indexed()) {
-            paths.push(catalog::url::program_path(&program.slug, tab));
+            paths.push(folia_routes::url::program_path(&program.slug, tab));
             if tab == ProgramTab::Plan {
                 paths.extend((2..=*plans).map(|variant| ProgramUrl::new(&program.slug, tab).with_variant(variant).path()));
             }
         }
     }
-    paths.extend(modules.iter().map(|id| catalog::url::module_path(id)));
+    paths.extend(modules.iter().map(|id| folia_routes::url::module_path(id)));
     Ok(paths)
 }
 
 /// `GET /calendar/<code>.ics`: a Studienplan as a calendar feed. The code carries semester, modules
-/// and what is hidden (`catalog::timetable::subscription`); the timetable is made anew from the
+/// and what is hidden (`folia_calendar::subscription`); the timetable is made anew from the
 /// active snapshot on every fetch, so exams the BTU publishes later arrive by themselves. Nothing is
 /// kept, neither the code nor the calendar.
 ///
@@ -280,11 +280,11 @@ pub async fn calendar(State(state): State<AppState>, uri: Uri, headers: HeaderMa
     let started = Instant::now();
     let key = subscription.key().map(|key| key.key()).unwrap_or_default();
     // The feed speaks the language of its address: `/en/calendar/<code>.ics` is English.
-    let locale = catalog::Locale::split(uri.path()).0;
+    let locale = folia_locale::Locale::split(uri.path()).0;
     // A semester's rows and a few hundred entries: made off the threads that answer requests.
     let built = tokio::task::spawn_blocking(move || {
-        let mut out: Result<String, catalog::DbError> = Err(catalog::DbError::Unavailable("not run".to_string()));
-        let ran = snapshot.with_db(&mut |db| out = catalog::pages::calendar(db, &subscription, locale));
+        let mut out: Result<String, folia_model::DbError> = Err(folia_model::DbError::Unavailable("not run".to_string()));
+        let ran = snapshot.with_db(&mut |db| out = folia_pages::calendar(db, &subscription, locale));
         ran.and(out)
     })
     .await;
@@ -522,11 +522,11 @@ pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, uri:
     }
 }
 
-/// `GET /assets/icons.svg`: the icons of the app as one sprite (`app::icons`), which every icon
+/// `GET /assets/icons.svg`: the icons of the app as one sprite (`folia_app::icons`), which every icon
 /// on a page points at.
 pub async fn icons(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     static SPRITE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
-    let body = SPRITE.get_or_init(|| Box::leak(app::icons::sprite().into_boxed_str()).as_bytes());
+    let body = SPRITE.get_or_init(|| Box::leak(folia_app::icons::sprite().into_boxed_str()).as_bytes());
     asset(&state, &uri, &headers, "image/svg+xml", body).await
 }
 
@@ -588,10 +588,10 @@ pub async fn icon_monochrome(State(state): State<AppState>, uri: Uri, headers: H
 }
 
 /// `GET /assets/launch/<width>x<height>[-dark].png`: a launch screen of the installed app on iOS
-/// (`app::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
+/// (`folia_app::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
 /// Kept like the other assets: it changes with the build at most.
 pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
-    let Some(picture) = app::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(picture) = folia_app::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
     let (etag, keep) = (format!("\"{}\"", state.build_id), Keep::of(&state, &uri));
     if if_none_match(&headers, &etag) {
         return not_modified(&etag, keep.header());
@@ -624,13 +624,13 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
     let locale = language_of(&uri);
     let t = texts(locale);
     card(&state, &headers, card_key(format!("m:{id}"), locale), move |db| {
-        Ok(catalog::queries::module(db, &id)?.map(|module| {
+        Ok(folia_query::module(db, &id)?.map(|module| {
             let mut facts = Vec::new();
-            if !module.offer_status.is(catalog::labels::OfferStatus::Active) {
+            if !module.offer_status.is(folia_model::labels::OfferStatus::Active) {
                 facts.push(module.offer_status.label(locale).to_string());
             }
             if module.credits.is_some() {
-                facts.push(app::format::credits(module.credits, locale));
+                facts.push(folia_app::format::credits(module.credits, locale));
             }
             if let Some(season) = &module.turnus_season {
                 facts.push(match &module.turnus_parity {
@@ -645,7 +645,7 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
                 _ => {}
             }
             if let Some(exam) = &module.exam_form {
-                facts.push(app::format::exam_short(exam, locale));
+                facts.push(folia_app::format::exam_short(exam, locale));
             }
             CardText { eyebrow: (t.card_module)(&module.id), headline: Headline::Title(module.title), facts, note: module.department }
         }))
@@ -660,7 +660,7 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
     let locale = language_of(&uri);
     let t = texts(locale);
     card(&state, &headers, card_key(format!("p:{slug}"), locale), move |db| {
-        Ok(catalog::queries::program_by_slug(db, &slug)?.map(|program| {
+        Ok(folia_query::program_by_slug(db, &slug)?.map(|program| {
             let mut facts = vec![program.degree().to_string()];
             if let Some(variant) = &program.study_variant {
                 facts.push(variant.label(locale).to_string());
@@ -669,7 +669,7 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
                 Some(year) => (t.regulations)(&year.to_string()),
                 None => (t.regulations)(&program.po_version),
             });
-            let mut note = vec![(t.curricular_modules)(&app::format::count(program.curricular_modules.max(0) as u64, locale))];
+            let mut note = vec![(t.curricular_modules)(&folia_app::format::count(program.curricular_modules.max(0) as u64, locale))];
             if program.has_plan {
                 note.push(t.with_plan.to_string());
             }
@@ -702,8 +702,8 @@ pub fn bookmarks_card(locale: Locale) -> CardText {
 pub async fn studyplan_card_png(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     let locale = language_of(&uri);
     card(&state, &headers, card_key("s".to_string(), locale), move |db| {
-        let meta = catalog::queries::meta(db)?;
-        let semester = meta.current_semester.as_deref().and_then(catalog::timetable::semester::SemesterKey::parse).map(|key| key.label(locale));
+        let meta = folia_query::meta(db)?;
+        let semester = meta.current_semester.as_deref().and_then(folia_calendar::semester::SemesterKey::parse).map(|key| key.label(locale));
         Ok(Some(studyplan_card(semester.as_deref(), locale)))
     })
     .await
@@ -714,23 +714,23 @@ pub async fn studyplan_card_png(State(state): State<AppState>, uri: Uri, headers
 /// gives them („MIT-1", „AuP"), how many and how many credits, and their titles. A code that does
 /// not decode, or names no module the catalog knows, is a 404.
 pub async fn shared_plan_card(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
-    let Some((code, plan)) = catalog::timetable::share::code_of_card(&file).and_then(|code| Some((code, catalog::timetable::share::SharedPlan::from_code(code)?))) else {
+    let Some((code, plan)) = folia_calendar::share::code_of_card(&file).and_then(|code| Some((code, folia_calendar::share::SharedPlan::from_code(code)?))) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let locale = language_of(&uri);
     let key = card_key(format!("{}{code}", crate::cards::SHARED_PLAN), locale);
-    card(&state, &headers, key, move |db| Ok(catalog::pages::shared_plan(db, &plan, locale)?.and_then(|shared| shared_plan_text(&shared, locale)))).await
+    card(&state, &headers, key, move |db| Ok(folia_pages::shared_plan(db, &plan, locale)?.and_then(|shared| shared_plan_text(&shared, locale)))).await
 }
 
 /// What the card of a shared plan says; `None` without a module the catalog knows.
-pub fn shared_plan_text(shared: &catalog::pages::SharedPlanData, locale: Locale) -> Option<CardText> {
+pub fn shared_plan_text(shared: &folia_pages::SharedPlanData, locale: Locale) -> Option<CardText> {
     if shared.modules.is_empty() {
         return None;
     }
     let t = texts(locale);
-    let mut facts = vec![app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), locale)];
+    let mut facts = vec![folia_app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), locale)];
     if shared.modules.iter().any(|module| module.credits.is_some()) {
-        facts.push(app::format::credits(Some(shared.credits()), locale));
+        facts.push(folia_app::format::credits(Some(shared.credits()), locale));
     }
     if let Some(program) = &shared.program {
         facts.push(format!("{} ({})", program.name, program.degree()));
@@ -756,7 +756,7 @@ pub fn studyplan_card(semester: Option<&str>, locale: Locale) -> CardText {
 /// A card: what it says is read from the snapshot, the picture is kept or drawn. When the server
 /// has no free place to draw (or no snapshot yet), the site's standard picture answers instead,
 /// not to be kept, so the next fetch gets the real one.
-async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnOnce(&dyn catalog::Database) -> Result<Option<CardText>, catalog::DbError>) -> Response {
+async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnOnce(&dyn folia_model::Database) -> Result<Option<CardText>, folia_model::DbError>) -> Response {
     // The language is the key's last part (`card_key`).
     let locale = key.rsplit_once('@').and_then(|(_, code)| Locale::from_code(code)).unwrap_or_default();
     let standard = || {
@@ -836,12 +836,12 @@ pub async fn enhance_script(State(state): State<AppState>, uri: Uri, headers: He
 }
 
 /// `GET /assets/boot.js`, with the schema this build reads written into it
-/// (`catalog::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
+/// (`folia_model::SCHEMA_VERSION`): it refuses a local copy of the catalog of an older one.
 pub async fn boot_script(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     // And the semantic search's model, `{url, passage}`, or `null` without one: fixed while the
     // process runs, as is the build the script is kept under.
     let model = state.semantic.as_ref().map(|model| json!({ "url": model.path, "passage": model.passage })).unwrap_or(serde_json::Value::Null).to_string();
-    let with_schema = |source: &str| source.replace("__SCHEMA__", &catalog::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", &model);
+    let with_schema = |source: &str| source.replace("__SCHEMA__", &folia_model::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", &model);
     if let Some(dir) = &state.live_assets {
         return live(&headers, "boot.js", tokio::fs::read_to_string(dir.join("boot.js")).await.map(|source| with_schema(&source).into_bytes()));
     }
@@ -942,7 +942,7 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // without `/api/status` the browser app does not start (`folia/assets/boot.js`), so it indexes the
     // page as the server wrote it and never downloads the catalog to let the app replace it.
     //
-    // The views of the lists are no pages (`catalog::url::listed`): every filter, order and search
+    // The views of the lists are no pages (`folia_routes::url::listed`): every filter, order and search
     // of the catalog, the program overview and the Merkliste, and every page of a filtered list.
     // Their links carry `rel="nofollow"`, but that is a hint, and a crawler keeps asking for the
     // addresses it knows: Googlebot had fetched 250,000 of them by 2026-09-30, walking the filters.
@@ -955,7 +955,7 @@ pub async fn robots(State(state): State<AppState>) -> Response {
     // on by a link (`?share=`) is a page of its own for link previews, and says `noindex` itself.
     let mut body = String::from("User-agent: *\nDisallow: /api/\n");
     for locale in Locale::ALL {
-        let (list, overview, marked) = (locale.path(catalog::url::CATALOG), locale.path(catalog::url::PROGRAMS), locale.path(catalog::url::BOOKMARKS));
+        let (list, overview, marked) = (locale.path(folia_routes::url::CATALOG), locale.path(folia_routes::url::PROGRAMS), locale.path(folia_routes::url::BOOKMARKS));
         body.push_str(&format!("Disallow: {list}?page=*&\nAllow: {list}?page=\nDisallow: {list}?\nDisallow: {overview}?\nDisallow: {marked}?\n"));
     }
     // A link preview fetches the one address somebody shares, a filtered list as well, and never

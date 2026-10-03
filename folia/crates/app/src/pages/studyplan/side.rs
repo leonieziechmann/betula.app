@@ -17,21 +17,17 @@
 //! answered (`Studyplan::update_after_paint`). Each control reads a memo of its own (R5), and no
 //! closure reads a memo together with the one it is derived from (R16).
 
-use catalog::queries;
-use catalog::rows::Program;
-use catalog::studyplan::{PlanDoc, MAX_SAVED_NAME};
-use catalog::timetable::kind::{EventKind, KindSet};
-use catalog::timetable::model::Timetable;
-use catalog::timetable::select::{Town, TownChoice};
-use catalog::timetable::semester::SemesterKey;
-use catalog::url::{self, PlanView, ProgramTab, StudyplanUrl};
+use folia_calendar::kind::{EventKind, KindSet};
+use folia_calendar::select::{Town, TownChoice};
+use folia_calendar::semester::SemesterKey;
+use folia_model::rows::Program;
+use folia_plans::studyplan::{MAX_SAVED_NAME, PlanDoc};
+use folia_query as queries;
+use folia_routes::url::{self, PlanView, ProgramTab, StudyplanUrl};
+use folia_timetable::model::Timetable;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use super::export::CalendarGroup;
-use super::import::ImportGroup;
-use super::share::ShareAction;
-use super::{key_of, PlanCtx};
 use crate::combobox::{ComboItem, Combobox};
 use crate::format;
 use crate::i18n;
@@ -40,6 +36,10 @@ use crate::nav;
 use crate::pending::Pending;
 use crate::studyplan::{Saved, Studyplan};
 use crate::ui::Icon;
+use super::export::CalendarGroup;
+use super::import::ImportGroup;
+use super::share::ShareAction;
+use super::{key_of, PlanCtx};
 
 /// The id of „Plan leeren", where the focus returns from „Abbrechen" and „Rückgängig".
 const CLEAR_ID: &str = "sp-clear";
@@ -552,12 +552,12 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
 mod tests {
     use std::collections::BTreeSet;
 
-    use catalog::labels::Code;
-    use catalog::timetable::kind::{kinds_of, Class};
-    use catalog::timetable::model::{Attendance, Event, Row};
+    use folia_calendar::kind::{kinds_of, Class};
+    use folia_model::labels::Code;
+    use folia_timetable::model::{Attendance, Event, Row};
 
-    use super::*;
     use crate::i18n::{DE, EN};
+    use super::*;
 
     fn key(text: &str) -> SemesterKey {
         SemesterKey::parse(text).unwrap()
@@ -623,7 +623,7 @@ mod tests {
             class: Class::Other,
             modules: vec![module.into()],
             tone: 1,
-            attendance: if options.is_empty() { Attendance::All } else { Attendance::OneOf { options, basis: catalog::timetable::model::Basis::Groups } },
+            attendance: if options.is_empty() { Attendance::All } else { Attendance::OneOf { options, basis: folia_timetable::model::Basis::Groups } },
             chosen,
             rows,
             hidden: None,
@@ -635,7 +635,7 @@ mod tests {
     fn a_type_of_two_kinds_is_explained_once() {
         let mut table = Timetable {
             key: key("2026W"),
-            facts: catalog::timetable::facts::SemesterFacts::derive(key("2026W"), None, &[]),
+            facts: folia_timetable::facts::SemesterFacts::derive(key("2026W"), None, &[]),
             modules: Vec::new(),
             events: vec![event("1", "Vorlesung", "1", Vec::new(), None)],
             exams: Vec::new(),

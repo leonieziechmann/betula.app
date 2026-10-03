@@ -25,15 +25,17 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use catalog::filter::ProgramScope;
-use catalog::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
-use catalog::pages::{self, CatalogArea, ProgramData};
-use catalog::plan;
-use catalog::rows::{Program, ProgramModule};
-use catalog::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
-use catalog::url::{self, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
-use catalog::variants::{self, plan_variants, Choice, PlanVariant};
-use catalog::CatalogQuery;
+use folia_model::labels::{Code, ModuleKind, OfferStatus, TurnusSeason};
+use folia_model::rows::{Program, ProgramModule};
+use folia_model::rows_detail::{AreaPlacement, Plan, PlanEntry, PlanTotal};
+use folia_pages as pages;
+use folia_pages::ProgramData;
+use folia_plans::areas::CatalogArea;
+use folia_plans::plan;
+use folia_plans::variants::{self, plan_variants, Choice, PlanVariant};
+use folia_routes::CatalogQuery;
+use folia_routes::filter::ProgramScope;
+use folia_routes::url::{self, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
@@ -679,10 +681,10 @@ fn PlanRowPanel(
     };
     let credits = plan_credits(&entry, t.locale).map(|credits| (t.format.credits)(&credits));
     // The FÜS by its kind or by its name („Fachübergreifendes Studium", „Modul aus dem FÜS-Katalog").
-    let fues = catalog::plan::is_fues(&entry);
+    let fues = folia_plans::plan::is_fues(&entry);
     // A row the plan states as Pflicht (or as the thesis, or as the internship) means one module,
     // not a choice: the catalog simply does not know it under this name. Only a choice gets areas.
-    let one_module = catalog::plan::is_single_module(&entry);
+    let one_module = folia_plans::plan::is_single_module(&entry);
     let area = entry.study_section.clone().or_else(|| entry.subject_area.clone());
     let mut fitting = if fues || one_module { Vec::new() } else { fitting };
     // The first is the area to show with its modules — unless several fit equally well.
@@ -866,13 +868,13 @@ fn area_module_links(modules: &[AreaPlacement], known: &HashMap<String, ProgramM
 
 /// Which areas of the program a row of the plan is about, most fitting first: what the name of
 /// the row and the areas have in common, within the study direction the plan is printed for
-/// (`catalog::plan::areas_for_row`; the catalog's semester lists rest on the same derivation).
+/// (`folia_plans::plan::areas_for_row`; the catalog's semester lists rest on the same derivation).
 /// Derived, never stated — the panel says so, and where two areas fit equally well it names both
 /// instead of picking one (R12): the mark `AreaGroup::ambiguous` then stands in front of them.
 /// `known` are the program's areas as the catalog crate knows them (`pages::catalog_areas`, with
 /// the nodes above each), `areas` the page's groups of the same areas.
 fn areas_for_row(entry: &PlanEntry, plan: &PlanVariant, known: &[CatalogArea], areas: &[AreaGroup]) -> Vec<AreaGroup> {
-    let found = catalog::plan::areas_for_row(entry, &plan.full, known, &plan.entries);
+    let found = folia_plans::plan::areas_for_row(entry, &plan.full, known, &plan.entries);
     let group_of = |area: &CatalogArea| areas.iter().find(|group| group.id == area.id).cloned();
     let mut fitting: Vec<AreaGroup> = found.areas.iter().filter_map(group_of).collect();
     if found.ambiguous() {
@@ -1884,7 +1886,7 @@ mod tests {
             total(3, "Summe Studium", "plan", 5, 6, 56.0, 42.0, 84.0, vec![2, 3, 4, 5]),
         ];
         // The semesters the plan sums together have one figure between them, not none each.
-        let plans = plan_variants(&entries, &totals, catalog::Locale::De);
+        let plans = plan_variants(&entries, &totals, folia_locale::Locale::De);
         assert_eq!(shared_semester_totals(&plans[0]), vec![(5, 6, 56.0)]);
         assert_eq!(credits_label(&plans[0], Locale::De), "64");
 
@@ -1892,7 +1894,7 @@ mod tests {
         let mut finer = totals.clone();
         finer.push(total(4, "Summe Studium", "plan", 5, 5, 26.0, 20.0, 60.0, vec![2, 3, 4]));
         finer.push(total(5, "Summe Studium", "plan", 6, 6, 30.0, 12.0, 52.0, vec![5]));
-        let plans = plan_variants(&entries, &finer, catalog::Locale::De);
+        let plans = plan_variants(&entries, &finer, folia_locale::Locale::De);
         assert!(shared_semester_totals(&plans[0]).is_empty(), "the span stands in for semesters that have no figure");
 
         // A plan whose regulation prints a span for a semester comes to a span.

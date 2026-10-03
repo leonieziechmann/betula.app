@@ -1,4 +1,4 @@
-//! The app in every language of the site (`catalog::i18n` has the languages, the addresses and
+//! The app in every language of the site (`folia_locale` has the languages, the addresses and
 //! the words of the data; this module has the words of the pages).
 //!
 //! - **Which language** a page is in, its address says (`/en/catalog` is English, `/catalog`
@@ -45,15 +45,19 @@ pub mod studyplan_week;
 pub mod ui;
 pub mod week;
 
-pub use ::catalog::i18n::Locale;
 use leptos::prelude::*;
 use leptos_router::location::{Location, RequestUrl};
+
+pub use folia_locale::Locale;
 
 /// Every text of the app in one language, and the language itself.
 pub struct Texts {
     pub locale: Locale,
-    /// The words of the data contract: labels of codes, weekdays, months (`catalog::i18n`).
-    pub data: &'static ::catalog::i18n::Texts,
+    /// The words of the data contract: labels of codes, weekdays, months (`folia_locale`), and
+    /// those of the study plans' and the timetable's logic.
+    pub data: &'static folia_locale::common::Texts,
+    pub plans_data: &'static folia_plans::i18n::Texts,
+    pub timetable_data: &'static folia_timetable::i18n::Texts,
     pub app: app::Texts,
     pub bookmarks: bookmarks::Texts,
     pub catalog: catalog::Texts,
@@ -87,10 +91,12 @@ pub struct Texts {
 
 /// Every group of texts in one language, from the groups' `const`s of that language.
 macro_rules! language {
-    ($locale:expr, $data:expr, $lang:ident) => {
+    ($locale:expr, $lang:ident) => {
         Texts {
             locale: $locale,
-            data: $data,
+            data: &folia_locale::common::$lang,
+            plans_data: &folia_plans::i18n::$lang,
+            timetable_data: &folia_timetable::i18n::$lang,
             app: app::$lang,
             bookmarks: bookmarks::$lang,
             catalog: catalog::$lang,
@@ -124,8 +130,8 @@ macro_rules! language {
     };
 }
 
-pub static DE: Texts = language!(Locale::De, &::catalog::i18n::DE, DE);
-pub static EN: Texts = language!(Locale::En, &::catalog::i18n::EN, EN);
+pub static DE: Texts = language!(Locale::De, DE);
+pub static EN: Texts = language!(Locale::En, EN);
 
 /// The texts of a language.
 pub fn texts(locale: Locale) -> &'static Texts {

@@ -46,31 +46,33 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use catalog::labels::Rhythm;
-use catalog::rows_detail::EventDate;
-use catalog::studyplan::PlanDoc;
-use catalog::timetable::clash::Weeks;
-use catalog::timetable::day::{clock, Day};
-use catalog::timetable::exams::{ExamShape, Termin};
-use catalog::timetable::facts::SemesterFacts;
-use catalog::timetable::kind::EventKind;
-use catalog::timetable::model::{Event, Row, Timetable};
-use catalog::timetable::occur::Every;
-use catalog::timetable::rowkey::RowKey;
-use catalog::timetable::select::HiddenBy;
-use catalog::timetable::semester::SemesterKey;
-use catalog::timetable::views::{kind_and_title, kind_short, short_title, type_text, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel};
-use catalog::url::{self, StudyplanUrl};
+use folia_calendar::day::{clock, Day};
+use folia_calendar::kind::EventKind;
+use folia_calendar::rowkey::RowKey;
+use folia_calendar::select::HiddenBy;
+use folia_calendar::semester::SemesterKey;
+use folia_model::labels::Rhythm;
+use folia_model::rows_detail::EventDate;
+use folia_plans::studyplan::PlanDoc;
+use folia_routes::url::{self, StudyplanUrl};
+use folia_timetable::clash::Weeks;
+use folia_timetable::exams::{ExamShape, Termin};
+use folia_timetable::facts::SemesterFacts;
+use folia_timetable::model::{Event, Row, Timetable};
+use folia_timetable::occur::Every;
+use folia_timetable::views::{
+    kind_and_title, kind_short, short_title, type_text, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel,
+};
 use leptos::prelude::*;
 
-use super::head::{hue, kind_word, tone_at, NothingPlanned};
-use super::PlanCtx;
 use crate::format;
 use crate::i18n::{self, Locale};
 use crate::nav;
 use crate::pending::Pending;
 use crate::ui::Icon;
 use crate::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
+use super::head::{hue, kind_word, tone_at, NothingPlanned};
+use super::PlanCtx;
 
 /// Where this browser tab remembers the link the visitor last left a view by (`Place`).
 const LEFT_KEY: &str = "betula.studyplan.left";
@@ -1366,7 +1368,7 @@ fn agenda_blocks(table: &Timetable, weeks: &[AgendaWeek], base: &StudyplanUrl, t
         let mut head = week_head(week.monday, week.iso_week.1, t);
         if week.break_week {
             head.push_str(" · ");
-            head.push_str(t.data.timetable.lecture_break);
+            head.push_str(t.timetable_data.lecture_break);
         }
         match table.facts.ab_week(week.monday).filter(|_| ab) {
             Some(Weeks::A) => head.push_str(&format!(" · {}", words.in_week_a)),
@@ -1510,9 +1512,9 @@ fn exam_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &AgendaItem
         // The agenda has no day for it: it stands under „Ohne Datum" (`open_exams`).
         ExamShape::Open => return None,
     };
-    let text = kind_and_title(t.data.timetable.exam, &exam.title);
+    let text = kind_and_title(t.timetable_data.exam, &exam.title);
     let rooms = rooms(item.rows.iter().filter_map(|r| exam.rows.get(*r)).map(|row| &row.date));
-    let small: Vec<String> = (first.rank == 2).then(|| t.data.timetable.second_sitting.to_string()).into_iter().chain(rooms).collect();
+    let small: Vec<String> = (first.rank == 2).then(|| t.timetable_data.second_sitting.to_string()).into_iter().chain(rooms).collect();
     // A warning names a module's Termin by its day and start; this sitting is that Termin.
     let named = |termin: &Termin| exam.modules.contains(&termin.module_id) && Some(termin.from) == item.from;
     let warn = table.exam_warnings.iter().any(|warning| warning.day == day && (named(&warning.a) || named(&warning.b)));
@@ -1643,7 +1645,7 @@ fn open_exams(table: &Timetable, base: &StudyplanUrl, t: &i18n::Texts) -> Vec<Lo
             let small: Vec<String> = std::iter::once(t.studyplan_week.date_open.to_string()).chain(rooms(std::iter::once(&row.date))).collect();
             let line = LooseLine {
                 hue: exam_hue(table, module),
-                text: kind_and_title(t.data.timetable.exam, &exam.title),
+                text: kind_and_title(t.timetable_data.exam, &exam.title),
                 small: small.join(" · "),
                 href: base.with_open(Some(module.as_str()), row.key).path(),
             };
@@ -1770,23 +1772,23 @@ fn rooms_long<'a>(dates: impl Iterator<Item = &'a EventDate>) -> Option<String> 
 
 /// „Montag" for 1, "Monday" in English; nothing for what is no weekday.
 fn weekday_name(day: u8, t: &i18n::Texts) -> &'static str {
-    t.data.common.weekday(i64::from(day)).unwrap_or_default()
+    t.data.weekday(i64::from(day)).unwrap_or_default()
 }
 
 /// „Mo" for 1, "Mon" in English; nothing for what is no weekday.
 fn day_short(day: u8, t: &i18n::Texts) -> &'static str {
-    t.data.common.weekday_short(i64::from(day)).unwrap_or_default()
+    t.data.weekday_short(i64::from(day)).unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
-    use catalog::labels::Code;
-    use catalog::rows_detail::DateRow;
-    use catalog::timetable::day::holidays;
-    use catalog::timetable::model::Input;
-    use catalog::timetable::select::{Selection, TownChoice};
-    use catalog::timetable::semester::SemesterKey;
-    use catalog::timetable::views::AgendaDay;
+    use folia_calendar::day::holidays;
+    use folia_calendar::select::{Selection, TownChoice};
+    use folia_calendar::semester::SemesterKey;
+    use folia_model::labels::Code;
+    use folia_model::rows_detail::DateRow;
+    use folia_timetable::model::Input;
+    use folia_timetable::views::AgendaDay;
 
     use super::*;
 
@@ -2259,7 +2261,7 @@ mod tests {
         let mut lecture = row("148701", 1, "Vorlesung", "weekly", 2, ("11:30", "13:00"), ("2026-10-06", "2027-01-26"));
         lecture.cancelled_dates = Some("13.10.2026: Projektwoche 19.01.2027: Raumwechsel".into());
         let table = table(&[lecture]);
-        let blocks = agenda_blocks(&table, &table.agenda(catalog::Locale::De), &plain(), Some(d("2026-10-06")), &i18n::DE);
+        let blocks = agenda_blocks(&table, &table.agenda(folia_locale::Locale::De), &plain(), Some(d("2026-10-06")), &i18n::DE);
         let items = agenda_items(&blocks);
         let (when, first) = items.first().unwrap();
         assert_eq!((when.as_str(), first.time.as_str(), first.text.as_str()), ("Di 06.10.", "11:30–13:00", "Vorlesung · Entwicklung von Softwaresystemen"));
@@ -2290,7 +2292,7 @@ mod tests {
             exam("12107", "95", 2, "Klausur Statistik", None, ("", ""), Some("HG 0.19")),
         ];
         let table = planned(&["12104", "12107"], &[], &exams);
-        let blocks = agenda_blocks(&table, &table.agenda(catalog::Locale::De), &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&table, &table.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);
         let shown: Vec<(String, &str, &str, &str, &str, bool)> = agenda_items(&blocks)
             .into_iter()
             .map(|(when, item)| (when, item.time.as_str(), item.text.as_str(), item.small.as_str(), item.class.as_str(), item.warn))
@@ -2362,7 +2364,7 @@ mod tests {
         let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[] }, selection);
 
         let open = build(&Selection::default());
-        let blocks = agenda_blocks(&open, &open.agenda(catalog::Locale::De), &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);
         let week = |id: &str| -> Vec<(String, String, String, String)> {
             blocks
                 .iter()
@@ -2386,7 +2388,7 @@ mod tests {
         // Today keeps its line (review 2026-09-25): its options stand as they are, and on the day
         // of the week's line nothing comes twice.
         let on = |today: &str| {
-            let blocks = agenda_blocks(&open, &open.agenda(catalog::Locale::De), &plain(), Some(d(today)), &i18n::DE);
+            let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), Some(d(today)), &i18n::DE);
             let days: Vec<(String, bool, Vec<String>)> = blocks
                 .into_iter()
                 .filter_map(|block| match block {
@@ -2417,7 +2419,7 @@ mod tests {
         // Chosen: that group's dates, one line each, as every other Termin.
         let chosen = open.events.iter().flat_map(|event| &event.rows).find(|row| row.date.weekday == Some(3)).and_then(|row| row.key).unwrap();
         let decided = build(&Selection { chosen_rows: [chosen].into(), ..Selection::default() });
-        let blocks = agenda_blocks(&decided, &decided.agenda(catalog::Locale::De), &plain(), None, &i18n::DE);
+        let blocks = agenda_blocks(&decided, &decided.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);
         let items = agenda_items(&blocks);
         assert!(items.iter().all(|(when, item)| when.starts_with("Mi") && item.time == "11:30–13:00" && !item.small.starts_with("1 von")), "{items:?}");
         assert!(items.len() > 10);

@@ -1,8 +1,8 @@
 //! What the server writes itself, in every language of the site (docs/folia/i18n.md): the link-preview
 //! cards, the manifest of the installed app, the login page of closed testing, the answers that
-//! are no page. The pages' own words are the app's (`app::i18n`).
+//! are no page. The pages' own words are the app's (`folia_app::i18n`).
 
-use catalog::Locale;
+use folia_locale::Locale;
 
 pub struct Texts {
     /// Cards (`cards`, `api::*_card`).
