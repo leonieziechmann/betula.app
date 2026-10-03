@@ -141,6 +141,8 @@ await page.setViewportSize({ width: 390, height: 844 });
 await page.tap("#filters .filter-actions .show");
 await closed("picker: its button");
 await page.waitForFunction(() => /[?&]area=\d+/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push("picker: closing the sheet did not pick the area"));
+// The list before stays until the list of the area has come from the data worker.
+await page.waitForFunction((n) => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")) === n, picked.count, { timeout: 5000 }).catch(() => {});
 const inArea = await page.evaluate(() => Number(document.querySelector(".count").textContent.replace(/\D/g, "")));
 check(picked.count > 0 && inArea === picked.count, `area: ${inArea} modules in „${picked.name}", the picker said ${picked.count}`);
 
