@@ -63,12 +63,12 @@ fn main() -> std::process::ExitCode {
     }
     let total = started.elapsed();
     let mut spent: Vec<(&'static str, (u32, Duration))> = timed.spent.borrow().iter().map(|(k, v)| (*k, *v)).collect();
-    spent.sort_by(|a, b| b.1 .1.cmp(&a.1 .1));
+    spent.sort_by_key(|b| std::cmp::Reverse(b.1 .1));
     println!("{} catalog pages, {failed} failed: {:.2} ms per page on average", urls.len(), total.as_secs_f64() * 1000.0 / urls.len().max(1) as f64);
     for (name, (n, time)) in spent {
         println!("  {name:<32} {n:>6} calls  {:>8.3} ms per call  {:>7.2} ms per page", time.as_secs_f64() * 1000.0 / n.max(1) as f64, time.as_secs_f64() * 1000.0 / urls.len().max(1) as f64);
     }
-    slowest.sort_by(|a, b| b.0.cmp(&a.0));
+    slowest.sort_by_key(|b| std::cmp::Reverse(b.0));
     for (time, url) in slowest.iter().take(8) {
         println!("  slow: {:>7.2} ms  {url}", time.as_secs_f64() * 1000.0);
     }

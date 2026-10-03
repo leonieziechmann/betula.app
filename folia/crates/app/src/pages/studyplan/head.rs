@@ -230,12 +230,13 @@ pub(super) const FROM_MARKED: &str = "Merkliste: ";
 pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
     let bookmarks = Bookmarks::expect();
     let marked = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<Vec<_>>()).unwrap_or_default());
-    let loaded = Memo::new(move |_| {
+    let loaded = Memo::new(move |before| {
         let ids = marked.get();
         if ids.is_empty() {
             return None;
         }
-        ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&BookmarksAsk { ids: ids.clone(), sort: BookmarkSort::Added, descending: false }).ok()))
+        let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&BookmarksAsk { ids: ids.clone(), sort: BookmarkSort::Added, descending: false })))?;
+        folia_pages::ask::unless_pending(now, before, Result::ok)
     });
     // The semester and what is planned into it, from the semester's data (its ids are the plan's).
     Memo::new(move |_| {

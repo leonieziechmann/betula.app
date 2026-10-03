@@ -147,9 +147,9 @@ impl MineResolved {
         let source = use_data().ok();
         // The program alone: a changed Studienbeginn or Standort asks the catalog nothing.
         let program = Memo::new(move |_| if APP { mine.and_then(|mine| mine.with(|doc| doc.program.clone())) } else { None });
-        let resolved = MineResolved(Memo::new(move |_| {
+        let resolved = MineResolved(Memo::new(move |before| {
             let id = program.get()?;
-            source.as_ref()?.now(&MyProgramAsk { program_id: id.clone() }).ok().flatten()
+            folia_pages::ask::unless_pending(source.as_ref()?.now(&MyProgramAsk { program_id: id.clone() }), before, |now| now.ok().flatten())
         }));
         provide_context(resolved);
         resolved

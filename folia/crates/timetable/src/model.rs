@@ -570,8 +570,9 @@ fn choose(event: &mut Event, selection: &Selection) {
 }
 
 /// The fixtures of the timetable's tests, for the tests of the crates above it too (feature
-/// `fixtures`).
+/// `fixtures`). Built for tests only, so they may panic as tests do.
 #[cfg(any(test, feature = "fixtures"))]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 pub mod tests {
     use super::*;
     #[cfg(test)]

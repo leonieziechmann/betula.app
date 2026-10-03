@@ -173,6 +173,11 @@ impl Plan {
         self.words.len()
     }
 
+    /// Whether the plan searches for no word at all.
+    pub fn is_empty(&self) -> bool {
+        self.words.is_empty()
+    }
+
     /// The matches of every module, `(SELECT module_id, score, matched, w0, w1 … FROM …)`, with
     /// its parameters: `wN` is how well word N is found (0: not at all), `matched` how many of the
     /// words are found, `score` the sum. `None` for a text without a word, which finds nothing.

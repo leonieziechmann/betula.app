@@ -29,10 +29,12 @@ pub fn worker_answer(name: &str, question: &str) -> String {
     KEPT.with_borrow_mut(|kept| ask::answer_json(name, question, &LocalDatabase, kept)).unwrap_or_default()
 }
 
-/// In the worker: a newer snapshot answers from now on, so nothing kept of the one before counts.
+/// In the worker: a newer snapshot answers from now on, so nothing kept of the one before counts,
+/// neither what the questions keep nor the statements' answers.
 #[wasm_bindgen]
 pub fn worker_forget() {
     KEPT.with_borrow_mut(|kept| *kept = Kept::default());
+    crate::forget_statements();
 }
 
 thread_local! {

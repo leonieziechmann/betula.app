@@ -11,6 +11,16 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const base = (process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
+// A run that stopped before it put the pointer back leaves the server on its snapshot for a
+// while: the check starts once the server has the one the pointer names.
+const dir = process.env.WORKER_SNAPSHOT_DIR;
+if (dir) {
+  const named = JSON.parse(readFileSync(`${dir}/current.json`, "utf8")).etag;
+  for (let waited = 0; (await (await fetch(base + "/api/status")).json()).snapshot.etag !== named; waited += 1000) {
+    if (waited > 600000) throw new Error(`the server does not have the snapshot ${named}`);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
@@ -62,7 +72,6 @@ check(downloads === before, `the second tab downloaded the catalog again (${down
 check(downloads === 1, `the catalog was downloaded ${downloads} times`);
 
 // ---- a newer snapshot, shown in place
-const dir = process.env.WORKER_SNAPSHOT_DIR;
 if (dir) {
   const pointer = JSON.parse(readFileSync(`${dir}/current.json`, "utf8"));
   const initSqlJs = createRequire(import.meta.url)("../assets/sql-wasm.js");
@@ -76,8 +85,12 @@ if (dir) {
   writeFileSync(`${dir}/${file}`, bytes);
   writeFileSync(`${dir}/current.json`, JSON.stringify({ file, etag: `"${hash}"`, bytes: bytes.length, exported_at: new Date().toISOString() }) + "\n");
   try {
-    // Folia fetches it within its poll; the worker looks when the tab comes back into view.
-    await page.waitForFunction(async () => (await (await fetch("/api/status")).json()).snapshot.data_changed_at.startsWith("2031"), null, { timeout: 60000, polling: 1000 });
+    // Folia fetches it within its poll, after the brotli of the snapshot before is made (minutes in
+    // a debug build, snapshot.rs `sync`); the worker looks when the tab comes back into view.
+    for (let waited = 0; !(await (await page.request.get(base + "/api/status")).json()).snapshot.data_changed_at.startsWith("2031"); waited += 1000) {
+      if (waited > 600000) throw new Error("the server did not take the newer snapshot");
+      await page.waitForTimeout(1000);
+    }
     const scrolled = await page.evaluate(() => { const list = document.querySelector("#catalog-scroll, .work.flowing"); list.scrollTop = 400; return list.scrollTop; });
     t = Date.now();
     await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));

@@ -60,6 +60,15 @@ impl DataError {
     }
 }
 
+/// What a memo makes of an answer, `make`, unless the answer is on its way and the memo had a
+/// value before: then that value stays (what is shown stays until the new answer is there).
+pub fn unless_pending<A, T: Clone>(now: Result<A, DataError>, before: Option<&T>, make: impl FnOnce(Result<A, DataError>) -> T) -> T {
+    match (&now, before) {
+        (Err(error), Some(before)) if error.is_pending() => before.clone(),
+        _ => make(now),
+    }
+}
+
 impl From<DbError> for DataError {
     fn from(error: DbError) -> Self {
         Self { unavailable: matches!(error, DbError::Unavailable(_)), message: error.to_string() }

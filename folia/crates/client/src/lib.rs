@@ -38,12 +38,11 @@ fn js_error(value: &JsValue) -> String {
 /// `Database` on top of sql.js. Queries are synchronous, like rusqlite on the server.
 struct LocalDatabase;
 
-/// What the local catalog has answered in this visit, by statement and parameters. The copy
-/// `boot.js` opened is never written to and stays the same until the next start (a newer
-/// snapshot is only used from then on), and no query reads the clock, so an answer holds for the
-/// whole visit. Coming back to a page, going back in the history or taking a filter back then
-/// asks sql.js nothing: the start page's queries alone take 70 ms of a laptop's time, a phone's
-/// four times that. The oldest answers go once the kept ones reach `ANSWERS_BUDGET`.
+/// What the catalog in the data worker has answered, by statement and parameters. The copy it
+/// opened is never written to, and no query reads the clock, so an answer holds until the worker
+/// opens a newer snapshot (`forget_statements`, from `worker::worker_forget`). Coming back to a
+/// page, going back in the history or taking a filter back then asks sql.js nothing: the start
+/// page's queries alone take 70 ms of a laptop's time, a phone's four times that. The oldest answers go once the kept ones reach `ANSWERS_BUDGET`.
 struct Answers {
     kept: HashMap<String, Answer>,
     bytes: usize,
@@ -109,6 +108,14 @@ impl Answers {
             self.bytes -= old.bytes;
         }
     }
+}
+
+/// A newer snapshot answers from now on: no statement's answer of the one before counts.
+pub(crate) fn forget_statements() {
+    ANSWERS.with_borrow_mut(|answers| {
+        answers.kept.clear();
+        answers.bytes = 0;
+    });
 }
 
 impl Database for LocalDatabase {

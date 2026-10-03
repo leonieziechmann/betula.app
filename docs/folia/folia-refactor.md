@@ -943,6 +943,13 @@ than §6:
 - **The messages are JSON**, not postcard (R29 holds all the same: nothing that crosses skips a
   field). The heavy computations of the Stundenplan (`clash::weigh` and the rest) still run on the
   page's thread over the rows the worker sends; the finder (`FitAsk`) runs in the worker.
+- **What the browser checks found:** a memo that turned an answer on its way into `None` dropped
+  what the page showed before (`unless_pending`); a newer snapshot has to be shown over the
+  answers of the one before (`DataClient::forget` keeps them as `before` until each new one is
+  there, so the list stays where it is) and has to clear the answers of sql.js the worker's bundle
+  keeps (`forget_statements`); the checks read the page only once the picture of the page before
+  is gone. `cargo test` and clippy run on the default members, as before: `--workspace` builds the
+  app with `csr` and `ssr` at once, which nothing ships.
 
 ## 12. Still open
 

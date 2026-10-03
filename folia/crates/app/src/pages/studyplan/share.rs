@@ -97,10 +97,10 @@ pub(super) fn ShareOffer(ctx: PlanCtx) -> impl IntoView {
     let s = &t.studyplan_share;
     let code = Memo::new(move |_| ctx.url.with(|url| url.share.clone()));
     // What the code names, from the local copy of the catalog.
-    let shared = Memo::new(move |_| {
+    let shared = Memo::new(move |before| {
         let plan = code.with(|code| code.as_deref().and_then(SharedPlan::from_code))?;
-        let data = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&SharedPlanAsk { plan: plan.clone(), locale: t.locale }).ok()))??;
-        Some((plan, data))
+        let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&SharedPlanAsk { plan: plan.clone(), locale: t.locale })))?;
+        folia_pages::ask::unless_pending(now, before, |now| Some((plan, now.ok()??)))
     });
     let offer = Memo::new(move |_| {
         let page = ctx.key.get();

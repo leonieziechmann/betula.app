@@ -99,10 +99,19 @@ const DROPPED: &str = "a newer question took its place";
 /// hundred kilobytes each at most.
 const KEPT_ANSWERS: usize = 160;
 
+/// An answer as the client keeps it, of whatever question.
+type AnyAnswer = Arc<dyn std::any::Any + Send + Sync>;
+
+/// The answers by their question, each with when it was last used, and the clock that counts.
+type Answers = (std::collections::HashMap<String, (AnyAnswer, u64)>, u64);
+
 struct Inner {
     backend: Backend,
-    /// Answers by their question (`Ask::key`), with when each was last used.
-    answers: std::sync::Mutex<(std::collections::HashMap<String, (Arc<dyn std::any::Any + Send + Sync>, u64)>, u64)>,
+    /// Answers by their question (`Ask::key`), with when each was last used, and the clock.
+    answers: std::sync::Mutex<Answers>,
+    /// The answers of the snapshot before (`forget`), shown while those of the new one are on
+    /// their way: a page stays as it is, and where it is, until its new data is there.
+    before: std::sync::Mutex<std::collections::HashMap<String, AnyAnswer>>,
     /// Questions on their way, each with what tells those that asked it that its answer is there.
     asked: std::sync::Mutex<std::collections::HashMap<String, ArcTrigger>>,
     /// Counts the snapshots: every answer of the one before is forgotten, and what showed one
@@ -134,6 +143,7 @@ impl DataClient {
         Self(Arc::new(Inner {
             backend,
             answers: std::sync::Mutex::new((std::collections::HashMap::new(), 0)),
+            before: std::sync::Mutex::new(std::collections::HashMap::new()),
             asked: std::sync::Mutex::new(std::collections::HashMap::new()),
             generation: ArcRwSignal::new(0),
             waiting: ArcRwSignal::new(0),
@@ -149,6 +159,11 @@ impl DataClient {
         answer.downcast_ref::<Result<A::Answer, DataError>>().cloned()
     }
 
+    /// The answer of the snapshot before, while the new one's is on its way.
+    fn before<A: Ask>(&self, key: &str) -> Option<Result<A::Answer, DataError>> {
+        self.0.before.lock().ok()?.get(key)?.downcast_ref::<Result<A::Answer, DataError>>().cloned()
+    }
+
     /// Keeps an answer, a failed one too: what asked it shows the failure rather than asking
     /// again at once (a worker that went away would be asked without end). The next snapshot
     /// (`forget`) asks everything again.
@@ -160,6 +175,9 @@ impl DataClient {
             if let Some(oldest) = map.iter().min_by_key(|(_, (_, used))| *used).map(|(key, _)| key.clone()) {
                 map.remove(&oldest);
             }
+        }
+        if let Ok(mut before) = self.0.before.lock() {
+            before.remove(&key);
         }
         map.insert(key, (Arc::new(answer.clone()), *clock));
     }
@@ -173,9 +191,9 @@ impl DataClient {
         }))
     }
 
-    /// The answer to `ask` if it is at hand (kept, or a local client's), else `None`, and then the
-    /// question is on its way: whatever read this in a reactive scope runs again once the answer
-    /// is there. Never waits.
+    /// The answer to `ask` if it is at hand (kept, or a local client's), else `None` (or the
+    /// answer of the snapshot before, `forget`), and then the question is on its way: whatever
+    /// read this in a reactive scope runs again once the answer is there. Never waits.
     #[track_caller]
     pub fn get<A: Ask>(&self, ask: &A) -> Option<Result<A::Answer, DataError>> {
         self.0.generation.track();
@@ -187,8 +205,8 @@ impl DataClient {
             self.keep::<A>(key, &answer);
             return Some(answer);
         }
-        self.send(ask.clone(), key).track();
-        None
+        self.send(ask.clone(), key.clone()).track();
+        self.before::<A>(&key)
     }
 
     /// The answer to `ask`, when it is there.
@@ -201,14 +219,15 @@ impl DataClient {
             self.keep::<A>(key, &answer);
             return answer;
         }
-        let answer = self.from_remote(&ask).await;
+        let answer = self.remotely(&ask).await;
         self.keep::<A>(key, &answer);
         answer
     }
 
     /// The answer at hand or none, without asking: what a page shows while it waits.
     pub fn peek<A: Ask>(&self, ask: &A) -> Option<Result<A::Answer, DataError>> {
-        self.kept::<A>(&ask.key()).or_else(|| self.local(ask))
+        let key = ask.key();
+        self.kept::<A>(&key).or_else(|| self.local(ask)).or_else(|| self.before::<A>(&key))
     }
 
     /// The answer to `ask`, now: kept, or worked out on this thread. A remote client that has
@@ -219,7 +238,7 @@ impl DataClient {
         self.get(ask).unwrap_or_else(|| Err(DataError::pending()))
     }
 
-    async fn from_remote<A: Ask>(&self, ask: &A) -> Result<A::Answer, DataError> {
+    async fn remotely<A: Ask>(&self, ask: &A) -> Result<A::Answer, DataError> {
         let Backend::Remote(answerer) = &self.0.backend else { return Err(DataError { unavailable: true, message: "no answerer".to_string() }) };
         let question = serde_json::to_string(ask).map_err(|error| DataError { unavailable: false, message: error.to_string() })?;
         match answerer.ask(A::NAME, A::LANE, question).await {
@@ -249,7 +268,7 @@ impl DataClient {
         self.0.waiting.update(|n| *n += 1);
         let client = self.clone();
         leptos::task::spawn_local(async move {
-            let answer = client.from_remote(&ask).await;
+            let answer = client.remotely(&ask).await;
             // Replaced by a newer question of its lane: nothing to keep, and nobody to tell (what
             // asked it asks the newer one).
             let dropped = matches!(&answer, Err(error) if error.message == DROPPED);
@@ -275,10 +294,14 @@ impl DataClient {
         self.0.waiting.get()
     }
 
-    /// Forgets every answer (a new snapshot): what shows one asks again.
+    /// Forgets every answer (a new snapshot): what shows one asks again, and shows the answer
+    /// before until the new one is there.
     pub fn forget(&self) {
         if let Ok(mut answers) = self.0.answers.lock() {
-            answers.0.clear();
+            let kept = std::mem::take(&mut answers.0);
+            if let Ok(mut before) = self.0.before.lock() {
+                *before = kept.into_iter().map(|(key, (answer, _))| (key, answer)).collect();
+            }
         }
         self.0.generation.update(|n| *n = n.wrapping_add(1));
     }
