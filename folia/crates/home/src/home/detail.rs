@@ -19,8 +19,9 @@
 //!
 //! On a wide page the picture stands beside the words, every other chapter on the left; the board
 //! of the filters takes the whole width under them; on a narrow page everything stacks. What a
-//! picture shows that the app has words for is said in the app's words (`catalog::Texts`,
-//! `studyplan_export` …), the rest is `i18n/home_detail.rs`. Everything looks the same with and
+//! picture shows that the app has words for is said in the app's words (`catalog::Texts`, and
+//! what it quotes of the other areas as `home_detail::quoted_*`), the rest is
+//! `i18n/home_detail.rs`. Everything looks the same with and
 //! without JavaScript; the only numbers are the snapshot's, and a picture without them leaves them
 //! out.
 
@@ -282,7 +283,7 @@ fn flow(t: &'static Texts) -> impl IntoView {
     let ways: [(&'static str, Vec<String>); 4] = [
         ("search", vec![c.tag_search.to_string(), d.as_you_type.to_string()]),
         ("graduation-cap", vec![t.home.choose_program.to_string(), ProgramTab::Plan.label(t.locale).to_string(), d.third_semester.to_string()]),
-        ("languages", vec![t.program.in_catalog.to_string(), c.area.to_string(), english]),
+        ("languages", vec![t.home_detail.quoted_in_catalog.to_string(), c.area.to_string(), english]),
         ("calendar-range", vec![t.app.studyplan.to_string(), c.fits.to_string()]),
     ];
     let parts = ["layout-list", "file-check-2", "calendar-days", "repeat", "graduation-cap"];
@@ -511,13 +512,13 @@ fn week(t: &'static Texts) -> impl IntoView {
         GridSlot { clash: true, ..slot(2, 555, 645, EventKind::Lecture, physics, "t-violet") },
         slot(4, 690, 780, EventKind::Lecture, physics, "t-violet"),
         slot(4, 930, 1020, EventKind::Seminar, writing, "t-teal"),
-        GridSlot { small: t.studyplan_head.week_a.to_string(), ..slot(5, 555, 750, EventKind::Practical, physics, "t-violet") },
+        GridSlot { small: t.home_detail.quoted_week_a.to_string(), ..slot(5, 555, 750, EventKind::Practical, physics, "t-violet") },
     ];
-    let e = &t.studyplan_export;
-    let calendars = [("download", e.download), ("calendar-plus", e.apple), ("calendar-plus", e.google), ("calendar-plus", "Outlook"), ("share-2", t.studyplan_share.copy_link)];
+    let q = &t.home_detail;
+    let calendars = [("download", q.quoted_download), ("calendar-plus", q.quoted_apple), ("calendar-plus", q.quoted_google), ("calendar-plus", "Outlook"), ("share-2", q.quoted_copy_link)];
     view! {
         <div class="demo-week">
-            <p class="demo-week-head"><span class="label">{d.example_week}</span><span class="clashline"><i></i>{(t.studyplan_head.clashes_per_week)(1)}</span></p>
+            <p class="demo-week-head"><span class="label">{d.example_week}</span><span class="clashline"><i></i>{t.home_detail.quoted_one_clash_per_week}</span></p>
             <WeekGrid slots=Signal::derive(move || slots.clone()) fit=true/>
         </div>
         <p class="calendars">
@@ -608,7 +609,7 @@ fn devices(t: &'static Texts) -> impl IntoView {
         [false, true]
             .map(|dark| {
                 let suffix = if dark { "-dark" } else { "" };
-                view! { <img class=if dark { "shot-dark" } else { "shot-light" } loading="lazy" decoding="async" alt=alt width=width height=height src=format!("{}/{file}{suffix}.webp", crate::SHOTS)/> }
+                view! { <img class=if dark { "shot-dark" } else { "shot-light" } loading="lazy" decoding="async" alt=alt width=width height=height src=format!("{}/{file}{suffix}.webp", folia_shell::document::SHOTS)/> }
             })
             .into_iter()
             .collect_view()

@@ -9,9 +9,9 @@ name = "folia_app"
 
 [features]
 # Server rendering (the web server) and the browser app (the WASM bundle) are the two builds of this crate.
-ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr", "folia-stores/ssr", "folia-widgets/ssr"]
+ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr", "folia-stores/ssr", "folia-widgets/ssr", "folia-planner/ssr", "folia-bookmarks/ssr", "folia-programs/ssr", "folia-catalog/ssr", "folia-home/ssr"]
 # The browser app renders fresh from the local database instead of hydrating server HTML.
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-shell/csr", "folia-stores/csr", "folia-widgets/csr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-shell/csr", "folia-stores/csr", "folia-widgets/csr", "folia-planner/csr", "folia-bookmarks/csr", "folia-programs/csr", "folia-catalog/csr", "folia-home/csr"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -27,6 +27,11 @@ folia-shell = { path = "../shell" }
 folia-stores = { path = "../stores" }
 # What the pages share.
 folia-widgets = { path = "../widgets" }
+folia-planner = { path = "../planner" }
+folia-bookmarks = { path = "../bookmarks" }
+folia-programs = { path = "../programs" }
+folia-catalog = { path = "../catalog" }
+folia-home = { path = "../home" }
 # The domain: what the pages show and how they load it (folia/crates/<crate>, docs/folia/folia-refactor.md §7).
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }

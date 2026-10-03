@@ -432,16 +432,16 @@ async fn legal_pages_are_one_step_from_every_page() {
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path} needs no snapshot");
-        for text in [folia_app::pages::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", folia_app::pages::legal::EMAIL)] {
+        for text in [folia_home::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", folia_home::legal::EMAIL)] {
             assert!(page.contains(text), "{path}: {text}");
         }
         let head = page.split("</head>").next().unwrap_or_default();
-        assert_eq!(head.contains("noindex"), folia_app::pages::legal::PLACEHOLDER, "{path}");
+        assert_eq!(head.contains("noindex"), folia_home::legal::PLACEHOLDER, "{path}");
     }
     let (_, _, body) = request(&router, folia_routes::url::PRIVACY, &[]).await;
     let privacy = String::from_utf8(body).unwrap();
-    for part in &folia_app::pages::legal::PRIVACY {
-        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&folia_app::i18n::legal::DE));
+    for part in &folia_home::legal::PRIVACY {
+        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&folia_home::i18n::legal::DE));
     }
 
     // Any other page, here the program overview, which says that it has no catalog: the ground at
@@ -570,8 +570,8 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path}");
-        assert!(page.contains(folia_app::pages::legal::NAME), "{path} names who runs Betula");
-        assert_eq!(head(&page).contains("noindex"), folia_app::pages::legal::PLACEHOLDER, "{path}");
+        assert!(page.contains(folia_home::legal::NAME), "{path} names who runs Betula");
+        assert_eq!(head(&page).contains("noindex"), folia_home::legal::PLACEHOLDER, "{path}");
     }
 
     // What a link preview and a home screen read: the card of the page with an absolute picture,

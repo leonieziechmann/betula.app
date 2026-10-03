@@ -10,7 +10,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod i18n;
-pub mod pages;
+mod quotes;
 
 use folia_routes::url;
 use leptos::prelude::*;
@@ -24,10 +24,12 @@ use crate::i18n::use_location;
 use folia_design::ui;
 use folia_shell::{languages, pending, seo, skeleton};
 use folia_stores::myprogram::{MineResolved, MyProgram};
-use crate::pages::bookmarks::BookmarksPage;
-use crate::pages::legal::{ImprintPage, PrivacyPage};
-use crate::pages::studyplan::StudyplanPage;
-use crate::pages::{catalog::CatalogPage, home::HomePage, program::ProgramPage, programs::ProgramsPage};
+use folia_bookmarks::bookmarks::BookmarksPage;
+use folia_home::legal::{ImprintPage, PrivacyPage};
+use folia_planner::studyplan::StudyplanPage;
+use folia_catalog::catalog::CatalogPage;
+use folia_home::home::HomePage;
+use folia_programs::{program::ProgramPage, programs::ProgramsPage};
 use folia_widgets::module::ModulePage;
 use folia_shell::pending::Pending;
 use folia_stores::studyplan::Studyplan;

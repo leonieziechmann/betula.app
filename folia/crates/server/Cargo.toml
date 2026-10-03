@@ -15,6 +15,8 @@ folia-app = { path = "../app", features = ["ssr"] }
 folia-design = { path = "../design", features = ["ssr"] }
 folia-data = { path = "../data", features = ["ssr"] }
 folia-shell = { path = "../shell", features = ["ssr"] }
+folia-programs = { path = "../programs", features = ["ssr"] }
+folia-home = { path = "../home", features = ["ssr"] }
 folia-stores = { path = "../stores", features = ["ssr"] }
 folia-calendar = { path = "../calendar" }
 folia-locale = { path = "../locale" }

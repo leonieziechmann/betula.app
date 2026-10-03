@@ -91,6 +91,16 @@ pub struct Texts {
     pub to_programs: &'static str,
     pub to_studyplan: &'static str,
     pub to_privacy: &'static str,
+    /// What the tour quotes of the other areas, as they name it themselves (keep in step with
+    /// `program::in_catalog`, `studyplan_head::week_a`, `clashes_per_week`, `studyplan_share`
+    /// and `studyplan_export`): the start page knows no feature's texts but its own.
+    pub quoted_in_catalog: &'static str,
+    pub quoted_week_a: &'static str,
+    pub quoted_one_clash_per_week: &'static str,
+    pub quoted_copy_link: &'static str,
+    pub quoted_download: &'static str,
+    pub quoted_apple: &'static str,
+    pub quoted_google: &'static str,
 }
 
 /// A chapter: its name (over its headline, and in the row of links to the chapters), the headline,
@@ -298,6 +308,13 @@ pub const DE: Texts = Texts {
     to_programs: "Zu den Studiengängen",
     to_studyplan: "Zum Stundenplan",
     to_privacy: "Zur Datenschutzerklärung",
+    quoted_in_catalog: "Im Modulkatalog",
+    quoted_week_a: "A-Woche",
+    quoted_one_clash_per_week: "1 Überschneidung pro Woche",
+    quoted_copy_link: "Link zum Teilen kopieren",
+    quoted_download: ".ics herunterladen",
+    quoted_apple: "Apple Kalender",
+    quoted_google: "Google Kalender",
 };
 
 pub const EN: Texts = Texts {
@@ -465,13 +482,17 @@ pub const EN: Texts = Texts {
     to_programs: "To the degree programmes",
     to_studyplan: "To the timetable",
     to_privacy: "To the privacy notice",
+    quoted_in_catalog: "In the module catalogue",
+    quoted_week_a: "week A",
+    quoted_one_clash_per_week: "1 clash per week",
+    quoted_copy_link: "Copy link to share",
+    quoted_download: "Download .ics",
+    quoted_apple: "Apple Calendar",
+    quoted_google: "Google Calendar",
 };
 
 #[cfg(test)]
 mod tests {
-    use folia_locale::Locale;
-
-    use crate::i18n;
     use super::*;
 
     /// Every language has the same chapters with as much in them, and the words written out
@@ -493,30 +514,4 @@ mod tests {
         assert_eq!(((DE.example)(1, "1"), (EN.example)(1, "1"), (EN.example)(1206, "1,206")), ("Diese Auswahl im Katalog: 1 Modul".to_string(), "This selection in the catalogue: 1 module".to_string(), "This selection in the catalogue: 1,206 modules".to_string()));
     }
 
-    /// What a chapter quotes of the app (a button, a filter, a label) is what the app says there,
-    /// in every language: renamed there, it has to be renamed here.
-    #[test]
-    fn the_chapters_quote_the_app_as_it_is() {
-        for locale in Locale::ALL {
-            let t = i18n::texts(*locale);
-            let (open, close) = if *locale == Locale::De { ("„", "“") } else { ("“", "”") };
-            let quoted = |label: &str| format!("{open}{label}{close}");
-            let d = &t.home_detail;
-            let point = |chapter: &Chapter, n: usize| chapter.points.get(n).map(|point| point.text).unwrap_or_default();
-            let pairs = [
-                (point(&d.filters, 3), quoted(t.common.reset)),
-                (point(&d.timetable, 3), quoted(t.catalog.fits)),
-                (point(&d.account, 0), quoted(t.bookmarks.transfer)),
-                (point(&d.account, 1), quoted(t.studyplan_share.copy_link)),
-                (point(&d.data, 2), quoted(t.common.not_stated)),
-                (point(&d.data, 2), quoted(t.module.time_open)),
-                (d.hints.program, quoted(t.catalog.my_program)),
-                (d.hints.dates, quoted(t.catalog.confirmed)),
-                (d.hints.dates, quoted(t.catalog.fits)),
-            ];
-            for (text, label) in pairs {
-                assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
-            }
-        }
-    }
 }

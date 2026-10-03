@@ -539,8 +539,8 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                         // pictures beside the current one, never those of the hidden theme.
                         Picture::Shot { file, alt } => [false, true].map(|dark| {
                             let suffix = if dark { "-dark" } else { "" };
-                            let wide = format!("{}/{file}{suffix}.webp", crate::SHOTS);
-                            let phone = format!("{}/{file}-phone{suffix}.webp", crate::SHOTS);
+                            let wide = format!("{}/{file}{suffix}.webp", folia_shell::document::SHOTS);
+                            let phone = format!("{}/{file}-phone{suffix}.webp", folia_shell::document::SHOTS);
                             view! {
                                 <picture class=if dark { "shot-dark" } else { "shot-light" }>
                                     <source media="(max-width: 600px)" width="720" height="960" srcset=phone/>

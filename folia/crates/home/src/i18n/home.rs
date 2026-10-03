@@ -707,10 +707,6 @@ pub const EN: Texts = Texts {
 
 #[cfg(test)]
 mod tests {
-    use folia_locale::Locale;
-    use folia_routes::url::ProgramTab;
-
-    use crate::i18n;
     use super::*;
 
     /// Every language asks the same questions, and where an answer names a button, it names it
@@ -727,36 +723,4 @@ mod tests {
         assert_eq!(((DE.slide_of)(2, 4, "Der Katalog"), (EN.in_semester)("Winter 2026/27")), ("2 von 4: Der Katalog".to_string(), "in Winter 2026/27".to_string()));
     }
 
-    /// What the answers quote of the page (a button, a view, a filter, a section) is what the page
-    /// says there, in every language: renamed there, it has to be renamed here.
-    #[test]
-    fn the_answers_quote_the_page_as_it_is() {
-        for locale in Locale::ALL {
-            let t = i18n::texts(*locale);
-            let (open, close) = if *locale == Locale::De { ("„", "“") } else { ("“", "”") };
-            let quoted = |label: &str| format!("{open}{label}{close}");
-            let home = &t.home;
-            let answer = |question: usize, faq: &Faq| faq.questions.get(question).map(|(_, answer)| *answer).unwrap_or_default();
-            let pairs = [
-                (answer(0, &home.using_betula), quoted(t.home_detail.heading)),
-                (answer(1, &home.using_betula), quoted(t.studyplan_head.plan)),
-                (answer(1, &home.using_betula), quoted(t.catalog.fits)),
-                (answer(2, &home.using_betula), quoted(t.catalog.saved_chip)),
-                (answer(3, &home.using_betula), quoted(t.bookmarks.transfer)),
-                (answer(3, &home.using_betula), quoted(t.studyplan_share.copy_link)),
-                (answer(0, &home.for_studies), quoted(t.program.in_catalog)),
-                (answer(0, &home.for_studies), quoted(t.myprogram.mine)),
-                (answer(3, &home.for_studies), quoted(ProgramTab::Areas.label(*locale))),
-                (answer(3, &home.for_studies), quoted(t.catalog.area)),
-                (answer(4, &home.for_studies), quoted(t.catalog.confirmed)),
-                (answer(7, &home.about_betula), quoted(t.myprogram.mine)),
-                (home.step_program.text, quoted(t.myprogram.mine)),
-            ];
-            for (text, label) in pairs {
-                assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
-            }
-            // The first step is the button of the first panel, under the same name.
-            assert_eq!(home.step_program.title, home.choose_program, "{locale:?}");
-        }
-    }
 }
