@@ -27,7 +27,7 @@ use leptos_meta::Title;
 use folia_data::{use_ask, use_data, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
-use crate::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
+use folia_stores::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_shell::seo::Seo;

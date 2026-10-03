@@ -45,7 +45,7 @@ use folia_data::{use_data, DataError, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use crate::local::ModuleInPlace;
-use crate::myprogram::{program_name, MineButton, ProgramPlans};
+use folia_stores::myprogram::{program_name, MineButton, ProgramPlans};
 use folia_design::nav;
 use crate::pages::catalog::phone_layout;
 use crate::pages::module::ModulePanel;

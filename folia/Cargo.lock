@@ -853,6 +853,7 @@ dependencies = [
  "folia-routes",
  "folia-search",
  "folia-shell",
+ "folia-stores",
  "folia-timetable",
  "http",
  "leptos",
@@ -1042,6 +1043,7 @@ dependencies = [
  "folia-routes",
  "folia-search",
  "folia-shell",
+ "folia-stores",
  "futures-util",
  "hmac",
  "leptos",
@@ -1085,6 +1087,28 @@ dependencies = [
  "send_wrapper",
  "serde",
  "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "folia-stores"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pack",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-shell",
+ "folia-timetable",
+ "leptos",
+ "leptos_router",
+ "serde",
  "wasm-bindgen",
  "web-sys",
 ]

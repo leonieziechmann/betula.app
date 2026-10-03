@@ -1,7 +1,7 @@
 //! The Stundenplan (`/studyplan`): the visitor's timetable of the semester the catalog has dates
 //! for (owner's redesign of 2026-09-25: the whole study is planned on the program's page).
 //!
-//! What is planned lives in this browser alone (`crate::studyplan`, R20): the server renders one
+//! What is planned lives in this browser alone (`folia_stores::studyplan`, R20): the server renders one
 //! explanation for every address (R9, cached by the path), and the browser app renders the plan
 //! from its store and the local copy of the catalog. The address says only how the plan is shown
 //! (`StudyplanUrl`): which semester, which view, the module beside the plan and the Termin it
@@ -54,12 +54,12 @@ use leptos_meta::Title;
 use folia_data::{use_data, DataClient, DataError};
 use crate::i18n::{self, use_location};
 use crate::local::ModuleInPlace;
-use crate::myprogram::MyProgram;
+use folia_stores::myprogram::MyProgram;
 use crate::pages::catalog::phone_layout;
 use folia_shell::pending::{Change, Pending, Shape};
 use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
-use crate::studyplan::Studyplan;
+use folia_stores::studyplan::Studyplan;
 use folia_routes::url::PlanAddress;
 use folia_shell::tabs::Area;
 use folia_shell::frame::{ErrorState, Frame};

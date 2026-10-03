@@ -7,10 +7,7 @@ pub mod catalog;
 pub mod home;
 pub mod home_detail;
 pub mod legal;
-pub mod marks;
 pub mod module;
-pub mod myprogram;
-pub mod planner;
 pub mod program;
 pub mod programs;
 pub mod studyplan;
@@ -38,10 +35,10 @@ folia_design::texts! {
     home = crate::i18n::home,
     home_detail = crate::i18n::home_detail,
     legal = crate::i18n::legal,
-    marks = crate::i18n::marks,
+    marks = folia_stores::i18n::marks,
     module = crate::i18n::module,
-    myprogram = crate::i18n::myprogram,
-    planner = crate::i18n::planner,
+    myprogram = folia_stores::i18n::myprogram,
+    planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
     program = crate::i18n::program,
     programs = crate::i18n::programs,

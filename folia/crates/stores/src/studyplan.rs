@@ -444,7 +444,7 @@ fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl Into
 
 /// What a plan button aims at: from the plan, the page's hint and the module's semesters.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Aim {
+pub struct Aim {
     /// The semester a click plans into (`target_semester`).
     target: SemesterKey,
     /// The module is planned there — for the hint's placeholder, when there is one.
@@ -457,7 +457,7 @@ pub(crate) struct Aim {
 
 impl Aim {
     /// The module is planned where a press aims: pressing takes it out.
-    pub(crate) fn pressed(&self) -> bool {
+    pub fn pressed(&self) -> bool {
         self.pressed
     }
 }
@@ -465,7 +465,7 @@ impl Aim {
 /// What „Einplanen" aims at for a module now, asked once and not through a memo: for what presses
 /// it without being its switch, a row swiped to the right (`crate::swipe`), which asks when the
 /// finger starts. `current` and `newest` as for `PlanButton`.
-pub(crate) fn aim_now(plan: Studyplan, id: &str, current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>) -> Aim {
+pub fn aim_now(plan: Studyplan, id: &str, current: SemesterKey, newest: Option<SemesterKey>, turnus: Option<TurnusSeason>, hint: Option<&PlanHint>) -> Aim {
     plan.with_untracked(|doc| aim_of(id, current, newest, turnus, hint, doc))
 }
 
@@ -547,7 +547,7 @@ fn tooltip_text(aim: &Aim, pressed: bool, t: &'static Texts) -> String {
 /// switch's „Einplanen" with the semester it plans into and the placeholder it plans for, or
 /// „Entfernen" with the semester it takes the module out of — what the swipe does, where the
 /// switch's label says what the module is.
-pub(crate) fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String, &'static str) {
+pub fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String, &'static str) {
     let semester = aim.target.label(t.locale);
     if aim.pressed {
         return (t.planner.remove, (t.planner.out_of)(&semester), t.planner.removed);
@@ -560,7 +560,7 @@ pub(crate) fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String
 /// whether the module was planned there (`was`). The plan is written after the next frame (R21:
 /// what was pressed has answered by then), with what taking the module out takes along of the
 /// semester's own choices; `then` runs once the plan has it.
-pub(crate) fn press(plan: Studyplan, source: Option<DataClient>, id: String, aim: Aim, was: bool, then: impl FnOnce() + 'static) {
+pub fn press(plan: Studyplan, source: Option<DataClient>, id: String, aim: Aim, was: bool, then: impl FnOnce() + 'static) {
     nav::after_paint(move || {
         // Planned in: nothing to ask. Taken out: which of its events no other module has, asked
         // first (its rows and theirs), and nothing where the catalog cannot say (`only_its_events`).

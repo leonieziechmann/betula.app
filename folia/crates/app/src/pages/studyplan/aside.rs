@@ -47,7 +47,7 @@ use leptos_router::NavigateOptions;
 use folia_data::DataError;
 use folia_design::format;
 use crate::i18n::{self, Locale};
-use crate::myprogram::MyProgram;
+use folia_stores::myprogram::MyProgram;
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_shell::frame::ErrorState;

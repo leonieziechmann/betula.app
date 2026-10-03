@@ -1,4 +1,4 @@
-//! „Merkliste": the modules the visitor has marked (`crate::bookmarks`), as a list like the
+//! „Merkliste": the modules the visitor has marked (`folia_stores::bookmarks`), as a list like the
 //! catalog's, in the same frame: a sidebar as wide as the filter panel, the list, and the preview
 //! of the module that is open (`/bookmarks?…&open=<id>`) floating at the right edge.
 //!
@@ -28,7 +28,7 @@ use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
-use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
+use folia_stores::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
 use folia_data::{use_data, DataError};
 use folia_design::format;
 use crate::i18n::{self, use_location};

@@ -39,13 +39,13 @@ use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
 
-use crate::bookmarks::{MarkButton, MarkLook};
+use folia_stores::bookmarks::{MarkButton, MarkLook};
 use folia_data::{use_data, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
-use crate::myprogram::MyProgram;
+use folia_stores::myprogram::MyProgram;
 use folia_shell::seo::{self, Seo};
-use crate::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
+use folia_stores::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::{BackLink, ErrorState, Frame, Plain};
 use folia_design::ui::{Fact, Icon, JsOnly, KindBadge, NotFound, OfferBadge, Prose, Shortcut};
@@ -1334,7 +1334,7 @@ mod tests {
         let aim = |schedule: &[EventDate]| {
             let (current, newest) = semesters_of(&semesters, schedule);
             let current = current.unwrap();
-            crate::studyplan::target_semester(current, newest, Some(TurnusSeason::Summer), None, &PlanDoc::default())
+            folia_stores::studyplan::target_semester(current, newest, Some(TurnusSeason::Summer), None, &PlanDoc::default())
         };
         // Analysis II (11104), taught in summer: no teaching rows, its only row of WiSe 2026/27 an
         // exam (a retake). The exam is no reason to plan it into the winter: the next summer.

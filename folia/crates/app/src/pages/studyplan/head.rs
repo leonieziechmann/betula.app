@@ -29,10 +29,10 @@ use folia_timetable::model::{Attendance, Basis, Event, Row, Timetable};
 use folia_timetable::views::short_title;
 use leptos::prelude::*;
 
-use crate::bookmarks::Bookmarks;
+use folia_stores::bookmarks::Bookmarks;
 use folia_design::format;
 use crate::i18n::{self, Locale};
-use crate::myprogram::MineResolved;
+use folia_stores::myprogram::MineResolved;
 use folia_design::nav;
 use crate::pages::catalog::finder_on;
 use folia_design::ui::Icon;

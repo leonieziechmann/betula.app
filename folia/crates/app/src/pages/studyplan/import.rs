@@ -21,7 +21,7 @@ use leptos_router::NavigateOptions;
 
 use folia_design::format;
 use crate::i18n;
-use crate::myprogram::program_name;
+use folia_stores::myprogram::program_name;
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;

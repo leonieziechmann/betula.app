@@ -9,12 +9,9 @@
 #![recursion_limit = "512"]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
-pub mod bookmarks;
 pub mod i18n;
 pub mod local;
-pub mod myprogram;
 pub mod pages;
-pub mod studyplan;
 pub mod swipe;
 pub mod week;
 
@@ -24,18 +21,18 @@ use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
 use leptos_router::{path, NavigateOptions, SsrMode};
 
-use crate::bookmarks::Bookmarks;
+use folia_stores::bookmarks::Bookmarks;
 use folia_shell::ground::{Crown, Ground, Wood};
 use crate::i18n::use_location;
 use folia_design::ui;
 use folia_shell::{languages, pending, seo, skeleton};
-use crate::myprogram::{MineResolved, MyProgram};
+use folia_stores::myprogram::{MineResolved, MyProgram};
 use crate::pages::bookmarks::BookmarksPage;
 use crate::pages::legal::{ImprintPage, PrivacyPage};
 use crate::pages::studyplan::StudyplanPage;
 use crate::pages::{catalog::CatalogPage, home::HomePage, module::ModulePage, program::ProgramPage, programs::ProgramsPage};
 use folia_shell::pending::Pending;
-use crate::studyplan::Studyplan;
+use folia_stores::studyplan::Studyplan;
 use folia_shell::tabs::{Area, Tabs};
 use folia_design::ui::Icon;
 

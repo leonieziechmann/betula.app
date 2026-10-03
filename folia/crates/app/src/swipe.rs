@@ -39,12 +39,12 @@ use leptos::ev::{DragEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 
-use crate::bookmarks::Bookmarks;
+use folia_stores::bookmarks::Bookmarks;
 use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use folia_design::nav;
 use crate::pages::module::semesters_of;
-use crate::studyplan::{self, Aim, PlanHint, Studyplan};
+use folia_stores::studyplan::{self, Aim, PlanHint, Studyplan};
 use folia_design::ui::Icon;
 
 /// How far a finger moves, in px, before it is a swipe or a scroll: a little further than along the
@@ -122,7 +122,7 @@ impl Act {
 
     /// „Einplanen" into the semester the switch aims at, else „Entfernen" out of it.
     fn plan(aim: &Aim, t: &'static Texts) -> Self {
-        let (word, line, done) = studyplan::swipe_words(aim, t);
+        let (word, line, done) = studyplan::swipe_words(aim, folia_stores::i18n::texts(t.locale));
         if aim.pressed() {
             Act { icon: "calendar-minus", word, line: Some(line), done_icon: "calendar-minus", done, fills: false }
         } else {

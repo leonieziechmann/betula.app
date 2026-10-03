@@ -968,7 +968,7 @@ async fn a_studyplan_is_a_calendar_feed() {
 async fn broken_calendar_codes_are_404() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("calendar-404")).unwrap()));
     // The Merkliste's code of the same kind of list: its kind is part of the check characters.
-    let bookmarks = folia_app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
+    let bookmarks = folia_stores::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
     let bookmarks = bookmarks.strip_prefix("m=").unwrap();
     // These have the shape of a feed's address; what they carry is what no calendar reads.
     for code in [bookmarks, TOO_MANY_MODULES_CODE, NO_MODULE_CODE, "Ab.ics"] {

@@ -26,13 +26,13 @@ use folia_routes::url::{self, StudyplanUrl};
 use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 
-use crate::bookmarks::Bookmarks;
+use folia_stores::bookmarks::Bookmarks;
 use folia_design::combobox::{ComboItem, Combobox};
 use folia_data::use_data;
 use crate::i18n::{self, home::Step};
-use crate::myprogram::{program_href, program_name, po_of, MineResolved, MyProgram};
+use folia_stores::myprogram::{program_href, program_name, po_of, MineResolved, MyProgram};
 use folia_design::nav;
-use crate::studyplan::Studyplan;
+use folia_stores::studyplan::Studyplan;
 use folia_design::ui::{Icon, Shortcut};
 
 /// The browser app (`csr`): only there is anything stored, and only there does a picker work.
