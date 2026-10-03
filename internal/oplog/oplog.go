@@ -1,4 +1,5 @@
-// Package oplog is the operational log of Radix, the collector service.
+// Package oplog is the operational log of Radix, the collector service, and of Cortex, the
+// cache between Betula and the internet.
 //
 // Every record is one line with a level, a component and a stable event name:
 //
@@ -35,15 +36,26 @@ type Options struct {
 	Format string // "text" (default) or "json"
 	Level  string // "debug", "info" (default), "warn", "error"
 	File   string // optional: also append to this file
+
+	// Problems counts the WARN and ERROR records by level and event name (two labels, in
+	// that order). Nil: radix_log_problems_total in metrics.Default, Radix's. Cortex passes
+	// its own cortex_log_problems_total, declared in the registry its GET /metrics serves.
+	Problems *metrics.Counter
 }
 
 // OptionsFromEnv reads RADIX_LOG_FORMAT, RADIX_LOG_LEVEL and RADIX_LOG_FILE, so that a
 // container or a systemd unit can configure logging without changing the command line.
 func OptionsFromEnv() Options {
+	return OptionsFromEnvPrefix("RADIX")
+}
+
+// OptionsFromEnvPrefix reads <prefix>_LOG_FORMAT, <prefix>_LOG_LEVEL and <prefix>_LOG_FILE:
+// "RADIX" for Radix (OptionsFromEnv), "CORTEX" for Cortex.
+func OptionsFromEnvPrefix(prefix string) Options {
 	return Options{
-		Format: os.Getenv("RADIX_LOG_FORMAT"),
-		Level:  os.Getenv("RADIX_LOG_LEVEL"),
-		File:   os.Getenv("RADIX_LOG_FILE"),
+		Format: os.Getenv(prefix + "_LOG_FORMAT"),
+		Level:  os.Getenv(prefix + "_LOG_LEVEL"),
+		File:   os.Getenv(prefix + "_LOG_FILE"),
 	}
 }
 
@@ -92,6 +104,9 @@ func Setup(opt Options) (*Recorder, func() error, error) {
 	}
 
 	recorder := NewRecorder(handler, 100)
+	if opt.Problems != nil {
+		recorder.state.counter = opt.Problems
+	}
 	slog.SetDefault(slog.New(recorder))
 	return recorder, closeFn, nil
 }
@@ -134,11 +149,13 @@ type recorderState struct {
 	errors   int64
 	warnings int64
 	lastErr  time.Time
+	counter  *metrics.Counter // {level, event}
 }
 
-// NewRecorder wraps next and keeps the last max problems.
+// NewRecorder wraps next and keeps the last max problems. It counts them in
+// radix_log_problems_total (Setup with Options.Problems counts them elsewhere).
 func NewRecorder(next slog.Handler, max int) *Recorder {
-	return &Recorder{next: next, state: &recorderState{max: max}}
+	return &Recorder{next: next, state: &recorderState{max: max, counter: problemsTotal}}
 }
 
 func (r *Recorder) Enabled(ctx context.Context, level slog.Level) bool {
@@ -156,7 +173,7 @@ func (r *Recorder) Handle(ctx context.Context, rec slog.Record) error {
 			return true
 		})
 
-		problemsTotal.Inc(p.Level, p.Attrs["event"])
+		r.state.counter.Inc(p.Level, p.Attrs["event"])
 
 		s := r.state
 		s.mu.Lock()
