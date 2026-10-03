@@ -76,15 +76,17 @@ func (f *Fetcher) Get(ctx context.Context, job Job) ([]byte, error) {
 
 // Download fetches a page with the politeness, retries and logging of Get, but neither
 // reads nor writes the archive: for an answer the caller takes apart and archives piece
-// by piece (the QIS event search states a few hundred events in one page).
-func (f *Fetcher) Download(ctx context.Context, job Job) ([]byte, error) {
+// by piece (the QIS event search states a few hundred events in one page). The time is
+// when the server gave the answer, for the pieces' fetched_at: through Cortex, which may
+// answer from its store, the time Cortex-Checked-At states; otherwise now.
+func (f *Fetcher) Download(ctx context.Context, job Job) ([]byte, time.Time, error) {
 	log := oplog.For("crawl").With("source", job.Source)
-	status, body, err := fetchWithRetries(ctx, job, f.opt, log)
+	status, body, fetchedAt, err := fetchWithRetries(ctx, job, f.opt, log)
 	defer sleep(ctx, jitter(f.opt.Delay))
 	if err := f.record(ctx, job, status, false, false, err, log); err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
-	return body, nil
+	return body, fetchedAt, nil
 }
 
 // record counts the outcome of a request and turns it into the error Get and Download

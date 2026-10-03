@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
@@ -54,6 +55,11 @@ type Endpoints struct {
 	EventURL      string // fmt template with the QIS event ID
 	EventListURL  string // fmt template: %[1]s comma-separated QIS event IDs, %[2]d their number; "" skips the event search
 	TreeRootURL   string
+
+	// Client sends the requests of every stage; nil fetches directly (the crawl's own
+	// clients). Radix sets the one of Cortex (internal/cortex/client) when RADIX_CORTEX_URL
+	// is set.
+	Client *http.Client
 }
 
 // BTUEndpoints are the live BTU pages.
@@ -87,7 +93,7 @@ func CrawlLists(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) 
 		{Source: catalogdb.SourceModuleCatalog, Key: "list", URL: ep.CatalogURL},
 		{Source: catalogdb.SourceQISFUESList, Key: "list", URL: ep.FUESURL},
 	}
-	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff})
+	return crawl.Run(ctx, db, jobs, crawl.Options{Workers: 1, Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: ep.Client})
 }
 
 // qisModuleListChunk is how many rows one request of the QIS module table asks for.
@@ -123,7 +129,7 @@ func CrawlQISModuleList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pac
 		}
 	}
 
-	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff})
+	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Backoff: pace.Backoff, Client: ep.Client})
 	rowParser := parser.NewFUESParser()
 	for i := 0; i < maxQISModuleListChunks; i++ {
 		start := i * qisModuleListChunk
@@ -237,7 +243,7 @@ func CrawlModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace
 	for _, id := range ids {
 		jobs = append(jobs, crawl.Job{Source: catalogdb.SourceModulePage, Key: id, URL: fmt.Sprintf(ep.ModuleURL, id)})
 	}
-	return runOldestFirst(ctx, db, jobs, pace)
+	return runOldestFirst(ctx, db, jobs, pace, ep.Client)
 }
 
 // ModulePace is how often the QIS description of a module is fetched.
@@ -368,7 +374,7 @@ func CrawlQISModules(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace M
 	for i, d := range due {
 		jobs[i] = d.job
 	}
-	stats, err := crawl.Run(ctx, db, jobs, crawl.Options{Workers: pace.Workers, Delay: pace.Delay, Backoff: pace.Backoff})
+	stats, err := crawl.Run(ctx, db, jobs, crawl.Options{Workers: pace.Workers, Delay: pace.Delay, Backoff: pace.Backoff, Client: ep.Client})
 	stats.Skipped += notDue
 	return stats, err
 }
@@ -419,7 +425,7 @@ func CrawlTree(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (
 
 	// With Spread every page once per MaxAge, each at a time of its own, so that the tree
 	// does not come due in one piece.
-	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Spread: pace.Spread, Backoff: pace.Backoff})
+	fetcher := crawl.NewFetcher(db, crawl.Options{Delay: pace.Delay, MaxAge: pace.MaxAge, Spread: pace.Spread, Backoff: pace.Backoff, Client: ep.Client})
 	errLimit := errors.New("page limit reached")
 
 	result, err := qistree.Walk(ctx, ep.TreeRootURL,
@@ -452,8 +458,8 @@ func CrawlTree(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Pace) (
 // runOldestFirst fetches every page once per pace.MaxAge (with pace.Spread each on a day
 // of its own in that period, so that pages read together do not come due together again).
 // It orders the due jobs by the age of their archived page (never fetched first), applies
-// the limit, and crawls them.
-func runOldestFirst(ctx context.Context, db *catalogdb.DB, jobs []crawl.Job, pace Pace) (crawl.Stats, error) {
+// the limit, and crawls them with client (nil: the crawl's own).
+func runOldestFirst(ctx context.Context, db *catalogdb.DB, jobs []crawl.Job, pace Pace, client *http.Client) (crawl.Stats, error) {
 	if len(jobs) == 0 {
 		return crawl.Stats{}, nil
 	}
@@ -481,7 +487,7 @@ func runOldestFirst(ctx context.Context, db *catalogdb.DB, jobs []crawl.Job, pac
 		oplog.For("crawl").Info("nothing to fetch", "event", "crawl.up_to_date", "source", jobs[0].Source, "pages", len(jobs))
 		return crawl.Stats{Skipped: fresh}, nil
 	}
-	stats, err := crawl.Run(ctx, db, due, crawl.Options{Workers: pace.Workers, Delay: pace.Delay, Backoff: pace.Backoff})
+	stats, err := crawl.Run(ctx, db, due, crawl.Options{Workers: pace.Workers, Delay: pace.Delay, Backoff: pace.Backoff, Client: client})
 	stats.Skipped += fresh
 	return stats, err
 }

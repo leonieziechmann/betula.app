@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/leonieziechmann/betula/internal/catalogdb"
+	cortexclient "github.com/leonieziechmann/betula/internal/cortex/client"
 	"github.com/leonieziechmann/betula/internal/oplog"
 )
 
@@ -44,7 +45,7 @@ type Options struct {
 	MaxAge    time.Duration // skip pages archived more recently than this; 0 fetches everything
 	Spread    bool          // MaxAge is a period: every page is fetched once per period, at a time of its own (Due)
 	UserAgent string
-	Client    *http.Client
+	Client    *http.Client // nil: a client of its own; Cortex's (internal/cortex/client) asks Cortex instead of the server
 	Progress  func(done, total int, stats Stats)
 }
 
@@ -196,9 +197,11 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 }
 
 // fetchAndArchive retries transient failures with a growing pause. 200 and 404
-// are final answers and are archived; everything else is an error.
+// are final answers and are archived, as fetched when the server gave them (through
+// Cortex, which may answer from its store, Cortex-Checked-At); everything else is an error,
+// and so is every answer Cortex gave itself (fetch).
 func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options, log *slog.Logger) (int, bool, error) {
-	status, body, err := fetchWithRetries(ctx, job, opt, log)
+	status, body, fetchedAt, err := fetchWithRetries(ctx, job, opt, log)
 	if err != nil {
 		return 0, false, err
 	}
@@ -206,7 +209,7 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 		Source:     job.Source,
 		Key:        job.Key,
 		URL:        job.URL,
-		FetchedAt:  time.Now(),
+		FetchedAt:  fetchedAt,
 		HTTPStatus: status,
 		Body:       body,
 	})
@@ -217,12 +220,13 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 }
 
 // fetchWithRetries retries transient failures with a growing pause. 200 and 404 are
-// final answers (a 404 without its body); everything else is an error.
-func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logger) (int, []byte, error) {
+// final answers (a 404 without its body), returned with the time of the answer (fetch);
+// everything else is an error.
+func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logger) (int, []byte, time.Time, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		begin := time.Now()
-		status, body, err := fetch(ctx, job.URL, opt)
+		status, body, at, err := fetch(ctx, job, opt)
 		took := time.Since(begin)
 		if ctx.Err() == nil {
 			countRequest(job.Source, status, err, took, len(body))
@@ -235,14 +239,14 @@ func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logge
 			if status == http.StatusNotFound {
 				body = nil
 			}
-			return status, body, nil
+			return status, body, at, nil
 		}
 		if err == nil {
 			err = fmt.Errorf("unexpected status %d", status)
 		}
 		lastErr = err
 		if ctx.Err() != nil {
-			return 0, nil, lastErr
+			return 0, nil, time.Time{}, lastErr
 		}
 		if attempt < maxAttempts {
 			pause := opt.Backoff * time.Duration(1<<(attempt-1))
@@ -251,27 +255,46 @@ func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logge
 			sleep(ctx, pause)
 		}
 	}
-	return 0, nil, lastErr
+	return 0, nil, time.Time{}, lastErr
 }
 
-func fetch(ctx context.Context, pageURL string, opt Options) (int, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+// fetch sends one request for the page of job. Its source goes along in the context, for
+// Cortex's client to name it to Cortex. The time is when the server gave the answer: the
+// time Cortex-Checked-At states for an answer through Cortex, which may come from its
+// store, and otherwise now.
+//
+// An answer Cortex gave itself instead of the server's (Cortex-Error: a 502 upstream-failed,
+// a 503 host-paused, or a 404 not-found for a path it does not serve, as below a wrong
+// RADIX_CORTEX_URL) is a failed attempt, never the page: its status says nothing about the
+// page, and a 404 taken from it would replace the archived page with an empty one. The
+// error names Cortex's status and code; the request counts as one without an answer of the
+// server (code "error"), and the attempt is retried, given up and counted towards the abort
+// like any other failure.
+func fetch(ctx context.Context, job Job, opt Options) (int, []byte, time.Time, error) {
+	req, err := http.NewRequestWithContext(cortexclient.WithSource(ctx, job.Source), http.MethodGet, job.URL, nil)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, time.Time{}, err
 	}
 	req.Header.Set("User-Agent", opt.UserAgent)
 
 	resp, err := opt.Client.Do(req)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, time.Time{}, err
 	}
 	defer resp.Body.Close()
+	if err := cortexclient.ResponseError(resp); err != nil {
+		return 0, nil, time.Time{}, err
+	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
 	if err != nil {
-		return resp.StatusCode, nil, err
+		return resp.StatusCode, nil, time.Time{}, err
 	}
-	return resp.StatusCode, body, nil
+	at := cortexclient.CheckedAt(resp.Header)
+	if at.IsZero() {
+		at = time.Now()
+	}
+	return resp.StatusCode, body, at, nil
 }
 
 func jitter(d time.Duration) time.Duration {

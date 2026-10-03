@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leonieziechmann/betula/internal/catalogdb"
+	cortexclient "github.com/leonieziechmann/betula/internal/cortex/client"
 	"github.com/leonieziechmann/betula/internal/curriculumscan"
 	"github.com/leonieziechmann/betula/internal/gemini"
 	"github.com/leonieziechmann/betula/internal/model"
@@ -34,7 +35,8 @@ func runDownloadStatutes(ctx context.Context, args []string) {
 	degreeFilter := fs.String("degree", "", "Only programs whose degree contains this")
 	programID := fs.String("program-id", "", "Only this program")
 	delayMs := fs.Int("delay", 1000, "Pause after each download in milliseconds")
-	force := fs.Bool("force", false, "Download again even if a local copy exists")
+	force := fs.Bool("force", false, "Download again even if a local copy exists (through Cortex: from OPUS, not from Cortex's store)")
+	cortex := addCortexFlags(fs)
 	logs := addLogFlags(fs)
 	_ = fs.Parse(args)
 	_, closeLog := logs.setup()
@@ -49,7 +51,7 @@ func runDownloadStatutes(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := statutesClient(cortex, *force)
 	seen := make(map[string]bool)
 	var downloaded, present, blocked, failed int
 	for _, p := range programs {
@@ -84,6 +86,19 @@ func runDownloadStatutes(ctx context.Context, args []string) {
 	if failed > 0 {
 		os.Exit(1)
 	}
+}
+
+// statutesClient is the client of the statute download: through Cortex with --cortex, then
+// with --force in mode refresh, so that OPUS is asked again rather than Cortex's store.
+func statutesClient(cortex cortexFlags, force bool) *http.Client {
+	mode := cortexclient.ModeCache
+	if force {
+		mode = cortexclient.ModeRefresh
+	}
+	if client := cortex.client(mode); client != nil {
+		return client
+	}
+	return &http.Client{Timeout: 60 * time.Second}
 }
 
 // runScanCurriculum extracts the study plan of each program from its regulation PDF,
