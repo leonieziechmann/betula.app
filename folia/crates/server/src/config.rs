@@ -90,7 +90,7 @@ pub struct Config {
 
     /// The address of the site as the world sees it: canonical links, link previews and the
     /// sitemap are written with it.
-    #[arg(long, env = "FOLIA_PUBLIC_URL", default_value = folia_app::seo::DEFAULT_SITE_URL)]
+    #[arg(long, env = "FOLIA_PUBLIC_URL", default_value = folia_shell::seo::DEFAULT_SITE_URL)]
     pub public_url: String,
 
     /// Closed testing: the whole site asks for one shared password (`on`/`off`). The password is a

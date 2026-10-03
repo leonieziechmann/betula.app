@@ -841,19 +841,46 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 name = "folia-app"
 version = "1.0.3"
 dependencies = [
- "folia-calendar",
+ "folia-bookmarks",
+ "folia-catalog",
+ "folia-design",
+ "folia-home",
  "folia-locale",
- "folia-model",
- "folia-pack",
- "folia-pages",
+ "folia-planner",
  "folia-plans",
- "folia-query",
+ "folia-programs",
  "folia-routes",
- "folia-search",
+ "folia-shell",
+ "folia-stores",
  "folia-timetable",
+ "folia-widgets",
  "http",
  "leptos",
  "leptos_axum",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "folia-bookmarks"
+version = "1.0.3"
+dependencies = [
+ "folia-data",
+ "folia-design",
+ "folia-model",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "folia-widgets",
+ "leptos",
  "leptos_meta",
  "leptos_router",
  "send_wrapper",
@@ -875,21 +902,100 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-catalog"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-model",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-search",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "folia-widgets",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "folia-client"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "folia-app",
- "folia-locale",
- "folia-model",
+ "folia-data",
  "folia-pages",
- "folia-routes",
+ "folia-shell",
  "js-sys",
  "leptos",
- "serde",
  "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "folia-data"
+version = "1.0.3"
+dependencies = [
+ "folia-model",
+ "folia-pages",
+ "http",
+ "leptos",
+ "leptos_axum",
+ "serde_json",
+]
+
+[[package]]
+name = "folia-design"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-locale",
+ "folia-model",
+ "folia-routes",
+ "folia-search",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "folia-home"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "folia-widgets",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
  "web-sys",
 ]
 
@@ -936,6 +1042,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-planner"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pack",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "folia-widgets",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "folia-plans"
 version = "0.1.0"
 dependencies = [
@@ -948,6 +1081,32 @@ dependencies = [
  "folia-search",
  "folia-test-support",
  "serde",
+]
+
+[[package]]
+name = "folia-programs"
+version = "1.0.3"
+dependencies = [
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-search",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "folia-widgets",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -998,12 +1157,18 @@ dependencies = [
  "flate2",
  "folia-app",
  "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-home",
  "folia-locale",
  "folia-model",
  "folia-pages",
+ "folia-programs",
  "folia-query",
  "folia-routes",
  "folia-search",
+ "folia-shell",
+ "folia-stores",
  "futures-util",
  "hmac",
  "leptos",
@@ -1031,10 +1196,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-shell"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-pages",
+ "folia-routes",
+ "folia-stores",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "folia-stores"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pack",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-timetable",
+ "leptos",
+ "leptos_router",
+ "serde",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "folia-test-support"
 version = "0.1.0"
 dependencies = [
  "folia-model",
+ "serde_json",
 ]
 
 [[package]]
@@ -1049,6 +1256,42 @@ dependencies = [
  "folia-search",
  "folia-test-support",
  "serde",
+]
+
+[[package]]
+name = "folia-widgets"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-model",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-search",
+ "folia-shell",
+ "folia-stores",
+ "folia-timetable",
+ "leptos",
+ "leptos_meta",
+ "leptos_router",
+ "send_wrapper",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "folia-worker"
+version = "0.1.0"
+dependencies = [
+ "folia-model",
+ "folia-pages",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]

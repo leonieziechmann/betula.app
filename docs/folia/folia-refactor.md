@@ -951,6 +951,44 @@ than §6:
   is gone. `cargo test` and clippy run on the default members, as before: `--workspace` builds the
   app with `csr` and `ssr` at once, which nothing ships.
 
+**Phases 4 and 7 (2026-10-03), the UI in crates.** `folia-app` (32,600 lines) is cut along §7.2,
+in the order the cycles allowed, each step compiled and tested: `folia-design` (the building
+blocks of `ui.rs`, `icons`, `format`, `combobox`, `nav`, the languages), `folia-data`
+(`DataClient`), `folia-stores` (`bookmarks`, `studyplan`, `myprogram`), `folia-shell` (the chrome,
+`frame`, `tabs`, `pending`, `skeleton`, `ground`, `languages`, `launch`, `seo`, the document's
+addresses), `folia-widgets` (a module's view, the rows and chips of a list, the finder's memory,
+`local`, `swipe`, `week`), the features `folia-home` (with `legal`), `folia-catalog` (with the
+module's own page), `folia-programs`, `folia-bookmarks`, `folia-planner`, and `folia-worker`, the
+data worker's bundle (no Leptos, no page: 35 crates in its tree, against the page bundle's
+199). `folia-app` is what is left: the document and `App` with its routes. Where it went other
+than §7:
+
+- **The cycles were broken by moving pure functions down:** the Studienplan's address
+  (`PlanAddress`) and what a local view shows and links (`filling`, `full_href`, `back_href`) into
+  `folia-routes`; `Frame`, `Plain`, `BackLink` and `ErrorState` from `ui.rs` into the shell;
+  `Row`, `ListKeys`, `phone_layout`, the chips (`Tri`, `Toggle`, `Choice`) and the finder's memory
+  out of `pages::catalog` into the widgets. The stores need nothing of the shell, so the shell
+  stands on them and takes the chrome, whose numbers are theirs.
+- **Texts per crate with one macro** (`folia_design::texts!`): a crate names the groups it writes,
+  its own and those of the crates below it, and gets its `Texts`, `DE`, `EN`, `texts` and `t()`;
+  code still writes `t.catalog.filters`. The catalog's group lives with the widgets, whose rows
+  and chips write it. A function of one crate never takes another crate's `Texts`, only a
+  language. The start page's tour quotes a few button names of the other features: it has its own
+  copy of them (`home_detail::quoted_*`), and `folia-app`, which has every feature, checks that
+  the copies and the FAQ's quotes match (`quotes.rs`).
+- **`folia/layers.toml` and its test** (`folia-test-support`, `tests/layers.rs`): the layers of
+  §7.2 as a table; the test reads `cargo metadata` and fails on a crate that uses a layer above
+  its own, on a feature that uses a feature and on a UI crate that names `folia-query` (both
+  tried). The UI crates lost the dependencies they never used, `folia-query` among them.
+- **No `folia-site`:** the site's pages are the features' pages rendered by the server, so a
+  route table of its own would be a second one to keep in step with `App`'s; `folia-app` is thin
+  enough (its document and its routes) for the server to build it. The site stays minimal as
+  phase 3 made it.
+- **Still in the server, still in one stylesheet:** the drawing (`folia-cards`) draws with the
+  birch and the fonts the server's build script embeds, and has to take that step along;
+  `app.css` is not yet cut into the crates' stylesheets (§7.6, with the prefixes and layers that
+  rename every class and every selector of the checks).
+
 ## 12. Still open
 
 Nothing the owner has to decide before the minimal version: every question of the first draft is

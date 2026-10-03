@@ -234,7 +234,7 @@ async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str)
     (parts.status, parts.headers, String::from_utf8(body).unwrap())
 }
 
-/// The launch screens of iOS (`folia_app::launch`): the head script of every page names those of its
+/// The launch screens of iOS (`folia_shell::launch`): the head script of every page names those of its
 /// screen, and the server draws each one it can name, as large as its screen, and answers it again
 /// with 304 to its ETag; no other name is there. Needs no snapshot.
 /// The semantic search's model (`semantic`): served under the address its content names, kept
@@ -432,20 +432,20 @@ async fn legal_pages_are_one_step_from_every_page() {
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path} needs no snapshot");
-        for text in [folia_app::pages::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", folia_app::pages::legal::EMAIL)] {
+        for text in [folia_home::legal::NAME, "Querstraße 23", "14656 Brieselang", &format!("href=\"mailto:{}\"", folia_home::legal::EMAIL)] {
             assert!(page.contains(text), "{path}: {text}");
         }
         let head = page.split("</head>").next().unwrap_or_default();
-        assert_eq!(head.contains("noindex"), folia_app::pages::legal::PLACEHOLDER, "{path}");
+        assert_eq!(head.contains("noindex"), folia_home::legal::PLACEHOLDER, "{path}");
     }
     let (_, _, body) = request(&router, folia_routes::url::PRIVACY, &[]).await;
     let privacy = String::from_utf8(body).unwrap();
-    for part in &folia_app::pages::legal::PRIVACY {
-        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&folia_app::i18n::legal::DE));
+    for part in &folia_home::legal::PRIVACY {
+        assert!(privacy.contains(&format!("id=\"{}\"", part.id)) && privacy.contains(&format!("href=\"#{}\"", part.id)), "{}: {}", part.id, (part.heading)(&folia_home::i18n::legal::DE));
     }
 
     // Any other page, here the program overview, which says that it has no catalog: the ground at
-    // its end (`folia_app::ground`) links both.
+    // its end (`folia_shell::ground`) links both.
     let (status, _, body) = request(&router, folia_routes::url::PROGRAMS, &[]).await;
     let page = String::from_utf8(body).unwrap();
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
@@ -496,7 +496,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         folia_query::catalog_count(&db, &url.query).unwrap()
     };
     assert!(expected > 100);
-    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", folia_app::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
+    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", folia_design::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
     let etag = headers[header::ETAG].to_str().unwrap().to_string();
     // The same filter written differently is the same page.
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;
@@ -570,8 +570,8 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         let (status, _, body) = request(&router, path, &[]).await;
         let page = String::from_utf8(body).unwrap();
         assert_eq!(status, StatusCode::OK, "{path}");
-        assert!(page.contains(folia_app::pages::legal::NAME), "{path} names who runs Betula");
-        assert_eq!(head(&page).contains("noindex"), folia_app::pages::legal::PLACEHOLDER, "{path}");
+        assert!(page.contains(folia_home::legal::NAME), "{path} names who runs Betula");
+        assert_eq!(head(&page).contains("noindex"), folia_home::legal::PLACEHOLDER, "{path}");
     }
 
     // What a link preview and a home screen read: the card of the page with an absolute picture,
@@ -738,7 +738,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     }
     // The Merkliste and the Stundenplan: a picture each, the same for everybody (what a visitor
     // keeps lives in the browser), named by their pages.
-    for (page, card) in [(folia_routes::url::BOOKMARKS, folia_app::seo::BOOKMARKS_CARD), (folia_routes::url::STUDYPLAN, folia_app::seo::STUDYPLAN_CARD)] {
+    for (page, card) in [(folia_routes::url::BOOKMARKS, folia_shell::seo::BOOKMARKS_CARD), (folia_routes::url::STUDYPLAN, folia_shell::seo::STUDYPLAN_CARD)] {
         let body = String::from_utf8(request(&router, page, &[]).await.2).unwrap();
         assert!(head(&body).contains(&format!("content=\"https://catalog.example{card}\"")), "{page}: {body}");
         let (status, headers, png) = request(&router, card, &[]).await;
@@ -968,7 +968,7 @@ async fn a_studyplan_is_a_calendar_feed() {
 async fn broken_calendar_codes_are_404() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("calendar-404")).unwrap()));
     // The Merkliste's code of the same kind of list: its kind is part of the check characters.
-    let bookmarks = folia_app::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
+    let bookmarks = folia_stores::bookmarks::transfer_fragment(&["11112".to_string(), "12104".to_string()]).unwrap();
     let bookmarks = bookmarks.strip_prefix("m=").unwrap();
     // These have the shape of a feed's address; what they carry is what no calendar reads.
     for code in [bookmarks, TOO_MANY_MODULES_CODE, NO_MODULE_CODE, "Ab.ics"] {

@@ -7,6 +7,10 @@ description = "What the tests of Folia's crates share: the snapshot, the pinned 
 [dependencies]
 folia-model = { path = "../model", features = ["sqlite"] }
 
+[dev-dependencies]
+# The layers test reads `cargo metadata`.
+serde_json = "1.0"
+
 [lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"

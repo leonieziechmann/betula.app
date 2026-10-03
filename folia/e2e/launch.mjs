@@ -1,4 +1,4 @@
-// Checks the launch screens of the installed app on iOS (folia/crates/app/src/launch.rs): on an iPhone the
+// Checks the launch screens of the installed app on iOS (folia/crates/shell/src/launch.rs): on an iPhone the
 // head script names the pictures of its screen, upright, light and dark; on an iPad also turned;
 // anywhere else none. Every picture it names is served, as a PNG exactly as large as the screen.
 // Needs no snapshot.

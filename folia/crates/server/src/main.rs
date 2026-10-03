@@ -39,7 +39,7 @@ use axum::response::Response;
 use axum::Router;
 use axum::routing::get;
 use clap::Parser;
-use folia_app::data::{CatalogSource, Source};
+use folia_data::{CatalogSource, Source};
 use folia_model::{Database, DbError};
 use leptos::prelude::*;
 use leptos_axum::{generate_route_list, AxumRouteListing, LeptosRoutes};
@@ -167,14 +167,14 @@ pub fn pages(state: &AppState) -> Router<AppState> {
     // the build its stylesheet and scripts are linked with, and the map of the programs the
     // active snapshot was opened with.
     let provide = {
-        let (store, site, build) = (state.store.clone(), folia_app::seo::SiteUrl(state.public_url.clone()), folia_app::BuildId(state.build_id.clone()));
+        let (store, site, build) = (state.store.clone(), folia_shell::seo::SiteUrl(state.public_url.clone()), folia_app::BuildId(state.build_id.clone()));
         move || {
             provide_context(source.clone());
             provide_context(site.clone());
             provide_context(build.clone());
             if let Some(snapshot) = store.current() {
                 if let Some((map, ..)) = &snapshot.program_map {
-                    provide_context(folia_app::data::ProgramMapHandle(map.clone()));
+                    provide_context(folia_data::ProgramMapHandle(map.clone()));
                 }
                 if let Some(programs) = snapshot.programs.clone() {
                     provide_context(programs);
@@ -240,8 +240,8 @@ fn in_every_language() -> Router<AppState> {
             .route(&at(folia_app::OG_IMAGE), get(api::og_image))
             .route(&at("/cards/module/{file}"), get(api::module_card))
             .route(&at("/cards/program/{file}"), get(api::program_card))
-            .route(&at(folia_app::seo::BOOKMARKS_CARD), get(api::bookmarks_card_png))
-            .route(&at(folia_app::seo::STUDYPLAN_CARD), get(api::studyplan_card_png))
+            .route(&at(folia_shell::seo::BOOKMARKS_CARD), get(api::bookmarks_card_png))
+            .route(&at(folia_shell::seo::STUDYPLAN_CARD), get(api::studyplan_card_png))
             .route(&at("/cards/studyplan/{file}"), get(api::shared_plan_card))
             // A Studienplan as a calendar subscription. No page of the app lives under `/calendar/`
             // (axum refuses two routes for one path at startup).
@@ -256,7 +256,7 @@ fn in_every_language() -> Router<AppState> {
 pub fn files() -> Router<AppState> {
     Router::new()
         .route(folia_app::STYLESHEET, get(api::stylesheet))
-        .route(folia_app::icons::SPRITE, get(api::icons))
+        .route(folia_design::icons::SPRITE, get(api::icons))
         .route(folia_app::FAVICON, get(api::favicon))
         .route(folia_app::FONT, get(api::font))
         .route("/assets/shots/{file}", get(api::showcase_shot))

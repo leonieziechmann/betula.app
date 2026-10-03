@@ -1,38 +1,60 @@
 [workspace]
 members = [
     "crates/app",
+    "crates/bookmarks",
     "crates/calendar",
+    "crates/catalog",
     "crates/client",
+    "crates/data",
+    "crates/design",
+    "crates/home",
     "crates/locale",
     "crates/model",
     "crates/pack",
     "crates/pages",
+    "crates/planner",
     "crates/plans",
+    "crates/programs",
     "crates/query",
     "crates/routes",
     "crates/search",
     "crates/semantic",
     "crates/server",
+    "crates/shell",
+    "crates/stores",
     "crates/test-support",
     "crates/timetable",
+    "crates/widgets",
+    "crates/worker",
 ]
 # `client` is the WASM build of the app (feature csr); building it together with the server
-# (feature ssr) would unify both into one leptos. Build it with scripts/build-client.sh.
+# (feature ssr) would unify both into one leptos. It and `worker` (the data worker's bundle) are
+# built with scripts/build-client.sh.
 default-members = [
     "crates/app",
+    "crates/bookmarks",
     "crates/calendar",
+    "crates/catalog",
+    "crates/data",
+    "crates/design",
+    "crates/home",
     "crates/locale",
     "crates/model",
     "crates/pack",
     "crates/pages",
+    "crates/planner",
     "crates/plans",
+    "crates/programs",
     "crates/query",
     "crates/routes",
     "crates/search",
     "crates/semantic",
     "crates/server",
+    "crates/shell",
+    "crates/stores",
     "crates/test-support",
     "crates/timetable",
+    "crates/widgets",
 ]
 resolver = "2"
 

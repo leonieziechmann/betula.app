@@ -136,20 +136,20 @@ else
   fi
 fi
 
-# Impressum and Datenschutz are final while folia/crates/app/src/pages/legal.rs says PLACEHOLDER = false (the
+# Impressum and Datenschutz are final while folia/crates/home/src/legal.rs says PLACEHOLDER = false (the
 # real texts since 2026-09-25). An instance open to everybody (FOLIA_ACCESS_GATE other than "on")
 # must not go out without them (owner, 2026-09-21: placeholders first, "aber so, dass wir das
 # nicht vergessen"); behind the gate it may.
 gate="$(sed -n 's/^FOLIA_ACCESS_GATE=//p' "${DEPLOY_DIR}/stacks/${INSTANCE}.env" | tr -d '\r' | tail -n 1)"
 if [[ "${gate}" != "on" ]]; then
   if [[ "${SHIP_WORKTREE:-0}" == "1" ]]; then
-    legal="$(cat folia/crates/app/src/pages/legal.rs 2>/dev/null)" || legal=""
+    legal="$(cat folia/crates/home/src/legal.rs 2>/dev/null)" || legal=""
   else
-    legal="$(git show HEAD:folia/crates/app/src/pages/legal.rs 2>/dev/null)" || legal=""
+    legal="$(git show HEAD:folia/crates/home/src/legal.rs 2>/dev/null)" || legal=""
   fi
-  [[ -n "${legal}" ]] || die "instance '${INSTANCE}' is open to everybody (FOLIA_ACCESS_GATE=${gate:-unset}), but this release has no folia/crates/app/src/pages/legal.rs: no Impressum, no Datenschutz."
+  [[ -n "${legal}" ]] || die "instance '${INSTANCE}' is open to everybody (FOLIA_ACCESS_GATE=${gate:-unset}), but this release has no folia/crates/home/src/legal.rs: no Impressum, no Datenschutz."
   if grep -q '^pub const PLACEHOLDER: bool = true;' <<<"${legal}"; then
-    die "instance '${INSTANCE}' is open to everybody (FOLIA_ACCESS_GATE=${gate:-unset}), but Impressum and Datenschutz are placeholders still (folia/crates/app/src/pages/legal.rs: PLACEHOLDER = true). Write the real texts and set it to false, or keep the gate on."
+    die "instance '${INSTANCE}' is open to everybody (FOLIA_ACCESS_GATE=${gate:-unset}), but Impressum and Datenschutz are placeholders still (folia/crates/home/src/legal.rs: PLACEHOLDER = true). Write the real texts and set it to false, or keep the gate on."
   fi
 fi
 log "release ${TAG} for instance ${INSTANCE}"

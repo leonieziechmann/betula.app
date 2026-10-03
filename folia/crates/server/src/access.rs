@@ -38,7 +38,7 @@ pub const PATH: &str = "/access";
 /// The name of the secret: `/run/secrets/folia-access-password`, `FOLIA_ACCESS_PASSWORD[_FILE]`.
 pub const SECRET: &str = "folia-access-password";
 /// The site's only cookie. The privacy notice describes it, its content and its 90 days
-/// („Cookies" in folia/crates/app/src/pages/legal.rs): change it with them.
+/// („Cookies" in folia/crates/home/src/legal.rs): change it with them.
 const COOKIE: &str = "betula_access";
 /// How long a visit lasts. A new password ends all of them earlier.
 const VISIT: Duration = Duration::from_secs(90 * 24 * 60 * 60);
@@ -218,9 +218,9 @@ fn resolve(name: &str, docker_secrets: &Path) -> Result<Option<(String, String)>
 pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -> Response {
     let Some(gate) = state.gate.as_ref() else { return next.run(request).await };
     let path = request.uri().path();
-    // The launch screens of iOS are the home screen's like its icons (`folia_app::launch`); another name
+    // The launch screens of iOS are the home screen's like its icons (`folia_shell::launch`); another name
     // under their path stays behind the gate.
-    let launch_screen = path.strip_prefix(folia_app::launch::PATH).is_some_and(|file| folia_app::launch::Picture::from_file(file).is_some());
+    let launch_screen = path.strip_prefix(folia_shell::launch::PATH).is_some_and(|file| folia_shell::launch::Picture::from_file(file).is_some());
     // A calendar feed passes when its code decodes: the owner's decision of 2026-09-24, since a
     // calendar service has no password to give. The check characters turn guesses away before any
     // handler runs, and what it shows is the QIS schedule of the modules the code names; every
@@ -353,8 +353,8 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
                 <main class="gate-main">
                     // The lockup stands on the page like in the app: on a panel the light mark would vanish.
                     <div class="gate-brand">
-                        <span class="logo"><folia_app::ui::Mark/></span>
-                        <span><folia_app::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
+                        <span class="logo"><folia_design::ui::Mark/></span>
+                        <span><folia_design::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>
                     </div>
                     <section class="gate-panel">
                         <h1>{t.gate_title}</h1>

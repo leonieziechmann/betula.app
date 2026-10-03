@@ -1,41 +1,15 @@
-//! The data worker (docs/folia/folia-refactor.md §6.2): a Web Worker with the catalog and this
-//! bundle, which answers every question of the app's pages (`folia_pages::ask`) beside the page's
-//! thread. The page's thread only builds what the answers say.
-//!
-//! Both sides are here. In the worker (`folia/crates/client/js/data-worker.js`, which opens the
-//! catalog and puts `betulaDb` on its global object) `worker_answer` answers a question in JSON
-//! with JSON. On the page `BrowserData` asks it through `window.betulaData` (`folia/assets/boot.js`,
-//! which starts the worker before the app).
+//! The page's side of the data worker (docs/folia/folia-refactor.md §6.2): `BrowserData` asks it
+//! every question of the app's pages through `window.betulaData` (`folia/assets/boot.js`, which
+//! starts the worker before the app), and `snapshot_changed` hears when it answers from a newer
+//! snapshot. The worker's side is `folia-worker`.
 
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use folia_app::data::{Answerer, DataClient, Later};
-use folia_pages::ask::{self, Kept, Lane};
+use folia_data::{Answerer, DataClient, Later};
+use folia_pages::ask::Lane;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-
-use crate::LocalDatabase;
-
-thread_local! {
-    /// What the worker keeps between questions besides the answers (the finder's candidates).
-    static KEPT: RefCell<Kept> = RefCell::new(Kept::default());
-}
-
-/// In the worker: the answer to the question `name` (`Ask::NAME`) with the fields `question` (JSON),
-/// as the JSON of its `Result<Answer, DataError>`; empty for a name no question has.
-#[wasm_bindgen]
-pub fn worker_answer(name: &str, question: &str) -> String {
-    KEPT.with_borrow_mut(|kept| ask::answer_json(name, question, &LocalDatabase, kept)).unwrap_or_default()
-}
-
-/// In the worker: a newer snapshot answers from now on, so nothing kept of the one before counts,
-/// neither what the questions keep nor the statements' answers.
-#[wasm_bindgen]
-pub fn worker_forget() {
-    KEPT.with_borrow_mut(|kept| *kept = Kept::default());
-    crate::forget_statements();
-}
 
 thread_local! {
     /// The page's client, for `snapshot_changed`.

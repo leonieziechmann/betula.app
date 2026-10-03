@@ -70,7 +70,7 @@ pub async fn warm(pages: &Router, store: &SnapshotStore, generation: u64, paths:
             };
             // Each page in a task of its own: a render that panics costs this page, not the rest
             // of the warm-up. On 2026-09-26 one ended it after a few hundred pages, and no later
-            // snapshot was warmed until a restart (a value of the browser's in `folia_app::pending`,
+            // snapshot was warmed until a restart (a value of the browser's in `folia_shell::pending`,
             // dropped on another thread). A page lost so keeps the date it had (`Changes::finish`).
             let (state, page) = match tokio::spawn(ask(pages.clone(), request)).await {
                 Ok(answer) => answer,
@@ -145,7 +145,7 @@ pub fn masks(stylesheet: &str) -> impl Iterator<Item = &str> {
 pub async fn files(router: Router, build: Arc<str>, model: Option<String>) {
     let started = Instant::now();
     let masks: std::collections::BTreeSet<&str> = masks(crate::assets::text("app.css")).collect();
-    let built = [folia_app::STYLESHEET, folia_app::icons::SPRITE, folia_app::ENHANCE_SCRIPT, folia_app::BOOT_SCRIPT, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/pkg/folia_client.js", "/pkg/folia_client_bg.wasm", "/pkg/data-worker.js"];
+    let built = [folia_app::STYLESHEET, folia_design::icons::SPRITE, folia_app::ENHANCE_SCRIPT, folia_app::BOOT_SCRIPT, "/assets/sql-wasm.js", "/assets/sql-wasm.wasm", "/pkg/folia_client.js", "/pkg/folia_client_bg.wasm", "/pkg/data-worker.js", "/pkg/folia_worker.js", "/pkg/folia_worker_bg.wasm"];
     let semantic = ["/pkg/semantic.js", "/pkg/semantic-worker.js", "/pkg/semantic.simd.wasm", "/pkg/semantic.relaxed.wasm"];
     let paths: Vec<String> = built
         .iter()

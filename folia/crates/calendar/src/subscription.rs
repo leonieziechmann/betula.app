@@ -19,7 +19,7 @@
 //! it does not know reads as „derive", and a program of another shape as none.
 //! The address is also what the logs see, so Folia's own log writes every path under
 //! `/calendar/`, after a language's prefix too, as one fixed text (`redacted_path`). The privacy notice lists what a code carries
-//! („Kalender-Abo" in folia/crates/app/src/pages/legal.rs): a field added here is a word added there.
+//! („Kalender-Abo" in folia/crates/home/src/legal.rs): a field added here is a word added there.
 
 use folia_locale::Locale;
 use folia_model::ids::is_program_id;

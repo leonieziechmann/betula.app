@@ -55,8 +55,8 @@ pub struct Snapshot {
     /// for) and its own ETag. The ETag is the content's, not the snapshot's: a new layout of the
     /// same catalog (a new Folia) must not be answered with „304, unchanged" from a browser's cache.
     pub program_map: Option<(Arc<folia_pages::graph::ProgramMap>, Kept, String)>,
-    /// The data of the program overview, the same for each of its filters (`folia_app::pages::programs`).
-    pub programs: Option<folia_app::pages::programs::ProgramsReady>,
+    /// The data of the program overview, the same for each of its filters (`folia_programs::programs`).
+    pub programs: Option<folia_programs::programs::ProgramsReady>,
     /// `/sitemap.xml` as made on first request: the round of the warm-up whose dates it names
     /// (`lastmod::Changes::rounds`; made anew after the next), its ETag, and its XML.
     pub sitemap: Mutex<Option<(u64, String, Arc<Kept>)>>,
@@ -92,7 +92,7 @@ impl Snapshot {
                 None
             }
         };
-        let programs = folia_pages::programs_overview(&db).ok().map(|data| folia_app::pages::programs::ProgramsReady(Arc::new(data)));
+        let programs = folia_pages::programs_overview(&db).ok().map(|data| folia_programs::programs::ProgramsReady(Arc::new(data)));
         let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
         let gzip_path = beside(&path, GZIP);
         let gzip_bytes = std::fs::read(&gzip_path).ok().map(Bytes::from);

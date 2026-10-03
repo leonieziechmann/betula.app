@@ -1,4 +1,4 @@
-// Checks the Studienplan (folia/crates/app/src/pages/studyplan, folia/crates/app/src/studyplan.rs, folia/crates/app/src/myprogram.rs).
+// Checks the Studienplan (folia/crates/planner/src/studyplan, folia/crates/stores/src/studyplan.rs, folia/crates/stores/src/myprogram.rs).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node studyplan.mjs [--only=<n>]      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // The blocks of the design (G.3), each a function, `--only=3` runs one of them:
 //   1 the desktop walk, 2 the overlay and the finder, 4 the phone, 6 privacy — with their features;

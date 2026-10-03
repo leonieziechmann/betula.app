@@ -3,15 +3,18 @@
 > Betula has three parts named after the birch: **Cortex** (the bark: the cache between Betula and
 > the internet, `docs/cortex/cortex.md`), **Radix** (the root: the Go collector, `docs/radix/operations.md`)
 > and **Folia** (the leaves: this web tier, the Cargo workspace `folia/` with its crates in
-> `folia/crates/<crate>`, each `folia-<crate>`: the domain — `folia-locale`, `folia-model`,
-> `folia-calendar`, `folia-search`, `folia-routes`, `folia-query`, `folia-timetable`, `folia-plans`,
-> `folia-pages`, `folia-pack`, `folia-semantic` — and `folia-app`, `folia-client`, `folia-server` with
-> the binary `folia`; docs/folia/folia-refactor.md §7 has the map).
+> `folia/crates/<crate>`, each `folia-<crate>`, in the layers of `folia/layers.toml`: the domain —
+> `folia-locale`, `folia-pack`, `folia-model`, `folia-calendar`, `folia-search`, `folia-routes`,
+> `folia-query`, `folia-timetable`, `folia-plans`, `folia-semantic`, `folia-pages` — the data
+> (`folia-data`), the UI — `folia-design`, `folia-stores`, `folia-shell`, `folia-widgets` and the
+> features `folia-home`, `folia-catalog`, `folia-programs`, `folia-bookmarks`, `folia-planner` — and
+> `folia-worker`, `folia-app`, `folia-client`, `folia-server` with the binary `folia`;
+> docs/folia/folia-refactor.md §7 has the map).
 
-> State: 2026-09-21. Every page is server-rendered and works without JavaScript; with
-> JavaScript the browser app (WASM + local SQLite) takes the page over and nothing is loaded
-> again, and the app starts without a network (a service worker keeps its shell, IndexedDB the
-> catalog). Not yet: user data beyond the marked modules, context search.
+> State: 2026-10-03. The site's pages are server-rendered and minimal; with JavaScript the
+> browser app takes the page over and nothing is loaded again. Its questions go to the data
+> worker, which keeps the catalog (sql.js, IndexedDB) beside the page's thread and shows a newer
+> snapshot in place; the app starts without a network (a service worker keeps its shell).
 > Decisions and their evidence: `docs/history/frontend-phase0.md`.
 
 ## 1. Overview
@@ -23,12 +26,16 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 
 | Crate | Role |
 |---|---|
-| `catalog/` | The data contract in Rust: row structs, labels, `CatalogQuery` → SQL, every query, the page loaders (`pages.rs`) and the URL scheme (`url.rs`). No I/O; callers hand in a `Database`. Compiles natively and to WASM. |
-| `app/` | The Leptos components. Feature `ssr` for the server, `csr` for the browser app. Pages get their data through `data::Source`. |
-| `client/` | The browser app (WASM): `app` with feature `csr` on a `Source` backed by sql.js. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
+| domain | The data contract and what is computed from it, without I/O (callers hand in a `Database`), native and WASM: `model` (rows, labels, `Database`), `calendar`, `search`, `routes` (every address, `url.rs`), `query` (the SQL, R11), `timetable`, `plans`, `pages` (one loader per page, and the questions of the app's pages, `ask.rs`). |
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`folia/crates/pack/src/lib.rs`). |
-| `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its queries in the catalog's search worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `data/` | `DataClient`: where every page asks its questions. On the server it answers them on its thread from the active snapshot; in the browser it sends them to the data worker. |
+| `design/`, `stores/`, `shell/`, `widgets/` | The UI below the pages (Leptos, feature `ssr` for the server, `csr` for the browser): building blocks and the languages, what a visitor keeps, the shell (chrome, frame, a step between pages, the ground), what several pages show. |
+| `home/`, `catalog/`, `programs/`, `bookmarks/`, `planner/` | The features: each its pages and their texts. None uses another. |
+| `app/` | The composition: the document and `App` with its routes. |
+| `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
+| `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
+| `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -40,9 +47,9 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`), „Wahlpflicht & Bereiche“ (`areas`) and „Mein Plan“ (`my-plan`: a placeholder so far, the visitor's, so `noindex` and not in the sitemap, `ProgramTab::indexed`). „Mein Plan“ took the place of „Alle Module“ on 2026-09-25: the program's modules are its catalog (`/catalog?program=<slug>`), and `…/modules` is a 404. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
-| `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/app/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
+| `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
-| `/impressum`, `/datenschutz` | The legal pages (`folia/crates/app/src/pages/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
+| `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -89,7 +96,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 - **Targets:** whole rows are links (54 px, 72 px on a phone); filter toggles are 32 px on the
   desktop to keep the panel short, 44 px on a phone. Small controls have **virtual oversizing**
   (R14): they take the pointer in an invisible area around them.
-- **The filter panel** (`folia/crates/app/src/pages/catalog.rs`, JavaScript first, owner decision 2026-09-20):
+- **The filter panel** (`folia/crates/catalog/src/catalog.rs`, JavaScript first, owner decision 2026-09-20):
   - It is rendered once and then follows the URL (`Filters` takes memos, not values), so a change
     keeps the focus, the scroll position and what is folded open. Its width is dragged at the
     handle in the gap between the two boxes, inside 232–440 px, and remembered in `localStorage`.
@@ -113,7 +120,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`localStorage` `betula.finder`, e.g. `fits-skip=exam&fits-undated=1`; nothing while it
     compares everything), a view setting like the width of the panel (R13), read back like an
     address (`pages::catalog::finder_on`).
-  - **Pickers** (`folia/crates/app/src/combobox.rs`: program, area, lecturers, department) have a search that
+  - **Pickers** (`folia/crates/design/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`folia_search::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
     opens in place, under its button and across the panel the picker stands in (owner,
@@ -231,7 +238,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   10 KB. The page's description and its structured data take the text as one line
   (`text::plain`, the items of a list apart by „·").
 - **„Merken" (owner decision 2026-09-20: in the browser app only, and no data of a visitor on
-  the server; `folia/crates/app/src/bookmarks.rs`, `folia/crates/app/src/pages/bookmarks.rs`).** A visitor marks modules to
+  the server; `folia/crates/stores/src/bookmarks.rs`, `folia/crates/bookmarks/src/bookmarks.rs`).** A visitor marks modules to
   come back to. The marks live in this browser's `localStorage` (`betula.bookmarks.v1`, a line
   per module: id and time of marking, the newest first) and nowhere else: not in a URL, not in
   server HTML, in no request (R9, R13, R20). Another tab of the same browser follows through the
@@ -282,7 +289,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     used to switch to the catalog's address, so the catalog's tab kept the module open and its
     „Zurück" led back to the marked modules): „Vollbild" of the preview shows the module's whole
     page in the list's place (`&full=1`), and on a phone a tap on a row does (`open` alone), as on
-    a program's page (a local view, `folia/crates/app/src/local.rs`). The tab „Merkliste" stays the current one
+    a program's page (a local view, `folia/crates/widgets/src/local.rs`). The tab „Merkliste" stays the current one
     and remembers the module, „Zurück" and Esc lead to the list — with the module beside it again,
     through the history, on a phone without it — and show the row it was opened from; the
     catalog's tab never hears of it. What is listed stays meanwhile: a mark taken away on the
@@ -312,7 +319,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (their room is, so nothing moves at the takeover), the switch beside the badges and the
     sidebar's action are rendered unpressed and kept invisible until the app runs
     (`visibility`, so their room is kept too), and without JavaScript all of it is gone (R15).
-- **The areas are tabs (owner decision 2026-09-20, R19; `folia/crates/app/src/tabs.rs`):** the items of the
+- **The areas are tabs (owner decision 2026-09-20, R19; `folia/crates/shell/src/tabs.rs`):** the items of the
   rail (and of the phone's bottom bar) remember where their area was left. From another area a
   tab leads back to that place (the open program, the filtered list with its preview); on a page
   inside the area (a module, a program) the area's own tab leads up to the area's list as it was
@@ -327,7 +334,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   modules in place does not become what the catalog remembers** (a program, the marked modules:
   `Area::shows_in_place`; owner, 2026-09-20 and 2026-09-24): its tab keeps leading to the list
   as it was left, and that list does not reveal a module the visitor never picked there. Such a
-  module stays in its area anyway (`folia/crates/app/src/local.rs`); a module's own page reached from there (a
+  module stays in its area anyway (`folia/crates/widgets/src/local.rs`); a module's own page reached from there (a
   successor named on the module's page) leads **back into that area**, not to the catalog: the
   step before answers, and after a reload the programs' own memory does (it was left at a
   program page that names this module in `open`). Not where the page is what the catalog was
@@ -371,7 +378,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 - **A row of the catalog and of the Merkliste is swiped to mark and to plan its module** (owner,
   2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann darunter
   freigelegt wird was die Aktion macht (also Icon und Text)", and the same day for the Merkliste:
-  „Mach das auch in der Merkliste"; `folia/crates/app/src/swipe.rs`, app.css): on a phone, in the browser app,
+  „Mach das auch in der Merkliste"; `folia/crates/widgets/src/swipe.rs`, app.css): on a phone, in the browser app,
   to the left „Merken", to the right „Einplanen" — the two switches of the module's
   page, pressed from the list without opening the module, with the same effect (`MarkButton`,
   `studyplan::press`). The card follows the finger and uncovers what lies under it at the side it
@@ -444,12 +451,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   phone nothing stands beside a page: what is tapped is the page, with one tap and one history
   entry — a row of the catalog leads to the module's page, a row of the marked modules to the
   module in the list's place; on a program's page a module, an area or a row of the plan becomes
-  the page (`Filling` in `folia/crates/app/src/pages/program.rs`), and „Zurück" leads to what it was picked
+  the page (`Filling` in `folia/crates/programs/src/program.rs`), and „Zurück" leads to what it was picked
   from (a module picked out of an area back to the area). No preview that then has to be opened
   in full, no panel that unfolds under the page. Without the app the same HTML (the panel beside
   the page) is shown as the page by the stylesheet (`.aside-picked`).
 - **Local views (owner, 2026-09-24: „so, dass man das in jedem Tab ganz einfach implementieren
-  kann als lokale Ansicht"; `folia/crates/app/src/local.rs`):** showing a module in place is one mechanism,
+  kann als lokale Ansicht"; `folia/crates/widgets/src/local.rs`):** showing a module in place is one mechanism,
   not a feature of a page. The program page and the marked modules use it, and so will the
   semester plan. An area that lists modules gets it with five parts: its address implements
   `url::LocalView` (`open`, `full`, read and written by `url::local_from_pairs` and
@@ -585,7 +592,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   where the button was; Tab from the end of a page meets it before the ground. It needs
   JavaScript (R15); the classic site before the takeover has it as well.
 - **The Stundenplan on a phone** (owner, 2026-09-27: „Es gibt keine Wochenansicht beim Kalender
-  auf dem Smartphone"; `folia/crates/app/src/pages/studyplan/week.rs` `WeekCarousel`, `mod.rs`): „Woche" is
+  auf dem Smartphone"; `folia/crates/planner/src/studyplan/week.rs` `WeekCarousel`, `mod.rs`): „Woche" is
   the week grid of a wide screen too, fitted to the height the screen leaves under the bar of the
   search and over the bottom bar, and it alone takes the whole width of the screen („den ganzen
   horizontalen Platz"; it leaves the page's margin and the panel's, 12 + 14 px, and the rest of
@@ -614,7 +621,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   dark text on the green was "grauenhaft" — and the owner prefers toned-down colours to saturated
   ones.
   Font: Inter (variable, latin subset, OFL), self-hosted. Icons: Lucide (ISC), inlined through
-  `folia/crates/app/src/icons.rs`. The only `style` attributes carry data as custom properties: the week grid
+  `folia/crates/design/src/icons.rs`. The only `style` attributes carry data as custom properties: the week grid
   and the credit slider (`--from`, `--to`, `--at`), the place of a picker's popup, `ui::Hit`.
 - **Blocksatz** (owner, 2026-10-01: „support für Blocksatz", „Ja mach mal Blocksatz überall ab wo es
   sinnvoll ist/gut aussieht"): running text that is read through — a module's texts, the parts of
@@ -642,12 +649,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 
 ### Data flow
 
-- **Pages are synchronous functions of their route parameters.** SQLite answers in 1–7 ms on
-  both sides (rusqlite on the server, sql.js in the browser), so there are no async resources,
-  no loading states between pages and nothing to serialize into the HTML. A page calls one
-  loader of `folia_pages` through `Source::run`; everything it shows comes from one snapshot.
-  What the browser app shows between a click and the page is the page's skeleton, one frame
-  before the page is built („A click answers first" below), not a state the page waits in.
+- **Pages ask, through one seam** (2026-10-03, docs/folia/folia-refactor.md §6.4). Every question a
+  page has is a type of `folia_pages::ask` (24 of them, one per loader, with its answer), asked
+  through `folia_data::DataClient`: `get` in a reactive scope (the answer kept, or the question on
+  its way and the scope run again when it is there), `ask` in a handler, `use_ask` for a memo that
+  keeps the answer before while the new one comes. On the server the client answers on its thread
+  from the active snapshot (rusqlite), so a page renders complete in one pass; in the browser the
+  data worker answers. Everything a page shows comes from one snapshot.
 - **The server renders and caches.** HTML depends only on URL + snapshot (rule R9), so the first
   request renders (5–100 ms) and later ones are a memory copy (2 ms), brotli included; the cache
   keeps the compressed page only, and the pages of the sitemap are rendered into it after every new
@@ -661,35 +669,31 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   browser keeps without asking (`immutable`, „Caching and compression" in §3): the page's `304`
   is how a new build reaches it.
   `404`/`5xx` are `no-store`. Without a snapshot everything answers `503` + `Retry-After`.
-- **The browser app (owner decision: all queries run in the browser).** `assets/boot.js` opens
-  the local copy of the snapshot (`/api/db`: 44 MB, 4.4 MB in brotli, 7.6 MB in gzip, 2026-09-30;
-  kept in IndexedDB with its ETag, as a Blob that the browser reads away from the page, „A phone
-  that froze" below; sql.js) and loads the WASM bundle (34 MB, 1.7 MB in brotli, 2.8 MB
-  in gzip) in parallel; then `client::start()` replaces the
-  server-rendered body by the app. Not hydration: the local copy may be older than the server's
-  page, so the app renders fresh with the same components. From then on links, filters and the
-  search are client-side navigation on the local database (measured: takeover 1.2 s on a first
-  visit, preview 130 ms, filter 150 ms including the test driver). Until the takeover, and if
-  anything fails, the site stays a classic website served from the HTML cache; a link followed
-  while the app is starting waits for it (2026-10-02), and loads its page only where the app does
-  not start. A newer snapshot is
-  downloaded in the background and used from the next start, unless the copy is of an older
-  schema than the build reads (2026-09-23): such a copy is never opened. `boot.js` reads a copy's
-  schema from its SQLite header (`user_version`) and compares it with the build's
-  (`folia_model::SCHEMA_VERSION`, Radix's newest migration, written in by the server); with the
-  network an older copy is replaced first, as on a first visit; offline the app does not start, and
-  the status says so. Before, a returning visitor worked on the old copy until the download behind
-  it had finished, and after 0008 the plan page failed with „no such column: source_pages". A
-  server whose own snapshot is older (Radix has not exported the new schema yet) says so in
-  `/api/status` and logs `snapshot.outdated`; nothing is downloaded from it, and the site stays a
-  classic website until Radix has. The server never answers data queries for the app: its load is
-  cached HTML, static files and one database file. Once the app runs, `boot.js` hands the bytes of
-  the copy it opened to the catalog's search worker (2026-10-02, „The search of the catalog",
-  „Typing"), which works out the list of a search the visitor types on a copy of its own.
+- **The browser app (owner decision: all queries run in the browser, 2026-10-03 in its data
+  worker).** `assets/boot.js` starts the data worker (`folia/crates/worker/js/data-worker.js`, with
+  its own bundle `folia-worker`) and loads the app's bundle in parallel. The worker finds the copy
+  of the snapshot it kept in IndexedDB (by its ETag, as a Blob), asks the server what it has
+  (`/api/status`), downloads a new one (`/api/db`: 44 MB, 4.4 MB in brotli; one tab at a time, a
+  Web Lock) and opens it in sql.js; the page's thread holds no catalog. Then `client::start()`
+  replaces the server-rendered body by the app, the server's page staying in front of it as a
+  picture until the app's first answers are in (`betulaAnswered`). Not hydration: the copy may be
+  older than the server's page, so the app renders fresh with the same components. From then on
+  links, filters and the search are client-side navigation; a step keeps the page before in front
+  of the new one until its answers are there (`pending::hold`, at most 400 ms). Until the takeover,
+  and if anything fails, the site stays a website served from the HTML cache.
+  A copy of an older schema than the build reads is never opened (`user_version` in the SQLite
+  header against `folia_model::SCHEMA_VERSION`): with the network it is replaced first, offline the
+  app does not start, and the status says so. A server whose own snapshot is older says so in
+  `/api/status` (`snapshot.outdated`), and nothing is downloaded from it. A newer snapshot is
+  shown at once (owner, 2026-10-02): the worker looks when the tab comes back into view and every
+  five minutes, opens a new one beside the one in use and answers from it; the page shows the
+  answers it had until each new one is there (`DataClient::forget`), so it stays where it is, and
+  the other tabs open the copy the first one kept (a BroadcastChannel). The server never answers
+  data queries for the app: its load is cached HTML, static files and one database file.
 - **Fine-grained updates:** the catalog page splits its URL into the filter (what the list is),
   `page` (where the visitor is in it) and `open` (the preview). Opening a preview or scrolling
   re-renders neither list nor filters, and a filter change leaves the preview alone.
-- **The list is virtual** (`VirtualRows` in `folia/crates/app/src/pages/catalog.rs`, 2026-09-21; before,
+- **The list is virtual** (`VirtualRows` in `folia/crates/catalog/src/catalog.rs`, 2026-09-21; before,
   chunks of 50 were appended and prepended, and a long scroll grew slow): an element as tall as
   the whole list holds only the rows that are on screen and a few around them, each at its
   offset, so the scrollbar has the length of the list from the start. Rows are measured once
@@ -760,7 +764,7 @@ down four times (a phone) 260–280, 340, 380–850 and 590–775 ms. Where that
 of the same clicks): the queries 14 ms of a toggle and 50–72 ms of the start page and the
 overview, building the page 25–75 ms, style and layout the rest.
 
-- **Paint first, then work** (`folia/crates/app/src/pending.rs`). A navigation reaches the router one frame
+- **Paint first, then work** (`folia/crates/shell/src/pending.rs`). A navigation reaches the router one frame
   later; in that frame what can be shown at once is shown. `Pending` takes over, before the
   router's own listeners: clicks on the links the router would take (the same checks, and not
   what another handler has claimed with `preventDefault`), Back and Forward (the browser's
@@ -782,7 +786,7 @@ overview, building the page 25–75 ms, style and layout the rest.
   views of a program, the toggles of the program overview, the sidebar of the marked modules.
   Two clicks before the first has reached the page add up: the second link already leads from
   where the first goes (the toggles' addresses follow the panel).
-- **What still has to be computed stands there as a skeleton** (`folia/crates/app/src/skeleton.rs`): the frame
+- **What still has to be computed stands there as a skeleton** (`folia/crates/shell/src/skeleton.rs`): the frame
   of the page that comes, built from the layout classes of the real one (`.work`, `.framed`,
   `.panel`, `.sidebar`, `.page`, `.row`, `.module-grid`), so every panel stands where the page will
   put its own, in both layouts and both themes, and grey bars where the text will be; the
@@ -1004,7 +1008,7 @@ description. The list stays the list it was („ich mag das UI da und würde das
   while typing one word (without the slowdown 13–15 long tasks a word, up to 180 ms, keys waiting
   up to 125 ms). Now:
   - **The queries of what is typed run in a Web Worker** (`data::Worker`, `folia/crates/client/src/worker.rs`,
-    `folia/crates/client/js/search-worker.js`): a copy of the catalog the page opened, which `boot.js` hands over
+    `folia/crates/worker/js/data-worker.js`): a copy of the catalog the page opened, which `boot.js` hands over
     (the Blob it keeps, which the worker reads, once the app runs and the browser is idle),
     and the app's own bundle, whose `worker_catalog` and `worker_similar` run `pages::catalog` and
     `pages::similar` there, the same code on the same data as the page would. The search of the top
@@ -1140,7 +1144,7 @@ Owner decisions and open questions (2026-09-21):
 
 ### The landing page and the map of the programs (2026-09-20)
 
-`/` answers three questions at a glance (`folia/crates/app/src/pages/home.rs`): what this is (headline, „inoffiziell"
+`/` answers three questions at a glance (`folia/crates/home/src/home/mod.rs`): what this is (headline, „inoffiziell"
 in the first line), what is in it (four figures, and the map as the one picture of the page), where
 to start (two buttons, entry links with their exact counts, the faculties). Below
 that: what the app does, and questions and answers in plain text. That text is what the page is
@@ -1472,7 +1476,7 @@ at the end of every page the ground with the roots. Picked on a design canvas of
     moves it. Less motion keeps it (owner, 2026-09-30: it stayed down): it moves only as the
     visitor scrolls.
 
-The pieces: `folia/crates/app/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
+The pieces: `folia/crates/shell/src/ground.rs` (`Crown`, `Ground`; the ground's data is `pages::ground`, the meta
 and the current semester), „the birch" in `folia/assets/app.css`, the ground's behaviour in
 `folia/assets/enhance.js`. The crown runs along the whole top on every screen (owner, the same
 evening: „durchgehend und auf allen Geräten"; the first build hung only where nothing stood — at
@@ -1494,7 +1498,7 @@ their top (see „Search engines"), with heads of their own that `birch.mjs` dra
 (`<season>-card-head.svg` for the cards the server draws, not served; `<season>-og-head.svg` for the
 standard picture): the same twigs and seeds, only the clearing where the card's wordmark stands.
 
-### Search engines (`folia/crates/app/src/seo.rs`, 2026-09-20)
+### Search engines (`folia/crates/shell/src/seo.rs`, 2026-09-20)
 
 Aim: a search for a module or a program of the BTU finds the page here. What that rests on:
 
@@ -1683,7 +1687,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     shadow in the light, the wordmark and „Modulkatalog · inoffiziell" at the bottom; on its first
     request, one at a time, and keeps them (20–40 kB each, 2 MB for all). The gate lets them
     through like the icons. A screen that is not listed gets no picture and starts blank as before:
-    a new iPhone is one line in `folia/crates/app/src/launch.rs`. Look at all of them with
+    a new iPhone is one line in `folia/crates/shell/src/launch.rs`. Look at all of them with
     `FOLIA_LAUNCH_OUT=<dir> cargo test -p folia-server launch_screens_for_review`.
 - **Offline (`folia/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
   worker keeps the shell of the app — a page of the site (the browser app renders whatever the
@@ -1826,7 +1830,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
   The privacy notice lists what a browser keeps („Speicher im Browser" in
-  `folia/crates/app/src/pages/legal.rs`): a new store, or a new way for stored data into an address, is a
+  `folia/crates/home/src/legal.rs`): a new store, or a new way for stored data into an address, is a
   change of that text too. `folia/e2e/bookmarks.mjs` watches every request of a session for marks.
   Exceptions, decided by the owner (2026-09-23/24/25): the address of a calendar subscription
   (`/calendar/<code>.ics`, `folia_calendar::subscription`) carries the semester, the planned
@@ -1848,7 +1852,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   program whose abbreviations name them, as a `pack` code of kind `studyplan`
   (`folia_calendar::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
   kopieren" in the sidebar's group „Plan"), whoever opens it is offered the modules to take over
-  (`folia/crates/app/src/pages/studyplan/share.rs`), and the server's page names them in its tags and its
+  (`folia/crates/planner/src/studyplan/share.rs`), and the server's page names them in its tags and its
   picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
   nothing; Folia's own log writes the page's path without its query and the picture's as
   `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
@@ -1860,8 +1864,8 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `search_on`, `path`), and what takes a new page or list to compute has its skeleton
   (`Pending::waits`, `skeleton`). A new page gets a `pending::Shape`, or one that looks like it.
 - **R23. What the app writes is in the page's language** (2026-09-27, `docs/folia/i18n.md`). A text of
-  the app lives in a group of texts (`folia/crates/app/src/i18n/<group>.rs`, a field and one `const` per
-  language), never as a literal in a view; a component takes them once (`let t = i18n::t();`).
+  the app lives in a group of texts (`folia/crates/<crate>/src/i18n/<group>.rs`, a field and one
+  `const` per language, in the crate of its part), never as a literal in a view; a component takes them once (`let t = i18n::t();`).
   Every address of the app written into a page goes through `t.path(…)`, and what reads an
   address uses `i18n::use_location` (the path without the language's prefix). The data is not
   translated: titles, descriptions and names are shown as the BTU writes them. A server test
@@ -1936,7 +1940,7 @@ threads, 16 GB), measured 2026-09-23:
 | cold build, empty cache | 5 min 21 s | 3 min 24 s |
 | new worktree: fork the main checkout's cache, then build | 19 s + 2 min 46 s | 19 s + 57 s |
 | edit a page in `app/` (the catalog's filter panel), `cargo build` | 19 s | 10 s |
-| edit `folia/crates/app/src/ui.rs`, `cargo build` | 14 s | 9 s |
+| edit `folia/crates/design/src/ui.rs`, `cargo build` | 14 s | 9 s |
 | edit `server/`, `cargo build` | 19 s | 6 s |
 | edit a page, `folia/scripts/build-client.sh --dev` | 15 s | 11 s |
 | `cargo build` with nothing to do | 0.9 s | 0.9 s |
@@ -2495,6 +2499,10 @@ BETULA_FIXTURE_DIR=$PWD/snapshot go test ./internal/catalogbuild -run TestWriteF
 
 What `cargo test` checks:
 
+- `layers` (`folia-test-support`, needs no snapshot): every crate uses only what its layer may
+  (`folia/layers.toml`): the layers below its own and those before it in its own, features no
+  feature, the UI no `folia-query`.
+
 - `pack` (needs no snapshot): every shape of serde's data model there and back, the codes of
   fixed values (the format is frozen), a field added at the end read from older codes, versioned
   codes (the layout in four bits, another layout named, never read as a plain code), what the
@@ -2564,12 +2572,24 @@ search the address carries: its list asks before `boot.js` offers the semantic s
 its „Ähnliche Module“.
 
 ```bash
+cd e2e && WORKER_SNAPSHOT_DIR=../../snapshot node worker.mjs
+```
+
+checks the data worker: the page's thread holds no catalog (no sql.js, no `betulaDb`), the list
+is on screen in every frame up to the takeover, a filter and a module beside the list are
+answered by the worker, a second tab downloads nothing. With `WORKER_SNAPSHOT_DIR` (the
+directory `radix serve-snapshot` serves, Folia polling it often: `FOLIA_SNAPSHOT_POLL=2`) it
+writes a newer snapshot, waits until the server has it (in a debug build after the brotli of the
+one before, minutes) and checks that the open page shows it in place, staying where it was, and
+that the other tab gets it too; then it puts the pointer back.
+
+```bash
 cd e2e && node typing.mjs
 ```
 
-types in the search of the top bar once the catalog's search worker answers („The search of the
+types in the search of the top bar once the data worker answers („The search of the
 catalog“, „Typing“): four words, a key every 200 ms, two of them with the CPU slowed down four
-times. The page's own copy of the catalog runs none of the search's queries meanwhile, the list
+times. The page's thread runs none of the search's queries meanwhile, the list
 follows what was typed, and „Ähnliche Module“ (a stand-in for the semantic search that names the
 list's own rows first) hold none of the list's rows; a module searched by its number (14851) does
 not find its namesake (14508, „Anti-Gewalt-Arbeit“) among them. It prints how long the keys waited
@@ -2853,7 +2873,7 @@ to the result.
   Termine, chosen Termine, the Standort; `folia_calendar::subscription`), made anew from the
   active snapshot on every fetch. R20 has the owner's decision, §3 the gate and the log, „Der
   Studienplan" in §1 the rest; the privacy notice's part is „Kalender-Abo"
-  (`folia/crates/app/src/pages/legal.rs`), which lists what a code carries. The note of 2026-09-23 (a code of
+  (`folia/crates/home/src/legal.rs`), which lists what a code carries. The note of 2026-09-23 (a code of
   event ids) is superseded: a code of modules and hide rules also brings the exams QIS publishes
   later. Since 2026-09-25 an entry is as short as a slot of the week, for the phone (owner: „so
   kompakt wie möglich … so wie die Infos bei der Ansicht auf der Seite"): „VL EvS" in „ZHG/HS.C",

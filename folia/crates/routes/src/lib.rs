@@ -4,6 +4,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod filter;
+pub mod local;
 pub mod url;
 
 pub use filter::CatalogQuery;

@@ -54,7 +54,7 @@ fn main() -> std::process::ExitCode {
         let query = url.split_once('?').map(|(_, query)| query).unwrap_or("");
         let one = Instant::now();
         let parsed = CatalogUrl::parse(query);
-        // What the page component asks for besides the list (folia/crates/app/src/pages/catalog.rs): the
+        // What the page component asks for besides the list (folia/crates/catalog/src/catalog.rs): the
         // summary of the filter panel, the choices of its pickers, the meta row.
         if pages::catalog(&timed, &parsed, folia_locale::Locale::De).is_err() || pages::catalog_summary(&timed, &parsed.query).is_err() || pages::catalog_choices(&timed).is_err() || folia_query::meta(&timed).is_err() {
             failed += 1;

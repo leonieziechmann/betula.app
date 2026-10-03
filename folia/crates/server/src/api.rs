@@ -153,7 +153,7 @@ pub async fn program_map(State(state): State<AppState>, headers: HeaderMap) -> R
 }
 
 /// `GET /sitemap.xml`: every page a search engine should know: the three entrances, every module
-/// and every current program with its views. Filters of the lists are not pages (`folia_app::seo`).
+/// and every current program with its views. Filters of the lists are not pages (`folia_shell::seo`).
 /// Each page with the time it last changed where the warm-up has seen it (`lastmod`); the sitemap
 /// is made anew once a round of the warm-up has finished, and its ETag is its content's.
 pub async fn sitemap(State(state): State<AppState>, headers: HeaderMap) -> Response {
@@ -522,11 +522,11 @@ pub async fn birch(State(state): State<AppState>, Path(file): Path<String>, uri:
     }
 }
 
-/// `GET /assets/icons.svg`: the icons of the app as one sprite (`folia_app::icons`), which every icon
+/// `GET /assets/icons.svg`: the icons of the app as one sprite (`folia_design::icons`), which every icon
 /// on a page points at.
 pub async fn icons(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     static SPRITE: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
-    let body = SPRITE.get_or_init(|| Box::leak(folia_app::icons::sprite().into_boxed_str()).as_bytes());
+    let body = SPRITE.get_or_init(|| Box::leak(folia_design::icons::sprite().into_boxed_str()).as_bytes());
     asset(&state, &uri, &headers, "image/svg+xml", body).await
 }
 
@@ -588,10 +588,10 @@ pub async fn icon_monochrome(State(state): State<AppState>, uri: Uri, headers: H
 }
 
 /// `GET /assets/launch/<width>x<height>[-dark].png`: a launch screen of the installed app on iOS
-/// (`folia_app::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
+/// (`folia_shell::launch`), for the screens a page names; drawn on its first request and kept (`launch`).
 /// Kept like the other assets: it changes with the build at most.
 pub async fn launch_screen(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
-    let Some(picture) = folia_app::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
+    let Some(picture) = folia_shell::launch::Picture::from_file(&file) else { return StatusCode::NOT_FOUND.into_response() };
     let (etag, keep) = (format!("\"{}\"", state.build_id), Keep::of(&state, &uri));
     if if_none_match(&headers, &etag) {
         return not_modified(&etag, keep.header());
@@ -630,7 +630,7 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
                 facts.push(module.offer_status.label(locale).to_string());
             }
             if module.credits.is_some() {
-                facts.push(folia_app::format::credits(module.credits, locale));
+                facts.push(folia_design::format::credits(module.credits, locale));
             }
             if let Some(season) = &module.turnus_season {
                 facts.push(match &module.turnus_parity {
@@ -645,7 +645,7 @@ pub async fn module_card(State(state): State<AppState>, Path(file): Path<String>
                 _ => {}
             }
             if let Some(exam) = &module.exam_form {
-                facts.push(folia_app::format::exam_short(exam, locale));
+                facts.push(folia_design::format::exam_short(exam, locale));
             }
             CardText { eyebrow: (t.card_module)(&module.id), headline: Headline::Title(module.title), facts, note: module.department }
         }))
@@ -669,7 +669,7 @@ pub async fn program_card(State(state): State<AppState>, Path(file): Path<String
                 Some(year) => (t.regulations)(&year.to_string()),
                 None => (t.regulations)(&program.po_version),
             });
-            let mut note = vec![(t.curricular_modules)(&folia_app::format::count(program.curricular_modules.max(0) as u64, locale))];
+            let mut note = vec![(t.curricular_modules)(&folia_design::format::count(program.curricular_modules.max(0) as u64, locale))];
             if program.has_plan {
                 note.push(t.with_plan.to_string());
             }
@@ -728,9 +728,9 @@ pub fn shared_plan_text(shared: &folia_pages::SharedPlanData, locale: Locale) ->
         return None;
     }
     let t = texts(locale);
-    let mut facts = vec![folia_app::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), locale)];
+    let mut facts = vec![folia_design::format::modules(i64::try_from(shared.modules.len()).unwrap_or(i64::MAX), locale)];
     if shared.modules.iter().any(|module| module.credits.is_some()) {
-        facts.push(folia_app::format::credits(Some(shared.credits()), locale));
+        facts.push(folia_design::format::credits(Some(shared.credits()), locale));
     }
     if let Some(program) = &shared.program {
         facts.push(format!("{} ({})", program.name, program.degree()));

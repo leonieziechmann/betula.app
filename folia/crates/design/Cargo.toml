@@ -1,0 +1,36 @@
+[package]
+name = "folia-design"
+version = "1.0.3"
+edition = "2021"
+description = "The design of Betula's app: building blocks, icons, formats, the browser's means and the languages"
+
+[lib]
+name = "folia_design"
+
+[features]
+# The browser app: what reads the window (storage, sizes, the address).
+# Server rendering (the web server; the tests that render a component).
+ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen"]
+
+[dependencies]
+leptos = "0.8.20"
+leptos_router = "0.8"
+leptos_meta = "0.8"
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+# The addresses of the areas a page links (a failed page leads to the catalog).
+folia-routes = { path = "../routes" }
+# The pickers rank what is typed as the catalog's search does.
+folia-search = { path = "../search" }
+wasm-bindgen = { version = "0.2", optional = true }
+# JavaScript handles (a ResizeObserver) kept until a component is cleaned up: cleanups are `Send`.
+send_wrapper = "0.6"
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

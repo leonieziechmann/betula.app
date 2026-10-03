@@ -2,7 +2,7 @@
 //! base 66, with two check characters at the end.
 //!
 //! For what has to travel in a link and nowhere else: the marked modules on their way to another
-//! device (`/bookmarks#m=…`, `folia/crates/app/src/bookmarks.rs`), the timetable a calendar subscribes to
+//! device (`/bookmarks#m=…`, `folia/crates/stores/src/bookmarks.rs`), the timetable a calendar subscribes to
 //! (`/calendar/<code>.ics`, `folia_calendar::subscription`), and a Stundenplan handed on
 //! (`/studyplan?share=…`, `folia_calendar::share`).
 //! A value becomes a code of the unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`, RFC
