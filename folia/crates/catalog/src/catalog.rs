@@ -114,8 +114,13 @@ pub fn CatalogPage() -> impl IntoView {
         let query = asked.get()?;
         let current = CatalogUrl { query, page: page.get_untracked(), open: None, fill: fill.get() };
         let now = list_source.clone().and_then(|source| source.now(&CatalogAsk { url: current.clone(), locale: crate::i18n::locale() })).map(|data| (current, data));
-        // While the list of a new filter is on its way, the list before stays.
-        DataError::or_before(now, before)
+        // While the list of a new filter is on its way, the list before stays. So does a list a
+        // newer snapshot answers alike but for its facts about the snapshot (`meta`, which this
+        // page does not show): built anew, the list would stand at its top for a frame.
+        match (DataError::or_before(now, before), before) {
+            (Ok((current, data)), Some(Ok((was_current, was)))) if current == *was_current && CatalogData { meta: was.meta.clone(), ..data.clone() } == *was => Ok((was_current.clone(), was.clone())),
+            (now, _) => now,
+        }
     });
     // While the catalog is up, the search of the top bar has the list of what is typed worked out
     // by the data worker before it goes there (owner, 2026-10-02: typing lagged, a phone spent half

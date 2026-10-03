@@ -288,16 +288,22 @@ check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].f
 // off, with, without, as in the catalog's panel; the number under the board follows, and its
 // button opens the catalog with that selection, which counts the same.
 const foot = () => page.evaluate(() => ({ text: document.querySelector(".board-foot a")?.textContent, href: document.querySelector(".board-foot a")?.getAttribute("href") }));
+// What the foot says once its count of a new selection has come (the data worker answers a moment
+// after the click; until then the count of the selection before stays).
+const footAfter = async (before) => {
+  await page.waitForFunction((text) => document.querySelector(".board-foot a")?.textContent !== text, before.text, { timeout: 5000 }).catch(() => {});
+  return foot();
+};
 const summer = page.locator(".board button.chip", { hasText: "Sommer" });
 const example = await foot();
 await summer.click();
-const withSummer = await foot();
+const withSummer = await footAfter(example);
 await summer.click();
-const withoutSummer = { ...(await foot()), state: await summer.getAttribute("data-state") };
+const withoutSummer = { ...(await footAfter(withSummer)), state: await summer.getAttribute("data-state") };
 check(withSummer.text !== example.text && withSummer.href.includes("summer") && withoutSummer.state === "without" && withoutSummer.href.includes("not-turnus=summer"), `a chip of the board does not switch the count: ${JSON.stringify([example, withSummer, withoutSummer])}`);
 check(await page.evaluate(() => location.pathname === "/" && window.__marker === 1), "a chip of the board left the page");
 await page.locator(".board .seg button", { hasText: "1 Semester" }).click();
-const chosen = await foot();
+const chosen = await footAfter(withoutSummer);
 check(chosen.href.includes("duration=1") && chosen.text !== withoutSummer.text, `the duration of the board does not choose: ${JSON.stringify(chosen)}`);
 await page.click(".board-foot a");
 await page.waitForFunction((href) => location.pathname + location.search === href, chosen.href, { timeout: 5000 }).catch(() => failures.push("the board's button does not open its selection in the catalog"));
