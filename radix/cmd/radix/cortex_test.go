@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leonieziechmann/betula/radix/internal/cortex/client/cortextest"
+	"github.com/leonieziechmann/betula/cortex/client/cortextest"
 )
 
 // fetchThrough sends one request with client and returns what the fake Cortex received.

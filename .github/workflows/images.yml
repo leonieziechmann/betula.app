@@ -38,6 +38,9 @@ on:
       - radix/go.sum
       - radix/cmd/**
       - radix/internal/**
+      - cortex/go.mod
+      - cortex/go.sum
+      - cortex/client/**
 
 # Nothing by default; the job asks for what it needs.
 permissions: {}
@@ -110,7 +113,7 @@ jobs:
           # A new key when what the cache holds changes: the dependencies (Cargo.lock, the
           # manifests, go.sum), the flake, the Go sources (Radix with its tests). A change to the
           # app alone finds its key and saves nothing; a new key starts from the newest cache.
-          key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'folia/Cargo.lock', 'folia/**/Cargo.toml', 'radix/go.mod', 'radix/go.sum', 'radix/cmd/**', 'radix/internal/**') }}
+          key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'folia/Cargo.lock', 'folia/**/Cargo.toml', 'radix/go.mod', 'radix/go.sum', 'radix/cmd/**', 'radix/internal/**', 'cortex/go.mod', 'cortex/go.sum', 'cortex/client/**') }}
           restore-keys: nix-${{ runner.os }}-
 
       - name: Prepare the Nix cache

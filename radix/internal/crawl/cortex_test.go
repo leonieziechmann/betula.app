@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
+	"github.com/leonieziechmann/betula/cortex/client/cortextest"
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
-	"github.com/leonieziechmann/betula/radix/internal/cortex/client/cortextest"
 	"github.com/leonieziechmann/betula/radix/internal/metrics"
 )
 

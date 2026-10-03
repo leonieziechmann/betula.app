@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
-	"github.com/leonieziechmann/betula/radix/internal/cortex/client/cortextest"
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
+	"github.com/leonieziechmann/betula/cortex/client/cortextest"
 )
 
 // Through Cortex the download names its source and passes on its headers; a challenge page,

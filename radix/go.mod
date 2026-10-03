@@ -24,3 +24,8 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
+
+// Cortex's client (the Go module cortex/ beside this one): Radix fetches through Cortex with it.
+require github.com/leonieziechmann/betula/cortex v0.0.0
+
+replace github.com/leonieziechmann/betula/cortex => ../cortex

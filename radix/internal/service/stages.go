@@ -57,7 +57,7 @@ type Endpoints struct {
 	TreeRootURL   string
 
 	// Client sends the requests of every stage; nil fetches directly (the crawl's own
-	// clients). Radix sets the one of Cortex (internal/cortex/client) when RADIX_CORTEX_URL
+	// clients). Radix sets the one of Cortex (cortex/client, the Go module cortex/) when RADIX_CORTEX_URL
 	// is set.
 	Client *http.Client
 }

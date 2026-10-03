@@ -17,67 +17,50 @@
         pkgs = import nixpkgs { inherit system; };
         craneLib = crane.mkLib pkgs;
 
-        # radix/go.mod asks for Go 1.27. nixpkgs' default `go` lags behind a new release for a
+        # radix/go.mod and cortex/go.mod ask for Go 1.27. nixpkgs' default `go` lags behind a new release for a
         # while, so take the versioned attribute when it exists.
         buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
 
-        # goSource KEEP -> the Go module radix/ with only the paths KEEP says yes to. KEEP gets each
-        # path relative to radix/ ("internal/oplog/oplog.go"); a directory it says no to is not
-        # looked into.
-        goSource = keep: pkgs.lib.cleanSourceWith {
-          src = ./radix;
-          filter = path: type: keep (pkgs.lib.removePrefix (toString ./radix + "/") (toString path));
+        # repoSource KEEP -> the repository with only the paths KEEP says yes to. KEEP gets each
+        # path relative to the root ("radix/internal/oplog/oplog.go"); a directory it says no to
+        # is not looked into.
+        repoSource = keep: pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type: keep (pkgs.lib.removePrefix (toString ./. + "/") (toString path));
         };
         # isIn PATHS REL: REL is one of PATHS or lies below one. leadsTo PATHS REL: REL is a
         # directory on the way to one of them.
         isIn = paths: rel: builtins.any (p: rel == p || pkgs.lib.hasPrefix (p + "/") rel) paths;
         leadsTo = paths: rel: builtins.any (p: pkgs.lib.hasPrefix (rel + "/") p) paths;
+        pathsSource = paths: repoSource (rel: isIn paths rel || leadsTo paths rel);
 
-        # The Go module radix/: all Go code and what it embeds lives below cmd/ and internal/. A
-        # change to the Rust workspace folia/, the docs or deploy/ rebuilds nothing here.
-        goPaths = [ "go.mod" "go.sum" "cmd" "internal" ];
-        goSrc = goSource (isIn goPaths);
-        # What Cortex is built from: its own packages and the packages of the module they import
-        # (never Radix's: docs/cortex/cortex.md). deploy/ship-cortex.sh reads this line for the release
-        # tag, so it stays one line; a package missing here fails the build.
-        cortexPaths = [ "go.mod" "go.sum" "cmd/cortex" "internal/cortex" "internal/metrics" "internal/oplog" "internal/secrets" "internal/version" ];
-        # Radix fetches through Cortex's client, and imports nothing else of Cortex.
-        cortexClient = [ "internal/cortex/client" ];
+        # What Radix is built from: the Go module radix/, and of the Go module cortex/ what
+        # radix/go.mod replaces with ../cortex, Cortex's client (it imports nothing else of
+        # Cortex). A change to Cortex's server does not change Radix's image; a change to the Rust
+        # workspace folia/, the docs or deploy/ rebuilds nothing here.
+        radixPaths = [ "radix/go.mod" "radix/go.sum" "radix/cmd" "radix/internal" "cortex/go.mod" "cortex/go.sum" "cortex/client" ];
 
-        # What both Go builds share. The dependencies are vendored from the whole module, not from
-        # each build's own source (overrideModAttrs: buildGoModule runs "go mod vendor" over the
-        # source of its goModules): one vendorHash for both, whatever each imports, and with one
-        # name for both, one store path that is fetched once. So the flake's source has to hold the
-        # whole module for either build (deploy/ship-cortex.sh exports it, not only cortexPaths).
-        goCommon = {
+        radix = buildGoModule {
+          pname = "betula-radix";
           version = self.shortRev or self.dirtyShortRev or "dev";
-          # Update after changing go.mod / go.sum, or after the first import of a package of a
-          # dependency that nothing imported before ("go mod vendor" copies packages, not
-          # modules): set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
-          vendorHash = "sha256-tFFT73vB3oTjpQaybpzq3I+alljd2zaXod+L7whFK7A=";
-          overrideModAttrs = _: {
-            name = "betula-go-modules";
-            src = goSrc;
-          };
+          src = pathsSource radixPaths;
+          modRoot = "radix";
+          subPackages = [ "cmd/radix" ];
+
+          # Update after changing radix/go.mod / go.sum, and after any change to cortex/client
+          # or cortex/go.mod ("go mod vendor" copies the module radix/go.mod replaces): set to
+          # pkgs.lib.fakeHash, build, copy the hash Nix prints.
+          vendorHash = "sha256-UZymn25Bl7UafHtdHJJaGiur7iw7iQKmtqSMMcB63uM=";
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";
           ldflags = [ "-s" "-w" ];
 
-          # The tests are network-free and run during the build (those of subPackages).
+          # The tests are network-free and run during the build.
           doCheck = true;
-        };
 
-        radix = buildGoModule (goCommon // {
-          pname = "betula-radix";
-          # The module without Cortex but with its client, so that a change to Cortex alone does
-          # not change Radix's image.
-          src = goSource (rel:
-            isIn goPaths rel
-            && (isIn cortexClient rel || leadsTo cortexClient rel || !(isIn [ "cmd/cortex" "internal/cortex" ] rel)));
-          subPackages = [ "cmd/radix" ];
           meta.mainProgram = "radix";
-        });
+        };
 
         radix-image = pkgs.dockerTools.buildLayeredImage {
           name = "betula-radix";
@@ -112,15 +95,29 @@
 
         # ---------------------------------------------------------------- Cortex (Go)
 
-        # The cache between the application and the internet (docs/cortex/cortex.md, stacks/cortex.yml).
-        # A binary of its own from the same module. Its source is only what it is built from, so
-        # that a change to Radix does not change Cortex's image either.
-        cortex = buildGoModule (goCommon // {
+        # The cache between the application and the internet (docs/cortex/cortex.md,
+        # stacks/cortex.yml): the Go module cortex/, a binary and an image of its own. What it is
+        # built from, relative to cortex/; deploy/ship-cortex.sh reads this line for the release
+        # tag, so it stays one line.
+        cortexPaths = [ "go.mod" "go.sum" "cmd" "internal" "client" ];
+
+        cortex = buildGoModule {
           pname = "betula-cortex";
-          src = goSource (rel: isIn cortexPaths rel || leadsTo cortexPaths rel);
+          version = self.shortRev or self.dirtyShortRev or "dev";
+          src = pathsSource (map (p: "cortex/" + p) cortexPaths);
+          modRoot = "cortex";
           subPackages = [ "cmd/cortex" ];
+
+          # Update after changing cortex/go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy
+          # the hash Nix prints.
+          vendorHash = "sha256-JYmbmJQ6ST7HlOk99hewJEVDScXOYzHuSZeWlvuQcHo=";
+
+          env.CGO_ENABLED = "0";
+          ldflags = [ "-s" "-w" ];
+          doCheck = true;
+
           meta.mainProgram = "cortex";
-        });
+        };
 
         cortex-image = pkgs.dockerTools.buildLayeredImage {
           name = "betula-cortex";

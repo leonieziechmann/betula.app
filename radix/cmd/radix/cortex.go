@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 )
 

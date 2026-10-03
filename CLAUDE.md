@@ -13,6 +13,7 @@ deploys an hour; `deploy/README.md` section 12).
 
 ## Layout
 
-`radix/` is the Go module (run `go` there), `folia/` the Cargo workspace (run `cargo` and
+`radix/` and `cortex/` are the two Go modules (run `go` in each; Radix imports `cortex/client` through a
+`replace ../cortex` in `radix/go.mod`), `folia/` the Cargo workspace (run `cargo` and
 `folia/scripts/*` there; crates under `folia/crates/<crate>`, package `folia-<crate>`). Docs live
-in `docs/radix`, `docs/folia`, `docs/history`; experiments in `research/`. The README has the table.
+in `docs/radix`, `docs/cortex`, `docs/folia`, `docs/history`; experiments in `research/`. The README has the table.

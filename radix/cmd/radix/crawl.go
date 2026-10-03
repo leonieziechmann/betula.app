@@ -9,9 +9,9 @@ import (
 	"os"
 	"time"
 
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/catalogbuild"
 	"github.com/leonieziechmann/betula/radix/internal/catalogdb"
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
 	"github.com/leonieziechmann/betula/radix/internal/crawl"
 	"github.com/leonieziechmann/betula/radix/internal/oplog"
 	"github.com/leonieziechmann/betula/radix/internal/service"

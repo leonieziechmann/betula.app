@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	cortexclient "github.com/leonieziechmann/betula/radix/internal/cortex/client"
+	cortexclient "github.com/leonieziechmann/betula/cortex/client"
 )
 
 // UserAgent is a plain bot identification. A desktop browser user agent makes the
@@ -60,7 +60,7 @@ func Locate(dir, programName, docURL string) (string, bool) {
 
 // Download fetches docURL to its local path unless a copy exists (or force is set).
 // It returns the path and whether the existing copy was used. client may be Cortex's
-// (internal/cortex/client); its requests name the source "statute".
+// (cortex/client, the Go module cortex/); its requests name the source "statute".
 func Download(ctx context.Context, client *http.Client, dir, programName, docURL string, force bool) (string, bool, error) {
 	if docURL == "" {
 		return "", false, errors.New("empty document URL")
