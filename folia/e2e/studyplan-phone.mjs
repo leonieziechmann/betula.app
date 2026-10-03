@@ -22,8 +22,8 @@ const check = (ok, message) => { if (!ok) problems.push(message); };
 const PLAN = "betula.studyplan.v1";
 
 // ---- what to plan: from the snapshot the server serves
-const initSqlJs = createRequire(import.meta.url)("../app/assets/sql-wasm.js");
-const SQL = await initSqlJs({ locateFile: (file) => fileURLToPath(new URL(`../app/assets/${file}`, import.meta.url)) });
+const initSqlJs = createRequire(import.meta.url)("../assets/sql-wasm.js");
+const SQL = await initSqlJs({ locateFile: (file) => fileURLToPath(new URL(`../assets/${file}`, import.meta.url)) });
 const db = new SQL.Database(new Uint8Array(await (await fetch(base + "/api/db")).arrayBuffer()));
 const rows = (sql, params = []) => {
   const statement = db.prepare(sql);

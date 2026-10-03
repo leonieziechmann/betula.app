@@ -37,6 +37,45 @@ pub fn PendingPage() -> impl IntoView {
     }
 }
 
+/// What the server writes for a route of the app (the Merkliste, the Stundenplan) in the place of
+/// its page (docs/folia/folia-refactor.md §4.2): the page's skeleton until the app runs and takes
+/// the page over, and for a browser without JavaScript what the view needs instead.
+#[component]
+pub fn AppStandin(shape: Shape, title: &'static str, hint: &'static str) -> impl IntoView {
+    view! {
+        <div class="app-standin" aria-hidden="true">{frame(shape)}</div>
+        <noscript>
+            <crate::ui::Plain>
+                <section class="panel">
+                    <crate::ui::EmptyState title hint>
+                        <a class="btn secondary" href=crate::i18n::t().path(folia_routes::url::CATALOG)>{crate::i18n::t().common.to_catalog}</a>
+                    </crate::ui::EmptyState>
+                </section>
+            </crate::ui::Plain>
+        </noscript>
+    }
+}
+
+/// The catalog's filter panel on the server's page, which has none (§4.1): its place with its
+/// bars, so the list stands where the app's will and nothing moves when the app takes over. A
+/// phone has the panel as a sheet, and so nothing in its place.
+#[component]
+pub fn FiltersStandin() -> impl IntoView {
+    view! {
+        <div class="panel filters sk-sweep sk-standin" aria-hidden="true">
+            <div class="panel-head">{bar("sk-w2 sk-tall")}</div>
+            <div class="body">{filter_groups(&[3, 6, 6, 2])}</div>
+        </div>
+    }
+}
+
+/// The groups of a sidebar's filters on the server's page, which has none (§4.1): their bars in
+/// their place, chips per group as `groups` says, until the app puts the filters there.
+#[component]
+pub fn FilterGroupsStandin(groups: &'static [usize]) -> impl IntoView {
+    view! { <div class="sk-sweep sk-groups" aria-hidden="true">{filter_groups(groups)}</div> }
+}
+
 /// The frame of a page with the bars of its content.
 fn frame(shape: Shape) -> AnyView {
     match shape {

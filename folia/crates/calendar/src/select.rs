@@ -91,7 +91,7 @@ impl TownChoice {
 
 /// What a visitor chose to see of one semester's timetable. Empty: everything shown, the town
 /// derived.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Selection {
     /// Kinds switched off; an event is hidden only when all its kinds are.
     pub hidden_kinds: KindSet,

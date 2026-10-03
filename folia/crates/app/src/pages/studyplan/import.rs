@@ -13,7 +13,7 @@
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Season;
 use folia_model::rows::Program;
-use folia_pages as pages;
+use folia_pages::ask::PlanSourceAsk;
 use folia_pages::PlanSource;
 use folia_plans::studyplan::{self, MineDoc, PlanDoc};
 use leptos::prelude::*;
@@ -166,7 +166,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
     let id = Memo::new(move |_| program.with(|program| program.as_ref().map(|program| program.id.clone())));
     let plans = Memo::new(move |_| {
         let Some(id) = id.get() else { return Plans::NoProgram };
-        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::plan_source(db, &id, t.locale)).ok().flatten())) {
+        match ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&PlanSourceAsk { program_id: id.clone(), locale: t.locale }).ok().flatten())) {
             Some(plans) if !plans.variants.is_empty() => Plans::Found(Box::new(plans)),
             _ => Plans::NoPlan,
         }

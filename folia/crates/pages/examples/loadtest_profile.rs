@@ -2,7 +2,7 @@
 //! pages file (`betula-load discover`), timed by name.
 //!
 //! ```text
-//! cargo run --release -p folia-catalog --features native --example loadtest_profile -- <catalog-*.db> <pages.tsv> [N]
+//! cargo run --release -p folia-pages --example loadtest_profile -- <catalog-*.db> <pages.tsv> [N]
 //! ```
 
 use std::cell::RefCell;

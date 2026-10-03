@@ -17,22 +17,20 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use folia_calendar::select::Selection;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity, TurnusSeason};
 use folia_model::rows::{CatalogRow, Department, Program};
+use folia_pages::ask::{CatalogAsk, CatalogChoicesAsk, CatalogCountAsk, CatalogPositionAsk, CatalogRowsAsk, CatalogSummaryAsk, FitAsk, MetaAsk, ModuleAsk, SimilarAsk};
 use folia_pages as pages;
 use folia_pages::{CatalogChoices, CatalogData, CatalogSummary, FitResult};
 use folia_plans::areas::CatalogArea;
 use folia_plans::plan::SemesterPlan;
 use folia_plans::studyplan::PlanDoc;
-use folia_query as queries;
 use folia_routes::filter::{
     CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope,
     SortKey, TurnusFilter,
 };
 use folia_routes::url::{self, CatalogUrl, PAGE_SIZE, ProgramTab};
-use folia_timetable::fit::CandidateSet;
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_navigate;
@@ -40,7 +38,7 @@ use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use crate::combobox::{ClosePopups, ComboItem, Combobox};
-use crate::data::{use_source, DataError, Later, PageStatus, Semantic, Source, Worker};
+use crate::data::{use_data, DataClient, DataError, Later, PageStatus, Semantic, Worker};
 use crate::format;
 use crate::i18n::{self, use_location, Locale};
 use crate::myprogram::{MineResolved, MyProgram};
@@ -48,7 +46,7 @@ use crate::nav;
 use crate::pages::module::ModulePanel;
 use crate::pending::{Change, Pending, Prepare};
 use crate::seo::Seo;
-use crate::skeleton::{self, DetailSkeleton, RowsSkeleton};
+use crate::skeleton::{self, DetailSkeleton, FiltersStandin, RowsSkeleton};
 use crate::studyplan::{PlanHint, Studyplan};
 use crate::swipe::RowSwipe;
 use crate::tabs::{self, Tabs};
@@ -78,7 +76,7 @@ pub fn CatalogPage() -> impl IntoView {
     // the placeholder a module found here would fill, kept by every link of the list.
     let list_query = Memo::new(move |_| url.get().query);
     let bookmarks = Bookmarks::expect();
-    let source = use_source();
+    let source = use_data();
     // What the finder switch makes of the filter: the modules that fit the Studienplan, worked
     // out here from the plan this browser keeps (the server's page has none, R9). Then the marks.
     // `asked` reads `fitted` alone, never `list_query` with it (R16); the notes of the rows are
@@ -119,7 +117,7 @@ pub fn CatalogPage() -> impl IntoView {
         if let Some(data) = prepared.try_with_value(|kept| kept.as_ref().filter(|(of, _)| *of == current).map(|(_, data)| data.clone())).flatten() {
             return data.map(|data| (current, data));
         }
-        list_source.clone().and_then(|source| source.run(|db| pages::catalog(db, &current, crate::i18n::locale()))).map(|data| (current, data))
+        list_source.clone().and_then(|source| source.now(&CatalogAsk { url: current.clone(), locale: crate::i18n::locale() })).map(|data| (current, data))
     });
     // While the catalog is up, the search of the top bar has the list of what is typed worked out
     // by the catalog's worker before it goes there (owner, 2026-10-02: typing lagged, a phone
@@ -153,15 +151,10 @@ pub fn CatalogPage() -> impl IntoView {
     // The filter panel is rendered once and follows these; only the list is rendered per filter.
     let failed = Memo::new(move |_| list.with(|list| list.as_ref().err().cloned()));
     let facts = Memo::new(move |_| list.with(|list| list.as_ref().map(|(_, data)| Facts::of(data)).unwrap_or_default()));
-    // What the pickers offer does not depend on the filter: loaded once, not with every list, and
-    // where the host has it ready for the snapshot (`PickerChoices`), not even that.
-    let ready = use_context::<PickerChoices>();
+    // What the pickers offer does not depend on the filter: loaded once, not with every list.
     let choices_source = source.clone();
     let choices = Memo::new(move |_| {
-        if let Some(ready) = ready.as_ref().and_then(|ready| ready.in_language(t.locale)) {
-            return ready;
-        }
-        let loaded = choices_source.clone().and_then(|source| source.run(pages::catalog_choices));
+        let loaded = choices_source.clone().and_then(|source| source.now(&CatalogChoicesAsk {}));
         Arc::new(loaded.map(|choices| Choices::of(&choices, t.locale)).unwrap_or_default())
     });
 
@@ -197,7 +190,7 @@ pub fn CatalogPage() -> impl IntoView {
     let draft_facts = Memo::new(move |_| {
         let fitted = with_fits(counted.get()?, plan, mine, summary_source.as_ref().ok(), t);
         let query = with_marks(fitted.query, bookmarks);
-        summary_source.clone().and_then(|source| source.run(|db| pages::catalog_summary(db, &query))).ok().map(|summary| Facts::of_summary(&summary))
+        summary_source.clone().and_then(|source| source.now(&CatalogSummaryAsk { query })).ok().map(|summary| Facts::of_summary(&summary))
     });
     let panel_facts = Memo::new(move |_| draft_facts.get().unwrap_or_else(|| facts.get()));
     // A filter from elsewhere (the draft applied, a tag taken away above the list, Back) is what
@@ -272,7 +265,7 @@ pub fn CatalogPage() -> impl IntoView {
     let top_row: StoredValue<Option<Anchor>> = StoredValue::new(None);
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
-        Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
+        Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
     });
     // The module being opened or closed beside the list (`Some` while that is on its way): its row
     // is marked at once, and a closed preview is gone at once.
@@ -329,7 +322,11 @@ pub fn CatalogPage() -> impl IntoView {
                     view! { <div class="page"><ErrorState error/></div> }.into_any()
                 }
                 None => view! {
-                    <Filters query=panel_query facts=panel_facts choices open fill draft phone/>
+                    {if APP {
+                        view! { <Filters query=panel_query facts=panel_facts choices open fill draft phone/> }.into_any()
+                    } else {
+                        view! { <FiltersStandin/> }.into_any()
+                    }}
                     // The handle for the panel's width sits in the gap between the two boxes.
                     <div class="resizer between js-only" data-action="resize-filters" role="separator" aria-orientation="vertical" aria-controls="filters" aria-label=t.catalog.resize_filters tabindex="0"></div>
                     {move || list.get().ok().map(|(current, data)| {
@@ -471,49 +468,33 @@ struct Finder {
     hint: Memo<Option<PlanHint>>,
 }
 
-/// What the finder keeps between its runs, for the visit (the local catalog does not change
-/// during one, so neither do its answers): the part that does not depend on the plan (every
-/// module of the semester built once, `CandidateSet`), and the last answer with what it was for.
-/// A plan change then re-runs only the check; a filter that leaves the finder alone (another
-/// program, a search), and coming back from a module's page, run nothing at all. Not reactive
-/// (R16): it only saves work.
-#[derive(Default)]
-struct FitCache {
-    set: Option<CandidateSet>,
-    last: Option<(FitAsked, FitResult)>,
-}
-
-/// What an answer of the finder was for: the switch, the semester's planned modules, and what
-/// the plan hides and has chosen there.
-type FitAsked = (FitsFilter, Vec<String>, Selection);
-
+// The finder's last answer and what it was for, so a list that asks again with the same plan
+// asks nothing (R16: it only saves work; the candidates themselves the answering side keeps,
+// `folia_pages::ask::Kept`).
 thread_local! {
-    static FIT_CACHE: RefCell<FitCache> = RefCell::new(FitCache::default());
+    static FIT_LAST: RefCell<Option<(FitAsk, FitResult)>> = const { RefCell::new(None) };
 }
 
 /// Fills `fits_ids` from the plan when the query has the finder switch on, like `with_marks` the
 /// marks, and reads the plan only then (A.7, D.7). Without a plan (the server's page) the ids
 /// stay unfilled, and the query then lists nothing. What the list says about them is in the
 /// language of `t`.
-fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>, source: Option<&Source>, t: &'static i18n::Texts) -> Fitted {
+fn with_fits(query: CatalogQuery, plan: Option<Studyplan>, mine: Option<MyProgram>, source: Option<&DataClient>, t: &'static i18n::Texts) -> Fitted {
     let Some(filter) = query.fits.clone() else { return Fitted { query, ..Fitted::default() } };
     let (Some(plan), Some(source)) = (plan, source) else { return fitted(query, &filter, None, t) };
     let key = SemesterKey::parse(&filter.semester);
     let planned = key.map(|key| plan.modules_in(key)).unwrap_or_default();
     let town = mine.map(MyProgram::town).unwrap_or_default();
     let selection = key.map(|key| plan.selection(key, town)).unwrap_or_default();
-    let asked: FitAsked = (filter.clone(), planned, selection);
-    let kept = FIT_CACHE.with(|cache| cache.try_borrow().ok().and_then(|cache| cache.last.as_ref().filter(|(last, _)| *last == asked).map(|(_, result)| result.clone())));
+    let asked = FitAsk { filter: filter.clone(), plan: planned, selection, locale: crate::i18n::locale() };
+    let kept = FIT_LAST.with(|last| last.try_borrow().ok().and_then(|last| last.as_ref().filter(|(of, _)| *of == asked).map(|(_, result)| result.clone())));
     if let Some(result) = kept {
         return fitted(query, &filter, Some(&result), t);
     }
-    // The candidates are taken out while the finder runs, so nothing is borrowed across it.
-    let mut set = FIT_CACHE.with(|cache| cache.try_borrow_mut().ok().and_then(|mut cache| cache.set.take()));
-    let answer = source.run(|db| pages::fit(db, &filter, &asked.1, &asked.2, &mut set, crate::i18n::locale()));
-    FIT_CACHE.with(|cache| {
-        if let Ok(mut cache) = cache.try_borrow_mut() {
-            cache.set = set;
-            cache.last = answer.as_ref().ok().map(|result| (asked, result.clone()));
+    let answer = source.now(&asked);
+    FIT_LAST.with(|last| {
+        if let Ok(mut last) = last.try_borrow_mut() {
+            *last = answer.as_ref().ok().map(|result| (asked, result.clone()));
         }
     });
     match answer {
@@ -668,7 +649,7 @@ fn SimilarModules(
     with_program: bool,
 ) -> impl IntoView {
     let t = i18n::t();
-    let (Some(semantic), Ok(source), Some(text)) = (use_context::<Semantic>(), use_source(), pages::similar_text(&query)) else { return ().into_any() };
+    let (Some(semantic), Ok(source), Some(text)) = (use_context::<Semantic>(), use_data(), pages::similar_text(&query)) else { return ().into_any() };
     let worker = use_context::<Worker>();
     let found = LocalResource::new(move || {
         let (semantic, source, worker, query, text) = (semantic.clone(), source.clone(), worker.clone(), query.clone(), text.clone());
@@ -682,7 +663,7 @@ fn SimilarModules(
             match worker.filter(|worker| worker.0.ready()) {
                 // `None`: a newer list asked since, which has its own.
                 Some(worker) => worker.0.similar(&query, &ids, pages::SIMILAR_SHOWN).await.and_then(Result::ok).unwrap_or_default(),
-                None => source.run(|db| pages::similar(db, &query, &ids, pages::SIMILAR_SHOWN)).unwrap_or_default(),
+                None => source.now(&SimilarAsk { query: query.clone(), hits: ids, limit: pages::SIMILAR_SHOWN }).unwrap_or_default(),
             }
         }
     });
@@ -935,8 +916,8 @@ fn List(
     let finder_emptied = APP
         && total == 0
         && q.fits.is_some()
-        && use_source()
-            .and_then(|source| source.run(|db| queries::catalog_count(db, &CatalogQuery { fits: None, fits_ids: None, ..data.effective.clone() })))
+        && use_data()
+            .and_then(|source| source.now(&CatalogCountAsk { query: CatalogQuery { fits: None, fits_ids: None, ..data.effective.clone() } }))
             .is_ok_and(|count| count > 0);
     let states = view! {
         {unknown_program.then(|| view! {
@@ -1250,7 +1231,7 @@ fn VirtualRows(
     let start_page = usize::try_from(current.page).unwrap_or(1).clamp(1, pages_total);
     let start_query = query.clone();
     let query = StoredValue::new(query);
-    let source = use_source().ok();
+    let source = use_data().ok();
     // The pages of rows the list holds, by page number.
     let loaded: RwSignal<BTreeMap<usize, Vec<CatalogRow>>> = RwSignal::new(BTreeMap::from([(start_page, first)]));
     // The height of every row that has been measured, the sum and the number of them (for the
@@ -1313,7 +1294,7 @@ fn VirtualRows(
             .into_iter()
             .filter_map(|p| {
                 let offset = u64::try_from((p - 1) * per_page).ok()?;
-                let rows = source.run(|db| folia_query::catalog_page(db, &query.get_value(), offset, PAGE_SIZE)).ok()?.rows;
+                let rows = source.now(&CatalogRowsAsk { query: query.get_value(), offset, limit: PAGE_SIZE }).ok()?.rows;
                 Some((p, rows))
             })
             .collect();
@@ -1456,7 +1437,7 @@ fn VirtualRows(
     // for a way back through the history, where the browser restores a scroll position of its own
     // after this has run.
     let (at_start, alive_start) = (follow.clone(), alive.clone());
-    let start_source = use_source().ok();
+    let start_source = use_data().ok();
     Effect::new(move |_| {
         // A list that replaces another (a filter changed) starts at the top, scrolled there before
         // it was built (`CatalogPage`). One of the same filter (the plan or the marks changed what
@@ -1464,7 +1445,7 @@ fn VirtualRows(
         // visitor stays where they were.
         let position = |id: &str| {
             let source = start_source.clone()?;
-            let index = source.run(|db| folia_query::catalog_position(db, &start_query, id)).ok().flatten()?;
+            let index = source.now(&CatalogPositionAsk { query: start_query.clone(), id: id.to_string() }).ok().flatten()?;
             Some(usize::try_from(index).unwrap_or(0).min(total.saturating_sub(1)))
         };
         // A row of the page the list starts with, the one the address names: where the top of
@@ -1707,8 +1688,8 @@ pub(crate) fn ListKeys() -> impl IntoView {
     }
 }
 
-/// Whether this build is the browser app. Pages rendered on the server get plain form controls
-/// where the app has pickers, so they work without JavaScript.
+/// Whether this build is the browser app. The server renders the catalog as a page of the site:
+/// the list a page at a time, its rows links to the modules' pages, and no filter panel (§4.1).
 const APP: bool = cfg!(feature = "csr");
 
 /// The slider covers 0 to 30 credits; its right end means „no upper limit".
@@ -1759,25 +1740,6 @@ fn area_item(area: &CatalogArea, locale: Locale) -> ComboItem {
     ComboItem::new(area.id.to_string(), area.name().to_string(), format::modules(i64::try_from(area.modules).unwrap_or(i64::MAX), locale), 0)
         .also_found_by(&format!("{} {}", area.label, area.path))
         .in_group(area.section.clone().unwrap_or_default())
-}
-
-/// What the pickers of the catalog offer, made once per snapshot by a host that can (the server,
-/// `folia/crates/server/src/snapshot.rs`) and handed to every render: every program, department and person does
-/// not change with the filter, and loading them was 12 of the 30 ms a page of the catalog cost the
-/// server (load test 2026-09-26: the persons alone 8.5 ms). A page without it loads them itself.
-/// What an entry says beside its name is in the page's language („17 Module", "17 modules"), so
-/// there is one set per language.
-#[derive(Clone)]
-pub struct PickerChoices(Arc<Vec<(Locale, Arc<Choices>)>>);
-
-impl PickerChoices {
-    pub fn of(data: &CatalogChoices) -> Self {
-        Self(Arc::new(Locale::ALL.iter().map(|locale| (*locale, Arc::new(Choices::of(data, *locale)))).collect()))
-    }
-
-    fn in_language(&self, locale: Locale) -> Option<Arc<Choices>> {
-        self.0.iter().find(|(language, _)| *language == locale).map(|(_, choices)| choices.clone())
-    }
 }
 
 /// What the pickers offer: the same for every filter, it changes only with the snapshot.
@@ -2203,7 +2165,7 @@ fn Filters(
     let chip = move |label: &str, icon: Option<&'static str>, toggle: Toggle| view! { <Chip query open fill toggle label=label.to_string() icon/> };
 
     // ---- program ----
-    let program_picker = if APP {
+    let program_picker = {
         // „Mein Studiengang" first, under its own heading, while its PO is in the snapshot (A.10);
         // it stays in its place among all the others as well.
         let mine = MineResolved::expect();
@@ -2221,25 +2183,6 @@ fn Filters(
         });
         view! {
             <Combobox id="pick-program" label=t.catalog.program placeholder=t.catalog.all_programs search_placeholder=t.catalog.search_program icon="graduation-cap" min_width=480.0 items selected on_select=pick/>
-        }
-        .into_any()
-    } else {
-        view! {
-            <label class="select-wrap">
-                <Icon name="graduation-cap"/>
-                <span class="visually-hidden">{t.catalog.program}</span>
-                <select name="program">
-                    <option value="">{t.catalog.all_programs}</option>
-                    {move || {
-                        let selected = query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone()));
-                        choices.with(|c| c.programs.iter().map(|p| {
-                            let is_selected = selected.as_deref() == Some(p.id.as_str());
-                            view! { <option value=p.id.clone() selected=is_selected>{format!("{} · {}", p.label, p.detail)}</option> }
-                        }).collect_view())
-                    }}
-                </select>
-                <Icon name="chevrons-up-down"/>
-            </label>
         }
         .into_any()
     };
@@ -2316,7 +2259,7 @@ fn Filters(
                 // The sections in the order the picker shows them: those without a heading first.
                 let sections = pages::area_sections(&areas.get());
                 (curricular.get() && !sections.is_empty()).then(|| {
-                    let picker = if APP {
+                    let picker = {
                         let items = StoredValue::new(sections.iter().flat_map(|(_, areas)| areas.iter().map(|area| area_item(area, t.locale))).collect::<Vec<_>>());
                         let chosen = move || query.with(|q| q.program.as_ref().map(|scope| scope.areas.clone()).unwrap_or_default());
                         let selected = Signal::derive(move || match chosen().as_slice() {
@@ -2341,37 +2284,6 @@ fn Filters(
                         });
                         view! {
                             <Combobox id="pick-area" label=t.catalog.area placeholder=t.catalog.all_areas search_placeholder=t.catalog.search_area icon="layout-list" min_width=440.0 items=Signal::derive(move || items.get_value()) selected summary on_select=pick/>
-                        }
-                        .into_any()
-                    } else {
-                        let chosen = query.with_untracked(|q| q.program.as_ref().map(|scope| scope.areas.clone()).unwrap_or_default());
-                        let selected = match chosen.as_slice() {
-                            [id] => Some(*id),
-                            _ => None,
-                        };
-                        // Several areas stay one choice of the plain select, so that sending the
-                        // form keeps them.
-                        let several = (chosen.len() > 1).then(|| {
-                            let value = chosen.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(",");
-                            view! { <option value=value selected=true>{(t.catalog.areas_count)(chosen.len())}</option> }
-                        });
-                        view! {
-                            <span class="select-wrap plain">
-                                <select name="area" aria-label=t.catalog.area>
-                                    <option value="">{t.catalog.all_areas}</option>
-                                    {several}
-                                    {sections.into_iter().map(|(group, areas)| {
-                                        let options = areas.into_iter().map(|area| view! {
-                                            <option value=area.id.to_string() selected=selected == Some(area.id)>{format!("{} ({})", area.name(), area.modules)}</option>
-                                        }).collect_view();
-                                        match group {
-                                            Some(group) => view! { <optgroup label=group>{options}</optgroup> }.into_any(),
-                                            None => options.into_any(),
-                                        }
-                                    }).collect_view()}
-                                </select>
-                                <Icon name="chevrons-up-down"/>
-                            </span>
                         }
                         .into_any()
                     };
@@ -2436,7 +2348,7 @@ fn Filters(
             </div>
         }
     };
-    let lecturer_picker = if APP {
+    let lecturer_picker = {
         let items = Memo::new(move |_| {
             let chosen = chosen_lecturers.get();
             choices.with(|c| c.lecturers.iter().filter(|item| !chosen.contains(&item.id)).cloned().collect::<Vec<_>>())
@@ -2450,44 +2362,15 @@ fn Filters(
             <Combobox id="pick-lecturer" label=t.catalog.lecturers placeholder=t.catalog.add_person search_placeholder=t.catalog.search_name icon="users-round" items selected=Signal::derive(|| None::<String>) on_select=add clearable=false/>
         }
         .into_any()
-    } else {
-        // Without the app a name is typed. No list of every person to pick from (a `<datalist>`
-        // of 705 names, 28 kB on every page of the catalog until 2026-09-26): the server's catalog
-        // is there to lead search engines to the modules, and the persons stand on the module's
-        // own page (owner: „das soll nur auf die Modulseite").
-        view! {
-            <label class="field">
-                <span class="visually-hidden">{t.catalog.teaches}</span>
-                <input type="text" name="lecturer" placeholder=t.catalog.name_placeholder/>
-            </label>
-        }
-        .into_any()
     };
 
     // ---- department ----
-    let department_picker = if APP {
+    let department_picker = {
         let items = Memo::new(move |_| choices.with(|c| c.departments.clone()));
         let selected = Memo::new(move |_| query.with(|q| q.department_id.map(|id| id.to_string())));
         let pick = Callback::new(move |id: Option<String>| go.run(changed(query, |q| q.department_id = id.and_then(|id| id.parse().ok()))));
         view! {
             <Combobox id="pick-department" label=t.catalog.department placeholder=t.catalog.all_departments search_placeholder=t.catalog.search_department icon="building-2" items selected on_select=pick/>
-        }
-        .into_any()
-    } else {
-        view! {
-            <span class="select-wrap plain">
-                <select name="department" aria-label=t.catalog.department>
-                    <option value="">{t.catalog.all_departments}</option>
-                    {move || {
-                        let selected = query.with(|q| q.department_id.map(|id| id.to_string()));
-                        choices.with(|c| c.departments.iter().map(|d| {
-                            let is_selected = selected.as_deref() == Some(d.id.as_str());
-                            view! { <option value=d.id.clone() selected=is_selected>{format!("{} ({})", d.label, d.detail)}</option> }
-                        }).collect_view())
-                    }}
-                </select>
-                <Icon name="chevrons-up-down"/>
-            </span>
         }
         .into_any()
     };
@@ -2500,7 +2383,7 @@ fn Filters(
     // Switched on it checks against the semester „Einplanen" would plan into: a placeholder's
     // („Modul finden", `fill`) or the snapshot's current one, comparing what it compared the last
     // time it was on (`finder_on`).
-    let current = use_source().ok().and_then(|source| source.run(queries::meta).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key));
+    let current = use_data().ok().and_then(|data| data.now(&MetaAsk {}).ok()).and_then(|meta| meta.current_semester).and_then(|key| SemesterKey::parse(&key));
     let plan = Studyplan::expect().filter(|_| APP);
     let fits_on = Memo::new(move |_| query.with(|q| q.fits.is_some()));
     let finder_chip = current.map(|current| {
@@ -2559,29 +2442,16 @@ fn Filters(
         })
     };
 
-    // Without the app the pickers above are form fields; what the links set travels with them.
-    let carried = move || {
-        (!APP).then(|| {
-            let pairs = url::parse_pairs(&CatalogUrl { query: query.get(), page: 1, open: open.get(), fill: None }.to_query_string());
-            pairs
-                .into_iter()
-                .filter(|(name, _)| !matches!(name.as_str(), "program" | "area" | "department" | "ects_min" | "ects_max"))
-                .map(|(name, value)| view! { <input type="hidden" name=name value=value/> })
-                .collect_view()
-        })
-    };
-
     view! {
         // `data-draft`: the sheet of a phone is a step of its own in the history (`enhance.js`).
-        <aside class="panel filters" id="filters" aria-label=t.catalog.filters data-draft=APP.then_some("") on:click=into_draft>
-            <form method="get" action=t.path(url::CATALOG) data-autosubmit="" on:submit=move |ev| if APP { ev.prevent_default() }>
+        <aside class="panel filters" id="filters" aria-label=t.catalog.filters data-draft="" on:click=into_draft>
+            <form on:submit=move |ev| ev.prevent_default()>
                 <div class="panel-head">
                     <h2>{t.catalog.filters}</h2>
                     <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&CatalogUrl { open: open.get(), ..Default::default() }.path()) data-noscroll=""><Icon name="rotate-ccw"/>{t.common.reset}</a>
                     <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.catalog.close_filters><Icon name="x"/></a>
                 </div>
                 <div class="body scroll" data-keep-scroll="filters" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
-                    {carried}
                     {program_picker}
                     {program_part}
 
@@ -2738,12 +2608,12 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
                 <input type="number" name="ects_min" min="0" max="60" step="0.5" inputmode="decimal" aria-label=t.catalog.credits_min placeholder=t.catalog.from
                     value=query.with_untracked(|q| q.credits_min.map(|n| n.to_string()))
                     prop:value=move || query.with(|q| q.credits_min.map(|n| n.to_string()).unwrap_or_default())
-                    on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_min = typed(&ev))) }/>
+                    on:change=move |ev| go.run(changed(query, |q| q.credits_min = typed(&ev)))/>
                 <span>"–"</span>
                 <input type="number" name="ects_max" min="0" max="60" step="0.5" inputmode="decimal" aria-label=t.catalog.credits_max placeholder=t.catalog.to
                     value=query.with_untracked(|q| q.credits_max.map(|n| n.to_string()))
                     prop:value=move || query.with(|q| q.credits_max.map(|n| n.to_string()).unwrap_or_default())
-                    on:change=move |ev| if APP { go.run(changed(query, |q| q.credits_max = typed(&ev))) }/>
+                    on:change=move |ev| go.run(changed(query, |q| q.credits_max = typed(&ev)))/>
             </div>
         </div>
     }

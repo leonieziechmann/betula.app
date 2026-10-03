@@ -27,13 +27,13 @@
 use folia_calendar::day::clock;
 use folia_calendar::kind::EventKind;
 use folia_model::labels::{Campus, Code, Labelled, ModuleKind, TeachingForm};
-use folia_query as queries;
 use folia_routes::CatalogQuery;
 use folia_routes::filter::{ExamPart, Language, TurnusFilter};
 use folia_routes::url::{self, CatalogUrl, ProgramTab};
+use folia_pages::ask::CatalogCountAsk;
 use leptos::prelude::*;
 
-use crate::data::use_source;
+use crate::data::use_data;
 use crate::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
 use crate::pages::catalog::{duration_choices, years_choices, Choice, Toggle, Tri};
@@ -335,9 +335,9 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
     let chosen = RwSignal::new(example());
     // The server's number is the example's, which its loader counted already; the app counts what
     // is chosen (the local catalog keeps an answer, so choosing again asks nothing).
-    let source = use_source().ok().filter(|_| APP);
+    let source = use_data().ok().filter(|_| APP);
     let count = Memo::new(move |_| match &source {
-        Some(source) => chosen.with(|q| source.run(|db| queries::catalog_count(db, q))).ok(),
+        Some(source) => chosen.with(|q| source.now(&CatalogCountAsk { query: q.clone() })).ok(),
         None => example_count,
     });
     let group = |label: String, body: AnyView, hint: Option<&'static str>, key: bool| {

@@ -22,9 +22,9 @@ use folia_calendar::select::{Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::Program;
 use folia_plans::studyplan::{MAX_SAVED_NAME, PlanDoc};
-use folia_query as queries;
 use folia_routes::url::{self, PlanView, ProgramTab, StudyplanUrl};
 use folia_timetable::model::Timetable;
+use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -91,7 +91,7 @@ struct Programs {
 
 impl Programs {
     fn new(ctx: PlanCtx) -> Self {
-        let all = Memo::new(move |_| ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| queries::programs(db)).ok())).unwrap_or_default());
+        let all = Memo::new(move |_| ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&ProgramsAsk {}).ok())).unwrap_or_default());
         let asked = Memo::new(move |_| ctx.url.with(|url| url.import.clone()));
         let stored = Memo::new(move |_| ctx.plan.and_then(|plan| plan.with(|doc| doc.program.clone())));
         let mine = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));

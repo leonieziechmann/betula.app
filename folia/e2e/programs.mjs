@@ -443,13 +443,16 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
 {
   const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1300, height: 900 } });
   const page = await context.newPage();
-  await page.goto(base + "/programs?level=master", { waitUntil: "domcontentloaded" });
-  check((await page.getAttribute('#sidebar a.chip:has-text("Master")', "data-state")) === "with", "no JS: the filter of the URL is not shown as set");
+  // The site's overview (docs/folia/folia-refactor.md §4.1): the programs by faculty with their
+  // jumps, no filters; an address with filters (a link from before) still lists what they hold.
+  await page.goto(base + "/programs", { waitUntil: "domcontentloaded" });
+  check((await page.locator("#sidebar a.chip").count()) === 0, "no JS: the site's overview has filters");
+  check((await page.locator("#sidebar .jumps a").count()) > 3, "no JS: the overview has no jumps to its faculties");
   check((await page.getAttribute('.rail a[data-area="catalog"]', "href")) === "/catalog", "no JS: a tab is not the plain link to its area");
-  const before = await page.locator(".program-pill").count();
-  await page.click('#sidebar a.chip:has-text("Doppelabschluss")');
-  await page.waitForURL(/form=double/);
-  check(page.url().includes("level=master") && (await page.locator(".program-pill").count()) < before, "no JS: a filter link lost the other filter, or did not filter");
+  const all = await page.locator(".program-pill").count();
+  await page.goto(base + "/programs?level=master", { waitUntil: "domcontentloaded" });
+  const masters = await page.locator(".program-pill").count();
+  check(masters > 0 && masters < all, `no JS: an address with a filter does not list what it holds (${masters} of ${all})`);
   // The server's page draws the plan as a list, and only as a list.
   await page.goto(base + "/programs/bachelor-informatik-2008", { waitUntil: "domcontentloaded" });
   check((await page.locator("table.planlist").count()) === 1 && (await page.locator("table.matrix").count()) === 0, "no JS: the server's plan is not the list");

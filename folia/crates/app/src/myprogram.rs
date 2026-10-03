@@ -16,7 +16,7 @@
 use folia_calendar::select::TownChoice;
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::Program;
-use folia_pages as pages;
+use folia_pages::ask::{MyProgramAsk, PlanSourceAsk};
 use folia_pages::MyProgramInfo;
 use folia_plans::studyplan::MineDoc;
 use folia_plans::variants::{PlanVariant, Supplement};
@@ -24,7 +24,7 @@ use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 
-use crate::data::{use_source, Source};
+use crate::data::{use_data, DataClient};
 use crate::i18n;
 use crate::nav;
 use crate::ui::Icon;
@@ -144,12 +144,12 @@ impl MineResolved {
     /// Call it after `MyProgram::provide`.
     pub fn provide() -> Self {
         let mine = MyProgram::expect();
-        let source = use_source().ok();
+        let source = use_data().ok();
         // The program alone: a changed Studienbeginn or Standort asks the catalog nothing.
         let program = Memo::new(move |_| if APP { mine.and_then(|mine| mine.with(|doc| doc.program.clone())) } else { None });
         let resolved = MineResolved(Memo::new(move |_| {
             let id = program.get()?;
-            source.as_ref()?.run(|db| pages::my_program(db, &id)).ok().flatten()
+            source.as_ref()?.now(&MyProgramAsk { program_id: id.clone() }).ok().flatten()
         }));
         provide_context(resolved);
         resolved
@@ -201,9 +201,9 @@ pub fn catalog_href(info: Option<&MyProgramInfo>) -> String {
 /// the stored Studienrichtung (`variant=`, A.10) — the page stored as the direction, else the plan
 /// whose caption was stored, the first where none or none of that caption is. The app's path,
 /// without the language's prefix: what writes it into a page writes `Texts::path` of it.
-pub fn program_href(source: Option<&Source>, program: &Program, caption: Option<&str>, direction: Option<&str>) -> String {
+pub fn program_href(source: Option<&DataClient>, program: &Program, caption: Option<&str>, direction: Option<&str>) -> String {
     let place = caption.filter(|caption| !caption.trim().is_empty()).and_then(|caption| {
-        let plans = source?.run(|db| pages::plan_source(db, &program.id, crate::i18n::locale())).ok()??;
+        let plans = source?.now(&PlanSourceAsk { program_id: program.id.clone(), locale: crate::i18n::locale() }).ok()??;
         ProgramPlans::new(&plans.variants, plans.supplements).place(caption, direction)
     });
     ProgramUrl::new(&program.slug, ProgramTab::Plan).with_variant(place.map_or(1, |place| place.shown() + 1)).path()
@@ -523,7 +523,7 @@ mod tests {
 
     /// The snapshot the catalog's tests read: `FOLIA_TEST_SNAPSHOT`, else the one
     /// `snapshot/current.json` names.
-    fn snapshot() -> Source {
+    fn snapshot() -> DataClient {
         use std::path::PathBuf;
         use std::sync::Mutex;
 
@@ -546,7 +546,7 @@ mod tests {
             let file = pointer.split("\"file\"").nth(1).and_then(|rest| rest.split('"').nth(1)).expect("snapshot/current.json names a file");
             dir.join(file)
         });
-        Source(std::sync::Arc::new(Snapshot(Mutex::new(NativeDatabase::open(&path).expect("the test snapshot opens")))))
+        DataClient::new(crate::data::Source(std::sync::Arc::new(Snapshot(Mutex::new(NativeDatabase::open(&path).expect("the test snapshot opens"))))))
     }
 
     /// A link to the visitor's own program shows the kept Studienrichtung (A.10), looked up in the
@@ -555,8 +555,8 @@ mod tests {
     #[test]
     fn a_link_to_mein_studiengang_shows_the_kept_plan() {
         let source = snapshot();
-        let program = |id: &str| source.run(|db| pages::my_program(db, id)).unwrap().expect("the program is in the snapshot").program;
-        let plans = |id: &str| source.run(|db| pages::plan_source(db, id, folia_locale::Locale::De)).unwrap().expect("the program has plans");
+        let program = |id: &str| source.now(&MyProgramAsk { program_id: id.to_string() }).unwrap().expect("the program is in the snapshot").program;
+        let plans = |id: &str| source.now(&PlanSourceAsk { program_id: id.to_string(), locale: folia_locale::Locale::De }).unwrap().expect("the program has plans");
 
         let elektrotechnik = program("048-82-2022");
         let two = plans("048-82-2022");

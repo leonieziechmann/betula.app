@@ -20,7 +20,7 @@
 //!   not dropped: unknown stays unknown (R12).
 
 use folia_model::rows::CatalogRow;
-use folia_pages as pages;
+use folia_pages::ask::{BookmarksAsk, ModuleAsk};
 use folia_pages::BookmarksData;
 use folia_routes::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
 use leptos::prelude::*;
@@ -29,16 +29,16 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
 use crate::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook};
-use crate::data::{use_source, DataError};
+use crate::data::{use_data, DataError};
 use crate::format;
 use crate::i18n::{self, use_location};
 use crate::local::{self, ModuleInPlace};
 use crate::nav;
 use crate::pages::catalog::{phone_layout, ListKeys, Row};
 use crate::pages::module::ModulePanel;
-use crate::pending::{Change, Pending};
+use crate::pending::{Change, Pending, Shape};
 use crate::seo::Seo;
-use crate::skeleton::DetailSkeleton;
+use crate::skeleton::{AppStandin, DetailSkeleton};
 use crate::tabs::{self, Area, Tabs};
 use crate::ui::{ErrorState, Icon};
 
@@ -51,9 +51,26 @@ const SCROLL_ID: &str = "bookmarks-scroll";
 
 type Loaded = Result<BookmarksData, DataError>;
 
+/// The tags of the Merkliste: a page of one visitor, the same address for everybody and nothing to
+/// list; what a link preview shows is what the server writes.
+#[component]
+fn BookmarksSeo() -> impl IntoView {
+    let t = i18n::t();
+    view! { <Seo title=t.bookmarks.title description=t.bookmarks.description path=url::BOOKMARKS card=crate::seo::BOOKMARKS_CARD noindex=true/> }
+}
+
 #[component]
 pub fn BookmarksPage() -> impl IntoView {
     let t = i18n::t();
+    // A route of the app: the server writes its document, the app the page (§4.2).
+    if !APP {
+        return view! {
+            <Title text=t.bookmarks.title/>
+            <BookmarksSeo/>
+            <AppStandin shape=Shape::Bookmarks title=t.bookmarks.server_title hint=t.bookmarks.server_hint/>
+        }
+        .into_any();
+    }
     let location = use_location();
     // The server renders one page for every address of the list (its cache knows the page by its
     // path): there is no list to order or to filter there, and no module to show beside it.
@@ -64,7 +81,7 @@ pub fn BookmarksPage() -> impl IntoView {
     let season = Memo::new(move |_| url.with(|url| url.season));
     let open = Memo::new(move |_| url.with(|url| url.open.clone()));
     let bookmarks = Bookmarks::expect();
-    let source = use_source();
+    let source = use_data();
 
     // What the page lists: what was marked when it was opened, and what has been marked since
     // (in another tab). A mark taken away here does not take the module off the page.
@@ -87,7 +104,7 @@ pub fn BookmarksPage() -> impl IntoView {
             // Nothing marked (and on the server, always): nothing to ask the catalog.
             return Ok(BookmarksData::default());
         }
-        list_source.clone().and_then(|source| source.run(|db| pages::bookmarks(db, &ids, sort, descending)))
+        list_source.clone().and_then(|source| source.now(&BookmarksAsk { ids, sort, descending }))
     });
 
     // What fills the page: the list, or the module opened from it where that is shown in full —
@@ -98,7 +115,7 @@ pub fn BookmarksPage() -> impl IntoView {
     let filling = Memo::new(move |_| url.with(|url| local::filling(url, phone.get())));
     let preview = Memo::new(move |_| match open.get() {
         None => Ok(None),
-        Some(id) => source.clone().and_then(|source| source.run(|db| pages::module(db, &id))).map(Some),
+        Some(id) => source.clone().and_then(|source| source.now(&ModuleAsk { id })).map(Some),
     });
     // Where the app is going (`pending`): the sidebar shows its order and half of the year at once,
     // the row of a module being opened is marked, a preview being closed is gone.
@@ -113,7 +130,7 @@ pub fn BookmarksPage() -> impl IntoView {
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
     let left_at = StoredValue::new(Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), "/catalog/module")));
 
-    move || {
+    (move || {
         if let Some(id) = filling.get() {
             left_at.set_value(Some(id.clone()));
             let back = url.with_untracked(|url| local::back_href(url, phone.get_untracked()));
@@ -126,15 +143,7 @@ pub fn BookmarksPage() -> impl IntoView {
             <Title text=t.bookmarks.title/>
             // One scroll area with the ground at its end, as the catalog (app.css „one scroll area").
             <div class="work framed flowing" id=SCROLL_ID data-keep-scroll="rows">
-                // A page of one visitor: the same address for everybody, nothing to list. What the
-                // server renders here is the explanation, so that is what a link preview shows.
-                <Seo
-                    title=t.bookmarks.title
-                    description=t.bookmarks.description
-                    path=url::BOOKMARKS
-                    card=crate::seo::BOOKMARKS_CARD
-                    noindex=true
-                />
+                <BookmarksSeo/>
                 <aside class="panel sidebar" id="sidebar" aria-label=t.bookmarks.title>
                     <div class="panel-head"><h2>{t.bookmarks.title}</h2></div>
                     <div class="body scroll" data-keep-scroll="sidebar"><Sidebar url=shown_url data/></div>
@@ -188,7 +197,8 @@ pub fn BookmarksPage() -> impl IntoView {
             </div>
         }
         .into_any()
-    }
+    })
+    .into_any()
 }
 
 /// Scrolls the list to the row of this module once the list is there, and once more after the

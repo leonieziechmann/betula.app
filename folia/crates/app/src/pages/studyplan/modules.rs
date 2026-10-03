@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::ModuleKind;
 use folia_model::rows::{CatalogRow, Program};
-use folia_pages as pages;
+use folia_pages::ask::StudyplanModulesAsk;
 use folia_pages::StudyplanData;
 use folia_plans::studyplan::{self, Placeholder, PlaceholderLine, PlanDoc};
 use folia_routes::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
@@ -380,7 +380,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         // the catalog, and none where nothing does.
         let ids: Vec<String> = held.areas.iter().flat_map(|area| area.others.iter().map(|(_, id)| id.clone())).collect();
         if !ids.is_empty() {
-            let rows = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.run(|db| pages::studyplan_modules(db, &ids)).ok()));
+            let rows = ctx.source.with_value(|source| source.as_ref().and_then(|source| source.now(&StudyplanModulesAsk { ids: ids.clone() }).ok()));
             held.rows = rows.map(|(rows, _)| rows).unwrap_or_default();
         }
         held

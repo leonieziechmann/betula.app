@@ -25,11 +25,11 @@ use folia_calendar::semester::{fachsemester, SemesterKey};
 use folia_model::labels::{Code, TurnusSeason};
 use folia_model::rows_detail::DateRow;
 use folia_plans::studyplan::{PlanDoc, SavedPlans};
-use folia_query as queries;
 use folia_routes::url::{self, LocalView, ModuleHint, StudyplanUrl};
+use folia_pages::ask::PlanRowsAsk;
 use leptos::prelude::*;
 
-use crate::data::{use_source, Source};
+use crate::data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
 use crate::nav;
@@ -287,7 +287,7 @@ pub fn PlanButton(
 ) -> impl IntoView {
     let t = i18n::t();
     let plan = Studyplan::expect().filter(|_| APP);
-    let source = use_source().ok();
+    let source = use_data().ok();
     let turnus = turnus.and_then(|turnus| turnus.known());
     // One memo per button (R5), from the plan and the hint alone.
     let aim = {
@@ -394,7 +394,7 @@ fn OtherSemesters(id: String, title: String, current: SemesterKey) -> impl IntoV
 fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl IntoView {
     let t = i18n::t();
     let plan = Studyplan::expect().filter(|_| APP);
-    let source = use_source().ok();
+    let source = use_data().ok();
     let planned = {
         let id = id.clone();
         Memo::new(move |_| plan.is_some_and(|plan| plan.is_planned(semester, &id)))
@@ -549,7 +549,7 @@ pub(crate) fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String
 /// whether the module was planned there (`was`). The plan is written after the next frame (R21:
 /// what was pressed has answered by then), with what taking the module out takes along of the
 /// semester's own choices; `then` runs once the plan has it.
-pub(crate) fn press(plan: Studyplan, source: Option<Source>, id: String, aim: Aim, was: bool, then: impl FnOnce() + 'static) {
+pub(crate) fn press(plan: Studyplan, source: Option<DataClient>, id: String, aim: Aim, was: bool, then: impl FnOnce() + 'static) {
     nav::after_paint(move || {
         let events = if was { plan.with_untracked(|doc| only_its_events(source.as_ref(), doc, aim.target, &id)) } else { Vec::new() };
         plan.update(|doc| toggle_in(doc, &id, &aim, was, &events, now()));
@@ -578,18 +578,10 @@ fn toggle_in(doc: &mut PlanDoc, id: &str, aim: &Aim, was_pressed: bool, only_its
 /// catalog after the click has answered, with the questions the week beside the module asks, so
 /// the answers are the visit's. Nothing when the catalog cannot say, which keeps those lines (the
 /// safe direction).
-fn only_its_events(source: Option<&Source>, doc: &PlanDoc, semester: SemesterKey, id: &str) -> Vec<u32> {
+fn only_its_events(source: Option<&DataClient>, doc: &PlanDoc, semester: SemesterKey, id: &str) -> Vec<u32> {
     let Some(source) = source else { return Vec::new() };
-    let key = semester.key();
-    let own = [id.to_string()];
     let others: Vec<String> = doc.modules_in(semester).into_iter().filter(|other| other != id).collect();
-    source
-        .run(|db| {
-            let mine = [queries::modules_schedule(db, &own, &key)?, queries::modules_exams(db, &own, &key)?].concat();
-            let theirs = [queries::modules_schedule(db, &others, &key)?, queries::modules_exams(db, &others, &key)?].concat();
-            Ok(events_alone(&mine, &theirs))
-        })
-        .unwrap_or_default()
+    source.now(&PlanRowsAsk { key: semester, own: vec![id.to_string()], others }).map(|(mine, theirs)| events_alone(&mine, &theirs)).unwrap_or_default()
 }
 
 /// The events of `own` rows that none of `others` has, each once.

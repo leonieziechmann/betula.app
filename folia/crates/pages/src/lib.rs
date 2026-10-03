@@ -5,6 +5,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
+pub mod ask;
 pub mod graph;
 
 #[cfg(test)]

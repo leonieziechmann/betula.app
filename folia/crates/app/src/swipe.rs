@@ -34,13 +34,13 @@
 use std::time::Duration;
 
 use folia_model::labels::TurnusSeason;
-use folia_query as queries;
+use folia_pages::ask::ModuleSemestersAsk;
 use leptos::ev::{DragEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 
 use crate::bookmarks::Bookmarks;
-use crate::data::{use_source, Source};
+use crate::data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use crate::nav;
 use crate::pages::module::semesters_of;
@@ -187,7 +187,7 @@ pub struct RowSwipe {
     hint: Option<Memo<Option<PlanHint>>>,
     phone: RwSignal<bool>,
     wrap: NodeRef<leptos::html::Div>,
-    source: StoredValue<Option<Source>>,
+    source: StoredValue<Option<DataClient>>,
     bookmarks: Option<Bookmarks>,
     plan: Option<Studyplan>,
     finger: StoredValue<Option<Finger>>,
@@ -212,7 +212,7 @@ impl RowSwipe {
             hint,
             phone,
             wrap: NodeRef::new(),
-            source: StoredValue::new(use_source().ok()),
+            source: StoredValue::new(use_data().ok()),
             bookmarks: Bookmarks::expect(),
             plan: Studyplan::expect(),
             finger: StoredValue::new(None),
@@ -399,7 +399,7 @@ impl RowSwipe {
             // The semesters the switch aims with, asked of the local catalog as the module's page
             // asks them; without a current semester (a snapshot always names one) its newest.
             let source = self.source.get_value()?;
-            let (current, newest) = source.run(|db| Ok(semesters_of(&queries::semesters(db)?, &queries::module_schedule(db, &id)?))).ok()?;
+            let (current, newest) = source.now(&ModuleSemestersAsk { id: id.clone() }).map(|(semesters, schedule)| semesters_of(&semesters, &schedule)).ok()?;
             let hint = self.hint.and_then(|hint| hint.get_untracked());
             Some(studyplan::aim_now(plan, &id, current.or(newest)?, newest, self.turnus, hint.as_ref()))
         });

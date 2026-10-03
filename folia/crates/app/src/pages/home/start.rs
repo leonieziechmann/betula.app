@@ -22,13 +22,13 @@
 //! (`data-action="search"` in `enhance.js`; without JavaScript the link opens the catalog), and
 //! the foot leads to the sections that explain Betula, for those who want to read first.
 
-use folia_query as queries;
 use folia_routes::url::{self, StudyplanUrl};
+use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 
 use crate::bookmarks::Bookmarks;
 use crate::combobox::{ComboItem, Combobox};
-use crate::data::use_source;
+use crate::data::use_data;
 use crate::i18n::{self, home::Step};
 use crate::myprogram::{program_href, program_name, po_of, MineResolved, MyProgram};
 use crate::nav;
@@ -68,10 +68,10 @@ pub fn ProgramPick(
         .into_any();
     }
     let mine = MyProgram::expect();
-    let source = use_source().ok();
+    let source = use_data().ok();
     let kept = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some())));
     // Asked of the catalog only once the picker opens: a memo computes when it is first read.
-    let programs = Memo::new(move |_| source.as_ref().and_then(|source| source.run(|db| queries::programs(db)).ok()).unwrap_or_default());
+    let programs = Memo::new(move |_| source.as_ref().and_then(|source| source.now(&ProgramsAsk {}).ok()).unwrap_or_default());
     let items = Signal::derive(move || {
         programs.with(|all| {
             all.iter()
@@ -118,7 +118,7 @@ pub fn ProgramPick(
 pub fn StartPath() -> impl IntoView {
     let t = i18n::t();
     let home = &t.home;
-    let source = use_source().ok();
+    let source = use_data().ok();
     // „Mein Studiengang", while the stored program is in the snapshot (A.10), with the plan of its
     // stored Studienrichtung; the name as the app names it everywhere.
     let resolved = MineResolved::expect();

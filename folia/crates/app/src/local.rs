@@ -24,11 +24,11 @@
 //! The browser app only: the server's pages lay nothing beside themselves and fill themselves with
 //! nothing else (docs/folia/frontend.md), so they leave `open` and `full` out before they get here.
 
-use folia_pages as pages;
+use folia_pages::ask::ModuleAsk;
 use folia_routes::url::LocalView;
 use leptos::prelude::*;
 
-use crate::data::{use_source, PageStatus};
+use crate::data::{use_data, PageStatus};
 use crate::i18n;
 use crate::pages::module::ModuleFull;
 use crate::tabs::Area;
@@ -65,7 +65,7 @@ pub fn back_href(url: &impl LocalView, phone: bool) -> String {
 pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
     let t = i18n::t();
     let status = PageStatus::capture();
-    match use_source().and_then(|source| source.run(|db| pages::module(db, &id))) {
+    match use_data().and_then(|data| data.now(&ModuleAsk { id: id.clone() })) {
         Err(error) => {
             status.for_error(&error);
             view! { <Plain><ErrorState error/></Plain> }.into_any()

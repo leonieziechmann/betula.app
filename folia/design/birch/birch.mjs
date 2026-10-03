@@ -30,7 +30,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const out = fileURLToPath(new URL("../../app/assets/birch/", import.meta.url));
+const out = fileURLToPath(new URL("../../assets/birch/", import.meta.url));
 const H = 64;
 
 // ---------- numbers, chance ----------

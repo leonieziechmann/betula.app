@@ -898,6 +898,20 @@ browser loads, as before).
   tests that loaded a page moved into `folia-pages`).
 - `queries::search_suggestions` (no caller) and its row went, as did `url::CALENDAR_PREFIX`.
 
+**Phase 3 (2026-10-03), site and app.** The server renders the site's routes as before, minimal:
+the catalog without its filter panel (its place holds the panel's bars until the app takes over,
+`skeleton::FiltersStandin`, so the list stands where the app's will; without JavaScript the list has
+the room), the program overview without its filters (`FilterGroupsStandin`; the faculty jumps
+stay), every row a link to the module's page as before. The Merkliste and the Stundenplan get the
+app document: their tags (a shared plan's naming its modules) and the page's skeleton
+(`skeleton::AppStandin`), with what the view needs in a `<noscript>`. What existed only for a page
+without JavaScript went: the pickers' `<select>`s, the typed person, the filter form's hidden fields
+and its submission (`enhance.js`'s auto-submit and slider), the server's `PickerChoices`. Where the
+app's own control is a link (a program's views, the tags above the list, the pages of the list), the
+site keeps it: it is the same markup, not a second form. „Mein Plan" stays as it is: its page is
+static text in both. Still in `folia-app`, rendered by the server: `folia-site` comes with the iso
+crates it is composed of (phases 4 and 7).
+
 ## 12. Still open
 
 Nothing the owner has to decide before the minimal version: every question of the first draft is

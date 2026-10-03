@@ -5,7 +5,7 @@
 //! so it checks exactly what the app does.
 //!
 //! ```text
-//! cargo run -p folia-catalog --features native --example area_survey -- <catalog-*.db> [slug…]
+//! cargo run -p folia-pages --example area_survey -- <catalog-*.db> [slug…]
 //! ```
 //!
 //! Without slugs it surveys every program and ends with the numbers docs/folia/frontend.md quotes.
