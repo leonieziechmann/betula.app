@@ -13,10 +13,8 @@ folia-design = { path = "../design", features = ["csr"] }
 folia-data = { path = "../data" }
 folia-shell = { path = "../shell", features = ["csr"] }
 folia-catalog = { path = "../catalog", features = ["csr"] }
-folia-locale = { path = "../locale" }
 folia-model = { path = "../model" }
 folia-pages = { path = "../pages" }
-folia-routes = { path = "../routes" }
 leptos = { version = "0.8.20", features = ["csr"] }
 # Must be the version of the wasm-bindgen CLI that scripts/build-client.sh runs.
 wasm-bindgen = "=0.2.128"

@@ -20,8 +20,6 @@ folia-data = { path = "../data" }
 # The chrome shows how many modules are marked and planned.
 folia-stores = { path = "../stores" }
 folia-calendar = { path = "../calendar" }
-folia-locale = { path = "../locale" }
-folia-model = { path = "../model" }
 folia-pages = { path = "../pages" }
 folia-routes = { path = "../routes" }
 serde = { version = "1.0", features = ["derive"] }

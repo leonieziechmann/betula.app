@@ -20,14 +20,11 @@ folia-data = { path = "../data" }
 folia-shell = { path = "../shell" }
 folia-stores = { path = "../stores" }
 folia-widgets = { path = "../widgets" }
-folia-locale = { path = "../locale" }
 folia-search = { path = "../search" }
-folia-query = { path = "../query" }
 serde_json = "1.0"
 send_wrapper = "0.6"
 folia-calendar = { path = "../calendar" }
 folia-model = { path = "../model" }
-folia-pack = { path = "../pack" }
 folia-pages = { path = "../pages" }
 folia-plans = { path = "../plans" }
 folia-routes = { path = "../routes" }

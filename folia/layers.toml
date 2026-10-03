@@ -1,0 +1,43 @@
+# The layers of Folia's workspace (docs/folia/folia-refactor.md §7.2), from the bottom. A crate
+# uses only crates of the layers below its own and those named before it in its own layer; the
+# crates of a layer marked `apart` use none of their own layer (features never use features); a
+# layer marked `no_sql` names no crate that holds SQL (`folia-query`): the UI asks its data
+# (§7.1). Test support may be a dev-dependency of anything. Every crate of the workspace is in
+# one layer. Checked by `folia/crates/test-support/tests/layers.rs`.
+
+[[layer]]
+name = "base"
+crates = ["folia-locale", "folia-pack", "folia-model", "folia-calendar"]
+
+[[layer]]
+name = "test support"
+tests = true
+crates = ["folia-test-support"]
+
+[[layer]]
+name = "domain"
+crates = ["folia-search", "folia-routes", "folia-query", "folia-timetable", "folia-plans", "folia-semantic", "folia-pages"]
+
+[[layer]]
+name = "data"
+crates = ["folia-data"]
+
+[[layer]]
+name = "UI base"
+no_sql = true
+crates = ["folia-design", "folia-stores", "folia-shell"]
+
+[[layer]]
+name = "widgets"
+no_sql = true
+crates = ["folia-widgets"]
+
+[[layer]]
+name = "features"
+apart = true
+no_sql = true
+crates = ["folia-home", "folia-catalog", "folia-programs", "folia-bookmarks", "folia-planner"]
+
+[[layer]]
+name = "composition"
+crates = ["folia-app", "folia-client", "folia-server"]
