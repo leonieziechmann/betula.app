@@ -242,7 +242,11 @@ unit_enabled() { systemctl is-enabled --quiet "$1" 2>/dev/null; }
 pkg_installed() {
   local status
   status="$(dpkg-query -W -f='${db:Status-Abbrev}' "$1" 2>/dev/null || true)"
-  [[ "${status}" == ii* ]]
+  # The first letter is what is wanted, the second what is: "ii" installed, "hi" installed and on
+  # hold, as 30-docker.sh holds the engine. Taken for missing, a held engine was "installed"
+  # again on every later run of 30-docker.sh, which apt refused (held packages would change):
+  # the script died before the overlay networks (2026-10-04).
+  [[ "${status:1:1}" == "i" ]]
 }
 
 # Non-interactive in every respect: no debconf questions, no conffile prompts (keep the local
