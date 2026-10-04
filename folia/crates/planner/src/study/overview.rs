@@ -5,14 +5,12 @@
 //! goes beyond it, striped, with „+6"). On a desktop a card per area under it, all in one row and
 //! each in one line (owner, 2026-10-04: „Die Cards dürfen nur eine Zeile haben. Aber idealer weise
 //! auch ohne Scrolling"): its name and what is taken of what it asks („44/66"), the rest when the
-//! pointer rests on it; then the hints that need doing (a Wiederholer not planned again, a
-//! semester heavier than the plan). On a phone the bar opens the areas as a sheet. An area opens
-//! what counts there (`AreaDialog`).
+//! pointer rests on it. Nothing else: what was not passed, a semester heavier than the plan, is
+//! said where it is (owner, 2026-10-04: „Das muss da weg dafür gibt es andere Bereiche. Da soll
+//! einfach nur zu sehen sein, wie steht es bei mir um meine LP"). On a phone the bar opens the
+//! areas as a sheet. An area opens what counts there (`AreaDialog`).
 
-use std::collections::BTreeSet;
-
-use folia_calendar::semester::SemesterKey;
-use folia_plans::study::{AreaKind, Item};
+use folia_plans::study::AreaKind;
 use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
 use folia_routes::url::{CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
@@ -20,7 +18,7 @@ use leptos::prelude::*;
 use folia_design::ui::Icon;
 
 use super::dialog::DialogHead;
-use super::{n, Dialog, Ready, Selection, StudyCtx, View};
+use super::{n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
 /// A part of the bar: an area, or what counts towards none.
@@ -52,15 +50,6 @@ struct Card {
     title: String,
 }
 
-/// A hint: a Wiederholer not planned again, or a semester heavier than the plan.
-#[derive(Clone, Debug, PartialEq)]
-enum Hint {
-    Retake { name: String, when: String, key: String, to: SemesterKey },
-    /// Many not passed: the first semester that has some.
-    Unticked { count: usize, first: SemesterKey },
-    Heavy(String),
-}
-
 #[derive(Clone, Debug, PartialEq)]
 struct Info {
     program: String,
@@ -73,7 +62,6 @@ struct Info {
     open: String,
     segments: Vec<Segment>,
     cards: Vec<Card>,
-    hints: Vec<Hint>,
 }
 
 /// „5.–6. FS": the Fachsemester an area's rows lie in.
@@ -163,23 +151,6 @@ impl Info {
             let title = format!("{}: {all}", s.outside);
             cards.push(Card { area: None, name: s.outside.to_string(), tone: "var(--text-3)", required: None, line: parts.join(" · "), state: (String::new(), ""), figure: (all, ""), title });
         }
-
-        let mut hints = Vec::new();
-        let many = study.retakes.len() > 3;
-        if let Some(first) = study.retakes.iter().map(|retake| retake.failed_in).min().filter(|_| many) {
-            hints.push(Hint::Unticked { count: study.retakes.len(), first });
-        }
-        for retake in study.retakes.iter().take(if many { 0 } else { 3 }) {
-            let item = &retake.item;
-            let when = ready.fs_label(retake.failed_in, t).unwrap_or_else(|| retake.failed_in.label(t.locale));
-            let next = item.offer.next(study.now);
-            let to = if study.semester(next).is_some() { next } else { study.now };
-            hints.push(Hint::Retake { name: item.name.clone(), when, key: item.key(), to });
-        }
-        for semester in study.ahead().filter(|semester| semester.planned.is_some_and(|planned| semester.credits > planned + 0.5)).take(2) {
-            let more = semester.credits - semester.planned.unwrap_or(0.0);
-            hints.push(Hint::Heavy((s.hint_heavy)(&semester.key.label(t.locale), &n(semester.credits, t), &n(more, t))));
-        }
         Info {
             program,
             fs,
@@ -190,7 +161,6 @@ impl Info {
             open: (s.credits)(&n(study.open, t)),
             segments,
             cards,
-            hints,
         }
     }
 }
@@ -220,7 +190,7 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
                             </p>
                             <p class="st-headline">{info.headline.clone()}</p>
                         </div>
-                        <ul class="st-stats st-pc" aria-label=s.legend>
+                        <ul class="st-stats st-pc">
                             <li><span class="st-key passed"></span><b>{info.passed.clone()}</b>" "{s.passed_tail}</li>
                             <li><span class="st-key planned"></span><b>{info.planned.clone()}</b>" "{s.planned_tail}{info.planned_rest.clone()}</li>
                             <li><span class="st-key open"></span><b>{info.open.clone()}</b>" "{s.open_tail}</li>
@@ -238,43 +208,10 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
                     <div class="st-cards st-pc">
                         {info.cards.into_iter().map(|card| view! { <AreaCard ctx card/> }).collect_view()}
                     </div>
-                    {(!info.hints.is_empty()).then(|| view! {
-                        <ul class="st-hints st-pc" aria-label=s.hints>
-                            {info.hints.into_iter().map(|hint| match hint {
-                                Hint::Retake { name, when, key, to } => view! {
-                                    <li class="warn">
-                                        <Icon name="info"/>
-                                        <span><b>{name}</b>" "{(s.hint_retake)(&when)}</span>
-                                        <button class="st-link" type="button" on:click=move |_| {
-                                            ctx.focus.set(Some(to));
-                                            ctx.open(Dialog::Add { semester: to, catalog: false, chosen: vec![key.clone()] });
-                                        }>{s.plan_it}</button>
-                                    </li>
-                                }.into_any(),
-                                Hint::Unticked { count, first } => view! {
-                                    <li class="warn">
-                                        <Icon name="info"/>
-                                        <span>{(s.hint_unticked)(count)}</span>
-                                        <button class="st-link" type="button" on:click=move |_| mark_first(ctx, first)>{s.tick_off}</button>
-                                    </li>
-                                }.into_any(),
-                                Hint::Heavy(text) => view! { <li><Icon name="info"/><span>{text}</span></li> }.into_any(),
-                            }).collect_view()}
-                        </ul>
-                    })}
                 </section>
             }
         })
     }
-}
-
-/// „Markieren": the first semester with rows not passed, those rows selected, so that one click
-/// on „Als bestanden markieren" marks them (and letting go of the ones not passed comes first).
-fn mark_first(ctx: StudyCtx, first: SemesterKey) {
-    let keys: BTreeSet<String> = ctx.with_ready(|ready| ready.study.semester(first).map(|semester| semester.items.iter().filter(|item| !item.passed).map(Item::key).collect())).flatten().unwrap_or_default();
-    ctx.view.set(View::Semester);
-    ctx.focus.set(Some(first));
-    ctx.selection.set(Selection { semester: Some(first), keys, anchor: None });
 }
 
 /// The bar of the areas, each as wide as it asks and what goes beyond it.

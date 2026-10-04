@@ -1235,6 +1235,58 @@ pub fn open_lines(input: &Input, study: &Study) -> Vec<Line> {
     out
 }
 
+/// What fits a semester (`fits`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Fits {
+    /// The Fachsemester the semester is; `None` for a semester of leave and one before the start.
+    pub fs: Option<u8>,
+    /// The plan's rows of `fs` still open that the semester offers.
+    pub plan: Vec<Suggestion>,
+    /// How many rows the plan has in `fs`, and how many of them are open, offered or not: what
+    /// `plan` leaves out says why it is empty.
+    pub rows: usize,
+    pub open: usize,
+    /// The Wiederholer of the semesters before it that it offers.
+    pub retakes: Vec<Line>,
+    /// The plan's rows of the Fachsemester before `fs` still open that it offers, the earliest
+    /// first; for a semester of leave those of the Fachsemester reached.
+    pub earlier: Vec<Line>,
+}
+
+/// What fits semester `s` (owner, 2026-10-04: „Es darf nur vorgeschlagen werden, was in dem
+/// Semester oder zuvor angeboten wurde. Und dann auch nur, was in dem Semester wirklich angeboten
+/// wird. Also im SoSe soll kein WiSe modul angezeigt werden"): of the plan's rows (`lines`, from
+/// `open_lines`) those of its Fachsemester and of the ones before, never of one after it, and the
+/// Wiederholer of the semesters before it; of all of them only what `s` offers. A row over two
+/// Fachsemester counts as one of `s`'s own where it is.
+pub fn fits(input: &Input, study: &Study, lines: &[Line], s: SemesterKey) -> Fits {
+    let fs = fs_of(input.start, s, input.leave);
+    // A semester of leave: the Fachsemester reached before it.
+    let before = match fs {
+        Some(fs) => fs.saturating_sub(1),
+        None => std::iter::successors(s.plus(-1), |at| at.plus(-1)).take_while(|at| *at >= input.start).find_map(|at| fs_of(input.start, at, input.leave)).unwrap_or(0),
+    };
+    let offered = |offer: Offer| offer.offered(s);
+    let rows = fs.map(|fs| plan_semester(input, study, fs)).unwrap_or_default();
+    let here: Vec<Pick> = rows.iter().map(|row| row.pick.clone()).collect();
+    let open = rows.iter().filter(|row| row.standing == Standing::Open).count();
+    let retakes = lines.iter().filter(|line| line.failed_in.is_some_and(|failed| failed < s) && offered(line.suggestion.offer)).cloned().collect();
+    let mut earlier: Vec<Line> = lines
+        .iter()
+        .filter(|line| line.failed_in.is_none() && line.plan_fs.is_some_and(|plan| plan <= before) && !here.contains(&line.suggestion.pick) && offered(line.suggestion.offer))
+        .cloned()
+        .collect();
+    earlier.sort_by_key(|line| line.plan_fs);
+    Fits {
+        fs,
+        rows: rows.len(),
+        open,
+        plan: rows.into_iter().filter(|row| row.standing == Standing::Open && offered(row.offer)).collect(),
+        retakes,
+        earlier,
+    }
+}
+
 /// What taking the Wiederholer (`Study::retakes`) into semester `s` adds: each module, and each
 /// row as the placeholder it was. What the semester holds already is counted as skipped.
 pub fn retake_import(study: &Study, doc: &PlanDoc, s: SemesterKey) -> Import {
@@ -1590,6 +1642,73 @@ mod tests {
         // The Stundenplan takes the Wiederholer.
         let import = retake_import(&study, &doc, key("2026W"));
         assert_eq!((import.modules, import.skipped), (vec![(key("2026W"), "11002".to_string())], 0));
+    }
+
+    /// What fits a semester: its Fachsemester's rows and those before it still open, the
+    /// Wiederholer of the semesters before; only what it offers, nothing of a Fachsemester after.
+    #[test]
+    fn what_fits_a_semester_is_of_it_or_before_it_and_offered_then() {
+        let w = world();
+        let mut doc = PlanDoc::default();
+        // The first semester: 11001 passed, 11002 not.
+        doc.plan(key("2025W"), "11001", 1, None);
+        doc.plan(key("2025W"), "11002", 1, None);
+        assert!(doc.pass(key("2025W"), "11001"));
+        let input = input(&w, &doc, "2025W", "2026W");
+        let study = study(&input);
+        let lines = open_lines(&input, &study);
+        let module = |id: &str| Pick::Module { id: id.into(), from_plan: true };
+        let row = |ord: i64| Pick::Row { caption: String::new(), ord };
+        let picks = |suggestions: &[Suggestion]| suggestions.iter().map(|s| s.pick.clone()).collect::<Vec<_>>();
+        let of = |lines: &[Line]| lines.iter().map(|line| line.suggestion.pick.clone()).collect::<Vec<_>>();
+
+        // The third, a winter: its choices; the Wiederholer of the first, a winter module; of the
+        // first and second what is open and offered in a winter (not 11003, a summer module).
+        let third = fits(&input, &study, &lines, key("2026W"));
+        assert_eq!((third.fs, third.rows, third.open), (Some(3), 3, 3));
+        assert_eq!(picks(&third.plan), [row(6), row(7), row(8)]);
+        assert_eq!(of(&third.retakes), [module("11002")]);
+        assert_eq!(of(&third.earlier), [module("11004"), row(5)]);
+
+        // The fourth, a summer: nothing of a winter, the Wiederholer neither; the choices over the
+        // third and fourth are its own, not one of before.
+        let fourth = fits(&input, &study, &lines, key("2027S"));
+        assert!(picks(&fourth.plan).contains(&module("11009")) && picks(&fourth.plan).contains(&row(6)));
+        assert!(fourth.retakes.is_empty());
+        assert_eq!(of(&fourth.earlier), [module("11003"), row(5), row(8)]);
+
+        // The second: nothing of the third or the fourth, and nothing of the first, all winter.
+        let second = fits(&input, &study, &lines, key("2026S"));
+        assert_eq!(picks(&second.plan), [module("11003"), row(5)]);
+        assert!(second.retakes.is_empty() && second.earlier.is_empty());
+
+        // The first, over: what is open of it; a Wiederholer not before it was not passed.
+        let first = fits(&input, &study, &lines, key("2025W"));
+        assert_eq!((picks(&first.plan), first.rows, first.open), (vec![module("11004")], 3, 1));
+        assert!(first.retakes.is_empty() && first.earlier.is_empty());
+
+        // Begun in a summer: the first Fachsemester's winter modules are open, none offered; the
+        // second, a winter, has them as the ones before.
+        let summer = PlanDoc::default();
+        let input = super::tests::input(&w, &summer, "2026S", "2026S");
+        let study = super::study(&input);
+        let lines = open_lines(&input, &study);
+        let first = fits(&input, &study, &lines, key("2026S"));
+        assert_eq!((first.plan.len(), first.rows, first.open), (0, 3, 3));
+        let second = fits(&input, &study, &lines, key("2026W"));
+        assert_eq!(picks(&second.plan), [row(5)]);
+        assert_eq!(of(&second.earlier), [module("11001"), module("11002"), module("11004")]);
+
+        // A semester of leave, a winter after the second: what is open of the first two.
+        let mut w = world();
+        w.leave = [key("2026W")].into_iter().collect();
+        let empty = PlanDoc::default();
+        let input = super::tests::input(&w, &empty, "2025W", "2026W");
+        let study = super::study(&input);
+        let lines = open_lines(&input, &study);
+        let leave = fits(&input, &study, &lines, key("2026W"));
+        assert_eq!((leave.fs, leave.plan.len()), (None, 0));
+        assert_eq!(of(&leave.earlier), [module("11001"), module("11002"), module("11004"), row(5)]);
     }
 
     #[test]

@@ -4,12 +4,15 @@
 // 1 a fresh browser: the Studium tab leads to it; it asks to set the study up once and stores
 //   nothing by being looked at; the program, a Studienbeginn of last winter and „1. und 2. FS nach
 //   Regelstudienplan füllen" set it up: the overview, the first two semesters filled.
-// 2 Informatik B.Sc. in its third semester, the first two filled and nothing marked as passed: one
-//   hint for it, whose „Markieren" selects the first semester's rows; the boxes show while rows
-//   are selected and go with „×"; a row's menu marks it as passed (counted, the row in its place,
-//   the focus back on its ⋯); a drag over the boxes selects three, the bar marks them and
-//   „Rückgängig" takes it back; „Module hinzufügen" puts the plan's third semester in; the
-//   Stundenplan's tab counts it; a module moved by its menu's „Verschieben nach ›" and taken back,
+// 2 Informatik B.Sc. in its third semester, the first two filled and nothing marked as passed: the
+//   overview says nothing of it, only the credits; the sidebar has the program as one card, which
+//   opens „Studiengang wechseln", no way to the Stundenplan, the legend in two parts; the box in
+//   the head selects the first semester's rows; the boxes show while rows are selected and go with
+//   „×"; a row's menu marks it as passed (counted, the row in its place, the focus back on its ⋯);
+//   a drag over the boxes selects three, the bar marks them and „Rückgängig" takes it back;
+//   „Module hinzufügen" puts the plan's third semester in; the Stundenplan's tab counts it; what
+//   fits the third, a winter, and the fourth, a summer: nothing of a Fachsemester after it, nothing
+//   of the other half of the year; a module moved by its menu's „Verschieben nach ›" and taken back,
 //   removed and taken back; two rows selected and dragged onto a semester of the strip, and back;
 //   a right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an
 //   area's dialog; a module beside the page by its name and by its row, in full and back; the
@@ -17,7 +20,8 @@
 //   reload keeps all of it; nothing of it in a request.
 // 3 a phone: one semester as a card as wide as the page, turned by ‹ › and a swipe, the last page
 //   adds a semester; a long press selects a row, the bar at the bottom; a row's menu as a sheet,
-//   „Verschieben nach" in its place; the areas as a sheet; the sidebar as a sheet („Anpassen");
+//   „Verschieben nach" in its place; the areas as a sheet; the sidebar as a sheet („Anpassen") with
+//   the program's card;
 //   nothing scrolls sideways; boxes and ⋯ as tall as a finger.
 // 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
@@ -147,14 +151,28 @@ if (current !== "2026W") {
   const over = await page.evaluate(() => ({
     headline: document.querySelector(".st-headline")?.textContent,
     cards: [...document.querySelectorAll(".st-card .st-card-name")].map((name) => name.textContent),
-    hints: [...document.querySelectorAll(".st-hints li")].map((hint) => hint.textContent),
+    words: document.querySelector(".st-over")?.textContent ?? "",
     now: document.querySelector(".st-tab.is-now .st-now")?.textContent,
   }));
   check(over.headline === "0 von 180 LP bestanden" && over.cards.slice(0, 5).join() === "Informatik,Mathematik,Nebenfach,FÜS,Fachstudium" && over.cards.length === 6 && over.now === "jetzt", `the overview of the third semester: ${JSON.stringify(over)}`);
-  check(over.hints.length === 1 && over.hints[0].startsWith("9 Einträge früherer Semester sind nicht als bestanden markiert"), `the hints after filling: ${JSON.stringify(over.hints)}`);
+  check(!/nicht (als )?bestanden|Wiederhol|Einplanen/.test(over.words), `the overview says more than the credits: ${over.words}`);
 
-  // „Markieren": the first winter, its rows not passed (Wiederholer) selected, the bar in the head.
-  await step("Markieren", () => page.click(".st-hints .st-link"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2025/26" && document.querySelector(".st-selbar"));
+  // The sidebar: the program as one card, no way to the Stundenplan (the tab bar has it), the
+  // parts of the bar apart from the marks of a module.
+  const side = await page.evaluate(() => ({
+    labels: [...document.querySelectorAll("#sidebar .flabel")].map((label) => label.textContent),
+    mine: [...document.querySelectorAll("#sidebar #st-mine .st-mine-name, #sidebar #st-mine .st-mine-line")].map((line) => line.textContent),
+    timetable: document.querySelector('#sidebar a[href="/studyplan"]') !== null,
+    legend: [...document.querySelectorAll("#sidebar .st-legend ul")].map((list) => list.textContent),
+  }));
+  check(side.labels.join("|") === "Fortschrittsbalken|Zeichen an Modulen" && side.mine.join("|") === "Informatik B.Sc.|PO 2008|3. Fachsemester · seit WiSe 25/26" && !side.timetable, `the sidebar: ${JSON.stringify(side)}`);
+  check(side.legend.join("|") === "BestandenGeplantOffenÜber Bedarf|BestandenWiederholungNicht angeboten", `the legend: ${JSON.stringify(side.legend)}`);
+  await step("the program's card", () => page.click("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
+  await step("not changed", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+
+  // The first winter: its rows not passed (Wiederholer), all selected by the box in the head.
+  await step("the first winter", () => page.click('.st-strip .st-tab:has-text("WiSe 25/26")'), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2025/26");
+  await step("select all", () => page.click(".st-card-sem .st-sel.all"), () => document.querySelector(".st-selbar"));
   const before = await rows(page);
   check(before.length === 5 && before.every((row) => !row.done && row.on && row.chips.some((chip) => chip.startsWith("nicht bestanden"))), `the first winter: ${JSON.stringify(before)}`);
   check((await selected(page)).startsWith("5 ausgewählt"), `the bar: ${await selected(page)}`);
@@ -201,6 +219,20 @@ if (current !== "2026W") {
   const count = await page.evaluate(() => document.querySelector('.rail .nav[data-area="studyplan"] .nav-count')?.textContent);
   check(Number(count) === planned.length && planned.length === ticked && ticked >= 2, `the Stundenplan's tab counts ${count}, the current semester holds ${planned.length} of ${ticked} ticked`);
   check(planned.some((line) => line.startsWith("m\t2026W\t11787\t")), "Theoretische Informatik is not in the current semester");
+
+  // „Passt in dieses Semester": of its Fachsemester and the ones before, what the semester offers;
+  // the Wiederholer of the first winter in a winter, those of the summer in a summer.
+  const fits = () => page.evaluate(() => ({
+    names: [...document.querySelectorAll(".st-fits .st-fit-name")].map((name) => name.textContent),
+    lines: [...document.querySelectorAll(".st-fits .st-fit .st-sub")].map((line) => line.textContent),
+    warn: document.querySelectorAll(".st-fits .st-chip.warn").length,
+  }));
+  const winter = await fits();
+  check(winter.names.includes("Programmierpraktikum") && !winter.names.includes("Digitaltechnik") && winter.warn === 0 && !winter.lines.some((line) => /im ([4-9]|1\d)\. FS/.test(line)), `what fits the third semester, a winter: ${JSON.stringify(winter)}`);
+  await step("SoSe 27", () => page.click('.st-strip .st-tab:has-text("SoSe 27")'), () => document.querySelector(".st-card-sem h2")?.textContent === "SoSe 2027");
+  const summer = await fits();
+  check(summer.names.includes("Digitaltechnik") && !summer.names.includes("Programmierpraktikum") && summer.warn === 0 && !summer.lines.some((line) => /im ([5-9]|1\d)\. FS/.test(line)), `what fits the fourth semester, a summer: ${JSON.stringify(summer)}`);
+  await step("back to now", () => page.click(".st-strip .st-tab.is-now"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
 
   // A module's menu: „Verschieben nach ›" to the next winter, and back; removed, and back.
   const menu = '.st-card-sem .st-row:has(.st-name:text-is("Theoretische Informatik")) .st-more';
@@ -361,8 +393,8 @@ if (current !== "2026W") {
   const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width) }; });
   check(sheet.bottom === 0 && sheet.width === 390, `the areas are no sheet from below: ${JSON.stringify(sheet)}`);
   await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
-  // The sidebar, a sheet: „Mein Studiengang" and its change.
-  await step("Anpassen", () => page.tap(".st-sheet .sheet-toggle"), () => document.documentElement.classList.contains("sheet-open") && document.querySelector("#sidebar .st-mine-card .st-link"));
+  // The sidebar, a sheet: the program's card.
+  await step("Anpassen", () => page.tap(".st-sheet .sheet-toggle"), () => document.documentElement.classList.contains("sheet-open") && document.querySelector("#sidebar #st-mine"));
   await context.close();
 }
 

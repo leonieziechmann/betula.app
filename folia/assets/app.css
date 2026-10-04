@@ -3416,11 +3416,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-card-state { font-size: 12px; font-weight: 600; }
 .st-card-state.done, .st-area-list b.done { color: var(--ok); }
 .st-card-state.over, .st-area-list b.over { color: color-mix(in oklab, var(--c) 75%, var(--text)); font-weight: 650; }
-.st-hints { list-style: none; margin: 12px 0 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 28px; font-size: 13px; color: var(--text-2); }
-.st-hints li { display: flex; align-items: center; gap: 8px; }
-.st-hints .icon { flex: none; width: 16px; height: 16px; }
-.st-hints .warn .icon { color: var(--warn); }
-.st-hints b { color: var(--text); font-weight: 600; }
 
 /* The semesters: the strip, the one in focus, what fits it. */
 .st-sems { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; container: semesters / inline-size; }
@@ -3741,29 +3736,37 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-undo > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .st-undo .mini { background: color-mix(in oklab, var(--on-invert) 14%, transparent); color: var(--on-invert); box-shadow: none; }
 .st-undo .icon-btn { color: var(--on-invert); }
-/* The sidebar. */
-.st-mine-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--r-panel); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
-.st-mine-top { display: flex; gap: 10px; align-items: flex-start; }
-.st-mine-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); color: var(--accent-ink); }
-.st-mine-name { margin: 0; font-size: 15px; font-weight: 650; }
-.st-mine-degree { margin: 0; font-size: 12.5px; color: var(--text-2); }
-.st-mine-card dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12.5px; }
-.st-mine-card dt { color: var(--text-2); }
-.st-mine-card dd { margin: 0; text-align: right; font-weight: 560; }
-.st-mine-card .st-link { align-self: flex-start; font-size: 12.5px; }
+/* The sidebar: the program as one card, which is the button that changes it (side.rs), the ways
+   to its pages under it; then the legend, the parts of the bar apart from the marks of a module,
+   each under its own label. */
+.st-mine { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 1px 10px; width: 100%; margin: 0 0 6px; padding: 10px 10px 11px 12px; border: 0; border-radius: var(--r-panel); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.st-mine-name { font-size: 14.5px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.st-mine-degree { font-weight: 520; color: var(--text-2); }
+/* Under the pencil the lines have the card's width; „3. Fachsemester" and „seit WiSe 25/26" each
+   stay whole where the line breaks. */
+.st-mine-line { grid-column: 1 / -1; font-size: 12.5px; line-height: 1.45; color: var(--text-2); }
+.st-mine-line > span { white-space: nowrap; }
+.st-mine > .icon { grid-row: 1; grid-column: 2; width: 15px; height: 15px; margin-top: 3px; color: var(--text-3); }
+@media (hover: hover) {
+  .st-mine:hover { background: var(--panel-3); }
+  .st-mine:hover > .icon { color: var(--text); }
+}
 .st-ways { display: grid; gap: 2px; }
-.st-ways .action > span, .fgroup.actions .action > span { flex: 1; }
-.st-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 12.5px; color: var(--text-2); }
-.st-legend li { display: flex; gap: 10px; align-items: flex-start; }
-.st-legend b { color: var(--text); font-weight: 600; }
-.st-legend-mark { flex: 0 0 24px; height: 10px; margin-top: 4px; border-radius: 3px; display: grid; place-items: center; }
-.st-legend-mark.passed { background: var(--st-passed); }
-.st-legend-mark.planned { background: var(--st-planned); }
-.st-legend-mark.open { background: var(--st-open); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.st-legend-mark.over { background: repeating-linear-gradient(135deg, var(--st-passed) 0 2px, var(--panel-3) 2px 5px); }
-.st-legend-mark.chip { height: 16px; margin-top: 1px; border-radius: 8px; background: var(--panel-3); color: var(--text-2); }
-.st-legend-mark.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.st-ways .action > span { flex: 1; }
+.st-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px 12px; font-size: 12.5px; }
+.st-legend-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.st-legend li { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.st-legend-part { flex: none; width: 22px; height: 8px; border-radius: 4px; }
+.st-legend-part.passed { background: var(--st-passed); }
+.st-legend-part.planned { background: var(--st-planned); }
+.st-legend-part.open { background: var(--st-open); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.st-legend-part.over { background: repeating-linear-gradient(135deg, var(--st-passed) 0 2px, var(--panel-3) 2px 5px); }
+.st-legend-mark { flex: none; display: grid; place-items: center; width: 22px; height: 16px; border-radius: 8px; }
 .st-legend-mark .icon { width: 11px; height: 11px; }
+.st-legend-mark.passed { color: var(--ok); }
+.st-legend-mark.passed .icon { width: 15px; height: 15px; }
+.st-legend-pill { background: var(--panel-3); color: var(--text-2); }
+.st-legend-pill.warn { background: var(--warn-soft); color: var(--warn); }
 
 @media (max-width: 900px) {
   .st-pc { display: none !important; }

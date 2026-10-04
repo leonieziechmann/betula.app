@@ -591,9 +591,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   klein", the cards of the areas in one row) made the rows what they are now. So:
   - **Where.** In the app the Studium tab leads to `/study` (see „The areas are tabs"); the overview
     and the programs' pages are what the study is looked up in: „Regelstudienplan", „Wahlpflicht &
-    Bereiche" and „Alle Studiengänge ansehen" stand in its sidebar under „Mein Studiengang" (a card:
-    the program, its direction, the Studienbeginn, „Jetzt im 3. Fachsemester", „Studiengang ändern
-    …"), with the way to the Stundenplan, the legend and the storage hint. A program's views are the
+    Bereiche" and „Alle Studiengänge ansehen" stand in its sidebar under the program's card (three
+    lines without labels: „Informatik B.Sc.", „PO 2008" with the study direction, „3. Fachsemester ·
+    seit WiSe 25/26"; the card itself is the button to „Studiengang wechseln"), then the legend,
+    the parts of the bar („Fortschrittsbalken") apart from the marks of a module („Zeichen an
+    Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
+    bar says (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz
+    effizient"): no label over the card, no way to the Stundenplan, whose tab is beside it. A program's views are the
     plan and the areas; its „Mein Plan" is this page. The visitor's own program carries „Studium
     planen", the start page's step „Studiengang wählen" leads here once a program is kept, and so
     does the Stundenplan's „Studium planen →".
@@ -614,11 +618,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     row and each in one line („Die Cards dürfen nur eine Zeile haben. Aber idealer weise auch ohne
     Scrolling"): „● Informatik 44/66", what is taken of what it asks, green with ✓ where it is all
     planned, in the area's colour beyond need, a long name giving way first; the rest („18 LP
-    offen", „ganz eingeplant", „+6 LP über Bedarf") where the pointer rests. Then the hints that
-    need doing: a Wiederholer not planned again („Einplanen" opens the picker of the next semester
-    that offers it, ticked), one hint instead where many are not marked as passed (a past just
-    filled: „Markieren" goes to the first and selects its rows not passed, so that the bar marks
-    them in one click), a semester heavier than the plan. An area's
+    offen", „ganz eingeplant", „+6 LP über Bedarf") where the pointer rests. Nothing else: what was
+    not passed and a semester heavier than the plan are said where they are, in the semesters and
+    in „Passt in dieses Semester" (owner, 2026-10-04: „Da soll einfach nur zu sehen sein, wie steht
+    es bei mir um meine LP"; until then hints under the cards, with „Einplanen" and „Markieren"). An area's
     card opens its dialog: what it asks and holds, the student's modules there, the plan's rows still
     open, its modules in the catalog (the tree's areas, the FÜS list) and the plan's page. On a
     phone the program, the Fachsemester and „Bereiche ›" over the headline; the bar and „Bereiche"
@@ -628,9 +631,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › and its „⋯" in its
     head (`menu.rs`: „Im Stundenplan öffnen", „Alle auswählen", „Urlaubssemester", and „Semester
     entfernen" for an empty one added beyond the plan), its rows as a table, and „Module
-    hinzufügen" as the last row, a row like the others; beside it „Passt in dieses Semester": the
-    plan's open rows of its Fachsemester, the Wiederholer, what is open elsewhere in the areas, each
-    one „+" from being planned here. A row is a box, the module (its name with its marks, its area,
+    hinzufügen" as the last row, a row like the others; beside it „Passt in dieses Semester"
+    (`study::fits`): the plan's open rows of its Fachsemester, the Wiederholer of the semesters
+    before it, what is still open of the Fachsemester before it (the earliest first, four of them),
+    each one „+" from being planned here; never a row of a Fachsemester after it, and only what the
+    semester offers (owner, 2026-10-04: „Es darf nur vorgeschlagen werden, was in dem Semester oder
+    zuvor angeboten wurde … im SoSe soll kein WiSe modul angezeigt werden"). Where the open rows of
+    its Fachsemester are all of the other half of the year it says so („Was noch offen ist, wird im
+    SoSe nicht angeboten."); a semester of leave has those of the Fachsemester reached. A row is a box, the module (its name with its marks, its area,
     its credits, ✓ before them where it is passed) and its „⋯"; the box and the „⋯" are as tall as
     the row and 44–48 px wide, and a click anywhere on the module opens it beside the page. Its
     „⋯", or a right click on it, opens its menu at the button or the pointer (`menu.rs`): „Modul
@@ -717,7 +725,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     way round; its tab counts the current semester's modules. Its „Importieren" has „Mein Studium"
     as its second source: the Wiederholer into the semester shown (`study::retake_import`). „Plan
     leeren" empties the semester shown and leaves the others and what was passed.
-  - `node folia/e2e/study.mjs` checks the first visit, the overview and its hint („Markieren"),
+  - `node folia/e2e/study.mjs` checks the first visit, the overview (the credits, nothing else), the
+    sidebar (the program's card and its dialog, no way to the Stundenplan, the legend in two
+    parts), what fits a winter and a summer,
     a row's menu (marking as passed, „Verschieben nach ›", removing, „Rückgängig", a right click,
     the keys: Enter, the arrows into the submenu and back, Escape and the focus back),
     selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows

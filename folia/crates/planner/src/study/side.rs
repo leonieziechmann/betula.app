@@ -1,7 +1,9 @@
-//! The sidebar of „Mein Studium", top to bottom: „Mein Studiengang" (the program, its study
-//! direction, the Studienbeginn and the Fachsemester now, and „Studiengang ändern …"), the ways to
-//! the program's pages, the way to the Stundenplan, how the plan reads, and where all of it lives.
-//! On a phone the sidebar is the sheet „Anpassen".
+//! The sidebar of „Mein Studium", top to bottom: the program as one card (its name and degree, the
+//! PO and the study direction, the Fachsemester now and the Studienbeginn; a click changes them)
+//! with the ways to its pages under it, how the plan reads, and where all of it lives. On a phone
+//! the sidebar is the sheet „Anpassen". Nothing in it says twice what the page or the tab bar says
+//! (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz effizient …
+//! Zum Stundenplan kann weg der link ist direkt daneben in der Navbar").
 //!
 //! The program is set once and changed rarely (owner, 2026-10-04: „den eigenen Studiengang zu
 //! wählen sollte eher so eine Sache sein, die man für sich halt so einmal macht"): in a dialog that
@@ -37,33 +39,33 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
     let s = &t.study;
     let ready = Memo::new(move |_| ctx.with_ready(|ready| ready.setup.start_stored).unwrap_or(false));
     view! {
-        <MineCard ctx/>
-        <WaysGroup ctx/>
-        {move || ready.get().then(|| view! {
-            <div class="fgroup actions">
-                <p class="flabel label">{s.timetable}</p>
-                <a class="action" href=t.path(url::STUDYPLAN) rel="nofollow"><Icon name="calendar-range"/><span>{s.to_timetable}</span><Icon name="chevron-right"/></a>
-            </div>
-            <LegendGroup/>
-        })}
+        <div class="fgroup first">
+            <MineCard ctx/>
+            <WaysGroup ctx/>
+        </div>
+        {move || ready.get().then(|| view! { <LegendGroup/> })}
         <div class="fgroup">
             <p class="hint storage-hint"><Icon name="shield-check"/><span>{s.storage_hint}</span></p>
         </div>
     }
 }
 
-/// What „Mein Studiengang" says.
+/// What the program's card says.
 #[derive(Clone, Debug, PartialEq)]
 struct Mine {
     name: String,
     degree: String,
-    direction: Option<String>,
-    start: String,
-    /// „Jetzt im" and „3. Fachsemester", or „Beginnt" and the Studienbeginn.
-    now: (&'static str, String),
+    /// „PO 2008", and the study direction where the program has more than one.
+    rules: String,
+    /// „3. Fachsemester" and „seit WiSe 25/26", „Beginnt im WiSe 26/27": parts that stay whole
+    /// where the line breaks.
+    when: (String, Option<String>),
 }
 
-/// „Mein Studiengang": a card, not a picker; „Studiengang ändern …" opens the dialog.
+/// The program (owner, 2026-10-04: „Die Studiengang card ist sehr unordentlich und nimmt zu viel
+/// Platz ein ohne die Informationen gut zu vermitteln"): three lines without labels, each clear by
+/// itself, and the card as a whole the button that changes program, direction or Studienbeginn
+/// („Studiengang wechseln"), which is done rarely.
 #[component]
 fn MineCard(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -71,19 +73,16 @@ fn MineCard(ctx: StudyCtx) -> impl IntoView {
     let mine = Memo::new(move |_| {
         ctx.with_ready(|ready| {
             let setup = &ready.setup;
-            ready.setup.start_stored.then(|| {
-                let now = match study::fs_of(setup.start, setup.now, &setup.leave) {
-                    Some(fs) => (s.now_in, (s.fs_long)(fs)),
-                    None if setup.now < setup.start => (s.begins, setup.start.label(t.locale)),
-                    None => (s.now_in, s.leave.to_string()),
+            setup.start_stored.then(|| {
+                let start = setup.start.short(t.locale);
+                let when = match study::fs_of(setup.start, setup.now, &setup.leave) {
+                    Some(fs) => ((s.fs_long)(fs), Some((s.since)(&start))),
+                    None if setup.now < setup.start => ((s.begins_in)(&start), None),
+                    None => (s.leave.to_string(), Some((s.since)(&start))),
                 };
-                Mine {
-                    name: ready.program.name.clone(),
-                    degree: format!("{} · PO {}", ready.program.degree(), po_of(&ready.program)),
-                    direction: setup.shown.and_then(|shown| ready.plans.iter().find(|(index, _)| *index == shown)).map(|(_, label)| label.clone()),
-                    start: setup.start.label(t.locale),
-                    now,
-                }
+                let direction = setup.shown.and_then(|shown| ready.plans.iter().find(|(index, _)| *index == shown)).map(|(_, label)| label.clone());
+                let rules = std::iter::once(format!("PO {}", po_of(&ready.program))).chain(direction).collect::<Vec<_>>().join(" · ");
+                Mine { name: ready.program.name.clone(), degree: ready.program.degree().to_string(), rules, when }
             })
         })
         .flatten()
@@ -91,24 +90,13 @@ fn MineCard(ctx: StudyCtx) -> impl IntoView {
     move || {
         mine.get().map(|mine| {
             view! {
-                <div class="fgroup first st-mine">
-                    <p class="flabel label">{s.mine}</p>
-                    <div class="st-mine-card">
-                        <div class="st-mine-top">
-                            <span class="st-mine-icon"><Icon name="graduation-cap"/></span>
-                            <div>
-                                <p class="st-mine-name">{mine.name}</p>
-                                <p class="st-mine-degree">{mine.degree}</p>
-                            </div>
-                        </div>
-                        <dl>
-                            {mine.direction.map(|direction| view! { <dt>{s.direction}</dt><dd>{direction}</dd> })}
-                            <dt>{s.start}</dt><dd>{mine.start}</dd>
-                            <dt>{mine.now.0}</dt><dd>{mine.now.1}</dd>
-                        </dl>
-                        <button class="st-link" type="button" on:click=move |_| ctx.open(Dialog::Switch)>{s.change_program}</button>
-                    </div>
-                </div>
+                <button class="st-mine" id="st-mine" type="button" title=s.change_program on:click=move |_| ctx.open(Dialog::Switch)>
+                    <span class="st-mine-name">{mine.name}" "<span class="st-mine-degree">{mine.degree}</span></span>
+                    <Icon name="pencil"/>
+                    <span class="st-mine-line">{mine.rules}</span>
+                    <span class="st-mine-line"><span>{mine.when.0}</span>{mine.when.1.map(|since| view! { " · "<span>{since}</span> })}</span>
+                    <span class="visually-hidden">{s.change_program}</span>
+                </button>
             }
         })
     }
@@ -126,7 +114,7 @@ fn WaysGroup(ctx: StudyCtx) -> impl IntoView {
         })
     });
     view! {
-        <nav class="fgroup st-ways" aria-label=s.ways>
+        <nav class="st-ways" aria-label=s.ways>
             {move || links.get().map(|(plan, areas)| view! {
                 <a class="action" href=t.path(&plan)><Icon name="file-check-2"/><span>{s.to_plan}</span><Icon name="chevron-right"/></a>
                 <a class="action" href=t.path(&areas)><Icon name="layout-list"/><span>{s.to_areas}</span><Icon name="chevron-right"/></a>
@@ -136,24 +124,32 @@ fn WaysGroup(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// How the plan reads: the parts of the bar and the marks of a row.
+/// How the plan reads (owner, 2026-10-04: „Die legende ist an sich gut aber der text ist etwas zu
+/// Lang. Und die Abgrenzung zu Progressbar und Zeichen für den content ist nicht vorhanden"): the
+/// parts of the bar, then the marks a module has in the semesters, each under its own label and
+/// each a word.
 #[component]
 fn LegendGroup() -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
-    let entry = |class: &'static str, (name, what): (&'static str, &'static str), icon: Option<&'static str>| {
-        view! { <li><span class=format!("st-legend-mark {class}") aria-hidden="true">{icon.map(|icon| view! { <Icon name=icon/> })}</span><span><b>{name}</b>" – "{what}</span></li> }
+    let part = |class: &'static str, name: &'static str| view! { <li><span class=format!("st-legend-part {class}") aria-hidden="true"></span>{name}</li> };
+    let mark = |class: &'static str, icon: &'static str, name: &'static str| {
+        view! { <li><span class=format!("st-legend-mark {class}") aria-hidden="true"><Icon name=icon/></span>{name}</li> }
     };
     view! {
         <div class="fgroup st-legend">
-            <p class="flabel label">{s.legend}</p>
-            <ul>
-                {entry("passed", s.legend_passed, None)}
-                {entry("planned", s.legend_planned, None)}
-                {entry("open", s.legend_open, None)}
-                {entry("over", s.legend_over, None)}
-                {entry("chip", s.legend_retake, Some("repeat"))}
-                {entry("chip warn", s.legend_offer, Some("triangle-alert"))}
+            <p class="flabel label" id="st-legend-bar">{s.legend_bar}</p>
+            <ul class="st-legend-parts" aria-labelledby="st-legend-bar">
+                {part("passed", s.legend_passed)}
+                {part("planned", s.legend_planned)}
+                {part("open", s.legend_open)}
+                {part("over", s.legend_over)}
+            </ul>
+            <p class="flabel label" id="st-legend-marks">{s.legend_marks}</p>
+            <ul class="st-legend-marks" aria-labelledby="st-legend-marks">
+                {mark("passed", "circle-check-big", s.legend_passed)}
+                {mark("st-legend-pill", "repeat", s.legend_retake)}
+                {mark("st-legend-pill warn", "triangle-alert", s.legend_offer)}
             </ul>
         </div>
     }

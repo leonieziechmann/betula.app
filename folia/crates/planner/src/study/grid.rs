@@ -207,9 +207,9 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
             })}
             <p class="st-grid-legend">
                 <span><Icon name="plus"/>{s.grid_grey}</span>
-                <span><Icon name="repeat"/>{s.legend_retake.0}</span>
-                <span class="warn"><Icon name="triangle-alert"/>{s.legend_offer.0}</span>
-                <span><b class="over">"+"</b>{s.legend_over.0}</span>
+                <span><Icon name="repeat"/>{s.legend_retake}</span>
+                <span class="warn"><Icon name="triangle-alert"/>{s.legend_offer}</span>
+                <span><b class="over">"+"</b>{s.legend_over}</span>
                 <span class="st-grow"></span>
                 <span>{s.grid_help}</span>
             </p>

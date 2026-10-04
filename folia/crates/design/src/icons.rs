@@ -67,6 +67,7 @@ pub const ICONS: &[(&str, &str)] = &[
     ("moon", r#"<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>"#),
     ("panel-right-open", r#"<rect width="18" height="18" x="3" y="3" rx="2"/> <path d="M15 3v18"/> <path d="m10 15-3-3 3-3"/>"#),
     ("pause", r#"<rect x="14" y="4" width="4" height="16" rx="1"/> <rect x="6" y="4" width="4" height="16" rx="1"/>"#),
+    ("pencil", r#"<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/> <path d="m15 5 4 4"/>"#),
     ("play", r#"<polygon points="6 3 20 12 6 21 6 3"/>"#),
     ("plus", r#"<path d="M5 12h14"/> <path d="M12 5v14"/>"#),
     ("repeat", r#"<path d="m17 2 4 4-4 4"/> <path d="M3 11v-1a4 4 0 0 1 4-4h14"/> <path d="m7 22-4-4 4-4"/> <path d="M21 13v1a4 4 0 0 1-4 4H3"/>"#),

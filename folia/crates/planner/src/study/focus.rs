@@ -809,57 +809,64 @@ struct Fit {
     pick: Pick,
     name: String,
     line: String,
-    warn: Option<String>,
 }
 
+/// What „Passt in dieses Semester" lists (`study::fits`): nothing of a Fachsemester after the
+/// semester's, nothing the semester does not offer.
 #[derive(Clone, Debug, PartialEq)]
 struct Fits {
     fs: Option<String>,
-    /// The rows of the plan for its Fachsemester, open; whether it has any.
+    /// The plan's rows of its Fachsemester, open and offered; where there are none, why.
     plan: Vec<Fit>,
-    any: bool,
+    rest: Rest,
     retakes: Vec<Fit>,
-    elsewhere: Vec<Fit>,
+    earlier: Vec<Fit>,
 }
+
+/// Why „Laut Regelstudienplan" lists nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Rest {
+    /// The plan has nothing for the Fachsemester.
+    Nothing,
+    /// All of it is planned or passed.
+    Planned,
+    /// What is open is not offered in the semester.
+    Unoffered,
+}
+
+/// How many of what was open in the Fachsemester before „Passt in dieses Semester" lists.
+const EARLIER: usize = 4;
 
 impl Fits {
     fn of(ctx: StudyCtx, semester: SemesterKey, t: &Texts) -> Option<Self> {
         let s = &t.study;
         ctx.with_input(|input, ready| {
-            let study = &ready.study;
-            let fs = study.semester(semester).and_then(|semester| semester.fs);
-            let line = |credits: Option<f64>, text: Option<&String>, area: Option<usize>| {
-                let credits = text.map(|text| folia_plans::plan::credits_in(text, t.locale)).or_else(|| credits.map(|credits| n(credits, t)));
-                [credits.map(|credits| (s.credits)(&credits)), Some(ready.area_name(area, t))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
+            let fits = study::fits(input, &ready.study, &ready.lines, semester);
+            let line = |suggestion: &study::Suggestion| {
+                let credits = suggestion.credits_text.as_ref().map(|text| folia_plans::plan::credits_in(text, t.locale)).or_else(|| suggestion.credits.map(|credits| n(credits, t)));
+                [credits.map(|credits| (s.credits)(&credits)), Some(ready.area_name(suggestion.area, t))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
             };
-            let warn = |offer: study::Offer| (!offer.offered(semester)).then(|| (s.unoffered)(season_word(semester, t)));
-            let rows = fs.map(|fs| study::plan_semester(input, study, fs)).unwrap_or_default();
-            let any = !rows.is_empty();
-            let plan = rows
-                .into_iter()
-                .filter(|suggestion| suggestion.standing == Standing::Open)
-                .map(|suggestion| Fit { line: line(suggestion.credits, suggestion.credits_text.as_ref(), suggestion.area), warn: warn(suggestion.offer), name: suggestion.name, pick: suggestion.pick })
-                .collect();
-            let retakes = ready
-                .lines
+            let fit = |suggestion: &study::Suggestion, also: Option<String>| Fit {
+                pick: suggestion.pick.clone(),
+                name: suggestion.name.clone(),
+                line: std::iter::once(line(suggestion)).chain(also).collect::<Vec<_>>().join(" · "),
+            };
+            let rest = match (fits.rows, fits.open) {
+                (0, _) => Rest::Nothing,
+                (_, 0) => Rest::Planned,
+                _ => Rest::Unoffered,
+            };
+            let retakes = fits
+                .retakes
                 .iter()
                 .filter_map(|l| {
                     let failed = l.failed_in?;
                     let from = ready.fs_label(failed, t).unwrap_or_else(|| failed.short(t.locale));
-                    Some(Fit { pick: l.suggestion.pick.clone(), name: l.suggestion.name.clone(), line: format!("{} · {}", line(l.suggestion.credits, l.suggestion.credits_text.as_ref(), l.suggestion.area), (s.from_fs)(&from)), warn: warn(l.suggestion.offer) })
+                    Some(fit(&l.suggestion, Some((s.from_fs)(&from))))
                 })
                 .collect();
-            let mut elsewhere: Vec<&study::Line> = ready.lines.iter().filter(|l| l.failed_in.is_none() && l.plan_fs != fs).collect();
-            elsewhere.sort_by_key(|l| (l.plan_fs.map(|plan| (i16::from(plan) - i16::from(fs.unwrap_or(0))).abs()), l.plan_fs));
-            let elsewhere = elsewhere
-                .into_iter()
-                .take(4)
-                .map(|l| {
-                    let says = l.plan_fs.map(|plan| (s.plan_says)(&(s.fs)(plan)));
-                    Fit { pick: l.suggestion.pick.clone(), name: l.suggestion.name.clone(), line: [Some(line(l.suggestion.credits, l.suggestion.credits_text.as_ref(), l.suggestion.area)), says].into_iter().flatten().collect::<Vec<_>>().join(" · "), warn: warn(l.suggestion.offer) }
-                })
-                .collect();
-            Fits { fs: fs.map(s.fs), plan, any, retakes, elsewhere }
+            let earlier = fits.earlier.iter().take(EARLIER).map(|l| fit(&l.suggestion, l.plan_fs.map(|plan| (s.plan_says)(&(s.fs)(plan))))).collect();
+            Fits { fs: fits.fs.map(s.fs), plan: fits.plan.iter().map(|suggestion| fit(suggestion, None)).collect(), rest, retakes, earlier }
         })
     }
 }
@@ -873,7 +880,8 @@ pub(super) fn add_pick(ctx: StudyCtx, s: SemesterKey, picks: Vec<Pick>, t: &'sta
 }
 
 /// „Passt in dieses Semester": what the plan has open for its Fachsemester, the Wiederholer, what
-/// is open elsewhere in the areas; each a click from being planned here. A desktop's.
+/// is still open of the Fachsemester before; of each only what the semester offers, each a click
+/// from being planned here. A desktop's.
 #[component]
 fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
     let t = i18n::t();
@@ -887,7 +895,6 @@ fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
                 <div>
                     <p class="st-fit-name">{fit.name}</p>
                     <p class="st-sub">{fit.line}</p>
-                    {fit.warn.map(|warn| view! { <span class="st-chip warn"><Icon name="triangle-alert"/>{warn}</span> })}
                 </div>
                 <button class="icon-btn st-plus-btn hit" type="button" aria-label=label.clone() title=label on:click=move |_| add_pick(ctx, semester, vec![pick.clone()], t)><Icon name="plus"/></button>
             </li>
@@ -900,14 +907,11 @@ fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
                 {fits.fs.clone().map(|fs| view! {
                     <div class="st-fits-part">
                         <p class="label">{(s.fits_plan)(&fs)}</p>
-                        {if fits.plan.is_empty() {
-                            if fits.any {
-                                view! { <p class="st-fits-done"><Icon name="check"/>{s.fits_all}</p> }.into_any()
-                            } else {
-                                view! { <p class="st-sub">{s.fits_nothing}</p> }.into_any()
-                            }
-                        } else {
-                            view! { <ul>{fits.plan.into_iter().map(entry).collect_view()}</ul> }.into_any()
+                        {match (fits.plan.is_empty(), fits.rest) {
+                            (false, _) => view! { <ul>{fits.plan.into_iter().map(entry).collect_view()}</ul> }.into_any(),
+                            (true, Rest::Planned) => view! { <p class="st-fits-done"><Icon name="check"/>{s.fits_all}</p> }.into_any(),
+                            (true, Rest::Unoffered) => view! { <p class="st-sub">{(s.fits_unoffered)(season_word(semester, t))}</p> }.into_any(),
+                            (true, Rest::Nothing) => view! { <p class="st-sub">{s.fits_nothing}</p> }.into_any(),
                         }}
                     </div>
                 })}
@@ -917,10 +921,10 @@ fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
                         <ul>{fits.retakes.into_iter().map(entry).collect_view()}</ul>
                     </div>
                 })}
-                {(!fits.elsewhere.is_empty()).then(|| view! {
+                {(!fits.earlier.is_empty()).then(|| view! {
                     <div class="st-fits-part">
-                        <p class="label">{s.open_areas}</p>
-                        <ul>{fits.elsewhere.into_iter().map(entry).collect_view()}</ul>
+                        <p class="label">{s.fits_earlier}</p>
+                        <ul>{fits.earlier.into_iter().map(entry).collect_view()}</ul>
                     </div>
                 })}
             })}

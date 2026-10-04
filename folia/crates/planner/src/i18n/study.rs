@@ -41,28 +41,24 @@ pub struct Texts {
     pub all_programs: &'static str,
 
     // The sidebar.
-    /// „Mein Studiengang", the card's label, and what it lists.
-    pub mine: &'static str,
-    pub now_in: &'static str,
-    /// „Beginnt", for a study that has not begun yet.
-    pub begins: &'static str,
-    /// „Studiengang ändern …": opens „Studiengang wechseln".
+    /// „Studiengang ändern …": the program's card opens „Studiengang wechseln".
     pub change_program: &'static str,
+    /// „Beginnt im WiSe 2026/27": the card of a study that has not begun yet.
+    pub begins_in: fn(&str) -> String,
     /// The ways to the program's pages.
     pub ways: &'static str,
     pub to_plan: &'static str,
     pub to_areas: &'static str,
-    /// „Stundenplan" and the way there.
-    pub timetable: &'static str,
-    pub to_timetable: &'static str,
-    /// The legend: what the marks say.
-    pub legend: &'static str,
-    pub legend_passed: (&'static str, &'static str),
-    pub legend_planned: (&'static str, &'static str),
-    pub legend_open: (&'static str, &'static str),
-    pub legend_over: (&'static str, &'static str),
-    pub legend_retake: (&'static str, &'static str),
-    pub legend_offer: (&'static str, &'static str),
+    /// The legend: the parts of the bar („Fortschrittsbalken"), then the marks of a module
+    /// („Zeichen an Modulen"), each a word.
+    pub legend_bar: &'static str,
+    pub legend_marks: &'static str,
+    pub legend_passed: &'static str,
+    pub legend_planned: &'static str,
+    pub legend_open: &'static str,
+    pub legend_over: &'static str,
+    pub legend_retake: &'static str,
+    pub legend_offer: &'static str,
     /// Where all of it lives.
     pub storage_hint: &'static str,
 
@@ -130,15 +126,8 @@ pub struct Texts {
     pub thesis: &'static str,
     pub other: &'static str,
     pub outside: &'static str,
-    /// The hints under the cards: a Wiederholer not planned again („Digitaltechnik" … „(2. FS,
-    /// nicht bestanden) ist noch nicht wieder eingeplant.", „Einplanen"), a heavy semester.
-    pub hints: &'static str,
-    pub hint_retake: fn(&str) -> String,
+    /// „Einplanen": a Wiederholer not planned again, into the next semester that offers it.
     pub plan_it: &'static str,
-    /// Many not passed (a past just filled from the plan): one hint, and the way to mark them.
-    pub hint_unticked: fn(usize) -> String,
-    pub tick_off: &'static str,
-    pub hint_heavy: fn(&str, &str, &str) -> String,
 
     // An area.
     /// „Übersicht nach Bereichen": the phone's sheet.
@@ -223,8 +212,12 @@ pub struct Texts {
     pub fits_plan: fn(&str) -> String,
     pub fits_all: &'static str,
     pub fits_nothing: &'static str,
+    /// „Was noch offen ist, wird im SoSe nicht angeboten.": the plan's rows of the Fachsemester
+    /// left open are all of the other half of the year.
+    pub fits_unoffered: fn(&str) -> String,
     pub retakes: &'static str,
-    pub open_areas: &'static str,
+    /// „Aus früheren Fachsemestern": the plan's rows of the Fachsemester before, still open.
+    pub fits_earlier: &'static str,
     pub search_catalog: &'static str,
     pub plan_here: fn(&str) -> String,
     pub from_fs: fn(&str) -> String,
@@ -369,22 +362,19 @@ pub const DE: Texts = Texts {
     stays_here: "Bleibt in diesem Browser.",
     all_programs: "Alle Studiengänge ansehen",
 
-    mine: "Mein Studiengang",
-    now_in: "Jetzt im",
-    begins: "Beginnt",
     change_program: "Studiengang ändern …",
+    begins_in: |semester| format!("Beginnt im {semester}"),
     ways: "Zum Studiengang",
     to_plan: "Regelstudienplan",
     to_areas: "Wahlpflicht & Bereiche",
-    timetable: "Stundenplan",
-    to_timetable: "Zum Stundenplan",
-    legend: "So liest du den Plan",
-    legend_passed: ("Bestanden", "als bestanden markiert"),
-    legend_planned: ("Geplant", "in einem Semester eingetragen"),
-    legend_open: ("Offen", "noch nicht eingeplant"),
-    legend_over: ("Über Bedarf", "mehr, als der Bereich verlangt"),
-    legend_retake: ("Wiederholung", "früher nicht bestanden"),
-    legend_offer: ("Angebot", "in dem Semester nicht angeboten; planen kannst du es trotzdem"),
+    legend_bar: "Fortschrittsbalken",
+    legend_marks: "Zeichen an Modulen",
+    legend_passed: "Bestanden",
+    legend_planned: "Geplant",
+    legend_open: "Offen",
+    legend_over: "Über Bedarf",
+    legend_retake: "Wiederholung",
+    legend_offer: "Nicht angeboten",
     storage_hint: "Was du planst und als bestanden markierst, bleibt in diesem Browser.",
 
     switch_title: "Studiengang wechseln",
@@ -433,12 +423,7 @@ pub const DE: Texts = Texts {
     thesis: "Abschlussarbeit",
     other: "Weitere",
     outside: "Ohne Bereich",
-    hints: "Hinweise",
-    hint_retake: |when| format!("({when}, nicht bestanden) ist noch nicht wieder eingeplant."),
     plan_it: "Einplanen",
-    hint_unticked: |n| format!("{n} Einträge früherer Semester sind nicht als bestanden markiert. Markiere, was du bestanden hast – der Rest bleibt als Wiederholer stehen."),
-    tick_off: "Markieren",
-    hint_heavy: |semester, credits, more| format!("{semester} hat {credits}\u{a0}LP, {more} mehr als der Regelstudienplan vorsieht."),
 
     areas_title: "Übersicht nach Bereichen",
     area_asks: |required, taken| format!("Verlangt {required}\u{a0}LP · belegt {taken}\u{a0}LP"),
@@ -506,8 +491,9 @@ pub const DE: Texts = Texts {
     fits_plan: |fs| format!("Laut Regelstudienplan · {fs}"),
     fits_all: "Alles eingeplant",
     fits_nothing: "Für dieses Fachsemester sieht der Plan nichts vor.",
+    fits_unoffered: |season| format!("Was noch offen ist, wird im {season} nicht angeboten."),
     retakes: "Wiederholer",
-    open_areas: "Offen in deinen Bereichen",
+    fits_earlier: "Aus früheren Fachsemestern",
     search_catalog: "Im Katalog suchen",
     plan_here: |name| format!("{name} hier einplanen"),
     from_fs: |fs| format!("aus {fs}"),
@@ -625,22 +611,19 @@ pub const EN: Texts = Texts {
     stays_here: "Stays in this browser.",
     all_programs: "See all degree programmes",
 
-    mine: "My programme",
-    now_in: "Now in",
-    begins: "Begins",
     change_program: "Change programme …",
+    begins_in: |semester| format!("Begins in {semester}"),
     ways: "To the programme",
     to_plan: "Standard study plan",
     to_areas: "Electives & areas",
-    timetable: "Timetable",
-    to_timetable: "To the timetable",
-    legend: "How to read the plan",
-    legend_passed: ("Passed", "marked as passed"),
-    legend_planned: ("Planned", "entered in a semester"),
-    legend_open: ("Open", "not planned yet"),
-    legend_over: ("Beyond need", "more than the area asks for"),
-    legend_retake: ("Retake", "not passed before"),
-    legend_offer: ("Offer", "not offered in that semester; you can still plan it"),
+    legend_bar: "Progress bar",
+    legend_marks: "Marks on modules",
+    legend_passed: "Passed",
+    legend_planned: "Planned",
+    legend_open: "Open",
+    legend_over: "Beyond need",
+    legend_retake: "Retake",
+    legend_offer: "Not offered",
     storage_hint: "What you plan and mark as passed stays in this browser.",
 
     switch_title: "Change degree programme",
@@ -689,12 +672,7 @@ pub const EN: Texts = Texts {
     thesis: "Thesis",
     other: "Other",
     outside: "No area",
-    hints: "Notes",
-    hint_retake: |when| format!("({when}, not passed) is not planned again yet."),
     plan_it: "Plan it",
-    hint_unticked: |n| format!("{n} entries of earlier semesters are not marked as passed. Mark what you passed – the rest stays as retakes."),
-    tick_off: "Mark",
-    hint_heavy: |semester, credits, more| format!("{semester} has {credits}\u{a0}CP, {more} more than the standard study plan."),
 
     areas_title: "Overview by area",
     area_asks: |required, taken| format!("Asks for {required}\u{a0}CP · taken {taken}\u{a0}CP"),
@@ -762,8 +740,9 @@ pub const EN: Texts = Texts {
     fits_plan: |fs| format!("Standard study plan · {fs}"),
     fits_all: "All planned",
     fits_nothing: "The plan has nothing for this semester of study.",
+    fits_unoffered: |season| format!("What is still open is not offered in {season}."),
     retakes: "Retakes",
-    open_areas: "Open in your areas",
+    fits_earlier: "From earlier semesters of study",
     search_catalog: "Search the catalogue",
     plan_here: |name| format!("Plan {name} here"),
     from_fs: |fs| format!("from {fs}"),
