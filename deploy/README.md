@@ -23,10 +23,11 @@ deploy/
     60-canary.sh          canary follows master: sqlite3, the timer, the GitHub token (section 12)
     canary-agent.sh       what that timer runs: fetch a build of master, seed it with the public site's data, switch
     models.sh             the model store: status, missing, receive (what ship-models.sh sends), prune
+    cortex-seed.sh        give Cortex an instance's archive (radix seed-cortex on a copy of its radix.db; section 14)
     90-verify-host.sh     PASS/WARN/FAIL audit of 10-30      91-verify-stacks.sh  the same for 40 to 60
     files/                config payloads the host scripts install;  lib*.sh, sync-receive.sh  helpers
   stacks/                 edge(.www).yml, placeholder.yml, monitoring(.public|.smtp).yml, cortex.yml,
-                          betula(.gemini|.offline|.models|.cortex|.egress).yml,
+                          betula(.gemini|.offline|.models|.cortex|.cortex-offline|.egress).yml,
                           betula.env, canary(-green).env, monitoring.notify.example.yml, monitoring-secrets.sh
   config/                 bind-mounted read-only into the services: traefik/ placeholder/ monitoring/ cortex/ (hosts.json)
 ```
@@ -146,8 +147,12 @@ Why this order, and what can go wrong:
 - The dashboard "Cortex" (`betula-cortex.json`, Prometheus job `cortex`: `cortex_a:8100` and
   `cortex_b:8100` over the `cortex` overlay) shows which instance leads, the follower's lag and
   missing blobs (`cortex_blobs_missing`), every host's queue, requests in flight and breaker, the clients' requests by
-  source and result, what went upstream by host and status, the store, and warnings and errors by
-  event (`docs/cortex/cortex.md` §10).
+  source and result, what went upstream by host and status, the store, the answers it was given
+  by `radix seed-cortex` (`cortex_imports_total`), what clients that read its store alone (the
+  canary, `RADIX_CRAWL=cortex-offline`) got from it and what it had not stored, and warnings and
+  errors by event (`docs/cortex/cortex.md` §10). The dashboard "Radix" names such an instance's
+  mode "from Cortex, offline" and its way "Cortex's store (offline)"; a page Cortex had not stored
+  is `offline_miss` there, skipped and not failed.
 - The dashboard "Visitors" reads stored numbers only: Loki's ruler counts them from Traefik's access
   log every 5 minutes (the 7-day numbers and the calendar subscriptions once an hour) with the rules
   in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
@@ -241,6 +246,19 @@ It ships the **commit** `HEAD` (uncommitted changes to what the images are built
 `vps/91-verify-stacks.sh services app`. Shipping a commit a second time changes nothing.
 `bash deploy/ship.sh canary --build-only` builds the images and sends nothing anywhere.
 
+**Radix offline through Cortex** (`RADIX_CRAWL=cortex-offline` in the instance's file,
+`stacks/betula.cortex.yml` plus `stacks/betula.cortex-offline.yml`; owner, 2026-10-04, for the
+canary): Radix runs `radix run` as a colour that crawls does, its cycles at their times, build,
+export and the semantic search included, but with `RADIX_CORTEX_MODE=offline`: every page comes
+from Cortex's store, whatever its age, and a page Cortex has not stored waits for the next cycle.
+Nothing reaches the university, Gemini is not asked, and Radix has no way to the internet. What
+Cortex has stored is what a colour that crawls fetched through it and what `radix seed-cortex`
+gave it (section 14). It needs a Cortex that runs and a release of Radix that knows
+`--cortex-mode` (from 2026-10-04 on); without either, `50-app.sh` deploys the instance offline as
+below and says so (a WARN, also in `91-verify-stacks.sh app`), so that a build of master without
+it, or a Cortex that is down, still reaches canary. A seeded volume needs no snapshot made first:
+the new release builds and exports at start (`service.rebuild`), within minutes.
+
 **Radix offline** (`RADIX_CRAWL=off` in the instance's file, `stacks/betula.offline.yml`): Radix
 is started as `radix serve-snapshot --db /data/radix.db` instead of `radix run`. It sends nothing
 to the university's servers - no crawl, no cycle - and hands the snapshot it has to Folia, so the
@@ -293,8 +311,9 @@ only to a service whose task is healthy:
 Only with the same `FOLIA_ACCESS_GATE` in both files and `RADIX_CRAWL=on` in at most one of them
 (two Radix that crawl would ask the university for everything twice); `50-app.sh` refuses
 anything else, and before it deploys a colour that crawls it checks that the other one's Radix
-really runs `serve-snapshot`. Both canary colours are offline. The next
-release goes to the colour that does not serve. Its volume keeps its database: for new data
+really runs `serve-snapshot`, or reads Cortex's store alone (`cortex-offline`). Neither canary
+colour crawls (both `cortex-offline` since 2026-10-04). The next release goes to the colour that
+does not serve. Its volume keeps its database: for new data
 remove its stack and volume and ship it with `--seed` again. A new release builds and exports a
 new snapshot from that database by itself when its Radix starts (a new schema included: the
 migration adds columns, the build fills them); wait for `export.finished` in `docker service logs
@@ -571,9 +590,9 @@ and sessions of Claude Code start from it. `CLAUDE.md` says the same for Claude.
 | a release that failed | `journalctl -u betula-canary.service -n 100`: the FATAL line names the step. The colour it left half made stays for a look (`docker service logs`, the `docker run ... build` of 50-app.sh); the next deploy removes it |
 | a new token | step 2 and 4 above; revoke the old one on GitHub |
 
-`canary.env` and `canary-green.env` have to say `RADIX_CRAWL=off` (the agent refuses otherwise:
-with the public site's data a canary that crawls would ask the university for everything a second
-time) and the same `FOLIA_ACCESS_GATE`. `CANARY_SEED_FROM=<instance>` takes another instance's
+`canary.env` and `canary-green.env` have to say `RADIX_CRAWL=off` or `cortex-offline` (the agent
+refuses `on`: with the public site's data a canary that crawls would ask the university for
+everything a second time) and the same `FOLIA_ACCESS_GATE`. `CANARY_SEED_FROM=<instance>` takes another instance's
 database for one `deploy` by hand.
 
 ### Why it is safe enough
@@ -773,6 +792,40 @@ In this order; steps 1 and 2 belong together.
 Without step 3 the others work all the same: a crawling Radix then gets `stacks/betula.egress.yml`
 and fetches directly, as before; running step 5 again once Cortex runs moves it over.
 
+**The public site may wait** (owner, 2026-10-04: „erstmal das system zu testen, ohne main zu
+stören"): step 5 for the canary alone. The colours of https://betula.app keep running as they
+were deployed, Radix on `monitoring` and `<stack>_default` and the crawling one fetching directly;
+`91-verify-stacks.sh cortex` says so with a FAIL per colour (a way to the internet), until their
+next deploy moves them over. Cortex then has what `cortex-seed.sh` gave it (below) and nothing
+newer, and the canary reads that.
+
+### Seeding Cortex with an archive
+
+Cortex starts empty. `vps/cortex-seed.sh` gives it the raw pages a Radix archived, so that it
+serves them as if it had fetched them itself, offline too (`radix seed-cortex`,
+`docs/cortex/cortex.md` §4.3 and §8):
+
+```bash
+ssh betula bash /opt/betula/vps/cortex-seed.sh                  # the public site's archive (the colour that crawls)
+ssh betula bash /opt/betula/vps/cortex-seed.sh betula <tag>     # another instance's, with a loaded release
+```
+
+It copies the instance's `radix.db` with the host's `sqlite3`, read-only, as one transaction
+(`VACUUM INTO`, as the canary agent does: its Radix is neither stopped nor slowed down), runs
+`radix seed-cortex` of a loaded release (default: the one the canary serves with; one from
+before 2026-10-04 has none) in a container on the network `cortex` alone, and removes the copy.
+Each archived page whose page is the whole answer of its URL becomes Cortex's answer to that URL,
+first fetched when it last changed and last fetched when the archive last had it; the follower
+copies it from the journal. A second run writes only what the archive has newer (`unchanged`,
+`older` for the rest), so it may run whenever the canary should see newer pages while the public
+site still fetches directly. `CORTEX_SEED_ARGS="--dry-run"` counts and sends nothing. The dashboard
+"Cortex" shows what came (Imported answers by result) and, under it, what the canary's Radix found
+in the store and what not.
+
+The canary's colours (`RADIX_CRAWL=cortex-offline`, section 4) read Cortex's store alone: their
+cycles take a page from Cortex whatever its age and skip one it lacks, and nothing of theirs
+reaches the university.
+
 ### Day to day
 
 | | |
@@ -781,6 +834,7 @@ and fetches directly, as before; running step 5 again once Cortex runs moves it 
 | hand the lead to the other instance | `docker exec <the leader's container> /bin/cortex step-down` (exit 1 on the follower) |
 | logs | `docker service logs --since 1h cortex_a` / `cortex_b` (section 7): `leader.*`, `replica.*`, `upstream.failed`, `host.paused` |
 | a new release | `SSH_TARGET=betula bash deploy/ship-cortex.sh` (the tag changes only with what the image is built from; the same tag twice changes nothing) |
+| give Cortex an instance's archive | `bash /opt/betula/vps/cortex-seed.sh [<instance> [<tag>]]` (above, „Seeding Cortex with an archive") |
 | a release that is loaded already, the rollback | `bash /opt/betula/vps/48-cortex.sh <tag>` (`docker image ls betula-cortex`) |
 | a change to `stacks/cortex.yml` | sync, `bash /opt/betula/vps/48-cortex.sh` (the release that runs) |
 | the host policy | `config/cortex/hosts.json`, sync: read again within 30 s, no restart (`docs/cortex/cortex.md` §5) |
