@@ -252,7 +252,7 @@ impl ProgramPlans {
 
     /// The plan at `index` (0-based) as the store keeps it: its caption (`""` for the unnamed one,
     /// and where there is none), and for a page its core's caption with the page as the direction.
-    fn kept(&self, index: usize) -> (String, Option<String>) {
+    pub fn kept(&self, index: usize) -> (String, Option<String>) {
         let place = self.place_of(index);
         let caption = |at: usize| self.plans.get(at).map(|(full, _)| full.clone());
         (caption(place.core).unwrap_or_default(), place.page.and_then(caption))
@@ -273,6 +273,12 @@ impl ProgramPlans {
         let named = |page: &usize| self.plans.get(*page).is_some_and(|(full, _)| direction.is_some_and(|direction| full.trim() == direction.trim()));
         let page = self.pages.iter().filter(|supplement| supplement.core == place.core).map(|supplement| supplement.page).find(named);
         Some(Place { page, ..place })
+    }
+
+    /// The plan (0-based, as `kept` takes it) a stored caption and direction name: the page where
+    /// the direction is one, else the core plan; `None` where the caption names none of them.
+    pub fn shown_index(&self, caption: &str, direction: Option<&str>) -> Option<usize> {
+        self.place(caption, direction).map(Place::shown)
     }
 
     /// „PA und IoT", „Seite 18": what the program's page calls the plan of a place.

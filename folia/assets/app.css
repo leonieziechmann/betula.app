@@ -3315,6 +3315,127 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sp-actions select { min-height: 44px; }
   .sk.sk-week-tall { height: 300px; }
 }
+/* ---------- „Mein Studium" (folia/crates/planner/src/study) ----------
+   The Studium tab's first page (owner, 2026-10-04): the head with the progress, the semesters
+   before the current one folded, then a panel per semester from the current one on. A row: the
+   box that ticks it off, its name with its marks beside it, its credits, and ↑ ↓ (the semester
+   before or after that offers it). A row ticked off stays where it is, quieter, struck through. */
+.page-inner.study { grid-template-columns: minmax(0, 1fr); align-content: start; }
+.st-head { padding: 16px 24px 20px; gap: 4px; }
+.st-head-top { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.st-head-top .sheet-toggle { margin-left: auto; }
+.st-kicker { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-ink); font-weight: 600; font-size: 12.5px; }
+.st-kicker .icon { width: 14px; height: 14px; }
+.st-title { font-size: 24px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; text-wrap: balance; }
+.st-when { color: var(--text-2); font-weight: 520; }
+.st-progress-line { display: flex; align-items: center; gap: 12px; margin-top: 10px; max-width: 640px; }
+.st-progress { flex: 1; height: 10px; border-radius: 5px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.st-progress > i { display: block; height: 100%; width: calc(var(--done, 0) * 100%); border-radius: inherit; background: var(--accent); transition: width .4s var(--ease); }
+.st-progress-text { font-weight: 650; white-space: nowrap; }
+.st-ends { color: var(--text-3); font-size: 13px; }
+.st-head .hint { margin-top: 6px; max-width: 80ch; }
+
+.st-welcome { padding: 24px; gap: 18px; }
+.st-welcome-text p { color: var(--text-2); max-width: 70ch; margin-top: 8px; text-wrap: pretty; }
+.st-welcome-text .st-gone { display: flex; gap: 8px; align-items: flex-start; color: var(--warn); }
+.st-gone .icon { flex: none; margin-top: 2px; }
+.st-welcome-pick { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.st-welcome-pick .pick-combo { flex: 0 1 420px; min-width: 0; }
+.st-welcome-pick .combo { width: 100%; }
+
+/* The semesters before the current one: a fold, open while something there is open. */
+.st-past > summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 16px 16px 16px 24px; cursor: pointer; }
+.st-past > summary::-webkit-details-marker { display: none; }
+.st-past-title { font-size: 16px; font-weight: 650; letter-spacing: -.015em; display: flex; align-items: baseline; gap: 8px; }
+.st-past-title small { color: var(--text-3); font-weight: 520; font-size: 13px; letter-spacing: 0; }
+.st-past-count { margin-left: auto; color: var(--text-2); font-size: 13px; }
+.st-fold { flex: none; color: var(--text-3); transition: transform .2s var(--ease); }
+.st-past[open] .st-fold { transform: rotate(180deg); }
+.st-prompt { display: flex; gap: 8px; margin: 0 16px 8px 24px; padding: 10px 12px; border-radius: var(--r-s); background: var(--accent-soft); font-size: 13px; }
+.st-prompt .icon { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--accent-ink); }
+.st-past .st-term { padding-bottom: 6px; border-top: 1px solid var(--line); }
+.st-past .st-term-head h2 { font-size: 14px; }
+
+/* A semester: its name, its Fachsemester, „jetzt", what it comes to; the current one ringed in
+   the accent. */
+.st-term { display: flex; flex-direction: column; }
+.st-term.panel { padding-bottom: 8px; }
+.st-term.panel.is-now { box-shadow: 0 0 0 1.5px var(--accent-line), var(--shadow-panel); }
+.st-term-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 14px 16px 8px 24px; }
+.st-term-head h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+.st-fs { color: var(--text-3); font-weight: 560; font-size: 13px; letter-spacing: 0; }
+.st-now, .st-beyond { align-self: center; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 650; letter-spacing: 0; }
+.st-now { background: var(--accent); color: var(--on-accent); }
+.st-beyond { background: var(--warn-soft); color: var(--warn); }
+.st-credits { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.st-credits b { font-weight: 700; font-size: 15px; }
+.st-credits small { color: var(--text-3); font-size: 12px; }
+.st-credits.heavy b { color: var(--warn); }
+.st-all { display: inline-flex; align-items: center; gap: 6px; }
+.st-all .icon { width: 14px; height: 14px; }
+
+.st-rows { list-style: none; margin: 0; padding: 0 8px; display: grid; gap: 1px; }
+.st-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "tick what lp acts"; align-items: center; column-gap: 10px; min-height: 48px; padding: 2px 6px 2px 8px; border-radius: var(--r-row); transition: opacity .15s; }
+.st-row:nth-child(even) { background: var(--row-shade); }
+.st-row.is-moving { opacity: .4; }
+.st-tick { grid-area: tick; --hit: 6px; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r-s); }
+.st-tick .box { width: 18px; height: 18px; border-radius: 5px; }
+.st-tick .box .icon { width: 13px; height: 13px; }
+.st-tick:hover .box { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.st-tick .box.with { background: var(--ok); color: var(--on-accent); box-shadow: none; }
+.st-tick[aria-busy="true"] { cursor: progress; }
+.st-what { grid-area: what; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; padding: 5px 0; }
+.st-name { color: var(--text); font-weight: 560; text-decoration: none; min-width: 0; overflow-wrap: anywhere; }
+a.st-name:hover { text-decoration: underline; text-underline-offset: 3px; }
+a.st-name[aria-current="true"] { color: var(--accent-ink); }
+.st-row.is-done .st-name { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.st-marks { display: contents; }
+.st-mark { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; line-height: 1.5; background: var(--panel-3); color: var(--text-2); white-space: nowrap; }
+.st-mark .icon { width: 12px; height: 12px; }
+.st-mark.overdue { background: var(--warn-soft); color: var(--warn); }
+.st-mark.moved { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.st-mark.timetable { background: var(--ok-soft); color: var(--ok); }
+.st-row.is-done .st-mark { opacity: .7; }
+.st-find { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 560; }
+.st-find .icon { width: 14px; height: 14px; }
+.st-lp { grid-area: lp; color: var(--text-2); font-size: 13px; white-space: nowrap; text-align: right; }
+.st-acts { grid-area: acts; display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 72px; }
+.st-act { width: 34px; height: 34px; --hit-y: 7px; --hit-x: 1px; }
+.st-act .icon { width: 18px; height: 18px; }
+.st-empty { padding: 4px 24px 10px; margin: 0; }
+.st-take { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; padding: 12px 16px 4px 24px; border-top: 1px solid var(--line); }
+.st-take .note-action { flex: 1 1 auto; margin: 0; }
+.st-taken { display: inline-flex; align-items: center; gap: 8px; color: var(--ok); font-weight: 600; }
+.st-take .ghost { margin-left: auto; }
+
+/* The sidebar: the program's pages under its picker, the Studienbeginn's question, the legend. */
+.st-program .combo { width: 100%; }
+.st-ways { display: grid; gap: 2px; margin-top: 8px; }
+.st-ways .action > span, .fgroup.actions .action > span { flex: 1; }
+.st-start .note-action { margin-top: 8px; }
+.st-legend ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.st-legend li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: start; }
+.st-legend .st-mark { width: 22px; height: 14px; padding: 0; margin-top: 2px; }
+.st-legend .st-mark.done { background: var(--ok); }
+
+@media (max-width: 900px) {
+  .st-head { padding: 14px 16px 16px; }
+  .st-title { font-size: 21px; }
+  .st-welcome { padding: 18px 16px; }
+  .st-past > summary { padding: 14px 12px 14px 16px; }
+  .st-prompt { margin: 0 12px 8px 16px; }
+  .st-term-head { padding: 12px 12px 6px 16px; }
+  .st-rows { padding: 0 4px; }
+  /* The buttons under the credits, so a row keeps to the height of its name and marks. */
+  .st-row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "tick what lp" "tick what acts"; column-gap: 6px; row-gap: 0; padding: 2px 4px; }
+  .st-lp { align-self: end; padding-top: 6px; }
+  .st-acts { align-self: start; min-width: 0; margin-right: -4px; }
+  .st-tick, .st-act { width: 44px; height: 44px; --hit: 0px; }
+  .st-take { padding: 12px 12px 4px 16px; }
+  .st-take .btn { flex: 1 1 100%; }
+  .st-take .ghost { margin-left: 0; }
+}
+
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }

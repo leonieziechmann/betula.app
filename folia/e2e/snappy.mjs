@@ -110,8 +110,14 @@ for (const slow of [1, 4]) {
     feedback: () => !document.querySelector(".work > .detail"),
     result: () => !location.search.includes("open=") && !document.querySelector(".work > .detail"),
   }, slow);
-  await watch(page, "the rail: programs" + tag, click(page, '.rail a.nav[data-area="programs"]'), {
-    feedback: () => document.querySelector('.rail a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector(".crumb h1")?.textContent === "Studiengänge",
+  // „Studium" is „Mein Studium" first (owner, 2026-10-04), the overview one link away.
+  await watch(page, "the rail: Studium" + tag, click(page, '.rail a.nav[data-area="programs"]'), {
+    feedback: () => document.querySelector('.rail a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector(".crumb h1")?.textContent === "Mein Studium",
+    result: () => location.pathname === "/study" && document.querySelector(".st-welcome"),
+    skeleton: true,
+  }, slow);
+  await watch(page, "all programs" + tag, click(page, '#sidebar a[href="/programs"]'), {
+    feedback: () => document.querySelector(".crumb h1")?.textContent === "Studiengänge",
     result: () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 50,
     skeleton: true,
   }, slow);
@@ -182,7 +188,7 @@ for (const slow of [1, 4]) {
   if (slow > 1) await (await phone.newCDPSession(small)).send("Emulation.setCPUThrottlingRate", { rate: slow });
   await watch(small, "phone: the bottom bar" + tag, tap(small, '.bottomnav a.nav[data-area="programs"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page",
-    result: () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 50,
+    result: () => location.pathname === "/study" && document.querySelector(".st-welcome"),
     skeleton: true,
   }, slow);
   await watch(small, "phone: back to the catalog" + tag, tap(small, '.bottomnav a.nav[data-area="catalog"]'), {

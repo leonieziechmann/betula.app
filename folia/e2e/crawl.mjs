@@ -36,16 +36,18 @@ const overview = await get("/programs");
 const programs = links(overview, /href="(\/programs\/[^"/]+)\/plan"/g);
 if (programs.length < 50) failures.push(`/programs lists only ${programs.length} programs`);
 
-// Every program in every view its sidebar links (`ProgramTab` in folia/crates/routes/src/url.rs): the plan
-// and the areas are for search engines, „Mein Plan" is the visitor's and says `noindex`.
+// Every program in every view (`ProgramTab` in folia/crates/routes/src/url.rs): the plan and the areas
+// are for search engines and its sidebar links them; „Mein Plan" is „Mein Studium" now (2026-10-04),
+// the visitor's: its old address still answers, says `noindex` and is linked from nowhere.
 const views = { plan: true, areas: true, "my-plan": false };
+const linkedViews = Object.entries(views).filter(([, indexed]) => indexed).map(([tab]) => tab).join();
 for (const program of programs) {
   for (const [tab, indexed] of Object.entries(views)) {
     const html = await get(`${program}/${tab}`);
     if (!html.includes('data-walk="program-page"')) failures.push(`${program}/${tab}: not a program page`);
     if (html.includes('content="noindex') === indexed) failures.push(`${program}/${tab}: ${indexed ? "hidden from" : "offered to"} search engines`);
     const linked = links(html, /data-walk="tab" href="\/programs\/[^"/]+\/([^"/?]+)"/g).join();
-    if (linked !== Object.keys(views).join()) failures.push(`${program}/${tab}: links the views ${linked || "(none)"}, the crawl knows ${Object.keys(views).join()}`);
+    if (linked !== linkedViews) failures.push(`${program}/${tab}: links the views ${linked || "(none)"}, the crawl knows ${linkedViews}`);
   }
 }
 
@@ -80,6 +82,10 @@ await get("/datenschutz");
 // The Studienplan lives in the browser: the server's page is one explanation, for no index.
 const plan = await get("/studyplan");
 if (!plan.includes('content="noindex')) failures.push("/studyplan: offered to search engines");
+// So does „Mein Studium", the Studium tab's first page in the app; the server's tab is the overview.
+const study = await get("/study");
+if (!study.includes('content="noindex')) failures.push("/study: offered to search engines");
+if (!/<a [^>]*data-area="programs" href="\/programs"/.test(overview)) failures.push("the server's Studium tab does not lead to the overview");
 await get("/catalog?turnus=winter&form=exercise&lang=en");
 if (programs[0]) await get(`/catalog?program=${programs[0].split("/").pop()}&list=fues`);
 await get("/catalog/module/00000", 404);

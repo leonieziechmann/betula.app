@@ -34,6 +34,7 @@ pub const ICONS: &[(&str, &str)] = &[
     ("chevron-down", r#"<path d="m6 9 6 6 6-6"/>"#),
     ("chevron-left", r#"<path d="m15 18-6-6 6-6"/>"#),
     ("chevron-right", r#"<path d="m9 18 6-6-6-6"/>"#),
+    ("chevron-up", r#"<path d="m18 15-6-6-6 6"/>"#),
     ("chevrons-up-down", r#"<path d="m7 15 5 5 5-5"/> <path d="m7 9 5-5 5 5"/>"#),
     ("circle-check-big", r#"<path d="M21.801 10A10 10 0 1 1 17 3.335"/> <path d="m9 11 3 3L22 4"/>"#),
     ("clock-3", r#"<circle cx="12" cy="12" r="10"/> <polyline points="12 6 12 12 16.5 12"/>"#),

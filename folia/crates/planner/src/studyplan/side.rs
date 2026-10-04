@@ -1,5 +1,6 @@
 //! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
-//! „Studiengang" (the timetable's program, „Mein Studiengang" by default, and the way to its page),
+//! „Studiengang" (the timetable's program, „Mein Studiengang" by default, and the way to „Mein
+//! Studium"),
 //! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view, what is
 //! shown, the Standort and its calendar, and last „Plan": save the timetable under a name, load or
 //! delete a saved one, hand it on by a link (`share.rs`), empty it. The storage hint under it is
@@ -21,8 +22,8 @@ use folia_calendar::kind::{EventKind, KindSet};
 use folia_calendar::select::{Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::Program;
-use folia_plans::studyplan::{MAX_SAVED_NAME, PlanDoc};
-use folia_routes::url::{self, PlanView, ProgramTab, StudyplanUrl};
+use folia_plans::studyplan::MAX_SAVED_NAME;
+use folia_routes::url::{self, PlanView, StudyplanUrl};
 use folia_timetable::model::Timetable;
 use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
@@ -34,7 +35,7 @@ use crate::i18n;
 use folia_stores::myprogram::{po_of, program_name, MyProgram};
 use folia_design::nav;
 use folia_shell::pending::Pending;
-use folia_stores::studyplan::{Saved, Studyplan};
+use folia_stores::studyplan::Saved;
 use folia_design::ui::Icon;
 use super::export::CalendarGroup;
 use super::import::ImportGroup;
@@ -119,8 +120,8 @@ fn shown_program<'a>(all: &'a [Program], asked: Option<&str>, stored: Option<&st
     named.or_else(|| stored.and_then(by_id)).or_else(|| mine.and_then(by_id))
 }
 
-/// „Studiengang": the picker, „Mein Studiengang" first under its own heading, and the program's
-/// page, where the whole study is planned. A pick is the timetable's program, stored with the plan;
+/// „Studiengang": the picker, „Mein Studiengang" first under its own heading, and „Mein Studium",
+/// where the whole study is planned. A pick is the timetable's program, stored with the plan;
 /// it sets „Mein Studiengang" only while none is set.
 #[component]
 fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
@@ -150,8 +151,8 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
             going.go(&away, NavigateOptions { replace: true, ..Default::default() });
         }
     });
-    // „Mein Plan" on the program's page, where the whole study is to be planned.
-    let link = Memo::new(move |_| shown.with(|program| program.as_ref().map(|program| t.path(&url::program_path(&program.slug, ProgramTab::MyPlan)))));
+    // „Mein Studium", where the whole study is planned (the Studium tab's first page).
+    let link = Memo::new(move |_| shown.with(|program| program.as_ref().map(|_| t.path(url::STUDY))));
     view! {
         <div class="fgroup first sp-program">
             <p class="flabel label">{t.studyplan_side.program}</p>
@@ -324,14 +325,14 @@ fn default_name(program: Option<&Program>, imported: Option<u8>, semester: Semes
 
 /// „Plan": „Plan speichern" (a name, the same name replaces), the saved plans (a click loads one
 /// into the semester shown, asking first where that would lose a timetable no saved plan holds;
-/// × deletes one), „Link zum Teilen kopieren" (`share`), and „Plan leeren" („Wirklich leeren?"),
-/// which „Rückgängig" takes back. The saved plan the timetable holds is marked.
+/// × deletes one), „Link zum Teilen kopieren" (`share`), and „Plan leeren" („Wirklich leeren?":
+/// the semester shown), which „Rückgängig" takes back. The saved plan the timetable holds is
+/// marked.
 #[component]
 fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Option<u8>>) -> impl IntoView {
     let t = i18n::t();
     let s = &t.studyplan_side;
     let saved = Saved::open();
-    let empty = Memo::new(move |_| ctx.plan.is_none_or(Studyplan::is_empty));
     // Whether the semester shown holds a timetable, and the saved plan it is.
     let held = Memo::new(move |_| {
         let (url, current) = (ctx.url.get(), ctx.current.get());
@@ -345,6 +346,8 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
         })
     });
     let any = Memo::new(move |_| held.with(|held| held.0));
+    // „Plan leeren" empties the semester shown: with nothing in it there is nothing to empty.
+    let empty = Memo::new(move |_| !any.get());
     let marked = Memo::new(move |_| held.with(|held| held.1.clone()));
     let entries = Memo::new(move |_| saved.with(|saved| saved.plans.iter().map(|p| (p.name.clone(), p.modules())).collect::<Vec<_>>()));
     let cleared = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().is_some_and(|(note, _)| note == s.cleared)));
@@ -411,8 +414,10 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
         saved.update(|saved| saved.remove(&which));
     };
 
-    // „Plan leeren": emptied after the next frame (the views and the calendar let go of it then);
-    // the note answers at once and keeps what was there. The program stays the timetable's.
+    // „Plan leeren": the timetable of the semester shown, emptied after the next frame (the views
+    // and the calendar let go of it then); the note answers at once and keeps what was there. The
+    // program stays the timetable's, and the other semesters and what was passed stay „Mein
+    // Studium"'s (`PlanDoc::clear_semester`).
     let confirming = RwSignal::new(false);
     let restoring = RwSignal::new(false);
     let ask = move |_| {
@@ -423,9 +428,8 @@ fn PlanGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported: RwSignal<Op
         confirming.set(false);
         let Some(plan) = ctx.plan else { return };
         ctx.undo.set(Some((s.cleared.to_string(), plan.with_untracked(Clone::clone))));
-        plan.update_after_paint(|doc| {
-            *doc = PlanDoc { program: doc.program.take(), extra: std::mem::take(&mut doc.extra), ..PlanDoc::default() };
-        });
+        let key = ctx.key.get_untracked();
+        plan.update_after_paint(move |doc| doc.clear_semester(key));
         request_animation_frame(|| nav::focus_by_id("sp-clear-undo"));
     };
     let undo = move |_| {

@@ -7,10 +7,14 @@ pub struct Texts {
     pub source: &'static str,
     /// … „Regelstudienplan" …
     pub standard_plan: &'static str,
-    /// … and „Mein Plan" of the program's page, which is to come: „bald", and its tooltip.
-    pub my_plan: &'static str,
-    pub soon: &'static str,
-    pub my_plan_soon: &'static str,
+    /// … and „Mein Studium", with what it takes over as its tooltip and the line under it …
+    pub my_studies: &'static str,
+    pub my_studies_hint: &'static str,
+    /// … where no program is kept, or the study begins after the semester shown …
+    pub no_studies: &'static str,
+    pub study_not_yet: &'static str,
+    /// … and the way there.
+    pub to_studies: &'static str,
     /// Without a program, and for a program without a plan.
     pub choose_program_first: &'static str,
     pub no_plan: &'static str,
@@ -38,9 +42,11 @@ pub const DE: Texts = Texts {
     import: "Importieren",
     source: "Quelle",
     standard_plan: "Regelstudienplan",
-    my_plan: "Mein Plan",
-    soon: "bald",
-    my_plan_soon: "Kommt mit „Mein Plan“ auf der Studiengangsseite",
+    my_studies: "Mein Studium",
+    my_studies_hint: "Dieses Semester aus „Mein Studium“: zuerst, was nachzuholen ist, dann, was laut Plan fällig ist.",
+    no_studies: "Wähle zuerst in „Mein Studium“ deinen Studiengang.",
+    study_not_yet: "„Mein Studium“ beginnt erst nach diesem Semester.",
+    to_studies: "Zu „Mein Studium“ →",
     choose_program_first: "Erst einen Studiengang wählen.",
     no_plan: "Kein Regelstudienplan für diesen Studiengang.",
     plan: "Plan",
@@ -55,11 +61,13 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     import: "Import",
-    source: "DataClient",
+    source: "Source",
     standard_plan: "Standard study plan",
-    my_plan: "My plan",
-    soon: "soon",
-    my_plan_soon: "Coming with “My plan” on the programme's page",
+    my_studies: "My studies",
+    my_studies_hint: "This semester from \u{201c}My studies\u{201d}: first what is left to catch up on, then what the plan says is due.",
+    no_studies: "Choose your degree programme in \u{201c}My studies\u{201d} first.",
+    study_not_yet: "\u{201c}My studies\u{201d} begins after this semester.",
+    to_studies: "To \u{201c}My studies\u{201d} →",
     choose_program_first: "Choose a degree programme first.",
     no_plan: "No standard study plan for this degree programme.",
     plan: "Plan",

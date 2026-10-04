@@ -15,6 +15,9 @@ use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::MineResolved;
 use folia_stores::studyplan::Studyplan;
 
+/// The browser app (`csr`): only there is „Mein Studium", the first page of „Studium".
+const APP: bool = cfg!(feature = "csr");
+
 /// Lets the memory of the tabs follow the router (it needs the router's context).
 #[component]
 pub fn FollowTabs() -> impl IntoView {
@@ -38,13 +41,25 @@ pub fn NavItems() -> impl IntoView {
     let href = move |area: Area| {
         let path = location.pathname.get();
         t.path(&match (tabs, area) {
+            // „Studium" is „Mein Studium" in the app; without it (the server's page, no JavaScript)
+            // there is nothing to plan, and the tab is the overview of the programs.
+            (_, Area::Programs) if !APP => url::PROGRAMS.to_string(),
             (Some(tabs), Area::Catalog) => tabs.href_with_root(area, &path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
             (Some(tabs), _) => tabs.href(area, &path),
             (None, _) => area.root().to_string(),
         })
     };
+    // The Stundenplan is the timetable of the current semester: its tab counts what that semester
+    // holds, not what „Mein Studium" places into later ones; every module planned until the
+    // catalog has said which semester is the current one.
     let plan = Studyplan::expect();
-    let planned = Memo::new(move |_| plan.map(Studyplan::count).unwrap_or(0));
+    let meta = folia_data::use_ask(|| APP.then_some(folia_pages::ask::MetaAsk {}));
+    let semester = Memo::new(move |_| meta.with(|meta| meta.as_ref().and_then(|meta| meta.as_ref().ok()).and_then(|meta| meta.current_semester.as_deref().and_then(folia_calendar::semester::SemesterKey::parse))));
+    let planned = Memo::new(move |_| match (plan, semester.get()) {
+        (Some(plan), Some(current)) => plan.count_in(current),
+        (Some(plan), None) => plan.count(),
+        (None, _) => 0,
+    });
     view! {
         <a class="nav" data-area="home" href=t.path(url::HOME) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>{t.app.home}</a>
         <a class="nav" data-area="catalog" href=move || href(Area::Catalog) title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>{t.app.modules}</a>
@@ -101,7 +116,10 @@ pub fn TopBar() -> impl IntoView {
     let location = use_location();
     // Title and search belong to the page the app is at or going to (`pending`).
     let going = Pending::expect();
-    let area_now = Memo::new(move |_| Area::of(&going.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get())));
+    let path_now = Memo::new(move |_| going.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get()));
+    let area_now = Memo::new(move |_| Area::of(&path_now.get()));
+    // „Mein Studium" is the visitor's study, not a list of programs: its search is the modules'.
+    let study_now = Memo::new(move |_| path_now.get() == url::STUDY);
     let pending = StoredValue::new(None::<TimeoutHandle>);
 
     // The search belongs to the page: programs on the program overview, modules everywhere else.
@@ -119,7 +137,7 @@ pub fn TopBar() -> impl IntoView {
         let run = move || {
             // On top of where the visitor is headed: a filter clicked a moment ago stays.
             let (path, search) = Pending::shown_of(going, location.pathname, location.search);
-            let target = if area_now.get_untracked() == Area::Programs {
+            let target = if area_now.get_untracked() == Area::Programs && !study_now.get_untracked() {
                 let mut next = if path == url::PROGRAMS { url::ProgramsUrl::parse(&search) } else { Default::default() };
                 next.text = text.trim().to_string();
                 next.path()
@@ -143,9 +161,11 @@ pub fn TopBar() -> impl IntoView {
     view! {
         <header class="topbar">
             {move || {
-                let programs = area_now.get() == Area::Programs;
+                let study = study_now.get();
+                let programs = area_now.get() == Area::Programs && !study;
                 let modules = t.app.search_modules_placeholder;
                 let (title, action, placeholder) = match area_now.get() {
+                    Area::Programs if study => (t.app.my_studies, url::CATALOG, modules),
                     Area::Programs => (t.app.programs, url::PROGRAMS, t.app.search_programs_placeholder),
                     Area::Catalog => (t.app.modules, url::CATALOG, modules),
                     Area::Bookmarks => (t.app.bookmarks, url::CATALOG, modules),

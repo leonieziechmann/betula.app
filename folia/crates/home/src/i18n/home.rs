@@ -354,7 +354,7 @@ pub const DE: Texts = Texts {
         text: "Wo die Quelle nichts sagt, steht „nicht angegeben“ und keine Vermutung, und was Betula ableitet, sagt es dazu. Jedes Modul verlinkt auf sein Original bei der BTU.",
     },
     in_progress: "In Arbeit",
-    coming: "Studienverlauf: bestandene Module abhaken, Voraussetzungen prüfen",
+    coming: "Voraussetzungen prüfen: was du mit dem schon Bestandenen belegen kannst",
 
     about_betula: Faq {
         name: "Über Betula",
@@ -601,7 +601,7 @@ pub const EN: Texts = Texts {
         text: "Where the source says nothing, the page says “not stated” and makes no guess, and what Betula derives, it says so. Every module links to its original at BTU.",
     },
     in_progress: "In progress",
-    coming: "Study progress: tick off the modules you have passed, check prerequisites",
+    coming: "Check prerequisites: what you can take with what you have passed",
 
     about_betula: Faq {
         name: "About Betula",

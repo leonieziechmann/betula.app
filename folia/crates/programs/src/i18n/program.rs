@@ -146,10 +146,12 @@ pub struct Texts {
     pub no_areas_hint: &'static str,
     pub areas_intro: &'static str,
 
-    // „Mein Plan".
+    // „Mein Plan", which is „Mein Studium" now.
     pub my_plan_hint: &'static str,
-    pub to_timetable: &'static str,
+    pub to_my_studies: &'static str,
     pub all_modules: &'static str,
+    /// „Studium planen": among the actions of the visitor's own program, the way to „Mein Studium".
+    pub plan_studies: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -266,9 +268,10 @@ pub const DE: Texts = Texts {
     no_areas_hint: "Das Vorlesungsverzeichnis gliedert diesen Studiengang nicht in Bereiche.",
     areas_intro: "Wie das Vorlesungsverzeichnis diesen Studiengang gliedert. Ein Modul kann in mehreren Bereichen stehen.",
 
-    my_plan_hint: "Hier planst du bald dein ganzes Studium, Semester für Semester.",
-    to_timetable: "Zum Stundenplan",
+    my_plan_hint: "„Mein Plan“ heißt jetzt „Mein Studium“: dein ganzes Studium, Semester für Semester, unter „Studium“.",
+    to_my_studies: "Zu „Mein Studium“",
     all_modules: "Alle Module des Studiengangs im Katalog",
+    plan_studies: "Studium planen",
 };
 
 pub const EN: Texts = Texts {
@@ -385,7 +388,8 @@ pub const EN: Texts = Texts {
     no_areas_hint: "The course directory does not divide this degree programme into areas.",
     areas_intro: "How the course directory divides this degree programme. A module can stand in several areas.",
 
-    my_plan_hint: "Soon you will plan your whole studies here, semester by semester.",
-    to_timetable: "To the timetable",
+    my_plan_hint: "\u{201c}My plan\u{201d} is \u{201c}My studies\u{201d} now: your whole studies, semester by semester, under \u{201c}Study\u{201d}.",
+    to_my_studies: "To \u{201c}My studies\u{201d}",
     all_modules: "All modules of the degree programme in the catalogue",
+    plan_studies: "Plan your studies",
 };

@@ -10,7 +10,7 @@ pub struct Texts {
     /// The picker's text while nothing is picked, and its search field's.
     pub choose_program: &'static str,
     pub search_program: &'static str,
-    /// „Studium planen →": the way to the program's page, where the whole study is planned.
+    /// „Studium planen →": the way to „Mein Studium", where the whole study is planned.
     pub plan_studies: &'static str,
 
     // ---- Ansicht, Zeigen, Standort ----

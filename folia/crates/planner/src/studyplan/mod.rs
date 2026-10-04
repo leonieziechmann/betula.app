@@ -72,6 +72,9 @@ use self::modules::ModuleList;
 use self::side::PlanSidebar;
 use self::week::{DatesView, WeekLoose, WeekView};
 
+/// When a module is planned, for „Mein Studium" as for the import here.
+pub(crate) use self::import::now_secs;
+
 /// The browser app (`csr`), or the server rendering the one explanation it has.
 const APP: bool = cfg!(feature = "csr");
 
@@ -147,7 +150,7 @@ fn semester_of(day: Day) -> Option<SemesterKey> {
 }
 
 /// The browser's date. `None` on the server, which renders no plan and must not read a clock.
-fn today() -> Option<Day> {
+pub(crate) fn today() -> Option<Day> {
     #[cfg(feature = "csr")]
     {
         let now = web_sys::js_sys::Date::new_0();

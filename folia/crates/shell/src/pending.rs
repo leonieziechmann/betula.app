@@ -31,7 +31,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use folia_routes::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
+use folia_routes::url::{self, BookmarksUrl, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyUrl, StudyplanUrl};
 use leptos::prelude::*;
 use leptos_router::hooks::use_navigate;
 use leptos_router::location::Location;
@@ -65,6 +65,8 @@ pub enum Shape {
     Bookmarks,
     /// The Studienplan: a semester of the visitor's plan, or all of them.
     Studyplan,
+    /// „Mein Studium": the visitor's study, semester by semester.
+    Study,
     /// Text: the legal pages, a page that does not exist.
     Text,
 }
@@ -85,6 +87,8 @@ impl Shape {
             Shape::Bookmarks
         } else if path == url::STUDYPLAN {
             Shape::Studyplan
+        } else if path == url::STUDY {
+            Shape::Study
         } else {
             Shape::Text
         }
@@ -520,6 +524,12 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             }
         }
         Shape::Studyplan => studyplan_change(&PlanAddress::parse(from_search), &PlanAddress::parse(to_search), phone),
+        // „Mein Studium" shows its modules in place: the module beside it is the aside, and filling
+        // the page (after „Vollbild", on a phone always) it is a page of its own.
+        Shape::Study => {
+            let (from, to) = (StudyUrl::parse(from_search), StudyUrl::parse(to_search));
+            local_change(&from, &to, phone, Change::Column(Shape::Study)).or_else(|| (from.open != to.open).then_some(Change::Aside))
+        }
         Shape::Programs => Some(Change::Column(Shape::Programs)),
         Shape::Program => {
             let (slug, tab) = program(to_path)?;
@@ -776,6 +786,14 @@ mod tests {
         assert_eq!(change("/programs/informatik/plan", "", "/programs/informatik/plan", "area=4", true), Some(Change::Page(Shape::Text)));
         assert_eq!(change("/programs", "", "/programs", "level=bachelor", false), Some(Change::Column(Shape::Programs)));
         assert_eq!(change("/bookmarks", "", "/bookmarks", "sort=title", false), Some(Change::Column(Shape::Bookmarks)));
+        // „Mein Studium": another page, the module beside it, and the module filling it.
+        assert_eq!(change("/programs", "", "/study", "", false), Some(Change::Page(Shape::Study)));
+        assert_eq!(change("/study", "", "/study", "open=11103", false), Some(Change::Aside));
+        assert_eq!(change("/study", "open=11103", "/study", "", false), Some(Change::Aside));
+        assert_eq!(change("/study", "open=11103", "/study", "open=11103&full=1", false), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/study", "open=11103&full=1", "/study", "open=11103", false), Some(Change::Column(Shape::Study)));
+        assert_eq!(change("/study", "", "/study", "open=11103", true), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/study", "", "/study", "utm=x", false), None);
         assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
     }
 

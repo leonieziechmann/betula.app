@@ -106,6 +106,12 @@ impl Studyplan {
         self.0.with(planned_modules)
     }
 
+    /// How many modules are planned into a semester: what the timetable of that semester holds.
+    /// Tracked: read it in a memo.
+    pub fn count_in(self, s: SemesterKey) -> usize {
+        self.0.with(|doc| doc.modules.iter().filter(|m| m.semester == s).count())
+    }
+
     /// The modules planned into a semester, in the order they were planned. Tracked.
     pub fn modules_in(self, s: SemesterKey) -> Vec<String> {
         self.0.with(|doc| doc.modules_in(s))

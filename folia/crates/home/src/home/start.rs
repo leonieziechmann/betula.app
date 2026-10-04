@@ -14,9 +14,10 @@
 //!
 //! The steps follow what this browser has done (the app's alone, R9: on the server all of it is
 //! empty, so the server's page is the one of a first visit): a step that is done wears a tick and
-//! says what was done — the program, the Merkliste, the Stundenplan — in place of the navigation's
-//! items, and the first step not done yet is the next one, its button in the accent. Only words
-//! and colours change, never a height, so nothing moves when the app takes over.
+//! says what was done — the program (leading to „Mein Studium"), the Merkliste, the Stundenplan —
+//! in place of the navigation's items, and the first step not done yet is the next one, its button
+//! in the accent. Only words and colours change, never a height, so nothing moves when the app
+//! takes over.
 //!
 //! The line under the heading sends whoever looks for one module into the search at the top
 //! (`data-action="search"` in `enhance.js`; without JavaScript the link opens the catalog), and
@@ -30,7 +31,7 @@ use folia_stores::bookmarks::Bookmarks;
 use folia_design::combobox::{ComboItem, Combobox};
 use folia_data::use_data;
 use crate::i18n::{self, home::Step};
-use folia_stores::myprogram::{program_href, program_name, po_of, MineResolved, MyProgram};
+use folia_stores::myprogram::{program_name, po_of, MineResolved, MyProgram};
 use folia_design::nav;
 use folia_stores::studyplan::Studyplan;
 use folia_design::ui::{Icon, Shortcut};
@@ -121,19 +122,24 @@ pub fn ProgramPick(
 pub fn StartPath() -> impl IntoView {
     let t = i18n::t();
     let home = &t.home;
-    let source = use_data().ok();
-    // „Mein Studiengang", while the stored program is in the snapshot (A.10), with the plan of its
-    // stored Studienrichtung; the name as the app names it everywhere.
+    // „Mein Studiengang", while the stored program is in the snapshot (A.10), the name as the app
+    // names it everywhere; it leads to „Mein Studium", where its study is planned (owner,
+    // 2026-10-04: not the Regelstudienplan first).
     let resolved = MineResolved::expect();
-    let stored = MyProgram::expect();
     let program = Memo::new(move |_| {
         let program = resolved.and_then(MineResolved::exact)?;
-        let (caption, direction) = stored.map(|mine| mine.with(|doc| (doc.caption.clone(), doc.direction.clone()))).unwrap_or_default();
-        Some((program_href(source.as_ref(), &program, caption.as_deref(), direction.as_deref()), program_name(&program)))
+        Some((url::STUDY.to_string(), program_name(&program)))
     });
     let has_program = Memo::new(move |_| program.with(Option::is_some));
     let marked = Memo::new(move |_| Bookmarks::expect().map(Bookmarks::count).unwrap_or(0));
-    let planned = Memo::new(move |_| Studyplan::expect().map(Studyplan::count).unwrap_or(0));
+    // What the Stundenplan holds, as its tab counts it: the current semester's modules.
+    let meta = folia_data::use_ask(|| APP.then_some(folia_pages::ask::MetaAsk {}));
+    let current = Memo::new(move |_| meta.with(|meta| meta.as_ref().and_then(|meta| meta.as_ref().ok()).and_then(|meta| meta.current_semester.as_deref().and_then(folia_calendar::semester::SemesterKey::parse))));
+    let planned = Memo::new(move |_| match (Studyplan::expect(), current.get()) {
+        (Some(plan), Some(current)) => plan.count_in(current),
+        (Some(plan), None) => plan.count(),
+        (None, _) => 0,
+    });
     let next = Memo::new(move |_| next_step([has_program.get(), marked.get() > 0, planned.get() > 0]));
     // The catalog as a way in: the program's while it is kept and known (`MineResolved::catalog_href`).
     let catalog = Memo::new(move |_| resolved.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href));
