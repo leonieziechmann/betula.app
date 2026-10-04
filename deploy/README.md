@@ -742,9 +742,10 @@ Radix's crawl and of the statute download goes to it, and it fetches from the un
 it does not have fresh, at one floor per host for every instance and colour together, and keeps
 every version. One Cortex per host, not per instance: two instances of one image in the stack
 `cortex` (`stacks/cortex.yml`), each with a volume of its own, of which one leads and the other
-follows and takes over. Built 2026-10-02/03; not deployed yet. It is not part of the canary
-pipeline (`images.yml` builds Radix and Folia): a push to master does not restart the cache the
-live site uses.
+follows and takes over. Built 2026-10-02/03; deployed 2026-10-04 and seeded with the public site's
+archive, read offline by the canary; the public colours do not use it yet (below, „The public site
+may wait"). It is not part of the canary pipeline (`images.yml` builds Radix and Folia): a push to
+master does not restart the cache the live site uses.
 
 ```
 workstation   deploy/ship-cortex.sh: nix build .#cortex-image ─ssh─▶ docker load, tag <date>-<hash>
