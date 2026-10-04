@@ -35,7 +35,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, adding, moving and taking out, the Gesamtplan, the phone, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the phone, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -585,7 +585,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   the Wiederholer; on a phone one semester as a card turned by ‹ › and a swipe, the overview above
   it and nothing between („Danach sollten direkt die Semester kommen"), at the end a page that adds
   a semester; on a desktop the mockup's concept A by default („am sichersten … am besten zwischen
-  Handy und PC") and concept C, calmed, as the second view. So:
+  Handy und PC") and concept C, calmed, as the second view. Her look at the page that day („Die
+  drei Punkte sind in der Allgemeinheit verstanden als Kontextmenü", „Das Abhaken von dem Modul ist
+  viel zu einfach … Änder das mal zu einer Multiselection für Bearbeitung", „Die klickflächen sind zu
+  klein", the cards of the areas in one row) made the rows what they are now. So:
   - **Where.** In the app the Studium tab leads to `/study` (see „The areas are tabs"); the overview
     and the programs' pages are what the study is looked up in: „Regelstudienplan", „Wahlpflicht &
     Bereiche" and „Alle Studiengänge ansehen" stand in its sidebar under „Mein Studiengang" (a card:
@@ -599,7 +602,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     entry says the Fachsemester it makes the current one; assumed by `studyplan::intake_start` until
     picked), the study direction where the program has several plans, and how the semesters before
     the current one begin: empty, or „1. und 2. FS nach Regelstudienplan füllen" (`study::fill_past`,
-    the Stundenplan's import per Fachsemester; then only ticking off is left). „Studium anlegen"
+    the Stundenplan's import per Fachsemester; then only marking what was passed is left). „Studium anlegen"
     stores it in one go (`MyProgram::set_study`). Changed later in „Studiengang wechseln" (`side.rs`),
     a dialog that says before anything changes what of the plan counts in the new program („Bestanden
     36 von 46 LP kommen dort vor", the modules that count nowhere there, which stay as „ohne
@@ -607,27 +610,54 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **The overview** (`overview.rs`): „46 von 180 LP bestanden", the credits passed, planned
     („davon 6 über Bedarf") and not planned yet, and a bar of the areas, each as wide as it asks
     (and as what goes beyond it): passed in the area's colour, planned in its tint, open grey,
-    beyond need striped with „+6" over it. On a desktop a card per area under it (what is passed
-    and planned, „18 LP offen", „ganz eingeplant", „+6 LP über Bedarf", or where the plan has it),
-    and the hints that need doing: a Wiederholer not planned again („Einplanen" opens the picker of
-    the next semester that offers it, ticked), one hint instead where many are not ticked off
-    (a past just filled: „Abhaken" goes to the first), a semester heavier than the plan. An area's
+    beyond need striped with „+6" over it. On a desktop a card per area under it, all of them in one
+    row and each in one line („Die Cards dürfen nur eine Zeile haben. Aber idealer weise auch ohne
+    Scrolling"): „● Informatik 44/66", what is taken of what it asks, green with ✓ where it is all
+    planned, in the area's colour beyond need, a long name giving way first; the rest („18 LP
+    offen", „ganz eingeplant", „+6 LP über Bedarf") where the pointer rests. Then the hints that
+    need doing: a Wiederholer not planned again („Einplanen" opens the picker of the next semester
+    that offers it, ticked), one hint instead where many are not marked as passed (a past just
+    filled: „Markieren" goes to the first and selects its rows not passed, so that the bar marks
+    them in one click), a semester heavier than the plan. An area's
     card opens its dialog: what it asks and holds, the student's modules there, the plan's rows still
     open, its modules in the catalog (the tree's areas, the FÜS list) and the plan's page. On a
     phone the program, the Fachsemester and „Bereiche ›" over the headline; the bar and „Bereiche"
     open the areas as a sheet.
   - **The semesters** (`focus.rs`, the view „Semester"): on a desktop a strip of every semester
     (what it holds of what the plan puts in, passed of the semesters that are over, a load bar,
-    „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › in its head, the
-    rows as a table (the box that ticks off, the name with its marks, the area, the credits, „⋯"),
-    „Module hinzufügen", „Im Stundenplan", „Als Urlaubssemester"; beside it „Passt in dieses
-    Semester": the plan's open rows of its Fachsemester, the Wiederholer, what is open elsewhere in
-    the areas, each one „+" from being planned here. A row dragged onto a semester of the strip
-    moves there. On a phone the semester is a card as wide as the page right under the overview,
+    „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › and its „⋯" in its
+    head (`menu.rs`: „Im Stundenplan öffnen", „Alle auswählen", „Urlaubssemester", and „Semester
+    entfernen" for an empty one added beyond the plan), its rows as a table, and „Module
+    hinzufügen" as the last row, a row like the others; beside it „Passt in dieses Semester": the
+    plan's open rows of its Fachsemester, the Wiederholer, what is open elsewhere in the areas, each
+    one „+" from being planned here. A row is a box, the module (its name with its marks, its area,
+    its credits, ✓ before them where it is passed) and its „⋯"; the box and the „⋯" are as tall as
+    the row and 44–48 px wide, and a click anywhere on the module opens it beside the page. Its
+    „⋯", or a right click on it, opens its menu at the button or the pointer (`menu.rs`): „Modul
+    ansehen" (for a placeholder „Modul wählen"), „Als bestanden markieren" (or „Bestanden
+    zurücknehmen"), „Verschieben nach ›" (a submenu of every semester it can go to — one that is over
+    only for what was done or not passed there —, each with its Fachsemester and whether it offers
+    the module), „Entfernen". The arrows go through a menu, → opens the submenu and ← closes it,
+    Escape or a click beside it closes it and gives the focus back. *Selecting* (`Selection`): the
+    boxes select rows for what is done to several; a row's box shows under the pointer, every box
+    while rows are selected. A press on a box drawn over the others selects (or, begun on a selected
+    row, lets go of) every row it passes; Shift and a click selects a range, Ctrl or ⌘ and a click
+    on the module one more, and while rows are selected a click on a row selects it or lets it go.
+    The box in the columns' head selects all (or lets all go). While rows are selected a bar takes
+    the place of the columns' head: „3 ausgewählt · 18 LP", „Als bestanden markieren" („Bestanden
+    zurücknehmen" where all are), „Verschieben nach" (the semesters as a menu), „Entfernen", „×";
+    Escape lets go too, and so does turning to another semester. A row dragged onto a semester of
+    the strip moves there, with every row selected if it is one of them („3 Einträge" under the
+    pointer). On a phone the semester is a card as wide as the page right under the overview,
     turned by ‹ › or a swipe, dots under it, the plan's open rows of its Fachsemester as a line
-    under the rows. After the last semester a page adds one („WiSe 2028/29 anfügen · 7.
-    Fachsemester", as a semester of leave if ticked); an empty semester added beyond the plan can go
-    again. A row's marks: „Wiederholung · aus 1. FS", „im SoSe nicht angeboten · nur WiSe", „über
+    under the rows; its rows are the module and its „⋯", a long press selects a row and brings the
+    boxes in (a finger drawn down them selects more, a tap on a row selects it or lets it go), the
+    bar stands at the bottom of the window over the tab bar, and a menu is a sheet from below whose
+    submenu takes its place (with „‹" back). After the last semester a page adds one („WiSe
+    2028/29 anfügen · 7. Fachsemester", as a semester of leave if ticked). A row's marks:
+    „Wiederholung · aus 1. FS", „im SoSe nicht angeboten · nur WiSe", what it asks for and is not in
+    place („setzt voraus … – noch nicht eingeplant", `picker::needs_text`, only what is asked for,
+    not what is recommended), „über
     Bedarf · FÜS hat schon 6 LP", „Platzhalter" (a row of the plan without a module, with „Modul
     wählen": its modules in the catalog, `variants::row_query`), „gefüllt mit …", and in a semester
     that is over „nicht bestanden · wieder im …" or „… noch nicht wieder eingeplant · Einplanen".
@@ -639,7 +669,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     semester, in the next one that offers it; a Wiederholer in the next semester that offers it), a
     click adds it; „Modul hinzufügen" on a cell's hover offers that area's modules for that semester
     (`picker::CellDialog`: the tree's areas below it as filters, those offered then first, the rest
-    folded); a click on a module opens its menu; a module dragged into another column moves there.
+    folded); a click on a module (or a right click) opens its menu, the semesters' row menu; a
+    module dragged into another column moves there.
   - **Adding, moving, taking out** (owner: adding and removing were „eine absolute Krise"):
     „Module hinzufügen" (`picker.rs`) for a semester lists the rows of a Fachsemester of the plan
     (its own; „Plan-Semester" picks another), each with where it stands (passed, planned elsewhere
@@ -648,13 +679,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     something is missing only that, in the warning colour where it is asked for), then the
     Wiederholer, and „Im Katalog suchen" (the catalog's search, the program's modules or all).
     The plan's open modules that the semester offers come ticked for its own Fachsemester;
-    „Einfügen (n)" says what the semester comes to then against the plan. A module's menu
-    (`menu.rs`): „Als bestanden abhaken", „Verschieben nach" (every semester, each saying whether
-    it offers the module), „Modul ansehen" (beside the page), „Entfernen"; what Betula knows of it
-    (the turnus where the semester does not offer it, what it asks for and where that stands, exam,
-    language). Every change answers in the next frame (R21); moving, removing and adding say so at
-    the bottom with „Rückgängig". Nothing is refused: a module that the semester does not offer, a
-    semester heavier than the plan, credits beyond an area are said, never blocked.
+    „Einfügen (n)" says what the semester comes to then against the plan. Marking as passed,
+    moving and taking out are a row's menu and the bar of the rows selected (`menu::Act`, the same
+    for one and for several); marking is no box to tick by the way any more (owner: „Das ist eine
+    Aktion, die man idealer weise nur einmal macht"). Every change answers in the next frame (R21);
+    each of them says so at the bottom with „Rückgängig". Nothing is refused: a module that the
+    semester does not offer, a semester heavier than the plan, credits beyond an area are said,
+    never blocked.
   - **The rule** (`folia_plans::study`, pure, tested on every plan of the snapshot). *The areas*
     (`areas`): a row of the plan belongs to the thesis, to the FÜS, or to a group by its
     `subject_area` (Informatik B.Sc.: „Komplex Informatik" …), else the top of the program's module
@@ -672,7 +703,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     modules fill it. *The semesters*: from the Studienbeginn (or the first semester anything is in)
     to the current one, the end of the Regelstudienzeit, the last that holds anything and the last
     the student added; each with its Fachsemester, none for a semester of leave, which moves the
-    later ones on. What was put into a semester that is over and not ticked off there is not passed
+    later ones on. What was put into a semester that is over and not marked as passed there is not passed
     („nicht bestanden"); until it is planned again or passed later it is a Wiederholer, and taken
     again it says so and stands first.
   - **What is stored** is only what the student says, in the Stundenplan's store (R20): the `m` and
@@ -686,10 +717,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     way round; its tab counts the current semester's modules. Its „Importieren" has „Mein Studium"
     as its second source: the Wiederholer into the semester shown (`study::retake_import`). „Plan
     leeren" empties the semester shown and leaves the others and what was passed.
-  - `node folia/e2e/study.mjs` checks the first visit, the overview and its hint, ticking off,
-    „Module hinzufügen", the menu (moving, removing, „Rückgängig"), an area, a module beside the
-    page, the Gesamtplan and its grey lines, the phone (the card, ‹ ›, a swipe, a semester added,
-    the areas' sheet) and the Stundenplan's import.
+  - `node folia/e2e/study.mjs` checks the first visit, the overview and its hint („Markieren"),
+    a row's menu (marking as passed, „Verschieben nach ›", removing, „Rückgängig", a right click,
+    the keys: Enter, the arrows into the submenu and back, Escape and the focus back),
+    selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows
+    dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
+    its row, the Gesamtplan (its menu, its grey lines), the phone (the card, ‹ ›, a swipe, a long
+    press and the bar, the menu as a sheet, a semester added, the areas' sheet) and the
+    Stundenplan's import.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.

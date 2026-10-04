@@ -11,8 +11,9 @@
 //! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"); on a phone one semester as a card
 //! that ‹ › or a swipe turns, the overview above it. The semesters begin empty: „Module
 //! hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of the plan, the Wiederholer and the
-//! catalog; a module's menu (`menu.rs`) ticks it off, moves it and takes it out. Betula blocks
-//! nothing (owner: „Die Nutzer sind erwachsene Menschen"): it says what it knows instead.
+//! catalog; a row's menu (`menu.rs`) marks it as passed, moves it and takes it out, and so does
+//! the bar of the rows selected for several at once (`focus.rs`). Betula blocks nothing (owner:
+//! „Die Nutzer sind erwachsene Menschen"): it says what it knows instead.
 //!
 //! The program is set up once (`setup.rs`, the first visit) and changed rarely, in a dialog that
 //! says what of the plan counts in the new one (`side.rs`). The sidebar holds it and the ways to
@@ -26,6 +27,7 @@
 //! `StudyCtx::change`).
 
 mod dialog;
+mod dom;
 mod focus;
 mod grid;
 mod menu;
@@ -184,14 +186,33 @@ pub(super) enum Dialog {
     Add { semester: SemesterKey, catalog: bool, chosen: Vec<String> },
     /// A cell of the Gesamtplan: the modules of an area (`None`: of no area) for a semester.
     Cell { area: Option<usize>, semester: SemesterKey },
-    /// The menu of an item of a semester (`Item::key`).
-    Item { semester: SemesterKey, key: String },
     /// An area of the progress (`Study::progress`); `None` for what counts towards none.
     Area(Option<usize>),
     /// The areas on a phone.
     Areas,
     /// „Studiengang wechseln".
     Switch,
+}
+
+/// The rows selected in a semester (`Item::key`), for what is done to several at once (owner,
+/// 2026-10-04: „eine Multiselection für Bearbeitung"): marked as passed, moved, taken out.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(super) struct Selection {
+    pub semester: Option<SemesterKey>,
+    pub keys: BTreeSet<String>,
+    /// The row a range (Shift and a click) begins at.
+    pub anchor: Option<String>,
+}
+
+impl Selection {
+    pub fn has(&self, s: SemesterKey, key: &str) -> bool {
+        self.semester == Some(s) && self.keys.contains(key)
+    }
+
+    /// Whether rows of semester `s` are selected.
+    pub fn any_in(&self, s: SemesterKey) -> bool {
+        self.semester == Some(s) && !self.keys.is_empty()
+    }
 }
 
 /// What the parts of the page share.
@@ -217,8 +238,11 @@ pub(super) struct StudyCtx {
     pub focus: RwSignal<Option<SemesterKey>>,
     pub view: RwSignal<View>,
     pub dialog: RwSignal<Option<Dialog>>,
-    /// A row being dragged to another semester: its semester and `Item::key`.
-    pub drag: RwSignal<Option<(SemesterKey, String)>>,
+    /// The menu open, if any (`menu.rs`).
+    pub menu: RwSignal<Option<menu::Menu>>,
+    pub selection: RwSignal<Selection>,
+    /// The rows being dragged to another semester: their semester and `Item::key`s.
+    pub drag: RwSignal<Option<(SemesterKey, Vec<String>)>>,
     /// The note of the last change that „Rückgängig" takes back, and the plan before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
 }
@@ -226,13 +250,7 @@ pub(super) struct StudyCtx {
 impl StudyCtx {
     /// Changes the plan after the next frame (R21), then runs `then`: `change` gets the plan and
     /// what the study is worked out from as it stands then. Nothing changes while the study is not
-    /// there.
-    pub fn change(self, change: impl FnOnce(&mut PlanDoc, &Input) + 'static, then: impl FnOnce() + 'static) {
-        self.change_noted(None, change, then);
-    }
-
-    /// `change`, with a note that „Rückgängig" takes it back by (`note` gets what `change`
-    /// returned: whether anything changed).
+    /// there. With a `note`, „Rückgängig" takes the change back by it, where it changed anything.
     pub fn change_noted(self, note: Option<String>, change: impl FnOnce(&mut PlanDoc, &Input) + 'static, then: impl FnOnce() + 'static) {
         let Some(plan) = self.plan else {
             then();
@@ -519,9 +537,27 @@ pub fn StudyPage() -> impl IntoView {
         focus: RwSignal::new(None),
         view,
         dialog: RwSignal::new(None),
+        menu: RwSignal::new(None),
+        selection: RwSignal::new(Selection::default()),
         drag: RwSignal::new(None),
         undo: RwSignal::new(None),
     };
+    // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
+    // where no dialog takes it first.
+    Effect::new(move |_| {
+        let handle = window_event_listener(leptos::ev::keydown, move |ev| {
+            if ev.key() != "Escape" || ev.default_prevented() {
+                return;
+            }
+            if ctx.menu.with_untracked(Option::is_some) {
+                ctx.menu.set(None);
+                dom::give_focus_back();
+            } else if ctx.dialog.with_untracked(Option::is_none) && ctx.selection.with_untracked(|selection| !selection.keys.is_empty()) {
+                ctx.selection.set(Selection::default());
+            }
+        });
+        on_cleanup(move || handle.remove());
+    });
 
     // What fills the page: the study, or the module opened from it after „Vollbild" (on a phone
     // whatever is opened).
@@ -552,6 +588,7 @@ pub fn StudyPage() -> impl IntoView {
                     <StudyMain ctx/>
                 </div>
                 <dialog::DialogHost ctx/>
+                <menu::MenuHost ctx/>
                 <UndoNote ctx/>
             </Frame>
         }
@@ -610,7 +647,10 @@ fn ViewSwitch(ctx: StudyCtx) -> impl IntoView {
     let s = &t.study;
     let button = move |view: View, label: &'static str, icon: &'static str| {
         view! {
-            <button type="button" aria-pressed=move || if ctx.view.get() == view { "true" } else { "false" } on:click=move |_| ctx.view.set(view)>
+            <button type="button" aria-pressed=move || if ctx.view.get() == view { "true" } else { "false" } on:click=move |_| {
+                ctx.selection.set(Selection::default());
+                ctx.view.set(view);
+            }>
                 <Icon name=icon/>{label}
             </button>
         }

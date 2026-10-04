@@ -2,8 +2,9 @@
 //! aber zu unsortiert und aufgeregt"): the areas as rows, the semesters as columns, calm — what is
 //! planned as plain lines, what the plan still has open in grey where it fits next (one click adds
 //! it), the semesters before the current one folded into „Bisher". A click into a cell offers the
-//! modules of that area for that semester (`picker::CellDialog`); a click on a module opens its
-//! menu; a module dragged into another column moves there. A desktop's view.
+//! modules of that area for that semester (`picker::CellDialog`); a click on a module (or a right
+//! click) opens its menu (`menu.rs`); a module dragged into another column moves there. A
+//! desktop's view.
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::{Item, Line, Pick, When};
@@ -11,7 +12,9 @@ use leptos::prelude::*;
 
 use folia_design::ui::Icon;
 
-use super::focus::{add_pick, move_to};
+use super::dom;
+use super::focus::add_pick;
+use super::menu::{self, Act, MenuFor};
 use super::picker::short_title;
 use super::{n, Dialog, Ready, StudyCtx, ViewSwitch};
 use crate::i18n::{self, Texts};
@@ -246,9 +249,9 @@ fn Cell(ctx: StudyCtx, area: Option<usize>, semester: SemesterKey, now: bool) ->
     let drop = move |ev: leptos::ev::DragEvent| {
         ev.prevent_default();
         over.set(false);
-        if let Some((from, key)) = ctx.drag.get_untracked() {
+        if let Some((from, keys)) = ctx.drag.get_untracked() {
             ctx.drag.set(None);
-            move_to(ctx, from, semester, &key, t);
+            menu::act(ctx, Act::Move { semester: from, keys, to: semester }, t);
         }
     };
     view! {
@@ -261,8 +264,7 @@ fn Cell(ctx: StudyCtx, area: Option<usize>, semester: SemesterKey, now: bool) ->
             on:drop=drop
         >
             <For each=move || entries.get() key=|entry| (entry.key.clone(), entry.passed, entry.failed, entry.over, entry.unoffered) children=move |entry: Entry| {
-                let key = entry.key.clone();
-                let drag_key = entry.key.clone();
+                let key = StoredValue::new(entry.key.clone());
                 let title = format!("{}{}", entry.full, entry.credits.as_ref().map(|credits| format!(" · {}", (s.credits)(credits))).unwrap_or_default());
                 view! {
                     <button
@@ -272,18 +274,18 @@ fn Cell(ctx: StudyCtx, area: Option<usize>, semester: SemesterKey, now: bool) ->
                         class:failed=entry.failed
                         title=title
                         draggable="true"
+                        aria-haspopup="menu"
                         on:dragstart=move |ev: leptos::ev::DragEvent| {
-                            ctx.drag.set(Some((semester, drag_key.clone())));
-                            #[cfg(feature = "csr")]
-                            if let Some(data) = ev.data_transfer() {
-                                let _ = data.set_data("text/plain", &drag_key);
-                                data.set_effect_allowed("move");
-                            }
-                            #[cfg(not(feature = "csr"))]
-                            let _ = ev;
+                            let keys = vec![key.get_value()];
+                            dom::drag_data(&ev, &keys);
+                            ctx.drag.set(Some((semester, keys)));
                         }
                         on:dragend=move |_| ctx.drag.set(None)
-                        on:click=move |_| ctx.open(Dialog::Item { semester, key: key.clone() })
+                        on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value() }, &ev)
+                        on:contextmenu=move |ev: leptos::ev::MouseEvent| {
+                            ev.prevent_default();
+                            menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value() }, &ev);
+                        }
                     >
                         {entry.passed.then(|| view! { <Icon name="check" class="ok"/> })}
                         <span class="st-entry-name">{entry.name}</span>

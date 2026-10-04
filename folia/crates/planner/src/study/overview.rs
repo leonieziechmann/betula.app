@@ -2,12 +2,17 @@
 //! erfüllt sind, wie viele geplant sind und wie viele noch gar nicht allocated sind … unterteilt nach
 //! den Bereichen … mehr Credits als overflow"): what is passed of what the plan asks, the credits
 //! passed, planned and not planned yet, and a bar of the areas, each as wide as it asks (and what
-//! goes beyond it, striped, with „+6"). On a desktop a card per area under it and the hints that
-//! need doing (a Wiederholer not planned again, a semester heavier than the plan); on a phone the
-//! bar opens the areas as a sheet. An area opens what counts there (`AreaDialog`).
+//! goes beyond it, striped, with „+6"). On a desktop a card per area under it, all in one row and
+//! each in one line (owner, 2026-10-04: „Die Cards dürfen nur eine Zeile haben. Aber idealer weise
+//! auch ohne Scrolling"): its name and what is taken of what it asks („44/66"), the rest when the
+//! pointer rests on it; then the hints that need doing (a Wiederholer not planned again, a
+//! semester heavier than the plan). On a phone the bar opens the areas as a sheet. An area opens
+//! what counts there (`AreaDialog`).
+
+use std::collections::BTreeSet;
 
 use folia_calendar::semester::SemesterKey;
-use folia_plans::study::AreaKind;
+use folia_plans::study::{AreaKind, Item};
 use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
 use folia_routes::url::{CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
@@ -15,7 +20,7 @@ use leptos::prelude::*;
 use folia_design::ui::Icon;
 
 use super::dialog::DialogHead;
-use super::{n, Dialog, Ready, StudyCtx};
+use super::{n, Dialog, Ready, Selection, StudyCtx, View};
 use crate::i18n::{self, Texts};
 
 /// A part of the bar: an area, or what counts towards none.
@@ -41,6 +46,10 @@ struct Card {
     line: String,
     /// What it still needs, all planned, or beyond need: the words and their class.
     state: (String, &'static str),
+    /// A desktop's card in one line: what is taken of what it asks („44/66"), and its class.
+    figure: (String, &'static str),
+    /// All of it in words, for the pointer resting on the card.
+    title: String,
 }
 
 /// A hint: a Wiederholer not planned again, or a semester heavier than the plan.
@@ -126,7 +135,11 @@ impl Info {
             } else {
                 (s.all_planned.to_string(), "done")
             };
-            cards.push(Card { area: Some(i), name, tone, required: Some((s.credits)(&n(progress.area.required, t))), line, state });
+            let taken = n(progress.passed + progress.planned + progress.over, t);
+            let required = n(progress.area.required, t);
+            let figure = (format!("{taken}/{required}"), if state.1 == "open" { "" } else { state.1 });
+            let title = (s.card_title)(&name, &taken, &required, &state.0);
+            cards.push(Card { area: Some(i), name, tone, required: Some((s.credits)(&required)), line, state, figure, title });
         }
         let (outside_passed, outside_planned) = study.outside;
         if outside_passed + outside_planned > 0.0 {
@@ -146,7 +159,9 @@ impl Info {
             if outside_planned > 0.0 {
                 parts.push((s.card_planned)(&n(outside_planned, t)));
             }
-            cards.push(Card { area: None, name: s.outside.to_string(), tone: "var(--text-3)", required: None, line: parts.join(" · "), state: (String::new(), "") });
+            let all = (s.credits)(&n(outside_passed + outside_planned, t));
+            let title = format!("{}: {all}", s.outside);
+            cards.push(Card { area: None, name: s.outside.to_string(), tone: "var(--text-3)", required: None, line: parts.join(" · "), state: (String::new(), ""), figure: (all, ""), title });
         }
 
         let mut hints = Vec::new();
@@ -240,7 +255,7 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
                                     <li class="warn">
                                         <Icon name="info"/>
                                         <span>{(s.hint_unticked)(count)}</span>
-                                        <button class="st-link" type="button" on:click=move |_| ctx.focus.set(Some(first))>{s.tick_off}</button>
+                                        <button class="st-link" type="button" on:click=move |_| mark_first(ctx, first)>{s.tick_off}</button>
                                     </li>
                                 }.into_any(),
                                 Hint::Heavy(text) => view! { <li><Icon name="info"/><span>{text}</span></li> }.into_any(),
@@ -251,6 +266,15 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
             }
         })
     }
+}
+
+/// „Markieren": the first semester with rows not passed, those rows selected, so that one click
+/// on „Als bestanden markieren" marks them (and letting go of the ones not passed comes first).
+fn mark_first(ctx: StudyCtx, first: SemesterKey) {
+    let keys: BTreeSet<String> = ctx.with_ready(|ready| ready.study.semester(first).map(|semester| semester.items.iter().filter(|item| !item.passed).map(Item::key).collect())).flatten().unwrap_or_default();
+    ctx.view.set(View::Semester);
+    ctx.focus.set(Some(first));
+    ctx.selection.set(Selection { semester: Some(first), keys, anchor: None });
 }
 
 /// The bar of the areas, each as wide as it asks and what goes beyond it.
@@ -277,14 +301,16 @@ fn Bar(segments: Vec<Segment>, pc: bool) -> impl IntoView {
     }
 }
 
+/// An area's card on a desktop, in one line: „● Informatik 44/66".
 #[component]
 fn AreaCard(ctx: StudyCtx, card: Card) -> impl IntoView {
     let area = card.area;
+    let (figure, class) = card.figure;
     view! {
-        <button class="st-card" type="button" style=format!("--c: {}", card.tone) on:click=move |_| ctx.open(Dialog::Area(area))>
-            <span class="st-card-head"><span class="st-dot"></span><span class="st-card-name">{card.name}</span>{card.required.map(|required| view! { <span class="st-card-lp">{required}</span> })}</span>
-            <span class="st-card-line">{card.line}</span>
-            <span class=format!("st-card-state {}", card.state.1)>{card.state.0}</span>
+        <button class="st-card" type="button" style=format!("--c: {}", card.tone) title=card.title.clone() aria-label=card.title on:click=move |_| ctx.open(Dialog::Area(area))>
+            <span class="st-dot"></span>
+            <span class="st-card-name">{card.name}</span>
+            <span class=format!("st-card-figure {class}")>{figure}{(class == "done").then(|| view! { <Icon name="check"/> })}</span>
         </button>
     }
 }

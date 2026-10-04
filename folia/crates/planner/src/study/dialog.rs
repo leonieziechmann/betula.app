@@ -7,7 +7,7 @@ use leptos::prelude::*;
 
 use folia_design::ui::Icon;
 
-use super::{menu, overview, picker, side, Dialog, StudyCtx};
+use super::{overview, picker, side, Dialog, StudyCtx};
 use crate::i18n;
 
 /// The class of a dialog's kind: how wide it is.
@@ -15,7 +15,7 @@ fn class_of(dialog: &Dialog) -> &'static str {
     match dialog {
         Dialog::Add { .. } | Dialog::Cell { .. } => "wide",
         Dialog::Switch => "medium",
-        Dialog::Item { .. } | Dialog::Area(_) | Dialog::Areas => "narrow",
+        Dialog::Area(_) | Dialog::Areas => "narrow",
     }
 }
 
@@ -55,7 +55,6 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
                 let content = match dialog {
                     Dialog::Add { semester, catalog, chosen } => view! { <picker::AddDialog ctx semester catalog chosen/> }.into_any(),
                     Dialog::Cell { area, semester } => view! { <picker::CellDialog ctx area semester/> }.into_any(),
-                    Dialog::Item { semester, key } => view! { <menu::ItemMenu ctx semester key/> }.into_any(),
                     Dialog::Area(area) => view! { <overview::AreaDialog ctx area/> }.into_any(),
                     Dialog::Areas => view! { <overview::AreasSheet ctx/> }.into_any(),
                     Dialog::Switch => view! { <side::SwitchDialog ctx/> }.into_any(),
