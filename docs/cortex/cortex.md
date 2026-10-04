@@ -1,6 +1,8 @@
 # Cortex, the cache between Betula and the internet
 
-> **Status: built 2026-10-02/03, shipped by `deploy/ship-cortex.sh`, not yet deployed.** One
+> **Status: built 2026-10-02/03; deployed 2026-10-04 (release 2026-10-04-298639a) and seeded with
+> the public site's raw pages (15,046 answers); the canary reads it offline, the public site does
+> not use it yet (`deploy/README.md` section 14).** One
 > service that every outgoing data request of the project may go through: it fetches from public
 > hosts under one floor per host for all clients together, keeps every answer that differed with
 > its history, stores named files over REST, and replicates all of it to a second instance that
@@ -197,9 +199,33 @@ decompress about twice its content; past that the answer is cut off. This holds 
 |---|---|
 | `GET /v1/entries?url=…[&accept=…][&accept_language=…]` | `{"entry":{…},"versions":[…]}`, newest first (id, status, `sha256:<hex>`, size, headers, `fetched_at`, `checked_at`, `superseded_at`); `404 not-found` when none |
 | `GET /v1/entries?host=&source=&changed_since=&cursor=&limit=` | `{"entries":[{…,"current":{…}}],"next_cursor":"…"}`: entries with a current version, in the order they were created; `changed_since` (RFC 3339) keeps those whose current version was first fetched at or after it; `limit` 100, at most 1000 |
+| `PUT /v1/entries?url=…[&accept=…][&accept_language=…]&status=…&fetched_at=…&checked_at=…[&source=…][&expect=sha256:<hex>]` | an answer another program fetched (below): `201` with a new version, `200` when the store had it or a newer answer; JSON `{"result","entry","version"}`, `ETag`, `Cortex-Version`. `400 bad-request` for a status Cortex does not keep, times missing, `fetched_at` after `checked_at` or `checked_at` more than a minute ahead; `422 hash-mismatch` |
 | `DELETE /v1/entries?url=…` | the entry and its versions are forgotten: `204`; `404` when none |
 
 Both roles answer the reads from their own copy (a follower may be a moment behind).
+
+**Importing what another program fetched** (owner, 2026-10-04: Cortex starts with the raw data of
+the public site's Radix). The body of a `PUT` is the content of an answer to `GET <url>` (with the
+`accept` and `accept_language` the request had, part of the key as in a fetch), `status` its status
+(one of those Cortex keeps, §3), `fetched_at` when that program first got this content and
+`checked_at` when it last got it (RFC 3339), `Content-Type` of the `PUT` the answer's, kept with it.
+Cortex records it as if it had fetched it itself then (`store.RecordImport`), so that a fetch serves
+it, offline too, with `Cortex-Fetched-At` and `Cortex-Checked-At` as given:
+
+- nothing stored: a new version, `result` `created`;
+- the current version has this content (status and sha256): its `checked_at` moves to the later of
+  the two (`checked`, a journal `check`), or nothing changes (`unchanged`, nothing written);
+- the current version has other content, last checked before `checked_at`: the import supersedes
+  it from `fetched_at`, or from that version's `checked_at` when that is later (`created`);
+- the current version has other content and was checked at or after `checked_at`: Cortex's answer
+  is newer, nothing is stored (`older`). Cortex keeps no history before its current version.
+
+An import carries no URL that answered, so no validators are sent for it: the first fetch of its
+URL downloads the whole body, and its headers replace the import's (§5). The journal entry is
+stamped with the time of the import, not the answer's (the follower's lag stays the import's). An
+import changes nothing when it is sent again: a client may repeat one whose answer it lost. The
+leader writes it; a follower forwards it. `radix seed-cortex` gives Cortex Radix's raw page archive
+this way (§8).
 
 ### 4.4 Named files: `/v1/files`
 
@@ -578,10 +604,24 @@ it Radix fetches directly, as before. Gemini is asked directly either way.
 - Each request names its source (`qis_tree`, `module_page`, …), so Cortex's metrics show the same
   sources as Radix's. `crawl.cortex` (INFO) at start names the instances, the mode and `max_age`.
 
-Offline for Radix through Cortex (`mode=offline`) is a later step; `RADIX_CRAWL=off` still means
-`serve-snapshot`, which sends nothing at all. The deploy side (who gets `RADIX_CORTEX_URL`, who gets
-a way out) is `deploy/README.md` section 14; the flags in Radix's table are in
-`docs/radix/operations.md` §1.
+**Offline through Cortex** (owner, 2026-10-04: „setze das canary radix so ein, dass es cortex im
+offline modus verwendet"). With `--cortex-mode offline` / `RADIX_CORTEX_MODE=offline` (in a deploy
+`RADIX_CRAWL=cortex-offline`) every request goes with `mode=offline`: Radix runs its cycles on what
+Cortex has stored, and nothing reaches the university. A `504 offline-miss` is no failure there:
+the page is skipped (not retried, not counted towards the abort, the archive keeps what it has)
+and asked for again in the next cycle; Gemini is not asked either. Without `--cortex` the mode
+exits with code 2. The canary's colours run like this: with Cortex's store filled from the public
+site's archive (`radix seed-cortex`, below) and whatever a colour that crawls fetches through
+Cortex, they test the whole way from Cortex to Folia without a second crawler.
+`RADIX_CRAWL=off` still means `serve-snapshot`, which sends nothing at all.
+
+**Seeding Cortex from Radix's archive:** `radix seed-cortex --db <a copy of radix.db> --cortex <instances>`
+gives Cortex every archived page whose page is the whole answer of its URL (all sources but
+`qis_event_entry`) through `PUT /v1/entries` (§4.3): the URL as the crawl asks for it, the archived
+status, the content first fetched at the page's `changed_at` and last at its `fetched_at`, the
+expected sha256 the archive's. The database is read as it is (read-only, no migration). The deploy
+side (who gets `RADIX_CORTEX_URL`, who gets a way out, the seed on the server) is
+`deploy/README.md` section 14; the flags in Radix's table are in `docs/radix/operations.md` §1.
 
 ## 9. Configuration
 
@@ -637,6 +677,7 @@ Cortex serves a registry of its own: no `radix_*` family appears there. No metri
 |---|---|
 | `cortex_requests_total{source,mode,result}` | fetches: `hit`, `miss`, `stale`, `refresh` (fetched upstream for these three), `stale_if_error`, `offline_miss`, `error`, `forwarded` (to the leader), `not_modified`. The first 64 sources a process sees (`unknown` among them) keep their label, later ones count as `other`; the full source is in the log |
 | `cortex_coalesced_total` | fetches that joined an upstream request already running |
+| `cortex_imports_total{source,result}` | answers another program fetched, given to `PUT /v1/entries` (§4.3): `created`, `checked`, `unchanged`, `older`, `error`; counted on the instance that wrote it (the leader). The first 64 sources keep their label, as in `cortex_requests_total` |
 | `cortex_upstream_requests_total{host,code}`, `cortex_upstream_request_duration_seconds{host}`, `cortex_upstream_bytes_total{host}` | what reached the hosts, redirects included (`code` the status, `error` without one), how long to the end of the body (histogram), bytes of content; `host` an entry of the policy or `other` |
 | `cortex_host_queue{host}`, `cortex_host_in_flight{host}`, `cortex_host_paused{host}` | waiting requests, requests in flight, the breaker (1 or 0; for `*.suffix` and `other` the number of paused hosts) |
 | `cortex_role`, `cortex_epoch`, `cortex_journal_seq`, `cortex_leader_changes_total` | 1 for the leader, 0 for the follower; the epoch and seq of the newest journal entry; role changes |
@@ -644,7 +685,7 @@ Cortex serves a registry of its own: no `radix_*` family appears there. No metri
 | `cortex_blobs_missing` | blobs the index references that the instance does not have yet: a follower after a snapshot, a leader promoted meanwhile; `48-cortex.sh` hands over only at 0 |
 | `cortex_entries`, `cortex_versions`, `cortex_files`, `cortex_blobs`, `cortex_blob_bytes`, `cortex_blob_original_bytes` | the store: from a background count at most about a minute old (no sample until the first one); blob bytes as stored and before compression |
 | `cortex_pruned_total{what}` | retention: `versions`, `file_versions`, `files`, `entries`, `blobs`, `journal_entries` |
-| `cortex_http_requests_total{route,code}` | every request, by route (`fetch`, `entries`, `files`, `blobs`, `livez`, `healthz`, `status`, `metrics`, `step_down`, `prune`, `journal`, `snapshot`, `other`) |
+| `cortex_http_requests_total{route,code}` | every request, by route (`fetch`, `entries` (imports included), `files`, `blobs`, `livez`, `healthz`, `status`, `metrics`, `step_down`, `prune`, `journal`, `snapshot`, `other`) |
 | `cortex_log_problems_total{level,event}` | log records at WARN and ERROR by event (§11) |
 | `cortex_build_info{build}`, `cortex_start_time_seconds` | the binary (the start of its sha256), when the process started |
 

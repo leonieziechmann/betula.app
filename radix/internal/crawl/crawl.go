@@ -51,22 +51,31 @@ type Options struct {
 
 // Stats counts the outcome per job.
 type Stats struct {
-	Fetched  int `json:"fetched"`   // 200, archived
-	Changed  int `json:"changed"`   // of Fetched: the content differs from the archived page (or is new)
-	NotFound int `json:"not_found"` // 404, archived without body
-	Skipped  int `json:"skipped"`   // archived recently enough
-	Failed   int `json:"failed"`    // gave up after retries
+	Fetched     int `json:"fetched"`                // 200, archived
+	Changed     int `json:"changed"`                // of Fetched: the content differs from the archived page (or is new)
+	NotFound    int `json:"not_found"`              // 404, archived without body
+	Skipped     int `json:"skipped"`                // archived recently enough
+	Failed      int `json:"failed"`                 // gave up after retries
+	OfflineMiss int `json:"offline_miss,omitempty"` // offline through Cortex: not in its store, left as archived
 }
 
 // ErrServerUnhealthy aborts a crawl when the server keeps failing; hammering it
 // further would be impolite and pointless.
 var ErrServerUnhealthy = errors.New("too many consecutive failures, crawl aborted")
 
+// ErrOfflineMiss is Cortex's answer, in mode offline (RADIX_CORTEX_MODE=offline), for a page it
+// has not stored (504 offline-miss): the page is not to be had without asking the university,
+// which offline nobody does. That is no failure, neither of the university nor of the crawl: the
+// page is not asked for again in this crawl, does not count towards crawl.aborted and stays as
+// archived; the next cycle asks again.
+var ErrOfflineMiss = errors.New("not in Cortex's store, and offline nothing is fetched")
+
 // Run archives all jobs. It returns ErrServerUnhealthy after
 // maxConsecutiveFailures failed jobs in a row.
 //
 // Log events: crawl.started, crawl.progress, crawl.retry (WARN), crawl.slow (WARN),
-// crawl.not_found (WARN), crawl.job_failed (ERROR), crawl.aborted (ERROR), crawl.finished.
+// crawl.not_found (WARN), crawl.offline_miss (DEBUG), crawl.job_failed (ERROR), crawl.aborted
+// (ERROR), crawl.finished.
 func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats, error) {
 	if opt.Workers <= 0 {
 		opt.Workers = 1
@@ -126,7 +135,8 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 		if done%progressEvery == 0 && done < len(jobs) {
 			log.Info("crawl progress", "event", "crawl.progress", "done", done, "jobs", len(jobs),
 				"fetched", stats.Fetched, "changed", stats.Changed, "skipped", stats.Skipped,
-				"not_found", stats.NotFound, "failed", stats.Failed, "elapsed_s", int(time.Since(start).Seconds()))
+				"not_found", stats.NotFound, "failed", stats.Failed, "offline_miss", stats.OfflineMiss,
+				"elapsed_s", int(time.Since(start).Seconds()))
 		}
 		if opt.Progress != nil {
 			opt.Progress(done, len(jobs), stats)
@@ -156,6 +166,10 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 				switch {
 				case err != nil && ctx.Err() != nil && !errors.Is(err, ErrServerUnhealthy):
 					return // interrupted; not a failure of the page
+				case errors.Is(err, ErrOfflineMiss):
+					log.Debug("not in Cortex's store", "event", "crawl.offline_miss", "key", job.Key, "url", job.URL)
+					CountPage(job.Source, "offline_miss")
+					record(func(s *Stats) { s.OfflineMiss++ }, false, nil)
 				case err != nil:
 					log.Error("giving up on page", "event", "crawl.job_failed", "key", job.Key, "url", job.URL,
 						"attempts", maxAttempts, oplog.Err(err))
@@ -187,8 +201,8 @@ func Run(ctx context.Context, db *catalogdb.DB, jobs []Job, opt Options) (Stats,
 	}
 	log.Log(context.Background(), level, "crawl finished", "event", "crawl.finished", "jobs", len(jobs),
 		"fetched", stats.Fetched, "changed", stats.Changed, "skipped", stats.Skipped,
-		"not_found", stats.NotFound, "failed", stats.Failed, "duration_s", int(time.Since(start).Seconds()),
-		"aborted", runErr != nil)
+		"not_found", stats.NotFound, "failed", stats.Failed, "offline_miss", stats.OfflineMiss,
+		"duration_s", int(time.Since(start).Seconds()), "aborted", runErr != nil)
 
 	if runErr != nil {
 		return stats, runErr
@@ -221,7 +235,8 @@ func fetchAndArchive(ctx context.Context, db *catalogdb.DB, job Job, opt Options
 
 // fetchWithRetries retries transient failures with a growing pause. 200 and 404 are
 // final answers (a 404 without its body), returned with the time of the answer (fetch);
-// everything else is an error.
+// everything else is an error. ErrOfflineMiss is final too: asked again, Cortex's store has the
+// page no more than a moment ago.
 func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logger) (int, []byte, time.Time, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -233,6 +248,9 @@ func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logge
 		}
 		if took > slowResponse {
 			log.Warn("slow response", "event", "crawl.slow", "key", job.Key, "duration_ms", took.Milliseconds(), "status", status)
+		}
+		if errors.Is(err, ErrOfflineMiss) {
+			return 0, nil, time.Time{}, err
 		}
 
 		if err == nil && (status == http.StatusOK || status == http.StatusNotFound) {
@@ -269,7 +287,8 @@ func fetchWithRetries(ctx context.Context, job Job, opt Options, log *slog.Logge
 // page, and a 404 taken from it would replace the archived page with an empty one. The
 // error names Cortex's status and code; the request counts as one without an answer of the
 // server (code "error"), and the attempt is retried, given up and counted towards the abort
-// like any other failure.
+// like any other failure. Cortex's 504 offline-miss is ErrOfflineMiss instead (code
+// "offline_miss"): in mode offline the page is not there to be had.
 func fetch(ctx context.Context, job Job, opt Options) (int, []byte, time.Time, error) {
 	req, err := http.NewRequestWithContext(cortexclient.WithSource(ctx, job.Source), http.MethodGet, job.URL, nil)
 	if err != nil {
@@ -283,6 +302,9 @@ func fetch(ctx context.Context, job Job, opt Options) (int, []byte, time.Time, e
 	}
 	defer resp.Body.Close()
 	if err := cortexclient.ResponseError(resp); err != nil {
+		if cortexclient.ErrorCode(resp) == cortexclient.CodeOfflineMiss {
+			return 0, nil, time.Time{}, fmt.Errorf("%w: %v", ErrOfflineMiss, err)
+		}
 		return 0, nil, time.Time{}, err
 	}
 

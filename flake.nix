@@ -50,7 +50,7 @@
           # Update after changing radix/go.mod / go.sum, and after any change to cortex/client
           # or cortex/go.mod ("go mod vendor" copies the module radix/go.mod replaces): set to
           # pkgs.lib.fakeHash, build, copy the hash Nix prints.
-          vendorHash = "sha256-UZymn25Bl7UafHtdHJJaGiur7iw7iQKmtqSMMcB63uM=";
+          vendorHash = "sha256-ns0b1Ybu6rgBJiDVihcQBetABA2RkAxBjHzMkgd7AD4=";
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";

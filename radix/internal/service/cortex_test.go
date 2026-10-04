@@ -82,3 +82,58 @@ func TestEveryStageAsksCortexWithItsSource(t *testing.T) {
 		t.Errorf("%d sources archived (err %v)", archived, err)
 	}
 }
+
+// Offline through Cortex (RADIX_CORTEX_MODE=offline) a cycle asks Cortex's store alone. What
+// Cortex lacks (the fake stores nothing) is skipped stage by stage without a failure, so the
+// cycle is not degraded for it; the archive and the catalog stay as they are, and nothing
+// reaches the university.
+func TestOfflineCycleSkipsWhatCortexLacks(t *testing.T) {
+	site := newFakeBTU(t)
+	svc, _ := newTestService(t, site)
+	ctx := context.Background()
+	if first := svc.RunCycle(ctx); first.Result != "ok" || !first.Published {
+		t.Fatalf("first cycle = %+v", first)
+	}
+	siteHits := func() int {
+		site.mu.Lock()
+		defer site.mu.Unlock()
+		n := 0
+		for _, h := range site.hits {
+			n += h
+		}
+		return n
+	}
+	before := siteHits()
+
+	cortex := cortextest.NewServer()
+	t.Cleanup(cortex.Close)
+	c, err := cortexclient.New(cortex.URL, cortexclient.Options{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	svc.cfg.Endpoints.Client = c.HTTPClient(cortexclient.FetchOptions{Mode: cortexclient.ModeOffline, Stale: cortexclient.StaleNever}, time.Minute)
+	result := svc.RunCycle(ctx)
+	if result.Result != "ok" || result.Published {
+		t.Fatalf("offline cycle = %+v, want ok and nothing published", result)
+	}
+	misses := 0
+	for _, s := range result.Stages {
+		if s.Error != "" || (s.Crawl != nil && s.Crawl.Failed > 0) {
+			t.Errorf("stage %s: %+v", s.Name, s)
+		}
+		if s.Crawl != nil {
+			misses += s.Crawl.OfflineMiss
+		}
+	}
+	if misses == 0 || len(cortex.Fetches()) == 0 {
+		t.Errorf("%d offline misses, %d fetches: the cycle did not ask Cortex", misses, len(cortex.Fetches()))
+	}
+	for _, f := range cortex.Fetches() {
+		if f.Mode != "offline" {
+			t.Errorf("fetch in mode %q", f.Mode)
+		}
+	}
+	if after := siteHits(); after != before {
+		t.Errorf("the university got %d requests offline", after-before)
+	}
+}

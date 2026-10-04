@@ -27,6 +27,10 @@ const (
 // DefaultSource is the source of a request that names none.
 const DefaultSource = "unknown"
 
+// CodeOfflineMiss is Cortex's error code (ErrorCode) when a fetch in mode offline, or of the
+// version current at a time, finds nothing stored: 504 offline-miss.
+const CodeOfflineMiss = "offline-miss"
+
 // FetchOptions are the parameters of GET /v1/fetch. An empty field is left out, so that
 // Cortex's default applies, except MaxAge, which is left out only when negative.
 type FetchOptions struct {

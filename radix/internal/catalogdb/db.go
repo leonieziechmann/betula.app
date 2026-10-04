@@ -52,6 +52,26 @@ func Open(path string) (*DB, error) {
 	return db, nil
 }
 
+// OpenReadOnly opens the database at path to read it, as it is: no migration, no write, and
+// no lock files next to it (immutable), so it must not change while it is open. For a copy of
+// another instance's database, which another release may have written (radix seed-cortex);
+// what is read has to be in every schema the copy can have, as raw_page is since migration 1.
+func OpenReadOnly(path string) (*DB, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+	dsn := "file:" + filepath.ToSlash(path) + "?mode=ro&immutable=1&_pragma=query_only(1)"
+	sqlDB, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("failed to open %s read-only: %w", path, err)
+	}
+	return &DB{sql: sqlDB, path: path}, nil
+}
+
 // SQL returns the underlying sql.DB instance.
 func (db *DB) SQL() *sql.DB {
 	return db.sql

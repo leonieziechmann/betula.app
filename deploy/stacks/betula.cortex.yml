@@ -11,7 +11,9 @@
 # directly, through betula.egress.yml.
 #
 # Offline (betula.offline.yml) Radix fetches nothing, and the variable changes nothing; it is
-# given all the same, so that going online again is one value in the instance's file.
+# given all the same, so that going online again is one value in the instance's file. With
+# RADIX_CRAWL=cortex-offline, betula.cortex-offline.yml comes after this file: every page from
+# Cortex's store alone.
 
 services:
   radix:

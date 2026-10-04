@@ -24,6 +24,9 @@ var (
 		"Fetches that joined an upstream request already running for the same key instead of sending their own.")
 	leaderChangesTotal = telemetry.Registry.NewCounter("cortex_leader_changes_total",
 		"Changes of this instance's role (it became the leader, or stopped leading).")
+	importsTotal = newSourceCounter(telemetry.Registry.NewCounter("cortex_imports_total",
+		"Answers another program fetched that were given to PUT /v1/entries, by source and result: created (a new version), checked (the current version, checked later), unchanged, older (the store has a newer answer), error. At most 64 sources are named, as in cortex_requests_total.",
+		"source", "result"), maxSources)
 	httpRequestsTotal = telemetry.Registry.NewCounter("cortex_http_requests_total",
 		"HTTP requests to this instance, by route and status code.", "route", "code")
 
@@ -34,9 +37,10 @@ var (
 )
 
 var (
-	fetchModes   = []string{"offline", "cache", "refresh"}
-	fetchResults = []string{"hit", "miss", "stale", "refresh", "stale_if_error", "offline_miss", "error", "forwarded", "not_modified"}
-	routeNames   = []string{"fetch", "entries", "files", "blobs", "livez", "healthz", "status", "metrics", "step_down", "prune", "journal", "snapshot", "other"}
+	fetchModes    = []string{"offline", "cache", "refresh"}
+	fetchResults  = []string{"hit", "miss", "stale", "refresh", "stale_if_error", "offline_miss", "error", "forwarded", "not_modified"}
+	importResults = []string{"created", "checked", "unchanged", "older", "error"}
+	routeNames    = []string{"fetch", "entries", "files", "blobs", "livez", "healthz", "status", "metrics", "step_down", "prune", "journal", "snapshot", "other"}
 )
 
 func init() {
@@ -46,6 +50,9 @@ func init() {
 			requestsTotal.Add(0, defaultSource, mode, result)
 			requestsTotal.Add(0, otherSource, mode, result)
 		}
+	}
+	for _, result := range importResults {
+		importsTotal.Add(0, defaultSource, result)
 	}
 	coalescedTotal.Add(0)
 	leaderChangesTotal.Add(0)
@@ -136,13 +143,14 @@ func (s *sourceCounter) label(source string) string {
 	return source
 }
 
-// Add adds v to the series of source, mode and result.
-func (s *sourceCounter) Add(v float64, source, mode, result string) {
-	s.c.Add(v, s.label(source), mode, result)
+// Add adds v to the series of source and the counter's other labels (cortex_requests_total:
+// mode and result).
+func (s *sourceCounter) Add(v float64, source string, labels ...string) {
+	s.c.Add(v, append([]string{s.label(source)}, labels...)...)
 }
 
 // Inc adds one.
-func (s *sourceCounter) Inc(source, mode, result string) { s.Add(1, source, mode, result) }
+func (s *sourceCounter) Inc(source string, labels ...string) { s.Add(1, source, labels...) }
 
 // handleMetrics serves telemetry.Registry: Cortex's metrics only, never Radix's.
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {

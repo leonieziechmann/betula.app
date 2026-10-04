@@ -75,6 +75,7 @@ Every flag of `run` has an environment variable, so a container or unit file nee
 | `--module-delay`, `--qis-delay` (ms) | `RADIX_MODULE_DELAY_MS`, `RADIX_QIS_DELAY_MS` | `500`, `500` (tree: twice the QIS delay, event search: four times). Through Cortex its floor per host holds on top, for every client together |
 | `--cortex` | `RADIX_CORTEX_URL` | none: Radix fetches directly. Cortex's instances, comma-separated (`http://cortex_a:8100,http://cortex_b:8100`), each a scheme and a host with no path (Radix exits with code 2 otherwise). Also a flag of the four `crawl-*` commands and `download-statutes` |
 | `--cortex-max-age` | `RADIX_CORTEX_MAX_AGE` | `1h`: a page Cortex fetched within this long is taken from Cortex without asking the university again; negative: the host's `max_age` in Cortex's policy |
+| `--cortex-mode` | `RADIX_CORTEX_MODE` | `cache`. `offline`: every request asks Cortex's store alone, nothing reaches the university, and Gemini is not asked (below, „Offline through Cortex"); needs `--cortex` (Radix exits with code 2 otherwise, as for another value). Also a flag of the `crawl-*` commands and `download-statutes` |
 | `--list-max-age` | `RADIX_LIST_MAX_AGE` | `40h` (every second night) |
 | `--module-max-age`, `--qis-module-max-age`, `--qis-module-unsettled-max-age`, `--tree-max-age` | `RADIX_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_MAX_AGE`, `RADIX_QIS_MODULE_UNSETTLED_MAX_AGE`, `RADIX_TREE_MAX_AGE` | `168h`, `720h`, `168h`, `720h` |
 | `--event-list-max-age`, `--event-unsettled-max-age` | `RADIX_EVENT_LIST_MAX_AGE`, `RADIX_EVENT_UNSETTLED_MAX_AGE` | `12h`, `2h` |
@@ -113,8 +114,33 @@ directly either way. What changes for Radix:
 - **Statutes:** `download-statutes --force` fetches in mode `refresh` (from OPUS, not from Cortex's
   store); a bot-protection page instead of a PDF arrives as Cortex's `502 wrong-type` and is
   `statutes.blocked` as before; another Cortex error reads `unexpected status N (Cortex: <code>)`.
-- `RADIX_CRAWL=off` (`serve-snapshot`) sends nothing, with or without Cortex. Offline through
-  Cortex (`mode=offline`) is not built for Radix yet.
+- `RADIX_CRAWL=off` (`serve-snapshot`) sends nothing, with or without Cortex.
+
+### Offline through Cortex
+
+With `--cortex-mode offline` (`RADIX_CORTEX_MODE=offline`; in a deploy `RADIX_CRAWL=cortex-offline`,
+`deploy/README.md` section 4) `run` runs its cycles as one that crawls does, at the same times and
+the same pace, but asks Cortex for every page in mode `offline`: what Cortex has stored, whatever
+its age, and nothing else (owner, 2026-10-04: canary tests Cortex without the public site). What
+Cortex has: what a Radix that crawls fetched through it, and what `radix seed-cortex` gave it from
+an archive (below, „One-off commands").
+
+- **A page Cortex has not stored is skipped** (`504 offline-miss`, `crawl.ErrOfflineMiss`): asked
+  once, not retried, no failure, not counted towards `crawl.aborted`, and the archive keeps what it
+  has; the next cycle asks again. A cycle is not degraded for it. It counts as `offline_miss`
+  (`radix_crawl_requests_total{code}`, `radix_crawl_pages_total{outcome}`, `crawl.finished`), and
+  `crawl.offline_miss` (DEBUG) names the page. A search of the event list Cortex lacks leaves its
+  events for the next cycle; a chunk of the QIS module table that neither Cortex nor the archive
+  has ends that table's reading without dropping a chunk; a tree page the archive has is read from
+  the archive.
+- **`fetched_at` stays Cortex's** (`Cortex-Checked-At`): a page Cortex has from before the archived
+  one is not stored, and stays due. Only what another client fetched through Cortex since makes it
+  newer, so with nobody crawling through Cortex the catalog stays as the archive and Cortex's store
+  had it, as offline does.
+- **Nothing goes out:** no Gemini summaries (as `serve-snapshot --db`), and in a deploy no way to the
+  internet (`deploy/README.md` section 14). `download-statutes` in such a container is offline too.
+- `radix_build_info{mode="cortex-offline"}` and `radix_crawl_cortex_offline` 1 say so in
+  `/metrics`; `crawl.cortex` names `mode=offline`.
 
 ### HTTP endpoints
 
@@ -140,17 +166,18 @@ of the archive: `module_catalog` and `module_page` are b-tu.de, `qis_module_list
 
 | Metric | What it says |
 |---|---|
-| `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer. Through Cortex: requests to Cortex in the university's place, a page from its store included; `code` is the university's status as Cortex stored it, and an error of Cortex's own counts as `error`. What reached the university is `cortex_upstream_requests_total` (`docs/cortex/cortex.md` §10) |
+| `radix_crawl_requests_total{source,code}` | requests sent to the university, retries included; `code` is the status, `error` without an answer. Through Cortex: requests to Cortex in the university's place, a page from its store included; `code` is the university's status as Cortex stored it, and an error of Cortex's own counts as `error`, a page Cortex has not stored when asked offline as `offline_miss`. What reached the university is `cortex_upstream_requests_total` (`docs/cortex/cortex.md` §10) |
 | `radix_crawl_request_duration_seconds{source}`, `radix_crawl_response_bytes_total{source}` | time to the end of the body (histogram), bytes received; through Cortex the time includes its queue for the host, and a page from its store takes milliseconds |
 | `radix_crawl_via_cortex` | 1 when `run` fetches through Cortex (`RADIX_CORTEX_URL`), 0 when it asks the university itself; absent in `serve-snapshot`. The dashboard „Radix" uses it to count what reached the university: a Radix without Cortex directly, every other request through Cortex's `cortex_upstream_requests_total` |
-| `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up); the event search counts each event it lists |
+| `radix_crawl_cortex_offline` | 1 when `run` asks Cortex's store alone (`RADIX_CORTEX_MODE=offline`): nothing reaches the university |
+| `radix_crawl_pages_total{source,outcome}` | pages fetched: `changed` (new or another body), `unchanged`, `not_found`, `failed` (given up), `offline_miss` (Cortex had not stored it, asked offline: left as archived); the event search counts each event it lists |
 | `radix_archive_pages{source,status}`, `radix_archive_fetched_24h{source}`, `radix_archive_changed_24h{source}`, `radix_archive_{oldest,newest}_fetch_timestamp_seconds{source}` | the archive: pages (`ok`, `not_found`), fetched and changed in the last 24 h, oldest and newest fetch |
 | `radix_cycles_total{result}`, `radix_cycle_running`, `radix_last_cycle_duration_seconds`, `radix_last_cycle_timestamp_seconds`, `radix_last_success_timestamp_seconds`, `radix_failed_cycles_in_a_row`, `radix_next_cycle_timestamp_seconds` | the cycles, as in `/status` |
 | `radix_stage_runs_total{stage,outcome}`, `radix_stage_duration_seconds{stage}` | stages: `ok`, `failed`, `skipped`; how long the last run took |
 | `radix_builds_total{content}`, `radix_snapshots_published_total`, `radix_catalog_items{kind}`, `radix_module_rows_changed_total`, `radix_pruned_total{what}` | builds with `changed` / `unchanged` content, exports, what the last build holds, rows of the QIS module table that changed, retention |
 | `radix_snapshot_requests_total{file,code}`, `radix_snapshot_exported_timestamp_seconds`, `radix_snapshot_bytes` | the web server's polls (`304`) and downloads (`200`); the snapshot offered |
 | `radix_log_problems_total{level,event}` | log records at WARN and ERROR by event (the table below) |
-| `radix_healthy`, `radix_offpeak`, `radix_build_info{build,mode}`, `radix_start_time_seconds` | `/healthz` as 1 or 0, inside the off-peak window, the binary and its mode (`run`, `serve-snapshot`) |
+| `radix_healthy`, `radix_offpeak`, `radix_build_info{build,mode}`, `radix_start_time_seconds` | `/healthz` as 1 or 0, inside the off-peak window, the binary and its mode (`run`, `cortex-offline`: `run` with `--cortex-mode offline`, `serve-snapshot`) |
 
 ## 2. Logging
 
@@ -194,7 +221,9 @@ updated. `WARN`: the source data has a problem, or something failed and recovere
 | INFO | `crawl.pages_due` | why event pages are fetched: `never_fetched`, `changed_in_list` (other dates, or the event no longer shown), `past_age` (their day in their period has come), and how many the event search vouches for. `build.finished` counts the events whose dates come from the search (`events_from_list`) |
 | INFO | `crawl.modules_due`, `crawl.module_rows_changed` | why QIS module descriptions are fetched: `never_fetched`, `changed` (row in the module table, or another semester in QIS), `unsettled`, `past_age`, and the semester QIS calls current; which rows of the module table changed |
 | INFO | `service.started`, `service.stopped`, `http.listening`, `db.migrated` | lifecycle |
-| INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache` or `refresh`; `max_age`) |
+| INFO | `crawl.cortex` | at start, with `RADIX_CORTEX_URL`: the requests go through Cortex (`cortex`, its instances; `mode`, `cache`, `refresh` or `offline`; `max_age`) |
+| INFO | `seed.started`, `seed.progress`, `seed.finished` | `radix seed-cortex`: what Cortex made of the archive's pages (`created`, `checked`, `unchanged`, `older`, `failed`, `by_source`); WARN `seed.failed` names a page Cortex did not take |
+| DEBUG | `crawl.offline_miss` | offline through Cortex: Cortex has not stored the page (`key`, `url`); skipped, the next cycle asks again |
 | INFO | `cycle.started`, `cycle.finished`, `crawl.started`, `crawl.progress`, `crawl.finished`, `crawl.up_to_date`, `build.started`, `build.finished`, `validate.finished`, `export.finished`, `retention.pruned`, `retention.archive_pruned` | progress, with counts and durations |
 
 CLI commands use the same log and these exit codes: `0` success, `1` failure (pages failed,
@@ -331,14 +360,26 @@ The process stops cleanly on SIGTERM. JSON lines go to the journal.
 ### One-off commands
 
 `crawl-modules`, `crawl-qis-modules`, `crawl-tree`, `crawl-events`, `prune`, `build`,
-`validate`, `export`, `serve-snapshot`, `download-statutes`, `scan-curriculum`, `relink-plans` run
-one by one against the same database. They can run next to a service: readers never block, and a
+`validate`, `export`, `serve-snapshot`, `seed-cortex`, `download-statutes`, `scan-curriculum`,
+`relink-plans` run one by one against the same database. They can run next to a service: readers never block, and a
 writer waits up to 60 s for the other writer (a build holds the write lock for about 20 s). Their
 `-max-age` is a plain age: a crawl command fetches every page older than it, without the days of
 their own over which the service spreads its rhythms. The `crawl-*` commands and
-`download-statutes` take `--cortex` and `--cortex-max-age` as `run` does (above, „Through Cortex");
-in a container whose Radix has `RADIX_CORTEX_URL`, `docker exec … radix download-statutes` goes
-through Cortex by itself.
+`download-statutes` take `--cortex`, `--cortex-max-age` and `--cortex-mode` as `run` does (above,
+„Through Cortex"); in a container whose Radix has `RADIX_CORTEX_URL`, `docker exec … radix
+download-statutes` goes through Cortex by itself, and offline where it has `RADIX_CORTEX_MODE`.
+
+`seed-cortex --db <a copy of radix.db> --cortex <instances>` gives Cortex the archive's answers
+(`PUT /v1/entries`, `docs/cortex/cortex.md` §4.3): every archived page of the sources whose page is
+the whole answer of its URL (all but `qis_event_entry`, the pieces of the event search, which are
+archived under their event's page), with its status, its URL as the crawl asks for it and the
+archive's times: the content first fetched at `changed_at`, last at `fetched_at`. Cortex then serves
+each page as if it had fetched it itself, offline too, and keeps an answer of its own that is
+newer. The database is opened read-only and as it is (no migration, `immutable`): give it a copy of
+one a Radix writes to, from any release since migration 1. `--sources` picks sources, `--workers`
+(2) how many pages go at a time, `--dry-run` counts and sends nothing. Run again, it changes only
+what the archive has newer; it stops after 10 pages in a row that Cortex refused, exit code 1 when
+any page failed. On the server: `deploy/README.md` section 14, „Seeding Cortex".
 
 `relink-plans` matches the stored plans against the catalog again and rewrites only the link from
 a plan row to a module, from the name and code the scan stored. That is what a change to the

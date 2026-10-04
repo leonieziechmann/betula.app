@@ -207,7 +207,7 @@
     {
       "type": "stat",
       "title": "Mode",
-      "description": "run: crawls the university and builds the catalog. serve-snapshot: offline (RADIX_CRAWL=off), only serves the snapshot it has. Exactly one instance of a site should crawl.",
+      "description": "run: crawls the university and builds the catalog. cortex-offline: runs its cycles on what Cortex has stored and fetches nothing (RADIX_CRAWL=cortex-offline, the canary). serve-snapshot: offline (RADIX_CRAWL=off), only serves the snapshot it has. Exactly one instance of a site should crawl.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -220,7 +220,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "label_replace(label_replace(radix_build_info{stack=~\"$stack\"}, \"mode\", \"crawling\", \"mode\", \"run\"), \"mode\", \"offline\", \"mode\", \"serve-snapshot\")",
+          "expr": "label_replace(label_replace(label_replace(radix_build_info{stack=~\"$stack\"}, \"mode\", \"crawling\", \"mode\", \"run\"), \"mode\", \"offline\", \"mode\", \"serve-snapshot\"), \"mode\", \"from Cortex, offline\", \"mode\", \"cortex-offline\")",
           "legendFormat": "{{stack}}: {{mode}}",
           "range": false,
           "instant": true
@@ -596,7 +596,7 @@
     {
       "type": "stat",
       "title": "Fetches through",
-      "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself. An instance that serves its snapshot offline fetches nothing.",
+      "description": "Whether this instance's crawl goes through Cortex (RADIX_CORTEX_URL) or asks the university itself, and whether it reads Cortex's store alone (RADIX_CRAWL=cortex-offline: nothing reaches the university). An instance that serves its snapshot offline fetches nothing.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -609,7 +609,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (stack) (radix_crawl_via_cortex{stack=~\"$stack\"})",
+          "expr": "max by (stack) (radix_crawl_via_cortex{stack=~\"$stack\"}) + (max by (stack) (radix_crawl_cortex_offline{stack=~\"$stack\"}) or max by (stack) (radix_crawl_via_cortex{stack=~\"$stack\"}) * 0)",
           "legendFormat": "{{stack}}",
           "range": false,
           "instant": true
@@ -643,6 +643,10 @@
                 "1": {
                   "text": "Cortex",
                   "index": 1
+                },
+                "2": {
+                  "text": "Cortex's store (offline)",
+                  "index": 2
                 }
               }
             }
@@ -743,7 +747,7 @@
     {
       "type": "stat",
       "title": "Failed requests",
-      "description": "Requests without a final answer (anything but 200 and 404), retries included. Through Cortex an error of Cortex itself counts here too.",
+      "description": "Requests without a final answer (anything but 200 and 404), retries included. Through Cortex an error of Cortex itself counts here too; a page Cortex has not stored when it is asked offline (offline_miss) does not: it is skipped, not failed.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -756,7 +760,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(increase(radix_crawl_requests_total{stack=~\"$stack\", code!~\"200|404\"}[$__range]))",
+          "expr": "sum(increase(radix_crawl_requests_total{stack=~\"$stack\", code!~\"200|404|offline_miss\"}[$__range]))",
           "legendFormat": "failed",
           "range": false,
           "instant": true
@@ -1564,7 +1568,7 @@
     {
       "type": "timeseries",
       "title": "Answers by status code",
-      "description": "The status of each answer. Through Cortex it is the university's status as Cortex stored it; error means no answer, or an error of Cortex itself.",
+      "description": "The status of each answer. Through Cortex it is the university's status as Cortex stored it; error means no answer, or an error of Cortex itself; offline_miss a page Cortex had not stored when it was asked offline (RADIX_CRAWL=cortex-offline).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -2806,7 +2810,7 @@
     {
       "type": "timeseries",
       "title": "Pages by outcome",
-      "description": "What became of every page fetched: changed (new, or another content than the archived one), unchanged, not_found (404), failed (given up after three attempts). The event search counts each event it lists.",
+      "description": "What became of every page fetched: changed (new, or another content than the archived one), unchanged, not_found (404), failed (given up after three attempts). The event search counts each event it lists. offline_miss: Cortex had not stored the page when it was asked offline; it stays as archived.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

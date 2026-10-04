@@ -75,4 +75,19 @@ func TestCortexFlags(t *testing.T) {
 	if f := fetchThrough(t, cortex, statutesClient(parse(), false)); f.Mode != "cache" {
 		t.Errorf("without --force: mode = %q, want cache", f.Mode)
 	}
+
+	// Offline every request asks Cortex's store alone, the statute download with --force too.
+	t.Setenv("RADIX_CORTEX_MODE", "offline")
+	if f := parse(); !f.offline() {
+		t.Error("RADIX_CORTEX_MODE=offline: not offline")
+	}
+	if f := fetchThrough(t, cortex, parse().client("cache")); f.Mode != "offline" {
+		t.Errorf("offline: mode = %q", f.Mode)
+	}
+	if f := fetchThrough(t, cortex, statutesClient(parse(), true)); f.Mode != "offline" {
+		t.Errorf("offline, --force: mode = %q, want offline", f.Mode)
+	}
+	if f := parse("--cortex-mode", "cache"); f.offline() {
+		t.Error("--cortex-mode cache does not win over the environment")
+	}
 }

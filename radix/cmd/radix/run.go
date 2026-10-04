@@ -80,6 +80,11 @@ func runService(ctx context.Context, args []string) {
 	}
 	recorder, closeLog := logs.setup()
 	defer closeLog()
+	// Offline through Cortex the cycle reads Cortex's store and nothing else: no Gemini either.
+	offline := cortex.offline()
+	if offline {
+		semanticOpts.summaryModel = nil
+	}
 
 	cfg := def
 	cfg.SnapshotDir = *snapshotDir
@@ -104,7 +109,7 @@ func runService(ctx context.Context, args []string) {
 	cfg.ArchiveGrace = *archiveGrace
 	cfg.StaleAfter = *staleAfter
 	cfg.Endpoints.Client = cortex.client(cortexclient.ModeCache)
-	declareFetchPath(cfg.Endpoints.Client != nil)
+	declareFetchPath(cfg.Endpoints.Client != nil, offline)
 
 	if strings.EqualFold(*offpeak, "any") {
 		cfg.OffPeakStart, cfg.OffPeakEnd = 0, 0
@@ -130,7 +135,11 @@ func runService(ctx context.Context, args []string) {
 	db := openDB(*dbPath)
 	defer db.Close()
 	svc := service.New(db, cfg, recorder)
-	declareBuildInfo("run")
+	if offline {
+		declareBuildInfo("cortex-offline")
+	} else {
+		declareBuildInfo("run")
+	}
 
 	if *once {
 		if result := svc.RunCycle(ctx); result.Result == "failed" {
@@ -153,7 +162,8 @@ func runService(ctx context.Context, args []string) {
 	_ = svc.Run(ctx)
 }
 
-// declareBuildInfo names the running binary and its mode in GET /metrics.
+// declareBuildInfo names the running binary and its mode in GET /metrics: run, cortex-offline
+// (run with --cortex-mode offline) or serve-snapshot.
 func declareBuildInfo(mode string) {
 	build := version.Build()
 	if len(build) > 12 {
@@ -161,7 +171,7 @@ func declareBuildInfo(mode string) {
 	}
 	started := float64(time.Now().Unix())
 	metrics.Default.NewGaugeFunc("radix_build_info",
-		"Always 1: the binary that runs (the start of its hash, as meta radix_build) and its mode, run or serve-snapshot.",
+		"Always 1: the binary that runs (the start of its hash, as meta radix_build) and its mode: run, cortex-offline (run, every page from Cortex's store alone) or serve-snapshot.",
 		[]string{"build", "mode"}, func(emit func(float64, ...string)) { emit(1, build, mode) })
 	metrics.Default.NewGaugeFunc("radix_start_time_seconds",
 		"When the process started (Unix time).", nil, func(emit func(float64, ...string)) { emit(started) })
@@ -169,12 +179,16 @@ func declareBuildInfo(mode string) {
 
 // declareFetchPath says in GET /metrics whether the crawl goes through Cortex: the crawl's
 // radix_crawl_* metrics then count requests to Cortex, most of them answered from its store,
-// and what reached the university is Cortex's cortex_upstream_requests_total.
-func declareFetchPath(viaCortex bool) {
-	v := metrics.Bool(viaCortex)
+// and what reached the university is Cortex's cortex_upstream_requests_total. Offline, none of
+// them did.
+func declareFetchPath(viaCortex, offline bool) {
+	v, o := metrics.Bool(viaCortex), metrics.Bool(offline)
 	metrics.Default.NewGaugeFunc("radix_crawl_via_cortex",
 		"1 when the crawl and the statute download go through Cortex (RADIX_CORTEX_URL), 0 when Radix asks the university itself.",
 		nil, func(emit func(float64, ...string)) { emit(v) })
+	metrics.Default.NewGaugeFunc("radix_crawl_cortex_offline",
+		"1 when every request goes to Cortex in mode offline (RADIX_CORTEX_MODE=offline): answered from its store alone, nothing reaches the university.",
+		nil, func(emit func(float64, ...string)) { emit(o) })
 }
 
 // runHealthcheck asks a running service for its health. It exists so that a container

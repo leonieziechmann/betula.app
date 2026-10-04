@@ -1,7 +1,7 @@
 // Package server is Cortex's HTTP API (docs/cortex/cortex.md): fetching through the cache
-// (GET /v1/fetch), what the store holds (/v1/entries), named files (/v1/files), blobs by hash
-// (/v1/blobs), health and status, the administration of the pair, and the leader's side of
-// the replication (/internal/v1/journal, /internal/v1/snapshot).
+// (GET /v1/fetch), what the store holds and the answers another program fetched (/v1/entries),
+// named files (/v1/files), blobs by hash (/v1/blobs), health and status, the administration of
+// the pair, and the leader's side of the replication (/internal/v1/journal, /internal/v1/snapshot).
 //
 // The server codes against cluster.Node: while this instance leads, it fetches upstream and
 // writes; while it follows, it serves what its copy has and forwards the rest to the leader.
@@ -283,7 +283,7 @@ func (s *Server) routes() http.Handler {
 		mux.Handle(path, s.named(name, methodNotAllowed(allow)))
 	}
 	route("/v1/fetch", "fetch", methods{"GET": s.handleFetch})
-	route("/v1/entries", "entries", methods{"GET": s.handleEntries, "DELETE": s.handleDeleteEntry})
+	route("/v1/entries", "entries", methods{"GET": s.handleEntries, "PUT": s.handleImport, "DELETE": s.handleDeleteEntry})
 	route("/v1/files", "files", methods{"GET": s.handleListFiles})
 	route("/v1/blobs/{hash}", "blobs", methods{"GET": s.handleGetBlob, "PUT": s.handlePutBlob})
 	route("/livez", "livez", methods{"GET": s.handleLivez})

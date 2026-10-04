@@ -2731,6 +2731,238 @@
       }
     },
     {
+      "type": "timeseries",
+      "title": "Imported answers by result",
+      "description": "Answers another program fetched that Cortex was given (PUT /v1/entries; radix seed-cortex gives it Radix's archive): created a new version, checked (the content it had, checked later), unchanged, older (Cortex had a newer answer: nothing stored), error. Counted on the leader.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (result) (increase(cortex_imports_total{job=\"cortex\", instance=~\"$instance\"}[$__interval]))",
+          "legendFormat": "{{result}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "created"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "created: a new version"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "checked"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "checked: the content it had"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unchanged"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "unchanged"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "older"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "older: Cortex had a newer answer"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "error"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "5m",
+      "id": 43,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Offline requests by source: from the store or not stored",
+      "description": "Clients that read Cortex's store alone (mode offline, as a Radix with RADIX_CRAWL=cortex-offline: the canary): per source, what Cortex served from its store and what it had not stored (504 offline-miss; that client asks again in its next cycle). Nothing of this reaches a host.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum by (source, result) (increase(cortex_requests_total{job=\"cortex\", instance=~\"$instance\", mode=\"offline\", result=~\"hit|not_modified|offline_miss\"}[$__interval]))",
+          "legendFormat": "{{source}}: {{result}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "lineWidth": 1,
+            "fillOpacity": 80,
+            "showPoints": "never",
+            "spanNulls": false,
+            "lineInterpolation": "linear",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "interval": "5m",
+      "id": 44,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      }
+    },
+    {
       "type": "row",
       "title": "Containers and problems",
       "collapsed": false,
@@ -2740,7 +2972,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 66
+        "y": 74
       }
     },
     {
@@ -2807,7 +3039,7 @@
         "h": 8,
         "w": 6,
         "x": 0,
-        "y": 67
+        "y": 75
       }
     },
     {
@@ -2874,7 +3106,7 @@
         "h": 8,
         "w": 6,
         "x": 6,
-        "y": 67
+        "y": 75
       }
     },
     {
@@ -2958,7 +3190,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 67
+        "y": 75
       }
     },
     {
@@ -2996,7 +3228,7 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 75
+        "y": 83
       }
     },
     {
@@ -3034,7 +3266,7 @@
         "h": 12,
         "w": 24,
         "x": 0,
-        "y": 85
+        "y": 93
       }
     }
   ]

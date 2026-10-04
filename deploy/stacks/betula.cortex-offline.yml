@@ -1,0 +1,18 @@
+# Override for stacks/betula.yml, after betula.cortex.yml: Radix offline through Cortex. It runs its
+# cycles as a Radix that crawls does ("run": the crawl stages at their times, build, validate,
+# export, the semantic search), but asks Cortex for every page in mode offline (RADIX_CORTEX_MODE,
+# docs/cortex/cortex.md §8): it gets what Cortex has stored, and a page Cortex lacks waits for the
+# next cycle. Nothing reaches the university, and Gemini is not asked either. What Cortex has
+# stored: what a colour that crawls fetched through it, and what "radix seed-cortex" gave it from
+# an archive (deploy/README.md section 14). The canary's colours run like this: they test the whole
+# way from Cortex to Folia without a second crawler.
+#
+# vps/50-app.sh adds this file while the instance's file says RADIX_CRAWL=cortex-offline, the stack
+# cortex runs and the release of Radix knows --cortex-mode; otherwise it deploys the instance
+# offline (betula.offline.yml) and says why. The networks stay internal: no way to the internet.
+
+services:
+  radix:
+    environment:
+      # Every command in the container takes it, "download-statutes" and "crawl-*" by hand too.
+      RADIX_CORTEX_MODE: offline

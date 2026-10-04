@@ -554,7 +554,7 @@ func (x *exchange) answer(resp *http.Response) (Result, *url.URL, error) {
 		x.discard(resp.Body)
 		return Result{Status: status, Header: kept(resp.Header), NotModified: true, FinalURL: from}, nil, nil
 
-	case !storable(status):
+	case !Storable(status):
 		// A 304 lands here unless this request carried the validators: further down a redirect
 		// chain it would say only that a resource of another URL did not change.
 		if status == http.StatusTooManyRequests || status == http.StatusServiceUnavailable {
@@ -758,8 +758,8 @@ func isRedirect(status int) bool {
 	return false
 }
 
-// storable are the answers Cortex keeps: content, and the statement that there is none.
-func storable(status int) bool {
+// Storable are the answers Cortex keeps: content, and the statement that there is none.
+func Storable(status int) bool {
 	switch status {
 	case http.StatusOK, http.StatusNonAuthoritativeInfo, http.StatusNoContent, http.StatusNotFound, http.StatusGone:
 		return true

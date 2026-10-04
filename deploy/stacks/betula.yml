@@ -9,7 +9,9 @@
 #                      (docs/folia/frontend.md, "Closed testing"). off: open to everybody. Default: on.
 #   RADIX_CRAWL        on: Radix keeps the catalog fresh. off: it sends nothing to the university
 #                      and only serves the snapshot it has; 50-app.sh then adds the override
-#                      betula.offline.yml to this file. Default: on.
+#                      betula.offline.yml to this file. cortex-offline: it runs its cycles on
+#                      what Cortex has stored and fetches nothing (betula.cortex-offline.yml,
+#                      while Cortex runs; else 50-app.sh deploys it off). Default: on.
 #   RADIX_IMAGE, FOLIA_IMAGE   given per release (see "Images")
 #   ROUTER_PRIORITY    the priority of the web server's router, set by 50-app.sh: 0 (Traefik's
 #                      default) for an instance alone on its host. Blue-green: two instance files

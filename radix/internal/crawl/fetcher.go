@@ -46,7 +46,9 @@ func (f *Fetcher) Stats() Stats {
 }
 
 // Get returns the body of a page. Errors: ErrNotFound, ErrServerUnhealthy (stop the
-// crawl), or the error of a page that was given up after retries.
+// crawl), or the error of a page that was given up after retries. Offline through Cortex, a
+// page Cortex has not stored is the archived page as it is, and ErrOfflineMiss when there is
+// none.
 func (f *Fetcher) Get(ctx context.Context, job Job) ([]byte, error) {
 	log := oplog.For("crawl").With("source", job.Source)
 
@@ -64,6 +66,9 @@ func (f *Fetcher) Get(ctx context.Context, job Job) ([]byte, error) {
 
 	status, changed, err := fetchAndArchive(ctx, f.db, job, f.opt, log)
 	defer sleep(ctx, jitter(f.opt.Delay))
+	if errors.Is(err, ErrOfflineMiss) {
+		return f.offlineMiss(job, log)
+	}
 	if err := f.record(ctx, job, status, changed, true, err, log); err != nil {
 		return nil, err
 	}
@@ -78,15 +83,39 @@ func (f *Fetcher) Get(ctx context.Context, job Job) ([]byte, error) {
 // reads nor writes the archive: for an answer the caller takes apart and archives piece
 // by piece (the QIS event search states a few hundred events in one page). The time is
 // when the server gave the answer, for the pieces' fetched_at: through Cortex, which may
-// answer from its store, the time Cortex-Checked-At states; otherwise now.
+// answer from its store, the time Cortex-Checked-At states; otherwise now. Offline through
+// Cortex, an answer Cortex has not stored is ErrOfflineMiss, which is no failure.
 func (f *Fetcher) Download(ctx context.Context, job Job) ([]byte, time.Time, error) {
 	log := oplog.For("crawl").With("source", job.Source)
 	status, body, fetchedAt, err := fetchWithRetries(ctx, job, f.opt, log)
 	defer sleep(ctx, jitter(f.opt.Delay))
+	if errors.Is(err, ErrOfflineMiss) {
+		f.stats.OfflineMiss++
+		log.Debug("not in Cortex's store", "event", "crawl.offline_miss", "key", job.Key, "url", job.URL)
+		return nil, time.Time{}, err
+	}
 	if err := f.record(ctx, job, status, false, false, err, log); err != nil {
 		return nil, time.Time{}, err
 	}
 	return body, fetchedAt, nil
+}
+
+// offlineMiss is what Get answers for a page Cortex has not stored, asked offline: the
+// archived page as it is (nothing is written), or ErrOfflineMiss without one.
+func (f *Fetcher) offlineMiss(job Job, log *slog.Logger) ([]byte, error) {
+	f.stats.OfflineMiss++
+	CountPage(job.Source, "offline_miss")
+	log.Debug("not in Cortex's store", "event", "crawl.offline_miss", "key", job.Key, "url", job.URL)
+	page, err := f.db.GetPage(job.Source, job.Key)
+	switch {
+	case errors.Is(err, catalogdb.ErrNotFound):
+		return nil, ErrOfflineMiss
+	case err != nil:
+		return nil, err
+	case page.HTTPStatus != http.StatusOK || len(page.Body) == 0:
+		return nil, ErrNotFound
+	}
+	return page.Body, nil
 }
 
 // record counts the outcome of a request and turns it into the error Get and Download
@@ -126,7 +155,8 @@ func (f *Fetcher) record(ctx context.Context, job Job, status int, changed, arch
 	}
 	if done := f.stats.Fetched; done%progressEvery == 0 {
 		log.Info("crawl progress", "event", "crawl.progress", "fetched", done, "changed", f.stats.Changed,
-			"from_archive", f.stats.Skipped, "not_found", f.stats.NotFound, "failed", f.stats.Failed)
+			"from_archive", f.stats.Skipped, "not_found", f.stats.NotFound, "failed", f.stats.Failed,
+			"offline_miss", f.stats.OfflineMiss)
 	}
 	return nil
 }

@@ -25,6 +25,12 @@ const (
 	SourceQISTree       = "qis_tree"
 )
 
+// WholeAnswerSources are the sources whose archived page is the whole answer of its URL, as
+// the server gave it. The others archive pieces of a larger answer under a URL of their own:
+// the entries of the QIS event search, each under its event's page.
+var WholeAnswerSources = []string{SourceModuleCatalog, SourceQISFUESList, SourceModulePage, SourceQISModuleList,
+	SourceQISModulePage, SourceQISTree, SourceQISEvent}
+
 // ErrNotFound is returned when a requested row does not exist.
 var ErrNotFound = errors.New("not found")
 

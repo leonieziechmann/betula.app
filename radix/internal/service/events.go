@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -246,6 +247,13 @@ func CrawlEventList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Ev
 		}
 		// fetchedAt is when QIS gave the answer: through Cortex, possibly before this request.
 		body, fetchedAt, err := fetcher.Download(ctx, job)
+		if errors.Is(err, crawl.ErrOfflineMiss) {
+			// Offline through Cortex, which has not stored this search: its events wait for the
+			// next cycle, their entries stay as archived.
+			stats.OfflineMiss++
+			stats.Skipped += len(batch)
+			continue
+		}
 		if err != nil {
 			stats.Failed = fetcher.Stats().Failed
 			return stats, err
@@ -302,7 +310,7 @@ func CrawlEventList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pace Ev
 	}
 	log.Info("event list finished", "event", "crawl.finished", "events", len(due), "requests", requests,
 		"listed", stats.Fetched, "changed", stats.Changed, "not_listed", stats.NotFound, "skipped", stats.Skipped,
-		"duration_s", int(time.Since(start).Seconds()))
+		"offline_miss", stats.OfflineMiss, "duration_s", int(time.Since(start).Seconds()))
 	return stats, nil
 }
 

@@ -457,7 +457,7 @@ check_models() {
 
 check_app() {
   section "application (every instance in stacks/*.env: router, release, crawling, models, certificate, alive, closed testing)"
-  local name url rule radix_tag folia_tag radix_args code out body path live deployed=0
+  local name url rule radix_tag folia_tag radix_args radix_mode code out body path live deployed=0
   MODELS_STORE_READY="no"
   read_model_lock
   if models_ready; then
@@ -494,20 +494,39 @@ check_app() {
     fi
 
     # Does Radix do what the instance's file promises? Offline it is started as "serve-snapshot"
-    # (no crawl, no cycle); online it runs the image's own "run".
+    # (no crawl, no cycle); online it runs the image's own "run"; cortex-offline the same "run",
+    # told to read Cortex's store alone (RADIX_CORTEX_MODE=offline), or, while Cortex did not run
+    # or the release could not, "serve-snapshot" (50-app.sh's fallback).
     radix_args="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
-    if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
-      if [[ "${radix_args}" == serve-snapshot* ]]; then
-        pass "${name}: Radix is offline as ${name}.env says (it serves its snapshot and fetches nothing from the university)"
-        warning "${name}: the catalog does not change while Radix is offline (RADIX_CRAWL=on in ${name}.env, sync, 50-app.sh ${name} brings it back)"
-      else
-        fail "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs the command \"${radix_args:-run}\" and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
-      fi
-    elif [[ -z "${radix_args}" ]]; then
-      pass "${name}: Radix is online (it keeps the catalog fresh)"
-    else
-      fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args}\" (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
-    fi
+    radix_mode="$(service_env "${INSTANCE_STACK}_radix" RADIX_CORTEX_MODE)"
+    case "${INSTANCE_CRAWL}" in
+      off)
+        if [[ "${radix_args}" == serve-snapshot* ]]; then
+          pass "${name}: Radix is offline as ${name}.env says (it serves its snapshot and fetches nothing from the university)"
+          warning "${name}: the catalog does not change while Radix is offline (RADIX_CRAWL=on in ${name}.env, sync, 50-app.sh ${name} brings it back)"
+        elif [[ -z "${radix_args}" && "${radix_mode}" == "offline" ]]; then
+          warning "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs its cycles on Cortex's store (cortex-offline): it fetches nothing from the university all the same (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        else
+          fail "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs the command \"${radix_args:-run}\" and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        fi
+        ;;
+      cortex-offline)
+        if [[ -z "${radix_args}" && "${radix_mode}" == "offline" ]]; then
+          pass "${name}: Radix reads Cortex's store alone as ${name}.env says (cortex-offline: it runs its cycles and fetches nothing from the university)"
+        elif [[ "${radix_args}" == serve-snapshot* ]]; then
+          warning "${name}: ${name}.env says RADIX_CRAWL=cortex-offline, but Radix serves its snapshot only (50-app.sh fell back while Cortex did not run, or its release could not read Cortex's store): bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+        else
+          fail "${name}: ${name}.env says RADIX_CRAWL=cortex-offline, but Radix runs the command \"${radix_args:-run}\" without RADIX_CORTEX_MODE=offline and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        fi
+        ;;
+      *)
+        if [[ -z "${radix_args}" && -z "${radix_mode}" ]]; then
+          pass "${name}: Radix is online (it keeps the catalog fresh)"
+        else
+          fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args:-run}\"${radix_mode:+ with RADIX_CORTEX_MODE=${radix_mode}} (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        fi
+        ;;
+    esac
 
     check_models "${name}"
 
@@ -665,20 +684,20 @@ cortex_leaders() {
 # prints the flags of run and exits, and one from before Cortex has no --cortex (it ignores
 # RADIX_CORTEX_URL and fetches directly).
 check_radix_ways() {
-  local name net internal nets egress want cortex_url gemini=no problems support cid
+  local name net internal nets egress want cortex_url gemini=no problems support cid outside
   if secret_exists gemini-api-key; then gemini=yes; fi
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
     load_instance "${name}"
     docker service inspect "${INSTANCE_STACK}_radix" >/dev/null 2>&1 || continue
-    nets="" egress=no problems=0
+    nets="" egress=no problems=0 outside=no
     while read -r net internal; do
       [[ -n "${net}" ]] || continue
       nets+="${net} "
       case "${net}" in
         monitoring | "${INSTANCE_STACK}_default")
           fail "${name}: Radix is on ${net}, which is not internal: a way to the internet. Deployed from a betula.yml from before Cortex? bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
-          problems=1
+          problems=1 outside=yes
           ;;
         "${INSTANCE_STACK}_egress")
           egress=yes
@@ -686,7 +705,7 @@ check_radix_ways() {
         *)
           if [[ "${internal}" != "true" ]]; then
             fail "${name}: Radix is on ${net}, which is not internal (${internal}): a way to the internet no file of stacks/ means (docker service inspect ${INSTANCE_STACK}_radix)"
-            problems=1
+            problems=1 outside=yes
           fi
           ;;
       esac
@@ -724,8 +743,8 @@ check_radix_ways() {
       warning "${name}: Cortex runs, but Radix fetches from the university directly: deployed before Cortex ran (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
     fi
     if [[ "${egress}" == "yes" ]]; then
-      if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
-        fail "${name}: Radix is offline, but on ${INSTANCE_STACK}_egress: a way to the internet it must not have (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+      if [[ "${INSTANCE_CRAWL}" != "on" ]]; then
+        fail "${name}: Radix is offline (RADIX_CRAWL=${INSTANCE_CRAWL}), but on ${INSTANCE_STACK}_egress: a way to the internet it must not have (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
       elif [[ "${want}" == "no" ]]; then
         warning "${name}: Radix is on ${INSTANCE_STACK}_egress although Cortex runs and there is no secret gemini-api-key: deployed before Cortex ran (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
       elif [[ "${support}" == "no" ]]; then
@@ -738,7 +757,9 @@ check_radix_ways() {
         warning "${name}: Radix reaches the internet through ${INSTANCE_STACK}_egress and fetches from the university directly (no Cortex)"
       fi
     elif [[ "${want}" == "yes" ]]; then
-      if [[ -z "${cortex_url}" ]]; then
+      if [[ -z "${cortex_url}" && "${outside}" == "yes" ]]; then
+        : # deployed from a betula.yml from before Cortex: it fetches through the network named above
+      elif [[ -z "${cortex_url}" ]]; then
         fail "${name}: Radix crawls, but has no way to fetch: neither Cortex (RADIX_CORTEX_URL) nor ${INSTANCE_STACK}_egress (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
       elif [[ "${support}" == "no" ]]; then
         : # its FAIL is above
@@ -748,6 +769,12 @@ check_radix_ways() {
     elif [[ "${problems}" -eq 0 ]]; then
       if [[ -n "${cortex_url}" && "${INSTANCE_CRAWL}" == "on" ]]; then
         pass "${name}: Radix has no way to the internet and fetches through Cortex (networks: ${nets% })"
+      elif [[ -n "${cortex_url}" && "$(service_env "${INSTANCE_STACK}_radix" RADIX_CORTEX_MODE)" == "offline" ]]; then
+        if [[ "${CORTEX_RUNS}" == "yes" ]]; then
+          pass "${name}: Radix has no way to the internet and reads Cortex's store alone (networks: ${nets% })"
+        else
+          fail "${name}: Radix reads Cortex's store alone (cortex-offline), and Cortex does not run: every cycle finds nothing. Bring Cortex back (bash ${BETULA_ROOT}/vps/48-cortex.sh), or deploy without it: bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+        fi
       else
         pass "${name}: Radix has no way to the internet (networks: ${nets% })"
       fi
