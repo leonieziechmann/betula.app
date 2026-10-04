@@ -1,0 +1,21 @@
+[package]
+name = "folia-query"
+version = "0.1.0"
+edition = "2021"
+description = "The SQL statements of the data contract, and the catalog's filter as SQL"
+
+[dependencies]
+folia-model = { path = "../model" }
+folia-routes = { path = "../routes" }
+folia-search = { path = "../search" }
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+folia-calendar = { path = "../calendar" }
+folia-test-support = { path = "../test-support" }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

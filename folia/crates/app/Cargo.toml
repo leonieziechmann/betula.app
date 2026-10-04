@@ -1,0 +1,52 @@
+[package]
+name = "folia-app"
+version = "1.0.3"
+edition = "2021"
+description = "The web app of Betula: Leptos components, rendered on the server and again in the browser"
+
+[lib]
+name = "folia_app"
+
+[features]
+# Server rendering (the web server) and the browser app (the WASM bundle) are the two builds of this crate.
+ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr", "dep:leptos_axum", "dep:http", "folia-design/ssr", "folia-shell/ssr", "folia-stores/ssr", "folia-widgets/ssr", "folia-planner/ssr", "folia-bookmarks/ssr", "folia-programs/ssr", "folia-catalog/ssr", "folia-home/ssr"]
+# The browser app renders fresh from the local database instead of hydrating server HTML.
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "folia-shell/csr", "folia-stores/csr", "folia-widgets/csr", "folia-planner/csr", "folia-bookmarks/csr", "folia-programs/csr", "folia-catalog/csr", "folia-home/csr"]
+
+[dependencies]
+leptos = "0.8.20"
+leptos_router = "0.8"
+leptos_meta = "0.8"
+# The design: building blocks, formats, the languages (docs/folia/folia-refactor.md §7.4).
+folia-design = { path = "../design" }
+# The shell every page stands in.
+folia-shell = { path = "../shell" }
+# What a visitor keeps.
+folia-stores = { path = "../stores" }
+# What the pages share.
+folia-widgets = { path = "../widgets" }
+folia-planner = { path = "../planner" }
+folia-bookmarks = { path = "../bookmarks" }
+folia-programs = { path = "../programs" }
+folia-catalog = { path = "../catalog" }
+folia-home = { path = "../home" }
+folia-locale = { path = "../locale" }
+folia-plans = { path = "../plans" }
+folia-routes = { path = "../routes" }
+folia-timetable = { path = "../timetable" }
+serde = { version = "1.0", features = ["derive"] }
+# Structured data for search engines (`seo`). Already part of every build through leptos.
+serde_json = "1.0"
+leptos_axum = { version = "0.8", optional = true }
+http = { version = "1", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+# JavaScript handles (a ResizeObserver) kept until a component is cleaned up: cleanups are `Send`.
+send_wrapper = "0.6"
+# `Blob`, `BlobPropertyBag`: the Studienplan's .ics download is a Blob URL, made before the click.
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

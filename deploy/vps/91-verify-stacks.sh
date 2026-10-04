@@ -5,14 +5,17 @@
 #   bash /opt/betula/vps/91-verify-stacks.sh                 # everything
 #   bash /opt/betula/vps/91-verify-stacks.sh tls headers     # only some sections
 #
-# Sections: services http tls headers ports accesslog app canary loki prometheus grafana alerts
+# Sections: services http tls headers ports accesslog app cortex canary loki prometheus grafana alerts
 # Prints one PASS / WARN / FAIL line per check and exits non-zero when anything FAILed.
 # Changes nothing. The only traffic it causes: a few requests to the site (which also put fresh
 # lines into Traefik's access log for the Loki check) and queries inside the monitoring stack.
 #
 # Ports that are not published (Loki 3100, Prometheus 9090, Grafana 3000) are reached with
-# "docker exec" into the Prometheus container: it is on the stack network next to them and on the
-# "monitoring" overlay next to Traefik's metrics port, and its image has busybox wget.
+# "docker exec" into the Prometheus container: it is on the stack network next to them, on the
+# "monitoring" overlay next to Traefik's metrics port and on "cortex" next to Radix and Cortex, and
+# its image has busybox wget. What Cortex says of itself is asked with "docker exec" into its own
+# containers ("cortex status"), and so is what a release of Radix can do ("radix run -h", which
+# prints the flags and exits).
 #
 # What this cannot prove: that the site is reachable from OUTSIDE. The requests below start on
 # the server itself and never pass the provider's network or ufw's INPUT rules. From the
@@ -31,19 +34,24 @@ require_ubuntu
 require_cmd docker curl openssl jq
 require_swarm_manager
 
-ALL_SECTIONS=(services http tls headers ports accesslog app canary loki prometheus grafana alerts)
+ALL_SECTIONS=(services http tls headers ports accesslog app cortex canary loki prometheus grafana alerts)
 GRAFANA_PUBLIC_HOST="${GRAFANA_HOST:-${DEFAULT_GRAFANA_HOST}}"
 RULES_FILE="${CONFIG_DIR}/monitoring/grafana/provisioning/alerting/rules.yml"
-# Jobs that must be "up": five scraped by Prometheus (config/monitoring/prometheus.yml), two
+# Jobs that must be "up": six scraped by Prometheus (config/monitoring/prometheus.yml), two
 # pushed by Alloy through remote write (config/monitoring/alloy/config.alloy).
-EXPECTED_JOBS=(prometheus traefik loki grafana alloy integrations/unix integrations/cadvisor)
+EXPECTED_JOBS=(prometheus traefik loki grafana alloy cortex integrations/unix integrations/cadvisor)
 # Ports of the contract that must NOT listen on the host: Traefik ping and metrics, socket proxy,
-# Grafana, Loki, Prometheus, Alloy, Radix, Folia.
-PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090 8080)
+# Grafana, Loki, Prometheus, Alloy, Radix, Folia, Cortex.
+PRIVATE_PORTS=(8081 8082 2375 3000 3100 9090 12345 8090 8080 8100)
+# Seconds the follower of Cortex may be behind before this script warns (the alert waits for 300).
+CORTEX_LAG_WARN=60
 PASSED=0
 WARNED=0
 FAILED=0
 PROM_CID=""
+# Set by check_cortex: yes while the stack cortex runs, as 50-app.sh decides it (cortex_look,
+# lib-stacks.sh: on the replicas of both instances).
+CORTEX_RUNS="no"
 
 pass() {
   PASSED=$((PASSED + 1))
@@ -235,10 +243,11 @@ check_services() {
   local stack svc state found site_owner
   site_owner="$(app_stack_for_host "${SITE_HOST}")"
   # shellcheck disable=SC2046  # instance names are single words
-  for stack in edge placeholder $(instance_names) monitoring; do
+  for stack in edge placeholder cortex $(instance_names) monitoring; do
     if ! stack_exists "${stack}"; then
       case "${stack}" in
         edge | monitoring) fail "stack ${stack} is not deployed (vps/40-stacks.sh)" ;;
+        cortex) warning "stack cortex is not deployed (deploy/ship-cortex.sh): a Radix that crawls fetches from the university directly (section cortex)" ;;
         placeholder) [[ -n "${site_owner}" ]] || fail "neither stack placeholder nor an instance of the application serves https://${SITE_HOST}: nothing answers there" ;;
       esac
       continue
@@ -372,8 +381,14 @@ check_ports() {
   fi
 
   # "Not published" checked the hard way: nothing on the host accepts a connection on these ports.
-  addr="$(default_ipv4)"
-  if [[ -n "${addr}" ]]; then addrs+=("${addr}"); fi
+  # Without ip (iproute2) only on 127.0.0.1: default_ipv4 needs it, and a host that lacks it
+  # should get a warning here, not lose every section after this one (verify2 D6).
+  if have_cmd ip; then
+    addr="$(default_ipv4)"
+    if [[ -n "${addr}" ]]; then addrs+=("${addr}"); fi
+  else
+    warning "ip (package iproute2) is missing: the private ports are only tried on 127.0.0.1, not on the default IPv4 address (sudo apt-get install iproute2)"
+  fi
   have=""
   for addr in "${addrs[@]}"; do
     for port in "${PRIVATE_PORTS[@]}"; do
@@ -383,7 +398,7 @@ check_ports() {
     done
   done
   if [[ -z "${have}" ]]; then
-    pass "nothing listens on the host on ${PRIVATE_PORTS[*]} (Traefik ping/metrics, socket proxy, Grafana, Loki, Prometheus, Alloy, Radix, Folia)"
+    pass "nothing listens on the host on ${PRIVATE_PORTS[*]} (Traefik ping/metrics, socket proxy, Grafana, Loki, Prometheus, Alloy, Radix, Folia, Cortex)"
   else
     fail "reachable on the host: ${have% } - a service publishes a port it should not (docker service ls; sudo ss -tlnp)"
   fi
@@ -442,7 +457,7 @@ check_models() {
 
 check_app() {
   section "application (every instance in stacks/*.env: router, release, crawling, models, certificate, alive, closed testing)"
-  local name url rule radix_tag folia_tag radix_args code out body path live deployed=0
+  local name url rule radix_tag folia_tag radix_args radix_mode code out body path live deployed=0
   MODELS_STORE_READY="no"
   read_model_lock
   if models_ready; then
@@ -479,20 +494,39 @@ check_app() {
     fi
 
     # Does Radix do what the instance's file promises? Offline it is started as "serve-snapshot"
-    # (no crawl, no cycle); online it runs the image's own "run".
+    # (no crawl, no cycle); online it runs the image's own "run"; cortex-offline the same "run",
+    # told to read Cortex's store alone (RADIX_CORTEX_MODE=offline), or, while Cortex did not run
+    # or the release could not, "serve-snapshot" (50-app.sh's fallback).
     radix_args="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
-    if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
-      if [[ "${radix_args}" == serve-snapshot* ]]; then
-        pass "${name}: Radix is offline as ${name}.env says (it serves its snapshot and fetches nothing from the university)"
-        warning "${name}: the catalog does not change while Radix is offline (RADIX_CRAWL=on in ${name}.env, sync, 50-app.sh ${name} brings it back)"
-      else
-        fail "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs the command \"${radix_args:-run}\" and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
-      fi
-    elif [[ -z "${radix_args}" ]]; then
-      pass "${name}: Radix is online (it keeps the catalog fresh)"
-    else
-      fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args}\" (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
-    fi
+    radix_mode="$(service_env "${INSTANCE_STACK}_radix" RADIX_CORTEX_MODE)"
+    case "${INSTANCE_CRAWL}" in
+      off)
+        if [[ "${radix_args}" == serve-snapshot* ]]; then
+          pass "${name}: Radix is offline as ${name}.env says (it serves its snapshot and fetches nothing from the university)"
+          warning "${name}: the catalog does not change while Radix is offline (RADIX_CRAWL=on in ${name}.env, sync, 50-app.sh ${name} brings it back)"
+        elif [[ -z "${radix_args}" && "${radix_mode}" == "offline" ]]; then
+          warning "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs its cycles on Cortex's store (cortex-offline): it fetches nothing from the university all the same (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        else
+          fail "${name}: ${name}.env says RADIX_CRAWL=off, but Radix runs the command \"${radix_args:-run}\" and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        fi
+        ;;
+      cortex-offline)
+        if [[ -z "${radix_args}" && "${radix_mode}" == "offline" ]]; then
+          pass "${name}: Radix reads Cortex's store alone as ${name}.env says (cortex-offline: it runs its cycles and fetches nothing from the university)"
+        elif [[ "${radix_args}" == serve-snapshot* ]]; then
+          warning "${name}: ${name}.env says RADIX_CRAWL=cortex-offline, but Radix serves its snapshot only (50-app.sh fell back while Cortex did not run, or its release could not read Cortex's store): bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+        else
+          fail "${name}: ${name}.env says RADIX_CRAWL=cortex-offline, but Radix runs the command \"${radix_args:-run}\" without RADIX_CORTEX_MODE=offline and CRAWLS (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        fi
+        ;;
+      *)
+        if [[ -z "${radix_args}" && -z "${radix_mode}" ]]; then
+          pass "${name}: Radix is online (it keeps the catalog fresh)"
+        else
+          fail "${name}: ${name}.env says RADIX_CRAWL=on, but Radix runs the command \"${radix_args:-run}\"${radix_mode:+ with RADIX_CORTEX_MODE=${radix_mode}} (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+        fi
+        ;;
+    esac
 
     check_models "${name}"
 
@@ -549,6 +583,294 @@ check_app() {
   if [[ "${deployed}" -eq 0 ]]; then
     warning "no instance of the application is deployed (from the workstation: deploy/ship.sh canary)"
   fi
+}
+
+# mount_source SERVICE TARGET -> the source of the service's mount at TARGET (a volume's full
+# name, a host path; nothing without such a mount).
+mount_source() {
+  docker service inspect "$1" --format '{{range .Spec.TaskTemplate.ContainerSpec.Mounts}}{{.Target}} {{.Source}}{{println}}{{end}}' 2>/dev/null |
+    awk -v target="$2" '$1 == target { print $2; exit }' || true
+}
+
+# Set by read_cortex_roles, per instance (a, b): what its "cortex status" says. CX_ROLE is leader
+# or follower, empty when it does not answer. Of a follower: CX_LAG is its lag in whole seconds,
+# CX_STATE its state ("-" on the leader), CX_BEHIND the journal entries it has not applied and
+# CX_MISSING the blobs its index names that it has not fetched yet ("?" where it does not say).
+declare -A CX_ROLE=() CX_EPOCH=() CX_SEQ=() CX_LAG=() CX_STATE=() CX_BEHIND=() CX_MISSING=()
+
+# read_cortex_roles - asks both instances. "cortex status" prints the JSON of GET /status; it is
+# asked inside the instance's own container, since Cortex publishes no port (stacks/cortex.yml).
+read_cortex_roles() {
+  local x cid body line role epoch seq lag state behind missing
+  for x in a b; do
+    CX_ROLE[$x]="" CX_EPOCH[$x]="" CX_SEQ[$x]="" CX_LAG[$x]="" CX_STATE[$x]="" CX_BEHIND[$x]="" CX_MISSING[$x]=""
+    cid="$(service_container "cortex_${x}")"
+    [[ -n "${cid}" ]] || continue
+    body="$(timeout 20 docker exec "${cid}" /bin/cortex status 2>/dev/null || true)"
+    line="$(jq -r 'select(type == "object") | [.role, .epoch, .seq, ((.follower.lag_seconds // 0) | if type == "number" then floor else . end), ((.follower.state // "") | if . == "" then "-" else . end), .follower.lag_entries, .follower.blobs_missing] | map(tostring) | join(" ")' <<<"${body}" 2>/dev/null || true)"
+    role="" epoch="" seq="" lag="" state="" behind="" missing=""
+    read -r role epoch seq lag state behind missing <<<"${line}" || true
+    if [[ "${role}" =~ ^(leader|follower)$ && "${epoch}" =~ ^[0-9]+$ && "${seq}" =~ ^[0-9]+$ ]]; then
+      [[ "${state}" =~ ^[a-z_-]+$ ]] || state="?"
+      [[ "${behind}" =~ ^[0-9]+$ ]] || behind="?"
+      [[ "${missing}" =~ ^[0-9]+$ ]] || missing="?"
+      CX_ROLE[$x]="${role}" CX_EPOCH[$x]="${epoch}" CX_SEQ[$x]="${seq}" CX_LAG[$x]="${lag}" CX_STATE[$x]="${state}"
+      CX_BEHIND[$x]="${behind}" CX_MISSING[$x]="${missing}"
+    fi
+  done
+}
+
+# Set by look_cortex: the instances that lead at its last look (CX_LEADING), and the epoch and
+# sequence number the one leader had at the look before, 2 s earlier (CX_PREV_EPOCH,
+# CX_PREV_SEQ; empty when that look did not see the same single leader).
+CX_LEADING=()
+CX_PREV_EPOCH=""
+CX_PREV_SEQ=""
+
+# cortex_in_step X -> true when cortex_X follows and has caught up as 48-cortex.sh wants it
+# before it hands the lead over (caught_up there): "following" or "catching_up", less than 1 s
+# behind, on the leader's epoch and at least at the sequence number the leader had at the look
+# before, and 0 blobs missing. Not "following, 0 entries behind": under steady writes a follower
+# that keeps up flips between the two states on every batch and is always a few entries behind
+# (verify2 E2E-6), so that said "not caught up" about half of the time. The blobs: a follower
+# that started again from a copy of the leader's index fetches them afterwards, while it is at
+# the leader's sequence number already; as leader it could not read the files whose blob it lacks.
+cortex_in_step() {
+  [[ "${CX_ROLE[$1]}" == "follower" && "${CX_STATE[$1]}" =~ ^(following|catching_up)$ &&
+    "${CX_LAG[$1]}" == "0" && "${CX_MISSING[$1]}" == "0" &&
+    -n "${CX_PREV_SEQ}" && "${CX_EPOCH[$1]}" == "${CX_PREV_EPOCH}" && "${CX_SEQ[$1]}" -ge "${CX_PREV_SEQ}" ]]
+}
+
+# look_cortex - asks both instances (read_cortex_roles) up to four times, 2 s apart, until one
+# leads and the other is no follower or is in step (cortex_in_step, which needs the leader's
+# sequence number of the look before). The two are asked one after the other, so a takeover in
+# between can show both or neither, and a follower may be a batch behind at any one look: what
+# is not one leader with a follower in step is asked again.
+look_cortex() {
+  local i lead y prev_lead=""
+  CX_PREV_EPOCH="" CX_PREV_SEQ=""
+  for i in 1 2 3 4; do
+    read_cortex_roles
+    read -r -a CX_LEADING <<<"$(cortex_leaders)" || true
+    lead=""
+    if [[ "${#CX_LEADING[@]}" -eq 1 ]]; then
+      lead="${CX_LEADING[0]}"
+      y="b"
+      if [[ "${lead}" == "b" ]]; then y="a"; fi
+      [[ "${prev_lead}" == "${lead}" ]] || CX_PREV_EPOCH="" CX_PREV_SEQ=""
+      if [[ "${CX_ROLE[$y]}" != "follower" ]] || cortex_in_step "${y}"; then return 0; fi
+    fi
+    [[ "${i}" -lt 4 ]] || return 0
+    prev_lead="${lead}"
+    CX_PREV_EPOCH="${lead:+${CX_EPOCH[$lead]}}" CX_PREV_SEQ="${lead:+${CX_SEQ[$lead]}}"
+    sleep 2
+  done
+}
+
+# cortex_leaders -> the instances that say they lead, on one line.
+cortex_leaders() {
+  local x
+  for x in a b; do
+    if [[ "${CX_ROLE[$x]}" == "leader" ]]; then printf '%s ' "${x}"; fi
+  done
+  return 0
+}
+
+# check_radix_ways - every instance's Radix on internal networks only (owner, 2026-10-02: no way to
+# the internet but Cortex, where possible), with <stack>_egress exactly where 50-app.sh gives it:
+# RADIX_CRAWL=on and (Cortex does not run, or the release of Radix cannot fetch through it, or the
+# secret gemini-api-key exists). CORTEX_RUNS is check_cortex's verdict. Read from the service
+# specs (what swarm was told), and what the release can do from its own container: "radix run -h"
+# prints the flags of run and exits, and one from before Cortex has no --cortex (it ignores
+# RADIX_CORTEX_URL and fetches directly).
+check_radix_ways() {
+  local name net internal nets egress want cortex_url gemini=no problems support cid outside
+  if secret_exists gemini-api-key; then gemini=yes; fi
+  while IFS= read -r name; do
+    [[ -n "${name}" ]] || continue
+    load_instance "${name}"
+    docker service inspect "${INSTANCE_STACK}_radix" >/dev/null 2>&1 || continue
+    nets="" egress=no problems=0 outside=no
+    while read -r net internal; do
+      [[ -n "${net}" ]] || continue
+      nets+="${net} "
+      case "${net}" in
+        monitoring | "${INSTANCE_STACK}_default")
+          fail "${name}: Radix is on ${net}, which is not internal: a way to the internet. Deployed from a betula.yml from before Cortex? bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+          problems=1 outside=yes
+          ;;
+        "${INSTANCE_STACK}_egress")
+          egress=yes
+          ;;
+        *)
+          if [[ "${internal}" != "true" ]]; then
+            fail "${name}: Radix is on ${net}, which is not internal (${internal}): a way to the internet no file of stacks/ means (docker service inspect ${INSTANCE_STACK}_radix)"
+            problems=1 outside=yes
+          fi
+          ;;
+      esac
+    done < <(service_networks "${INSTANCE_STACK}_radix")
+    if [[ " ${nets}" != *" cortex "* || " ${nets}" != *" ${INSTANCE_STACK}_snapshot "* ]]; then
+      fail "${name}: Radix is on '${nets% }', not on cortex (Cortex, Prometheus) and ${INSTANCE_STACK}_snapshot (Folia): bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+      problems=1
+    fi
+    if [[ " $(service_networks "${INSTANCE_STACK}_folia" | awk '{ print $1 }' | tr '\n' ' ')" == *" cortex "* ]]; then
+      fail "${name}: Folia is on the network cortex, where every instance's Radix is \"radix\": it may download another instance's snapshot (stacks/betula.yml)"
+      problems=1
+    fi
+
+    cortex_url="$(service_env "${INSTANCE_STACK}_radix" RADIX_CORTEX_URL)"
+    support=unknown
+    if [[ "${INSTANCE_CRAWL}" == "on" ]]; then
+      cid="$(service_container "${INSTANCE_STACK}_radix")"
+      if [[ -n "${cid}" ]]; then
+        support="$( { timeout 20 docker exec "${cid}" /bin/radix run -h 2>&1 || true; } | radix_cortex_support)"
+      fi
+    fi
+    want=no
+    if [[ "${INSTANCE_CRAWL}" == "on" && ( "${CORTEX_RUNS}" == "no" || "${gemini}" == "yes" || "${support}" == "no" ) ]]; then want=yes; fi
+    if [[ "${INSTANCE_CRAWL}" == "on" && -n "${cortex_url}" && "${support}" == "no" ]]; then
+      if [[ "${egress}" == "yes" ]]; then
+        warning "${name}: Radix was given RADIX_CORTEX_URL, but its release cannot fetch through Cortex (one from before it): it fetches from the university directly, through ${INSTANCE_STACK}_egress. bash ${BETULA_ROOT}/vps/50-app.sh ${name} deploys it as what it is; a newer release fetches through Cortex (deploy/ship.sh ${name})"
+      else
+        fail "${name}: Radix was given RADIX_CORTEX_URL, but its release cannot fetch through Cortex (one from before it): it fetches directly and has no way out, so every fetch fails. bash ${BETULA_ROOT}/vps/50-app.sh ${name} gives it one; a newer release fetches through Cortex (deploy/ship.sh ${name})"
+      fi
+      problems=1
+    elif [[ "${INSTANCE_CRAWL}" == "on" && -n "${cortex_url}" && "${CORTEX_RUNS}" == "no" ]]; then
+      fail "${name}: Radix fetches through Cortex (RADIX_CORTEX_URL=${cortex_url}), which does not run: every fetch fails. Bring Cortex back (bash ${BETULA_ROOT}/vps/48-cortex.sh), or deploy without it: bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+      problems=1
+    elif [[ "${INSTANCE_CRAWL}" == "on" && -z "${cortex_url}" && "${CORTEX_RUNS}" == "yes" && "${support}" != "no" ]]; then
+      warning "${name}: Cortex runs, but Radix fetches from the university directly: deployed before Cortex ran (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+    fi
+    if [[ "${egress}" == "yes" ]]; then
+      if [[ "${INSTANCE_CRAWL}" != "on" ]]; then
+        fail "${name}: Radix is offline (RADIX_CRAWL=${INSTANCE_CRAWL}), but on ${INSTANCE_STACK}_egress: a way to the internet it must not have (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+      elif [[ "${want}" == "no" ]]; then
+        warning "${name}: Radix is on ${INSTANCE_STACK}_egress although Cortex runs and there is no secret gemini-api-key: deployed before Cortex ran (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+      elif [[ "${support}" == "no" ]]; then
+        if [[ -z "${cortex_url}" ]]; then
+          warning "${name}: Radix reaches the internet through ${INSTANCE_STACK}_egress and fetches from the university directly: its release cannot fetch through Cortex (one from before it); a newer release does (deploy/ship.sh ${name})"
+        fi
+      elif [[ -n "${cortex_url}" ]]; then
+        warning "${name}: Radix fetches through Cortex, and reaches the internet through ${INSTANCE_STACK}_egress for Gemini (the secret gemini-api-key exists; Gemini does not go through Cortex)"
+      else
+        warning "${name}: Radix reaches the internet through ${INSTANCE_STACK}_egress and fetches from the university directly (no Cortex)"
+      fi
+    elif [[ "${want}" == "yes" ]]; then
+      if [[ -z "${cortex_url}" && "${outside}" == "yes" ]]; then
+        : # deployed from a betula.yml from before Cortex: it fetches through the network named above
+      elif [[ -z "${cortex_url}" ]]; then
+        fail "${name}: Radix crawls, but has no way to fetch: neither Cortex (RADIX_CORTEX_URL) nor ${INSTANCE_STACK}_egress (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+      elif [[ "${support}" == "no" ]]; then
+        : # its FAIL is above
+      else
+        warning "${name}: the secret gemini-api-key exists, but Radix has no way to Gemini (no ${INSTANCE_STACK}_egress): scan-curriculum and the summaries fail (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
+      fi
+    elif [[ "${problems}" -eq 0 ]]; then
+      if [[ -n "${cortex_url}" && "${INSTANCE_CRAWL}" == "on" ]]; then
+        pass "${name}: Radix has no way to the internet and fetches through Cortex (networks: ${nets% })"
+      elif [[ -n "${cortex_url}" && "$(service_env "${INSTANCE_STACK}_radix" RADIX_CORTEX_MODE)" == "offline" ]]; then
+        if [[ "${CORTEX_RUNS}" == "yes" ]]; then
+          pass "${name}: Radix has no way to the internet and reads Cortex's store alone (networks: ${nets% })"
+        else
+          fail "${name}: Radix reads Cortex's store alone (cortex-offline), and Cortex does not run: every cycle finds nothing. Bring Cortex back (bash ${BETULA_ROOT}/vps/48-cortex.sh), or deploy without it: bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
+        fi
+      else
+        pass "${name}: Radix has no way to the internet (networks: ${nets% })"
+      fi
+    fi
+  done < <(instance_names)
+}
+
+check_cortex() {
+  section "cortex (two instances, one leader, the follower in step, Radix only on internal networks)"
+  local x y svc state facts lock_a lock_b data_a data_b lead down=0
+  local -a leading=()
+  CORTEX_RUNS=no
+  facts="$(docker network inspect cortex --format '{{.Driver}} {{.Scope}} {{.Attachable}} {{.Internal}}' 2>/dev/null || true)"
+  if [[ "${facts}" == "overlay swarm true true" ]]; then
+    pass "network cortex: overlay, swarm scope, attachable, internal (no way out of the host)"
+  else
+    fail "network cortex is '${facts:-missing}' (driver scope attachable internal), wanted 'overlay swarm true true' (sudo bash ${BETULA_ROOT}/vps/30-docker.sh)"
+  fi
+
+  if ! stack_exists cortex; then
+    warning "stack cortex is not deployed (deploy/ship-cortex.sh): a Radix that crawls fetches from the university directly"
+  else
+    # Whether it runs is decided on the replicas, as 50-app.sh decides it (cortex_look,
+    # lib-stacks.sh): an instance whose last update swarm rolled back runs the definition before
+    # it, and swarm says "rollback_completed" until its next update, which 48-cortex.sh makes only
+    # for another release or a change to stacks/cortex.yml. Section services, which asks whether
+    # the last deploy landed, FAILs it.
+    for x in a b; do
+      svc="cortex_${x}"
+      state="$(service_state "${svc}" now)"
+      case "${state}" in
+        ok\ *rollback_completed\)) warning "${svc}: ${state#* }: it runs, but swarm rolled its last update back, so it runs the definition before that one (docker service ps --no-trunc ${svc}); swarm says so until its next update (bash ${BETULA_ROOT}/vps/48-cortex.sh <tag>, with another release or a changed stacks/cortex.yml)" ;;
+        ok\ *) pass "${svc}: ${state#* }" ;;
+        *)
+          fail "${svc}: ${state#* }  (docker service ps --no-trunc ${svc})"
+          down=1
+          ;;
+      esac
+    done
+    if cortex_look; then
+      CORTEX_RUNS=yes
+    elif [[ "${down}" -eq 0 ]]; then
+      fail "the stack cortex does not run (${CORTEX_DETAIL})"
+    fi
+    # One lock for the two (a stack volume both mount: flock across the containers), and an index
+    # of its own for each: two processes on one index would corrupt it.
+    lock_a="$(mount_source cortex_a /lock)" lock_b="$(mount_source cortex_b /lock)"
+    data_a="$(mount_source cortex_a /data)" data_b="$(mount_source cortex_b /data)"
+    if [[ -n "${lock_a}" && "${lock_a}" == "${lock_b}" ]]; then
+      pass "both instances mount ${lock_a} at /lock: one lock for the two"
+    else
+      fail "cortex_a mounts '${lock_a:-nothing}' and cortex_b '${lock_b:-nothing}' at /lock: without one lock both may lead (stacks/cortex.yml)"
+    fi
+    if [[ -n "${data_a}" && -n "${data_b}" && "${data_a}" != "${data_b}" ]]; then
+      pass "each instance has a data volume of its own (${data_a}, ${data_b})"
+    else
+      fail "cortex_a mounts '${data_a:-nothing}' and cortex_b '${data_b:-nothing}' at /data: each needs a volume of its own (stacks/cortex.yml)"
+    fi
+    # Cortex's own way out: the stack's "default", the one network of it that is not internal.
+    for x in a b; do
+      if service_networks "cortex_${x}" | awk '$2 == "false" { found = 1 } END { exit !found }'; then
+        pass "cortex_${x} has a way to the internet ($(service_networks "cortex_${x}" | awk '$2 == "false" { print $1 }' | tr '\n' ' ' | sed 's/ $//'))"
+      else
+        fail "cortex_${x} is on internal networks only: it cannot fetch anything (stacks/cortex.yml, networks)"
+      fi
+    done
+
+    # Exactly one leader, and the follower in step.
+    look_cortex
+    leading=("${CX_LEADING[@]}")
+    for x in a b; do
+      [[ -n "${CX_ROLE[$x]}" ]] ||
+        fail "cortex_${x} does not answer \"cortex status\" (docker exec <its container> /bin/cortex status; docker service logs cortex_${x})"
+    done
+    case "${#leading[@]}" in
+      1)
+        lead="${leading[0]}"
+        y="b"
+        if [[ "${lead}" == "b" ]]; then y="a"; fi
+        pass "cortex_${lead} leads (epoch ${CX_EPOCH[$lead]}, journal at ${CX_SEQ[$lead]})"
+        if [[ "${CX_ROLE[$y]}" == "follower" ]]; then
+          if awk -v lag="${CX_LAG[$y]}" -v max="${CORTEX_LAG_WARN}" 'BEGIN { exit !(lag + 0 > max) }'; then
+            warning "cortex_${y} follows ${CX_LAG[$y]} s behind (more than ${CORTEX_LAG_WARN} s; state ${CX_STATE[$y]}, ${CX_BEHIND[$y]} entries behind, ${CX_MISSING[$y]} blobs missing, journal at ${CX_SEQ[$y]}): docker service logs cortex_${y} (replica.*). The alert fires beyond 300 s"
+          elif ! cortex_in_step "${y}"; then
+            warning "cortex_${y} follows, but has not caught up (state ${CX_STATE[$y]}, ${CX_LAG[$y]} s and ${CX_BEHIND[$y]} entries behind, ${CX_MISSING[$y]} blobs missing, epoch ${CX_EPOCH[$y]}, journal at ${CX_SEQ[$y]}; wanted: following or catching_up, under 1 s behind, on the leader's epoch ${CX_PREV_EPOCH:-?} and at least at its journal of 2 s before, ${CX_PREV_SEQ:-?}, 0 blobs missing): it still fetches from the leader (after a copy of its index: every blob), and 48-cortex.sh hands it no lead before. docker service logs cortex_${y} (replica.*)"
+          else
+            pass "cortex_${y} follows and has caught up, under 1 s behind (state ${CX_STATE[$y]}, ${CX_BEHIND[$y]} entries behind, 0 blobs missing, journal at ${CX_SEQ[$y]}, the leader's 2 s before at ${CX_PREV_SEQ})"
+          fi
+        fi
+        ;;
+      0) fail "no instance of Cortex leads: what needs a fetch is answered 503 no-leader (docker service logs cortex_a / cortex_b)" ;;
+      *) fail "both instances of Cortex say they lead: they do not share the lock (/lock above); stop one until it is fixed: docker service scale cortex_b=0" ;;
+    esac
+  fi
+
+  check_radix_ways
 }
 
 check_canary() {
@@ -695,6 +1017,13 @@ check_prometheus() {
     case "${job}:${value}" in
       *:1) pass "up{job=\"${job}\"} = 1" ;;
       traefik:*) fail "up{job=\"traefik\"} is ${value:-unknown}: Prometheus cannot scrape edge_traefik:8082 over the monitoring overlay" ;;
+      cortex:*)
+        if stack_exists cortex; then
+          fail "up{job=\"cortex\"} is ${value:-unknown}: Prometheus cannot scrape cortex_a:8100 and cortex_b:8100 over the network cortex (does each run? section cortex. Is monitoring_prometheus on the network? bash ${BETULA_ROOT}/vps/40-stacks.sh monitoring)"
+        else
+          warning "up{job=\"cortex\"} is ${value:-unknown}: the stack cortex is not deployed (deploy/ship-cortex.sh). The rules for it (\"Monitoring target is down\" for job cortex, group betula-cortex) fire only for a Cortex that answered within the last 7 days: after removing it on purpose, silence them until then"
+        fi
+        ;;
       integrations/*:absent) fail "up{job=\"${job}\"} is absent: Alloy does not push host/container metrics (docker service logs monitoring_alloy)" ;;
       *) fail "up{job=\"${job}\"} is ${value:-unknown}" ;;
     esac
@@ -707,7 +1036,7 @@ check_prometheus() {
     value="$(jq -r --arg stack "${stack}" '[.data.result[] | select(.metric.job == "radix" and .metric.stack == $stack) | .value[1]] | if length == 0 then "absent" else (map(tonumber) | min | tostring) end' <<<"${body}" 2>/dev/null || true)"
     case "${value}" in
       1) pass "up{job=\"radix\", stack=\"${stack}\"} = 1" ;;
-      absent) fail "${stack}_radix runs but Prometheus does not scrape it: is tasks.${stack}_radix in config/monitoring/prometheus.yml, and is the service on the monitoring overlay (stacks/betula.yml)?" ;;
+      absent) fail "${stack}_radix runs but Prometheus does not scrape it: is tasks.${stack}_radix in config/monitoring/prometheus.yml, and are the service and monitoring_prometheus both on the network cortex (stacks/betula.yml, stacks/monitoring.yml)?" ;;
       *) fail "up{job=\"radix\", stack=\"${stack}\"} is ${value:-unknown}: an image from before GET /metrics answers 404 (ship a current one)" ;;
     esac
   done

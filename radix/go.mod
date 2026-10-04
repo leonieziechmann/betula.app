@@ -1,0 +1,31 @@
+module github.com/leonieziechmann/betula/radix
+
+go 1.27.0
+
+require (
+	github.com/ledongthuc/pdf v0.0.0-20260907135840-6c8c28e0e8a0
+	github.com/tetratelabs/wazero v1.12.0
+	github.com/zalando/go-keyring v0.2.8
+	golang.org/x/net v0.59.0
+	golang.org/x/term v0.46.0
+	modernc.org/sqlite v1.58.0
+)
+
+require (
+	github.com/danieljoos/wincred v1.2.3 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/ncruces/go-strftime v1.0.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	modernc.org/libc v1.75.6 // indirect
+	modernc.org/mathutil v1.7.1 // indirect
+	modernc.org/memory v1.12.1 // indirect
+)
+
+// Cortex's client (the Go module cortex/ beside this one): Radix fetches through Cortex with it.
+require github.com/leonieziechmann/betula/cortex v0.0.0
+
+replace github.com/leonieziechmann/betula/cortex => ../cortex

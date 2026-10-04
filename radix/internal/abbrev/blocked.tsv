@@ -1,0 +1,56 @@
+# Forms a derived abbreviation never takes (docs/radix/schema-v2.md, „Short names“). A public timetable
+# of a German university must not show KKK or SS next to a lecture, and a module must not read
+# as the Prüfungsordnung. Tab-separated:
+#
+# form    the form as it reads, 2 to 10 characters; it also blocks the form with a series number
+#         or a language level (SS1, SS-A1). Compared as uniqueness compares forms: without case
+#         and without the & and - a reader passes over (S&A and NP-d read as SA and NPD).
+# reason  why
+#
+# A derived candidate on this list is dropped, the way a candidate of the wrong length is, and
+# the module falls back to its next one. The capitals of the buildings in short room names (ZHG,
+# HG, LG, VG, ZB …) and the campus codes SFB and SD are blocked too, by code
+# (normalize.BuildingTokens): a week grid shows a module and its room side by side. Two
+# exceptions: a title that has the form as a word of its own („IBM Watson“, „NS-Zeit“) may use
+# it, and a line of overrides.tsv may name a blocked form on purpose. validate fails when a
+# derived abbreviation is on this list.
+#
+# form	reason
+SS	Nazi organisation (Schutzstaffel); also Sommersemester
+SA	Nazi organisation (Sturmabteilung)
+SD	Nazi organisation (Sicherheitsdienst); also the campus code of Sachsendorf
+NS	Nationalsozialismus
+KZ	Konzentrationslager
+HJ	Hitlerjugend
+NSDAP	Nazi party
+KKK	Ku Klux Klan
+NSU	terror group
+RAF	terror group
+NPD	political party
+AfD	political party
+CDU	political party
+CSU	political party
+SPD	political party
+FDP	political party
+SED	political party
+KPD	political party
+DKP	political party
+BSW	political party
+THC	drug
+LSD	drug
+MDMA	drug
+Meth	drug
+NSA	intelligence service
+CIA	intelligence service
+FBI	police agency
+BND	intelligence service
+KGB	intelligence service
+MfS	secret police of the GDR (Ministerium für Staatssicherheit, Stasi)
+IBM	company
+BMW	company
+BBC	broadcaster
+PO	Prüfungsordnung
+WS	Wintersemester, as SS is Sommersemester: a study plan names its semesters so
+SWS	Semesterwochenstunden, a column of every module table
+LP	Leistungspunkte, the credits a plan adds up (6 LP)
+CO	CO₂: Controlling II as Co2 reads as the gas

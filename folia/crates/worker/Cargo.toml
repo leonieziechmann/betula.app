@@ -1,0 +1,21 @@
+[package]
+name = "folia-worker"
+version = "0.1.0"
+edition = "2021"
+description = "The data worker of Betula's app (WASM): the pages' questions answered from the catalog in sql.js"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+folia-model = { path = "../model" }
+folia-pages = { path = "../pages" }
+# Must be the version of the wasm-bindgen CLI that scripts/build-client.sh runs.
+wasm-bindgen = "=0.2.128"
+js-sys = "0.3"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

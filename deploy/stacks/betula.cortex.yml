@@ -1,0 +1,24 @@
+# Optional override for stacks/betula.yml: Radix fetches through Cortex (stacks/cortex.yml,
+# docs/cortex/cortex.md), the cache between the application and the internet. Every request of the
+# crawl and of the statute download goes to Cortex, which fetches from the university only what
+# it does not have fresh, at its own polite pace per host, and keeps every version. Gemini is
+# asked directly all the same (owner, 2026-10-02: Cortex is for data only).
+#
+# vps/50-app.sh adds this file while the stack cortex runs (both services converged; it waits a
+# while for one that is being updated). The network "cortex" is in betula.yml already, because
+# Prometheus scrapes Radix over it either way; only the URL waits for Cortex: through a Cortex
+# that does not run, every fetch would fail. Without this file a Radix that crawls fetches
+# directly, through betula.egress.yml.
+#
+# Offline (betula.offline.yml) Radix fetches nothing, and the variable changes nothing; it is
+# given all the same, so that going online again is one value in the instance's file. With
+# RADIX_CRAWL=cortex-offline, betula.cortex-offline.yml comes after this file: every page from
+# Cortex's store alone.
+
+services:
+  radix:
+    environment:
+      # Both instances. The client asks the one that answered last and goes on to the other when
+      # it cannot reach it or hears "no-leader" (cortex/client); which of the two leads
+      # is Cortex's to decide.
+      RADIX_CORTEX_URL: "http://cortex_a:8100,http://cortex_b:8100"

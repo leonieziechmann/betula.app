@@ -1,0 +1,21 @@
+{
+  "allow": ["*"],
+  "user_agent": "Cortex/1.0 (+https://betula.app; info@betula.app)",
+  "default": {
+    "concurrency": 1,
+    "pause": "0s",
+    "max_age": "24h",
+    "queue_wait": "60s",
+    "breaker_failures": 10,
+    "breaker_pause": "15m",
+    "timeout": "10m",
+    "max_body": 8589934592
+  },
+  "hosts": {
+    "qis.b-tu.de": {"pause": "500ms"},
+    "www.b-tu.de": {"pause": "500ms"},
+    "opus4.kobv.de": {"pause": "2s", "max_age": "720h", "expect_type": "application/pdf"},
+    "huggingface.co": {"concurrency": 2},
+    "cdn-lfs.huggingface.co": {"concurrency": 2}
+  }
+}

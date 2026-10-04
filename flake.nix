@@ -17,28 +17,40 @@
         pkgs = import nixpkgs { inherit system; };
         craneLib = crane.mkLib pkgs;
 
-        # go.mod asks for Go 1.27. nixpkgs' default `go` lags behind a new release for a
+        # radix/go.mod and cortex/go.mod ask for Go 1.27. nixpkgs' default `go` lags behind a new release for a
         # while, so take the versioned attribute when it exists.
         buildGoModule = pkgs.buildGoModule.override { go = pkgs.go_1_27 or pkgs.go; };
+
+        # repoSource KEEP -> the repository with only the paths KEEP says yes to. KEEP gets each
+        # path relative to the root ("radix/internal/oplog/oplog.go"); a directory it says no to
+        # is not looked into.
+        repoSource = keep: pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type: keep (pkgs.lib.removePrefix (toString ./. + "/") (toString path));
+        };
+        # isIn PATHS REL: REL is one of PATHS or lies below one. leadsTo PATHS REL: REL is a
+        # directory on the way to one of them.
+        isIn = paths: rel: builtins.any (p: rel == p || pkgs.lib.hasPrefix (p + "/") rel) paths;
+        leadsTo = paths: rel: builtins.any (p: pkgs.lib.hasPrefix (rel + "/") p) paths;
+        pathsSource = paths: repoSource (rel: isIn paths rel || leadsTo paths rel);
+
+        # What Radix is built from: the Go module radix/, and of the Go module cortex/ what
+        # radix/go.mod replaces with ../cortex, Cortex's client (it imports nothing else of
+        # Cortex). A change to Cortex's server does not change Radix's image; a change to the Rust
+        # workspace folia/, the docs or deploy/ rebuilds nothing here.
+        radixPaths = [ "radix/go.mod" "radix/go.sum" "radix/cmd" "radix/internal" "cortex/go.mod" "cortex/go.sum" "cortex/client" ];
 
         radix = buildGoModule {
           pname = "betula-radix";
           version = self.shortRev or self.dirtyShortRev or "dev";
-          src = pkgs.lib.cleanSourceWith {
-            src = ./.;
-            # Only the Go module (all Go code and what it embeds lives below cmd/ and internal/):
-            # a change to the Rust workspace, the docs or deploy/ rebuilds nothing here.
-            filter = path: type:
-              let
-                rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
-                top = builtins.head (pkgs.lib.splitString "/" rel);
-              in
-              builtins.elem top [ "go.mod" "go.sum" "cmd" "internal" ];
-          };
+          src = pathsSource radixPaths;
+          modRoot = "radix";
           subPackages = [ "cmd/radix" ];
 
-          # Update after changing go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy the hash Nix prints.
-          vendorHash = "sha256-tFFT73vB3oTjpQaybpzq3I+alljd2zaXod+L7whFK7A=";
+          # Update after changing radix/go.mod / go.sum, and after any change to cortex/client
+          # or cortex/go.mod ("go mod vendor" copies the module radix/go.mod replaces): set to
+          # pkgs.lib.fakeHash, build, copy the hash Nix prints.
+          vendorHash = "sha256-ns0b1Ybu6rgBJiDVihcQBetABA2RkAxBjHzMkgd7AD4=";
 
           # modernc.org/sqlite is pure Go: a static binary without libc.
           env.CGO_ENABLED = "0";
@@ -81,30 +93,99 @@
           };
         };
 
-        # ---------------------------------------------------------------- Folia (Rust)
+        # ---------------------------------------------------------------- Cortex (Go)
 
-        # Only the Cargo workspace: a change to the Go module or the docs rebuilds nothing here.
-        rustSrc = pkgs.lib.cleanSourceWith {
-          src = ./.;
-          filter = path: type:
-            let
-              rel = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
-              top = builtins.head (pkgs.lib.splitString "/" rel);
-            in
-            builtins.elem top [ "Cargo.toml" "Cargo.lock" "app" "catalog" "client" "pack" "semantic" "server" ];
+        # The cache between the application and the internet (docs/cortex/cortex.md,
+        # stacks/cortex.yml): the Go module cortex/, a binary and an image of its own. What it is
+        # built from, relative to cortex/; deploy/ship-cortex.sh reads this line for the release
+        # tag, so it stays one line.
+        cortexPaths = [ "go.mod" "go.sum" "cmd" "internal" "client" ];
+
+        cortex = buildGoModule {
+          pname = "betula-cortex";
+          version = self.shortRev or self.dirtyShortRev or "dev";
+          src = pathsSource (map (p: "cortex/" + p) cortexPaths);
+          modRoot = "cortex";
+          subPackages = [ "cmd/cortex" ];
+
+          # Update after changing cortex/go.mod / go.sum: set to pkgs.lib.fakeHash, build, copy
+          # the hash Nix prints.
+          vendorHash = "sha256-JYmbmJQ6ST7HlOk99hewJEVDScXOYzHuSZeWlvuQcHo=";
+
+          env.CGO_ENABLED = "0";
+          ldflags = [ "-s" "-w" ];
+          doCheck = true;
+
+          meta.mainProgram = "cortex";
         };
 
-        cargoLock = builtins.fromTOML (builtins.readFile ./Cargo.lock);
+        cortex-image = pkgs.dockerTools.buildLayeredImage {
+          name = "betula-cortex";
+          tag = "latest";
+          # /bin/cortex, and the CA certificates of the hosts it fetches from over https.
+          contents = [ cortex pkgs.cacert ];
+          # /data holds the index and the blobs, /lock the leader's lock file (a volume that both
+          # instances mount, stacks/cortex.yml). Both belong to the user Cortex runs as: a fresh
+          # named volume mounted there takes that owner over.
+          fakeRootCommands = ''
+            mkdir -p data lock tmp
+            chown 10002:10002 data lock
+            chmod 1777 tmp
+          '';
+          config = {
+            Entrypoint = [ "/bin/cortex" ];
+            Cmd = [ "serve" ];
+            User = "10002:10002";
+            Env = [
+              "CORTEX_ADDR=0.0.0.0:8100"
+              "CORTEX_DATA=/data"
+              "CORTEX_LOG_FORMAT=json"
+              "TZ=Europe/Berlin"
+              "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            ];
+            ExposedPorts = { "8100/tcp" = { }; };
+            Volumes = { "/data" = { }; };
+            WorkingDir = "/data";
+            # Liveness (/livez): the process serves and its index answers. Not /healthz, which
+            # fails while no leader is known or the follower lags: no reason to kill a process
+            # that still serves. A leader that hangs is killed after three failed checks (half a
+            # minute), and the lock it held goes to the follower.
+            Healthcheck = {
+              Test = [ "CMD" "/bin/cortex" "healthcheck" ];
+              Interval = 10000000000; # 10 s, in nanoseconds
+              Timeout = 5000000000;
+              StartPeriod = 30000000000;
+              StartInterval = 2000000000; # a new task counts as started after seconds, not after an interval
+              Retries = 3;
+            };
+          };
+        };
+
+        # ---------------------------------------------------------------- Folia (Rust)
+
+        # Only the Cargo workspace folia/ (its crates and the assets the server embeds): a change
+        # to the Go module, the docs or Folia's e2e checks and scripts rebuilds nothing here.
+        rustSrc = pkgs.lib.cleanSourceWith {
+          src = ./folia;
+          filter = path: type:
+            let
+              rel = pkgs.lib.removePrefix (toString ./folia + "/") (toString path);
+              top = builtins.head (pkgs.lib.splitString "/" rel);
+            in
+            builtins.elem top [ "Cargo.toml" "Cargo.lock" "crates" "assets" ];
+        };
+
+        cargoLock = builtins.fromTOML (builtins.readFile ./folia/Cargo.lock);
         lockedVersion = name:
           (pkgs.lib.findFirst (p: p.name == name) (throw "${name} is not in Cargo.lock") cargoLock.package).version;
-        foliaVersion = (builtins.fromTOML (builtins.readFile ./server/Cargo.toml)).package.version;
+        foliaVersion = (builtins.fromTOML (builtins.readFile ./folia/crates/server/Cargo.toml)).package.version;
 
         # What both Rust builds share. No hash to keep up to date: every crate is fetched by its
         # checksum in Cargo.lock.
         rustCommon = {
           src = rustSrc;
           strictDeps = true;
-          # The tests need a catalog snapshot (docs/frontend.md §4); they run on the workstation.
+          # The tests need a catalog snapshot (docs/folia/frontend.md §4); they run on the workstation.
           doCheck = false;
         };
 
@@ -129,7 +210,7 @@
         });
 
         # The wasm-bindgen CLI has to be exactly the version of the crate the browser app is built
-        # with (client/Cargo.toml pins it), and nixpkgs rarely has that one. After a change of the
+        # with (folia/crates/client/Cargo.toml pins it), and nixpkgs rarely has that one. After a change of the
         # version: set both hashes to pkgs.lib.fakeHash, build, copy the hash Nix prints, twice.
         wasm-bindgen-cli = pkgs.buildWasmBindgenCli rec {
           src = pkgs.fetchCrate {
@@ -144,9 +225,9 @@
           };
         };
 
-        # The browser app, as scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm},
-        # and the catalog's search worker, which runs the same bundle (site/pkg/search-worker.js).
-        # `cargo build --profile wasm-release --target wasm32-unknown-unknown -p folia-client`, in
+        # The browser app, as folia/scripts/build-client.sh builds it: site/pkg/folia_client{.js,_bg.wasm},
+        # and the data worker with its own bundle (site/pkg/data-worker.js, folia_worker{.js,_bg.wasm}).
+        # `cargo build --profile wasm-release --target wasm32-unknown-unknown -p folia-client -p folia-worker`, in
         # the same two steps as the web server (the dependencies apart, a fixed version for them).
         clientArgs = rustCommon // {
           pname = "betula-folia-client";
@@ -154,7 +235,7 @@
           CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
           # nixpkgs' rustc brings the wasm32 standard library, but no rust-lld to link with.
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_LINKER = "lld";
-          buildPhaseCargoCommand = "cargoWithProfile build --locked -p folia-client";
+          buildPhaseCargoCommand = "cargoWithProfile build --locked -p folia-client -p folia-worker";
         };
         folia-client-deps = craneLib.buildDepsOnly (clientArgs // {
           version = "0";
@@ -173,21 +254,24 @@
             craneLib.removeReferencesToRustToolchainHook
           ];
           # Without the names of its functions and its producers (--remove-name-section,
-          # --remove-producers-section), as scripts/build-client.sh builds it: the names were 29 of
-          # the bundle's 33.8 MB (docs/frontend.md §3).
+          # --remove-producers-section), as folia/scripts/build-client.sh builds it: the names were 29 of
+          # the bundle's 33.8 MB (docs/folia/frontend.md §3).
           installPhaseCommand = ''
             mkdir -p "$out/site/pkg"
             wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
               --out-dir "$out/site/pkg" --out-name folia_client \
               target/wasm32-unknown-unknown/wasm-release/folia_client.wasm
-            cp client/js/search-worker.js "$out/site/pkg/search-worker.js"
+            wasm-bindgen --target web --no-typescript --remove-name-section --remove-producers-section \
+              --out-dir "$out/site/pkg" --out-name folia_worker \
+              target/wasm32-unknown-unknown/wasm-release/folia_worker.wasm
+            cp crates/worker/js/data-worker.js "$out/site/pkg/data-worker.js"
           '';
           # The bundle is the output, not cargo's target directory.
           doInstallCargoArtifacts = false;
         });
 
-        # The Web Worker of the semantic search, as scripts/build-semantic.sh builds it into
-        # site/pkg: the crate semantic/ twice (WASM SIMD, and relaxed SIMD for the browsers that
+        # The Web Worker of the semantic search, as folia/scripts/build-semantic.sh builds it into
+        # site/pkg: the crate folia/crates/semantic twice (WASM SIMD, and relaxed SIMD for the browsers that
         # have it), and its two scripts. Nothing to build ahead: the crate has no dependencies.
         folia-semantic = craneLib.mkCargoDerivation (rustCommon // {
           pname = "betula-folia-semantic";
@@ -206,10 +290,10 @@
           installPhaseCommand = ''
             mkdir -p "$out/site/pkg"
             for build in simd relaxed; do
-              cp "target/semantic-$build/wasm32-unknown-unknown/wasm-release/semantic.wasm" "$out/site/pkg/semantic.$build.wasm"
+              cp "target/semantic-$build/wasm32-unknown-unknown/wasm-release/folia_semantic.wasm" "$out/site/pkg/semantic.$build.wasm"
             done
-            cp semantic/js/worker.js "$out/site/pkg/semantic-worker.js"
-            cp semantic/js/semantic.js "$out/site/pkg/semantic.js"
+            cp crates/semantic/js/worker.js "$out/site/pkg/semantic-worker.js"
+            cp crates/semantic/js/semantic.js "$out/site/pkg/semantic.js"
           '';
           doInstallCargoArtifacts = false;
         });
@@ -254,7 +338,7 @@
       in
       {
         packages = {
-          inherit radix radix-image folia folia-client folia-semantic folia-image;
+          inherit radix radix-image cortex cortex-image folia folia-client folia-semantic folia-image;
           default = radix;
         };
 

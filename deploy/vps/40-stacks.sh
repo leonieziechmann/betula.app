@@ -16,7 +16,7 @@
 #   placeholder            skipped as soon as an instance of the application serves betula.app (then
 #                          remove it: docker stack rm placeholder). An instance at another name,
 #                          like canary.betula.app, leaves it alone. The application itself is
-#                          deployed by vps/50-app.sh, never here.
+#                          deployed by vps/50-app.sh, Cortex by vps/48-cortex.sh, never here.
 #   monitoring.public.yml  only while GRAFANA_HOST is set and resolves to this machine
 #   monitoring.smtp.yml    only while all of its swarm secrets exist (stacks/monitoring-secrets.sh)
 #   monitoring.notify.yml  the same, if the file exists (your copy of monitoring.notify.example.yml)
@@ -81,7 +81,8 @@ preflight() {
   require_cmd docker ip sha256sum find xargs
   require_swarm_manager
   have_cmd dig || warn "dig is missing (package bind9-dnsutils, vps/10-base.sh); falling back to getent, which also reads /etc/hosts"
-  for net in edge monitoring; do
+  # cortex: Prometheus scrapes Cortex and every instance's Radix over it (stacks/monitoring.yml).
+  for net in edge monitoring cortex; do
     facts="$(docker network inspect "${net}" --format '{{.Driver}} {{.Scope}} {{.Attachable}}' 2>/dev/null || true)"
     [[ "${facts}" == "overlay swarm true" ]] || die "overlay network ${net} is missing or not attachable (run vps/30-docker.sh)"
   done
@@ -240,8 +241,9 @@ deploy_monitoring() {
 report() {
   step "Done"
   local stack
+  # cortex is deployed by vps/48-cortex.sh, never here, and listed all the same.
   # shellcheck disable=SC2046  # instance names are single words
-  for stack in edge placeholder $(instance_names) monitoring; do
+  for stack in edge placeholder cortex $(instance_names) monitoring; do
     if stack_exists "${stack}"; then
       docker stack services "${stack}" --format '{{.Name}}  {{.Replicas}}  {{.Image}}' | sed 's/^/  /'
     fi

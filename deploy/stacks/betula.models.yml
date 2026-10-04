@@ -4,7 +4,7 @@
 # hands over where they are: RADIX_EMBED_MODEL (the passage model: Radix computes the modules'
 # vectors with it), FOLIA_SEMANTIC_MODEL (the query model: Folia serves it to the browsers) and
 # FOLIA_SEMANTIC_PASSAGE_MODEL (the id of the passage model the query model belongs to: the
-# browser compares it with the snapshot's, docs/schema-v2.md, „Semantic search"). Without this
+# browser compares it with the snapshot's, docs/radix/schema-v2.md, „Semantic search"). Without this
 # file both run without the semantic search; nothing else changes.
 #
 # The store is a directory of the host, /var/lib/betula/models (vps/10-base.sh makes it), shared by

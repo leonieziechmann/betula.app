@@ -1,0 +1,15 @@
+[package]
+name = "folia-search"
+version = "0.1.0"
+edition = "2021"
+description = "The catalog's search: folding as Radix folds, the scored search, typos, the pickers' match"
+
+[dependencies]
+folia-model = { path = "../model" }
+serde = { version = "1.0", features = ["derive"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

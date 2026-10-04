@@ -1,0 +1,30 @@
+[package]
+name = "folia-pages"
+version = "0.1.0"
+edition = "2021"
+description = "One loader per page and what each page shows; the layout of the program map"
+
+[dependencies]
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-model = { path = "../model" }
+folia-plans = { path = "../plans" }
+folia-query = { path = "../query" }
+folia-routes = { path = "../routes" }
+folia-search = { path = "../search" }
+folia-timetable = { path = "../timetable" }
+serde = { version = "1.0", features = ["derive"] }
+# The keys of kept answers (`ask::Ask::key`).
+serde_json = "1.0"
+
+[dev-dependencies]
+folia-timetable = { path = "../timetable", features = ["fixtures"] }
+folia-test-support = { path = "../test-support" }
+folia-model = { path = "../model", features = ["sqlite"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"

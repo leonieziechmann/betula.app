@@ -31,8 +31,9 @@ groups:
       # Lines that are not JSON are skipped here (__error__) and handled by the next rule.
       # The web server has to log JSON (FOLIA_LOG_FORMAT=json; its image sets it, its default is text).
       # The stacks are the instances of the application (stacks/*.env): betula, and canary for the
-      # closed test, each with its second colour <name>-green (blue-green). A new instance has to be
-      # named here and in rule (1b), or its errors stay silent.
+      # closed test, each with its second colour <name>-green (blue-green), and cortex, the cache
+      # between them and the internet (stacks/cortex.yml; its log has the same contract). A new
+      # instance has to be named here and in rule (1b), or its errors stay silent.
       # The window is 35m = one Radix cycle (30m) + margin: an error that comes back every cycle is
       # ONE continuous alert instead of a resolve/fire pair every half hour. No data = no errors = OK.
       - uid: betula-error-logs
@@ -51,7 +52,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service, event, msg) (count_over_time({stack=~\"(betula|canary)(-green)?\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
+              expr: "sum by (service, event, msg) (count_over_time({stack=~\"(betula|canary)(-green)?|cortex\"} | json level=\"level\", event=\"event\", msg=\"msg\", message=\"message\" | __error__=\"\" | level=~\"ERROR|error|FATAL|fatal\" | label_format msg=`{{ if .msg }}{{ .msg }}{{ else }}{{ .message }}{{ end }}` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -105,7 +106,7 @@ groups:
           summary: "{{ $labels.service }}: {{ if $labels.event }}{{ $labels.event }}{{ else }}ERROR{{ end }}"
           description: |-
             {{ $labels.msg }}
-            {{ if eq $labels.event "validate.check_failed" }}An invariant or count baseline failed, so no new snapshot is published. A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. The fields check, value and samples of the log line say which one.{{ else if eq $labels.event "crawl.aborted" }}Ten pages failed in a row and the crawl stage stopped: the university server is down or blocks us. Published data is intact and only ages.{{ else if eq $labels.event "export.failed" }}The export failed; the previous snapshot stays current.{{ else if eq $labels.event "build.failed" }}The build was rolled back; the canonical data is unchanged.{{ else }}Level ERROR means a human is needed, or published data could not be updated (docs/operations.md, section Logging).{{ end }}
+            {{ if eq $labels.event "validate.check_failed" }}An invariant or count baseline failed, so no new snapshot is published. A baseline below its minimum usually means a page layout changed and a parser no longer recognises a label. The fields check, value and samples of the log line say which one.{{ else if eq $labels.event "crawl.aborted" }}Ten pages failed in a row and the crawl stage stopped: the university server is down or blocks us. Published data is intact and only ages.{{ else if eq $labels.event "export.failed" }}The export failed; the previous snapshot stays current.{{ else if eq $labels.event "build.failed" }}The build was rolled back; the canonical data is unchanged.{{ else }}Level ERROR means a human is needed, or published data could not be updated (docs/radix/operations.md, section Logging).{{ end }}
             {{ if $values.B }}{{ printf "%.0f" $values.B.Value }} such line(s) in the last 35 minutes. {{ end }}Logs dashboard: the stack of {{ $labels.service }}, level error. Also: GET /status on Radix.
 
       # (1b) What rule (1) cannot parse: a Go runtime crash ("panic:", "fatal error:") or a Rust panic
@@ -130,7 +131,7 @@ groups:
                 type: loki
                 uid: loki
               editorMode: code
-              expr: "sum by (service) (count_over_time({stack=~\"(betula|canary)(-green)?\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
+              expr: "sum by (service) (count_over_time({stack=~\"(betula|canary)(-green)?|cortex\"} !~ `^\\s*\\{` |~ `ERROR|FATAL|^panic: |^fatal error: |panicked at ` [35m]))"
               queryType: instant
               intervalMs: 1000
               maxDataPoints: 43200
@@ -501,6 +502,9 @@ groups:
       # deliberate removal (docker stack rm) looks the same: silence it, do not wait for it. Only a
       # warning (daily reminder): what the site needs is in (2b), and excluded here so it does not
       # alert twice.
+      # Not cortex_a and cortex_b either: Prometheus scrapes both by name (job cortex), so a missing
+      # one is "Monitoring target is down" (critical, 5 minutes) and, when no instance leads any
+      # more, "Cortex has no leader, or two" - a third alert here would only repeat them.
       # Except blue-green, which removes a colour on purpose after a switch (deploy/README.md
       # section 4): <name> and <name>-green are two colours of one site (label "site" below: the
       # stack without "-green"), and a stack of which no container runs while another colour of
@@ -523,7 +527,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: "((count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|betula_folia|placeholder_web|betula_radix\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) unless on(stack) (label_replace(count by (stack) (count_over_time(container_last_seen{stack!=\"\"}[7d])) unless count by (stack) (container_last_seen{stack!=\"\"}), \"site\", \"$1\", \"stack\", \"(.+?)(-green)?\") and on(site) label_replace(count by (stack) (container_last_seen{stack!=\"\"}), \"site\", \"$1\", \"stack\", \"(.+?)(-green)?\"))) and on() (count(container_last_seen{id=\"/\"}) > 0)"
+              expr: "((count by (stack, service) (count_over_time(container_last_seen{service!=\"\", service!~\"edge_traefik|betula_folia|placeholder_web|betula_radix|cortex_a|cortex_b\"}[7d])) unless count by (stack, service) (container_last_seen{service!=\"\"})) unless on(stack) (label_replace(count by (stack) (count_over_time(container_last_seen{stack!=\"\"}[7d])) unless count by (stack) (container_last_seen{stack!=\"\"}), \"site\", \"$1\", \"stack\", \"(.+?)(-green)?\") and on(site) label_replace(count by (stack) (container_last_seen{stack!=\"\"}), \"site\", \"$1\", \"stack\", \"(.+?)(-green)?\"))) and on() (count(container_last_seen{id=\"/\"}) > 0)"
               instant: true
               range: false
               intervalMs: 1000
@@ -1101,6 +1105,244 @@ groups:
           summary: "systemd reports a failed unit: ssh, fail2ban, ufw, docker or containerd"
           description: "Check systemctl --failed and journalctl -u <unit>. Without fail2ban or ufw the host is still key-only, but no longer protected as designed."
   - orgId: 1
+    name: betula-cortex
+    folder: Betula alerts
+    interval: "1m"
+    rules:
+
+      # Cortex (stacks/cortex.yml): two instances, of which exactly one leads; the other takes the
+      # lock over the moment the leader's process ends. No leader, or two, for a minute is
+      # therefore never a takeover in progress (Prometheus scrapes the two at different moments,
+      # so around a takeover one evaluation may count both or neither). A returns the number of
+      # leaders only when it is not 1, so no data is the healthy case and C fires on any value it
+      # returns. An instance that cannot be scraped counts as not leading, and so does a missing
+      # job cortex.
+      # All three rules of this group apply only to a Cortex that has answered a scrape within the
+      # last 7 days (max_over_time of up; two series, cheap enough for every minute), the way
+      # "Service has no running container" forgets a service after 7 days: on a host without
+      # Cortex (not deployed yet, or retired) both static targets are always down, and a Radix
+      # that crawls fetches directly instead (vps/50-app.sh), which is no reason to page anybody
+      # every 4 hours. "Monitoring target is down" takes the same gate for job cortex. The price:
+      # a first deploy whose Cortex never answers stays quiet here (vps/48-cortex.sh fails and says
+      # why), and so does one that has been down for more than 7 days (91-verify-stacks.sh,
+      # sections cortex and prometheus, still FAILs it while the stack exists).
+      - uid: betula-cortex-leader
+        title: "Cortex has no leader, or two"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "((sum(cortex_role{job=\"cortex\"}) or on() vector(0)) != 1) and on() (max(max_over_time(up{job=\"cortex\"}[7d])) > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [-1]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "1m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-cortex
+        panelId: 3
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cortex: {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }}{{ else }}not one{{ end }} instance(s) lead"
+          description: "Exactly one of cortex_a and cortex_b has to lead: it holds the lock, fetches and writes; the other follows its journal. None: what needs a fetch or a write is answered 503 no-leader, so the crawl of Radix fails, while the follower still serves what it has. Two: they do not share the lock (both have to mount the volume cortex_lock at /lock) and write apart. What each says: docker exec <its container> /bin/cortex status, for cortex_a and cortex_b; their logs: docker service logs cortex_a / cortex_b (leader.acquired, leader.stepped_down). An instance Prometheus cannot scrape counts as not leading: see the rule Monitoring target is down. Dashboard Cortex; bash /opt/betula/vps/91-verify-stacks.sh cortex."
+
+      # The follower's distance: the age of the oldest entry of the leader's journal it has not
+      # applied (0 on the leader, and on a follower that has caught up). Owner decision
+      # (2026-10-02): asynchronous, losing the last 5 minutes is acceptable; alert beyond that.
+      # Gated like the leader rule, so that the group as a whole is quiet on a host without Cortex.
+      - uid: betula-cortex-replication-lag
+        title: "Cortex: the follower is more than 5 minutes behind"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "max by (instance) (cortex_replication_lag_seconds{job=\"cortex\"}) and on() (max(max_over_time(up{job=\"cortex\"}[7d])) > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [300]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "5m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-cortex
+        panelId: 15
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} is {{ if $values.B }}{{ printf \"%.0f\" $values.B.Value }} s{{ else }}minutes{{ end }} behind the leader"
+          description: "Replication is asynchronous (owner, 2026-10-02: the last minutes before a crash may be lost, not more): what the follower has not applied when it takes over is lost (the old leader drops it when it follows again, replica.diverged). The follower's /healthz turns unhealthy beyond 5 minutes. Usual causes: it cannot reach the leader (replica.failed in its log), it fetches the blobs of a big change, or it starts again from a snapshot (replica.snapshot). Check: docker exec <container of {{ $labels.instance }}> /bin/cortex status (follower.state), docker service logs {{ $labels.instance }}. Dashboard Cortex, row Replication."
+
+      # The floor Cortex keeps per host, for all its clients together (config/cortex/hosts.json):
+      # the breaker, or the host's own Retry-After, pauses a host. Short pauses are part of being
+      # polite; one that lasts means the host is down or turns us away. Gated like the leader rule.
+      - uid: betula-cortex-host-paused
+        title: "Cortex has paused a host"
+        condition: C
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: prometheus
+                uid: prometheus
+              editorMode: code
+              expr: "max by (host) (cortex_host_paused{job=\"cortex\"}) and on() (max(max_over_time(up{job=\"cortex\"}[7d])) > 0)"
+              instant: true
+              range: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "5m"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-cortex
+        panelId: 21
+        labels:
+          severity: warning
+        annotations:
+          summary: "Cortex sends nothing to {{ $labels.host }}"
+          description: "Cortex has paused {{ $labels.host }} for more than 5 minutes: its breaker opened after breaker_failures failures in a row (network errors, timeouts, 5xx; then breaker_pause, 15 minutes by default), or the host answered 429 or 503 with Retry-After (at most an hour). Meanwhile a request for it gets the stored answer where one exists and the client allows it (stale=if-error), else 503 host-paused - Radix asks with stale=never, so its crawl of that host fails. If it lasts: is the host down, or does it block us? The leader's log: host.paused, upstream.failed; the settings: config/cortex/hosts.json (host other stands for every host without an entry there). Dashboard Cortex, row Hosts."
+  - orgId: 1
     name: betula-meta
     folder: Betula alerts
     interval: "1m"
@@ -1111,6 +1353,9 @@ groups:
       # Prometheus is reported. Loki down shows up here as job="loki".
       # What nothing on this server can report: the server itself being down. Use an external
       # uptime check on https://betula.app for that.
+      # Job cortex only while Cortex has answered a scrape within the last 7 days (group
+      # betula-cortex says why): its two targets are listed, so on a host without Cortex they are
+      # always down.
       - uid: betula-target-down
         title: Monitoring target is down
         condition: C
@@ -1126,7 +1371,7 @@ groups:
                 type: prometheus
                 uid: prometheus
               editorMode: code
-              expr: up
+              expr: "up{job!=\"cortex\"} or (up{job=\"cortex\"} and on() (max(max_over_time(up{job=\"cortex\"}[7d])) > 0))"
               instant: true
               range: false
               intervalMs: 1000
@@ -1177,7 +1422,7 @@ groups:
           severity: critical
         annotations:
           summary: "{{ $labels.job }} cannot be scraped"
-          description: "Prometheus has not been able to scrape {{ $labels.job }} ({{ $labels.instance }}) for 5 minutes. traefik: is the edge stack running and attached to the monitoring network? integrations/unix or integrations/cadvisor: Alloy. Check docker stack services monitoring."
+          description: "Prometheus has not been able to scrape {{ $labels.job }} ({{ $labels.instance }}) for 5 minutes. traefik: is the edge stack running and attached to the monitoring network? cortex: does the instance run (docker stack services cortex), and is Prometheus on the network cortex? integrations/unix or integrations/cadvisor: Alloy. Check docker stack services monitoring."
 
 # Rules this file provisioned once and no longer defines (see the header). Grafana deletes them on
 # every provisioning run; a uid that is already gone is a no-op there, so an entry may stay.

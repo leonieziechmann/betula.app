@@ -2,7 +2,7 @@
 # the snapshot it has to Folia ("radix serve-snapshot"), so the data stays as it was fetched until
 # the instance goes online again; only a new release builds it once more from the archive, with its
 # own rules. With the models (betula.models.yml) it computes the vectors of the semantic search its
-# database lacks, and publishes them part by part (docs/operations.md).
+# database lacks, and publishes them part by part (docs/radix/operations.md).
 #
 # vps/50-app.sh adds this file while the instance's file says RADIX_CRAWL=off, and makes sure
 # there is a snapshot to serve (a seeded volume that has none yet gets one from its database

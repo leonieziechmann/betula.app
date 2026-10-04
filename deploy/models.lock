@@ -1,4 +1,4 @@
-# The models of the semantic search that every instance runs (semantic/README.md says how they
+# The models of the semantic search that every instance runs (folia/crates/semantic/README.md says how they
 # are made). Too large for git (50 MB together); what git keeps is their content's sha256, and the
 # server keeps the files under it in its model store, /var/lib/betula/models (README.md section 13).
 #

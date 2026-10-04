@@ -40,25 +40,49 @@ scrape_configs:
     static_configs:
       - targets: ["monitoring_alloy:12345"]
 
-  # Radix, the collector, of every instance (stacks/betula.yml puts it on the "monitoring"
-  # overlay): GET /metrics, for the dashboard "Radix". Found by DNS, not listed: tasks.<service>
-  # names the running task, and the name of an instance that does not run does not resolve, so
-  # it is no target at all instead of a target that is down (rule "Monitoring target is down").
+  # Radix, the collector, of every instance (stacks/betula.yml puts it on the internal "cortex"
+  # network, and stacks/monitoring.yml Prometheus as well): GET /metrics, for the dashboard
+  # "Radix". Found by DNS, not listed: tasks.<service> names the running task, and the name of an
+  # instance that does not run does not resolve, so it is no target at all instead of a target
+  # that is down (rule "Monitoring target is down").
   # A new instance file (stacks/<instance>.env) needs its line here.
+  # The names end with a dot. The container's resolv.conf says "search .", so a name without one
+  # is also asked as "tasks.canary_radix..", which Docker's DNS answers with an error instead of
+  # "no such name", and Prometheus then keeps the targets it had: a colour canary-agent.sh removed
+  # stayed a target that is down, until Prometheus restarted, and "Monitoring target is down"
+  # fired for it (canary-green for two days, until 2026-10-04). Asked as they are, a name that
+  # does not resolve is no target any more.
   - job_name: radix
     dns_sd_configs:
       - names:
-          - tasks.betula_radix
-          - tasks.betula-green_radix
-          - tasks.canary_radix
-          - tasks.canary-green_radix
+          - tasks.betula_radix.
+          - tasks.betula-green_radix.
+          - tasks.canary_radix.
+          - tasks.canary-green_radix.
         type: A
         port: 8090
         refresh_interval: 30s
     relabel_configs:
       # stack="betula-green", and the same as instance: the address changes with every task.
       - source_labels: [__meta_dns_name]
-        regex: "tasks\\.(.+)_radix"
+        regex: "tasks\\.(.+)_radix\\.?"
         target_label: stack
       - source_labels: [stack]
+        target_label: instance
+
+  # Cortex, the cache between the application and the internet (stacks/cortex.yml): both
+  # instances over the internal "cortex" network, for the dashboard "Cortex" and the alert group
+  # betula-cortex. Listed, not found by DNS: there are always exactly these two, and one that does
+  # not answer is a target that is down (rule "Monitoring target is down": the follower missing for
+  # 5 minutes) rather than no target at all. On a host without Cortex both are always down; the
+  # rules for job cortex therefore wait until it has answered once (and forget it 7 days after it
+  # last did). The service name resolves to its virtual address, so the series stay the same when
+  # a task is replaced.
+  - job_name: cortex
+    static_configs:
+      - targets: ["cortex_a:8100", "cortex_b:8100"]
+    relabel_configs:
+      # instance="cortex_a": the name of the service, as docker service logs and the alerts say it.
+      - source_labels: [__address__]
+        regex: "(.+):8100"
         target_label: instance
