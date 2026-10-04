@@ -46,20 +46,26 @@ scrape_configs:
   # instance that does not run does not resolve, so it is no target at all instead of a target
   # that is down (rule "Monitoring target is down").
   # A new instance file (stacks/<instance>.env) needs its line here.
+  # The names end with a dot. The container's resolv.conf says "search .", so a name without one
+  # is also asked as "tasks.canary_radix..", which Docker's DNS answers with an error instead of
+  # "no such name", and Prometheus then keeps the targets it had: a colour canary-agent.sh removed
+  # stayed a target that is down, until Prometheus restarted, and "Monitoring target is down"
+  # fired for it (canary-green for two days, until 2026-10-04). Asked as they are, a name that
+  # does not resolve is no target any more.
   - job_name: radix
     dns_sd_configs:
       - names:
-          - tasks.betula_radix
-          - tasks.betula-green_radix
-          - tasks.canary_radix
-          - tasks.canary-green_radix
+          - tasks.betula_radix.
+          - tasks.betula-green_radix.
+          - tasks.canary_radix.
+          - tasks.canary-green_radix.
         type: A
         port: 8090
         refresh_interval: 30s
     relabel_configs:
       # stack="betula-green", and the same as instance: the address changes with every task.
       - source_labels: [__meta_dns_name]
-        regex: "tasks\\.(.+)_radix"
+        regex: "tasks\\.(.+)_radix\\.?"
         target_label: stack
       - source_labels: [stack]
         target_label: instance
