@@ -776,8 +776,11 @@
   // exactly what goes, so nobody sees it) and „Nach oben" stands above it. As the ground goes
   // back down their content follows it in the same frame (owner, 2026-09-30: once the ground was
   // gone the sidebar still waited for the scroll to end): growing under the ground shows nothing
-  // that is not to be seen. The heads of the list's columns stay under the list's head: its height
-  // is `--list-head-h`. The scrollbar's width is `--bar`: it stands in the gap right of the page.
+  // that is not to be seen. A page that stands still with the ground up is `data-rest`: the panels
+  // the ground cut off end above it with round corners, which the ground draws (owner, 2026-10-04);
+  // the first scroll takes them away (owner, 2026-09-30: drawn along with the ground they looked
+  // off). The heads of the list's columns stay under the list's head: its height is
+  // `--list-head-h`. The scrollbar's width is `--bar`: it stands in the gap right of the page.
   // A phone scrolls the window, and none of this applies there (app.css has all of it for wide
   // screens only): it measured every page as it was built, a layout in each of its frames, and gave
   // each new page `--bar` and `--cover`, which restyled the whole page once more; a quarter of what
@@ -811,6 +814,7 @@
     const area = flowing();
     if (!area) { covered = 0; coveredArea = null; document.getElementById("to-top")?.style.removeProperty("--lift"); return; }
     putCover(area, coverOf(area));
+    area.toggleAttribute("data-rest", covered > 0);
   };
   // The window became a phone's (a narrow window, a turned tablet): what the area was given goes.
   const areaOff = () => {
@@ -822,6 +826,7 @@
     headSeen = null;
     const area = flowing();
     for (const prop of ["--bar", "--cover", "--list-head-h"]) area?.style.removeProperty(prop);
+    area?.removeAttribute("data-rest");
     area?.querySelector(":scope > .list.short")?.classList.remove("short");
     document.getElementById("to-top")?.style.removeProperty("--lift");
     covered = 0;
@@ -864,7 +869,13 @@
     clearTimeout(areaTimer);
     areaTimer = setTimeout(areaSettle, 150);
   };
-  document.addEventListener("scroll", (e) => { if (!phone() && e.target === flowing()) areaSoon(); }, { capture: true, passive: true });
+  document.addEventListener("scroll", (e) => {
+    if (phone()) return;
+    const area = flowing();
+    if (e.target !== area) return;
+    if (area.hasAttribute("data-rest")) area.removeAttribute("data-rest");
+    areaSoon();
+  }, { capture: true, passive: true });
   addEventListener("resize", areaSoon);
   new MutationObserver(areaSoon).observe(document.body, { childList: true, subtree: true });
   areaSoon();

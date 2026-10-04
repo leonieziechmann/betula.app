@@ -49,6 +49,12 @@ pub fn Ground() -> impl IntoView {
     let semester = move || facts.get().and_then(Result::ok).and_then(|ground| ground.current_semester.as_ref().map(|s| folia_calendar::semester::SemesterKey::parse(&s.key).map_or_else(|| s.label.clone(), |key| key.label(t.locale))));
     view! {
         <footer class="ground">
+            // The round corners of the panels it cut off, where it is the end of a page that flows
+            // and that stands still with it up (app.css, „one scroll area"): drawn by the ground, so
+            // that they stand on its edge. Nothing elsewhere.
+            <i class="ground-cap cap-side" aria-hidden="true"></i>
+            <i class="ground-cap cap-list" aria-hidden="true"></i>
+            <i class="ground-cap cap-preview" aria-hidden="true"></i>
             <div class="ground-top">
                 <div>
                     <p class="ground-name"><Wordmark small=true/><small>{t.common.tagline}</small></p>
