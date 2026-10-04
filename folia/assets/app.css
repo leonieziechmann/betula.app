@@ -462,6 +462,16 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     padding-bottom: var(--cover, 0px);
   }
   .work.flowing > .filters, .work.flowing > .sidebar { grid-column: 1; }
+  /* A pinned panel is sticky, so it is a stacking context of its own: whatever it holds stands
+     only as high as the panel does, the popup of a picker (fixed, z-index 60) included. Without a
+     z-index of its own it stood under everything positioned after it — the list's head (6) and
+     the heads of its columns, the rows, the timetable's weeks — and its popup with it. The
+     layers of the area: the list and what is pinned in it up to 6, the panels 7, the module
+     beside the list 10, its edge 11, a panel with an open picker 15 (its popup over the module
+     beside it), the band behind the ground 19 and the ground 20, which covers a panel and its
+     popup alike as it comes. */
+  .work.flowing > .filters, .work.flowing > .sidebar { z-index: 7; }
+  .work.flowing > :is(.filters, .sidebar):has(.combo[data-open]) { z-index: 15; }
   /* A list short enough to stand whole above the ground is pinned as well (enhance.js). */
   .work.flowing > .list.short { position: sticky; top: 0; grid-row: 1 / 3; align-self: start; height: calc(100vh - 64px); min-height: 0; padding-bottom: var(--cover, 0px); }
   .work.flowing > .detail { grid-column: 1 / -1; justify-self: end; }
@@ -576,9 +586,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .resizer.preview-edge { z-index: 11; right: calc(var(--at, var(--preview)) - 12px); width: 20px; }
 .resizer.preview-edge::after { left: 11px; }
 .resizing, .resizing * { cursor: col-resize !important; user-select: none !important; }
-/* While a handle is dragged only its panel follows (above its neighbour); the page is laid out
-   again once, when the handle is let go (enhance.js). */
-.resizing .filters, .resizing .sidebar { position: relative; z-index: 6; }
+/* While a handle is dragged only its panel follows (above its neighbour: on a page of one scroll
+   area the panel's own layer, which stays pinned); the page is laid out again once, when the
+   handle is let go (enhance.js). */
+.resizing .work:not(.flowing) > :is(.filters, .sidebar) { position: relative; z-index: 6; }
 .resizing .work > .detail { animation: none; transition: none; }
 
 .filters form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
