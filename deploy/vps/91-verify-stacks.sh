@@ -684,20 +684,20 @@ cortex_leaders() {
 # prints the flags of run and exits, and one from before Cortex has no --cortex (it ignores
 # RADIX_CORTEX_URL and fetches directly).
 check_radix_ways() {
-  local name net internal nets egress want cortex_url gemini=no problems support cid
+  local name net internal nets egress want cortex_url gemini=no problems support cid outside
   if secret_exists gemini-api-key; then gemini=yes; fi
   while IFS= read -r name; do
     [[ -n "${name}" ]] || continue
     load_instance "${name}"
     docker service inspect "${INSTANCE_STACK}_radix" >/dev/null 2>&1 || continue
-    nets="" egress=no problems=0
+    nets="" egress=no problems=0 outside=no
     while read -r net internal; do
       [[ -n "${net}" ]] || continue
       nets+="${net} "
       case "${net}" in
         monitoring | "${INSTANCE_STACK}_default")
           fail "${name}: Radix is on ${net}, which is not internal: a way to the internet. Deployed from a betula.yml from before Cortex? bash ${BETULA_ROOT}/vps/50-app.sh ${name}"
-          problems=1
+          problems=1 outside=yes
           ;;
         "${INSTANCE_STACK}_egress")
           egress=yes
@@ -705,7 +705,7 @@ check_radix_ways() {
         *)
           if [[ "${internal}" != "true" ]]; then
             fail "${name}: Radix is on ${net}, which is not internal (${internal}): a way to the internet no file of stacks/ means (docker service inspect ${INSTANCE_STACK}_radix)"
-            problems=1
+            problems=1 outside=yes
           fi
           ;;
       esac
@@ -757,7 +757,9 @@ check_radix_ways() {
         warning "${name}: Radix reaches the internet through ${INSTANCE_STACK}_egress and fetches from the university directly (no Cortex)"
       fi
     elif [[ "${want}" == "yes" ]]; then
-      if [[ -z "${cortex_url}" ]]; then
+      if [[ -z "${cortex_url}" && "${outside}" == "yes" ]]; then
+        : # deployed from a betula.yml from before Cortex: it fetches through the network named above
+      elif [[ -z "${cortex_url}" ]]; then
         fail "${name}: Radix crawls, but has no way to fetch: neither Cortex (RADIX_CORTEX_URL) nor ${INSTANCE_STACK}_egress (bash ${BETULA_ROOT}/vps/50-app.sh ${name})"
       elif [[ "${support}" == "no" ]]; then
         : # its FAIL is above
