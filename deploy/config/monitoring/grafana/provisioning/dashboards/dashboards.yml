@@ -1,5 +1,7 @@
 # Dashboards are files in the repo. Edit in the UI, export the JSON, commit it - a change
 # saved only in the UI is refused (allowUiUpdates: false) so it cannot get lost silently.
+# The files are v2 resources (dashboard.grafana.app/v2): export as "V2 Resource" and keep only
+# metadata.name (deploy/README.md, section 2).
 apiVersion: 1
 
 providers:
