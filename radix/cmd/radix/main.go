@@ -40,6 +40,7 @@ var commands = [][]command{
 		{"validate", "Check invariants, source conflicts and count baselines; exit 1 on failures", runValidate},
 		{"export", "Write the read-optimized snapshot", runExport},
 		{"serve-snapshot", "Publish exported snapshots over HTTP without crawling; --db: build them again and compute the vectors (no network)", runServeSnapshot},
+		{"seed-cortex", "Give Cortex the archived pages, with their times, so that it serves them offline too (reads a copy of the database)", runSeedCortex},
 	},
 	{
 		{"download-statutes", "Download the regulation PDFs of the programs (OPUS)", runDownloadStatutes},

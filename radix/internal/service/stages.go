@@ -139,6 +139,11 @@ func CrawlQISModuleList(ctx context.Context, db *catalogdb.DB, ep Endpoints, pac
 			URL:    fmt.Sprintf(ep.QISModuleList, start, qisModuleListChunk),
 		}
 		body, err := fetcher.Get(ctx, job)
+		if errors.Is(err, crawl.ErrOfflineMiss) {
+			// Offline through Cortex, and neither Cortex nor the archive has this chunk: the
+			// table is not read to its end this time, and no chunk is dropped for it.
+			return fetcher.Stats(), map[string]bool{}, nil
+		}
 		if err != nil {
 			return fetcher.Stats(), nil, err
 		}
