@@ -202,6 +202,183 @@ func (s *Store) RecordFetch(f Fetched) (Entry, Version, bool, JournalEntry, erro
 	return entry, version, op == OpVersion, je, nil
 }
 
+// Imported is an answer that another program fetched, for RecordImport: the key and request as
+// Canonical made them, the answer, its body already stored as the blob Hash, when that program
+// got this content first (FetchedAt) and last (CheckedAt), and when it is given to Cortex (At,
+// the time of the journal entry; zero: now).
+type Imported struct {
+	Key, URL, Host, Source, Accept, AcceptLanguage string
+	Status                                         int
+	Hash                                           string
+	Size                                           int64
+	Header                                         http.Header // the kept headers
+	FetchedAt, CheckedAt                           time.Time
+	At                                             time.Time
+}
+
+// What RecordImport did with an answer.
+const (
+	ImportCreated   = "created"   // a new version, current now (journal op version)
+	ImportChecked   = "checked"   // the current version has this content; its checked_at moved (op check)
+	ImportUnchanged = "unchanged" // the current version has this content and knew it at least as late: nothing written
+	ImportOlder     = "older"     // the current version has other content, checked at or after CheckedAt: nothing written
+)
+
+// importSkew is how far CheckedAt may lie ahead of this clock: the program that fetched may run
+// on another host.
+const importSkew = time.Minute
+
+// RecordImport records an answer that another program fetched (an archive of its own, as Radix's
+// raw pages), as if Cortex had fetched it at the times that program gives, so that a client that
+// asks offline gets what that program had:
+//   - without a current version the answer becomes one, first fetched at FetchedAt and last
+//     checked at CheckedAt (op version; a new entry is created at FetchedAt);
+//   - a current version of the same status and sha256 has its checked_at moved to CheckedAt when
+//     that is later (op check), as a fetch would; its fetched_at stays. Nothing is written when
+//     it does not move and the entry is as the import names it (ImportUnchanged);
+//   - a current version of other content last checked before CheckedAt is superseded by the
+//     answer (op version), at FetchedAt, or at its own checked_at when that is later: the import
+//     then counts as first fetched at that time too, so that the versions follow each other;
+//   - a current version of other content checked at or after CheckedAt is newer than the answer:
+//     nothing is written (ImportOlder). Cortex keeps no history before its current version.
+//
+// The journal entry carries the time of the import (At), not the times of the answer: the
+// follower's lag and the trimming of the journal are about when the index changed. FetchedAt
+// after CheckedAt, or CheckedAt more than a minute after At, is ErrInvalidInput; the rest is
+// checked as by RecordFetch. The blob must be stored (PutBlob) before, else
+// ErrBlobMissing; its time is renewed.
+func (s *Store) RecordImport(f Imported) (Entry, Version, string, error) {
+	if f.Key == "" || f.URL == "" {
+		return Entry{}, Version{}, "", errors.New("record import: key and url are required")
+	}
+	if !ValidHash(f.Hash) {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: blob %q: %w", f.URL, f.Hash, ErrInvalidHash)
+	}
+	if f.Status < 100 || f.Status > 999 || f.Size < 0 {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: invalid status %d or size %d", f.URL, f.Status, f.Size)
+	}
+	for _, v := range []string{f.Key, f.URL, f.Host, f.Accept, f.AcceptLanguage} {
+		if !utf8.ValidString(v) {
+			return Entry{}, Version{}, "", fmt.Errorf("record import of %q: %w: %q is not UTF-8", f.URL, ErrInvalidInput, v)
+		}
+	}
+	if f.Source != "" && !validSource(f.Source) {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: %w: source %q", f.URL, ErrInvalidInput, f.Source)
+	}
+	if f.FetchedAt.IsZero() || f.CheckedAt.IsZero() || f.FetchedAt.After(f.CheckedAt) {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: %w: fetched_at %s and checked_at %s (want both, the first not after the second)",
+			f.URL, ErrInvalidInput, FormatTime(f.FetchedAt), FormatTime(f.CheckedAt))
+	}
+	now := f.At
+	if now.IsZero() {
+		now = s.now()
+	}
+	if f.CheckedAt.After(now.Add(importSkew)) {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: %w: checked_at %s lies in the future", f.URL, ErrInvalidInput, FormatTime(f.CheckedAt))
+	}
+	kept := keptHeader(f.Header)
+	kept.Del(FinalURLHeader) // an import knows no URL that answered: validators are not sent for it
+	headers, err := json.Marshal(kept)
+	if err != nil {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: %w", f.URL, err)
+	}
+	first, last := FormatTime(stamp(f.FetchedAt)), FormatTime(stamp(f.CheckedAt))
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(); err != nil {
+		return Entry{}, Version{}, "", err
+	}
+	tx, err := s.w.Begin()
+	if err != nil {
+		return Entry{}, Version{}, "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	e, found, err := entryRowByKey(tx, f.Key)
+	if err != nil {
+		return Entry{}, Version{}, "", err
+	}
+	var current *versionRow
+	if found && e.CurrentVersion != nil {
+		v, err := versionRowByID(tx, *e.CurrentVersion)
+		if err != nil {
+			return Entry{}, Version{}, "", err
+		}
+		current = &v
+	}
+	before := e
+	if !found {
+		id, err := nextID(tx, "entry")
+		if err != nil {
+			return Entry{}, Version{}, "", err
+		}
+		e = entryRow{ID: id, Key: f.Key, Source: f.Source, CreatedAt: first}
+	}
+	e.URL, e.Host, e.Accept, e.AcceptLanguage = f.URL, f.Host, f.Accept, f.AcceptLanguage
+	if f.Source != "" {
+		e.Source = f.Source
+	}
+
+	p := versionPayload{Entry: e}
+	result, op, blob := ImportCreated, OpVersion, f.Hash
+	switch {
+	case current != nil && current.Status == f.Status && current.SHA256 == f.Hash:
+		p.Version = *current
+		if last <= current.CheckedAt && sameNames(e, before) {
+			entry, version, err := publicPair(e, *current)
+			return entry, version, ImportUnchanged, err
+		}
+		p.Version.CheckedAt = max(current.CheckedAt, last) // never backwards
+		result, op, blob = ImportChecked, OpCheck, ""
+	case current != nil && current.CheckedAt >= last:
+		entry, version, err := publicPair(before, *current)
+		return entry, version, ImportOlder, err
+	default:
+		id, err := nextID(tx, "version")
+		if err != nil {
+			return Entry{}, Version{}, "", err
+		}
+		from := first
+		if current != nil {
+			from = max(first, current.CheckedAt)
+			p.Superseded = &supersede{ID: current.ID, At: from}
+		}
+		p.Version = versionRow{ID: id, EntryID: e.ID, Status: f.Status, SHA256: f.Hash, Size: f.Size,
+			Headers: string(headers), FetchedAt: from, CheckedAt: last}
+		p.Entry.CurrentVersion = &id
+	}
+	if err := applyVersion(tx, op, p); err != nil {
+		return Entry{}, Version{}, "", err
+	}
+	if err := s.renewBlob(f.Hash); err != nil {
+		return Entry{}, Version{}, "", fmt.Errorf("record import of %s: %w", f.URL, err)
+	}
+	if _, err := s.commit(tx, op, stamp(now), p, blob); err != nil {
+		return Entry{}, Version{}, "", err
+	}
+	entry, version, err := publicPair(p.Entry, p.Version)
+	return entry, version, result, err
+}
+
+// sameNames says whether two rows of one entry name the request and its source alike.
+func sameNames(a, b entryRow) bool {
+	return a.URL == b.URL && a.Host == b.Host && a.Source == b.Source && a.Accept == b.Accept && a.AcceptLanguage == b.AcceptLanguage
+}
+
+// publicPair is an entry row and a version row as the API shows them.
+func publicPair(e entryRow, v versionRow) (Entry, Version, error) {
+	entry, err := e.public()
+	if err != nil {
+		return Entry{}, Version{}, err
+	}
+	version, err := v.public()
+	if err != nil {
+		return Entry{}, Version{}, err
+	}
+	return entry, version, nil
+}
+
 // maxHeaderValue is the longest kept response header value the index keeps. Every check entry
 // of the journal carries the whole version row again, headers included, and a host may send a
 // megabyte of ETag (review 1).

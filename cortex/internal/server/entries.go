@@ -2,12 +2,15 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/leonieziechmann/betula/cortex/internal/oplog"
 	"github.com/leonieziechmann/betula/cortex/internal/store"
+	"github.com/leonieziechmann/betula/cortex/internal/upstream"
 )
 
 // The JSON of the store's rows: hashes as sha256:<hex>, times in RFC 3339 with microseconds.
@@ -147,6 +150,126 @@ func (s *Server) handleEntries(w http.ResponseWriter, r *http.Request) {
 		out.Entries = append(out.Entries, entryInfoJSON{entryJSON: entryOf(e.Entry), Current: versionOf(e.Current)})
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// importParams is a request to PUT /v1/entries, checked.
+type importParams struct {
+	key, url, host         string // from store.Canonical
+	accept, acceptLanguage string
+	status                 int
+	fetchedAt, checkedAt   time.Time
+	source, expect         string
+}
+
+func parseImport(r *http.Request) (importParams, error) {
+	q := r.URL.Query()
+	p := importParams{source: defaultSource, accept: q.Get("accept"), acceptLanguage: q.Get("accept_language")}
+	if v := q.Get("source"); v != "" {
+		if !sourcePattern.MatchString(v) {
+			return p, fmt.Errorf("source %q: 1 to 64 of a-z, 0-9, '_', '.', '-'", v)
+		}
+		p.source = v
+	}
+	if q.Get("url") == "" {
+		return p, errors.New("url is required")
+	}
+	var err error
+	if p.key, p.url, p.host, err = store.Canonical(q.Get("url"), p.accept, p.acceptLanguage); err != nil {
+		return p, err
+	}
+	if p.status, err = strconv.Atoi(q.Get("status")); err != nil || !upstream.Storable(p.status) {
+		return p, fmt.Errorf("status %q: one Cortex keeps (200, 203, 204, 404, 410)", q.Get("status"))
+	}
+	for _, t := range []struct {
+		name string
+		to   *time.Time
+	}{{"fetched_at", &p.fetchedAt}, {"checked_at", &p.checkedAt}} {
+		if *t.to, err = time.Parse(time.RFC3339, q.Get(t.name)); err != nil {
+			return p, fmt.Errorf("%s %q: an RFC 3339 time is required", t.name, q.Get(t.name))
+		}
+	}
+	if p.fetchedAt.After(p.checkedAt) {
+		return p, fmt.Errorf("fetched_at %s is after checked_at %s", q.Get("fetched_at"), q.Get("checked_at"))
+	}
+	p.expect, err = sha256Param(q.Get("expect"))
+	return p, err
+}
+
+// handleImport is PUT /v1/entries?url=…[&accept=…][&accept_language=…]&status=…&fetched_at=…
+// &checked_at=…[&source=…][&expect=sha256:…]: an answer that another program fetched (an
+// archive of its own, as Radix's raw pages) becomes what Cortex holds for that request, as if
+// Cortex had fetched it first at fetched_at and last at checked_at (store.RecordImport). The
+// body is the content, its Content-Type kept as the answer's. 201 with a new version; 200 when
+// the current version has this content (result checked or unchanged) or the store has a newer
+// answer (older); JSON {result, entry, version}. 422 hash-mismatch when the content has another
+// hash than expect. A follower forwards it; the follower's copy follows from the journal.
+//
+// Log events: blob.rejected (WARN).
+func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
+	p, err := parseImport(r)
+	result := "error" // what the metric counts; nothing for a request the leader counts
+	defer func() {
+		if result != "" {
+			importsTotal.Inc(p.source, result)
+		}
+	}()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	}
+	info(r).url, info(r).source = p.url, p.source
+	header := http.Header{}
+	if v := r.Header.Get("Content-Type"); v != "" {
+		header.Set("Content-Type", v)
+	}
+	if !s.leading() && s.forward(w, r) {
+		result = ""
+		return
+	}
+
+	body := &bodyReader{r: r.Body}
+	blob, err := s.st.PutBlob(body, p.expect, 0)
+	switch {
+	case body.err != nil:
+		writeError(w, http.StatusBadRequest, codeBadRequest, "reading the body: "+body.err.Error())
+		return
+	case errors.Is(err, store.ErrHashMismatch):
+		oplog.For("cortex").Warn("import refused", "event", "blob.rejected", "url", p.url, oplog.Err(err))
+		writeError(w, http.StatusUnprocessableEntity, codeHashMismatch, err.Error())
+		return
+	case err != nil:
+		writeInternal(w, "storing the content", err)
+		return
+	}
+	done, ok := s.node.BeginWrite()
+	if !ok { // the body is read: the client sends it again, to the leader
+		s.noLeader(w, r, "this instance stopped leading during the upload")
+		return
+	}
+	e, v, outcome, err := s.st.RecordImport(store.Imported{Key: p.key, URL: p.url, Host: p.host, Source: p.source,
+		Accept: p.accept, AcceptLanguage: p.acceptLanguage, Status: p.status, Hash: blob.Hash, Size: blob.Size,
+		Header: header, FetchedAt: p.fetchedAt, CheckedAt: p.checkedAt, At: s.now()})
+	done()
+	switch {
+	case errors.Is(err, store.ErrInvalidInput): // a checked_at in the future, a Content-Type that is not UTF-8
+		writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
+		return
+	case err != nil:
+		writeInternal(w, "import of "+p.url, err)
+		return
+	}
+	result = outcome
+	w.Header().Set("ETag", `"sha256:`+v.Hash+`"`)
+	w.Header().Set("Cortex-Version", strconv.FormatInt(v.ID, 10))
+	status := http.StatusOK
+	if outcome == store.ImportCreated {
+		status = http.StatusCreated
+	}
+	writeJSON(w, status, struct {
+		Result  string      `json:"result"`
+		Entry   entryJSON   `json:"entry"`
+		Version versionJSON `json:"version"`
+	}{outcome, entryOf(e), versionOf(v)})
 }
 
 // handleDeleteEntry is DELETE /v1/entries?url=…: the entry and its versions are forgotten
