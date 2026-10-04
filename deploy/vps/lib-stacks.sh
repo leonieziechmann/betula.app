@@ -138,6 +138,35 @@ service_state() {
   fi
 }
 
+# radix_offline_support -> reads what "radix run -h" printed (stdin) and says whether that release
+# of Radix can run offline through Cortex (RADIX_CRAWL=cortex-offline: RADIX_CORTEX_MODE=offline):
+# "yes" when the flags of run include --cortex-mode, "no" when they are listed without it (a
+# release from before it would ignore the variable and CRAWL, through Cortex in mode cache),
+# "unknown" when the text lists no flags of run at all.
+radix_offline_support() {
+  local text
+  text="$(cat)"
+  if grep -qE '^[[:space:]]+--?cortex-mode([[:space:]]|$)' <<<"${text}"; then
+    printf 'yes'
+  elif grep -qxF 'Usage of run:' <<<"${text}"; then
+    printf 'no'
+  else
+    printf 'unknown'
+  fi
+}
+
+# radix_crawls STACK - true when the stack's Radix crawls: it runs the image's own "run" (no
+# arguments; offline it is "serve-snapshot") and is not told to read Cortex's store alone
+# (RADIX_CORTEX_MODE=offline, RADIX_CRAWL=cortex-offline). What swarm was told, not the file.
+radix_crawls() {
+  local args env
+  docker service inspect "$1_radix" >/dev/null 2>&1 || return 1
+  args="$(docker service inspect "$1_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
+  [[ -z "${args}" ]] || return 1
+  env="$(docker service inspect "$1_radix" --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' 2>/dev/null || true)"
+  ! grep -qxF 'RADIX_CORTEX_MODE=offline' <<<"${env}"
+}
+
 # radix_cortex_support -> reads what "radix run -h" printed (stdin) and says whether that release
 # of Radix fetches through Cortex when it is given RADIX_CORTEX_URL: "yes" when the flags of run
 # include --cortex, "no" when they are listed without it (a release from before Cortex: it ignores
@@ -330,7 +359,8 @@ instance_names() {
 }
 
 # load_instance NAME - reads stacks/NAME.env into INSTANCE_STACK, INSTANCE_HOST, INSTANCE_GATE and
-# INSTANCE_CRAWL. The file is read, never sourced: a value is data, whatever it looks like.
+# INSTANCE_CRAWL (on, off or cortex-offline: stacks/betula.yml says what each means). The file is
+# read, never sourced: a value is data, whatever it looks like.
 load_instance() {
   local name=$1 file line key value
   file="${STACKS_DIR}/${name}.env"
@@ -360,7 +390,10 @@ load_instance() {
   esac
   [[ "${INSTANCE_HOST}" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || die "${file}: APP_HOST '${INSTANCE_HOST}' is not a host name"
   [[ "${INSTANCE_GATE}" == "on" || "${INSTANCE_GATE}" == "off" ]] || die "${file}: FOLIA_ACCESS_GATE is '${INSTANCE_GATE}', not on or off"
-  [[ "${INSTANCE_CRAWL}" == "on" || "${INSTANCE_CRAWL}" == "off" ]] || die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on or off"
+  case "${INSTANCE_CRAWL}" in
+    on | off | cortex-offline) ;;
+    *) die "${file}: RADIX_CRAWL is '${INSTANCE_CRAWL}', not on, off or cortex-offline" ;;
+  esac
 }
 
 # Blue-green: two instances whose files name the same APP_HOST are two colours of one site
@@ -378,7 +411,8 @@ STANDBY_PRIORITY=2
 
 # The two colours of the canary that vps/canary-agent.sh alternates between when it brings a build
 # of master there (README.md section 12): the new release goes to the one that does not serve, and
-# the one that served is removed once the new one does. Both files have to say RADIX_CRAWL=off.
+# the one that served is removed once the new one does. Neither file may say RADIX_CRAWL=on: off
+# or cortex-offline (Cortex's store alone), never a second crawler of the public site's pages.
 CANARY_COLOURS=(canary canary-green)
 # Where those builds come from: the workflow .github/workflows/images.yml of this repository, runs
 # for a push to master. vps/60-canary.sh checks the token against it, canary-agent.sh polls it.

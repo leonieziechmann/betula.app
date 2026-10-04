@@ -7,8 +7,9 @@
 #     directly, as it did before Cortex, or
 #   - the swarm secret gemini-api-key exists (betula.gemini.yml): Gemini does not go through
 #     Cortex, so "scan-curriculum" and the summaries of the semantic search need the way out.
-# Offline (RADIX_CRAWL=off) Radix sends nothing, and never gets it. Docker has no allowlist per
-# host for a container's way out: while this file is deployed, Radix could reach any host.
+# Offline (RADIX_CRAWL=off or cortex-offline) Radix sends nothing out, and never gets it. Docker
+# has no allowlist per host for a container's way out: while this file is deployed, Radix could
+# reach any host.
 #
 # Left out on a later deploy, the service leaves the network again; the network object
 # <stack>_egress stays behind unused ("docker stack deploy --prune" only removes services).

@@ -23,9 +23,11 @@
 #      whose Radix crawls. The host's own sqlite3 (Ubuntu's, not a binary of the release) reads it
 #      read-only, as one transaction (VACUUM INTO), while that Radix writes on. Nothing of a new
 #      release ever opens the public site's database, so no migration can reach it.
-#   4. vps/45-seed.sh puts the copy into the colour's volume; vps/50-app.sh builds and exports the
-#      catalog with the new release (its migrations run on the copy, in a container without a
-#      network) and deploys the colour as the standby.
+#   4. vps/45-seed.sh puts the copy into the colour's volume; vps/50-app.sh deploys the colour as
+#      the standby, and the new release builds and exports the catalog from the copy (its
+#      migrations run on it): offline (RADIX_CRAWL=off) before, in a container without a network,
+#      and with RADIX_CRAWL=cortex-offline its Radix when it starts, which then runs its cycles on
+#      what Cortex has stored.
 #   5. Once its web server answers /healthz, vps/55-switch.sh hands the host over, and the agent
 #      waits until the new colour has settled and still answers.
 #   6. The colour that served before is removed with its volumes: canary keeps no backup. Images
@@ -149,9 +151,9 @@ check_setup() {
   for colour in "${CANARY_COLOURS[@]}"; do
     load_instance "${colour}"
     # The copy of the public site's database would make a crawling canary a second crawler of
-    # everything the public site's Radix fetches already.
-    [[ "${INSTANCE_CRAWL}" == "off" ]] ||
-      die "${colour}.env says RADIX_CRAWL=on: a canary seeded with the public site's data must never crawl (the public site's Radix does that). Set it to off"
+    # everything the public site's Radix fetches already. cortex-offline reads Cortex's store alone.
+    [[ "${INSTANCE_CRAWL}" != "on" ]] ||
+      die "${colour}.env says RADIX_CRAWL=on: a canary seeded with the public site's data must never crawl (the public site's Radix does that). Set it to off or cortex-offline"
     [[ "${INSTANCE_HOST}" != "${SITE_HOST}" ]] ||
       die "${colour}.env names ${SITE_HOST}, the public site: the canary colours need a host of their own"
     if [[ -z "${host}" ]]; then
@@ -313,7 +315,7 @@ fetch_images() {
 # instances of https://betula.app, the one whose Radix crawls (its data is the newest); when none
 # crawls, the one that serves. CANARY_SEED_FROM names another instance.
 seed_source() {
-  local name args
+  local name
   local -a crawling=()
   SEED_SOURCE=""
   if [[ -n "${CANARY_SEED_FROM:-}" ]]; then
@@ -328,10 +330,9 @@ seed_source() {
     ! is_canary_colour "${name}" || continue
     load_instance "${name}"
     [[ "${INSTANCE_HOST}" == "${SITE_HOST}" ]] || continue
-    docker service inspect "${name}_radix" >/dev/null 2>&1 || continue
-    args="$(docker service inspect "${name}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
-    # No arguments: the image's own "run", the Radix that crawls (offline it is "serve-snapshot").
-    if [[ -z "${args}" ]]; then
+    # The image's own "run", not told to read Cortex's store alone: the Radix that crawls
+    # (offline it is "serve-snapshot", radix_crawls in lib-stacks.sh).
+    if radix_crawls "${name}"; then
       crawling+=("${name}")
     fi
   done < <(instance_names)

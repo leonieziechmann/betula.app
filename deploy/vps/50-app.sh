@@ -10,8 +10,9 @@
 # An instance is a file stacks/<instance>.env: the name of its stack, its public host name,
 # whether the site asks for the password of closed testing (FOLIA_ACCESS_GATE) and whether Radix
 # fetches anything from the university (RADIX_CRAWL; off = it only serves the snapshot it has,
-# stacks/betula.offline.yml). Rollback = the previous tag again; it is still loaded
-# (docker image ls 'betula-*').
+# stacks/betula.offline.yml; cortex-offline = it runs its cycles on what Cortex has stored and
+# fetches nothing, stacks/betula.cortex-offline.yml). Rollback = the previous tag again; it is
+# still loaded (docker image ls 'betula-*').
 #
 # Idempotent: swarm only touches a service whose definition changed. Nothing is deployed unless
 # the images exist, the host name resolves to this machine (a router for a name that does not
@@ -28,8 +29,10 @@
 # sends what it fetches through Cortex. betula.egress.yml gives it a way out of its own only when
 # it crawls and Cortex does not run, or its release cannot fetch through Cortex (one from before
 # it, such as the previous tag of a rollback: the image is asked, "run -h"), or when the secret
-# gemini-api-key exists (Gemini does not go through Cortex); an offline Radix never has one.
-# Checked after the deploy on what swarm was told.
+# gemini-api-key exists (Gemini does not go through Cortex); an offline Radix (off, cortex-offline)
+# never has one. cortex-offline needs a Cortex that runs and a release that knows --cortex-mode;
+# without either, Radix is deployed off instead, with a WARN. Checked after the deploy on what
+# swarm was told.
 #
 # Environment (all optional):
 #   PUBLIC_ADDRESSES="..."  this machine's public addresses, if they are not on an interface (NAT)
@@ -48,6 +51,7 @@ APP_FILE="${STACKS_DIR}/betula.yml"
 GEMINI_FILE="${STACKS_DIR}/betula.gemini.yml"
 OFFLINE_FILE="${STACKS_DIR}/betula.offline.yml"
 CORTEX_FILE="${STACKS_DIR}/betula.cortex.yml"
+CORTEX_OFFLINE_FILE="${STACKS_DIR}/betula.cortex-offline.yml"
 EGRESS_FILE="${STACKS_DIR}/betula.egress.yml"
 GEMINI_SECRET="gemini-api-key"
 GATE_SECRET="folia-access-password"
@@ -61,6 +65,11 @@ CORTEX_WAIT=120
 # priority this instance's router is deployed with.
 SIBLINGS=()
 ROUTER_PRIORITY=""
+# Set by decide_radix_mode: what Radix is deployed as, the instance's RADIX_CRAWL as far as it
+# can be (on, off, cortex-offline; cortex-offline falls back to off), and cortex_running's
+# verdict, asked once (yes, no).
+RADIX_MODE=""
+CORTEX_RUNS=""
 # Set by deploy_app: on when Radix fetches through Cortex (betula.cortex.yml), on when it has a
 # way to the internet of its own (betula.egress.yml), and both in words for the report; whether
 # the release can fetch through Cortex (yes, no; empty when it was not asked: offline, or no
@@ -96,6 +105,50 @@ in_radix_volume() {
   return "${found}"
 }
 
+# radix_image_offline -> whether the release RADIX_IMAGE can read Cortex's store alone
+# (--cortex-mode, RADIX_CRAWL=cortex-offline): yes, no or unknown (radix_offline_support,
+# lib-stacks.sh). Asked as radix_image_cortex asks.
+radix_image_offline() {
+  { docker run --rm --network none --cap-drop ALL "${RADIX_IMAGE}" run -h 2>&1 || true; } | radix_offline_support
+}
+
+# decide_radix_mode - sets RADIX_MODE and CORTEX_RUNS. cortex-offline needs a Cortex that runs and
+# a release of Radix that knows --cortex-mode: one from before it would take RADIX_CORTEX_MODE for
+# nothing and crawl, through Cortex, in mode cache. Without either, Radix is deployed offline
+# (serve-snapshot) instead, and this says so: the site keeps its catalog, and a deploy once Cortex
+# runs (or with a newer release) moves it over.
+decide_radix_mode() {
+  step "Radix: RADIX_CRAWL=${INSTANCE_CRAWL}"
+  local support
+  RADIX_MODE="${INSTANCE_CRAWL}"
+  CORTEX_RUNS="no"
+  if cortex_running; then
+    CORTEX_RUNS="yes"
+  fi
+  if [[ "${INSTANCE_CRAWL}" != "cortex-offline" ]]; then
+    log "Cortex: ${CORTEX_DETAIL:-runs}"
+    return 0
+  fi
+  if [[ "${CORTEX_RUNS}" != "yes" ]]; then
+    warn "RADIX_CRAWL=cortex-offline, but Cortex does not run (${CORTEX_DETAIL}): Radix is deployed offline (serve-snapshot) instead. Once Cortex runs: bash ${BETULA_ROOT}/vps/50-app.sh ${INSTANCE_STACK}"
+    RADIX_MODE="off"
+    return 0
+  fi
+  support="$(radix_image_offline)"
+  case "${support}" in
+    yes)
+      log "Cortex runs (${CORTEX_DETAIL}), and release ${TAG} reads its store alone: Radix runs its cycles on what Cortex has and fetches nothing from the university"
+      ;;
+    no)
+      warn "RADIX_CRAWL=cortex-offline, but ${RADIX_IMAGE} is a release from before it (its run has no --cortex-mode): Radix is deployed offline (serve-snapshot) instead. A newer release reads Cortex's store (deploy/ship.sh ${INSTANCE_STACK})"
+      RADIX_MODE="off"
+      ;;
+    *)
+      die "cannot tell whether ${RADIX_IMAGE} can read Cortex's store alone: \"docker run --rm --network none ${RADIX_IMAGE} run -h\" does not list the flags of run. Nothing was deployed"
+      ;;
+  esac
+}
+
 # Offline, Radix only serves the snapshot it has, so there has to be one. A volume that was
 # seeded and never ran has a database and no snapshot: the snapshot is made from it here, in
 # containers without a network (build, validate and export read nothing but the database).
@@ -105,17 +158,17 @@ in_radix_volume() {
 ensure_snapshot() {
   step "Radix offline: a snapshot to serve"
   if ! docker volume inspect "${INSTANCE_STACK}_radix-data" >/dev/null 2>&1; then
-    die "RADIX_CRAWL=off, but instance ${INSTANCE_STACK} has no data: there is no volume ${INSTANCE_STACK}_radix-data. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed), or go online once (RADIX_CRAWL=on)"
+    die "Radix is to be offline, but instance ${INSTANCE_STACK} has no data: there is no volume ${INSTANCE_STACK}_radix-data. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed), or go online once (RADIX_CRAWL=on)"
   fi
   if in_radix_volume snapshot/current.json; then
     log "there is one in ${INSTANCE_STACK}_radix-data"
     return 0
   fi
   if docker service inspect "${INSTANCE_STACK}_radix" >/dev/null 2>&1; then
-    die "RADIX_CRAWL=off, but the Radix of ${INSTANCE_STACK} has not exported a snapshot yet. Let it finish its first cycle (docker service logs ${INSTANCE_STACK}_radix), then run this again"
+    die "Radix is to be offline, but the Radix of ${INSTANCE_STACK} has not exported a snapshot yet. Let it finish its first cycle (docker service logs ${INSTANCE_STACK}_radix), then run this again"
   fi
   in_radix_volume radix.db ||
-    die "RADIX_CRAWL=off, but ${INSTANCE_STACK}_radix-data holds neither a snapshot nor a database. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed)"
+    die "Radix is to be offline, but ${INSTANCE_STACK}_radix-data holds neither a snapshot nor a database. Seed it first (deploy/ship.sh ${INSTANCE_STACK} --seed)"
   log "none yet: building and exporting one from the seeded database (no network, a few minutes)"
   # Two runs: the image has no shell to chain them in one.
   docker run --rm --network none --cap-drop ALL -v "${INSTANCE_STACK}_radix-data:/data" "${RADIX_IMAGE}" \
@@ -127,9 +180,10 @@ ensure_snapshot() {
 }
 
 # check_siblings - another stack routed for this instance's host is only allowed as the other colour
-# of blue-green: an instance whose own file names the same host, at most one of the two crawling,
-# both closed or both open. Two Radix that crawl would ask the university for everything twice,
-# and a switch between the colours must not open or close the site. Sets SIBLINGS.
+# of blue-green: an instance whose own file names the same host, at most one of the two crawling
+# (RADIX_CRAWL=on; off and cortex-offline fetch nothing), both closed or both open. Two Radix that
+# crawl would ask the university for everything twice, and a switch between the colours must not
+# open or close the site. Sets SIBLINGS.
 check_siblings() {
   local other args
   local -a self=("${INSTANCE_STACK}" "${INSTANCE_HOST}" "${INSTANCE_GATE}" "${INSTANCE_CRAWL}")
@@ -142,14 +196,13 @@ check_siblings() {
     load_instance "${other}"
     [[ "${INSTANCE_HOST}" == "${self[1]}" ]] ||
       die "stack ${other} is routed for https://${self[1]}, but ${other}.env names ${INSTANCE_HOST}: bash ${BETULA_ROOT}/vps/50-app.sh ${other} first"
-    [[ "${self[3]}" == "off" || "${INSTANCE_CRAWL}" == "off" ]] ||
+    [[ "${self[3]}" != "on" || "${INSTANCE_CRAWL}" != "on" ]] ||
       die "stack ${other} serves https://${self[1]} already, and ${self[0]}.env and ${other}.env both say RADIX_CRAWL=on: two Radix that crawl would ask the university for everything twice. At most one colour crawls (README.md section 4)"
     # The file is a plan; what the other Radix runs is what counts. It stops crawling only once
-    # 50-app.sh has deployed its RADIX_CRAWL=off.
-    if [[ "${self[3]}" == "on" ]]; then
+    # 50-app.sh has deployed its RADIX_CRAWL=off (serve-snapshot) or cortex-offline.
+    if [[ "${self[3]}" == "on" ]] && radix_crawls "${other}"; then
       args="$(docker service inspect "${other}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
-      [[ "${args}" == serve-snapshot* ]] ||
-        die "${other}.env says RADIX_CRAWL=off, but ${other}_radix runs \"${args:-run}\" and still crawls: bash ${BETULA_ROOT}/vps/50-app.sh ${other} first"
+      die "${other}.env says RADIX_CRAWL=${INSTANCE_CRAWL}, but ${other}_radix runs \"${args:-run}\" and still crawls: bash ${BETULA_ROOT}/vps/50-app.sh ${other} first"
     fi
     [[ "${INSTANCE_GATE}" == "${self[2]}" ]] ||
       die "FOLIA_ACCESS_GATE is ${self[2]} in ${self[0]}.env and ${INSTANCE_GATE} in ${other}.env: switching between the two would open or close the site"
@@ -285,11 +338,12 @@ deploy_app() {
   # fetch would fail, so then a Radix that crawls fetches directly, with a way out (below). The
   # same for a release of Radix that cannot fetch through Cortex: it ignores RADIX_CORTEX_URL and
   # fetches directly, which behind internal networks alone fails, quietly, every cycle.
+  # cortex-offline came this far only with a Cortex that runs (decide_radix_mode).
   VIA_CORTEX="off"
   RADIX_SUPPORT=""
   local direct="no Cortex"
-  if cortex_running; then
-    if [[ "${INSTANCE_CRAWL}" == "on" ]]; then
+  if [[ "${CORTEX_RUNS}" == "yes" ]]; then
+    if [[ "${RADIX_MODE}" == "on" ]]; then
       RADIX_SUPPORT="$(radix_image_cortex)"
       [[ "${RADIX_SUPPORT}" == "yes" || "${RADIX_SUPPORT}" == "no" ]] ||
         die "cannot tell whether ${RADIX_IMAGE} fetches through Cortex: \"docker run --rm --network none ${RADIX_IMAGE} run -h\" does not list the flags of run. Nothing was deployed"
@@ -301,6 +355,10 @@ deploy_app() {
       VIA_CORTEX="on"
       log "the stack cortex runs (${CORTEX_DETAIL}): adding ${CORTEX_FILE##*/} (Radix fetches through Cortex)"
       files+=("${CORTEX_FILE}")
+      if [[ "${RADIX_MODE}" == "cortex-offline" ]]; then
+        log "RADIX_CRAWL=cortex-offline: adding ${CORTEX_OFFLINE_FILE##*/} (Radix asks Cortex for every page in mode offline: what it has stored, and nothing else)"
+        files+=("${CORTEX_OFFLINE_FILE}")
+      fi
     fi
   elif stack_exists cortex; then
     warn "the stack cortex is deployed but does not run (${CORTEX_DETAIL}): ${CORTEX_FILE##*/} is left out. Bring Cortex back (docker service ps --no-trunc cortex_a cortex_b; bash ${BETULA_ROOT}/vps/48-cortex.sh), then run this again"
@@ -311,11 +369,13 @@ deploy_app() {
   # without Cortex for everything, with Cortex for Gemini (Cortex is for data only). Offline it
   # sends nothing and gets none.
   WITH_EGRESS="off"
-  if [[ "${INSTANCE_CRAWL}" == "on" && ( "${VIA_CORTEX}" == "off" || "${gemini}" == "yes" ) ]]; then
+  if [[ "${RADIX_MODE}" == "on" && ( "${VIA_CORTEX}" == "off" || "${gemini}" == "yes" ) ]]; then
     WITH_EGRESS="on"
   fi
-  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+  if [[ "${RADIX_MODE}" == "off" ]]; then
     RADIX_WAYS="is offline and has no way to the internet"
+  elif [[ "${RADIX_MODE}" == "cortex-offline" ]]; then
+    RADIX_WAYS="reads Cortex's store alone (offline) and has no way to the internet"
   elif [[ "${VIA_CORTEX}" == "off" ]]; then
     RADIX_WAYS="fetches from the university directly, through ${INSTANCE_STACK}_egress (${direct})"
   elif [[ "${WITH_EGRESS}" == "on" ]]; then
@@ -329,9 +389,9 @@ deploy_app() {
   else
     log "${EGRESS_FILE##*/} is left out: Radix ${RADIX_WAYS}"
   fi
-  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+  if [[ "${RADIX_MODE}" == "off" ]]; then
     # Last, so that its command and its health URL win over the files before it.
-    log "RADIX_CRAWL=off: adding ${OFFLINE_FILE##*/} (Radix sends nothing to the university and serves the snapshot it has)"
+    log "Radix offline: adding ${OFFLINE_FILE##*/} (Radix sends nothing to the university and serves the snapshot it has)"
     files+=("${OFFLINE_FILE}")
   fi
   # Substituted into the stack files by "docker stack deploy".
@@ -353,13 +413,14 @@ deploy_app() {
   [[ "${priority}" == "${ROUTER_PRIORITY}" ]] ||
     die "the router of ${INSTANCE_STACK}_folia was given the priority '${priority}' instead of ${ROUTER_PRIORITY}: look at the priority label of ${APP_FILE}"
   # The same for the promise that matters to somebody else: offline means that swarm starts
-  # "serve-snapshot", online that it starts the image's own "run".
+  # "serve-snapshot", online that it starts the image's own "run", and cortex-offline the same
+  # "run" told to read Cortex's store alone.
   local args
   args="$(docker service inspect "${INSTANCE_STACK}_radix" --format '{{join .Spec.TaskTemplate.ContainerSpec.Args " "}}' 2>/dev/null || true)"
-  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
-    [[ "${args}" == serve-snapshot* ]] || die "RADIX_CRAWL=off, but ${INSTANCE_STACK}_radix was given the command \"${args:-run}\": it would crawl. Look at ${OFFLINE_FILE}"
+  if [[ "${RADIX_MODE}" == "off" ]]; then
+    [[ "${args}" == serve-snapshot* ]] || die "Radix offline, but ${INSTANCE_STACK}_radix was given the command \"${args:-run}\": it would crawl. Look at ${OFFLINE_FILE}"
   else
-    [[ -z "${args}" ]] || die "RADIX_CRAWL=on, but ${INSTANCE_STACK}_radix was given the command \"${args}\" instead of the run of the image"
+    [[ -z "${args}" ]] || die "RADIX_CRAWL=${RADIX_MODE}, but ${INSTANCE_STACK}_radix was given the command \"${args}\" instead of the run of the image"
   fi
   # And that the models reached both services when they are in the store, and nothing else.
   local env want
@@ -382,6 +443,11 @@ deploy_app() {
   if [[ "${VIA_CORTEX}" == "on" ]]; then want="${CORTEX_URL}"; fi
   [[ "$(sed -n 's#^RADIX_CORTEX_URL=##p' <<<"${env}")" == "${want}" ]] ||
     die "service ${INSTANCE_STACK}_radix was not given RADIX_CORTEX_URL=${want:-(none)}: look at ${CORTEX_FILE}"
+  # cortex-offline: without the mode the same "run" would crawl, through Cortex.
+  want=""
+  if [[ "${RADIX_MODE}" == "cortex-offline" ]]; then want="offline"; fi
+  [[ "$(sed -n 's#^RADIX_CORTEX_MODE=##p' <<<"${env}")" == "${want}" ]] ||
+    die "service ${INSTANCE_STACK}_radix was not given RADIX_CORTEX_MODE=${want:-(none)}: look at ${CORTEX_OFFLINE_FILE}"
   local name internal egress="off" attached=""
   while read -r name internal; do
     [[ -n "${name}" ]] || continue
@@ -415,13 +481,18 @@ report() {
   if [[ "${INSTANCE_GATE}" == "on" ]]; then
     log "https://${INSTANCE_HOST} asks for the access password (closed testing)"
   fi
-  if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+  if [[ "${RADIX_MODE}" == "off" ]]; then
     log "Radix is offline: nothing is fetched from the university, the catalog stays as it was exported (RADIX_CRAWL=on in ${INSTANCE_STACK}.env brings it back)"
+  elif [[ "${RADIX_MODE}" == "cortex-offline" ]]; then
+    log "Radix reads Cortex's store alone: its cycles take what Cortex has (what a colour that crawls fetched through it, and what radix seed-cortex gave it), a page Cortex lacks waits for the next cycle, and nothing is fetched from the university"
   else
     log "a Radix without a snapshot needs a cycle for its first one (minutes with a seeded database, hours without); until then the site says that the catalog is not available yet"
   fi
+  if [[ "${RADIX_MODE}" != "${INSTANCE_CRAWL}" ]]; then
+    warn "${INSTANCE_STACK}.env says RADIX_CRAWL=${INSTANCE_CRAWL}, and Radix was deployed ${RADIX_MODE} (above: why)"
+  fi
   log "Radix ${RADIX_WAYS}"
-  if [[ "${INSTANCE_CRAWL}" == "on" && "${VIA_CORTEX}" == "off" ]] && ! stack_exists cortex; then
+  if [[ "${RADIX_MODE}" == "on" && "${VIA_CORTEX}" == "off" ]] && ! stack_exists cortex; then
     log "once Cortex runs (deploy/ship-cortex.sh), run this again: Radix then fetches through it, with a way out of its own only while the secret ${GEMINI_SECRET} exists"
   elif [[ "${RADIX_SUPPORT}" == "no" ]]; then
     warn "${RADIX_IMAGE} cannot fetch through Cortex, so Radix has a way to the internet of its own: a release from after Cortex (deploy/ship.sh ${INSTANCE_STACK}) fetches through it"
@@ -459,7 +530,8 @@ RADIX_IMAGE="betula-radix:${TAG}"
 FOLIA_IMAGE="betula-folia:${TAG}"
 
 preflight
-if [[ "${INSTANCE_CRAWL}" == "off" ]]; then
+decide_radix_mode
+if [[ "${RADIX_MODE}" == "off" ]]; then
   ensure_snapshot
 fi
 deploy_app
