@@ -528,11 +528,11 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, past: bool) -> imp
         let row = row.get()?;
         let earlier = row.earlier.map(|to| {
             let go = go.clone();
-            view! { <button class="icon-btn st-act hit" type="button" title=(s.earlier)(&to.label(t.locale)) aria-label=(s.earlier)(&to.label(t.locale)) on:click=move |_| go(to)><Icon name="chevron-up"/></button> }
+            view! { <button class="icon-btn st-act hit" type="button" title=(s.earlier)(&to.label(t.locale)) aria-label=(s.earlier)(&to.label(t.locale)) on:click=move |_| go(to)><Icon name="arrow-up"/></button> }
         });
         let later = row.later.map(|to| {
             let go = go.clone();
-            view! { <button class="icon-btn st-act hit" type="button" title=(s.later)(&to.label(t.locale)) aria-label=(s.later)(&to.label(t.locale)) on:click=move |_| go(to)><Icon name="chevron-down"/></button> }
+            view! { <button class="icon-btn st-act hit" type="button" title=(s.later)(&to.label(t.locale)) aria-label=(s.later)(&to.label(t.locale)) on:click=move |_| go(to)><Icon name="arrow-down"/></button> }
         });
         let reset = row.reset.then(|| view! { <button class="icon-btn st-act hit" type="button" title=s.reset aria-label=s.reset on:click=back.clone()><Icon name="rotate-ccw"/></button> });
         let out = row.remove.then(|| view! { <button class="icon-btn st-act hit" type="button" title=s.remove aria-label=s.remove on:click=remove.clone()><Icon name="x"/></button> });

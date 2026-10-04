@@ -13,6 +13,7 @@ pub const SPRITE: &str = "/assets/icons.svg";
 
 /// Every icon: its name and its inner SVG markup (24×24, stroked with `currentColor`).
 pub const ICONS: &[(&str, &str)] = &[
+    ("arrow-down", r#"<path d="M12 5v14"/> <path d="m19 12-7 7-7-7"/>"#),
     ("arrow-down-up", r#"<path d="m3 16 4 4 4-4"/> <path d="M7 20V4"/> <path d="m21 8-4-4-4 4"/> <path d="M17 4v16"/>"#),
     ("arrow-left", r#"<path d="m12 19-7-7 7-7"/> <path d="M19 12H5"/>"#),
     ("arrow-right", r#"<path d="M5 12h14"/> <path d="m12 5 7 7-7 7"/>"#),
@@ -34,7 +35,6 @@ pub const ICONS: &[(&str, &str)] = &[
     ("chevron-down", r#"<path d="m6 9 6 6 6-6"/>"#),
     ("chevron-left", r#"<path d="m15 18-6-6 6-6"/>"#),
     ("chevron-right", r#"<path d="m9 18 6-6-6-6"/>"#),
-    ("chevron-up", r#"<path d="m18 15-6-6-6 6"/>"#),
     ("chevrons-up-down", r#"<path d="m7 15 5 5 5-5"/> <path d="m7 9 5-5 5 5"/>"#),
     ("circle-check-big", r#"<path d="M21.801 10A10 10 0 1 1 17 3.335"/> <path d="m9 11 3 3L22 4"/>"#),
     ("clock-3", r#"<circle cx="12" cy="12" r="10"/> <polyline points="12 6 12 12 16.5 12"/>"#),
