@@ -3,8 +3,9 @@
 //! what is planned (`studyplan::import_fs`; „Plan leeren" empties). A program with several plans
 //! has a select for the plan; the Fachsemester starts at the first one of the current semester's
 //! half of the year. The second source is „Mein Studium" (owner, 2026-10-04: „der Regelstudienplan
-//! ist ja eine Illusion"): the semester shown as the visitor's study has it, what is left over from
-//! the semesters before it first and what is due in it (`crate::study::current_import`).
+//! ist ja eine Illusion"): its Wiederholer, what was not passed and is not planned again
+//! (`crate::study::current_import`). What „Mein Studium" plans into a semester is that semester's
+//! timetable already: the two pages share one plan.
 //!
 //! „Übernehmen" answers at once and writes after the next frame (R21): the modules and
 //! placeholders, the program with them, and „Mein Studiengang" where none is set yet. „Übernommen:
@@ -244,9 +245,10 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
         let (url, current) = (address.get(), ctx.current.get());
         let mine = ctx.mine.map(|mine| mine.with(Clone::clone)).unwrap_or_default();
         let doc = ctx.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
-        let semester = key_of(&url, current, &doc, ctx.today);
+        let now = key_of(&url, current, &doc, ctx.today);
+        let semester = ctx.key.get();
         mine_plans.with(|plans| match plans {
-            Plans::Found(source) => crate::study::current_import(source, &mine, &doc, semester).map(|import| adds_of(&import, t)),
+            Plans::Found(source) => crate::study::current_import(source, &mine, &doc, semester, now).map(|import| adds_of(&import, t)),
             _ => None,
         })
     });
@@ -305,6 +307,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
         }
         busy.set(true);
         let semester = ctx.key.get_untracked();
+        let now = key_of(&Default::default(), ctx.current.get_untracked(), &PlanDoc::default(), ctx.today);
         let (plan, mine, undo) = (ctx.plan, ctx.mine, ctx.undo);
         nav::after_paint(move || {
             if let (Some(plan), Some(mine)) = (plan, mine) {
@@ -313,7 +316,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                     let Plans::Found(source) = plans else { return None };
                     Some(plan.update(|doc| {
                         let before = doc.clone();
-                        let import = crate::study::current_import(source, &mine, doc, semester).unwrap_or_default();
+                        let import = crate::study::current_import(source, &mine, doc, semester, now).unwrap_or_default();
                         let (modules, placeholders) = doc.apply(&import, now_secs());
                         (imported_note(modules, placeholders, t), before)
                     }))

@@ -113,7 +113,7 @@ for (const slow of [1, 4]) {
   // „Studium" is „Mein Studium" first (owner, 2026-10-04), the overview one link away.
   await watch(page, "the rail: Studium" + tag, click(page, '.rail a.nav[data-area="programs"]'), {
     feedback: () => document.querySelector('.rail a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page" && document.querySelector(".crumb h1")?.textContent === "Mein Studium",
-    result: () => location.pathname === "/study" && document.querySelector(".st-welcome"),
+    result: () => location.pathname === "/study" && document.querySelector(".st-setup"),
     skeleton: true,
   }, slow);
   await watch(page, "all programs" + tag, click(page, '#sidebar a[href="/programs"]'), {
@@ -188,7 +188,7 @@ for (const slow of [1, 4]) {
   if (slow > 1) await (await phone.newCDPSession(small)).send("Emulation.setCPUThrottlingRate", { rate: slow });
   await watch(small, "phone: the bottom bar" + tag, tap(small, '.bottomnav a.nav[data-area="programs"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page",
-    result: () => location.pathname === "/study" && document.querySelector(".st-welcome"),
+    result: () => location.pathname === "/study" && document.querySelector(".st-setup"),
     skeleton: true,
   }, slow);
   await watch(small, "phone: back to the catalog" + tag, tap(small, '.bottomnav a.nav[data-area="catalog"]'), {

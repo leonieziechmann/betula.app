@@ -107,6 +107,39 @@ impl MyProgram {
         self.change(|doc| doc.start = start);
     }
 
+    /// „Mein Studium" set up at once (its first visit, „Studiengang wechseln"): the program as
+    /// `set_program` takes it, and the Studienbeginn.
+    pub fn set_study(self, id: &str, name: &str, caption: &str, direction: Option<&str>, start: SemesterKey) {
+        if !url::is_program_id(id) {
+            return;
+        }
+        self.change(|doc| {
+            doc.program = Some(id.to_string());
+            doc.name = Some(name.to_string()).filter(|name| !name.trim().is_empty());
+            doc.caption = Some(caption.to_string());
+            doc.direction = direction.map(str::to_string);
+            doc.start = Some(start);
+        });
+    }
+
+    /// Semester `s` as a semester of leave („Urlaubssemester"), which counts as no Fachsemester,
+    /// or as one of study again. No more than `studyplan::MAX_SEMESTERS` of them.
+    pub fn set_leave(self, s: SemesterKey, leave: bool) {
+        self.change(|doc| {
+            if !leave {
+                doc.leave.remove(&s);
+            } else if doc.leave.len() < folia_plans::studyplan::MAX_SEMESTERS {
+                doc.leave.insert(s);
+            }
+        });
+    }
+
+    /// The last semester of the study, where the student added semesters beyond the
+    /// Regelstudienzeit („Semester anfügen"); `None`: where the plan and the semesters planned end.
+    pub fn set_until(self, until: Option<SemesterKey>) {
+        self.change(|doc| doc.until = until);
+    }
+
     pub fn set_town(self, town: TownChoice) {
         self.change(|doc| doc.town = town);
     }

@@ -7,7 +7,8 @@ pub struct Texts {
     pub source: &'static str,
     /// … „Regelstudienplan" …
     pub standard_plan: &'static str,
-    /// … and „Mein Studium", with what it takes over as its tooltip and the line under it …
+    /// … and „Mein Studium" (its Wiederholer: what its semesters hold is this timetable already),
+    /// with what it takes over as its tooltip and the line under it …
     pub my_studies: &'static str,
     pub my_studies_hint: &'static str,
     /// … where no program is kept, or the study begins after the semester shown …
@@ -43,7 +44,7 @@ pub const DE: Texts = Texts {
     source: "Quelle",
     standard_plan: "Regelstudienplan",
     my_studies: "Mein Studium",
-    my_studies_hint: "Dieses Semester aus „Mein Studium“: zuerst, was nachzuholen ist, dann, was laut Plan fällig ist.",
+    my_studies_hint: "Deine Wiederholer aus „Mein Studium“: was du nicht bestanden und noch nicht wieder eingeplant hast. Was du dort planst, steht schon in diesem Stundenplan.",
     no_studies: "Wähle zuerst in „Mein Studium“ deinen Studiengang.",
     study_not_yet: "„Mein Studium“ beginnt erst nach diesem Semester.",
     to_studies: "Zu „Mein Studium“ →",
@@ -64,7 +65,7 @@ pub const EN: Texts = Texts {
     source: "Source",
     standard_plan: "Standard study plan",
     my_studies: "My studies",
-    my_studies_hint: "This semester from \u{201c}My studies\u{201d}: first what is left to catch up on, then what the plan says is due.",
+    my_studies_hint: "Your retakes from \u{201c}My studies\u{201d}: what you have not passed and not planned again. What you plan there is in this timetable already.",
     no_studies: "Choose your degree programme in \u{201c}My studies\u{201d} first.",
     study_not_yet: "\u{201c}My studies\u{201d} begins after this semester.",
     to_studies: "To \u{201c}My studies\u{201d} →",

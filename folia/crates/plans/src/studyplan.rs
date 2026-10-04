@@ -114,6 +114,9 @@ type Shape<'a> = (Option<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, 
 /// („Nur diesen"): of the choice that holds the row, only the option with it is shown. A choice
 /// whose row QIS changed no longer matches, and the choice is open again, the safe direction.
 ///
+/// The `m` and `p` lines are the semesters of „Mein Studium" as well (`study`): a semester's
+/// timetable is its part of the study, one plan for both pages.
+///
 /// `d` and `q` are what „Mein Studium" counts as done (`study`, owner 2026-10-04): a module passed
 /// („bestanden") and a row of a Regelstudienplan without a module that is done („erledigt"), each
 /// with the semester it was done in. They belong to no timetable: „Plan leeren" leaves them, and a
@@ -470,7 +473,7 @@ impl PlanDoc {
     }
 
     /// Marks a planned module as taken over from the Regelstudienplan.
-    fn mark_from_plan(&mut self, s: SemesterKey, id: &str) {
+    pub(crate) fn mark_from_plan(&mut self, s: SemesterKey, id: &str) {
         if let Some(m) = self.modules.iter_mut().find(|m| m.semester == s && m.module_id == id) {
             m.from_plan = true;
         }
@@ -654,99 +657,6 @@ impl PlanDoc {
         self.done_rows.retain(|row| !(row.program_id == program_id && row.ord == ord));
     }
 
-    /// Places a module into semester `to` as its one semester from `now` on: what „Mein Studium"
-    /// does when a module is moved („früher", „später") or taken into the timetable. The line it
-    /// had there already, or the first one from `now` on, keeps when it was planned, what it counts
-    /// for and whether the Regelstudienplan placed it; a module planned anew gets `at` and
-    /// `from_plan`. The semesters before `now` keep it: they are what happened. `false` when
-    /// nothing changed: the semester is past, the id is no module id, it is there alone already,
-    /// or there is no room (`plan`'s caps).
-    pub fn place(&mut self, id: &str, to: SemesterKey, now: SemesterKey, at: u64, from_plan: bool) -> bool {
-        if to < now || !url::is_module_id(id) {
-            return false;
-        }
-        let later: Vec<&Planned> = self.modules.iter().filter(|m| m.module_id == id && m.semester >= now).collect();
-        if let [only] = later.as_slice() {
-            if only.semester == to {
-                return false;
-            }
-        }
-        let kept = later.iter().find(|m| m.semester == to).or(later.first()).map(|m| (m.at, m.fills, m.from_plan));
-        let there = later.iter().any(|m| m.semester == to);
-        // Room in `to` is asked before anything is taken out, so a refused move changes nothing.
-        let leaving = later.iter().filter(|m| m.semester != to).count();
-        let here = self.modules.iter().filter(|m| m.semester == to).count();
-        if !there && (here >= MAX_MODULES || self.modules.len() - leaving >= MAX_PLANNED || !self.admits(to)) {
-            return false;
-        }
-        let (at, fills, from_plan) = kept.unwrap_or((at, None, from_plan));
-        let gone: Vec<SemesterKey> = later.iter().map(|m| m.semester).filter(|s| *s != to).collect();
-        for s in gone {
-            self.unplan(s, id, &[]);
-        }
-        if !there {
-            self.plan(to, id, at, fills);
-        }
-        if from_plan {
-            self.mark_from_plan(to, id);
-        }
-        true
-    }
-
-    /// Takes a module out of every semester from `now` on, so that „Mein Studium" places it by
-    /// its rule again (`study`). The semesters before `now` keep it.
-    pub fn unplace(&mut self, id: &str, now: SemesterKey) {
-        let gone: Vec<SemesterKey> = self.modules.iter().filter(|m| m.module_id == id && m.semester >= now).map(|m| m.semester).collect();
-        for s in gone {
-            self.unplan(s, id, &[]);
-        }
-    }
-
-    /// Places a plan row as its one placeholder from `now` on, in the semester of `template` (a
-    /// placeholder of the row there; its pid is given here). The row's placeholder in that
-    /// semester, else its first one from `now` on, stays with its pid and moves there; the others
-    /// from `now` on go, and what counted for them counts for the one that stays. `false` when
-    /// nothing changed or there is no room.
-    pub fn place_row(&mut self, template: Placeholder, now: SemesterKey) -> bool {
-        let to = template.semester;
-        if to < now {
-            return false;
-        }
-        let row: Vec<(u32, SemesterKey)> =
-            self.placeholders.iter().filter(|p| p.program_id == template.program_id && p.ord == template.ord && p.semester >= now).map(|p| (p.pid, p.semester)).collect();
-        if let [(_, only)] = row.as_slice() {
-            if *only == to {
-                return false;
-            }
-        }
-        let Some(kept) = row.iter().find(|(_, s)| *s == to).or(row.first()).map(|(pid, _)| *pid) else {
-            let pid = self.next_pid();
-            return self.add_placeholder(Placeholder { pid, ..template });
-        };
-        if !row.iter().any(|(_, s)| *s == to) && !self.admits(to) {
-            return false;
-        }
-        for (other, _) in row.iter().filter(|(pid, _)| *pid != kept) {
-            for m in self.modules.iter_mut().filter(|m| m.fills == Some(*other)) {
-                m.fills = Some(kept);
-            }
-            self.placeholders.retain(|p| p.pid != *other);
-        }
-        if let Some(p) = self.placeholders.iter_mut().find(|p| p.pid == kept) {
-            p.semester = to;
-        }
-        true
-    }
-
-    /// Takes a plan row's placeholders out of every semester from `now` on (what counted for them
-    /// counts for nothing), so that „Mein Studium" places the row by its rule again.
-    pub fn unplace_row(&mut self, program_id: &str, ord: i64, now: SemesterKey) {
-        let gone: Vec<u32> = self.placeholders.iter().filter(|p| p.program_id == program_id && p.ord == ord && p.semester >= now).map(|p| p.pid).collect();
-        for pid in gone {
-            self.remove_placeholder(pid);
-        }
-    }
-
     /// Empties the timetable of semester `s` („Plan leeren"): its modules and placeholders (what
     /// counted for them elsewhere counts for nothing), what it hides and has chosen. The other
     /// semesters stay, and so do the program, what was passed or done, the code of the
@@ -872,7 +782,7 @@ impl PlanDoc {
 
     /// Adds a placeholder in pid order, when it is valid, its pid is new, its plan row has none in
     /// its semester yet, and the caps allow it.
-    fn add_placeholder(&mut self, p: Placeholder) -> bool {
+    pub(crate) fn add_placeholder(&mut self, p: Placeholder) -> bool {
         let valid = (1..=url::MAX_PID).contains(&p.pid)
             && url::is_program_id(&p.program_id)
             && (1..=MAX_ORD).contains(&p.ord)
@@ -941,11 +851,15 @@ impl PlanDoc {
 /// name  Elektrotechnik B.Sc. · PO 2022
 /// caption  Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium
 /// start  2026W
+/// leave  2026S 2027W
+/// until  2029S
 /// town  cottbus
 /// ```
 ///
-/// Every line is optional and the first valid one of a key wins; keys this build does not know are
-/// kept and written back.
+/// `leave` are the semesters of leave („Urlaubssemester"), which count as no Fachsemester, and
+/// `until` the last semester of the study where the student added semesters beyond the
+/// Regelstudienzeit („Semester anfügen", `study`). Every line is optional and the first valid one
+/// of a key wins; keys this build does not know are kept and written back.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MineDoc {
     /// `program.id`, never the slug (which changes on a collision).
@@ -959,13 +873,17 @@ pub struct MineDoc {
     /// plan, when one was chosen.
     pub direction: Option<String>,
     pub start: Option<SemesterKey>,
+    /// The semesters of leave, at most `MAX_SEMESTERS`.
+    pub leave: BTreeSet<SemesterKey>,
+    /// The last semester of the study, where it was set beyond the Regelstudienzeit.
+    pub until: Option<SemesterKey>,
     /// `Derive` is not stored: the town then follows from the plan.
     pub town: TownChoice,
     pub extra: Vec<(String, String)>,
 }
 
 impl MineDoc {
-    const KEYS: [&'static str; 6] = ["program", "name", "caption", "direction", "start", "town"];
+    const KEYS: [&'static str; 8] = ["program", "name", "caption", "direction", "start", "leave", "until", "town"];
 
     /// „Mein Studiengang" of a stored text, read up to `MAX_MINE` bytes. Never fails.
     pub fn restored(text: &str) -> Self {
@@ -1002,6 +920,16 @@ impl MineDoc {
                         doc.start = SemesterKey::parse(value);
                     }
                 }
+                "leave" => {
+                    if doc.leave.is_empty() {
+                        doc.leave = value.split_whitespace().filter_map(SemesterKey::parse).take(MAX_SEMESTERS).collect();
+                    }
+                }
+                "until" => {
+                    if doc.until.is_none() {
+                        doc.until = SemesterKey::parse(value);
+                    }
+                }
                 "town" => {
                     if town.is_none() {
                         town = town_of_code(value);
@@ -1018,8 +946,8 @@ impl MineDoc {
         doc
     }
 
-    /// „Mein Studiengang" cleared: the program and its plan go; the Studienbeginn and the town
-    /// stay, since they are the student's whatever the program.
+    /// „Mein Studiengang" cleared: the program and its plan go; the Studienbeginn, the semesters of
+    /// leave, the end and the town stay, since they are the student's whatever the program.
     pub fn clear_program(&mut self) {
         self.program = None;
         self.name = None;
@@ -1044,6 +972,13 @@ impl MineDoc {
         }
         if let Some(start) = self.start {
             let _ = writeln!(out, "start\t{}", start.key());
+        }
+        if !self.leave.is_empty() {
+            let keys: Vec<String> = self.leave.iter().take(MAX_SEMESTERS).map(|s| s.key()).collect();
+            let _ = writeln!(out, "leave\t{}", keys.join(" "));
+        }
+        if let Some(until) = self.until {
+            let _ = writeln!(out, "until\t{}", until.key());
         }
         if let Some(town) = town_code(self.town) {
             let _ = writeln!(out, "town\t{town}");
@@ -2125,43 +2060,6 @@ mod tests {
     }
 
     #[test]
-    fn a_module_and_a_row_are_placed_from_now_on() {
-        let (w, s, w2) = (key("2026W"), key("2027S"), key("2027W"));
-        let mut doc = PlanDoc::default();
-        // Tried in the winter and planned for the summer, placed into the next winter from the
-        // summer on: the winter stays, the summer's line moves with what it knew.
-        assert!(doc.plan(w, "11001", 1, None));
-        assert!(doc.plan(s, "11001", 2, None));
-        doc.mark_from_plan(s, "11001");
-        assert!(doc.place("11001", w2, s, 9, false));
-        assert_eq!(doc.planned_in("11001"), [w, w2]);
-        let moved = doc.modules.iter().find(|m| m.semester == w2).unwrap();
-        assert_eq!((moved.at, moved.from_plan), (2, true));
-        assert!(!doc.place("11001", w2, s, 9, false), "there alone already");
-        assert!(!doc.place("11001", w, s, 9, false), "the past stays as it was");
-        assert!(doc.place("12104", s, s, 9, true));
-        assert_eq!(doc.modules.iter().find(|m| m.module_id == "12104").map(|m| (m.at, m.from_plan)), Some((9, true)));
-        doc.unplace("11001", s);
-        assert_eq!(doc.planned_in("11001"), [w]);
-
-        // A row in two semesters with a module for the second: placed into one, and the module
-        // counts for the placeholder that stays.
-        let p = |semester| Placeholder { semester, ord: 7, span: (3, 4), ..placeholder() };
-        assert_eq!(doc.apply(&with_placeholders(vec![p(s), p(w2)]), 0), (0, 2));
-        assert!(doc.plan(w2, "12107", 3, Some(2)));
-        assert!(doc.place_row(p(key("2028S")), s));
-        assert_eq!(doc.placeholders.iter().map(|p| (p.pid, p.semester)).collect::<Vec<_>>(), [(1, key("2028S"))]);
-        assert_eq!(doc.modules.iter().find(|m| m.module_id == "12107").and_then(|m| m.fills), Some(1));
-        assert!(!doc.place_row(p(key("2028S")), s), "there alone already");
-        doc.unplace_row("079-82-2008", 7, s);
-        assert!(doc.placeholders.is_empty());
-        assert_eq!(doc.modules.iter().find(|m| m.module_id == "12107").and_then(|m| m.fills), None);
-        // A row without a placeholder gets one.
-        assert!(doc.place_row(p(s), s));
-        assert_eq!(doc.placeholders.iter().map(|p| (p.pid, p.semester)).collect::<Vec<_>>(), [(1, s)]);
-    }
-
-    #[test]
     fn a_choice_replaces_the_one_before() {
         let w = key("2026W");
         let mut doc = PlanDoc::default();
@@ -2432,11 +2330,20 @@ mod tests {
                 caption: Some("Regelstudienplan der Studienrichtungen MIT und EET im grundständigen Studium".to_string()),
                 direction: None,
                 start: Some(key("2026W")),
+                leave: BTreeSet::new(),
+                until: None,
                 town: TownChoice::Only(Town::Cottbus),
                 extra: Vec::new(),
             }
         );
         assert_eq!(doc.stored(), MINE);
+        // Semesters of leave and the last semester, kept when the program goes.
+        let mut away = MineDoc::restored(&format!("{MINE}leave\t2027W 2027S x 2027S\nuntil\t2031S\n"));
+        assert_eq!((away.leave.iter().map(|s| s.key()).collect::<Vec<_>>(), away.until), (vec!["2027S".to_string(), "2027W".to_string()], Some(key("2031S"))));
+        assert!(away.stored().ends_with("start\t2026W\nleave\t2027S 2027W\nuntil\t2031S\ntown\tcottbus\n"));
+        assert_eq!(MineDoc::restored(&away.stored()), away);
+        away.clear_program();
+        assert_eq!(away.stored(), "start\t2026W\nleave\t2027S 2027W\nuntil\t2031S\ntown\tcottbus\n");
         let mut cleared = doc.clone();
         cleared.clear_program();
         assert_eq!(cleared.stored(), "start	2026W

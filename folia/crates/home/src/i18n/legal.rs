@@ -269,9 +269,9 @@ pub const DE: Texts = Texts {
         kept: &[
             "deine Merkliste,",
             "deinen Stundenplan mit geplanten Modulen, Platzhaltern, Ausgeblendetem und ausgewählten Terminen, deine gespeicherten Pläne und die Adressen deiner Kalender-Abos,",
-            "„Mein Studiengang“ mit Studienrichtung, Studienbeginn und Standort,",
+            "„Mein Studiengang“ mit Studienrichtung, Studienbeginn, Urlaubssemestern und Standort,",
             "„Mein Studium“ mit den Modulen, die du als bestanden abhakst, und den Semestern, in die du Module legst,",
-            "Einstellungen, etwa die Sprache (beim ersten Besuch die deines Browsers), hell oder dunkel, die Breite der Seitenleisten und was „Passt in meinen Stundenplan“ vergleicht,",
+            "Einstellungen, etwa die Sprache (beim ersten Besuch die deines Browsers), hell oder dunkel, die Breite der Seitenleisten, die Ansicht der Semester in „Mein Studium“ und was „Passt in meinen Stundenplan“ vergleicht,",
             "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst und wie weit du gescrollt hast,",
             "eine Kopie des Katalogs, das Sprachmodell der Suche (sie läuft ganz in deinem Browser), die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert.",
         ],
@@ -423,9 +423,9 @@ pub const EN: Texts = Texts {
         kept: &[
             "your saved modules,",
             "your timetable with planned modules, placeholders, what you have hidden and the dates you have selected, your saved plans and the addresses of your calendar subscriptions,",
-            "“My programme” with study track, start of studies and location,",
+            "“My programme” with study track, start of studies, semesters of leave and location,",
             "“My studies” with the modules you tick off as passed and the semesters you put modules into,",
-            "settings, such as the language (on your first visit, your browser's), light or dark, the width of the sidebars and what “Fits my timetable” compares,",
+            "settings, such as the language (on your first visit, your browser's), light or dark, the width of the sidebars, the view of the semesters in “My studies” and what “Fits my timetable” compares,",
             "for the current browser session, where you last were in each area and how far you had scrolled,",
             "a copy of the catalogue, the language model of the search (it runs entirely in your browser), the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline.",
         ],

@@ -49,7 +49,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   // The frame: on every page a sidebar exactly where the catalog has its filter panel.
   const frame = await box(page, "#filters");
   // „Studium" is „Mein Studium" first (owner, 2026-10-04); the overview is one link away.
-  await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-welcome"));
+  await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-setup"));
   await step("programs", () => page.click('#sidebar a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), `programs: the sidebar is at ${await box(page, "#sidebar")}, the filter panel was at ${frame}`);
 
@@ -280,7 +280,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   const listed = await page.evaluate(() => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")));
   check(listed === counted && listed > 50, `all modules: the catalog lists ${listed} modules of the program, its head counts ${counted}`);
   // The old address of „Mein Plan" goes on to „Mein Studium", in the same history entry.
-  await step("Mein Plan goes on to Mein Studium", () => page.evaluate(() => { const a = document.createElement("a"); a.href = "/programs/bachelor-elektrotechnik-2022/my-plan"; document.body.append(a); a.click(); a.remove(); }), () => location.pathname === "/study" && document.querySelector(".st-welcome, .st-head"));
+  await step("Mein Plan goes on to Mein Studium", () => page.evaluate(() => { const a = document.createElement("a"); a.href = "/programs/bachelor-elektrotechnik-2022/my-plan"; document.body.append(a); a.click(); a.remove(); }), () => location.pathname === "/study" && document.querySelector(".st-setup, .st-over"));
   await context.close();
 }
 

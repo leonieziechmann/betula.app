@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     BookmarksData, CatalogChoices, CatalogData, CatalogSummary, FitResult, Ground, HomeData, ModuleData, MyProgramInfo,
-    Overlay, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyplanData,
+    Overlay, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyModules, StudyplanData,
 };
 
 /// What a page shows instead of data. Serializable: it crosses to the page from wherever the
@@ -184,6 +184,10 @@ ask!(
     StudyplanModulesAsk { ids: Vec<String> } -> (Vec<CatalogRow>, Vec<String>), Lane::Page, |q, db, kept| crate::studyplan_modules(db, &q.ids)
 );
 ask!(
+    /// The modules „Mein Studium" shows, with what each requires or recommends.
+    StudyModulesAsk { ids: Vec<String> } -> StudyModules, Lane::Page, |q, db, kept| crate::study_modules(db, &q.ids)
+);
+ask!(
     /// The plans of a program, for „Mein Studiengang" and the import.
     PlanSourceAsk { program_id: String, locale: Locale } -> Option<PlanSource>, Lane::Page, |q, db, kept| crate::plan_source(db, &q.program_id, q.locale)
 );
@@ -253,7 +257,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
     }
     dispatch!(
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
-        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, StudyplanAsk, StudyplanModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk,
+        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk,
         OverlayAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
     )
 }
@@ -286,6 +290,8 @@ mod tests {
         let key = SemesterKey::parse("2026W").unwrap();
         same(StudyplanAsk { key, ids: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), locale: Locale::De });
         same(PlanRowsAsk { key, own: vec!["12104".into()], others: vec!["12107".into()] });
+        same(StudyModulesAsk { ids: vec!["12204".into(), "12339".into(), "00000".into()] });
+        same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
         same(MetaAsk {});
         assert_eq!(answer_json("NoSuchAsk", "{}", &open(), &mut Kept::default()), None);
     }

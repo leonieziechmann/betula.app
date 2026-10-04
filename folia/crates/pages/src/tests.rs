@@ -158,6 +158,19 @@ fn every_query_runs_against_the_snapshot() {
 
     the_studyplan_queries(&db, meta.current_semester.as_deref().expect("a current semester"));
 
+    // „Mein Studium": what its modules ask for of others, for the modules asked and in order; a
+    // list without a module id asks nothing.
+    let asking = column(&db.inner, "SELECT module_id FROM v_module_prerequisite GROUP BY module_id ORDER BY module_id LIMIT 3");
+    assert_eq!(asking.len(), 3);
+    let study = crate::study_modules(&db, &[asking.clone(), vec!["1 OR 1=1".to_string()]].concat()).unwrap();
+    let listed = asking.iter().map(|id| format!("'{id}'")).collect::<Vec<_>>().join(", ");
+    assert_eq!(study.prerequisites.len() as i64, scalar(&db.inner, &format!("SELECT COUNT(*) FROM v_module_prerequisite WHERE module_id IN ({listed})")));
+    assert!(study.prerequisites.iter().all(|p| asking.contains(&p.module_id) && !p.required_module_id.is_empty()));
+    let order = |p: &folia_model::rows::Prerequisite| (p.module_id.clone(), p.kind.code().to_string(), p.required_module_id.clone());
+    assert!(study.prerequisites.windows(2).all(|pair| order(&pair[0]) <= order(&pair[1])));
+    assert_eq!(study.rows.len() + study.missing.len(), asking.len());
+    assert!(queries::modules_prerequisites(&db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
+
     // Every `pub fn` of folia-query must have run above, and the search's statements and `meta`.
     let functions = |source: &'static str| -> Vec<&'static str> {
         source.lines().filter_map(|line| line.strip_prefix("pub fn ")).filter_map(|rest| rest.split(['(', '<']).next()).collect()
