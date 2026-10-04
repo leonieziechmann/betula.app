@@ -1452,6 +1452,15 @@ at the end of every page the ground with the roots. Picked on a design canvas of
     it in the same frame (owner, the same day: once the ground was gone the sidebar still waited
     for the scroll to end). Shrinking them with the scroll in every frame would lag behind the
     natively scrolled ground.
+  - With the ground up and the area standing still (`data-rest`, `enhance.js`), the panels it cut
+    off end where their content ends, with round corners as the end of the list has (owner,
+    2026-10-04: „die Ecken abrunden, wenn der Footer oben ist"): the filter panel or the sidebar,
+    a pinned short list, the module beside the page. The ground draws the corners (`.ground-cap`,
+    `folia_shell::ground`), so they stand on its edge in every frame; the first scroll of the area
+    takes them away, and while it moves the panels are cut off straight as before. A panel whose
+    own box ended above the ground would show a gap there in the frame before it grew back, as the
+    natively scrolled ground goes down. The module's corners come once it has slid in; a panel
+    dragged by itself alone (`data-resize-mode="panel"`) has none until it is let go.
   - The scrollbar stands in the 8 px right of the page (its width is `--bar`, `enhance.js`), not
     beside them (owner, 2026-09-30: the gap to the scrollbar was too wide).
   - The list keeps its box: its head (the number, the filters in force) stays at the top, the

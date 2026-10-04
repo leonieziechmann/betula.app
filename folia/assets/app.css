@@ -423,7 +423,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    the ground, `::after`, and the wood's own below it), which cuts the panels off straight and shows
    in the ground's round corners (owner, 2026-09-30: the panels' corners drawn along with the ground
    looked off); once the page stands still its content ends above the ground
-   (`--cover`, enhance.js: one layout nobody sees, the ground covers exactly what goes). The list's
+   (`--cover`, enhance.js: one layout nobody sees, the ground covers exactly what goes), and with the
+   ground up the panels end there with round corners (`.ground-cap`; owner, 2026-10-04). The list's
    head and the heads of its columns stay at the top; where the area cuts the list off at the
    bottom, the list keeps its box (`.list-cap`), and its head's round corners let the page behind
    show (a mask on the area, which stands still while its content scrolls). The wood goes up with
@@ -433,6 +434,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    sticky `top: 0` already stands inside the area's 1 px of padding. The scrollbar stands in the
    8 px right of the page (`--bar`, its width, enhance.js), not beside them (owner, 2026-09-30). */
 .work > .ground { display: none; }
+.ground-cap { display: none; }
 @media (min-width: 901px) {
   body { timeline-scope: --page; }
   :root:has(#content > .work.flowing) body > .ground { display: none; }
@@ -506,6 +508,27 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      and across the whole area (to the scrollbar): over the pinned panels, under the ground. */
   .work.flowing > .ground { display: block; position: relative; z-index: 20; grid-column: 1 / -1; grid-row: 2; height: var(--ground-h); min-height: 0; margin: 0; }
   .work.flowing::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 0; background: var(--wood-front); pointer-events: none; }
+  /* Once the area stands still with the ground up (`data-rest`, enhance.js), the panels it cut off
+     end where their content ends, 8 px above it, with round corners as the end of the list has
+     (owner, 2026-10-04: „die Ecken abrunden, wenn der Footer oben ist"); while it moves they are
+     cut off straight, as before. The ground draws the corners, so that they stand on its edge in
+     every frame, the one before they go included: a panel that ended above the ground would show a
+     gap there as it goes back down. Each is the list's edge (`.list-cap`) without the ring's bottom,
+     which the band covers at the end of the list as well; behind the module's left corner is the
+     list or the page. The module's come once it has slid in. A panel dragged by itself
+     (`data-resize-mode="panel"`, enhance.js) has none until it is let go: they would stay behind. */
+  .work.flowing[data-rest] > .ground > .ground-cap {
+    --e1: var(--wood-front); --e2: var(--wood-front); --r1: var(--ring-w); --r2: var(--ring-w);
+    position: absolute; bottom: calc(100% + var(--gap)); height: 9px; pointer-events: none;
+    background:
+      radial-gradient(circle at 10px 0, transparent 8.6px, var(--r1) 9.3px, var(--r1) 9.7px, var(--e1) 10.4px) left top / 10px 10px no-repeat,
+      radial-gradient(circle at 0 0, transparent 8.6px, var(--r2) 9.3px, var(--r2) 9.7px, var(--e2) 10.4px) right top / 10px 10px no-repeat;
+    animation: cap-in .2s var(--ease) backwards;
+  }
+  .work.flowing[data-rest]:has(> .filters, > .sidebar) > .ground > .cap-side { display: block; left: -1px; width: calc(var(--filters) + 2px); }
+  .work.flowing[data-rest]:has(> .list.short) > .ground > .cap-list { display: block; left: calc(var(--filters) + var(--gap) - 1px); right: -1px; }
+  .work.flowing[data-rest]:has(> .detail) > .ground > .cap-preview { display: block; right: -1px; width: calc(var(--preview) + 2px); --e1: var(--panel); --r1: var(--ring-p); --r2: var(--ring-pw); animation-delay: .18s; }
+  :root[data-resize-mode="panel"] .ground-cap { visibility: hidden; }
   /* The wood stands on the ground as it comes: its last 208 px of the scroll are the ground's 200
      and the gap above it. */
   @keyframes wood-rise { to { transform: translateY(-208px); } }
@@ -3330,6 +3353,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
+@keyframes cap-in { from { opacity: 0; } }
 @keyframes swipe-spring { from { transform: scale(.72); } }
 /* The wood keeps its animation: it is tied to the scroll (the ground's), it moves only as the
    visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). */

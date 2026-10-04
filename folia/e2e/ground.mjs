@@ -3,8 +3,9 @@
 // after it scroll natively as one, the window never scrolls, and the wheel over the header or the
 // rail moves nothing. What stands beside the page (a sidebar, the filters, a module) is pinned: the
 // ground slides over its lower end, and once the area stands still its content ends 8 px above the
-// ground, as the page's end does. The wood behind every page stands on the ground's edge in every
-// frame. Tab into the ground brings it into view. A phone scrolls the ground with the page, and
+// ground, as the page's end does, and the panel ends there with round corners, which the ground
+// draws; the first scroll takes them away. The wood behind every page stands on the ground's edge
+// in every frame. Tab into the ground brings it into view. A phone scrolls the ground with the page, and
 // under a page shorter than the window the ground ends at the window's lower edge.
 import { chromium } from "playwright-core";
 
@@ -66,6 +67,32 @@ const wheel = async (page, x, y, dy, times) => {
   await page.waitForTimeout(600);
 };
 const toEnd = (page) => page.evaluate((PAGE) => { const el = document.querySelector(PAGE); el.scrollTop = el.scrollHeight; }, PAGE);
+// The round corners the ground draws for each panel it cut off, once the area stands still with it
+// up (`data-rest`): each 1 px wider than its panel on both sides, its foot 8 px above the ground;
+// none for a panel that is not there. What is off is listed.
+const corners = (page) => page.evaluate((PAGE) => {
+  const area = document.querySelector(PAGE);
+  const ground = area.querySelector(":scope > .ground").getBoundingClientRect();
+  const off = [];
+  for (const [name, of] of [["cap-side", ":scope > .filters, :scope > .sidebar"], ["cap-list", ":scope > .list.short"], ["cap-preview", ":scope > .detail"]]) {
+    const cap = area.querySelector(`:scope > .ground > .${name}`), panel = area.querySelector(of);
+    const shown = Boolean(cap) && getComputedStyle(cap).display !== "none";
+    if (!panel) { if (shown) off.push(`${name} without its panel`); continue; }
+    if (!shown) { off.push(`no ${name}`); continue; }
+    const a = cap.getBoundingClientRect(), b = panel.getBoundingClientRect();
+    const at = [a.left, a.right, a.bottom].map(Math.round), wanted = [Math.round(b.left) - 1, Math.round(b.right) + 1, Math.round(ground.top) - 8];
+    if (at.join() !== wanted.join()) off.push(`${name} at ${at}, not ${wanted}`);
+  }
+  return { rest: area.hasAttribute("data-rest"), off };
+}, PAGE);
+// A scroll of the area takes the round corners away at once, before the ground has moved far
+// (owner, 2026-09-30: drawn along with the ground they looked off): whether they are still there
+// two frames later.
+const nudge = (page) => page.evaluate((PAGE) => new Promise((done) => {
+  const area = document.querySelector(PAGE);
+  area.scrollTop -= 40;
+  requestAnimationFrame(() => requestAnimationFrame(() => done(area.hasAttribute("data-rest") || [...area.querySelectorAll(":scope > .ground > .ground-cap")].some((cap) => getComputedStyle(cap).display !== "none"))));
+}), PAGE);
 const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
@@ -126,6 +153,9 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   check(f.pageEnd && f.groundTop === 692 && f.groundTop - f.contentBottom === 8, `a framed page: its end is not 8 px above the ground: ${JSON.stringify(f)}`);
   check(f.sideBottom === 892 && f.groundTop - f.sideBodyBottom === 8, `a framed page: the sidebar is not pinned, or its content does not end 8 px above the ground: ${JSON.stringify(f)}`);
   check(f.woodOff === 0 && f.woodBottom === f.groundTop, `a framed page: the wood does not stand on the ground: ${JSON.stringify(f)}`);
+  const round = await corners(page);
+  check(round.rest && !round.off.length, `a framed page: the sidebar does not end above the ground with round corners: ${JSON.stringify(round)}`);
+  check(!(await nudge(page)), "a framed page: the sidebar's round corners stay while the area scrolls");
   await context.close();
 }
 
@@ -149,9 +179,14 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   check(f.inset === 0 && f.groundTop === 692 && rows === after && f.sideBottom === 892 && f.groundTop - f.sideBodyBottom === 8, `a short list: the ground did not come as the end of the page, or the rows moved: ${JSON.stringify(f)} (rows ${rows} → ${after})`);
   check(f.woodOff === 0 && f.woodBottom === f.groundTop, `a short list: the wood did not stand on the ground in every frame: ${JSON.stringify(f)}`);
   check(f.sideEnd === false, `a short list: the filters are not longer than their panel, so this tells nothing: ${JSON.stringify(f)}`);
+  let round = await corners(page);
+  check(round.rest && !round.off.length, `a short list: the filters and the list do not end above the ground with round corners: ${JSON.stringify(round)}`);
   await wheel(page, 150, 500, 100, 40);
   f = await at(page);
   check(f.groundTop === 692 && f.sideEnd && f.groundTop - f.sideBodyBottom === 8, `the ground in: the filters do not scroll to their end above it: ${JSON.stringify(f)}`);
+  // The filters scrolled, not the area: the round corners stay.
+  round = await corners(page);
+  check(round.rest && !round.off.length, `the ground in: the filters' scroll took the round corners away: ${JSON.stringify(round)}`);
   await page.goto(base + "/catalog", { waitUntil: "networkidle" });
   await page.waitForTimeout(600);
   await toEnd(page);
@@ -162,6 +197,9 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const end = await listBottom();
   check(f.pageEnd && f.groundTop === 692 && f.groundTop - end === 8 && f.groundTop - f.sideBodyBottom === 8, `the whole list: its end is not 8 px above the ground: ${JSON.stringify(f)} (list ${end})`);
   check(f.woodBottom === f.groundTop, `the catalog: the wood does not stand on the ground: ${JSON.stringify(f)}`);
+  round = await corners(page);
+  check(round.rest && !round.off.length, `the whole list: the filters do not end above the ground with round corners: ${JSON.stringify(round)}`);
+  check(!(await nudge(page)), "the whole list: the filters' round corners stay while the area scrolls");
   await context.close();
 }
 
