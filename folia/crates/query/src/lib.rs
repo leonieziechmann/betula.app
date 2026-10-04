@@ -683,6 +683,23 @@ pub fn modules_teaching_sws(db: &dyn Database, module_ids: &[String]) -> Result<
     )
 }
 
+/// What each of `module_ids` requires or recommends, resolved to module ids
+/// (`module_prerequisites` for many at once): what „Mein Studium" says beside a module it offers.
+pub fn modules_prerequisites(db: &dyn Database, module_ids: &[String]) -> Result<Vec<Prerequisite>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_prerequisites",
+        "SELECT module_id, required_module_id, kind, required_title, required_offer_status \
+         FROM v_module_prerequisite WHERE module_id IN (SELECT value FROM json_each(?)) \
+         ORDER BY module_id, kind, required_module_id",
+        &[Value::from(ids)],
+    )
+}
+
 /// The abbreviations of modules („AuP", schema 9): within `program_id` the one unique among that
 /// program's modules (`v_program_module`), else the module's own (`v_module`). Only modules that
 /// have one; a week grid names the others by a short title.

@@ -323,7 +323,8 @@ const kept = await page.evaluate(() => ({
   marked: document.querySelector(".start-step:nth-child(2) .start-state")?.textContent,
   next: document.querySelector(".start-step.is-next .start-btn")?.getAttribute("href"),
 }));
-check(kept.program?.startsWith("Informatik B.Sc.") && kept.href?.startsWith("/programs/") && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan?import=mine", `the way in does not show what was done: ${JSON.stringify(kept)}`);
+// The program leads to „Mein Studium", where its study is planned (owner, 2026-10-04).
+check(kept.program?.startsWith("Informatik B.Sc.") && kept.href === "/study" && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan?import=mine", `the way in does not show what was done: ${JSON.stringify(kept)}`);
 await page.evaluate(() => { localStorage.removeItem("betula.myprogram.v1"); localStorage.removeItem("betula.bookmarks.v1"); });
 
 // A phone: pictures upright, the tall sheet, a swipe turns them, nothing scrolls sideways. A stop

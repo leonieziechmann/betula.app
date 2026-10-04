@@ -3,9 +3,10 @@
 // Walks: the sidebar is in the same place on every page → overview (faculties in order, every program
 // once, nothing cut off) → filters (links, the sidebar is not rebuilt, the search keeps them) → jump to a
 // faculty without a history entry → program page (views in the sidebar, „Zurück" and Esc lead back to the
-// program in the overview) → the rail's items are tabs that remember where their area was left → the
-// program page itself (head, one study plan per study direction, matrix or list, a module beside it
-// and the way back out of it, areas, „Mein Plan" and from it all modules in the catalog) → the plan at
+// program in the overview) → the rail's items are tabs that remember where their area was left, and
+// „Studium" leads to „Mein Studium" first → the program page itself (head, one study plan per study
+// direction, matrix or list, a module beside it and the way back out of it, areas, all modules in the
+// catalog, and „Mein Plan" going on to „Mein Studium") → the plan at
 // every window width (no column runs into another, the list where the matrix has no room) → phone
 // (filters in a sheet) → the overview without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
@@ -47,7 +48,9 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog");
   // The frame: on every page a sidebar exactly where the catalog has its filter panel.
   const frame = await box(page, "#filters");
-  await step("programs", () => page.click('.rail a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
+  // „Studium" is „Mein Studium" first (owner, 2026-10-04); the overview is one link away.
+  await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-setup"));
+  await step("programs", () => page.click('#sidebar a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), `programs: the sidebar is at ${await box(page, "#sidebar")}, the filter panel was at ${frame}`);
 
   const overview = await page.evaluate(() => {
@@ -110,7 +113,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await step("a filter in the overview", () => page.click('#sidebar a.chip:has-text("Master")'), () => location.search === "?level=master");
   await step("a program", () => page.click('.program-pill[data-id^="master-informatik"]'), () => location.pathname.startsWith("/programs/master-informatik"));
   const programPage = await page.evaluate(() => location.pathname);
-  check((await tab("programs")) === "/programs?level=master", `tabs: on a program's page the own tab leads to ${await tab("programs")}, not to the overview as it was left`);
+  check((await tab("programs")) === "/study", `tabs: on a program's page the own tab leads to ${await tab("programs")}, not up to „Mein Studium"`);
   await step("tab: Module", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".rows a.row"));
   await step("a filter in the catalog", () => page.click('#filters a.chip:has-text("Winter")'), () => location.search.includes("turnus=winter"));
   check((await tab("programs")) === programPage, `tabs: the tab of the programs leads to ${await tab("programs")}, the area was left at ${programPage}`);
@@ -264,16 +267,20 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
     "areas: the area picked in the sidebar is not in view",
   );
 
-  // All modules of the program are the catalog's (owner, 2026-09-25): „Mein Plan", the view in the
-  // place of „Alle Module", leads to the catalog narrowed down to the program, which lists as many
-  // modules as the head counts.
-  await step("Mein Plan", () => page.click('#sidebar .toc.views a:has-text("Mein Plan")'), () => location.pathname.endsWith("/my-plan") && document.querySelector("section.my-plan") && document.querySelector('#sidebar .toc a[aria-current="page"]')?.textContent === "Mein Plan");
-  const all = await page.evaluate(() => document.querySelector('section.my-plan a[href^="/catalog"]')?.getAttribute("href"));
-  check(all === "/catalog?program=bachelor-elektrotechnik-2022", `Mein Plan: the program's modules are at ${all}`);
-  await step("all modules in the catalog", () => page.click('section.my-plan a[href^="/catalog"]'), () => location.pathname === "/catalog" && new URLSearchParams(location.search).get("program") === "bachelor-elektrotechnik-2022" && document.querySelector(".rows a.row"));
+  // The views are the plan and the areas: „Mein Plan" is „Mein Studium" now (owner, 2026-10-04).
+  const views = await page.evaluate(() => [...document.querySelectorAll("#sidebar .toc.views a")].map((a) => a.textContent));
+  check(views.join() === "Regelstudienplan,Wahlpflicht & Bereiche", `views: ${views.join(" | ")}`);
+  // All modules of the program are the catalog's (owner, 2026-09-25): the sidebar's way into the
+  // catalog, with nothing picked, lists as many modules as the head counts.
+  await step("closing the area", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("area=") && !document.querySelector("#preview"));
+  const all = await page.evaluate(() => document.querySelector('#sidebar a[data-walk="catalog"]')?.getAttribute("href"));
+  check(all === "/catalog?program=bachelor-elektrotechnik-2022", `the program's modules are at ${all}`);
+  await step("all modules in the catalog", () => page.click('#sidebar a[data-walk="catalog"]'), () => location.pathname === "/catalog" && new URLSearchParams(location.search).get("program") === "bachelor-elektrotechnik-2022" && document.querySelector(".rows a.row"));
   const counted = Number(head.facts.find((fact) => /^\S+ Module$/.test(fact))?.replace(/\D/g, ""));
   const listed = await page.evaluate(() => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")));
   check(listed === counted && listed > 50, `all modules: the catalog lists ${listed} modules of the program, its head counts ${counted}`);
+  // The old address of „Mein Plan" goes on to „Mein Studium", in the same history entry.
+  await step("Mein Plan goes on to Mein Studium", () => page.evaluate(() => { const a = document.createElement("a"); a.href = "/programs/bachelor-elektrotechnik-2022/my-plan"; document.body.append(a); a.click(); a.remove(); }), () => location.pathname === "/study" && document.querySelector(".st-setup, .st-over"));
   await context.close();
 }
 

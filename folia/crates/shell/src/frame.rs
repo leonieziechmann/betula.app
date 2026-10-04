@@ -101,7 +101,7 @@ pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<S
     let t = i18n::t();
     let location = i18n::use_location();
     let tabs = crate::tabs::Tabs::expect();
-    let target = to.unwrap_or_else(|| tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.root().to_string()));
+    let target = to.unwrap_or_else(|| tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.back_root().to_string()));
     let came_from_it = {
         let target = target.clone();
         move || {

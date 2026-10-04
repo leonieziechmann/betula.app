@@ -45,7 +45,7 @@ use folia_data::{use_data, DataError, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use folia_widgets::local::ModuleInPlace;
-use folia_stores::myprogram::{program_name, MineButton, ProgramPlans};
+use folia_stores::myprogram::{program_name, MineButton, MyProgram, ProgramPlans};
 use folia_design::nav;
 use folia_widgets::list::phone_layout;
 use folia_widgets::module::ModulePanel;
@@ -359,9 +359,8 @@ fn ProgramSidebar(
         </div>
         <nav class="toc views" aria-label=t.program.views_label>
             <p class="flabel label">{t.program.views}</p>
-            {ProgramTab::ALL.iter().map(|view| {
+            {ProgramTab::VIEWS.iter().map(|view| {
                 let view = *view;
-                // „Mein Plan" is the visitor's: no page for a crawler.
                 view! { <a data-walk="tab" href=t.path(&url::program_path(&p.slug, view)) rel=(!view.indexed()).then_some("nofollow") data-noscroll="" aria-current=move || (shown_tab.get() == view).then_some("page")>{view.label(t.locale)}</a> }
             }).collect_view()}
         </nav>
@@ -446,6 +445,7 @@ fn ProgramSidebar(
             // Both are part of server HTML, invisible until the app runs and gone without it
             // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
             <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
+            <PlanStudies program_id=p.id.clone()/>
             {(count > 0).then(|| view! {
                 <a class="action mine-toggle" href=import rel="nofollow"><Icon name="calendar-plus"/><span>{t.program.to_studyplan}</span></a>
             })}
@@ -453,6 +453,17 @@ fn ProgramSidebar(
             <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>{t.program.at_btu}</a>
         </div>
     }
+}
+
+/// „Studium planen" among the actions of the visitor's own program („Mein Studiengang"): the way to
+/// „Mein Studium", where its study is planned. The app's alone (R9): kept in its place and not shown
+/// until the app runs (`.mine-toggle`), and there only while the program is the one kept.
+#[component]
+fn PlanStudies(#[prop(into)] program_id: String) -> impl IntoView {
+    let t = i18n::t();
+    let mine = MyProgram::expect().filter(|_| APP);
+    let kept = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.as_deref() == Some(program_id.as_str()))));
+    move || kept.get().then(|| view! { <a class="action mine-toggle" href=t.path(url::STUDY)><Icon name="graduation-cap"/><span>{t.program.plan_studies}</span><Icon name="chevron-right"/></a> })
 }
 
 #[component]
@@ -1743,12 +1754,18 @@ fn AreasTab(
     .into_any()
 }
 
-/// „Mein Plan": the whole study, semester by semester — to come (owner, 2026-09-25). Until then a
-/// placeholder that leads on: to the Stundenplan of one semester, and to the modules of the
-/// program in the catalog (where „Alle Module" went).
+/// „Mein Plan": the whole study, semester by semester, which is „Mein Studium" now (owner,
+/// 2026-10-04: the Studium tab's first page, `url::STUDY`). The app goes on there at once, in the
+/// same history entry; the server's page (no JavaScript, a crawler) says where it went and leads to
+/// the modules of the program in the catalog (where „Alle Module" went).
 #[component]
 fn MyPlanTab(slug: String) -> impl IntoView {
     let t = i18n::t();
+    if APP {
+        if let Some(going) = Pending::expect() {
+            request_animation_frame(move || going.go(url::STUDY, leptos_router::NavigateOptions { replace: true, ..Default::default() }));
+        }
+    }
     view! {
         <section class="panel my-plan">
             <header class="block-head">
@@ -1756,7 +1773,7 @@ fn MyPlanTab(slug: String) -> impl IntoView {
                 <p>{t.program.my_plan_hint}</p>
             </header>
             <div class="my-plan-links">
-                <a class="action" href=t.path(url::STUDYPLAN) rel="nofollow"><Icon name="calendar-plus"/><span>{t.program.to_timetable}</span><Icon name="chevron-right"/></a>
+                <a class="action" href=t.path(url::STUDY) rel="nofollow"><Icon name="graduation-cap"/><span>{t.program.to_my_studies}</span><Icon name="chevron-right"/></a>
                 <a class="action" href=t.path(&url::program_catalog_path(&slug, None)) rel="nofollow"><Icon name="layout-list"/><span>{t.program.all_modules}</span><Icon name="chevron-right"/></a>
             </div>
         </section>

@@ -827,6 +827,12 @@ pub struct PlanSource {
     /// (their turnus decides the intake season where the plan's caption does not name it,
     /// `studyplan::intake_season`).
     pub linked: Vec<CatalogRow>,
+    /// Where the module tree places each module (`program_areas`): a module and an area of
+    /// `areas`, once per area. „Mein Studium" counts a module towards an area by it
+    /// (`study::areas`).
+    pub placements: Vec<(String, i64)>,
+    /// The modules of the program's FÜS list (`v_program_module`, relation `fues`).
+    pub fues: Vec<String>,
 }
 
 /// The plans of the program with `program_id` (`program.id`, never the slug: the store keeps
@@ -837,10 +843,30 @@ pub fn plan_source(db: &dyn Database, program_id: &str, locale: Locale) -> Resul
     };
     let entries = queries::program_plan_entries(db, &program.id)?;
     let variants = variants::plan_variants(&entries, &queries::program_plan_totals(db, &program.id)?, locale);
-    let areas = catalog_areas(&queries::program_areas(db, &program.id)?, &queries::program_area_tree(db, &program.id)?);
+    let placed = queries::program_areas(db, &program.id)?;
+    let areas = catalog_areas(&placed, &queries::program_area_tree(db, &program.id)?);
     let named: Vec<String> = entries.iter().filter_map(|entry| entry.module_id.clone()).collect();
     let (linked, _) = catalog_rows(db, &checked_ids(&named))?;
-    Ok(Some(PlanSource { supplements: variants::supplements(&variants), program, variants, areas, linked }))
+    let placements = placed.into_iter().map(|placement| (placement.module_id, placement.area_id)).collect();
+    let fues = queries::program_modules(db, &program.id, ProgramRelation::Fues)?.into_iter().map(|module| module.module_id).collect();
+    Ok(Some(PlanSource { supplements: variants::supplements(&variants), program, variants, areas, linked, placements, fues }))
+}
+
+/// What „Mein Studium" says beside the modules it shows: the catalog's rows of `ids` (titles,
+/// credits, turnus; the ids the snapshot does not know apart) and what each requires or
+/// recommends (`Prerequisite`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct StudyModules {
+    pub rows: Vec<CatalogRow>,
+    pub missing: Vec<String>,
+    pub prerequisites: Vec<Prerequisite>,
+}
+
+/// The modules `ids` as „Mein Studium" shows them, as many as one query takes (`checked_ids`).
+pub fn study_modules(db: &dyn Database, ids: &[String]) -> Result<StudyModules, DbError> {
+    let ids = checked_ids(ids);
+    let (rows, missing) = catalog_rows(db, &ids)?;
+    Ok(StudyModules { prerequisites: queries::modules_prerequisites(db, &ids)?, rows, missing })
 }
 
 /// „Mein Studiengang" as the snapshot has it.

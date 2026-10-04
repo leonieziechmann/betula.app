@@ -107,6 +107,39 @@ impl MyProgram {
         self.change(|doc| doc.start = start);
     }
 
+    /// „Mein Studium" set up at once (its first visit, „Studiengang wechseln"): the program as
+    /// `set_program` takes it, and the Studienbeginn.
+    pub fn set_study(self, id: &str, name: &str, caption: &str, direction: Option<&str>, start: SemesterKey) {
+        if !url::is_program_id(id) {
+            return;
+        }
+        self.change(|doc| {
+            doc.program = Some(id.to_string());
+            doc.name = Some(name.to_string()).filter(|name| !name.trim().is_empty());
+            doc.caption = Some(caption.to_string());
+            doc.direction = direction.map(str::to_string);
+            doc.start = Some(start);
+        });
+    }
+
+    /// Semester `s` as a semester of leave („Urlaubssemester"), which counts as no Fachsemester,
+    /// or as one of study again. No more than `studyplan::MAX_SEMESTERS` of them.
+    pub fn set_leave(self, s: SemesterKey, leave: bool) {
+        self.change(|doc| {
+            if !leave {
+                doc.leave.remove(&s);
+            } else if doc.leave.len() < folia_plans::studyplan::MAX_SEMESTERS {
+                doc.leave.insert(s);
+            }
+        });
+    }
+
+    /// The last semester of the study, where the student added semesters beyond the
+    /// Regelstudienzeit („Semester anfügen"); `None`: where the plan and the semesters planned end.
+    pub fn set_until(self, until: Option<SemesterKey>) {
+        self.change(|doc| doc.until = until);
+    }
+
     pub fn set_town(self, town: TownChoice) {
         self.change(|doc| doc.town = town);
     }
@@ -252,7 +285,7 @@ impl ProgramPlans {
 
     /// The plan at `index` (0-based) as the store keeps it: its caption (`""` for the unnamed one,
     /// and where there is none), and for a page its core's caption with the page as the direction.
-    fn kept(&self, index: usize) -> (String, Option<String>) {
+    pub fn kept(&self, index: usize) -> (String, Option<String>) {
         let place = self.place_of(index);
         let caption = |at: usize| self.plans.get(at).map(|(full, _)| full.clone());
         (caption(place.core).unwrap_or_default(), place.page.and_then(caption))
@@ -273,6 +306,12 @@ impl ProgramPlans {
         let named = |page: &usize| self.plans.get(*page).is_some_and(|(full, _)| direction.is_some_and(|direction| full.trim() == direction.trim()));
         let page = self.pages.iter().filter(|supplement| supplement.core == place.core).map(|supplement| supplement.page).find(named);
         Some(Place { page, ..place })
+    }
+
+    /// The plan (0-based, as `kept` takes it) a stored caption and direction name: the page where
+    /// the direction is one, else the core plan; `None` where the caption names none of them.
+    pub fn shown_index(&self, caption: &str, direction: Option<&str>) -> Option<usize> {
+        self.place(caption, direction).map(Place::shown)
     }
 
     /// „PA und IoT", „Seite 18": what the program's page calls the plan of a place.

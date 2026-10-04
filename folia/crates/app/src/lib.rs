@@ -24,6 +24,7 @@ use folia_catalog::catalog::CatalogPage;
 use folia_design::ui;
 use folia_home::home::HomePage;
 use folia_home::legal::{ImprintPage, PrivacyPage};
+use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
 use folia_shell::chrome::{FollowTabs, NavItems, Rail, TopBar};
@@ -134,6 +135,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
                         <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
                         <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
+                        <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
                         <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
                         <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>

@@ -118,6 +118,22 @@ fn frame(shape: Shape) -> AnyView {
                 </div>
             </div>
         }.into_any()),
+        // „Mein Studium": its head (the program, the progress) over the semesters, each a list.
+        Shape::Study => framed(Side::Filters(&[1, 1, 1]), view! {
+            <div class="page-inner">
+                <div class="panel sk-sweep sk-head">
+                    {bar("sk-w2")}
+                    <div class="sk-title-row">{bar("sk-w4 sk-big")}{bar("sk-w3")}</div>
+                    {bar("sk-w6")}
+                </div>
+                {[6usize, 4].iter().map(|rows| view! {
+                    <div class="panel sk-sweep sk-block">
+                        {lines(&["sk-w3 sk-tall"])}
+                        {table(*rows)}
+                    </div>
+                }).collect_view()}
+            </div>
+        }.into_any()),
         Shape::Program => framed(Side::Toc(6), view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-head">

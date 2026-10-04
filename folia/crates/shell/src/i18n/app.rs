@@ -16,6 +16,8 @@ pub struct Texts {
     pub programs: &'static str,
     /// The programs' tab in the rail, where „Studiengänge" is too long.
     pub study: &'static str,
+    /// „Mein Studium": the title of the Studium tab's first page in the top bar.
+    pub my_studies: &'static str,
     pub bookmarks: &'static str,
     pub studyplan: &'static str,
     /// The number on the tab of the Merkliste and the Stundenplan: „3 gemerkt", „5 geplant".
@@ -40,6 +42,7 @@ pub const DE: Texts = Texts {
     modules: "Module",
     programs: "Studiengänge",
     study: "Studium",
+    my_studies: "Mein Studium",
     bookmarks: "Merkliste",
     studyplan: "Stundenplan",
     marked_count: |n| format!("{n} gemerkt"),
@@ -63,6 +66,7 @@ pub const EN: Texts = Texts {
     modules: "Modules",
     programs: "Degree programmes",
     study: "Study",
+    my_studies: "My studies",
     bookmarks: "Saved",
     studyplan: "Timetable",
     marked_count: |n| format!("{n} saved"),

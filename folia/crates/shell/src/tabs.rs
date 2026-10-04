@@ -2,6 +2,11 @@
 //! remembers where it was left. Going from an open program to the catalog and back to
 //! „Studium" returns to that program, not to the overview.
 //!
+//! „Studium" is the visitor's study first (owner, 2026-10-04: „primär die Studium planen Seite"):
+//! its list is „Mein Studium" (`/study`), and the program overview and the programs' pages are what
+//! the study is looked up in. Inside the area its tab leads up to „Mein Studium"; „Zurück" on a
+//! program's page leads to the list it came from, „Mein Studium" or the overview.
+//!
 //! - From another area, a tab leads to where its area was left.
 //! - On a page inside the area (a module, a program), the area's own tab leads up to the area's
 //!   list as it was left (filters, position).
@@ -46,7 +51,7 @@ impl Area {
     }
 
     pub fn of(path: &str) -> Self {
-        if path.starts_with(url::PROGRAMS) {
+        if path.starts_with(url::PROGRAMS) || path == url::STUDY {
             Area::Programs
         } else if path.starts_with(url::CATALOG) {
             Area::Catalog
@@ -59,12 +64,23 @@ impl Area {
         }
     }
 
-    /// The list of the area: where its tab leads when nothing is remembered.
+    /// Where „Zurück" on a page of the area leads when nothing is remembered: its list, and for
+    /// „Studium" the overview of the programs, which every page of a program is one of (and which
+    /// the server's pages link: it knows no „Mein Studium").
+    pub fn back_root(self) -> &'static str {
+        match self {
+            Area::Programs => url::PROGRAMS,
+            area => area.root(),
+        }
+    }
+
+    /// The list of the area: where its tab leads when nothing is remembered. „Studium"'s is „Mein
+    /// Studium", the app's alone: the server's tab leads to the overview (`chrome::NavItems`).
     pub fn root(self) -> &'static str {
         match self {
             Area::Home => url::HOME,
             Area::Catalog => url::CATALOG,
-            Area::Programs => url::PROGRAMS,
+            Area::Programs => url::STUDY,
             Area::Bookmarks => url::BOOKMARKS,
             Area::Studyplan => url::STUDYPLAN,
         }
@@ -92,11 +108,14 @@ struct Memory {
     catalog: Option<String>,
     catalog_list: Option<String>,
     programs: Option<String>,
+    /// The list a program's page was last reached from: „Mein Studium" or the overview, as left.
     programs_list: Option<String>,
     /// The marked modules as they were left: their order, the module open beside them.
     bookmarks: Option<String>,
     /// The Studienplan as it was left: its semester and view, the module beside it.
     studyplan: Option<String>,
+    /// „Mein Studium" as it was left (the module beside it): where „Studium" leads up to.
+    study: Option<String>,
 }
 
 impl Memory {
@@ -131,15 +150,18 @@ impl Memory {
                 return;
             }
         };
-        if path == Area::of(&path).root() {
+        if path == Area::of(&path).root() || path == url::PROGRAMS {
             *list = Some(location.clone());
+        }
+        if path == url::STUDY {
+            self.study = Some(location.clone());
         }
         *last = Some(location.clone());
         self.previous = std::mem::replace(&mut self.current, location);
     }
 
     fn stored(&self) -> String {
-        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks, &self.studyplan].map(|entry| entry.clone().unwrap_or_default()).join("\n")
+        [&self.catalog, &self.catalog_list, &self.programs, &self.programs_list, &self.bookmarks, &self.studyplan, &self.study].map(|entry| entry.clone().unwrap_or_default()).join("\n")
     }
 
     fn restored(stored: &str) -> Self {
@@ -147,7 +169,7 @@ impl Memory {
         // (fewer lines) reads as far as it goes.
         let mut lines = stored.lines().map(|line| Some(line.to_string()).filter(|line| line.starts_with('/') && !line.starts_with("//")));
         let mut next = || lines.next().flatten();
-        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), studyplan: next(), ..Default::default() }
+        Self { catalog: next(), catalog_list: next(), programs: next(), programs_list: next(), bookmarks: next(), studyplan: next(), study: next(), ..Default::default() }
     }
 }
 
@@ -191,7 +213,8 @@ impl Tabs {
         self.0.with(|memory| {
             let (last, list) = match area {
                 Area::Catalog => (&memory.catalog, &memory.catalog_list),
-                Area::Programs => (&memory.programs, &memory.programs_list),
+                // Inside the area its tab leads up to „Mein Studium", from the overview as well.
+                Area::Programs => (&memory.programs, &memory.study),
                 Area::Bookmarks => (&memory.bookmarks, &memory.bookmarks),
                 Area::Studyplan => (&memory.studyplan, &memory.studyplan),
                 Area::Home => (&None, &None),
@@ -204,7 +227,9 @@ impl Tabs {
         })
     }
 
-    /// The list of `area` as it was left: where „Zurück" on a page of the area leads.
+    /// The list of `area` as it was left: where „Zurück" on a page of the area leads. A program's
+    /// page goes back to the list it was reached from, „Mein Studium" or the overview, and to the
+    /// overview where nothing is remembered (`Area::back_root`).
     pub fn list(self, area: Area) -> String {
         self.0.with_untracked(|memory| match area {
             Area::Catalog => memory.catalog_list.clone(),
@@ -213,7 +238,7 @@ impl Tabs {
             Area::Studyplan => memory.studyplan.clone(),
             Area::Home => None,
         })
-        .unwrap_or_else(|| area.root().to_string())
+        .unwrap_or_else(|| area.back_root().to_string())
     }
 
     /// The page of `area` the visitor was on last, whatever it was. Unlike `list` this is the
@@ -331,7 +356,7 @@ mod tests {
 
         // A reload keeps it as the sixth line, and what the version before stored (five lines) reads.
         let stored = memory.stored();
-        assert_eq!(stored.lines().count(), 6);
+        assert_eq!(stored.split('\n').count(), 7, "the sixth of seven, „Mein Studium“ after it");
         assert_eq!(Memory::restored(&stored).studyplan, memory.studyplan);
         let five = "/catalog\n/catalog\n/programs\n/programs\n/bookmarks?sort=ects";
         assert_eq!(
@@ -339,6 +364,42 @@ mod tests {
             Memory { catalog: Some("/catalog".into()), catalog_list: Some("/catalog".into()), programs: Some("/programs".into()), programs_list: Some("/programs".into()), bookmarks: Some("/bookmarks?sort=ects".into()), ..Default::default() }
         );
         assert_eq!(Memory::restored("\n\n\n\n\n//evil.example/studyplan").studyplan, None);
+    }
+
+    #[test]
+    fn studium_leads_to_mein_studium() {
+        // The tabs' signal needs an owner, as on a page.
+        let owner = Owner::new();
+        owner.set();
+        assert_eq!((Area::of("/study"), Area::Programs.root(), Area::Programs.back_root()), (Area::Programs, "/study", "/programs"));
+        assert!(Area::Programs.shows_in_place());
+        let fresh = Tabs(RwSignal::new(Memory::default()));
+        // Nothing remembered: „Mein Studium" from everywhere, and a program's „Zurück" the overview.
+        assert_eq!(fresh.href(Area::Programs, "/catalog"), "/study");
+        assert_eq!(fresh.href(Area::Programs, "/programs/bachelor-informatik-2008/plan"), "/study");
+        assert_eq!(fresh.list(Area::Programs), "/programs");
+
+        let mut memory = Memory::default();
+        for location in ["/study?open=12104", "/programs/bachelor-informatik-2008/plan", "/catalog?turnus=winter"] {
+            memory.visit(location.to_string());
+        }
+        let tabs = Tabs(RwSignal::new(memory.clone()));
+        // From another area: where the area was left; inside it: up to „Mein Studium" as it was left.
+        assert_eq!(tabs.href(Area::Programs, "/catalog"), "/programs/bachelor-informatik-2008/plan");
+        assert_eq!(tabs.href(Area::Programs, "/programs/bachelor-informatik-2008/areas"), "/study?open=12104");
+        assert_eq!(tabs.href(Area::Programs, "/programs"), "/study?open=12104");
+        assert_eq!(tabs.href(Area::Programs, "/study"), "/study");
+        // „Zurück" on the program's page: the list it was reached from.
+        assert_eq!(tabs.list(Area::Programs), "/study?open=12104");
+        memory.visit("/programs?level=master".to_string());
+        memory.visit("/programs/master-informatik-2008/plan".to_string());
+        assert_eq!(Tabs(RwSignal::new(memory.clone())).list(Area::Programs), "/programs?level=master");
+        // A module's own page reached from „Mein Studium" is the area's, as from a program.
+        memory.visit("/study".to_string());
+        memory.visit("/catalog/module/12104".to_string());
+        assert_eq!((Area::of(path_of(&memory.previous)), memory.catalog.as_deref()), (Area::Programs, Some("/catalog?turnus=winter")));
+        // A reload keeps it as the seventh line.
+        assert_eq!(Memory::restored(&memory.stored()).study.as_deref(), Some("/study"));
     }
 
     #[test]

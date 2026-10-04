@@ -54,7 +54,8 @@ await step("a filter", () => page.click('#filters a.chip:has-text("Winter")'), (
 await step("a preview", () => page.click("a.row >> nth=2"), () => location.pathname === "/en/catalog" && location.search.includes("open=") && document.querySelector(".detail h2"));
 await step("F opens the module's page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/en/catalog/module/") && document.querySelector(".module-page"));
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/en/catalog" && document.querySelector(".rows"));
-await step("the programmes", () => page.click('.rail a.nav[data-area="programs"]'), () => location.pathname === "/en/programs" && document.querySelector(".page"));
+await step("my studies", () => page.click('.rail a.nav[data-area="programs"]'), () => location.pathname === "/en/study" && document.querySelector(".st-setup h1")?.textContent === "Set up your studies once");
+await step("the programmes", () => page.click('#sidebar a[href="/en/programs"]'), () => location.pathname === "/en/programs" && document.querySelector(".page"));
 await step("a programme", () => page.click('.page a[href^="/en/programs/"] >> nth=0'), () => /^\/en\/programs\/[^/]+/.test(location.pathname));
 await step("its electives and areas", () => page.click('a[href*="/areas"] >> nth=0'), () => location.pathname.endsWith("/areas"));
 await step("the saved modules", () => page.click('.rail a.nav[data-area="bookmarks"]'), () => location.pathname === "/en/bookmarks");

@@ -2,8 +2,10 @@
 //! Fachsemester of the timetable's program's Regelstudienplan into the semester shown, on top of
 //! what is planned (`studyplan::import_fs`; „Plan leeren" empties). A program with several plans
 //! has a select for the plan; the Fachsemester starts at the first one of the current semester's
-//! half of the year. „Mein Plan" (the whole-study plan of the program's page) is the second source
-//! to come, shown disabled.
+//! half of the year. The second source is „Mein Studium" (owner, 2026-10-04: „der Regelstudienplan
+//! ist ja eine Illusion"): its Wiederholer, what was not passed and is not planned again
+//! (`crate::study::current_import`). What „Mein Studium" plans into a semester is that semester's
+//! timetable already: the two pages share one plan.
 //!
 //! „Übernehmen" answers at once and writes after the next frame (R21): the modules and
 //! placeholders, the program with them, and „Mein Studiengang" where none is set yet. „Übernommen:
@@ -16,6 +18,7 @@ use folia_model::rows::Program;
 use folia_pages::ask::PlanSourceAsk;
 use folia_pages::PlanSource;
 use folia_plans::studyplan::{self, MineDoc, PlanDoc};
+use folia_routes::url;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -121,6 +124,23 @@ fn imported_note(modules: usize, placeholders: usize, t: &i18n::Texts) -> String
     format!("{}{}", t.studyplan_import.imported, taken_parts(modules, placeholders, t))
 }
 
+/// What an import adds, under its button: „4 Module · 1 Platzhalter", or why nothing; and whether
+/// it adds anything.
+fn adds_of(import: &studyplan::Import, t: &i18n::Texts) -> (String, bool) {
+    let mut adds = Vec::new();
+    if !import.modules.is_empty() {
+        adds.push(format::modules(i64::try_from(import.modules.len()).unwrap_or(i64::MAX), t.locale));
+    }
+    if !import.placeholders.is_empty() {
+        adds.push((t.studyplan_head.placeholders)(import.placeholders.len()));
+    }
+    match (adds.is_empty(), import.skipped) {
+        (false, _) => (adds.join(" · "), true),
+        (true, 0) => (t.studyplan_import.nothing_to_take.to_string(), false),
+        (true, _) => (t.studyplan_import.already.to_string(), false),
+    }
+}
+
 /// „4 Module, 1 Platzhalter", „nichts": what a note says was taken over.
 pub(super) fn taken_parts(modules: usize, placeholders: usize, t: &i18n::Texts) -> String {
     let mut parts = Vec::new();
@@ -137,7 +157,7 @@ pub(super) fn taken_parts(modules: usize, placeholders: usize, t: &i18n::Texts) 
 }
 
 /// Seconds since 1970, for when the modules were planned; 0 outside the browser.
-pub(super) fn now_secs() -> u64 {
+pub(crate) fn now_secs() -> u64 {
     #[cfg(feature = "csr")]
     {
         let millis = web_sys::js_sys::Date::now();
@@ -209,6 +229,30 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
     });
     let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().map(|(note, _)| note.clone()).filter(|note| note.starts_with(s.imported))));
 
+    // „Mein Studium" as the source: the program „Mein Studiengang" keeps, its plans, and what its
+    // study takes into the semester shown (the timetable's program does not count here).
+    let from_study = RwSignal::new(false);
+    let mine_id = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
+    let mine_plans = Memo::new(move |before| {
+        let Some(id) = mine_id.get() else { return Plans::NoProgram };
+        let Some(now) = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&PlanSourceAsk { program_id: id.clone(), locale: t.locale }))) else { return Plans::NoPlan };
+        folia_pages::ask::unless_pending(now, before, |now| match now.ok().flatten() {
+            Some(plans) => Plans::Found(Box::new(plans)),
+            None => Plans::NoPlan,
+        })
+    });
+    let study_adds = Memo::new(move |_| {
+        let (url, current) = (address.get(), ctx.current.get());
+        let mine = ctx.mine.map(|mine| mine.with(Clone::clone)).unwrap_or_default();
+        let doc = ctx.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
+        let now = key_of(&url, current, &doc, ctx.today);
+        let semester = ctx.key.get();
+        mine_plans.with(|plans| match plans {
+            Plans::Found(source) => crate::study::current_import(source, &mine, &doc, semester, now).map(|import| adds_of(&import, t)),
+            _ => None,
+        })
+    });
+
     let pick_core = move |ev: leptos::ev::Event| {
         let (Some(id), Ok(index)) = (id.get_untracked(), event_target_value(&ev).parse::<usize>()) else { return };
         core_pick.set(Some((id, index)));
@@ -257,6 +301,33 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
             let _ = busy.try_set(false);
         });
     };
+    let take_study = move |_| {
+        if busy.get_untracked() || !study_adds.with_untracked(|adds| adds.as_ref().is_some_and(|(_, any)| *any)) {
+            return;
+        }
+        busy.set(true);
+        let semester = ctx.key.get_untracked();
+        let now = key_of(&Default::default(), ctx.current.get_untracked(), &PlanDoc::default(), ctx.today);
+        let (plan, mine, undo) = (ctx.plan, ctx.mine, ctx.undo);
+        nav::after_paint(move || {
+            if let (Some(plan), Some(mine)) = (plan, mine) {
+                let mine = untrack(|| mine.get());
+                let note = mine_plans.with_untracked(|plans| {
+                    let Plans::Found(source) = plans else { return None };
+                    Some(plan.update(|doc| {
+                        let before = doc.clone();
+                        let import = crate::study::current_import(source, &mine, doc, semester, now).unwrap_or_default();
+                        let (modules, placeholders) = doc.apply(&import, now_secs());
+                        (imported_note(modules, placeholders, t), before)
+                    }))
+                });
+                if let Some(note) = note {
+                    let _ = undo.try_set(Some(note));
+                }
+            }
+            let _ = busy.try_set(false);
+        });
+    };
     let restoring = RwSignal::new(false);
     let restore = move |_| {
         let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
@@ -276,15 +347,43 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
         <div class="fgroup sp-import" id="sp-import">
             <p class="flabel label">{s.import}</p>
             <div class="seg hug" role="radiogroup" aria-label=s.source>
-                <button type="button" role="radio" aria-checked="true"><span class="seg-label">{s.standard_plan}</span></button>
-                <button type="button" role="radio" aria-checked="false" aria-disabled="true" title=s.my_plan_soon>
-                    <span class="seg-label">{s.my_plan}</span><small>{s.soon}</small>
+                <button type="button" role="radio" aria-checked=move || if from_study.get() { "false" } else { "true" } on:click=move |_| from_study.set(false)>
+                    <span class="seg-label">{s.standard_plan}</span>
+                </button>
+                <button type="button" role="radio" aria-checked=move || if from_study.get() { "true" } else { "false" } on:click=move |_| from_study.set(true) title=s.my_studies_hint>
+                    <span class="seg-label">{s.my_studies}</span>
                 </button>
             </div>
-            {move || match state.get() {
-                0 => view! { <p class="hint">{s.choose_program_first}</p> }.into_any(),
-                1 => view! { <p class="hint">{s.no_plan}</p> }.into_any(),
-                _ => view! {
+            {move || match (from_study.get(), state.get()) {
+                (true, _) => view! {
+                    {move || match (mine_id.with(Option::is_some), study_adds.get()) {
+                        (false, _) => view! { <p class="hint">{s.no_studies}</p> }.into_any(),
+                        (true, None) => view! { <p class="hint">{s.study_not_yet}</p> }.into_any(),
+                        (true, Some((adds, any))) => view! {
+                            <p class="hint">{s.my_studies_hint}</p>
+                            <div class="sp-import-go">
+                                <button class="btn primary" type="button" id=GO_ID disabled=!any aria-busy=move || busy.get().then_some("true") on:click=take_study>{s.take}</button>
+                            </div>
+                            {move || match note.get() {
+                                Some(note) => view! {
+                                    <p class="action note-action">
+                                        <Icon name="check"/>
+                                        <span>{note}</span>
+                                        <button class="mini hit" type="button" aria-busy=move || restoring.get().then_some("true") on:click=restore>{t.common.undo}</button>
+                                    </p>
+                                }
+                                .into_any(),
+                                None => view! { <p class="hint num">{adds.clone()}</p> }.into_any(),
+                            }}
+                        }
+                        .into_any(),
+                    }}
+                    <a class="sp-more" href=t.path(url::STUDY)>{s.to_studies}</a>
+                }
+                .into_any(),
+                (false, 0) => view! { <p class="hint">{s.choose_program_first}</p> }.into_any(),
+                (false, 1) => view! { <p class="hint">{s.no_plan}</p> }.into_any(),
+                (false, _) => view! {
                     {move || {
                         (!cores.with(Vec::is_empty)).then(|| view! {
                             <span class="select-wrap plain">

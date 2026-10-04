@@ -105,6 +105,8 @@ const barState = () => {
   };
 };
 const AREAS = ["home", "catalog", "programs", "bookmarks", "studyplan"];
+// Where a tab leads in the app on its first entry: „Studium" is „Mein Studium" (2026-10-04).
+const FIRST = { programs: "/study" };
 
 const context = await browser.newContext(phone);
 const { page, swipe, lift, keepHover } = await open(context, "/");
@@ -226,7 +228,7 @@ now = await settled("back to the catalog", "catalog");
 for (const area of AREAS.slice(2)) {
   await swipe(middle, y, -110, 0);
   now = await settled(`to ${area}`, area);
-  check(now.path.startsWith("/" + area), `to ${area}: the page is ${now.path}`);
+  check(now.path.startsWith(FIRST[area] ?? "/" + area), `to ${area}: the page is ${now.path}`);
 }
 await swipe(middle, y, -120, 0);
 now = await settled("end right", "studyplan");
