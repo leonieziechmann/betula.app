@@ -13,10 +13,11 @@
 //!                                      they are is never part of a URL, only how they are shown,
 //!                                      which module stands beside them, and whether that module
 //!                                      fills the page
-//! `/study[?open=<id>][&full=1]`       „Mein Studium", the visitor's study semester by semester
-//!                                      (`StudyUrl`): the page of the Studium tab in the app. What
-//!                                      is planned and passed lives in the browser; the address
-//!                                      says only which module stands beside the plan
+//! `/study[?plan=1][&open=<id>][&full=1]`  „Mein Studium", the visitor's study semester by
+//!                                      semester (`StudyUrl`): the page of the Studium tab in the
+//!                                      app. What is planned and passed lives in the browser; the
+//!                                      address says only whether a phone shows the semesters
+//!                                      behind the overview, and which module stands beside them
 //! `/programs`                          program overview
 //! `/programs/<slug>[/plan|areas|my-plan][?variant=<n>][&open=<id>][&full=1]`   program page, its
 //!                                      tabs, which of several study plans is shown, which module
@@ -71,7 +72,7 @@ pub const PRIVACY: &str = "/datenschutz";
 pub const STUDYPLAN: &str = "/studyplan";
 /// „Mein Studium" (owner, 2026-10-04): the visitor's whole study, semester by semester, from what
 /// is passed and the Regelstudienplan — the page the Studium tab leads to in the app. What it shows
-/// lives in the browser; the address says only which module stands beside it (`StudyUrl`).
+/// lives in the browser; the address says only how it is shown (`StudyUrl`).
 pub const STUDY: &str = "/study";
 
 /// The Stundenplan's address that hands the plan of `code` on (`share::SharedPlan`).
@@ -559,11 +560,15 @@ impl Season {
     }
 }
 
-/// What the address of „Mein Studium" says (`/study?open=11101&full=1`): the module beside the plan,
-/// and whether it fills the page (a local view, `LocalView`). What is planned and passed lives in
-/// the browser and reaches no address (R9, R13).
+/// What the address of „Mein Studium" says (`/study?plan=1&open=11101&full=1`): on a phone, the
+/// semesters behind the overview (owner, 2026-10-05: „eine box studium planen … wenn man da rauf
+/// klickt oder nach links swiped bekommt man den plan"), a page of their own that Back leaves; the
+/// module beside the plan, and whether it fills the page (a local view, `LocalView`). What is
+/// planned and passed lives in the browser and reaches no address (R9, R13).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StudyUrl {
+    /// The semesters, not the overview (`plan=1`). A desktop shows both at once.
+    pub plan: bool,
     /// The module shown beside the plan (`open=<id>`).
     pub open: Option<String>,
     /// The module of `open` fills the page (`full=1`). Nothing without `open`.
@@ -572,12 +577,23 @@ pub struct StudyUrl {
 
 impl StudyUrl {
     pub fn parse(raw_query: &str) -> Self {
-        let (open, full) = local_from_pairs(&parse_pairs(raw_query));
-        Self { open, full }
+        let pairs = parse_pairs(raw_query);
+        let plan = pairs.iter().find(|(key, _)| key == "plan").is_some_and(|(_, value)| value.trim() == "1");
+        let (open, full) = local_from_pairs(&pairs);
+        Self { plan, open, full }
+    }
+
+    /// The same page with the semesters (`true`) or the overview.
+    pub fn with_plan(&self, plan: bool) -> Self {
+        Self { plan, ..self.clone() }
     }
 
     pub fn path(&self) -> String {
-        let pairs = local_pairs(self.open.as_deref(), self.full);
+        let mut pairs = Vec::new();
+        if self.plan {
+            pairs.push(("plan", "1".to_string()));
+        }
+        pairs.extend(local_pairs(self.open.as_deref(), self.full));
         if pairs.is_empty() {
             return STUDY.to_string();
         }
@@ -595,7 +611,7 @@ impl LocalView for StudyUrl {
     }
 
     fn with_module(&self, open: Option<&str>, full: bool) -> Self {
-        Self { open: open.map(str::to_string), full: full && open.is_some() }
+        Self { plan: self.plan, open: open.map(str::to_string), full: full && open.is_some() }
     }
 
     fn path(&self) -> String {
@@ -1731,7 +1747,7 @@ mod tests {
     }
 
     #[test]
-    fn mein_studium_names_only_the_module_beside_it() {
+    fn mein_studium_names_the_semesters_and_the_module_beside_them() {
         assert_eq!(StudyUrl::parse("").path(), "/study");
         // What it does not know is left out; `full` needs a module.
         assert_eq!(StudyUrl::parse("full=1&utm=x&open=11101").path(), "/study?open=11101&full=1");
@@ -1739,6 +1755,12 @@ mod tests {
         assert_eq!(StudyUrl::parse("open=../etc").open, None);
         let beside = StudyUrl::parse("open=11101");
         assert_eq!((beside.with_full(true).path(), beside.with_open(None).path()), ("/study?open=11101&full=1".to_string(), "/study".to_string()));
+        // A phone's semesters behind the overview: kept with a module beside them, `1` alone.
+        let plan = StudyUrl::parse("open=11101&plan=1");
+        assert_eq!((plan.path(), plan.with_open(None).path()), ("/study?plan=1&open=11101".to_string(), "/study?plan=1".to_string()));
+        assert_eq!((plan.with_full(true).path(), plan.with_plan(false).path()), ("/study?plan=1&open=11101&full=1".to_string(), "/study?open=11101".to_string()));
+        assert_eq!(StudyUrl::parse("plan=yes").path(), "/study");
+        assert_eq!(StudyUrl::default().with_plan(true).path(), "/study?plan=1");
     }
 
     #[test]
