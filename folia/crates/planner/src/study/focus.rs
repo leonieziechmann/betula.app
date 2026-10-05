@@ -1,8 +1,13 @@
 //! One semester in focus (the mockup's concept A, owner 2026-10-04: „am sichersten … und am besten
 //! zwischen Handy und PC"): on a desktop a strip of every semester with what it holds, the
 //! semester in focus as a table (a box to select the row, the module with its marks, its area, its
-//! credits, its menu) and beside it what fits it (`Fits`); on a phone the semester as a card as
-//! wide as the page, which ‹ › in its head or a swipe turn (`pager.rs`). After the last semester
+//! credits, its menu) and beside it what fits it (`Fits`); on a phone the semester as a page of its
+//! own, which ‹ › in its head or a swipe turn (`pager.rs`), in the look of the catalog's list
+//! (owner, 2026-10-05: „mach mal das Design der Semester pages angelehnt an das design, dass schon
+//! im Modulkatalog etabliert wurde. Also die rows pro modul sollen ähnlich aussehen. Es soll keine
+//! box geben, und der text für welches Semester gerade ist oben unter die suchbar auch ohne box"):
+//! its head right under the search, without a box, and a card for each module as the catalog has
+//! one, its name over a line of its number, its area and its marks, its credits at its end. After the last semester
 //! comes a page that adds one (owner: „Wenn man bis zum Schluss ist, soll eine Page kommen, wo man
 //! dann ein neues Semester hinzufügen kann"), as a semester of leave if the student says so.
 //!
@@ -705,6 +710,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     let menu_open = Memo::new(move |_| ctx.menu.with(|menu| menu.as_ref().is_some_and(|menu| matches!(&menu.what, MenuFor::Item { semester: there, key: of, .. } if *there == semester && key.with_value(|key| key == of)))));
 
     let name = first.name.clone();
+    let code = first.module_id().map(str::to_string);
     let what = match &first.subject {
         Subject::Module { id } => {
             let id = id.clone();
@@ -755,20 +761,26 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
             >
                 <div class="st-what">
                     {what}
-                    {move || row.get().map(|row| view! {
-                        <span class="st-area st-phone"><span class="st-dot" style=format!("--c: {}", row.tone)></span>{row.area.clone()}</span>
-                        {row.chips.into_iter().map(|(class, text, icon)| view! { <span class=format!("st-chip {class}")>{icon.map(|icon| view! { <Icon name=icon/> })}{text}</span> }).collect_view()}
-                        {row.find.map(|href| view! { <a class="st-find" href=t.path(&href) rel="nofollow" draggable="false"><Icon name="search"/>{s.choose_module}</a> })}
-                        {row.again.map(|to| {
-                            let key = row.item.key();
-                            view! { <button class="st-link" type="button" on:click=move |_| { ctx.focus.set(Some(to)); ctx.open(Dialog::Add { semester: to, catalog: false, chosen: vec![key.clone()] }); }>{s.plan_it}</button> }
+                    // Under the name on a phone, as the catalog's line under a module: its number,
+                    // its area, its marks; beside the name on a desktop.
+                    <span class="st-meta">
+                        {code.map(|code| view! { <span class="mono st-code st-phone">{code}</span> })}
+                        {move || row.get().map(|row| view! {
+                            <span class="st-area st-phone"><span class="st-dot" style=format!("--c: {}", row.tone)></span>{row.area.clone()}</span>
+                            {row.chips.into_iter().map(|(class, text, icon)| view! { <span class=format!("st-chip {class}")>{icon.map(|icon| view! { <Icon name=icon/> })}{text}</span> }).collect_view()}
+                            {row.find.map(|href| view! { <a class="st-find" href=t.path(&href) rel="nofollow" draggable="false"><Icon name="search"/>{s.choose_module}</a> })}
+                            {row.again.map(|to| {
+                                let key = row.item.key();
+                                view! { <button class="st-link" type="button" on:click=move |_| { ctx.focus.set(Some(to)); ctx.open(Dialog::Add { semester: to, catalog: false, chosen: vec![key.clone()] }); }>{s.plan_it}</button> }
+                            })}
                         })}
-                    })}
+                    </span>
                 </div>
                 <span class="st-area st-pc">{move || row.get().map(|row| view! { <span class="st-dot" style=format!("--c: {}", row.tone)></span>{row.area} })}</span>
                 <span class="st-lp num">
                     {move || passed.get().then(|| view! { <span class="st-passed" title=s.passed_word><Icon name="circle-check-big"/><span class="visually-hidden">{s.passed_word}</span></span> })}
                     {move || row.with(|row| row.as_ref().and_then(|row| row.credits.clone()))}
+                    <small class="st-phone">{t.common.credits_unit}</small>
                 </span>
             </div>
             <button
@@ -961,6 +973,10 @@ fn PlanRow(ctx: StudyCtx, semester: SemesterKey, fit: Fit) -> impl IntoView {
     let t = i18n::t();
     let label = (t.study.plan_here)(&fit.name);
     let pick = fit.pick.clone();
+    let code = match &fit.pick {
+        Pick::Module { id, .. } => Some(id.clone()),
+        Pick::Row { .. } => None,
+    };
     let name = match fit.pick {
         Pick::Module { id, .. } => view! { <a class="st-name" href=move || module_href(ctx, &id, t) data-noscroll="">{fit.name}</a> }.into_any(),
         Pick::Row { .. } => view! { <span class="st-name">{fit.name}</span> }.into_any(),
@@ -969,9 +985,12 @@ fn PlanRow(ctx: StudyCtx, semester: SemesterKey, fit: Fit) -> impl IntoView {
         <li class="st-prow">
             <div class="st-what">
                 {name}
-                <span class="st-area"><span class="st-dot" style=format!("--c: {}", fit.tone)></span>{fit.area}</span>
+                <span class="st-meta">
+                    {code.map(|code| view! { <span class="mono st-code">{code}</span> })}
+                    <span class="st-area"><span class="st-dot" style=format!("--c: {}", fit.tone)></span>{fit.area}</span>
+                </span>
             </div>
-            <span class="st-lp num">{fit.credits}</span>
+            <span class="st-lp num">{fit.credits.map(|credits| view! { {credits}<small>{t.common.credits_unit}</small> })}</span>
             <button class="icon-btn st-prow-add" type="button" aria-label=label.clone() title=label on:click=move |_| add_pick(ctx, semester, vec![pick.clone()], t)>
                 <Icon name="plus"/>
             </button>

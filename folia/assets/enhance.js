@@ -3,10 +3,11 @@
 // position across page loads, and a link followed while the app is starting waits for it. In both
 // modes: the shortcuts (Esc closes the preview or leaves the module page, F opens the previewed
 // module full screen, Ctrl+K or "/" jumps to the search; in the app M marks the module the visitor
-// is at and P plans it into the Studienplan), the theme switch, the filter sheet, the swipe along
-// the phone's bottom bar from tab to tab, the widths of the filter panel and the module preview
-// (dragged, kept in localStorage), the room the panels make for the ground at the end of a page,
-// and the way back to the top of a page („Nach oben").
+// is at and P plans it into the Studienplan), the theme switch, the filter sheet (and a page's
+// dialogs where a phone shows them as sheets), the swipe along the phone's bottom bar from tab to
+// tab, the widths of the filter panel and the module preview (dragged, kept in localStorage), the
+// room the panels make for the ground at the end of a page, and the way back to the top of a page
+// („Nach oben").
 (() => {
   const root = document.documentElement;
   // The page's language, as its address says it (`folia_locale::Locale::split`): the prefix of its
@@ -160,9 +161,11 @@
   // The sheet is swiped down to close it: it follows the finger, and is let go when it was pulled
   // far enough, or flicked; otherwise it slides back. `to` takes how far the finger is below
   // where the drag began, `since` is when the finger came down (a quick flick may reach the page
-  // as one single move, whose speed is then measured from there).
+  // as one single move, whose speed is then measured from there). How far down it is, as a share
+  // of its height, is `--drag` on it: a dialog's dim backdrop fades by it.
   function dragSheet(sheet, since) {
     let dy = 0, at = since, speed = 0;
+    const height = sheet.offsetHeight || 1;
     sheet.classList.add("dragging");
     return {
       to(offset) {
@@ -172,16 +175,30 @@
         dy = next;
         at = now;
         sheet.style.transform = `translateY(${dy}px)`;
+        sheet.style.setProperty("--drag", Math.min(1, dy / height).toFixed(3));
       },
       release() {
         const flicked = performance.now() - at < 100 && speed > 0.45;
         sheet.style.transform = "";
+        sheet.style.removeProperty("--drag");
         sheet.classList.remove("dragging");
-        if (dy > Math.min(160, sheet.offsetHeight * 0.3) || (dy > 16 && flicked)) closeSheet();
+        if (dy > Math.min(160, height * 0.3) || (dy > 16 && flicked)) (sheet.tagName === "DIALOG" ? dropDialog(sheet) : closeSheet());
       },
     };
   }
-  const openSheetNow = () => (phone() ? document.querySelector(".filters.open, .sidebar.sheet.open") : null);
+  // A page's dialog that a phone shows as a sheet from below (`dialog[data-sheet]`: the areas of
+  // „Mein Studium", „Studiengang wechseln", „Module hinzufügen") is dragged down as the filter
+  // sheet is (owner, 2026-10-05: „dass man die einfach wieder runter sliden kann"). Let go, it goes
+  // on down from where the finger left it (app.css, `.dropped`) and closes, as its × and Esc close
+  // it: the page hears the dialog's `close`.
+  const dropDialog = (dialog) => {
+    dialog.classList.add("dropped");
+    setTimeout(() => {
+      if (dialog.open) dialog.close();
+      dialog.classList.remove("dropped");
+    }, 200);
+  };
+  const openSheetNow = () => (phone() ? document.querySelector(".filters.open, .sidebar.sheet.open, dialog[data-sheet][open]:not(.dropped)") : null);
   // What scrolls between the finger and the sheet: its body, or a picker's list in it.
   const scrollerIn = (el, sheet) => {
     for (let node = el; node && node !== sheet; node = node.parentElement) {
@@ -223,8 +240,8 @@
   // A mouse (a narrow window on a desktop) drags the sheet at its head.
   document.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "touch" || e.button !== 0) return;
-    const head = e.target.closest?.(".filters .panel-head, .sidebar.sheet .panel-head");
-    const sheet = head?.closest(".filters, .sidebar.sheet");
+    const head = e.target.closest?.(".filters .panel-head, .sidebar.sheet .panel-head, dialog[data-sheet] header");
+    const sheet = head?.closest(".filters, .sidebar.sheet, dialog[data-sheet]");
     if (!sheet || sheet !== openSheetNow() || e.target.closest("a, button, input")) return;
     e.preventDefault();
     const startY = e.clientY;

@@ -1,6 +1,7 @@
 //! The chrome around every page: the rail with the main navigation and the languages, the top
-//! bar with the page's title and search, the navigation at the bottom of a phone (`NavItems`),
-//! and what lets the memory of the tabs follow the router (`FollowTabs`).
+//! bar with the page's title and search (and on a phone the way back of a page's step, `TopBack`),
+//! the navigation at the bottom of a phone (`NavItems`), and what lets the memory of the tabs
+//! follow the router (`FollowTabs`).
 
 use folia_routes::url;
 use leptos::prelude::*;
@@ -110,6 +111,83 @@ pub fn Rail() -> impl IntoView {
     }
 }
 
+/// A way back at the head of a phone's page, left of the search (owner, 2026-10-05: „wenn man in
+/// der semester ansicht ist, soll es oben links neben der search bar im gleichen style eine
+/// quadratische box sein mit einem zurück pfeil"): a box as the search is and as wide as it is
+/// high, an arrow in it. A page with a step below its first one puts it there while that step
+/// shows (the semesters of „Mein Studium", below its overview) and takes it away when it goes;
+/// the box slides in and out, and the search makes room for it (app.css). The browser app's alone,
+/// and a wide screen has none.
+#[derive(Clone, Copy)]
+pub struct TopBack(RwSignal<Option<Back>>);
+
+/// Where the box at the head leads (`TopBack`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Back {
+    /// The path, without the language's prefix.
+    pub href: String,
+    /// What it is called (the arrow's words for those who do not see it).
+    pub label: &'static str,
+    /// The step before in the history is where it leads: it goes back there instead, the same
+    /// entry as before, and the history does not grow.
+    pub history: bool,
+}
+
+impl TopBack {
+    /// Creates the box's place, empty, and provides it: call it once, in `App`.
+    pub fn provide() -> Self {
+        let back = TopBack(RwSignal::new(None));
+        provide_context(back);
+        back
+    }
+
+    pub fn expect() -> Option<Self> {
+        use_context::<Self>()
+    }
+
+    /// Shows the box leading to `back`, or none.
+    pub fn set(self, back: Option<Back>) {
+        if self.0.with_untracked(|now| *now != back) {
+            self.0.set(back);
+        }
+    }
+}
+
+/// The box of `TopBack`: there while a page puts it there. Where it went, it keeps its place and its
+/// arrow and slides out, out of reach.
+#[component]
+fn TopBackBox() -> impl IntoView {
+    let t = i18n::t();
+    let back = TopBack::expect();
+    let shown = Memo::new(move |_| back.and_then(|back| back.0.get()));
+    let last = Memo::new(move |before: Option<&Option<Back>>| shown.get().or_else(|| before.cloned().flatten()));
+    let on = move || shown.with(Option::is_some);
+    let click = move |ev: leptos::ev::MouseEvent| {
+        let history = shown.with_untracked(|back| back.as_ref().is_some_and(|back| back.history));
+        if history && ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key()) {
+            ev.prevent_default();
+            #[cfg(feature = "csr")]
+            if let Some(history) = leptos::web_sys::window().and_then(|window| window.history().ok()) {
+                let _ = history.back();
+            }
+        }
+    };
+    view! {
+        <a
+            class="top-back"
+            class:on=on
+            inert=move || !on()
+            href=move || last.with(|back| back.as_ref().map(|back| t.path(&back.href)))
+            aria-label=move || last.with(|back| back.as_ref().map(|back| back.label))
+            title=move || last.with(|back| back.as_ref().map(|back| back.label))
+            data-noscroll=""
+            on:click=click
+        >
+            <Icon name="arrow-left"/>
+        </a>
+    }
+}
+
 #[component]
 pub fn TopBar() -> impl IntoView {
     let t = i18n::t();
@@ -160,6 +238,7 @@ pub fn TopBar() -> impl IntoView {
 
     view! {
         <header class="topbar">
+            {APP.then(|| view! { <TopBackBox/> })}
             {move || {
                 let study = study_now.get();
                 let programs = area_now.get() == Area::Programs && !study;
