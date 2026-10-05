@@ -27,7 +27,7 @@ use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
-use folia_shell::chrome::{FollowTabs, NavItems, Rail, TopBar};
+use folia_shell::chrome::{FollowTabs, NavItems, Rail, TopBack, TopBar};
 use folia_shell::frame::Plain;
 use folia_shell::ground::{Crown, Ground, Wood};
 use folia_shell::pending::Pending;
@@ -108,6 +108,8 @@ pub fn App() -> impl IntoView {
     Studyplan::provide();
     MyProgram::provide();
     MineResolved::provide();
+    // The way back a page's step puts at the head of a phone's page (`chrome::TopBack`).
+    TopBack::provide();
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();

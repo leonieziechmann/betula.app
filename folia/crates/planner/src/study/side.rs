@@ -349,7 +349,7 @@ pub(super) fn SwitchDialog(ctx: StudyCtx) -> impl IntoView {
     };
     let name_of = move || before.with(|before| before.as_ref().map(|(program, setup)| (program_name(program), setup.start.label(t.locale))));
     view! {
-        <DialogHead ctx title=s.switch_title sub=s.switch_lead/>
+        <DialogHead ctx title=s.switch_title/>
         <div class="st-dlg-body st-switch">
             {move || name_of().map(|(name, since)| view! {
                 <p class="st-before"><span class="label">{s.switch_before}</span><b>{name}</b><span>{(s.since)(&since)}</span></p>

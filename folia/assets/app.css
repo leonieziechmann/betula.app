@@ -328,6 +328,8 @@ span.js-only { display: contents; }
 /* The view is as high as the window; less what shows of the ground (see „the birch"). */
 .main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
+/* The way back of a page's step, a phone's (chrome.rs `TopBack`). */
+.top-back { display: none; }
 /* The title sits over the filter panel (its text over the panel's text), the search over the list. */
 .crumb { display: flex; align-items: baseline; gap: 10px; flex: none; width: var(--filters); padding-left: 14px; min-width: 0; }
 .crumb h1 { font-size: 17px; font-weight: 680; letter-spacing: -.025em; white-space: nowrap; }
@@ -338,7 +340,7 @@ span.js-only { display: contents; }
 .crumb.brand h1 { line-height: 1; }
 .search { flex: 1; max-width: 760px; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--panel); border-radius: var(--r-ctl); box-shadow: var(--shadow-panel); color: var(--text-3); cursor: text; }
 .search:focus-within { box-shadow: 0 0 0 2px var(--accent); }
-.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 15px; color: var(--text); }
+.search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font-size: 15px; color: var(--text); text-overflow: ellipsis; }
 .search input::placeholder { color: var(--text-3); }
 .ghost kbd { margin-left: 2px; padding: 2px 6px; }
 kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
@@ -3061,6 +3063,14 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .brand-phone .languages { margin-left: auto; }
   .brand-phone .lang-switch { width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
   .search { height: 48px; }
+  /* The way back of a page's step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links neben der
+     search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box as the
+     search is, as wide as it is high. It slides in from the left and the search makes room for it,
+     and back out the same way. */
+  .top-back { flex: none; display: grid; place-items: center; width: 0; height: 48px; margin-right: calc(-1 * var(--gap)); border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(-12px); overflow: hidden; transition: width .24s var(--ease), margin .24s var(--ease), opacity .18s, transform .24s var(--ease); -webkit-tap-highlight-color: transparent; }
+  .top-back.on { width: 48px; margin-right: 0; opacity: 1; transform: none; }
+  .top-back .icon { flex: none; width: 22px; height: 22px; }
+  .top-back:active { background: var(--panel-3); }
   .content, .page { height: auto; overflow: visible; }
   .page { padding: 0 12px 12px; }
   .work, .work.no-detail { display: block; height: auto; }
@@ -3536,6 +3546,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-more:hover::before, .st-more[aria-expanded="true"]::before { background: var(--panel-3); }
 .st-more .icon { position: relative; }
 .st-what { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; padding: 5px 0; }
+/* The line under a module's name on a phone (its number, its area, its marks); beside the name
+   here. */
+.st-meta { display: contents; }
 .st-name { color: var(--text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; hyphens: auto; }
 @media (hover: hover) { a.st-name:hover { text-decoration: underline; text-underline-offset: 3px; } }
 a.st-name[aria-current="true"] { color: var(--accent-ink); }
@@ -3817,14 +3830,27 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 @media (max-width: 900px) {
   .st-pc { display: none !important; }
   .st-phone { display: revert !important; }
-  /* A phone's two pages (phone.rs): the overview with the program and its ways, and behind its box
-     „Studium planen" the semesters. The page that comes slides in from its side (owner,
-     2026-10-05: „brauchen Animationen, damit man versteht was passiert"); the page's area clips
-     it, so that nothing scrolls sideways. */
+  /* A phone's two pages (phone.rs), the overview and the semesters, side by side in a row the
+     browser scrolls by itself, a page a swipe (owner, 2026-10-05: „dass man die komplette page
+     nach links sliden kann"), laid out as the semesters are among themselves (below): the row
+     reaches to the screen's edges, a page's content lies the page's margin from them and as far
+     from the next page's, a page rests in the middle, the row is as tall as the page it rests at
+     and at least as tall as the screen under the bar. The page's area clips the row, so that
+     nothing scrolls sideways; the window keeps no anchor while the pages are there (a page that
+     comes to rest puts the window where it shows from its top, pager.rs, phone.rs). */
   .page:has(> .page-inner.study) { overflow-x: clip; }
+  :root:has(.st-pages) { overflow-anchor: none; }
+  .st-pages { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .st-pages::-webkit-scrollbar { display: none; }
+  .st-pages::before, .st-pages::after { content: ""; flex: none; width: 6px; }
+  .st-page { flex: 0 0 calc(100% - 12px); min-width: 0; padding: 0 6px; scroll-snap-align: center; scroll-snap-stop: always; }
+  .st-page:not([data-here]) { margin-bottom: -100000px; }
+  /* What lies at a page's edge draws its ring inside it, and its shadow ends at the page's sides: a
+     page beside the one in view ends at the screen's edge, where a ring outside would draw a line
+     and a shadow a shade. */
+  .st-pages :is(.panel, .st-row, .st-sem-more) { box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lift); }
+  .st-phone-page, .st-card-sem { overflow-x: clip; }
   .st-phone-page { display: grid; gap: 12px; min-width: 0; }
-  .st-enter-right { animation: st-from-right .28s var(--ease); }
-  .st-enter-left { animation: st-from-left .28s var(--ease); }
   .st-phone-page .action { min-height: 46px; font-size: 14px; }
   /* The credits: the headline and „Bereiche ›", the bar, and under it what its parts are. */
   .st-over { padding: 10px 14px 14px 16px; border-radius: 12px; }
@@ -3842,16 +3868,8 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-mine-panel .st-mine-line { font-size: 13px; }
   .st-mine-panel .st-ways { padding: 0 2px; }
   /* „Studium planen": the whole box leads to the semesters (its head's link reaches over it), a
-     column leads to its semester. The box lies in a row the browser scrolls by itself, room after
-     it (phone.rs): a finger draws it to the left and uncovers where it leads, the frame and its
-     shadow staying where they are. */
-  .st-planbox-wrap { position: relative; border-radius: 12px; box-shadow: var(--shadow-panel); -webkit-touch-callout: none; }
-  .st-planbox-ground { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 14px; border-radius: inherit; background: var(--accent-soft); color: var(--accent-ink); font-size: 14px; font-weight: 650; }
-  .st-planbox-ground .icon { width: 20px; height: 20px; }
-  .st-planbox-track { position: relative; display: flex; border-radius: inherit; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
-  .st-planbox-track::-webkit-scrollbar { display: none; }
-  .st-planbox-track > * { flex: 0 0 100%; scroll-snap-align: start; }
-  .st-planbox { position: relative; padding: 12px 12px 10px 16px; border-radius: 12px; box-shadow: none; }
+     column leads to its semester; a finger anywhere on the page draws it there too (phone.rs). */
+  .st-planbox { position: relative; padding: 12px 12px 10px 16px; border-radius: 12px; -webkit-touch-callout: none; }
   .st-planbox-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; color: var(--text); font-size: 16px; font-weight: 700; text-decoration: none; }
   .st-planbox-head::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
   .st-planbox-head .icon { width: 20px; height: 20px; color: var(--text-2); }
@@ -3877,24 +3895,23 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-col-label { font-size: 12px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .st-rest { display: grid; gap: 6px; padding: 0 4px; }
   .st-rest .storage-hint { margin: 0 8px; }
-  /* The semesters: the way back over them, the cards, the marks of the rows under them. */
-  .st-plan-top { display: flex; align-items: center; margin: -6px 0 -4px; }
-  .st-back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin-left: -6px; padding: 0 10px 0 2px; border-radius: 10px; color: var(--accent-ink); font-size: 15px; font-weight: 600; text-decoration: none; }
-  .st-back .icon { width: 22px; height: 22px; }
-  /* The cards (pager.rs; owner, 2026-10-05: „dass das sich wie eine native app anfühlt"): side by
-     side in a row the browser scrolls by itself, a card a swipe. The row reaches to the screen's
-     edges and clips the cards above and below the room of their shadows. A card lies the page's
-     margin (12 px) from the screen's edges, and two lie as far apart, not twice as far (owner, the
-     same day: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist, so dass sich
-     das nicht doppelt, wenn man swiped"): each card's place has half of it on either side, and
-     the row half of it before the first and after the last (its own boxes, which every browser
-     scrolls to, as it does not always a row's padding). A card rests in the middle; a step is a
-     card and its space (pager.rs measures it). The row is as tall as the card it rests at (the
-     others hang below it and count for nothing) and at least as tall as the screen under it, so
-     that a card coming in shows as far down as the screen does. It is the cards' containing block,
-     so that it clips what they place absolutely too (a word for screen readers), which would else
-     reach past the screen. While rows are selected it does not move sideways. */
-  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar) - 44px); margin: -10px -12px -14px; padding: 10px 0 14px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  /* The semesters (pager.rs; owner, 2026-10-05: „dass das sich wie eine native app anfühlt"): a
+     page each, side by side in a row the browser scrolls by itself, a page a swipe; the way back to
+     the overview is at the head of the screen (chrome.rs `TopBack`). The row reaches to the
+     screen's edges again, past the margin of the page it lies in. What is on a page lies the page's
+     margin (12 px) from the screen's edges, and what is on two lies as far apart, not twice as far
+     (owner, the same day: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist, so
+     dass sich das nicht doppelt, wenn man swiped"): each page's place has half of it on either
+     side, and the row half of it before the first and after the last (its own boxes, which every
+     browser scrolls to, as it does not always a row's padding). A page rests in the middle; a step
+     is a page and its space (pager.rs measures it). The row is as tall as the page it rests at (the
+     others hang below it and count for nothing) and at least as tall as the screen under the bar,
+     so that a page coming in shows as far down as the screen does. On the first semester a finger
+     to the right goes on to the row of the two pages (no `contain`), which brings the overview. It
+     is the pages' containing block, so that it clips what they place absolutely too (a word for
+     screen readers), which would else reach past the screen. While rows are selected it does not
+     move sideways. */
+  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: 0 -12px; padding: 0 0 14px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .st-pager::-webkit-scrollbar { display: none; }
   .st-pager::before, .st-pager::after { content: ""; flex: none; width: 6px; }
   .st-pager.is-selecting { touch-action: pan-y; }
@@ -3904,60 +3921,84 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
      no box: the page's ground, frosted over what passes under it as the bar at the top is, from
      the screen's lower edge, the tab bar floating over it, to a little above the dots, where it
      fades into the page (the same day: „einfach nur den grauen Hintergrund mit blur zum
-     content"). Under the ground, which comes over it at the end of the page. */
-  .st-dock { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; padding: 26px 0 calc(84px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(transparent, #000 18px); mask-image: linear-gradient(transparent, #000 18px); animation: st-dock-in .28s var(--ease); }
+     content"). There while the semesters are the page in view (.on), fading as they go; under the
+     ground, which comes over it at the end of the page. */
+  .st-dock { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; padding: 26px 0 calc(84px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(transparent, #000 18px); mask-image: linear-gradient(transparent, #000 18px); opacity: 0; transform: translateY(8px); visibility: hidden; transition: opacity .2s, transform .2s var(--ease), visibility 0s .2s; }
+  .st-dock.on { opacity: 1; transform: none; visibility: visible; transition: opacity .2s, transform .2s var(--ease); }
   .st-bar { height: 12px; margin-top: 22px; gap: 2px; }
   .st-bar .st-seg, .st-bar .st-seg > span:first-child, .st-bar .st-seg > span:last-of-type { border-radius: 4px; }
   .st-bar .st-seg > span:not(:only-of-type):first-child { border-radius: 4px 0 0 4px; }
   .st-bar .st-seg > span:not(:only-of-type):last-of-type { border-radius: 0 4px 4px 0; }
   .st-plus { top: -18px; right: -2px; font-size: 11px; }
-  /* A semester: a card as wide as the page. Its ring inside it: a card beside the one in view
-     ends at the screen's edge, where a ring outside it would draw a line. */
-  .st-card-sem { padding: 6px 12px 12px; border-radius: 14px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lift); }
-  .st-card-sem.is-now { box-shadow: inset 0 0 0 1.5px var(--accent-line), var(--shadow-lift); }
-  .st-sem-head { gap: 4px; margin: 0 -8px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
-  .st-turn { width: 44px; height: 44px; }
-  .st-sem-title { flex-direction: column; justify-content: center; gap: 0; text-align: center; }
-  .st-sem-name { justify-content: center; }
-  .st-sem-name h2 { font-size: 16px; }
-  .st-sem-sub { margin: 0; font-size: 12.5px; }
-  .st-sem-sub b { font-size: 12.5px; font-weight: 650; }
+  /* A semester: a page in the look of the catalog's list (owner, 2026-10-05: „angelehnt an das
+     design, dass schon im Modulkatalog etabliert wurde … Es soll keine box geben, und der text für
+     welches Semester gerade ist oben unter die suchbar auch ohne box"). Its head right under the
+     search, as the catalog's count: the semester, under it its Fachsemester and credits; at its
+     end ‹ › and its ⋯ in a box as the catalog's „Filter". */
+  .st-card-sem { padding: 0; }
+  .st-sem-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 48px; grid-template-areas: "title prev next more"; align-items: center; gap: 0; margin: 0; padding: 4px 0 12px 4px; }
+  .st-sem-head > .st-turn:first-child { grid-area: prev; }
+  .st-sem-head > .st-turn:last-child { grid-area: next; }
+  .st-sem-title { grid-area: title; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .st-sem-name { gap: 4px 8px; }
+  .st-sem-name h2 { font-size: 22px; letter-spacing: -.025em; line-height: 1.15; }
+  .st-sem-sub { margin: 0; font-size: 13.5px; color: var(--text-2); }
+  .st-sem-sub b { font-size: 13.5px; font-weight: 650; }
   .st-sem-sub .st-phone { display: inline !important; }
-  /* A row: the module and its ⋯; the boxes come in from the left while rows are selected (a long
-     press selects the first), and a finger drawn down them selects the rows it passes. */
-  .st-row { grid-template-columns: 0 minmax(0, 1fr) auto 44px; column-gap: 0; transition: grid-template-columns .18s var(--ease), background .12s; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .st-turn { width: 40px; height: 44px; color: var(--text-2); }
+  .st-turn:disabled { opacity: .3; }
+  .st-sem-more { grid-area: more; width: 42px; height: 42px; margin-left: 6px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
+  /* A row: a card as the catalog's (its name, under it a line of its number, its area and its
+     marks; its credits; its ⋯ where the catalog has its mark). The boxes come in from the left
+     while rows are selected (a long press selects the first), and a finger drawn down them selects
+     the rows it passes. */
+  .st-rows { display: grid; gap: 8px; }
+  .st-row { grid-template-columns: 0 minmax(0, 1fr) auto 44px; column-gap: 0; min-height: 72px; border: 0; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); transition: grid-template-columns .18s var(--ease), background .12s, box-shadow .12s; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .st-table.is-selecting .st-row { grid-template-columns: 44px minmax(0, 1fr) auto 44px; }
-  .st-row:hover { background: none; }
-  .st-row.is-selected { background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
-  .st-sel { width: 100%; margin-right: 0; padding: 0; overflow: hidden; }
+  .st-row:hover { background: var(--panel); }
+  .st-pages .st-row.is-selected { background: color-mix(in srgb, var(--accent) 9%, var(--panel)); box-shadow: inset 0 0 0 1.5px var(--accent-line), var(--shadow-lift); }
+  .st-sel { width: 100%; margin-right: 0; padding: 0; overflow: hidden; border-radius: var(--r-panel) 0 0 var(--r-panel); }
   .st-table.is-selecting .st-sel { touch-action: none; }
-  .st-body { grid-column: 2 / 4; align-items: start; column-gap: 6px; padding: 0; }
-  .st-more { width: 100%; min-height: 48px; margin: 0 -8px 0 0; padding: 0; }
+  .st-body { grid-column: 2 / 4; align-items: center; column-gap: 10px; padding: 12px 0 12px 18px; transition: padding .18s var(--ease); }
+  .st-table.is-selecting .st-body { padding-left: 4px; }
+  .st-more { width: 100%; min-height: 48px; margin: 0; padding: 0; border-radius: 0 var(--r-panel) var(--r-panel) 0; color: var(--text-3); }
   .st-more::before { display: none; }
   .st-box { width: 20px; height: 20px; border-radius: 6px; }
-  .st-what { flex-direction: column; align-items: flex-start; gap: 4px; padding: 11px 0 9px; }
+  .st-what { flex-direction: column; align-items: flex-start; gap: 3px; padding: 0; }
   .st-what > * { max-width: 100%; }
-  .st-chip { white-space: normal; }
-  .st-name { font-size: 14.5px; line-height: 1.3; }
-  .st-area.st-phone { display: inline-flex !important; font-size: 12.5px; }
-  .st-row .st-lp { padding-top: 12px; font-size: 13px; color: var(--text-2); white-space: nowrap; }
-  .st-sem-more { width: 44px; height: 44px; }
-  .st-empty { padding: 20px 2px 14px; }
-  .st-empty-add { align-self: stretch; }
-  .st-add { grid-template-columns: 22px minmax(0, 1fr); min-height: 52px; padding: 0 2px; border-radius: 0 0 10px 10px; }
-  /* What the Regelstudienplan still has open for the semester: rows as the semester's own, quieter,
-     a „+" where their ⋯ is. */
-  .st-plan-rows { margin-top: 12px; }
-  .st-plan-label { margin: 0; padding: 0 2px 4px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
-  .st-prow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; align-items: start; min-height: 52px; border-top: 1px solid var(--line); }
-  .st-prow .st-what { flex-direction: column; align-items: flex-start; gap: 4px; padding: 11px 0 9px 2px; }
-  .st-prow .st-name { color: var(--text-2); font-size: 14.5px; line-height: 1.3; }
-  .st-prow .st-area { font-size: 12.5px; }
-  .st-prow .st-lp { padding: 12px 0 0 6px; font-size: 13px; color: var(--text-3); white-space: nowrap; }
-  .st-prow-add { width: 100%; height: auto; min-height: 48px; margin-right: -8px; border-radius: 10px; color: var(--accent-ink); }
+  .st-name { font-size: 15.5px; line-height: 1.3; letter-spacing: -.012em; }
+  .st-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; font-size: 12.5px; color: var(--text-3); }
+  .st-code { font-size: 12px; }
+  .st-area.st-phone, .st-meta .st-area { display: inline-flex !important; gap: 5px; font-size: 12.5px; font-weight: 560; color: var(--text-2); }
+  .st-meta .st-dot { width: 7px; height: 7px; }
+  .st-chip { white-space: normal; padding: 1px 6px; border-radius: 5px; line-height: 1.5; }
+  .st-chip.quiet { padding: 0; }
+  .st-row .st-lp, .st-prow .st-lp { font-size: 15px; font-weight: 650; color: var(--text); white-space: nowrap; }
+  .st-row .st-lp small, .st-prow .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+  .st-row.is-passed .st-lp { color: var(--text-2); }
+  /* An empty semester: its mark, two words and „Module hinzufügen" on the page's ground; under the
+     rows „Module hinzufügen" a card still to be filled. */
+  .st-empty { padding: 26px 8px 10px; }
+  .st-empty-add { align-self: stretch; min-height: 48px; }
+  .st-add { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 0 16px; border: 1.5px dashed var(--line-strong); border-radius: var(--r-panel); }
+  .st-add:hover { background: transparent; }
+  .st-add:active { background: var(--row-hover); }
+  .st-add-icon .icon { width: 18px; height: 18px; }
+  /* What the Regelstudienplan still has open for the semester: under a heading as the catalog's
+     semesters have, cards as the semester's own, open ones (no ground, a ring), a „+" where their
+     ⋯ is. */
+  .st-plan-rows { margin-top: 20px; }
+  .st-plan-label { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 0 4px; font-size: 13px; font-weight: 650; color: var(--text); }
+  .st-plan-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  .st-plan-rows ul { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
+  .st-prow { display: grid; grid-template-columns: minmax(0, 1fr) auto 52px; align-items: center; column-gap: 10px; min-height: 68px; padding-left: 18px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .st-prow .st-what { padding: 11px 0; }
+  .st-prow .st-name { color: var(--text-2); font-weight: 600; }
+  .st-prow .st-lp { color: var(--text-2); }
+  .st-prow-add { position: relative; width: 100%; height: auto; min-height: 52px; border-radius: 0 var(--r-panel) var(--r-panel) 0; color: var(--accent-ink); }
   .st-prow-add::before { content: ""; position: absolute; top: 50%; left: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--accent-line); }
   .st-prow-add .icon { width: 17px; height: 17px; }
-  .st-plan-note { margin: 12px 2px 0; font-size: 12.5px; color: var(--text-2); }
+  .st-plan-note { margin: 16px 4px 0; font-size: 12.5px; color: var(--text-2); }
   /* The bar of the rows selected: in the tab bar's place, over it (owner, 2026-10-05: „Mach das
      mal so, dass die die navbar überdeckt"). */
   .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
@@ -3976,11 +4017,18 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-pop-back .icon { width: 18px; height: 18px; }
   .st-new-body { padding: 16px 4px 18px; }
   .st-new-body .btn { width: 100%; }
-  /* Dialogs are sheets from below. */
+  /* Dialogs are sheets from below, which a finger drags down as the catalog's filters (enhance.js,
+     `data-sheet`): the sheet follows it (.dragging), the dim behind it fading as it goes (--drag,
+     its share of the way); let go short of closing, it slides back up; let go far enough, or
+     flicked, it goes on down (.dropped) and closes. */
   .st-dialog, .st-dialog.medium, .st-dialog.wide { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
   .st-dialog[open] { animation: sheet-in .28s var(--ease); }
+  .st-dialog:not(.dragging) { transition: transform .3s var(--ease); }
+  .st-dialog::backdrop { opacity: calc(1 - var(--drag, 0) * .9); }
+  .st-dialog.dropped { transform: translateY(100%); transition: transform .2s cubic-bezier(.4, 0, 1, 1); }
+  .st-dialog.dropped::backdrop { opacity: 0; transition: opacity .2s; }
   .st-grip { display: block; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-strong); }
-  .st-dlg-head { position: relative; padding: 18px 8px 10px 16px; }
+  .st-dlg-head { position: relative; padding: 18px 8px 10px 16px; touch-action: none; cursor: grab; }
   .st-dlg-head h2 { font-size: 17px; }
   .st-dlg-bar, .st-dlg-body, .st-dlg-foot { padding-left: 16px; padding-right: 16px; }
   .st-dlg-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
@@ -3990,10 +4038,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
 }
 @keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
-@keyframes st-from-right { from { transform: translateX(32%); opacity: 0; } }
-@keyframes st-from-left { from { transform: translateX(-32%); opacity: 0; } }
 @keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }
-@keyframes st-dock-in { from { transform: translateY(8px); opacity: 0; } }
 
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }

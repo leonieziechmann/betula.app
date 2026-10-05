@@ -250,8 +250,8 @@ pub(super) struct StudyCtx {
     /// The note of the last change that „Rückgängig" takes back, and the plan before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
     /// A phone's semesters were opened from its overview: the step before them in the history is
-    /// the overview (`phone.rs`).
-    pub from_overview: StoredValue<bool>,
+    /// the overview, and the way back goes back there (`phone.rs`).
+    pub from_overview: RwSignal<bool>,
 }
 
 impl StudyCtx {
@@ -548,7 +548,7 @@ pub fn StudyPage() -> impl IntoView {
         selection: RwSignal::new(Selection::default()),
         drag: RwSignal::new(None),
         undo: RwSignal::new(None),
-        from_overview: StoredValue::new(false),
+        from_overview: RwSignal::new(false),
     };
     // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
     // where no dialog takes it first.

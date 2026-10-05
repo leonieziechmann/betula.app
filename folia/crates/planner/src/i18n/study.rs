@@ -64,7 +64,6 @@ pub struct Texts {
 
     // „Studiengang wechseln".
     pub switch_title: &'static str,
-    pub switch_lead: &'static str,
     /// „Bisher" and „seit WiSe 2025/26".
     pub switch_before: &'static str,
     pub since: fn(&str) -> String,
@@ -386,7 +385,6 @@ pub const DE: Texts = Texts {
     storage_hint: "Was du planst und als bestanden markierst, bleibt in diesem Browser.",
 
     switch_title: "Studiengang wechseln",
-    switch_lead: "Das machst du selten – bei einem Fachwechsel oder einer neuen Prüfungsordnung. Dein Plan bleibt dabei, wie er ist: alle Semester, alle Module und was du bestanden hast.",
     switch_before: "Bisher",
     since: |semester| format!("seit {semester}"),
     new_program: "Neuer Studiengang",
@@ -637,7 +635,6 @@ pub const EN: Texts = Texts {
     storage_hint: "What you plan and mark as passed stays in this browser.",
 
     switch_title: "Change degree programme",
-    switch_lead: "You rarely do this – when you change subjects or move to new regulations. Your plan stays as it is: every semester, every module and what you have passed.",
     switch_before: "So far",
     since: |semester| format!("since {semester}"),
     new_program: "New degree programme",
