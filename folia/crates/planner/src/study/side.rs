@@ -1,9 +1,10 @@
-//! The sidebar of „Mein Studium", top to bottom: the program as one card (its name and degree, the
-//! PO and the study direction, the Fachsemester now and the Studienbeginn; a click changes them)
-//! with the ways to its pages under it, how the plan reads, and where all of it lives. On a phone
-//! the sidebar is the sheet „Anpassen". Nothing in it says twice what the page or the tab bar says
-//! (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz effizient …
-//! Zum Stundenplan kann weg der link ist direkt daneben in der Navbar").
+//! The sidebar of „Mein Studium" on a desktop, top to bottom: the program as one card (its name and
+//! degree, the PO and the study direction, the Fachsemester now and the Studienbeginn; a click
+//! changes them) with the ways to its pages under it, how the plan reads, and where all of it
+//! lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
+//! Studium Sidebar ist noch sehr redundant und nicht platz effizient … Zum Stundenplan kann weg der
+//! link ist direkt daneben in der Navbar"). A phone has all of it on its overview instead
+//! (`phone.rs`), and no sidebar.
 //!
 //! The program is set once and changed rarely (owner, 2026-10-04: „den eigenen Studiengang zu
 //! wählen sollte eher so eine Sache sein, die man für sich halt so einmal macht"): in a dialog that
@@ -38,16 +39,35 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let ready = Memo::new(move |_| ctx.with_ready(|ready| ready.setup.start_stored).unwrap_or(false));
-    view! {
-        <div class="fgroup first">
-            <MineCard ctx/>
-            <WaysGroup ctx/>
-        </div>
-        {move || ready.get().then(|| view! { <LegendGroup/> })}
-        <div class="fgroup">
-            <p class="hint storage-hint"><Icon name="shield-check"/><span>{s.storage_hint}</span></p>
-        </div>
+    move || {
+        (!ctx.phone.get()).then(|| {
+            view! {
+                <div class="fgroup first">
+                    <MineCard ctx/>
+                    <nav class="st-ways" aria-label=s.ways>
+                        <ProgramWays ctx/>
+                        <AllPrograms/>
+                    </nav>
+                </div>
+                {move || ready.get().then(|| view! {
+                    <div class="fgroup st-legend">
+                        <LegendBar/>
+                        <LegendMarks/>
+                    </div>
+                })}
+                <div class="fgroup">
+                    <StorageHint/>
+                </div>
+            }
+        })
     }
+}
+
+/// Where all of it lives.
+#[component]
+pub(super) fn StorageHint() -> impl IntoView {
+    let t = i18n::t();
+    view! { <p class="hint storage-hint"><Icon name="shield-check"/><span>{t.study.storage_hint}</span></p> }
 }
 
 /// What the program's card says.
@@ -67,7 +87,7 @@ struct Mine {
 /// itself, and the card as a whole the button that changes program, direction or Studienbeginn
 /// („Studiengang wechseln"), which is done rarely.
 #[component]
-fn MineCard(ctx: StudyCtx) -> impl IntoView {
+pub(super) fn MineCard(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let mine = Memo::new(move |_| {
@@ -102,9 +122,9 @@ fn MineCard(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The ways to the program's pages (with the plan studied) and to all programs.
+/// The ways to the program's pages, with the plan studied: its Regelstudienplan, its areas.
 #[component]
-fn WaysGroup(ctx: StudyCtx) -> impl IntoView {
+pub(super) fn ProgramWays(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let links = Memo::new(move |_| {
@@ -113,45 +133,57 @@ fn WaysGroup(ctx: StudyCtx) -> impl IntoView {
             (plan, url::program_path(&ready.program.slug, ProgramTab::Areas))
         })
     });
-    view! {
-        <nav class="st-ways" aria-label=s.ways>
-            {move || links.get().map(|(plan, areas)| view! {
-                <a class="action" href=t.path(&plan)><Icon name="file-check-2"/><span>{s.to_plan}</span><Icon name="chevron-right"/></a>
-                <a class="action" href=t.path(&areas)><Icon name="layout-list"/><span>{s.to_areas}</span><Icon name="chevron-right"/></a>
-            })}
-            <a class="action" href=t.path(url::PROGRAMS)><Icon name="graduation-cap"/><span>{s.all_programs}</span><Icon name="chevron-right"/></a>
-        </nav>
+    move || {
+        links.get().map(|(plan, areas)| view! {
+            <a class="action" href=t.path(&plan)><Icon name="file-check-2"/><span>{s.to_plan}</span><Icon name="chevron-right"/></a>
+            <a class="action" href=t.path(&areas)><Icon name="layout-list"/><span>{s.to_areas}</span><Icon name="chevron-right"/></a>
+        })
     }
+}
+
+/// The way to all programs.
+#[component]
+pub(super) fn AllPrograms() -> impl IntoView {
+    let t = i18n::t();
+    view! { <a class="action" href=t.path(url::PROGRAMS)><Icon name="graduation-cap"/><span>{t.study.all_programs}</span><Icon name="chevron-right"/></a> }
 }
 
 /// How the plan reads (owner, 2026-10-04: „Die legende ist an sich gut aber der text ist etwas zu
 /// Lang. Und die Abgrenzung zu Progressbar und Zeichen für den content ist nicht vorhanden"): the
-/// parts of the bar, then the marks a module has in the semesters, each under its own label and
-/// each a word.
+/// parts of the bar, then the marks a module has in the semesters (`LegendMarks`), each under its
+/// own label and each a word.
 #[component]
-fn LegendGroup() -> impl IntoView {
+fn LegendBar() -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let part = |class: &'static str, name: &'static str| view! { <li><span class=format!("st-legend-part {class}") aria-hidden="true"></span>{name}</li> };
+    view! {
+        <p class="flabel label" id="st-legend-bar">{s.legend_bar}</p>
+        <ul class="st-legend-parts" aria-labelledby="st-legend-bar">
+            {part("passed", s.legend_passed)}
+            {part("planned", s.legend_planned)}
+            {part("open", s.legend_open)}
+            {part("over", s.legend_over)}
+        </ul>
+    }
+}
+
+/// The marks a module has in the semesters, each a word: the sidebar's, and under a phone's
+/// semesters.
+#[component]
+pub(super) fn LegendMarks() -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.study;
     let mark = |class: &'static str, icon: &'static str, name: &'static str| {
         view! { <li><span class=format!("st-legend-mark {class}") aria-hidden="true"><Icon name=icon/></span>{name}</li> }
     };
     view! {
-        <div class="fgroup st-legend">
-            <p class="flabel label" id="st-legend-bar">{s.legend_bar}</p>
-            <ul class="st-legend-parts" aria-labelledby="st-legend-bar">
-                {part("passed", s.legend_passed)}
-                {part("planned", s.legend_planned)}
-                {part("open", s.legend_open)}
-                {part("over", s.legend_over)}
-            </ul>
-            <p class="flabel label" id="st-legend-marks">{s.legend_marks}</p>
-            <ul class="st-legend-marks" aria-labelledby="st-legend-marks">
-                {mark("passed", "circle-check-big", s.legend_passed)}
-                {mark("st-legend-pill", "repeat", s.legend_retake)}
-                {mark("st-legend-pill warn", "triangle-alert", s.legend_offer)}
-            </ul>
-        </div>
+        <p class="flabel label" id="st-legend-marks">{s.legend_marks}</p>
+        <ul class="st-legend-marks" aria-labelledby="st-legend-marks">
+            {mark("passed", "circle-check-big", s.legend_passed)}
+            {mark("st-legend-pill", "repeat", s.legend_retake)}
+            {mark("st-legend-pill warn", "triangle-alert", s.legend_offer)}
+        </ul>
     }
 }
 

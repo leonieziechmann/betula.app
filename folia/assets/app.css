@@ -3805,21 +3805,88 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 @media (max-width: 900px) {
   .st-pc { display: none !important; }
   .st-phone { display: revert !important; }
+  /* A phone's two pages (phone.rs): the overview with the program and its ways, and behind its box
+     „Studium planen" the semesters. The page that comes slides in from its side (owner,
+     2026-10-05: „brauchen Animationen, damit man versteht was passiert"); the page's area clips
+     it, so that nothing scrolls sideways. */
+  .page:has(> .page-inner.study) { overflow-x: clip; }
+  .st-phone-page { display: grid; gap: 12px; min-width: 0; }
+  .st-enter-right { animation: st-from-right .28s var(--ease); }
+  .st-enter-left { animation: st-from-left .28s var(--ease); }
+  .st-phone-page .action { min-height: 46px; font-size: 14px; }
+  /* The credits: the headline and „Bereiche ›", the bar, and under it what its parts are. */
   .st-over { padding: 10px 14px 14px 16px; border-radius: 12px; }
-  .st-over-title { width: 100%; }
-  .st-kicker.st-phone { display: flex !important; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 500; letter-spacing: 0; text-transform: none; }
-  .st-kicker .st-link { min-height: 36px; gap: 2px; }
+  .st-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .st-progress-top .st-link { flex: none; min-height: 44px; margin: -6px -6px -6px 0; padding: 0 6px; gap: 2px; }
+  .st-legend-n { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; padding: 0; font-size: 12.5px; color: var(--text-2); }
+  .st-legend-n li { display: inline-flex; align-items: center; gap: 6px; }
+  .st-legend-n b { color: var(--text); font-weight: 650; }
+  .st-legend-n .st-key { width: 10px; height: 10px; }
   .st-headline { font-size: 21px; }
+  /* The program as the sidebar has it, its two ways under it. */
+  .st-mine-panel { padding: 6px; border-radius: 12px; }
+  .st-mine-panel .st-mine { margin: 0 0 2px; padding: 11px 12px 12px 14px; }
+  .st-mine-panel .st-mine-name { font-size: 15.5px; }
+  .st-mine-panel .st-mine-line { font-size: 13px; }
+  .st-mine-panel .st-ways { padding: 0 2px; }
+  /* „Studium planen": the whole box leads to the semesters (its head's link reaches over it), a
+     column leads to its semester. A finger drawn to the left takes the box along and uncovers
+     where it leads. */
+  .st-planbox-wrap { position: relative; border-radius: 12px; touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-touch-callout: none; }
+  .st-planbox-wrap[data-phase] { overflow: clip; -webkit-user-select: none; user-select: none; }
+  .st-planbox-ground { position: absolute; inset: 0; display: none; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 14px; border-radius: inherit; background: var(--accent-soft); color: var(--accent-ink); font-size: 14px; font-weight: 650; }
+  .st-planbox-ground .icon { width: 20px; height: 20px; }
+  .st-planbox-wrap[data-phase] > .st-planbox-ground { display: flex; }
+  .st-planbox-wrap[data-phase] > .st-planbox { transform: translateX(var(--pull, 0px)); }
+  .st-planbox-wrap[data-phase="glide"] > .st-planbox { transition: transform .3s var(--ease); }
+  .st-planbox { position: relative; padding: 12px 12px 10px 16px; border-radius: 12px; }
+  .st-planbox-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; color: var(--text); font-size: 16px; font-weight: 700; text-decoration: none; }
+  .st-planbox-head::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .st-planbox-head .icon { width: 20px; height: 20px; color: var(--text-2); }
+  .st-planbox-head:focus-visible { outline: none; }
+  .st-planbox-head:focus-visible::after { box-shadow: inset 0 0 0 2px var(--accent); }
+  .st-planbox-line { margin: 0 28px 0 0; font-size: 13px; color: var(--text-2); }
+  /* A column a semester: what is passed and planned there, stacked, against what the plan puts
+     into its Fachsemester (the track), its Fachsemester under it; the current one stands out. */
+  .st-chart { position: relative; z-index: 1; list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); margin: 10px 0 0 -6px; padding: 0; }
+  .st-col a { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px 0 6px; border-radius: 9px; color: var(--text-2); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  /* The line the columns stand on: an empty semester reads as nothing yet, not as nothing known. */
+  .st-col a::before { content: ""; position: absolute; left: 0; right: 0; top: 60px; border-top: 1px solid var(--line-strong); }
+  .st-col:first-child a::before { left: 8px; }
+  .st-col:last-child a::before { right: 8px; }
+  .st-col.is-now a { background: var(--accent-soft); color: var(--accent-ink); }
+  .st-col a:active { background: var(--row-hover); }
+  .st-col-bar { position: relative; width: min(16px, 60%); height: 52px; }
+  .st-col-bar > i { position: absolute; left: 0; right: 0; bottom: 0; }
+  .st-col-bar > .track { height: calc(var(--plan) * 100%); border-radius: 4px 4px 0 0; background: var(--st-open); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .st-col-bar > .passed { height: calc(var(--passed) * 100%); border-radius: 4px 4px 0 0; background: var(--st-passed); }
+  .st-col-bar > .planned { bottom: calc(var(--passed) * 100% + var(--seam, 0px)); height: calc(var(--planned) * 100%); border-radius: 4px 4px 0 0; background: var(--st-planned); }
+  .st-col-bar.stacked > .passed { border-radius: 0; }
+  .st-col-label { font-size: 12px; font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .st-rest { display: grid; gap: 6px; padding: 0 4px; }
+  .st-rest .storage-hint { margin: 0 8px; }
+  /* The semesters: the way back over them, the cards, the marks of the rows under them. */
+  .st-plan-top { display: flex; align-items: center; margin: -6px 0 -4px; }
+  .st-back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin-left: -6px; padding: 0 10px 0 2px; border-radius: 10px; color: var(--accent-ink); font-size: 15px; font-weight: 600; text-decoration: none; }
+  .st-back .icon { width: 22px; height: 22px; }
+  /* The cards (pager.rs): the one in place, and while they turn its neighbours beside it, a gap
+     apart. The pager reaches to the screen's edges, so that a neighbour comes in from there; while
+     the cards move it clips them. */
+  .st-pager { position: relative; margin: -10px -12px -14px; padding: 10px 12px 14px; touch-action: pan-y; touch-action: pan-y pinch-zoom; }
+  .st-pager[data-phase] { overflow-x: clip; -webkit-user-select: none; user-select: none; }
+  .st-pager[data-phase] > .st-slot { transform: translateX(calc((var(--slot) + var(--turn, 0)) * (100% + 24px) + var(--pull, 0px))); will-change: transform; }
+  .st-pager[data-phase="glide"] { transition: height .3s var(--ease); }
+  .st-pager[data-phase="glide"] > .st-slot { transition: transform .3s var(--ease); }
+  .st-slot:not([data-slot="0"]) { position: absolute; top: 10px; left: 12px; right: 12px; }
+  .st-plan-legend { padding: 2px 6px 0; }
+  .st-plan-legend .flabel { margin-bottom: 4px; }
+  .st-plan-legend .st-legend-marks { display: flex; flex-wrap: wrap; gap: 2px 16px; }
   .st-bar { height: 12px; margin-top: 22px; gap: 2px; }
   .st-bar .st-seg, .st-bar .st-seg > span:first-child, .st-bar .st-seg > span:last-of-type { border-radius: 4px; }
   .st-bar .st-seg > span:not(:only-of-type):first-child { border-radius: 4px 0 0 4px; }
   .st-bar .st-seg > span:not(:only-of-type):last-of-type { border-radius: 0 4px 4px 0; }
   .st-plus { top: -18px; right: -2px; font-size: 11px; }
-  .st-stats-short.st-phone { display: flex !important; }
-  .st-bar-open.st-phone { display: block !important; }
-  /* The semesters: one card as wide as the page, right below the overview. */
-  .st-sems { padding: 0; gap: 0; background: none; box-shadow: none; container-type: normal; }
-  .st-focus { display: block; }
+  /* A semester: a card as wide as the page. */
   .st-card-sem { padding: 6px 12px 12px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); touch-action: pan-y; }
   .st-card-sem.is-now { box-shadow: 0 0 0 1.5px var(--accent-line), var(--shadow-panel); }
   .st-sem-head { gap: 4px; margin: 0 -8px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
@@ -3851,15 +3918,14 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-sem-more { width: 44px; height: 44px; }
   .st-empty { padding: 14px 2px; }
   .st-add { grid-template-columns: 22px minmax(0, 1fr); min-height: 52px; padding: 0 2px; border-radius: 0 0 10px 10px; }
-  /* The bar of the rows selected: at the bottom of the window, over the tab bar. */
-  .st-selbar { position: fixed; z-index: 65; left: 8px; right: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); min-height: 56px; padding: 4px; gap: 2px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: pop-in .18s var(--ease); }
+  /* The bar of the rows selected: in the tab bar's place, over it (owner, 2026-10-05: „Mach das
+     mal so, dass die die navbar überdeckt"). */
+  .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
   .st-selbar .st-sel { display: none; }
   .st-selbar-count { margin-left: 8px; font-size: 13px; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
   .st-act .icon { width: 18px; height: 18px; }
   .st-act-close { width: 40px; height: 48px; }
-  :root:has(.st-selbar) .st-undo { bottom: calc(140px + env(safe-area-inset-bottom)); }
-  :root:has(.st-selbar) .st-sems { padding-bottom: 72px; }
   /* A menu: a sheet from below; a submenu takes its place. */
   .st-pop-shade { background: rgba(10, 12, 17, .5); animation: fade-in .2s ease-out; }
   .st-pop { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 80dvh; padding: 6px 8px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; animation: sheet-in .25s var(--ease); }
@@ -3868,8 +3934,6 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-pop-title { margin: 8px 10px 6px; font-size: 13px; font-weight: 600; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .st-pop-back.st-phone { display: flex !important; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 6px; border: 0; background: none; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
   .st-pop-back .icon { width: 18px; height: 18px; }
-  .st-dots.st-phone { display: flex !important; }
-  .st-sheet.st-phone { display: flex !important; justify-content: center; margin: 14px 0 0; }
   .st-new-body { padding: 16px 4px 18px; }
   .st-new-body .btn { width: 100%; }
   /* Dialogs are sheets from below. */
@@ -3885,6 +3949,9 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
 @keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
+@keyframes st-from-right { from { transform: translateX(32%); opacity: 0; } }
+@keyframes st-from-left { from { transform: translateX(-32%); opacity: 0; } }
+@keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }
 
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }

@@ -18,11 +18,15 @@
 //   area's dialog; a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan, a module's menu, a grey line of the plan added with a click, the view kept; a
 //   reload keeps all of it; nothing of it in a request.
-// 3 a phone: one semester as a card as wide as the page, turned by ‹ › and a swipe, the last page
-//   adds a semester; a long press selects a row, the bar at the bottom; a row's menu as a sheet,
-//   „Verschieben nach" in its place; the areas as a sheet; the sidebar as a sheet („Anpassen") with
-//   the program's card;
-//   nothing scrolls sideways; boxes and ⋯ as tall as a finger.
+// 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
+//   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
+//   no sidebar; the box leads to the semesters (`?plan=1`), its column to that one, and drawn to the
+//   left as well; there one semester as a card as wide as the page, which ‹ › turn by a glide and a
+//   finger turns as it goes (the next semester beside it), a short pull leaves it, the last page
+//   adds a semester; a long press selects a row, the bar over the tab bar; a row's menu as a sheet
+//   without „Modul ansehen", „Verschieben nach" in its place; „Übersicht" and Back lead back; the
+//   areas as a sheet, the program's card opens „Studiengang wechseln"; nothing scrolls sideways;
+//   boxes and ⋯ as tall as a finger.
 // 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
@@ -185,7 +189,8 @@ if (current !== "2026W") {
   // A row's menu: „Als bestanden markieren" counts, keeps the row in its place, gives the focus back.
   await step("the row's menu", () => page.click(".st-card-sem .st-row >> nth=0 >> .st-more"), () => document.querySelector(".st-pop.root #st-menu-passed"));
   const entries = await page.evaluate(() => [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.textContent.trim()));
-  check(entries.join("|") === "Modul ansehen|Als bestanden markieren|Verschieben nach|Entfernen", `the row's menu: ${JSON.stringify(entries)}`);
+  // Not the module: a click on the row opens it (owner, 2026-10-05).
+  check(entries.join("|") === "Als bestanden markieren|Verschieben nach|Entfernen", `the row's menu: ${JSON.stringify(entries)}`);
   await step("Als bestanden markieren", () => page.click("#st-menu-passed"), () => !document.querySelector(".st-pop") && document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
   const after = await rows(page);
   check(after[0]?.name === before[0]?.name && after[0]?.done && after.length === before.length, `marking moved the row: ${JSON.stringify(after.map((row) => row.name))}`);
@@ -248,14 +253,12 @@ if (current !== "2026W") {
   check((await lines(page, "m\t2026W\t11787\t")).length === 1, "„Rückgängig“ did not bring the module back");
   // The keys: Enter opens the menu, the arrows go through it and into its submenu and back,
   // Escape closes it and gives the focus back to its ⋯.
+  // A click on the row opens the module: the menu does not offer it again.
   await step("the menu by the keys", async () => {
     await page.focus(menu);
     await page.keyboard.press("Enter");
-  }, () => document.activeElement?.id === "st-menu-view");
-  await step("down to Verschieben nach", async () => {
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("ArrowDown");
-  }, () => document.activeElement?.id === "st-menu-move");
+  }, () => document.activeElement?.id === "st-menu-passed" && !document.querySelector("#st-menu-view"));
+  await step("down to Verschieben nach", () => page.keyboard.press("ArrowDown"), () => document.activeElement?.id === "st-menu-move");
   await step("into the submenu", () => page.keyboard.press("ArrowRight"), () => document.activeElement?.closest(".st-pop.sub"));
   await step("back out of it", () => page.keyboard.press("ArrowLeft"), () => !document.querySelector(".st-pop.sub") && document.activeElement?.id === "st-menu-move");
   await step("Escape gives the focus back", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop") && document.activeElement?.classList.contains("st-more"));
@@ -327,25 +330,46 @@ if (current !== "2026W") {
 {
   const { page, step, seed, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, "/");
   await seed([[MINE, THIRD], [PLAN, FILLED]]);
-  await step("the bottom bar", () => page.tap('.bottomnav a.nav[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-card-sem"));
-  const phone = await page.evaluate(() => {
-    const card = document.querySelector(".st-card-sem").getBoundingClientRect();
-    const over = document.querySelector(".st-over").getBoundingClientRect();
-    return {
-      sideways: document.documentElement.scrollWidth - innerWidth,
-      sheet: getComputedStyle(document.querySelector("#sidebar")).position,
-      card: Math.round(card.width),
-      right: Math.round(card.left + card.width - (over.left + over.width)),
-      strip: document.querySelector(".st-strip")?.getBoundingClientRect().height ?? 0,
-      turns: Math.min(...[...document.querySelectorAll(".st-turn")].map((button) => button.getBoundingClientRect().height)),
-      grid: document.querySelector(".st-views")?.getBoundingClientRect().height ?? 0,
-    };
-  });
-  check(phone.sideways <= 0 && phone.sheet === "fixed" && phone.card >= 360 && phone.right === 0 && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0, `the phone: ${JSON.stringify(phone)}`);
-  await step("‹", () => page.tap(".st-card-sem .st-turn >> nth=0"), () => document.querySelector(".st-card-sem h2")?.textContent === "SoSe 2026");
+  await step("the bottom bar", () => page.tap('.bottomnav a.nav[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-planbox"));
+  const landing = await page.evaluate(() => ({
+    sideways: document.documentElement.scrollWidth - innerWidth,
+    parts: [...document.querySelectorAll(".st-phone-page > *")].map((part) => [...part.classList].find((name) => name !== "panel")),
+    legend: [...document.querySelectorAll(".st-progress .st-legend-n li")].map((li) => li.textContent.replace(/[\d,]+/g, "").trim()),
+    mine: [...document.querySelectorAll(".st-phone-page #st-mine > span:not(.visually-hidden)")].map((part) => part.textContent.replace(/\s+/g, " ").trim()).join(" | "),
+    ways: [...document.querySelectorAll(".st-mine-panel .st-ways a")].map((a) => a.textContent.trim()),
+    columns: [...document.querySelectorAll(".st-chart .st-col")].map((col) => col.textContent.trim() + (col.classList.contains("is-now") ? "*" : "")).join(" "),
+    line: document.querySelector(".st-planbox-line")?.textContent.replace(/\u00a0/g, " "),
+    rest: [...document.querySelectorAll(".st-rest a")].map((a) => a.textContent.trim()),
+    sidebar: document.querySelector("#sidebar #st-mine") !== null || document.querySelector(".sheet-toggle") !== null,
+    cards: document.querySelectorAll(".st-card-sem").length,
+  }));
+  check(landing.sideways <= 0 && landing.parts.join() === "st-over,st-mine-panel,st-planbox-wrap,st-rest" && landing.legend.join() === "bestanden,geplant,offen"
+    && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht & Bereiche"
+    && landing.columns === "1 2 3* 4 5 6" && landing.line === "Jetzt WiSe 2026/27 · 0 von 30 LP" && landing.rest.join() === "Alle Studiengänge ansehen" && !landing.sidebar && landing.cards === 0, `the phone's overview: ${JSON.stringify(landing)}`);
+  await step("Studium planen", () => page.tap(".st-planbox-head"), () => location.search === "?plan=1" && document.querySelector(".st-pager .st-card-sem h2")?.textContent === "WiSe 2026/27" && document.querySelector(".st-plan-page.st-enter-right"));
+  const phone = await page.evaluate(() => ({
+    sideways: document.documentElement.scrollWidth - innerWidth,
+    card: Math.round(document.querySelector(".st-card-sem").getBoundingClientRect().width),
+    cards: document.querySelectorAll(".st-card-sem").length,
+    strip: document.querySelector(".st-strip")?.getBoundingClientRect().height ?? 0,
+    turns: Math.min(...[...document.querySelectorAll(".st-turn")].map((button) => button.getBoundingClientRect().height)),
+    grid: document.querySelector(".st-views")?.getBoundingClientRect().height ?? 0,
+    back: document.querySelector(".st-back")?.getAttribute("href"),
+    marks: document.querySelectorAll(".st-plan-legend .st-legend-marks li").length,
+  }));
+  check(phone.sideways <= 0 && phone.card >= 360 && phone.cards === 1 && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0 && phone.back === "/study" && phone.marks === 3, `the phone's semesters: ${JSON.stringify(phone)}`);
+  // ‹ plays the glide: the semester before stands beside the card while it goes. The cards are
+  // still again once one card is left, in its place.
+  const still = (name) => new Function(`return !document.querySelector(".st-pager[data-phase]") && document.querySelectorAll(".st-card-sem").length === 1 && document.querySelector(".st-card-sem h2")?.textContent === ${JSON.stringify(name)};`);
+  let gliding = false;
+  await step("‹", async () => {
+    await page.tap(".st-card-sem .st-turn >> nth=0");
+    gliding = await page.waitForFunction(() => document.querySelector(".st-pager[data-phase=glide]") && document.querySelectorAll(".st-card-sem").length > 1, null, { timeout: 3000 }).then(() => true, () => false);
+  }, still("SoSe 2026"));
+  check(gliding, "‹ turns the card without a glide");
   const mores = await page.evaluate(() => Math.min(...[...document.querySelectorAll(".st-card-sem .st-more")].map((more) => more.getBoundingClientRect().height)));
   check(mores >= 44, `a row's ⋯ on a phone is ${mores} px tall`);
-  // A long press selects a row: the boxes come in, the bar at the bottom.
+  // A long press selects a row: the boxes come in, the bar over the tab bar.
   await step("a long press", async () => {
     const at = await middle(page, ".st-card-sem .st-row >> nth=0 >> .st-what");
     await page.evaluate(({ x, y }) => {
@@ -361,40 +385,75 @@ if (current !== "2026W") {
   await page.waitForTimeout(400);
   const bar = await page.evaluate(() => {
     const box = document.querySelector(".st-selbar").getBoundingClientRect();
+    const nav = document.querySelector(".bottomnav").getBoundingClientRect();
     const sel = document.querySelector(".st-card-sem .st-row .st-sel").getBoundingClientRect();
-    return { fixed: getComputedStyle(document.querySelector(".st-selbar")).position, above: Math.round(innerHeight - box.bottom), width: Math.round(box.width), sel: Math.round(Math.min(sel.width, sel.height)) };
+    const top = document.elementFromPoint(nav.left + nav.width / 2, nav.top + nav.height / 2);
+    return { fixed: getComputedStyle(document.querySelector(".st-selbar")).position, off: [box.left - nav.left, box.right - nav.right, box.top - nav.top, box.bottom - nav.bottom].map(Math.round).join(), covers: Boolean(top?.closest(".st-selbar")), sel: Math.round(Math.min(sel.width, sel.height)) };
   });
-  check(bar.fixed === "fixed" && bar.above > 40 && bar.width >= 360 && bar.sel >= 40, `the phone's bar: ${JSON.stringify(bar)}`);
+  check(bar.fixed === "fixed" && bar.off === "0,0,0,0" && bar.covers && bar.sel >= 40, `the phone's bar is not over the tab bar: ${JSON.stringify(bar)}`);
   await step("a tap selects another", () => page.tap(".st-card-sem .st-row >> nth=1 >> .st-what"), () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 2);
   await step("let go on the phone", () => page.tap(".st-selbar .st-act-close"), () => !document.querySelector(".st-selbar"));
-  // A row's menu: a sheet; „Verschieben nach" takes its place, and gives it back.
+  // A row's menu: a sheet, without the module (a tap on the row opens it); „Verschieben nach"
+  // takes its place, and gives it back.
   await step("a row's menu as a sheet", () => page.tap(".st-card-sem .st-row >> nth=0 >> .st-more"), () => document.querySelector(".st-pop.root #st-menu-move"));
   await page.waitForTimeout(400);
-  const menuSheet = await page.evaluate(() => { const box = document.querySelector(".st-pop.root").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width) }; });
-  check(menuSheet.bottom === 0 && menuSheet.width === 390, `a row's menu is no sheet from below: ${JSON.stringify(menuSheet)}`);
+  const menuSheet = await page.evaluate(() => { const box = document.querySelector(".st-pop.root").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), entries: [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.id).join() }; });
+  check(menuSheet.bottom === 0 && menuSheet.width === 390 && menuSheet.entries === "st-menu-passed,st-menu-move,st-menu-remove", `a row's menu on a phone: ${JSON.stringify(menuSheet)}`);
   await step("Verschieben nach on a phone", () => page.tap("#st-menu-move"), () => document.querySelector(".st-pop.sub .st-pop-back") && getComputedStyle(document.querySelector(".st-pop.root")).display === "none");
   await step("back to the menu", () => page.tap(".st-pop.sub .st-pop-back"), () => !document.querySelector(".st-pop.sub") && getComputedStyle(document.querySelector(".st-pop.root")).display !== "none");
   await step("close the menu", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));
-  // A swipe to the left: the next semester.
-  await step("swipe", () => page.evaluate(() => {
-    const card = document.querySelector(".st-card-sem");
-    const box = card.getBoundingClientRect();
-    const fire = (type, x) => card.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType: "touch", isPrimary: true, clientX: x, clientY: box.top + 120 }));
-    fire("pointerdown", box.left + box.width - 40);
-    fire("pointerup", box.left + 40);
-  }), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+  // A finger drawn sideways over `selector` by `by` px (moves a frame apart), then lifted: what the
+  // cards did the frame before it went.
+  const swipe = (selector, by) => page.evaluate(({ selector, by }) => new Promise((done) => {
+    const element = document.querySelector(selector);
+    const box = element.getBoundingClientRect();
+    const y = box.top + Math.min(120, box.height / 2);
+    const from = by < 0 ? box.right - 40 : box.left + 40;
+    const fire = (type, x) => element.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 3, pointerType: "touch", isPrimary: true, buttons: type === "pointerup" ? 0 : 1, clientX: x, clientY: y }));
+    fire("pointerdown", from);
+    const steps = 8;
+    let i = 0;
+    let seen = null;
+    const next = () => {
+      i++;
+      fire("pointermove", from + (by * i) / steps);
+      if (i === steps) seen = { phase: element.dataset.phase, cards: document.querySelectorAll(".st-card-sem").length, pull: element.style.getPropertyValue("--pull") };
+      if (i < steps) requestAnimationFrame(next);
+      else { fire("pointerup", from + by); done(seen); }
+    };
+    requestAnimationFrame(next);
+  }), { selector, by });
+  // To the left: the cards follow the finger, the next semester beside them, and it comes.
+  let held = null;
+  await step("swipe", async () => { held = await swipe(".st-pager", -220); }, still("WiSe 2026/27"));
+  check(held?.phase === "drag" && held.cards > 1 && parseFloat(held.pull) < -150, `the cards do not follow the finger: ${JSON.stringify(held)}`);
+  // A short pull: back where it was.
+  await step("a short swipe", () => swipe(".st-pager", -40), still("WiSe 2026/27"));
   // To the end: one semester more.
-  for (let i = 0; i < 10 && !(await page.$(".st-new")); i++) await page.tap(".st-card-sem .st-turn >> nth=1");
+  for (let i = 0; i < 10 && !(await page.$(".st-slot[data-slot='0'] .st-new")); i++) {
+    await page.tap(".st-slot[data-slot='0'] .st-turn >> nth=1");
+    await page.waitForFunction(() => !document.querySelector(".st-pager[data-phase]") && document.querySelectorAll(".st-slot").length === 1, null, { timeout: 3000 }).catch(() => {});
+  }
   check((await page.evaluate(() => document.querySelector(".st-new h2")?.textContent)) === "Neues Semester", "the last page does not add a semester");
   await step("anfügen", () => page.tap("#st-append"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2028/29");
   check((await stored(page, MINE))?.includes("until\t2028W"), "the semester added was not stored");
-  await step("Bereiche", () => page.tap(".st-kicker .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
+  // „Übersicht": back through the history (no entry more), the overview from the left.
+  const entries = await page.evaluate(() => history.length);
+  await step("Übersicht", () => page.tap(".st-back"), () => location.search === "" && document.querySelector(".st-planbox") && document.querySelector(".st-phone-page.st-enter-left"));
+  check((await page.evaluate(() => history.length)) === entries, "„Übersicht“ added a step to the history");
+  await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
   await page.waitForTimeout(500);
   const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width) }; });
   check(sheet.bottom === 0 && sheet.width === 390, `the areas are no sheet from below: ${JSON.stringify(sheet)}`);
   await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
-  // The sidebar, a sheet: the program's card.
-  await step("Anpassen", () => page.tap(".st-sheet .sheet-toggle"), () => document.documentElement.classList.contains("sheet-open") && document.querySelector("#sidebar #st-mine"));
+  await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
+  await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+  // A column leads to its semester; Back to the overview.
+  await step("a column", () => page.tap(".st-chart .st-col >> nth=1"), () => location.search === "?plan=1" && document.querySelector(".st-card-sem h2")?.textContent === "SoSe 2026");
+  await step("Back", () => page.goBack(), () => location.search === "" && document.querySelector(".st-planbox"));
+  // The box drawn to the left leads to the current semester; a short pull leaves it.
+  await step("the box drawn a little", () => swipe(".st-planbox-wrap", -40), () => location.search === "" && !document.querySelector(".st-planbox-wrap[data-phase]"));
+  await step("the box drawn to the left", () => swipe(".st-planbox-wrap", -200), () => location.search === "?plan=1" && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   await context.close();
 }
 

@@ -2,7 +2,7 @@
 //! zwischen Handy und PC"): on a desktop a strip of every semester with what it holds, the
 //! semester in focus as a table (a box to select the row, the module with its marks, its area, its
 //! credits, its menu) and beside it what fits it (`Fits`); on a phone the semester as a card as
-//! wide as the page, turned by ‹ › in its head or a swipe, dots under it. After the last semester
+//! wide as the page, which ‹ › in its head or a swipe turn (`pager.rs`). After the last semester
 //! comes a page that adds one (owner: „Wenn man bis zum Schluss ist, soll eine Page kommen, wo man
 //! dann ein neues Semester hinzufügen kann"), as a semester of leave if the student says so.
 //!
@@ -15,9 +15,10 @@
 //! box shows under the pointer, all of them while rows are selected; a drag over the boxes selects
 //! or lets go of every row it passes, Shift a range, Ctrl or ⌘ a row by its module. While rows are
 //! selected a click on one selects it or lets it go, and a bar in the head of the table marks them
-//! as passed, moves them, takes them out. On a phone a long press selects a row, and the bar is at
-//! the bottom of the window. A row dragged onto a semester of the strip moves there, with the
-//! others selected if it is one of them. Under the rows one more, „Module hinzufügen"; the
+//! as passed, moves them, takes them out. On a phone a long press selects a row, and the bar takes
+//! the tab bar's place (owner, 2026-10-05: „Mach das mal so, dass die die navbar überdeckt"). A row
+//! dragged onto a semester of the strip moves there, with the others selected if it is one of
+//! them. Under the rows one more, „Module hinzufügen"; the
 //! semester's own ⋯ in its head holds the rest: the Stundenplan, a semester of leave.
 
 use std::collections::BTreeSet;
@@ -35,8 +36,9 @@ use folia_design::ui::Icon;
 
 use super::dom;
 use super::menu::{self, Act, MenuFor};
+use super::pager::Cards;
 use super::picker::needs_text;
-use super::{item_of, module_href, n, now_secs, Dialog, Plans, Ready, Selection, SheetToggle, StudyCtx, ViewSwitch};
+use super::{item_of, module_href, n, now_secs, Dialog, Plans, Ready, Selection, StudyCtx, ViewSwitch};
 use crate::i18n::{self, Texts};
 
 #[component]
@@ -71,9 +73,6 @@ pub(super) fn Focus(ctx: StudyCtx) -> impl IntoView {
                 }}
                 {move || focused.get().filter(|semester| Some(*semester) != end.get()).map(|semester| view! { <Fits ctx semester/> })}
             </div>
-            <Dots ctx/>
-            // On a phone the sidebar is a sheet: „Mein Studiengang", „Studiengang ändern …", the ways.
-            <p class="st-sheet st-phone"><SheetToggle/></p>
         </section>
     }
 }
@@ -237,10 +236,19 @@ fn plan_still(ctx: StudyCtx, key: SemesterKey) -> Option<String> {
     .flatten()
 }
 
+/// Turns to semester `to`: on a phone by the cards' glide (`pager::Cards`), else at once.
+fn turn(ctx: StudyCtx, cards: Option<Cards>, to: Option<SemesterKey>) {
+    match (to, cards) {
+        (Some(to), Some(cards)) => cards.turn_to(to),
+        (Some(to), None) => ctx.focus.set(Some(to)),
+        (None, _) => {}
+    }
+}
+
 /// The semester in focus: its head with ‹ › and its ⋯, its rows, the bar of the rows selected, and
 /// „Module hinzufügen" as the last row.
 #[component]
-fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
+pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let head = Memo::new(move |_| {
@@ -266,30 +274,10 @@ fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
         });
     });
     let selecting = Memo::new(move |_| !chosen.with(Vec::is_empty));
-    let go = move |to: Option<SemesterKey>| {
-        if let Some(to) = to {
-            ctx.focus.set(Some(to));
-        }
-    };
-    // A swipe turns the card (on a phone).
-    let swipe = RwSignal::new(None::<(i32, i32)>);
-    let down = move |ev: PointerEvent| {
-        if ev.pointer_type() == "touch" {
-            swipe.set(Some((ev.client_x(), ev.client_y())));
-        }
-    };
-    let up = move |ev: PointerEvent| {
-        if let Some((x, y)) = swipe.get_untracked() {
-            let (dx, dy) = (ev.client_x() - x, ev.client_y() - y);
-            if dx.abs() > 48 && dx.abs() > dy.abs() * 2 {
-                let head = head.get_untracked();
-                go(if dx < 0 { head.and_then(|head| head.next) } else { head.and_then(|head| head.previous) });
-            }
-        }
-        swipe.set(None);
-    };
+    let cards = use_context::<Cards>();
+    let go = move |to: Option<SemesterKey>| turn(ctx, cards, to);
     view! {
-        <article class="st-card-sem" class:is-now=move || head.with(|head| head.as_ref().is_some_and(|head| head.now)) aria-labelledby=format!("st-sem-{}", semester.key()) on:pointerdown=down on:pointerup=up on:pointercancel=move |_| swipe.set(None)>
+        <article class="st-card-sem" class:is-now=move || head.with(|head| head.as_ref().is_some_and(|head| head.now)) aria-labelledby=format!("st-sem-{}", semester.key())>
             {move || head.get().map(|head| view! {
                 <header class="st-sem-head">
                     <button class="icon-btn st-turn hit" type="button" aria-label=s.previous disabled=head.previous.is_none() on:click=move |_| go(head.previous)><Icon name="chevron-left"/></button>
@@ -384,7 +372,7 @@ fn SelectAll(ctx: StudyCtx, semester: SemesterKey, keys: Memo<Vec<String>>, chos
 /// The bar of the rows selected (owner, 2026-10-04: „Ich finde die Optionen als bestanden
 /// markieren und Löschen als sinnvoll"): how many and their credits; „Als bestanden markieren" (or
 /// taking that back where all of them are), „Verschieben nach", „Entfernen"; and letting go of
-/// them. In the head of the table on a desktop, at the bottom of the window on a phone.
+/// them. In the head of the table on a desktop, in the tab bar's place on a phone.
 #[component]
 fn SelectionBar(ctx: StudyCtx, semester: SemesterKey, keys: Memo<Vec<String>>, chosen: Memo<Vec<String>>) -> impl IntoView {
     let t = i18n::t();
@@ -706,7 +694,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     let context = move |ev: MouseEvent| {
         ev.prevent_default();
         if !touched.get_value() {
-            menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value() }, &ev);
+            menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value(), view: false }, &ev);
         }
     };
     // Dragged onto a semester of the strip: the row, or every row selected if it is one of them.
@@ -718,7 +706,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         }
         ctx.drag.set(Some((semester, keys)));
     };
-    let menu_open = Memo::new(move |_| ctx.menu.with(|menu| menu.as_ref().is_some_and(|menu| matches!(&menu.what, MenuFor::Item { semester: there, key: of } if *there == semester && key.with_value(|key| key == of)))));
+    let menu_open = Memo::new(move |_| ctx.menu.with(|menu| menu.as_ref().is_some_and(|menu| matches!(&menu.what, MenuFor::Item { semester: there, key: of, .. } if *there == semester && key.with_value(|key| key == of)))));
 
     let name = first.name.clone();
     let what = match &first.subject {
@@ -794,7 +782,7 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
                 aria-expanded=move || if menu_open.get() { "true" } else { "false" }
                 aria-label=(s.more_about)(&first.name)
                 title=(s.more_about)(&first.name)
-                on:click=move |ev: MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value() }, &ev)
+                on:click=move |ev: MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: false }, &ev)
             >
                 <Icon name="ellipsis"/>
             </button>
@@ -935,7 +923,7 @@ fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
 
 /// The page after the last semester: one more, as a semester of leave if the student says so.
 #[component]
-fn NewSemester(ctx: StudyCtx) -> impl IntoView {
+pub(super) fn NewSemester(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let info = Memo::new(move |_| {
@@ -950,6 +938,7 @@ fn NewSemester(ctx: StudyCtx) -> impl IntoView {
         .flatten()
     });
     let leave = RwSignal::new(false);
+    let cards = use_context::<Cards>();
     let append = move |_| {
         let (Some(mine), Some((_, next, ..))) = (ctx.mine, info.get_untracked()) else { return };
         if leave.get_untracked() {
@@ -962,7 +951,7 @@ fn NewSemester(ctx: StudyCtx) -> impl IntoView {
         info.get().map(|(last, next, fs, plan_fs)| view! {
             <article class="st-card-sem st-new" aria-labelledby="st-new-title">
                 <header class="st-sem-head">
-                    <button class="icon-btn st-turn hit" type="button" aria-label=s.previous on:click=move |_| ctx.focus.set(Some(last))><Icon name="chevron-left"/></button>
+                    <button class="icon-btn st-turn hit" type="button" aria-label=s.previous on:click=move |_| turn(ctx, cards, Some(last))><Icon name="chevron-left"/></button>
                     <div class="st-sem-title">
                         <div class="st-sem-name"><h2 id="st-new-title">{s.new_semester}</h2></div>
                         <p class="st-sem-sub">{(s.after)(&last.label(t.locale))}</p>
@@ -984,26 +973,6 @@ fn NewSemester(ctx: StudyCtx) -> impl IntoView {
                 </div>
             </article>
         })
-    }
-}
-
-/// Where the card stands among the semesters, on a phone.
-#[component]
-fn Dots(ctx: StudyCtx) -> impl IntoView {
-    let dots = Memo::new(move |_| {
-        let focused = ctx.focused();
-        ctx.with_ready(|ready| {
-            let mut dots: Vec<(bool, bool)> = ready.study.semesters.iter().map(|semester| (Some(semester.key) == focused, semester.when == When::Now)).collect();
-            let end = ready.study.semesters.last().and_then(|last| last.key.plus(1));
-            dots.push((end.is_some() && end == focused, false));
-            dots
-        })
-        .unwrap_or_default()
-    });
-    view! {
-        <div class="st-dots st-phone" aria-hidden="true">
-            {move || dots.get().into_iter().map(|(here, now)| view! { <span class:here=here class:now=now></span> }).collect_view()}
-        </div>
     }
 }
 

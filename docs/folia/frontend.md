@@ -46,7 +46,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/study[?open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only which module stands beside the page, and whether it fills it. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
+| `/study[?plan=1][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: on a phone the semesters behind the overview (`plan=1`, 2026-10-05, a page of its own that Back and the tab leave; a desktop shows both at once and ignores it), which module stands beside the page, and whether it fills it. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
@@ -582,10 +582,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   the program is set once („so eine Sache, die man für sich halt so einmal macht"); a progress bar
   of what is passed, planned and not planned yet, split by area, with what goes beyond an area as
   overflow; the semesters begin empty and are filled from the Regelstudienplan's Fachsemester and
-  the Wiederholer; on a phone one semester as a card turned by ‹ › and a swipe, the overview above
-  it and nothing between („Danach sollten direkt die Semester kommen"), at the end a page that adds
-  a semester; on a desktop the mockup's concept A by default („am sichersten … am besten zwischen
-  Handy und PC") and concept C, calmed, as the second view. Her look at the page that day („Die
+  the Wiederholer; on a phone one semester as a card turned by ‹ › and a swipe, at the end a page
+  that adds a semester (first the overview above it and nothing between, „Danach sollten direkt die
+  Semester kommen"; after a try on her phone the overview a page of its own, the semesters behind
+  it, see „On a phone"); on a desktop the mockup's concept A by default („am sichersten … am besten
+  zwischen Handy und PC") and concept C, calmed, as the second view. Her look at the page that day („Die
   drei Punkte sind in der Allgemeinheit verstanden als Kontextmenü", „Das Abhaken von dem Modul ist
   viel zu einfach … Änder das mal zu einer Multiselection für Bearbeitung", „Die klickflächen sind zu
   klein", the cards of the areas in one row) made the rows what they are now. So:
@@ -597,7 +598,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the parts of the bar („Fortschrittsbalken") apart from the marks of a module („Zeichen an
     Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
     bar says (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz
-    effizient"): no label over the card, no way to the Stundenplan, whose tab is beside it. A program's views are the
+    effizient"): no label over the card, no way to the Stundenplan, whose tab is beside it. A
+    phone has no sidebar: all of it is on its overview (below). A program's views are the
     plan and the areas; its „Mein Plan" is this page. The visitor's own program carries „Studium
     planen", the start page's step „Studiengang wählen" leads here once a program is kept, and so
     does the Stundenplan's „Studium planen →".
@@ -623,9 +625,26 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     in „Passt in dieses Semester" (owner, 2026-10-04: „Da soll einfach nur zu sehen sein, wie steht
     es bei mir um meine LP"; until then hints under the cards, with „Einplanen" and „Markieren"). An area's
     card opens its dialog: what it asks and holds, the student's modules there, the plan's rows still
-    open, its modules in the catalog (the tree's areas, the FÜS list) and the plan's page. On a
-    phone the program, the Fachsemester and „Bereiche ›" over the headline; the bar and „Bereiche"
-    open the areas as a sheet.
+    open, its modules in the catalog (the tree's areas, the FÜS list) and the plan's page.
+  - **On a phone** (`phone.rs`, owner, 2026-10-05, after a try on her phone: „die landing Page vom
+    Studium relativ komisch und unübersichtlich. Mach das mal so, dass man oben die progressbar hat
+    und darunter gleich die legende dazu. Danach kommt der Studiengang und Dann kommen die links zu
+    regelstudienplan und Fachbereichen. Danach kommt dann eien box studium planen, mit einer preview
+    vom Studium … wenn man da rauf klickt oder nach links swiped bekommt man den plan vom semester
+    … Unten sind dann die rest links aus anpassen"): two pages. The overview: the headline with
+    „Bereiche ›" and the bar (both open the areas as a sheet), under it what the bar's parts are
+    with their credits („46 bestanden", „50 geplant", „84 offen", „über Bedarf" where some is); the
+    program's card and its ways „Regelstudienplan", „Wahlpflicht & Bereiche"; the box „Studium
+    planen" with „Jetzt WiSe 2026/27 · 8 von 30 LP" and a column per semester (what is passed and
+    planned there stacked, the plan's credits of its Fachsemester as the track behind, its
+    Fachsemester under it, the current one set off); at the end „Alle Studiengänge ansehen" and the
+    storage hint. The sheet „Anpassen" is gone. The box leads to the semesters (`/study?plan=1`): a
+    tap to the current one, a column to its semester, and a finger drawn to the left takes the box
+    along (uncovering „Semester ›") and, let go past a fifth of it or flicked, goes there as well.
+    The semesters slide in from the right, the overview back from the left. Their page has
+    „‹ Übersicht" over the cards (back through the history where the overview came before, else to
+    it; no Esc, which closes the semesters' menus and dialogs), the dots and the marks of the rows
+    („Zeichen an Modulen") under them.
   - **The semesters** (`focus.rs`, the view „Semester"): on a desktop a strip of every semester
     (what it holds of what the plan puts in, passed of the semesters that are over, a load bar,
     „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › and its „⋯" in its
@@ -642,11 +661,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     its credits, ✓ before them where it is passed) and its „⋯"; the box and the „⋯" are as tall as
     the row and 44–48 px wide, and a click anywhere on the module opens it beside the page. Its
     „⋯", or a right click on it, opens its menu at the button or the pointer (`menu.rs`): „Modul
-    ansehen" (for a placeholder „Modul wählen"), „Als bestanden markieren" (or „Bestanden
-    zurücknehmen"), „Verschieben nach ›" (a submenu of every semester it can go to — one that is over
-    only for what was done or not passed there —, each with its Fachsemester and whether it offers
-    the module), „Entfernen". The arrows go through a menu, → opens the submenu and ← closes it,
-    Escape or a click beside it closes it and gives the focus back. *Selecting* (`Selection`): the
+    wählen" for a placeholder, „Als bestanden markieren" (or „Bestanden zurücknehmen"),
+    „Verschieben nach ›" (a submenu of every semester it can go to — one that is over only for what
+    was done or not passed there —, each with its Fachsemester and whether it offers the module),
+    „Entfernen"; not the module, which a click on the row opens (owner, 2026-10-05: „modul ansehen
+    aus dem kontext menu nehmen, weil man ja per klick auf das feld das auf macht"), only in the
+    Gesamtplan, whose click opens the menu. The arrows go through a menu, → opens the submenu and ←
+    closes it, Escape or a click beside it closes it and gives the focus back. *Selecting* (`Selection`): the
     boxes select rows for what is done to several; a row's box shows under the pointer, every box
     while rows are selected. A press on a box drawn over the others selects (or, begun on a selected
     row, lets go of) every row it passes; Shift and a click selects a range, Ctrl or ⌘ and a click
@@ -656,12 +677,20 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     zurücknehmen" where all are), „Verschieben nach" (the semesters as a menu), „Entfernen", „×";
     Escape lets go too, and so does turning to another semester. A row dragged onto a semester of
     the strip moves there, with every row selected if it is one of them („3 Einträge" under the
-    pointer). On a phone the semester is a card as wide as the page right under the overview,
-    turned by ‹ › or a swipe, dots under it, the plan's open rows of its Fachsemester as a line
-    under the rows; its rows are the module and its „⋯", a long press selects a row and brings the
-    boxes in (a finger drawn down them selects more, a tap on a row selects it or lets it go), the
-    bar stands at the bottom of the window over the tab bar, and a menu is a sheet from below whose
-    submenu takes its place (with „‹" back). After the last semester a page adds one („WiSe
+    pointer). On a phone the semester is a card as wide as the page on the semesters' page
+    (`pager.rs`; owner, 2026-10-05: „die swipe bewegungen nach links und rechts brauchen
+    Animationen, damit man versteht was passiert. Die knöpfe können das einfach abspielen und beim
+    swipen selbst muss dass mit der bewegung funktionieren"): a finger drawn sideways takes the card
+    along and the semester beside it comes in from the screen's edge, 24 px apart; let go past a
+    fifth of the card or flicked, the cards glide on, else back; before the first semester the card
+    follows less and less far and goes back; ‹ › play the same glide, and the pager grows or
+    shrinks to the card that comes while they glide. The neighbours are drawn only while the cards
+    move, inert. While rows are selected a finger selects, and the cards stay. Dots under it, the
+    plan's open rows of its Fachsemester as a line under the rows; its rows are the module and its
+    „⋯", a long press selects a row and brings the boxes in (a finger drawn down them selects more,
+    a tap on a row selects it or lets it go), the bar takes the tab bar's place over it (owner,
+    2026-10-05: „Mach das mal so, dass die die navbar überdeckt"), and a menu is a sheet from below
+    whose submenu takes its place (with „‹" back). After the last semester a page adds one („WiSe
     2028/29 anfügen · 7. Fachsemester", as a semester of leave if ticked). A row's marks:
     „Wiederholung · aus 1. FS", „im SoSe nicht angeboten · nur WiSe", what it asks for and is not in
     place („setzt voraus … – noch nicht eingeplant", `picker::needs_text`, only what is asked for,
@@ -728,13 +757,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - `node folia/e2e/study.mjs` checks the first visit, the overview (the credits, nothing else), the
     sidebar (the program's card and its dialog, no way to the Stundenplan, the legend in two
     parts), what fits a winter and a summer,
-    a row's menu (marking as passed, „Verschieben nach ›", removing, „Rückgängig", a right click,
-    the keys: Enter, the arrows into the submenu and back, Escape and the focus back),
+    a row's menu (without the module; marking as passed, „Verschieben nach ›", removing,
+    „Rückgängig", a right click, the keys: Enter, the arrows into the submenu and back, Escape and
+    the focus back),
     selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows
     dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
-    its row, the Gesamtplan (its menu, its grey lines), the phone (the card, ‹ ›, a swipe, a long
-    press and the bar, the menu as a sheet, a semester added, the areas' sheet) and the
-    Stundenplan's import.
+    its row, the Gesamtplan (its menu, its grey lines), the phone (the overview in its order and
+    without a sidebar, the box by a tap, a column and a finger, the semesters' page, ‹ › gliding,
+    the cards following a finger and a short pull going back, a long press and the bar over the
+    tab bar, the menu as a sheet without the module, a semester added, „Übersicht" and Back
+    without a step more, the areas' sheet, the program's card) and the Stundenplan's import.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.

@@ -7,8 +7,9 @@
 //! auch ohne Scrolling"): its name and what is taken of what it asks („44/66"), the rest when the
 //! pointer rests on it. Nothing else: what was not passed, a semester heavier than the plan, is
 //! said where it is (owner, 2026-10-04: „Das muss da weg dafür gibt es andere Bereiche. Da soll
-//! einfach nur zu sehen sein, wie steht es bei mir um meine LP"). On a phone the bar opens the
-//! areas as a sheet. An area opens what counts there (`AreaDialog`).
+//! einfach nur zu sehen sein, wie steht es bei mir um meine LP"). A phone has the bar and its
+//! legend at the top of its overview (`phone.rs`), and the areas as a sheet (`AreasSheet`). An
+//! area opens what counts there (`AreaDialog`).
 
 use folia_plans::study::AreaKind;
 use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
@@ -23,7 +24,7 @@ use crate::i18n::{self, Texts};
 
 /// A part of the bar: an area, or what counts towards none.
 #[derive(Clone, Debug, PartialEq)]
-struct Segment {
+pub(super) struct Segment {
     area: Option<usize>,
     tone: &'static str,
     /// The parts' weights: passed, planned, open, beyond need.
@@ -51,15 +52,14 @@ struct Card {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Info {
+pub(super) struct Info {
     program: String,
-    /// „3. Fachsemester", where the study has begun.
-    fs: Option<String>,
-    headline: String,
-    passed: String,
-    planned: String,
+    pub headline: String,
+    /// „46 LP" passed, planned (and what of it goes beyond need, or counts nowhere), open.
+    pub passed: String,
+    pub planned: String,
     planned_rest: String,
-    open: String,
+    pub open: String,
     segments: Vec<Segment>,
     cards: Vec<Card>,
 }
@@ -70,11 +70,10 @@ pub(super) fn span_of(ready: &Ready, area: usize, t: &Texts) -> Option<String> {
 }
 
 impl Info {
-    fn of(ready: &Ready, t: &Texts) -> Self {
+    pub fn of(ready: &Ready, t: &Texts) -> Self {
         let s = &t.study;
         let study = &ready.study;
         let program = format!("{} {}", ready.program.name, ready.program.degree());
-        let fs = study.semester(study.now).and_then(|semester| semester.fs).filter(|_| study.now >= study.start).map(s.fs_long);
         let passed_all = study.passed + study.over_passed + study.outside.0;
         let over_planned = study.over - study.over_passed;
         let planned_all = study.planned + over_planned + study.outside.1;
@@ -153,7 +152,6 @@ impl Info {
         }
         Info {
             program,
-            fs,
             headline,
             passed: (s.credits)(&n(passed_all, t)),
             planned: (s.credits)(&n(planned_all, t)),
@@ -163,49 +161,42 @@ impl Info {
             cards,
         }
     }
+
+    /// The bar of the areas.
+    pub fn segments(&self) -> Vec<Segment> {
+        self.segments.clone()
+    }
+
+    /// Some part of the bar goes beyond what its area asks.
+    pub fn has_over(&self) -> bool {
+        self.segments.iter().any(|segment| segment.over > 0.0)
+    }
 }
 
+/// The overview on a desktop.
 #[component]
 pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let info = Memo::new(move |_| ctx.with_ready(|ready| Info::of(ready, t)));
-    let short = move |text: Option<String>| text.map(|text| text.trim_end_matches("\u{a0}LP").trim_end_matches("\u{a0}CP").to_string());
     move || {
         info.get().map(|info| {
-            let segments = info.segments.clone();
             let kicker = format!("{} · {}", s.overview, info.program);
-            let phone_kicker = match &info.fs {
-                Some(fs) => format!("{} · {fs}", info.program),
-                None => info.program.clone(),
-            };
             view! {
                 <section class="panel st-over" aria-label=s.overview>
                     <div class="st-over-top">
                         <div class="st-over-title">
-                            <p class="st-kicker st-pc">{kicker}</p>
-                            <p class="st-kicker st-phone">
-                                <span>{phone_kicker}</span>
-                                <button class="st-link" type="button" on:click=move |_| ctx.open(Dialog::Areas)>{s.areas}<Icon name="chevron-right"/></button>
-                            </p>
+                            <p class="st-kicker">{kicker}</p>
                             <p class="st-headline">{info.headline.clone()}</p>
                         </div>
-                        <ul class="st-stats st-pc">
+                        <ul class="st-stats">
                             <li><span class="st-key passed"></span><b>{info.passed.clone()}</b>" "{s.passed_tail}</li>
                             <li><span class="st-key planned"></span><b>{info.planned.clone()}</b>" "{s.planned_tail}{info.planned_rest.clone()}</li>
                             <li><span class="st-key open"></span><b>{info.open.clone()}</b>" "{s.open_tail}</li>
                         </ul>
                     </div>
-                    <Bar segments=segments.clone() pc=true/>
-                    <button class="st-bar-open st-phone" type="button" aria-label=s.areas_title on:click=move |_| ctx.open(Dialog::Areas)>
-                        <Bar segments pc=false/>
-                    </button>
-                    <p class="st-stats-short st-phone">
-                        <span><span class="st-key passed"></span><b>{short(Some(info.passed.clone()))}</b>" "{s.passed_short}</span>
-                        <span><span class="st-key planned"></span><b>{short(Some(info.planned.clone()))}</b>" "{s.planned_short}</span>
-                        <span><span class="st-key open"></span><b>{short(Some(info.open.clone()))}</b>" "{s.open_short}</span>
-                    </p>
-                    <div class="st-cards st-pc">
+                    <Bar segments=info.segments.clone()/>
+                    <div class="st-cards">
                         {info.cards.into_iter().map(|card| view! { <AreaCard ctx card/> }).collect_view()}
                     </div>
                 </section>
@@ -216,11 +207,11 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
 
 /// The bar of the areas, each as wide as it asks and what goes beyond it.
 #[component]
-fn Bar(segments: Vec<Segment>, pc: bool) -> impl IntoView {
+pub(super) fn Bar(segments: Vec<Segment>) -> impl IntoView {
     let t = i18n::t();
     let label = segments.iter().map(|segment| segment.label.clone()).collect::<Vec<_>>().join("; ");
     view! {
-        <div class="st-bar" class:st-pc=pc role="img" aria-label=format!("{}: {label}", t.study.bar_label)>
+        <div class="st-bar" role="img" aria-label=format!("{}: {label}", t.study.bar_label)>
             {segments.into_iter().map(|segment| {
                 let weight = segment.passed + segment.planned + segment.open + segment.over;
                 let part = |class: &'static str, value: f64| (value > 0.0).then(|| view! { <span class=class style=format!("flex-grow: {value}")></span> });
@@ -264,7 +255,7 @@ pub(super) fn AreasSheet(ctx: StudyCtx) -> impl IntoView {
             <div class="st-dlg-body st-areas">
                 <p class="st-headline small">{info.headline.clone()}</p>
                 <p class="st-dlg-note">{format!("{} {}{} · {} {}", info.planned, s.planned_tail, info.planned_rest, info.open, s.open_tail)}</p>
-                <Bar segments=info.segments.clone() pc=false/>
+                <Bar segments=info.segments.clone()/>
                 <p class="st-stats-short">
                     <span><span class="st-key passed"></span>{s.passed_short}</span>
                     <span><span class="st-key planned"></span>{s.planned_short}</span>

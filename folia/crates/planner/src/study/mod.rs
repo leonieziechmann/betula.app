@@ -8,23 +8,24 @@
 //! The page (owner, mockup of 2026-10-04): an overview first, what is passed, planned and open in
 //! all and by area (`overview.rs`), then the semesters. On a desktop one semester stands in focus
 //! under a strip of all of them, with what fits it beside it (`focus.rs`, the view „Semester"), or
-//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"); on a phone one semester as a card
-//! that ‹ › or a swipe turns, the overview above it. The semesters begin empty: „Module
-//! hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of the plan, the Wiederholer and the
-//! catalog; a row's menu (`menu.rs`) marks it as passed, moves it and takes it out, and so does
-//! the bar of the rows selected for several at once (`focus.rs`). Betula blocks nothing (owner:
-//! „Die Nutzer sind erwachsene Menschen"): it says what it knows instead.
+//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"). A phone has two pages
+//! (`phone.rs`): the overview, with the program and its ways, and behind its box „Studium planen"
+//! the semesters, one as a card that ‹ › or a finger turns (`pager.rs`). The semesters begin
+//! empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of the plan, the
+//! Wiederholer and the catalog; a row's menu (`menu.rs`) marks it as passed, moves it and takes it
+//! out, and so does the bar of the rows selected for several at once (`focus.rs`). Betula blocks
+//! nothing (owner: „Die Nutzer sind erwachsene Menschen"): it says what it knows instead.
 //!
 //! The program is set up once (`setup.rs`, the first visit) and changed rarely, in a dialog that
-//! says what of the plan counts in the new one (`side.rs`). The sidebar holds it and the ways to
-//! the program's pages and the timetable.
+//! says what of the plan counts in the new one (`side.rs`). The sidebar of a desktop holds it and
+//! the ways to the program's pages.
 //!
 //! The page is the app's (R9, R20): the server writes the same stand-in for everybody, and nothing
-//! of it reaches an address but the module beside it (`StudyUrl`, a local view). What it shows is
-//! one memo (`State`), worked out anew when the store, „Mein Studiengang", the program's plans or
-//! the current semester change; each part reads what it needs of it through a memo of its own
-//! (R5). A click answers in the next frame and the store follows after it (R21,
-//! `StudyCtx::change`).
+//! of it reaches an address but how it is shown: a phone's semesters, the module beside them
+//! (`StudyUrl`, a local view). What it shows is one memo (`State`), worked out anew when the
+//! store, „Mein Studiengang", the program's plans or the current semester change; each part reads
+//! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
+//! store follows after it (R21, `StudyCtx::change`).
 
 mod dialog;
 mod dom;
@@ -32,6 +33,8 @@ mod focus;
 mod grid;
 mod menu;
 mod overview;
+mod pager;
+mod phone;
 mod picker;
 mod setup;
 mod side;
@@ -245,6 +248,9 @@ pub(super) struct StudyCtx {
     pub drag: RwSignal<Option<(SemesterKey, Vec<String>)>>,
     /// The note of the last change that „Rückgängig" takes back, and the plan before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
+    /// A phone's semesters were opened from its overview: the step before them in the history is
+    /// the overview (`phone.rs`).
+    pub from_overview: StoredValue<bool>,
 }
 
 impl StudyCtx {
@@ -541,6 +547,7 @@ pub fn StudyPage() -> impl IntoView {
         selection: RwSignal::new(Selection::default()),
         drag: RwSignal::new(None),
         undo: RwSignal::new(None),
+        from_overview: StoredValue::new(false),
     };
     // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
     // where no dialog takes it first.
@@ -625,18 +632,30 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
         }
         .into_any(),
         Kind::Setup => view! { <setup::Setup ctx/> }.into_any(),
-        Kind::Study => view! {
-            <overview::Overview ctx/>
-            <Semesters ctx/>
-        }
-        .into_any(),
+        Kind::Study => view! { <StudyBody ctx/> }.into_any(),
     }
 }
 
-/// The semesters: one in focus (a phone always), or the Gesamtplan.
+/// The study: on a desktop the overview and the semesters, on a phone one of its two pages.
+#[component]
+fn StudyBody(ctx: StudyCtx) -> impl IntoView {
+    move || {
+        if ctx.phone.get() {
+            view! { <phone::Phone ctx/> }.into_any()
+        } else {
+            view! {
+                <overview::Overview ctx/>
+                <Semesters ctx/>
+            }
+            .into_any()
+        }
+    }
+}
+
+/// The semesters on a desktop: one in focus, or the Gesamtplan.
 #[component]
 fn Semesters(ctx: StudyCtx) -> impl IntoView {
-    let grid = Memo::new(move |_| ctx.view.get() == View::Grid && !ctx.phone.get());
+    let grid = Memo::new(move |_| ctx.view.get() == View::Grid);
     move || if grid.get() { view! { <grid::Grid ctx/> }.into_any() } else { view! { <focus::Focus ctx/> }.into_any() }
 }
 
@@ -744,14 +763,6 @@ fn StudyAside(ctx: StudyCtx, open: Memo<Option<String>>, target: Memo<Option<Stu
 /// The address of a module beside the page.
 pub(super) fn module_href(ctx: StudyCtx, id: &str, t: &Texts) -> String {
     t.path(&ctx.url.with_untracked(|url| url.with_open(Some(id)).path()))
-}
-
-/// „Anpassen": opens the sidebar, which on a phone is a sheet from below (`.sheet-toggle` shows
-/// on a phone only).
-#[component]
-pub(super) fn SheetToggle() -> impl IntoView {
-    let t = i18n::t();
-    view! { <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>{t.studyplan.customise}</a> }
 }
 
 /// A page of one visitor: the same address and explanation for everybody, for no index.
