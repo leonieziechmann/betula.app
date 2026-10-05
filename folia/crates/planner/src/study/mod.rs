@@ -10,11 +10,12 @@
 //! under a strip of all of them, with what fits it beside it (`focus.rs`, the view „Semester"), or
 //! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"). A phone has two pages
 //! (`phone.rs`): the overview, with the program and its ways, and behind its box „Studium planen"
-//! the semesters, one as a card that ‹ › or a finger turns (`pager.rs`). The semesters begin
-//! empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of the plan, the
-//! Wiederholer and the catalog; a row's menu (`menu.rs`) marks it as passed, moves it and takes it
-//! out, and so does the bar of the rows selected for several at once (`focus.rs`). Betula blocks
-//! nothing (owner: „Die Nutzer sind erwachsene Menschen"): it says what it knows instead.
+//! the semesters, cards in a row the browser scrolls under a finger or by ‹ › (`pager.rs`). The
+//! semesters begin empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of
+//! the plan, the Wiederholer and the catalog; a row's menu (`menu.rs`) marks it as passed, moves it
+//! and takes it out, and so does the bar of the rows selected for several at once (`focus.rs`).
+//! Betula blocks nothing (owner: „Die Nutzer sind erwachsene Menschen"): it says what it knows
+//! instead.
 //!
 //! The program is set up once (`setup.rs`, the first visit) and changed rarely, in a dialog that
 //! says what of the plan counts in the new one (`side.rs`). The sidebar of a desktop holds it and
@@ -683,7 +684,7 @@ fn ViewSwitch(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// The note of the last change with „Rückgängig", at the bottom of the window until the next one
-/// or a while.
+/// or a while; over a phone's dots and marks where its semesters show them (`phone.rs`).
 #[component]
 fn UndoNote(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -701,6 +702,7 @@ fn UndoNote(ctx: StudyCtx) -> impl IntoView {
             );
         }
     });
+    let over_dock = Memo::new(move |_| ctx.phone.get() && ctx.url.with(|url| url.plan));
     let restore = move |_| {
         let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
         ctx.undo.set(None);
@@ -709,7 +711,7 @@ fn UndoNote(ctx: StudyCtx) -> impl IntoView {
     move || {
         note.get().map(|note| {
             view! {
-                <div class="st-undo" role="status">
+                <div class="st-undo" class:over-dock=move || over_dock.get() role="status">
                     <Icon name="check"/>
                     <span>{note}</span>
                     <button class="mini hit" type="button" on:click=restore>{t.common.undo}</button>

@@ -6,7 +6,7 @@
 // ground, as the page's end does, and the panel ends there with round corners, which the ground
 // draws; the first scroll takes them away. The wood behind every page stands on the ground's edge
 // in every frame. Tab into the ground brings it into view. A phone scrolls the ground with the page, and
-// under a page shorter than the window the ground ends at the window's lower edge.
+// under a page shorter than the window the ground lies just past the window's lower edge.
 import { chromium } from "playwright-core";
 
 const base = (process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
@@ -213,9 +213,10 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   await context.close();
 }
 
-// ---------- a phone, a short page: the ground at the window's lower edge ----------
+// ---------- a phone, a short page: the ground just past the window's lower edge ----------
 // A new visitor's Stundenplan is empty and shorter than the window: the room is left above the
-// ground, which does not float halfway up the screen.
+// ground, which lies just past the window's lower edge, to be scrolled to (owner, 2026-10-05: „der
+// footer … mindestens genau außerhalb vom bild …, so dass man rein scrollen muss").
 {
   const { context, page } = await open("/studyplan", { width: 390, height: 844 });
   const f = await page.evaluate(() => {
@@ -223,10 +224,10 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
     const ground = el.getBoundingClientRect();
     // How far down the page and the ground right after it would reach.
     const needs = document.querySelector("#content").getBoundingClientRect().bottom + parseFloat(getComputedStyle(el).marginTop) + ground.height;
-    return { room: document.documentElement.scrollHeight - innerHeight, needs: Math.round(needs), ground: Math.round(ground.bottom), inner: innerHeight };
+    return { room: document.documentElement.scrollHeight - innerHeight, needs: Math.round(needs), top: Math.round(ground.top), bottom: Math.round(ground.bottom), inner: innerHeight };
   });
   check(f.needs < f.inner, `a phone: the empty Stundenplan is not shorter than the window any more, so it tells nothing: ${JSON.stringify(f)}`);
-  check(f.room === 0 && Math.abs(f.ground - f.inner) <= 1, `a phone, a short page: the ground does not end at the window's lower edge: ${JSON.stringify(f)}`);
+  check(f.top >= f.inner && f.top - f.inner <= 16 && f.room === f.bottom - f.inner, `a phone, a short page: the ground does not lie just past the window's lower edge: ${JSON.stringify(f)}`);
   await context.close();
 }
 
