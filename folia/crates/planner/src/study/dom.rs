@@ -219,6 +219,20 @@ pub(super) fn scrolled_x(row: &leptos::web_sys::Element) -> Option<(f64, f64)> {
     None
 }
 
+/// Where a row of cards that scrolls sideways stands: how far it is scrolled and how far apart its
+/// cards rest (px: the width of the first child, each card with its share of the space between
+/// them, app.css). `None` while it has no width.
+#[allow(unused_variables)]
+pub(super) fn scrolled_cards(row: &leptos::web_sys::Element) -> Option<(f64, f64)> {
+    #[cfg(feature = "csr")]
+    {
+        let step = row.first_element_child()?.get_bounding_client_rect().width();
+        (step > 0.0).then(|| (f64::from(row.scroll_left()), step))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
 /// Scrolls a row sideways to `x`: at once, or smoothly, as the browser scrolls by itself (at once
 /// all the same for a visitor who asks for less motion, as app.css has it).
 #[allow(unused_variables)]

@@ -1,11 +1,14 @@
 //! The semesters on a phone (owner, 2026-10-05: „das swiping ist richtig komisch das stockt immer
 //! wieder so mach das mal, so dass das flüssig läuft. Das ist ja mittlerweile eh ne onepage
 //! application, da kann man das ja so umsetzen, dass das sich wie eine native app anfühlt"): every
-//! semester a card as wide as the screen, side by side in a row that the browser scrolls by itself
-//! and stops at a card, one card a swipe (`scroll-snap`, app.css). A finger moves the row as it
-//! moves any list, on the browser's own thread, with the browser's fling and its bounce at the
-//! ends; nothing of the app runs while the row moves. ‹ › in a card's head scroll the row on to the
-//! neighbour, smoothly, the same way.
+//! semester a card as wide as the page, side by side in a row that the browser scrolls by itself
+//! and stops at a card, one card a swipe (`scroll-snap`, app.css). Two cards lie as far apart as a
+//! card from the screen's edge (owner, the same day: „dass die Abstände zwischen den boxen genau der
+//! Abstand zum rand ist, so dass sich das nicht doppelt, wenn man swiped"), so a swipe moves the row
+//! by a card and that space, less than a screen. A finger moves the row as it moves any list, on
+//! the browser's own thread, with the browser's fling and its bounce at the ends; nothing of the
+//! app runs while the row moves. ‹ › in a card's head scroll the row on to the neighbour, smoothly,
+//! the same way.
 //!
 //! The app only hears where the row is (`scroll`): the dots follow the card in the middle, which
 //! alone can be used (the others are inert); and once the row rests (`scrollend`, or no move for
@@ -38,14 +41,14 @@ const QUIET: Duration = Duration::from_millis(120);
 const DRAW: Duration = Duration::from_millis(320);
 const DRAW_STEP: Duration = Duration::from_millis(16);
 
-/// The card of `count` nearest to the middle of a row of cards `width` px wide scrolled `x` px,
-/// and whether the row rests there (to a px or two: scrolling rounds).
-fn card_at(x: f64, width: f64, count: usize) -> (usize, bool) {
-    if width <= 0.0 || count == 0 {
+/// The card of `count` nearest to the middle of a row scrolled `x` px whose cards rest `step` px
+/// apart, and whether the row rests there (to a px or two: scrolling rounds).
+fn card_at(x: f64, step: f64, count: usize) -> (usize, bool) {
+    if step <= 0.0 || count == 0 {
         return (0, false);
     }
-    let index = ((x / width).round().max(0.0) as usize).min(count - 1);
-    (index, (x - index as f64 * width).abs() <= 2.0)
+    let index = ((x / step).round().max(0.0) as usize).min(count - 1);
+    (index, (x - index as f64 * step).abs() <= 2.0)
 }
 
 /// The row of cards: the semesters in order, the card in view and the one the row rests at.
@@ -117,12 +120,11 @@ impl Cards {
         self.order.with_untracked(|order| order.iter().position(|other| *other == key))
     }
 
-    /// Where the row is: the card in the middle, whether it rests there, how wide a card is.
-    fn at(self) -> Option<(usize, bool, f64)> {
+    /// Where the row is: the card in the middle, whether it rests there.
+    fn at(self) -> Option<(usize, bool)> {
         let row = self.node.get_untracked()?;
-        let (x, width) = dom::scrolled_x(&row)?;
-        let (index, rests) = card_at(x, width, self.order.with_untracked(Vec::len));
-        Some((index, rests, width))
+        let (x, step) = dom::scrolled_cards(&row)?;
+        Some(card_at(x, step, self.order.with_untracked(Vec::len)))
     }
 
     /// Turns to `to` (‹ ›): the row scrolls there as a finger would have it.
@@ -131,14 +133,14 @@ impl Cards {
             self.ctx.focus.set(Some(to));
             return;
         };
-        if let Some((_, width)) = dom::scrolled_x(&row) {
-            dom::scroll_row_to(&row, index as f64 * width, true);
+        if let Some((_, step)) = dom::scrolled_cards(&row) {
+            dom::scroll_row_to(&row, index as f64 * step, true);
         }
     }
 
     /// The row moved: the card in the middle, and the rest once nothing moves for a while.
     fn moved(self) {
-        if let Some((index, ..)) = self.at() {
+        if let Some((index, _)) = self.at() {
             if index != self.shown.get_untracked() {
                 self.shown.set(index);
             }
@@ -156,7 +158,7 @@ impl Cards {
             handle.clear();
             self.quiet.set_value(None);
         }
-        let Some((index, true, _)) = self.at() else { return };
+        let Some((index, true)) = self.at() else { return };
         if index != self.shown.get_untracked() {
             self.shown.set(index);
         }
@@ -181,13 +183,13 @@ impl Cards {
         if !first && index == self.here.get_untracked() {
             return;
         }
-        let Some((_, width)) = dom::scrolled_x(&row) else {
+        let Some((_, step)) = dom::scrolled_cards(&row) else {
             if tries > 0 {
                 request_animation_frame(move || self.place(index, tries - 1));
             }
             return;
         };
-        dom::scroll_row_to(&row, index as f64 * width, !first);
+        dom::scroll_row_to(&row, index as f64 * step, !first);
         if first {
             self.placed.set_value(true);
             self.shown.set(index);
@@ -272,16 +274,19 @@ mod tests {
     use super::*;
 
     /// The card nearest to the middle, and whether the row rests at it: to a px or two, as
-    /// scrolling rounds; never past the last.
+    /// scrolling rounds; never past the last. A screen 390 px wide: cards 366 px wide, 12 px from
+    /// its edges and 12 px apart, 378 px a step.
     #[test]
     fn the_row_knows_its_card() {
-        assert_eq!(card_at(0.0, 390.0, 7), (0, true));
-        assert_eq!(card_at(194.0, 390.0, 7), (0, false), "a finger short of half way");
-        assert_eq!(card_at(196.0, 390.0, 7), (1, false), "past half way: the next");
-        assert_eq!(card_at(781.0, 390.0, 7), (2, true));
-        assert_eq!(card_at(2340.0, 390.0, 7), (6, true));
-        assert_eq!(card_at(2400.0, 390.0, 7), (6, false), "bounced past the last");
-        assert_eq!(card_at(-30.0, 390.0, 7), (0, false), "bounced before the first");
+        assert_eq!(card_at(0.0, 378.0, 7), (0, true));
+        assert_eq!(card_at(188.0, 378.0, 7), (0, false), "a finger short of half way");
+        assert_eq!(card_at(190.0, 378.0, 7), (1, false), "past half way: the next");
+        assert_eq!(card_at(757.0, 378.0, 7), (2, true));
+        assert_eq!(card_at(2268.0, 378.0, 7), (6, true));
+        assert_eq!(card_at(2330.0, 378.0, 7), (6, false), "bounced past the last");
+        assert_eq!(card_at(-30.0, 378.0, 7), (0, false), "bounced before the first");
         assert_eq!(card_at(100.0, 0.0, 7), (0, false), "no width yet");
+        // A screen of a fraction of a px: the row rests at a card all the same, far along.
+        assert_eq!(card_at(3994.0, 399.43, 12), (10, true));
     }
 }

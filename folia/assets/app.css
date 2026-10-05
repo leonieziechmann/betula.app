@@ -52,7 +52,10 @@
   --t-ice: oklch(.55 .09 240); --t-sun: oklch(.64 .12 75); --t-violet: oklch(.53 .1 300); --t-teal: oklch(.56 .08 190);
   --t-green: oklch(.56 .1 150); --t-coral: oklch(.6 .12 35); --t-rose: oklch(.56 .1 355); --t-slate: oklch(.55 .04 260);
 
-  --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  /* A panel: its ring, then its lift; the lift alone where a card draws its ring inside (a phone's
+     semesters). */
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
   --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
   /* A skeleton (folia/crates/shell/src/skeleton.rs): the grey of its bars and the light that sweeps over it. */
   --sk: rgba(15, 23, 42, .07);
@@ -124,7 +127,8 @@
     --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
     --ok: #4fd1a1;   --warn: #f0b861;   --no: #ff8f85;
     --no-soft: color-mix(in srgb, #ff8f85 12%, var(--panel));
-    --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
     --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
     --sk: rgba(255, 255, 255, .065);
     --sk-shine: rgba(255, 255, 255, .045);
@@ -175,7 +179,8 @@
   --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
   --ok: #4fd1a1;   --warn: #f0b861;   --no: #ff8f85;
   --no-soft: color-mix(in srgb, #ff8f85 12%, var(--panel));
-  --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
   --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
   --sk: rgba(255, 255, 255, .065);
   --sk-shine: rgba(255, 255, 255, .045);
@@ -3878,32 +3883,38 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-back .icon { width: 22px; height: 22px; }
   /* The cards (pager.rs; owner, 2026-10-05: „dass das sich wie eine native app anfühlt"): side by
      side in a row the browser scrolls by itself, a card a swipe. The row reaches to the screen's
-     edges, each card a screen wide with the page's margin inside it, and clips them above and
-     below the room of their shadows. It is as tall as the card it rests at (the others hang below
-     it and count for nothing) and at least as tall as the screen under it, so that a card coming
-     in shows as far down as the screen does. It is the cards' containing block, so that it clips
-     what they place absolutely too (a word for screen readers), which would else reach past the
-     screen. While rows are selected it does not move sideways. */
+     edges and clips the cards above and below the room of their shadows. A card lies the page's
+     margin (12 px) from the screen's edges, and two lie as far apart, not twice as far (owner, the
+     same day: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist, so dass sich
+     das nicht doppelt, wenn man swiped"): each card's place has half of it on either side, and
+     the row half of it before the first and after the last (its own boxes, which every browser
+     scrolls to, as it does not always a row's padding). A card rests in the middle; a step is a
+     card and its space (pager.rs measures it). The row is as tall as the card it rests at (the
+     others hang below it and count for nothing) and at least as tall as the screen under it, so
+     that a card coming in shows as far down as the screen does. It is the cards' containing block,
+     so that it clips what they place absolutely too (a word for screen readers), which would else
+     reach past the screen. While rows are selected it does not move sideways. */
   .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar) - 44px); margin: -10px -12px -14px; padding: 10px 0 14px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .st-pager::-webkit-scrollbar { display: none; }
+  .st-pager::before, .st-pager::after { content: ""; flex: none; width: 6px; }
   .st-pager.is-selecting { touch-action: pan-y; }
-  .st-slot { flex: 0 0 100%; min-width: 0; padding: 0 12px; scroll-snap-align: start; scroll-snap-stop: always; }
+  .st-slot { flex: 0 0 calc(100% - 12px); min-width: 0; padding: 0 6px; scroll-snap-align: center; scroll-snap-stop: always; }
   .st-slot:not([data-here]) { margin-bottom: -100000px; }
-  /* The dots and the marks of the rows over the tab bar, where they stay (owner, 2026-10-05: „fest
-     über der nav bar"); under the ground, which comes over them at the end of the page. */
-  .st-dock { position: fixed; z-index: 1; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); display: grid; justify-items: center; gap: 6px; padding: 8px 10px 6px; border-radius: 14px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); animation: st-dock-in .28s var(--ease); }
-  .st-dock-legend .flabel { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .st-dock-legend .st-legend-marks { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 12px; font-size: 12px; color: var(--text-2); }
-  .st-dock-legend li { gap: 5px; min-height: 20px; }
-  .st-dock-legend .st-legend-mark { width: 20px; }
+  /* The dots over the tab bar, where they stay (owner, 2026-10-05: „fest über der nav bar"), in
+     no box: the page's ground, frosted over what passes under it as the bar at the top is, from
+     the screen's lower edge, the tab bar floating over it, to a little above the dots, where it
+     fades into the page (the same day: „einfach nur den grauen Hintergrund mit blur zum
+     content"). Under the ground, which comes over it at the end of the page. */
+  .st-dock { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; padding: 26px 0 calc(84px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(transparent, #000 18px); mask-image: linear-gradient(transparent, #000 18px); animation: st-dock-in .28s var(--ease); }
   .st-bar { height: 12px; margin-top: 22px; gap: 2px; }
   .st-bar .st-seg, .st-bar .st-seg > span:first-child, .st-bar .st-seg > span:last-of-type { border-radius: 4px; }
   .st-bar .st-seg > span:not(:only-of-type):first-child { border-radius: 4px 0 0 4px; }
   .st-bar .st-seg > span:not(:only-of-type):last-of-type { border-radius: 0 4px 4px 0; }
   .st-plus { top: -18px; right: -2px; font-size: 11px; }
-  /* A semester: a card as wide as the page. */
-  .st-card-sem { padding: 6px 12px 12px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
-  .st-card-sem.is-now { box-shadow: 0 0 0 1.5px var(--accent-line), var(--shadow-panel); }
+  /* A semester: a card as wide as the page. Its ring inside it: a card beside the one in view
+     ends at the screen's edge, where a ring outside it would draw a line. */
+  .st-card-sem { padding: 6px 12px 12px; border-radius: 14px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lift); }
+  .st-card-sem.is-now { box-shadow: inset 0 0 0 1.5px var(--accent-line), var(--shadow-lift); }
   .st-sem-head { gap: 4px; margin: 0 -8px; padding: 0 0 8px; border-bottom: 1px solid var(--line); }
   .st-turn { width: 44px; height: 44px; }
   .st-sem-title { flex-direction: column; justify-content: center; gap: 0; text-align: center; }
@@ -3976,7 +3987,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-fields, .st-count-row { grid-template-columns: minmax(0, 1fr); }
   .st-setup { padding: 18px 16px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
-  .st-undo.over-dock { bottom: calc(136px + env(safe-area-inset-bottom)); }
+  .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
 }
 @keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
 @keyframes st-from-right { from { transform: translateX(32%); opacity: 0; } }

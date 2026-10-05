@@ -22,8 +22,9 @@
 //   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
 //   no sidebar; the box leads to the semesters (`?plan=1`), its column to that one, and drawn to the
 //   left by a finger as well; there the semesters as cards in a row the browser scrolls (a real
-//   touch, CDP): the ground past the window's edge, the dots and the marks fixed over the tab bar,
-//   an empty semester a mark and „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll
+//   touch, CDP), as far apart as from the screen's edge: the ground past the window's edge, the
+//   dots fixed over the tab bar on the page's frosted ground, no box and no legend, an empty
+//   semester a mark and „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll
 //   smoothly, a finger moves the row and a short pull goes back, a semester swiped to from down in
 //   another shows from its head, the last page adds a semester; a long press selects a row, the
 //   bar over the tab bar; a row's menu as a sheet without „Modul ansehen", „Verschieben nach" in
@@ -373,17 +374,18 @@ if (current !== "2026W") {
     return moved;
   };
   // The row of cards rests at the semester `name`: the card in view, the only one to be used, and
-  // the row exactly at it.
+  // the row exactly at it (a step is a card's place, the card and its share of the space).
   const resting = (name) => new Function(`
     const pager = document.querySelector(".st-pager");
     const here = document.querySelector(".st-pager > .st-slot[data-here]");
     if (!pager || !here || here.inert || document.querySelectorAll(".st-pager > .st-slot:not([inert])").length !== 1) return false;
-    const at = [...pager.children].indexOf(here) * pager.clientWidth;
+    const at = [...pager.children].indexOf(here) * here.getBoundingClientRect().width;
     return Math.abs(pager.scrollLeft - at) < 2 && here.querySelector("h2")?.textContent === ${JSON.stringify(name)};
   `);
   const HERE = ".st-pager > .st-slot:not([inert])";
   await step("Studium planen", () => page.tap(".st-planbox-head"), () => location.search === "?plan=1" && document.querySelector(".st-pager .st-card-sem") && document.querySelector(".st-plan-page.st-enter-right"));
   await page.waitForFunction(resting("WiSe 2026/27"), null, { timeout: 4000 }).catch(() => problems.push("the semesters do not open at the current one"));
+  await page.waitForFunction(() => document.querySelector(".st-plan-page")?.getAnimations().length === 0, null, { timeout: 3000 }).catch(() => problems.push("the semesters never stop sliding in"));
   const phone = await page.evaluate((HERE) => ({
     sideways: document.documentElement.scrollWidth - innerWidth,
     card: Math.round(document.querySelector(`${HERE} .st-card-sem`).getBoundingClientRect().width),
@@ -394,22 +396,45 @@ if (current !== "2026W") {
     grid: document.querySelector(".st-views")?.getBoundingClientRect().height ?? 0,
     back: document.querySelector(".st-back")?.getAttribute("href"),
     ground: Math.round(document.querySelector("body > .ground").getBoundingClientRect().top - innerHeight),
+    // The card in view from the screen's edges, and from the cards before and after it (owner,
+    // 2026-10-05: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist").
+    apart: (() => {
+      const here = document.querySelector(".st-pager > .st-slot[data-here]");
+      const card = here.firstElementChild.getBoundingClientRect();
+      const before = here.previousElementSibling.firstElementChild.getBoundingClientRect();
+      const after = here.nextElementSibling.firstElementChild.getBoundingClientRect();
+      return [card.left, innerWidth - card.right, card.left - before.right, after.left - card.right].map(Math.round).join();
+    })(),
   }), HERE);
-  check(phone.sideways <= 0 && phone.card >= 360 && phone.slots === 7 && phone.snap.startsWith("x mandatory") && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0 && phone.back === "/study" && phone.ground >= 0, `the phone's semesters: ${JSON.stringify(phone)}`);
+  check(phone.sideways <= 0 && phone.card >= 360 && phone.slots === 7 && phone.snap.startsWith("x mandatory") && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0 && phone.back === "/study" && phone.ground >= 0 && phone.apart === "12,12,12,12", `the phone's semesters: ${JSON.stringify(phone)}`);
   // Over the tab bar, where they stay: the dots, the current semester's ringed and the card's
-  // filled, and the marks of the rows (owner, 2026-10-05: „fest über der nav bar").
+  // filled (owner, 2026-10-05: „fest über der nav bar"), in no box and with no legend, on the
+  // page's ground frosted over what passes under it, from the screen's foot and edges to a little
+  // above them (the same day: „einfach nur den grauen Hintergrund mit blur zum content").
   const dock = async () => page.evaluate(() => {
-    const box = document.querySelector(".st-dock").getBoundingClientRect();
+    const ground = document.querySelector(".st-dock");
+    const style = getComputedStyle(ground);
+    const box = ground.getBoundingClientRect();
     const nav = document.querySelector(".bottomnav").getBoundingClientRect();
-    const dots = [...document.querySelectorAll(".st-dock .st-dots span")];
-    return { position: getComputedStyle(document.querySelector(".st-dock")).position, gap: Math.round(nav.top - box.bottom), dots: dots.length, here: dots.findIndex((dot) => dot.classList.contains("here")), now: dots.findIndex((dot) => dot.classList.contains("now")), marks: document.querySelectorAll(".st-dock .st-legend-marks li").length };
+    const row = ground.querySelector(".st-dots").getBoundingClientRect();
+    const dots = [...ground.querySelectorAll(".st-dots span")];
+    return {
+      position: style.position,
+      edges: [box.left, innerWidth - box.right, innerHeight - box.bottom].map(Math.round).join(),
+      above: Math.round(nav.top - box.top),
+      gap: Math.round(nav.top - row.bottom),
+      frosted: style.backdropFilter.includes("blur") && style.boxShadow === "none" && style.borderRadius === "0px",
+      legend: ground.querySelectorAll(".st-legend, .st-legend-marks, li").length,
+      dots: dots.length, here: dots.findIndex((dot) => dot.classList.contains("here")), now: dots.findIndex((dot) => dot.classList.contains("now")),
+    };
   });
-  await page.waitForFunction(() => document.querySelector(".st-dock")?.getAnimations().length === 0, null, { timeout: 3000 }).catch(() => problems.push("the dots and the marks never stand still"));
+  await page.waitForFunction(() => document.querySelector(".st-dock")?.getAnimations().length === 0, null, { timeout: 3000 }).catch(() => problems.push("the dots never stand still"));
   let docked = await dock();
-  check(docked.position === "fixed" && docked.gap >= 0 && docked.gap <= 12 && docked.dots === 7 && docked.here === 2 && docked.now === 2 && docked.marks === 3, `the dots and the marks are not over the tab bar: ${JSON.stringify(docked)}`);
+  check(docked.position === "fixed" && docked.edges === "0,0,0" && docked.above >= 30 && docked.gap >= 4 && docked.gap <= 16 && docked.frosted && docked.legend === 0
+    && docked.dots === 7 && docked.here === 2 && docked.now === 2, `the dots are not over the tab bar on the frosted ground: ${JSON.stringify(docked)}`);
   await page.evaluate(() => window.scrollBy(0, 200));
   await page.waitForTimeout(200);
-  check(JSON.stringify(await dock()) === JSON.stringify(docked), "the dots and the marks move with the page");
+  check(JSON.stringify(await dock()) === JSON.stringify(docked), "the dots move with the page");
   await page.evaluate(() => window.scrollTo(0, 0));
   // An empty semester: a mark and „Module hinzufügen" (owner, 2026-10-05: „keine Module sollte mit
   // icon und gleich modul hinzufügen sein"); what the plan has open for it as rows, each a „+".
@@ -431,8 +456,8 @@ if (current !== "2026W") {
     const card = document.querySelector(".st-pager > .st-slot:not([inert]) .st-card-sem");
     return [...card.querySelectorAll(".st-row .st-name")].map((name) => name.textContent).join() === first && !card.querySelector(".st-empty") && ![...card.querySelectorAll(".st-prow .st-name")].some((name) => name.textContent === first);
   }, first);
-  const undo = await page.evaluate(() => { const box = document.querySelector(".st-undo").getBoundingClientRect(); return Math.round(document.querySelector(".st-dock").getBoundingClientRect().top - box.bottom); });
-  check(undo >= 0, `the note of the change is not over the dots and the marks: ${undo}`);
+  const undo = await page.evaluate(() => { const box = document.querySelector(".st-undo").getBoundingClientRect(); return Math.round(document.querySelector(".st-dock .st-dots").getBoundingClientRect().top - box.bottom); });
+  check(undo >= 4, `the note of the change is not over the dots: ${undo}`);
   await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), (first) => document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && document.querySelector(".st-pager > .st-slot:not([inert]) .st-prow .st-name")?.textContent === first, first);
   // ‹ scrolls the row to the semester before, smoothly, as a finger would.
   await page.evaluate(() => {
@@ -443,7 +468,7 @@ if (current !== "2026W") {
     requestAnimationFrame(tick);
   });
   await step("‹", () => page.tap(`${HERE} .st-turn >> nth=0`), resting("SoSe 2026"));
-  const between = await page.evaluate(() => { const width = document.querySelector(".st-pager").clientWidth; return window.__xs.filter((x) => x % width > 4 && x % width < width - 4).length; });
+  const between = await page.evaluate(() => { const step = document.querySelector(".st-pager > .st-slot").getBoundingClientRect().width; return window.__xs.filter((x) => x % step > 4 && x % step < step - 4).length; });
   check(between >= 3, `‹ turns the card without a glide: ${between} frames between two cards`);
   check((await dock()).here === 1, "the dots do not follow the card");
   const mores = await page.evaluate((HERE) => Math.min(...[...document.querySelectorAll(`${HERE} .st-more`)].map((more) => more.getBoundingClientRect().height)), HERE);
@@ -503,7 +528,7 @@ if (current !== "2026W") {
       const pager = document.querySelector(".st-pager");
       const here = document.querySelector(".st-pager > .st-slot[data-here]");
       const index = [...pager.children].indexOf(here);
-      return index === at + 1 && !here.inert && Math.abs(pager.scrollLeft - index * pager.clientWidth) < 2;
+      return index === at + 1 && !here.inert && Math.abs(pager.scrollLeft - index * here.getBoundingClientRect().width) < 2;
     }, at, { timeout: 3000 }).catch(() => problems.push(`› did not turn from the card ${at}`));
   }
   check((await page.evaluate(() => document.querySelector(".st-pager > .st-slot[data-here] .st-new h2")?.textContent)) === "Neues Semester", "the last page does not add a semester");

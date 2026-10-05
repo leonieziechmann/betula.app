@@ -18,7 +18,7 @@
 //! back in from the left (`Enter`); their page has a way back over the cards, which goes back
 //! through the history where the overview is what came before. It is no „Zurück" of `enhance.js`
 //! (`data-action="back"`), whose Esc would leave the semesters while it closes a menu or a dialog
-//! of theirs. Over the tab bar the dots and the marks of the rows stay (`Dock`).
+//! of theirs. Over the tab bar the dots stay (`Dock`).
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::When;
@@ -33,7 +33,7 @@ use folia_shell::pending::Pending;
 
 use super::overview::{Bar, Info};
 use super::pager::{Cards, Dots, Pager};
-use super::side::{AllPrograms, LegendMarks, MineCard, ProgramWays, StorageHint};
+use super::side::{AllPrograms, MineCard, ProgramWays, StorageHint};
 use super::{dom, n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -301,9 +301,8 @@ fn PlanBox(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The semesters: the way back to the overview, the cards, and over the tab bar the dots and the
-/// marks of the rows (`Dock`), apart from the page that slides in, so that they stand where they
-/// stay from the first frame.
+/// The semesters: the way back to the overview, the cards, and over the tab bar the dots (`Dock`),
+/// apart from the page that slides in, so that they stand where they stay from the first frame.
 #[component]
 fn PlanPage(ctx: StudyCtx, enter: Enter) -> impl IntoView {
     let t = i18n::t();
@@ -331,17 +330,17 @@ fn PlanPage(ctx: StudyCtx, enter: Enter) -> impl IntoView {
     }
 }
 
-/// Over the tab bar, where it stays while the page scrolls (owner, 2026-10-05: „Die Legende und die
-/// swiping dots sollten fest über der nav bar sein"): where the card in view stands among the
-/// semesters, and what the marks of the rows say. The ground at the end of the page comes over it.
+/// Over the tab bar, where they stay while the page scrolls (owner, 2026-10-05: „Die Legende und
+/// die swiping dots sollten fest über der nav bar sein"): where the card in view stands among the
+/// semesters. No box and no legend (owner, the same day, after a look: „Mach mal die Legende weg
+/// und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund mit blur zum
+/// content"): the dots on the page's ground, frosted over what passes under it as the bar at the
+/// top is (app.css). The ground at the end of the page comes over it.
 #[component]
 fn Dock(ctx: StudyCtx, cards: Cards) -> impl IntoView {
     view! {
         <div class="st-dock">
             <Dots ctx cards/>
-            <div class="st-legend st-dock-legend">
-                <LegendMarks/>
-            </div>
         </div>
     }
 }

@@ -644,10 +644,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     way or flung it goes there as well, short of it it snaps back. The semesters slide in from the
     right, the overview back from the left. Their page has „‹ Übersicht" over the cards (back
     through the history where the overview came before, else to it; no Esc, which closes the
-    semesters' menus and dialogs); the dots and the marks of the rows („Zeichen an Modulen") stand
-    over the tab bar, where they stay while the page scrolls (owner, 2026-10-05: „Die Legende und
-    die swiping dots sollten fest über der nav bar sein"), and the ground at the end of the page
-    comes over them.
+    semesters' menus and dialogs); the dots stand over the tab bar, where they stay while the page
+    scrolls (owner, 2026-10-05: „Die Legende und die swiping dots sollten fest über der nav bar
+    sein"), in no box and with no legend of the rows' marks (the same day, after a look: „Mach mal
+    die Legende weg und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund
+    mit blur zum content"): on the page's grey, frosted over what passes under it as the bar at
+    the top is, from the screen's foot and edges (the tab bar floating over it) to a little above
+    the dots, where it fades into the page. The ground at the end of the page comes over it.
   - **The semesters** (`focus.rs`, the view „Semester"): on a desktop a strip of every semester
     (what it holds of what the plan puts in, passed of the semesters that are over, a load bar,
     „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › and its „⋯" in its
@@ -686,8 +689,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`pager.rs`; owner, 2026-10-05: „die swipe bewegungen nach links und rechts brauchen
     Animationen, damit man versteht was passiert …", and after a try on her phone the same day:
     „das swiping ist richtig komisch das stockt immer wieder … dass das sich wie eine native app
-    anfühlt"): every semester a card, side by side 24 px apart in a row the browser scrolls by
-    itself and stops at a card, one a swipe (`scroll-snap`). A finger moves the row as it moves any
+    anfühlt"): every semester a card, side by side in a row the browser scrolls by itself and
+    stops at a card, one a swipe (`scroll-snap`). Two cards lie as far apart as a card from the
+    screen's edge, 12 px (owner, the same day: „dass die Abstände zwischen den boxen genau der
+    Abstand zum rand ist, so dass sich das nicht doppelt, wenn man swiped"; until then 24 px):
+    a card's place has half of it on either side and the row half of it at its ends, a card rests
+    in the middle, and a step is a card and its space; the card's ring is drawn inside it, so that
+    the cards beside the one in view, which end at the screen's edges, draw no line there
+    (`--shadow-lift`, the panel's shadow without its ring). A finger moves the row as it moves any
     list, on the browser's own thread, with its fling and its bounce at the ends, and nothing of
     the app runs while it moves; ‹ › scroll it on to the neighbour, smoothly, the same way. (The
     cards the app moved under the finger itself, the round before, stalled: on a thread four times
@@ -780,7 +789,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
     its row, the Gesamtplan (its menu, its grey lines), the phone (the overview in its order and
     without a sidebar, the box by a tap, a column and a finger, the semesters' page and the ground
-    past the window's edge, the dots and the marks fixed over the tab bar, an empty semester and
+    past the window's edge, the cards 12 px from the screen's edges and from each other, the dots
+    fixed over the tab bar on the frosted grey, without a box or a legend, an empty semester and
     the plan's rows with their „+", ‹ › scrolling smoothly, a real finger moving the row and a
     short pull going back, the window scrolled into a semester and the next shown from its head, a
     long press and the bar over the tab bar, the menu as a sheet without the module, a semester
