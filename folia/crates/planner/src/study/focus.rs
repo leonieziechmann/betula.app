@@ -18,15 +18,18 @@
 //! as passed, moves them, takes them out. On a phone a long press selects a row, and the bar takes
 //! the tab bar's place (owner, 2026-10-05: „Mach das mal so, dass die die navbar überdeckt"). A row
 //! dragged onto a semester of the strip moves there, with the others selected if it is one of
-//! them. Under the rows one more, „Module hinzufügen"; the
-//! semester's own ⋯ in its head holds the rest: the Stundenplan, a semester of leave.
+//! them. Under the rows one more, „Module hinzufügen"; an empty semester is a mark, „Noch keine
+//! Module" and „Module hinzufügen" right under it (owner, 2026-10-05: „keine Module sollte mit icon
+//! und gleich modul hinzufügen sein"). On a phone what the plan still has open for the semester
+//! follows as rows, each with a „+" (`PlanRows`). The semester's own ⋯ in its head holds the rest:
+//! the Stundenplan, a semester of leave.
 
 use std::collections::BTreeSet;
 use std::time::Duration;
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Season;
-use folia_plans::study::{self, Item, Pick, Standing, Subject, When};
+use folia_plans::study::{self, Item, Pick, Subject, When};
 use folia_plans::variants;
 use folia_routes::url::CatalogUrl;
 use leptos::ev::{DragEvent, MouseEvent, PointerEvent};
@@ -173,7 +176,6 @@ fn Strip(ctx: StudyCtx) -> impl IntoView {
 struct Head {
     label: String,
     now: bool,
-    leave: bool,
     beyond: bool,
     sub: String,
     figure: Option<(String, String, bool)>,
@@ -181,12 +183,10 @@ struct Head {
     next: Option<SemesterKey>,
     keys: Vec<String>,
     past: bool,
-    /// What the plan has for its Fachsemester and is open (on a phone, under the rows).
-    plan_still: Option<String>,
 }
 
 impl Head {
-    fn of(ready: &Ready, key: SemesterKey, still: Option<String>, t: &Texts) -> Option<Self> {
+    fn of(ready: &Ready, key: SemesterKey, t: &Texts) -> Option<Self> {
         let s = &t.study;
         let study = &ready.study;
         let at = study.semesters.iter().position(|semester| semester.key == key)?;
@@ -213,7 +213,6 @@ impl Head {
         Some(Head {
             label: key.label(t.locale),
             now: semester.when == When::Now,
-            leave: semester.leave,
             beyond: semester.beyond,
             sub,
             figure,
@@ -221,22 +220,11 @@ impl Head {
             next: study.semesters.get(at + 1).map(|semester| semester.key).or_else(|| key.plus(1)),
             keys: semester.items.iter().map(Item::key).collect(),
             past: semester.when == When::Past,
-            plan_still: still,
         })
     }
 }
 
-/// The names of what the plan has open in semester `key`'s Fachsemester.
-fn plan_still(ctx: StudyCtx, key: SemesterKey) -> Option<String> {
-    ctx.with_input(|input, ready| {
-        let fs = ready.study.semester(key)?.fs?;
-        let open: Vec<String> = study::plan_semester(input, &ready.study, fs).into_iter().filter(|suggestion| suggestion.standing == Standing::Open).map(|suggestion| suggestion.name).collect();
-        (!open.is_empty()).then(|| open.join(", "))
-    })
-    .flatten()
-}
-
-/// Turns to semester `to`: on a phone by the cards' glide (`pager::Cards`), else at once.
+/// Turns to semester `to`: on a phone the row of cards scrolls there (`pager::Cards`), else at once.
 fn turn(ctx: StudyCtx, cards: Option<Cards>, to: Option<SemesterKey>) {
     match (to, cards) {
         (Some(to), Some(cards)) => cards.turn_to(to),
@@ -251,10 +239,7 @@ fn turn(ctx: StudyCtx, cards: Option<Cards>, to: Option<SemesterKey>) {
 pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
-    let head = Memo::new(move |_| {
-        let still = plan_still(ctx, semester);
-        ctx.with_ready(|ready| Head::of(ready, semester, still, t)).flatten()
-    });
+    let head = Memo::new(move |_| ctx.with_ready(|ready| Head::of(ready, semester, t)).flatten());
     let keys = Memo::new(move |_| head.with(|head| head.as_ref().map(|head| head.keys.clone()).unwrap_or_default()));
     // The rows selected here, in their order. A row that goes is let go of.
     let chosen = Memo::new(move |_| {
@@ -274,6 +259,8 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
         });
     });
     let selecting = Memo::new(move |_| !chosen.with(Vec::is_empty));
+    let empty = Memo::new(move |_| keys.with(Vec::is_empty));
+    let add = move || ctx.open(Dialog::Add { semester, catalog: false, chosen: Vec::new() });
     let cards = use_context::<Cards>();
     let go = move |to: Option<SemesterKey>| turn(ctx, cards, to);
     view! {
@@ -320,22 +307,31 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                 {move || selecting.get().then(|| view! { <SelectionBar ctx semester keys chosen/> })}
                 <ul class="st-rows">
                     <For each=move || keys.get() key=|key| key.clone() children=move |key: String| view! { <ItemRow ctx semester key order=keys/> }/>
-                    {move || keys.with(Vec::is_empty).then(|| {
-                        let leave = head.with(|head| head.as_ref().is_some_and(|head| head.leave));
-                        view! { <li class="st-empty">{if leave { s.empty_leave } else { s.empty_semester }}</li> }
-                    })}
-                    <li class="st-addrow">
-                        <button class="st-add" type="button" on:click=move |_| ctx.open(Dialog::Add { semester, catalog: false, chosen: Vec::new() })>
-                            <span class="st-add-icon" aria-hidden="true"><Icon name="plus"/></span>
-                            <span>{s.add_modules}</span>
-                        </button>
-                    </li>
+                    {move || if empty.get() {
+                        view! {
+                            <li class="st-empty">
+                                <span class="st-empty-icon" aria-hidden="true"><Icon name="layout-list"/></span>
+                                <p>{s.no_modules}</p>
+                                <button class="btn primary st-empty-add" type="button" on:click=move |_| add()>
+                                    <Icon name="plus"/><span>{s.add_modules}</span>
+                                </button>
+                            </li>
+                        }
+                        .into_any()
+                    } else {
+                        view! {
+                            <li class="st-addrow">
+                                <button class="st-add" type="button" on:click=move |_| add()>
+                                    <span class="st-add-icon" aria-hidden="true"><Icon name="plus"/></span>
+                                    <span>{s.add_modules}</span>
+                                </button>
+                            </li>
+                        }
+                        .into_any()
+                    }}
                 </ul>
             </div>
-            {move || head.with(|head| head.as_ref().and_then(|head| (!head.past).then(|| head.plan_still.clone()).flatten())).map(|names| {
-                let fs = head.with(|head| head.as_ref().map(|head| head.sub.clone()).unwrap_or_default());
-                view! { <p class="st-still st-phone">{(s.plan_still)(&fs.replace("Fachsemester", "FS"), &names)}</p> }
-            })}
+            <PlanRows ctx semester/>
             // What a drag of several rows shows under the pointer.
             <div class="st-ghost" aria-hidden="true">{move || (s.n_entries)(chosen.with(Vec::len))}</div>
         </article>
@@ -791,12 +787,16 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     .into_any()
 }
 
-/// An entry of „Passt in dieses Semester".
+/// An entry of „Passt in dieses Semester": on a desktop its name and a line, on a phone a row with
+/// its area and its credits.
 #[derive(Clone, Debug, PartialEq)]
 struct Fit {
     pick: Pick,
     name: String,
     line: String,
+    area: String,
+    tone: &'static str,
+    credits: Option<String>,
 }
 
 /// What „Passt in dieses Semester" lists (`study::fits`): nothing of a Fachsemester after the
@@ -830,14 +830,17 @@ impl Fits {
         let s = &t.study;
         ctx.with_input(|input, ready| {
             let fits = study::fits(input, &ready.study, &ready.lines, semester);
+            let credits = |suggestion: &study::Suggestion| suggestion.credits_text.as_ref().map(|text| folia_plans::plan::credits_in(text, t.locale)).or_else(|| suggestion.credits.map(|credits| n(credits, t)));
             let line = |suggestion: &study::Suggestion| {
-                let credits = suggestion.credits_text.as_ref().map(|text| folia_plans::plan::credits_in(text, t.locale)).or_else(|| suggestion.credits.map(|credits| n(credits, t)));
-                [credits.map(|credits| (s.credits)(&credits)), Some(ready.area_name(suggestion.area, t))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
+                [credits(suggestion).map(|credits| (s.credits)(&credits)), Some(ready.area_name(suggestion.area, t))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
             };
             let fit = |suggestion: &study::Suggestion, also: Option<String>| Fit {
                 pick: suggestion.pick.clone(),
                 name: suggestion.name.clone(),
                 line: std::iter::once(line(suggestion)).chain(also).collect::<Vec<_>>().join(" · "),
+                area: ready.area_name(suggestion.area, t),
+                tone: ready.tone(suggestion.area),
+                credits: credits(suggestion),
             };
             let rest = match (fits.rows, fits.open) {
                 (0, _) => Rest::Nothing,
@@ -918,6 +921,61 @@ fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
             })}
             <button class="st-link" type="button" on:click=move |_| ctx.open(Dialog::Add { semester, catalog: true, chosen: Vec::new() })><Icon name="search"/>{s.search_catalog}</button>
         </aside>
+    }
+}
+
+/// What the Regelstudienplan still has open for the semester's Fachsemester, under its rows on a
+/// phone (owner, 2026-10-05: „die module, die noch vorgesehen sind, sollten auch als rows
+/// organisiert sein und nicht als fließtext"): a row each, as the semester's own rows are, with its
+/// area and its credits, and a „+" that plans it here. Only what the semester offers (`Fits`);
+/// where what is open is not offered in it, a line says so. Not for a semester gone by. A desktop
+/// has them beside the semester („Passt in dieses Semester").
+#[component]
+fn PlanRows(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
+    let t = i18n::t();
+    let s = &t.study;
+    let past = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semester(semester).is_none_or(|it| it.when == When::Past)).unwrap_or(true));
+    let fits = Memo::new(move |_| if past.get() { None } else { Fits::of(ctx, semester, t) });
+    let id = format!("st-plan-rows-{}", semester.key());
+    move || {
+        let fits = fits.get()?;
+        let fs = fits.fs.clone()?;
+        if fits.plan.is_empty() {
+            return (fits.rest == Rest::Unoffered).then(|| view! { <p class="st-plan-note st-phone">{(s.fits_unoffered)(season_word(semester, t))}</p> }.into_any());
+        }
+        Some(
+            view! {
+                <section class="st-plan-rows st-phone" aria-labelledby=id.clone()>
+                    <h3 class="st-plan-label" id=id.clone()>{(s.fits_plan)(&fs)}</h3>
+                    <ul>{fits.plan.into_iter().map(|fit| view! { <PlanRow ctx semester fit/> }).collect_view()}</ul>
+                </section>
+            }
+            .into_any(),
+        )
+    }
+}
+
+/// A row of the plan not planned yet: the module (a click opens it), its area, its credits, „+".
+#[component]
+fn PlanRow(ctx: StudyCtx, semester: SemesterKey, fit: Fit) -> impl IntoView {
+    let t = i18n::t();
+    let label = (t.study.plan_here)(&fit.name);
+    let pick = fit.pick.clone();
+    let name = match fit.pick {
+        Pick::Module { id, .. } => view! { <a class="st-name" href=move || module_href(ctx, &id, t) data-noscroll="">{fit.name}</a> }.into_any(),
+        Pick::Row { .. } => view! { <span class="st-name">{fit.name}</span> }.into_any(),
+    };
+    view! {
+        <li class="st-prow">
+            <div class="st-what">
+                {name}
+                <span class="st-area"><span class="st-dot" style=format!("--c: {}", fit.tone)></span>{fit.area}</span>
+            </div>
+            <span class="st-lp num">{fit.credits}</span>
+            <button class="icon-btn st-prow-add" type="button" aria-label=label.clone() title=label on:click=move |_| add_pick(ctx, semester, vec![pick.clone()], t)>
+                <Icon name="plus"/>
+            </button>
+        </li>
     }
 }
 

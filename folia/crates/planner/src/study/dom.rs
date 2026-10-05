@@ -1,6 +1,7 @@
 //! What „Mein Studium" asks of the browser itself: where a button or the pointer is, which row lies
 //! under the pointer while a selection is drawn, what a menu gives the focus back to, the picture a
-//! drag of several rows carries. Nothing of it on the server, which has neither.
+//! drag of several rows carries, where a row of cards is scrolled. Nothing of it on the server,
+//! which has neither.
 
 #[cfg(feature = "csr")]
 use wasm_bindgen::JsCast;
@@ -201,6 +202,65 @@ pub(super) fn follow_name(ev: &leptos::ev::MouseEvent) {
         let link = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|body| body.query_selector("a.st-name").ok().flatten());
         if let Some(link) = link.and_then(|link| link.dyn_into::<web_sys::HtmlElement>().ok()) {
             leptos::prelude::set_timeout(move || link.click(), std::time::Duration::ZERO);
+        }
+    }
+}
+
+/// Where a row that scrolls sideways stands: how far it is scrolled and how wide it shows (px).
+/// `None` while it has no width.
+#[allow(unused_variables)]
+pub(super) fn scrolled_x(row: &leptos::web_sys::Element) -> Option<(f64, f64)> {
+    #[cfg(feature = "csr")]
+    {
+        let width = f64::from(row.client_width());
+        (width > 0.0).then(|| (f64::from(row.scroll_left()), width))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// Where a row of cards that scrolls sideways stands: how far it is scrolled and how far apart its
+/// cards rest (px: the width of the first child, each card with its share of the space between
+/// them, app.css). `None` while it has no width.
+#[allow(unused_variables)]
+pub(super) fn scrolled_cards(row: &leptos::web_sys::Element) -> Option<(f64, f64)> {
+    #[cfg(feature = "csr")]
+    {
+        let step = row.first_element_child()?.get_bounding_client_rect().width();
+        (step > 0.0).then(|| (f64::from(row.scroll_left()), step))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// Scrolls a row sideways to `x`: at once, or smoothly, as the browser scrolls by itself (at once
+/// all the same for a visitor who asks for less motion, as app.css has it).
+#[allow(unused_variables)]
+pub(super) fn scroll_row_to(row: &leptos::web_sys::Element, x: f64, smooth: bool) {
+    #[cfg(feature = "csr")]
+    {
+        let still = web_sys::window().and_then(|window| window.match_media("(prefers-reduced-motion: reduce)").ok().flatten()).is_some_and(|query| query.matches());
+        let options = web_sys::ScrollToOptions::new();
+        options.set_left(x);
+        options.set_behavior(if smooth && !still { web_sys::ScrollBehavior::Smooth } else { web_sys::ScrollBehavior::Instant });
+        row.scroll_to_with_scroll_to_options(&options);
+    }
+}
+
+/// Where the window is scrolled past the top of `element` (under the bar at the top, which stays),
+/// the window at once where its top shows.
+#[allow(unused_variables)]
+pub(super) fn show_top(element: &leptos::web_sys::Element) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return };
+        let bar = window.document().and_then(|document| document.query_selector(".topbar").ok().flatten()).map_or(0.0, |bar| bar.get_bounding_client_rect().bottom());
+        let top = element.get_bounding_client_rect().top();
+        if top < bar {
+            let options = web_sys::ScrollToOptions::new();
+            options.set_top(window.scroll_y().unwrap_or(0.0) + top - bar - 8.0);
+            options.set_behavior(web_sys::ScrollBehavior::Instant);
+            window.scroll_to_with_scroll_to_options(&options);
         }
     }
 }

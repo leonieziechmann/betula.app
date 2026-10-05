@@ -168,10 +168,9 @@ fn LegendBar() -> impl IntoView {
     }
 }
 
-/// The marks a module has in the semesters, each a word: the sidebar's, and under a phone's
-/// semesters.
+/// The marks a module has in the semesters, each a word.
 #[component]
-pub(super) fn LegendMarks() -> impl IntoView {
+fn LegendMarks() -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let mark = |class: &'static str, icon: &'static str, name: &'static str| {
