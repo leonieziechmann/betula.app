@@ -843,7 +843,7 @@
         "kind": "Panel",
         "spec": {
           "id": 19,
-          "title": "Requests in the selected range",
+          "title": "Requests per endpoint, total",
           "description": "The same, summed over the selected range.",
           "links": [],
           "data": {
@@ -1226,6 +1226,21 @@
                   },
                   {
                     "matcher": {
+                      "id": "byRegexp",
+                      "options": "^(3|4)..$"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
                       "id": "byName",
                       "options": "404"
                     },
@@ -1271,15 +1286,15 @@
                   },
                   {
                     "matcher": {
-                      "id": "byRegexp",
-                      "options": "^(3|4)..$"
+                      "id": "byName",
+                      "options": "offline_miss"
                     },
                     "properties": [
                       {
                         "id": "color",
                         "value": {
-                          "fixedColor": "orange",
-                          "mode": "fixed"
+                          "mode": "fixed",
+                          "fixedColor": "purple"
                         }
                       }
                     ]
@@ -1294,7 +1309,7 @@
         "kind": "Panel",
         "spec": {
           "id": 21,
-          "title": "Radix's answer time p95",
+          "title": "Answer time p95 by endpoint",
           "description": "95th percentile of the time from request to the end of the body. Through Cortex: a hit from its store (milliseconds), or Cortex's queue for the host plus the university's answer. The university's own answer time is in „University answer time p95\" below. Above 15 s a request is logged as crawl.slow.",
           "links": [],
           "data": {
@@ -2568,7 +2583,7 @@
                 "wideLayout": true,
                 "text": {
                   "titleSize": 14,
-                  "valueSize": 20
+                  "valueSize": 18
                 }
               },
               "fieldConfig": {
@@ -2742,6 +2757,21 @@
                         "value": {
                           "fixedColor": "red",
                           "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "offline_miss"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "mode": "fixed",
+                          "fixedColor": "purple"
                         }
                       }
                     ]
@@ -3564,13 +3594,14 @@
               "options": {
                 "legend": {
                   "displayMode": "table",
-                  "placement": "bottom",
+                  "placement": "right",
                   "showLegend": true,
                   "calcs": [
                     "lastNotNull",
                     "min",
                     "max"
-                  ]
+                  ],
+                  "width": 300
                 },
                 "tooltip": {
                   "mode": "multi",
@@ -5041,7 +5072,7 @@
                 "wideLayout": true,
                 "text": {
                   "titleSize": 14,
-                  "valueSize": 20
+                  "valueSize": 18
                 }
               },
               "fieldConfig": {
@@ -5316,6 +5347,45 @@
                         "layout": {
                           "kind": "AutoGridLayout",
                           "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 160,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-3"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-8"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
                             "maxColumnCount": 4,
                             "columnWidthMode": "custom",
                             "columnWidth": 340,
@@ -5356,45 +5426,6 @@
                                   "element": {
                                     "kind": "ElementReference",
                                     "name": "panel-14"
-                                  }
-                                }
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    },
-                    {
-                      "kind": "RowsLayoutRow",
-                      "spec": {
-                        "title": "",
-                        "hideHeader": true,
-                        "collapse": false,
-                        "layout": {
-                          "kind": "AutoGridLayout",
-                          "spec": {
-                            "maxColumnCount": 2,
-                            "columnWidthMode": "custom",
-                            "columnWidth": 380,
-                            "rowHeightMode": "custom",
-                            "rowHeight": 160,
-                            "fillScreen": false,
-                            "items": [
-                              {
-                                "kind": "AutoGridLayoutItem",
-                                "spec": {
-                                  "element": {
-                                    "kind": "ElementReference",
-                                    "name": "panel-3"
-                                  }
-                                }
-                              },
-                              {
-                                "kind": "AutoGridLayoutItem",
-                                "spec": {
-                                  "element": {
-                                    "kind": "ElementReference",
-                                    "name": "panel-8"
                                   }
                                 }
                               }
@@ -5469,7 +5500,7 @@
                             "columnWidthMode": "custom",
                             "columnWidth": 600,
                             "rowHeightMode": "custom",
-                            "rowHeight": 360,
+                            "rowHeight": 300,
                             "fillScreen": false,
                             "items": [
                               {
@@ -5480,7 +5511,28 @@
                                     "name": "panel-20"
                                   }
                                 }
-                              },
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 360,
+                            "fillScreen": false,
+                            "items": [
                               {
                                 "kind": "AutoGridLayoutItem",
                                 "spec": {
@@ -5512,7 +5564,7 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Through Cortex: what reached the university",
+              "title": "Through Cortex to the university",
               "collapse": false,
               "layout": {
                 "kind": "RowsLayout",
@@ -5791,7 +5843,7 @@
                             "columnWidthMode": "custom",
                             "columnWidth": 600,
                             "rowHeightMode": "custom",
-                            "rowHeight": 530,
+                            "rowHeight": 380,
                             "fillScreen": false,
                             "items": [
                               {
@@ -5998,7 +6050,28 @@
                                     "name": "panel-45"
                                   }
                                 }
-                              },
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 380,
+                            "fillScreen": false,
+                            "items": [
                               {
                                 "kind": "AutoGridLayoutItem",
                                 "spec": {

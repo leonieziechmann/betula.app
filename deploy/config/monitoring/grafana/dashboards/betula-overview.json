@@ -90,7 +90,7 @@
                 },
                 "textMode": "auto",
                 "text": {
-                  "titleSize": 12,
+                  "titleSize": 14,
                   "valueSize": 36
                 }
               },
@@ -600,7 +600,7 @@
                 },
                 "textMode": "auto",
                 "text": {
-                  "titleSize": 12,
+                  "titleSize": 14,
                   "valueSize": 36
                 }
               },
@@ -865,7 +865,7 @@
                 },
                 "textMode": "auto",
                 "text": {
-                  "titleSize": 12,
+                  "titleSize": 14,
                   "valueSize": 36
                 }
               },
@@ -1228,7 +1228,7 @@
                 },
                 "textMode": "auto",
                 "text": {
-                  "titleSize": 12,
+                  "titleSize": 14,
                   "valueSize": 36
                 }
               },
@@ -1736,7 +1736,7 @@
                 },
                 "textMode": "auto",
                 "text": {
-                  "titleSize": 12,
+                  "titleSize": 14,
                   "valueSize": 36
                 }
               },
@@ -1877,7 +1877,7 @@
                 },
                 "textMode": "auto",
                 "text": {
-                  "titleSize": 12,
+                  "titleSize": 14,
                   "valueSize": 36
                 }
               },
@@ -1922,7 +1922,7 @@
                   "columnWidthMode": "custom",
                   "columnWidth": 600,
                   "rowHeightMode": "custom",
-                  "rowHeight": 180,
+                  "rowHeight": 200,
                   "fillScreen": false,
                   "items": [
                     {
@@ -1962,7 +1962,7 @@
                             "columnWidthMode": "custom",
                             "columnWidth": 260,
                             "rowHeightMode": "custom",
-                            "rowHeight": 120,
+                            "rowHeight": 110,
                             "fillScreen": false,
                             "items": [
                               {

@@ -703,8 +703,7 @@
                   "placement": "bottom",
                   "showLegend": true,
                   "calcs": [
-                    "lastNotNull",
-                    "max"
+                    "lastNotNull"
                   ]
                 },
                 "tooltip": {
@@ -1770,6 +1769,21 @@
                 "overrides": [
                   {
                     "matcher": {
+                      "id": "byRegexp",
+                      "options": "^(3|4)..$"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
                       "id": "byName",
                       "options": "200"
                     },
@@ -1838,21 +1852,6 @@
                         "id": "color",
                         "value": {
                           "fixedColor": "dark-red",
-                          "mode": "fixed"
-                        }
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byRegexp",
-                      "options": "^(3|4)..$"
-                    },
-                    "properties": [
-                      {
-                        "id": "color",
-                        "value": {
-                          "fixedColor": "orange",
                           "mode": "fixed"
                         }
                       }
@@ -2555,13 +2554,12 @@
               "options": {
                 "legend": {
                   "displayMode": "table",
-                  "placement": "right",
+                  "placement": "bottom",
                   "showLegend": true,
                   "calcs": [
                     "lastNotNull",
                     "max"
-                  ],
-                  "width": 330
+                  ]
                 },
                 "tooltip": {
                   "mode": "multi",
@@ -2990,12 +2988,15 @@
             "spec": {
               "options": {
                 "legend": {
-                  "displayMode": "list",
-                  "placement": "bottom",
+                  "displayMode": "table",
+                  "placement": "right",
                   "showLegend": true,
                   "calcs": [
                     "sum"
-                  ]
+                  ],
+                  "width": 260,
+                  "sortBy": "Name",
+                  "sortDesc": false
                 },
                 "tooltip": {
                   "mode": "multi",
@@ -4556,7 +4557,7 @@
                             "columnWidthMode": "custom",
                             "columnWidth": 600,
                             "rowHeightMode": "custom",
-                            "rowHeight": 360,
+                            "rowHeight": 400,
                             "fillScreen": false,
                             "items": [
                               {
@@ -4586,7 +4587,7 @@
                             "columnWidthMode": "custom",
                             "columnWidth": 600,
                             "rowHeightMode": "custom",
-                            "rowHeight": 420,
+                            "rowHeight": 480,
                             "fillScreen": false,
                             "items": [
                               {
@@ -4597,28 +4598,7 @@
                                     "name": "panel-41"
                                   }
                                 }
-                              }
-                            ]
-                          }
-                        }
-                      }
-                    },
-                    {
-                      "kind": "RowsLayoutRow",
-                      "spec": {
-                        "title": "",
-                        "hideHeader": true,
-                        "collapse": false,
-                        "layout": {
-                          "kind": "AutoGridLayout",
-                          "spec": {
-                            "maxColumnCount": 1,
-                            "columnWidthMode": "custom",
-                            "columnWidth": 600,
-                            "rowHeightMode": "custom",
-                            "rowHeight": 500,
-                            "fillScreen": false,
-                            "items": [
+                              },
                               {
                                 "kind": "AutoGridLayoutItem",
                                 "spec": {

@@ -849,7 +849,7 @@
                         "layout": {
                           "kind": "AutoGridLayout",
                           "spec": {
-                            "maxColumnCount": 4,
+                            "maxColumnCount": 2,
                             "columnWidthMode": "custom",
                             "columnWidth": 350,
                             "rowHeightMode": "custom",
