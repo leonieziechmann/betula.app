@@ -1,7 +1,7 @@
 //! What „Mein Studium" asks of the browser itself: where a button or the pointer is, which row lies
 //! under the pointer while a selection is drawn, what a menu gives the focus back to, the picture a
-//! drag of several rows carries, where a row of cards is scrolled. Nothing of it on the server,
-//! which has neither.
+//! drag of several rows carries, where a row of pages is scrolled and how its pages come in from
+//! their tops. Nothing of it on the server, which has neither.
 
 #[cfg(feature = "csr")]
 use wasm_bindgen::JsCast;
@@ -206,19 +206,6 @@ pub(super) fn follow_name(ev: &leptos::ev::MouseEvent) {
     }
 }
 
-/// Where a row that scrolls sideways stands: how far it is scrolled and how wide it shows (px).
-/// `None` while it has no width.
-#[allow(unused_variables)]
-pub(super) fn scrolled_x(row: &leptos::web_sys::Element) -> Option<(f64, f64)> {
-    #[cfg(feature = "csr")]
-    {
-        let width = f64::from(row.client_width());
-        (width > 0.0).then(|| (f64::from(row.scroll_left()), width))
-    }
-    #[cfg(not(feature = "csr"))]
-    None
-}
-
 /// Where a row of cards that scrolls sideways stands: how far it is scrolled and how far apart its
 /// cards rest (px: the width of the first child, each card with its share of the space between
 /// them, app.css). `None` while it has no width.
@@ -247,21 +234,80 @@ pub(super) fn scroll_row_to(row: &leptos::web_sys::Element, x: f64, smooth: bool
     }
 }
 
-/// Where the window is scrolled past the top of `element` (under the bar at the top, which stays),
-/// the window at once where its top shows.
+/// How far the window goes back up for the top of `row` to show under the bar at the top (px; 0
+/// where it shows): as far as it is scrolled past it, and no further than the window can go.
+#[cfg(feature = "csr")]
+fn past_top(window: &web_sys::Window, row: &web_sys::Element) -> f64 {
+    let bar = window.document().and_then(|document| document.query_selector(".topbar").ok().flatten()).map_or(0.0, |bar| bar.get_bounding_client_rect().bottom());
+    let top = row.get_bounding_client_rect().top();
+    (bar - top).min(window.scroll_y().unwrap_or(0.0)).max(0.0)
+}
+
+/// Draws the children of `row` that it does not rest at (`data-here` marks the one it does) `by` px
+/// further down, or where they are (0). Their `style` is this alone (pager.rs, phone.rs).
+#[cfg(feature = "csr")]
+fn shift_others(row: &web_sys::Element, by: f64) {
+    let children = row.children();
+    for i in 0..children.length() {
+        let Some(child) = children.item(i) else { continue };
+        if by > 0.5 && !child.has_attribute("data-here") {
+            let _ = child.set_attribute("style", &format!("transform: translateY({by:.1}px)"));
+        } else if child.has_attribute("style") {
+            let _ = child.remove_attribute("style");
+        }
+    }
+}
+
+/// Before a row of pages moves sideways: the pages it does not rest at are drawn as far down as
+/// the window is scrolled past the row's top, so that the one coming in shows from its top, as a
+/// page of an app does (`land` takes it back).
 #[allow(unused_variables)]
-pub(super) fn show_top(element: &leptos::web_sys::Element) {
+pub(super) fn lift(row: &leptos::web_sys::Element) {
     #[cfg(feature = "csr")]
-    {
-        let Some(window) = web_sys::window() else { return };
-        let bar = window.document().and_then(|document| document.query_selector(".topbar").ok().flatten()).map_or(0.0, |bar| bar.get_bounding_client_rect().bottom());
-        let top = element.get_bounding_client_rect().top();
-        if top < bar {
+    if let Some(window) = web_sys::window() {
+        shift_others(row, past_top(&window, row));
+    }
+}
+
+/// The row has come to rest: at another page (`moved`), the window goes up to the row's top in the
+/// same frame as that page comes back to its place, so that nothing moves on the screen; the pages
+/// are where they are again either way.
+#[allow(unused_variables)]
+pub(super) fn land(row: &leptos::web_sys::Element, moved: bool) {
+    #[cfg(feature = "csr")]
+    if let Some(window) = web_sys::window() {
+        let by = past_top(&window, row);
+        if moved && by > 0.5 {
             let options = web_sys::ScrollToOptions::new();
-            options.set_top(window.scroll_y().unwrap_or(0.0) + top - bar - 8.0);
+            options.set_top(window.scroll_y().unwrap_or(0.0) - by);
             options.set_behavior(web_sys::ScrollBehavior::Instant);
             window.scroll_to_with_scroll_to_options(&options);
         }
+        shift_others(row, 0.0);
+    }
+}
+
+/// Calls `run` with `true` when a finger comes down on `element` and with `false` when it goes,
+/// in listeners that never hold up the scroll the finger may begin (passive). They go when the
+/// effect or component that set them up does.
+#[allow(unused_variables)]
+pub(super) fn on_finger(element: &leptos::web_sys::Element, run: impl Fn(bool) + 'static) {
+    #[cfg(feature = "csr")]
+    {
+        const EVENTS: [&str; 3] = ["touchstart", "touchend", "touchcancel"];
+        let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| run(event.type_() == "touchstart"));
+        let options = web_sys::AddEventListenerOptions::new();
+        options.set_passive(true);
+        for name in EVENTS {
+            let _ = element.add_event_listener_with_callback_and_add_event_listener_options(name, callback.as_ref().unchecked_ref(), &options);
+        }
+        let held = send_wrapper::SendWrapper::new((element.clone(), callback));
+        leptos::prelude::on_cleanup(move || {
+            let (element, callback) = held.take();
+            for name in EVENTS {
+                let _ = element.remove_event_listener_with_callback(name, callback.as_ref().unchecked_ref());
+            }
+        });
     }
 }
 

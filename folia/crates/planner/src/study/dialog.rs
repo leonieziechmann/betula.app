@@ -1,7 +1,9 @@
 //! The dialogs of „Mein Studium" (`Dialog`): one native `<dialog>` the page shows modally, whose
 //! content is the dialog open (`StudyCtx::dialog`). On a desktop it stands in the middle of the
-//! window; on a phone it is a sheet from below. Escape, „×" and a click beside it close it, and
-//! the browser gives the focus back to what opened it.
+//! window; on a phone it is a sheet from below, which a finger drags down to close it as it does
+//! the catalog's filters (owner, 2026-10-05: „dass man die einfach wieder runter sliden kann";
+//! `data-sheet`, enhance.js). Escape, „×" and a click beside it close it, and the browser gives
+//! the focus back to what opened it.
 
 use leptos::prelude::*;
 
@@ -38,6 +40,7 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
         <dialog
             class=move || format!("st-dialog {}", class.get())
             node_ref=node
+            data-sheet=""
             aria-labelledby="st-dialog-title"
             on:close=move |_| close()
             // A click on the dim backdrop is a click on the dialog itself.
