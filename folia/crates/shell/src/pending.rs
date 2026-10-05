@@ -794,6 +794,11 @@ mod tests {
         assert_eq!(change("/study", "open=11103&full=1", "/study", "open=11103", false), Some(Change::Column(Shape::Study)));
         assert_eq!(change("/study", "", "/study", "open=11103", true), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/study", "", "/study", "utm=x", false), None);
+        // A phone's semesters behind the overview come at once; a module opened there fills the
+        // page, and closed it gives them back.
+        assert_eq!(change("/study", "", "/study", "plan=1", true), None);
+        assert_eq!(change("/study", "plan=1", "/study", "plan=1&open=11103", true), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1", true), Some(Change::Column(Shape::Study)));
         assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
     }
 

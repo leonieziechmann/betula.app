@@ -281,10 +281,10 @@ fn Cell(ctx: StudyCtx, area: Option<usize>, semester: SemesterKey, now: bool) ->
                             ctx.drag.set(Some((semester, keys)));
                         }
                         on:dragend=move |_| ctx.drag.set(None)
-                        on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value() }, &ev)
+                        on:click=move |ev: leptos::ev::MouseEvent| menu::open_at_button(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev)
                         on:contextmenu=move |ev: leptos::ev::MouseEvent| {
                             ev.prevent_default();
-                            menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value() }, &ev);
+                            menu::open_at_pointer(ctx, MenuFor::Item { semester, key: key.get_value(), view: true }, &ev);
                         }
                     >
                         {entry.passed.then(|| view! { <Icon name="check" class="ok"/> })}

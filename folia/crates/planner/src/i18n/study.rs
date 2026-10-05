@@ -108,6 +108,16 @@ pub struct Texts {
     pub bar_area: fn(&str, &str, &str, &str) -> String,
     /// „Bereiche": the way to the areas on a phone.
     pub areas: &'static str,
+
+    // A phone: the overview, then the semesters behind „Studium planen".
+    /// „Studium planen": the box that leads to the semesters, and their page.
+    pub plan_box: &'static str,
+    /// „Jetzt WiSe 2026/27 · 8 von 32 LP": the box's line of the current semester.
+    pub box_now: fn(&str, &str) -> String,
+    /// The box's columns, for screen readers: „Deine Semester".
+    pub chart_label: &'static str,
+    /// Under a semester of leave's column: „Urlaub".
+    pub leave_short: &'static str,
     /// What an area's card says: „32 bestanden · 16 geplant", „noch nichts geplant", „18 LP
     /// offen", „ganz eingeplant", „+6 LP über Bedarf", „laut Plan im 5.–6. FS".
     pub card_passed: fn(&str) -> String,
@@ -410,6 +420,10 @@ pub const DE: Texts = Texts {
     bar_label: "Leistungspunkte nach Bereichen",
     bar_area: |name, passed, planned, required| format!("{name}: {passed} bestanden, {planned} geplant, von {required} LP"),
     areas: "Bereiche",
+    plan_box: "Studium planen",
+    box_now: |semester, figure| format!("Jetzt {semester} · {figure}"),
+    chart_label: "Deine Semester",
+    leave_short: "Urlaub",
     card_passed: |n| format!("{n} bestanden"),
     card_planned: |n| format!("{n} geplant"),
     nothing_yet: "noch nichts geplant",
@@ -659,6 +673,10 @@ pub const EN: Texts = Texts {
     bar_label: "Credit points by area",
     bar_area: |name, passed, planned, required| format!("{name}: {passed} passed, {planned} planned, of {required} CP"),
     areas: "Areas",
+    plan_box: "Plan your studies",
+    box_now: |semester, figure| format!("Now {semester} · {figure}"),
+    chart_label: "Your semesters",
+    leave_short: "Leave",
     card_passed: |n| format!("{n} passed"),
     card_planned: |n| format!("{n} planned"),
     nothing_yet: "nothing planned yet",

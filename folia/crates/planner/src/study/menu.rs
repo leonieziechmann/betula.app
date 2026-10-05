@@ -1,9 +1,11 @@
 //! The menus of „Mein Studium" (owner, 2026-10-04: „Die drei Punkte sind in der Allgemeinheit
-//! verstanden als Kontextmenü"): a row's ⋯ or a right click on it — the module, „Als bestanden
-//! markieren", „Verschieben nach ›" with every semester it can go to and whether that one offers
-//! it, „Entfernen" —; a semester's ⋯ in its head — the Stundenplan, all of its rows selected, a
-//! semester of leave, an empty semester added beyond the plan taken out again —; and where the
-//! rows selected move to. On a desktop a menu stands at what opened it and a submenu beside it; on
+//! verstanden als Kontextmenü"): a row's ⋯ or a right click on it — „Als bestanden markieren",
+//! „Verschieben nach ›" with every semester it can go to and whether that one offers it,
+//! „Entfernen"; the module itself only where a click on the entry opens the menu rather than the
+//! module, in the Gesamtplan (owner, 2026-10-05: „modul ansehen aus dem kontext menu nehmen, weil
+//! man ja per klick auf das feld das auf macht") —; a semester's ⋯ in its head — the Stundenplan,
+//! all of its rows selected, a semester of leave, an empty semester added beyond the plan taken
+//! out again —; and where the rows selected move to. On a desktop a menu stands at what opened it and a submenu beside it; on
 //! a phone a menu is a sheet from below, and a submenu takes its place. The arrow keys go through
 //! it, Escape and a click beside it close it, and the focus goes back to what opened it.
 //!
@@ -29,8 +31,9 @@ use crate::i18n::{self, Texts};
 /// What a menu is for.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum MenuFor {
-    /// An item of a semester (`Item::key`).
-    Item { semester: SemesterKey, key: String },
+    /// An item of a semester (`Item::key`); `view`: the menu leads to its module, which a click on
+    /// the item does not (the Gesamtplan's entries).
+    Item { semester: SemesterKey, key: String, view: bool },
     /// Where the rows selected in a semester move to.
     Move(SemesterKey),
     Semester(SemesterKey),
@@ -302,7 +305,7 @@ fn targets(ready: &Ready, s: SemesterKey, items: &[Item], keys: &[String], t: &T
 fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> {
     let s = &t.study;
     match what {
-        MenuFor::Item { semester, key } => {
+        MenuFor::Item { semester, key, view } => {
             let semester = *semester;
             let keys = vec![key.clone()];
             let (item, targets) = ctx
@@ -314,7 +317,8 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
                 .flatten()?;
             let mut entries = Vec::new();
             match (&item.subject, item.module_id()) {
-                (_, Some(id)) => entries.push(Entry::new(Some("st-menu-view"), Some("arrow-up-right"), s.view_module, Does::Link(module_href(ctx, id, t), true))),
+                (_, Some(id)) if *view => entries.push(Entry::new(Some("st-menu-view"), Some("arrow-up-right"), s.view_module, Does::Link(module_href(ctx, id, t), true))),
+                (_, Some(_)) => {}
                 (Subject::Row { caption, ord, .. }, None) if item.fillers.is_empty() => {
                     if let Some(href) = find_href(ctx, caption, *ord, t) {
                         entries.push(Entry::new(Some("st-menu-view"), Some("search"), s.choose_module, Does::Link(t.path(&href), false)));

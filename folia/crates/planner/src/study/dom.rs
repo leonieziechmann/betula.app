@@ -205,6 +205,15 @@ pub(super) fn follow_name(ev: &leptos::ev::MouseEvent) {
     }
 }
 
+/// One step back through the browser's history: where the step before is the page a link leads
+/// back to, the same entry as before, and the history does not grow.
+pub(super) fn history_back() {
+    #[cfg(feature = "csr")]
+    if let Some(history) = web_sys::window().and_then(|window| window.history().ok()) {
+        let _ = history.back();
+    }
+}
+
 /// Whether the event began on a link or a button inside the element it is heard on: those do what
 /// they say, not what the row does.
 #[allow(unused_variables)]
