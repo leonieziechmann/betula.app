@@ -208,10 +208,8 @@ pub struct Texts {
     /// „Module hinzufügen", „Im Stundenplan öffnen".
     pub add_modules: &'static str,
     pub in_timetable: &'static str,
-    pub empty_semester: &'static str,
-    pub empty_leave: &'static str,
-    /// „Im 4. FS sieht der Regelstudienplan noch vor: …".
-    pub plan_still: fn(&str, &str) -> String,
+    /// An empty semester: „Noch keine Module", and „Module hinzufügen" under it.
+    pub no_modules: &'static str,
     /// „Als Urlaubssemester" and what it means; „Semester entfernen".
     pub as_leave: &'static str,
     pub leave_note: &'static str,
@@ -494,9 +492,7 @@ pub const DE: Texts = Texts {
     no_area: "ohne Bereich",
     add_modules: "Module hinzufügen",
     in_timetable: "Im Stundenplan öffnen",
-    empty_semester: "Noch leer. Füge Module aus dem Regelstudienplan, deine Wiederholer oder Module aus dem Katalog hinzu.",
-    empty_leave: "Ein Urlaubssemester zählt nicht als Fachsemester. Planen kannst du trotzdem.",
-    plan_still: |fs, names| format!("Im {fs} sieht der Regelstudienplan noch vor: {names}."),
+    no_modules: "Noch keine Module",
     as_leave: "Als Urlaubssemester",
     leave_note: "zählt nicht als Fachsemester",
     remove_semester: "Semester entfernen",
@@ -747,9 +743,7 @@ pub const EN: Texts = Texts {
     no_area: "no area",
     add_modules: "Add modules",
     in_timetable: "Open in the timetable",
-    empty_semester: "Still empty. Add modules from the standard study plan, your retakes or modules from the catalogue.",
-    empty_leave: "A semester of leave does not count as a semester of study. You can still plan.",
-    plan_still: |fs, names| format!("For {fs} the standard study plan still has: {names}."),
+    no_modules: "No modules yet",
     as_leave: "As a semester of leave",
     leave_note: "does not count as a semester of study",
     remove_semester: "Remove semester",

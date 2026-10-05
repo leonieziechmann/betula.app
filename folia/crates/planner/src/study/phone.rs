@@ -13,17 +13,17 @@
 //! lives. Everything the sheet „Anpassen" had is there, and the sheet is gone.
 //!
 //! The box leads to the semesters: a tap on it to the current one, a tap on a column to that one,
-//! and a finger drawn to the left takes the box along and, let go far enough, goes there too. The
-//! semesters slide in from the right, the overview back in from the left (`Enter`); their page has
-//! a way back over the cards, which goes back through the history where the overview is what came
-//! before, and the marks of the rows under them. It is no „Zurück" of `enhance.js`
+//! and a finger draws it to the left, as the browser scrolls a row by itself (`pager.rs`), and let
+//! go past half way or flung goes there too. The semesters slide in from the right, the overview
+//! back in from the left (`Enter`); their page has a way back over the cards, which goes back
+//! through the history where the overview is what came before. It is no „Zurück" of `enhance.js`
 //! (`data-action="back"`), whose Esc would leave the semesters while it closes a menu or a dialog
-//! of theirs.
+//! of theirs. Over the tab bar the dots stay (`Dock`).
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::When;
 use folia_routes::url::{self, StudyUrl};
-use leptos::ev::{MouseEvent, PointerEvent, TouchEvent};
+use leptos::ev::MouseEvent;
 use leptos::html::Div;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
@@ -32,8 +32,8 @@ use folia_design::ui::Icon;
 use folia_shell::pending::Pending;
 
 use super::overview::{Bar, Info};
-use super::pager::{band, Finger, Pager, FLICK, FLICK_MS, NO_TAP};
-use super::side::{AllPrograms, LegendMarks, MineCard, ProgramWays, StorageHint};
+use super::pager::{Cards, Dots, Pager};
+use super::side::{AllPrograms, MineCard, ProgramWays, StorageHint};
 use super::{dom, n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -215,19 +215,10 @@ impl Preview {
     }
 }
 
-/// What the box does with the finger on it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum Phase {
-    #[default]
-    Rest,
-    Drag,
-    /// Back to its place.
-    Glide,
-}
-
 /// „Studium planen": the way to the semesters, with a column for each of them. A tap leads to the
-/// current one, a tap on a column to that one, and a finger drawn to the left takes the box along
-/// and, let go past a fifth of it or flicked, leads to the current one as well.
+/// current one, a tap on a column to that one. The box lies in a row the browser scrolls by itself,
+/// with room after it: a finger draws the box to the left and uncovers where it leads, and let go
+/// past half way, or flung, it goes on and the semesters come; short of it, it snaps back.
 #[component]
 fn PlanBox(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -235,163 +226,89 @@ fn PlanBox(ctx: StudyCtx) -> impl IntoView {
     let preview = Memo::new(move |_| ctx.with_ready(|ready| Preview::of(ready, t)));
     let href = t.path(&plan_path());
     let going = Pending::expect();
-    let node = NodeRef::<Div>::new();
-    let finger = StoredValue::new(None::<Finger>);
-    let swiped = StoredValue::new(f64::NEG_INFINITY);
-    let phase = RwSignal::new(Phase::Rest);
-    let pull = RwSignal::new(0.0_f64);
-
-    let down = move |ev: PointerEvent| {
-        finger.set_value(None);
-        swiped.set_value(f64::NEG_INFINITY);
-        if ev.is_primary() && ev.button() == 0 && phase.get_untracked() == Phase::Rest {
-            finger.set_value(Some(Finger::new(&ev)));
-        }
-    };
-    let glide_back = move || {
-        phase.set(Phase::Glide);
-        pull.set(0.0);
-        set_timeout(
-            move || {
-                phase.try_set(Phase::Rest);
-            },
-            std::time::Duration::from_millis(320),
-        );
-    };
-    let moving = move |ev: PointerEvent| {
-        let Some(mut now) = finger.get_value() else { return };
-        if ev.pointer_id() != now.id {
+    let track = NodeRef::<Div>::new();
+    // A finger is on the box; the box went on to the semesters.
+    let held = StoredValue::new(false);
+    let gone = StoredValue::new(false);
+    let go_on = move || {
+        if gone.get_value() || held.get_value() {
             return;
         }
-        if !now.taken {
-            match now.sideways(&ev) {
-                None => return,
-                Some(false) => {
-                    finger.set_value(None);
-                    return;
-                }
-                Some(true) => {
-                    let Some(element) = node.get_untracked() else { return };
-                    let _ = element.set_pointer_capture(now.id);
-                    now.taken = true;
-                    now.width = f64::from(element.offset_width());
-                    phase.set(Phase::Drag);
-                }
-            }
-        }
-        now.follow(f64::from(ev.client_x()), ev.time_stamp());
-        // To the left with the finger, as far as the box is wide; to the right nothing comes.
-        pull.set(if now.pull < 0.0 { now.pull.max(-now.width) } else { band(now.pull, 24.0) });
-        finger.set_value(Some(now));
-    };
-    let let_go = move |lifted: Option<(f64, f64)>| {
-        let Some(mut now) = finger.get_value() else { return };
-        finger.set_value(None);
-        if !now.taken {
-            return;
-        }
-        if let Some(element) = node.get_untracked() {
-            let _ = element.release_pointer_capture(now.id);
-        }
-        let Some((x, at)) = lifted else { return glide_back() };
-        swiped.set_value(at + NO_TAP);
-        now.follow(x, at);
-        let flicked = at - now.at < FLICK_MS && now.speed < -FLICK && now.pull <= -24.0;
-        if now.pull <= -now.width / 5.0 || flicked {
+        if track.get_untracked().and_then(|row| dom::scrolled_x(&row)).is_some_and(|(x, width)| x >= width / 2.0) {
+            gone.set_value(true);
             ctx.focus.set(None);
             if let Some(going) = going {
                 going.go(&plan_path(), NavigateOptions::default());
             }
-        } else {
-            glide_back();
         }
     };
-    let up = move |ev: PointerEvent| {
-        if finger.get_value().is_some_and(|now| now.id == ev.pointer_id()) {
-            let_go(Some((f64::from(ev.client_x()), ev.time_stamp())));
-        }
-    };
-    let cancel = move |ev: PointerEvent| {
-        if finger.get_value().is_some_and(|now| now.id == ev.pointer_id()) {
-            let_go(None);
-        }
-    };
-    // A swipe is no tap; its moves are the box's alone (`pager.rs`).
-    let click = move |ev: MouseEvent| {
-        if ev.time_stamp() < swiped.get_value() {
-            ev.prevent_default();
-            ev.stop_propagation();
-        }
-    };
-    let touch_move = move |ev: TouchEvent| {
-        if phase.get_untracked() == Phase::Drag && ev.cancelable() {
-            ev.prevent_default();
-        }
-    };
-    let phase_attr = move || match phase.get() {
-        Phase::Rest => None,
-        Phase::Drag => Some("drag"),
-        Phase::Glide => Some("glide"),
+    // The finger goes: a fling goes on by itself, and the row tells where it went (`scroll`).
+    let lifted = move || {
+        held.set_value(false);
+        go_on();
     };
     let head_href = href.clone();
     view! {
-        <div
-            class="st-planbox-wrap"
-            node_ref=node
-            data-phase=phase_attr
-            style=move || (phase.get() != Phase::Rest).then(|| format!("--pull:{:.1}px", pull.get()))
-            on:pointerdown=down
-            on:pointermove=moving
-            on:pointerup=up
-            on:pointercancel=cancel
-            on:touchmove=touch_move
-            on:click:capture=click
-        >
+        <div class="st-planbox-wrap">
             <div class="st-planbox-ground" aria-hidden="true">
                 <span>{s.semesters}</span>
                 <Icon name="chevron-right"/>
             </div>
-            <section class="panel st-planbox" aria-labelledby="st-planbox-title">
-                <a class="st-planbox-head" id="st-planbox-title" href=head_href on:click=move |_| ctx.focus.set(None)>
-                    <span>{s.plan_box}</span>
-                    <Icon name="chevron-right"/>
-                </a>
-                {move || preview.get().map(|preview| {
-                    let href = href.clone();
-                    view! {
-                        {preview.line.map(|line| view! { <p class="st-planbox-line">{line}</p> })}
-                        <ol class="st-chart" aria-label=s.chart_label>
-                            {preview.columns.into_iter().map(|column| {
-                                let key = column.key;
-                                // Passed under planned, a seam of the box's ground between them.
-                                let stacked = column.passed > 0.0 && column.planned > 0.0;
-                                let style = format!("--plan:{:.4};--passed:{:.4};--planned:{:.4}{}", column.plan, column.passed, column.planned, if stacked { ";--seam:2px" } else { "" });
-                                view! {
-                                    <li class="st-col" class:is-now=column.now>
-                                        <a href=href.clone() aria-label=column.title on:click=move |_| ctx.focus.set(Some(key))>
-                                            <span class="st-col-bar" class:stacked=stacked style=style aria-hidden="true">
-                                                <i class="track"></i>
-                                                <i class="passed"></i>
-                                                <i class="planned"></i>
-                                            </span>
-                                            <span class="st-col-label" aria-hidden="true">{column.label}</span>
-                                        </a>
-                                    </li>
-                                }
-                            }).collect_view()}
-                        </ol>
-                    }
-                })}
-            </section>
+            <div
+                class="st-planbox-track"
+                node_ref=track
+                on:scroll=move |_| go_on()
+                on:pointerdown=move |_| held.set_value(true)
+                on:pointerup=move |_| lifted()
+                on:touchend=move |_| lifted()
+                on:touchcancel=move |_| lifted()
+            >
+                <section class="panel st-planbox" aria-labelledby="st-planbox-title">
+                    <a class="st-planbox-head" id="st-planbox-title" href=head_href on:click=move |_| ctx.focus.set(None)>
+                        <span>{s.plan_box}</span>
+                        <Icon name="chevron-right"/>
+                    </a>
+                    {move || preview.get().map(|preview| {
+                        let href = href.clone();
+                        view! {
+                            {preview.line.map(|line| view! { <p class="st-planbox-line">{line}</p> })}
+                            <ol class="st-chart" aria-label=s.chart_label>
+                                {preview.columns.into_iter().map(|column| {
+                                    let key = column.key;
+                                    // Passed under planned, a seam of the box's ground between them.
+                                    let stacked = column.passed > 0.0 && column.planned > 0.0;
+                                    let style = format!("--plan:{:.4};--passed:{:.4};--planned:{:.4}{}", column.plan, column.passed, column.planned, if stacked { ";--seam:2px" } else { "" });
+                                    view! {
+                                        <li class="st-col" class:is-now=column.now>
+                                            <a href=href.clone() aria-label=column.title on:click=move |_| ctx.focus.set(Some(key))>
+                                                <span class="st-col-bar" class:stacked=stacked style=style aria-hidden="true">
+                                                    <i class="track"></i>
+                                                    <i class="passed"></i>
+                                                    <i class="planned"></i>
+                                                </span>
+                                                <span class="st-col-label" aria-hidden="true">{column.label}</span>
+                                            </a>
+                                        </li>
+                                    }
+                                }).collect_view()}
+                            </ol>
+                        }
+                    })}
+                </section>
+                <span class="st-planbox-room" aria-hidden="true"></span>
+            </div>
         </div>
     }
 }
 
-/// The semesters: the way back to the overview, the cards, the marks of the rows.
+/// The semesters: the way back to the overview, the cards, and over the tab bar the dots (`Dock`),
+/// apart from the page that slides in, so that they stand where they stay from the first frame.
 #[component]
 fn PlanPage(ctx: StudyCtx, enter: Enter) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
+    let cards = Cards::new(ctx);
+    provide_context(cards);
     // Back through the history where the overview came before, else to it.
     let back = move |ev: MouseEvent| {
         if ctx.from_overview.get_value() && ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key()) {
@@ -407,10 +324,23 @@ fn PlanPage(ctx: StudyCtx, enter: Enter) -> impl IntoView {
                 </a>
             </nav>
             <h1 class="visually-hidden">{s.plan_box}</h1>
-            <Pager ctx/>
-            <div class="st-legend st-plan-legend">
-                <LegendMarks/>
-            </div>
+            <Pager ctx cards/>
+        </div>
+        <Dock ctx cards/>
+    }
+}
+
+/// Over the tab bar, where they stay while the page scrolls (owner, 2026-10-05: „Die Legende und
+/// die swiping dots sollten fest über der nav bar sein"): where the card in view stands among the
+/// semesters. No box and no legend (owner, the same day, after a look: „Mach mal die Legende weg
+/// und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund mit blur zum
+/// content"): the dots on the page's ground, frosted over what passes under it as the bar at the
+/// top is (app.css). The ground at the end of the page comes over it.
+#[component]
+fn Dock(ctx: StudyCtx, cards: Cards) -> impl IntoView {
+    view! {
+        <div class="st-dock">
+            <Dots ctx cards/>
         </div>
     }
 }

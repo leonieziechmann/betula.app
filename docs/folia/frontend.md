@@ -639,18 +639,26 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     planned there stacked, the plan's credits of its Fachsemester as the track behind, its
     Fachsemester under it, the current one set off); at the end „Alle Studiengänge ansehen" and the
     storage hint. The sheet „Anpassen" is gone. The box leads to the semesters (`/study?plan=1`): a
-    tap to the current one, a column to its semester, and a finger drawn to the left takes the box
-    along (uncovering „Semester ›") and, let go past a fifth of it or flicked, goes there as well.
-    The semesters slide in from the right, the overview back from the left. Their page has
-    „‹ Übersicht" over the cards (back through the history where the overview came before, else to
-    it; no Esc, which closes the semesters' menus and dialogs), the dots and the marks of the rows
-    („Zeichen an Modulen") under them.
+    tap to the current one, a column to its semester, and a finger draws it to the left as the
+    browser scrolls a row by itself (room after the box, uncovering „Semester ›"); let go past half
+    way or flung it goes there as well, short of it it snaps back. The semesters slide in from the
+    right, the overview back from the left. Their page has „‹ Übersicht" over the cards (back
+    through the history where the overview came before, else to it; no Esc, which closes the
+    semesters' menus and dialogs); the dots stand over the tab bar, where they stay while the page
+    scrolls (owner, 2026-10-05: „Die Legende und die swiping dots sollten fest über der nav bar
+    sein"), in no box and with no legend of the rows' marks (the same day, after a look: „Mach mal
+    die Legende weg und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund
+    mit blur zum content"): on the page's grey, frosted over what passes under it as the bar at
+    the top is, from the screen's foot and edges (the tab bar floating over it) to a little above
+    the dots, where it fades into the page. The ground at the end of the page comes over it.
   - **The semesters** (`focus.rs`, the view „Semester"): on a desktop a strip of every semester
     (what it holds of what the plan puts in, passed of the semesters that are over, a load bar,
     „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › and its „⋯" in its
     head (`menu.rs`: „Im Stundenplan öffnen", „Alle auswählen", „Urlaubssemester", and „Semester
     entfernen" for an empty one added beyond the plan), its rows as a table, and „Module
-    hinzufügen" as the last row, a row like the others; beside it „Passt in dieses Semester"
+    hinzufügen" as the last row, a row like the others; an empty one is a mark, „Noch keine Module"
+    and „Module hinzufügen" right under it (owner, 2026-10-05: „keine Module sollte mit icon und
+    gleich modul hinzufügen sein"), no sentence on where modules come from; beside it „Passt in dieses Semester"
     (`study::fits`): the plan's open rows of its Fachsemester, the Wiederholer of the semesters
     before it, what is still open of the Fachsemester before it (the earliest first, four of them),
     each one „+" from being planned here; never a row of a Fachsemester after it, and only what the
@@ -679,15 +687,32 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the strip moves there, with every row selected if it is one of them („3 Einträge" under the
     pointer). On a phone the semester is a card as wide as the page on the semesters' page
     (`pager.rs`; owner, 2026-10-05: „die swipe bewegungen nach links und rechts brauchen
-    Animationen, damit man versteht was passiert. Die knöpfe können das einfach abspielen und beim
-    swipen selbst muss dass mit der bewegung funktionieren"): a finger drawn sideways takes the card
-    along and the semester beside it comes in from the screen's edge, 24 px apart; let go past a
-    fifth of the card or flicked, the cards glide on, else back; before the first semester the card
-    follows less and less far and goes back; ‹ › play the same glide, and the pager grows or
-    shrinks to the card that comes while they glide. The neighbours are drawn only while the cards
-    move, inert. While rows are selected a finger selects, and the cards stay. Dots under it, the
-    plan's open rows of its Fachsemester as a line under the rows; its rows are the module and its
-    „⋯", a long press selects a row and brings the boxes in (a finger drawn down them selects more,
+    Animationen, damit man versteht was passiert …", and after a try on her phone the same day:
+    „das swiping ist richtig komisch das stockt immer wieder … dass das sich wie eine native app
+    anfühlt"): every semester a card, side by side in a row the browser scrolls by itself and
+    stops at a card, one a swipe (`scroll-snap`). Two cards lie as far apart as a card from the
+    screen's edge, 12 px (owner, the same day: „dass die Abstände zwischen den boxen genau der
+    Abstand zum rand ist, so dass sich das nicht doppelt, wenn man swiped"; until then 24 px):
+    a card's place has half of it on either side and the row half of it at its ends, a card rests
+    in the middle, and a step is a card and its space; the card's ring is drawn inside it, so that
+    the cards beside the one in view, which end at the screen's edges, draw no line there
+    (`--shadow-lift`, the panel's shadow without its ring). A finger moves the row as it moves any
+    list, on the browser's own thread, with its fling and its bounce at the ends, and nothing of
+    the app runs while it moves; ‹ › scroll it on to the neighbour, smoothly, the same way. (The
+    cards the app moved under the finger itself, the round before, stalled: on a thread four times
+    slower, as a phone's, frames of 100–117 ms and up to 340 ms of the app's work a swipe, the
+    neighbours drawn as the finger came and the cards drawn anew as it went; the row the browser
+    scrolls has none.) The app hears only where the row is: the dots follow the card in the middle,
+    which alone can be used (the others are inert), and the card the row comes to rest at is the
+    semester in focus. The row is as tall as that card (the others count for nothing) and at least
+    as tall as the screen under it, so that a card coming in shows as far as the screen does; it
+    changes at rest, never under a finger, and a card that comes after a long one the window was
+    scrolled into shows from its head. While rows are selected a finger selects, and the row does
+    not move sideways. Under its rows what the plan still has open for its Fachsemester and the
+    semester offers, as rows with their area and credits and a „+" each that plans them here
+    (owner, 2026-10-05: „die module, die noch vorgesehen sind, sollten auch als rows organisiert
+    sein und nicht als fließtext"; a desktop has them beside it, „Passt in dieses Semester"); its
+    rows are the module and its „⋯", a long press selects a row and brings the boxes in (a finger drawn down them selects more,
     a tap on a row selects it or lets it go), the bar takes the tab bar's place over it (owner,
     2026-10-05: „Mach das mal so, dass die die navbar überdeckt"), and a menu is a sheet from below
     whose submenu takes its place (with „‹" back). After the last semester a page adds one („WiSe
@@ -763,10 +788,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows
     dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
     its row, the Gesamtplan (its menu, its grey lines), the phone (the overview in its order and
-    without a sidebar, the box by a tap, a column and a finger, the semesters' page, ‹ › gliding,
-    the cards following a finger and a short pull going back, a long press and the bar over the
-    tab bar, the menu as a sheet without the module, a semester added, „Übersicht" and Back
-    without a step more, the areas' sheet, the program's card) and the Stundenplan's import.
+    without a sidebar, the box by a tap, a column and a finger, the semesters' page and the ground
+    past the window's edge, the cards 12 px from the screen's edges and from each other, the dots
+    fixed over the tab bar on the frosted grey, without a box or a legend, an empty semester and
+    the plan's rows with their „+", ‹ › scrolling smoothly, a real finger moving the row and a
+    short pull going back, the window scrolled into a semester and the next shown from its head, a
+    long press and the bar over the tab bar, the menu as a sheet without the module, a semester
+    added, „Übersicht" and Back without a step more, the areas' sheet, the program's card) and the
+    Stundenplan's import; a finger is the browser's own touch (CDP), so that the browser scrolls.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.
@@ -1625,9 +1654,11 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   the view, in the body's second row), full width, the bottom bar floating over its lower part, and
   the crown carries the frosted background of the bar at the top. A page shorter than the window
   does not leave the ground floating halfway up the screen (owner, 2026-09-26: „mindestens unten
-  bündig"): the body is a column at least as high as the window (`100dvh`, the window with the
-  browser's bars as they are), the view takes the room that is left, and the ground ends at the
-  window's lower edge.
+  bündig"), and the ground does not show before it is scrolled to (owner, 2026-10-05: „der footer
+  ist gerade häufig zu sehen mach das so, dass der mindestens genau außerhalb vom bild ist, so dass
+  man rein scrollen muss"): the view is at least as high as the window at its largest (`100lvh`, the
+  browser's bars hidden), so the ground lies just past the window's lower edge, the end of the page
+  that is scrolled to.
 - **One scroll area** (owner, 2026-09-29: the two steps — first the page, then the window for the
   ground — felt „unfassbar janky"; decided on a prototype, variant b, „vom Aussehen alles so wie
   heute, bloß dass es sich besser anfühlt"). Every page flows (`.work.flowing`: the catalog, the
@@ -2925,7 +2956,7 @@ beside it 8 px above it, the panel cut off and not scrolled by the wheel, upward
 leaving first, a short list bringing it at once without its rows moving, the end of the whole
 virtual list going up with it, the page leaving its end by its scrollbar and a page opened from
 the ground sending it away, Tab bringing it up; on a phone the ground at the end of the page, and under a page shorter
-than the window (the empty Stundenplan) at the window's lower edge.
+than the window (the empty Stundenplan) just past the window's lower edge.
 
 ```bash
 cd e2e && node top.mjs
