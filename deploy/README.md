@@ -133,6 +133,18 @@ Why this order, and what can go wrong:
   and `docker exec "$(docker ps -q -f name=cortex_a | head -n 1)" /bin/cortex status`.
 - Dashboards and alert rules are files (`config/monitoring/grafana/`); the UI refuses to save them.
   Edit, export JSON, commit, sync, `40-stacks.sh monitoring`.
+- The dashboards are Grafana's v2 resources (`dashboard.grafana.app/v2`, since 2026-10-04): every
+  section is a row, and inside it auto grids whose number of columns follows the window's width.
+  Grafana docks its menu on any window from 1200 px, so a 13" notebook (1280 px) leaves the dashboard
+  about 840 px: two graphs side by side there, one on a phone, three on a wide screen; every cell of
+  one grid has the same height. Legends stand below the graph as a list, or at the right as a table of
+  fixed width on full-width panels (below 992 px Grafana puts every legend below, at most 35 % of the
+  panel's height). Export with Format "V2 Resource" (not "Classic": auto grids have no classic form)
+  and keep `apiVersion`, `kind`, `spec` and of `metadata` only `name` (the uid): with the exported
+  `grafana.app/folder` annotation the provisioning refuses the file. Panels keep their ids
+  (`panel-<id>`, `spec.id`): the alert rules link to them (`dashboardUid`/`panelId` in `rules.yml`).
+  Grafana logs `[SHOULD NOT HAPPEN] failed to update managedFields` once for every dashboard file that
+  changed when it provisions it: harmless.
 - The dashboard "Radix" shows what the collector does, from its `GET /metrics` (Prometheus job `radix`):
   what it asked for by endpoint and status (to Cortex, or to the university without it: tile
   "Fetches through"), and, from Cortex's metrics, how much of that Cortex answered from its store
