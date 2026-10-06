@@ -1,203 +1,49 @@
 //! „Mein Studium" on a phone (owner, 2026-10-05: „Mach das mal so, dass man oben die progressbar
 //! hat und darunter gleich die legende dazu. Danach kommt der Studiengang und Dann kommen die links
 //! zu regelstudienplan und Fachbereichen. Danach kommt dann eien box studium planen, mit einer
-//! preview vom Studium … und wenn man da rauf klickt oder nach links swiped bekommt man den plan
-//! vom semester … Unten sind dann die rest links aus anpassen."): two pages, the overview and the
-//! semesters after it (`StudyUrl::plan`, so that Back and the tab bar lead out again).
-//!
-//! The two lie side by side in a row the browser scrolls under a finger, as the semesters do among
-//! themselves (owner, the same day: „mach mal die komplette Studiengangsseite in die pages mit
-//! rein, aktuell muss man ja in einem bereich nach links sliden aber ich will, dass man die
-//! komplette page nach links sliden kann"): a finger anywhere on the overview draws it to the left,
-//! and the semesters come in at the one their row was left at (at first the current one); on the
-//! first semester a finger to the right brings the overview back. The page coming in shows from its
-//! top (`dom::lift`). Where the row comes to rest the address follows: the semesters a step of their
-//! own after the overview, the overview the step before them again (back through the history where
-//! it came before). Back, the links of the overview and the way back at the head move the row in
-//! turn.
+//! preview vom Studium … Unten sind dann die rest links aus anpassen."): the overview, a page of the
+//! row the semesters are pages of (`pager.rs`; owner, 2026-10-06: „die landing page für mein
+//! Studium mit auf den pager, so dass man gleich durch swipen kann"), between the semesters that
+//! are over and the current one. A finger anywhere on it draws the row to the semester beside it.
 //!
 //! The overview, top to bottom: the credits (what is passed of what the plan asks, the bar of the
-//! areas, and under it what its parts are, each with its credits; the bar and „Bereiche" open the
+//! areas, and under it what its parts are, each with its credits; a tap anywhere on them opens the
 //! areas), the program's card, the ways to its Regelstudienplan and its areas, the box „Studium
 //! planen" with a column for each semester (what is passed and planned there, against what the
 //! plan puts into its Fachsemester; a tap on the box leads to the current semester, a tap on a
 //! column to that one), and at the end the way to all programs and where all of it lives.
 //!
-//! The semesters (`pager.rs`) have the way back at the head of the screen, a box left of the search
-//! (owner, the same day: „wenn man in der semester ansicht ist, soll es oben links neben der search
-//! bar im gleichen style eine quadratische box sein mit einem zurück pfeil"; `chrome::TopBack`). It
-//! is no „Zurück" of `enhance.js` (`data-action="back"`), whose Esc would leave the semesters while
-//! it closes a menu or a dialog of theirs. Over the tab bar the dots stay (`Dock`).
+//! On a semester, on either side of the overview, the way back to it is at the head of the screen,
+//! a box left of the search (owner, 2026-10-05: „wenn man in der semester ansicht ist, soll es oben
+//! links neben der search bar im gleichen style eine quadratische box sein mit einem zurück pfeil";
+//! 2026-10-06: „Mach bei beiden Richtungen weiterhin den pfeil oben hin um zurück zu kommen";
+//! `chrome::TopBack`). It is no „Zurück" of `enhance.js` (`data-action="back"`), whose Esc would
+//! leave the semesters while it closes a menu or a dialog of theirs. Over the tab bar the dots of
+//! the row stay (`Dock`).
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::When;
-use folia_routes::url::{self, StudyUrl};
-use leptos::html::Div;
+use folia_routes::url;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 
 use folia_design::ui::Icon;
 use folia_shell::chrome::{Back, TopBack};
-use folia_shell::pending::Pending;
 
 use super::overview::{Bar, Info};
-use super::pager::{card_at, Cards, Dots, Pager, QUIET};
+use super::pager::{plan_path, Dots, Page, Pager, Pages};
 use super::side::{AllPrograms, MineCard, ProgramWays, StorageHint};
-use super::{dom, n, Dialog, Ready, StudyCtx};
+use super::{n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
-/// The pages of the row: the overview, then the semesters.
-const OVERVIEW: usize = 0;
-const SEMESTERS: usize = 1;
-
-/// The address of the semesters' page.
-fn plan_path() -> String {
-    StudyUrl::default().with_plan(true).path()
-}
-
-/// The row of the two pages: the page in view and the one the row rests at.
-#[derive(Clone, Copy)]
-struct Pages {
-    ctx: StudyCtx,
-    node: NodeRef<Div>,
-    /// The page in the middle of the screen as the row moves: the dots show while it is the
-    /// semesters.
-    shown: RwSignal<usize>,
-    /// The page the row rests at: it alone can be used, the row is as tall as it, and the address
-    /// says it.
-    here: RwSignal<usize>,
-    /// The row has been placed at the page of the address (the first time at once).
-    placed: StoredValue<bool>,
-    quiet: StoredValue<Option<TimeoutHandle>>,
-    /// The page it does not rest at is drawn from its top (`dom::lift`).
-    lifted: StoredValue<bool>,
-    going: Option<Pending>,
-}
-
-impl Pages {
-    fn new(ctx: StudyCtx) -> Self {
-        let start = if ctx.url.with_untracked(|url| url.plan) { SEMESTERS } else { OVERVIEW };
-        Pages {
-            ctx,
-            node: NodeRef::new(),
-            shown: RwSignal::new(start),
-            here: RwSignal::new(start),
-            placed: StoredValue::new(false),
-            quiet: StoredValue::new(None),
-            lifted: StoredValue::new(false),
-            going: Pending::expect(),
-        }
-    }
-
-    /// Where the row is: the page in the middle, whether it rests there.
-    fn at(self) -> Option<(usize, bool)> {
-        let row = self.node.get_untracked()?;
-        let (x, step) = dom::scrolled_cards(&row)?;
-        Some(card_at(x, step, 2))
-    }
-
-    /// The page coming in is drawn from its top (a finger on the row, the address moving it).
-    fn lift(self) {
-        if let Some(row) = self.node.get_untracked() {
-            dom::lift(&row);
-            self.lifted.set_value(true);
-        }
-    }
-
-    /// The row moved: the page in the middle, and the rest once nothing moves for a while.
-    fn moved(self) {
-        if !self.lifted.get_value() {
-            self.lift();
-        }
-        if let Some((index, _)) = self.at() {
-            if index != self.shown.get_untracked() {
-                self.shown.set(index);
-            }
-        }
-        if let Some(handle) = self.quiet.get_value() {
-            handle.clear();
-        }
-        self.quiet.set_value(set_timeout_with_handle(move || self.settle(), QUIET).ok());
-    }
-
-    /// The row rests: at the other page, the window shows it from its top, and the address
-    /// follows.
-    fn settle(self) {
-        if let Some(handle) = self.quiet.get_value() {
-            handle.clear();
-            self.quiet.set_value(None);
-        }
-        let Some((index, true)) = self.at() else { return };
-        if index != self.shown.get_untracked() {
-            self.shown.set(index);
-        }
-        let moved = index != self.here.get_untracked();
-        if let Some(row) = self.node.get_untracked() {
-            dom::land(&row, moved);
-            self.lifted.set_value(false);
-        }
-        if moved {
-            self.here.set(index);
-            self.follow(index);
-        }
-    }
-
-    /// The address follows the page the row came to rest at: the semesters a step after the
-    /// overview, the overview back through the history where it was the step before them.
-    fn follow(self, index: usize) {
-        let plan = index == SEMESTERS;
-        if self.ctx.url.with_untracked(|url| url.plan) == plan {
-            return;
-        }
-        if !plan && self.ctx.from_overview.get_untracked() {
-            dom::history_back();
-            return;
-        }
-        let to = if plan { plan_path() } else { url::STUDY.to_string() };
-        if let Some(going) = self.going {
-            going.go(&to, NavigateOptions { scroll: false, ..Default::default() });
-        }
-    }
-
-    /// The row at the page the address says: at once where it opens, smoothly where the address
-    /// changes otherwise (Back, a link of the overview, the way back at the head). A row not laid
-    /// out yet is placed in a frame to come (`tries` more).
-    fn place(self, index: usize, tries: u8) {
-        let Some(row) = self.node.get_untracked() else { return };
-        let first = !self.placed.get_value();
-        if !first && index == self.here.get_untracked() {
-            return;
-        }
-        let Some((_, step)) = dom::scrolled_cards(&row) else {
-            if tries > 0 {
-                request_animation_frame(move || self.place(index, tries - 1));
-            }
-            return;
-        };
-        if !first {
-            self.lift();
-        }
-        dom::scroll_row_to(&row, index as f64 * step, !first);
-        if first {
-            self.placed.set_value(true);
-            self.shown.set(index);
-            self.here.set(index);
-        }
-    }
-}
-
-/// The overview and the semesters, side by side.
+/// The row of pages: the semesters that are over, the overview, the current semester and the ones
+/// to come.
 #[component]
 pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let pages = Pages::new(ctx);
-    // The semesters are there once the row rests at them: the pages further out are drawn after
-    // the swipe that brought them, not under it.
-    let cards = Cards::new(ctx, Signal::derive(move || pages.here.get() == SEMESTERS));
-    provide_context(cards);
-    // The row follows the address; where the semesters come after the overview, the overview is
-    // the step before them in the history.
+    provide_context(pages);
+    // Where a semester comes after the overview in the history, the overview is the step before it.
     Effect::new(move |before: Option<bool>| {
         let plan = ctx.url.with(|url| url.plan);
         if !plan {
@@ -205,28 +51,15 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
         } else if before == Some(false) {
             ctx.from_overview.set(true);
         }
-        if pages.node.get().is_some() {
-            pages.place(if plan { SEMESTERS } else { OVERVIEW }, 10);
-        }
         plan
     });
-    // A finger on the row: the page coming in is drawn from its top before it moves.
-    Effect::new(move |_| {
-        if let Some(row) = pages.node.get() {
-            dom::on_finger(&row, move |down| {
-                if down {
-                    pages.lift();
-                }
-            });
-        }
-    });
-    // The way back at the head, while the row rests at the semesters.
+    // The way back at the head, while the row rests at a semester.
     let back = TopBack::expect();
     Effect::new(move |_| {
-        let semesters = pages.here.get() == SEMESTERS;
+        let semester = pages.here().is_some_and(|page| page != Page::Overview);
         let history = ctx.from_overview.get();
         if let Some(back) = back {
-            back.set(semesters.then(|| Back { href: url::STUDY.to_string(), label: s.overview, history }));
+            back.set(semester.then(|| Back { href: url::STUDY.to_string(), label: s.overview, history }));
         }
     });
     on_cleanup(move || {
@@ -234,34 +67,16 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
             back.set(None);
         }
     });
-    // The page the row rests at is the one to be used; the other is out of reach once the row has
-    // come to rest (not under the finger: a whole page let go of costs its frame).
-    let page = move |index: usize| {
-        (
-            move || (pages.here.get() == index).then_some(""),
-            move || pages.here.get() != index,
-            move || (pages.here.get() != index).then_some("true"),
-        )
-    };
-    let (overview_here, overview_inert, overview_hidden) = page(OVERVIEW);
-    let (plan_here, plan_inert, plan_hidden) = page(SEMESTERS);
     view! {
-        <div class="st-pages" node_ref=pages.node on:scroll=move |_| pages.moved() on:scrollend=move |_| pages.settle()>
-            <div class="st-page" data-here=overview_here inert=overview_inert aria-hidden=overview_hidden>
-                <Overview ctx/>
-            </div>
-            <div class="st-page st-plan-page" data-here=plan_here inert=plan_inert aria-hidden=plan_hidden>
-                <h1 class="visually-hidden">{s.plan_box}</h1>
-                <Pager ctx cards/>
-            </div>
-        </div>
-        <Dock ctx cards on=Signal::derive(move || pages.shown.get() == SEMESTERS)/>
+        <h1 class="visually-hidden">{t.study.title}</h1>
+        <Pager ctx pages/>
+        <Dock ctx pages/>
     }
 }
 
 /// The overview: the credits, the program and its ways, „Studium planen", the rest.
 #[component]
-fn Overview(ctx: StudyCtx) -> impl IntoView {
+pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     view! {
         <div class="st-phone-page">
@@ -282,7 +97,10 @@ fn Overview(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// The credits: what is passed of what the plan asks, the bar of the areas, and under it what its
-/// parts are, each with its credits („46 bestanden"); the bar and „Bereiche" open the areas.
+/// parts are, each with its credits („46 bestanden"). A tap anywhere on them opens the areas
+/// (owner, 2026-10-06: „die progress bar komplett zu einer clickfläche werden, um das menu für den
+/// Progress anzuzeigen"): „Bereiche ›" reaches over the whole box (app.css), one way for a finger
+/// and one for the keys and a screen reader.
 #[component]
 fn Progress(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -297,11 +115,9 @@ fn Progress(ctx: StudyCtx) -> impl IntoView {
                 <section class="panel st-over st-progress" aria-label=s.overview>
                     <div class="st-progress-top">
                         <p class="st-headline">{info.headline.clone()}</p>
-                        <button class="st-link" type="button" on:click=move |_| ctx.open(Dialog::Areas)>{s.areas}<Icon name="chevron-right"/></button>
+                        <button class="st-link st-progress-open" type="button" aria-haspopup="dialog" on:click=move |_| ctx.open(Dialog::Areas)>{s.areas}<Icon name="chevron-right"/></button>
                     </div>
-                    <button class="st-bar-open" type="button" aria-label=s.areas_title on:click=move |_| ctx.open(Dialog::Areas)>
-                        <Bar segments=info.segments()/>
-                    </button>
+                    <Bar segments=info.segments()/>
                     <ul class="st-legend-n" aria-label=s.legend_bar>
                         <li><span class="st-key passed"></span><b>{short(&info.passed)}</b>" "{s.passed_short}</li>
                         <li><span class="st-key planned"></span><b>{short(&info.planned)}</b>" "{s.planned_short}</li>
@@ -387,7 +203,7 @@ impl Preview {
 }
 
 /// „Studium planen": the way to the semesters, with a column for each of them. A tap leads to the
-/// current one, a tap on a column to that one; the row of the pages slides there (`Phone`).
+/// current one, a tap on a column to that one; the row of pages slides there (`pager.rs`).
 #[component]
 fn PlanBox(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -432,27 +248,16 @@ fn PlanBox(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// Over the tab bar, where they stay while the page scrolls (owner, 2026-10-05: „Die Legende und
-/// die swiping dots sollten fest über der nav bar sein"): where the semester in view stands among
-/// the semesters. No box and no legend (owner, the same day, after a look: „Mach mal die Legende
-/// weg und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund mit blur zum
-/// content"): the dots on the page's ground, frosted over what passes under it as the bar at the
-/// top is (app.css). There while the semesters are the page in view (`on`); the ground at the end
-/// of the page comes over it.
+/// die swiping dots sollten fest über der nav bar sein"): where the page in view stands in the row.
+/// No box and no legend (owner, the same day, after a look: „Mach mal die Legende weg und die
+/// Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund mit blur zum content"): the
+/// dots on the page's ground, frosted over what passes under it as the bar at the top is (app.css);
+/// the ground at the end of the page comes over it.
 #[component]
-fn Dock(ctx: StudyCtx, cards: Cards, on: Signal<bool>) -> impl IntoView {
+fn Dock(ctx: StudyCtx, pages: Pages) -> impl IntoView {
     view! {
-        <div class="st-dock" class:on=move || on.get() aria-hidden=move || (!on.get()).then_some("true")>
-            <Dots ctx cards/>
+        <div class="st-dock">
+            <Dots ctx pages/>
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_semesters_have_an_address_of_their_own() {
-        assert_eq!(plan_path(), "/study?plan=1");
     }
 }

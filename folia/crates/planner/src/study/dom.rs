@@ -220,17 +220,44 @@ pub(super) fn scrolled_cards(row: &leptos::web_sys::Element) -> Option<(f64, f64
     None
 }
 
-/// Scrolls a row sideways to `x`: at once, or smoothly, as the browser scrolls by itself (at once
-/// all the same for a visitor who asks for less motion, as app.css has it).
+/// Scrolls a row sideways to `x` at once.
 #[allow(unused_variables)]
-pub(super) fn scroll_row_to(row: &leptos::web_sys::Element, x: f64, smooth: bool) {
+pub(super) fn scroll_row_to(row: &leptos::web_sys::Element, x: f64) {
     #[cfg(feature = "csr")]
     {
-        let still = web_sys::window().and_then(|window| window.match_media("(prefers-reduced-motion: reduce)").ok().flatten()).is_some_and(|query| query.matches());
         let options = web_sys::ScrollToOptions::new();
         options.set_left(x);
-        options.set_behavior(if smooth && !still { web_sys::ScrollBehavior::Smooth } else { web_sys::ScrollBehavior::Instant });
+        options.set_behavior(web_sys::ScrollBehavior::Instant);
         row.scroll_to_with_scroll_to_options(&options);
+    }
+}
+
+/// Whether the visitor asks for less motion (app.css has every animation go at once then).
+pub(super) fn still() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|window| window.match_media("(prefers-reduced-motion: reduce)").ok().flatten()).is_some_and(|query| query.matches())
+    }
+    #[cfg(not(feature = "csr"))]
+    true
+}
+
+/// The page's clock, in ms, for what the app moves frame by frame.
+pub(super) fn now() -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|window| window.performance()).map_or(0.0, |performance| performance.now())
+    }
+    #[cfg(not(feature = "csr"))]
+    0.0
+}
+
+/// Puts the class `name` on `element` or takes it off, beside the classes the view sets.
+#[allow(unused_variables)]
+pub(super) fn mark(element: &leptos::web_sys::Element, name: &str, on: bool) {
+    #[cfg(feature = "csr")]
+    {
+        let _ = element.class_list().toggle_with_force(name, on);
     }
 }
 
@@ -244,7 +271,7 @@ fn past_top(window: &web_sys::Window, row: &web_sys::Element) -> f64 {
 }
 
 /// Draws the children of `row` that it does not rest at (`data-here` marks the one it does) `by` px
-/// further down, or where they are (0). Their `style` is this alone (pager.rs, phone.rs).
+/// further down, or where they are (0). Their `style` is this alone (pager.rs).
 #[cfg(feature = "csr")]
 fn shift_others(row: &web_sys::Element, by: f64) {
     let children = row.children();
@@ -287,15 +314,21 @@ pub(super) fn land(row: &leptos::web_sys::Element, moved: bool) {
     }
 }
 
-/// Calls `run` with `true` when a finger comes down on `element` and with `false` when it goes,
-/// in listeners that never hold up the scroll the finger may begin (passive). They go when the
-/// effect or component that set them up does.
+/// Calls `run` with `true` when a finger comes down on `element` and with `false` when the last one
+/// goes, in listeners that never hold up the scroll the finger may begin (passive). They go when
+/// the effect or component that set them up does.
 #[allow(unused_variables)]
 pub(super) fn on_finger(element: &leptos::web_sys::Element, run: impl Fn(bool) + 'static) {
     #[cfg(feature = "csr")]
     {
         const EVENTS: [&str; 3] = ["touchstart", "touchend", "touchcancel"];
-        let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| run(event.type_() == "touchstart"));
+        let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |event: web_sys::Event| {
+            let down = event.type_() == "touchstart";
+            let staying = event.dyn_ref::<web_sys::TouchEvent>().map_or(0, |touch| touch.touches().length());
+            if down || staying == 0 {
+                run(down);
+            }
+        });
         let options = web_sys::AddEventListenerOptions::new();
         options.set_passive(true);
         for name in EVENTS {

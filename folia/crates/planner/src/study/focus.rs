@@ -44,7 +44,7 @@ use folia_design::ui::Icon;
 
 use super::dom;
 use super::menu::{self, Act, MenuFor};
-use super::pager::Cards;
+use super::pager::Pages;
 use super::picker::needs_text;
 use super::{item_of, module_href, n, now_secs, Dialog, Plans, Ready, Selection, StudyCtx, ViewSwitch};
 use crate::i18n::{self, Texts};
@@ -229,10 +229,10 @@ impl Head {
     }
 }
 
-/// Turns to semester `to`: on a phone the row of cards scrolls there (`pager::Cards`), else at once.
-fn turn(ctx: StudyCtx, cards: Option<Cards>, to: Option<SemesterKey>) {
-    match (to, cards) {
-        (Some(to), Some(cards)) => cards.turn_to(to),
+/// Turns to semester `to`: on a phone the row of pages scrolls there (`pager::Pages`), else at once.
+fn turn(ctx: StudyCtx, pages: Option<Pages>, to: Option<SemesterKey>) {
+    match (to, pages) {
+        (Some(to), Some(pages)) => pages.turn_to(to),
         (Some(to), None) => ctx.focus.set(Some(to)),
         (None, _) => {}
     }
@@ -266,8 +266,8 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
     let selecting = Memo::new(move |_| !chosen.with(Vec::is_empty));
     let empty = Memo::new(move |_| keys.with(Vec::is_empty));
     let add = move || ctx.open(Dialog::Add { semester, catalog: false, chosen: Vec::new() });
-    let cards = use_context::<Cards>();
-    let go = move |to: Option<SemesterKey>| turn(ctx, cards, to);
+    let pages = use_context::<Pages>();
+    let go = move |to: Option<SemesterKey>| turn(ctx, pages, to);
     view! {
         <article class="st-card-sem" class:is-now=move || head.with(|head| head.as_ref().is_some_and(|head| head.now)) aria-labelledby=format!("st-sem-{}", semester.key())>
             {move || head.get().map(|head| view! {
@@ -1015,7 +1015,7 @@ pub(super) fn NewSemester(ctx: StudyCtx) -> impl IntoView {
         .flatten()
     });
     let leave = RwSignal::new(false);
-    let cards = use_context::<Cards>();
+    let pages = use_context::<Pages>();
     let append = move |_| {
         let (Some(mine), Some((_, next, ..))) = (ctx.mine, info.get_untracked()) else { return };
         if leave.get_untracked() {
@@ -1028,7 +1028,7 @@ pub(super) fn NewSemester(ctx: StudyCtx) -> impl IntoView {
         info.get().map(|(last, next, fs, plan_fs)| view! {
             <article class="st-card-sem st-new" aria-labelledby="st-new-title">
                 <header class="st-sem-head">
-                    <button class="icon-btn st-turn hit" type="button" aria-label=s.previous on:click=move |_| turn(ctx, cards, Some(last))><Icon name="chevron-left"/></button>
+                    <button class="icon-btn st-turn hit" type="button" aria-label=s.previous on:click=move |_| turn(ctx, pages, Some(last))><Icon name="chevron-left"/></button>
                     <div class="st-sem-title">
                         <div class="st-sem-name"><h2 id="st-new-title">{s.new_semester}</h2></div>
                         <p class="st-sem-sub">{(s.after)(&last.label(t.locale))}</p>
