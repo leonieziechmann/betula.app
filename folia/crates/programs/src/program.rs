@@ -158,12 +158,13 @@ pub fn ProgramPage() -> impl IntoView {
         DataError::or_before(source.clone().and_then(|source| source.now(&ProgramAsk { slug: slug.clone() })), before)
     });
 
-    // On the desktop a module stands beside the page until „Vollbild" lets it fill the page. On
-    // a phone nothing stands beside a page: what is picked is the page, and the page is a
-    // history entry of its own (one tap, one step back), never a preview and then a page.
+    // A module stands beside the page (on a phone a sheet over it) until „Vollbild" lets it fill
+    // the page. On a phone nothing stands beside a page: an area or a row of the plan picked is the
+    // page, and the page is a history entry of its own (one tap, one step back), never a preview
+    // and then a page.
     let phone = phone_layout();
     let drawn = Signal::derive(move || if phone.get() || !room.get() { PlanShape::List } else { shape.get() });
-    let filling = Memo::new(move |_| match here.with(|here| folia_routes::local::filling(here, phone.get())) {
+    let filling = Memo::new(move |_| match here.with(folia_routes::local::filling) {
         Some(id) => Filling::Module(id),
         None if phone.get() => match (area.get(), req.get()) {
             (Some(id), _) => Filling::Area(id),
@@ -192,20 +193,23 @@ pub fn ProgramPage() -> impl IntoView {
             view! { <Plain><ErrorState error/></Plain> }.into_any()
         }
         (Ok(Some(data)), Some(tab)) => match filling.get() {
-            // The module in full, inside the program's area: „Zurück" leads to the program — with
-            // the module beside it again on the desktop, without it on a phone (and to the area
-            // it was picked from, where it was).
+            // The module in full, inside the program's area: „Zurück" leads to the program with the
+            // module beside it again (on a phone its sheet), and to the area it was picked from,
+            // where it was.
             Filling::Module(id) => {
-                let back = here.with_untracked(|here| folia_routes::local::back_href(here, phone.get_untracked()));
+                let back = here.with_untracked(folia_routes::local::back_href);
                 view! { <ModuleInPlace id area=Area::Programs back/> }.into_any()
             }
             Filling::Area(_) | Filling::Req(_) => {
                 let name = format!("{} ({})", data.program.name, data.program.degree());
+                let beside = data.clone();
                 view! {
                     <Title text=format!("{name}: {} · BTU Cottbus-Senftenberg", if matches!(filling.get_untracked(), Filling::Area(_)) { t.program.area } else { t.program.plan })/>
                     <Plain class="picked-page">
                         {picked_panel(&data, variant.get_untracked(), area.get_untracked(), req.get_untracked(), links, true, t)}
                     </Plain>
+                    // A module opened from the area or the row: its sheet over it.
+                    {move || open.get().is_some().then(|| view! { <ProgramAside data=beside.clone() variant open area req target links/> })}
                 }
                 .into_any()
             }
@@ -644,7 +648,8 @@ fn ProgramAside(
         let there = open.get().is_some() || area.get().is_some() || req.get().is_some();
         let coming = target.with(|to| to.as_ref().is_some_and(picks));
         if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
-            return view! { <DetailSkeleton aside=true calm=there/> }.into_any();
+            let module = target.with(|to| to.as_ref().is_some_and(|to| to.open.is_some()));
+            return view! { <DetailSkeleton aside=true calm=there module/> }.into_any();
         }
         match module.get() {
             Ok(Some(Some(module))) => {

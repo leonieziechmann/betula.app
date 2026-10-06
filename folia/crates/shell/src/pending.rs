@@ -475,6 +475,21 @@ fn search_of(to: &str) -> &str {
 /// What a step from one address (the router's) to another changes for the visitor; `None` if
 /// nothing they see: the same address, another fragment, another `page` of the same list.
 /// `phone`: nothing stands beside a page there, what is picked is the page.
+/// Whether two addresses of the app (path and query) are the same page: equal, or the same view of
+/// a program by another address (`/programs/<slug>` is its plan). A module's sheet asks it of the
+/// step before (`folia_widgets::module`).
+pub fn same_page(a: &str, b: &str) -> bool {
+    let program = |to: &str| -> Option<ProgramUrl> {
+        let rest = path_of(to).strip_prefix("/programs/")?;
+        let (slug, tab) = match rest.split_once('/') {
+            Some((slug, tab)) => (slug, ProgramTab::from_segment(tab)?),
+            None => (rest, ProgramTab::default()),
+        };
+        Some(ProgramUrl::parse(slug, tab, search_of(to)))
+    };
+    a == b || matches!((program(a), program(b)), (Some(a), Some(b)) if a == b)
+}
+
 pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str, phone: bool) -> Option<Change> {
     let from_search = from_search.trim_start_matches('?');
     let to_search = to_search.trim_start_matches('?');
@@ -505,15 +520,15 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             if from.query != to.query {
                 Some(Change::List)
             } else if from.open != to.open {
-                // On a phone a module is its own page (the catalog turns `open` into it).
-                Some(if phone { Change::Page(Shape::Module) } else { Change::Preview })
+                // The preview beside the list, on a phone a sheet over it.
+                Some(Change::Preview)
             } else {
                 None
             }
         }
         Shape::Bookmarks => {
             let (from, to) = (BookmarksUrl::parse(from_search), BookmarksUrl::parse(to_search));
-            if let Some(change) = local_change(&from, &to, phone, Change::Column(Shape::Bookmarks)) {
+            if let Some(change) = local_change(&from, &to, Change::Column(Shape::Bookmarks)) {
                 Some(change)
             } else if (from.season, from.sort, from.descending) != (to.season, to.sort, to.descending) {
                 Some(Change::Column(Shape::Bookmarks))
@@ -523,12 +538,12 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
                 None
             }
         }
-        Shape::Studyplan => studyplan_change(&PlanAddress::parse(from_search), &PlanAddress::parse(to_search), phone),
-        // „Mein Studium" shows its modules in place: the module beside it is the aside, and filling
-        // the page (after „Vollbild", on a phone always) it is a page of its own.
+        Shape::Studyplan => studyplan_change(&PlanAddress::parse(from_search), &PlanAddress::parse(to_search)),
+        // „Mein Studium" shows its modules in place: the module beside it (on a phone a sheet over
+        // it) is the aside, and filling the page after „Vollbild" it is a page of its own.
         Shape::Study => {
             let (from, to) = (StudyUrl::parse(from_search), StudyUrl::parse(to_search));
-            local_change(&from, &to, phone, Change::Column(Shape::Study)).or_else(|| (from.open != to.open).then_some(Change::Aside))
+            local_change(&from, &to, Change::Column(Shape::Study)).or_else(|| (from.open != to.open).then_some(Change::Aside))
         }
         Shape::Programs => Some(Change::Column(Shape::Programs)),
         Shape::Program => {
@@ -540,8 +555,9 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
 }
 
 /// Within one program: another view or study plan is its column; the module in full, or on a
-/// phone whatever is picked, is a page; what stands beside the page is the aside. `None` for the
-/// same view by another address (`/programs/<slug>` is its plan).
+/// phone an area or a row of the plan picked, is a page; what stands beside the page is the aside,
+/// and so is a module on a phone, a sheet over the page or what is picked. `None` for the same view
+/// by another address (`/programs/<slug>` is its plan).
 fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Change> {
     if from == to {
         return None;
@@ -550,8 +566,11 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
     // filled the page, or what takes its place.
     let picked_page = phone && (to.area.is_some() || to.req.is_some());
     let after_module = if picked_page { Change::Page(Shape::Text) } else { Change::Column(Shape::Program) };
-    if let Some(change) = local_change(from, to, phone, after_module) {
+    if let Some(change) = local_change(from, to, after_module) {
         return Some(change);
+    }
+    if from.with_open(None) == to.with_open(None) {
+        return Some(Change::Aside);
     }
     if picked_page {
         return Some(Change::Page(Shape::Text));
@@ -563,14 +582,12 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 }
 
 /// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
-/// column; the module beside it is the aside, and on a phone, where nothing stands beside a page,
-/// the plan's panel of the module is the page until it is closed. „Vollbild" fills the page with
-/// the module's whole page, on a phone as well (`PlanAddress`). The Übersicht shows every
-/// semester: there `sem` only says which of its semesters a module planned twice is shown in
-/// beside it, so it is the aside's.
-fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option<Change> {
-    let after_module = if phone && to.url.open.is_some() { Change::Page(Shape::Text) } else { Change::Column(Shape::Studyplan) };
-    if let Some(change) = local_change(from, to, false, after_module) {
+/// column; the module beside it is the aside (on a phone a sheet over the plan). „Vollbild" fills
+/// the page with the module's whole page (`PlanAddress`). The Übersicht shows every semester: there
+/// `sem` only says which of its semesters a module planned twice is shown in beside it, so it is
+/// the aside's.
+fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
+    if let Some(change) = local_change(from, to, Change::Column(Shape::Studyplan)) {
         return Some(change);
     }
     let (from, to) = (&from.url, &to.url);
@@ -583,11 +600,7 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option
     if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
         Some(Change::Column(Shape::Studyplan))
     } else if beside(from) != beside(to) {
-        Some(match (phone, &to.open) {
-            (false, _) => Change::Aside,
-            (true, Some(_)) => Change::Page(Shape::Text),
-            (true, None) => Change::Column(Shape::Studyplan),
-        })
+        Some(Change::Aside)
     } else {
         None
     }
@@ -598,8 +611,8 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress, phone: bool) -> Option
 /// page coming back where a module filled it is `after_module` (the page's column, or on a phone
 /// whatever else is picked there). `None` where the same fills the page before and after: the
 /// step is the page's own business then (another view or order, what stands beside the page).
-fn local_change(from: &impl LocalView, to: &impl LocalView, phone: bool, after_module: Change) -> Option<Change> {
-    match (folia_routes::local::filling(from, phone), folia_routes::local::filling(to, phone)) {
+fn local_change(from: &impl LocalView, to: &impl LocalView, after_module: Change) -> Option<Change> {
+    match (folia_routes::local::filling(from), folia_routes::local::filling(to)) {
         (before, Some(now)) if before.as_ref() != Some(&now) => Some(Change::Page(Shape::Module)),
         (Some(_), None) => Some(after_module),
         _ => None,
@@ -774,7 +787,8 @@ mod tests {
         assert_eq!(change("/catalog", "", "/programs", "", false), Some(Change::Page(Shape::Programs)));
         assert_eq!(change("/catalog", "turnus=winter", "/catalog", "turnus=winter&form=lecture", false), Some(Change::List));
         assert_eq!(change("/catalog", "turnus=winter", "/catalog", "turnus=winter&open=11103", false), Some(Change::Preview));
-        assert_eq!(change("/catalog", "turnus=winter", "/catalog", "turnus=winter&open=11103", true), Some(Change::Page(Shape::Module)));
+        // On a phone the preview is a sheet over the list (owner, 2026-10-06).
+        assert_eq!(change("/catalog", "turnus=winter", "/catalog", "turnus=winter&open=11103", true), Some(Change::Preview));
         assert_eq!(change("/catalog", "turnus=winter&page=2", "/catalog", "turnus=winter&page=3", false), None);
         assert_eq!(change("/catalog", "", "/catalog", "", false), None);
         assert_eq!(change("/", "", "/", "", false), None);
@@ -792,13 +806,14 @@ mod tests {
         assert_eq!(change("/study", "open=11103", "/study", "", false), Some(Change::Aside));
         assert_eq!(change("/study", "open=11103", "/study", "open=11103&full=1", false), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/study", "open=11103&full=1", "/study", "open=11103", false), Some(Change::Column(Shape::Study)));
-        assert_eq!(change("/study", "", "/study", "open=11103", true), Some(Change::Page(Shape::Module)));
+        assert_eq!(change("/study", "", "/study", "open=11103", true), Some(Change::Aside));
         assert_eq!(change("/study", "", "/study", "utm=x", false), None);
-        // A phone's semesters behind the overview come at once; a module opened there fills the
-        // page, and closed it gives them back.
+        // A phone's semesters beside the overview come at once; a module opened there comes up as
+        // a sheet over them, and goes again.
         assert_eq!(change("/study", "", "/study", "plan=1", true), None);
-        assert_eq!(change("/study", "plan=1", "/study", "plan=1&open=11103", true), Some(Change::Page(Shape::Module)));
-        assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1", true), Some(Change::Column(Shape::Study)));
+        assert_eq!(change("/study", "plan=1", "/study", "plan=1&open=11103", true), Some(Change::Aside));
+        assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1", true), Some(Change::Aside));
+        assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1&open=11103&full=1", true), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
     }
 
@@ -809,15 +824,17 @@ mod tests {
         assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title&open=11104", false), Some(Change::Preview));
         assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title&open=11103&full=1", false), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/bookmarks", "sort=title&open=11103&full=1", "/bookmarks", "sort=title&open=11103", false), Some(Change::Column(Shape::Bookmarks)));
-        // On a phone a tap on a row is the module's page, and „Zurück" the list again.
-        assert_eq!(change("/bookmarks", "sort=title", "/bookmarks", "sort=title&open=11103", true), Some(Change::Page(Shape::Module)));
-        assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title", true), Some(Change::Column(Shape::Bookmarks)));
+        // On a phone a tap on a row is the module's sheet over the list, and closing it the list.
+        assert_eq!(change("/bookmarks", "sort=title", "/bookmarks", "sort=title&open=11103", true), Some(Change::Preview));
+        assert_eq!(change("/bookmarks", "sort=title&open=11103", "/bookmarks", "sort=title", true), Some(Change::Preview));
         // A program: the same, and on a phone what the module was picked from comes back as the page.
         assert_eq!(change("/programs/informatik/plan", "open=11103&full=1", "/programs/informatik/plan", "open=11103", false), Some(Change::Column(Shape::Program)));
         assert_eq!(change("/programs/informatik/plan", "open=11103&full=1", "/programs/informatik/plan", "open=11104&full=1", false), Some(Change::Page(Shape::Module)));
-        assert_eq!(change("/programs/informatik/areas", "area=4", "/programs/informatik/areas", "area=4&open=11103", true), Some(Change::Page(Shape::Module)));
-        assert_eq!(change("/programs/informatik/areas", "area=4&open=11103", "/programs/informatik/areas", "area=4", true), Some(Change::Page(Shape::Text)));
-        assert_eq!(change("/programs/informatik/plan", "open=11103", "/programs/informatik/plan", "", true), Some(Change::Column(Shape::Program)));
+        // On a phone a module opened over the area picked, or over the program, is a sheet.
+        assert_eq!(change("/programs/informatik/areas", "area=4", "/programs/informatik/areas", "area=4&open=11103", true), Some(Change::Aside));
+        assert_eq!(change("/programs/informatik/areas", "area=4&open=11103", "/programs/informatik/areas", "area=4", true), Some(Change::Aside));
+        assert_eq!(change("/programs/informatik/areas", "area=4&open=11103&full=1", "/programs/informatik/areas", "area=4&open=11103", true), Some(Change::Page(Shape::Text)));
+        assert_eq!(change("/programs/informatik/plan", "open=11103", "/programs/informatik/plan", "", true), Some(Change::Aside));
         assert_eq!(change("/programs/informatik/areas", "area=4", "/programs/informatik/areas", "", true), Some(Change::Column(Shape::Program)));
     }
 
@@ -839,15 +856,25 @@ mod tests {
         assert_eq!(change("/studyplan", "sem=2027S&view=all", "/studyplan", "sem=2027W&view=all", false), None);
         assert_eq!(change("/studyplan", "sem=2027W&view=all", "/studyplan", "sem=2027W", false), Some(Change::Column(Shape::Studyplan)));
         assert_eq!(change("/studyplan", "sem=2027S&open=12204", "/studyplan", "sem=2027W&open=12204", false), Some(Change::Column(Shape::Studyplan)));
-        // On a phone the plan's panel of the module is the page, and closing it is the plan again.
-        assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", true), Some(Change::Page(Shape::Text)));
-        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", true), Some(Change::Column(Shape::Studyplan)));
+        // On a phone the plan's panel of the module is a sheet over the plan.
+        assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", true), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", true), Some(Change::Aside));
         // „Vollbild": the module fills the plan's page, and „Zurück" brings the plan with it beside.
         assert_eq!(change("/studyplan", "open=12104", "/studyplan", "open=12104&full=1", false), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/studyplan", "open=12104&full=1", "/studyplan", "open=12104", false), Some(Change::Column(Shape::Studyplan)));
-        assert_eq!(change("/studyplan", "open=12104&full=1", "/studyplan", "open=12104", true), Some(Change::Page(Shape::Text)));
+        assert_eq!(change("/studyplan", "open=12104&full=1", "/studyplan", "open=12104", true), Some(Change::Column(Shape::Studyplan)));
         // Unknown names change nothing.
         assert_eq!(change("/studyplan", "sem=2026W", "/studyplan", "sem=2026W&week=2026-10-14", false), None);
+    }
+
+    /// The step before a module's sheet is the page it closes to, written either way.
+    #[test]
+    fn the_same_page_by_another_address() {
+        assert!(same_page("/programs/informatik", "/programs/informatik/plan"));
+        assert!(same_page("/catalog?turnus=winter", "/catalog?turnus=winter"));
+        assert!(!same_page("/catalog?turnus=winter", "/catalog"));
+        assert!(!same_page("/programs/informatik/plan", "/programs/informatik/areas"));
+        assert!(!same_page("/study?plan=1", "/study"));
     }
 
     #[test]

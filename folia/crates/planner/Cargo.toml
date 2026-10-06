@@ -32,7 +32,7 @@ folia-routes = { path = "../routes" }
 folia-timetable = { path = "../timetable" }
 serde = { version = "1.0", features = ["derive"] }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "DataTransfer", "DragEvent", "HtmlCollection", "TouchEvent", "TouchList"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "DataTransfer", "DragEvent", "HtmlCollection", "TouchEvent", "TouchList", "CssStyleDeclaration"] }
 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).

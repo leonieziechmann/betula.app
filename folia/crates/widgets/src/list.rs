@@ -4,7 +4,6 @@
 
 use folia_model::labels::TurnusSeason;
 use folia_model::rows::CatalogRow;
-use folia_routes::url::{self};
 use leptos::prelude::*;
 
 use folia_stores::bookmarks::{Bookmarks, MarkButton, MarkLook};
@@ -24,9 +23,8 @@ const APP: bool = cfg!(feature = "csr");
 #[component]
 pub fn Row(
     row: CatalogRow,
-    /// Where the row leads on the desktop: in the app its list with this module previewed next
-    /// to it, on the server's page the module's own page. On a phone it leads to the module's
-    /// own page either way, unless the list shows its modules `in_place`.
+    /// Where the row leads: in the app its list with this module previewed next to it (on a phone
+    /// a sheet over the list), on the server's page the module's own page.
     #[prop(into)] preview: Signal<String>,
     /// This module is the one previewed.
     #[prop(into)] current: Signal<bool>,
@@ -35,9 +33,6 @@ pub fn Row(
     /// In the list of marked modules a module whose mark was taken away stays where it is,
     /// dimmed, so that a slip is one click to undo.
     #[prop(optional)] dim_unmarked: bool,
-    /// The list shows its modules in place (a local view, `crate::local`): on a phone as well
-    /// the row leads to `preview`, where the module is the page, not to the module's own page.
-    #[prop(optional)] in_place: bool,
     /// Every other row of the list is shaded. The list says which, from the row's place in the
     /// whole list: the virtual list renders only the rows on screen, so the stylesheet cannot count.
     #[prop(optional)] shaded: bool,
@@ -56,20 +51,10 @@ pub fn Row(
     };
     let events = (t.catalog.events)(row.teaching_events);
     let has_events = row.teaching_events > 0;
-    let target = row.id.clone();
     let finder = use_context::<Finder>();
-    // The preview next to the list; on a phone the module's own page, or where the list shows it
-    // in place, the module filling the list's page. The module's page takes along what „Einplanen"
-    // aims at from the catalog (`?plan=…&fill=…`), as the preview's „Vollbild" does. `preview` is a
+    // The preview next to the list, on a phone a sheet over it (owner, 2026-10-06). `preview` is a
     // path of the app; the link carries the language's prefix.
-    let href = move || {
-        t.path(&if phone.get() && !in_place {
-            let hint = finder.and_then(|finder| finder.hint.get()).map(|hint| hint.query()).unwrap_or_default();
-            format!("{}{hint}", url::module_path(&target))
-        } else {
-            preview.get()
-        })
-    };
+    let href = move || t.path(&preview.get());
     let unmarked = dim_unmarked.then(|| {
         let (bookmarks, id) = (Bookmarks::expect(), row.id.clone());
         Memo::new(move |_| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))

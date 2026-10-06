@@ -408,12 +408,14 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 2);
   const layout = await page.evaluate(() => { const [list, side] = [document.querySelector(".panel.list"), document.getElementById("sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });
   check(layout.below && !layout.overflow, `phone: the sidebar is not under the list, or the page is wider than the screen: ${JSON.stringify(layout)}`);
-  // The module is the page, in the list's place: the address and the tab stay the list's.
-  await step("phone: a tap opens the module in the list's place", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(document.querySelector(".module-page .mark-toggle.mark-switch")), ids[1]);
-  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !document.querySelector('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules' page, or the catalog's tab heard of it");
-  const button = await page.evaluate(() => { const r = document.querySelector(".module-page .mark-toggle.mark-switch").getBoundingClientRect(); return { height: r.height, pressed: document.querySelector(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed"), seen: r.top < innerHeight }; });
-  check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch on the module's page: ${JSON.stringify(button)}`);
-  await step("phone: „Zurück“ returns to the marked modules", () => page.click('[data-action="back"]'), () => location.pathname === "/bookmarks" && location.search === "" && document.querySelectorAll(".rows a.row").length === 2);
+  // The module comes up as a sheet over the list (2026-10-06): the address and the tab stay the
+  // list's, and the list stays under it.
+  await step("phone: a tap opens the module's sheet over the list", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(document.querySelector(".detail.is-module .mark-toggle")) && document.querySelectorAll(".rows a.row").length === 2, ids[1]);
+  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !document.querySelector('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules', or the catalog's tab heard of it");
+  await page.waitForTimeout(500);
+  const button = await page.evaluate(() => { const mark = document.querySelector(".detail.is-module .mark-toggle"); const r = mark.getBoundingClientRect(); return { height: r.height, pressed: mark.getAttribute("aria-pressed"), seen: r.top < innerHeight && r.bottom <= innerHeight }; });
+  check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch in the module's sheet: ${JSON.stringify(button)}`);
+  await step("phone: closing it returns to the marked modules", () => page.tap('.detail.is-module [data-action="close-detail"]'), () => location.pathname === "/bookmarks" && location.search === "" && !document.querySelector(".detail.is-module") && document.querySelectorAll(".rows a.row").length === 2);
   await context.close();
 }
 

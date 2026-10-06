@@ -1390,9 +1390,8 @@ pub fn decode(text: &str) -> String {
 /// the plan, and `full=1` lets it fill the plan's place with the module's whole page, inside the
 /// Studienplan's area (tab, history and „Zurück" stay the plan's, the catalog's tab never hears of
 /// it). What stands beside the plan is the plan's own panel of the module (its Termine and what is
-/// chosen of them), not the module's preview, so on a phone `open` alone shows that panel as the
-/// page and only `full` fills it with the module: the plan asks `local::filling` as a desktop
-/// does. `StudyplanUrl` says the rest; `full` is written last.
+/// chosen of them), not the module's preview: on a phone a sheet over the plan, and only `full`
+/// fills the page with the module. `StudyplanUrl` says the rest; `full` is written last.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PlanAddress {
     pub url: StudyplanUrl,
@@ -1885,8 +1884,8 @@ mod tests {
         assert!(!PlanAddress::parse("open=12104&full=yes").full);
         assert!(!PlanAddress::parse("open=<x>&full=1").full);
         // Only „Vollbild" fills the plan's page, on a phone as well: `open` alone is the panel.
-        assert_eq!(crate::local::filling(&full, false).as_deref(), Some("12104"));
-        assert_eq!(crate::local::filling(&beside, false), None);
-        assert_eq!(crate::local::back_href(&full, false), "/studyplan?sem=2026W&open=12104&row=148369-aaf38");
+        assert_eq!(crate::local::filling(&full).as_deref(), Some("12104"));
+        assert_eq!(crate::local::filling(&beside), None);
+        assert_eq!(crate::local::back_href(&full), "/studyplan?sem=2026W&open=12104&row=148369-aaf38");
     }
 }

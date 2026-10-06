@@ -224,6 +224,111 @@ const overlap = await page.evaluate(() => {
 check(!overlap, "phone list: rendered rows overlap");
 check(await page.evaluate(() => /[?&]page=\d+/.test(location.search)), "phone list: the URL does not follow the position");
 
+// ---- a module is a sheet from below (owner, 2026-10-06: „wenn man wie bei der Übersicht nach
+// bereichen so ein menu bekommt, dass sich dann von unten öffnet … erstmal bis zur hälfte … nach
+// unten swipen oder es nach oben um es zu schließen oder den vollen bereich zu verwenden. Achte
+// dabei darauf, dass man auch noch scrollen können muss in dem fenster"): half the screen, all up
+// by a finger, its content scrolling there, down to half and away; the list stays where it was.
+await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector(".rows a.row"), null, { timeout: 120000 });
+await page.waitForTimeout(800);
+await page.evaluate(() => scrollTo(0, 400));
+await page.waitForTimeout(300);
+const sheetOf = () => page.evaluate(() => {
+  const sheet = document.querySelector(".detail.is-module");
+  if (!sheet || sheet.classList.contains("is-gone")) return null;
+  const box = sheet.getBoundingClientRect();
+  return { top: Math.round(box.top), left: Math.round(box.left), right: Math.round(box.right), full: sheet.classList.contains("is-full"), scrolled: Math.round(sheet.querySelector(":scope > .scroll")?.scrollTop ?? -1), title: Boolean(sheet.querySelector("h2")) };
+});
+const listAt = () => page.evaluate(() => ({ y: Math.round(scrollY), search: location.search, entries: history.length }));
+const listed = await listAt();
+const rowAt = await page.evaluate(() => { const row = [...document.querySelectorAll(".rows a.row")].find((a) => a.getBoundingClientRect().top > 220); const box = row.getBoundingClientRect(); return { x: box.left + 60, y: box.top + 20 }; });
+await page.touchscreen.tap(rowAt.x, rowAt.y);
+await page.waitForFunction(() => location.search.includes("open=") && document.querySelector(".detail.is-module h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: a tap on a row did not bring the module's sheet"));
+await page.waitForTimeout(500);
+let sheet = await sheetOf();
+let list = await listAt();
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4 && sheet.left === 0 && sheet.right === 390 && sheet.title, `sheet: the module does not come up to half the screen: ${JSON.stringify(sheet)}`);
+check(list.y === listed.y && list.entries === listed.entries + 1, `sheet: the list moved under it, or the history took more than a step: ${JSON.stringify([listed, list])}`);
+await swipe(200, sheet.top + 80, sheet.top - 220, { steps: 10, ms: 24 });
+sheet = await sheetOf();
+check(sheet?.full && sheet.top < 30, `sheet: a finger up does not take it all up: ${JSON.stringify(sheet)}`);
+await swipe(200, 640, 260, { steps: 10, ms: 20 });
+await page.waitForTimeout(600);
+sheet = await sheetOf();
+check(sheet?.full && sheet.scrolled > 100, `sheet: all up, its content does not scroll: ${JSON.stringify(sheet)}`);
+await swipe(200, 300, 420, { steps: 8, ms: 20 });
+await page.waitForTimeout(600);
+const scrolledBack = await sheetOf();
+check(scrolledBack?.full && scrolledBack.scrolled < sheet.scrolled, `sheet: a finger down while its content is scrolled moved the sheet, not the content: ${JSON.stringify([sheet, scrolledBack])}`);
+await page.evaluate(() => { document.querySelector(".detail.is-module > .scroll").scrollTop = 0; });
+await page.waitForTimeout(200);
+await swipe(200, 120, 380, { steps: 12, ms: 30 });
+sheet = await sheetOf();
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4, `sheet: drawn down a third from all up, it does not stay half up: ${JSON.stringify(sheet)}`);
+await swipe(200, sheet.top + 80, sheet.top + 420, { steps: 12, ms: 30 });
+await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: drawn down from half up, it did not close"));
+list = await listAt();
+check(list.y === listed.y && list.entries === listed.entries + 1 && list.search === listed.search, `sheet: closing it did not go back to the list as it was: ${JSON.stringify([listed, list])}`);
+// A flick up takes it all up; a tap beside it, its × and Back close it.
+await page.touchscreen.tap(rowAt.x, rowAt.y);
+await page.waitForFunction(() => document.querySelector(".detail.is-module h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: it did not come again"));
+await page.waitForTimeout(500);
+await swipe(200, 600, 400, { steps: 4, ms: 12 });
+check((await sheetOf())?.full, "sheet: a flick up does not take it all up");
+await swipe(200, 200, 360, { steps: 4, ms: 12 });
+check((await sheetOf())?.full === false, "sheet: a flick down from all up does not take it to half");
+await page.touchscreen.tap(200, 150);
+await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: a tap beside it did not close it"));
+await page.touchscreen.tap(rowAt.x, rowAt.y);
+await page.waitForFunction(() => document.querySelector('.detail.is-module [data-action="close-detail"]'), null, { timeout: 8000 });
+await page.waitForTimeout(500);
+await page.tap('.detail.is-module [data-action="close-detail"]');
+await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: its × did not close it"));
+await page.touchscreen.tap(rowAt.x, rowAt.y);
+await page.waitForFunction(() => document.querySelector(".detail.is-module h2"), null, { timeout: 8000 });
+await page.evaluate(() => history.back());
+await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: Back did not close it"));
+check((await listAt()).y === listed.y, "sheet: the list did not stay where it was");
+// „Vollbild": the module's own page.
+await page.touchscreen.tap(rowAt.x, rowAt.y);
+await page.waitForFunction(() => document.querySelector('.detail.is-module [data-action="fullscreen"]'), null, { timeout: 8000 });
+await page.waitForTimeout(500);
+await page.tap('.detail.is-module [data-action="fullscreen"]');
+await page.waitForFunction(() => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: „Vollbild“ did not lead to the module's page"));
+
+// ---- a tab held (owner, 2026-10-06: „wenn man die buttons in der nav bar lange gedrückt hält,
+// dass dann eine special aktion kommt. Bei mein Studium währe das dann eine auswahl von
+// Regelstudienplan, Wahlpflicht, Alle Studiengänge … Bei dem katalog könnte sich dann gleich der
+// katalog mit offenem Filter öffnen"): „Studium"'s menu, the catalog with its filters.
+await page.evaluate(() => localStorage.setItem("betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n"));
+await page.goto(base + "/study", { waitUntil: "domcontentloaded" });
+await page.waitForFunction(() => window.__betulaApp === true && document.querySelector(".st-pager"), null, { timeout: 120000 });
+await page.waitForTimeout(800);
+const hold = async (area, ms = 600) => {
+  const at = await page.evaluate((area) => { const box = document.querySelector(`.bottomnav > .nav[data-area="${area}"]`).getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; }, area);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: at.x, y: at.y }] });
+  await page.waitForTimeout(ms);
+  const menu = await page.evaluate(() => [...document.querySelectorAll(".tab-menu .tab-menu-way")].map((a) => `${a.textContent.trim()} ${a.getAttribute("href")}`));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(500);
+  return menu;
+};
+const ways = await hold("programs");
+check(ways.join("|") === "Regelstudienplan /programs/bachelor-informatik-2008/plan|Wahlpflicht & Bereiche /programs/bachelor-informatik-2008/areas|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
+check(await page.evaluate(() => location.pathname === "/study" && Boolean(document.querySelector(".tab-menu"))), "a tab held: the finger's release went somewhere, or the menu went");
+await page.touchscreen.tap(200, 200);
+await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab held: a tap beside the menu did not close it"));
+check(await page.evaluate(() => location.pathname === "/study"), "a tab held: the tap beside the menu went somewhere");
+await hold("programs");
+await page.tap(".tab-menu .tab-menu-way >> nth=1");
+await page.waitForFunction(() => location.pathname === "/programs/bachelor-informatik-2008/areas" && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab held: „Wahlpflicht & Bereiche“ did not lead there"));
+// A short tap is the tab as ever; the catalog held opens its list with the filters.
+await page.touchscreen.tap(...(await page.evaluate(() => { const box = document.querySelector('.bottomnav > .nav[data-area="programs"]').getBoundingClientRect(); return [box.left + box.width / 2, box.top + box.height / 2]; })));
+await page.waitForFunction(() => location.pathname === "/study" && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab tapped: „Studium“ did not lead to „Mein Studium“"));
+await hold("catalog");
+await page.waitForFunction(() => location.pathname === "/catalog" && document.getElementById("filters")?.classList.contains("open"), null, { timeout: 8000 }).catch(() => problems.push("a tab held: the catalog did not open with its filters"));
+
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));
 process.exit(problems.length ? 1 : 0);
