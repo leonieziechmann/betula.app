@@ -16,8 +16,16 @@
 //! lies and the finger learns the way (owner, 2026-10-06: „die Animationen müssen more snappy sein.
 //! Aktuell sind die sehr langsam und träge. Die sind primär dafür da, dass man versteht wie der
 //! positionelle Zusammenhang ist, so dass die gesten intuitiv werden"): the app's frames, not the
-//! browser's smooth scroll, which took 300–430 ms and was slow to begin. (A finger's fling stays
-//! the browser's: it goes on under anything the page does, and the page cannot stop it.)
+//! browser's smooth scroll, which took 300–430 ms and was slow to begin. A finger's fling is the
+//! browser's, and so is its snap to a page; a tap while they still move the row takes it from the
+//! browser at once (owner, 2026-10-06: „funktioniert der button in der nav bar auch erst, wenn die
+//! seite sich nicht mehr bewegt … Wenn man den anklickt muss es sofort wieder an die standard
+//! position gehen"): while it glides the row is no scroller, which alone ends the browser's move
+//! (the page cannot stop it otherwise: under `overflow: hidden` it waits and goes on after, under a
+//! scroll of the page's it goes on), and its pages are drawn where it glides (`dom::shift_row`).
+//! The tab of „Studium" tapped again brings the row back to the overview, and the way back at the
+//! head shows as soon as the row leaves the overview (owner, 2026-10-06: „der sollte eigentlich
+//! sofort eingeblendet werden, wenn man weg swiped, von der main page"), not once it rests.
 //!
 //! The app only hears where the row is (`scroll`): the dots follow the page in the middle. Once the
 //! row rests (`scrollend`, or no move for `QUIET` where a browser does not say), the page there is
@@ -121,11 +129,13 @@ fn ease_out(t: f64) -> f64 {
 }
 
 /// The glide under way (`Pages::glide_to`): its number, which a newer glide changes so that its
-/// frames stop, and the page it goes to.
+/// frames stop, the page it goes to, and where the row is drawn meanwhile (px, as far as it would
+/// be scrolled).
 #[derive(Clone, Copy, Debug, Default)]
 struct Glide {
     number: u32,
     to: Option<usize>,
+    at: f64,
 }
 
 /// The row of pages: the pages in order, the page in view and the one the row rests at. `focus.rs`
@@ -139,6 +149,9 @@ pub(super) struct Pages {
     /// The page the row rests at: it alone can be used, the row is as tall as it, and the address
     /// says it.
     here: RwSignal<usize>,
+    /// The row is not at the overview: it rests at a semester, or is on its way from the overview
+    /// (a finger, the browser's fling, a glide). The way back at the head shows meanwhile.
+    away: RwSignal<bool>,
     /// The row has been placed where the address says (the first time at once).
     placed: StoredValue<bool>,
     quiet: StoredValue<Option<TimeoutHandle>>,
@@ -168,6 +181,7 @@ impl Pages {
             order,
             shown: RwSignal::new(start),
             here: RwSignal::new(start),
+            away: RwSignal::new(order.with_untracked(|order| order.get(start).is_some_and(|page| *page != Page::Overview))),
             placed: StoredValue::new(false),
             quiet: StoredValue::new(None),
             lifted: StoredValue::new(false),
@@ -182,9 +196,14 @@ impl Pages {
     }
 
     /// The page the row rests at. Tracked.
-    pub fn here(self) -> Option<Page> {
+    fn here(self) -> Option<Page> {
         let here = self.here.get();
         self.order.with(|order| order.get(here).copied())
+    }
+
+    /// Whether the row is anywhere but at the overview. Tracked.
+    pub fn away(self) -> bool {
+        self.away.get()
     }
 
     /// Whether the page at `index` is drawn: near the one the row opened at, or next to the one it
@@ -214,11 +233,31 @@ impl Pages {
         self.order.with_untracked(|order| order.iter().position(|other| *other == page))
     }
 
-    /// Where the row is: the page in the middle, whether it rests there.
-    fn at(self) -> Option<(usize, bool)> {
+    /// How far along the row is (px, as far as it is scrolled, or drawn while it glides) and how
+    /// far apart its pages rest.
+    fn x(self) -> Option<(f64, f64)> {
         let row = self.node.get_untracked()?;
         let (x, step) = dom::scrolled_cards(&row)?;
+        Some((self.glide.with_value(|glide| if glide.to.is_some() { glide.at } else { x }), step))
+    }
+
+    /// Where the row is: the page in the middle, whether it rests there.
+    fn at(self) -> Option<(usize, bool)> {
+        let (x, step) = self.x()?;
         Some(card_at(x, step, self.order.with_untracked(Vec::len)))
+    }
+
+    /// The row is at `x` px along, its pages `step` apart: the dots follow the page in the middle,
+    /// and the way back at the head shows unless it is at the overview (to a px or two).
+    fn track(self, x: f64, step: f64) {
+        let (index, _) = card_at(x, step, self.order.with_untracked(Vec::len));
+        if index != self.shown.get_untracked() {
+            self.shown.set(index);
+        }
+        let away = self.index_of(Page::Overview).is_some_and(|overview| (x - overview as f64 * step).abs() > 2.0);
+        if away != self.away.get_untracked() {
+            self.away.set(away);
+        }
     }
 
     /// A finger comes down on the row (the pages coming in are drawn from their tops), or goes.
@@ -248,23 +287,35 @@ impl Pages {
 
     /// The row glides to the page at `index`, in a time by how far it is (`glide_ms`).
     fn go(self, index: usize) {
-        let Some(row) = self.node.get_untracked() else { return };
-        if let Some((x, step)) = dom::scrolled_cards(&row) {
+        if let Some((x, step)) = self.x() {
             self.glide_to(index, glide_ms((index as f64 * step - x).abs() / step));
         }
     }
 
+    /// Back to the overview at once, from wherever the row is or goes (the tab of „Studium" tapped
+    /// again, the way back at the head while the address still says the overview); resting there
+    /// already, the window goes up to its top.
+    pub fn home(self) {
+        let Some(index) = self.index_of(Page::Overview) else { return };
+        let rests = self.glide.with_value(|glide| glide.to.is_none()) && self.waiting.with_value(Option::is_none) && self.at() == Some((index, true));
+        if rests && self.here.get_untracked() == index {
+            dom::window_to_top();
+        } else {
+            self.go(index);
+        }
+    }
+
     /// The row glides to the page at `index` in `ms`, quick at first and slowing into place, as the
-    /// page of an app slides, its frames the app's (`frame`): its own snap is held off meanwhile and
-    /// no finger moves it (app.css `is-held`, `is-gliding`), the pages coming in drawn from their
-    /// tops. At once for a visitor who asks for less motion. At the end the row rests there. While a
-    /// finger holds the row or the browser still moves it after one (a fling, its snap), the glide
-    /// waits until the row rests: the browser's moves would go on under it.
+    /// page of an app slides, its frames the app's (`frame`), the pages coming in drawn from their
+    /// tops. At once for a visitor who asks for less motion. Meanwhile the row is no scroller (app.css
+    /// `is-gliding`), drawn where it glides by its pages' shift (`dom::shift_row`): what the browser
+    /// still moves of it after a finger (a fling, its snap) ends there, and no finger moves it. At
+    /// the end it is a scroller again, scrolled to the page, and rests there. While a finger holds
+    /// the row, the glide waits until the finger lets go and the row rests.
     fn glide_to(self, index: usize, ms: f64) {
         let Some(row) = self.node.get_untracked() else { return };
         let gliding = self.glide.with_value(|glide| glide.to.is_some());
-        let moving = self.quiet.with_value(Option::is_some) && !self.at().is_some_and(|(_, rests)| rests);
-        if !gliding && (self.touching.get_value() || moving) {
+        if !gliding && self.touching.get_value() {
             // The latest wins: the first of the waits to come round takes it.
             self.waiting.set_value(Some((index, ms)));
             set_timeout(
@@ -278,55 +329,76 @@ impl Pages {
             );
             return;
         }
+        let Some((from, _)) = self.x() else { return };
         if !self.lifted.get_value() {
             self.lift();
         }
         let number = self.glide.with_value(|glide| glide.number.wrapping_add(1));
-        self.glide.set_value(Glide { number, to: Some(index) });
-        dom::mark(&row, "is-held", true);
-        dom::mark(&row, "is-gliding", true);
+        self.glide.set_value(Glide { number, to: Some(index), at: from });
+        if let Some(handle) = self.quiet.get_value() {
+            handle.clear();
+            self.quiet.set_value(None);
+        }
+        if !gliding {
+            // In one go, so that the screen never shows the row between the two.
+            dom::mark(&row, "is-gliding", true);
+            dom::shift_row(&row, from);
+        }
         let ms = if dom::still() { 0.0 } else { ms };
         let start = dom::now();
-        request_animation_frame(move || self.frame(number, None, start, ms));
+        request_animation_frame(move || self.frame(number, from, start, ms));
     }
 
-    /// A frame of the glide `number`: the row its share of the way on from where it was in the
-    /// glide's first frame (`from`), until it is there.
-    fn frame(self, number: u32, from: Option<f64>, start: f64, ms: f64) {
-        let Some(Glide { number: now, to: Some(to) }) = self.glide.try_get_value() else { return };
+    /// A frame of the glide `number`: the row its share of the way on from where it was drawn when
+    /// the glide began (`from`), until it is there.
+    fn frame(self, number: u32, from: f64, start: f64, ms: f64) {
+        let Some(Glide { number: now, to: Some(to), .. }) = self.glide.try_get_value() else { return };
         if now != number {
             return;
         }
         let Some(row) = self.node.get_untracked() else { return };
         // A row without a width (gone from view) ends its glide at once.
         let mut t = 1.0;
-        let mut from = from;
-        if let Some((x, step)) = dom::scrolled_cards(&row) {
-            let begun = *from.get_or_insert(x);
+        let mut end = None;
+        if let Some((_, step)) = dom::scrolled_cards(&row) {
             t = if ms > 0.0 { (dom::now() - start) / ms } else { 1.0 };
-            dom::scroll_row_to(&row, begun + (to as f64 * step - begun) * ease_out(t));
+            let at = from + (to as f64 * step - from) * ease_out(t);
+            self.glide.update_value(|glide| glide.at = at);
+            dom::shift_row(&row, at);
+            self.track(at, step);
+            end = Some(to as f64 * step);
         }
         if t < 1.0 {
             request_animation_frame(move || self.frame(number, from, start, ms));
             return;
         }
+        // There: a scroller again, scrolled where the row is drawn, in the same frame. Its snap
+        // waits a frame (app.css `is-held`): the browser gives the scroller back where it was before
+        // the glide, and a scroll from there past the overview stopped at it (`scroll-snap-stop`).
         self.glide.update_value(|glide| glide.to = None);
+        dom::mark(&row, "is-held", true);
         dom::mark(&row, "is-gliding", false);
-        dom::mark(&row, "is-held", false);
+        if let Some(end) = end {
+            dom::scroll_row_to(&row, end);
+        }
+        dom::shift_row(&row, 0.0);
+        request_animation_frame(move || dom::mark(&row, "is-held", false));
         self.settle();
     }
 
     /// The row moved: the page in the middle, and the rest once nothing moves for a while. A row
     /// moved by what is no finger (a trackpad, the keys) draws the pages coming in from their tops
-    /// now.
+    /// now. Not while it glides, which draws it where it is (and as it begins and ends, the browser
+    /// says the row moved).
     fn moved(self) {
+        if self.glide.with_value(|glide| glide.to.is_some()) {
+            return;
+        }
         if !self.lifted.get_value() {
             self.lift();
         }
-        if let Some((index, _)) = self.at() {
-            if index != self.shown.get_untracked() {
-                self.shown.set(index);
-            }
+        if let Some((x, step)) = self.x() {
+            self.track(x, step);
         }
         if let Some(handle) = self.quiet.get_value() {
             handle.clear();
@@ -345,10 +417,9 @@ impl Pages {
         if self.glide.with_value(|glide| glide.to.is_some()) {
             return;
         }
-        let Some((index, true)) = self.at() else { return };
-        if index != self.shown.get_untracked() {
-            self.shown.set(index);
-        }
+        let Some((x, step)) = self.x() else { return };
+        let (index, true) = card_at(x, step, self.order.with_untracked(Vec::len)) else { return };
+        self.track(x, step);
         let moved = index != self.here.get_untracked();
         if let Some(row) = self.node.get_untracked() {
             dom::land(&row, moved);
@@ -393,7 +464,7 @@ impl Pages {
         if !first && index == heading {
             return;
         }
-        let Some((x, step)) = dom::scrolled_cards(&row) else {
+        let Some((x, step)) = self.x() else {
             if tries > 0 {
                 request_animation_frame(move || self.place(index, tries - 1));
             }
@@ -402,8 +473,8 @@ impl Pages {
         if first {
             dom::scroll_row_to(&row, index as f64 * step);
             self.placed.set_value(true);
-            self.shown.set(index);
             self.here.set(index);
+            self.track(index as f64 * step, step);
         } else {
             self.glide_to(index, glide_ms((index as f64 * step - x).abs() / step));
         }

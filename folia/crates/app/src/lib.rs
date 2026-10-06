@@ -27,11 +27,11 @@ use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
-use folia_shell::chrome::{FollowTabs, NavItems, Rail, TopBack, TopBar};
+use folia_shell::chrome::{FollowTabs, NavItems, Rail, TabMenu, TopBack, TopBar};
 use folia_shell::frame::Plain;
 use folia_shell::ground::{Crown, Ground, Wood};
 use folia_shell::pending::Pending;
-use folia_shell::tabs::Tabs;
+use folia_shell::tabs::{TabAgain, Tabs};
 use folia_shell::{languages, pending, seo, skeleton};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{MineResolved, MyProgram};
@@ -102,6 +102,8 @@ pub fn App() -> impl IntoView {
     let t = i18n::texts(locale);
     provide_meta_context();
     Tabs::provide();
+    // A tab tapped again where its area is: the area's page back to where it starts.
+    TabAgain::provide();
     // The visitor's marked modules, Studienplan and „Mein Studiengang": from this browser's
     // storage, empty on the server (R9). What the catalog knows of the program follows the store.
     Bookmarks::provide();
@@ -147,6 +149,7 @@ pub fn App() -> impl IntoView {
             </div>
             <Ground/>
             <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
+            <TabMenu/>
         </Router>
     }
 }

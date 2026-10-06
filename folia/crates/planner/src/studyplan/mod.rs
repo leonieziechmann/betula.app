@@ -237,9 +237,9 @@ pub fn StudyplanPage() -> impl IntoView {
         days: RwSignal::new(false),
     };
 
-    // What fills the page: the plan, or the module after „Vollbild" (on a phone as well: the
-    // module beside the plan is the plan's panel of it, which is the page there anyway).
-    let filling = Memo::new(move |_| address.with(|address| folia_routes::local::filling(address, false)));
+    // What fills the page: the plan, or the module after „Vollbild" (until then the plan's panel of
+    // it stands beside the plan, on a phone a sheet over it).
+    let filling = Memo::new(move |_| address.with(folia_routes::local::filling));
     let empty = Memo::new(move |_| plan.is_none_or(Studyplan::is_empty));
 
     // The module beside the plan, and a pick on its way there (`pending`): the panel follows the
@@ -261,14 +261,14 @@ pub fn StudyplanPage() -> impl IntoView {
         let there = open.get();
         let coming = target.with(|to| to.as_ref().is_some_and(|to| to.open.is_some()));
         if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
-            return view! { <DetailSkeleton aside=true calm=there/> }.into_any();
+            return view! { <DetailSkeleton aside=true calm=there module=true/> }.into_any();
         }
         view! { <PlanModulePanel ctx/> }.into_any()
     };
 
     let page = move || {
         if let Some(id) = filling.get() {
-            let back = address.with_untracked(|address| folia_routes::local::back_href(address, false));
+            let back = address.with_untracked(folia_routes::local::back_href);
             return view! { <ModuleInPlace id area=Area::Studyplan back/> }.into_any();
         }
         view! {

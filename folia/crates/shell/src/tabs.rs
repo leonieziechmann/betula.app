@@ -50,6 +50,18 @@ impl Area {
         matches!(self, Area::Programs | Area::Bookmarks | Area::Studyplan)
     }
 
+    /// The area a tab names (`data-area` of the navigation's links).
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "home" => Area::Home,
+            "catalog" => Area::Catalog,
+            "programs" => Area::Programs,
+            "bookmarks" => Area::Bookmarks,
+            "studyplan" => Area::Studyplan,
+            _ => return None,
+        })
+    }
+
     pub fn of(path: &str) -> Self {
         if path.starts_with(url::PROGRAMS) || path == url::STUDY {
             Area::Programs
@@ -241,6 +253,12 @@ impl Tabs {
         .unwrap_or_else(|| area.back_root().to_string())
     }
 
+    /// The catalog's list as it was left, if it was: what the catalog's tab held opens with its
+    /// filters (`chrome::NavItems`), where the tab itself may lead to a module's page.
+    pub fn catalog_list(self) -> Option<String> {
+        self.0.with(|memory| memory.catalog_list.clone())
+    }
+
     /// The page of `area` the visitor was on last, whatever it was. Unlike `list` this is the
     /// page itself (a program with a module open beside it, a module of the catalog).
     pub fn left(self, area: Area) -> Option<String> {
@@ -267,6 +285,50 @@ impl Tabs {
     }
 }
 
+/// A tab tapped while its area is the one the app is in (owner, 2026-10-06, of „Studium": „Wenn
+/// man den anklickt muss es sofort wieder an die standard position gehen"): the area's page goes
+/// back to where it starts (`count`), also where the tab leads to the address the app is at and the
+/// router has nothing to do.
+#[derive(Clone, Copy)]
+pub struct TabAgain(RwSignal<[u32; 5]>);
+
+impl TabAgain {
+    /// Creates the count and provides it: call it once, in `App`.
+    pub fn provide() -> Self {
+        let again = TabAgain(RwSignal::new([0; 5]));
+        provide_context(again);
+        again
+    }
+
+    pub fn expect() -> Option<Self> {
+        use_context::<Self>()
+    }
+
+    fn slot(area: Area) -> usize {
+        match area {
+            Area::Home => 0,
+            Area::Catalog => 1,
+            Area::Programs => 2,
+            Area::Bookmarks => 3,
+            Area::Studyplan => 4,
+        }
+    }
+
+    /// The tab of `area` was tapped while its area is the one the app is in.
+    pub fn tapped(self, area: Area) {
+        self.0.update(|counts| {
+            if let Some(count) = counts.get_mut(Self::slot(area)) {
+                *count = count.wrapping_add(1);
+            }
+        });
+    }
+
+    /// How often the tab of `area` was tapped while its area was the one the app is in. Tracked.
+    pub fn count(self, area: Area) -> u32 {
+        self.0.with(|counts| counts.get(Self::slot(area)).copied().unwrap_or(0))
+    }
+}
+
 /// The last segment of `location` if it is a page below `prefix`: the module or program the
 /// visitor comes back from.
 pub fn page_below(location: &str, prefix: &str) -> Option<String> {
@@ -278,6 +340,27 @@ pub fn page_below(location: &str, prefix: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tab names its area as the navigation's links do (`data-area`), and a tab tapped again
+    /// counts for its own area alone.
+    #[test]
+    fn a_tab_names_its_area() {
+        for area in [Area::Home, Area::Catalog, Area::Programs, Area::Bookmarks, Area::Studyplan] {
+            let name = match area {
+                Area::Home => "home",
+                Area::Catalog => "catalog",
+                Area::Programs => "programs",
+                Area::Bookmarks => "bookmarks",
+                Area::Studyplan => "studyplan",
+            };
+            assert_eq!(Area::from_name(name), Some(area));
+        }
+        assert_eq!(Area::from_name("study"), None);
+        let again = TabAgain(RwSignal::new([0; 5]));
+        again.tapped(Area::Programs);
+        again.tapped(Area::Programs);
+        assert_eq!((again.count(Area::Programs), again.count(Area::Catalog)), (2, 0));
+    }
 
     #[test]
     fn tabs_remember_where_their_area_was_left() {

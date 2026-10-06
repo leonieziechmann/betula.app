@@ -188,11 +188,12 @@ check(scrolled === 0, `scroll: ${scrolled} row(s) took the finger`);
 await page.evaluate(() => window.scrollTo(0, 0));
 await page.waitForTimeout(300);
 
-// ---- a tap on another row right after a swipe opens that module, as a tap does (R21, no page load)
+// ---- a tap on another row right after a swipe opens that module, as a tap does (R21, no page
+// load): its sheet over the list
 await swipe(box.x + 60, box.y, -160, 0, { steps: 4 });
 const other = await page.evaluate(() => { const row = document.querySelectorAll(".vrow .row-wrap")[3].querySelector(".row"); const r = row.getBoundingClientRect(); return { id: row.dataset.id, x: r.left + 60, y: r.top + r.height / 2 }; });
 await page.touchscreen.tap(other.x, other.y);
-await page.waitForURL((url) => url.pathname === `/catalog/module/${other.id}`, { timeout: 8000 }).catch(() => problems.push(`tap after a swipe: the module ${other.id} did not open (${page.url()})`));
+await page.waitForFunction((id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2"), other.id, { timeout: 8000 }).catch(() => problems.push(`tap after a swipe: the module ${other.id} did not open (${page.url()})`));
 check(await page.evaluate(() => window.__marker === 1), "tap after a swipe: the page was loaded again");
 await context.close();
 
@@ -243,7 +244,10 @@ const saved = await browser.newContext(phone);
   check(/^Einplanen \| (WiSe \d{4}\/\d{2}|SoSe \d{4})$/.test(now.said ?? "") && now.armed, `Merkliste plan: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
   await lift();
   now = await rested("plan");
-  check(now.planned === "1" && now.marked, `Merkliste plan: the Stundenplan counts ${JSON.stringify(now.planned)}, the mark ${now.marked}`);
+  // Planned where it is offered next (the Stundenplan's tab counts the current semester alone, and
+  // says nothing of a module planned into a later one).
+  const planned = await page.evaluate((id) => (localStorage.getItem("betula.studyplan.v1") ?? "").split("\n").some((line) => line.split("\t")[2] === id), now.id);
+  check(planned && now.marked, `Merkliste plan: the module was not planned (${planned}), the mark ${now.marked}`);
 }
 await saved.close();
 

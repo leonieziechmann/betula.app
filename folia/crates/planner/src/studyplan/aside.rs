@@ -51,6 +51,8 @@ use folia_stores::myprogram::MyProgram;
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_shell::frame::ErrorState;
+use folia_shell::pending::same_page;
+use folia_shell::tabs::Tabs;
 use folia_design::ui::{Icon, Shortcut};
 use super::head::blocked_line;
 use super::{full_href, key_of, PlanCtx};
@@ -396,6 +398,14 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
     });
 
     let close = move || ctx.url.with(|url| t.path(&url.with_open(None, None).path()));
+    // Opened from the plan it closes to (the step before in the history): closing its sheet on a
+    // phone goes back that step, as Back does (enhance.js), and the history does not grow.
+    let tabs = Tabs::expect();
+    let back = move || {
+        let page = ctx.url.with(|url| url.with_open(None, None).path());
+        let now = ctx.url.with(|url| url.path());
+        tabs.is_some_and(|tabs| same_page(&tabs.before(&now), &page)).then_some("history")
+    };
     let full = move || ctx.url.with(|url| url.open.as_deref().map(|id| t.path(&full_href(url, id))).unwrap_or_default());
     let id = move || ctx.url.with(|url| url.open.clone().unwrap_or_default());
 
@@ -423,15 +433,15 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
     };
 
     view! {
-        <section class="panel detail aside" id="preview" aria-label=t.studyplan_aside.panel>
+        <section class="panel detail aside is-module" id="preview" aria-label=t.studyplan_aside.panel>
             <div class="scroll" id=SCROLL_ID>
                 <header class="hero">
-                    // No arrow back on a phone as well, where the panel is the page: „Schließen"
-                    // says it, and a phone has no room for both beside „Modul ansehen".
+                    // No arrow back on a phone as well, where the panel is a sheet over the plan:
+                    // „Schließen" says it, and a phone has no room for both beside „Modul ansehen".
                     <div class="hero-top">
                         <span class="mono">{id}</span>
                         <a class="ghost" href=full data-action="fullscreen" title=t.studyplan_aside.full_title><Icon name="maximize-2"/>{t.studyplan_aside.full}<Shortcut keys="F"/></a>
-                        <a class="ghost" href=close data-action="close-detail" title=t.studyplan_aside.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
+                        <a class="ghost" href=close data-action="close-detail" data-back=back data-noscroll="" title=t.studyplan_aside.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     {heading}
                     <Actions ctx going head place table choices/>

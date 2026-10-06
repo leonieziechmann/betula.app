@@ -243,18 +243,11 @@ pub fn CatalogPage() -> impl IntoView {
         }
     });
 
-    // On a phone a module opens as its own page, never as a preview (the preview would fill the
-    // screen anyway, and the page has a history entry of its own to come back from). It takes
-    // along what „Einplanen" aims at (`?plan=…&fill=…`), as the preview's „Vollbild" does.
-    let navigate = use_navigate();
-    Effect::new(move |_| {
-        if let (true, Some(id)) = (phone.get(), open.get()) {
-            let hint = hint.get_untracked().map(|hint| hint.query()).unwrap_or_default();
-            navigate(&format!("{}{hint}", url::module_path(&id)), NavigateOptions { replace: true, ..Default::default() });
-        }
-    });
+    // On a phone the preview is a sheet over the list (owner, 2026-10-06: „wenn man wie bei der
+    // Übersicht nach bereichen so ein menu bekommt, dass sich dann von unten öffnet"; app.css
+    // `.detail.is-module`), its „Vollbild" the module's own page.
     // Coming back from a module's page, the list shows the row the visitor left it at: the
-    // previewed module, or (a phone has no preview) the module whose page was open just before.
+    // previewed module, or the module whose page was open just before.
     // Only the first list of this visit does that; a filter change starts at the top as always.
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
     let left_at = Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), "/catalog/module"));
@@ -359,7 +352,7 @@ pub fn CatalogPage() -> impl IntoView {
             {move || {
                 match going_open.get() {
                     Some(None) => return ().into_any(),
-                    Some(Some(_)) if going.is_some_and(|p| p.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
+                    Some(Some(_)) if going.is_some_and(|p| p.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some() module=true/> }.into_any(),
                     _ => {}
                 }
                 // A path of the app, as `ModulePanel` takes it: the panel writes it as a link.
@@ -372,7 +365,7 @@ pub fn CatalogPage() -> impl IntoView {
                         <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                     }.into_any(),
                     Ok(Some(None)) => view! {
-                        <section class="panel detail">
+                        <section class="panel detail is-module">
                             <div class="state">
                                 <p class="state-title">{t.catalog.module_not_found}</p>
                                 <p>{t.catalog.module_not_in_catalog}</p>

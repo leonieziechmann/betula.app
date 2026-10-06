@@ -571,6 +571,225 @@
     else if (tabSwipe?.glide) settleTabs();
   }, true);
   document.addEventListener("dragstart", (e) => { if (e.target.closest?.(".bottomnav")) e.preventDefault(); });
+
+  // ---- a module's sheet on a phone ----
+  // (owner, 2026-10-06: „wenn man wie bei der Übersicht nach bereichen so ein menu bekommt, dass
+  // sich dann von unten öffnet. Hierbei finde ich, dass es sinn ergeben würde, wenn es sich erstmal
+  // bis zur hälfte oder einemdrittel öffnet und dann kann man nach unten swipen oder es nach oben um
+  // es zu schließen oder den vollen bereich zu verwenden. Achte dabei darauf, dass man auch noch
+  // scrollen können muss in dem fenster.") A module picked in a list comes up from below to half
+  // the screen (app.css `.detail.is-module`), as a phone's own sheets do. A finger on it moves it:
+  // half up, any move up or down, and the content does not scroll yet; all up (`is-full`), a move
+  // down where the content is at its top, else the content scrolls and keeps its scroll to itself.
+  // Pulled up past all up, the rest of the finger's way scrolls the content. Let go, the sheet goes
+  // where it was heading — all up, half up, or down and away, which closes the module — and
+  // flicked, the way of the flick (from all up a flick down goes to half, from half away). A tap on
+  // its grabber takes it all up and back. Closed (pulled away, its ×, a tap beside it), it slides
+  // down and its close link is followed: back through the history where the page without the
+  // module is the step before (`data-back`), so that Back does not bring it again. Esc and Back
+  // close it at once (the page follows the address). A touch beside it moves nothing.
+  const SHEET_FLICK = 0.5; // px per ms
+  const moduleSheet = () => (phone() && appRuns() ? document.querySelector(".detail.is-module") : null);
+  // How far down the sheet is drawn (px; 0 all up).
+  const sheetY = (sheet) => new DOMMatrixReadOnly(getComputedStyle(sheet).transform).m42;
+  // Where it stands half up (app.css --sheet-half: 48 % of the screen from the top).
+  const sheetHalf = (sheet) => Math.max(0, innerHeight * 0.48 - sheet.offsetTop);
+  const closeModule = (sheet) => {
+    const link = sheet.querySelector('[data-action="close-detail"]');
+    if (!link || sheet.classList.contains("is-gone")) return;
+    sheet.classList.add("is-gone");
+    setTimeout(() => {
+      if (!link.isConnected) return;
+      if (link.dataset.back === "history") history.back(); else link.click();
+    }, 200);
+  };
+  let sheetTouch = null;
+  document.addEventListener("touchstart", (e) => {
+    sheetTouch = null;
+    const sheet = moduleSheet();
+    if (!sheet || e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const scroller = sheet.querySelector(":scope > .scroll");
+    const top = sheet.getBoundingClientRect().top;
+    sheetTouch = {
+      sheet, inside: sheet.contains(e.target), scroller, x: t.clientX, y: t.clientY, at: performance.now(),
+      from: sheetY(sheet), full: sheet.classList.contains("is-full"), scrolled: scroller?.scrollTop || 0,
+      grabber: t.clientY - top < 26, mode: null, trail: [],
+    };
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    const s = sheetTouch;
+    if (!s) return;
+    if (e.touches.length !== 1 || !s.sheet.isConnected) { sheetTouch = null; return; }
+    const t = e.touches[0];
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (!s.mode) {
+      if (!s.inside) s.mode = "hold";
+      else if (Math.abs(dx) > Math.abs(dy)) s.mode = "own"; // sideways: the content's (a week, a table)
+      else if (!e.cancelable) s.mode = "own"; // the browser scrolls already
+      else if (!s.full || (dy > 0 && s.scrolled <= 0)) {
+        s.mode = "drag";
+        s.sheet.style.transform = `translateY(${s.from}px)`;
+        s.sheet.classList.add("is-dragging");
+      } else s.mode = "own";
+    }
+    if (s.mode === "own") return;
+    if (e.cancelable) e.preventDefault();
+    if (s.mode !== "drag") return;
+    const y = s.from + dy;
+    // Past all up the content scrolls on with the finger.
+    if (y < 0 && s.scroller) s.scroller.scrollTop = s.scrolled - y;
+    s.sheet.style.transform = `translateY(${Math.max(0, y)}px)`;
+    s.trail.push([performance.now(), y]);
+    if (s.trail.length > 6) s.trail.shift();
+  }, { passive: false });
+  const letGoSheet = () => {
+    const s = sheetTouch;
+    sheetTouch = null;
+    if (!s || !s.sheet.isConnected) return;
+    if (!s.mode && s.inside && s.grabber && performance.now() - s.at < 400) {
+      s.sheet.classList.toggle("is-full");
+      return;
+    }
+    if (s.mode !== "drag") return;
+    const y = sheetY(s.sheet);
+    const half = sheetHalf(s.sheet);
+    // px per ms, from the last moves: positive downwards.
+    const [first, last] = [s.trail[0], s.trail[s.trail.length - 1]];
+    const speed = first && last && last[0] > first[0] && performance.now() - last[0] < 120 ? (last[1] - first[1]) / (last[0] - first[0]) : 0;
+    let to;
+    if (speed > SHEET_FLICK) to = s.full && y < half ? "half" : "gone";
+    else if (speed < -SHEET_FLICK) to = "full";
+    else if (y > half + (innerHeight - half) * 0.3) to = "gone";
+    else to = y < half / 2 ? "full" : "half";
+    s.sheet.style.transform = "";
+    s.sheet.classList.remove("is-dragging");
+    if (to === "gone") closeModule(s.sheet);
+    else s.sheet.classList.toggle("is-full", to === "full");
+  };
+  document.addEventListener("touchend", (e) => { if (!e.touches.length) letGoSheet(); });
+  document.addEventListener("touchcancel", () => {
+    const s = sheetTouch;
+    sheetTouch = null;
+    if (s?.mode === "drag") { s.sheet.style.transform = ""; s.sheet.classList.remove("is-dragging"); }
+  });
+  // Its ×, and a tap beside it: down it slides, then the close link is followed.
+  document.addEventListener("click", (e) => {
+    const sheet = e.isTrusted ? moduleSheet() : null;
+    if (!sheet || e.button !== 0) return;
+    const close = e.target.closest?.('[data-action="close-detail"]');
+    if ((close && sheet.contains(close)) || e.target === root) {
+      e.preventDefault();
+      closeModule(sheet);
+    }
+  }, true);
+  // A module coming in the place of its skeleton or of another module (a link in it) stands where
+  // that stood, without coming up from below again: what was taken away a moment ago was a sheet.
+  let sheetGone = { at: 0, full: false };
+  let sheetWatch = null;
+  document.addEventListener("animationstart", (e) => {
+    if (e.animationName !== "module-sheet-in") return;
+    const sheet = e.target;
+    if (performance.now() - sheetGone.at < 120) {
+      sheet.style.animation = "none";
+      sheet.classList.toggle("is-full", sheetGone.full);
+    }
+    sheetWatch?.disconnect();
+    const parent = sheet.parentNode;
+    if (!parent) return;
+    sheetWatch = new MutationObserver(() => {
+      if (sheet.isConnected) return;
+      sheetGone = { at: sheet.classList.contains("is-gone") ? 0 : performance.now(), full: sheet.classList.contains("is-full") };
+      sheetWatch.disconnect();
+      sheetWatch = null;
+    });
+    sheetWatch.observe(parent, { childList: true });
+  });
+
+  // ---- a tab held: what it holds besides its page ----
+  // (owner, 2026-10-06: „wenn man die buttons in der nav bar lange gedrückt hält, dass dann eine
+  // special aktion kommt. Bei mein Studium währe das dann eine auswahl von Regelstudienplan,
+  // Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch mit [Rechts]klick funktionieren. Bei
+  // dem katalog könnte sich dann gleich der katalog mit offenem Filter öffnen (das wäre aber mobile
+  // only weil auf dem pc ist der ja eh immer offen)"). A finger that stays on a tab of the bar for
+  // TAB_HOLD ms without moving, or a right click (or the menu key) on a tab of the bar or the rail:
+  // a tab the app marked `data-hold="menu"` gets its menu from the app (`betula:tab-menu` on the
+  // tab, folia/crates/shell/src/chrome.rs `TabMenu`); the catalog's (`data-hold="filters"`) opens
+  // the catalog's list with its filters, on a phone only. The touch that held is no tap (its click
+  // goes) and no swipe. The bar's tabs never get the browser's own menu of a link (nor, app.css,
+  // its preview of one).
+  const TAB_HOLD = 420; // ms: a little before the browser's own long press (Android: 400–500)
+  let tabHold = null; // the finger on a tab that may hold: { tab, id, x, y, timer }
+  let tabHeld = false; // the touch on the bar held a tab: its click is no tap
+  const dropHold = () => { clearTimeout(tabHold?.timer); tabHold = null; };
+  const onCatalogList = () => location.pathname === (language().prefix || "") + "/catalog";
+  // The catalog's list with its filters: here at once, else once the tab's list is there.
+  const catalogFilters = (tab) => {
+    if (onCatalogList() && document.getElementById("filters")) { openSheet(); return; }
+    const a = Object.assign(document.createElement("a"), { href: tab.dataset.list || tab.href, hidden: true });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    const until = performance.now() + 6000;
+    const wait = () => {
+      if (onCatalogList() && document.getElementById("filters") && !document.querySelector(".pending-page")) openSheet();
+      else if (performance.now() < until) requestAnimationFrame(wait);
+    };
+    requestAnimationFrame(wait);
+  };
+  // What the tab holds, if it holds anything here: true where it was done.
+  const holdTab = (tab) => {
+    if (!appRuns()) return false;
+    switch (tab.dataset.hold) {
+      case "menu":
+        tab.dispatchEvent(new Event("betula:tab-menu", { bubbles: true }));
+        return true;
+      case "filters":
+        if (!phone()) return false;
+        catalogFilters(tab);
+        return true;
+      default:
+        return false;
+    }
+  };
+  const fireHold = () => {
+    const hold = tabHold;
+    tabHold = null;
+    if (!hold?.tab.isConnected || !holdTab(hold.tab)) return;
+    tabHeld = true;
+    if (tabDrag?.id === hold.id) tabDrag = null;
+    navigator.vibrate?.(8);
+  };
+  document.addEventListener("pointerdown", (e) => {
+    dropHold();
+    tabHeld = false;
+    if (!e.isPrimary || e.pointerType === "mouse" || e.button !== 0) return;
+    const tab = e.target.closest?.(".bottomnav > .nav[data-hold]");
+    if (tab) tabHold = { tab, id: e.pointerId, x: e.clientX, y: e.clientY, timer: setTimeout(fireHold, TAB_HOLD) };
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (tabHold && e.pointerId === tabHold.id && Math.max(Math.abs(e.clientX - tabHold.x), Math.abs(e.clientY - tabHold.y)) >= TAB_SLOP) dropHold();
+  });
+  document.addEventListener("pointerup", (e) => { if (e.pointerId === tabHold?.id) dropHold(); });
+  document.addEventListener("pointercancel", (e) => { if (e.pointerId === tabHold?.id) dropHold(); });
+  document.addEventListener("contextmenu", (e) => {
+    const tab = e.target.closest?.(".bottomnav > .nav, .rail .nav");
+    if (!tab) return;
+    const bar = tab.closest(".bottomnav");
+    if (bar) e.preventDefault();
+    // The browser's long press of a finger comes after ours, or a little before it.
+    if (tabHeld) return;
+    if (tabHold?.tab === tab) { clearTimeout(tabHold.timer); fireHold(); return; }
+    if (holdTab(tab)) { e.preventDefault(); if (bar) tabHeld = true; }
+  });
+  // The click that ends the touch, before anything else hears it: where the hold opened a sheet,
+  // it lands on the dimmed page and would close it again.
+  addEventListener("click", (e) => {
+    if (!tabHeld || !e.isTrusted) return;
+    tabHeld = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
   // A page the browser kept (Back after a page load) shows its own tab's mark again.
   addEventListener("pageshow", (e) => { if (e.persisted) { tabDrag = null; settleTabs(); } });
 

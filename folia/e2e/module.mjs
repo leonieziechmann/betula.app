@@ -235,20 +235,27 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   await page.waitForFunction(() => document.querySelector('.vrow[data-i="88"] a.row'), null, { timeout: 8000 }).catch(() => problems.push("phone: the list did not render its 89th row"));
   const id = await page.evaluate(() => { const row = document.querySelector('.vrow[data-i="88"] a.row'); row.scrollIntoView({ block: "center" }); return row.dataset.id; });
   await page.waitForTimeout(300);
-  await step("phone: a tap opens the module's page", () => page.tap(`a.row[data-id="${id}"]`), (id) => location.pathname === `/catalog/module/${id}` && document.querySelector(".module-page h2"), id);
-  check(!(await page.evaluate(() => location.search.includes("open="))), "phone: the preview was not skipped");
+  // The module comes up as a sheet over the list (owner, 2026-10-06), in the order of its page.
+  await step("phone: a tap opens the module's sheet", () => page.tap(`a.row[data-id="${id}"]`), (id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2"), id);
+  const sheetOrder = await order(page, ".detail.is-module");
+  check(sheetOrder[0] === "Termine" && sheetOrder.indexOf("Auf einen Blick") < sheetOrder.indexOf("Inhalte"), `phone: the sheet does not start with the times and facts: ${sheetOrder}`);
+  // „Vollbild": the module's page, its sidebar a block of actions under it.
+  await page.waitForTimeout(400);
+  await step("phone: „Vollbild“ opens the module's page", () => page.tap('.detail.is-module [data-action="fullscreen"]'), (id) => location.pathname === `/catalog/module/${id}` && document.querySelector(".module-page h2"), id);
   const phoneOrder = await order(page, ".module-page");
   check(phoneOrder[0] === "Termine" && phoneOrder.indexOf("Auf einen Blick") < phoneOrder.indexOf("Inhalte") , `phone: the page does not start with the times and facts: ${phoneOrder}`);
   check(await page.evaluate(() => { const side = document.getElementById("sidebar").getBoundingClientRect(); const article = document.querySelector(".module-page").getBoundingClientRect(); return side.top >= article.bottom - 1 && getComputedStyle(document.querySelector(".toc")).display === "none"; }), "phone: the sidebar is not a block of actions under the module");
-  await step("phone: back returns to the list", () => page.click('[data-action="back"]'), () => location.pathname === "/catalog" && document.querySelector(".rows a.row"));
+  await step("phone: back returns to the list with the sheet", () => page.click('[data-action="back"]'), (id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2"), id);
+  await page.waitForTimeout(500);
+  await step("phone: the sheet closed", () => page.tap('.detail.is-module [data-action="close-detail"]'), () => !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector(".rows a.row"));
   await page.waitForTimeout(500);
   const seen = await page.evaluate((id) => { const row = document.querySelector(`a.row[data-id="${id}"]`)?.getBoundingClientRect(); return row ? row.top >= 0 && row.bottom <= innerHeight : null; }, id);
   check(seen === true, `phone: back on the list the tapped row is ${seen === null ? "not loaded" : "not in view"}`);
 
-  // A shared link with a preview becomes the module's page on a phone.
+  // A shared link with a preview is the list with the module's sheet on a phone.
   const shared = await context.newPage();
   await shared.goto(base + "/catalog?turnus=winter&open=11112", { waitUntil: "domcontentloaded" });
-  await shared.waitForFunction(() => location.pathname === "/catalog/module/11112" && document.querySelector(".module-page h2"), null, { timeout: 120000 }).catch(() => problems.push("phone: a shared preview link did not become the module's page"));
+  await shared.waitForFunction(() => location.pathname === "/catalog" && location.search.includes("open=11112") && document.querySelector(".detail.is-module h2"), null, { timeout: 120000 }).catch(() => problems.push("phone: a shared preview link did not bring the module's sheet"));
   await context.close();
 }
 

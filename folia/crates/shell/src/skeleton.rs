@@ -333,9 +333,12 @@ pub fn DetailSkeleton(
     /// A module was open there already: the panel stays where it is instead of sliding in.
     #[prop(optional)]
     calm: bool,
+    /// What comes is a module: on a phone a sheet over the page (app.css `.detail.is-module`).
+    #[prop(optional)]
+    module: bool,
 ) -> impl IntoView {
     view! {
-        <section class="panel detail sk-detail sk-sweep" class:aside=aside class:calm=calm aria-hidden="true">
+        <section class="panel detail sk-detail sk-sweep" class:aside=aside class:calm=calm class:is-module=module aria-hidden="true">
             <div class="sk-block">
                 {module_head()}
                 {lines(&["sk-w2"])}
