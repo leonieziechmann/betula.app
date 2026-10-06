@@ -1,51 +1,89 @@
-//! The semesters on a phone (owner, 2026-10-05: „das swiping ist richtig komisch das stockt immer
-//! wieder so mach das mal, so dass das flüssig läuft. Das ist ja mittlerweile eh ne onepage
-//! application, da kann man das ja so umsetzen, dass das sich wie eine native app anfühlt"): every
-//! semester a page of its own, side by side in a row that the browser scrolls by itself and stops
-//! at a page, one page a swipe (`scroll-snap`, app.css). What is on two pages lies as far apart as
-//! from the screen's edge (owner, the same day: „dass die Abstände zwischen den boxen genau der
-//! Abstand zum rand ist, so dass sich das nicht doppelt, wenn man swiped"), so a swipe moves the row
-//! by a page and that space, less than a screen. A finger moves the row as it moves any list, on
-//! the browser's own thread, with the browser's fling and its bounce at the ends; nothing of the
-//! app runs while the row moves. ‹ › in a semester's head scroll the row on to the neighbour,
-//! smoothly, the same way. On the first semester a finger to the right goes on to the overview
-//! (`phone.rs`, whose row of two pages this one lies in).
+//! „Mein Studium" on a phone as one row of pages (owner, 2026-10-06: „als erstes muss die landing
+//! page für mein Studium mit auf den pager, so dass man gleich durch swipen kann. Und dann sollten
+//! alle vergangenen Semester auf die linke seite also so dass man nach rechts swipen muss, um die zu
+//! sehen"): the semesters that are over, the overview (`phone.rs`), the current semester and the
+//! ones to come, and after the last the page that adds one, side by side in a row that the browser
+//! scrolls by itself and stops at a page, one page a swipe (`scroll-snap`, app.css). It opens at
+//! the overview: a finger to the left brings the current semester, a finger to the right the last
+//! one that is over. What is on two pages lies as far apart as from the screen's edge (owner,
+//! 2026-10-05: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist, so dass sich
+//! das nicht doppelt, wenn man swiped"), so a swipe moves the row by a page and that space, less
+//! than a screen. A finger moves the row as it moves any list, on the browser's own thread, with
+//! the browser's fling and its bounce at the ends; nothing of the app runs while it does. What a tap
+//! sends the row to (‹ › in a semester's head, past the overview where it lies between two
+//! semesters; the box „Studium planen" and its columns; the way back; Back) it glides to in a
+//! quarter of a second, quick at first and slowing into place, so that the tap shows where the page
+//! lies and the finger learns the way (owner, 2026-10-06: „die Animationen müssen more snappy sein.
+//! Aktuell sind die sehr langsam und träge. Die sind primär dafür da, dass man versteht wie der
+//! positionelle Zusammenhang ist, so dass die gesten intuitiv werden"): the app's frames, not the
+//! browser's smooth scroll, which took 300–430 ms and was slow to begin. (A finger's fling stays
+//! the browser's: it goes on under anything the page does, and the page cannot stop it.)
 //!
-//! The app only hears where the row is (`scroll`): the dots follow the page in the middle, which
-//! alone can be used (the others are inert); and once the row rests (`scrollend`, or no move for
-//! `QUIET` where a browser does not say), the semester there is the one in focus. The row is as
-//! tall as the page it rests at (the others count for nothing, app.css) and at least as tall as
-//! the screen below it, so that a page coming in shows as far down as the screen does; it changes
-//! only at rest, never under a finger. A page comes in from its top wherever the window was
-//! scrolled to in the one before, as the page of an app does (`dom::lift`), and at rest the window
-//! is there (`dom::land`). While rows are selected the row does not move sideways: the finger
-//! selects (`focus.rs`). After the last semester comes the page that adds one.
+//! The app only hears where the row is (`scroll`): the dots follow the page in the middle. Once the
+//! row rests (`scrollend`, or no move for `QUIET` where a browser does not say), the page there is
+//! the one that can be used (the others are inert), the semester there the one in focus, and the
+//! address follows: a semester is a step after the overview (`StudyUrl::plan`), the overview the
+//! step before it again (back through the history where it came before). Back, the box „Studium
+//! planen" and its columns, and the way back at the head move the row in turn. The row is as tall as
+//! the page it rests at (the others count for nothing, app.css) and at least as tall as the screen
+//! below it, so that a page coming in shows as far down as the screen does; it changes only at
+//! rest, never under a finger. A page comes in from its top wherever the window was scrolled to in
+//! the one before, as the page of an app does (`dom::lift`), and at rest the window is there
+//! (`dom::land`). While rows are selected the row does not move sideways: the finger selects
+//! (`focus.rs`).
 //!
-//! The semesters come with the page they open at and its neighbours drawn; the others follow once
-//! they are in view, two a step (`DRAW`), and any page stays drawn once a finger has brought it
-//! near, so that they are there at once however many semesters there are.
+//! The row comes with the page it opens at and its neighbours drawn; the others follow once it is
+//! there, two a step (`DRAW`), and the neighbours of a page the row comes to rest at at once: never
+//! while a finger is on the row or it moves, whose frames the drawing would take.
 
 use std::time::Duration;
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::When;
+use folia_routes::url::{self, StudyUrl};
 use leptos::html::Div;
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
+
+use folia_shell::pending::Pending;
 
 use super::focus::{NewSemester, SemesterCard};
+use super::phone::Overview;
 use super::{dom, Selection, StudyCtx};
 
 /// How long after its last move the row is taken to rest where the browser does not say so
 /// (`scrollend`).
-pub(super) const QUIET: Duration = Duration::from_millis(120);
-/// When the pages beyond the neighbours are drawn: once the semesters are in view (and have slid
-/// in, app.css), the next two after each step.
+const QUIET: Duration = Duration::from_millis(120);
+/// When the pages beyond the neighbours are drawn: once the page the row opened at is there, the
+/// next two after each step.
 const DRAW: Duration = Duration::from_millis(320);
 const DRAW_STEP: Duration = Duration::from_millis(16);
 
+/// A page of the row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(super) enum Page {
+    /// The overview, between the semesters that are over and the current one.
+    Overview,
+    /// A semester; the one after the last is the page that adds it.
+    Semester(SemesterKey),
+}
+
+/// The pages of a study whose semesters are `semesters` (each with whether it is over), in their
+/// order: the semesters that are over, the overview, the current one and the ones to come, and the
+/// page that adds one after the last.
+fn order_of(semesters: &[(SemesterKey, bool)]) -> Vec<Page> {
+    let over = semesters.iter().take_while(|(_, over)| *over).count();
+    let mut pages: Vec<Page> = semesters.iter().map(|(key, _)| Page::Semester(*key)).collect();
+    if let Some(end) = semesters.last().and_then(|(last, _)| last.plus(1)) {
+        pages.push(Page::Semester(end));
+    }
+    pages.insert(over, Page::Overview);
+    pages
+}
+
 /// The page of `count` nearest to the middle of a row scrolled `x` px whose pages rest `step` px
 /// apart, and whether the row rests there (to a px or two: scrolling rounds).
-pub(super) fn card_at(x: f64, step: f64, count: usize) -> (usize, bool) {
+fn card_at(x: f64, step: f64, count: usize) -> (usize, bool) {
     if step <= 0.0 || count == 0 {
         return (0, false);
     }
@@ -53,49 +91,79 @@ pub(super) fn card_at(x: f64, step: f64, count: usize) -> (usize, bool) {
     (index, (x - index as f64 * step).abs() <= 2.0)
 }
 
-/// The row of semesters: the semesters in order, the page in view and the one the row rests at.
-/// `focus.rs` turns it by ‹ › through `turn_to`, found as context.
+/// The address of a semester's page.
+pub(super) fn plan_path() -> String {
+    StudyUrl::default().with_plan(true).path()
+}
+
+/// The page the address and the focus put the row at: the semester in focus where the address
+/// says a semester, else the overview. Tracked.
+fn wanted(ctx: StudyCtx) -> Option<Page> {
+    if ctx.url.with(|url| url.plan) {
+        ctx.focused().map(Page::Semester)
+    } else {
+        Some(Page::Overview)
+    }
+}
+
+/// How long the row glides to a page a tap sends it to, `pages` away (owner, 2026-10-06: „die
+/// Animationen müssen more snappy sein. Aktuell sind die sehr langsam und träge. Die sind primär
+/// dafür da, dass man versteht wie der positionelle Zusammenhang ist, so dass die gesten intuitiv
+/// werden"): 240 ms for one, 40 ms more for each further one, at most 360 ms. (The browser's own
+/// smooth scroll took 300 ms for one and 430 ms for two, slow to begin.)
+fn glide_ms(pages: f64) -> f64 {
+    (240.0 + 40.0 * (pages - 1.0).max(0.0)).min(360.0)
+}
+
+/// Quick at first and slowing into place: the share of the way at the share `t` of the time.
+fn ease_out(t: f64) -> f64 {
+    1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(3)
+}
+
+/// The glide under way (`Pages::glide_to`): its number, which a newer glide changes so that its
+/// frames stop, and the page it goes to.
+#[derive(Clone, Copy, Debug, Default)]
+struct Glide {
+    number: u32,
+    to: Option<usize>,
+}
+
+/// The row of pages: the pages in order, the page in view and the one the row rests at. `focus.rs`
+/// turns it by ‹ › through `turn_to`, found as context.
 #[derive(Clone, Copy)]
-pub(super) struct Cards {
+pub(super) struct Pages {
     ctx: StudyCtx,
-    /// The semesters in order, then the page that adds one.
-    order: Memo<Vec<SemesterKey>>,
-    /// The page in the middle of the screen, as the row moves: the dots follow it, and it alone
-    /// can be used.
+    order: Memo<Vec<Page>>,
+    /// The page in the middle of the screen, as the row moves: the dots follow it.
     shown: RwSignal<usize>,
-    /// The page the row rests at: the row is as tall as it.
+    /// The page the row rests at: it alone can be used, the row is as tall as it, and the address
+    /// says it.
     here: RwSignal<usize>,
-    /// The row has been placed at the semester in focus (the first time at once).
+    /// The row has been placed where the address says (the first time at once).
     placed: StoredValue<bool>,
     quiet: StoredValue<Option<TimeoutHandle>>,
     /// The pages it does not rest at are drawn from their tops (`dom::lift`).
     lifted: StoredValue<bool>,
     /// A finger is on the row.
     touching: StoredValue<bool>,
+    glide: StoredValue<Glide>,
+    /// A glide that waits for the row to rest (`glide_to`): where to, in how long.
+    waiting: StoredValue<Option<(usize, f64)>>,
     node: NodeRef<Div>,
-    /// The semesters are the page of a phone the row of pages rests at (`phone.rs`): elsewhere the
-    /// row goes to a semester at once, and draws no more than it opened with.
-    visible: Signal<bool>,
     /// The page the row opened at, and how far from it the pages are drawn.
     start: usize,
     reach: RwSignal<usize>,
+    going: Option<Pending>,
 }
 
-impl Cards {
-    pub fn new(ctx: StudyCtx, visible: Signal<bool>) -> Self {
+impl Pages {
+    pub fn new(ctx: StudyCtx) -> Self {
         let order = Memo::new(move |_| {
-            ctx.with_ready(|ready| {
-                let mut keys: Vec<SemesterKey> = ready.study.semesters.iter().map(|semester| semester.key).collect();
-                if let Some(end) = keys.last().and_then(|last| last.plus(1)) {
-                    keys.push(end);
-                }
-                keys
-            })
-            .unwrap_or_default()
+            ctx.with_ready(|ready| order_of(&ready.study.semesters.iter().map(|semester| (semester.key, semester.when == When::Past)).collect::<Vec<_>>())).unwrap_or_default()
         });
-        // Where the row opens: the semester in focus, drawn as the page in view from the start.
-        let start = untrack(|| ctx.focused().and_then(|focused| order.with(|order| order.iter().position(|key| *key == focused)))).unwrap_or(0);
-        Cards {
+        // Where the row opens: where the address says, drawn as the page in view from the start.
+        let start = untrack(|| wanted(ctx).and_then(|page| order.with(|order| order.iter().position(|other| *other == page)))).unwrap_or(0);
+        Pages {
             ctx,
             order,
             shown: RwSignal::new(start),
@@ -104,23 +172,32 @@ impl Cards {
             quiet: StoredValue::new(None),
             lifted: StoredValue::new(false),
             touching: StoredValue::new(false),
+            glide: StoredValue::new(Glide::default()),
+            waiting: StoredValue::new(None),
             node: NodeRef::new(),
-            visible,
             start,
             reach: RwSignal::new(1),
+            going: Pending::expect(),
         }
     }
 
-    /// Whether the page at `index` is drawn: near the one the row opened at, or near the page in
-    /// view. Tracked.
+    /// The page the row rests at. Tracked.
+    pub fn here(self) -> Option<Page> {
+        let here = self.here.get();
+        self.order.with(|order| order.get(here).copied())
+    }
+
+    /// Whether the page at `index` is drawn: near the one the row opened at, or next to the one it
+    /// rests at. Tracked.
     fn near(self, index: usize) -> bool {
-        index.abs_diff(self.start) <= self.reach.get() || index.abs_diff(self.shown.get()) <= 1
+        index.abs_diff(self.start) <= self.reach.get() || index.abs_diff(self.here.get()) <= 1
     }
 
     /// The pages further out, two a step, until all are drawn; not while a finger is on the row or
     /// it moves, whose frames the drawing would take.
     fn draw_on(self) {
-        if self.touching.get_value() || self.quiet.with_value(Option::is_some) {
+        let Some(busy) = self.touching.try_get_value().zip(self.quiet.try_with_value(Option::is_some)).map(|(touching, moving)| touching || moving) else { return };
+        if busy {
             set_timeout(move || self.draw_on(), QUIET);
             return;
         }
@@ -133,13 +210,8 @@ impl Cards {
         }
     }
 
-    fn index_of(self, key: SemesterKey) -> Option<usize> {
-        self.order.with_untracked(|order| order.iter().position(|other| *other == key))
-    }
-
-    /// The semester at `index` in the row, the page that adds one after the last.
-    fn key_at(self, index: usize) -> Option<SemesterKey> {
-        self.order.with_untracked(|order| order.get(index).copied())
+    fn index_of(self, page: Page) -> Option<usize> {
+        self.order.with_untracked(|order| order.iter().position(|other| *other == page))
     }
 
     /// Where the row is: the page in the middle, whether it rests there.
@@ -157,7 +229,8 @@ impl Cards {
         self.touching.set_value(down);
     }
 
-    /// The pages coming in are drawn from their tops (a finger on the row, a turn by ‹ ›).
+    /// The pages coming in are drawn from their tops (a finger on the row, the row sent on by ‹ ›,
+    /// a tap or the address).
     fn lift(self) {
         if let Some(row) = self.node.get_untracked() {
             dom::lift(&row);
@@ -165,16 +238,82 @@ impl Cards {
         }
     }
 
-    /// Turns to `to` (‹ ›): the row scrolls there as a finger would have it.
+    /// Turns to semester `to` (‹ ›): the row glides there.
     pub fn turn_to(self, to: SemesterKey) {
-        let (Some(row), Some(index)) = (self.node.get_untracked(), self.index_of(to)) else {
-            self.ctx.focus.set(Some(to));
-            return;
-        };
-        if let Some((_, step)) = dom::scrolled_cards(&row) {
-            self.lift();
-            dom::scroll_row_to(&row, index as f64 * step, true);
+        match self.index_of(Page::Semester(to)) {
+            Some(index) => self.go(index),
+            None => self.ctx.focus.set(Some(to)),
         }
+    }
+
+    /// The row glides to the page at `index`, in a time by how far it is (`glide_ms`).
+    fn go(self, index: usize) {
+        let Some(row) = self.node.get_untracked() else { return };
+        if let Some((x, step)) = dom::scrolled_cards(&row) {
+            self.glide_to(index, glide_ms((index as f64 * step - x).abs() / step));
+        }
+    }
+
+    /// The row glides to the page at `index` in `ms`, quick at first and slowing into place, as the
+    /// page of an app slides, its frames the app's (`frame`): its own snap is held off meanwhile and
+    /// no finger moves it (app.css `is-held`, `is-gliding`), the pages coming in drawn from their
+    /// tops. At once for a visitor who asks for less motion. At the end the row rests there. While a
+    /// finger holds the row or the browser still moves it after one (a fling, its snap), the glide
+    /// waits until the row rests: the browser's moves would go on under it.
+    fn glide_to(self, index: usize, ms: f64) {
+        let Some(row) = self.node.get_untracked() else { return };
+        let gliding = self.glide.with_value(|glide| glide.to.is_some());
+        let moving = self.quiet.with_value(Option::is_some) && !self.at().is_some_and(|(_, rests)| rests);
+        if !gliding && (self.touching.get_value() || moving) {
+            // The latest wins: the first of the waits to come round takes it.
+            self.waiting.set_value(Some((index, ms)));
+            set_timeout(
+                move || {
+                    if let Some(Some((index, ms))) = self.waiting.try_get_value() {
+                        self.waiting.set_value(None);
+                        self.glide_to(index, ms);
+                    }
+                },
+                QUIET,
+            );
+            return;
+        }
+        if !self.lifted.get_value() {
+            self.lift();
+        }
+        let number = self.glide.with_value(|glide| glide.number.wrapping_add(1));
+        self.glide.set_value(Glide { number, to: Some(index) });
+        dom::mark(&row, "is-held", true);
+        dom::mark(&row, "is-gliding", true);
+        let ms = if dom::still() { 0.0 } else { ms };
+        let start = dom::now();
+        request_animation_frame(move || self.frame(number, None, start, ms));
+    }
+
+    /// A frame of the glide `number`: the row its share of the way on from where it was in the
+    /// glide's first frame (`from`), until it is there.
+    fn frame(self, number: u32, from: Option<f64>, start: f64, ms: f64) {
+        let Some(Glide { number: now, to: Some(to) }) = self.glide.try_get_value() else { return };
+        if now != number {
+            return;
+        }
+        let Some(row) = self.node.get_untracked() else { return };
+        // A row without a width (gone from view) ends its glide at once.
+        let mut t = 1.0;
+        let mut from = from;
+        if let Some((x, step)) = dom::scrolled_cards(&row) {
+            let begun = *from.get_or_insert(x);
+            t = if ms > 0.0 { (dom::now() - start) / ms } else { 1.0 };
+            dom::scroll_row_to(&row, begun + (to as f64 * step - begun) * ease_out(t));
+        }
+        if t < 1.0 {
+            request_animation_frame(move || self.frame(number, from, start, ms));
+            return;
+        }
+        self.glide.update_value(|glide| glide.to = None);
+        dom::mark(&row, "is-gliding", false);
+        dom::mark(&row, "is-held", false);
+        self.settle();
     }
 
     /// The row moved: the page in the middle, and the rest once nothing moves for a while. A row
@@ -195,12 +334,16 @@ impl Cards {
         self.quiet.set_value(set_timeout_with_handle(move || self.settle(), QUIET).ok());
     }
 
-    /// The row rests: the semester there is the one in focus, shown from its top. Between two
-    /// pages a finger still holds it, and the row's own snap comes after.
+    /// The row rests: at another page, the window shows it from its top, the semester there is the
+    /// one in focus, and the address follows. Not while it glides (its last frame settles it); between
+    /// two pages a finger still holds it.
     fn settle(self) {
         if let Some(handle) = self.quiet.get_value() {
             handle.clear();
             self.quiet.set_value(None);
+        }
+        if self.glide.with_value(|glide| glide.to.is_some()) {
+            return;
         }
         let Some((index, true)) = self.at() else { return };
         if index != self.shown.get_untracked() {
@@ -215,42 +358,69 @@ impl Cards {
             return;
         }
         self.here.set(index);
-        if let Some(key) = self.key_at(index) {
+        let Some(page) = self.order.with_untracked(|order| order.get(index).copied()) else { return };
+        if let Page::Semester(key) = page {
             self.ctx.focus.set(Some(key));
+        }
+        self.follow(page);
+    }
+
+    /// The address follows the page the row came to rest at: a semester a step after the overview,
+    /// the overview back through the history where it was the step before.
+    fn follow(self, page: Page) {
+        let plan = page != Page::Overview;
+        if self.ctx.url.with_untracked(|url| url.plan) == plan {
+            return;
+        }
+        if !plan && self.ctx.from_overview.get_untracked() {
+            dom::history_back();
+            return;
+        }
+        let to = if plan { plan_path() } else { url::STUDY.to_string() };
+        if let Some(going) = self.going {
+            going.go(&to, NavigateOptions { scroll: false, ..Default::default() });
         }
     }
 
-    /// The row at the semester in focus: where it opens (at once), and where a semester is chosen
-    /// otherwise, a row's „Einplanen", one added, a column of the overview's box (smoothly while
-    /// the semesters are in view, else at once). A row not laid out yet is placed in a frame to
-    /// come (`tries` more).
+    /// The row at the page at `index`: at once where it opens, gliding where the address or the
+    /// focus moves it (Back, the box „Studium planen", the way back at the head, a row's „Einplanen",
+    /// a semester added); nothing where it is there or on its way there already. A row not laid out
+    /// yet is placed in a frame to come (`tries` more).
     fn place(self, index: usize, tries: u8) {
         let Some(row) = self.node.get_untracked() else { return };
         let first = !self.placed.get_value();
-        if !first && index == self.here.get_untracked() {
+        let heading = self.glide.with_value(|glide| glide.to).or_else(|| self.waiting.with_value(|waiting| waiting.map(|(to, _)| to))).unwrap_or_else(|| self.here.get_untracked());
+        if !first && index == heading {
             return;
         }
-        let Some((_, step)) = dom::scrolled_cards(&row) else {
+        let Some((x, step)) = dom::scrolled_cards(&row) else {
             if tries > 0 {
                 request_animation_frame(move || self.place(index, tries - 1));
             }
             return;
         };
-        let smooth = !first && self.visible.get_untracked();
-        if smooth {
-            self.lift();
-        }
-        dom::scroll_row_to(&row, index as f64 * step, smooth);
-        if !smooth {
+        if first {
+            dom::scroll_row_to(&row, index as f64 * step);
             self.placed.set_value(true);
             self.shown.set(index);
             self.here.set(index);
+        } else {
+            self.glide_to(index, glide_ms((index as f64 * step - x).abs() / step));
         }
+    }
+
+    /// The glide under way stops, and none waits (the row goes).
+    fn stop(self) {
+        self.glide.try_update_value(|glide| {
+            glide.number = glide.number.wrapping_add(1);
+            glide.to = None;
+        });
+        self.waiting.try_set_value(None);
     }
 }
 
 #[component]
-pub(super) fn Pager(ctx: StudyCtx, cards: Cards) -> impl IntoView {
+pub(super) fn Pager(ctx: StudyCtx, pages: Pages) -> impl IntoView {
     // What is selected belongs to the semester in focus: turning to another lets go of it.
     Effect::new(move |_| {
         let now = ctx.focused();
@@ -258,54 +428,74 @@ pub(super) fn Pager(ctx: StudyCtx, cards: Cards) -> impl IntoView {
             ctx.selection.set(Selection::default());
         }
     });
+    // The row follows the address: to the semester in focus where it says a semester (Back, the
+    // box „Studium planen" and its columns), to the overview where it does not (the way back).
+    let plan = Memo::new(move |_| ctx.url.with(|url| url.plan));
     Effect::new(move |_| {
-        if cards.node.get().is_none() {
+        let plan = plan.get();
+        if pages.node.get().is_none() {
             return;
         }
-        let index = ctx.focused().and_then(|focused| cards.order.with(|order| order.iter().position(|key| *key == focused)));
-        if let Some(index) = index {
-            cards.place(index, 10);
+        let page = untrack(|| if plan { ctx.focused().map(Page::Semester) } else { Some(Page::Overview) });
+        if let Some(index) = page.and_then(|page| pages.order.with_untracked(|order| order.iter().position(|other| *other == page))) {
+            pages.place(index, 10);
         }
+    });
+    // And the focus, where the row rests at a semester (a row's „Einplanen", a semester added); at
+    // the overview the address moves it.
+    Effect::new(move |before: Option<Option<usize>>| {
+        let index = ctx.focused().and_then(|focused| pages.order.with(|order| order.iter().position(|other| *other == Page::Semester(focused))));
+        if before.is_some() && before != Some(index) && untrack(|| pages.here()).is_some_and(|here| here != Page::Overview) {
+            if let Some(index) = index {
+                pages.place(index, 10);
+            }
+        }
+        index
     });
     // A finger on the row: the pages coming in are drawn from their tops before it moves.
     Effect::new(move |_| {
-        if let Some(row) = cards.node.get() {
-            dom::on_finger(&row, move |down| cards.finger(down));
+        if let Some(row) = pages.node.get() {
+            dom::on_finger(&row, move |down| pages.finger(down));
         }
     });
-    // The pages further out once the semesters are in view.
-    Effect::new(move |started: Option<bool>| {
-        if started == Some(true) || !cards.visible.get() {
-            return started.unwrap_or(false);
+    // The pages further out, once the page the row opened at is there.
+    set_timeout(move || pages.draw_on(), DRAW);
+    on_cleanup(move || {
+        pages.stop();
+        if let Some(Some(handle)) = pages.quiet.try_get_value() {
+            handle.clear();
         }
-        set_timeout(move || cards.draw_on(), DRAW);
-        true
     });
     let slots = Memo::new(move |_| {
-        cards.order.with(|order| {
+        pages.order.with(|order| {
             let last = order.len().saturating_sub(1);
-            order.iter().enumerate().map(|(i, key)| (*key, i == last)).collect::<Vec<_>>()
+            order.iter().enumerate().map(|(i, page)| (*page, i == last)).collect::<Vec<_>>()
         })
     });
     let selecting = Memo::new(move |_| ctx.selection.with(|selection| !selection.keys.is_empty()));
     view! {
-        <div class="st-pager" class:is-selecting=selecting node_ref=cards.node on:scroll=move |_| cards.moved() on:scrollend=move |_| cards.settle()>
+        <div class="st-pager" class:is-selecting=selecting node_ref=pages.node on:scroll=move |_| pages.moved() on:scrollend=move |_| pages.settle()>
             <For
                 each=move || slots.get()
-                key=|(key, end)| (*key, *end)
-                children=move |(key, end)| {
-                    let index = Memo::new(move |_| cards.order.with(|order| order.iter().position(|other| *other == key)));
-                    let shown = Memo::new(move |_| index.get() == Some(cards.shown.get()));
+                key=|(page, end)| (*page, *end)
+                children=move |(page, end)| {
+                    let index = Memo::new(move |_| pages.order.with(|order| order.iter().position(|other| *other == page)));
+                    let here = Memo::new(move |_| index.get().is_some_and(|index| index == pages.here.get()));
                     // Once drawn, drawn.
-                    let drawn = Memo::new(move |before: Option<&bool>| before.copied().unwrap_or(false) || index.get().is_some_and(|index| cards.near(index)));
+                    let drawn = Memo::new(move |before: Option<&bool>| before.copied().unwrap_or(false) || index.get().is_some_and(|index| pages.near(index)));
                     view! {
                         <div
                             class="st-slot"
-                            data-here=move || (index.get() == Some(cards.here.get())).then_some("")
-                            inert=move || !shown.get()
-                            aria-hidden=move || (!shown.get()).then_some("true")
+                            class:is-overview=page == Page::Overview
+                            data-here=move || here.get().then_some("")
+                            inert=move || !here.get()
+                            aria-hidden=move || (!here.get()).then_some("true")
                         >
-                            {move || drawn.get().then(|| if end { view! { <NewSemester ctx/> }.into_any() } else { view! { <SemesterCard ctx semester=key/> }.into_any() })}
+                            {move || drawn.get().then(|| match page {
+                                Page::Overview => view! { <Overview ctx/> }.into_any(),
+                                Page::Semester(_) if end => view! { <NewSemester ctx/> }.into_any(),
+                                Page::Semester(key) => view! { <SemesterCard ctx semester=key/> }.into_any(),
+                            })}
                         </div>
                     }
                 }
@@ -314,21 +504,19 @@ pub(super) fn Pager(ctx: StudyCtx, cards: Cards) -> impl IntoView {
     }
 }
 
-/// Where the page in view stands among the semesters: a dot each, the current one ringed.
+/// Where the page in view stands in the row: a dot each, the overview's a little square between the
+/// semesters that are over and the current one, the current one's ringed.
 #[component]
-pub(super) fn Dots(ctx: StudyCtx, cards: Cards) -> impl IntoView {
+pub(super) fn Dots(ctx: StudyCtx, pages: Pages) -> impl IntoView {
+    let now = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semesters.iter().find(|semester| semester.when == When::Now).map(|semester| semester.key)).flatten());
     let dots = Memo::new(move |_| {
-        let shown = cards.shown.get();
-        ctx.with_ready(|ready| {
-            let mut dots: Vec<(bool, bool)> = ready.study.semesters.iter().enumerate().map(|(i, semester)| (i == shown, semester.when == When::Now)).collect();
-            dots.push((shown == dots.len(), false));
-            dots
-        })
-        .unwrap_or_default()
+        let shown = pages.shown.get();
+        let now = now.get();
+        pages.order.with(|order| order.iter().enumerate().map(|(i, page)| (i == shown, *page == Page::Overview, now.is_some_and(|now| *page == Page::Semester(now)))).collect::<Vec<_>>())
     });
     view! {
         <div class="st-dots" aria-hidden="true">
-            {move || dots.get().into_iter().map(|(here, now)| view! { <span class:here=here class:now=now></span> }).collect_view()}
+            {move || dots.get().into_iter().map(|(here, overview, now)| view! { <span class:here=here class:overview=overview class:now=now></span> }).collect_view()}
         </div>
     }
 }
@@ -336,6 +524,10 @@ pub(super) fn Dots(ctx: StudyCtx, cards: Cards) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn key(text: &str) -> SemesterKey {
+        SemesterKey::parse(text).unwrap()
+    }
 
     /// The page nearest to the middle, and whether the row rests at it: to a px or two, as
     /// scrolling rounds; never past the last. A screen 390 px wide: pages 366 px wide, their
@@ -352,5 +544,36 @@ mod tests {
         assert_eq!(card_at(100.0, 0.0, 7), (0, false), "no width yet");
         // A screen of a fraction of a px: the row rests at a page all the same, far along.
         assert_eq!(card_at(3994.0, 399.43, 12), (10, true));
+    }
+
+    /// The semesters that are over to the left of the overview, the current one and the ones to
+    /// come to its right, the page that adds one at the end (owner, 2026-10-06).
+    #[test]
+    fn the_overview_lies_between_what_is_over_and_what_comes() {
+        let semesters = [(key("2025W"), true), (key("2026S"), true), (key("2026W"), false), (key("2027S"), false)];
+        assert_eq!(
+            order_of(&semesters),
+            [Page::Semester(key("2025W")), Page::Semester(key("2026S")), Page::Overview, Page::Semester(key("2026W")), Page::Semester(key("2027S")), Page::Semester(key("2027W"))]
+        );
+        assert_eq!(order_of(&semesters[2..])[0], Page::Overview, "nothing over yet: the overview first");
+        assert_eq!(order_of(&semesters[..2]), [Page::Semester(key("2025W")), Page::Semester(key("2026S")), Page::Overview, Page::Semester(key("2026W"))], "all over: the page that adds one after it");
+        assert_eq!(order_of(&[]), [Page::Overview]);
+    }
+
+    /// A glide: a quarter of a second for a page a tap sends the row to, a little more further,
+    /// never long; quick at first.
+    #[test]
+    fn the_row_glides_quickly() {
+        assert_eq!(glide_ms(1.0), 240.0);
+        assert_eq!(glide_ms(2.0), 280.0);
+        assert_eq!(glide_ms(9.0), 360.0);
+        assert_eq!(ease_out(0.0), 0.0);
+        assert_eq!(ease_out(1.0), 1.0);
+        assert!(ease_out(0.25) > 0.55, "more than half the way in a quarter of the time");
+    }
+
+    #[test]
+    fn a_semester_has_an_address_of_its_own() {
+        assert_eq!(plan_path(), "/study?plan=1");
     }
 }

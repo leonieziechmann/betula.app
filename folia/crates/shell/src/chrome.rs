@@ -115,9 +115,9 @@ pub fn Rail() -> impl IntoView {
 /// der semester ansicht ist, soll es oben links neben der search bar im gleichen style eine
 /// quadratische box sein mit einem zurück pfeil"): a box as the search is and as wide as it is
 /// high, an arrow in it. A page with a step below its first one puts it there while that step
-/// shows (the semesters of „Mein Studium", below its overview) and takes it away when it goes;
-/// the box slides in and out, and the search makes room for it (app.css). The browser app's alone,
-/// and a wide screen has none.
+/// shows (a semester of „Mein Studium", on either side of its overview) and takes it away when it
+/// goes; the box slides in and out, and the search makes room for it (app.css). The browser app's
+/// alone, and a wide screen has none.
 #[derive(Clone, Copy)]
 pub struct TopBack(RwSignal<Option<Back>>);
 
