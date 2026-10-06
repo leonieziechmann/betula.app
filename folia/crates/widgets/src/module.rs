@@ -41,11 +41,12 @@ use leptos_meta::Title;
 use folia_stores::bookmarks::{MarkButton, MarkLook};
 use folia_data::use_data;
 use folia_design::format;
-use crate::i18n::{self, Locale, Texts};
+use crate::i18n::{self, use_location, Locale, Texts};
 use folia_stores::myprogram::MyProgram;
 use folia_shell::seo::{self, Seo};
 use folia_stores::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
-use folia_shell::tabs::Area;
+use folia_shell::pending::same_page;
+use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::{BackLink, Frame};
 use folia_design::ui::{Fact, Icon, JsOnly, KindBadge, OfferBadge, Prose, Shortcut};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
@@ -399,16 +400,27 @@ pub fn ModulePanel(
             (None, None) => t.path(&url::module_path(&id)),
         }
     };
+    // Opened from the page it closes to (the step before in the history): closing it on a phone,
+    // where it is a sheet over that page, goes back that step, as Back does (enhance.js), and the
+    // history does not grow.
+    let back = {
+        let (location, tabs, page) = (use_location(), Tabs::expect(), close_href.clone());
+        move || {
+            let now = tabs::location_of(&location.pathname.get(), &location.search.get());
+            tabs.is_some_and(|tabs| same_page(&tabs.before(&now), &page)).then_some("history")
+        }
+    };
     let close_href = t.path(&close_href);
     view! {
-        <section class="panel detail" class:aside=docked id="preview" aria-label=t.module.preview>
+        <section class="panel detail is-module" class:aside=docked id="preview" aria-label=t.module.preview>
             <div class="scroll" data-keep-scroll="detail">
                 <header class="hero">
                     <div class="hero-top">
-                        <a class="icon-btn back" href=close_href.clone() aria-label=t.module.close_preview><Icon name="arrow-left"/></a>
+                        // Closing it leaves the page where it is (on a phone the window is what scrolls).
+                        <a class="icon-btn back" href=close_href.clone() data-noscroll="" aria-label=t.module.close_preview><Icon name="arrow-left"/></a>
                         <span class="mono">{id.clone()}</span>
                         <a class="ghost" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="F"/></a>
-                        <a class="ghost" href=close_href data-action="close-detail" title=t.module.close_preview_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
+                        <a class="ghost" href=close_href data-action="close-detail" data-back=back data-noscroll="" title=t.module.close_preview_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     <Heading data=data.clone() hint/>
                 </header>

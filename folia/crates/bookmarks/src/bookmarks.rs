@@ -108,12 +108,12 @@ pub fn BookmarksPage() -> impl IntoView {
         DataError::or_before(list_source.clone().and_then(|source| source.now(&BookmarksAsk { ids, sort, descending })), before)
     });
 
-    // What fills the page: the list, or the module opened from it where that is shown in full —
-    // after „Vollbild", and on a phone, where nothing stands beside a page, whatever is opened
-    // (`local`). What is listed stays meanwhile: a mark taken away on the module's page leaves the
-    // module on the list, dimmed, as it does in the preview.
+    // What fills the page: the list, or the module opened from it after „Vollbild" (`local`; until
+    // then it stands beside the list, on a phone a sheet over it). What is listed stays meanwhile:
+    // a mark taken away on the module's page leaves the module on the list, dimmed, as it does in
+    // the preview.
     let phone = phone_layout();
-    let filling = Memo::new(move |_| url.with(|url| folia_routes::local::filling(url, phone.get())));
+    let filling = Memo::new(move |_| url.with(folia_routes::local::filling));
     let preview = Memo::new(move |before| {
         let now = match open.get() {
             None => Ok(None),
@@ -137,7 +137,7 @@ pub fn BookmarksPage() -> impl IntoView {
     (move || {
         if let Some(id) = filling.get() {
             left_at.set_value(Some(id.clone()));
-            let back = url.with_untracked(|url| folia_routes::local::back_href(url, phone.get_untracked()));
+            let back = url.with_untracked(folia_routes::local::back_href);
             return view! { <ModuleInPlace id area=Area::Bookmarks back/> }.into_any();
         }
         if let Some(id) = left_at.try_update_value(Option::take).flatten() {
@@ -168,7 +168,7 @@ pub fn BookmarksPage() -> impl IntoView {
                 {move || {
                     match going_open.get() {
                         Some(None) => return ().into_any(),
-                        Some(Some(_)) if going.is_some_and(|going| going.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some()/> }.into_any(),
+                        Some(Some(_)) if going.is_some_and(|going| going.waits(Change::Preview)) => return view! { <DetailSkeleton calm=open.get_untracked().is_some() module=true/> }.into_any(),
                         _ => {}
                     }
                     let here = url.get();
@@ -399,7 +399,7 @@ fn List(data: BookmarksData, season: Option<Season>, sort: BookmarkSort, descend
                 let (target, id, here) = (row.id.clone(), row.id.clone(), here.clone());
                 let preview = Signal::derive(move || here.with_open(Some(&target)).path());
                 let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program=false dim_unmarked=true in_place=true shaded=index % 2 == 1 swipe=true/> }
+                view! { <Row row preview current phone with_program=false dim_unmarked=true shaded=index % 2 == 1 swipe=true/> }
             }).collect_view()}
             {(!missing.is_empty()).then(|| view! {
                 <div class="sem">{t.bookmarks.not_in_catalog}</div>

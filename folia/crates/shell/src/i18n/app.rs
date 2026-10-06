@@ -29,6 +29,12 @@ pub struct Texts {
     pub search_programs_placeholder: &'static str,
     pub search_modules: &'static str,
     pub search_modules_placeholder: &'static str,
+    /// What the tab of „Studium" holds besides its page (a long press, a right click): the
+    /// menu's name, and its ways.
+    pub shortcuts: fn(&str) -> String,
+    pub to_plan: &'static str,
+    pub to_areas: &'static str,
+    pub all_programs: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -53,6 +59,10 @@ pub const DE: Texts = Texts {
     search_programs_placeholder: "Studiengang suchen",
     search_modules: "Module suchen",
     search_modules_placeholder: "Modul, Nummer oder Thema suchen",
+    shortcuts: |area| format!("{area}: Abkürzungen"),
+    to_plan: "Regelstudienplan",
+    to_areas: "Wahlpflicht & Bereiche",
+    all_programs: "Alle Studiengänge",
 };
 
 pub const EN: Texts = Texts {
@@ -77,4 +87,8 @@ pub const EN: Texts = Texts {
     search_programs_placeholder: "Search degree programmes",
     search_modules: "Search modules",
     search_modules_placeholder: "Search modules, numbers or topics",
+    shortcuts: |area| format!("{area}: shortcuts"),
+    to_plan: "Standard study plan",
+    to_areas: "Electives & areas",
+    all_programs: "All degree programmes",
 };

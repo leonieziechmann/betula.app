@@ -180,15 +180,13 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> imp
     };
 
     // Back from a module that filled the page („Vollbild", then „Zurück"; the address names it
-    // still): at the line it was opened from. On a phone the module beside the plan is the page:
-    // there the plan comes back when it is closed.
+    // still): at the line it was opened from.
     Effect::new(move |_| {
         let here = ctx.url.get_untracked();
-        if here.open.is_some() && !nav::is_phone() {
+        if here.open.is_some() {
             come_back(&here, None, t.locale);
         }
     });
-    back_on_phone(ctx, t.locale, || None);
 
     week
 }
@@ -490,9 +488,8 @@ pub(super) fn DatesView(ctx: PlanCtx) -> impl IntoView {
 
     // The agenda opens once, when it first has something to show: at the current week, or back
     // from a module that filled the page (the address names it still) at the date it was opened
-    // from. Later changes of what is shown leave the page where the visitor put it. On a phone,
-    // while the module beside the plan is the page, the plan is not shown: it opens when the
-    // module is closed (`back_on_phone`).
+    // from. Later changes of what is shown leave the page where the visitor put it (on a phone the
+    // module beside the plan is a sheet over it, and the plan stays where it is under it).
     let done = StoredValue::new(false);
     Effect::new(move |_| {
         if done.get_value() {
@@ -500,19 +497,12 @@ pub(super) fn DatesView(ctx: PlanCtx) -> impl IntoView {
         }
         let Some(week) = blocks.with(|blocks| (!blocks.is_empty()).then(|| current(blocks))) else { return };
         let here = ctx.url.get_untracked();
-        if here.open.is_some() && nav::is_phone() {
-            return;
-        }
         done.set_value(true);
         match (&here.open, week) {
             (Some(_), week) => come_back(&here, week, t.locale),
             (None, Some(week)) => reveal(week),
             (None, None) => {}
         }
-    });
-    back_on_phone(ctx, t.locale, move || {
-        done.set_value(true);
-        blocks.with_untracked(|blocks| current(blocks))
     });
 
     view! {
@@ -577,21 +567,6 @@ fn week_to_top(id: &str) -> bool {
     }
     #[cfg(not(feature = "csr"))]
     false
-}
-
-/// On a phone the module beside the plan is the page, and the plan waits unseen (with the window
-/// scrolled for the module). Closing the module brings the view back where the visitor left it
-/// (`come_back`, the page's links in `locale`), else at `week`.
-fn back_on_phone(ctx: PlanCtx, locale: Locale, week: impl Fn() -> Option<String> + 'static) {
-    Effect::new(move |before: Option<StudyplanUrl>| {
-        let here = ctx.url.get();
-        if let Some(left) = before.filter(|before| before.open.is_some()) {
-            if here.open.is_none() && nav::is_phone() {
-                come_back(&left, week(), locale);
-            }
-        }
-        here
-    });
 }
 
 /// Scrolls back to where the visitor left `left` (an address with the module beside the view):

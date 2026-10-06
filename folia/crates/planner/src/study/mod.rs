@@ -567,9 +567,9 @@ pub fn StudyPage() -> impl IntoView {
         on_cleanup(move || handle.remove());
     });
 
-    // What fills the page: the study, or the module opened from it after „Vollbild" (on a phone
-    // whatever is opened).
-    let filling = Memo::new(move |_| url.with(|url| folia_routes::local::filling(url, ctx.phone.get())));
+    // What fills the page: the study, or the module opened from it after „Vollbild" (until then it
+    // stands beside the page, on a phone a sheet over it).
+    let filling = Memo::new(move |_| url.with(folia_routes::local::filling));
     // The module beside the page, and a pick on its way there (`pending`).
     let going = Pending::expect();
     let target = Memo::new(move |_| {
@@ -585,7 +585,7 @@ pub fn StudyPage() -> impl IntoView {
 
     (move || {
         if let Some(id) = filling.get() {
-            let back = url.with_untracked(|url| folia_routes::local::back_href(url, ctx.phone.get_untracked()));
+            let back = url.with_untracked(folia_routes::local::back_href);
             return view! { <ModuleInPlace id area=Area::Programs back/> }.into_any();
         }
         view! {
@@ -739,7 +739,7 @@ fn StudyAside(ctx: StudyCtx, open: Memo<Option<String>>, target: Memo<Option<Stu
         let there = open.with(Option::is_some);
         let coming = target.with(|to| to.as_ref().is_some_and(|to| to.open.is_some()));
         if coming && (!there || going.is_some_and(|going| going.waits(Change::Aside))) {
-            return view! { <DetailSkeleton aside=true calm=there/> }.into_any();
+            return view! { <DetailSkeleton aside=true calm=there module=true/> }.into_any();
         }
         let here = ctx.url.get();
         match module.get() {
@@ -748,7 +748,7 @@ fn StudyAside(ctx: StudyCtx, open: Memo<Option<String>>, target: Memo<Option<Stu
                 view! { <ModulePanel data close_href=here.with_open(None).path() docked=true full_href=Some(full_href)/> }.into_any()
             }
             Ok(Some(None)) | Err(_) => view! {
-                <section class="panel detail aside" id="preview">
+                <section class="panel detail aside is-module" id="preview">
                     <div class="state">
                         <p class="state-title">{t.catalog.module_not_found}</p>
                         <p>{t.catalog.module_not_in_catalog}</p>

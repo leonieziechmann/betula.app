@@ -389,13 +389,14 @@ if (current !== "2026W") {
     return moved;
   };
   // How long a tap's glide takes (owner, 2026-10-06: „die Animationen müssen more snappy sein"): the
-  // row's place each frame from `watch()` on, and the time from its first move to where it is
+  // row's place each frame from `watch()` on (where its first page is drawn: a glide draws the
+  // pages of a row that does not scroll meanwhile), and the time from its first move to where it is
   // within a px of where it came to rest.
   const watch = () => page.evaluate(() => {
     window.__xs = [];
     const row = document.querySelector(".st-pager");
     const from = performance.now();
-    const tick = (t) => { window.__xs.push([t, row.scrollLeft]); if (t - from < 1500) requestAnimationFrame(tick); };
+    const tick = (t) => { window.__xs.push([t, -row.firstElementChild.getBoundingClientRect().left]); if (t - from < 1500) requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   });
   const glided = () => page.evaluate(async () => {
@@ -669,6 +670,70 @@ if (current !== "2026W") {
   entries = await page.evaluate(() => history.length);
   await step("the way back from the first", () => page.tap(".top-back.on"), atOverview);
   check((await page.evaluate(() => history.length)) === entries, "the way back from a semester that is over added a step to the history");
+  // The way back from the moment a finger draws the row off the overview (owner, 2026-10-06: „der
+  // sollte eigentlich sofort eingeblendet werden, wenn man weg swiped, von der main page"), while
+  // the finger still holds it; gone again once the row is back.
+  const progress = await page.$eval(".st-progress", (el) => { const r = el.getBoundingClientRect(); return { right: r.right, y: Math.min(Math.max(r.top + r.height / 2, 160), 600) }; });
+  await touch("touchStart", progress.right - 30, progress.y);
+  for (let i = 1; i <= 8; i++) { await page.waitForTimeout(16); await touch("touchMove", progress.right - 30 - 6 * i, progress.y); }
+  await page.waitForTimeout(200);
+  const backWhileHeld = await page.evaluate(() => Boolean(document.querySelector(".top-back.on")));
+  await touch("touchMove", progress.right - 30, progress.y);
+  await touch("touchEnd", 0, 0);
+  check(backWhileHeld, "the way back does not show while a finger draws the row off the overview");
+  await page.waitForFunction(atOverview, null, { timeout: 3000 }).catch(() => problems.push("the overview drawn a little did not come back"));
+  await page.waitForFunction(() => !document.querySelector(".top-back.on"), null, { timeout: 2000 }).catch(() => problems.push("the way back stays at the overview after a finger let it go"));
+  // The tab of „Studium" and the way back, tapped while the browser still flings the row to the
+  // next page: the row back at the overview at once (owner, 2026-10-06: „funktioniert der button in
+  // der nav bar auch erst, wenn die seite sich nicht mehr bewegt … Wenn man den anklickt muss es
+  // sofort wieder an die standard position gehen"): from the click to rest at most 450 ms (a glide
+  // of 360 ms at most; waiting for the browser's fling and snap took longer than that alone), and
+  // nothing of the browser's moves after it.
+  const fling = async () => {
+    await touch("touchStart", 360, progress.y);
+    for (let i = 1; i <= 6; i++) { await page.waitForTimeout(12); await touch("touchMove", 360 - 50 * i, progress.y); }
+    await touch("touchEnd", 0, 0);
+    await page.waitForTimeout(60);
+  };
+  const untilHome = () => page.evaluate(() => new Promise((resolve) => {
+    let clicked = null;
+    addEventListener("click", () => { clicked ??= performance.now(); }, { capture: true, once: true });
+    const row = document.querySelector(".st-pager");
+    const overview = row.querySelector(".st-slot.is-overview");
+    const start = performance.now();
+    let rest = null;
+    const tick = (t) => {
+      const there = Math.abs(overview.getBoundingClientRect().left - 6) < 1 && !row.classList.contains("is-gliding");
+      if (there && rest === null) rest = t;
+      if (!there) rest = null;
+      if (t - start < 2500) requestAnimationFrame(tick);
+      else resolve(clicked === null || rest === null ? -1 : Math.round(rest - clicked));
+    };
+    requestAnimationFrame(tick);
+  }));
+  const tabAt = await middle(page, '.bottomnav > .nav[data-area="programs"]');
+  for (const [what, at] of [["the tab of „Studium“", async () => tabAt], ["the way back", () => middle(page, ".top-back.on")]]) {
+    const timed = untilHome();
+    await fling();
+    const spot = await at();
+    await page.touchscreen.tap(spot.x, spot.y);
+    const ms = await timed;
+    check(ms >= 0 && ms <= 450, `${what} tapped while the row flings: not back at the overview at once (${ms} ms)`);
+    check(await page.evaluate(new Function(`return (${atOverview.toString()})()`)), `${what} tapped while the row flings: the row did not stay at the overview`);
+  }
+  // A module of a semester comes up as a sheet over the row (owner, 2026-10-06), and goes again;
+  // the row stays at its semester.
+  await step("a column again", () => page.tap(".st-chart .st-col >> nth=0"), resting("WiSe 2025/26"));
+  const name = await middle(page, `${HERE} a.st-name`);
+  await step("a module of the semester", () => page.touchscreen.tap(name.x, name.y), () => location.search.startsWith("?plan=1&open=") && document.querySelector(".detail.is-module h2"));
+  await page.waitForTimeout(500);
+  const up = await page.evaluate(() => Math.round(document.querySelector(".detail.is-module").getBoundingClientRect().top));
+  check(Math.abs(up - 844 * 0.48) < 4, `the module's sheet does not come up to half the screen: ${up}`);
+  await touch("touchStart", 195, up + 80);
+  for (let i = 1; i <= 12; i++) { await page.waitForTimeout(30); await touch("touchMove", 195, up + 80 + 30 * i); }
+  await page.waitForTimeout(150);
+  await touch("touchEnd", 0, 0);
+  await page.waitForFunction(new Function(`return location.search === "?plan=1" && !document.querySelector(".detail.is-module") && (${resting("WiSe 2025/26").toString()})()`), null, { timeout: 4000 }).catch(() => problems.push("the module's sheet drawn down did not leave the semester as it was"));
   await context.close();
 }
 

@@ -2463,6 +2463,19 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .fatal a { color: inherit; font-weight: 650; text-decoration: underline; }
 
 .bottomnav { display: none; }
+/* What a tab holds besides its page (chrome.rs `TabMenu`, enhance.js): a menu at the tab over the
+   page, dimmed a little; above the bar on a phone (the bar stays as it is, its tab tapped again
+   goes there), beside the rail on a wide screen. Its ways as tall as a finger needs. */
+.tab-scrim { position: fixed; inset: 0; z-index: 29; background: rgba(15, 23, 42, .16); animation: fade-in .12s; }
+.tab-menu { position: fixed; z-index: 31; width: 248px; padding: 6px; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); transform-origin: 0 0; animation: tab-menu-in .16s var(--ease); }
+.tab-menu.on-bar { left: clamp(10px, calc(var(--tab-x) - 124px), calc(100% - 258px)); bottom: calc(80px + env(safe-area-inset-bottom)); transform-origin: 50% 100%; }
+.tab-menu-head { margin: 0; padding: 6px 10px 4px; overflow: hidden; color: var(--text-3); font-size: 12px; font-weight: 560; white-space: nowrap; text-overflow: ellipsis; }
+.tab-menu-way { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 10px; border-radius: 9px; color: var(--text); font-size: 15px; font-weight: 560; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.tab-menu-way > .icon { flex: none; width: 18px; height: 18px; color: var(--text-2); }
+.tab-menu-way:active { background: var(--row-hover); }
+.tab-menu-way:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+@media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); text-decoration: none; } }
+@keyframes tab-menu-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
 
 /* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
    The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
@@ -3170,10 +3183,11 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   html.sheet-open { overflow: hidden; overscroll-behavior: none; }
   .filters .body, .sidebar.sheet .body { overscroll-behavior: contain; }
   /* What was picked beside a program (a module, an area, a row of the plan) has no room beside
-     the page on a phone: it is the page until it is closed. The browser app renders it as a page
-     of its own; this is for the same HTML without it. */
-  .framed.aside-picked > .page, .framed.aside-picked > .sidebar, .framed.aside-picked > .resizer { display: none; }
-  .framed.with-aside.aside-picked > .detail.aside { margin: 0 12px 12px; }
+     the page on a phone: it is the page until it is closed. The browser app renders an area or a
+     row as a page of its own and a module as a sheet over the page (below); this is for the same
+     HTML without it. */
+  :root:not(.app) .framed.aside-picked > :is(.page, .sidebar, .resizer) { display: none; }
+  :root:not(.app) .framed.with-aside.aside-picked > .detail.aside { margin: 0 12px 12px; }
   .sheet-close { display: grid; }
   .chip { min-height: 44px; padding: 0 14px 0 12px; font-size: 14.5px; border-radius: 8px; gap: 9px; }
   .box { width: 18px; height: 18px; border-radius: 5px; }
@@ -3240,6 +3254,33 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .resizer { display: none; }
   .detail .scroll { overflow: visible; }
   .back { display: grid !important; }
+  /* A module picked in a list comes up from below as a sheet over the page (owner, 2026-10-06:
+     „wenn man wie bei der Übersicht nach bereichen so ein menu bekommt, dass sich dann von unten
+     öffnet … dass es sich erstmal bis zur hälfte … öffnet und dann kann man nach unten swipen oder
+     es nach oben um es zu schließen oder den vollen bereich zu verwenden"): the catalog's preview,
+     a program's, the marked modules', „Mein Studium"'s, the Studienplan's panel of it, and their
+     skeletons (`.detail.is-module`). It comes up to half the screen; a finger takes it up to the
+     whole screen (`is-full`) or down and away (enhance.js „a module's sheet"). Up, its content
+     scrolls inside it; half up, a finger moves the sheet, as a phone's own sheets do. The page
+     behind stays where it is, dimmed and still, the tab bar under it. Its close stays at its top
+     right while the content scrolls. The browser app's alone: the server's page shows the module
+     as the page, as before. */
+  :root.app .detail.is-module { --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); --sheet-half: calc(48dvh - var(--sheet-top)); position: fixed; z-index: 45; inset: var(--sheet-top) 0 auto 0; width: auto; height: calc(100dvh - var(--sheet-top)); margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(var(--sheet-half)); transition: transform .34s cubic-bezier(.22, 1, .36, 1); animation: module-sheet-in .34s cubic-bezier(.22, 1, .36, 1); }
+  :root.app .detail.is-module.is-full { transform: none; }
+  :root.app .detail.is-module.is-dragging { transition: none; animation: none; }
+  :root.app .detail.is-module.is-gone { transform: translateY(100%); transition: transform .22s cubic-bezier(.4, 0, .9, .4); }
+  :root.app .detail.is-module.calm, :root.app[data-settling] .detail.is-module { animation: none; }
+  :root.app .detail.is-module::before { content: ""; position: absolute; z-index: 2; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+  :root.app .detail.is-module > .scroll { position: static; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  :root.app .detail.is-module .hero { padding-top: 20px; }
+  :root.app .detail.is-module .hero-top { padding-right: 40px; }
+  :root.app .detail.is-module .back { display: none !important; }
+  :root.app .detail.is-module .hero-top > [data-action="close-detail"] { position: absolute; z-index: 2; top: 16px; right: 10px; width: 40px; height: 40px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; background: var(--panel-3); color: var(--text); font-size: 0; }
+  :root.app .detail.is-module .hero-top > [data-action="close-detail"] .icon { width: 18px; height: 18px; }
+  :root.app .detail.is-module .hero-top > [data-action="close-detail"] kbd { display: none; }
+  html.app:has(.detail.is-module) { overflow: hidden; overscroll-behavior: none; }
+  html.app:has(.detail.is-module)::after { content: ""; position: fixed; inset: 0; z-index: 44; background: rgba(15, 23, 42, .34); animation: fade-in .24s; transition: opacity .22s; }
+  html.app:has(.detail.is-module.is-gone)::after { opacity: 0; }
   .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: var(--bar) 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
   .pending-page .sidebar, .app-standin .sidebar, .sk-standin { display: none; }
   .sk-home, .sk-subject { grid-template-columns: minmax(0, 1fr); }
@@ -3267,6 +3308,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      close (--near of its tab, 0–1). Once the tab is the current one its own mark takes over, in one
      frame without its fade ("settle"). */
   .bottomnav { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; }
+  /* A finger held on a tab is the tab's own (enhance.js „a tab held"): no preview of the link. */
+  .bottomnav > .nav { -webkit-touch-callout: none; }
   .bottomnav > .nav { will-change: transform; }
   .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) { overflow: hidden; overflow: clip; }
   .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before, .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: 8px; pointer-events: none; }
@@ -3859,13 +3902,14 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-pager.is-selecting { touch-action: pan-y; }
   .st-slot { flex: 0 0 calc(100% - 12px); min-width: 0; padding: 0 6px; scroll-snap-align: center; scroll-snap-stop: always; }
   .st-slot:not([data-here]) { margin-bottom: -100000px; }
-  /* While the app moves the row (pager.rs: to a page a tap sends it to, or on from where a finger
-     let go of it, quicker than the browser's own smooth scroll and fling), the row's own snap is
-     held off, so that it stops where the app puts it, and so is a fling, which no finger begins
-     meanwhile; a finger that comes down stops the glide where it is and takes the row, its snap held
-     off until it lets go. */
+  /* While the app glides the row to a page a tap sends it to (pager.rs), the row is no scroller:
+     what the browser still moves of it after a finger (its fling, its snap) ends there, which
+     nothing else ends, and no finger moves it meanwhile. Its pages are drawn where it glides, each
+     shifted by `translate` (dom.rs `shift_row`); at the end it is a scroller again, scrolled there,
+     its snap held off for that frame (`is-held`): the browser gives the scroller back where it was
+     before the glide, and a scroll from there past a page that stops a swipe stopped at it. */
+  .st-pager.is-gliding { overflow: clip; }
   .st-pager.is-held { scroll-snap-type: none; }
-  .st-pager.is-gliding { overflow-x: hidden; }
   /* What lies at a page's edge draws its ring inside it, and its shadow ends at the page's sides: a
      page beside the one in view ends at the screen's edge, where a ring outside would draw a line
      and a shadow a shade. */
@@ -4048,6 +4092,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
+@keyframes module-sheet-in { from { transform: translateY(100%); } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @keyframes cap-in { from { opacity: 0; } }

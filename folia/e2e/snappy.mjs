@@ -195,11 +195,14 @@ for (const slow of [1, 4]) {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="catalog"]')?.getAttribute("aria-current") === "page",
     result: () => location.pathname === "/catalog" && document.querySelectorAll(".rows a.row").length > 5,
   }, slow);
+  // A module: its sheet over the list (2026-10-06), the row marked at once.
   await watch(small, "phone: a module" + tag, tap(small, ".rows a.row >> nth=1"), {
-    feedback: () => document.querySelector(".pending-page") || document.querySelector(".module-page"),
-    result: () => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page h2"),
+    feedback: () => document.querySelectorAll('.rows a.row[aria-current="true"]').length === 1 || document.querySelector(".detail.is-module"),
+    result: () => location.search.includes("open=") && document.querySelector(".detail.is-module h2"),
     skeleton: true,
   }, slow);
+  await small.evaluate(() => history.back());
+  await small.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 8000 }).catch(() => problems.push("phone: Back did not close the module's sheet"));
   await watch(small, "phone: the bottom bar: Stundenplan" + tag, tap(small, '.bottomnav a.nav[data-area="studyplan"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page",
     result: () => location.pathname === "/studyplan" && document.querySelector(".sp-body .state-actions"),

@@ -17,7 +17,8 @@
 //! a box left of the search (owner, 2026-10-05: „wenn man in der semester ansicht ist, soll es oben
 //! links neben der search bar im gleichen style eine quadratische box sein mit einem zurück pfeil";
 //! 2026-10-06: „Mach bei beiden Richtungen weiterhin den pfeil oben hin um zurück zu kommen";
-//! `chrome::TopBack`). It is no „Zurück" of `enhance.js` (`data-action="back"`), whose Esc would
+//! `chrome::TopBack`), from the moment the row leaves the overview. It and the tab of „Studium"
+//! tapped again bring the row back at once, wherever it is or goes. It is no „Zurück" of `enhance.js` (`data-action="back"`), whose Esc would
 //! leave the semesters while it closes a menu or a dialog of theirs. Over the tab bar the dots of
 //! the row stay (`Dock`).
 
@@ -28,9 +29,10 @@ use leptos::prelude::*;
 
 use folia_design::ui::Icon;
 use folia_shell::chrome::{Back, TopBack};
+use folia_shell::tabs::{Area, TabAgain};
 
 use super::overview::{Bar, Info};
-use super::pager::{plan_path, Dots, Page, Pager, Pages};
+use super::pager::{plan_path, Dots, Pager, Pages};
 use super::side::{AllPrograms, MineCard, ProgramWays, StorageHint};
 use super::{n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
@@ -53,14 +55,30 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
         }
         plan
     });
-    // The way back at the head, while the row rests at a semester.
+    // The way back at the head, as soon as the row leaves the overview and while it is anywhere
+    // else (owner, 2026-10-06: „der sollte eigentlich sofort eingeblendet werden, wenn man weg
+    // swiped, von der main page").
     let back = TopBack::expect();
     Effect::new(move |_| {
-        let semester = pages.here().is_some_and(|page| page != Page::Overview);
+        let away = pages.away();
         let history = ctx.from_overview.get();
         if let Some(back) = back {
-            back.set(semester.then(|| Back { href: url::STUDY.to_string(), label: s.overview, history }));
+            back.set(away.then(|| Back { href: url::STUDY.to_string(), label: s.overview, history }));
         }
+    });
+    // The tab of „Studium" tapped again, or the way back pressed: back to the overview at once,
+    // wherever the row is or goes (owner, 2026-10-06: „Wenn man den anklickt muss es sofort wieder
+    // an die standard position gehen"). Where the address says a semester, the link (or Back
+    // through the history) changes it, and the row follows the address; where it says the overview
+    // still (the row on its way from it, or come to a semester a moment ago), the link leads where
+    // the app is, and the row goes back here.
+    let again = TabAgain::expect();
+    Effect::new(move |before: Option<(u32, u32)>| {
+        let now = (again.map_or(0, |again| again.count(Area::Programs)), back.map_or(0, TopBack::presses));
+        if before.is_some_and(|before| before != now) && !ctx.url.with_untracked(|url| url.plan) {
+            pages.home();
+        }
+        now
     });
     on_cleanup(move || {
         if let Some(back) = back {

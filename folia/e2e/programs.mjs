@@ -413,24 +413,27 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   check(phone.list, "phone: the plan is not the list, or a switch to the matrix is offered");
   check(phone.views, "phone: the views of the program are not above the page");
   check(phone.facts, "phone: a number of the head stands outside the screen");
-  // A module has no room beside the page here: one tap, and it is the page, in the program's
-  // area (the address keeps `open=`), and „Zurück" is the program again.
+  // A module comes up as a sheet over the page (owner, 2026-10-06), in the program's area (the
+  // address keeps `open=`), one history entry; closed, the program is there as it was.
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.
   const entries = await page.evaluate(() => history.length);
   await page.evaluate(() => document.querySelector('table.planlist tbody a[data-walk="module"]')?.click());
-  await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".module-page h2") && !document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not become the page"));
+  await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".detail.is-module h2") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not come up as a sheet over the program"));
   check((await page.evaluate(() => history.length)) === entries + 1, "phone: opening a module took more than one history entry");
-  await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
-  await page.waitForFunction(() => !location.search.includes("open=") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück did not lead back to the program"));
-  // An area, too, is the page on a phone, and a module picked from it leads back to it.
+  await page.waitForTimeout(400);
+  await page.tap('.detail.is-module [data-action="close-detail"]');
+  await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the program"));
+  check((await page.evaluate(() => history.length)) === entries + 1, "phone: closing the module added a step to the history");
+  // An area is the page on a phone, and a module picked from it comes up over it.
   await page.evaluate(() => [...document.querySelectorAll("#sidebar .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
   await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
   await page.evaluate(() => document.querySelector('table.areas tr.group a[data-walk="area"]')?.click());
   await page.waitForFunction(() => location.search.includes("area=") && document.querySelector("#preview .linklist .pre") && !document.querySelector("table.areas"), null, { timeout: 8000 }).catch(() => problems.push("phone: an area did not become the page"));
   await page.evaluate(() => document.querySelector('#preview .linklist a[data-walk="module"]')?.click());
-  await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".module-page h2"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not become the page"));
-  await page.evaluate(() => document.querySelector('[data-action="back"]')?.click());
-  await page.waitForFunction(() => location.search.includes("area=") && !location.search.includes("open=") && document.querySelector("#preview .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: Zurück from the module did not lead back to the area"));
+  await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".detail.is-module h2") && document.querySelector(".picked-page .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not come up over it"));
+  await page.waitForTimeout(400);
+  await page.tap('.detail.is-module [data-action="close-detail"]');
+  await page.waitForFunction(() => location.search.includes("area=") && !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("#preview .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the area"));
   await context.close();
 }
 

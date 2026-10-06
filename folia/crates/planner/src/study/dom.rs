@@ -1,7 +1,7 @@
 //! What „Mein Studium" asks of the browser itself: where a button or the pointer is, which row lies
 //! under the pointer while a selection is drawn, what a menu gives the focus back to, the picture a
-//! drag of several rows carries, where a row of pages is scrolled and how its pages come in from
-//! their tops. Nothing of it on the server, which has neither.
+//! drag of several rows carries, where a row of pages is scrolled, how its pages come in from their
+//! tops and where they are drawn while it glides. Nothing of it on the server, which has neither.
 
 #[cfg(feature = "csr")]
 use wasm_bindgen::JsCast;
@@ -270,18 +270,49 @@ fn past_top(window: &web_sys::Window, row: &web_sys::Element) -> f64 {
     (bar - top).min(window.scroll_y().unwrap_or(0.0)).max(0.0)
 }
 
+/// The children of `row`, each with its `style` (pager.rs sets their `transform` and `translate`
+/// alone).
+#[cfg(feature = "csr")]
+fn styles_of(row: &web_sys::Element) -> Vec<(web_sys::Element, web_sys::CssStyleDeclaration)> {
+    let children = row.children();
+    (0..children.length()).filter_map(|i| children.item(i)).filter_map(|child| child.dyn_ref::<web_sys::HtmlElement>().map(web_sys::HtmlElement::style).map(|style| (child, style))).collect()
+}
+
 /// Draws the children of `row` that it does not rest at (`data-here` marks the one it does) `by` px
-/// further down, or where they are (0). Their `style` is this alone (pager.rs).
+/// further down, or where they are (0).
 #[cfg(feature = "csr")]
 fn shift_others(row: &web_sys::Element, by: f64) {
-    let children = row.children();
-    for i in 0..children.length() {
-        let Some(child) = children.item(i) else { continue };
+    for (child, style) in styles_of(row) {
         if by > 0.5 && !child.has_attribute("data-here") {
-            let _ = child.set_attribute("style", &format!("transform: translateY({by:.1}px)"));
-        } else if child.has_attribute("style") {
-            let _ = child.remove_attribute("style");
+            let _ = style.set_property("transform", &format!("translateY({by:.1}px)"));
+        } else {
+            let _ = style.remove_property("transform");
         }
+    }
+}
+
+/// Draws the children of a row that is no scroller (app.css `is-gliding`) where they would be with
+/// the row scrolled `x` px, or where they are (0).
+#[allow(unused_variables)]
+pub(super) fn shift_row(row: &leptos::web_sys::Element, x: f64) {
+    #[cfg(feature = "csr")]
+    for (_, style) in styles_of(row) {
+        if x.abs() > 0.005 {
+            let _ = style.set_property("translate", &format!("{:.2}px 0", -x));
+        } else {
+            let _ = style.remove_property("translate");
+        }
+    }
+}
+
+/// The window goes up to the top of the page, gliding.
+pub(super) fn window_to_top() {
+    #[cfg(feature = "csr")]
+    if let Some(window) = web_sys::window() {
+        let options = web_sys::ScrollToOptions::new();
+        options.set_top(0.0);
+        options.set_behavior(if still() { web_sys::ScrollBehavior::Instant } else { web_sys::ScrollBehavior::Smooth });
+        window.scroll_to_with_scroll_to_options(&options);
     }
 }
 
