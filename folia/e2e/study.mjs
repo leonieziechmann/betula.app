@@ -20,19 +20,22 @@
 //   reload keeps all of it; nothing of it in a request.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
-//   no sidebar; the overview and the semesters two pages in a row the browser scrolls (a real
-//   touch, CDP): the box leads to the semesters (`?plan=1`), its column to that one, and the whole
-//   overview drawn to the left by a finger as well, a short pull back; the way back a square box
-//   left of the search; the semesters pages in the catalog's look, no box, their head under the
-//   search, a card per module (its number and area under its name, its credits in LP), as far
-//   apart as from the screen's edge: the ground past the window's edge, the dots fixed over the
-//   tab bar on the page's frosted ground, no box and no legend, an empty semester a mark and
-//   „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll smoothly, a finger moves the
-//   row and a short pull goes back, a semester swiped to from down in another shows from its head,
-//   the last page adds a semester; a long press selects a row, the bar over the tab bar; a row's
-//   menu as a sheet without „Modul ansehen", „Verschieben nach" in its place; the way back, Back
-//   and a finger to the right on the first semester lead back to the overview; the areas as a
-//   sheet a finger drags down to close it (a short pull: it slides back), the program's card
+//   no sidebar; one row of pages the browser scrolls (a real touch, CDP; owner, 2026-10-06): the
+//   semesters that are over, the overview, the current one and the ones to come, the dots of all of
+//   them over the tab bar on the overview too; the box leads to the current semester (`?plan=1`),
+//   its column to that one, and the whole overview drawn to the left by a finger to the current
+//   one, to the right to the last that is over, a short pull back; the way back a square box left
+//   of the search on either side; the semesters pages in the catalog's look, no box, their head
+//   under the search, a card per module (its number and area under its name, its credits in LP),
+//   as far apart as from the screen's edge: the ground past the window's edge, the dots fixed over
+//   the tab bar on the page's frosted ground, no box and no legend, an empty semester a mark and
+//   „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll smoothly, past the overview
+//   from the current semester to the one before; a finger moves the row and a short pull goes
+//   back, a semester swiped to from down in another shows from its head, the last page adds a
+//   semester; a long press selects a row, the bar over the tab bar; a row's menu as a sheet without
+//   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
+//   overview lead back to it, through the history; a tap anywhere on the credits opens the areas
+//   as a sheet a finger drags down to close it (a short pull: it slides back), the program's card
 //   opens „Studiengang wechseln" without a lead; nothing scrolls sideways; boxes and ⋯ as tall as a
 //   finger.
 // 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
@@ -351,14 +354,18 @@ if (current !== "2026W") {
     line: document.querySelector(".st-planbox-line")?.textContent.replace(/\u00a0/g, " "),
     rest: [...document.querySelectorAll(".st-rest a")].map((a) => a.textContent.trim()),
     sidebar: document.querySelector("#sidebar #st-mine") !== null || document.querySelector(".sheet-toggle") !== null,
-    // The overview the page in view, the semesters beside it out of reach; no way back at the head.
-    pages: [...document.querySelectorAll(".st-pages > .st-page")].map((page) => (page.hasAttribute("data-here") ? "here" : "") + (page.inert ? "inert" : "")).join(),
+    // One row of pages (owner, 2026-10-06: „die landing page für mein Studium mit auf den pager"):
+    // the two semesters that are over, the overview (O) in view and the only one to be used (!),
+    // the current one and the ones to come, the page that adds one; its dots, the overview's in
+    // view; no way back at the head.
+    pages: [...document.querySelectorAll(".st-pager > .st-slot")].map((slot) => (slot.classList.contains("is-overview") ? "O" : "S") + (slot.hasAttribute("data-here") && !slot.inert ? "!" : "") + (slot.inert ? "" : "+")).join(" "),
+    dots: [...document.querySelectorAll(".st-dock .st-dots span")].map((dot) => (dot.classList.contains("overview") ? "O" : "S") + (dot.classList.contains("here") ? "!" : "") + (dot.classList.contains("now") ? "*" : "")).join(" "),
     back: (() => { const back = document.querySelector(".top-back"); return back ? `${Math.round(back.getBoundingClientRect().width)}${back.inert ? " inert" : ""}` : "none"; })(),
   }));
   check(landing.sideways <= 0 && landing.parts.join() === "st-over,st-mine-panel,st-planbox,st-rest" && landing.legend.join() === "bestanden,geplant,offen"
     && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht & Bereiche"
     && landing.columns === "1 2 3* 4 5 6" && landing.line === "Jetzt WiSe 2026/27 · 0 von 30 LP" && landing.rest.join() === "Alle Studiengänge ansehen" && !landing.sidebar
-    && landing.pages === "here,inert" && landing.back === "0 inert", `the phone's overview: ${JSON.stringify(landing)}`);
+    && landing.pages === "S S O!+ S S S S S" && landing.dots === "S S O! S* S S S S" && landing.back === "0 inert", `the phone's overview: ${JSON.stringify(landing)}`);
   // A finger on the screen, as a phone's touch comes (through the browser's own input, so that the
   // browser scrolls what it scrolls): down near the side of `selector` it comes from, drawn sideways
   // by `by` px in `steps` moves 16 ms apart, held `hold` ms, lifted. How far the row `row` moved
@@ -381,27 +388,18 @@ if (current !== "2026W") {
     await touch("touchEnd", 0, 0);
     return moved;
   };
-  // The row of the two pages rests at page `index` (0 the overview, 1 the semesters): the page in
-  // view, the only one to be used, and the row exactly at it (a step is a page's place).
-  const pagesAt = (index) => new Function(`
-    const pages = document.querySelector(".st-pages");
-    const here = document.querySelector(".st-pages > .st-page[data-here]");
-    if (!pages || !here || here.inert || [...pages.children].indexOf(here) !== ${index}) return false;
-    return Math.abs(pages.scrollLeft - ${index} * here.getBoundingClientRect().width) < 2;
-  `);
-  // The semesters rest at the semester `name`: their page in view, the semester's page in view, the
-  // only one to be used, and the row exactly at it (a step is a page's place, the page and its share
-  // of the space).
+  // The row rests at the semester `name` (`null`: the overview): its page in view, the only one to
+  // be used, the row exactly at it (a step is a page's place, the page and its share of the space),
+  // and the address says it (`?plan=1` a semester).
   const resting = (name) => new Function(`
-    if (!(${pagesAt(1).toString()})()) return false;
-    const pager = document.querySelector(".st-pager");
+    const row = document.querySelector(".st-pager");
     const here = document.querySelector(".st-pager > .st-slot[data-here]");
-    if (!pager || !here || here.inert || document.querySelectorAll(".st-pager > .st-slot:not([inert])").length !== 1) return false;
-    const at = [...pager.children].indexOf(here) * here.getBoundingClientRect().width;
-    return Math.abs(pager.scrollLeft - at) < 2 && here.querySelector("h2")?.textContent === ${JSON.stringify(name)};
+    if (!row || !here || here.inert || document.querySelectorAll(".st-pager > .st-slot:not([inert])").length !== 1) return false;
+    const at = [...row.children].indexOf(here) * here.getBoundingClientRect().width;
+    if (Math.abs(row.scrollLeft - at) >= 2) return false;
+    return ${name === null ? `here.classList.contains("is-overview") && location.search === ""` : `here.querySelector("h2")?.textContent === ${JSON.stringify(name)} && location.search === "?plan=1"`};
   `);
-  // The overview's address, and the row of the pages resting at it.
-  const atOverview = new Function(`return location.search === "" && (${pagesAt(0).toString()})();`);
+  const atOverview = resting(null);
   const HERE = ".st-pager > .st-slot:not([inert])";
   await step("Studium planen", () => page.tap(".st-planbox-head"), () => location.search === "?plan=1" && document.querySelector(".st-pager .st-card-sem"));
   await page.waitForFunction(resting("WiSe 2026/27"), null, { timeout: 4000 }).catch(() => problems.push("the semesters do not open at the current one"));
@@ -429,8 +427,8 @@ if (current !== "2026W") {
     box: (() => { const card = getComputedStyle(document.querySelector(`${HERE} .st-card-sem`)); return card.boxShadow === "none" && card.backgroundColor === "rgba(0, 0, 0, 0)"; })(),
     head: Math.round(document.querySelector(`${HERE} .st-sem-head h2`).getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom),
     ground: Math.round(document.querySelector("body > .ground").getBoundingClientRect().top - innerHeight),
-    // The card in view from the screen's edges, and from the cards before and after it (owner,
-    // 2026-10-05: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist").
+    // The card in view from the screen's edges, and from the pages before (the overview) and after
+    // it (owner, 2026-10-05: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist").
     apart: (() => {
       const here = document.querySelector(".st-pager > .st-slot[data-here]");
       const card = here.firstElementChild.getBoundingClientRect();
@@ -439,7 +437,7 @@ if (current !== "2026W") {
       return [card.left, innerWidth - card.right, card.left - before.right, after.left - card.right].map(Math.round).join();
     })(),
   }), HERE);
-  check(phone.sideways <= 0 && phone.card >= 360 && phone.slots === 7 && phone.snap.startsWith("x mandatory") && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0
+  check(phone.sideways <= 0 && phone.card >= 360 && phone.slots === 8 && phone.snap.startsWith("x mandatory") && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0
     && phone.back === "/study 12,48x48 8 48 true" && phone.box && phone.head >= 0 && phone.head <= 16 && phone.ground >= 0 && phone.apart === "12,12,12,12", `the phone's semesters: ${JSON.stringify(phone)}`);
   // Over the tab bar, where they stay: the dots, the current semester's ringed and the card's
   // filled (owner, 2026-10-05: „fest über der nav bar"), in no box and with no legend, on the
@@ -459,13 +457,13 @@ if (current !== "2026W") {
       gap: Math.round(nav.top - row.bottom),
       frosted: style.backdropFilter.includes("blur") && style.boxShadow === "none" && style.borderRadius === "0px",
       legend: ground.querySelectorAll(".st-legend, .st-legend-marks, li").length,
-      dots: dots.length, here: dots.findIndex((dot) => dot.classList.contains("here")), now: dots.findIndex((dot) => dot.classList.contains("now")),
+      dots: dots.length, here: dots.findIndex((dot) => dot.classList.contains("here")), now: dots.findIndex((dot) => dot.classList.contains("now")), overview: dots.findIndex((dot) => dot.classList.contains("overview")),
     };
   });
   await page.waitForFunction(() => document.querySelector(".st-dock")?.getAnimations().length === 0, null, { timeout: 3000 }).catch(() => problems.push("the dots never stand still"));
   let docked = await dock();
   check(docked.position === "fixed" && docked.edges === "0,0,0" && docked.above >= 30 && docked.gap >= 4 && docked.gap <= 16 && docked.frosted && docked.legend === 0
-    && docked.dots === 7 && docked.here === 2 && docked.now === 2, `the dots are not over the tab bar on the frosted ground: ${JSON.stringify(docked)}`);
+    && docked.dots === 8 && docked.here === 3 && docked.now === 3 && docked.overview === 2, `the dots are not over the tab bar on the frosted ground: ${JSON.stringify(docked)}`);
   await page.evaluate(() => window.scrollBy(0, 200));
   await page.waitForTimeout(200);
   check(JSON.stringify(await dock()) === JSON.stringify(docked), "the dots move with the page");
@@ -493,7 +491,8 @@ if (current !== "2026W") {
   const undo = await page.evaluate(() => { const box = document.querySelector(".st-undo").getBoundingClientRect(); return Math.round(document.querySelector(".st-dock .st-dots").getBoundingClientRect().top - box.bottom); });
   check(undo >= 4, `the note of the change is not over the dots: ${undo}`);
   await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), (first) => document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && document.querySelector(".st-pager > .st-slot:not([inert]) .st-prow .st-name")?.textContent === first, first);
-  // ‹ scrolls the row to the semester before, smoothly, as a finger would.
+  // ‹ scrolls the row to the semester before, smoothly, as a finger would: past the overview, which
+  // lies between the current semester and the one before.
   await page.evaluate(() => {
     window.__xs = [];
     const pager = document.querySelector(".st-pager");
@@ -504,6 +503,7 @@ if (current !== "2026W") {
   await step("‹", () => page.tap(`${HERE} .st-turn >> nth=0`), resting("SoSe 2026"));
   const between = await page.evaluate(() => { const step = document.querySelector(".st-pager > .st-slot").getBoundingClientRect().width; return window.__xs.filter((x) => x % step > 4 && x % step < step - 4).length; });
   check(between >= 3, `‹ turns the card without a glide: ${between} frames between two cards`);
+  check((await page.evaluate(() => location.search)) === "?plan=1", "‹ past the overview stopped there");
   check((await dock()).here === 1, "the dots do not follow the card");
   // A semester's rows: a card each as the catalog's (owner, 2026-10-05: „die rows pro modul sollen
   // ähnlich aussehen"): its name, under it its number and its area, its credits in LP.
@@ -552,21 +552,29 @@ if (current !== "2026W") {
   await step("Verschieben nach on a phone", () => page.tap("#st-menu-move"), () => document.querySelector(".st-pop.sub .st-pop-back") && getComputedStyle(document.querySelector(".st-pop.root")).display === "none");
   await step("back to the menu", () => page.tap(".st-pop.sub .st-pop-back"), () => !document.querySelector(".st-pop.sub") && getComputedStyle(document.querySelector(".st-pop.root")).display !== "none");
   await step("close the menu", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));
-  // A finger to the left: the row follows it, the next semester beside, and let go it rests there.
+  // A finger to the left on the last semester that is over brings the overview, back through the
+  // history (the semesters were come to from it).
   let moved = 0;
-  await step("swipe", async () => { moved = await swipe(".st-pager", -220); }, resting("WiSe 2026/27"));
+  let entries = await page.evaluate(() => history.length);
+  await step("a semester that is over drawn to the left", async () => { moved = await swipe(".st-pager", -220); }, atOverview);
+  check(moved > 150 && (await page.evaluate(() => history.length)) === entries, `the overview does not follow the finger: ${moved} px for 220`);
+  check((await dock()).here === 2, "the dots do not follow the finger to the overview");
+  // From the overview to the current semester, and on to the next: the row follows the finger, and
+  // let go it rests there.
+  await step("the overview drawn to the left", async () => { moved = await swipe(".st-progress", -220, { row: ".st-pager" }); }, resting("WiSe 2026/27"));
+  await step("swipe", async () => { moved = await swipe(".st-pager", -220); }, resting("SoSe 2027"));
   check(moved > 150, `the cards do not follow the finger: ${moved} px for 220`);
-  check((await dock()).here === 2, "the dots do not follow the finger");
+  check((await dock()).here === 4, "the dots do not follow the finger");
   // A short pull, held: back where it was.
-  await step("a short swipe", async () => { moved = await swipe(".st-pager", -50, { steps: 12, hold: 150 }); }, resting("WiSe 2026/27"));
+  await step("a short swipe", async () => { moved = await swipe(".st-pager", -50, { steps: 12, hold: 150 }); }, resting("SoSe 2027"));
   check(moved > 10, `a short pull does not move the cards: ${moved}`);
   // The window scrolled down into a semester: the next one comes from its head.
   await page.evaluate(() => window.scrollBy(0, 260));
   await page.waitForTimeout(200);
   const scrolled = await page.evaluate(() => Math.round(document.querySelector(".st-pager").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom));
-  await step("swipe from down in a semester", () => swipe(".st-pager", 220), resting("SoSe 2026"));
-  const head = await page.evaluate(() => Math.round(document.querySelector(".st-pager").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom));
-  check(scrolled < 0 && head >= 0 && head <= 16, `the semester that came does not show from its head: ${scrolled} before, ${head} after`);
+  await step("swipe from down in a semester", () => swipe(".st-pager", 220), resting("WiSe 2026/27"));
+  const head = await page.evaluate(() => Math.round(document.querySelector(".st-pager > .st-slot[data-here] h2").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom));
+  check(scrolled < -200 && head >= 0 && head <= 16 && (await page.evaluate(() => scrollY)) === 0, `the semester that came does not show from its head: ${scrolled} before, ${head} after`);
   // To the end: one semester more.
   const restsAt = () => page.evaluate(() => [...document.querySelector(".st-pager").children].indexOf(document.querySelector(".st-pager > .st-slot[data-here]")));
   for (let i = 0; i < 10 && !(await page.$(".st-pager > .st-slot[data-here]:not([inert]) .st-new")); i++) {
@@ -583,10 +591,16 @@ if (current !== "2026W") {
   await step("anfügen", () => page.tap("#st-append"), resting("WiSe 2028/29"));
   check((await stored(page, MINE))?.includes("until\t2028W"), "the semester added was not stored");
   // The way back at the head: back through the history (no entry more), the overview sliding in.
-  const entries = await page.evaluate(() => history.length);
+  entries = await page.evaluate(() => history.length);
   await step("the way back", () => page.tap(".top-back.on"), atOverview);
   check((await page.evaluate(() => history.length)) === entries, "the way back added a step to the history");
   await page.waitForFunction(() => document.querySelector(".top-back")?.inert && document.querySelector(".top-back").getBoundingClientRect().width === 0, null, { timeout: 2000 }).catch(() => problems.push("the way back stays on the overview"));
+  // The credits one place to tap (owner, 2026-10-06: „die progress bar komplett zu einer
+  // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" open the areas.
+  for (const part of [".st-progress .st-headline", ".st-progress .st-bar", ".st-progress .st-legend-n li:nth-child(2)"]) {
+    await step(`the credits: ${part}`, async () => { const at = await middle(page, part); await page.touchscreen.tap(at.x, at.y); }, () => document.querySelector(".st-dialog[open] .st-area-list"));
+    await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
+  }
   await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));
   await page.waitForTimeout(500);
   const sheet = await page.evaluate(() => { const box = document.querySelector(".st-dialog[open]").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), top: Math.round(box.top) }; });
@@ -609,22 +623,26 @@ if (current !== "2026W") {
   await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   check((await page.evaluate(() => document.querySelector(".st-dialog[open] .st-dlg-head p"))) === null, "„Studiengang wechseln“ still has its lead");
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
-  // A column leads to its semester; Back to the overview.
+  // A column leads to its semester, one that is over to the left of the overview; Back to the
+  // overview.
   await step("a column", () => page.tap(".st-chart .st-col >> nth=1"), resting("SoSe 2026"));
   await step("Back", () => page.goBack(), atOverview);
-  // The whole overview drawn to the left (owner, 2026-10-05: „dass man die komplette page nach links
-  // sliden kann"), from its credits: a short pull, held, leaves it; drawn on, the semesters come,
-  // where their row was left.
-  await step("the overview drawn a little", async () => { moved = await swipe(".st-progress", -50, { steps: 12, hold: 150, row: ".st-pages" }); }, () => location.search === "" && document.querySelector(".st-pages")?.scrollLeft === 0);
+  // The whole overview drawn (owner, 2026-10-05: „dass man die komplette page nach links sliden
+  // kann"), from its credits: a short pull, held, leaves it; drawn on to the right, the last
+  // semester that is over comes (owner, 2026-10-06: „so dass man nach rechts swipen muss, um die
+  // zu sehen"), with the way back at the head.
+  const home = await page.evaluate(() => document.querySelector(".st-pager").scrollLeft);
+  await step("the overview drawn a little", async () => { moved = await swipe(".st-progress", -50, { steps: 12, hold: 150, row: ".st-pager" }); }, (home) => location.search === "" && Math.abs(document.querySelector(".st-pager")?.scrollLeft - home) < 2, home);
   check(moved > 10, `a finger does not draw the overview: ${moved}`);
-  await step("the overview drawn to the left", async () => { moved = await swipe(".st-progress", -260, { row: ".st-pages" }); }, resting("SoSe 2026"));
-  check(moved > 180 && (await page.evaluate(() => location.search)) === "?plan=1", `the overview drawn to the left did not lead to the semesters: ${moved}`);
-  // On the first semester a finger to the right brings the overview back (and goes back through the
-  // history, where it came before).
+  await step("the overview drawn to the right", async () => { moved = await swipe(".st-progress", 260, { row: ".st-pager" }); }, resting("SoSe 2026"));
+  check(moved < -180 && (await page.$(".top-back.on")) !== null, `the overview drawn to the right did not lead to the semester before with the way back: ${moved}`);
+  // To the first: a finger to the right on it goes nowhere further; the way back leads to the
+  // overview through the history.
   await step("‹ to the first", () => page.tap(`${HERE} .st-turn >> nth=0`), resting("WiSe 2025/26"));
-  const before = await page.evaluate(() => history.length);
-  await step("the first semester drawn to the right", async () => { moved = await swipe(".st-pager", 260, { row: ".st-pages" }); }, atOverview);
-  check(moved < -180 && (await page.evaluate(() => history.length)) === before, `the first semester drawn to the right did not bring the overview: ${moved}`);
+  await step("the first semester drawn to the right", async () => { moved = await swipe(".st-pager", 160); }, resting("WiSe 2025/26"));
+  entries = await page.evaluate(() => history.length);
+  await step("the way back from the first", () => page.tap(".top-back.on"), atOverview);
+  check((await page.evaluate(() => history.length)) === entries, "the way back from a semester that is over added a step to the history");
   await context.close();
 }
 

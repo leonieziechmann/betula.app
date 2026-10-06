@@ -244,7 +244,7 @@ fn past_top(window: &web_sys::Window, row: &web_sys::Element) -> f64 {
 }
 
 /// Draws the children of `row` that it does not rest at (`data-here` marks the one it does) `by` px
-/// further down, or where they are (0). Their `style` is this alone (pager.rs, phone.rs).
+/// further down, or where they are (0). Their `style` is this alone (pager.rs).
 #[cfg(feature = "csr")]
 fn shift_others(row: &web_sys::Element, by: f64) {
     let children = row.children();

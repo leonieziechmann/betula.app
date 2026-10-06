@@ -46,7 +46,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone there is no preview: a tap on a row opens the module's page, and the app turns a shared `open` link into it. The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/study[?plan=1][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: on a phone the semesters after the overview (`plan=1`, 2026-10-05, a page of its own that Back and the tab leave, beside the overview in a row a finger moves, which the address follows where it comes to rest; a desktop shows both at once and ignores it), which module stands beside the page, and whether it fills it. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
+| `/study[?plan=1][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: on a phone a semester rather than the overview (`plan=1`, 2026-10-05, a step after the overview that Back and the tab leave; since 2026-10-06 the overview and the semesters are pages of one row a finger moves, and the address follows where it comes to rest; a desktop shows both at once and ignores it), which module stands beside the page, and whether it fills it. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone whatever is picked — the module, the area, the row of the plan — is the page (`open` alone shows the module in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` alone does. The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
@@ -632,45 +632,55 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     und darunter gleich die legende dazu. Danach kommt der Studiengang und Dann kommen die links zu
     regelstudienplan und Fachbereichen. Danach kommt dann eien box studium planen, mit einer preview
     vom Studium … wenn man da rauf klickt oder nach links swiped bekommt man den plan vom semester
-    … Unten sind dann die rest links aus anpassen"): two pages. The overview: the headline with
-    „Bereiche ›" and the bar (both open the areas as a sheet), under it what the bar's parts are
-    with their credits („46 bestanden", „50 geplant", „84 offen", „über Bedarf" where some is); the
+    … Unten sind dann die rest links aus anpassen"): an overview, and the semesters on either side
+    of it. The overview: the headline with „Bereiche ›" and the bar, under it what the bar's parts
+    are with their credits („46 bestanden", „50 geplant", „84 offen", „über Bedarf" where some is),
+    a tap anywhere on them opening the areas as a sheet (owner, 2026-10-06: „oben die progress bar
+    komplett zu einer clickfläche werden, um das menu für den Progress anzuzeigen, aktuell klickt
+    sich das auf dem handy komisch"; until then „Bereiche ›" and the bar were two buttons and the
+    rest of the box nothing, `.st-progress-open` now reaches over all of it); the
     program's card and its ways „Regelstudienplan", „Wahlpflicht & Bereiche"; the box „Studium
     planen" with „Jetzt WiSe 2026/27 · 8 von 30 LP" and a column per semester (what is passed and
     planned there stacked, the plan's credits of its Fachsemester as the track behind, its
     Fachsemester under it, the current one set off); at the end „Alle Studiengänge ansehen" and the
-    storage hint. The sheet „Anpassen" is gone. The two pages lie side by side in a row the
-    browser scrolls by itself, as the semesters among themselves (owner, the same day: „mach mal die
-    komplette Studiengangsseite in die pages mit rein, aktuell muss man ja in einem bereich nach
-    links sliden aber ich will, dass man die komplette page nach links sliden kann"; until then
-    only the box „Studium planen" was drawn to the left, in a row of its own): a finger anywhere on
-    the overview draws the whole page to the left, and the semesters come in at the one their row
-    was left at (at first the current one); on the first semester a finger to the right goes on to
-    the row of the pages (the semesters' row does not keep it, no `contain`) and brings the overview
-    back. The box still leads there by a tap (to the current semester), a column to its semester,
-    and the row slides. Where the row comes to rest the address follows (`/study?plan=1` a step
-    after the overview, the overview back through the history where it came before), and Back, the
-    links and the way back move the row in turn. The page that comes in shows from its top, wherever
+    storage hint. The sheet „Anpassen" is gone. The overview is a page of the semesters' row (owner,
+    2026-10-06: „als erstes muss die landing page für mein Studium mit auf den pager, so dass man
+    gleich durch swipen kann. Und dann sollten alle vergangenen Semester auf die linke seite also so
+    dass man nach rechts swipen muss, um die zu sehen"; on 2026-10-05 the overview and the semesters
+    had been two pages side by side, the semesters a row of their own inside the second, and before
+    that only the box „Studium planen" was drawn to the left): the semesters that are over, the
+    overview, the current semester and the ones to come, the page that adds one, in one row the
+    browser scrolls by itself (`pager.rs`). It opens at the overview; a finger anywhere on it draws
+    the whole page to the left, to the current semester, or to the right, to the last that is over
+    (a study begun this semester has nothing there, and the overview comes first). The box still
+    leads to the current semester by a tap, a column to its semester, and the row slides. Where the
+    row comes to rest the address follows (`/study?plan=1` a semester, a step after the overview,
+    the overview back through the history where it came before), and Back, the links and the way
+    back move the row in turn. At its ends the row keeps the finger's move to itself, and the
+    window, while it is there, has no horizontal overscroll of its own, which a browser could take
+    for a swipe back through the history (`overscroll-behavior-x`). The page that comes in shows from its top, wherever
     the window was scrolled to in the one before, as a page of an app does: while the row moves the
     pages it does not rest at are drawn as far down as the window is past its top
     (`dom::lift`), and at rest the window goes up as far in the same frame (`dom::land`); the window
-    keeps no scroll anchor meanwhile. The page the row rests at alone can be used; the other is
+    keeps no scroll anchor meanwhile. The page the row rests at alone can be used; the others are
     let go of at rest, not under the finger (a whole page made inert cost the frame it happened
-    in on a thread four times slower). The semesters' way back is a square box left of the search
-    at the head of the screen, as the search is (owner, the same day: „wenn man in der semester
-    ansicht ist, soll es oben links neben der search bar im gleichen style eine quadratische box
-    sein mit einem zurück pfeil"; `chrome::TopBack`, which a page with a step below its first one
-    fills while that step shows; until then „‹ Übersicht" over the cards): back through the history
-    where the overview came before, else to it; no Esc, which closes the semesters' menus and
-    dialogs. It slides in from the left as the row comes to rest at the semesters, the search
-    making room, and out again. The dots stand over the tab bar, where they stay while the page
+    in on a thread four times slower). A semester's way back, on either side of the overview, is a
+    square box left of the search at the head of the screen, as the search is (owner, 2026-10-05:
+    „wenn man in der semester ansicht ist, soll es oben links neben der search bar im gleichen style
+    eine quadratische box sein mit einem zurück pfeil"; 2026-10-06: „Mach bei beiden Richtungen
+    weiterhin den pfeil oben hin um zurück zu kommen"; `chrome::TopBack`, which a page with a step
+    below its first one fills while that step shows; until then „‹ Übersicht" over the cards): back
+    through the history where the overview came before, else to it; no Esc, which closes the
+    semesters' menus and dialogs. It slides in from the left as the row comes to rest at a
+    semester, the search making room, and out again at the overview. The dots stand over the tab
+    bar, a dot for each page of the row, the overview's a little square between the semesters that
+    are over and the current one, there on the overview too; they stay while the page
     scrolls (owner, 2026-10-05: „Die Legende und die swiping dots sollten fest über der nav bar
     sein"), in no box and with no legend of the rows' marks (the same day, after a look: „Mach mal
     die Legende weg und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund
     mit blur zum content"): on the page's grey, frosted over what passes under it as the bar at
     the top is, from the screen's foot and edges (the tab bar floating over it) to a little above
-    the dots, where it fades into the page. They fade in as the semesters come into the middle of
-    the screen and out as they leave it. The ground at the end of the page comes over them. The
+    the dots, where it fades into the page. The ground at the end of the page comes over them. The
     dialogs („Bereiche", „Studiengang wechseln", „Module hinzufügen") are sheets from below that a
     finger drags down to close them, as the catalog's filters (owner, the same day: „Das muss auch
     unbedingt dazu, dass man die einfach wieder runter sliden kann"; `dialog[data-sheet]`,
@@ -712,7 +722,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     zurücknehmen" where all are), „Verschieben nach" (the semesters as a menu), „Entfernen", „×";
     Escape lets go too, and so does turning to another semester. A row dragged onto a semester of
     the strip moves there, with every row selected if it is one of them („3 Einträge" under the
-    pointer). On a phone the semester is a page of its own on the semesters' page (`pager.rs`;
+    pointer). On a phone the semester is a page of the row the overview is a page of (`pager.rs`;
     owner, 2026-10-05: „die swipe bewegungen nach links und rechts brauchen Animationen, damit man
     versteht was passiert …", and after a try on her phone the same day: „das swiping ist richtig
     komisch das stockt immer wieder … dass das sich wie eine native app anfühlt"): every semester a
@@ -735,17 +745,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     screen's edges, draw no line and no shade there (`--shadow-lift`, the panel's shadow without its
     ring). A finger moves the row as it moves any list, on the browser's own thread, with its fling
     and its bounce at the ends, and nothing of the app runs while it moves; ‹ › scroll it on to the
-    neighbour, smoothly, the same way. (The cards the app moved under the finger itself, two rounds
+    semester before or after, past the overview where it lies between them, smoothly, the same way. (The cards the app moved under the finger itself, two rounds
     before, stalled: on a thread four times slower, as a phone's, frames of 100–117 ms and up to
     340 ms of the app's work a swipe, the neighbours drawn as the finger came and the cards drawn
     anew as it went; the row the browser scrolls has none.) The app hears only where the row is:
-    the dots follow the page in the middle, which alone can be used (the others are inert), and the
-    page the row comes to rest at is the semester in focus. The row is as tall as that page (the
+    the dots follow the page in the middle, and the page the row comes to rest at alone can be used
+    (the others are inert) and is the semester in focus. The row is as tall as that page (the
     others count for nothing) and at least as tall as the screen under the bar, so that a page
     coming in shows as far as the screen does; it changes at rest, never under a finger, and a page
-    shows from its top as it comes in (`dom::lift`, as the overview and the semesters do). The
-    semesters come with the one they open at and its neighbours drawn; the rest once the row of the
-    pages rests at them, two a step, and never while a finger is on the row or it moves. While rows
+    shows from its top as it comes in (`dom::lift`). The row comes with the page it opens at and its
+    neighbours drawn, the rest once it is there, two a step, and the neighbours of a page it comes to
+    rest at at once, never while a finger is on the row or it moves (with the CPU four times slower,
+    no long task while it moves: what a page's coming to rest asks, 50–100 ms there, comes after).
+    While rows
     are selected a finger selects, and the row does not move sideways. Under its rows what the plan
     still has open for its Fachsemester and the semester offers, under a heading as the catalog's
     semesters have one („Laut Regelstudienplan · 3. FS" and a line), as open cards (a ring, no
@@ -828,19 +840,22 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows
     dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
     its row, the Gesamtplan (its menu, its grey lines), the phone (the overview in its order and
-    without a sidebar, the semesters beside it out of reach and no way back at the head; the box by
-    a tap and a column; the way back a square box left of the search, as the search is; the
+    without a sidebar, one row of the semesters that are over, the overview and the rest, the
+    overview the page in view and no way back at the head, the row's dots on it; the box by a tap
+    and a column; the way back a square box left of the search, as the search is; the
     semesters without a box, their head under the search, their rows the catalog's cards with
     number, area and LP; the ground past the window's edge, the pages 12 px from the screen's edges
     and from each other, the dots fixed over the tab bar on the frosted grey, without a box or a
-    legend, an empty semester and the plan's rows with their „+", ‹ › scrolling smoothly, a real
-    finger moving the row and a short pull going back, the window scrolled into a semester and the
-    next shown from its top, a long press and the bar over the tab bar, the menu as a sheet without
-    the module, a semester added, the way back and Back without a step more, the areas' sheet
-    dragged a little and back and dragged down to close, the program's card without a lead, the
-    whole overview drawn by a finger a little and back and on to the semesters where their row was
-    left, the first semester drawn to the right back to the overview) and the Stundenplan's
-    import; a finger is the browser's own touch (CDP), so that the browser scrolls.
+    legend, an empty semester and the plan's rows with their „+", ‹ › scrolling smoothly and past
+    the overview, a real finger moving the row and a short pull going back, the last semester that
+    is over drawn to the overview, the window scrolled into a semester and the next shown from its
+    top, a long press and the bar over the tab bar, the menu as a sheet without the module, a
+    semester added, the way back and Back without a step more, the credits opening the areas from
+    their headline, their bar and their legend, the areas' sheet dragged a little and back and
+    dragged down to close, the program's card without a lead, the whole overview drawn by a finger a
+    little and back, to the left to the current semester and to the right to the one before with
+    the way back at the head, the first semester holding a finger to the right) and the
+    Stundenplan's import; a finger is the browser's own touch (CDP), so that the browser scrolls.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.

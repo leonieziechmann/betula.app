@@ -8,9 +8,9 @@
 //! The page (owner, mockup of 2026-10-04): an overview first, what is passed, planned and open in
 //! all and by area (`overview.rs`), then the semesters. On a desktop one semester stands in focus
 //! under a strip of all of them, with what fits it beside it (`focus.rs`, the view „Semester"), or
-//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"). A phone has two pages
-//! (`phone.rs`): the overview, with the program and its ways, and behind its box „Studium planen"
-//! the semesters, cards in a row the browser scrolls under a finger or by ‹ › (`pager.rs`). The
+//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"). A phone has one row of pages the
+//! browser scrolls under a finger or by ‹ › (`pager.rs`): the semesters that are over, the overview
+//! with the program and its ways (`phone.rs`), the current semester and the ones to come. The
 //! semesters begin empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of
 //! the plan, the Wiederholer and the catalog; a row's menu (`menu.rs`) marks it as passed, moves it
 //! and takes it out, and so does the bar of the rows selected for several at once (`focus.rs`).
@@ -249,8 +249,8 @@ pub(super) struct StudyCtx {
     pub drag: RwSignal<Option<(SemesterKey, Vec<String>)>>,
     /// The note of the last change that „Rückgängig" takes back, and the plan before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
-    /// A phone's semesters were opened from its overview: the step before them in the history is
-    /// the overview, and the way back goes back there (`phone.rs`).
+    /// A phone's semester was come to from its overview: the step before it in the history is the
+    /// overview, and the way back goes back there (`phone.rs`).
     pub from_overview: RwSignal<bool>,
 }
 
@@ -637,7 +637,7 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The study: on a desktop the overview and the semesters, on a phone one of its two pages.
+/// The study: on a desktop the overview and the semesters, on a phone a row of pages.
 #[component]
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
     move || {
@@ -684,7 +684,7 @@ fn ViewSwitch(ctx: StudyCtx) -> impl IntoView {
 }
 
 /// The note of the last change with „Rückgängig", at the bottom of the window until the next one
-/// or a while; over a phone's dots and marks where its semesters show them (`phone.rs`).
+/// or a while; over a phone's dots (`phone.rs`).
 #[component]
 fn UndoNote(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
@@ -702,7 +702,7 @@ fn UndoNote(ctx: StudyCtx) -> impl IntoView {
             );
         }
     });
-    let over_dock = Memo::new(move |_| ctx.phone.get() && ctx.url.with(|url| url.plan));
+    let over_dock = Memo::new(move |_| ctx.phone.get());
     let restore = move |_| {
         let (Some(plan), Some((_, before))) = (ctx.plan, ctx.undo.get_untracked()) else { return };
         ctx.undo.set(None);
