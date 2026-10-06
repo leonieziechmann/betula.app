@@ -388,6 +388,24 @@ if (current !== "2026W") {
     await touch("touchEnd", 0, 0);
     return moved;
   };
+  // How long a tap's glide takes (owner, 2026-10-06: „die Animationen müssen more snappy sein"): the
+  // row's place each frame from `watch()` on, and the time from its first move to where it is
+  // within a px of where it came to rest.
+  const watch = () => page.evaluate(() => {
+    window.__xs = [];
+    const row = document.querySelector(".st-pager");
+    const from = performance.now();
+    const tick = (t) => { window.__xs.push([t, row.scrollLeft]); if (t - from < 1500) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  });
+  const glided = () => page.evaluate(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const xs = window.__xs;
+    const rest = xs[xs.length - 1][1];
+    const begin = xs.find(([, x]) => x !== xs[0][1])?.[0];
+    const end = xs.find(([t, x]) => t >= begin && Math.abs(x - rest) < 1)?.[0];
+    return begin === undefined || end === undefined ? -1 : Math.round(end - begin);
+  });
   // The row rests at the semester `name` (`null`: the overview): its page in view, the only one to
   // be used, the row exactly at it (a step is a page's place, the page and its share of the space),
   // and the address says it (`?plan=1` a semester).
@@ -401,7 +419,10 @@ if (current !== "2026W") {
   `);
   const atOverview = resting(null);
   const HERE = ".st-pager > .st-slot:not([inert])";
+  await watch();
   await step("Studium planen", () => page.tap(".st-planbox-head"), () => location.search === "?plan=1" && document.querySelector(".st-pager .st-card-sem"));
+  let glide = await glided();
+  check(glide > 60 && glide <= 280, `the box's way to the current semester is no quick glide: ${glide} ms`);
   await page.waitForFunction(resting("WiSe 2026/27"), null, { timeout: 4000 }).catch(() => problems.push("the semesters do not open at the current one"));
   // The way back has slid in.
   await page.waitForFunction(() => document.querySelector(".top-back.on")?.getAnimations().length === 0, null, { timeout: 3000 }).catch(() => problems.push("the way back never comes to rest"));
@@ -493,16 +514,12 @@ if (current !== "2026W") {
   await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), (first) => document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && document.querySelector(".st-pager > .st-slot:not([inert]) .st-prow .st-name")?.textContent === first, first);
   // ‹ scrolls the row to the semester before, smoothly, as a finger would: past the overview, which
   // lies between the current semester and the one before.
-  await page.evaluate(() => {
-    window.__xs = [];
-    const pager = document.querySelector(".st-pager");
-    const from = performance.now();
-    const tick = () => { window.__xs.push(pager.scrollLeft); if (performance.now() - from < 1200) requestAnimationFrame(tick); };
-    requestAnimationFrame(tick);
-  });
+  await watch();
   await step("‹", () => page.tap(`${HERE} .st-turn >> nth=0`), resting("SoSe 2026"));
-  const between = await page.evaluate(() => { const step = document.querySelector(".st-pager > .st-slot").getBoundingClientRect().width; return window.__xs.filter((x) => x % step > 4 && x % step < step - 4).length; });
+  const between = await page.evaluate(() => { const step = document.querySelector(".st-pager > .st-slot").getBoundingClientRect().width; return window.__xs.filter(([, x]) => x % step > 4 && x % step < step - 4).length; });
   check(between >= 3, `‹ turns the card without a glide: ${between} frames between two cards`);
+  glide = await glided();
+  check(glide > 60 && glide <= 320, `‹ past the overview is no quick glide: ${glide} ms for two pages`);
   check((await page.evaluate(() => location.search)) === "?plan=1", "‹ past the overview stopped there");
   check((await dock()).here === 1, "the dots do not follow the card");
   // A semester's rows: a card each as the catalog's (owner, 2026-10-05: „die rows pro modul sollen
@@ -592,13 +609,22 @@ if (current !== "2026W") {
   check((await stored(page, MINE))?.includes("until\t2028W"), "the semester added was not stored");
   // The way back at the head: back through the history (no entry more), the overview sliding in.
   entries = await page.evaluate(() => history.length);
+  await watch();
   await step("the way back", () => page.tap(".top-back.on"), atOverview);
+  glide = await glided();
+  check(glide > 60 && glide <= 360, `the way back is no quick glide: ${glide} ms`);
   check((await page.evaluate(() => history.length)) === entries, "the way back added a step to the history");
   await page.waitForFunction(() => document.querySelector(".top-back")?.inert && document.querySelector(".top-back").getBoundingClientRect().width === 0, null, { timeout: 2000 }).catch(() => problems.push("the way back stays on the overview"));
   // The credits one place to tap (owner, 2026-10-06: „die progress bar komplett zu einer
   // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" open the areas.
-  for (const part of [".st-progress .st-headline", ".st-progress .st-bar", ".st-progress .st-legend-n li:nth-child(2)"]) {
-    await step(`the credits: ${part}`, async () => { const at = await middle(page, part); await page.touchscreen.tap(at.x, at.y); }, () => document.querySelector(".st-dialog[open] .st-area-list"));
+  // The whole box, not only the bar (owner, the same day: „nicht nur der ganze balken, sondern die
+  // ganze progress box muss klickbar sein"): its parts, and 6 px inside each of its edges.
+  const box = await page.$eval(".st-progress", (el) => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }; });
+  const spots = { headline: await middle(page, ".st-progress .st-headline"), bar: await middle(page, ".st-progress .st-bar"), legend: await middle(page, ".st-progress .st-legend-n li:nth-child(2)"),
+    "left edge": { x: box.left + 6, y: (box.top + box.bottom) / 2 }, "right edge": { x: box.right - 6, y: (box.top + box.bottom) / 2 },
+    "top edge": { x: (box.left + box.right) / 2, y: box.top + 6 }, "bottom edge": { x: (box.left + box.right) / 2, y: box.bottom - 6 }, corner: { x: box.left + 14, y: box.bottom - 14 } };
+  for (const [part, at] of Object.entries(spots)) {
+    await step(`the credits: ${part}`, () => page.touchscreen.tap(at.x, at.y), () => document.querySelector(".st-dialog[open] .st-area-list"));
     await step("close the areas", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   }
   await step("Bereiche", () => page.tap(".st-progress-top .st-link"), () => document.querySelector(".st-dialog[open] .st-area-list"));

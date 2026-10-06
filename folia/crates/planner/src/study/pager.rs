@@ -9,9 +9,15 @@
 //! 2026-10-05: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist, so dass sich
 //! das nicht doppelt, wenn man swiped"), so a swipe moves the row by a page and that space, less
 //! than a screen. A finger moves the row as it moves any list, on the browser's own thread, with
-//! the browser's fling and its bounce at the ends; nothing of the app runs while the row moves.
-//! ‹ › in a semester's head scroll the row on to the semester before or after, past the overview
-//! where it lies between them, smoothly, the same way.
+//! the browser's fling and its bounce at the ends; nothing of the app runs while it does. What a tap
+//! sends the row to (‹ › in a semester's head, past the overview where it lies between two
+//! semesters; the box „Studium planen" and its columns; the way back; Back) it glides to in a
+//! quarter of a second, quick at first and slowing into place, so that the tap shows where the page
+//! lies and the finger learns the way (owner, 2026-10-06: „die Animationen müssen more snappy sein.
+//! Aktuell sind die sehr langsam und träge. Die sind primär dafür da, dass man versteht wie der
+//! positionelle Zusammenhang ist, so dass die gesten intuitiv werden"): the app's frames, not the
+//! browser's smooth scroll, which took 300–430 ms and was slow to begin. (A finger's fling stays
+//! the browser's: it goes on under anything the page does, and the page cannot stop it.)
 //!
 //! The app only hears where the row is (`scroll`): the dots follow the page in the middle. Once the
 //! row rests (`scrollend`, or no move for `QUIET` where a browser does not say), the page there is
@@ -100,6 +106,28 @@ fn wanted(ctx: StudyCtx) -> Option<Page> {
     }
 }
 
+/// How long the row glides to a page a tap sends it to, `pages` away (owner, 2026-10-06: „die
+/// Animationen müssen more snappy sein. Aktuell sind die sehr langsam und träge. Die sind primär
+/// dafür da, dass man versteht wie der positionelle Zusammenhang ist, so dass die gesten intuitiv
+/// werden"): 240 ms for one, 40 ms more for each further one, at most 360 ms. (The browser's own
+/// smooth scroll took 300 ms for one and 430 ms for two, slow to begin.)
+fn glide_ms(pages: f64) -> f64 {
+    (240.0 + 40.0 * (pages - 1.0).max(0.0)).min(360.0)
+}
+
+/// Quick at first and slowing into place: the share of the way at the share `t` of the time.
+fn ease_out(t: f64) -> f64 {
+    1.0 - (1.0 - t.clamp(0.0, 1.0)).powi(3)
+}
+
+/// The glide under way (`Pages::glide_to`): its number, which a newer glide changes so that its
+/// frames stop, and the page it goes to.
+#[derive(Clone, Copy, Debug, Default)]
+struct Glide {
+    number: u32,
+    to: Option<usize>,
+}
+
 /// The row of pages: the pages in order, the page in view and the one the row rests at. `focus.rs`
 /// turns it by ‹ › through `turn_to`, found as context.
 #[derive(Clone, Copy)]
@@ -118,6 +146,9 @@ pub(super) struct Pages {
     lifted: StoredValue<bool>,
     /// A finger is on the row.
     touching: StoredValue<bool>,
+    glide: StoredValue<Glide>,
+    /// A glide that waits for the row to rest (`glide_to`): where to, in how long.
+    waiting: StoredValue<Option<(usize, f64)>>,
     node: NodeRef<Div>,
     /// The page the row opened at, and how far from it the pages are drawn.
     start: usize,
@@ -141,6 +172,8 @@ impl Pages {
             quiet: StoredValue::new(None),
             lifted: StoredValue::new(false),
             touching: StoredValue::new(false),
+            glide: StoredValue::new(Glide::default()),
+            waiting: StoredValue::new(None),
             node: NodeRef::new(),
             start,
             reach: RwSignal::new(1),
@@ -196,8 +229,8 @@ impl Pages {
         self.touching.set_value(down);
     }
 
-    /// The pages coming in are drawn from their tops (a finger on the row, the row moved by ‹ › or
-    /// the address).
+    /// The pages coming in are drawn from their tops (a finger on the row, the row sent on by ‹ ›,
+    /// a tap or the address).
     fn lift(self) {
         if let Some(row) = self.node.get_untracked() {
             dom::lift(&row);
@@ -205,7 +238,7 @@ impl Pages {
         }
     }
 
-    /// Turns to semester `to` (‹ ›): the row scrolls there as a finger would have it.
+    /// Turns to semester `to` (‹ ›): the row glides there.
     pub fn turn_to(self, to: SemesterKey) {
         match self.index_of(Page::Semester(to)) {
             Some(index) => self.go(index),
@@ -213,13 +246,74 @@ impl Pages {
         }
     }
 
-    /// The row scrolls to the page at `index`, smoothly, the pages coming in drawn from their tops.
+    /// The row glides to the page at `index`, in a time by how far it is (`glide_ms`).
     fn go(self, index: usize) {
         let Some(row) = self.node.get_untracked() else { return };
-        if let Some((_, step)) = dom::scrolled_cards(&row) {
-            self.lift();
-            dom::scroll_row_to(&row, index as f64 * step, true);
+        if let Some((x, step)) = dom::scrolled_cards(&row) {
+            self.glide_to(index, glide_ms((index as f64 * step - x).abs() / step));
         }
+    }
+
+    /// The row glides to the page at `index` in `ms`, quick at first and slowing into place, as the
+    /// page of an app slides, its frames the app's (`frame`): its own snap is held off meanwhile and
+    /// no finger moves it (app.css `is-held`, `is-gliding`), the pages coming in drawn from their
+    /// tops. At once for a visitor who asks for less motion. At the end the row rests there. While a
+    /// finger holds the row or the browser still moves it after one (a fling, its snap), the glide
+    /// waits until the row rests: the browser's moves would go on under it.
+    fn glide_to(self, index: usize, ms: f64) {
+        let Some(row) = self.node.get_untracked() else { return };
+        let gliding = self.glide.with_value(|glide| glide.to.is_some());
+        let moving = self.quiet.with_value(Option::is_some) && !self.at().is_some_and(|(_, rests)| rests);
+        if !gliding && (self.touching.get_value() || moving) {
+            // The latest wins: the first of the waits to come round takes it.
+            self.waiting.set_value(Some((index, ms)));
+            set_timeout(
+                move || {
+                    if let Some(Some((index, ms))) = self.waiting.try_get_value() {
+                        self.waiting.set_value(None);
+                        self.glide_to(index, ms);
+                    }
+                },
+                QUIET,
+            );
+            return;
+        }
+        if !self.lifted.get_value() {
+            self.lift();
+        }
+        let number = self.glide.with_value(|glide| glide.number.wrapping_add(1));
+        self.glide.set_value(Glide { number, to: Some(index) });
+        dom::mark(&row, "is-held", true);
+        dom::mark(&row, "is-gliding", true);
+        let ms = if dom::still() { 0.0 } else { ms };
+        let start = dom::now();
+        request_animation_frame(move || self.frame(number, None, start, ms));
+    }
+
+    /// A frame of the glide `number`: the row its share of the way on from where it was in the
+    /// glide's first frame (`from`), until it is there.
+    fn frame(self, number: u32, from: Option<f64>, start: f64, ms: f64) {
+        let Some(Glide { number: now, to: Some(to) }) = self.glide.try_get_value() else { return };
+        if now != number {
+            return;
+        }
+        let Some(row) = self.node.get_untracked() else { return };
+        // A row without a width (gone from view) ends its glide at once.
+        let mut t = 1.0;
+        let mut from = from;
+        if let Some((x, step)) = dom::scrolled_cards(&row) {
+            let begun = *from.get_or_insert(x);
+            t = if ms > 0.0 { (dom::now() - start) / ms } else { 1.0 };
+            dom::scroll_row_to(&row, begun + (to as f64 * step - begun) * ease_out(t));
+        }
+        if t < 1.0 {
+            request_animation_frame(move || self.frame(number, from, start, ms));
+            return;
+        }
+        self.glide.update_value(|glide| glide.to = None);
+        dom::mark(&row, "is-gliding", false);
+        dom::mark(&row, "is-held", false);
+        self.settle();
     }
 
     /// The row moved: the page in the middle, and the rest once nothing moves for a while. A row
@@ -241,12 +335,15 @@ impl Pages {
     }
 
     /// The row rests: at another page, the window shows it from its top, the semester there is the
-    /// one in focus, and the address follows. Between two pages a finger still holds it, and the
-    /// row's own snap comes after.
+    /// one in focus, and the address follows. Not while it glides (its last frame settles it); between
+    /// two pages a finger still holds it.
     fn settle(self) {
         if let Some(handle) = self.quiet.get_value() {
             handle.clear();
             self.quiet.set_value(None);
+        }
+        if self.glide.with_value(|glide| glide.to.is_some()) {
+            return;
         }
         let Some((index, true)) = self.at() else { return };
         if index != self.shown.get_untracked() {
@@ -285,30 +382,40 @@ impl Pages {
         }
     }
 
-    /// The row at the page at `index`: at once where it opens, smoothly where the address or the
+    /// The row at the page at `index`: at once where it opens, gliding where the address or the
     /// focus moves it (Back, the box „Studium planen", the way back at the head, a row's „Einplanen",
-    /// a semester added). A row not laid out yet is placed in a frame to come (`tries` more).
+    /// a semester added); nothing where it is there or on its way there already. A row not laid out
+    /// yet is placed in a frame to come (`tries` more).
     fn place(self, index: usize, tries: u8) {
         let Some(row) = self.node.get_untracked() else { return };
         let first = !self.placed.get_value();
-        if !first && index == self.here.get_untracked() {
+        let heading = self.glide.with_value(|glide| glide.to).or_else(|| self.waiting.with_value(|waiting| waiting.map(|(to, _)| to))).unwrap_or_else(|| self.here.get_untracked());
+        if !first && index == heading {
             return;
         }
-        let Some((_, step)) = dom::scrolled_cards(&row) else {
+        let Some((x, step)) = dom::scrolled_cards(&row) else {
             if tries > 0 {
                 request_animation_frame(move || self.place(index, tries - 1));
             }
             return;
         };
         if first {
-            dom::scroll_row_to(&row, index as f64 * step, false);
+            dom::scroll_row_to(&row, index as f64 * step);
             self.placed.set_value(true);
             self.shown.set(index);
             self.here.set(index);
         } else {
-            self.lift();
-            dom::scroll_row_to(&row, index as f64 * step, true);
+            self.glide_to(index, glide_ms((index as f64 * step - x).abs() / step));
         }
+    }
+
+    /// The glide under way stops, and none waits (the row goes).
+    fn stop(self) {
+        self.glide.try_update_value(|glide| {
+            glide.number = glide.number.wrapping_add(1);
+            glide.to = None;
+        });
+        self.waiting.try_set_value(None);
     }
 }
 
@@ -354,6 +461,7 @@ pub(super) fn Pager(ctx: StudyCtx, pages: Pages) -> impl IntoView {
     // The pages further out, once the page the row opened at is there.
     set_timeout(move || pages.draw_on(), DRAW);
     on_cleanup(move || {
+        pages.stop();
         if let Some(Some(handle)) = pages.quiet.try_get_value() {
             handle.clear();
         }
@@ -450,6 +558,18 @@ mod tests {
         assert_eq!(order_of(&semesters[2..])[0], Page::Overview, "nothing over yet: the overview first");
         assert_eq!(order_of(&semesters[..2]), [Page::Semester(key("2025W")), Page::Semester(key("2026S")), Page::Overview, Page::Semester(key("2026W"))], "all over: the page that adds one after it");
         assert_eq!(order_of(&[]), [Page::Overview]);
+    }
+
+    /// A glide: a quarter of a second for a page a tap sends the row to, a little more further,
+    /// never long; quick at first.
+    #[test]
+    fn the_row_glides_quickly() {
+        assert_eq!(glide_ms(1.0), 240.0);
+        assert_eq!(glide_ms(2.0), 280.0);
+        assert_eq!(glide_ms(9.0), 360.0);
+        assert_eq!(ease_out(0.0), 0.0);
+        assert_eq!(ease_out(1.0), 1.0);
+        assert!(ease_out(0.25) > 0.55, "more than half the way in a quarter of the time");
     }
 
     #[test]

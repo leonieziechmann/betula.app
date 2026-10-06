@@ -3067,7 +3067,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box as the
      search is, as wide as it is high. It slides in from the left and the search makes room for it,
      and back out the same way. */
-  .top-back { flex: none; display: grid; place-items: center; width: 0; height: 48px; margin-right: calc(-1 * var(--gap)); border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(-12px); overflow: hidden; transition: width .24s var(--ease), margin .24s var(--ease), opacity .18s, transform .24s var(--ease); -webkit-tap-highlight-color: transparent; }
+  .top-back { flex: none; display: grid; place-items: center; width: 0; height: 48px; margin-right: calc(-1 * var(--gap)); border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(-12px); overflow: hidden; transition: width .18s var(--ease), margin .18s var(--ease), opacity .14s, transform .18s var(--ease); -webkit-tap-highlight-color: transparent; }
   .top-back.on { width: 48px; margin-right: 0; opacity: 1; transform: none; }
   .top-back .icon { flex: none; width: 22px; height: 22px; }
   .top-back:active { background: var(--panel-3); }
@@ -3627,7 +3627,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-new-body .st-check { margin-top: 4px; }
 .st-new-body .st-check .st-sub { font-size: 12px; font-weight: 400; }
 .st-dots { display: flex; justify-content: center; gap: 6px; }
-.st-dots > span { width: 6px; height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--text) 22%, var(--bg)); transition: width .2s var(--ease), background .2s; }
+.st-dots > span { width: 6px; height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--text) 22%, var(--bg)); transition: width .15s var(--ease), background .15s; }
 .st-dots > span.now { box-shadow: 0 0 0 1.5px var(--accent-line); }
 .st-dots > span.here { width: 18px; background: var(--accent); }
 /* The overview's, between the semesters that are over and the current one: a little square, a
@@ -3859,6 +3859,13 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-pager.is-selecting { touch-action: pan-y; }
   .st-slot { flex: 0 0 calc(100% - 12px); min-width: 0; padding: 0 6px; scroll-snap-align: center; scroll-snap-stop: always; }
   .st-slot:not([data-here]) { margin-bottom: -100000px; }
+  /* While the app moves the row (pager.rs: to a page a tap sends it to, or on from where a finger
+     let go of it, quicker than the browser's own smooth scroll and fling), the row's own snap is
+     held off, so that it stops where the app puts it, and so is a fling, which no finger begins
+     meanwhile; a finger that comes down stops the glide where it is and takes the row, its snap held
+     off until it lets go. */
+  .st-pager.is-held { scroll-snap-type: none; }
+  .st-pager.is-gliding { overflow-x: hidden; }
   /* What lies at a page's edge draws its ring inside it, and its shadow ends at the page's sides: a
      page beside the one in view ends at the screen's edge, where a ring outside would draw a line
      and a shadow a shade. */
@@ -4008,7 +4015,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-act-close { width: 40px; height: 48px; }
   /* A menu: a sheet from below; a submenu takes its place. */
   .st-pop-shade { background: rgba(10, 12, 17, .5); animation: fade-in .2s ease-out; }
-  .st-pop { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 80dvh; padding: 6px 8px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; animation: sheet-in .25s var(--ease); }
+  .st-pop { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 80dvh; padding: 6px 8px calc(10px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; animation: sheet-in .2s var(--ease); }
   .st-pop.root.has-sub { display: none; }
   .st-pop-item, .st-pop-item.with-hint { height: auto; min-height: 50px; font-size: 15px; }
   .st-pop-title { margin: 8px 10px 6px; font-size: 13px; font-weight: 600; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4021,7 +4028,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
      its share of the way); let go short of closing, it slides back up; let go far enough, or
      flicked, it goes on down (.dropped) and closes. */
   .st-dialog, .st-dialog.medium, .st-dialog.wide { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
-  .st-dialog[open] { animation: sheet-in .28s var(--ease); }
+  .st-dialog[open] { animation: sheet-in .22s var(--ease); }
   .st-dialog:not(.dragging) { transition: transform .3s var(--ease); }
   .st-dialog::backdrop { opacity: calc(1 - var(--drag, 0) * .9); }
   .st-dialog.dropped { transform: translateY(100%); transition: transform .2s cubic-bezier(.4, 0, 1, 1); }
