@@ -225,6 +225,7 @@ fn the_studyplan_queries(db: &Recording, semester: &str) {
     // The finder's rows are the full ones without what it does not compare.
     let lean = |row: &DateRow, room: bool| {
         let mut row = row.clone();
+        row.series = None;
         row.date.event_number = None;
         row.date.instructor = None;
         row.date.comment = None;

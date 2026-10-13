@@ -58,6 +58,10 @@ png = "0.17"
 # Axum depends on it already.
 tower = { version = "0.5", features = ["util"] }
 
+[dev-dependencies]
+# The pinned snapshot of the feed's checks, read as Radix's later migrations leave it.
+folia-test-support = { path = "../test-support" }
+
 # The minifiers of build/main.rs: they run when the server is built, none of them is in it. No
 # default features: lightningcss without its bundler and source maps, oxc's printer without
 # source maps. The oxc crates go together, one version for all.

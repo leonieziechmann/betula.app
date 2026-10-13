@@ -66,6 +66,8 @@ type Report struct {
 	EventsFromList      int      // events whose dates come from the event search: no page yet, or one older than a change the list shows
 	EventLinksNoArchive int      // events a module page links that are not archived yet
 	EventLinksGone      []string // "module → event": a module page links an event QIS has removed (its page states nothing, the search does not show it); left out
+	EventSeries         int      // series of single dates (normalize.Series): QIS lists them date by date, they follow a rhythm
+	EventSeriesDates    int      // the single dates in those series
 
 	// Short names (docs/radix/schema-v2.md, „Short names“).
 	RoomsUnknownBuilding  map[string]int // event rooms whose building the table lacks → event dates
@@ -123,6 +125,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
+		"event_series", report.EventSeries, "event_series_dates", report.EventSeriesDates,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
 		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])

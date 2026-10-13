@@ -181,17 +181,35 @@ pub struct DateRow {
     pub module_id: String,
     /// The row's place among the dates of its event; `None` for an event that has no dates.
     pub ord: Option<i64>,
+    /// The series of single dates the row belongs to, as Radix reads it (schema 13); `None` for
+    /// a row in none, and always for an exam row.
+    #[serde(default)]
+    pub series: Option<Series>,
     /// QIS's „fällt aus am" column as it stands, read by `timetable::cancel::parse`. Exam rows do
     /// not have the column, so theirs is always `None`.
     pub cancelled_dates: Option<String>,
     pub date: EventDate,
 }
 
+/// A series of single dates (`event_date.series`, docs/radix/schema-v2.md, „Series of single
+/// dates"): QIS lists a Termin date by date, „Einzel am 13.10.2026", „Einzel am 20.10.2026" …, and
+/// the dates follow a rhythm of one to four weeks. The rows stay QIS's; this says which belong
+/// together.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Series {
+    /// The `ord` of the row of the series' first date, the same in every row of the series.
+    pub first: i64,
+    /// The weeks from one date of the series to the next: 1 to 4.
+    pub weeks: u8,
+}
+
 impl FromRow for DateRow {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        let weeks = row.opt_int("series_weeks")?.and_then(|weeks| u8::try_from(weeks).ok()).filter(|weeks| (1..=4).contains(weeks));
         Ok(Self {
             module_id: row.text("module_id")?,
             ord: row.opt_int("ord")?,
+            series: row.opt_int("series")?.zip(weeks).map(|(first, weeks)| Series { first, weeks }),
             cancelled_dates: row.opt_text("cancelled_dates")?,
             date: EventDate::from_row(row)?,
         })

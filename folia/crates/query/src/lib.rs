@@ -580,13 +580,14 @@ fn id_json(module_ids: &[String]) -> String {
 /// The columns of `DateRow` from `v_module_schedule`.
 const DATE_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, \
-     campus, instructor, comment, cancelled_dates, source_url, room_short";
+     campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks";
 
-/// The columns of `DateRow` from `v_module_exam`, which has no type, group, rhythm, instructor or
-/// cancellations: the same row struct reads teaching and exam rows.
+/// The columns of `DateRow` from `v_module_exam`, which has no type, group, rhythm, instructor,
+/// cancellations or series: the same row struct reads teaching and exam rows.
 const EXAM_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, \
-     first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url, room_short";
+     first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url, room_short, \
+     NULL AS series, NULL AS series_weeks";
 
 /// The teaching rows of the planned modules in one semester, events without dates included (the
 /// Studienplan lists them „ohne feste Zeit"). An event linked to two of the modules comes once for
@@ -625,15 +626,16 @@ pub fn modules_exams(db: &dyn Database, module_ids: &[String], semester_key: &st
 }
 
 /// Every dated teaching row of a semester, with only what the finder compares („Passt in meinen
-/// Plan"): no rooms, persons or links, so the whole semester stays one answer of about a megabyte.
+/// Plan"): no rooms, persons, links or series, so the whole semester stays one answer of about a
+/// megabyte.
 pub fn semester_schedule(db: &dyn Database, semester_key: &str) -> Result<Vec<DateRow>, DbError> {
     fetch(
         db,
         "semester_schedule",
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, event_type, ord, \
          group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, NULL AS room, campus, \
-         NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url, NULL AS room_short \
-         FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
+         NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url, NULL AS room_short, NULL AS series, \
+         NULL AS series_weeks FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
 }
@@ -647,7 +649,7 @@ pub fn semester_exams(db: &dyn Database, semester_key: &str) -> Result<Vec<DateR
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, \
          NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, \
          NULL AS rhythm_raw, first_date, last_date, room, campus, NULL AS instructor, NULL AS comment, \
-         NULL AS cancelled_dates, NULL AS source_url, room_short \
+         NULL AS cancelled_dates, NULL AS source_url, room_short, NULL AS series, NULL AS series_weeks \
          FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
