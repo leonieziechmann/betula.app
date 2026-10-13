@@ -809,9 +809,9 @@ fn Schedule(data: ModuleData) -> impl IntoView {
                 let count = series.map(|_| (words.dates_count)(days.len()));
                 let head: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm, count].into_iter().flatten().collect();
                 let tail: Vec<String> = [
-                    joined(rows.iter().map(EventDate::room_shown), " / "),
-                    joined(rows.iter().map(|row| row.instructor.as_deref()), "; "),
-                    joined(rows.iter().map(|row| row.comment.as_deref()), "; "),
+                    said_on(&rows, EventDate::room_shown, " / ", t.locale),
+                    said_on(&rows, |row| row.instructor.as_deref(), "; ", t.locale),
+                    said_on(&rows, |row| row.comment.as_deref(), "; ", t.locale),
                 ]
                 .into_iter()
                 .flatten()
@@ -879,6 +879,31 @@ fn one_termin(a: &EventDate, b: &EventDate) -> bool {
     a.series.is_some()
         && (a.event_id.as_str(), a.series, a.start_time.as_deref(), a.end_time.as_deref())
             == (b.event_id.as_str(), b.series, b.start_time.as_deref(), b.end_time.as_deref())
+}
+
+/// What the rows of a line say (`value`), each once in their order and joined by `by`; a value
+/// that not every date of the line has names the days it has it on („ZB/VI.03 (16.10., 27.11.) ·
+/// 'Feedback Session' findet online statt (06.11., 18.12.)"), so that the line says of no date
+/// what QIS says of another. `None` where none says anything.
+fn said_on<'a>(rows: &'a [EventDate], value: impl Fn(&'a EventDate) -> Option<&'a str>, by: &str, locale: Locale) -> Option<String> {
+    let day_of = |row: &EventDate| row.first_date.as_deref().and_then(Day::parse);
+    let all: BTreeSet<Day> = rows.iter().filter_map(day_of).collect();
+    let mut values: Vec<(&str, BTreeSet<Day>)> = Vec::new();
+    for row in rows {
+        let Some(said) = value(row).map(str::trim).filter(|said| !said.is_empty()) else { continue };
+        match values.iter_mut().find(|(known, _)| *known == said) {
+            Some((_, days)) => days.extend(day_of(row)),
+            None => values.push((said, day_of(row).into_iter().collect())),
+        }
+    }
+    let parts: Vec<String> = values
+        .into_iter()
+        .map(|(said, days)| match days == all {
+            true => said.to_string(),
+            false => format!("{said} ({})", days.iter().map(|day| day.day_month(locale)).collect::<Vec<_>>().join(", ")),
+        })
+        .collect();
+    (!parts.is_empty()).then(|| parts.join(by))
 }
 
 /// What rows say, each once in their order and joined by `by` („HG 0.20 / HG 0.18"); `None` where
@@ -1277,6 +1302,16 @@ mod tests {
             ]
         );
         assert_eq!(termine(&rows).iter().map(Vec::len).collect::<Vec<_>>(), [3, 1]);
+        // What not every date of the line says names its days; what all say does not.
+        let mut said: Vec<EventDate> = rows.iter().take(3).cloned().collect();
+        for (row, (room, comment)) in said.iter_mut().zip([(Some("ZB/VI.03"), None), (None, Some("online")), (Some("ZB/VI.03"), Some("online"))]) {
+            (row.room, row.comment, row.instructor) = (room.map(Into::into), comment.map(Into::into), Some("Dippner".into()));
+        }
+        assert_eq!(said_on(&said, EventDate::room_shown, " / ", Locale::De).as_deref(), Some("ZB/VI.03 (13.10., 03.11.)"));
+        assert_eq!(said_on(&said, |row| row.comment.as_deref(), "; ", Locale::De).as_deref(), Some("online (20.10., 03.11.)"));
+        assert_eq!(said_on(&said, |row| row.instructor.as_deref(), "; ", Locale::De).as_deref(), Some("Dippner"));
+        let first: Vec<EventDate> = said.iter().take(1).cloned().collect();
+        assert_eq!(said_on(&first, EventDate::room_shown, " / ", Locale::En).as_deref(), Some("ZB/VI.03"));
         let refs: Vec<&EventDate> = rows.iter().collect();
         let schedules = schedule_of(&refs);
         let field = |n: usize, key: &str| schedules.get(n).and_then(|schedule| schedule.get(key)).cloned();
