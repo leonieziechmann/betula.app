@@ -268,6 +268,15 @@ Program, degree, PO version, regulation documents.
 | Principle | **A form is said, not only read** (the owner, 2026-09-25, on Corporate Finance: „CFi sagt sich viel besser als CF. Das muss immer mitbedacht werden. Und wir schreiben hier auch ein wenig die Meta mit … deswegen können wir auch einfach ein paar Sachen festlegen."). A form students can say beats a shorter one they cannot: CFi, not CF; NMa, not NM. And since no source states a short name, Betula may set conventions of its own where the sources are silent: building/room (ZHG/HS.C), SEM for a Seminarraum, the lowercase function letter (AuP), a title „X- und Y" by its terms (SST). The costs already weigh how a form sounds in two places: a form of two letters costs 0.9, more than taking a word's first two letters (0.8: CFi before CF), and a word's second letter that would read as a function word between two capitals costs 0.5 more (NMa, not NuM; the function-letter rule, `render` in `radix/internal/abbrev/candidates.go`). No further rule for now; a form that is short but unsayable is a case for the rules or an override line. |
 | Provenance | Rebuilt by every build; never stored by a consumer. `program_module_abbrev.is_override`, `choice` and `is_twin` say how a form came about. |
 
+### 5.15 Series of single dates (2026-10-13)
+
+| | |
+|---|---|
+| Sources | **S3**, the dates of an event: QIS lists some Termine date by date („Einzel am 13.10.2026", „Einzel am 20.10.2026" …), each row with its weekday, times, room and teacher, although the dates follow a rhythm. QIS states no rhythm for them. |
+| Code path | `normalize.Series` → `event_date.series`, `series_weeks`, in `build` (`catalogbuild/events.go`), from the rows of one event. |
+| Authority | **Derived** (`docs/radix/schema-v2.md`, „Series of single dates"): single dates of one event (no exam), group, weekday and start, three days or more, one or two weeks apart, no gap of more than four weeks. The rows themselves stay QIS's; the series only says which belong together (owner, 2026-10-13: the detection is data normalization and belongs in Radix). |
+| Provenance | Rebuilt by every build; a reader that knows no series reads the rows date by date. |
+
 ## 6. Spot-check log
 
 Only two live requests were made: 2026-09-19 16:43 CEST, 2 s apart, with the scraper's

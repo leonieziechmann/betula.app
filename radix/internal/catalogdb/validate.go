@@ -147,6 +147,22 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 	v.count("room short forms longer than 12 characters", StatusInfo,
 		"SELECT COUNT(DISTINCT room) FROM event_date WHERE LENGTH(room_short) > 12", "")
 
+	// Series of single dates (docs/radix/schema-v2.md, „Series of single dates“): single dates of
+	// one event, group, weekday and start, named by the row of their first date, one or two weeks
+	// apart, three dates or more.
+	const seriesBroken = `FROM event_date d LEFT JOIN event_date f ON f.event_id = d.event_id AND f.ord = d.series
+		WHERE (d.series IS NOT NULL OR d.series_weeks IS NOT NULL)
+		  AND (d.series IS NULL OR d.series_weeks IS NULL OR d.rhythm IS NOT 'single' OR d.first_date IS NULL
+		       OR f.series IS NOT d.series OR f.series_weeks IS NOT d.series_weeks OR f.group_name IS NOT d.group_name
+		       OR f.start_time IS NOT d.start_time OR f.first_date > d.first_date
+		       OR strftime('%w', f.first_date) <> strftime('%w', d.first_date))`
+	v.count("a series of single dates holds single dates of one slot", StatusFail,
+		"SELECT COUNT(*) "+seriesBroken, "SELECT d.event_id || '/' || d.ord "+seriesBroken+" ORDER BY d.event_id, d.ord")
+	const seriesShort = `FROM event_date WHERE series IS NOT NULL GROUP BY event_id, series HAVING COUNT(DISTINCT first_date) < 3`
+	v.count("a series of single dates has three dates or more", StatusFail,
+		"SELECT COUNT(*) FROM (SELECT 1 "+seriesShort+")", "SELECT event_id || '/' || series "+seriesShort+" ORDER BY 1")
+	v.count("series of single dates", StatusInfo, "SELECT COUNT(*) FROM event_date WHERE series = ord", "")
+
 	// Search (docs/radix/schema-v2.md, „Search“). A migrated database that was not built again has
 	// nothing folded, and fails here: it must not be exported.
 	const unfolded = `FROM module m LEFT JOIN module_folded s ON s.module_id = m.id

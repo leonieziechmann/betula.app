@@ -530,6 +530,7 @@ mod tests {
         let row = Row {
             key: Some(RowKey { event: id, fp }),
             ord: Some(1),
+            series: None,
             date: EventDate {
                 semester_key: "2026W".into(),
                 semester_label: "WiSe 2026/27".into(),

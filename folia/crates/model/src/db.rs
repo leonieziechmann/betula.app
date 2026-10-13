@@ -12,8 +12,9 @@ use std::fmt;
 /// on one (`folia/assets/boot.js`, into which the server writes this number), and the server
 /// reports it when it serves one. A test holds it to the newest migration. 11: the modules'
 /// vectors of the semantic search (`v_module_vector`). 12: the names of the modules folded for the
-/// search of the catalog (`v_module_folded`).
-pub const SCHEMA_VERSION: i64 = 12;
+/// search of the catalog (`v_module_folded`). 13: the series of single dates
+/// (`v_module_schedule.series`, `series_weeks`).
+pub const SCHEMA_VERSION: i64 = 13;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

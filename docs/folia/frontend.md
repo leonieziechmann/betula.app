@@ -3275,7 +3275,23 @@ to the result.
   `folia_timetable::export`). A program's abbreviations differ from a module's own in about 7 %
   of its compulsory modules, and the download must be the feed, so the code carries the program;
   and it names the layout of its fields in four bits (`subscription::VERSION`), so a later layout
-  is read beside it. Codes of the time before are not read (canary only). Still open: the edge logs
+  is read beside it. Codes of the time before are not read (canary only). Since 2026-10-13 a
+  Termin is one entry, a series (owner: an entry per date was „ziemlich nervig" to deal with): its
+  rule (RRULE: every week, every other week, every four weeks, every day of a block or its working
+  days) runs from its first date to its last, UNTIL the end of that day in UTC; the dates it makes
+  and the Termin does not hold (the break, a holiday, a date QIS cancels) are left out one by one
+  (EXDATE, in the series' time zone and start), and a date that says more or other than the series
+  (a room note, another end, another room) follows it in full under its UID (RECURRENCE-ID), so a
+  date is exactly what it was. The series says what most of its dates say. Its UID is its row
+  key's (`148701-a2633@betula.app`); a single date keeps the UID of its key and its date. Single
+  dates that Radix reads as one series (QIS lists a seminar's Tuesdays one by one;
+  `event_date.series`, docs/radix/schema-v2.md, „Series of single dates“, schema 13) are one series
+  too, under the key of the row of its first date; its description says „in QIS als
+  Einzeltermine", and a week it has no date in is named („kein Termin in QIS"). Exams stay an entry
+  per date. The cap of a calendar counts VEVENTs: „nur die ersten 5000 Einträge". The pinned checks
+  read their snapshot of schema 9 as Radix's later migrations leave it
+  (`folia_test_support::migrated`), without series, and count the 249 dates of the pinned code in
+  its series (`Entry::dates`: what a calendar shows). Still open: the edge logs
   the address like every address, 7 days in Loki and 7 days in the host's journal
   (`deploy/README.md` §9); a Traefik router for `/calendar/` with
   `observability.accessLogs=false` would leave it out, but needs the blue-green priority label in

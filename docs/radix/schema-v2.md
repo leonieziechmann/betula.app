@@ -53,7 +53,7 @@ is derived and replaced by each build.
 | `program_module_assertion` | one row per statement "module M is in program P" per source, with `kind`, `kind_basis` (`stated`/`inferred`) and area | module page, QIS tree, validated plan |
 | `plan`, `plan_entry`, `plan_scan_status` | validated study plans; written transactionally by `SavePlan`, never touched by the build; not foreign-keyed to derived tables, so a plan survives an incomplete crawl | statute PDFs |
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
-| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/radix/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` by the build (section „Short names“) |
+| `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name; `event_date.series` and `series_weeks` say which single dates are one series (section „Series of single dates“) | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/radix/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` and the series by the build (sections „Short names“, „Series of single dates“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `module_folded` | the names of every module as the search compares them: its titles folded, their initials, its abbreviations folded | build, from the titles and the abbreviations (section „Search“) |
 | `module_summary`, `passage_embedding` | caches of the semantic search, kept across builds and never published: what Gemini wrote about a module's text (German and English summary, search terms; keyed by `semantic.Text.Hash`), and the vector of a passage under a model (keyed by `semantic.PassageHash`) | the semantic stage (section 6, „Semantic search“) |
@@ -97,7 +97,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_module_text_item` | module × item | `module_id, kind` (`literature`, `course`)`, ord, text` |
 | `v_module_prerequisite` | module × required module | `module_id, required_module_id, kind, required_title, required_offer_status` |
 | `v_module_successor` | module × successor | `module_id, successor_id, successor_title` |
-| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short` |
+| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks` (the series of single dates a row belongs to, section „Series of single dates“; schema 13) |
 | `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url, room_short` |
 | `v_module_program_link` | module × listed triple | `module_id, ord, degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, po_version, is_latest_po, relation, kind, kind_source, area` |
 | `v_program` | program | `id, slug, name, degree_level, degree_type, study_variant, degree_label, degree_raw, degree_display, po_version, po_year, po_amendment, family_key, name_key, is_latest_po, stg_code, abschl_code, source_url, fetched_at, has_plan, plan_validated_at, plan_status, curricular_modules, fues_modules, documents` |
@@ -798,6 +798,36 @@ The migration adds the three tables and the view, and the build's `module_vector
 content digest: the first build after the release publishes a snapshot (still without vectors
 until the stage has computed them), and the pinned digests of Folia's tests need a schema-11
 export.
+
+### Series of single dates (2026-10-13)
+
+QIS lists some Termine date by date: a row „Einzel am 13.10.2026" with its weekday and times, the
+next „Einzel am 20.10.2026", and so on, although the dates follow a rhythm. Each was an entry of its
+own in a student's calendar, and a module's week counted them („6 Termine"). Every build reads such
+rows as one series (`radix/internal/normalize/series.go`, migration 0013; owner, 2026-10-13: „an
+sich auch periodisch … vielleicht schon in radix, weil das ja an sich datennormalisierung ist") and
+says so in two columns of `event_date`; the rows stay as QIS lists them, each with its room, its
+teacher, its comment and its cancellation.
+
+| Column | What it holds |
+|---|---|
+| `series` | the `ord` of the row of the series' first date (the lowest `ord` on that day), the same in every row of the series; NULL for a row in none |
+| `series_weeks` | the weeks from one date of the series to the next: 1 or 2 |
+
+The rule (`normalize.Series`): the single dates (`rhythm = 'single'`, one day) of an event that is
+no exam, in one group, on one weekday and at one start; their end, room, teacher and comment may
+differ (a date in another room is still a date of the series). Sorted by day, they are cut where
+two dates are more than four weeks apart (`SeriesMaxGapDays`: the two weeks of the Christmas break
+and one more); a run is a series when it has three days or more (`SeriesMinDates`: two dates a week
+apart are a pair, three make a rhythm) and the gaps between them have a greatest common divisor of
+7 or 14 days. Two rows of one day (two rooms) are both of the series and count as one date. Exam
+dates are sittings and never a series. Folia writes a series as one entry of its calendar, the
+weeks it has no date in left out and named (`folia/crates/timetable/src/export.rs`;
+docs/folia/frontend.md, „The timetable as a calendar subscription“). `validate` fails on a series whose rows are not single dates of one slot named by the
+row of its first date, or that has fewer than three dates, and counts the series (info);
+`build.finished` counts `event_series` and `event_series_dates`. A database migrated to 13 and not
+built again has no series, which a reader reads as before, date by date. Both columns are part of
+the content digest.
 
 Open:
 

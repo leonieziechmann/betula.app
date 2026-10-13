@@ -59,6 +59,7 @@ func printBuildReport(r *catalogbuild.Report, took time.Duration) {
 	for _, link := range r.EventLinksGone {
 		fmt.Printf("                 left out: %s\n", link)
 	}
+	fmt.Printf("               %d series of single dates, with %d dates\n", r.EventSeries, r.EventSeriesDates)
 	fmt.Printf("Short names    %d rooms without a known building, %d rooms kept their long form; abbreviations: %d pairs fell back, %d twins, %d changed since the last build\n",
 		len(r.RoomsUnknownBuilding), len(r.RoomShortCollisions), r.AbbrevFellBack, r.AbbrevTwins, r.AbbrevChanged)
 	for _, line := range r.AbbrevOverridesUnused {
