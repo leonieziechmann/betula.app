@@ -133,12 +133,12 @@ pub enum Weeks {
 
 impl Weeks {
     /// The weeks a recurring row is held in; `None` for dates that do not recur (a single date, a
-    /// block). A four-weekly row falls into either kind of week.
+    /// block). A three- or four-weekly row falls into either kind of week.
     pub fn of(every: Option<Every>) -> Option<Weeks> {
         Some(match every? {
             Every::AWeek => Weeks::A,
             Every::BWeek => Weeks::B,
-            Every::Week | Every::FourWeeks => Weeks::All,
+            Every::Week | Every::ThreeWeeks | Every::FourWeeks => Weeks::All,
         })
     }
 

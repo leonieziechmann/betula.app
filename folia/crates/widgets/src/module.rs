@@ -28,7 +28,7 @@ use folia_model::labels::{
     TurnusSeason,
 };
 use folia_model::rows::{Module, Prerequisite, Semester};
-use folia_model::rows_detail::{EventDate, ProgramLink};
+use folia_model::rows_detail::{EventDate, ProgramLink, Series};
 use folia_pages::ask::OverlayAsk;
 use folia_pages::{ModuleData, Overlay};
 use folia_routes::url::{self, ProgramTab};
@@ -280,21 +280,32 @@ fn course_instance(m: &Module, semester: &str, teaching: &[&EventDate], exams: V
 
 /// The week of a semester's Termine as schema.org `Schedule`s: every row with a weekday and a
 /// time, from its first date to its last and at its rhythm, rows alike in all but the weekday as
-/// one. A row without a time, or „nach Absprache", has no slot (the page says „Zeit offen").
+/// one. A row without a time, or „nach Absprache", has no slot (the page says „Zeit offen"). The
+/// dates of a series of single dates at one time (`termine`) are one slot in the series' rhythm,
+/// with the days it leaves out.
 fn schedule_of(teaching: &[&EventDate]) -> Vec<serde_json::Value> {
-    /// What the slot is, its times, its dates and how often it repeats.
-    type Slot = (String, u16, u16, Option<String>, Option<String>, Option<&'static str>);
+    /// What the slot is, its times, its dates, how often it repeats and the days it leaves out.
+    type Slot = (String, u16, u16, Option<String>, Option<String>, Option<&'static str>, Vec<String>);
     let mut slots: Vec<(Slot, Vec<u8>)> = Vec::new();
-    for d in teaching {
+    for rows in termine(teaching.iter().copied()) {
+        let Some(d) = rows.first() else { continue };
         let Some(day) = d.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day)) else { continue };
         let (Some(from), Some(to)) = (d.start_time.as_deref().and_then(minutes), d.end_time.as_deref().and_then(minutes)) else { continue };
         if to <= from {
             continue;
         }
-        let repeat = match d.rhythm.as_ref().and_then(|rhythm| rhythm.known()) {
-            Some(Rhythm::Other) => continue,
-            Some(Rhythm::Weekly) => Some("P1W"),
-            Some(Rhythm::WeekA | Rhythm::WeekB) => Some("P2W"),
+        let series = d.series.filter(|_| rows.len() > 1);
+        let days: BTreeSet<Day> = rows.iter().filter_map(|row| row.first_date.as_deref().and_then(Day::parse)).collect();
+        let repeat = match (series, d.rhythm.as_ref().and_then(|rhythm| rhythm.known())) {
+            (Some(series), _) => Some(match series.weeks {
+                2 => "P2W",
+                3 => "P3W",
+                4 => "P4W",
+                _ => "P1W",
+            }),
+            (None, Some(Rhythm::Other)) => continue,
+            (None, Some(Rhythm::Weekly)) => Some("P1W"),
+            (None, Some(Rhythm::WeekA | Rhythm::WeekB)) => Some("P2W"),
             _ => None,
         };
         let kind = d.event_type.as_deref().map(str::trim).filter(|kind| !kind.is_empty());
@@ -306,9 +317,19 @@ fn schedule_of(teaching: &[&EventDate]) -> Vec<serde_json::Value> {
             (None, Some(group)) => format!("{} ({group})", d.event_title),
             (None, None) => d.event_title.clone(),
         };
-        let first = d.first_date.as_deref().and_then(Day::parse).map(Day::iso);
-        let last = d.last_date.as_deref().and_then(Day::parse).map(Day::iso).or(first.clone());
-        let slot = (name, from, to, first, last, repeat);
+        let (first, last, except) = match (series, days.first(), days.last()) {
+            (Some(series), Some(first), Some(last)) => {
+                let step = 7 * i32::from(series.weeks);
+                let made = std::iter::successors(Some(*first), |day| Some(day.plus(step))).take_while(|day| day <= last);
+                (Some(first.iso()), Some(last.iso()), made.filter(|day| !days.contains(day)).map(|day| day.iso()).collect())
+            }
+            _ => {
+                let first = d.first_date.as_deref().and_then(Day::parse).map(Day::iso);
+                let last = d.last_date.as_deref().and_then(Day::parse).map(Day::iso).or(first.clone());
+                (first, last, Vec::new())
+            }
+        };
+        let slot = (name, from, to, first, last, repeat, except);
         match slots.iter_mut().find(|(known, _)| *known == slot) {
             Some((_, days)) if !days.contains(&day) => days.push(day),
             Some(_) => {}
@@ -317,7 +338,7 @@ fn schedule_of(teaching: &[&EventDate]) -> Vec<serde_json::Value> {
     }
     slots
         .into_iter()
-        .map(|((name, from, to, first, last, repeat), mut days)| {
+        .map(|((name, from, to, first, last, repeat, except), mut days)| {
             days.sort_unstable();
             let mut slot = serde_json::Map::new();
             slot.insert("@type".into(), "Schedule".into());
@@ -336,6 +357,9 @@ fn schedule_of(teaching: &[&EventDate]) -> Vec<serde_json::Value> {
             }
             if let Some(repeat) = repeat {
                 slot.insert("repeatFrequency".into(), repeat.into());
+            }
+            if !except.is_empty() {
+                slot.insert("exceptDate".into(), except.into());
             }
             slot.insert("scheduleTimezone".into(), TZID.into());
             serde_json::Value::Object(slot)
@@ -762,33 +786,54 @@ fn Schedule(data: ModuleData) -> impl IntoView {
         .collect();
     let exam_note = exam_semester.as_ref().and_then(|(_, label)| exam_note(exams.iter().filter_map(|(_, r)| r.as_ref()), label, t));
 
-    let event_list = |dates: Vec<(EventDate, Option<ExamReading>)>| {
+    // A line per Termin (`termine`): a row, or the dates of a series of single dates at one time,
+    // one Termin in its rhythm, how many and from when to when; their dates in its tooltip.
+    let event_list = |dates: Vec<(Vec<EventDate>, Option<ExamReading>)>| {
         dates
             .into_iter()
-            .map(|(d, reading)| {
+            .filter_map(|(rows, reading)| {
+                let d = rows.first()?.clone();
+                let series = d.series.filter(|_| rows.len() > 1);
+                let days: Vec<Day> = rows.iter().filter_map(|row| row.first_date.as_deref().and_then(Day::parse)).collect::<BTreeSet<_>>().into_iter().collect();
                 let slot = reading.as_ref().map_or_else(|| Slot::of(&d), |r| r.shown.clone());
                 let when = if reading.is_some() { shown_when(&slot, t) } else { format::time_slot(d.weekday, d.start_time.as_deref(), d.end_time.as_deref(), t.locale) };
                 let open = if reading.as_ref().is_some_and(|r| r.has(Reason::PlaceholderTime)) && slot.first_date.is_none() { words.date_open } else { words.time_open };
                 // What the BTU wrote where the row shows something else without marking it (a deadline).
                 let stated = reading.as_ref().filter(|r| r.shown != r.stated && !r.is_marked()).map(|r| (words.in_qis)(&stated_slot(r, t)));
                 let marker = reading.as_ref().filter(|r| r.is_marked()).map(|r| marker_text(r, t));
-                let rhythm = d.rhythm.as_ref().map(|r| r.label(t.locale).to_string()).or(d.rhythm_raw.clone());
-                let head: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm].into_iter().flatten().collect();
-                let tail: Vec<String> = [d.room_shown().map(str::to_string), d.instructor.clone(), d.comment.clone()].into_iter().flatten().collect();
-                let days = slot.first_date.clone().map(|first| (first, slot.last_date.clone().filter(|last| Some(last) != slot.first_date.as_ref())));
-                let details = !head.is_empty() || days.is_some() || !tail.is_empty();
+                let feed = folia_timetable::i18n::texts(t.locale);
+                let rhythm = match series {
+                    Some(series) => Some(feed.series_rhythm(series.weeks).to_string()),
+                    None => d.rhythm.as_ref().map(|r| r.label(t.locale).to_string()).or(d.rhythm_raw.clone()),
+                };
+                let count = series.map(|_| (words.dates_count)(days.len()));
+                let head: Vec<String> = [d.event_type.clone(), d.group_name.clone(), rhythm, count].into_iter().flatten().collect();
+                let tail: Vec<String> = [
+                    joined(rows.iter().map(EventDate::room_shown), " / "),
+                    joined(rows.iter().map(|row| row.instructor.as_deref()), "; "),
+                    joined(rows.iter().map(|row| row.comment.as_deref()), "; "),
+                ]
+                .into_iter()
+                .flatten()
+                .collect();
+                let range = match (series, days.first(), days.last()) {
+                    (Some(_), Some(first), Some(last)) => Some((first.iso(), (first != last).then(|| last.iso()))),
+                    _ => slot.first_date.clone().map(|first| (first, slot.last_date.clone().filter(|last| Some(last) != slot.first_date.as_ref()))),
+                };
+                let details = !head.is_empty() || range.is_some() || !tail.is_empty();
                 // The short form stands in the line; QIS's whole name is the tooltip (owner, 2026-09-25).
-                let room_long = d.room_short.is_some().then(|| d.room.clone()).flatten();
+                let room_long = joined(rows.iter().filter(|row| row.room_short.is_some()).map(|row| row.room.as_deref()), " / ");
+                let listed = series.map(|_| format!("{}: {}", feed.feed_singles, days.iter().map(|day| day.date(t.locale)).collect::<Vec<_>>().join(", ")));
                 let body = view! {
                     <span class="when" title=stated>{when.unwrap_or_else(|| open.to_string())}</span>
                     <b>{d.event_title.clone()}</b>
-                    {(details || marker.is_none()).then(|| view! { <small title=room_long>{detail_line(head, days, tail, t.locale)}</small> })}
+                    {(details || marker.is_none()).then(|| view! { <small title=room_long>{detail_line(head, range, tail, t.locale)}</small> })}
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
-                match d.source_url.clone() {
-                    Some(href) => view! { <a class="ev" href=href rel="noopener">{body}</a> }.into_any(),
-                    None => view! { <div class="ev">{body}</div> }.into_any(),
-                }
+                Some(match d.source_url.clone() {
+                    Some(href) => view! { <a class="ev" href=href rel="noopener" title=listed>{body}</a> }.into_any(),
+                    None => view! { <div class="ev" title=listed>{body}</div> }.into_any(),
+                })
             })
             .collect_view()
     };
@@ -800,12 +845,12 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
-            {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(teaching.into_iter().map(|d| (d, None)).collect())}</div> })}
+            {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(termine(&teaching).into_iter().map(|rows| (rows.into_iter().cloned().collect(), None)).collect())}</div> })}
         </div>
         {exam_semester.map(|(_, label)| view! {
             <div class="section" id="pruefungstermine">
                 <h3 class="label">{words.exam_dates}<span>{label}</span></h3>
-                <div class="evlist">{event_list(exams)}</div>
+                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| (vec![d], reading)).collect())}</div>
                 {exam_line}
                 {exam_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             </div>
@@ -813,11 +858,49 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     }
 }
 
+/// The Termine of a module's teaching rows, each the rows of one line of the list: a row, or the
+/// dates of a series of single dates at one time (`EventDate::series`), which are one Termin in
+/// the series' rhythm (owner, 2026-10-13: „sehr unübersichtlich, wenn da Einzeltermine sind"); a
+/// date of a series at another time is one of its own. Each stands where its first row does.
+fn termine<'a>(teaching: impl IntoIterator<Item = &'a EventDate>) -> Vec<Vec<&'a EventDate>> {
+    let mut lines: Vec<Vec<&'a EventDate>> = Vec::new();
+    for date in teaching {
+        let at = date.series.and_then(|_| lines.iter().position(|line| line.first().is_some_and(|first| one_termin(first, date))));
+        match at.and_then(|at| lines.get_mut(at)) {
+            Some(line) => line.push(date),
+            None => lines.push(vec![date]),
+        }
+    }
+    lines
+}
+
+/// Whether two rows are dates of one series of single dates at one time.
+fn one_termin(a: &EventDate, b: &EventDate) -> bool {
+    a.series.is_some()
+        && (a.event_id.as_str(), a.series, a.start_time.as_deref(), a.end_time.as_deref())
+            == (b.event_id.as_str(), b.series, b.start_time.as_deref(), b.end_time.as_deref())
+}
+
+/// What rows say, each once in their order and joined by `by` („HG 0.20 / HG 0.18"); `None` where
+/// none says anything.
+fn joined<'a>(values: impl Iterator<Item = Option<&'a str>>, by: &str) -> Option<String> {
+    let mut seen: Vec<&str> = Vec::new();
+    for value in values.flatten().map(str::trim).filter(|value| !value.is_empty()) {
+        if !seen.contains(&value) {
+            seen.push(value);
+        }
+    }
+    (!seen.is_empty()).then(|| seen.join(by))
+}
+
 /// The week grid's slots of a module's teaching rows (one semester's): every row with a weekday
 /// and both times, 24:00 included. Rows of one event and group at the same weekday and times are
 /// one slot (the same time in two rooms, or a date range QIS splits in two). A date that happens
 /// once (a single date, or a range of one day) is not drawn as a weekly slot: the single dates of
-/// such a key are one `.once` slot that counts them („3 Termine", „1 Termin · 23.02.").
+/// such a key are one `.once` slot that counts them („3 Termine", „1 Termin · 23.02."). The dates
+/// of a series of single dates at one time (`EventDate::series`) are the one Termin they are, a
+/// slot like a weekly one whose tooltip names their rhythm and days; a date of it alone at its
+/// time is a single date.
 #[cfg(test)]
 fn own_slots(teaching: &[EventDate], t: &'static Texts) -> Vec<GridSlot> {
     own_groups(teaching, t).into_iter().map(|(slot, _)| slot).collect()
@@ -826,8 +909,8 @@ fn own_slots(teaching: &[EventDate], t: &'static Texts) -> Vec<GridSlot> {
 /// `own_slots`, each with the keys of the rows it stands for (`RowKey`): what the Studienplan
 /// names when one of them clashes with it.
 fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>)> {
-    /// Once, weekday, from, to, event, group.
-    type Key<'a> = (bool, u8, u16, u16, &'a str, Option<&'a str>);
+    /// Once, the series, weekday, from, to, event, group.
+    type Key<'a> = (bool, Option<Series>, u8, u16, u16, &'a str, Option<&'a str>);
     /// A slot's key, its first row, the days of its single dates, and the keys of its rows.
     type Group<'a> = (Key<'a>, &'a EventDate, BTreeSet<Option<&'a str>>, Vec<RowKey>);
     let mut groups: Vec<Group<'_>> = Vec::new();
@@ -839,8 +922,9 @@ fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<R
         if to <= from {
             continue;
         }
-        let once = date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single)) || (date.first_date.is_some() && date.first_date == date.last_date);
-        let key = (once, day, from, to, date.event_id.as_str(), date.group_name.as_deref());
+        let once = date.series.is_none()
+            && (date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Single)) || (date.first_date.is_some() && date.first_date == date.last_date));
+        let key = (once, date.series, day, from, to, date.event_id.as_str(), date.group_name.as_deref());
         let row = RowKey::of(date);
         match groups.iter_mut().find(|(known, ..)| *known == key) {
             Some((_, _, dates, rows)) => {
@@ -852,13 +936,18 @@ fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<R
     }
     groups
         .into_iter()
-        .map(|((once, day, from, to, ..), date, dates, rows)| (own_slot(once, day, from, to, date, &dates, t), rows))
+        .map(|((once, series, day, from, to, ..), date, dates, rows)| {
+            // A date of a series alone at its time is the single date it is.
+            let once = once || (series.is_some() && dates.len() == 1);
+            (own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t), rows)
+        })
         .collect()
 }
 
 /// The slot of one group of rows (`own_groups`): `date` is its first row, `dates` the days of its
-/// single dates.
-fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &BTreeSet<Option<&str>>, t: &'static Texts) -> GridSlot {
+/// single dates, or of the series of single dates (`series`) it is.
+#[allow(clippy::too_many_arguments)]
+fn own_slot(once: bool, series: Option<Series>, day: u8, from: u16, to: u16, date: &EventDate, dates: &BTreeSet<Option<&str>>, t: &'static Texts) -> GridSlot {
     // The kinds in their few letters („VL", „Prak", „VL/Ü"), as in the Studienplan's week: what
     // QIS calls the event fits a narrow day only in part, and one grid said „Vorlesung", „VL" and
     // „Laborausbi…" side by side (review 2026-09-25). QIS's word leads the tooltip, and stays the
@@ -874,21 +963,23 @@ fn own_slot(once: bool, day: u8, from: u16, to: u16, date: &EventDate, dates: &B
         Some(word) => format!("{word} · {}", date.event_title),
         None => date.event_title.clone(),
     };
+    let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
+    let listed = || days.iter().map(|day| day.date(t.locale)).collect::<Vec<_>>().join(", ");
     if !once {
         let lecture = class_of(kinds) == Class::Lecture;
-        return GridSlot { day, from, to, label, small: clock(from), title: what, class: if lecture { "" } else { "other" }, ..GridSlot::default() };
+        // A series names its rhythm and the days it stands for.
+        let title = match series {
+            Some(series) => format!("{what} · {} · {}", folia_timetable::i18n::texts(t.locale).series_rhythm(series.weeks), listed()),
+            None => what,
+        };
+        return GridSlot { day, from, to, label, small: clock(from), title, class: if lecture { "" } else { "other" }, ..GridSlot::default() };
     }
-    let days: Vec<Day> = dates.iter().filter_map(|date| date.and_then(Day::parse)).collect();
     let small = match (dates.len(), days.as_slice()) {
         (1, [only]) => (t.module.one_date_on)(&only.day_month(t.locale)),
         (n, _) => (t.module.dates_count)(n),
     };
     // The tooltip names the dates the small line only counts.
-    let title = if days.is_empty() {
-        what
-    } else {
-        format!("{what} · {}", days.iter().map(|day| day.date(t.locale)).collect::<Vec<_>>().join(", "))
-    };
+    let title = if days.is_empty() { what } else { format!("{what} · {}", listed()) };
     GridSlot { day, from, to, label, small, title, class: "once", ..GridSlot::default() }
 }
 
@@ -1146,6 +1237,7 @@ mod tests {
             comment: None,
             source_url: None,
             room_short: None,
+            series: None,
         }
     }
 
@@ -1161,6 +1253,39 @@ mod tests {
             last_date: Some(last.into()),
             ..exam(Some(weekday), Some(times.0), Some(times.1), Some(first))
         }
+    }
+
+    /// A series of single dates is one Termin on the page (owner, 2026-10-13: „sehr
+    /// unübersichtlich, wenn da Einzeltermine sind"): one slot in the week whose tooltip names its
+    /// rhythm and days, one line in the list, and one schema.org `Schedule` in its rhythm with the
+    /// day it leaves out. A date of it at another time is a single date.
+    #[test]
+    fn a_series_of_single_dates_is_one_termin() {
+        let date = |on: &str, end: &str| EventDate {
+            series: Some(Series { first: 1, weeks: 1 }),
+            ..teaching("150001", "Seminar", "[unbenannt]", 2, ("13:45", end), "single", on, on)
+        };
+        let rows = [date("2026-10-13", "15:15"), date("2026-10-20", "15:15"), date("2026-11-03", "15:15"), date("2026-11-24", "16:00")];
+        let slots = own_slots(&rows, &DE);
+        let shown: Vec<(&str, &str, &str)> = slots.iter().map(|s| (s.small.as_str(), s.class, s.title.as_str())).collect();
+        let abwl = "Allgemeine Betriebswirtschaftslehre II";
+        assert_eq!(
+            shown,
+            [
+                ("13:45", "other", format!("Seminar · {abwl} · wöchentlich · 13.10.2026, 20.10.2026, 03.11.2026").as_str()),
+                ("1 Termin · 24.11.", "once", format!("Seminar · {abwl} · 24.11.2026").as_str()),
+            ]
+        );
+        assert_eq!(termine(&rows).iter().map(Vec::len).collect::<Vec<_>>(), [3, 1]);
+        let refs: Vec<&EventDate> = rows.iter().collect();
+        let schedules = schedule_of(&refs);
+        let field = |n: usize, key: &str| schedules.get(n).and_then(|schedule| schedule.get(key)).cloned();
+        assert_eq!(schedules.len(), 2);
+        assert_eq!(
+            (field(0, "startDate"), field(0, "endDate"), field(0, "repeatFrequency"), field(0, "exceptDate")),
+            (Some("2026-10-13".into()), Some("2026-11-03".into()), Some("P1W".into()), Some(serde_json::json!(["2026-10-27"])))
+        );
+        assert_eq!((field(1, "startDate"), field(1, "endDate"), field(1, "repeatFrequency")), (Some("2026-11-24".into()), Some("2026-11-24".into()), None));
     }
 
     #[test]

@@ -16,6 +16,7 @@ use folia_locale::Locale;
 use folia_model::labels::{Code, Rhythm};
 use folia_model::rows_detail::{DateRow, EventDate};
 
+use crate::clash::Weeks;
 use crate::facts::SemesterFacts;
 
 /// The most dates walked for one row. No real row comes near it; a block that runs for years
@@ -39,12 +40,14 @@ impl Skipped {
     }
 }
 
-/// How often a recurring row meets.
+/// How often a recurring row meets. Every three weeks only a series of single dates does
+/// (`Every::shown`): QIS has no such rhythm.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Every {
     Week,
     AWeek,
     BWeek,
+    ThreeWeeks,
     FourWeeks,
 }
 
@@ -67,11 +70,31 @@ impl Every {
         }
     }
 
+    /// The rhythm a row is shown in: QIS's (`of`), else that of the series of single dates it
+    /// belongs to (`EventDate::series`): every week, every other week in the A or in the B weeks
+    /// (`SemesterFacts::ab_week` of its date; none where the semester's A/B weeks are unknown, so
+    /// that its dates stay single ones), every three or four weeks. The week, the Studienplan and
+    /// the module page show a series as one Termin; its dates stay single dates.
+    pub fn shown(date: &EventDate, facts: &SemesterFacts) -> Option<Every> {
+        Every::of(date).or_else(|| match date.series?.weeks {
+            1 => Some(Every::Week),
+            2 => match facts.ab_week(date.first_date.as_deref().and_then(Day::parse)?)? {
+                Weeks::A => Some(Every::AWeek),
+                Weeks::B => Some(Every::BWeek),
+                Weeks::All => None,
+            },
+            3 => Some(Every::ThreeWeeks),
+            4 => Some(Every::FourWeeks),
+            _ => None,
+        })
+    }
+
     /// Days from one meeting to the next.
     fn step(self) -> i32 {
         match self {
             Every::Week => 7,
             Every::AWeek | Every::BWeek => 14,
+            Every::ThreeWeeks => 21,
             Every::FourWeeks => 28,
         }
     }
@@ -204,7 +227,7 @@ pub fn occurrences(row: &DateRow, facts: &SemesterFacts) -> Occurrences {
 
 /// The days of a recurring row without a range: the lecture period's days of its weekday, for
 /// A and B rows those of their weeks. `None` when the period, or for A and B the anchor, is
-/// unknown, and always for a four-weekly row, which nothing anchors. The period is whole weeks,
+/// unknown, and always for a three- or four-weekly row, which nothing anchors. The period is whole weeks,
 /// the half-year need not be (2026S begins on a Wednesday): no day before or after the half-year
 /// is assumed.
 fn assumed(every: Every, weekday: u8, facts: &SemesterFacts) -> Option<Vec<Day>> {
@@ -219,7 +242,7 @@ fn assumed(every: Every, weekday: u8, facts: &SemesterFacts) -> Option<Vec<Day>>
             // The period's first week of that parity.
             base.plus(own.0.saturating_sub(base.0).rem_euclid(14))
         }
-        Every::FourWeeks => return None,
+        Every::ThreeWeeks | Every::FourWeeks => return None,
     };
     let first = monday.plus(i32::from(weekday) - 1);
     Some(walk(first, end, every.step()).into_iter().filter(|day| *day >= start).collect())
@@ -301,7 +324,6 @@ mod tests {
         DateRow {
             module_id: "12104".into(),
             ord: Some(1),
-            series: None,
             cancelled_dates: f.cancelled.map(Into::into),
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -324,6 +346,7 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }
@@ -397,6 +420,32 @@ mod tests {
             &winter(),
         );
         assert_eq!(isos(&odd.days), ["2026-10-06", "2026-10-20", "2026-11-03"]);
+    }
+
+    /// A series of single dates is shown in its rhythm, every other week in the A or B weeks its
+    /// dates fall in; its dates stay single ones, and without A/B weeks a fortnightly series stays
+    /// single dates in the week as well.
+    #[test]
+    fn a_series_is_shown_in_its_rhythm_and_its_dates_stay_single() {
+        let on = |day: &'static str, weeks: u8| {
+            let mut date = row(Fixture { rhythm: Some("single"), raw: Some("Einzel"), range: Some((day, day)), ..WEEKLY });
+            date.date.series = Some(folia_model::rows_detail::Series { first: 1, weeks });
+            date
+        };
+        let shown = |row: &DateRow, facts: &SemesterFacts| Every::shown(&row.date, facts);
+        assert_eq!(shown(&on("2026-10-13", 1), &winter()), Some(Every::Week));
+        // The A weeks of 2026W begin with 05.10.: 13.10. is in a B week, 20.10. in an A week.
+        assert_eq!(shown(&on("2026-10-13", 2), &winter()), Some(Every::BWeek));
+        assert_eq!(shown(&on("2026-10-20", 2), &winter()), Some(Every::AWeek));
+        assert_eq!(shown(&on("2026-10-13", 3), &winter()), Some(Every::ThreeWeeks));
+        assert_eq!(shown(&on("2026-10-13", 4), &winter()), Some(Every::FourWeeks));
+        assert_eq!(shown(&on("2026-10-13", 2), &unknown()), None);
+        // QIS's own rhythm stands: a weekly row is weekly, a single date in no series is none.
+        assert_eq!(shown(&row(WEEKLY), &winter()), Some(Every::Week));
+        let single = row(Fixture { rhythm: Some("single"), raw: Some("Einzel"), range: Some(("2026-10-13", "2026-10-13")), ..WEEKLY });
+        assert_eq!(shown(&single, &winter()), None);
+        let series = on("2026-10-13", 1);
+        assert_eq!((Every::of(&series.date), isos(&occurrences(&series, &winter()).days)), (None, vec!["2026-10-13".to_string()]));
     }
 
     #[test]

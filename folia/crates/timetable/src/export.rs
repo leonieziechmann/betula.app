@@ -490,7 +490,7 @@ fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<
     // whole Termin, its range and the dates it drops, is said of all of them.
     let mut units: Vec<(Unit, Vec<&Row>)> = Vec::new();
     for row in event.rows.iter().filter(placed) {
-        let unit = match row.series {
+        let unit = match row.date.series {
             Some(series) => Unit::Series(series.first),
             None => Unit::Key(key_text(&event.id, row.key, &row.date)),
         };
@@ -557,12 +557,13 @@ fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<
 /// the working days. `None` for a single date and a rhythm that makes no dates.
 fn rule_of(rows: &[&Row], held: &BTreeSet<Day>) -> Option<Rule> {
     let row = rows.first()?;
-    if let Some(series) = row.series {
+    if let Some(series) = row.date.series {
         return Some(Rule::Weeks(series.weeks));
     }
     match Every::of(&row.date) {
         Some(Every::Week) => Some(Rule::Weeks(1)),
         Some(Every::AWeek | Every::BWeek) => Some(Rule::Weeks(2)),
+        Some(Every::ThreeWeeks) => Some(Rule::Weeks(3)),
         Some(Every::FourWeeks) => Some(Rule::Weeks(4)),
         None if row.date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Block)) => {
             Some(if held.iter().any(|day| day.weekday() >= 6) { Rule::Days } else { Rule::Workdays })
@@ -596,7 +597,7 @@ fn gaps(t: &Timetable, event: &Event, first: i64, held: &BTreeSet<Day>, rule: Op
     let listed: BTreeSet<Day> = event
         .rows
         .iter()
-        .filter(|row| row.series.is_some_and(|series| series.first == first))
+        .filter(|row| row.date.series.is_some_and(|series| series.first == first))
         .filter_map(|row| row.date.first_date.as_deref().and_then(Day::parse))
         .collect();
     rule.days(*from, *to)
@@ -746,17 +747,13 @@ fn rhythm_line(rows: &[&Row], locale: Locale) -> Option<String> {
     let date = &first.date;
     let rhythm = date.rhythm.as_ref().and_then(Code::known);
     // A series of single dates every one to four weeks; else the rows' own rhythm.
-    let series = first.series.map(|series| match series.weeks {
-        2 => texts.fortnightly,
-        3 => texts.every_three_weeks,
-        4 => texts.every_four_weeks,
-        _ => texts.weekly,
-    });
+    let series = date.series.map(|series| texts.series_rhythm(series.weeks));
     let name = match Every::of(date) {
         _ if series.is_some() => series.map(str::to_string),
         Some(Every::Week) => Some(texts.weekly.to_string()),
         Some(Every::AWeek) => Some(texts.fortnightly_a.to_string()),
         Some(Every::BWeek) => Some(texts.fortnightly_b.to_string()),
+        Some(Every::ThreeWeeks) => Some(texts.every_three_weeks.to_string()),
         Some(Every::FourWeeks) => Some(texts.every_four_weeks.to_string()),
         None => match rhythm {
             Some(Rhythm::Single) => Some(texts.single_date.to_string()),
@@ -774,13 +771,13 @@ fn rhythm_line(rows: &[&Row], locale: Locale) -> Option<String> {
         })
         .reduce(|(first, last), (other_first, other_last)| (first.min(other_first), last.max(other_last)));
     let range = stated
-        .filter(|(first_day, last_day)| (rhythm != Some(Rhythm::Single) || first.series.is_some()) && first_day != last_day)
+        .filter(|(first_day, last_day)| (rhythm != Some(Rhythm::Single) || first.date.series.is_some()) && first_day != last_day)
         .map(|(first_day, last_day)| format!("{}–{}", first_day.date(locale), last_day.date(locale)));
     let line = match (name, range) {
         (Some(name), Some(range)) => Some(format!("{name} {range}")),
         (name, range) => name.or(range),
     };
-    match first.series {
+    match first.date.series {
         Some(_) => line.map(|line| format!("{line} ({})", texts.feed_singles)),
         None => line,
     }
@@ -1035,7 +1032,6 @@ mod tests {
         DateRow {
             module_id: module.into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -1058,6 +1054,7 @@ mod tests {
                 comment: None,
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
+                series: None,
             },
         }
     }
@@ -1782,7 +1779,7 @@ mod tests {
         let weekday = i64::from(d(day).weekday());
         let mut row = room(teaching(A, event, ord, "Seminar", weekday, "13:45", "15:15").rhythm("single").range(day, day), "Raum A");
         row.0.date.rhythm_raw = Some("Einzel".into());
-        row.0.series = series.map(|(first, weeks)| Series { first, weeks });
+        row.0.date.series = series.map(|(first, weeks)| Series { first, weeks });
         row
     }
 

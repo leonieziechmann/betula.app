@@ -65,9 +65,10 @@ pub struct Texts {
     /// How many single dates a slot or a Termin gathers: „1 Termin", „3 Termine".
     pub sessions: fn(usize) -> String,
     /// The weeks a Termin meets in, in words: A weeks („A-Woche"), B weeks („B-Woche"), every
-    /// fourth week („4-wöch.").
+    /// third week (a series of single dates, „3-wöch."), every fourth week („4-wöch.").
     pub in_week_a: &'static str,
     pub in_week_b: &'static str,
+    pub every_three_weeks: &'static str,
     pub every_four_weeks: &'static str,
     /// The part of the lecture period a Termin meets in (the date written already): „bis 24.11." …
     pub until: fn(&str) -> String,
@@ -130,6 +131,7 @@ pub const DE: Texts = Texts {
     sessions: |n| if n == 1 { "1 Termin".to_string() } else { format!("{n} Termine") },
     in_week_a: "A-Woche",
     in_week_b: "B-Woche",
+    every_three_weeks: "3-wöch.",
     every_four_weeks: "4-wöch.",
     until: |day| format!("bis {day}"),
     from: |day| format!("ab {day}"),
@@ -176,6 +178,7 @@ pub const EN: Texts = Texts {
     sessions: |n| if n == 1 { "1 session".to_string() } else { format!("{n} sessions") },
     in_week_a: "week A",
     in_week_b: "week B",
+    every_three_weeks: "3-weekly",
     every_four_weeks: "4-weekly",
     until: |day| format!("until {day}"),
     from: |day| format!("from {day}"),

@@ -267,6 +267,19 @@ pub const EN: Texts = Texts {
     qis_states: |odd| format!("According to QIS: {odd}"),
 };
 
+impl Texts {
+    /// The rhythm of a series of single dates every `weeks` weeks: „wöchentlich", „14-täglich",
+    /// „alle drei Wochen", „vierwöchentlich".
+    pub fn series_rhythm(&self, weeks: u8) -> &'static str {
+        match weeks {
+            2 => self.fortnightly,
+            3 => self.every_three_weeks,
+            4 => self.every_four_weeks,
+            _ => self.weekly,
+        }
+    }
+}
+
 /// The words of the timetable in `locale`.
 pub fn texts(locale: Locale) -> &'static Texts {
     match locale {
