@@ -3,7 +3,9 @@
 //! A timetable (`model`) knows every date of every row; a student reads it in two ways. The
 //! Regelwoche is the Stundenplan: one slot per recurring Termin at its weekday and time, however
 //! often it meets, and the dates of an event that do not recur gathered per weekday and time into
-//! one slot („3 Termine"), so a single date on 23.02. no longer reads as a weekly one (12229). The
+//! one slot („3 Termine"), so a single date on 23.02. no longer reads as a weekly one (12229). A
+//! series of single dates (Radix's, `EventDate::series`) recurs: QIS lists it date by date, the
+//! week shows it as the one Termin it is, in its rhythm (`Row::every`). The
 //! agenda („Termine") lists every date by week and day: what is cancelled and why, which day is a
 //! holiday, which weeks have no lectures, and the exams. What has no time or no date at all
 //! („Ohne feste Zeit") stands apart, once for the semester.
@@ -388,8 +390,10 @@ impl Timetable {
     /// The Regelwoche, by weekday, time and event. A visible row with a time is a slot when it
     /// has a date: a recurring row with a held day or only its pattern is one slot at its
     /// weekday, and the held dates of a row that does not recur are gathered per weekday and
-    /// time. Rows of one event at one weekday, time and rhythm and of one option are one slot:
-    /// one slot in two rooms, or in two ranges one after the other. A recurring slot reads as
+    /// time. A row recurs in the rhythm it is shown in (`Row::every`), the rows of a series of
+    /// single dates in the series': its dates are one slot, a date QIS cancels in its range. Rows
+    /// of one event at one weekday, time and rhythm and of one option are one slot: one slot in
+    /// two rooms, or in two ranges one after the other. A recurring slot reads as
     /// running through the lecture period, as a part of it, or as one date when its range holds
     /// no other. A recurring row whose every date is cancelled has no slot (the agenda lists its
     /// cancellations); one whose every date the break or a holiday takes, and what has no time
@@ -410,12 +414,10 @@ impl Timetable {
             };
             let against = hard.get(&(e, r));
             let clashes = against.is_some();
-            let every = Every::of(&row.date);
+            let every = row.every;
             if every.is_some() {
-                let day = match (row.occ.template, row.occ.days.first()) {
-                    (Some(pattern), _) => pattern.weekday,
-                    (None, Some(held)) => held.weekday(),
-                    (None, None) => continue,
+                let Some(day) = row.slot_day() else {
+                    continue;
                 };
                 let key = (day, from, to, e, row.option, rhythm_order(every));
                 let slot = slots.entry(key).or_insert_with(|| Slot::new(every, r));
@@ -448,6 +450,9 @@ impl Timetable {
                         let (first, _) = slot.first?;
                         WeekLabel::Once { dates: slot.held.len(), first }
                     }
+                    // A series whose every date QIS cancels has no slot, as a recurring row has
+                    // none (a recurring row is in a slot by its pattern or a held day).
+                    Some(_) if slot.first.is_none() && !slot.pattern => return None,
                     Some(every) => match (slot.span.filter(|_| !slot.pattern), slot.first) {
                         // A recurring row whose range holds one date is a single date (143849's
                         // 29.04. of 2026S), not „29.04.–29.04." every week.
@@ -613,14 +618,15 @@ fn dates(row: &Row) -> impl Iterator<Item = Day> + '_ {
 }
 
 /// The order of the rhythms among slots of one weekday, time, event and option: weekly, A, B,
-/// four-weekly, then dates that do not recur.
+/// three-weekly, four-weekly, then dates that do not recur.
 fn rhythm_order(every: Option<Every>) -> u8 {
     match every {
         Some(Every::Week) => 0,
         Some(Every::AWeek) => 1,
         Some(Every::BWeek) => 2,
-        Some(Every::FourWeeks) => 3,
-        None => 4,
+        Some(Every::ThreeWeeks) => 3,
+        Some(Every::FourWeeks) => 4,
+        None => 5,
     }
 }
 
@@ -670,7 +676,6 @@ mod tests {
         DateRow {
             module_id: module.into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -693,6 +698,7 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }
@@ -810,12 +816,12 @@ mod tests {
             }
             match &item.label {
                 WeekLabel::Once { dates, first } => {
-                    assert!(*dates >= 1 && (Every::of(&r.date).is_none() || *dates == 1), "{}", e.id);
+                    assert!(*dates >= 1 && (r.every.is_none() || *dates == 1), "{}", e.id);
                     assert!(r.occ.days.contains(first) && first.weekday() == item.day, "{}", e.id);
                 }
-                WeekLabel::Every(every) => assert_eq!(Every::of(&r.date), Some(*every), "{}", e.id),
+                WeekLabel::Every(every) => assert_eq!(r.every, Some(*every), "{}", e.id),
                 WeekLabel::Partial { first, last } => {
-                    assert!(Every::of(&r.date).is_some() && first <= last, "{}", e.id);
+                    assert!(r.every.is_some() && first <= last, "{}", e.id);
                     assert!(item.label.reach(&t.facts).is_some(), "{}", e.id);
                 }
             }
@@ -831,7 +837,7 @@ mod tests {
                     i.event == e && (i.day, i.from, i.to) == (day, from, to) && (recurring || once)
                 })
             };
-            match (Every::of(&row.date), row.occ.template, row.occ.days.first()) {
+            match (row.every, row.occ.template, row.occ.days.first()) {
                 (Some(_), Some(pattern), _) => assert!(slotted(pattern.weekday, true)),
                 (Some(_), None, Some(held)) => assert!(slotted(held.weekday(), true)),
                 (Some(_), None, None) => {}
@@ -987,6 +993,54 @@ mod tests {
         assert_eq!(kind_and_title("Seminar", "Seminare der Informatik"), "Seminar · Seminare der Informatik");
         assert_eq!(kind_and_title("Seminar/Übung", "Seminar Infrastrukturplanung"), "Seminar/Übung · Seminar Infrastrukturplanung");
         assert_eq!(kind_and_title("Vorlesung", " "), "Vorlesung");
+    }
+
+    /// A series of single dates is one slot in its rhythm, as a recurring row is (owner,
+    /// 2026-10-13: „sehr unübersichtlich, wenn da Einzeltermine sind"): five Tuesdays of a seminar
+    /// with a week left out and the last one cancelled, and a sixth that ends later and so is a
+    /// slot of its own; Thursdays every other week, in the A weeks of 2026W; Fridays every three
+    /// weeks. A single date in no series stays one, and a series QIS cancels whole has no slot.
+    #[test]
+    fn a_series_of_single_dates_is_one_slot_in_its_rhythm() {
+        let tuesdays = ["2026-10-13", "2026-10-20", "2026-10-27", "2026-11-10", "2026-11-17"];
+        let mut rows: Vec<Fixture> = tuesdays.iter().zip(1..).map(|(day, ord)| single("A", "40", ord, day, "13:45", "15:15").series(1, 1)).collect();
+        rows[4].0.cancelled_dates = Some("17.11.2026: Krankheit".into());
+        rows.push(single("A", "40", 6, "2026-11-24", "13:45", "16:00").series(1, 1));
+        for (day, ord) in ["2026-10-08", "2026-10-22", "2026-11-05", "2026-11-19"].iter().zip(1..) {
+            rows.push(single("A", "41", ord, day, "09:15", "10:45").series(1, 2));
+        }
+        for (day, ord) in ["2026-10-16", "2026-11-06", "2026-11-27"].iter().zip(1..) {
+            rows.push(single("A", "42", ord, day, "08:00", "09:30").series(1, 3));
+        }
+        rows.push(single("A", "43", 1, "2026-11-04", "11:30", "13:00"));
+        for (day, ord) in ["2026-10-12", "2026-10-19", "2026-10-26"].iter().zip(1..) {
+            let mut cancelled = single("A", "44", ord, day, "16:00", "17:30").series(1, 1);
+            cancelled.0.cancelled_dates = Some(format!("{}: Krankheit", d(day).date(Locale::De)));
+            rows.push(cancelled);
+        }
+        let t = build(&rows, &[], &["A"], &Selection::default());
+
+        let part = |first: &str, last: &str| WeekLabel::Partial { first: d(first), last: d(last) };
+        assert_eq!(
+            slots(&t),
+            [
+                ("40".into(), 1, 2, "13:45–15:15".into(), part("2026-10-13", "2026-11-17"), None, false),
+                ("40".into(), 6, 2, "13:45–16:00".into(), WeekLabel::Once { dates: 1, first: d("2026-11-24") }, None, false),
+                ("43".into(), 1, 3, "11:30–13:00".into(), WeekLabel::Once { dates: 1, first: d("2026-11-04") }, None, false),
+                ("41".into(), 1, 4, "09:15–10:45".into(), part("2026-10-08", "2026-11-19"), None, false),
+                ("42".into(), 1, 5, "08:00–09:30".into(), part("2026-10-16", "2026-11-27"), None, false),
+            ]
+        );
+        let rhythm = |id: &str| {
+            let item = t.regular_week().into_iter().find(|item| t.events[item.event].id == id).unwrap();
+            (t.events[item.event].rows[item.row].every, item.weeks)
+        };
+        assert_eq!(rhythm("40"), (Some(Every::Week), Some(Weeks::All)));
+        assert_eq!(rhythm("41"), (Some(Every::AWeek), Some(Weeks::A)));
+        assert_eq!(rhythm("42"), (Some(Every::ThreeWeeks), Some(Weeks::All)));
+        // Its dates stay single ones: the agenda lists each, the cancelled one with its reason.
+        let tuesday = |day: &str| t.agenda(Locale::De).into_iter().flat_map(|week| week.days).find(|on| on.day == d(day)).map(|on| on.items.len());
+        assert_eq!((tuesday("2026-10-13"), tuesday("2026-11-03"), tuesday("2026-11-17")), (Some(1), None, Some(1)));
     }
 
     /// Two modules' events: a weekly lecture with a cancelled date and a room note, one in a part

@@ -180,7 +180,8 @@ struct Block {
 /// A line of an event.
 #[derive(Clone, Debug, PartialEq)]
 enum Item {
-    /// A Termin (the rows of one row key: the same slot in two rooms is one Termin).
+    /// A Termin (the rows of one row key: the same slot in two rooms is one Termin; the dates of
+    /// a series of single dates at one time).
     Line(Line),
     /// The event's choice: „1 von 4 wählen" while it is open, „Wahl aufheben" once it is made.
     Choice,
@@ -194,7 +195,9 @@ enum Item {
 struct Line {
     /// Row indices of the event or exam.
     rows: Vec<usize>,
-    key: Option<RowKey>,
+    /// The row keys of its rows: one, or those of the dates of a series of single dates
+    /// (`EventDate::series`), which its eye hides and shows together.
+    keys: Vec<RowKey>,
     text: RowText,
     /// The option of a choice this line alone is: the line itself chooses it.
     choose: Option<usize>,
@@ -681,9 +684,11 @@ where
     C: Fn(Option<RowKey>) -> H + Copy + Send + Sync + 'static,
     H: Fn(leptos::ev::MouseEvent) + Copy + Send + Sync + 'static,
 {
-    let key = line.key;
-    let key_text = key.map(RowKey::text);
-    let current = Memo::new(move |_| ctx.url.with(|url| key_text.is_some() && url.row == key_text));
+    let key = line.keys.first().copied();
+    let keys = StoredValue::new(line.keys.clone());
+    let current = Memo::new(move |_| {
+        ctx.url.with(|url| url.row.as_ref().is_some_and(|row| keys.with_value(|keys| keys.iter().any(|key| key.text() == *row))))
+    });
     // Another option chosen: its Termine step back, not struck through (its mark says it).
     let hidden = Memo::new(move |_| state.with(|s| s.hidden.is_some_and(|by| by != HiddenBy::Choice)));
     let off = Memo::new(move |_| state.with(|s| s.hidden == Some(HiddenBy::Choice)));
@@ -693,9 +698,15 @@ where
     let clash = Memo::new(move |_| state.with(|s| s.clash));
     let second = Memo::new(move |_| state.with(|s| s.second));
     let toggle = move |_: leptos::ev::MouseEvent| {
-        if let (Some(plan), Some(key)) = (ctx.plan, key) {
+        if let Some(plan) = ctx.plan {
             let hide = !pressed.get_untracked();
-            plan.update(|doc| doc.set_row(sem, key, hide));
+            keys.with_value(|keys| {
+                plan.update(|doc| {
+                    for key in keys {
+                        doc.set_row(sem, *key, hide);
+                    }
+                });
+            });
         }
     };
     let label = move || if pressed.get() { t.studyplan_aside.show_date } else { t.studyplan_aside.hide_date };
@@ -879,7 +890,7 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) 
                 .into_iter()
                 .map(|(key, rows)| {
                     let refs: Vec<&ExamRow> = rows.iter().filter_map(|row| exam.rows.get(*row)).collect();
-                    Item::Line(Line { text: exam_text(&refs, texts), rows, key, choose: None })
+                    Item::Line(Line { text: exam_text(&refs, texts), rows, keys: key.into_iter().collect(), choose: None })
                 })
                 .collect()
         };
@@ -910,13 +921,13 @@ fn items_of(event: &Event, texts: &i18n::Texts) -> Vec<Item> {
         return vec![Item::Undated];
     }
     let lines = |indices: &[usize], with_group: bool| -> Vec<Line> {
-        by_key(indices.iter().map(|index| event.rows.get(*index).and_then(|row| row.key)))
+        by_termin(indices.iter().map(|index| event.rows.get(*index)))
             .into_iter()
-            .map(|(key, positions)| {
+            .map(|(keys, positions)| {
                 let rows: Vec<usize> = positions.iter().filter_map(|position| indices.get(*position).copied()).collect();
                 let refs: Vec<&Row> = rows.iter().filter_map(|row| event.rows.get(*row)).collect();
                 let group = refs.first().filter(|_| with_group).and_then(|row| group_of(row));
-                Line { text: row_text(&refs, group, texts), rows, key, choose: None }
+                Line { text: row_text(&refs, group, texts), rows, keys, choose: None }
             })
             .collect()
     };
@@ -934,12 +945,45 @@ fn items_of(event: &Event, texts: &i18n::Texts) -> Vec<Item> {
             items.extend(option_lines.into_iter().map(|line| Item::Line(Line { choose: Some(option), ..line })));
             continue;
         }
-        let key = option_lines.first().and_then(|line| line.key);
+        let key = option_lines.first().and_then(|line| line.keys.first().copied());
         items.push(Item::Option { name: option_name(event, options, option, groups, texts), key, option });
         // Under the option's name its lines need not repeat it.
         items.extend(lines(rows, false).into_iter().map(Item::Line));
     }
     items
+}
+
+/// The rows of one Termin together, in the order they first appear: those of one row key, and
+/// those of one series of single dates (`EventDate::series`) at one time, a date of it at another
+/// time apart; a row without a key alone. Returns each Termin's keys and its positions in the
+/// input.
+fn by_termin<'a>(rows: impl Iterator<Item = Option<&'a Row>>) -> Vec<(Vec<RowKey>, Vec<usize>)> {
+    /// What makes rows one Termin: a series by the row of its first date, and its times.
+    #[derive(PartialEq)]
+    enum Termin {
+        Key(RowKey),
+        Series(i64, Option<u16>, Option<u16>),
+        Alone,
+    }
+    let mut groups: Vec<(Termin, Vec<RowKey>, Vec<usize>)> = Vec::new();
+    for (position, row) in rows.enumerate() {
+        let termin = match (row.and_then(|row| row.date.series), row.and_then(|row| row.key)) {
+            (Some(series), _) => Termin::Series(series.first, row.and_then(|row| row.from), row.and_then(|row| row.to)),
+            (None, Some(key)) => Termin::Key(key),
+            (None, None) => Termin::Alone,
+        };
+        let key = row.and_then(|row| row.key);
+        match groups.iter_mut().find(|(known, ..)| *known != Termin::Alone && *known == termin) {
+            Some((_, keys, positions)) => {
+                positions.push(position);
+                if let Some(key) = key.filter(|key| !keys.contains(key)) {
+                    keys.push(key);
+                }
+            }
+            None => groups.push((termin, key.into_iter().collect(), vec![position])),
+        }
+    }
+    groups.into_iter().map(|(_, keys, positions)| (keys, positions)).collect()
 }
 
 /// The rows of one row key together, in the order their keys first appear; a row without a key
@@ -1154,10 +1198,11 @@ fn campus_name(campus: &Code<Campus>, locale: Locale) -> String {
 
 /// A Termin's two lines (`RowText`): „Mo 15:30–17:00 · LG 10/214 · A/B" and „14 Termine ·
 /// Zentralcampus · 12.10.–25.01.". `rows` share one row key (the same slot in several rooms, or
-/// with a later end in one of them): the latest end, every room, the days of all. A Termin that is
-/// not weekly names its date instead of the weekday („Do 12.11. 13:45–15:15 · … · einmalig", a
-/// block its first and last day); a range QIS leaves open is the lecture period's
-/// („Vorlesungszeit", R12).
+/// with a later end in one of them): the latest end, every room, the days of all; or they are the
+/// dates of a series of single dates at one time, one Termin in the series' rhythm („Di
+/// 13:45–15:15 · … · A/B" and „5 Termine · … · 13.10.–17.11."). A Termin that is not weekly names
+/// its date instead of the weekday („Do 12.11. 13:45–15:15 · … · einmalig", a block its first and
+/// last day); a range QIS leaves open is the lecture period's („Vorlesungszeit", R12).
 fn row_text(rows: &[&Row], group: Option<&str>, texts: &i18n::Texts) -> RowText {
     let words = &texts.studyplan_aside;
     let Some(first) = rows.first() else {
@@ -1165,7 +1210,9 @@ fn row_text(rows: &[&Row], group: Option<&str>, texts: &i18n::Texts) -> RowText 
     };
     let date = &first.date;
     let rhythm = date.rhythm.as_ref().and_then(Code::known);
-    let every = Every::of(date);
+    // A series of single dates is one Termin in its rhythm; a date of it alone (at another time)
+    // is the single date it is.
+    let every = first.every.filter(|_| date.series.is_none() || rows.len() > 1);
     let first_day = date.first_date.as_deref().and_then(Day::parse);
     let last_day = date.last_date.as_deref().and_then(Day::parse);
     let block = every.is_none() && rhythm == Some(Rhythm::Block);
@@ -1195,6 +1242,7 @@ fn row_text(rows: &[&Row], group: Option<&str>, texts: &i18n::Texts) -> RowText 
         (Some(Every::Week), _) => "A/B".to_string(),
         (Some(Every::AWeek), _) => "A".to_string(),
         (Some(Every::BWeek), _) => "B".to_string(),
+        (Some(Every::ThreeWeeks), _) => words.every_three_weeks.to_string(),
         (Some(Every::FourWeeks), _) => words.every_four_weeks.to_string(),
         (None, Some(Rhythm::Block)) => words.block.to_string(),
         (None, Some(Rhythm::Other)) => date.rhythm_raw.as_deref().map(str::trim).filter(|raw| !raw.is_empty()).unwrap_or(words.by_arrangement).to_string(),
@@ -1409,7 +1457,6 @@ mod tests {
         Fx(DateRow {
             module_id: "12104".into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -1432,6 +1479,7 @@ mod tests {
                 comment: None,
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
+                series: None,
             },
         })
     }
@@ -1477,6 +1525,13 @@ mod tests {
             (self.0.date.first_date, self.0.date.last_date) = (None, None);
             self
         }
+
+        /// A single date on `on` of a series of single dates named by the row of `first`.
+        fn series(mut self, on: &str, first: i64, weeks: u8) -> Self {
+            self = self.rhythm("single").range(on, on);
+            self.0.date.series = Some(folia_model::rows_detail::Series { first, weeks });
+            self
+        }
     }
 
     /// An exam row of 12104 on one day, in the Audimax; an empty time is none.
@@ -1485,7 +1540,6 @@ mod tests {
         DateRow {
             module_id: "12104".into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -1508,6 +1562,7 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }
@@ -1598,6 +1653,34 @@ mod tests {
         assert_eq!(texts(&block), vec!["Do 09:15–11:30 · A / B · A/B | 15 Termine · Zentralcampus · 08.10.–28.01.".to_string()]);
         assert_eq!(without_campus("Gebäude 14.E - SFB - 14E.202 Rechner- Pool II - Campus Senftenberg"), "Gebäude 14.E - SFB - 14E.202 Rechner- Pool II");
         assert_eq!(without_campus(" LG 10/214 "), "LG 10/214");
+    }
+
+    /// A series of single dates is one Termin in the panel (owner, 2026-10-13: „sehr
+    /// unübersichtlich, wenn da Einzeltermine sind"): its dates at one time are one line in its
+    /// rhythm, whose eye holds the keys of them all; a date of it at another time is the single
+    /// date it is. Every three weeks reads so, in English too.
+    #[test]
+    fn a_series_of_single_dates_is_one_line() {
+        let tuesdays = ["2026-10-13", "2026-10-20", "2026-10-27", "2026-11-10", "2026-11-17"];
+        let mut rows: Vec<Fx> = tuesdays.iter().zip(1..).map(|(day, ord)| teaching("9", ord, "Seminar", 2, "13:45", "15:15").room("HG 0.20").series(day, 1, 1)).collect();
+        rows.push(teaching("9", 6, "Seminar", 2, "13:45", "16:00").room("HG 0.20").series("2026-11-24", 1, 1));
+        for (day, ord) in ["2026-10-16", "2026-11-06", "2026-11-27"].iter().zip(1..) {
+            rows.push(teaching("10", ord, "Seminar", 5, "08:00", "09:30").room("HG 0.20").series(day, 1, 3));
+        }
+        let t = table(&rows, &[], &["12104"], &[], &Selection::default());
+        let blocks = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::DE);
+        assert_eq!(
+            texts(&blocks[0]),
+            vec![
+                "Di 13:45–15:15 · HG 0.20 · A/B | 5 Termine · Zentralcampus · 13.10.–17.11.".to_string(),
+                "Di 24.11. 13:45–16:00 · HG 0.20 · einmalig | Zentralcampus".to_string(),
+            ]
+        );
+        let keys: Vec<usize> = blocks[0].items.iter().map(|item| if let Item::Line(line) = item { line.keys.len() } else { 0 }).collect();
+        assert_eq!(keys, vec![5, 1]);
+        assert_eq!(texts(&blocks[1]), vec!["Fr 08:00–09:30 · HG 0.20 · 3-wöchentlich | 3 Termine · Zentralcampus · 16.10.–27.11.".to_string()]);
+        let english = blocks_of(&t, "12104", Some("Entwicklung von Softwaresystemen"), &i18n::EN);
+        assert_eq!(texts(&english[1]), vec!["Fri 08:00–09:30 · HG 0.20 · every 3 weeks | 3 sessions · Zentralcampus · 16 Oct–27 Nov".to_string()]);
     }
 
     #[test]

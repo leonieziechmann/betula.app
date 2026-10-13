@@ -135,6 +135,10 @@ pub struct EventDate {
     /// The room's short form as Radix derives it („ZHG/HS.C", schema 9); `room` keeps QIS's name.
     #[serde(default)]
     pub room_short: Option<String>,
+    /// The series of single dates the row belongs to, as Radix reads it (schema 13); `None` for
+    /// a row in none, and always for an exam row.
+    #[serde(default)]
+    pub series: Option<Series>,
 }
 
 impl EventDate {
@@ -147,6 +151,7 @@ impl EventDate {
 
 impl FromRow for EventDate {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        let weeks = row.opt_int("series_weeks")?.and_then(|weeks| u8::try_from(weeks).ok()).filter(|weeks| (1..=4).contains(weeks));
         Ok(Self {
             semester_key: row.text("semester_key")?,
             semester_label: row.text("semester_label")?,
@@ -168,6 +173,7 @@ impl FromRow for EventDate {
             comment: row.opt_text("comment")?,
             source_url: row.opt_text("source_url")?,
             room_short: row.opt_text("room_short")?,
+            series: row.opt_int("series")?.zip(weeks).map(|(first, weeks)| Series { first, weeks }),
         })
     }
 }
@@ -181,10 +187,6 @@ pub struct DateRow {
     pub module_id: String,
     /// The row's place among the dates of its event; `None` for an event that has no dates.
     pub ord: Option<i64>,
-    /// The series of single dates the row belongs to, as Radix reads it (schema 13); `None` for
-    /// a row in none, and always for an exam row.
-    #[serde(default)]
-    pub series: Option<Series>,
     /// QIS's „fällt aus am" column as it stands, read by `timetable::cancel::parse`. Exam rows do
     /// not have the column, so theirs is always `None`.
     pub cancelled_dates: Option<String>,
@@ -205,11 +207,9 @@ pub struct Series {
 
 impl FromRow for DateRow {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
-        let weeks = row.opt_int("series_weeks")?.and_then(|weeks| u8::try_from(weeks).ok()).filter(|weeks| (1..=4).contains(weeks));
         Ok(Self {
             module_id: row.text("module_id")?,
             ord: row.opt_int("ord")?,
-            series: row.opt_int("series")?.zip(weeks).map(|(first, weeks)| Series { first, weeks }),
             cancelled_dates: row.opt_text("cancelled_dates")?,
             date: EventDate::from_row(row)?,
         })

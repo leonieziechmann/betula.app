@@ -776,7 +776,6 @@ mod tests {
         DateRow {
             module_id: module.into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -799,6 +798,7 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }

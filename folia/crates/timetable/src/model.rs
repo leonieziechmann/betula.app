@@ -30,7 +30,7 @@ use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{town_of, HiddenBy, Selection, Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::Semester;
-use folia_model::rows_detail::{DateRow, EventDate, ModuleSws, Series};
+use folia_model::rows_detail::{DateRow, EventDate, ModuleSws};
 
 use crate::clash::{self, Clash};
 use crate::exams::{self, Exam, ExamWarning};
@@ -152,12 +152,13 @@ pub enum Basis {
 pub struct Row {
     pub key: Option<RowKey>,
     pub ord: Option<i64>,
-    /// The series of single dates the row belongs to (`DateRow::series`): the calendar writes the
-    /// rows of a series as one.
-    pub series: Option<Series>,
     pub date: EventDate,
     pub cancelled_dates: Option<String>,
     pub occ: Occurrences,
+    /// The rhythm the row is shown in (`Every::shown`): QIS's, or for a row of a series of single
+    /// dates (`EventDate::series`) the series'. Its dates, clashes and choices follow QIS's rhythm
+    /// (`Every::of`), in which every row of a series is a date of its own.
+    pub every: Option<Every>,
     /// The times in minutes (`occur::times`); `None` is „Zeit unklar": listed, never in a clash.
     pub from: Option<u16>,
     pub to: Option<u16>,
@@ -197,15 +198,23 @@ impl Event {
 }
 
 impl Row {
+    /// The weekday a recurring row (`every`) stands on in the Regelwoche: its pattern's, else its
+    /// first held day's; a row of a series of single dates whose date QIS cancels keeps its date's,
+    /// so that its series' range holds it.
+    pub fn slot_day(&self) -> Option<u8> {
+        let held = self.occ.template.map(|pattern| pattern.weekday).or_else(|| self.occ.days.first().map(|day| day.weekday()));
+        held.or_else(|| self.date.series.and(self.occ.cancelled.first()).map(|(day, ..)| day.weekday()))
+    }
+
     fn of(row: &DateRow, facts: &SemesterFacts) -> Row {
         let times = occur::times(&row.date);
         Row {
             key: RowKey::of(&row.date),
             ord: row.ord,
-            series: row.series,
             date: row.date.clone(),
             cancelled_dates: row.cancelled_dates.clone(),
             occ: occur::occurrences(row, facts),
+            every: Every::shown(&row.date, facts),
             from: times.map(|(from, _)| from),
             to: times.map(|(_, to)| to),
             option: None,
@@ -625,7 +634,6 @@ pub mod tests {
         Fixture(DateRow {
             module_id: module.into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -648,6 +656,7 @@ pub mod tests {
                 comment: None,
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
+                series: None,
             },
         })
     }
@@ -687,6 +696,12 @@ pub mod tests {
         /// The same row linked to another module.
         pub fn of(mut self, module: &str) -> Self {
             self.0.module_id = module.into();
+            self
+        }
+
+        /// A row of a series of single dates (`EventDate::series`) named by the row of `first`.
+        pub fn series(mut self, first: i64, weeks: u8) -> Self {
+            self.0.date.series = Some(folia_model::rows_detail::Series { first, weeks });
             self
         }
 

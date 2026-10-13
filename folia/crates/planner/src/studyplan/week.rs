@@ -461,7 +461,7 @@ pub(super) fn has_ab(table: &Timetable) -> bool {
         .iter()
         .filter(|event| event.hidden.is_none())
         .flat_map(|event| event.rows.iter().filter(|row| row.hidden.is_none()))
-        .any(|row| matches!(Every::of(&row.date), Some(Every::AWeek | Every::BWeek)))
+        .any(|row| matches!(row.every, Some(Every::AWeek | Every::BWeek)))
 }
 
 /// „Termine": the agenda by week, opened at the current one, and what has no date.
@@ -820,7 +820,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     let event = table.events.get(item.event)?;
     let shown = event.rows.get(item.row)?;
     let module = event.modules.first()?;
-    let every = Every::of(&shown.date);
+    let every = shown.every;
     let once = matches!(item.label, WeekLabel::Once { .. });
     let rows: Vec<&Row> = slot_rows(event, item, every).into_iter().filter_map(|r| event.rows.get(r)).collect();
     let notes = qualifiers(&item.label, every, item.alt, &table.facts, t);
@@ -829,11 +829,13 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     let place = rooms(rows.iter().map(|row| &row.date));
 
     // The tooltip says in full what the slot shortens: the kind as QIS names it, the whole time,
-    // the rooms, and the dates of single ones.
+    // the rooms, and the dates of single ones and of a series of single dates (its range spans
+    // the weeks it leaves out).
     let mut title = vec![event_text(event, t.locale), format!("{} {}–{}", day_short(item.day, t), clock(item.from), clock(item.to))];
     title.extend(notes.iter().cloned());
     title.extend(rooms_long(rows.iter().map(|row| &row.date)));
-    if matches!(item.label, WeekLabel::Once { dates, .. } if dates > 1) {
+    let series = !once && rows.iter().any(|row| row.date.series.is_some());
+    if series || matches!(item.label, WeekLabel::Once { dates, .. } if dates > 1) {
         let mut days: Vec<Day> = rows.iter().flat_map(|row| row.occ.days.iter().copied()).filter(|day| day.weekday() == item.day).collect();
         days.sort_unstable();
         days.dedup();
@@ -897,7 +899,7 @@ fn ghost_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String,
         .filter(|item| item.in_week(shown))
         .filter_map(|item| {
             let event = all.events.get(item.event)?;
-            let every = Every::of(&event.rows.get(item.row)?.date);
+            let every = event.rows.get(item.row)?.every;
             // Left out: every Termin of the slot is hidden in the plan. Why the first one is.
             let hidden = table.events.get(item.event)?;
             let reasons: Vec<HiddenBy> = slot_rows(event, item, every).into_iter().map(|r| hidden.rows.get(r)?.hidden).collect::<Option<_>>()?;
@@ -1087,9 +1089,9 @@ fn slot_rows(event: &Event, item: &WeekItem, every: Option<Every>) -> Vec<usize>
         .iter()
         .enumerate()
         .filter(|(_, row)| row.hidden.is_none() && row.from == Some(item.from) && row.to == Some(item.to) && row.option == option)
-        .filter(|(_, row)| Every::of(&row.date) == every)
+        .filter(|(_, row)| row.every == every)
         .filter(|(_, row)| match every {
-            Some(_) => row.occ.template.map(|pattern| pattern.weekday).or_else(|| row.occ.days.first().map(|day| day.weekday())) == Some(item.day),
+            Some(_) => row.slot_day() == Some(item.day),
             None => row.occ.days.iter().any(|day| day.weekday() == item.day),
         })
         .map(|(r, _)| r)
@@ -1131,18 +1133,21 @@ fn slot_small(label: &WeekLabel, every: Option<Every>, from: u16, to: u16, t: &i
     match every {
         Some(Every::AWeek) => format!("{time} A"),
         Some(Every::BWeek) => format!("{time} B"),
+        Some(Every::ThreeWeeks) => format!("{time} · {}", t.studyplan_week.every_three_weeks),
         Some(Every::FourWeeks) => format!("{time} · {}", t.studyplan_week.every_four_weeks),
         Some(Every::Week) | None => time,
     }
 }
 
-/// The weeks a Termin meets in, in words: „A-Woche", „B-Woche", „4-wöch."; nothing for every week.
+/// The weeks a Termin meets in, in words: „A-Woche", „B-Woche", „3-wöch.", „4-wöch."; nothing for
+/// every week.
 fn rhythm_word(every: Every, t: &i18n::Texts) -> Option<String> {
     let words = &t.studyplan_week;
     match every {
         Every::Week => None,
         Every::AWeek => Some(words.in_week_a.to_string()),
         Every::BWeek => Some(words.in_week_b.to_string()),
+        Every::ThreeWeeks => Some(words.every_three_weeks.to_string()),
         Every::FourWeeks => Some(words.every_four_weeks.to_string()),
     }
 }
@@ -1795,7 +1800,6 @@ mod tests {
         DateRow {
             module_id: "12104".into(),
             ord: Some(ord),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -1818,6 +1822,7 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }
@@ -1879,6 +1884,7 @@ mod tests {
         assert_eq!(small(WeekLabel::Every(Every::AWeek), Some(Every::AWeek)), "11:30–13:00 A");
         assert_eq!(small(WeekLabel::Every(Every::BWeek), Some(Every::BWeek)), "11:30–13:00 B");
         assert_eq!(small(WeekLabel::Every(Every::FourWeeks), Some(Every::FourWeeks)), "11:30–13:00 · 4-wöch.");
+        assert_eq!(small(WeekLabel::Every(Every::ThreeWeeks), Some(Every::ThreeWeeks)), "11:30–13:00 · 3-wöch.");
         // A part of the lecture period keeps its weeks; which end it leaves out is the tooltip's.
         let until = WeekLabel::Partial { first: d("2026-10-06"), last: d("2026-11-24") };
         assert_eq!(small(until.clone(), Some(Every::Week)), "11:30–13:00");
@@ -1898,6 +1904,33 @@ mod tests {
         assert_eq!(said(WeekLabel::Partial { first: d("2026-12-07"), last: d("2027-01-25") }, Some(Every::Week), None), "ab 07.12.");
         assert_eq!(said(WeekLabel::Partial { first: d("2026-10-26"), last: d("2026-11-23") }, Some(Every::Week), None), "26.10.–23.11.");
         assert_eq!(said(WeekLabel::Once { dates: 1, first: d("2027-02-23") }, None, None), "1 Termin · 23.02.");
+    }
+
+    /// A series of single dates is one slot in its rhythm (owner, 2026-10-13: „sehr
+    /// unübersichtlich, wenn da Einzeltermine sind"), not one that counts its dates: weekly its
+    /// time alone, every three weeks „3-wöch."; its tooltip names the part of the period and its
+    /// dates, which the range only spans.
+    #[test]
+    fn a_series_of_single_dates_is_one_slot() {
+        let single = |event: &str, ord: i64, weekday: i64, time: (&str, &str), on: &str, weeks: u8| {
+            let mut row = row(event, ord, "Seminar", "single", weekday, time, (on, on));
+            row.date.series = Some(folia_model::rows_detail::Series { first: 1, weeks });
+            row
+        };
+        let schedule = [
+            single("150001", 1, 2, ("13:45", "15:15"), "2026-10-13", 1),
+            single("150001", 2, 2, ("13:45", "15:15"), "2026-10-20", 1),
+            single("150001", 3, 2, ("13:45", "15:15"), "2026-11-03", 1),
+            single("150002", 1, 5, ("08:00", "09:30"), "2026-10-16", 3),
+            single("150002", 2, 5, ("08:00", "09:30"), "2026-11-06", 3),
+            single("150002", 3, 5, ("08:00", "09:30"), "2026-11-27", 3),
+        ];
+        let slots = week_slots(&table(&schedule), &plain(), &titles(), Weeks::All, false, &i18n::DE);
+        let shown: Vec<(&str, &str)> = slots.iter().map(|slot| (slot.slot.small.as_str(), slot.slot.class)).collect();
+        assert_eq!(shown, [("13:45–15:15", "tinted"), ("08:00–09:30 · 3-wöch.", "tinted")]);
+        let titles: Vec<&str> = slots.iter().map(|slot| slot.slot.title.as_str()).collect();
+        assert!(titles[0].contains("bis 03.11.") && titles[0].ends_with("13.10.2026, 20.10.2026, 03.11.2026"), "{}", titles[0]);
+        assert!(titles[1].contains("3-wöch. · bis 27.11.") && titles[1].ends_with("16.10.2026, 06.11.2026, 27.11.2026"), "{}", titles[1]);
     }
 
     #[test]

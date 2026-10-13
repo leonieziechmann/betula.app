@@ -108,10 +108,12 @@ pub struct Texts {
     pub all_day: &'static str,
     pub time_unclear: &'static str,
     pub time_open: &'static str,
-    /// Which weeks, where it is not „A", „B" or „A/B": once („einmalig"), every fourth week
-    /// („4-wöchentlich"), the days of a block („Block"), a rhythm QIS names in no words of its own
-    /// („nach Absprache"), none („Rhythmus offen").
+    /// Which weeks, where it is not „A", „B" or „A/B": once („einmalig"), every third week (a
+    /// series of single dates, „3-wöchentlich"), every fourth week („4-wöchentlich"), the days of a
+    /// block („Block"), a rhythm QIS names in no words of its own („nach Absprache"), none
+    /// („Rhythmus offen").
     pub once: &'static str,
+    pub every_three_weeks: &'static str,
     pub every_four_weeks: &'static str,
     pub block: &'static str,
     pub by_arrangement: &'static str,
@@ -196,6 +198,7 @@ pub const DE: Texts = Texts {
     time_unclear: "Zeit unklar",
     time_open: "Zeit offen",
     once: "einmalig",
+    every_three_weeks: "3-wöchentlich",
     every_four_weeks: "4-wöchentlich",
     block: "Block",
     by_arrangement: "nach Absprache",
@@ -277,6 +280,7 @@ pub const EN: Texts = Texts {
     time_unclear: "time unclear",
     time_open: "time TBA",
     once: "once",
+    every_three_weeks: "every 3 weeks",
     every_four_weeks: "every 4 weeks",
     block: "block",
     by_arrangement: "by arrangement",

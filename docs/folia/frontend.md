@@ -1944,7 +1944,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     plan places it in (`educationalAlignment`: the plan is the framework, „1. Semester" the
     level), and its Termine as `hasCourseInstance`: a `CourseInstance` per semester the page
     shows, with a `Schedule` per slot of the week (days, times, first and last date, `P1W`/`P2W`,
-    `Europe/Berlin`) and the exam dates as `EducationEvent`s (`subEvent`) with the day's offset
+    `Europe/Berlin`; a series of single dates one in its rhythm, `P1W` to `P4W`, with the days it
+    leaves out as `exceptDate`) and the exam dates as `EducationEvent`s (`subEvent`) with the day's offset
     (`+01:00`/`+02:00`, `folia_calendar::day::berlin_offset`). A Termin without a time of the
     week has no slot; an exam date the page marks (QIS's placeholder, a doubtful time) is not
     stated. Exams of another semester than the teaching are an instance of their own.
@@ -3297,3 +3298,30 @@ to the result.
   `observability.accessLogs=false` would leave it out, but needs the blue-green priority label in
   `deploy/vps/50-app.sh`, `55-switch.sh`, `lib-stacks.sh` and `91-verify-stacks.sh`. And a
   subscription over several semesters: today the next semester needs a new address.
+- **A series of single dates is one Termin wherever Folia shows Termine** (owner, 2026-10-13:
+  „Kannst du die reoccuring termine in folia bitte auch gebündelt zeigen. Weil das ist gerade
+  sehr unübersichtlich, wenn da einzeltermine sind"): the dates Radix reads as one series
+  (`EventDate::series`, schema 13; `module_schedule` reads the columns as the Studienplan's
+  queries do) stand as the Termin they are, in the series' rhythm, instead of a line and a slot
+  per date. Its dates stay single dates where dates count: the agenda lists each, a cancelled one
+  with its reason, and clashes, choices and SWS go by them (`Every::of`, QIS's rhythm). The shown
+  rhythm is `Row::every` (`Every::shown`): every week, every other week in the A or B weeks its
+  dates fall in (`SemesterFacts::ab_week`; without A/B weeks a fortnightly series stays single
+  dates there), every three weeks (`Every::ThreeWeeks`, which QIS itself never states) or four.
+  A date of a series at another time than its others stands apart as the single date it is.
+  - **The module page** (`folia/crates/widgets/src/module.rs`, `termine`): one line in the list,
+    „Seminar · wöchentlich · 6 Termine · 13.10.2026 – 17.11.2026 · HG 0.20 · …", with the rooms,
+    persons and comments of its dates each once, and its dates in the line's tooltip („in QIS als
+    Einzeltermine: 13.10.2026, 20.10.2026, …"); one slot of the week like a weekly one, its rhythm
+    and days in the tooltip, where its dates were one `.once` slot that counted them („6
+    Termine"); one schema.org `Schedule` in its rhythm (`P1W` to `P4W`) with the days it leaves out
+    (`exceptDate`).
+  - **The Stundenplan and the Studienplan's week** (`Timetable::regular_week`, `studyplan/week.rs`):
+    one recurring slot, „ab"/„bis" where it covers a part of the lecture period, A or B, „3-wöch.",
+    „4-wöch.", its dates in the tooltip; a date QIS cancels stays in its range (`Row::slot_day`),
+    and a series QIS cancels whole has no slot, as a recurring row has none.
+  - **The panel beside the plan** (`studyplan/aside.rs`, `by_termin`): one Termin, „Di 13:45–15:15
+    · HG 0.20 · A/B" over „5 Termine · Zentralcampus · 13.10.–17.11."; its eye hides and shows the
+    keys of all its dates together (a plan hides rows by their keys, one per date), and the list of
+    what is hidden („2 ausgeblendet") names the hidden series once, „Einblenden" showing them all
+    (`Unhide::Rows`).

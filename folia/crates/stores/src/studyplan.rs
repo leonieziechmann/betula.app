@@ -868,7 +868,6 @@ mod tests {
         DateRow {
             module_id: module.into(),
             ord: Some(1),
-            series: None,
             cancelled_dates: None,
             date: folia_model::rows_detail::EventDate {
                 semester_key: "2026W".into(),
@@ -891,6 +890,7 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }

@@ -399,8 +399,8 @@ pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDa
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, event_type, group_name, \
              weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, \
-             comment, source_url, room_short FROM v_module_schedule WHERE module_id = ? AND semester_key IS NOT NULL \
-             {EVENT_ORDER}"
+             comment, source_url, room_short, series, series_weeks FROM v_module_schedule WHERE module_id = ? \
+             AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
     )
@@ -415,8 +415,8 @@ pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, NULL AS event_type, \
              NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, first_date, \
-             last_date, room, campus, NULL AS instructor, comment, source_url, room_short \
-             FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
+             last_date, room, campus, NULL AS instructor, comment, source_url, room_short, NULL AS series, \
+             NULL AS series_weeks FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
     )

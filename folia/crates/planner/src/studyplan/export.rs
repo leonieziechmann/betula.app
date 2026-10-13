@@ -516,7 +516,7 @@ mod tests {
     use folia_model::rows_detail::EventDate;
     use folia_timetable::facts::SemesterFacts;
     use folia_timetable::model::{Attendance, Event, Row};
-    use folia_timetable::occur::Occurrences;
+    use folia_timetable::occur::{Every, Occurrences};
 
     use crate::i18n::{DE, EN};
     use super::*;
@@ -530,7 +530,6 @@ mod tests {
         let row = Row {
             key: Some(RowKey { event: id, fp }),
             ord: Some(1),
-            series: None,
             date: EventDate {
                 semester_key: "2026W".into(),
                 semester_label: "WiSe 2026/27".into(),
@@ -552,9 +551,11 @@ mod tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
             cancelled_dates: None,
             occ: Occurrences::default(),
+            every: Some(Every::Week),
             from: Some(555),
             to: Some(645),
             option: None,
