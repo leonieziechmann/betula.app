@@ -6,15 +6,22 @@
 //! between the two: the browser holds the modules in plan order, a code in ascending order.
 //! Entries are sorted by their start and UID, and the modules of an entry are listed by id.
 //!
-//! Every held date is an entry of its own, with a UID made of the row key and the date. A date
-//! QIS cancels, a break and a holiday are simply not there, and a room note sits on its date; no
-//! client has to get RRULE, EXDATE and a time zone right together. The UID stays when QIS changes
-//! a Termin's end or room, so a subscribed calendar updates the entry instead of adding a second.
-//! Rows that share a key (the same slot in two rooms, or once more with a later end) are one entry
-//! per date, from the earliest start to the latest end, in both rooms. Such rows may differ in who
-//! teaches, in QIS's comment, in their last date and in what they drop, so an entry says what each
-//! row held on its date says, the range spans all of them, and a date one row drops is named as
-//! dropped only when no row of the key holds it.
+//! A Termin is one entry, a series (owner, 2026-10-13: an entry per date was „ziemlich nervig"):
+//! its rule (every week or every two to four weeks, every day of a block or its working days)
+//! makes its dates from the first to the last, the dates the rule makes and the Termin does
+//! not hold (the break, a holiday, a date QIS cancels) are left out, and a date that says more or
+//! other than the series, a room note or another end, follows it in full (`ics`). Its UID is its
+//! row key's, `148701-a2633@betula.app`, and stays when QIS changes a Termin's end or room, so a
+//! subscribed calendar updates the series instead of adding a second. Rows that share a key (the
+//! same slot in two rooms, or once more with a later end) are one series, each date from the
+//! earliest start to the latest end, in both rooms. Such rows may differ in who teaches, in QIS's
+//! comment, in their last date and in what they drop, so a date says what each row held on it
+//! says, the range spans all of them, and a date one row drops is named as dropped only when no row
+//! of the key holds it. Single dates Radix reads as one series (QIS lists a seminar's Tuesdays one
+//! by one, `Row::series`) are one series as well, under the key of the row of its first date; a
+//! week it has no date in is left out and named. A single date is an entry of its own, with a UID
+//! of its key and its date as an exam date has (`148689-485e5-20270312@betula.app`), and so is
+//! every date of a Termin that no rule makes.
 //!
 //! An entry is as short as a slot of the page's week (owner, 2026-09-25: on a phone a calendar
 //! shows little more than the title): „VL EvS" in „ZHG/HS.C", the kinds in their few letters, the
@@ -38,6 +45,7 @@
 //! gives) stays as QIS says it. UIDs do not depend on the language, so a subscription that changes
 //! its language updates its entries.
 
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::day::Day;
@@ -55,7 +63,7 @@ use folia_model::rows_detail::EventDate;
 use crate::exam_reading::Reason;
 use crate::exams::{Exam, ExamRow, ExamShape};
 use crate::i18n::Texts;
-use crate::ics::{self, Calendar, Entry, When};
+use crate::ics::{self, Calendar, Entry, Repeat, Rule, When};
 use crate::model::{Event, Row, Timetable};
 use crate::occur::{Every, Skipped};
 use crate::views::{kind_and_title, kind_short, short_title, type_text};
@@ -64,8 +72,9 @@ use crate::views::{kind_and_title, kind_short, short_title, type_text};
 /// holds each date once, and fixed: another domain would make every subscribed entry a new one.
 pub const UID_DOMAIN: &str = "betula.app";
 
-/// The most entries of one calendar, the earliest kept. A full semester of 60 modules stays far
-/// below it; the cap only bounds what a hand-made code can ask of the server.
+/// The most VEVENTs of one calendar, a series and each of its dates that differ counted, the
+/// earliest entries kept. A full semester of 60 modules stays far below it; the cap only bounds
+/// what a hand-made code can ask of the server.
 pub const MAX_ENTRIES: usize = 5000;
 
 /// The DTSTAMP when the snapshot names no moment: fixed, never the clock, so the bytes do not
@@ -85,8 +94,9 @@ pub fn snapshot_stamp(meta: &Meta) -> String {
         .unwrap_or_else(|| EPOCH_STAMP.to_string())
 }
 
-/// The calendar of a timetable: one entry per held date of every visible row with a time or of a
-/// block of whole days, and per visible exam date that names a day.
+/// The calendar of a timetable: an entry for every Termin of a visible event that holds a date, with
+/// a time or as a block of whole days, a series where its dates follow a rule (`series_of`), and one
+/// for every visible exam date that names a day.
 ///
 /// `titles` maps planned module ids to their titles for the descriptions, `names` to what the
 /// week's slots call them for the entries' titles (`StudyplanData::slot_names`). `label` is the
@@ -104,17 +114,17 @@ pub fn calendar_of(
     let texts = crate::i18n::texts(locale);
     let stamp = dtstamp(stamp);
     let names = Names { titles, short: names };
-    let mut entries = Entries::default();
+    let mut entries: Vec<Entry> = Vec::new();
     for event in t.events.iter().filter(|event| event.hidden.is_none()) {
-        teaching(&mut entries, t, event, &names, locale);
+        entries.extend(teaching(t, event, &names, locale));
     }
+    let mut exams = Entries::default();
     for exam in t.exams.iter().filter(|exam| exam.hidden.is_none()) {
-        exam_dates(&mut entries, exam, &names, locale);
+        exam_dates(&mut exams, exam, &names, locale);
     }
-    let mut entries = entries.finish(texts);
+    entries.extend(exams.finish(texts));
     entries.sort_by(|a, b| start(&a.when).cmp(&start(&b.when)).then_with(|| a.uid.cmp(&b.uid)));
-    let cut = entries.len() > MAX_ENTRIES;
-    entries.truncate(MAX_ENTRIES);
+    let cut = keep_earliest(&mut entries);
 
     let label = match label.trim() {
         "" => t.key.label(locale),
@@ -439,10 +449,36 @@ fn start(when: &When) -> (Day, u32) {
     }
 }
 
-/// The entries of a visible teaching event: every held date of its visible rows. A row with an
-/// unclear time is left out (its times say nothing a calendar can place), unless it is a block
-/// without times, whose dates are whole days.
-fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names, locale: Locale) {
+/// Keeps the earliest entries whose VEVENTs, a series' dates that differ counted, are `MAX_ENTRIES`
+/// at most; whether one was left out.
+fn keep_earliest(entries: &mut Vec<Entry>) -> bool {
+    let mut events = 0;
+    let kept = entries
+        .iter()
+        .take_while(|entry| {
+            events += 1 + entry.overrides.len();
+            events <= MAX_ENTRIES
+        })
+        .count();
+    let cut = kept < entries.len();
+    entries.truncate(kept);
+    cut
+}
+
+/// What the dates of one entry, or of one series, are of: the rows of a key (the same slot in two
+/// rooms, or once more with a later end), or the single dates Radix reads as one series, by the
+/// `ord` of its first date (`Row::series`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Unit {
+    Key(String),
+    Series(i64),
+}
+
+/// The entries of a visible teaching event: every held date of its visible rows, the dates of a
+/// Termin as one series where a rule makes them (`series_of`). A row with an unclear time is left
+/// out (its times say nothing a calendar can place), unless it is a block without times, whose
+/// dates are whole days.
+fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<Entry> {
     let texts = crate::i18n::texts(locale);
     // As its slot in the week: „VL EvS".
     let label = slot_text(&kind_short(event, locale), &names.short_of(&event.modules, &event.title));
@@ -450,18 +486,29 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names, 
     let categories: Vec<String> = event.kinds.iter().map(|kind| kind.label(locale).to_string()).collect();
     let open = event.unresolved();
     let placed = |row: &&Row| row.hidden.is_none() && (row.from.zip(row.to).is_some() || row.occ.all_day);
-    // The rows of each key, in the order met: they are one entry per date, so what that entry
-    // says of the whole Termin, its range and the dates it drops, is said of all of them.
-    let mut keys: Vec<(String, Vec<&Row>)> = Vec::new();
+    // The rows of each Termin, in the order met: its dates are one series, so what it says of the
+    // whole Termin, its range and the dates it drops, is said of all of them.
+    let mut units: Vec<(Unit, Vec<&Row>)> = Vec::new();
     for row in event.rows.iter().filter(placed) {
-        let key = key_text(&event.id, row.key, &row.date);
-        match keys.iter_mut().find(|(seen, _)| *seen == key) {
+        let unit = match row.series {
+            Some(series) => Unit::Series(series.first),
+            None => Unit::Key(key_text(&event.id, row.key, &row.date)),
+        };
+        match units.iter_mut().find(|(seen, _)| *seen == unit) {
             Some((_, rows)) => rows.push(row),
-            None => keys.push((key, vec![row])),
+            None => units.push((unit, vec![row])),
         }
     }
-    for (key, rows) in &keys {
-        let termin = termin_lines(event, rows, what.as_deref(), names.titles, locale);
+    let mut entries = Vec::new();
+    for (unit, rows) in &units {
+        let held: BTreeSet<Day> = rows.iter().flat_map(|row| row.occ.days.iter().copied()).collect();
+        let rule = rule_of(rows, &held);
+        let gaps = match unit {
+            Unit::Series(first) => gaps(t, event, *first, &held, rule),
+            Unit::Key(_) => Vec::new(),
+        };
+        let termin = termin_lines(event, rows, &gaps, what.as_deref(), names.titles, locale);
+        let mut dates = Entries::default();
         for row in rows {
             let times = row.from.zip(row.to);
             let option = open && row.option.is_some();
@@ -472,6 +519,7 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names, 
             };
             let lines: Vec<Line> = termin.iter().cloned().chain(row_lines(t, event, row, option, locale)).collect();
             let place = place(&row.date, locale);
+            let key = key_text(&event.id, row.key, &row.date);
             for day in &row.occ.days {
                 let when = match times {
                     Some((from, to)) => When::Timed { day: *day, from, to },
@@ -484,8 +532,10 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names, 
                     .filter(|(on, _)| on == day)
                     .map(|(_, note)| (Part::Note, (texts.feed_note)(note.trim())));
                 let entry = Entry {
-                    uid: uid(key, *day),
+                    uid: uid(&key, *day),
                     when,
+                    repeat: None,
+                    overrides: Vec::new(),
                     summary: summary.clone(),
                     location: None,
                     description: None,
@@ -494,17 +544,134 @@ fn teaching(entries: &mut Entries, t: &Timetable, event: &Event, names: &Names, 
                     tentative: row.occ.assumed || option,
                     transparent: times.is_none(),
                 };
-                entries.add(entry, place.clone(), lines.iter().cloned().chain(notes).collect());
+                dates.add(entry, place.clone(), lines.iter().cloned().chain(notes).collect());
             }
         }
+        entries.extend(series_of(series_uid(event, unit, rows), rule, dates.finish(texts)));
+    }
+    entries
+}
+
+/// The rule a Termin's dates follow: its rows' rhythm (the rows of a key share it), the weeks of a
+/// series of single dates, and for a block every day where it meets on a Saturday or a Sunday, else
+/// the working days. `None` for a single date and a rhythm that makes no dates.
+fn rule_of(rows: &[&Row], held: &BTreeSet<Day>) -> Option<Rule> {
+    let row = rows.first()?;
+    if let Some(series) = row.series {
+        return Some(Rule::Weeks(series.weeks));
+    }
+    match Every::of(&row.date) {
+        Some(Every::Week) => Some(Rule::Weeks(1)),
+        Some(Every::AWeek | Every::BWeek) => Some(Rule::Weeks(2)),
+        Some(Every::FourWeeks) => Some(Rule::Weeks(4)),
+        None if row.date.rhythm.as_ref().is_some_and(|rhythm| rhythm.is(Rhythm::Block)) => {
+            Some(if held.iter().any(|day| day.weekday() >= 6) { Rule::Days } else { Rule::Workdays })
+        }
+        None => None,
+    }
+}
+
+/// The UID of a Termin's series: its row key's, `148701-a2633@betula.app`; for a series of single
+/// dates the key of the row that names it (`Series::first`), visible or not, so hiding its first
+/// date does not make the series a new one.
+fn series_uid(event: &Event, unit: &Unit, rows: &[&Row]) -> String {
+    let key = match unit {
+        Unit::Key(key) => key.clone(),
+        Unit::Series(first) => {
+            let named = event.rows.iter().find(|row| row.ord == Some(*first)).or(rows.first().copied());
+            named.map(|row| key_text(&event.id, row.key, &row.date)).unwrap_or_default()
+        }
+    };
+    format!("{key}@{UID_DOMAIN}")
+}
+
+/// The days a series of single dates (`first`, the `ord` of the row that names it) leaves out that
+/// none of its rows explains: weeks QIS lists no date of it in, between its first date and its last.
+/// Each says why where the semester says it, the break or a holiday (`None`: no date in QIS). A date
+/// of the series that is hidden, or has no clear time, is no gap: QIS lists it.
+fn gaps(t: &Timetable, event: &Event, first: i64, held: &BTreeSet<Day>, rule: Option<Rule>) -> Vec<(Day, Option<Skipped>)> {
+    let (Some(rule), Some(from), Some(to)) = (rule, held.first(), held.last()) else {
+        return Vec::new();
+    };
+    let listed: BTreeSet<Day> = event
+        .rows
+        .iter()
+        .filter(|row| row.series.is_some_and(|series| series.first == first))
+        .filter_map(|row| row.date.first_date.as_deref().and_then(Day::parse))
+        .collect();
+    rule.days(*from, *to)
+        .into_iter()
+        .filter(|day| !held.contains(day) && !listed.contains(day))
+        .map(|day| {
+            let why = match t.facts.in_break(day) {
+                true => Some(Skipped::Break),
+                false => t.facts.holiday(day).map(Skipped::Holiday),
+            };
+            (day, why)
+        })
+        .collect()
+}
+
+/// The dates of one Termin, an entry each as `Entries` gathers them, as one series under `uid`: its
+/// rule makes them from the first to the last, the dates it makes and the Termin does not hold are
+/// left out (EXDATE), and the series says what most of its dates say, the earliest of them breaking
+/// a tie, while a date that says more or other follows it in full (RECURRENCE-ID). The dates stay
+/// as they are where there is one, where no rule makes them, and where one of them is not of the
+/// rule, begins at another time, or is another number of whole days.
+fn series_of(uid: String, rule: Option<Rule>, mut dates: Vec<Entry>) -> Vec<Entry> {
+    dates.sort_by(|a, b| start(&a.when).cmp(&start(&b.when)).then_with(|| a.uid.cmp(&b.uid)));
+    let (Some(rule), Some(first), Some(last)) = (rule, dates.first(), dates.last()) else {
+        return dates;
+    };
+    let (first_day, last_day) = (start(&first.when).0, start(&last.when).0);
+    let fits = dates.iter().all(|date| rule.makes(first_day, start(&date.when).0) && same_shape(first.when, date.when));
+    if dates.len() < 2 || !fits {
+        return dates;
+    }
+    let forms: Vec<Entry> = dates.iter().map(form).collect();
+    // How many dates say each, and the first that does.
+    let mut said: BTreeMap<&Entry, (usize, usize)> = BTreeMap::new();
+    for (index, own) in forms.iter().enumerate() {
+        said.entry(own).or_insert((0, index)).0 += 1;
+    }
+    let most = said.values().max_by_key(|(count, first)| (*count, Reverse(*first))).map(|(_, first)| *first);
+    let Some(master) = most.and_then(|first| forms.get(first)).cloned() else {
+        return dates;
+    };
+    let held: BTreeSet<Day> = dates.iter().map(|date| start(&date.when).0).collect();
+    let except = rule.days(first_day, last_day).into_iter().filter(|day| !held.contains(day)).collect();
+    let overrides = dates
+        .into_iter()
+        .zip(&forms)
+        .filter(|(_, own)| **own != master)
+        .map(|(date, _)| Entry { uid: uid.clone(), ..date })
+        .collect();
+    let when = master.when.on(first_day);
+    vec![Entry { uid, when, repeat: Some(Repeat { rule, until: last_day, except }), overrides, ..master }]
+}
+
+/// A date's entry without its UID and its day: what a series compares its dates by.
+fn form(date: &Entry) -> Entry {
+    Entry { uid: String::new(), when: date.when.on(Day(0)), ..date.clone() }
+}
+
+/// Whether two dates can be of one series: both begin at one time of their days, or both are the
+/// same number of whole days.
+fn same_shape(a: When, b: When) -> bool {
+    match (a, b) {
+        (When::Timed { from, .. }, When::Timed { from: other, .. }) => from == other,
+        (When::AllDay { first, last }, When::AllDay { first: other_first, last: other_last }) => last.0 - first.0 == other_last.0 - other_first.0,
+        _ => false,
     }
 }
 
 /// What the entries of one Termin say of it, whichever of its rows holds a date: what it is, its
-/// modules, its group, its rhythm and the range its rows span, and the dates none of them holds.
+/// modules, its group, its rhythm and the range its rows span, and the dates none of them holds, a
+/// series' `gaps` among them.
 fn termin_lines(
     event: &Event,
     rows: &[&Row],
+    gaps: &[(Day, Option<Skipped>)],
     what: Option<&str>,
     titles: &BTreeMap<String, String>,
     locale: Locale,
@@ -519,7 +686,7 @@ fn termin_lines(
     let what = what.map(|what| (Part::What, what.to_string()));
     what.into_iter()
         .chain(head.map(|line| (Part::Head, line)))
-        .chain(dropped(rows, locale).map(|line| (Part::Dropped, line)))
+        .chain(dropped(rows, gaps, locale).map(|line| (Part::Dropped, line)))
         .collect()
 }
 
@@ -571,12 +738,22 @@ fn groups_word(kinds: KindSet, texts: &Texts) -> &'static str {
 /// the last of their last: „wöchentlich 13.10.2026–26.01.2027". An assumed range is not stated (a
 /// line of its own says so), and a single date is the entry's own. The rows share their rhythm
 /// (the key holds it), so the first one names it; a rhythm only QIS's words name is written as
-/// QIS writes it.
+/// QIS writes it. A series of single dates says so after its range: „wöchentlich
+/// 13.10.2026–17.11.2026 (in QIS als Einzeltermine)".
 fn rhythm_line(rows: &[&Row], locale: Locale) -> Option<String> {
     let texts = crate::i18n::texts(locale);
-    let date = &rows.first()?.date;
+    let first = rows.first()?;
+    let date = &first.date;
     let rhythm = date.rhythm.as_ref().and_then(Code::known);
+    // A series of single dates every one to four weeks; else the rows' own rhythm.
+    let series = first.series.map(|series| match series.weeks {
+        2 => texts.fortnightly,
+        3 => texts.every_three_weeks,
+        4 => texts.every_four_weeks,
+        _ => texts.weekly,
+    });
     let name = match Every::of(date) {
+        _ if series.is_some() => series.map(str::to_string),
         Some(Every::Week) => Some(texts.weekly.to_string()),
         Some(Every::AWeek) => Some(texts.fortnightly_a.to_string()),
         Some(Every::BWeek) => Some(texts.fortnightly_b.to_string()),
@@ -597,22 +774,30 @@ fn rhythm_line(rows: &[&Row], locale: Locale) -> Option<String> {
         })
         .reduce(|(first, last), (other_first, other_last)| (first.min(other_first), last.max(other_last)));
     let range = stated
-        .filter(|(first, last)| rhythm != Some(Rhythm::Single) && first != last)
-        .map(|(first, last)| format!("{}–{}", first.date(locale), last.date(locale)));
-    match (name, range) {
+        .filter(|(first_day, last_day)| (rhythm != Some(Rhythm::Single) || first.series.is_some()) && first_day != last_day)
+        .map(|(first_day, last_day)| format!("{}–{}", first_day.date(locale), last_day.date(locale)));
+    let line = match (name, range) {
         (Some(name), Some(range)) => Some(format!("{name} {range}")),
         (name, range) => name.or(range),
+    };
+    match first.series {
+        Some(_) => line.map(|line| format!("{line} ({})", texts.feed_singles)),
+        None => line,
     }
 }
 
 /// „Entfällt: 22.12., 29.12. (vorlesungsfrei); 31.10. (Reformationstag); 05.11. (laut QIS)": the
-/// dates the rows of a Termin drop, the break first, then the holidays, then what QIS cancels, each
-/// reason once with its dates. A date another row of the Termin holds is not dropped: the calendar
-/// has an entry on it, in that row's room and times. A date two rows drop is named once, for the
-/// first reason met. The reason QIS gives is its own text; where it gives none, „laut QIS".
-fn dropped(rows: &[&Row], locale: Locale) -> Option<String> {
+/// dates the rows of a Termin drop, the break first, then the holidays, then what QIS cancels, and
+/// last the weeks a series of single dates has no date in (`gaps`), each reason once with its dates.
+/// A date another row of the Termin holds is not dropped: the calendar has it, in that row's room
+/// and times. A date two rows drop is named once, for the first reason met. The reason QIS gives is
+/// its own text; where it gives none, „laut QIS".
+fn dropped(rows: &[&Row], gaps: &[(Day, Option<Skipped>)], locale: Locale) -> Option<String> {
     let texts = crate::i18n::texts(locale);
-    let skipped = || rows.iter().flat_map(|row| row.occ.skipped.iter().map(|(day, why)| (*day, *why)));
+    let skipped = || {
+        let gaps = gaps.iter().filter_map(|(day, why)| why.map(|why| (*day, why)));
+        rows.iter().flat_map(|row| row.occ.skipped.iter().map(|(day, why)| (*day, *why))).chain(gaps)
+    };
     let named_why = |(day, why): (Day, Skipped)| (day, why.text(locale));
     let mut breaks: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why == Skipped::Break).map(named_why).collect();
     let mut holidays: Vec<(Day, &str)> = skipped().filter(|(_, why)| *why != Skipped::Break).map(named_why).collect();
@@ -620,13 +805,14 @@ fn dropped(rows: &[&Row], locale: Locale) -> Option<String> {
         .iter()
         .flat_map(|row| row.occ.cancelled.iter().map(|(day, note, _)| (*day, text(note).unwrap_or(texts.cancelled_by_qis))))
         .collect();
+    let unlisted = gaps.iter().filter(|(_, why)| why.is_none()).map(|(day, _)| (*day, texts.no_date_in_qis));
     // Each list by day, as one row's lists are; a stable sort keeps the first row's reason first.
     for list in [&mut breaks, &mut holidays, &mut cancelled] {
         list.sort_by_key(|(day, _)| *day);
     }
     let mut named: BTreeSet<Day> = rows.iter().flat_map(|row| row.occ.days.iter().copied()).collect();
     let mut groups: Vec<(&str, Vec<Day>)> = Vec::new();
-    for (day, why) in breaks.into_iter().chain(holidays).chain(cancelled) {
+    for (day, why) in breaks.into_iter().chain(holidays).chain(cancelled).chain(unlisted) {
         if named.insert(day) {
             group(&mut groups, why, day);
         }
@@ -691,6 +877,8 @@ fn exam_dates(entries: &mut Entries, exam: &Exam, names: &Names, locale: Locale)
         let entry = Entry {
             uid: uid(&key_text(&exam.event_id, row.key, &row.date), start(&when).0),
             when,
+            repeat: None,
+            overrides: Vec::new(),
             summary,
             location: None,
             description: None,
@@ -801,7 +989,7 @@ fn last_sunday(year: i32, month: u32) -> Option<Day> {
 #[cfg(test)]
 mod tests {
     use folia_calendar::select::Town;
-    use folia_model::rows_detail::{DateRow, ModuleSws};
+    use folia_model::rows_detail::{DateRow, ModuleSws, Series};
     use folia_query as queries;
 
     use crate::facts::SemesterFacts;
@@ -847,6 +1035,7 @@ mod tests {
         DateRow {
             module_id: module.into(),
             ord: Some(ord),
+            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -988,16 +1177,35 @@ mod tests {
         calendar_of(t, &titles(), &names(), "WiSe 2026/27", "2026-09-23T12:35:16Z", Locale::De)
     }
 
+    /// The entry under `uid`: a series, a single date or an exam date.
     fn entry<'c>(calendar: &'c Calendar, uid: &str) -> &'c Entry {
         calendar.entries.iter().find(|entry| entry.uid == uid).unwrap_or_else(|| panic!("no entry {uid}"))
     }
 
-    fn of_event<'c>(calendar: &'c Calendar, event: &str) -> Vec<&'c Entry> {
-        calendar.entries.iter().filter(|entry| entry.uid.starts_with(&format!("{event}-"))).collect()
+    /// The series of the Termin of `row`, under its key.
+    fn series<'c>(calendar: &'c Calendar, row: &Fixture) -> &'c Entry {
+        entry(calendar, &format!("{}@betula.app", row.key().text()))
     }
 
-    fn uid_of(row: &Fixture, day: &str) -> String {
-        format!("{}-{}@betula.app", row.key().text(), d(day).compact())
+    /// Every date of a calendar as a client shows it (`Entry::dates`), in the calendar's order.
+    fn dated(calendar: &Calendar) -> Vec<Entry> {
+        calendar.entries.iter().flat_map(Entry::dates).collect()
+    }
+
+    /// The dates of an event's Termine.
+    fn of_event(calendar: &Calendar, event: &str) -> Vec<Entry> {
+        dated(calendar).into_iter().filter(|date| date.uid.starts_with(&format!("{event}-"))).collect()
+    }
+
+    /// The date `day` of the Termin of `row`: of its series, or an entry of its own.
+    fn find_on(calendar: &Calendar, row: &Fixture, day: &str) -> Option<Entry> {
+        let key = row.key().text();
+        let own = |uid: &str| uid.starts_with(&format!("{key}@")) || uid.starts_with(&format!("{key}-"));
+        dated(calendar).into_iter().find(|date| own(&date.uid) && date.when.day() == d(day))
+    }
+
+    fn on(calendar: &Calendar, row: &Fixture, day: &str) -> Entry {
+        find_on(calendar, row, day).unwrap_or_else(|| panic!("no date {day} of {}", row.key().text()))
     }
 
     fn exam_uid(row: &DateRow) -> String {
@@ -1006,15 +1214,24 @@ mod tests {
     }
 
     fn day_of(entry: &Entry) -> Day {
-        start(&entry.when).0
+        entry.when.day()
+    }
+
+    /// The VEVENTs a calendar writes: an entry, and a series' dates that differ.
+    fn vevents(calendar: &Calendar) -> usize {
+        calendar.entries.iter().map(|entry| 1 + entry.overrides.len()).sum()
     }
 
     #[test]
-    fn rows_of_one_key_are_one_entry_per_date() {
+    fn rows_of_one_key_are_one_series() {
         let rows = rows();
         let c = calendar(&semester());
-        let lecture = entry(&c, &uid_of(&rows[0], "2026-10-06"));
+        // Every Tuesday from 06.10.2026 to 26.01.2027, the two of the break left out, each in both
+        // rooms until 13:30: one series that no date differs from.
+        let lecture = series(&c, &rows[0]);
         assert_eq!(lecture.when, When::Timed { day: d("2026-10-06"), from: 690, to: 810 }, "until the later end");
+        assert_eq!(lecture.repeat, Some(Repeat { rule: Rule::Weeks(1), until: d("2027-01-26"), except: vec![d("2026-12-22"), d("2026-12-29")] }));
+        assert!(lecture.overrides.is_empty(), "{:?}", lecture.overrides);
         // As short as its slot in the week, both rooms in their short forms; all of it in full in
         // the description, the event's title only where it is not its module's.
         assert_eq!(lecture.summary, "VL SWT");
@@ -1030,8 +1247,11 @@ mod tests {
             )
         );
         assert!(!lecture.tentative && !lecture.transparent);
-        // 17 Tuesdays but the two in the break, each once.
-        assert_eq!(of_event(&c, "10").len(), 15);
+        // 17 Tuesdays but the two in the break, each once, each as the series says.
+        let dates = of_event(&c, "10");
+        assert_eq!(dates.len(), 15);
+        assert!(dates.iter().all(|date| date.description == lecture.description && date.location == lecture.location));
+        assert_eq!(on(&c, &rows[1], "2027-01-26").when, When::Timed { day: d("2027-01-26"), from: 690, to: 810 });
 
         // Two rooms and two ends of one exam sitting.
         let exams = exams();
@@ -1057,9 +1277,10 @@ mod tests {
     fn what_may_not_happen_is_tentative() {
         let rows = rows();
         let c = calendar(&semester());
-        // An open choice: both options' dates, tentative, with the prompt.
+        // An open choice: both options' dates, tentative, with the prompt; a series each.
         let options = of_event(&c, "20");
         assert_eq!(options.len(), 30);
+        assert_eq!(c.entries.iter().filter(|entry| entry.uid.starts_with("20-") && entry.repeat.is_some()).count(), 2);
         for option in &options {
             assert!(option.tentative, "{}", option.uid);
             assert_eq!(option.summary, "Ü DB · 1 von 2", "as its slot says");
@@ -1078,7 +1299,7 @@ mod tests {
         let assumed = of_event(&c, "30");
         assert_eq!(assumed.len(), 15);
         assert_eq!(
-            (assumed.first().map(|e| day_of(e)), assumed.last().map(|e| day_of(e))),
+            (assumed.first().map(day_of), assumed.last().map(day_of)),
             (Some(d("2026-10-08")), Some(d("2027-01-28")))
         );
         for entry in &assumed {
@@ -1136,7 +1357,9 @@ mod tests {
             assert!(whole.transparent && !whole.tentative, "{}", whole.uid);
             assert_eq!(whole.location.as_deref(), Some("Audimax"));
         }
-        // A block without times: its days, whole.
+        // A block without times: its days, whole, every day from Saturday to Sunday.
+        let rows = rows();
+        assert_eq!(series(&c, &rows[7]).repeat, Some(Repeat { rule: Rule::Days, until: d("2026-11-15"), except: vec![] }));
         let block = of_event(&c, "40");
         let days: Vec<When> = block.iter().map(|entry| entry.when).collect();
         assert_eq!(
@@ -1169,13 +1392,18 @@ mod tests {
         assert_eq!(of_event(&c, "35").len(), 13);
         let lines = "Übung\nModul 11111 Softwaretechnik\nwöchentlich 10.10.2026–30.01.2027\nLehrende: Robel\nEntfällt: \
                      26.12., 02.01. (vorlesungsfrei); 31.10. (Reformationstag); 07.11. (laut QIS)";
-        let first = entry(&c, &uid_of(&rows[3], "2026-10-10"));
+        let first = on(&c, &rows[3], "2026-10-10");
         assert_eq!(first.description.as_deref(), Some(format!("{lines}\nQuelle: QIS").as_str()));
-        let noted = entry(&c, &uid_of(&rows[3], "2026-11-14"));
+        let noted = on(&c, &rows[3], "2026-11-14");
         assert_eq!(noted.description.as_deref(), Some(format!("{lines}\nHinweis: Raumwechsel\nQuelle: QIS").as_str()));
         for gone in ["2026-10-31", "2026-11-07", "2026-12-26"] {
-            assert!(c.entries.iter().all(|entry| entry.uid != uid_of(&rows[3], gone)), "{gone}");
+            assert_eq!(find_on(&c, &rows[3], gone), None, "{gone}");
         }
+        // In the series the dates that are not held are left out, and the noted one differs.
+        let saturdays = series(&c, &rows[3]);
+        let except = ["2026-10-31", "2026-11-07", "2026-12-26", "2027-01-02"].map(d).to_vec();
+        assert_eq!(saturdays.repeat, Some(Repeat { rule: Rule::Weeks(1), until: d("2027-01-30"), except }));
+        assert_eq!(saturdays.overrides, [noted]);
         // An event of both modules names both, by id, its title too.
         let shared = of_event(&c, "80");
         assert_eq!(shared.len(), 15);
@@ -1214,7 +1442,7 @@ mod tests {
         assert!(text.starts_with("BEGIN:VCALENDAR\r\n") && text.ends_with("END:VCALENDAR\r\n"));
         assert!(text.contains("\r\nX-WR-CALNAME:Studienplan WiSe 2026/27\r\n"));
         assert!(text.contains("\r\nX-WR-CALDESC:Betula (inoffiziell) · Termine laut QIS\\, Stand 23.09.2026\r\n"));
-        assert_eq!(text.matches("BEGIN:VEVENT\r\n").count(), c.entries.len());
+        assert_eq!(text.matches("BEGIN:VEVENT\r\n").count(), vevents(&c));
     }
 
     /// The feed of `/en/calendar/<code>.ics`: the same entries with the same UIDs, the words around
@@ -1232,7 +1460,7 @@ mod tests {
         assert_eq!(uids(&c), uids(&de), "a subscription that changes its language updates its entries");
 
         // The lecture: „Vorlesung" is what QIS calls it, the rest is English.
-        let lecture = entry(&c, &uid_of(&rows[0], "2026-10-06"));
+        let lecture = on(&c, &rows[0], "2026-10-06");
         assert_eq!((lecture.summary.as_str(), lecture.categories.as_slice()), ("Lec SWT", ["Lecture".to_string()].as_slice()));
         assert_eq!(
             lecture.description.as_deref(),
@@ -1243,7 +1471,8 @@ mod tests {
             )
         );
         // An open choice, and a range QIS does not state.
-        let option = &of_event(&c, "20")[0];
+        let options = of_event(&c, "20");
+        let option = &options[0];
         assert_eq!(option.summary, "Ex DB · 1 of 2");
         assert!(option.description.as_deref().unwrap().contains("\nOne of 2 exercise groups; choose in Betula\n"));
         assert_eq!(
@@ -1256,7 +1485,7 @@ mod tests {
         // The Saturdays: the break, a holiday, a date QIS cancels without a reason, a room note.
         let lines = "Übung\nModule 11111 Softwaretechnik\nweekly 10 Oct 2026–30 Jan 2027\nLecturers: Robel\nCancelled: \
                      26 Dec, 2 Jan (no lectures); 31 Oct (Reformation Day); 7 Nov (according to QIS)";
-        let noted = entry(&c, &uid_of(&rows[3], "2026-11-14"));
+        let noted = on(&c, &rows[3], "2026-11-14");
         assert_eq!(noted.description.as_deref(), Some(format!("{lines}\nNote: Raumwechsel\nSource: QIS").as_str()));
 
         // Exams, and the whole days of a window, a deadline and a day without a time.
@@ -1349,20 +1578,35 @@ mod tests {
 
     #[test]
     fn a_calendar_keeps_its_earliest_entries() {
-        // 14 blocks of the 400 days one row walks at most, less the 14 holidays among them.
+        // 14 blocks of the 400 days one row walks at most, less the 14 holidays among them: a
+        // series each, every day, the holidays left out.
         let blocks: Vec<Fixture> = (0..14).map(|n| block(&(900 + n).to_string(), "2026-10-01", "2028-12-31")).collect();
         let t = build(&blocks, &[], &[A], &[], &Selection::default());
         let days = &t.events[0].rows[0].occ.days;
         assert_eq!(days.len(), 386);
         let c = calendar(&t);
-        assert_eq!(c.entries.len(), MAX_ENTRIES);
-        assert!(c.description.ends_with(", Stand 23.09.2026 · nur die ersten 5000 Termine"), "{}", c.description);
+        assert_eq!((c.entries.len(), vevents(&c)), (14, 14));
+        let repeat = c.entries[0].repeat.as_ref().unwrap();
+        assert_eq!((repeat.rule, Some(repeat.until), repeat.except.len()), (Rule::Days, days.last().copied(), 14));
+        assert!(!c.description.contains("nur die ersten"), "{}", c.description);
+
+        // With a room note of its own on every day, each date but the first differs from its
+        // series: 386 VEVENTs a block, and a thirteenth block would pass 5,000.
+        let notes: String = (0..400).map(|n| format!("{}: Raumwechsel {n} ", d("2026-10-01").plus(n).german())).collect();
+        let noted: Vec<Fixture> = blocks
+            .into_iter()
+            .map(|mut block| {
+                block.0.cancelled_dates = Some(notes.clone());
+                block
+            })
+            .collect();
+        let t = build(&noted, &[], &[A], &[], &Selection::default());
+        let c = calendar(&t);
+        assert_eq!((c.entries.len(), vevents(&c)), (12, 12 * 386));
+        assert!(c.entries.iter().all(|entry| entry.overrides.len() == 385 && Some(day_of(entry)) == days.first().copied()));
+        assert!(c.description.ends_with(", Stand 23.09.2026 · nur die ersten 5000 Einträge"), "{}", c.description);
         let english = calendar_of(&t, &titles(), &names(), "", "2026-09-23T12:35:16Z", Locale::En).description;
-        assert!(english.ends_with(", as of 23 Sep 2026 · only the first 5,000 dates"), "{english}");
-        // 14 entries a day: 357 whole days and two of the next.
-        assert_eq!(c.entries.first().map(day_of), days.first().copied());
-        assert_eq!(c.entries.last().map(day_of), days.get(357).copied());
-        assert_eq!(c.entries.iter().filter(|entry| Some(day_of(entry)) == days.get(357).copied()).count(), 2);
+        assert!(english.ends_with(", as of 23 Sep 2026 · only the first 5,000 entries"), "{english}");
     }
 
     #[test]
@@ -1493,10 +1737,10 @@ mod tests {
         // 17 Wednesdays but the two in the break and the one neither row holds.
         assert_eq!(of_event(&c, "90").len(), 14);
         for gone in ["2026-12-23", "2026-12-30", "2027-01-20"] {
-            assert!(c.entries.iter().all(|entry| entry.uid != uid_of(&short, gone)), "{gone}");
+            assert_eq!(find_on(&c, &short, gone), None, "{gone}");
         }
         let dropped = "Entfällt: 23.12., 30.12. (vorlesungsfrei); 20.01. (Exkursion)";
-        let both = entry(&c, &uid_of(&short, "2026-10-07"));
+        let both = on(&c, &short, "2026-10-07");
         assert_eq!(both.when, When::Timed { day: d("2026-10-07"), from: 600, to: 960 });
         assert_eq!(both.location.as_deref(), Some("HS 105 / Labor 213"));
         let both_lines = format!(
@@ -1504,7 +1748,7 @@ mod tests {
              Freymann\nEinweisung\n{dropped}"
         );
         assert_eq!(both.description.as_deref(), Some(format!("{both_lines}\nQuelle: QIS").as_str()));
-        let noted = entry(&c, &uid_of(&short, "2026-10-21"));
+        let noted = on(&c, &short, "2026-10-21");
         assert_eq!(
             noted.description.as_deref(),
             Some(format!("{both_lines}\nHinweis: Raumwechsel HS 3\nQuelle: QIS").as_str())
@@ -1516,11 +1760,120 @@ mod tests {
              {dropped}\nQuelle: QIS"
         );
         for day in ["2026-12-16", "2027-01-13"] {
-            let only = entry(&c, &uid_of(&short, day));
+            let only = on(&c, &short, day);
             assert_eq!(only.when, When::Timed { day: d(day), from: 600, to: 960 }, "{day}");
             assert_eq!(only.location.as_deref(), Some("Labor 213"), "{day}");
             assert_eq!(only.description.as_deref(), Some(alone.as_str()), "{day}");
         }
+
+        // One series: what both rows say on the dates they both hold, and after it, in full, the
+        // date with the note and the three only the second row holds.
+        let termin = series(&c, &short);
+        let except = ["2026-12-23", "2026-12-30", "2027-01-20"].map(d).to_vec();
+        assert_eq!(termin.repeat, Some(Repeat { rule: Rule::Weeks(1), until: d("2027-01-27"), except }));
+        assert_eq!((termin.when, &termin.description, &termin.location), (both.when, &both.description, &both.location));
+        let changed: Vec<Day> = termin.overrides.iter().map(|date| date.when.day()).collect();
+        assert_eq!(changed, ["2026-10-21", "2026-12-16", "2027-01-13", "2027-01-27"].map(d));
+    }
+
+    /// A single date of QIS: on `day` at 13:45, in room A, of the series Radix names by `first`
+    /// (`None`: of no series).
+    fn single(event: &str, ord: i64, day: &str, series: Option<(i64, u8)>) -> Fixture {
+        let weekday = i64::from(d(day).weekday());
+        let mut row = room(teaching(A, event, ord, "Seminar", weekday, "13:45", "15:15").rhythm("single").range(day, day), "Raum A");
+        row.0.date.rhythm_raw = Some("Einzel".into());
+        row.0.series = series.map(|(first, weeks)| Series { first, weeks });
+        row
+    }
+
+    /// Single dates Radix reads as one series (`Row::series`): one entry under the key of the row
+    /// that names it, the weeks it has no date in left out and named, a date in another room
+    /// after it in full; a date that is hidden or cancelled is left out as well.
+    #[test]
+    fn single_dates_of_a_series_are_one_series() {
+        let weekly = Some((2, 1));
+        let mut moved = single("95", 4, "2026-11-03", weekly);
+        moved.0.date.room = Some("Raum B".into());
+        let mut ill = single("95", 8, "2026-12-01", weekly);
+        ill.0.cancelled_dates = Some("01.12.2026: Krankheit".into());
+        let hidden = single("95", 7, "2026-11-24", weekly);
+        let rows = vec![
+            // Listed by QIS in any order: the series is named by the row of its first date.
+            single("95", 1, "2026-10-20", weekly),
+            single("95", 2, "2026-10-13", weekly),
+            single("95", 3, "2026-10-27", weekly),
+            moved,
+            // No date on 10.11.: a week of no date in QIS.
+            single("95", 5, "2026-11-17", weekly),
+            hidden.clone(),
+            ill,
+            single("95", 9, "2026-12-08", weekly),
+            single("95", 10, "2026-12-15", weekly),
+            // The break: 22.12. and 29.12.
+            single("95", 11, "2027-01-05", weekly),
+            // Every other Thursday, and a date of no series.
+            single("96", 1, "2026-10-15", Some((1, 2))),
+            single("96", 2, "2026-10-29", Some((1, 2))),
+            single("96", 3, "2026-11-12", Some((1, 2))),
+            single("97", 1, "2026-10-14", None),
+            // Every three weeks.
+            single("98", 1, "2026-10-15", Some((1, 3))),
+            single("98", 2, "2026-11-05", Some((1, 3))),
+            single("98", 3, "2026-11-26", Some((1, 3))),
+        ];
+        let selection = Selection { hidden_rows: [hidden.key()].into(), ..Selection::default() };
+        let c = calendar(&build(&rows, &[], &[A], &[], &selection));
+
+        let termin = series(&c, &rows[1]);
+        let except = ["2026-11-10", "2026-11-24", "2026-12-01", "2026-12-22", "2026-12-29"].map(d).to_vec();
+        assert_eq!(termin.when, When::Timed { day: d("2026-10-13"), from: 825, to: 915 });
+        assert_eq!(termin.repeat, Some(Repeat { rule: Rule::Weeks(1), until: d("2027-01-05"), except }));
+        assert_eq!((termin.summary.as_str(), termin.location.as_deref()), ("Sem SWT", Some("Raum A")));
+        assert_eq!(
+            termin.description.as_deref(),
+            Some(
+                "Seminar 95\nModul 11111 Softwaretechnik\nwöchentlich 13.10.2026–05.01.2027 (in QIS als Einzeltermine)\n\
+                 Entfällt: 22.12., 29.12. (vorlesungsfrei); 01.12. (Krankheit); 10.11. (kein Termin in QIS)\nQuelle: QIS"
+            )
+        );
+        let other_room = Entry { when: When::Timed { day: d("2026-11-03"), from: 825, to: 915 }, location: Some("Raum B".into()), repeat: None, overrides: vec![], ..termin.clone() };
+        assert_eq!(termin.overrides, [other_room]);
+        assert_eq!(of_event(&c, "95").len(), 8);
+        assert_eq!(c.entries.iter().filter(|entry| entry.uid.starts_with("95-")).count(), 1);
+
+        // Every other week, every three weeks; and in English.
+        let fortnightly = series(&c, &rows[10]);
+        assert_eq!(fortnightly.repeat, Some(Repeat { rule: Rule::Weeks(2), until: d("2026-11-12"), except: vec![] }));
+        assert!(fortnightly.description.as_deref().unwrap().contains("\n14-täglich 15.10.2026–12.11.2026 (in QIS als Einzeltermine)\n"));
+        let third = series(&c, &rows[14]);
+        assert_eq!(third.repeat, Some(Repeat { rule: Rule::Weeks(3), until: d("2026-11-26"), except: vec![] }));
+        assert!(third.description.as_deref().unwrap().contains("\nalle drei Wochen 15.10.2026–26.11.2026 (in QIS als Einzeltermine)\n"));
+        assert!(ics::write(&c).contains("\r\nRRULE:FREQ=WEEKLY;INTERVAL=3;UNTIL=20261126T225959Z\r\n"));
+        let english = calendar_of(&build(&rows, &[], &[A], &[], &selection), &titles(), &names(), "", "2026-09-23T12:35:16Z", Locale::En);
+        let lines = series(&english, &rows[1]).description.clone().unwrap();
+        assert!(lines.contains("\nweekly 13 Oct 2026–5 Jan 2027 (single dates in QIS)\n"), "{lines}");
+        assert!(lines.contains("Cancelled: 22 Dec, 29 Dec (no lectures); 1 Dec (Krankheit); 10 Nov (no date in QIS)"), "{lines}");
+
+        // A date of no series is an entry of its own, under its key and its date, as ever.
+        let lone = entry(&c, &format!("{}-20261014@betula.app", rows[13].key().text()));
+        assert_eq!((lone.repeat.as_ref(), lone.when.day()), (None, d("2026-10-14")));
+        assert!(lone.description.as_deref().unwrap().contains("\nEinzeltermin\n"));
+    }
+
+    /// Dates that their series' rule does not make (a series of every other week whose dates are a
+    /// week apart): an entry each, as without a series.
+    #[test]
+    fn dates_no_rule_makes_stay_dates() {
+        let rows: Vec<Fixture> = ["2026-10-13", "2026-10-20", "2026-10-27"]
+            .into_iter()
+            .zip(1..)
+            .map(|(day, ord)| single("95", ord, day, Some((1, 2))))
+            .collect();
+        let c = calendar(&build(&rows, &[], &[A], &[], &Selection::default()));
+        let uids: Vec<&str> = c.entries.iter().map(|entry| entry.uid.as_str()).collect();
+        let own: Vec<String> = rows.iter().zip(["20261013", "20261020", "20261027"]).map(|(row, day)| format!("{}-{day}@betula.app", row.key().text())).collect();
+        assert_eq!(uids, own);
+        assert!(c.entries.iter().all(|entry| entry.repeat.is_none()));
     }
 
     /// Informatik B.Sc., FS1 in WiSe 2026/27, with the pinned subscription's selection: the
@@ -1557,8 +1910,16 @@ mod tests {
         let browser = ics::write(&calendar_of(&in_plan, &titles, &names, "", &stamp, Locale::De));
         let feed = ics::write(&calendar_of(&by_id, &titles, &names, "", &stamp, Locale::De));
         assert_eq!(browser, feed, "the download is the feed");
-        let uids: Vec<&str> = feed.split("\r\n").filter_map(|line| line.strip_prefix("UID:")).collect();
-        assert_eq!(uids.iter().collect::<BTreeSet<_>>().len(), uids.len(), "every UID once");
+        // Every UID once, and every date of a series that differs once under it.
+        let named: Vec<(&str, Option<&str>)> = feed
+            .split("BEGIN:VEVENT\r\n")
+            .skip(1)
+            .map(|event| {
+                let property = |name: &str| event.split("\r\n").find_map(|line| line.strip_prefix(name));
+                (property("UID:").unwrap_or_default(), property("RECURRENCE-ID;"))
+            })
+            .collect();
+        assert_eq!(named.iter().collect::<BTreeSet<_>>().len(), named.len(), "every UID once");
         if !is_pinned {
             return;
         }
@@ -1570,9 +1931,13 @@ mod tests {
         assert_eq!(c.name, "Studienplan WiSe 2026/27");
         // The stand is the build's, which wrote the short names on 25.09. (the data is of 23.09.).
         assert_eq!(c.description, "Betula (inoffiziell) · Termine laut QIS, Stand 25.09.2026");
-        // 12104's Tuesday lecture, as C.14 shows it.
-        let lecture = entry(&c, "148701-a2633-20261013@betula.app");
+        // The 249 dates the calendar had as an entry each until 2026-10-13.
+        assert_eq!(dated(&c).len(), 249);
+        // 12104's Tuesday lecture, as C.14 shows it: every Tuesday to 26.01., the break left out.
+        let lecture = entry(&c, "148701-a2633@betula.app");
         assert_eq!(lecture.when, When::Timed { day: d("2026-10-13"), from: 690, to: 780 });
+        let except = vec![d("2026-12-22"), d("2026-12-29")];
+        assert_eq!(lecture.repeat, Some(Repeat { rule: Rule::Weeks(1), until: d("2027-01-26"), except }));
         assert_eq!(lecture.summary, "VL EvS");
         assert_eq!(lecture.location.as_deref(), Some("ZHG/HS.C"));
         assert_eq!(
@@ -1584,17 +1949,19 @@ mod tests {
             )
         );
         assert!(feed.contains(
-            "UID:148701-a2633-20261013@betula.app\r\nDTSTAMP:20260925T083015Z\r\n\
-             DTSTART;TZID=Europe/Berlin:20261013T113000\r\nDTEND;TZID=Europe/Berlin:20261013T130000\r\n"
+            "UID:148701-a2633@betula.app\r\nDTSTAMP:20260925T083015Z\r\n\
+             DTSTART;TZID=Europe/Berlin:20261013T113000\r\nDTEND;TZID=Europe/Berlin:20261013T130000\r\n\
+             RRULE:FREQ=WEEKLY;UNTIL=20270126T225959Z\r\nEXDATE;TZID=Europe/Berlin:20261222T113000\r\n\
+             EXDATE;TZID=Europe/Berlin:20261229T113000\r\nSUMMARY:VL EvS\r\n"
         ));
         // Senftenberg's course of 12104 and its exam are not the student's; 149408 is hidden.
-        for gone in ["UID:149406-", "UID:149407-", "UID:150664-", "UID:149408-", "UID:148369-aaf38-", "20151227"] {
+        for gone in ["UID:149406-", "UID:149407-", "UID:150664-", "UID:149408-", "UID:148369-aaf38", "20151227"] {
             assert!(!feed.contains(gone), "{gone}");
         }
         // „Nur diesen" on Monday 17:30: its 16 Mondays from 12.10. but the two in the break, firm.
         let chosen = of_event(&c, "148369");
         assert_eq!(chosen.len(), 14);
-        assert!(chosen.iter().all(|entry| entry.uid.starts_with("148369-a4d12-") && !entry.tentative));
+        assert!(chosen.iter().all(|entry| entry.uid == "148369-a4d12@betula.app" && !entry.tentative));
         // 148304 is still open: three options, tentative.
         let open = of_event(&c, "148304");
         assert!(!open.is_empty() && open.iter().all(|entry| entry.tentative));

@@ -102,19 +102,33 @@ func (b *builder) writeEvents() error {
 				return err
 			}
 		}
+		// Single dates that follow a rhythm are one series (normalize.Series); an exam's dates
+		// are sittings, never a series.
+		var singles []normalize.SeriesDate
 		for i, s := range d.Schedules {
+			if category != "exam" && rhythm(s.Rhythm) == "single" && dates[i].first != "" && dates[i].first == dates[i].last {
+				singles = append(singles, normalize.SeriesDate{Ord: i + 1, Group: s.GroupName, Start: normalize.Clock(s.StartTime), Day: dates[i].first})
+			}
+		}
+		series := normalize.Series(singles)
+		for i, s := range d.Schedules {
+			of := series[i+1]
+			if of.First == i+1 {
+				b.report.EventSeries++
+			}
 			_, err := b.tx.Exec(`
 				INSERT INTO event_date (event_id, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw,
-					first_date, last_date, room, campus, instructor, comment, cancelled_dates)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+					first_date, last_date, room, campus, instructor, comment, cancelled_dates, series, series_weeks)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				id, i+1, null(s.GroupName), null(normalize.Weekday(s.DayOfWeek)),
 				null(normalize.Clock(s.StartTime)), null(normalize.Clock(s.EndTime)), null(rhythm(s.Rhythm)), null(s.Rhythm),
 				null(dates[i].first), null(dates[i].last), null(s.Room), null(normalize.Campus(s.Room)),
-				null(s.Instructor), null(s.Comment), null(s.CancelledDates))
+				null(s.Instructor), null(s.Comment), null(s.CancelledDates), null(of.First), null(of.Weeks))
 			if err != nil {
 				return fmt.Errorf("event %s date %d: %w", id, i+1, err)
 			}
 		}
+		b.report.EventSeriesDates += len(series)
 	}
 
 	tombstones := make(map[string]bool)

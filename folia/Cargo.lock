@@ -1169,6 +1169,7 @@ dependencies = [
  "folia-search",
  "folia-shell",
  "folia-stores",
+ "folia-test-support",
  "futures-util",
  "hmac",
  "leptos",
@@ -1241,6 +1242,7 @@ name = "folia-test-support"
 version = "0.1.0"
 dependencies = [
  "folia-model",
+ "rusqlite",
  "serde_json",
 ]
 

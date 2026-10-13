@@ -47,7 +47,8 @@ pub struct Texts {
     pub feed_as_of: fn(&str) -> String,
     /// … and after „ · " that the semester has no dates yet: „Noch keine Termine veröffentlicht" …
     pub feed_unpublished: &'static str,
-    /// … or that it holds only its earliest entries: „nur die ersten 5000 Termine".
+    /// … or that it holds only its earliest entries, a series counted with its dates that differ:
+    /// „nur die ersten 5000 Einträge".
     pub feed_first_only: fn(usize) -> String,
     /// The last line of every entry's description: „Quelle: QIS".
     pub feed_source: &'static str,
@@ -92,17 +93,27 @@ pub struct Texts {
     pub fortnightly_a: &'static str,
     /// … in B weeks („14-täglich (B-Woche)") …
     pub fortnightly_b: &'static str,
+    /// … every other week, a series of single dates („14-täglich") …
+    pub fortnightly: &'static str,
+    /// … every three weeks, a series of single dates („alle drei Wochen") …
+    pub every_three_weeks: &'static str,
     /// … every four weeks („vierwöchentlich") …
     pub every_four_weeks: &'static str,
     /// … once („Einzeltermin") …
     pub single_date: &'static str,
     /// … on the days of a block („Blockveranstaltung").
     pub block_course: &'static str,
+    /// After the rhythm and the range of a series of single dates, in parentheses: „in QIS als
+    /// Einzeltermine".
+    pub feed_singles: &'static str,
     /// The dates a Termin drops, each with why (written already): „Entfällt: 22.12., 29.12.
     /// (vorlesungsfrei); 31.10. (Reformationstag); 05.11. (laut QIS)".
     pub feed_dropped: fn(&str) -> String,
     /// Why QIS cancels a date where it gives no reason: „laut QIS".
     pub cancelled_by_qis: &'static str,
+    /// Why a series of single dates leaves out a week QIS lists no date of it in: „kein Termin in
+    /// QIS".
+    pub no_date_in_qis: &'static str,
     /// What an exam entry is, before its module's short name („Prüfung EvS") and in its
     /// description: a sitting, or a day without a time („Prüfung") …
     pub exam: &'static str,
@@ -149,7 +160,7 @@ pub const DE: Texts = Texts {
     feed_about: "Betula (inoffiziell) · Termine laut QIS",
     feed_as_of: |date| format!("Stand {date}"),
     feed_unpublished: "Noch keine Termine veröffentlicht",
-    feed_first_only: |n| format!("nur die ersten {n} Termine"),
+    feed_first_only: |n| format!("nur die ersten {n} Einträge"),
     feed_source: "Quelle: QIS",
     feed_rooms: |n, rooms| if n > 1 { format!("Räume: {rooms}") } else { format!("Raum: {rooms}") },
     feed_lecturers: |names| format!("Lehrende: {names}"),
@@ -171,11 +182,15 @@ pub const DE: Texts = Texts {
     weekly: "wöchentlich",
     fortnightly_a: "14-täglich (A-Woche)",
     fortnightly_b: "14-täglich (B-Woche)",
+    fortnightly: "14-täglich",
+    every_three_weeks: "alle drei Wochen",
     every_four_weeks: "vierwöchentlich",
     single_date: "Einzeltermin",
     block_course: "Blockveranstaltung",
+    feed_singles: "in QIS als Einzeltermine",
     feed_dropped: |dates| format!("Entfällt: {dates}"),
     cancelled_by_qis: "laut QIS",
+    no_date_in_qis: "kein Termin in QIS",
     exam: "Prüfung",
     submission: "Abgabe",
     exam_period: "Prüfungszeitraum",
@@ -208,7 +223,7 @@ pub const EN: Texts = Texts {
     feed_about: "Betula (unofficial) · dates according to QIS",
     feed_as_of: |date| format!("as of {date}"),
     feed_unpublished: "No dates published yet",
-    feed_first_only: |n| format!("only the first {} dates", folia_locale::Locale::En.thousands(u64::try_from(n).unwrap_or(u64::MAX))),
+    feed_first_only: |n| format!("only the first {} entries", folia_locale::Locale::En.thousands(u64::try_from(n).unwrap_or(u64::MAX))),
     feed_source: "Source: QIS",
     feed_rooms: |n, rooms| if n > 1 { format!("Rooms: {rooms}") } else { format!("Room: {rooms}") },
     feed_lecturers: |names| format!("Lecturers: {names}"),
@@ -230,11 +245,15 @@ pub const EN: Texts = Texts {
     weekly: "weekly",
     fortnightly_a: "fortnightly (week A)",
     fortnightly_b: "fortnightly (week B)",
+    fortnightly: "fortnightly",
+    every_three_weeks: "every three weeks",
     every_four_weeks: "every four weeks",
     single_date: "single date",
     block_course: "block course",
+    feed_singles: "single dates in QIS",
     feed_dropped: |dates| format!("Cancelled: {dates}"),
     cancelled_by_qis: "according to QIS",
+    no_date_in_qis: "no date in QIS",
     exam: "Exam",
     submission: "Submission",
     exam_period: "Exam period",

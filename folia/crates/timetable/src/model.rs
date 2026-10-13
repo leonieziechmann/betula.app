@@ -30,7 +30,7 @@ use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{town_of, HiddenBy, Selection, Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::Semester;
-use folia_model::rows_detail::{DateRow, EventDate, ModuleSws};
+use folia_model::rows_detail::{DateRow, EventDate, ModuleSws, Series};
 
 use crate::clash::{self, Clash};
 use crate::exams::{self, Exam, ExamWarning};
@@ -152,6 +152,9 @@ pub enum Basis {
 pub struct Row {
     pub key: Option<RowKey>,
     pub ord: Option<i64>,
+    /// The series of single dates the row belongs to (`DateRow::series`): the calendar writes the
+    /// rows of a series as one.
+    pub series: Option<Series>,
     pub date: EventDate,
     pub cancelled_dates: Option<String>,
     pub occ: Occurrences,
@@ -199,6 +202,7 @@ impl Row {
         Row {
             key: RowKey::of(&row.date),
             ord: row.ord,
+            series: row.series,
             date: row.date.clone(),
             cancelled_dates: row.cancelled_dates.clone(),
             occ: occur::occurrences(row, facts),
@@ -621,6 +625,7 @@ pub mod tests {
         Fixture(DateRow {
             module_id: module.into(),
             ord: Some(ord),
+            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),

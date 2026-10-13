@@ -1,17 +1,26 @@
 //! An iCalendar writer (RFC 5545): a `Calendar` of entries becomes the text of an `.ics` file.
 //!
-//! It writes what `export` decided and nothing else. Every entry is one VEVENT: there is no RRULE
-//! and no EXDATE, so cancellations, breaks, holidays and room notes are exact per date, and no
-//! client's handling of UNTIL or EXDATE next to a TZID can move a Termin. Timed entries are wall
-//! clock times in `Europe/Berlin`, whose rules the calendar spells out in its VTIMEZONE, so the
-//! client's own time zone database places the dates around the switches of 2026-10-25 and
-//! 2027-03-28. All-day entries are dates.
+//! It writes what `export` decided and nothing else. An entry is one VEVENT, or a series of them: a
+//! Termin that meets every week is one entry whose rule (RRULE) makes its dates from the first to
+//! the last, the dates the rule makes and the Termin does not hold (the break, a holiday, a date QIS
+//! cancels) are named one by one (EXDATE), and a date that says more or other than the series (a
+//! room note, a later end, another room) follows it in full under the series' UID
+//! (RECURRENCE-ID). A calendar thus shows one Termin a student opens, hides or deletes at once
+//! (owner, 2026-10-13: one entry per date was „ziemlich nervig"), and every date stays exact.
+//!
+//! Timed entries are wall clock times in `Europe/Berlin`, whose rules the calendar spells out in its
+//! VTIMEZONE, so the client's own time zone database places the dates around the switches of
+//! 2026-10-25 and 2027-03-28, and a series stays at 11:30 across them. The rule of a series ends
+//! with its last day: UNTIL is the end of that day in UTC, as RFC 5545 asks of a start with a time
+//! zone, so no client can read it as a moment before the last date or after it. EXDATE and
+//! RECURRENCE-ID name a date by the series' start on that day, in the form of DTSTART, one date a
+//! line. All-day entries are dates, and so are their UNTIL, EXDATE and RECURRENCE-ID.
 //!
 //! There is no clock here either: DTSTAMP is the calendar's `stamp`, the snapshot's
 //! `data_changed_at`. An unchanged plan in an unchanged snapshot is therefore the same bytes, in
 //! the browser's download and in the server's feed alike, and the feed's ETag holds.
 
-use folia_calendar::day::Day;
+use folia_calendar::day::{berlin_offset, Day};
 
 /// The time zone of every timed entry; `TIMEZONE` spells out its rules.
 pub const TZID: &str = "Europe/Berlin";
@@ -64,11 +73,20 @@ pub struct Calendar {
     pub entries: Vec<Entry>,
 }
 
-/// One VEVENT. Empty texts are left out, as `None` is.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// One VEVENT, or a series of them. Empty texts are left out, as `None` is.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Entry {
     pub uid: String,
+    /// The date, or the first date of a series.
     pub when: When,
+    /// RRULE and EXDATE: the entry stands for every date its rule makes, not only for `when`.
+    /// `None`: it is one date.
+    pub repeat: Option<Repeat>,
+    /// The dates of a series that differ from it, each in full, in date order: written after it
+    /// with its UID and the date they replace (RECURRENCE-ID), a date its rule makes and does not
+    /// leave out. Their own `uid`, `repeat` and `overrides` are not written, nor are they for an
+    /// entry that is no series.
+    pub overrides: Vec<Entry>,
     pub summary: String,
     pub location: Option<String>,
     /// Lines separated by `\n`.
@@ -81,8 +99,76 @@ pub struct Entry {
     pub transparent: bool,
 }
 
+impl Entry {
+    /// The dates of the entry as a calendar shows them, each an entry of one date under its UID:
+    /// itself, or every date its rule makes and does not leave out, as the series says it or as its
+    /// override of that date does.
+    pub fn dates(&self) -> Vec<Entry> {
+        let Some(repeat) = &self.repeat else {
+            return vec![Entry { overrides: Vec::new(), ..self.clone() }];
+        };
+        repeat
+            .rule
+            .days(self.when.day(), repeat.until)
+            .into_iter()
+            .filter(|day| !repeat.except.contains(day))
+            .map(|day| {
+                let changed = self.overrides.iter().find(|date| date.when.day() == day);
+                let date = changed.cloned().unwrap_or_else(|| Entry { when: self.when.on(day), ..self.clone() });
+                Entry { uid: self.uid.clone(), repeat: None, overrides: Vec::new(), ..date }
+            })
+            .collect()
+    }
+}
+
+/// How a series repeats: its rule makes its dates from the day of its first (`Entry::when`) to
+/// `until`, and `except` leaves some of them out.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Repeat {
+    pub rule: Rule,
+    /// The day of the series' last date, which its rule includes.
+    pub until: Day,
+    /// The days the rule makes that the series does not hold (EXDATE), in date order.
+    pub except: Vec<Day>,
+}
+
+/// The days a series' rule makes, from the day of its first date on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Rule {
+    /// The weekday of the first date, every this many weeks: `FREQ=WEEKLY;INTERVAL=2`.
+    Weeks(u8),
+    /// Every day: `FREQ=DAILY`.
+    Days,
+    /// Monday to Friday: `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR`.
+    Workdays,
+}
+
+impl Rule {
+    /// Whether the rule of a series that begins on `first` makes `day`.
+    pub fn makes(self, first: Day, day: Day) -> bool {
+        day >= first
+            && match self {
+                Rule::Weeks(weeks) => (day.0 - first.0) % (7 * i32::from(weeks.max(1))) == 0,
+                Rule::Days => true,
+                Rule::Workdays => day.weekday() <= 5,
+            }
+    }
+
+    /// The days the rule makes from `first` to `until`, both included.
+    pub fn days(self, first: Day, until: Day) -> Vec<Day> {
+        let step = match self {
+            Rule::Weeks(weeks) => 7 * i32::from(weeks.max(1)),
+            Rule::Days | Rule::Workdays => 1,
+        };
+        std::iter::successors(Some(first), |day| Some(day.plus(step)))
+            .take_while(|day| *day <= until)
+            .filter(|day| self.makes(first, *day))
+            .collect()
+    }
+}
+
 /// When an entry takes place.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum When {
     /// A day and minutes since its midnight in `Europe/Berlin`. `to` 1440 is 24:00, written as
     /// 00:00 of the next day. An end not after the start is left out: the entry is then a moment,
@@ -90,6 +176,24 @@ pub enum When {
     Timed { day: Day, from: u16, to: u16 },
     /// Whole days, `last` included (DTEND, which excludes, is the day after it).
     AllDay { first: Day, last: Day },
+}
+
+impl When {
+    /// The day it begins on.
+    pub fn day(self) -> Day {
+        match self {
+            When::Timed { day, .. } => day,
+            When::AllDay { first, .. } => first,
+        }
+    }
+
+    /// The same times, or the same number of whole days, on `day`.
+    pub fn on(self, day: Day) -> When {
+        match self {
+            When::Timed { from, to, .. } => When::Timed { day, from, to },
+            When::AllDay { first, last } => When::AllDay { first: day, last: day.plus(last.0 - first.0) },
+        }
+    }
 }
 
 /// The text of the calendar: lines ending in CRLF, the last one too, none longer than 75 octets.
@@ -115,10 +219,25 @@ pub fn write(calendar: &Calendar) -> String {
     out
 }
 
+/// An entry, and after a series the dates that differ from it.
 fn write_entry(out: &mut String, entry: &Entry, stamp: &str) {
+    write_event(out, entry, &entry.uid, stamp, None);
+    if entry.repeat.is_some() {
+        for date in &entry.overrides {
+            write_event(out, date, &entry.uid, stamp, Some(&instance(entry.when, date.when)));
+        }
+    }
+}
+
+/// One VEVENT: `entry` under `uid`, as the date `recurrence` names (a RECURRENCE-ID) or as itself
+/// with its rule.
+fn write_event(out: &mut String, entry: &Entry, uid: &str, stamp: &str, recurrence: Option<&str>) {
     put(out, "BEGIN:VEVENT");
-    put(out, &format!("UID:{}", escape_text(&entry.uid)));
+    put(out, &format!("UID:{}", escape_text(uid)));
     put(out, &format!("DTSTAMP:{stamp}"));
+    if let Some(recurrence) = recurrence {
+        put(out, recurrence);
+    }
     match entry.when {
         When::Timed { day, from, to } => {
             put(out, &format!("DTSTART;TZID={TZID}:{}", local(day, from)));
@@ -129,6 +248,16 @@ fn write_entry(out: &mut String, entry: &Entry, stamp: &str) {
         When::AllDay { first, last } => {
             put(out, &format!("DTSTART;VALUE=DATE:{}", first.compact()));
             put(out, &format!("DTEND;VALUE=DATE:{}", last.max(first).plus(1).compact()));
+        }
+    }
+    if let Some(repeat) = entry.repeat.as_ref().filter(|_| recurrence.is_none()) {
+        put(out, &rule_line(entry.when, repeat));
+        for day in &repeat.except {
+            let except = match entry.when {
+                When::Timed { from, .. } => format!("EXDATE;TZID={TZID}:{}", local(*day, from)),
+                When::AllDay { .. } => format!("EXDATE;VALUE=DATE:{}", day.compact()),
+            };
+            put(out, &except);
         }
     }
     put(out, &format!("SUMMARY:{}", escape_text(&entry.summary)));
@@ -147,6 +276,36 @@ fn write_entry(out: &mut String, entry: &Entry, stamp: &str) {
     put(out, if entry.tentative { "STATUS:TENTATIVE" } else { "STATUS:CONFIRMED" });
     put(out, if entry.transparent { "TRANSP:TRANSPARENT" } else { "TRANSP:OPAQUE" });
     put(out, "END:VEVENT");
+}
+
+/// The RRULE of a series that begins at `when`: its rule, ended by the day of its last date. For
+/// a timed series that is the last second of the day in Cottbus, in UTC (RFC 5545 asks UTC of a
+/// start with a time zone): 22:59:59 in winter, 21:59:59 in summer. A date of the series begins on
+/// that day, a date after it on a later one, whatever its time.
+fn rule_line(when: When, repeat: &Repeat) -> String {
+    let rule = match repeat.rule {
+        Rule::Weeks(0 | 1) => "FREQ=WEEKLY".to_string(),
+        Rule::Weeks(weeks) => format!("FREQ=WEEKLY;INTERVAL={weeks}"),
+        Rule::Days => "FREQ=DAILY".to_string(),
+        Rule::Workdays => "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR".to_string(),
+    };
+    let until = match when {
+        When::Timed { .. } => {
+            let hour = if berlin_offset(repeat.until, 1439) == "+02:00" { 21 } else { 22 };
+            format!("{}T{hour}5959Z", repeat.until.compact())
+        }
+        When::AllDay { .. } => repeat.until.compact(),
+    };
+    format!("RRULE:{rule};UNTIL={until}")
+}
+
+/// The RECURRENCE-ID of the date `date` of a series that begins at `series`: the day of the date at
+/// the series' start, as its DTSTART and EXDATE name it.
+fn instance(series: When, date: When) -> String {
+    match series {
+        When::Timed { from, .. } => format!("RECURRENCE-ID;TZID={TZID}:{}", local(date.day(), from)),
+        When::AllDay { .. } => format!("RECURRENCE-ID;VALUE=DATE:{}", date.day().compact()),
+    }
 }
 
 /// One content line, folded, and its CRLF.
@@ -262,7 +421,7 @@ mod tests {
     }
 
     fn entry(uid: &str, when: When, summary: &str) -> Entry {
-        Entry { uid: uid.into(), when, summary: summary.into(), location: None, description: None, url: None, categories: vec![], tentative: false, transparent: false }
+        Entry { uid: uid.into(), when, repeat: None, overrides: vec![], summary: summary.into(), location: None, description: None, url: None, categories: vec![], tentative: false, transparent: false }
     }
 
     /// The physical lines of a written calendar, which must end in CRLF.
@@ -283,6 +442,8 @@ mod tests {
                 Entry {
                     uid: "148701-a2633-20261013@betula.app".into(),
                     when: When::Timed { day: day("2026-10-13"), from: 690, to: 780 },
+                    repeat: None,
+                    overrides: vec![],
                     summary: "Entwicklung von Softwaresystemen · Vorlesung".into(),
                     location: Some("Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus".into()),
                     description: Some("Modul 12104 Entwicklung von Softwaresystemen\nwöchentlich 13.10.2026–26.01.2027\nQuelle: QIS".into()),
@@ -294,6 +455,8 @@ mod tests {
                 Entry {
                     uid: "150664-12345-20270215@betula.app".into(),
                     when: When::AllDay { first: day("2027-02-15"), last: day("2027-02-26") },
+                    repeat: None,
+                    overrides: vec![],
                     summary: "Mathematik; Teil 1 · Prüfungszeitraum".into(),
                     location: None,
                     description: None,
@@ -305,6 +468,8 @@ mod tests {
                 Entry {
                     uid: "148005-0abcd-20270311@betula.app".into(),
                     when: When::Timed { day: day("2027-03-11"), from: 1320, to: 1440 },
+                    repeat: None,
+                    overrides: vec![],
                     summary: "Spät · Prüfung · 2. Termin".into(),
                     location: Some(String::new()),
                     description: Some("C:\\temp".into()),
@@ -386,6 +551,117 @@ mod tests {
         for line in lines(&written) {
             assert!(line.len() <= LINE_OCTETS, "{line:?}");
         }
+    }
+
+    /// The VEVENTs of a written calendar, each as its lines.
+    fn events(text: &str) -> Vec<Vec<&str>> {
+        let mut events = Vec::new();
+        let mut event: Option<Vec<&str>> = None;
+        for line in lines(text) {
+            match line {
+                "BEGIN:VEVENT" => event = Some(Vec::new()),
+                "END:VEVENT" => events.extend(event.take()),
+                line => {
+                    if let Some(event) = event.as_mut() {
+                        event.push(line);
+                    }
+                }
+            }
+        }
+        events
+    }
+
+    /// A weekly lecture with the break left out and a date in another room; the rule ends with the
+    /// last day in UTC, the dates it leaves out and the one that differs name the series' start.
+    #[test]
+    fn a_series_with_the_dates_it_leaves_out_and_one_that_differs() {
+        let series = When::Timed { day: day("2026-10-13"), from: 690, to: 780 };
+        let mut moved = entry("ignored@betula.app", When::Timed { day: day("2026-11-10"), from: 690, to: 810 }, "VL EvS");
+        moved.location = Some("ZHG/HS.A".into());
+        moved.description = Some("Hinweis: Raumwechsel".into());
+        let mut lecture = entry("148701-a2633@betula.app", series, "VL EvS");
+        lecture.location = Some("ZHG/HS.C".into());
+        lecture.repeat = Some(Repeat { rule: Rule::Weeks(1), until: day("2027-01-26"), except: vec![day("2026-12-22"), day("2026-12-29")] });
+        lecture.overrides = vec![moved];
+        let calendar = Calendar { stamp: "20260923T123516Z".into(), entries: vec![lecture], ..Calendar::default() };
+        assert_eq!(
+            events(&write(&calendar)),
+            [
+                vec![
+                    "UID:148701-a2633@betula.app",
+                    "DTSTAMP:20260923T123516Z",
+                    "DTSTART;TZID=Europe/Berlin:20261013T113000",
+                    "DTEND;TZID=Europe/Berlin:20261013T130000",
+                    "RRULE:FREQ=WEEKLY;UNTIL=20270126T225959Z",
+                    "EXDATE;TZID=Europe/Berlin:20261222T113000",
+                    "EXDATE;TZID=Europe/Berlin:20261229T113000",
+                    "SUMMARY:VL EvS",
+                    "LOCATION:ZHG/HS.C",
+                    "STATUS:CONFIRMED",
+                    "TRANSP:OPAQUE",
+                ],
+                vec![
+                    "UID:148701-a2633@betula.app",
+                    "DTSTAMP:20260923T123516Z",
+                    "RECURRENCE-ID;TZID=Europe/Berlin:20261110T113000",
+                    "DTSTART;TZID=Europe/Berlin:20261110T113000",
+                    "DTEND;TZID=Europe/Berlin:20261110T133000",
+                    "SUMMARY:VL EvS",
+                    "LOCATION:ZHG/HS.A",
+                    "DESCRIPTION:Hinweis: Raumwechsel",
+                    "STATUS:CONFIRMED",
+                    "TRANSP:OPAQUE",
+                ],
+            ]
+        );
+    }
+
+    /// Every other week into the summer time ends with the last second of a summer day; a block of
+    /// whole working days is a rule of dates; an entry that is no series writes no override.
+    #[test]
+    fn rules_of_weeks_days_and_working_days() {
+        let mut fortnightly = entry("a@betula.app", When::Timed { day: day("2027-04-12"), from: 450, to: 660 }, "Prak WSt");
+        fortnightly.repeat = Some(Repeat { rule: Rule::Weeks(2), until: day("2027-06-21"), except: vec![] });
+        let mut block = entry("b@betula.app", When::AllDay { first: day("2026-11-16"), last: day("2026-11-16") }, "Sem SWT");
+        block.transparent = true;
+        block.repeat = Some(Repeat { rule: Rule::Workdays, until: day("2026-11-27"), except: vec![day("2026-11-18")] });
+        let mut later = entry("x@betula.app", When::AllDay { first: day("2026-11-20"), last: day("2026-11-20") }, "Sem SWT");
+        later.description = Some("Hinweis: im Labor".into());
+        block.overrides = vec![later.clone()];
+        let mut daily = entry("c@betula.app", When::Timed { day: day("2026-11-14"), from: 540, to: 1020 }, "Block");
+        daily.repeat = Some(Repeat { rule: Rule::Days, until: day("2026-11-15"), except: vec![] });
+        let mut lone = entry("d@betula.app", When::Timed { day: day("2026-11-14"), from: 540, to: 600 }, "Einmal");
+        lone.overrides = vec![later];
+        let calendar = Calendar { stamp: "20260923T123516Z".into(), entries: vec![fortnightly, block, daily, lone], ..Calendar::default() };
+        let text = write(&calendar);
+        let events = events(&text);
+        assert_eq!(events.len(), 5);
+        assert!(events[0].contains(&"RRULE:FREQ=WEEKLY;INTERVAL=2;UNTIL=20270621T215959Z"), "{:?}", events[0]);
+        assert_eq!(
+            events[1][2..6],
+            [
+                "DTSTART;VALUE=DATE:20261116",
+                "DTEND;VALUE=DATE:20261117",
+                "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;UNTIL=20261127",
+                "EXDATE;VALUE=DATE:20261118",
+            ]
+        );
+        assert_eq!(events[2][0..2], ["UID:b@betula.app", "DTSTAMP:20260923T123516Z"]);
+        assert_eq!(events[2][2..5], ["RECURRENCE-ID;VALUE=DATE:20261120", "DTSTART;VALUE=DATE:20261120", "DTEND;VALUE=DATE:20261121"]);
+        assert!(events[3].contains(&"RRULE:FREQ=DAILY;UNTIL=20261115T225959Z"), "{:?}", events[3]);
+        assert!(!events[4].iter().any(|line| line.starts_with("RRULE") || line.starts_with("RECURRENCE-ID")), "{:?}", events[4]);
+    }
+
+    #[test]
+    fn rules_make_their_days() {
+        let monday = day("2026-11-16");
+        assert_eq!(Rule::Weeks(1).days(day("2026-10-13"), day("2026-11-03")), ["2026-10-13", "2026-10-20", "2026-10-27", "2026-11-03"].map(day));
+        assert_eq!(Rule::Weeks(2).days(day("2026-10-13"), day("2026-11-09")), ["2026-10-13", "2026-10-27"].map(day));
+        assert_eq!(Rule::Workdays.days(day("2026-11-19"), day("2026-11-24")), ["2026-11-19", "2026-11-20", "2026-11-23", "2026-11-24"].map(day));
+        assert_eq!(Rule::Days.days(monday, monday), [monday]);
+        assert!(Rule::Days.days(monday, monday.plus(-1)).is_empty());
+        assert!(Rule::Weeks(1).makes(monday, monday.plus(14)) && !Rule::Weeks(2).makes(monday, monday.plus(7)));
+        assert!(!Rule::Weeks(1).makes(monday, monday.plus(-7)) && !Rule::Workdays.makes(monday, monday.plus(5)));
     }
 
     #[test]

@@ -940,6 +940,7 @@ mod tests {
         Row {
             key: Some(RowKey { event: event.parse().unwrap(), fp }),
             ord: Some(1),
+            series: None,
             date,
             cancelled_dates: None,
             occ: Occurrences::default(),

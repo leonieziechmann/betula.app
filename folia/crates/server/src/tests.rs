@@ -60,19 +60,20 @@ const NO_MODULE_CODE: &str = "JKXwB75";
 /// The snapshot for the feed's checks and whether it is the pinned one. As in the catalog crate:
 /// `FOLIA_STUDYPLAN_SNAPSHOT` names the pinned file and fails the test when it is another one;
 /// without it the tests' own snapshot serves, and the event-level checks are skipped out loud
-/// unless it happens to be the pinned one.
+/// unless it happens to be the pinned one. The pinned one is of an older schema than the queries,
+/// and read as Radix's later migrations leave it (`folia_test_support::migrated`).
 fn feed_snapshot(test: &str) -> (PathBuf, bool) {
     use std::io::Write;
     let digest = |file: &PathBuf| NativeDatabase::open(file).and_then(|db| folia_query::meta(&db)).unwrap().content_digest;
     if let Some(path) = std::env::var("FOLIA_STUDYPLAN_SNAPSHOT").ok().filter(|path| !path.is_empty()) {
         let file = PathBuf::from(&path);
         assert_eq!(digest(&file).as_deref(), Some(STUDYPLAN_DIGEST), "FOLIA_STUDYPLAN_SNAPSHOT={path} is not the snapshot the Studienplan's checks were pinned to");
-        return (file, true);
+        return (folia_test_support::migrated(&file), true);
     }
     let file = snapshot_file();
     let found = digest(&file);
     if found.as_deref() == Some(STUDYPLAN_DIGEST) {
-        return (file, true);
+        return (folia_test_support::migrated(&file), true);
     }
     // Straight to the handle: libtest swallows `eprintln!` of a test that passes.
     let _ = writeln!(
@@ -898,16 +899,23 @@ async fn a_studyplan_is_a_calendar_feed() {
     assert_eq!(ics, folia_pages::calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap(), folia_locale::Locale::De).unwrap());
     if pinned {
         let text = unfolded(&ics);
-        assert!(text.contains("UID:148701-a2633-20261013@betula.app") && text.contains("UID:148369-a4d12-") && text.contains("Entwicklung von Softwaresystemen"), "{text}");
+        // A Termin is one series under its row key: 12104's Tuesday lecture every week from 13.10.
+        // to 26.01., the two Tuesdays of the break left out.
+        assert!(text.contains("UID:148701-a2633@betula.app\r\nDTSTAMP:20260925T083015Z\r\nDTSTART;TZID=Europe/Berlin:20261013T113000\r\nDTEND;TZID=Europe/Berlin:20261013T130000\r\nRRULE:FREQ=WEEKLY;UNTIL=20270126T225959Z\r\nEXDATE;TZID=Europe/Berlin:20261222T113000\r\nEXDATE;TZID=Europe/Berlin:20261229T113000\r\n"), "{text}");
+        assert!(text.contains("UID:148369-a4d12@betula.app") && text.contains("Entwicklung von Softwaresystemen"), "{text}");
         // As short as the page's week, with Informatik's abbreviations; in full in the description.
         assert!(text.contains("SUMMARY:VL EvS\r\nLOCATION:ZHG/HS.C\r\nDESCRIPTION:Vorlesung\\nModul 12104 Entwicklung von Softwaresystemen\\n"), "{text}");
         assert!(text.contains("\\nRaum: Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus\\n"), "{text}");
         // Not 12104's Senftenberg track (the plan's other modules make it Cottbus), not the hidden
         // Sachsendorf lecture, not the Übungen beside the chosen one.
-        for absent in ["UID:149406-", "UID:149408-", "UID:148369-aaf38-"] {
+        for absent in ["UID:149406-", "UID:149408-", "UID:148369-aaf38"] {
             assert!(!text.contains(absent), "{absent}");
         }
-        assert_eq!(text.matches("BEGIN:VEVENT").count(), 249);
+        // The 249 dates of the semester, an entry each until 2026-10-13, now fewer entries: a
+        // series of a Termin stands for its dates.
+        let calendar = folia_pages::subscribed_calendar(&db, &Subscription::from_code(FIRST_SEMESTER_CODE).unwrap(), folia_locale::Locale::De).unwrap();
+        assert_eq!(calendar.entries.iter().map(|entry| entry.dates().len()).sum::<usize>(), 249);
+        assert!(text.matches("BEGIN:VEVENT").count() < 249 && text.contains("\r\nRRULE:FREQ=WEEKLY;"), "{text}");
     }
 
     // An unchanged plan in an unchanged snapshot has the same tag: a calendar that asks again

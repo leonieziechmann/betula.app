@@ -83,7 +83,7 @@ nix build .#cortex .#cortex-image    # binary; container image (deploy/ship-cort
 | `radix/internal/service` | the service loop, its stages, `/healthz` and `/status` |
 | `radix/internal/crawl`, `radix/internal/qistree` | polite archiving, directly or through Cortex; QIS program tree walker |
 | `radix/internal/catalogdb` | database: migrations, raw archive, plans, validate, export, retention |
-| `radix/internal/catalogbuild`, `radix/internal/normalize`, `radix/internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms included); HTML parsers |
+| `radix/internal/catalogbuild`, `radix/internal/normalize`, `radix/internal/parser` | raw pages → canonical tables; rule-based normalization (room short forms and series of single dates included); HTML parsers |
 | `radix/internal/abbrev` | module abbreviations (AuP, EEG), unique within a program, derived by every build; the curated `overrides.tsv` and the `blocked.tsv` of forms never derived |
 | `radix/internal/gemini`, `radix/internal/curriculumscan`, `radix/internal/statutes`, `radix/internal/planaudit` | study plans from regulation PDFs, with audit trail |
 | `radix/internal/secrets` | credentials from Docker/systemd secrets, environment or the OS credential store |

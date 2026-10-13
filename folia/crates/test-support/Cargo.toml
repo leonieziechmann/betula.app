@@ -6,6 +6,8 @@ description = "What the tests of Folia's crates share: the snapshot, the pinned 
 
 [dependencies]
 folia-model = { path = "../model", features = ["sqlite"] }
+# A pinned snapshot of an older schema is read as Radix's later migrations leave it (`migrated`).
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [dev-dependencies]
 # The layers test reads `cargo metadata`.

@@ -1310,15 +1310,20 @@ fn avoid_text(
 /// arrive by themselves. A semester the snapshot does not have is a calendar without entries that
 /// says so. Written in `locale`, the language of the feed's address.
 pub fn calendar(db: &dyn Database, subscription: &Subscription, locale: Locale) -> Result<String, DbError> {
+    Ok(ics::write(&subscribed_calendar(db, subscription, locale)?))
+}
+
+/// The calendar `calendar` writes, its entries and series as they are.
+pub fn subscribed_calendar(db: &dyn Database, subscription: &Subscription, locale: Locale) -> Result<Calendar, DbError> {
     let Some(key) = subscription.key() else {
         // A code decodes only with a semester; a subscription made by hand without one has none.
         let stamp = export::snapshot_stamp(&queries::meta(db)?);
         let name = (folia_timetable::i18n::texts(locale).feed_name)("");
-        return Ok(ics::write(&Calendar { name, stamp, ..Calendar::default() }));
+        return Ok(Calendar { name, stamp, ..Calendar::default() });
     };
     let data = studyplan_in(db, key, &subscription.module_ids(), subscription.program.as_deref(), locale)?;
     let table = data.timetable(&subscription.selection());
-    Ok(data.ics(&table, locale))
+    Ok(data.calendar(&table, locale))
 }
 
 /// A plan handed on by a link (`timetable::share`) as its link preview and the offer to take it
@@ -1852,6 +1857,7 @@ mod studyplan_tests {
         DateRow {
             module_id: module.into(),
             ord: Some(1),
+            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
