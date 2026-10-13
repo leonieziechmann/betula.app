@@ -49,12 +49,32 @@ func TestSeriesOfSingleDates(t *testing.T) {
 		want  map[int]SeriesOf
 	}{
 		{"two dates are a pair, not a rhythm", []SeriesDate{single(1, "2026-10-13"), single(2, "2026-10-20")}, map[int]SeriesOf{}},
-		{"three weeks apart is no rhythm Betula names", []SeriesDate{single(1, "2026-10-13"), single(2, "2026-11-03"), single(3, "2026-11-24")}, map[int]SeriesOf{}},
+		{
+			"every three weeks (151687 of 2026W), every four",
+			[]SeriesDate{
+				single(1, "2026-10-15"), single(2, "2026-11-05"), single(3, "2026-11-26"), single(4, "2026-12-17"),
+				{Ord: 5, Group: "[unbenannt]", Start: "09:00", Day: "2026-11-17"}, {Ord: 6, Group: "[unbenannt]", Start: "09:00", Day: "2026-12-15"},
+				{Ord: 7, Group: "[unbenannt]", Start: "09:00", Day: "2027-01-12"},
+			},
+			map[int]SeriesOf{1: {1, 3}, 2: {1, 3}, 3: {1, 3}, 4: {1, 3}, 5: {5, 4}, 6: {5, 4}, 7: {5, 4}},
+		},
 		{
 			"a week missing here and there is still weekly",
-			[]SeriesDate{single(1, "2026-10-13"), single(2, "2026-10-27"), single(3, "2026-11-03"), single(4, "2026-11-17")},
-			map[int]SeriesOf{1: {1, 1}, 2: {1, 1}, 3: {1, 1}, 4: {1, 1}},
+			[]SeriesDate{single(1, "2026-10-13"), single(2, "2026-10-20"), single(3, "2026-11-03"), single(4, "2026-11-10"), single(5, "2026-11-24")},
+			map[int]SeriesOf{1: {1, 1}, 2: {1, 1}, 3: {1, 1}, 4: {1, 1}, 5: {1, 1}},
 		},
+		{
+			// 152124 of 2026W: two, three and four weeks apart; a divisor of a week, no week in a row.
+			"dates that seldom meet one step apart are no series",
+			[]SeriesDate{single(1, "2026-10-15"), single(2, "2026-11-12"), single(3, "2026-11-26"), single(4, "2026-12-17"), single(5, "2027-01-14")},
+			map[int]SeriesOf{},
+		},
+		{
+			"one step in two gaps is enough: the break between two weeks",
+			[]SeriesDate{single(1, "2026-12-08"), single(2, "2027-01-05"), single(3, "2027-01-12")},
+			map[int]SeriesOf{1: {1, 1}, 2: {1, 1}, 3: {1, 1}},
+		},
+		{"five weeks apart is no rhythm Betula names", []SeriesDate{single(1, "2026-10-13"), single(2, "2026-11-17"), single(3, "2026-12-22")}, map[int]SeriesOf{}},
 		{
 			"a gap of more than four weeks ends a series; the two dates after it are none",
 			[]SeriesDate{single(1, "2026-10-13"), single(2, "2026-10-20"), single(3, "2026-10-27"), single(4, "2026-12-01"), single(5, "2026-12-08")},

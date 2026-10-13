@@ -274,7 +274,7 @@ Program, degree, PO version, regulation documents.
 |---|---|
 | Sources | **S3**, the dates of an event: QIS lists some Termine date by date („Einzel am 13.10.2026", „Einzel am 20.10.2026" …), each row with its weekday, times, room and teacher, although the dates follow a rhythm. QIS states no rhythm for them. |
 | Code path | `normalize.Series` → `event_date.series`, `series_weeks`, in `build` (`catalogbuild/events.go`), from the rows of one event. |
-| Authority | **Derived** (`docs/radix/schema-v2.md`, „Series of single dates"): single dates of one event (no exam), group, weekday and start, three days or more, one or two weeks apart, no gap of more than four weeks. The rows themselves stay QIS's; the series only says which belong together (owner, 2026-10-13: the detection is data normalization and belongs in Radix). |
+| Authority | **Derived** (`docs/radix/schema-v2.md`, „Series of single dates"): single dates of one event (no exam), group, weekday and start, three days or more, one to four weeks apart with at least half of the gaps one step, no gap of more than four weeks. The rows themselves stay QIS's; the series only says which belong together (owner, 2026-10-13: the detection is data normalization and belongs in Radix). |
 | Provenance | Rebuilt by every build; a reader that knows no series reads the rows date by date. |
 
 ## 6. Spot-check log

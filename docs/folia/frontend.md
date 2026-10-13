@@ -3277,8 +3277,8 @@ to the result.
   and it names the layout of its fields in four bits (`subscription::VERSION`), so a later layout
   is read beside it. Codes of the time before are not read (canary only). Since 2026-10-13 a
   Termin is one entry, a series (owner: an entry per date was „ziemlich nervig" to deal with): its
-  rule (RRULE: every week, every other week, every four weeks, every day of a block or its working
-  days) runs from its first date to its last, UNTIL the end of that day in UTC; the dates it makes
+  rule (RRULE: every week or every two to four weeks, every day of a block or its working days)
+  runs from its first date to its last, UNTIL the end of that day in UTC; the dates it makes
   and the Termin does not hold (the break, a holiday, a date QIS cancels) are left out one by one
   (EXDATE, in the series' time zone and start), and a date that says more or other than the series
   (a room note, another end, another room) follows it in full under its UID (RECURRENCE-ID), so a

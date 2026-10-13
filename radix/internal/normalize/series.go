@@ -13,8 +13,12 @@ import (
 //   - single dates of one event in one group, on one weekday, at one start („Di 13:45"), whatever
 //     their end, room, teacher or comment: a date in another room is still a date of the series;
 //   - cut where two dates are more than SeriesMaxGapDays apart;
-//   - SeriesMinDates distinct dates or more, on a grid of one or two weeks: the gaps between them
-//     have a greatest common divisor of 7 or 14 days.
+//   - SeriesMinDates distinct dates or more, on a grid of one to four weeks: the gaps between them
+//     have a greatest common divisor of 7, 14, 21 or 28 days;
+//   - and the rhythm shows: at least half of the gaps are one step of it. Dates two, three and four
+//     weeks apart in turn have a divisor of a week, but meet no week in a row (canary's data of
+//     2026-10-13: nineteen such runs, „Einführung in wissenschaftliches Arbeiten" on 15.10., 12.11.,
+//     26.11., 17.12. and 14.01.); they stay single dates.
 //
 // A series is named by the ord of the row of its first date. Nothing is merged or invented: the
 // rows stay as QIS lists them, a reader that knows no series reads them as before, and a reader
@@ -39,7 +43,7 @@ type SeriesDate struct {
 }
 
 // SeriesOf is the series a single date belongs to: the ord of the row of the series' first date
-// (the lowest ord on that day), and the weeks from one date of the series to the next, 1 or 2.
+// (the lowest ord on that day), and the weeks from one date of the series to the next, 1 to 4.
 type SeriesOf struct {
 	First int
 	Weeks int
@@ -101,19 +105,29 @@ type seriesDay struct {
 }
 
 // rhythmOf says whether the days of a run, in date order, are a series, and how many weeks lie
-// between two of its dates: SeriesMinDates distinct days whose gaps divide by 7 or 14 days and by
-// nothing longer.
+// between two of its dates: SeriesMinDates distinct days whose gaps divide by one to four weeks and
+// by nothing longer, at least half of them one step.
 func rhythmOf(days []seriesDay) (weeks int, ok bool) {
-	distinct, step := 1, 0
+	var gaps []int
+	step := 0
 	for i := 1; i < len(days); i++ {
 		gap := daysBetween(days[i-1].day, days[i].day)
 		if gap == 0 {
 			continue
 		}
-		distinct++
+		gaps = append(gaps, gap)
 		step = gcd(step, gap)
 	}
-	if distinct < SeriesMinDates || (step != 7 && step != 14) {
+	if len(gaps)+1 < SeriesMinDates || step%7 != 0 || step < 7 || step > 28 {
+		return 0, false
+	}
+	steps := 0
+	for _, gap := range gaps {
+		if gap == step {
+			steps++
+		}
+	}
+	if 2*steps < len(gaps) {
 		return 0, false
 	}
 	return step / 7, true

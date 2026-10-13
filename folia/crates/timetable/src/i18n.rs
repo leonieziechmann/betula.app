@@ -95,6 +95,8 @@ pub struct Texts {
     pub fortnightly_b: &'static str,
     /// … every other week, a series of single dates („14-täglich") …
     pub fortnightly: &'static str,
+    /// … every three weeks, a series of single dates („alle drei Wochen") …
+    pub every_three_weeks: &'static str,
     /// … every four weeks („vierwöchentlich") …
     pub every_four_weeks: &'static str,
     /// … once („Einzeltermin") …
@@ -181,6 +183,7 @@ pub const DE: Texts = Texts {
     fortnightly_a: "14-täglich (A-Woche)",
     fortnightly_b: "14-täglich (B-Woche)",
     fortnightly: "14-täglich",
+    every_three_weeks: "alle drei Wochen",
     every_four_weeks: "vierwöchentlich",
     single_date: "Einzeltermin",
     block_course: "Blockveranstaltung",
@@ -243,6 +246,7 @@ pub const EN: Texts = Texts {
     fortnightly_a: "fortnightly (week A)",
     fortnightly_b: "fortnightly (week B)",
     fortnightly: "fortnightly",
+    every_three_weeks: "every three weeks",
     every_four_weeks: "every four weeks",
     single_date: "single date",
     block_course: "block course",

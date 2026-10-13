@@ -148,7 +148,7 @@ func (db *DB) Validate(ctx context.Context, baselines []Baseline) ([]Check, erro
 		"SELECT COUNT(DISTINCT room) FROM event_date WHERE LENGTH(room_short) > 12", "")
 
 	// Series of single dates (docs/radix/schema-v2.md, „Series of single dates“): single dates of
-	// one event, group, weekday and start, named by the row of their first date, one or two weeks
+	// one event, group, weekday and start, named by the row of their first date, one to four weeks
 	// apart, three dates or more.
 	const seriesBroken = `FROM event_date d LEFT JOIN event_date f ON f.event_id = d.event_id AND f.ord = d.series
 		WHERE (d.series IS NOT NULL OR d.series_weeks IS NOT NULL)

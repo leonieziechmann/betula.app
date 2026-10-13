@@ -812,19 +812,31 @@ teacher, its comment and its cancellation.
 | Column | What it holds |
 |---|---|
 | `series` | the `ord` of the row of the series' first date (the lowest `ord` on that day), the same in every row of the series; NULL for a row in none |
-| `series_weeks` | the weeks from one date of the series to the next: 1 or 2 |
+| `series_weeks` | the weeks from one date of the series to the next: 1 to 4 |
 
 The rule (`normalize.Series`): the single dates (`rhythm = 'single'`, one day) of an event that is
 no exam, in one group, on one weekday and at one start; their end, room, teacher and comment may
 differ (a date in another room is still a date of the series). Sorted by day, they are cut where
 two dates are more than four weeks apart (`SeriesMaxGapDays`: the two weeks of the Christmas break
 and one more); a run is a series when it has three days or more (`SeriesMinDates`: two dates a week
-apart are a pair, three make a rhythm) and the gaps between them have a greatest common divisor of
-7 or 14 days. Two rows of one day (two rooms) are both of the series and count as one date. Exam
-dates are sittings and never a series. Folia writes a series as one entry of its calendar, the
-weeks it has no date in left out and named (`folia/crates/timetable/src/export.rs`;
-docs/folia/frontend.md, „The timetable as a calendar subscription“). `validate` fails on a series whose rows are not single dates of one slot named by the
-row of its first date, or that has fewer than three dates, and counts the series (info);
+apart are a pair, three make a rhythm), the gaps between them have a greatest common divisor of
+one to four weeks, and at least half of the gaps are one step of it. Dates two, three and four
+weeks apart in turn divide by a week but meet no week in a row; they stay single dates. Two rows of
+one day (two rooms) are both of the series and count as one date. Exam dates are sittings and never
+a series.
+
+On canary's snapshot of 2026-10-13 the rule finds 58 series: 294 of the 1,332 rows of single dates
+of events that are no exam, on 277 days; 42 weekly, 13 fortnightly, 2 every three weeks, 1 every
+four weeks. Without its last condition it took nineteen irregular runs more, each as a weekly
+series with most of its weeks left out („Einführung in wissenschaftliches Arbeiten" on 15.10.,
+12.11., 26.11., 17.12. and 14.01.). It leaves single: one-off dates, slots of two dates, groups
+that meet once each in turn (149078's six groups on six Mondays), and dates of one weekday at
+different starts.
+
+Folia writes a series as one entry of its calendar, the weeks it has no date in left out and named
+(`folia/crates/timetable/src/export.rs`; docs/folia/frontend.md, „The timetable as a calendar
+subscription“). `validate` fails on a series whose rows are not single dates of one slot named by
+the row of its first date, or that has fewer than three dates, and counts the series (info);
 `build.finished` counts `event_series` and `event_series_dates`. A database migrated to 13 and not
 built again has no series, which a reader reads as before, date by date. Both columns are part of
 the content digest.

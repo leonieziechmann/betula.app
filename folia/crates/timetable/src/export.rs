@@ -7,8 +7,8 @@
 //! Entries are sorted by their start and UID, and the modules of an entry are listed by id.
 //!
 //! A Termin is one entry, a series (owner, 2026-10-13: an entry per date was „ziemlich nervig"):
-//! its rule (every week, every other week, every four weeks, every day of a block or its working
-//! days) makes its dates from the first to the last, the dates the rule makes and the Termin does
+//! its rule (every week or every two to four weeks, every day of a block or its working days)
+//! makes its dates from the first to the last, the dates the rule makes and the Termin does
 //! not hold (the break, a holiday, a date QIS cancels) are left out, and a date that says more or
 //! other than the series, a room note or another end, follows it in full (`ics`). Its UID is its
 //! row key's, `148701-a2633@betula.app`, and stays when QIS changes a Termin's end or room, so a
@@ -745,9 +745,15 @@ fn rhythm_line(rows: &[&Row], locale: Locale) -> Option<String> {
     let first = rows.first()?;
     let date = &first.date;
     let rhythm = date.rhythm.as_ref().and_then(Code::known);
+    // A series of single dates every one to four weeks; else the rows' own rhythm.
+    let series = first.series.map(|series| match series.weeks {
+        2 => texts.fortnightly,
+        3 => texts.every_three_weeks,
+        4 => texts.every_four_weeks,
+        _ => texts.weekly,
+    });
     let name = match Every::of(date) {
-        _ if first.series.is_some_and(|series| series.weeks == 2) => Some(texts.fortnightly.to_string()),
-        _ if first.series.is_some() => Some(texts.weekly.to_string()),
+        _ if series.is_some() => series.map(str::to_string),
         Some(Every::Week) => Some(texts.weekly.to_string()),
         Some(Every::AWeek) => Some(texts.fortnightly_a.to_string()),
         Some(Every::BWeek) => Some(texts.fortnightly_b.to_string()),
@@ -1810,6 +1816,10 @@ mod tests {
             single("96", 2, "2026-10-29", Some((1, 2))),
             single("96", 3, "2026-11-12", Some((1, 2))),
             single("97", 1, "2026-10-14", None),
+            // Every three weeks.
+            single("98", 1, "2026-10-15", Some((1, 3))),
+            single("98", 2, "2026-11-05", Some((1, 3))),
+            single("98", 3, "2026-11-26", Some((1, 3))),
         ];
         let selection = Selection { hidden_rows: [hidden.key()].into(), ..Selection::default() };
         let c = calendar(&build(&rows, &[], &[A], &[], &selection));
@@ -1831,10 +1841,14 @@ mod tests {
         assert_eq!(of_event(&c, "95").len(), 8);
         assert_eq!(c.entries.iter().filter(|entry| entry.uid.starts_with("95-")).count(), 1);
 
-        // Every other week; and in English.
+        // Every other week, every three weeks; and in English.
         let fortnightly = series(&c, &rows[10]);
         assert_eq!(fortnightly.repeat, Some(Repeat { rule: Rule::Weeks(2), until: d("2026-11-12"), except: vec![] }));
         assert!(fortnightly.description.as_deref().unwrap().contains("\n14-täglich 15.10.2026–12.11.2026 (in QIS als Einzeltermine)\n"));
+        let third = series(&c, &rows[14]);
+        assert_eq!(third.repeat, Some(Repeat { rule: Rule::Weeks(3), until: d("2026-11-26"), except: vec![] }));
+        assert!(third.description.as_deref().unwrap().contains("\nalle drei Wochen 15.10.2026–26.11.2026 (in QIS als Einzeltermine)\n"));
+        assert!(ics::write(&c).contains("\r\nRRULE:FREQ=WEEKLY;INTERVAL=3;UNTIL=20261126T225959Z\r\n"));
         let english = calendar_of(&build(&rows, &[], &[A], &[], &selection), &titles(), &names(), "", "2026-09-23T12:35:16Z", Locale::En);
         let lines = series(&english, &rows[1]).description.clone().unwrap();
         assert!(lines.contains("\nweekly 13 Oct 2026–5 Jan 2027 (single dates in QIS)\n"), "{lines}");
