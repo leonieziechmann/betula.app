@@ -3318,13 +3318,17 @@ to the result.
     zwei anderen Bündelungen") the list has one line per Termin in two more ways: the single dates
     of one slot that are no series, one line that counts and names them („Seminar · 1-Gruppe · 6
     Einzeltermine · 06.10., 20.10., …"; the week drew them as one slot already), the same date in
-    several rooms among them; and the rows of one row key, a Termin in several rooms as the
-    Studienplan and the calendar read it (C.5), from the earliest start to the latest end. On 2026W
-    that is 4,346 lines on the 1,503 module pages instead of 4,936 (Management, 12950: 60 to 6). A
-    room, person or comment not every date of a line has names its days, or where most have it
-    the days it leaves out (`said_on`: „ZB/VI.03 (16.10., 27.11.) · 'Feedback Session' findet
-    online statt (06.11., 18.12.)", „SFB/1.308 (außer 12.01.) / SFB/1.309 (12.01.)"), so that the
-    line says of no date what QIS says of another. QIS's „[unbenannt]", its group without a name,
+    several rooms among them; and the recurring rows of one slot (event, group, weekday, start,
+    end, rhythm), a Termin in several rooms, and (owner: „bündel auch die geteilten Zeiträume") one
+    QIS splits into several ranges, which the line names one by one („wöchentlich · 09.10.–23.10.,
+    06.11.–27.11., 11.12.–18.12., 08.01.–15.01."; 84 of the 1,825 recurring slots of 2026W; three
+    of them have ranges of another end, which stay lines of their own). Single dates beside a
+    slot's weekly rows stay apart, as in the week. On 2026W that is 4,171 lines on the 1,503
+    module pages instead of 4,936 (Management, 12950: 60 to 6; 14675: 21 to 5). A room, person or
+    comment not every date or range of a line has names them, or where most have it those it
+    leaves out (`said_on`: „ZB/VI.03 (16.10., 27.11.) · 'Feedback Session' findet online statt
+    (06.11., 18.12.)", „SFB/1.308 (außer 12.01.) / SFB/1.309 (12.01.)", „SFB/1.211
+    (09.10.–23.10.)"), so that the line says of no date what QIS says of another. QIS's „[unbenannt]", its group without a name,
     is no group the line names (owner: it read as a person QIS does not know); the Studienplan and
     the calendar left it out already.
   - **The Stundenplan and the Studienplan's week** (`Timetable::regular_week`, `studyplan/week.rs`):
