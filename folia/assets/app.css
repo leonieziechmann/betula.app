@@ -2340,7 +2340,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
 .planlist { --rest: 80px; }
 .matrix col:first-child, .planlist col:first-child { width: auto; }
 .matrix col.c-kind-col, .planlist col.c-kind-col { width: var(--kind); }
-.matrix .c-kind, .planlist .c-kind { overflow: hidden; padding-left: min(10px, var(--kind)); padding-right: min(10px, var(--kind)); }
+.matrix .c-kind, .planlist .c-kind { overflow: hidden; white-space: nowrap; padding-left: min(10px, var(--kind)); padding-right: min(10px, var(--kind)); }
 .matrix col.c-sem-col { width: var(--sem); }
 .planlist col.c-area-col { width: 200px; }
 .planlist col.c-lp-col { width: 80px; }
@@ -2348,11 +2348,14 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
    give way first — never the name, the credits or the semester. In the fixed columns of the
    plan a column gives way by getting narrow, not by leaving: a cell that left would move the
    ones after it into the column before (the credits under „Bereich", away from the sums of the
-   semesters). After the widths above, so that the column gives its room back. */
+   semesters). After the widths above, so that the column gives its room back. The cells of a
+   column that gave way („Art" above, „Bereich" here) keep their text on one line: in 0 px,
+   `overflow-wrap: break-word` puts every letter on a line of its own, hidden but just as tall —
+   „Grundstudium" made every row of Informatik B.Sc. 252 px high on a phone (2026-10-14). */
 @container page (max-width: 860px) {
   .ptable:not(.planlist) .c-area { display: none; }
   .planlist col.c-area-col { width: 0; }
-  .planlist .c-area { overflow: hidden; padding-left: 0; padding-right: 0; }
+  .planlist .c-area { overflow: hidden; white-space: nowrap; padding-left: 0; padding-right: 0; }
 }
 @container page (max-width: 700px) { .ptable .c-turnus { display: none; } }
 @container page (max-width: 560px) { .ptable .c-id { display: none; } }
