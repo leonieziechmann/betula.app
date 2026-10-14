@@ -861,11 +861,12 @@ enum TerminKey<'a> {
     /// The dates of a series of single dates at one time: event, series, start, end.
     Series(&'a str, Series, Option<&'a str>, Option<&'a str>),
     /// The single dates of one slot in no series, the same date in several rooms among them:
-    /// event, group, weekday, start, end.
-    Once(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>),
-    /// The recurring rows of one slot: event, group, weekday, start, end, rhythm. A Termin in
-    /// several rooms, and one QIS splits into several ranges.
-    Slot(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>, Option<&'a str>),
+    /// event, group, weekday, start, end, and whether QIS gives a date.
+    Once(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>, bool),
+    /// The recurring rows of one slot: event, group, weekday, start, end, rhythm, and whether QIS
+    /// gives them a range (a row without one is a line of its own, as before). A Termin in several
+    /// rooms, and one QIS splits into several ranges.
+    Slot(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>, Option<&'a str>, bool),
 }
 
 /// The Termine of a module's teaching rows, each the rows of one line of the list (owner,
@@ -890,11 +891,11 @@ fn termine<'a>(teaching: impl IntoIterator<Item = &'a EventDate>) -> Vec<Vec<&'a
 
 /// The line of the Termine list a row belongs to (`termine`).
 fn termin_key(date: &EventDate) -> TerminKey<'_> {
-    let (event, from, to) = (date.event_id.as_str(), date.start_time.as_deref(), date.end_time.as_deref());
+    let (event, from, to, dated) = (date.event_id.as_str(), date.start_time.as_deref(), date.end_time.as_deref(), span_of(date).is_some());
     match (date.series, once(date)) {
         (Some(series), _) => TerminKey::Series(event, series, from, to),
-        (None, true) => TerminKey::Once(event, date.group_name.as_deref(), date.weekday, from, to),
-        (None, false) => TerminKey::Slot(event, date.group_name.as_deref(), date.weekday, from, to, date.rhythm.as_ref().map(|rhythm| rhythm.code())),
+        (None, true) => TerminKey::Once(event, date.group_name.as_deref(), date.weekday, from, to, dated),
+        (None, false) => TerminKey::Slot(event, date.group_name.as_deref(), date.weekday, from, to, date.rhythm.as_ref().map(|rhythm| rhythm.code()), dated),
     }
 }
 
@@ -1005,7 +1006,7 @@ fn said_on<'a>(rows: &'a [EventDate], value: impl Fn(&'a EventDate) -> Option<&'
     let named = |spans: &mut dyn Iterator<Item = &(Day, Day)>| spans.map(|span| span_text(*span, t.locale)).collect::<Vec<_>>().join(", ");
     let parts: Vec<String> = values
         .into_iter()
-        .map(|(said, days)| match days == all {
+        .map(|(said, days)| match days == all || days.is_empty() {
             true => said.to_string(),
             false if 2 * days.len() > all.len() => format!("{said} ({})", (t.module.except_on)(&named(&mut all.difference(&days)))),
             false => format!("{said} ({})", named(&mut days.iter())),
@@ -1467,6 +1468,8 @@ mod tests {
         // The same Termin in two ranges, one room only in the first.
         let weekly = |first: &str, last: &str| teaching("152512", "Übung", "2-Gruppe", 5, ("14:30", "16:00"), "weekly", first, last);
         rows.extend([at("SFB/1.211", weekly("2026-10-09", "2026-10-23")), at("SFB/1.210", weekly("2026-10-09", "2026-10-23")), at("SFB/1.210", weekly("2026-11-06", "2026-11-27"))]);
+        // A row of the slot QIS gives no range (12118's): a line of its own, as before.
+        rows.push(at("SFB/1.110", EventDate { first_date: None, last_date: None, ..weekly("", "") }));
         let lines: Vec<String> = termine(&rows)
             .into_iter()
             .map(|line| {
@@ -1487,10 +1490,11 @@ mod tests {
                 "Di 14:30–16:00 | Seminar · Einzeltermin | 2027-01-19 | SFB/6.302 / SFB/6.106 / SFB/6.306",
                 "Fr 12:30–14:00 | Übung · 1-Gruppe · wöchentlich | 2026-10-09 – 2026-10-23 | SFB/1.211 / SFB/1.210",
                 "Fr 14:30–16:00 | Übung · 2-Gruppe · wöchentlich | 09.10.–23.10., 06.11.–27.11. | SFB/1.211 (09.10.–23.10.) / SFB/1.210",
+                "Fr 14:30–16:00 | Übung · 2-Gruppe · wöchentlich |  | SFB/1.110",
             ]
         );
         let refs: Vec<&EventDate> = rows.iter().collect();
-        assert_eq!(schedule_of(&refs).len(), 10, "a Schedule per single date and per range, the rooms of one alike");
+        assert_eq!(schedule_of(&refs).len(), 11, "a Schedule per single date, per range and for the row without one, the rooms of one alike");
     }
 
     #[test]

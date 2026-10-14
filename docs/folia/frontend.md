@@ -3322,9 +3322,11 @@ to the result.
     end, rhythm), a Termin in several rooms, and (owner: „bündel auch die geteilten Zeiträume") one
     QIS splits into several ranges, which the line names one by one („wöchentlich · 09.10.–23.10.,
     06.11.–27.11., 11.12.–18.12., 08.01.–15.01."; 84 of the 1,825 recurring slots of 2026W; three
-    of them have ranges of another end, which stay lines of their own). Single dates beside a
-    slot's weekly rows stay apart, as in the week. On 2026W that is 4,171 lines on the 1,503
-    module pages instead of 4,936 (Management, 12950: 60 to 6; 14675: 21 to 5). A room, person or
+    of them have ranges of another end, and rows QIS gives no range, which stay lines of their
+    own). Single dates beside a slot's weekly rows stay apart, as in the week. The 1,503 module
+    pages of 2026W show 4,181 lines (all rendered from canary's snapshot, none with an empty
+    „()" or a „[unbenannt]"), 4,936 with the series alone bundled (Management, 12950: 60 to 6;
+    14675: 21 to 5). A room, person or
     comment not every date or range of a line has names them, or where most have it those it
     leaves out (`said_on`: „ZB/VI.03 (16.10., 27.11.) · 'Feedback Session' findet online statt
     (06.11., 18.12.)", „SFB/1.308 (außer 12.01.) / SFB/1.309 (12.01.)", „SFB/1.211
