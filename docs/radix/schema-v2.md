@@ -835,7 +835,9 @@ different starts.
 
 Folia writes a series as one entry of its calendar, the weeks it has no date in left out and named
 (`folia/crates/timetable/src/export.rs`; docs/folia/frontend.md, „The timetable as a calendar
-subscription“). `validate` fails on a series whose rows are not single dates of one slot named by
+subscription“), and shows it as one Termin on the module page, in the Stundenplan and in the
+Studienplan, its dates still single dates where dates count (docs/folia/frontend.md, „A series of
+single dates is one Termin wherever Folia shows Termine“). `validate` fails on a series whose rows are not single dates of one slot named by
 the row of its first date, or that has fewer than three dates, and counts the series (info);
 `build.finished` counts `event_series` and `event_series_dates`. A database migrated to 13 and not
 built again has no series, which a reader reads as before, date by date. Both columns are part of

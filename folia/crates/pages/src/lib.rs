@@ -45,7 +45,6 @@ use folia_timetable::facts::SemesterFacts;
 use folia_timetable::fit::{self, CandidateSet, Candidates, Verdict};
 use folia_timetable::ics::{self, Calendar};
 use folia_timetable::model::{Event, Input, Row, Timetable};
-use folia_timetable::occur::Every;
 use folia_timetable::views;
 use serde::{Deserialize, Serialize};
 
@@ -1069,7 +1068,7 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap
         let Some(module) = event.modules.first() else {
             continue;
         };
-        for row in event.rows.iter().filter(|row| row.hidden.is_none() && held(row) && Every::of(&row.date).is_some()) {
+        for row in event.rows.iter().filter(|row| row.hidden.is_none() && held(row) && row.every.is_some()) {
             let (Some(day), Some(from), Some(to)) = (weekday_of(row), row.from, row.to) else {
                 continue;
             };
@@ -1857,7 +1856,6 @@ mod studyplan_tests {
         DateRow {
             module_id: module.into(),
             ord: Some(1),
-            series: None,
             cancelled_dates: None,
             date: EventDate {
                 semester_key: "2026W".into(),
@@ -1880,6 +1878,7 @@ mod studyplan_tests {
                 comment: None,
                 source_url: None,
                 room_short: None,
+                series: None,
             },
         }
     }
