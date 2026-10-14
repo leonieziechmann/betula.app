@@ -1289,6 +1289,48 @@ async fn a_page_asked_for_at_once_is_rendered_once() {
     assert_eq!(answers.iter().filter(|answer| *answer == "hit").count(), 7, "{answers:?}");
 }
 
+/// A page rendered beside others keeps its own `<title>`. Leptos writes the title into the page
+/// only after rendering it (`leptos_meta`'s `inject_meta_context`), after a tick of the executor
+/// and outside the page's arena: in the arena of whichever page ran last on that thread. A title
+/// read from the page's signals then was another page's, or a value that is not there, a panic
+/// (betula.app, 2026-10-14: "you tried to access a reactive value … already disposed" at the
+/// catalog's title, under a crawler's burst of `/catalog?program=…`). On one thread, pages
+/// rendered at once take their turns at exactly that tick.
+#[tokio::test]
+async fn a_page_rendered_beside_others_keeps_its_title() {
+    let store = store_with("titles", &snapshot_file());
+    let slugs: Vec<String> = {
+        let db = NativeDatabase::open(&snapshot_file()).unwrap();
+        folia_query::programs(&db).unwrap().into_iter().filter(|p| p.is_latest_po).map(|p| p.slug).take(2).collect()
+    };
+    let mut pages: Vec<String> = ["/", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    for slug in &slugs {
+        pages.extend([format!("/catalog?program={slug}"), format!("/en/catalog?program={slug}&semester=1"), format!("/programs/{slug}/plan"), format!("/programs/{slug}/areas")]);
+    }
+    let title = |body: &[u8]| String::from_utf8_lossy(body).split("<title>").nth(1).and_then(|rest| rest.split("</title>").next()).map(str::to_string);
+
+    let router = crate::router(state(store.clone()));
+    let mut alone = Vec::new();
+    for page in &pages {
+        let (status, _, body) = request(&router, page, &[]).await;
+        alone.push((status, title(&body)));
+    }
+    assert!(alone.iter().all(|(_, title)| title.is_some()), "{alone:?}");
+
+    // All at once, each with a place to render in and a cache that has none of them yet.
+    let mut state = state(store);
+    state.renders = Arc::new(crate::busy::Places::new("render", pages.len(), std::time::Duration::from_secs(600)));
+    state.render_wait = std::time::Duration::from_secs(600);
+    let router = crate::router(state);
+    let together = futures_util::future::join_all(pages.iter().map(|page| request(&router, page, &[]))).await;
+    for ((page, alone), (status, _, body)) in pages.iter().zip(&alone).zip(&together) {
+        assert_eq!(&(*status, title(body)), alone, "{page}");
+    }
+}
+
 /// The warm-up renders the pages of the sitemap into the cache, past the gate, and says how many.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_warm_up_renders_the_pages_of_the_sitemap() {
