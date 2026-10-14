@@ -1363,70 +1363,113 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 /* A page of sections opens like the catalog's list: the number, then what it counts. */
 .summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
 .summary h1 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-right: auto; font-size: inherit; font-weight: inherit; letter-spacing: inherit; }
-/* „Mein Studiengang" at the right of the program overview's head (markup: header.summary > h1 +
-   a.mine-line > .icon + span > small + text, + .icon): the app's. The server writes an empty
-   .mine-room in its place, which keeps the line's room from the first paint in a browser that
-   keeps a program (html.mine, set by the head script), so nothing moves at the takeover. The
-   count does not give way to it: the count stays on its line, the same beside the empty room as
-   beside the line, and the line ends in „…" instead, down to its padding (with the gap 30px). The
-   count wraps only where it alone is wider than the head. */
-.summary:has(> .mine-line) > h1 { flex-shrink: 0; max-width: calc(100% - 30px); }
-.mine-line { flex: 0 1 auto; min-width: 0; min-height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 7px; overflow: hidden; white-space: nowrap; color: var(--text); font-size: 13px; font-weight: 580; text-decoration: none; }
-a.mine-line:hover { background: var(--panel-3); text-decoration: none; }
-.mine-line > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.mine-line small { color: var(--text-3); font-size: inherit; font-weight: 480; }
-.mine-line .icon { flex: none; width: 15px; height: 15px; color: var(--text-3); }
-.mine-line > .icon:first-child { fill: currentColor; color: var(--text-2); }
+/* The visitor's own program at the head of the overview (the app's; programs.rs `MineStrip`): the
+   program with the way to „Mein Studium", and the program after it or before it with its plan.
+   The server writes an empty .mine-room in its place, which keeps its room from the first paint in
+   a browser that keeps a program (html.mine, set by the head script), so nothing moves at the
+   takeover. */
 .mine-room { display: none; }
-html.mine .mine-room { display: inline-flex; visibility: hidden; }
+html.mine .mine-strip.mine-room { display: block; visibility: hidden; min-height: 72px; }
+.mine-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 0; overflow: hidden; }
+.ms-col { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 72px; padding: 12px 16px; color: var(--text); text-decoration: none; }
+.ms-col + .ms-col { border-left: 1px solid var(--line); }
+a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
+.ms-col > .icon { width: 18px; height: 18px; color: var(--text-2); }
+.ms-col > .icon:first-child { fill: currentColor; }
+.ms-col > .icon[data-icon="graduation-cap"], .ms-col:last-child:not(:first-child) > .icon:first-child { fill: none; }
+.ms-t { display: grid; gap: 1px; min-width: 0; }
+.ms-t small { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.ms-t b { font-size: 14.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-t > span { font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-go { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px 0 12px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.ms-go .icon { width: 14px; height: 14px; }
 .sheet-only { display: none; }
-/* The program overview is a matrix per faculty: a row per subject, a column per cycle of study.
-   The columns are the same in every section, so everything lines up down the whole page. */
-.faculty { padding: 16px 0 6px; container: faculty / inline-size; }
-.faculty-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 0 24px 14px; }
-.faculty-code { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); white-space: nowrap; }
-.faculty-head h2 { min-width: 0; font-size: 16px; font-weight: 650; letter-spacing: -.015em; text-wrap: pretty; }
-.faculty > .hint { padding: 0 24px 12px; margin: 0; }
-/* One column by default (a phone, a narrow window); the matrix where there is room for it. */
-.matrix-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px 20px; padding: 0 24px; }
-@container faculty (min-width: 761px) {
-  .matrix-row { grid-template-columns: minmax(0, 25fr) minmax(0, 75fr); }
-  .faculty.has-bachelor .matrix-row, .faculty.has-master .matrix-row { grid-template-columns: minmax(0, 25fr) minmax(0, 75fr) 176px; }
-  .faculty.has-bachelor.has-master .matrix-row { grid-template-columns: minmax(0, 25fr) minmax(0, 38fr) minmax(0, 37fr) 176px; }
+/* The program overview: the faculties as accordions (details.facc), closed until opened (all with
+   something left are open where a filter or a search narrows the list). On a wide page a matrix
+   in each: a row a subject, a column a cycle of study, every program a line of text; the columns
+   are the same in every faculty, so everything lines up down the page. Where the faculties are
+   too narrow for it (a phone, a narrow window) a row a subject that folds open where it has
+   several programs (owner, 2026-10-14: „Variante 1 mit ausklappen"). */
+.faccs { display: grid; gap: 8px; container: faculties / inline-size; }
+.facc { padding: 0; overflow: clip; scroll-margin-top: 12px; }
+.facc-h { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "tag name n chev" "tag sum n chev"; align-items: center; column-gap: 12px; row-gap: 1px; padding: 12px 18px 12px 20px; cursor: pointer; list-style: none; }
+.facc-h::-webkit-details-marker { display: none; }
+.facc-h::marker { content: ""; }
+.facc-h:hover { background: var(--row-hover); }
+.facc-tag { grid-area: tag; align-self: start; margin-top: 2px; padding: 2px 8px; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.facc-name { grid-area: name; min-width: 0; font-size: 15px; font-weight: 650; letter-spacing: -.012em; line-height: 1.3; text-wrap: pretty; }
+.facc-sum { grid-area: sum; font-size: 12.5px; color: var(--text-3); }
+.facc-n { grid-area: n; font-size: 13px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.facc-chev { grid-area: chev; width: 18px; height: 18px; color: var(--text-3); transition: transform .2s var(--ease); }
+.facc[open] > .facc-h .facc-chev { transform: rotate(180deg); }
+.facc[open] > .facc-h { border-bottom: 1px solid var(--line); }
+.facc-hint { margin: 0; padding: 10px 20px; border-bottom: 1px solid var(--line); }
+.fx-desk { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.fx-desk th, .fx-desk td { padding: 5px 8px; border-top: 1px solid var(--line); text-align: left; vertical-align: top; }
+.fx-desk thead th { border-top: 0; padding-top: 10px; padding-bottom: 6px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.fx-desk th:first-child, .fx-desk td:first-child { padding-left: 20px; }
+.fx-desk th:last-child, .fx-desk td:last-child { padding-right: 14px; }
+.fx-desk thead .fx-name { width: 25%; }
+.fx-desk thead th[data-stage="other"] { width: 18%; }
+.fx-desk tbody tr:nth-child(even) { background: var(--row-shade); }
+.fx-desk tbody th.fx-name { padding-top: 10px; font-size: 13.5px; font-weight: 620; text-wrap: pretty; }
+.fx-desk tbody th.fx-name small { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--text-3); }
+.prog-line { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 10px; padding: 4px 8px; border-radius: 6px; color: var(--text); font-size: 13px; text-decoration: none; }
+.prog-line:hover { background: var(--row-hover); text-decoration: none; }
+.prog-line b { min-width: 0; font-weight: 620; }
+.pl-po, .pl-form { margin-left: 6px; font-weight: 500; color: var(--text-2); }
+.pl-po { font-size: 12px; color: var(--text-3); }
+.pl-f { flex: none; margin-left: auto; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.prog-line.sub { padding-left: 24px; }
+.prog-line.sub::before { content: ""; position: absolute; left: 12px; top: -2px; height: 14px; width: 7px; border-left: 1.5px solid var(--line-strong); border-bottom: 1.5px solid var(--line-strong); border-bottom-left-radius: 4px; }
+.prog-line.sub b { font-weight: 520; color: var(--text-2); }
+/* A program without a validated plan, as the overview always had it: the quieter one. */
+.prog-line.quiet b { color: var(--text-2); font-weight: 520; }
+.prog-line.quiet .pl-f, .of.quiet .of-f { font-style: italic; }
+.prog-line.is-mine, .of.is-mine { background: var(--accent-soft); }
+.mine-star { width: 12px; height: 12px; margin-left: 5px; vertical-align: -1px; fill: currentColor; }
+.fx-phone { display: none; }
+@container faculties (max-width: 760px) {
+  .fx-desk { display: none; }
+  .fx-phone { display: block; }
+  .facc-h { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "tag n chev" "name name name" "sum sum sum"; padding: 12px 14px 13px; }
+  .facc-tag { justify-self: start; }
+  .facc-name { margin-top: 6px; font-size: 14.5px; }
 }
-.matrix-head { padding-top: 8px; padding-bottom: 8px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); }
-.subject { align-items: start; min-height: 46px; padding-top: 7px; padding-bottom: 7px; border-bottom: 1px solid var(--line); transition: background .1s; }
-.subject:last-child { border-bottom: 0; }
-/* Every other subject is shaded, as the rows of the catalog's list (`--row-shade`). Nothing here
-   renders only what is on screen, so the stylesheet counts, the subjects of each faculty anew. */
-.subject:where(:nth-child(even of .subject)) { background: var(--row-shade); }
-.subject:hover { background: var(--row-hover); }
-/* The name stands next to the first of its programs, however many lines of them follow. */
-.subject-name { padding-top: 6px; font-weight: 620; font-size: 14.5px; line-height: 20px; letter-spacing: -.012em; text-wrap: pretty; }
-.cell { display: flex; flex-wrap: wrap; align-content: start; gap: 6px 0; min-width: 0; }
-/* A program and the other forms of study it is offered in are one control of several segments:
-   the segments share their borders, only the ends are rounded. The group has no box of its own,
-   so in a narrow column the segments wrap like words and every line stays as wide as its text. */
-.pill-group { display: contents; }
-.program-pill { --hit-y: 3px; position: relative; min-height: 32px; margin-right: -1px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 520; text-decoration: none; white-space: nowrap; transition: background .12s, color .12s; }
-.pill-group > .program-pill:first-child { border-top-left-radius: var(--r-s); border-bottom-left-radius: var(--r-s); }
-.pill-group > .program-pill:last-child { margin-right: 6px; border-top-right-radius: var(--r-s); border-bottom-right-radius: var(--r-s); }
-.program-pill::after { content: ""; position: absolute; inset: calc(-1 * var(--hit-y)) 0; }
-.program-pill b { color: var(--text); font-weight: 650; }
-.program-pill .variant { color: var(--text-3); }
-.program-pill .variant::before { content: "· "; }
-.program-pill.form { padding: 0 9px; font-weight: 500; }
-/* Four of five programs have a validated study plan; the ones without are the quieter ones. */
-.program-pill.no-plan { color: var(--text-3); }
-.program-pill.no-plan b { color: var(--text-2); font-weight: 600; }
-.program-pill:hover { z-index: 1; background: var(--invert); box-shadow: none; color: var(--on-invert); text-decoration: none; }
-.program-pill:hover b, .program-pill:hover .variant { color: inherit; }
-@container faculty (max-width: 760px) {
-  .matrix-head, .cell.empty { display: none; }
-  .subject { padding-top: 10px; padding-bottom: 10px; }
-  .subject-name { padding-top: 0; }
-  .faculty-head h2 { grid-column: 1 / -1; grid-row: 2; }
-  .faculty-head .tab-count { grid-column: 3; }
+.sj { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px 10px 14px; border-top: 1px solid var(--line); color: var(--text); text-decoration: none; cursor: pointer; list-style: none; }
+.sj::-webkit-details-marker { display: none; }
+.sj::marker { content: ""; }
+.fx-phone > .sj:first-child, .fx-phone > .sj-w:first-child > .sj { border-top: 0; }
+.sj:hover { background: var(--row-hover); text-decoration: none; }
+.sj-t { display: grid; gap: 2px; min-width: 0; }
+.sj-t b { font-size: 15px; font-weight: 620; line-height: 1.3; letter-spacing: -.01em; }
+.sj-t small { font-size: 13px; line-height: 1.4; color: var(--text-3); }
+.sj-t .dg { color: var(--text-2); font-weight: 600; }
+.sj.quiet .sj-t b { color: var(--text-2); }
+.sj .chev { width: 17px; height: 17px; color: var(--text-3); transition: transform .2s var(--ease); }
+.sj-w[open] > .sj .chev { transform: rotate(180deg); }
+.sj-n { min-width: 24px; height: 22px; padding: 0 7px; border-radius: 11px; display: grid; place-items: center; background: var(--panel-3); font-size: 12px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.offers { padding: 2px 0 8px; background: var(--panel-2); border-top: 1px solid var(--line); }
+.of-lvl { margin: 0; padding: 10px 14px 4px 22px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.of { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 10px; min-height: 46px; padding: 6px 10px 6px 22px; color: var(--text); text-decoration: none; }
+.of:hover { background: var(--row-hover); text-decoration: none; }
+.of-t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.of-t b { font-size: 14.5px; font-weight: 620; }
+.of-form { font-size: 13px; color: var(--text-2); }
+.of-t em { flex-basis: 100%; display: inline-flex; align-items: center; font-style: normal; font-size: 12px; font-weight: 650; color: var(--accent-ink); }
+.of-t em .mine-star { margin: 0 4px 0 0; }
+.of-f { font-size: 12.5px; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.of .chev { width: 15px; height: 15px; color: var(--text-3); }
+.of.sub { padding-left: 40px; }
+.of.sub::before { content: ""; position: absolute; left: 27px; top: 0; bottom: 0; width: 1.5px; background: var(--line-strong); }
+.of.sub:last-child::before, .of.sub:has(+ .of:not(.sub))::before, .of.sub:has(+ .of-lvl)::before { bottom: 50%; }
+.of.sub::after { content: ""; position: absolute; left: 27px; top: 50%; width: 8px; height: 1.5px; background: var(--line-strong); }
+.of.sub .of-t b { font-weight: 560; }
+.of.quiet .of-t b { color: var(--text-2); font-weight: 560; }
+@media (max-width: 900px) {
+  .mine-strip { grid-auto-flow: row; }
+  .ms-col + .ms-col { border-left: 0; border-top: 1px solid var(--line); }
+  .ms-go { padding: 0 6px 0 10px; }
 }
 /* ---------- landing page ----------
    One column of panels like every other page. Everything stands on the same lines: the text of
@@ -1449,9 +1492,9 @@ html.mine .mine-room { display: inline-flex; visibility: hidden; }
    it. A panel cuts its content at its edge anyway (`.panel`), so the paint containment this
    brings changes nothing. Only its height is a guess: a width of its own (`contain-intrinsic-size`
    with one value sets both) widened the page past a phone's screen, which then showed it smaller. */
-.home > .panel, .faculty.panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
+.home > .panel { content-visibility: auto; contain-intrinsic-block-size: auto 1200px; }
 /* A jump to a section of the page draws them all on its way (enhance.js, `jump`). */
-.jumping .home > .panel, .jumping .faculty.panel { content-visibility: visible; }
+.jumping .home > .panel { content-visibility: visible; }
 .block-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 18px 12px 14px 24px; }
 .block-head h2 { font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
 .block-head p { grid-column: 1 / -1; color: var(--text-2); max-width: 86ch; text-wrap: pretty; }
@@ -3020,11 +3063,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .sk-figures > div { display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
 .sk-figures > div:last-child { border-bottom: 0; }
 .sk-summary { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 4px 8px 2px 16px; }
-.sk-faculty { padding: 16px 0 6px; }
-.sk-faculty-head { display: flex; align-items: center; gap: 12px; padding: 0 24px 14px; }
-.sk-subject { display: grid; grid-template-columns: minmax(0, 25fr) minmax(0, 38fr) minmax(0, 37fr) 176px; align-items: center; gap: 6px 20px; min-height: 46px; padding: 7px 24px; border-bottom: 1px solid var(--line); }
-.sk-subject:last-child { border-bottom: 0; }
-.sk-subject-head { min-height: 32px; border-top: 1px solid var(--line); background: var(--panel-2); }
+.sk-faccs { display: grid; gap: 8px; }
+.sk-facc { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: 12px 18px 12px 20px; }
 .sk-table { display: grid; }
 .sk-trow { display: grid; grid-template-columns: minmax(0, 1fr) 48px 48px; gap: 16px; align-items: center; min-height: 38px; border-bottom: 1px solid var(--line); }
 .sk-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 6px 0; }
@@ -3224,12 +3264,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sidebar.sheet .body { overflow-y: auto; padding: 0 12px 12px; }
   .sidebar.sheet .sheet-only { display: flex; position: sticky; bottom: 0; margin: 12px -12px -12px; background: var(--panel); }
   .summary { padding: 4px 16px 0; }
-  /* On a phone „Mein Studiengang" is a line of its own under the count and „Filter". The grid
-     lays out the first line as the flex row does. */
-  .summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
-  .summary:has(> .mine-line) > h1 { max-width: none; }
-  .summary > .mine-line { grid-column: 1 / -1; grid-row: 2; justify-self: start; max-width: calc(100% + 10px); min-height: 40px; margin-left: -10px; }
-  .summary > .mine-line > .icon:last-child { display: none; }
   /* The program page's „Darstellung": the plan is always the list on a phone, and the app leaves
      the switch out; the server's copy goes too, so nothing moves at the takeover. */
   .plan-shapes { display: none; }
@@ -3241,8 +3275,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .toc.views a { justify-content: center; min-height: 42px; padding: 0 6px; text-align: center; font-size: 13.5px; background: var(--panel-3); }
   /* The view one is on stays the inverted one; the row above must not take its background. */
   .toc.views a[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
-  .program-pill { min-height: 40px; padding: 0 12px; font-size: 14.5px; }
-  .faculty-head, .faculty > .hint, .matrix-row { padding-left: 16px; padding-right: 16px; }
   .actions.fgroup { padding-top: 6px; }
   .action { min-height: 46px; font-size: 15px; }
   .person { min-height: 50px; }
@@ -3286,13 +3318,12 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   html.app:has(.detail.is-module.is-gone)::after { opacity: 0; }
   .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: var(--bar) 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
   .pending-page .sidebar, .app-standin .sidebar, .sk-standin { display: none; }
-  .sk-home, .sk-subject { grid-template-columns: minmax(0, 1fr); }
+  .sk-home { grid-template-columns: minmax(0, 1fr); }
   .sk-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 0; border-top: 1px solid var(--line); }
   .sk-figures > div { min-height: 56px; }
   .sk-fill { min-height: 0; }
   .sk.sk-tools { width: 112px; height: 42px; border-radius: var(--r-ctl); }
   .sk-row { min-height: 124px; }
-  .sk-subject-head { display: none; }
   .sk-stage { min-height: 300px; }
   .rows-pending { top: var(--bar); }
   .rows-pending-fill { left: 0; right: 0; padding: 0; display: grid; gap: 8px; align-content: start; background: var(--bg); }
@@ -3874,6 +3905,210 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-legend-mark.passed .icon { width: 15px; height: 15px; }
 .st-legend-pill { background: var(--panel-3); color: var(--text-2); }
 .st-legend-pill.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* The views of „Mein Studium" (regular.rs, choose.rs; owner, 2026-10-14, concept A „Ansichten"):
+   the Regelstudienplan and the Wahlpflicht with the student's stand in them, under the overview
+   on a desktop, pages of their own on a phone. The sidebar names the views; a way of the phone's
+   overview says where each stands. */
+.st-vlist { display: grid; gap: 2px; }
+.st-vl { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 36px; padding: 0 10px; border-radius: var(--r-s); color: var(--text); font-size: 13px; font-weight: 560; text-decoration: none; }
+.st-vl:hover { background: var(--panel-3); text-decoration: none; }
+.st-vl .icon { width: 16px; height: 16px; color: var(--text-2); }
+.st-vl small { font-size: 12px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+.st-vl[aria-current="page"] { background: var(--invert); color: var(--on-invert); }
+.st-vl[aria-current="page"] .icon, .st-vl[aria-current="page"] small { color: color-mix(in oklab, var(--on-invert) 72%, transparent); }
+.st-ways .action > span small, .st-way > span small { display: block; margin-top: 1px; font-size: 12px; font-weight: 500; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-ways .action:has(small) { min-height: 44px; padding-top: 4px; padding-bottom: 4px; }
+
+/* The head of a view's panel: its title and what it is, a switch at its end. */
+.st-view-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 20px; padding: 16px 20px 12px; }
+.st-view-head h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.st-view-head p { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
+.st-toggle { --hit: 4px; flex: none; display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 8px; border: 0; border-radius: 15px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.st-toggle i { position: relative; width: 26px; height: 16px; border-radius: 8px; background: var(--line-strong); transition: background .15s; }
+.st-toggle i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .25); transition: transform .15s var(--ease); }
+.st-toggle[aria-pressed="true"] i { background: var(--ok); }
+.st-toggle[aria-pressed="true"] i::after { transform: translateX(10px); }
+
+/* The Regelstudienplan on a desktop: a row a row of the plan, a column each Fachsemester (the
+   current one shaded), „Bei dir" at the end. A cell's credits stand in a pill in the look of
+   where the row stands: passed in the area's colour, planned in its light, taken again and not
+   passed in the warning's, open as a ring; where the student has it in another semester a
+   dashed pill there. „Mein Stand" off (.plain): the plan as printed. */
+.st-rsp { padding-bottom: 6px; }
+.st-mx { width: 100%; min-width: calc(420px + var(--fs) * 58px); border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.st-mx col.c-kind { width: 120px; }
+.st-mx col.c-fs { width: 58px; }
+.st-mx col.c-mine { width: 172px; }
+.st-mx th, .st-mx td { padding: 6px 8px; border-top: 1px solid var(--line); font-size: 13px; text-align: left; vertical-align: middle; }
+.st-mx th:first-child, .st-mx td:first-child { padding-left: 20px; }
+.st-mx th:last-child, .st-mx td:last-child { padding-right: 20px; text-align: right; }
+.st-mx thead th { border-top: 0; padding-top: 4px; padding-bottom: 8px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; vertical-align: bottom; }
+.st-mx thead th.fs { text-align: center; text-transform: none; letter-spacing: 0; }
+.st-mx thead th.fs b { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+.st-mx thead th.fs small { display: block; font-size: 10.5px; font-weight: 550; line-height: 1.3; color: var(--text-3); }
+.st-mx thead th.fs.now small { color: var(--accent-ink); font-weight: 650; }
+.st-mx thead th.fs small.st-now-w { text-transform: uppercase; font-size: 9.5px; letter-spacing: .06em; }
+.st-mx .fs { text-align: center; padding-left: 3px; padding-right: 3px; }
+.st-mx .fs.now { background: color-mix(in oklab, var(--accent) 7%, transparent); }
+.st-mx tr.g > th { padding: 14px 20px 6px; border-top: 1px solid var(--line-strong); }
+.st-mx tbody:first-of-type tr.g > th { border-top: 0; padding-top: 6px; }
+.st-g { display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text); }
+.st-g b { font-weight: 700; }
+.st-g .st-dot { width: 9px; height: 9px; }
+.st-g-n { margin-left: auto; text-transform: none; letter-spacing: 0; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.st-mx tbody tr.st-rsp-row:hover { background: var(--row-hover); }
+.st-mx th.nm { font-weight: 560; overflow-wrap: anywhere; }
+.st-rsp-name { color: var(--text); font-weight: 600; text-decoration-color: var(--line-strong); }
+a.st-rsp-name:hover { text-decoration: underline; }
+.st-rsp-name.is-slot { color: var(--text-2); font-weight: 540; }
+.st-mx th.nm small { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--text-3); }
+.st-mx th.nm small .icon { width: 12px; height: 12px; }
+.st-mx td.st-kindc { color: var(--text-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-cell { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 22px; padding: 0 6px; border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.st-cell.is-span { width: calc(100% - 6px); }
+.st-cell.is-passed { background: var(--c); color: #fff; }
+.st-cell.is-planned, .st-cell.is-moved { background: color-mix(in oklab, var(--c) 26%, var(--panel)); color: color-mix(in oklab, var(--c) 70%, var(--text)); }
+.st-cell.is-moved { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--c) 60%, transparent); background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in oklab, var(--c) 14%, transparent) 4px 6px); }
+.st-cell.is-again, .st-cell.is-failed { background: var(--warn-soft); color: var(--warn); }
+.st-cell.is-open { box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--text-2); }
+.st-rsp.plain .st-cell { background: none; box-shadow: none; color: var(--text); font-weight: 600; }
+.st-rsp.plain .st-cell.is-moved, .st-rsp.plain .st-foot-mine { display: none; }
+.st-mine-cell { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; }
+.st-mine-c { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 650; white-space: nowrap; color: var(--text-2); }
+.st-mine-c .icon { width: 13px; height: 13px; stroke-width: 2.6; }
+.st-mine-c.ok { color: var(--ok); }
+.st-mine-c.plan { color: var(--text); }
+.st-mine-c.warn { color: var(--warn); }
+.st-mine-c.st-mine-sum { flex-direction: column; align-items: flex-end; gap: 0; line-height: 1.35; }
+.st-addb { --hit: 4px; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px; border: 0; border-radius: 13px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font: inherit; font-size: 12px; font-weight: 650; white-space: nowrap; text-decoration: none; cursor: pointer; }
+.st-addb:hover { background: var(--accent-soft); text-decoration: none; }
+.st-addb .icon { width: 13px; height: 13px; stroke-width: 2.4; }
+.st-mx tfoot th, .st-mx tfoot td { border-top: 1px solid var(--line-strong); font-weight: 650; }
+.st-mx tfoot tr + tr th, .st-mx tfoot tr + tr td { border-top-color: var(--line); }
+.st-mx tfoot .c { text-align: center; }
+.st-rsp-source { display: flex; align-items: center; gap: 6px; margin: 10px 20px 8px; }
+.st-rsp-source .icon { width: 14px; height: 14px; }
+
+/* The Wahlpflicht on a desktop: the choices by area on the left, the one picked on the right. */
+.st-split { display: grid; grid-template-columns: 260px minmax(0, 1fr); border-top: 1px solid var(--line); }
+.st-split-l { display: flex; flex-direction: column; gap: 1px; padding: 8px 8px 12px; border-right: 1px solid var(--line); }
+.st-sl-h { display: flex; align-items: center; gap: 7px; margin: 12px 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-2); }
+.st-sl-h:first-child { margin-top: 4px; }
+.st-sl-h small { margin-left: auto; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.st-sl-h small.ok { color: var(--ok); }
+.st-sl { position: relative; display: grid; gap: 1px; width: 100%; padding: 7px 10px 8px 14px; border: 0; border-radius: var(--r-s); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.st-sl:hover { background: var(--row-hover); }
+.st-sl b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font-size: 13px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.st-sl small { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-3); }
+.st-sl small.ok { color: var(--ok); }
+.st-sl small .icon { width: 12px; height: 12px; stroke-width: 2.6; }
+.st-sl[aria-current="true"] { background: var(--panel-3); }
+.st-sl[aria-current="true"]::before { content: ""; position: absolute; left: 4px; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--c); }
+.st-split-r { min-width: 0; padding: 14px 20px 16px; }
+.st-pane-h { display: grid; gap: 8px; }
+.st-pane-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.st-pane-title h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.st-chip.tone { background: color-mix(in oklab, var(--c) 12%, var(--panel)); color: color-mix(in oklab, var(--c) 65%, var(--text)); }
+.st-chip.tone .st-dot { width: 7px; height: 7px; }
+.st-chip.ok { background: var(--ok-soft); color: var(--ok); }
+.st-chip.plan { background: var(--panel-3); color: var(--text); }
+.st-season { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; color: var(--text-2); }
+.st-season .st-views button { height: 26px; padding: 0 10px; font-size: 12.5px; }
+.st-rule { display: flex; gap: 6px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-2); }
+.st-rule .icon { flex: none; width: 14px; height: 14px; margin-top: 3px; }
+.st-lists { flex-wrap: wrap; max-width: 100%; }
+.st-lists button small { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+.st-done-box { display: flex; gap: 10px; margin: 12px 0 4px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--panel-2); font-size: 13px; }
+.st-done-box > .icon { flex: none; width: 18px; height: 18px; color: var(--text-2); }
+.st-done-box.complete > .icon, .st-done-box.complete b { color: var(--ok); }
+.st-done-box b { font-weight: 650; }
+.st-done-box ul { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 1px; }
+.st-done-box li small { margin-left: 8px; color: var(--text-3); }
+.st-pane-note { margin: 12px 0 0; display: grid; gap: 6px; }
+.st-pane-note .action, .st-grp > .action { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.st-wtable { width: 100%; margin-top: 10px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.st-wtable th, .st-wtable td { padding: 6px 8px; border-top: 1px solid var(--line); font-size: 13px; text-align: left; vertical-align: middle; }
+.st-wtable thead th { border-top: 0; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.st-wtable th:first-child, .st-wtable td:first-child { padding-left: 0; }
+.st-wtable th:last-child, .st-wtable td:last-child { padding-right: 0; }
+.st-wtable .r { text-align: right; }
+.st-wtable td.id { width: 56px; color: var(--text-3); font-size: 12px; }
+.st-wtable td.nm a { color: var(--text); font-weight: 560; text-decoration-color: var(--line-strong); }
+.st-wtable td.nm a:hover { text-decoration: underline; }
+.st-wtable td.nm small { margin-left: 8px; font-size: 11.5px; color: var(--warn); }
+.st-wtable tbody tr:hover { background: var(--row-hover); }
+.st-wtable tr.taken td.nm a { font-weight: 650; }
+.st-turnus { display: inline-block; padding: 0 6px; border-radius: 5px; background: var(--panel-3); font-size: 11.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.st-turnus.match { background: var(--ok-soft); color: var(--ok); }
+.st-more-row td { color: var(--text-3); font-size: 12.5px; }
+.st-more-row .st-link { font-size: 12.5px; }
+@container semesters (max-width: 760px) { .st-split { grid-template-columns: 210px minmax(0, 1fr); } }
+
+@media (max-width: 900px) {
+  /* A view on a phone: a page of its own, its title over the search's line as a semester's is. */
+  .st-vhead { padding: 4px 4px 2px; }
+  .st-vhead h1 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -.03em; line-height: 1.15; }
+  .st-vhead p { margin: 4px 0 0; font-size: 14px; color: var(--text-2); }
+  .st-way { min-height: 56px !important; }
+  .st-way > span { flex: 1; font-size: 15px; font-weight: 620; }
+  .st-way > span small { font-size: 13px; }
+  /* The Fachsemester to jump to, staying under the bar at the top while the page scrolls. */
+  .st-fsidx { position: sticky; top: calc(var(--bar, 62px) - 2px); z-index: 5; display: flex; gap: 6px; margin: 0 -12px; padding: 8px 12px; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px); }
+  .st-fsidx::-webkit-scrollbar { display: none; }
+  .st-fsidx a { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 14px; border-radius: 17px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .st-fsidx a .icon { width: 14px; height: 14px; color: var(--ok); stroke-width: 2.6; }
+  .st-fsidx a.now { box-shadow: inset 0 0 0 1.5px var(--accent), var(--shadow-panel); color: var(--accent-ink); }
+  .st-soll { display: flex; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); font-size: 13.5px; line-height: 1.45; color: var(--text-2); }
+  .st-soll .icon { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--ok); }
+  .st-fs-sec { scroll-margin-top: calc(var(--bar, 62px) + 52px); }
+  .st-sech { display: flex; align-items: baseline; gap: 8px; margin: 10px 4px 8px; font-size: 16px; font-weight: 700; }
+  .st-sech small { font-size: 13px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+  .st-sech .ln { flex: 1; min-width: 12px; height: 1px; align-self: center; background: var(--line-strong); }
+  .st-sech .st-now { align-self: center; }
+  .st-pcards, .st-mcards { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
+  .st-pcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 68px; padding: 12px 14px 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+  .st-pcard.is-open { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .st-pcard-t { display: grid; gap: 4px; min-width: 0; }
+  .st-pcard .st-rsp-name { font-size: 15.5px; line-height: 1.3; letter-spacing: -.012em; text-decoration: none; overflow-wrap: anywhere; hyphens: auto; }
+  .st-pcard-note { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-2); }
+  .st-pcard-note .icon { width: 12px; height: 12px; }
+  .st-pcard-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+  .st-pcard .st-chip, .st-mcard .st-chip { font-size: 12.5px; }
+  .st-pcard .st-addb, .st-mcard .st-addb { height: 32px; padding: 0 12px; border-radius: 16px; font-size: 13px; }
+  .st-pcard .st-lp, .st-mcard .st-lp { font-size: 15px; font-weight: 650; white-space: nowrap; }
+  .st-pcard .st-lp small, .st-mcard .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
+  /* The Wahlpflicht on a phone: the areas as chips, the semester, the area's choices. */
+  .st-chiprow { display: flex; gap: 6px; margin: 0 -12px; padding: 2px 12px 4px; overflow-x: auto; scrollbar-width: none; }
+  .st-chiprow::-webkit-scrollbar { display: none; }
+  .st-chiprow.small { margin: 2px -2px 0; padding: 0 2px 2px; }
+  .st-fchip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+  .st-fchip small { font-size: 12px; font-weight: 600; color: var(--text-3); }
+  .st-fchip[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); }
+  .st-fchip[aria-pressed="true"] small { color: color-mix(in oklab, var(--on-invert) 70%, transparent); }
+  .st-chiprow.small .st-fchip { height: 32px; padding: 0 12px; font-size: 13px; }
+  /* The semester over the list, the switch the whole width under its label. */
+  .st-season { flex-direction: column; align-items: stretch; gap: 6px; padding: 0 4px; font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+  .st-season .st-views { flex: 1; display: flex; }
+  .st-season .st-views button { flex: 1; justify-content: center; height: 34px; padding: 0 6px; font-size: 13.5px; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+  .st-grp { display: grid; gap: 8px; margin-top: 6px; }
+  .st-grp-h { display: grid; gap: 2px; padding: 0 4px; }
+  .st-grp-h b { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 16px; font-weight: 700; line-height: 1.3; }
+  .st-grp-h small { font-size: 13px; color: var(--text-3); }
+  .st-grp .st-rule { padding: 8px 10px; border-radius: var(--r-ctl); background: var(--panel-2); }
+  .st-grp .st-done-box { margin: 0; }
+  .st-mcard { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-height: 64px; padding: 10px 10px 10px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+  .st-mcard-t { display: grid; gap: 4px; min-width: 0; }
+  .st-mcard-t a { color: var(--text); font-size: 15px; font-weight: 600; line-height: 1.3; text-decoration: none; overflow-wrap: anywhere; hyphens: auto; }
+  /* „+": the semester it plans into is the one chosen above (the button's title says it). */
+  .st-mcard .st-addb { width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; }
+  .st-mcard .st-addb .icon { width: 17px; height: 17px; }
+  .st-mcard .st-addb-t { display: none; }
+  .st-mcard.taken { box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--c) 45%, transparent), var(--shadow-panel); }
+  .st-more-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 0; border-radius: var(--r-panel); background: none; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .st-more-btn .icon { width: 16px; height: 16px; }
+  .st-hidden-n { margin: 0 4px; }
+}
 
 @media (max-width: 900px) {
   .st-pc { display: none !important; }

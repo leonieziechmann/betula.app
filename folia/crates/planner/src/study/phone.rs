@@ -33,7 +33,7 @@ use folia_shell::tabs::{Area, TabAgain};
 
 use super::overview::{Bar, Info};
 use super::pager::{plan_path, Dots, Pager, Pages};
-use super::side::{AllPrograms, MineCard, ProgramWays, StorageHint};
+use super::side::{AllPrograms, MineCard, StorageHint, ViewWays};
 use super::{n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
@@ -101,13 +101,13 @@ pub(super) fn Overview(ctx: StudyCtx) -> impl IntoView {
             <Progress ctx/>
             <section class="panel st-mine-panel" aria-label=t.study.program>
                 <MineCard ctx/>
-                <nav class="st-ways" aria-label=t.study.ways>
-                    <ProgramWays ctx/>
+                <nav class="st-ways" aria-label=t.study_views.views>
+                    <ViewWays ctx/>
                 </nav>
             </section>
             <PlanBox ctx/>
             <div class="st-rest">
-                <nav class="st-ways"><AllPrograms/></nav>
+                <nav class="st-ways"><AllPrograms line=true/></nav>
                 <StorageHint/>
             </div>
         </div>

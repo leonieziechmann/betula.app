@@ -61,7 +61,7 @@ pub const DE: Texts = Texts {
     search_modules_placeholder: "Modul, Nummer oder Thema suchen",
     shortcuts: |area| format!("{area}: Abkürzungen"),
     to_plan: "Regelstudienplan",
-    to_areas: "Wahlpflicht & Bereiche",
+    to_areas: "Wahlpflicht",
     all_programs: "Alle Studiengänge",
 };
 
@@ -89,6 +89,6 @@ pub const EN: Texts = Texts {
     search_modules_placeholder: "Search modules, numbers or topics",
     shortcuts: |area| format!("{area}: shortcuts"),
     to_plan: "Standard study plan",
-    to_areas: "Electives & areas",
+    to_areas: "Electives",
     all_programs: "All degree programmes",
 };

@@ -23,7 +23,7 @@ use folia_model::rows::{
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleAbbrev,
     ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry, ProgramDepartmentCount,
-    ProgramLink, ProgramVersion, Successor, TextItem,
+    ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry, ProgramVersion, Successor, TextItem,
 };
 use folia_routes::filter::{CatalogQuery, ProgramRelation};
 use folia_search::Plan as SearchPlan;
@@ -553,6 +553,50 @@ pub fn program_plan_total_entries(db: &dyn Database, program_id: &str) -> Result
         "program_plan_total_entries",
         "SELECT total_ord, entry_ord FROM v_program_plan_total_entry WHERE program_id = ? ORDER BY total_ord, entry_ord",
         &[Value::from(program_id)],
+    )
+}
+
+/// The rows of the plans of every program in its latest PO, as `program_plan_entries` reads them
+/// one program at a time: what the program overview says of each (how long, how many credits).
+pub fn latest_plan_entries(db: &dyn Database) -> Result<Vec<ProgramPlanEntry>, DbError> {
+    fetch(
+        db,
+        "latest_plan_entries",
+        "SELECT e.program_id, e.ord, e.module_id, e.module_name, e.semester, e.start_semester, e.end_semester, e.semester_span, \
+         e.credits, e.min_credits, e.max_credits, e.kind, e.kind_raw, e.study_section, e.subject_area, e.specialization, \
+         e.catalog_title, e.credits_differ_from_catalog, e.source_page \
+         FROM v_program_plan_entry e JOIN v_program p ON p.id = e.program_id WHERE p.is_latest_po = 1 ORDER BY e.program_id, e.ord",
+        &[],
+    )
+}
+
+/// The sums of the plans of every program in its latest PO, each with the rows it counts, as
+/// `program_plan_totals` reads them one program at a time.
+pub fn latest_plan_totals(db: &dyn Database) -> Result<Vec<ProgramPlanTotal>, DbError> {
+    let mut totals: Vec<ProgramPlanTotal> = fetch(
+        db,
+        "latest_plan_totals",
+        "SELECT t.program_id, t.ord, t.label, t.scope, t.specialization, t.start_semester, t.end_semester, t.credits, \
+         t.credits_max, t.min_credits, t.max_credits, t.is_choice, t.entry_count \
+         FROM v_program_plan_total t JOIN v_program p ON p.id = t.program_id WHERE p.is_latest_po = 1 ORDER BY t.program_id, t.ord",
+        &[],
+    )?;
+    for row in latest_plan_total_entries(db)? {
+        if let Some(total) = totals.iter_mut().find(|total| total.program_id == row.program_id && total.total.ord == row.member.total_ord) {
+            total.total.entries.push(row.member.entry_ord);
+        }
+    }
+    Ok(totals)
+}
+
+/// Which row each sum of `latest_plan_totals` counts.
+pub fn latest_plan_total_entries(db: &dyn Database) -> Result<Vec<ProgramPlanTotalEntry>, DbError> {
+    fetch(
+        db,
+        "latest_plan_total_entries",
+        "SELECT m.program_id, m.total_ord, m.entry_ord FROM v_program_plan_total_entry m JOIN v_program p ON p.id = m.program_id \
+         WHERE p.is_latest_po = 1 ORDER BY m.program_id, m.total_ord, m.entry_ord",
+        &[],
     )
 }
 

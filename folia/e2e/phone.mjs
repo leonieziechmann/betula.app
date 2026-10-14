@@ -315,14 +315,14 @@ const hold = async (area, ms = 600) => {
   return menu;
 };
 const ways = await hold("programs");
-check(ways.join("|") === "Regelstudienplan /programs/bachelor-informatik-2008/plan|Wahlpflicht & Bereiche /programs/bachelor-informatik-2008/areas|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
+check(ways.join("|") === "Regelstudienplan /study?view=plan|Wahlpflicht /study?view=areas|Alle Studiengänge /programs", `a tab held: „Studium“ does not offer its ways: ${JSON.stringify(ways)}`);
 check(await page.evaluate(() => location.pathname === "/study" && Boolean(document.querySelector(".tab-menu"))), "a tab held: the finger's release went somewhere, or the menu went");
 await page.touchscreen.tap(200, 200);
 await page.waitForFunction(() => !document.querySelector(".tab-menu"), null, { timeout: 2000 }).catch(() => problems.push("a tab held: a tap beside the menu did not close it"));
 check(await page.evaluate(() => location.pathname === "/study"), "a tab held: the tap beside the menu went somewhere");
 await hold("programs");
 await page.tap(".tab-menu .tab-menu-way >> nth=1");
-await page.waitForFunction(() => location.pathname === "/programs/bachelor-informatik-2008/areas" && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab held: „Wahlpflicht & Bereiche“ did not lead there"));
+await page.waitForFunction(() => location.pathname === "/study" && location.search === "?view=areas" && document.querySelector(".st-wp-phone") && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab held: „Wahlpflicht“ did not lead there"));
 // A short tap is the tab as ever; the catalog held opens its list with the filters.
 await page.touchscreen.tap(...(await page.evaluate(() => { const box = document.querySelector('.bottomnav > .nav[data-area="programs"]').getBoundingClientRect(); return [box.left + box.width / 2, box.top + box.height / 2]; })));
 await page.waitForFunction(() => location.pathname === "/study" && !document.querySelector(".tab-menu"), null, { timeout: 8000 }).catch(() => problems.push("a tab tapped: „Studium“ did not lead to „Mein Studium“"));

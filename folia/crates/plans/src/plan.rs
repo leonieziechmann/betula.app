@@ -33,13 +33,18 @@ pub fn span_of(semester: Option<i64>, start_semester: Option<i64>, end_semester:
 /// way the Studienplan's store keeps it, whatever the language of the page („6", „7,5",
 /// „10–24"); a page writes it in its language with `credits_in`.
 pub fn credits_of(entry: &PlanEntry) -> Option<String> {
-    let number = |n: f64| if n.fract() == 0.0 { format!("{}", n as i64) } else { format!("{n}").replace('.', ",") };
+    let number = number_text;
     match (entry.credits, entry.min_credits, entry.max_credits) {
         (Some(credits), _, _) => Some(number(credits)),
         (None, Some(min), Some(max)) if min != max => Some(format!("{}–{}", number(min), number(max))),
         (None, Some(value), _) | (None, None, Some(value)) => Some(number(value)),
         _ => None,
     }
+}
+
+/// A number of credits as `credits_of` writes it: „6", „7,5".
+pub fn number_text(n: f64) -> String {
+    if n.fract() == 0.0 { format!("{}", n as i64) } else { format!("{n}").replace('.', ",") }
 }
 
 /// Credits as `credits_of` writes them („7,5", „10–24"), as a page in `locale` writes them:

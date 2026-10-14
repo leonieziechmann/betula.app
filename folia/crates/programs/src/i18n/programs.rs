@@ -57,6 +57,31 @@ pub struct Texts {
     pub plan_unchecked: &'static str,
     /// „17 Module" in a program's tooltip.
     pub modules: fn(i64) -> String,
+    /// The head of a faculty: what it has, by degree („12 Bachelor · 11 Master · 3 Lehramt · 1
+    /// weitere").
+    pub sum_bachelor: fn(usize) -> String,
+    pub sum_master: fn(usize) -> String,
+    pub sum_teaching: fn(usize) -> String,
+    pub sum_other: fn(usize) -> String,
+    /// What a program's validated plan says of it: „6 Semester", „6 Sem.", „180 LP"; „kein
+    /// geprüfter Plan" where there is none.
+    pub semesters: fn(&str) -> String,
+    pub semesters_short: fn(&str) -> String,
+    pub credits: fn(&str) -> String,
+    pub no_plan: &'static str,
+    /// A subject of several programs: „5 Angebote", „13 Fächerkombinationen".
+    pub offers: fn(usize) -> String,
+    pub combinations: fn(usize) -> String,
+    /// The visitor's own program at the head (the app's): „Dein Studiengang" and the master or
+    /// bachelor after it („Danach", „Davor"), with their ways: „Mein Studium", „Regelstudienplan".
+    pub yours: &'static str,
+    pub after: &'static str,
+    pub before: &'static str,
+    pub to_study: &'static str,
+    pub to_plan: &'static str,
+    pub in_study: &'static str,
+    /// The mark of the visitor's own program in the list.
+    pub mine_mark: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -94,6 +119,23 @@ pub const DE: Texts = Texts {
     plan_checked: "geprüfter Regelstudienplan",
     plan_unchecked: "noch kein geprüfter Regelstudienplan",
     modules: |n| format!("{n} Module"),
+    sum_bachelor: |n| format!("{n} Bachelor"),
+    sum_master: |n| format!("{n} Master"),
+    sum_teaching: |n| format!("{n} Lehramt"),
+    sum_other: |n| format!("{n} weitere"),
+    semesters: |n| format!("{n}\u{a0}Semester"),
+    semesters_short: |n| format!("{n}\u{a0}Sem."),
+    credits: |n| format!("{n}\u{a0}LP"),
+    no_plan: "kein geprüfter Plan",
+    offers: |n| format!("{n} Angebote"),
+    combinations: |n| format!("{n} Fächerkombinationen"),
+    yours: "Dein Studiengang",
+    after: "Danach",
+    before: "Davor",
+    to_study: "Mein Studium",
+    to_plan: "Regelstudienplan",
+    in_study: "in Mein Studium",
+    mine_mark: "Dein Studiengang",
 };
 
 pub const EN: Texts = Texts {
@@ -131,4 +173,21 @@ pub const EN: Texts = Texts {
     plan_checked: "checked standard study plan",
     plan_unchecked: "no checked standard study plan yet",
     modules: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
+    sum_bachelor: |n| format!("{n} Bachelor"),
+    sum_master: |n| format!("{n} Master"),
+    sum_teaching: |n| format!("{n} teacher training"),
+    sum_other: |n| format!("{n} other"),
+    semesters: |n| if n == "1" { "1\u{a0}semester".to_string() } else { format!("{n}\u{a0}semesters") },
+    semesters_short: |n| format!("{n}\u{a0}sem."),
+    credits: |n| format!("{n}\u{a0}CP"),
+    no_plan: "no checked plan",
+    offers: |n| format!("{n} options"),
+    combinations: |n| format!("{n} subject combinations"),
+    yours: "Your programme",
+    after: "After it",
+    before: "Before it",
+    to_study: "My studies",
+    to_plan: "Standard study plan",
+    in_study: "in My studies",
+    mine_mark: "Your programme",
 };

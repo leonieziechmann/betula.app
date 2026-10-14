@@ -606,3 +606,43 @@ impl FromRow for PlanTotalEntry {
         Ok(Self { total_ord: row.int("total_ord")?, entry_ord: row.int("entry_ord")? })
     }
 }
+
+/// A row of a plan with the program it is of (the plans of all programs at once,
+/// `queries::latest_plan_entries`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramPlanEntry {
+    pub program_id: String,
+    pub entry: PlanEntry,
+}
+
+impl FromRow for ProgramPlanEntry {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { program_id: row.text("program_id")?, entry: PlanEntry::from_row(row)? })
+    }
+}
+
+/// A sum of a plan with the program it is of (`queries::latest_plan_totals`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramPlanTotal {
+    pub program_id: String,
+    pub total: PlanTotal,
+}
+
+impl FromRow for ProgramPlanTotal {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { program_id: row.text("program_id")?, total: PlanTotal::from_row(row)? })
+    }
+}
+
+/// Which row a sum counts, with the program they are of (`queries::latest_plan_total_entries`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramPlanTotalEntry {
+    pub program_id: String,
+    pub member: PlanTotalEntry,
+}
+
+impl FromRow for ProgramPlanTotalEntry {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { program_id: row.text("program_id")?, member: PlanTotalEntry::from_row(row)? })
+    }
+}

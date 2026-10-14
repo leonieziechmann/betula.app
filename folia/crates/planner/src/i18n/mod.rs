@@ -1,6 +1,7 @@
 //! The texts of planner (`folia_design::texts!`; how the languages work: `folia_design::i18n`).
 
 pub mod study;
+pub mod study_views;
 pub mod studyplan;
 pub mod studyplan_aside;
 pub mod studyplan_exams;
@@ -28,6 +29,7 @@ folia_design::texts! {
     plans_data = folia_plans::i18n,
     seo = folia_shell::i18n::seo,
     study = crate::i18n::study,
+    study_views = crate::i18n::study_views,
     studyplan = crate::i18n::studyplan,
     studyplan_aside = crate::i18n::studyplan_aside,
     studyplan_exams = crate::i18n::studyplan_exams,

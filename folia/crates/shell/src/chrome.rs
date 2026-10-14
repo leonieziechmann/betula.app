@@ -3,7 +3,7 @@
 //! the navigation at the bottom of a phone (`NavItems`) with what its tabs hold besides their pages
 //! (`TabMenu`), and what lets the memory of the tabs follow the router (`FollowTabs`).
 
-use folia_routes::url::{self, ProgramTab};
+use folia_routes::url::{self, StudyUrl, StudyView};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -13,7 +13,7 @@ use crate::pending::Pending;
 use crate::tabs::{Area, TabAgain, Tabs};
 use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
-use folia_stores::myprogram::{program_href, program_name, MineResolved, MyProgram};
+use folia_stores::myprogram::{program_name, MineResolved};
 use folia_stores::studyplan::Studyplan;
 
 /// The browser app (`csr`): only there is „Mein Studium", the first page of „Studium".
@@ -128,8 +128,9 @@ struct Held {
 /// gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das dann eine auswahl
 /// von Regelstudienplan, Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch mit
 /// [Rechts]klick funktionieren."): a menu at the tab, over the page. „Studium"'s leads to the
-/// Regelstudienplan and the electives of „Mein Studiengang" (where one is chosen; the plan of its
-/// Studienrichtung, as the app links the program everywhere) and to all programs. enhance.js hears
+/// Regelstudienplan and the Wahlpflicht of „Mein Studium" (where a program is chosen; owner,
+/// 2026-10-14, concept A: views of the study, with the student's stand in them) and to all
+/// programs. enhance.js hears
 /// the long press of a finger and the right click and names the tab (`betula:tab-menu` on it,
 /// where `NavItems` marked it `data-hold="menu"`); a tap beside the menu, Esc, a way taken or
 /// another page closes it. The browser app's alone. (The catalog's tab, held on a phone, opens
@@ -169,9 +170,7 @@ pub fn TabMenu() -> impl IntoView {
         }
     });
     let mine = MineResolved::expect();
-    let stored = MyProgram::expect();
-    let source = folia_data::use_data().ok();
-    // „Mein Studiengang" while the catalog knows it, with the Studienrichtung stored for it.
+    // „Mein Studiengang" while the catalog knows it.
     let program = Memo::new(move |_| mine.and_then(|mine| mine.0.with(|info| info.as_ref().map(|info| info.program.clone()))));
     let first = NodeRef::<leptos::html::A>::new();
     // The first way has the focus: Tab goes on from there, Esc closes the menu.
@@ -186,10 +185,9 @@ pub fn TabMenu() -> impl IntoView {
         let ways = match at.area {
             Area::Programs => {
                 let mut ways = Vec::new();
-                if let Some(program) = program.get() {
-                    let (caption, direction) = stored.map(|stored| stored.with(|doc| (doc.caption.clone(), doc.direction.clone()))).unwrap_or_default();
-                    ways.push(("file-check-2", t.app.to_plan, program_href(source.as_ref(), &program, caption.as_deref(), direction.as_deref())));
-                    ways.push(("layout-list", t.app.to_areas, url::program_path(&program.slug, ProgramTab::Areas)));
+                if program.with(Option::is_some) {
+                    ways.push(("file-check-2", t.app.to_plan, StudyUrl::default().with_view(StudyView::Plan).path()));
+                    ways.push(("list-checks", t.app.to_areas, StudyUrl::default().with_view(StudyView::Choices).path()));
                 }
                 ways.push(("graduation-cap", t.app.all_programs, url::PROGRAMS.to_string()));
                 ways
