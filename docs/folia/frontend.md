@@ -996,7 +996,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the focus back),
     selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows
     dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
-    its row, the Gesamtplan (its menu, its grey lines), the phone (the overview in its order and
+    its row, the Gesamtplan (each cell as tall as what it lists, its menu, its grey lines), the phone
+    (the overview in its order and
     without a sidebar, one row of the semesters that are over, the overview and the rest, the
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap
     and a column; the way back a square box left of the search, as the search is; the
