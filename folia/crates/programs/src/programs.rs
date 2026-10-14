@@ -1,10 +1,13 @@
-//! The program overview: one section per faculty, and in it a matrix: a row per subject, a
-//! column per cycle of study (Bachelor, Master, the rest). 148 programs are about 80 rows, most
-//! of them one line, and everything stands on the same few vertical lines, which is what makes
-//! the page calm. (A flow of cards, and a list set in several text columns, were both tried
-//! first and read as clutter: rows of unequal height with nothing to line up on.)
-//! A program that is also offered in other forms of study (dual, extended, …) carries them as
-//! segments of the same control.
+//! The program overview: one accordion per faculty (owner, 2026-10-14: „Ich mag die akkordion
+//! elemente von den Fakultäten"), and in it on a wide page a matrix: a row per subject, a column
+//! per cycle of study (Bachelor, Master, the rest), each program a line of text — its degree, the
+//! form of study it adds, how long and how many credits its validated plan says. 148 programs are
+//! about 80 rows, and everything stands on the same few vertical lines, which is what makes the
+//! page calm. (A flow of cards, and a list set in several text columns, were both tried first and
+//! read as clutter; boxes of programs in the cells read as „eine Katastrophe" on a phone, owner,
+//! 2026-10-14.) On a phone or a narrow page a row per subject, which folds open where it has
+//! several programs (owner, the same day: „Variante 1 mit ausklappen"); the fourteen combinations
+//! of the Lehramt Primarstufe are one subject.
 //!
 //! The sidebar filters (degree, form of study, study plan) and jumps to the faculties; the
 //! search of the top bar narrows by name. All of it is in the URL (`folia_routes::url::ProgramsUrl`).
@@ -12,14 +15,17 @@
 //! No source states a program's faculty. It is derived (`folia_pages::faculties`), the
 //! sidebar says on what grounds, and programs without a clear answer have a section of their own.
 //!
-//! In the browser app the head names the visitor's own program („Mein Studiengang", A.10) and
-//! leads to it.
+//! In the browser app the head names the visitor's own program („Mein Studiengang", A.10) with
+//! the way to „Mein Studium", and the Master after it (or the Bachelor before it); the list marks
+//! it.
+
+use std::collections::BTreeMap;
 
 use folia_model::labels::DegreeLevel;
 use folia_model::rows::{Department, Program};
-use folia_pages::ask::ProgramsOverviewAsk;
+use folia_pages::ask::{CounterpartAsk, ProgramsOverviewAsk};
 use folia_pages as pages;
-use folia_pages::ProgramsData;
+use folia_pages::{PlanFacts, ProgramsData};
 use folia_routes::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -27,7 +33,7 @@ use leptos_meta::Title;
 use folia_data::{use_ask, use_data, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
-use folia_stores::myprogram::{po_of, program_href, program_name, MineResolved, MyProgram};
+use folia_stores::myprogram::{po_of, program_href, MineResolved, MyProgram};
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_shell::seo::Seo;
@@ -39,11 +45,33 @@ use folia_design::ui::{Icon, ToggleLink};
 /// The browser app (`csr`), or the server rendering the page for everybody.
 const APP: bool = cfg!(feature = "csr");
 
-/// All programs of one subject („Maschinenbau" with its degrees and forms of study).
+/// All programs of one subject („Maschinenbau" with its degrees and forms of study); the
+/// combinations of a Lehramt („Lehramt Primarstufe" with „Deutsch – Englisch" …) one subject too.
 #[derive(Clone, PartialEq)]
 struct Subject {
     title: String,
     programs: Vec<Program>,
+    /// The combinations of a Lehramt: a program is named by its combination.
+    combos: bool,
+}
+
+/// „Lehramt Primarstufe Deutsch-Englisch" → („Lehramt Primarstufe", „Deutsch – Englisch"), and the
+/// dual one the same („Lehramt Primarstufe - dual Mathematik-Deutsch"): the school a Lehramt is for
+/// and the combination of subjects.
+fn lehramt_of(name: &str) -> Option<(String, String)> {
+    let rest = name.strip_prefix("Lehramt ")?;
+    let (school, combo) = rest.split_once(' ')?;
+    let combo = combo.trim().strip_prefix("- dual").map(str::trim).unwrap_or(combo.trim());
+    (!combo.is_empty()).then(|| (format!("Lehramt {school}"), combo.replacen('-', " – ", 1)))
+}
+
+/// What puts programs into one subject: the combinations of a Lehramt by their school, the others
+/// by their name („Maschinenbau - dual" is a form of the subject „Maschinenbau").
+fn subject_key(program: &Program) -> String {
+    match lehramt_of(&program.name) {
+        Some((school, _)) => format!("lehramt:{school}"),
+        None => program.name_key.trim_end_matches("-dual").to_string(),
+    }
 }
 
 /// A faculty with its subjects; `department` is `None` for programs no faculty could be derived for.
@@ -103,17 +131,22 @@ fn group(data: &ProgramsData) -> Vec<Faculty> {
             }
         };
         let Some(faculty) = faculty else { continue };
-        // „Maschinenbau - dual" is a form of the subject „Maschinenbau".
-        let key = program.name_key.trim_end_matches("-dual");
-        match faculty.subjects.iter_mut().find(|s| s.programs.first().is_some_and(|p| p.name_key.trim_end_matches("-dual") == key)) {
+        let key = subject_key(program);
+        match faculty.subjects.iter_mut().find(|s| s.programs.first().is_some_and(|p| subject_key(p) == key)) {
             Some(subject) => subject.programs.push(program.clone()),
-            None => faculty.subjects.push(Subject { title: String::new(), programs: vec![program.clone()] }),
+            None => faculty.subjects.push(Subject { title: String::new(), programs: vec![program.clone()], combos: false }),
         }
     }
     for faculty in &mut faculties {
         for subject in &mut faculty.subjects {
             subject.programs.sort_by_key(|p| (level_order(p), p.study_variant.is_some(), std::cmp::Reverse(p.po_year)));
-            subject.title = subject.programs.iter().map(|p| p.name.clone()).min_by_key(|name| name.chars().count()).unwrap_or_default();
+            match subject.programs.first().and_then(|p| lehramt_of(&p.name)).filter(|_| subject.programs.len() > 1) {
+                Some((school, _)) => {
+                    subject.title = school;
+                    subject.combos = true;
+                }
+                None => subject.title = subject.programs.iter().map(|p| p.name.clone()).min_by_key(|name| name.chars().count()).unwrap_or_default(),
+            }
         }
         faculty.subjects.sort_by_key(|subject| folia_search::fold(&subject.title));
     }
@@ -224,6 +257,7 @@ struct Shown {
     /// Whether any program is left in these columns: a column nothing is in is not drawn.
     bachelor: bool,
     master: bool,
+    other: bool,
     text: String,
     filtered: bool,
 }
@@ -248,14 +282,15 @@ pub fn ProgramsPage() -> impl IntoView {
     let has_ready = ready.is_some();
     let asked = use_ask(move || (!has_ready).then_some(ProgramsOverviewAsk {}));
     move || {
+    let facts_of = |data: &ProgramsData| data.facts.iter().map(|facts| (facts.program_id.clone(), facts.clone())).collect::<BTreeMap<String, PlanFacts>>();
     let loaded = match (&ready, asked.get()) {
-        (Some(ready), _) => Ok(group(&ready.0)),
-        (None, Some(answer)) => answer.map(|data| group(&data)),
+        (Some(ready), _) => Ok((group(&ready.0), facts_of(&ready.0))),
+        (None, Some(answer)) => answer.map(|data| (group(&data), facts_of(&data))),
         (None, None) => return None,
     };
     let status = status.clone();
-    let all = match loaded {
-        Ok(all) => all,
+    let (all, facts) = match loaded {
+        Ok(loaded) => loaded,
         Err(error) => {
             status.for_error(&error);
             return Some(view! { <Title text=t.app.programs/><Plain><ErrorState error/></Plain> }.into_any());
@@ -267,19 +302,25 @@ pub fn ProgramsPage() -> impl IntoView {
     let form_counts: Vec<(FormGroup, usize)> = FormGroup::ALL.iter().map(|form| (*form, count_where(&|p| FormGroup::of(p.study_variant.as_ref()) == Some(*form)))).collect();
     let plan_count = count_where(&|p| p.has_plan);
 
-    // Coming back from a program's page, the overview shows that program again.
+    // Coming back from a program's page, the overview shows that program again: its faculty open,
+    // on a phone its subject too.
     let now = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
     let left_at = Tabs::expect().and_then(|tabs| tabs::page_below(&tabs.before(&now), url::PROGRAMS));
     if let Some(slug) = left_at.filter(|slug| slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')) {
         Effect::new(move |_| {
             // Now, and once more after the browser has restored its own idea of the scroll position.
-            let selector = format!(".program-pill[data-id=\"{slug}\"]");
+            let selector = shown_link(&slug);
+            open_around(&selector);
             nav::reveal_selector(&selector);
             set_timeout(move || { nav::reveal_selector(&selector); }, std::time::Duration::from_millis(220));
         });
     }
 
     let all = StoredValue::new(all);
+    let facts = StoredValue::new(facts);
+    // „Mein Studiengang" while the catalog knows it in this PO: the list marks it (the app's, R9).
+    let resolved = MineResolved::expect();
+    let mine = Memo::new(move |_| resolved.and_then(|resolved| resolved.0.with(|info| info.as_ref().filter(|info| info.exact).map(|info| info.program.slug.clone()))));
     let shown = Memo::new(move |_| {
         let url = url.get();
         let faculties: Vec<Faculty> = all.with_value(|all| {
@@ -289,7 +330,7 @@ pub fn ProgramsPage() -> impl IntoView {
                     subjects: faculty
                         .subjects
                         .iter()
-                        .map(|subject| Subject { title: subject.title.clone(), programs: subject.programs.iter().filter(|p| matches(p, &url, t.locale)).cloned().collect() })
+                        .map(|subject| Subject { title: subject.title.clone(), programs: subject.programs.iter().filter(|p| matches(p, &url, t.locale)).cloned().collect(), combos: subject.combos })
                         .filter(|subject| !subject.programs.is_empty())
                         .collect(),
                 })
@@ -301,6 +342,7 @@ pub fn ProgramsPage() -> impl IntoView {
             programs: faculties.iter().map(Faculty::programs).sum(),
             bachelor: any(Stage::Bachelor),
             master: any(Stage::Master),
+            other: any(Stage::Other),
             faculties,
             text: url.text.clone(),
             filtered: url.is_filtered(),
@@ -436,9 +478,9 @@ pub fn ProgramsPage() -> impl IntoView {
                             })}
                         </span>
                     </h1>
-                    <MineLine/>
                     <a class="sheet-toggle" href="#sidebar" data-action="sheet-open"><Icon name="sliders-horizontal"/>{t.programs.filters}</a>
                 </header>
+                <MineStrip all facts/>
                 {move || {
                     let shown = shown.get();
                     if shown.faculties.is_empty() {
@@ -450,8 +492,15 @@ pub fn ProgramsPage() -> impl IntoView {
                             </div>
                         }.into_any();
                     }
-                    let (bachelor, master) = (shown.bachelor, shown.master);
-                    shown.faculties.into_iter().map(|faculty| view! { <FacultySection faculty bachelor master/> }).collect_view().into_any()
+                    // Searched or filtered, every faculty with what is left is open; else they wait to be
+                    // opened.
+                    let (bachelor, master, other, open) = (shown.bachelor, shown.master, shown.other, shown.filtered);
+                    view! {
+                        <div class="faccs">
+                            {shown.faculties.into_iter().map(|faculty| view! { <FacultySection faculty bachelor master other open facts mine/> }).collect_view()}
+                        </div>
+                    }
+                    .into_any()
                 }}
             </div>
         </Frame>
@@ -461,53 +510,72 @@ pub fn ProgramsPage() -> impl IntoView {
     }
 }
 
-/// „Mein Studiengang: Informatik B.Sc. · PO 2008" in the head of the overview (A.10): the way to the
-/// visitor's own program, with the stored Studienrichtung's plan (`program_href`). It is the app's
-/// (R9): the server writes an empty box in its place, which keeps the line's room from the first
-/// paint where the browser keeps a program (`html.mine`, set by `HEAD_SCRIPT`), so the list does
-/// not move when the app takes over (R15).
+/// The visitor's own program at the head of the overview (the app's, R9; owner, 2026-10-14,
+/// concept A: „Dein Studiengang und der Master danach oben"): the program, the way to „Mein
+/// Studium", and the program after it or before it (the best-matching Master of a Bachelor,
+/// `v_program_counterpart`, as its page names it) with its plan. The server writes an empty box
+/// in its place, which keeps the strip's room from the first paint where the browser keeps a
+/// program (`html.mine`, set by `HEAD_SCRIPT`), so the list does not move when the app takes over
+/// (R15).
 ///
-/// A program gone from the snapshot keeps the line, which says so first: on a phone the line ends
-/// in „…" where it is too long, and that must take the name, not the news. It leads to the newest
-/// PO of the program, where „Als meinen Studiengang setzen" takes that one instead (as the
+/// A program gone from the snapshot keeps the strip, which says so first and leads to the newest PO
+/// of the program, where „Als meinen Studiengang setzen" takes that one instead (as the
 /// Studienplan's „PO 2008 übernehmen" does); without one it leads nowhere.
 #[component]
-fn MineLine() -> impl IntoView {
+fn MineStrip(all: StoredValue<Vec<Faculty>>, facts: StoredValue<BTreeMap<String, PlanFacts>>) -> impl IntoView {
     if !APP {
-        return view! { <span class="mine-line mine-room" aria-hidden="true"></span> }.into_any();
+        return view! { <div class="mine-strip mine-room" aria-hidden="true"></div> }.into_any();
     }
     let t = i18n::t();
+    let p = &t.programs;
     let mine = MyProgram::expect();
     let resolved = MineResolved::expect();
-    let source = use_data().ok();
     // Siblings, each from its own source (R16): what the store says, and what the catalog knows —
     // the program while it is in the snapshot (`true`), else the newest PO of its family, if any.
-    let stored = Memo::new(move |_| {
-        mine.and_then(|mine| mine.with(|doc| doc.program.as_ref().map(|id| (doc.name.clone().unwrap_or_else(|| id.clone()), doc.caption.clone(), doc.direction.clone()))))
-    });
+    let stored = Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| doc.program.as_ref().map(|id| doc.name.clone().unwrap_or_else(|| id.clone())))));
     let known = Memo::new(move |_| resolved?.0.with(|info| info.as_ref().map(|info| (info.program.clone(), info.exact))));
+    let exact = Memo::new(move |_| known.with(|known| known.as_ref().filter(|(_, exact)| *exact).map(|(program, _)| program.id.clone())));
+    let counterpart = use_ask(move || exact.get().map(|program_id| CounterpartAsk { program_id }));
+    let program_of = move |slug: &str| all.with_value(|all| all.iter().flat_map(|f| &f.subjects).flat_map(|s| &s.programs).find(|program| program.slug == slug).cloned());
     (move || {
-        let (name, caption, direction) = stored.get()?;
+        let name = stored.get()?;
         Some(match known.get() {
             Some((program, true)) => {
-                let (href, name) = (program_href(source.as_ref(), &program, caption.as_deref(), direction.as_deref()), program_name(&program));
-                let title = (t.programs.mine_title)(&name);
+                let facts_line = facts.with_value(|facts| facts_text(&program, facts, true, t));
+                let line = [Some(format!("PO {}", program.po_version)), facts_line, Some(p.in_study.to_string())].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+                let other = counterpart.get().and_then(Result::ok).flatten().and_then(|other| program_of(&other.slug).map(|program| (other, program)));
+                let after = Stage::of(&program) == Stage::Bachelor;
                 view! {
-                    <a class="mine-line" href=t.path(&href) title=title>
-                        <Icon name="star"/><span><small>{t.programs.mine_prefix}</small>{name}</span><Icon name="chevron-right"/>
-                    </a>
+                    <section class="panel mine-strip" aria-label=p.yours>
+                        <a class="ms-col" href=t.path(url::STUDY)>
+                            <Icon name="star"/>
+                            <span class="ms-t"><small>{p.yours}</small><b>{format!("{} {}", program.name, program.degree())}</b><span>{line}</span></span>
+                            <span class="ms-go">{p.to_study}<Icon name="chevron-right"/></span>
+                        </a>
+                        {other.map(|(other, found)| {
+                            let line = [Some(format!("PO {}", other.po_version)), facts.with_value(|facts| facts_text(&found, facts, true, t))].into_iter().flatten().collect::<Vec<_>>().join(" · ");
+                            view! {
+                                <a class="ms-col" href=t.path(&url::program_path(&other.slug, ProgramTab::Plan)) data-id=other.slug.clone()>
+                                    <Icon name="graduation-cap"/>
+                                    <span class="ms-t"><small>{if after { p.after } else { p.before }}</small><b>{format!("{} {}", found.name, found.degree())}</b><span>{line}</span></span>
+                                    <span class="ms-go">{p.to_plan}<Icon name="chevron-right"/></span>
+                                </a>
+                            }
+                        })}
+                    </section>
                 }
                 .into_any()
             }
             latest => {
-                let gone_text = (t.programs.gone)(&name);
-                let text = view! { <Icon name="star"/><span><small>{t.programs.gone_prefix}</small>{name}</span> };
+                let gone_text = (p.gone)(&name);
+                let text = view! { <Icon name="star"/><span class="ms-t"><small>{p.gone_prefix}</small><b>{name}</b></span> };
                 match latest.map(|(latest, _)| latest) {
                     Some(latest) => {
-                        let (href, title) = (program_href(source.as_ref(), &latest, None, None), format!("{gone_text} {}", (t.programs.to_po)(&po_of(&latest))));
-                        view! { <a class="mine-line" href=t.path(&href) title=title>{text}<Icon name="chevron-right"/></a> }.into_any()
+                        let href = program_href(use_data().ok().as_ref(), &latest, None, None);
+                        let title = format!("{gone_text} {}", (p.to_po)(&po_of(&latest)));
+                        view! { <section class="panel mine-strip"><a class="ms-col" href=t.path(&href) title=title>{text}<span class="ms-go">{(p.to_po)(&po_of(&latest))}<Icon name="chevron-right"/></span></a></section> }.into_any()
                     }
-                    None => view! { <span class="mine-line" title=gone_text>{text}</span> }.into_any(),
+                    None => view! { <section class="panel mine-strip"><span class="ms-col" title=gone_text>{text}</span></section> }.into_any(),
                 }
             }
         })
@@ -515,10 +583,123 @@ fn MineLine() -> impl IntoView {
     .into_any()
 }
 
-/// One link of the matrix. `as_form`: a segment behind its plain program, saying only what differs.
-fn program_link(program: &Program, subject: &str, as_form: bool, t: &'static Texts) -> impl IntoView {
-    let year = program.po_year.map(|year| year.to_string()).unwrap_or_else(|| program.po_version.clone());
-    let form = form_label(program, subject, t.locale);
+/// The link of a program as the page shows it at its width: in the matrix, or in a phone's list.
+fn shown_link(slug: &str) -> String {
+    let list = if nav::is_phone() || narrow_list() { ".fx-phone" } else { ".fx-desk" };
+    format!("{list} a[data-id=\"{slug}\"]")
+}
+
+/// The faculties are too narrow for their matrix (app.css: the container query of `.faccs`).
+fn narrow_list() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        leptos::web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.query_selector(".faccs").ok().flatten())
+            .is_some_and(|faccs| faccs.get_bounding_client_rect().width() < 761.0)
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// Opens the accordions around what `selector` finds: its faculty, on a phone its subject.
+fn open_around(selector: &str) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(found) = leptos::web_sys::window().and_then(|window| window.document()).and_then(|document| document.query_selector(selector).ok().flatten()) else { return };
+        let mut at = found.parent_element();
+        while let Some(element) = at {
+            if element.tag_name().eq_ignore_ascii_case("details") {
+                let _ = element.set_attribute("open", "");
+            }
+            at = element.parent_element();
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = selector;
+}
+
+/// How long a program is and how many credits it comes to, as its validated plan says: „6 Sem. ·
+/// 180 LP" (`short`), „6 Semester · 180 LP"; `None` without a validated plan, or where it says
+/// neither.
+fn facts_text(program: &Program, facts: &BTreeMap<String, PlanFacts>, short: bool, t: &Texts) -> Option<String> {
+    let facts = facts.get(&program.id).filter(|_| program.has_plan)?;
+    let span = |(low, high): (f64, f64)| match (high - low).abs() < 0.01 {
+        true => format::number(low, t.locale),
+        false => format!("{}–{}", format::number(low, t.locale), format::number(high, t.locale)),
+    };
+    let semesters = facts.semesters.map(|(low, high)| span((low as f64, high as f64))).map(|n| if short { (t.programs.semesters_short)(&n) } else { (t.programs.semesters)(&n) });
+    let credits = facts.credits.map(span).map(|n| (t.programs.credits)(&n));
+    let parts: Vec<String> = [semesters, credits].into_iter().flatten().collect();
+    (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+/// A program as a line of the list: its degree (with its PO where its column has two of one
+/// degree), its combination of a Lehramt, or the form of study it adds to the program above it.
+#[derive(Clone)]
+struct Line {
+    program: Program,
+    /// What it is called in its cell: „B.Sc.", „Deutsch – Englisch", „dual, Praxis".
+    label: String,
+    /// „PO 2008" where its column has two of its degree.
+    po: Option<String>,
+    /// The form of study of the first line of a program: „dual, Praxis".
+    form: Option<String>,
+    /// A form of study under its program.
+    sub: bool,
+    /// „6 Semester · 180 LP" and „6 Sem. · 180 LP"; `None` without a validated plan.
+    facts: Option<String>,
+    facts_short: Option<String>,
+}
+
+/// The lines of the programs of one column of a subject.
+fn lines_of(programs: Vec<Program>, subject: &Subject, facts: &BTreeMap<String, PlanFacts>, t: &Texts) -> Vec<Line> {
+    let line = |program: Program, label: String, po: Option<String>, form: Option<String>, sub: bool| Line {
+        facts: facts_text(&program, facts, false, t),
+        facts_short: facts_text(&program, facts, true, t),
+        program,
+        label,
+        po,
+        form,
+        sub,
+    };
+    if subject.combos {
+        let mut programs = programs;
+        programs.sort_by_key(|program| lehramt_of(&program.name).map(|(_, combo)| combo).unwrap_or_default());
+        return programs
+            .into_iter()
+            .map(|program| {
+                let combo = lehramt_of(&program.name).map_or_else(|| program.name.clone(), |(_, combo)| combo);
+                let form = program.study_variant.as_ref().map(|variant| format::variant_short(variant, t.locale));
+                line(program, combo, None, form, false)
+            })
+            .collect();
+    }
+    let groups = groups(programs, &subject.title, t.locale);
+    let two = groups.len() > 1;
+    groups
+        .into_iter()
+        .flat_map(|group| {
+            let main = {
+                let form = form_label(&group.main, &subject.title, t.locale);
+                let po = two.then(|| format!("PO {}", group.main.po_year.map(|year| year.to_string()).unwrap_or_else(|| group.main.po_version.clone())));
+                line(group.main.clone(), degree_short(&group.main, t.locale), po, form, false)
+            };
+            let forms: Vec<Line> = group
+                .forms
+                .into_iter()
+                .map(|program| {
+                    let label = form_label(&program, &subject.title, t.locale).unwrap_or_else(|| program.name.clone());
+                    line(program, label, None, None, true)
+                })
+                .collect();
+            std::iter::once(main).chain(forms)
+        })
+        .collect()
+}
+
+/// A program's title: what it is, with its PO and form, whether its plan is checked.
+fn described(program: &Program, t: &Texts) -> (String, String) {
     let described = format!(
         "{} · {} · PO {}{}",
         program.name,
@@ -531,83 +712,177 @@ fn program_link(program: &Program, subject: &str, as_form: bool, t: &'static Tex
         (t.programs.modules)(program.curricular_modules),
         if program.has_plan { t.programs.plan_checked } else { t.programs.plan_unchecked }
     );
-    let text = if as_form {
-        view! { <span>{form.unwrap_or_else(|| program.name.clone())}</span> }.into_any()
-    } else {
-        view! {
-            <b>{degree_short(program, t.locale)}</b>
-            <span class="num">{year}</span>
-            {form.map(|form| view! { <span class="variant">{form}</span> })}
-        }
-        .into_any()
-    };
+    (described, tooltip)
+}
+
+/// A line of a cell of the desktop's matrix: the degree or combination, the form, the plan's facts.
+fn desk_line(line: Line, mine: Memo<Option<String>>, t: &'static Texts) -> impl IntoView {
+    let slug = line.program.slug.clone();
+    let here = slug.clone();
+    let is_mine = Signal::derive(move || mine.with(|mine| mine.as_deref() == Some(here.as_str())));
+    let (described, tooltip) = described(&line.program, t);
+    let facts = line.facts_short.clone().unwrap_or_else(|| t.programs.no_plan.to_string());
     view! {
-        <a
-            class="program-pill"
-            class:form=as_form
-            class:no-plan=!program.has_plan
-            data-walk="program-link"
-            data-id=program.slug.clone()
-            href=t.path(&url::program_path(&program.slug, ProgramTab::Plan))
-            title=tooltip
-            aria-label=described
-        >
-            {text}
+        <a class="prog-line" class:sub=line.sub class:quiet=!line.program.has_plan class:is-mine=is_mine
+            data-walk="program-link" data-id=slug.clone() href=t.path(&url::program_path(&slug, ProgramTab::Plan)) title=tooltip aria-label=described>
+            <b>
+                {line.label}
+                {line.po.map(|po| view! { <span class="pl-po">{po}</span> })}
+                {line.form.map(|form| view! { <span class="pl-form">{form}</span> })}
+                {move || is_mine.get().then(|| view! { <Icon name="star" class="mine-star"/> })}
+            </b>
+            <span class="pl-f">{facts}</span>
         </a>
     }
 }
 
-#[component]
-fn FacultySection(faculty: Faculty, bachelor: bool, master: bool) -> impl IntoView {
-    let t = i18n::t();
-    let programs = faculty.programs();
-    let (anchor, short, name) = (faculty.anchor(), faculty.short(t), faculty.name(t));
-    let has_other = faculty.subjects.iter().flat_map(|s| &s.programs).any(|p| Stage::of(p) == Stage::Other);
-    // The columns are the same in every section (so they line up down the whole page); the
-    // narrow last one is labelled only where something is in it.
-    let stages: Vec<Stage> = [(Stage::Bachelor, bachelor), (Stage::Master, master), (Stage::Other, true)].iter().filter(|(_, shown)| *shown).map(|(stage, _)| *stage).collect();
-    let head = stages.clone();
+/// An offer of a phone's folded subject: as `desk_line`, with the way on at its end.
+fn phone_line(line: Line, mine: Memo<Option<String>>, t: &'static Texts) -> impl IntoView {
+    let slug = line.program.slug.clone();
+    let here = slug.clone();
+    let is_mine = Signal::derive(move || mine.with(|mine| mine.as_deref() == Some(here.as_str())));
+    let (described, tooltip) = described(&line.program, t);
+    let facts = line.facts_short.clone().unwrap_or_else(|| t.programs.no_plan.to_string());
     view! {
-        <section class="panel faculty" class:has-bachelor=bachelor class:has-master=master id=anchor>
-            <header class="faculty-head">
-                <span class="faculty-code">{short}</span>
-                <h2>{name.clone()}</h2>
-                <span class="tab-count">{programs}{(t.programs.programs_after)(programs)}</span>
-            </header>
-            {faculty.department.is_none().then(|| view! {
-                <p class="hint">{t.programs.unassigned_hint}</p>
-            })}
-            <div class="subjects" role="table" aria-label=name>
-                <div class="matrix-row matrix-head label" role="row">
-                    <span role="columnheader">{t.programs.subject}</span>
-                    {head.into_iter().map(|stage| view! {
-                        <span role="columnheader">{(stage != Stage::Other || has_other).then(|| stage.label(t))}</span>
-                    }).collect_view()}
-                </div>
-                {faculty.subjects.into_iter().map(|subject| {
-                    let Subject { title, programs } = subject;
-                    view! {
-                        <div class="matrix-row subject" role="row">
-                            <span class="subject-name" role="rowheader">{title.clone()}</span>
-                            {stages.iter().map(|stage| {
-                                let of_stage: Vec<Program> = programs.iter().filter(|p| Stage::of(p) == *stage).cloned().collect();
-                                let empty = of_stage.is_empty();
-                                view! {
-                                    <span class="cell" class:empty=empty role="cell" data-stage=stage.code()>
-                                        {groups(of_stage, &title, t.locale).into_iter().map(|group| view! {
-                                            <span class="pill-group">
-                                                {program_link(&group.main, &title, false, t)}
-                                                {group.forms.iter().map(|form| program_link(form, &title, true, t)).collect_view()}
-                                            </span>
-                                        }).collect_view()}
-                                    </span>
-                                }
-                            }).collect_view()}
-                        </div>
-                    }
-                }).collect_view()}
-            </div>
-        </section>
+        <a class="of" class:sub=line.sub class:quiet=!line.program.has_plan class:is-mine=is_mine
+            data-walk="program-link" data-id=slug.clone() href=t.path(&url::program_path(&slug, ProgramTab::Plan)) title=tooltip aria-label=described>
+            <span class="of-t">
+                <b>{line.label}{line.po.map(|po| view! { <span class="pl-po">{po}</span> })}</b>
+                {line.form.map(|form| view! { <span class="of-form">{form}</span> })}
+                {move || is_mine.get().then(|| view! { <em><Icon name="star" class="mine-star"/>{t.programs.mine_mark}</em> })}
+            </span>
+            <span class="of-f">{facts}</span>
+            <Icon name="chevron-right" class="chev"/>
+        </a>
+    }
+}
+
+/// What a faculty has, by degree: „12 Bachelor · 11 Master · 3 Lehramt · 1 weitere".
+fn summary_of(faculty: &Faculty, t: &Texts) -> String {
+    let programs: Vec<&Program> = faculty.subjects.iter().flat_map(|s| &s.programs).collect();
+    let teaching = |p: &&Program| matches!(p.degree_level.known(), Some(DegreeLevel::TeachingBachelor | DegreeLevel::TeachingMaster));
+    let count = |stage: Stage| programs.iter().filter(|p| Stage::of(p) == stage && !teaching(p)).count();
+    let parts = [
+        (count(Stage::Bachelor), t.programs.sum_bachelor),
+        (count(Stage::Master), t.programs.sum_master),
+        (programs.iter().filter(|p| teaching(p)).count(), t.programs.sum_teaching),
+        (count(Stage::Other), t.programs.sum_other),
+    ];
+    parts.into_iter().filter(|(n, _)| *n > 0).map(|(n, say)| say(n)).collect::<Vec<_>>().join(" · ")
+}
+
+/// A faculty as an accordion (owner, 2026-10-14: „Ich mag die akkordion elemente von den
+/// Fakultäten"): its head (the faculty, its name, what it has, how many), and in it its programs —
+/// on a wide page the matrix of the cycles of study, a row a subject, each program a line of text
+/// (its degree, its form, how long and how many credits its plan says); on a phone or a narrow page
+/// a row a subject, which folds open where it has several programs (owner, the same day: „Variante
+/// 1 mit ausklappen"). Both are `<details>`: they open without JavaScript, and the page's address
+/// does not change. The server's HTML holds both, the stylesheet shows the one the width asks for.
+#[component]
+fn FacultySection(faculty: Faculty, bachelor: bool, master: bool, other: bool, open: bool, facts: StoredValue<BTreeMap<String, PlanFacts>>, mine: Memo<Option<String>>) -> impl IntoView {
+    let t = i18n::t();
+    let p = &t.programs;
+    let programs = faculty.programs();
+    let (anchor, short, name, summary) = (faculty.anchor(), faculty.short(t), faculty.name(t), summary_of(&faculty, t));
+    let has_other = faculty.subjects.iter().flat_map(|s| &s.programs).any(|p| Stage::of(p) == Stage::Other);
+    // The columns are the same in every faculty (so they line up down the whole page); the last
+    // one is named only where something is in it.
+    let stages: Vec<Stage> = [(Stage::Bachelor, bachelor), (Stage::Master, master), (Stage::Other, other)].iter().filter(|(_, shown)| *shown).map(|(stage, _)| *stage).collect();
+    let desk_rows = faculty
+        .subjects
+        .iter()
+        .map(|subject| {
+            let cells = stages
+                .iter()
+                .map(|stage| {
+                    let of_stage: Vec<Program> = subject.programs.iter().filter(|p| Stage::of(p) == *stage).cloned().collect();
+                    let lines = facts.with_value(|facts| lines_of(of_stage, subject, facts, t));
+                    view! { <td class="fx-cell" data-stage=stage.code()>{lines.into_iter().map(|line| desk_line(line, mine, t)).collect_view()}</td> }
+                })
+                .collect_view();
+            let combos = subject.combos.then(|| view! { <small>{(p.combinations)(subject.programs.len())}</small> });
+            view! { <tr><th scope="row" class="fx-name">{subject.title.clone()}{combos}</th>{cells}</tr> }
+        })
+        .collect_view();
+    let phone_rows = faculty
+        .subjects
+        .iter()
+        .map(|subject| {
+            let all: Vec<Line> = facts.with_value(|facts| {
+                [Stage::Bachelor, Stage::Master, Stage::Other]
+                    .into_iter()
+                    .flat_map(|stage| lines_of(subject.programs.iter().filter(|p| Stage::of(p) == stage).cloned().collect(), subject, facts, t))
+                    .collect()
+            });
+            let slugs: Vec<String> = subject.programs.iter().map(|program| program.slug.clone()).collect();
+            let has_mine = move || mine.with(|mine| mine.as_ref().is_some_and(|mine| slugs.contains(mine)));
+            if let [only] = all.as_slice() {
+                let only = only.clone();
+                let slug = only.program.slug.clone();
+                let degree = match &only.form {
+                    Some(form) => format!("{} · {form}", degree_short(&only.program, t.locale)),
+                    None => degree_short(&only.program, t.locale),
+                };
+                let facts = only.facts.clone().unwrap_or_else(|| p.no_plan.to_string());
+                let (described, tooltip) = described(&only.program, t);
+                return view! {
+                    <a class="sj one" class:quiet=!only.program.has_plan data-walk="program-link" data-id=slug.clone() href=t.path(&url::program_path(&slug, ProgramTab::Plan)) title=tooltip aria-label=described>
+                        <span class="sj-t"><b>{subject.title.clone()}{move || has_mine().then(|| view! { <Icon name="star" class="mine-star"/> })}</b><small><span class="dg">{degree}</span>" · "{facts}</small></span>
+                        <Icon name="chevron-right" class="chev"/>
+                    </a>
+                }
+                .into_any();
+            }
+            let mut degrees: Vec<String> = Vec::new();
+            for line in &all {
+                let degree = degree_short(&line.program, t.locale);
+                let degree = if subject.combos { degree.trim_start_matches("Lehramt ").to_string() } else { degree };
+                if !degrees.contains(&degree) {
+                    degrees.push(degree);
+                }
+            }
+            let count = if subject.combos { (p.combinations)(all.len()) } else { (p.offers)(all.len()) };
+            let levels = [Stage::Bachelor, Stage::Master, Stage::Other]
+                .into_iter()
+                .filter_map(|stage| {
+                    let of_stage: Vec<Line> = all.iter().filter(|line| Stage::of(&line.program) == stage).cloned().collect();
+                    (!of_stage.is_empty()).then(|| view! { <p class="of-lvl">{stage.label(t)}</p>{of_stage.into_iter().map(|line| phone_line(line, mine, t)).collect_view()} })
+                })
+                .collect_view();
+            view! {
+                <details class="sj-w">
+                    <summary class="sj">
+                        <span class="sj-t"><b>{subject.title.clone()}{move || has_mine().then(|| view! { <Icon name="star" class="mine-star"/> })}</b><small><span class="dg">{degrees.join(" · ")}</span>" · "{count}</small></span>
+                        <span class="sj-n">{all.len()}</span>
+                        <Icon name="chevron-down" class="chev"/>
+                    </summary>
+                    <div class="offers">{levels}</div>
+                </details>
+            }
+            .into_any()
+        })
+        .collect_view();
+    view! {
+        <details class="panel facc" id=anchor open=open>
+            <summary class="facc-h">
+                <span class="facc-tag">{short}</span>
+                <span class="facc-name">{name.clone()}</span>
+                <span class="facc-sum">{summary}</span>
+                <span class="facc-n">{programs}<span class="visually-hidden">{(p.programs_after)(programs)}</span></span>
+                <Icon name="chevron-down" class="facc-chev"/>
+            </summary>
+            {faculty.department.is_none().then(|| view! { <p class="hint facc-hint">{p.unassigned_hint}</p> })}
+            <table class="fx-desk" aria-label=name>
+                <thead>
+                    <tr>
+                        <th scope="col" class="fx-name">{p.subject}</th>
+                        {stages.iter().map(|stage| view! { <th scope="col" data-stage=stage.code()>{(*stage != Stage::Other || has_other).then(|| stage.label(t))}</th> }).collect_view()}
+                    </tr>
+                </thead>
+                <tbody>{desk_rows}</tbody>
+            </table>
+            <div class="fx-phone">{phone_rows}</div>
+        </details>
     }
 }
 

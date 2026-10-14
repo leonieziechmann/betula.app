@@ -28,6 +28,7 @@
 //! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
 //! store follows after it (R21, `StudyCtx::change`).
 
+mod choose;
 mod dialog;
 mod dom;
 mod focus;
@@ -37,6 +38,7 @@ mod overview;
 mod pager;
 mod phone;
 mod picker;
+mod regular;
 mod setup;
 mod side;
 
@@ -49,7 +51,7 @@ use folia_pages::PlanSource;
 use folia_plans::plan;
 use folia_plans::study::{self, AreaKind, Input, Item, Line, Study};
 use folia_plans::studyplan::{self as stored, MineDoc, PlanDoc};
-use folia_routes::url::{self, LocalView, StudyUrl};
+use folia_routes::url::{self, LocalView, StudyUrl, StudyView};
 use leptos::prelude::*;
 use leptos_meta::Title;
 
@@ -252,6 +254,11 @@ pub(super) struct StudyCtx {
     /// A phone's semester was come to from its overview: the step before it in the history is the
     /// overview, and the way back goes back there (`phone.rs`).
     pub from_overview: RwSignal<bool>,
+    /// The same for a view (the Regelstudienplan, the Wahlpflicht) on a phone.
+    pub view_back: RwSignal<bool>,
+    /// The choice the Wahlpflicht shows (an index of `PlanView::choices`): a row's „Wählen" picks
+    /// it (`regular.rs`, `choose.rs`).
+    pub choice: RwSignal<Option<usize>>,
 }
 
 impl StudyCtx {
@@ -549,7 +556,17 @@ pub fn StudyPage() -> impl IntoView {
         drag: RwSignal::new(None),
         undo: RwSignal::new(None),
         from_overview: RwSignal::new(false),
+        view_back: RwSignal::new(false),
+        choice: RwSignal::new(None),
     };
+    // A view come to from the overview (a phone's way to it): the step before it in the history.
+    Effect::new(move |before: Option<(StudyView, bool)>| {
+        let now = url.with(|url| (url.view, url.plan));
+        if let Some(before) = before.filter(|before| before.0 != now.0) {
+            ctx.view_back.set(before == (StudyView::Semesters, false));
+        }
+        now
+    });
     // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
     // where no dialog takes it first.
     Effect::new(move |_| {
@@ -637,16 +654,26 @@ fn StudyMain(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The study: on a desktop the overview and the semesters, on a phone a row of pages.
+/// The study: on a desktop the overview and the semesters, on a phone a row of pages; or a view of
+/// it, the Regelstudienplan or the Wahlpflicht (under the overview on a desktop, a page of its own
+/// on a phone).
 #[component]
 fn StudyBody(ctx: StudyCtx) -> impl IntoView {
+    let view = Memo::new(move |_| ctx.url.with(|url| url.view));
     move || {
-        if ctx.phone.get() {
-            view! { <phone::Phone ctx/> }.into_any()
+        let phone = ctx.phone.get();
+        let body = match view.get() {
+            StudyView::Semesters if phone => return view! { <phone::Phone ctx/> }.into_any(),
+            StudyView::Semesters => view! { <Semesters ctx/> }.into_any(),
+            StudyView::Plan => view! { <regular::Regular ctx/> }.into_any(),
+            StudyView::Choices => view! { <choose::Choose ctx/> }.into_any(),
+        };
+        if phone {
+            body
         } else {
             view! {
                 <overview::Overview ctx/>
-                <Semesters ctx/>
+                {body}
             }
             .into_any()
         }
@@ -834,6 +861,31 @@ mod tests {
         SemesterKey::parse(text).unwrap()
     }
 
+    /// The catalog's rows of `ids`, as „Mein Studium" asks for them.
+    fn plans_of_rows(ids: &[&str]) -> Vec<CatalogRow> {
+        use std::sync::Mutex;
+
+        use folia_data::CatalogSource;
+        use folia_model::native::NativeDatabase;
+        use folia_model::{Database, DbError};
+
+        struct Snapshot(Mutex<NativeDatabase>);
+        impl CatalogSource for Snapshot {
+            fn with_db(&self, job: &mut dyn FnMut(&dyn Database)) -> Result<(), DbError> {
+                let db = self.0.lock().map_err(|_| DbError::Unavailable("poisoned".to_string()))?;
+                job(&*db);
+                Ok(())
+            }
+        }
+        let path = std::env::var("FOLIA_TEST_SNAPSHOT").map(std::path::PathBuf::from).unwrap_or_else(|_| {
+            let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../snapshot");
+            let pointer = std::fs::read_to_string(dir.join("current.json")).unwrap();
+            dir.join(pointer.split("\"file\"").nth(1).and_then(|rest| rest.split('"').nth(1)).unwrap())
+        });
+        let source = DataClient::new(folia_data::Source(std::sync::Arc::new(Snapshot(Mutex::new(NativeDatabase::open(&path).unwrap())))));
+        source.now(&StudyModulesAsk { ids: ids.iter().map(|id| id.to_string()).collect() }).unwrap().rows
+    }
+
     /// Informatik B.Sc. in its third semester: the areas of the mockup, the semesters empty, the
     /// Studienbeginn assumed until one is stored; filled from the plan, the first two are
     /// Wiederholer until ticked off, and the Stundenplan's import takes them.
@@ -881,4 +933,77 @@ mod tests {
         assert_eq!(ready.plans.len(), source.variants.len());
         assert_eq!(ready.setup.shown, Some(1));
     }
+
+    /// The views of Informatik B.Sc. in its third semester (owner, 2026-10-14, concept A): every row
+    /// of the plan with where it stands, and what is left to choose. The first two semesters filled
+    /// and passed but Mathematik IT-1, taken again now; the FÜS and the Proseminar done as rows;
+    /// Analysis II planned out of the Anwendungsfach's list.
+    #[test]
+    fn the_views_of_informatik() {
+        use folia_plans::choices::{plan_view, RowState};
+
+        let source = plans_of("079-82-2008");
+        let plan = [
+            "m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t1\t\tplan", "m\t2025W\t12102\t1\t\tplan", "m\t2025W\t11112\t1\t\tplan",
+            "m\t2026S\t12101\t1\t\tplan", "m\t2026S\t11903\t1\t\tplan", "m\t2026S\t11113\t1\t\tplan",
+            "m\t2026W\t11787\t1\t\tplan", "m\t2026W\t11112\t1\t\t", "m\t2027S\t11104\t1\t\t",
+            "p\t1\t2025W\t079-82-2008\t17\t1-1\t6\tfues\t\tFachübergreifendes Studium",
+            "q\t2025W\t079-82-2008\t17\t\tFachübergreifendes Studium", "q\t2026S\t079-82-2008\t10\t\tProseminar oder Praktikum",
+            "d\t2025W\t12104", "d\t2025W\t12107", "d\t2025W\t12102", "d\t2026S\t12101", "d\t2026S\t11903", "d\t2026S\t11113",
+        ]
+        .join("\n");
+        let doc = PlanDoc::restored(&plan);
+        let mine = MineDoc { caption: Some(String::new()), start: Some(key("2025W")), ..MineDoc::default() };
+        let (shown, core, page) = chosen(&source, mine.caption.as_deref(), None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: key("2026W"), leave: BTreeSet::new(), until: None };
+        let mut rows = source.linked.clone();
+        rows.extend(plans_of_rows(&["11104"]));
+        let input = input_of(&source, &setup, &doc, &rows);
+        let study = study::study(&input);
+        let view = plan_view(&input, &study);
+        assert_eq!(view.lines.len(), 23);
+        let state = |name: &str| view.lines.iter().find(|line| line.name == name).map(|line| line.state).unwrap();
+        assert_eq!(state("Entwicklung von Softwaresystemen"), RowState::Passed(key("2025W")));
+        assert_eq!(state("Mathematik IT-1 (Diskrete Mathematik)"), RowState::Again { failed: key("2025W"), planned: key("2026W") });
+        assert_eq!(state("Theoretische Informatik"), RowState::Planned(key("2026W")));
+        assert_eq!(state("Betriebssysteme I"), RowState::Open);
+        assert_eq!(state("Fachübergreifendes Studium"), RowState::Passed(key("2025W")), "a row marked as done");
+        assert_eq!(state("Proseminar oder Praktikum"), RowState::Passed(key("2026S")));
+        // The choices: the two rows of the Anwendungsfach one, the three Komplexe tied by their sum.
+        let names: Vec<&str> = view.choices.iter().map(|choice| choice.name.as_str()).collect();
+        assert_eq!(names.len(), 9, "{names:?}");
+        let anwendung = view.choices.iter().find(|choice| choice.name == "Anwendungsfach").unwrap();
+        assert_eq!((anwendung.lines.len(), anwendung.least, anwendung.first, anwendung.last), (2, 12.0, 3, 4));
+        assert_eq!(anwendung.lists.iter().map(|list| list.name.as_str()).collect::<Vec<_>>()[..2], ["Mathematik", "Maschinenbau / Elektrotechnik"]);
+        assert_eq!(anwendung.taken.iter().map(|taken| (taken.id.as_str(), taken.passed)).collect::<Vec<_>>(), [("11104", false)], "Analysis II counts towards the Anwendungsfach");
+        assert!(!anwendung.complete() && anwendung.open() == 4.0);
+        let komplex = view.choices.iter().find(|choice| choice.name == "Komplex Praktische Informatik").unwrap();
+        assert_eq!((komplex.least, komplex.most, komplex.credits_text.as_str()), (10.0, 24.0, "10–24"));
+        assert_eq!(komplex.together.as_ref().map(|(credits, others)| (*credits, others.len())), Some((44.0, 2)));
+        let fues = view.choices.iter().find(|choice| choice.fues).unwrap();
+        assert!(fues.complete() && fues.lists.is_empty());
+        // Left to choose: Praktische Mathematik 6, the Anwendungsfach 4 more, the 4. FS 6, the
+        // Komplexe 44 together, the Seminar 4.
+        assert_eq!(view.to_choose, 64.0);
+    }
+
+    /// Maschinenbau numbers its electives („Wahlpflichtmodul 1" … „4"): one choice of 24 LP, whose
+    /// list is the tree of its area, the plan's rows naming none.
+    #[test]
+    fn numbered_rows_are_one_choice() {
+        use folia_plans::choices::plan_view;
+
+        let source = plans_of("104-82-2021");
+        let (shown, core, page) = chosen(&source, None, None);
+        let setup = Setup { shown, core, page, start: key("2025W"), start_stored: true, now: key("2026W"), leave: BTreeSet::new(), until: None };
+        let doc = PlanDoc::default();
+        let input = input_of(&source, &setup, &doc, &source.linked);
+        let view = plan_view(&input, &study::study(&input));
+        let electives: Vec<_> = view.choices.iter().filter(|choice| choice.name == "Wahlpflichtmodul").collect();
+        assert_eq!(electives.len(), 2, "the Fachspezifisches and the Praxisorientiertes Studium each have theirs");
+        let first = electives.iter().find(|choice| choice.lines.len() == 4).unwrap();
+        assert_eq!((first.least, first.first, first.last), (24.0, 5, 6));
+        assert!(!first.lists.is_empty() && first.lists.iter().all(|list| !list.modules.is_empty()));
+    }
 }
+

@@ -147,22 +147,19 @@ fn frame(shape: Shape) -> AnyView {
                 </div>
             </div>
         }.into_any()),
+        // The program overview: its faculties as accordions, closed, as the page opens them.
         Shape::Programs => framed(Side::Filters(&[4, 3, 1]), view! {
             <div class="page-inner">
                 <div class="sk-summary">{bar("sk-count")}{bar("sk-w3")}</div>
-                {[8usize, 5, 4].iter().map(|rows| view! {
-                    <div class="panel sk-sweep sk-faculty">
-                        <div class="sk-faculty-head">{bar("sk-code")}{bar("sk-w4 sk-tall")}</div>
-                        <div class="sk-subject sk-subject-head">{bar("sk-w2")}{bar("sk-w2")}{bar("sk-w2")}</div>
-                        {(0..*rows).map(|i| view! {
-                            <div class="sk-subject">
-                                {bar(if i % 2 == 0 { "sk-w4 sk-tall" } else { "sk-w3 sk-tall" })}
-                                <span>{(i % 3 != 2).then(|| bar("sk-pill"))}</span>
-                                <span>{(i % 3 != 1).then(|| bar("sk-pill"))}</span>
-                            </div>
-                        }).collect_view()}
-                    </div>
-                }).collect_view()}
+                <div class="sk-faccs">
+                    {(0..7).map(|i| view! {
+                        <div class="panel sk-sweep sk-facc">
+                            {bar("sk-code")}
+                            {lines(if i % 2 == 0 { &["sk-w4 sk-tall", "sk-w3"] } else { &["sk-w5 sk-tall", "sk-w2"] })}
+                            {bar("sk-w1")}
+                        </div>
+                    }).collect_view()}
+                </div>
             </div>
         }.into_any()),
         Shape::Home => framed(Side::Toc(4), view! {

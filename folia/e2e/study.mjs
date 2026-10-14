@@ -180,7 +180,7 @@ if (current !== "2026W") {
     timetable: document.querySelector('#sidebar a[href="/studyplan"]') !== null,
     legend: [...document.querySelectorAll("#sidebar .st-legend ul")].map((list) => list.textContent),
   }));
-  check(side.labels.join("|") === "Fortschrittsbalken|Zeichen an Modulen" && side.mine.join("|") === "Informatik B.Sc.|PO 2008|3. Fachsemester · seit WiSe 25/26" && !side.timetable, `the sidebar: ${JSON.stringify(side)}`);
+  check(side.labels.join("|") === "Ansichten|Studiengang|Fortschrittsbalken|Zeichen an Modulen" && side.mine.join("|") === "Informatik B.Sc.|PO 2008|3. Fachsemester · seit WiSe 25/26" && !side.timetable, `the sidebar: ${JSON.stringify(side)}`);
   check(side.legend.join("|") === "BestandenGeplantOffenÜber Bedarf|BestandenWiederholungNicht angeboten", `the legend: ${JSON.stringify(side.legend)}`);
   await step("the program's card", () => page.click("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   await step("not changed", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
@@ -333,6 +333,43 @@ if (current !== "2026W") {
   await takeover(page);
   await page.waitForFunction(() => document.querySelector(".st-grid") && document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden", null, { timeout: 8000 }).catch(() => problems.push("a reload lost the view or what was ticked off"));
   await page.evaluate(() => localStorage.removeItem("betula.study.view"));
+  // The reload was a page load of its own; from here on none.
+  await page.evaluate(() => { window.__marker = 1; });
+
+  // The views (owner, 2026-10-14, concept A „Ansichten"): the Regelstudienplan and the Wahlpflicht
+  // are views of „Mein Studium", named in its sidebar, each with the student's stand in it.
+  const views = await page.evaluate(() => [...document.querySelectorAll("#sidebar .st-vl")].map((a) => a.querySelector("span").textContent + (a.getAttribute("aria-current") === "page" ? "*" : "")));
+  check(views.join() === "Semester,Gesamtplan*,Regelstudienplan,Wahlpflicht", `the views: ${views}`);
+  await step("Regelstudienplan", () => page.click('#sidebar .st-vl:has-text("Regelstudienplan")'), () => location.search === "?view=plan" && document.querySelectorAll(".st-mx tbody tr.st-rsp-row").length === 23);
+  const regular = await page.evaluate(() => {
+    const row = (name) => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === name);
+    return {
+      current: document.querySelector('#sidebar .st-vl[aria-current="page"] span')?.textContent,
+      groups: [...document.querySelectorAll(".st-mx tr.g .st-g b")].map((b) => b.textContent),
+      columns: [...document.querySelectorAll(".st-mx thead th.fs b")].map((b) => b.textContent).join(""),
+      os: row("Betriebssysteme I")?.querySelector(".st-minec")?.textContent.trim(),
+      passed: document.querySelectorAll(".st-mx .st-cell.is-passed").length,
+      choose: document.querySelectorAll('.st-mx a.st-addb[href="/study?view=areas"]').length,
+    };
+  });
+  check(regular.current === "Regelstudienplan" && regular.groups.slice(0, 2).join() === "Komplex Informatik,Komplex Mathematik" && regular.columns === "123456" && regular.os === "SoSe 27" && regular.passed > 0 && regular.choose > 3, `the Regelstudienplan: ${JSON.stringify(regular)}`);
+  await step("a row planned from the plan", () => page.click('.st-mx tr.st-rsp-row:has(.st-rsp-name:text-is("Digitaltechnik-Praktikum")) button.st-addb'), () => document.querySelector(".st-undo")?.textContent.includes("„Digitaltechnik-Praktikum“ ins SoSe 2027 eingeplant"));
+  await page.waitForFunction(() => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === "Digitaltechnik-Praktikum")?.querySelector(".st-minec")?.textContent.trim() === "SoSe 27", null, { timeout: 4000 }).catch(() => problems.push("the row planned from the plan does not say where it is planned"));
+  check((await lines(page, "m\t2027S\t12214")).length === 1, "„Einplanen\" of the plan did not plan the module");
+  await step("Rückgängig", () => page.click(".st-undo button.mini"), () => !document.querySelector(".st-undo"));
+  await page.waitForFunction(() => document.querySelector(".st-mx") !== null, null, { timeout: 4000 });
+  check((await lines(page, "m\t2027S\t12214")).length === 0, "„Rückgängig\" did not take the module out again");
+  await step("Wählen: the Wahlpflicht", () => page.click('.st-mx tr.st-rsp-row:has-text("Anwendungsfach") a.st-addb'), () => location.search === "?view=areas" && document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach"));
+  const choice = await page.evaluate(() => ({
+    current: document.querySelector('#sidebar .st-vl[aria-current="page"] span')?.textContent,
+    lists: [...document.querySelectorAll(".st-lists button")].map((b) => b.childNodes[0].textContent),
+    rows: document.querySelectorAll(".st-wtable tbody tr:not(.st-more-row)").length,
+    season: document.querySelector('.st-season-seg button[aria-pressed="true"]')?.textContent,
+  }));
+  check(choice.current === "Wahlpflicht" && choice.lists.length === 5 && choice.lists[0] === "Mathematik" && choice.rows > 3 && choice.season === "WiSe 2026/27", `the Wahlpflicht: ${JSON.stringify(choice)}`);
+  await step("a module of its list planned", () => page.click(".st-wtable tbody tr:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".st-undo")?.textContent.includes("ins WiSe 2026/27 eingeplant") && document.querySelector(".st-wtable tbody tr.taken"));
+  await page.waitForFunction(() => document.querySelector('.st-sl[aria-current="true"] small')?.textContent.includes("von 12\u00a0LP gewählt"), null, { timeout: 4000 }).catch(() => problems.push("the choice does not count the module planned out of its list"));
+  await step("back to the semesters", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => location.search === "" && document.querySelector(".st-grid"));
   for (const request of requests) {
     if (/12104|079-82-2008|11787%0A|d%092025W|start%09/.test(request.replace(/\/catalog\/module\/\d+|open=11787/g, ""))) problems.push(`a request carries the study: ${request.slice(0, 160)}`);
   }
@@ -349,10 +386,10 @@ if (current !== "2026W") {
     parts: [...document.querySelectorAll(".st-phone-page > *")].map((part) => [...part.classList].find((name) => name !== "panel")),
     legend: [...document.querySelectorAll(".st-progress .st-legend-n li")].map((li) => li.textContent.replace(/[\d,]+/g, "").trim()),
     mine: [...document.querySelectorAll(".st-phone-page #st-mine > span:not(.visually-hidden)")].map((part) => part.textContent.replace(/\s+/g, " ").trim()).join(" | "),
-    ways: [...document.querySelectorAll(".st-mine-panel .st-ways a")].map((a) => a.textContent.trim()),
+    ways: [...document.querySelectorAll(".st-mine-panel .st-ways a")].map((a) => a.querySelector("span")?.childNodes[0]?.textContent.trim()),
     columns: [...document.querySelectorAll(".st-chart .st-col")].map((col) => col.textContent.trim() + (col.classList.contains("is-now") ? "*" : "")).join(" "),
     line: document.querySelector(".st-planbox-line")?.textContent.replace(/\u00a0/g, " "),
-    rest: [...document.querySelectorAll(".st-rest a")].map((a) => a.textContent.trim()),
+    rest: [...document.querySelectorAll(".st-rest a")].map((a) => a.querySelector("span")?.childNodes[0]?.textContent.trim()),
     sidebar: document.querySelector("#sidebar #st-mine") !== null || document.querySelector(".sheet-toggle") !== null,
     // One row of pages (owner, 2026-10-06: „die landing page für mein Studium mit auf den pager"):
     // the two semesters that are over, the overview (O) in view and the only one to be used (!),
@@ -363,8 +400,8 @@ if (current !== "2026W") {
     back: (() => { const back = document.querySelector(".top-back"); return back ? `${Math.round(back.getBoundingClientRect().width)}${back.inert ? " inert" : ""}` : "none"; })(),
   }));
   check(landing.sideways <= 0 && landing.parts.join() === "st-over,st-mine-panel,st-planbox,st-rest" && landing.legend.join() === "bestanden,geplant,offen"
-    && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht & Bereiche"
-    && landing.columns === "1 2 3* 4 5 6" && landing.line === "Jetzt WiSe 2026/27 · 0 von 30 LP" && landing.rest.join() === "Alle Studiengänge ansehen" && !landing.sidebar
+    && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht"
+    && landing.columns === "1 2 3* 4 5 6" && landing.line === "Jetzt WiSe 2026/27 · 0 von 30 LP" && landing.rest.join() === "Alle Studiengänge" && !landing.sidebar
     && landing.pages === "S S O!+ S S S S S" && landing.dots === "S S O! S* S S S S" && landing.back === "0 inert", `the phone's overview: ${JSON.stringify(landing)}`);
   // A finger on the screen, as a phone's touch comes (through the browser's own input, so that the
   // browser scrolls what it scrolls): down near the side of `selector` it comes from, drawn sideways
@@ -734,6 +771,21 @@ if (current !== "2026W") {
   await page.waitForTimeout(150);
   await touch("touchEnd", 0, 0);
   await page.waitForFunction(new Function(`return location.search === "?plan=1" && !document.querySelector(".detail.is-module") && (${resting("WiSe 2025/26").toString()})()`), null, { timeout: 4000 }).catch(() => problems.push("the module's sheet drawn down did not leave the semester as it was"));
+
+  // The views on a phone: pages of their own behind the overview, the way back at the head.
+  const go = (href) => page.evaluate((href) => { const a = document.createElement("a"); a.href = href; document.body.append(a); a.click(); a.remove(); }, href);
+  await step("the overview", () => go("/study"), () => location.search === "" && document.querySelector(".st-pager"));
+  await step("the Regelstudienplan on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=plan"]'), () => location.search === "?view=plan" && document.querySelectorAll(".st-rsp-phone .st-fs-sec").length >= 5 && document.querySelector(".top-back.on"));
+  const sections = await page.evaluate(() => ({
+    strip: [...document.querySelectorAll(".st-fsidx a")].map((a) => a.textContent.trim()),
+    cards: document.querySelectorAll(".st-pcard").length,
+    wide: document.documentElement.scrollWidth <= innerWidth + 1,
+  }));
+  check(sections.strip[2] === "3. FS · jetzt" && sections.cards === 23 && sections.wide, `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`);
+  await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on"));
+  await step("the Wahlpflicht on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=areas"]'), () => location.search === "?view=areas" && document.querySelector(".st-wp-phone .st-fchip[aria-pressed=\"true\"]") && document.querySelector(".st-grp") && document.querySelectorAll(".st-mcard").length > 0);
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the Wahlpflicht on a phone scrolls sideways");
+  await step("a module planned on a phone", () => page.tap(".st-mcard:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".st-undo")?.textContent.includes("eingeplant"));
   await context.close();
 }
 

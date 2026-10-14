@@ -826,6 +826,8 @@
         const section = document.getElementById(target.getAttribute("href").slice(1));
         if (!section) break;
         e.preventDefault();
+        // A section that folds (a faculty of the program overview) opens on the way there.
+        if (section.tagName === "DETAILS") section.open = true;
         // The panels drawn only near the screen (app.css, `content-visibility`) are drawn for the
         // way there: with only their guessed heights the glide ended off the section.
         root.classList.add("jumping");

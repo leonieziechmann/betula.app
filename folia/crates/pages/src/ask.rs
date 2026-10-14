@@ -15,7 +15,7 @@ use folia_calendar::share::SharedPlan;
 use folia_locale::Locale;
 use folia_model::db::{Database, DbError};
 use folia_model::rows::{CatalogRow, Meta, Program, Semester};
-use folia_model::rows_detail::DateRow;
+use folia_model::rows_detail::{Counterpart, DateRow};
 use folia_routes::filter::{CatalogQuery, FitsFilter};
 use folia_routes::url::{BookmarkSort, CatalogUrl};
 use folia_timetable::fit::CandidateSet;
@@ -192,6 +192,11 @@ ask!(
     PlanSourceAsk { program_id: String, locale: Locale } -> Option<PlanSource>, Lane::Page, |q, db, kept| crate::plan_source(db, &q.program_id, q.locale)
 );
 ask!(
+    /// The best-matching Master of a Bachelor, or Bachelor of a Master: what the program overview
+    /// names after the visitor's own program.
+    CounterpartAsk { program_id: String } -> Option<Counterpart>, Lane::Page, |q, db, kept| folia_query::program_counterpart(db, &q.program_id)
+);
+ask!(
     /// The program of a stored id, or of its family.
     MyProgramAsk { program_id: String } -> Option<MyProgramInfo>, Lane::Page, |q, db, kept| crate::my_program(db, &q.program_id)
 );
@@ -257,7 +262,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
     }
     dispatch!(
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
-        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk,
+        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
     )
 }
@@ -293,6 +298,7 @@ mod tests {
         same(StudyModulesAsk { ids: vec!["12204".into(), "12339".into(), "00000".into()] });
         same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
         same(MetaAsk {});
+        same(CounterpartAsk { program_id: "079-82-2008".into() });
         assert_eq!(answer_json("NoSuchAsk", "{}", &open(), &mut Kept::default()), None);
     }
 }

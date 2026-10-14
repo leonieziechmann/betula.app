@@ -1,6 +1,8 @@
 //! The sidebar of „Mein Studium" on a desktop, top to bottom: the program as one card (its name and
 //! degree, the PO and the study direction, the Fachsemester now and the Studienbeginn; a click
-//! changes them) with the ways to its pages under it, how the plan reads, and where all of it
+//! changes them), the views of the study (owner, 2026-10-14, concept A „Ansichten": „Semester",
+//! „Gesamtplan", „Regelstudienplan", „Wahlpflicht", each with a word of where it stands), the ways
+//! to the program's own page and to all programs, how the plan reads, and where all of it
 //! lives. Nothing in it says twice what the page or the tab bar says (owner, 2026-10-04: „Mein
 //! Studium Sidebar ist noch sehr redundant und nicht platz effizient … Zum Stundenplan kann weg der
 //! link ist direkt daneben in der Navbar"). A phone has all of it on its overview instead
@@ -17,17 +19,19 @@ use folia_calendar::semester::SemesterKey;
 use folia_model::rows::{CatalogRow, Program};
 use folia_pages::ask::{PlanSourceAsk, ProgramsAsk};
 use folia_pages::PlanSource;
-use folia_plans::study;
+use folia_plans::choices;
+use folia_plans::study::{self, Input};
 use folia_plans::studyplan::PlanDoc;
-use folia_routes::url::{self, ProgramTab, ProgramUrl};
+use folia_routes::url::{self, ProgramTab, ProgramUrl, StudyUrl, StudyView};
 use leptos::prelude::*;
 
 use folia_design::combobox::{ComboItem, Combobox};
 use folia_design::ui::Icon;
+use folia_shell::pending::Pending;
 use folia_stores::myprogram::{po_of, program_name, ProgramPlans};
 
 use super::dialog::DialogHead;
-use super::{chosen, input_of, n, rows_of, Dialog, Plans, Setup, StudyCtx};
+use super::{chosen, input_of, n, rows_of, Dialog, Plans, Ready, Setup, StudyCtx, View};
 use crate::i18n::{self, Texts};
 
 /// How many semesters before the current one the Studienbeginn's select offers, and after it.
@@ -39,14 +43,24 @@ pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let ready = Memo::new(move |_| ctx.with_ready(|ready| ready.setup.start_stored).unwrap_or(false));
+    let v = &t.study_views;
     move || {
         (!ctx.phone.get()).then(|| {
             view! {
                 <div class="fgroup first">
                     <MineCard ctx/>
+                </div>
+                {move || ready.get().then(|| view! {
+                    <div class="fgroup">
+                        <p class="flabel label" id="st-views-label">{v.views}</p>
+                        <nav class="st-vlist" aria-labelledby="st-views-label"><ViewLinks ctx/></nav>
+                    </div>
+                })}
+                <div class="fgroup">
+                    <p class="flabel label">{v.program_group}</p>
                     <nav class="st-ways" aria-label=s.ways>
-                        <ProgramWays ctx/>
-                        <AllPrograms/>
+                        <ProgramPage ctx/>
+                        <AllPrograms line=false/>
                     </nav>
                 </div>
                 {move || ready.get().then(|| view! {
@@ -122,30 +136,148 @@ pub(super) fn MineCard(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The ways to the program's pages, with the plan studied: its Regelstudienplan, its areas.
+/// What the ways to the views say of the study.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Ways {
+    /// „jetzt 3. FS".
+    pub now: Option<String>,
+    /// „72 LP" still to choose; none where everything is chosen.
+    pub to_choose: Option<String>,
+    /// „Soll und Ist · 1.–2. FS: 52 von 60 LP bestanden".
+    pub plan_line: String,
+    /// „Noch 72 LP zu wählen · Nebenfach, Fachstudium".
+    pub choices_line: String,
+}
+
+impl Ways {
+    pub fn of(input: &Input, ready: &Ready, t: &Texts) -> Self {
+        let v = &t.study_views;
+        let study = &ready.study;
+        let view = choices::plan_view(input, study);
+        let current = study.semester(study.now).and_then(|semester| semester.fs);
+        let plan_line = match current.filter(|fs| *fs > 1) {
+            Some(fs) if !view.lines.is_empty() => {
+                let before: Vec<&choices::PlanLine> = view.lines.iter().filter(|line| line.last < fs).collect();
+                let all: f64 = before.iter().filter_map(|line| line.credits).sum();
+                let passed: f64 = before.iter().filter(|line| matches!(line.state, choices::RowState::Passed(_))).filter_map(|line| line.credits).sum();
+                (v.plan_way)(&(t.study.fs_span)(1, fs - 1), &n(passed, t), &n(all, t))
+            }
+            _ => v.plan_way_plain.to_string(),
+        };
+        let mut open_areas: Vec<String> = Vec::new();
+        for choice in view.choices.iter().filter(|choice| !choice.complete()) {
+            let name = ready.area_name(choice.area, t);
+            if !open_areas.contains(&name) {
+                open_areas.push(name);
+            }
+        }
+        let choices_line = if view.choices.is_empty() {
+            v.nothing_to_choose.to_string()
+        } else if view.to_choose <= 0.0 {
+            v.all_chosen.to_string()
+        } else {
+            (v.choices_way)(&n(view.to_choose, t), &open_areas.join(", "))
+        };
+        Ways {
+            now: current.map(|fs| (v.now_fs)(&(t.study.fs)(fs))),
+            to_choose: (view.to_choose > 0.0).then(|| (t.study.credits)(&n(view.to_choose, t))),
+            plan_line,
+            choices_line,
+        }
+    }
+}
+
+/// The address of a view.
+fn view_href(view: StudyView, t: &Texts) -> String {
+    t.path(&StudyUrl::default().with_view(view).path())
+}
+
+/// The views of the study (owner, 2026-10-14, concept A): the semesters one by one, the
+/// Gesamtplan, the Regelstudienplan and the Wahlpflicht, each with a word of where it stands. The
+/// first two are one address, which way the semesters are shown a setting of the browser's (R13).
 #[component]
-pub(super) fn ProgramWays(ctx: StudyCtx) -> impl IntoView {
+fn ViewLinks(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
-    let s = &t.study;
-    let links = Memo::new(move |_| {
-        ctx.with_ready(|ready| {
-            let plan = ProgramUrl::new(&ready.program.slug, ProgramTab::Plan).with_variant(ready.setup.shown.map_or(1, |shown| shown + 1)).path();
-            (plan, url::program_path(&ready.program.slug, ProgramTab::Areas))
-        })
-    });
+    let v = &t.study_views;
+    let ways = Memo::new(move |_| ctx.with_input(|input, ready| Ways::of(input, ready, t)));
+    // The view shown: where the app is going, else where it is.
+    let going = Pending::expect();
+    let shown = Memo::new(move |_| going.and_then(|going| going.search_on(url::STUDY)).map_or_else(|| ctx.url.with(|url| url.view), |search| StudyUrl::parse(&search).view));
+    let semesters = move |kind: View, icon: &'static str, label: &'static str| {
+        let current = move || (shown.get() == StudyView::Semesters && ctx.view.get() == kind).then_some("page");
+        let small = move || (kind == View::Semester).then(|| ways.with(|ways| ways.as_ref().and_then(|ways| ways.now.clone()))).flatten();
+        view! {
+            <a class="st-vl" href=view_href(StudyView::Semesters, t) aria-current=current on:click=move |_| {
+                ctx.selection.set(super::Selection::default());
+                ctx.view.set(kind);
+            }>
+                <Icon name=icon/><span>{label}</span><small>{small}</small>
+            </a>
+        }
+    };
+    let other = move |view: StudyView, icon: &'static str, label: &'static str| {
+        let current = move || (shown.get() == view).then_some("page");
+        let small = move || {
+            ways.with(|ways| match (view, ways.as_ref()) {
+                (StudyView::Plan, Some(_)) => Some(v.plan_side.to_string()),
+                (StudyView::Choices, Some(ways)) => Some(ways.to_choose.clone().unwrap_or_else(|| "✓".to_string())),
+                _ => None,
+            })
+        };
+        view! { <a class="st-vl" href=view_href(view, t) aria-current=current><Icon name=icon/><span>{label}</span><small>{small}</small></a> }
+    };
+    view! {
+        {semesters(View::Semester, "layout-list", t.study.view_semester)}
+        {semesters(View::Grid, "layout-grid", t.study.view_grid)}
+        {other(StudyView::Plan, "file-check-2", v.plan)}
+        {other(StudyView::Choices, "list-checks", v.choices)}
+    }
+}
+
+/// The ways to the views on a phone's overview, each with a line of where it stands.
+#[component]
+pub(super) fn ViewWays(ctx: StudyCtx) -> impl IntoView {
+    let t = i18n::t();
+    let v = &t.study_views;
+    let ways = Memo::new(move |_| ctx.with_input(|input, ready| Ways::of(input, ready, t)));
     move || {
-        links.get().map(|(plan, areas)| view! {
-            <a class="action" href=t.path(&plan)><Icon name="file-check-2"/><span>{s.to_plan}</span><Icon name="chevron-right"/></a>
-            <a class="action" href=t.path(&areas)><Icon name="layout-list"/><span>{s.to_areas}</span><Icon name="chevron-right"/></a>
+        ways.get().map(|ways| view! {
+            <a class="action st-way" href=view_href(StudyView::Plan, t)><Icon name="file-check-2"/><span>{v.plan}<small>{ways.plan_line}</small></span><Icon name="chevron-right"/></a>
+            <a class="action st-way" href=view_href(StudyView::Choices, t)><Icon name="list-checks"/><span>{v.choices}<small>{ways.choices_line}</small></span><Icon name="chevron-right"/></a>
         })
     }
 }
 
-/// The way to all programs.
+/// The program's own page: its regulations and documents, with the plan studied.
 #[component]
-pub(super) fn AllPrograms() -> impl IntoView {
+fn ProgramPage(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
-    view! { <a class="action" href=t.path(url::PROGRAMS)><Icon name="graduation-cap"/><span>{t.study.all_programs}</span><Icon name="chevron-right"/></a> }
+    let v = &t.study_views;
+    let link = Memo::new(move |_| {
+        ctx.with_ready(|ready| {
+            let page = ProgramUrl::new(&ready.program.slug, ProgramTab::Plan).with_variant(ready.setup.shown.map_or(1, |shown| shown + 1)).path();
+            (format!("{page}#dokumente"), format!("PO {}", ready.program.po_version))
+        })
+    });
+    move || {
+        link.get().map(|(href, po)| view! {
+            <a class="action" href=t.path(&href)><Icon name="file-check-2"/><span>{v.documents}<small>{po}</small></span><Icon name="chevron-right"/></a>
+        })
+    }
+}
+
+/// The way to all programs; on a phone's overview with a line of what is there.
+#[component]
+pub(super) fn AllPrograms(line: bool) -> impl IntoView {
+    let t = i18n::t();
+    let v = &t.study_views;
+    view! {
+        <a class="action" class:st-way=line href=t.path(url::PROGRAMS)>
+            <Icon name="graduation-cap"/>
+            <span>{v.all_programs}{line.then(|| view! { <small>{v.all_programs_line}</small> })}</span>
+            <Icon name="chevron-right"/>
+        </a>
+    }
 }
 
 /// How the plan reads (owner, 2026-10-04: „Die legende ist an sich gut aber der text ist etwas zu

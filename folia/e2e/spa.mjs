@@ -105,8 +105,8 @@ if ((await page.evaluate(() => history.length)) > historyBefore + 2) problems.pu
 await page.keyboard.press("Escape");
 
 await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-setup"));
-await step("programs", () => page.click('#sidebar a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 50);
-await step("program search", () => page.fill("#topsearch", "informatik"), () => location.search.includes("q=informatik") && document.querySelectorAll(".program-pill").length < 30 && document.querySelectorAll(".program-pill").length > 0);
+await step("programs", () => page.click('#sidebar a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".fx-desk a.prog-line").length > 50);
+await step("program search", () => page.fill("#topsearch", "informatik"), () => location.search.includes("q=informatik") && document.querySelectorAll(".fx-desk a.prog-line").length < 30 && document.querySelectorAll(".fx-desk a.prog-line").length > 0);
 
 await browser.close();
 console.log(JSON.stringify({ timings, problems }, null, 2));

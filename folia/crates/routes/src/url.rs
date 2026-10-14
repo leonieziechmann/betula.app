@@ -560,16 +560,44 @@ impl Season {
     }
 }
 
-/// What the address of „Mein Studium" says (`/study?plan=1&open=11101&full=1`): on a phone, the
-/// semesters behind the overview (owner, 2026-10-05: „eine box studium planen … wenn man da rauf
-/// klickt oder nach links swiped bekommt man den plan"), a page of their own that Back leaves; the
-/// module beside the plan, and whether it fills the page (a local view, `LocalView`). What is
+/// A view of „Mein Studium" (owner, 2026-10-14, concept A „Ansichten"): the semesters, or the
+/// program's Regelstudienplan and Wahlpflicht with the student's stand in them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum StudyView {
+    /// The overview and the semesters.
+    #[default]
+    Semesters,
+    /// „Regelstudienplan": every row of the plan with where it stands (`view=plan`).
+    Plan,
+    /// „Wahlpflicht": what the plan leaves to choose, by area (`view=areas`).
+    Choices,
+}
+
+impl StudyView {
+    pub const ALL: &'static [Self] = &[Self::Semesters, Self::Plan, Self::Choices];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            StudyView::Semesters => "",
+            StudyView::Plan => "plan",
+            StudyView::Choices => "areas",
+        }
+    }
+}
+
+/// What the address of „Mein Studium" says (`/study?plan=1&open=11101&full=1`,
+/// `/study?view=areas`): which view (`StudyView`), on a phone a page of its own that Back leaves;
+/// on a phone the semesters behind the overview (owner, 2026-10-05: „eine box studium planen …
+/// wenn man da rauf klickt oder nach links swiped bekommt man den plan"), a page of their own too;
+/// the module beside the page, and whether it fills it (a local view, `LocalView`). What is
 /// planned and passed lives in the browser and reaches no address (R9, R13).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StudyUrl {
-    /// The semesters, not the overview (`plan=1`). A desktop shows both at once.
+    pub view: StudyView,
+    /// The semesters, not the overview (`plan=1`): the view of the semesters only. A desktop shows
+    /// both at once.
     pub plan: bool,
-    /// The module shown beside the plan (`open=<id>`).
+    /// The module shown beside the page (`open=<id>`).
     pub open: Option<String>,
     /// The module of `open` fills the page (`full=1`). Nothing without `open`.
     pub full: bool,
@@ -578,19 +606,30 @@ pub struct StudyUrl {
 impl StudyUrl {
     pub fn parse(raw_query: &str) -> Self {
         let pairs = parse_pairs(raw_query);
-        let plan = pairs.iter().find(|(key, _)| key == "plan").is_some_and(|(_, value)| value.trim() == "1");
+        let first = |name: &str| pairs.iter().find(|(key, _)| key == name).map(|(_, value)| value.trim().to_ascii_lowercase());
+        let view = first("view").and_then(|code| StudyView::ALL.iter().copied().find(|view| *view != StudyView::Semesters && view.code() == code)).unwrap_or_default();
+        let plan = view == StudyView::Semesters && first("plan").as_deref() == Some("1");
         let (open, full) = local_from_pairs(&pairs);
-        Self { plan, open, full }
+        Self { view, plan, open, full }
     }
 
     /// The same page with the semesters (`true`) or the overview.
     pub fn with_plan(&self, plan: bool) -> Self {
-        Self { plan, ..self.clone() }
+        Self { plan: plan && self.view == StudyView::Semesters, ..self.clone() }
+    }
+
+    /// Another view, with the module beside it as it was; a phone's semesters are the first
+    /// view's.
+    pub fn with_view(&self, view: StudyView) -> Self {
+        Self { view, plan: false, ..self.clone() }
     }
 
     pub fn path(&self) -> String {
         let mut pairs = Vec::new();
-        if self.plan {
+        if self.view != StudyView::Semesters {
+            pairs.push(("view", self.view.code().to_string()));
+        }
+        if self.plan && self.view == StudyView::Semesters {
             pairs.push(("plan", "1".to_string()));
         }
         pairs.extend(local_pairs(self.open.as_deref(), self.full));
@@ -611,7 +650,7 @@ impl LocalView for StudyUrl {
     }
 
     fn with_module(&self, open: Option<&str>, full: bool) -> Self {
-        Self { plan: self.plan, open: open.map(str::to_string), full: full && open.is_some() }
+        Self { view: self.view, plan: self.plan, open: open.map(str::to_string), full: full && open.is_some() }
     }
 
     fn path(&self) -> String {
@@ -1760,6 +1799,17 @@ mod tests {
         assert_eq!((plan.with_full(true).path(), plan.with_plan(false).path()), ("/study?plan=1&open=11101&full=1".to_string(), "/study?open=11101".to_string()));
         assert_eq!(StudyUrl::parse("plan=yes").path(), "/study");
         assert_eq!(StudyUrl::default().with_plan(true).path(), "/study?plan=1");
+        // The views (concept A): the Regelstudienplan and the Wahlpflicht, each with a module
+        // beside it; a phone's semesters belong to the first view.
+        assert_eq!(StudyUrl::parse("view=plan").view, StudyView::Plan);
+        assert_eq!(StudyUrl::parse("view=AREAS&open=11101").path(), "/study?view=areas&open=11101");
+        assert_eq!(StudyUrl::parse("view=plan&plan=1").path(), "/study?view=plan");
+        assert_eq!(StudyUrl::parse("view=semesters").path(), "/study");
+        assert_eq!(StudyUrl::parse("view=").view, StudyView::Semesters);
+        assert_eq!(StudyUrl::parse("plan=1&open=11101").with_view(StudyView::Choices).path(), "/study?view=areas&open=11101");
+        assert_eq!(StudyUrl::parse("view=areas").with_view(StudyView::Semesters).path(), "/study");
+        assert_eq!(StudyUrl::parse("view=plan").with_open(Some("11101")).with_full(true).path(), "/study?view=plan&open=11101&full=1");
+        assert_eq!(StudyUrl::parse("view=plan").with_plan(true).path(), "/study?view=plan");
     }
 
     #[test]

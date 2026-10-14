@@ -56,7 +56,8 @@ await step("F opens the module's page", () => page.keyboard.press("f"), () => lo
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/en/catalog" && document.querySelector(".rows"));
 await step("my studies", () => page.click('.rail a.nav[data-area="programs"]'), () => location.pathname === "/en/study" && document.querySelector(".st-setup h1")?.textContent === "Set up your studies once");
 await step("the programmes", () => page.click('#sidebar a[href="/en/programs"]'), () => location.pathname === "/en/programs" && document.querySelector(".page"));
-await step("a programme", () => page.click('.page a[href^="/en/programs/"] >> nth=0'), () => /^\/en\/programs\/[^/]+/.test(location.pathname));
+// The programmes wait in their faculties, closed: the first opened, its first programme.
+await step("a programme", async () => { await page.click("details.facc:nth-of-type(1) > summary"); await page.click('details.facc[open] .fx-desk a[href^="/en/programs/"] >> nth=0'); }, () => /^\/en\/programs\/[^/]+/.test(location.pathname));
 await step("its electives and areas", () => page.click('a[href*="/areas"] >> nth=0'), () => location.pathname.endsWith("/areas"));
 await step("the saved modules", () => page.click('.rail a.nav[data-area="bookmarks"]'), () => location.pathname === "/en/bookmarks");
 await step("the timetable", () => page.click('.rail a.nav[data-area="studyplan"]'), () => location.pathname === "/en/studyplan");

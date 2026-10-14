@@ -45,7 +45,7 @@ const MAX_AREAS: usize = 9;
 const MAX_FS: u8 = 30;
 
 /// Less than this is no credit left (sums of halves).
-const EPSILON: f64 = 1e-6;
+pub(crate) const EPSILON: f64 = 1e-6;
 
 /// When a module is offered, as the catalog states its turnus. What it does not state does not
 /// restrict (R12: not known to be limited is not limited).
@@ -271,13 +271,13 @@ fn join(parent: &mut [usize], a: usize, b: usize) {
 
 /// The sum the regulation prints over a row with a range of credits and the rows it is chosen
 /// with (`plan::choice_of`).
-fn choice_total<'a>(row: &PlanRow<'a>) -> Option<&'a PlanTotal> {
+pub(crate) fn choice_total<'a>(row: &PlanRow<'a>) -> Option<&'a PlanTotal> {
     plan::choice_of(&row.variant.totals.iter().collect::<Vec<_>>(), row.entry)
 }
 
 /// What `rows` ask for together: each row its credits (the least of a range), a choice between
 /// rows the sum the regulation prints over them less the rows of fixed credits it counts.
-fn required_of(rows: &[&PlanRow]) -> f64 {
+pub(crate) fn required_of(rows: &[&PlanRow]) -> f64 {
     let mut sum = 0.0;
     let mut sums: Vec<(&str, i64)> = Vec::new();
     for row in rows {
@@ -450,7 +450,7 @@ fn claimed(full: &str, kind: AreaKind, rows: &[&PlanRow], tree: &[CatalogArea], 
 }
 
 /// Whether `area` lies below `top`, by the labels above it (a label may hold the path's „ / ").
-fn below(area: &CatalogArea, top: &CatalogArea) -> bool {
+pub(crate) fn below(area: &CatalogArea, top: &CatalogArea) -> bool {
     let n = top.ancestors.len();
     area.ancestors.get(..n) == Some(top.ancestors.as_slice()) && area.ancestors.get(n) == Some(&top.label)
 }

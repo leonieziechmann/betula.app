@@ -142,6 +142,18 @@ fn every_query_runs_against_the_snapshot() {
         assert!(total.credits >= total.min_credits - 0.01 && total.credits <= total.max_credits + 0.01, "{total:?}");
     }
 
+    // The plans of every program at once (the overview's facts) are each program's own.
+    let latest = queries::programs(&db).unwrap().into_iter().find(|program| program.is_latest_po && program.has_plan).expect("a program with a plan");
+    let all_entries = queries::latest_plan_entries(&db).unwrap();
+    let own: Vec<_> = all_entries.iter().filter(|row| row.program_id == latest.id).map(|row| row.entry.clone()).collect();
+    assert_eq!(own, queries::program_plan_entries(&db, &latest.id).unwrap());
+    let all_totals = queries::latest_plan_totals(&db).unwrap();
+    let own: Vec<_> = all_totals.iter().filter(|row| row.program_id == latest.id).map(|row| row.total.clone()).collect();
+    assert_eq!(own, queries::program_plan_totals(&db, &latest.id).unwrap());
+    let overview = pages::programs_overview(&db).unwrap();
+    assert!(overview.facts.iter().all(|facts| overview.programs.iter().any(|program| program.id == facts.program_id && program.is_latest_po && program.has_plan)));
+    assert!(overview.facts.iter().filter_map(|facts| facts.credits).all(|(low, high)| low > 0.0 && low <= high));
+
     let curriculum = queries::curriculum_links(&db).unwrap();
     assert!(curriculum.len() > 1000 && curriculum.iter().all(|(program, module)| !program.is_empty() && !module.is_empty()));
     let ids = queries::module_ids(&db).unwrap();
@@ -185,6 +197,31 @@ fn every_query_runs_against_the_snapshot() {
     assert!(never_ran.is_empty(), "queries the tests never ran against the snapshot: {never_ran:?}");
     let unnamed: Vec<&&str> = ran.iter().filter(|name| !declared.contains(**name)).collect();
     assert!(unnamed.is_empty(), "query names that are not the name of their function: {unnamed:?}");
+}
+
+/// The plans of all programs at once, as the overview reads them for what it says of each
+/// („6 Sem. · 180 LP"): each program's rows and sums as its own page reads them, and the facts of
+/// its head.
+#[test]
+fn the_overview_says_what_each_plan_says() {
+    let db = open();
+    let programs = queries::programs(&db).unwrap();
+    let entries = queries::latest_plan_entries(&db).unwrap();
+    let totals = queries::latest_plan_totals(&db).unwrap();
+    let mut checked = 0;
+    for program in programs.iter().filter(|program| program.is_latest_po && program.has_plan).take(12) {
+        let own: Vec<_> = entries.iter().filter(|row| row.program_id == program.id).map(|row| row.entry.clone()).collect();
+        assert_eq!(own, queries::program_plan_entries(&db, &program.id).unwrap(), "{}", program.slug);
+        let own: Vec<_> = totals.iter().filter(|row| row.program_id == program.id).map(|row| row.total.clone()).collect();
+        assert_eq!(own, queries::program_plan_totals(&db, &program.id).unwrap(), "{}", program.slug);
+        checked += 1;
+    }
+    assert!(checked > 0);
+    let overview = pages::programs_overview(&db).unwrap();
+    let informatik = programs.iter().find(|program| program.slug == INFORMATIK_BSC).expect("Informatik B.Sc.");
+    let facts = overview.facts.iter().find(|facts| facts.program_id == informatik.id).expect("Informatik B.Sc. has facts");
+    assert_eq!((facts.semesters, facts.credits), (Some((6, 6)), Some((180.0, 180.0))));
+    assert!(overview.facts.iter().all(|facts| programs.iter().any(|program| program.id == facts.program_id && program.is_latest_po && program.has_plan)));
 }
 
 /// The Studienplan's queries, run through the recording database of
