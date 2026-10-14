@@ -253,6 +253,11 @@ pub fn CatalogPage() -> impl IntoView {
             Err(_) => t.catalog.title_failed.to_string(),
         })
     };
+    // The app's title follows the list; the server's page gets its title as text. Leptos writes
+    // that into the page only after rendering it, outside the page's arena: a title read from the
+    // list there read another page's list, or one that was gone, a panic (betula.app, 2026-10-14;
+    // the server's `a_page_rendered_beside_others_keeps_its_title` in develop).
+    let title = if APP { TextProp::from(title) } else { TextProp::from(untrack(title)) };
 
     view! {
         <Title text=title/>
