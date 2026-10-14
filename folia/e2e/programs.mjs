@@ -7,8 +7,9 @@
 // „Studium" leads to „Mein Studium" first → the program page itself (head, one study plan per study
 // direction, matrix or list, a module beside it and the way back out of it, areas, all modules in the
 // catalog, and „Mein Plan" going on to „Mein Studium") → the plan at
-// every window width (no column runs into another, the list where the matrix has no room) → phone
-// (filters in a sheet) → the overview without JavaScript.
+// every window width (no column runs into another, no row taller than its name, the list where the
+// matrix has no room) → phone (the plan's rows as tall as their names, filters in a sheet) → the
+// overview without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -42,6 +43,19 @@ const open = async (options, path) => {
   return { page, step, context };
 };
 const box = (page, selector) => page.evaluate((s) => { const r = document.querySelector(s)?.getBoundingClientRect(); return r ? [Math.round(r.left), Math.round(r.top), Math.round(r.width)] : null; }, selector);
+// The rows of the plan that are taller than their names. A row is as tall as its name: a column
+// that gave way („Art", „Bereich", 0 px wide) keeps its cells, and they take no line of their own.
+// In 0 px a cell that wraps stands a letter to a line — „Grundstudium" made every row of Informatik
+// B.Sc. 252 px high on a phone (2026-10-14). A row is 20–21 px taller than its name's text (padding
+// and rule; all 4,563 rows of the plans on a phone and at 1200 px), one line more is 19.6 px.
+const tallRows = (page) => page.evaluate(() => [...document.querySelectorAll("table.planlist tr:not(.group), table.matrix tbody tr:not(.group)")].flatMap((row) => {
+  const name = row.querySelector(".c-name");
+  const range = document.createRange();
+  range.selectNodeContents(name);
+  const height = row.getBoundingClientRect().height;
+  const text = range.getBoundingClientRect().height;
+  return height > text + 30 ? [`„${name.textContent.trim().slice(0, 24)}" is ${Math.round(height)} px high, its name ${Math.round(text)} px`] : [];
+}));
 
 // ---------- desktop ----------
 {
@@ -346,7 +360,8 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
 // get narrower than 200 px, and where even that is not enough for the matrix, the plan is the list —
 // never a matrix that scrolls sideways; the switch says so, and with room the matrix comes back without
 // the choice being touched. At every width every cell keeps to its column, the semesters are equally
-// wide, and the credits of the list stand on one line with the sums of their semesters.
+// wide, the credits of the list stand on one line with the sums of their semesters, and no row is
+// taller than its name (up to 1200 px „Bereich" has given way, at 1000 px „Art" of the eight semesters).
 {
   const fits = (page, chosen, semesters) => page.evaluate(([chosen, semesters]) => {
     const table = document.querySelector("table.matrix, table.planlist");
@@ -389,7 +404,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
         await page.setViewportSize({ width, height: 900 });
         // The plan's panel is measured when the browser lays out the new width.
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-        const found = await fits(page, shape, semesters);
+        const found = [...(await fits(page, shape, semesters)), ...(await tallRows(page))];
         check(found.length === 0, `plan (${slug}, ${shape}) at ${width} px: ${found.slice(0, 3).join("; ")}`);
       }
       if (shape === "matrix") check(await page.evaluate(() => localStorage.getItem("betula.plan.shape") === null), `plan (${slug}): a narrow window changed the chosen drawing`);
@@ -434,6 +449,18 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await page.waitForTimeout(400);
   await page.tap('.detail.is-module [data-action="close-detail"]');
   await page.waitForFunction(() => location.search.includes("area=") && !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("#preview .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the area"));
+  await context.close();
+}
+
+// ---------- the plan on a phone: every row as tall as its name ----------
+// „Art" and „Bereich" have given way, and Informatik B.Sc. names „Grundstudium" or „Fachstudium" in
+// every row: the rows are one line high, two or four where the name takes them (37, 56, 95 px).
+{
+  const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs/bachelor-informatik-2008/plan");
+  const widths = await page.evaluate(() => [...document.querySelectorAll("table.planlist thead th")].map((th) => Math.round(th.getBoundingClientRect().width)));
+  check(widths.length === 4 && widths[1] === 0 && widths[2] === 0, `phone: „Art" and „Bereich" have not given way (${widths.join(", ")} px)`);
+  const tall = await tallRows(page);
+  check(tall.length === 0, `phone: ${tall.length} rows of the plan are taller than their names: ${tall.slice(0, 3).join("; ")}`);
   await context.close();
 }
 

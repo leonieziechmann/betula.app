@@ -548,7 +548,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   them, and where the page is narrower than the names and the semesters the app draws the list —
   the switch then shows the list, the matrix greyed out with a line saying why, and the choice
   stays: with room (a wider window, a narrower panel) the matrix comes back (`matrix_min_width`,
-  the same numbers as `.matrix` in app.css).
+  the same numbers as `.matrix` in app.css). A column that gives way („Art"; in the list also
+  „Bereich", where the page is at most 860 px wide) gets 0 px wide and keeps its cells, so that the
+  credits stay under „LP" — **and its cells keep their text on one line** (`white-space: nowrap`,
+  2026-10-14): in 0 px, `overflow-wrap: break-word` put every letter on a line of its own, hidden
+  but just as tall, and on a phone every row of Informatik B.Sc. was 252 px high instead of 37
+  („Grundstudium") and its head 121 px instead of 25 („Bereich") — the head of each of the 102
+  programs whose plan names areas, the rows of 99 of them, on a phone and in a window of 1200 px,
+  at worst a row of 1,484 px (Digitale Gesellschaft, „Orientierung in den Schwerpunkten -
+  Gesellschaft, Recht und Ethik im digitalen Wandel"). A row is as tall as its name;
+  `e2e/programs.mjs` checks it on a phone and at every width of the window.
   **What a plan adds up to is the plan's own arithmetic, not ours** (owner, 2026-09-22: Informatik
   B.Sc. said 166 LP and showed nothing for its last two semesters). A row may print a range —
   „Komplex Grundlagen der Informatik, 10–24 LP" — and three of them are anything between 30 and
@@ -3190,12 +3199,14 @@ sidebar) and back to the program without a new history entry, Esc leaving the pr
 reopening the module, an area beside the page with its modules (and a module picked out of it
 coming back to the area), a requirement of the plan with its numbers and its ways on, the
 catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
-the choice remembered in this browser only, the areas as groups of rows with the sidebar leading
-to each of them without a history entry, „Mein Plan" leading to all of the program's modules in the
-catalog (as many as the head counts), and on a phone the plan as a list without a switch and a
-page that does not scroll sideways, a module becoming the page with one tap and one history entry
-and „Zurück" leading back, an area becoming the page and a module picked out of it leading back to
-the area.
+the choice remembered in this browser only, the plan at every width of the window (no cell out of
+its column, no row taller than its name, the list where the matrix has no room), the areas as
+groups of rows with the sidebar leading to each of them without a history entry, „Mein Plan"
+leading to all of the program's modules in the catalog (as many as the head counts), and on a
+phone the plan as a list without a switch, its rows as tall as their names (Informatik B.Sc.,
+„Art" and „Bereich" given way), and a page that does not scroll sideways, a module becoming the
+page with one tap and one history entry and „Zurück" leading back, an area becoming the page and
+a module picked out of it leading back to the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086
