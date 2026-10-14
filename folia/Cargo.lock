@@ -848,6 +848,7 @@ dependencies = [
  "folia-locale",
  "folia-planner",
  "folia-plans",
+ "folia-profile",
  "folia-programs",
  "folia-routes",
  "folia-shell",
@@ -1084,6 +1085,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "folia-profile"
+version = "1.0.3"
+dependencies = [
+ "folia-calendar",
+ "folia-data",
+ "folia-design",
+ "folia-locale",
+ "folia-pages",
+ "folia-plans",
+ "folia-routes",
+ "folia-shell",
+ "folia-stores",
+ "leptos",
+ "leptos_meta",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "folia-programs"
 version = "1.0.3"
 dependencies = [
@@ -1233,6 +1254,7 @@ dependencies = [
  "leptos",
  "leptos_router",
  "serde",
+ "serde_json",
  "wasm-bindgen",
  "web-sys",
 ]

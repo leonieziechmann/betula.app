@@ -306,13 +306,14 @@ table { border-collapse: collapse; width: 100%; }
 .rail nav { display: grid; gap: 2px; }
 .nav.soon { opacity: .4; pointer-events: none; }
 .rail-end { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
-/* The switch between the languages (app::languages): in the rail above the theme's and as large,
-   the icon of languages over the code of the language it leads to. A new page load. */
-.languages { display: grid; gap: 2px; justify-items: center; }
-.lang-switch { align-content: center; gap: 2px; }
-.lang-switch .icon { width: 17px; height: 17px; }
-.lang-switch b { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
-.lang-switch:hover { text-decoration: none; }
+/* The way to the profile page (chrome.rs `ProfileButton`): at the end of the rail above the switch
+   between light and dark, the active profile's badge or a person; current on the profile page as a
+   tab is. A mouse resting on it opens the menu of the profiles (`.profile-menu`). The language lives
+   in the profile (shell/src/languages.rs): the rail has no switch of its own any more. */
+.profile-btn .icon { width: 19px; height: 19px; }
+.profile-btn:hover { text-decoration: none; }
+.profile-btn[aria-current="page"]:not(:has(.avatar)) { background: var(--invert); color: var(--on-invert); }
+.profile-btn[aria-current="page"] .avatar { outline: 2px solid var(--tone); outline-offset: 2px; }
 .theme-toggle .icon-sun { display: none; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
@@ -328,8 +329,9 @@ span.js-only { display: contents; }
 /* The view is as high as the window; less what shows of the ground (see „the birch"). */
 .main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
-/* The way back of a page's step, a phone's (chrome.rs `TopBack`). */
-.top-back { display: none; }
+/* The way back of a page's step and the way to the profile page at the head, a phone's (chrome.rs
+   `TopBack`, `ProfileButton`). */
+.top-back, .top-profile { display: none; }
 /* The title sits over the filter panel (its text over the panel's text), the search over the list. */
 .crumb { display: flex; align-items: baseline; gap: 10px; flex: none; width: var(--filters); padding-left: 14px; min-width: 0; }
 .crumb h1 { font-size: 17px; font-weight: 680; letter-spacing: -.025em; white-space: nowrap; }
@@ -2522,6 +2524,23 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .tab-menu-way:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 @media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); text-decoration: none; } }
 @keyframes tab-menu-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
+/* The menu of the profiles (chrome.rs `ProfileMenu`): a menu as a tab's is, beside the rail's way to
+   the profile page and growing up from its foot, or hanging below the phone's box at its right
+   edge. The profiles as on the profile page (`.pf-item`), the active one checked; below them the
+   way to the profile page and the other language. */
+.profile-menu { width: 272px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; transform-origin: 100% 0; }
+.profile-menu.at-rail { transform-origin: 0 100%; }
+.pm-list { display: grid; gap: 2px; }
+.pm-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border-radius: 9px; text-align: left; color: var(--text); -webkit-tap-highlight-color: transparent; }
+.pm-item-text { flex: 1 1 auto; min-width: 0; display: grid; }
+.pm-item-text b { font-size: 14px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-item-text small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-item > .icon:last-child { flex: none; width: 16px; height: 16px; color: var(--accent-ink); visibility: hidden; }
+.pm-item[aria-checked="true"] > .icon:last-child { visibility: visible; }
+.pm-item:active { background: var(--row-hover); }
+.pm-item:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+@media (hover: hover) { .pm-item:hover { background: var(--row-hover); } }
+.tab-menu-rule { height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
 
 /* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
    The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
@@ -3111,14 +3130,25 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .brand-phone .logo { margin: 0; }
   /* „inoffiziell" stays with the name, whole: where the line has no room for it beside the
-     wordmark (the switch of the languages at its end, a longer language), it goes under it. */
+     wordmark (a longer language), it goes under it. */
   .brand-phone > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
   .brand-phone small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* The switch between the languages at the end of the brand's line: a target of its own, framed so
-     that it reads as a button where nothing hovers. */
-  .brand-phone .languages { margin-left: auto; }
-  .brand-phone .lang-switch { width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
-  .search { height: 48px; }
+  /* A little less room around the search's icon and words than on a wide screen, and none kept
+     for the button that empties the field while it is empty (Chrome keeps its room even while it
+     is hidden): beside the profile's box the search's words still fit on a phone 390 px wide (and
+     end in „…" on a narrower one). */
+  .search { height: 48px; padding: 0 6px 0 12px; gap: 8px; }
+  .search input { padding-inline: 0; }
+  .search input:placeholder-shown::-webkit-search-cancel-button { display: none; }
+  /* The way to the profile page at the head of every page (chrome.rs `ProfileButton`; owner,
+     2026-10-14: „für die mobile Version noch ein Konzept wie man an sein Profil rankommt"): a box at
+     the right of the search, as the way back is one at its left, with the active profile's badge or
+     a person. A tap leads to the profile page, a finger held on it opens the menu of the profiles
+     (enhance.js), and nothing of the browser's own menu of a link or its preview comes. */
+  .top-profile { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .top-profile .icon { width: 22px; height: 22px; }
+  .top-profile .avatar { width: 30px; height: 30px; font-size: 14px; }
+  .top-profile:active { background: var(--panel-3); }
   /* The way back of a page's step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links neben der
      search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box as the
      search is, as wide as it is high. It slides in from the left and the search makes room for it,
@@ -4324,6 +4354,97 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-setup { padding: 18px 16px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
   .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
+}
+/* ---------- profiles (folia/crates/profile, folia/crates/stores/src/profiles.rs; owner, 2026-10-14) ----------
+   The profile page: the profiles in the sidebar, where a click switches; the active profile at the
+   head of the page, then „Mein Studiengang", what the profile keeps (each row the way to it) and
+   the settings of the browser. A profile's badge (`.avatar`) is its initial in one of the soft hues
+   of the start page's ways in (`--t-*`), the same in the rail, the list and the head; its letter is
+   mixed towards the text, so that it reads in either theme. */
+.avatar { --tone: var(--t-green); flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: color-mix(in oklch, var(--tone) 16%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tone) 38%, transparent); color: color-mix(in oklch, var(--tone) 70%, var(--text)); font-size: 12.5px; font-weight: 720; line-height: 1; letter-spacing: -.01em; user-select: none; }
+.avatar[data-tone="2"] { --tone: var(--t-ice); }
+.avatar[data-tone="3"] { --tone: var(--t-violet); }
+.avatar[data-tone="4"] { --tone: var(--t-coral); }
+.avatar[data-tone="5"] { --tone: var(--t-teal); }
+.avatar[data-tone="6"] { --tone: var(--t-sun); }
+.avatar[data-tone="7"] { --tone: var(--t-rose); }
+.avatar[data-tone="8"] { --tone: var(--t-slate); }
+.avatar.large { width: 56px; height: 56px; font-size: 23px; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tone) 42%, transparent); }
+.page-inner.pf { grid-template-columns: minmax(0, 1fr); align-content: start; }
+/* The note of the last thing done, a panel of its own over the head. */
+.offer.pf-note { margin: 0; background: var(--panel); box-shadow: var(--shadow-panel); }
+.pf-note > .icon { color: var(--text-2); }
+/* The head: the badge, the name and what a profile is; „Umbenennen" and „Löschen" at its end. */
+.pf-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 14px 20px; padding: 20px 24px; }
+.pf-head-main { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
+.pf-head-text { flex: 1 1 auto; min-width: 0; padding-top: 3px; }
+.pf-head h2 { font-size: 24px; line-height: 1.2; font-weight: 720; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.pf-lead { margin-top: 6px; color: var(--text-2); font-size: 14px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
+.pf-made { margin-top: 4px; color: var(--text-3); font-size: 12.5px; }
+.pf-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.pf-head-actions .btn, .pf-ways .btn { min-height: 38px; padding: 0 13px; font-size: 13.5px; }
+.pf-head-actions .btn .icon, .pf-ways .btn .icon { width: 16px; height: 16px; }
+.btn[aria-disabled="true"] { color: var(--text-3); cursor: default; }
+.btn[aria-disabled="true"]:hover { background: var(--panel); }
+.btn[aria-disabled="true"]:active { transform: none; }
+.pf-ask { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.pf-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pf-rename input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 17px; font-weight: 650; }
+/* A part of the page: its heading, then what it holds. */
+.pf-part { padding: 18px 24px 20px; }
+.pf-part > h2 { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+.pf-part > h2 .icon { width: 17px; height: 17px; color: var(--text-3); }
+.pf-sub { margin-top: 2px; color: var(--text-3); font-size: 12.5px; }
+.pf-empty { margin-top: 8px; color: var(--text-2); font-size: 14px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
+.pf-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 24px; margin: 14px 0 0; font-size: 14px; }
+.pf-facts > div { display: contents; }
+.pf-facts dt { color: var(--text-3); }
+.pf-facts dd { margin: 0; min-width: 0; font-weight: 560; overflow-wrap: anywhere; }
+.pf-facts dd small { margin-left: 8px; color: var(--warn); font-size: 12px; font-weight: 600; }
+.pf-ways { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+/* What the profile keeps: a row each, the whole row the way to it. */
+.pf-rows { display: grid; margin: 10px -10px 0; }
+.pf-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 46px; padding: 0 10px; border-radius: var(--r-row); color: var(--text); font-size: 14px; text-decoration: none; }
+.pf-row:hover { background: var(--row-hover); text-decoration: none; }
+.pf-row > .icon:first-child { width: 17px; height: 17px; color: var(--text-2); }
+.pf-row-label { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-row-value { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-row > .icon:last-child { width: 16px; height: 16px; color: var(--text-3); }
+.pf-clear { margin: 10px -10px 0; padding-top: 10px; border-top: 1px solid var(--line); }
+/* The settings: a label and a choice each. */
+.pf-setting { display: grid; grid-template-columns: 140px minmax(0, 360px); align-items: center; gap: 8px 16px; margin-top: 14px; }
+.pf-seg { margin: 0; }
+.pf-seg .icon { width: 15px; height: 15px; margin-right: 6px; }
+/* The sidebar: the profiles, a row each, the active one marked as a saved plan is. */
+.pf-list { display: grid; gap: 2px; margin-bottom: 6px; }
+.pf-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border-radius: var(--r-row); text-align: left; color: var(--text); }
+.pf-item:hover { background: var(--panel-3); }
+.pf-item[aria-checked="true"] { background: var(--panel-3); box-shadow: inset 2.5px 0 0 var(--accent); }
+.pf-item-text { flex: 1 1 auto; min-width: 0; display: grid; }
+.pf-item-text b { font-size: 13.5px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-item-text small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-item > .icon:last-child { width: 16px; height: 16px; color: var(--accent-ink); visibility: hidden; }
+.pf-item[aria-checked="true"] > .icon:last-child { visibility: visible; }
+.pf-new { padding: 4px 0 2px; }
+/* The lines under „Als Datei sichern“ and „Aus Datei laden“ end in „…“ where the sidebar is too
+   narrow for them, instead of running out of it. */
+.actions.pf-backup { grid-template-columns: minmax(0, 1fr); }
+.pf-offer { display: grid; gap: 6px; margin: 6px 0 2px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; }
+.pf-offer b { color: var(--text); font-weight: 620; }
+.pf-offer > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.pf-refused > .icon { color: var(--warn); }
+@container page (max-width: 640px) {
+  .pf-head { grid-template-columns: minmax(0, 1fr); }
+  .pf-head-actions { justify-content: flex-start; }
+  .pf-setting { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .pf-head, .pf-part { padding: 16px; }
+  .pf-head h2 { font-size: 21px; }
+  .avatar.large { width: 48px; height: 48px; font-size: 20px; }
+  /* A finger's targets. */
+  .pf-item { min-height: 56px; }
+  .pf-row { min-height: 52px; }
 }
 @keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
 @keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }

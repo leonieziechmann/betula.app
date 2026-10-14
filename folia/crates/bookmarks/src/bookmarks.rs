@@ -96,6 +96,15 @@ pub fn BookmarksPage() -> impl IntoView {
             });
         }
     });
+    // Another profile (chosen here or in another tab, `folia_stores::profiles`): its marks are the
+    // list, as if the page had been opened with them; nothing of the other profile's stays on it.
+    Effect::new(move |before: Option<u16>| {
+        let profile = bookmarks.map_or(0, Bookmarks::profile);
+        if before.is_some_and(|before| before != profile) {
+            listed.set(bookmarks.map(Bookmarks::marks_untracked).unwrap_or_default().into_iter().map(|mark| mark.id).collect());
+        }
+        profile
+    });
 
     let list_source = source.clone();
     let data: Memo<Loaded> = Memo::new(move |before| {
@@ -524,6 +533,16 @@ fn Sidebar(url: Memo<BookmarksUrl>, data: Memo<Loaded>) -> impl IntoView {
         }
         cleared.set(None);
     };
+    // What „Rückgängig" puts back is the list of the profile it was emptied in: with another
+    // profile (`folia_stores::profiles`) there is nothing to take back, nor anything asked.
+    Effect::new(move |before: Option<u16>| {
+        let profile = bookmarks.map_or(0, Bookmarks::profile);
+        if before.is_some_and(|before| before != profile) {
+            cleared.set(None);
+            confirming.set(false);
+        }
+        profile
+    });
 
     view! {
         {move || anything_listed.get().then(|| view! {

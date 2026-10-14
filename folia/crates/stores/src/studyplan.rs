@@ -1,7 +1,8 @@
 //! The Studienplan in this browser: its store, and where „Einplanen" plans a module to.
 //!
 //! What a visitor plans is theirs alone (R20, owner decision 2026-09-24): the plan lives in this
-//! browser's `localStorage` (`betula.studyplan.v1`, the text of `folia_plans::studyplan::PlanDoc`) and
+//! browser's `localStorage` (`betula.studyplan.v1`, the text of `folia_plans::studyplan::PlanDoc`;
+//! each profile its own, `profiles`) and
 //! nowhere else. It is empty on the server and in a browser that refuses storage (R9), never part
 //! of a URL, and it reaches no request: the pages ask the local copy of the catalog about it. Its
 //! text is read like a URL (`PlanDoc::restored`): a line that fails is dropped alone, lines of a
@@ -32,39 +33,46 @@ use leptos::prelude::*;
 use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
+use crate::profiles::Kept;
 use folia_design::nav;
 use folia_design::ui::{Icon, Shortcut};
 
-const STORAGE_KEY: &str = "betula.studyplan.v1";
+/// The first profile's key; another profile's has its number in it (`profiles::key_of`).
+pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
 
 /// The browser app (`csr`): only there is a plan, and only there does a hint aim the button.
 const APP: bool = cfg!(feature = "csr");
 
-/// The visitor's Studienplan, shared through context. Empty on the server, always.
+/// The visitor's Studienplan (the active profile's), shared through context. Empty on the server,
+/// always.
 #[derive(Clone, Copy)]
-pub struct Studyplan(RwSignal<PlanDoc>);
+pub struct Studyplan(RwSignal<PlanDoc>, Kept);
 
 impl Studyplan {
-    /// Reads what this browser has stored and provides the plan. Another tab of the same browser
-    /// may change it; this one follows.
+    /// Reads what this browser has stored for the active profile and provides the plan. Another
+    /// tab of the same browser may change it, or another profile becomes the active one; this one
+    /// follows.
     pub fn provide() -> Self {
-        let plan = Studyplan(RwSignal::new(load()));
+        let kept = Kept::of(STORAGE_KEY);
+        let plan = Studyplan(RwSignal::new(load(kept)), kept);
         provide_context(plan);
-        // Effects run in the browser only.
-        Effect::new(move |_| {
-            let handle = window_event_listener_untyped("storage", move |_| {
-                let stored = load();
-                if plan.0.with_untracked(|doc| *doc != stored) {
-                    plan.0.set(stored);
-                }
-            });
-            on_cleanup(move || handle.remove());
+        kept.follow(move || {
+            let stored = load(kept);
+            if plan.0.with_untracked(|doc| *doc != stored) {
+                plan.0.set(stored);
+            }
         });
         plan
     }
 
     pub fn expect() -> Option<Self> {
         use_context::<Studyplan>()
+    }
+
+    /// The profile whose plan this is. Tracked: what a page keeps of the plan for „Rückgängig" is
+    /// another profile's once it changes.
+    pub fn profile(self) -> u16 {
+        self.1.profile()
     }
 
     /// Reads the plan. Tracked: read it in a memo that keeps only what it needs, never in a list.
@@ -83,7 +91,7 @@ impl Studyplan {
         let mut doc = self.0.try_with_untracked(Clone::clone).unwrap_or_default();
         let result = f(&mut doc);
         if self.0.try_with_untracked(|now| *now != doc).unwrap_or(false) {
-            nav::local_set(STORAGE_KEY, &stored_text(&doc));
+            self.1.write(&stored_text(&doc));
             self.0.set(doc);
         }
         result
@@ -128,27 +136,27 @@ impl Studyplan {
     }
 }
 
-const SAVED_KEY: &str = "betula.studyplan.saved.v1";
+/// The first profile's key of the saved plans; another profile's has its number in it.
+pub(crate) const SAVED_KEY: &str = "betula.studyplan.saved.v1";
 
 /// The plans saved in this browser („Plan speichern", `folia_plans::studyplan::SavedPlans`): kept like
 /// the plan (R20: in `localStorage` alone, never in an address or a request, read like anything
-/// from outside). Only the Stundenplan's sidebar reads them, so it makes the store itself; another
-/// tab's change follows.
+/// from outside; each profile its own). Only the Stundenplan's sidebar and the profile page read
+/// them, so each makes the store itself; another tab's change and another profile follow.
 #[derive(Clone, Copy)]
-pub struct Saved(RwSignal<SavedPlans>);
+pub struct Saved(RwSignal<SavedPlans>, Kept);
 
 impl Saved {
-    /// Reads what this browser has saved; follows another tab from then on.
+    /// Reads what this browser has saved for the active profile; follows another tab and another
+    /// profile from then on.
     pub fn open() -> Self {
-        let saved = Saved(RwSignal::new(load_saved()));
-        Effect::new(move |_| {
-            let handle = window_event_listener_untyped("storage", move |_| {
-                let stored = load_saved();
-                if saved.0.with_untracked(|plans| *plans != stored) {
-                    saved.0.set(stored);
-                }
-            });
-            on_cleanup(move || handle.remove());
+        let kept = Kept::of(SAVED_KEY);
+        let saved = Saved(RwSignal::new(load_saved(kept)), kept);
+        kept.follow(move || {
+            let stored = load_saved(kept);
+            if saved.0.with_untracked(|plans| *plans != stored) {
+                saved.0.set(stored);
+            }
         });
         saved
     }
@@ -167,21 +175,21 @@ impl Saved {
         let mut plans = self.0.try_with_untracked(Clone::clone).unwrap_or_default();
         let result = f(&mut plans);
         if self.0.try_with_untracked(|now| *now != plans).unwrap_or(false) {
-            nav::local_set(SAVED_KEY, &plans.stored());
+            self.1.write(&plans.stored());
             self.0.set(plans);
         }
         result
     }
 }
 
-fn load_saved() -> SavedPlans {
-    nav::local_get(SAVED_KEY).as_deref().map(SavedPlans::restored).unwrap_or_default()
+fn load_saved(kept: Kept) -> SavedPlans {
+    kept.read().as_deref().map(SavedPlans::restored).unwrap_or_default()
 }
 
 /// What this browser has stored. Nothing on the server, and nothing in a browser that refuses
 /// storage (a plan then lasts as long as the page).
-fn load() -> PlanDoc {
-    restored(nav::local_get(STORAGE_KEY).as_deref())
+fn load(kept: Kept) -> PlanDoc {
+    restored(kept.read().as_deref())
 }
 
 /// The plan of a stored text, read like anything from outside: garbage is dropped line by line,

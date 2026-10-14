@@ -26,8 +26,9 @@ use folia_home::home::HomePage;
 use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
+use folia_profile::profile::ProfilePage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
-use folia_shell::chrome::{FollowTabs, NavItems, Rail, TabMenu, TopBack, TopBar};
+use folia_shell::chrome::{FollowTabs, NavItems, ProfileMenu, ProfileSwitcher, Rail, TabMenu, TopBack, TopBar};
 use folia_shell::frame::Plain;
 use folia_shell::ground::{Crown, Ground, Wood};
 use folia_shell::pending::Pending;
@@ -35,6 +36,7 @@ use folia_shell::tabs::{TabAgain, Tabs};
 use folia_shell::{languages, pending, seo, skeleton};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{MineResolved, MyProgram};
+use folia_stores::profiles::Profiles;
 use folia_stores::studyplan::Studyplan;
 use folia_catalog::module::ModulePage;
 
@@ -104,14 +106,19 @@ pub fn App() -> impl IntoView {
     Tabs::provide();
     // A tab tapped again where its area is: the area's page back to where it starts.
     TabAgain::provide();
-    // The visitor's marked modules, Studienplan and „Mein Studiengang": from this browser's
-    // storage, empty on the server (R9). What the catalog knows of the program follows the store.
+    // The visitor's profiles, and the active one's marked modules, Studienplan and „Mein
+    // Studiengang": from this browser's storage, empty on the server (R9). The stores keep the
+    // active profile's texts, so the profiles come first. What the catalog knows of the program
+    // follows the store.
+    Profiles::provide();
     Bookmarks::provide();
     Studyplan::provide();
     MyProgram::provide();
     MineResolved::provide();
     // The way back a page's step puts at the head of a phone's page (`chrome::TopBack`).
     TopBack::provide();
+    // The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`).
+    ProfileMenu::provide();
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();
@@ -140,6 +147,7 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
                         <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
                         <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
+                        <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
                         <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
                         <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
                     </Routes>
@@ -150,6 +158,7 @@ pub fn App() -> impl IntoView {
             <Ground/>
             <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
             <TabMenu/>
+            <ProfileSwitcher/>
         </Router>
     }
 }

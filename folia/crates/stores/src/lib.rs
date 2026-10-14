@@ -1,7 +1,7 @@
 //! What a visitor keeps in this browser, and the buttons that change it: the marked modules
-//! (`bookmarks`), the Studienplan (`studyplan`) and „Mein Studiengang" (`myprogram`). Nothing of
-//! it reaches the server (R9, R15). Above the shell, below the widgets and the features
-//! (docs/folia/folia-refactor.md §7.4).
+//! (`bookmarks`), the Studienplan (`studyplan`) and „Mein Studiengang" (`myprogram`), each in the
+//! profile that is active (`profiles`). Nothing of it reaches the server (R9, R15). Above the
+//! shell, below the widgets and the features (docs/folia/folia-refactor.md §7.4).
 
 // Leptos view types nest deeply.
 #![recursion_limit = "512"]
@@ -10,4 +10,5 @@
 pub mod bookmarks;
 pub mod i18n;
 pub mod myprogram;
+pub mod profiles;
 pub mod studyplan;

@@ -20,7 +20,7 @@
 //!   the rate limit per address (`deploy/config/traefik/dynamic/middlewares.yml`); Folia's own log
 //!   without addresses, 30 days (`access_log` in `folia/crates/server/src/main.rs`);
 //! - „Speicher im Browser": R20 (docs/folia/frontend.md) and the stores (`bookmarks`, `studyplan`,
-//!   `myprogram`, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
+//!   `myprogram`, `profiles` and the profile page's backup file, `tabs`, what the finder compares in `pages/catalog`, `assets/enhance.js`,
 //!   `assets/boot.js`, `assets/sw.js`; the semantic search's model, `folia/crates/server/src/semantic.rs`);
 //! - „Kalender-Abo": `folia_calendar::subscription` (what a code carries), `folia/crates/server/src/api.rs`,
 //!   the ways to subscribe in `pages/studyplan/export.rs`;
@@ -57,7 +57,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (4, 10, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (14, 10, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).
@@ -431,8 +431,8 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 4. Oktober 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 4 October 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 14. Oktober 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 14 October 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
         assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");
     }
 }
