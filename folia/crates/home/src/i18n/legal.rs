@@ -326,7 +326,7 @@ pub const DE: Texts = Texts {
     recipients: Prose {
         heading: "Weitergabe und Links",
         texts: &[
-            "Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, und dein Kalenderdienst, wenn du ein Abo anlegst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU; für einen Kalenderdienst, den du wählst, gilt dessen Datenschutzerklärung. Es gibt keine automatisierten Entscheidungen und keine Profile.",
+            "Deine Daten verkaufe ich nicht und gebe sie nicht weiter. Andere bekommen sie nur, wie oben beschrieben: Contabo als Betreiber des Servers, mein E-Mail-Anbieter, wenn du mir schreibst, und dein Kalenderdienst, wenn du ein Abo anlegst. Betula selbst übermittelt keine Daten in Länder außerhalb der EU; für einen Kalenderdienst, den du wählst, gilt dessen Datenschutzerklärung. Es gibt keine automatisierten Entscheidungen und kein Profiling.",
             "Du musst keine Daten angeben, um Betula zu nutzen. Ohne die Angaben, die dein Browser bei jedem Aufruf mitschickt, etwa die IP-Adresse, lassen sich die Seiten aber nicht ausliefern.",
             "Betula verlinkt auf die Originale bei der BTU und auf andere Seiten. Folgst du einem solchen Link, erfährt die andere Seite nur, dass du von betula.app kommst, nicht von welcher Seite; ab da gilt ihre Datenschutzerklärung.",
         ],
@@ -481,7 +481,7 @@ pub const EN: Texts = Texts {
     recipients: Prose {
         heading: "Disclosure and links",
         texts: &[
-            "I do not sell your data and do not pass it on. Others only receive it as described above: Contabo as the operator of the server, my e-mail provider when you write to me, and your calendar service when you set up a subscription. Betula itself transfers no data to countries outside the EU; for a calendar service you choose, its privacy policy applies. There are no automated decisions and no profiles.",
+            "I do not sell your data and do not pass it on. Others only receive it as described above: Contabo as the operator of the server, my e-mail provider when you write to me, and your calendar service when you set up a subscription. Betula itself transfers no data to countries outside the EU; for a calendar service you choose, its privacy policy applies. There are no automated decisions and no profiling.",
             "You do not have to provide any data to use Betula. Without the information your browser sends with every request, such as the IP address, the pages cannot be delivered, though.",
             "Betula links to the originals at BTU and to other pages. If you follow such a link, the other site only learns that you come from betula.app, not from which page; from then on, its privacy policy applies.",
         ],
