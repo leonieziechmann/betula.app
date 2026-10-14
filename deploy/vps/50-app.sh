@@ -149,9 +149,11 @@ decide_radix_mode() {
   esac
 }
 
-# Offline, Radix only serves the snapshot it has, so there has to be one. A volume that was
-# seeded and never ran has a database and no snapshot: the snapshot is made from it here, in
-# containers without a network (build, validate and export read nothing but the database).
+# Offline, Radix only serves the snapshot it has, so there has to be one; offline through Cortex
+# (cortex-offline) it builds one at start, but the web server has to wait for it, so it is made
+# first all the same. A volume that was seeded and never ran has a database and no snapshot: the
+# snapshot is made from it here, in containers without a network (build, validate and export read
+# nothing but the database).
 # build comes first: the seeded database may be older than this release, and the new binary
 # migrates it when it opens it, but only a build fills what a migration adds (schema 9: the
 # short names); export validates and refuses a database that was not built again.
@@ -531,7 +533,10 @@ FOLIA_IMAGE="betula-folia:${TAG}"
 
 preflight
 decide_radix_mode
-if [[ "${RADIX_MODE}" == "off" ]]; then
+# cortex-offline as well: its Radix would build and export at start, and its web server answer
+# /healthz 503 until then (a minute and a half; logged as ERROR for every probe of the canary
+# agent, so "ERROR in the logs" fired at every deploy from 2026-10-04 to 2026-10-14).
+if [[ "${RADIX_MODE}" == "off" || "${RADIX_MODE}" == "cortex-offline" ]]; then
   ensure_snapshot
 fi
 deploy_app

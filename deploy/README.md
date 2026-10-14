@@ -268,8 +268,10 @@ Cortex has stored is what a colour that crawls fetched through it and what `radi
 gave it (section 14). It needs a Cortex that runs and a release of Radix that knows
 `--cortex-mode` (from 2026-10-04 on); without either, `50-app.sh` deploys the instance offline as
 below and says so (a WARN, also in `91-verify-stacks.sh app`), so that a build of master without
-it, or a Cortex that is down, still reaches canary. A seeded volume needs no snapshot made first:
-the new release builds and exports at start (`service.rebuild`), within minutes.
+it, or a Cortex that is down, still reaches canary. As offline, `50-app.sh` first makes the
+snapshot of a seeded volume (build and export in containers without a network), so that the web
+server has its catalog at once; without it the new colour answered `/healthz` 503 for a minute and
+a half while its Radix built, which the canary agent's probes logged as ERRORs at every deploy.
 
 **Radix offline** (`RADIX_CRAWL=off` in the instance's file, `stacks/betula.offline.yml`): Radix
 is started as `radix serve-snapshot --db /data/radix.db` instead of `radix run`. It sends nothing

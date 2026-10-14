@@ -23,11 +23,10 @@
 #      whose Radix crawls. The host's own sqlite3 (Ubuntu's, not a binary of the release) reads it
 #      read-only, as one transaction (VACUUM INTO), while that Radix writes on. Nothing of a new
 #      release ever opens the public site's database, so no migration can reach it.
-#   4. vps/45-seed.sh puts the copy into the colour's volume; vps/50-app.sh deploys the colour as
-#      the standby, and the new release builds and exports the catalog from the copy (its
-#      migrations run on it): offline (RADIX_CRAWL=off) before, in a container without a network,
-#      and with RADIX_CRAWL=cortex-offline its Radix when it starts, which then runs its cycles on
-#      what Cortex has stored.
+#   4. vps/45-seed.sh puts the copy into the colour's volume; vps/50-app.sh builds and exports the
+#      catalog with the new release (its migrations run on the copy, in a container without a
+#      network) and deploys the colour as the standby; with RADIX_CRAWL=cortex-offline its Radix
+#      then runs its cycles on what Cortex has stored.
 #   5. Once its web server answers /healthz, vps/55-switch.sh hands the host over, and the agent
 #      waits until the new colour has settled and still answers.
 #   6. The colour that served before is removed with its volumes: canary keeps no backup. Images
