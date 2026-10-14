@@ -861,26 +861,27 @@ enum TerminKey<'a> {
     /// The dates of a series of single dates at one time: event, series, start, end.
     Series(&'a str, Series, Option<&'a str>, Option<&'a str>),
     /// The single dates of one slot in no series, the same date in several rooms among them:
-    /// event, group, weekday, start, end.
-    Once(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>),
-    /// The rows of one row key: a Termin in several rooms, as the Studienplan and the calendar
-    /// read it.
-    Key(RowKey),
-    /// A row without a key.
-    Alone,
+    /// event, group, weekday, start, end, and whether QIS gives a date.
+    Once(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>, bool),
+    /// The recurring rows of one slot: event, group, weekday, start, end, rhythm, and whether QIS
+    /// gives them a range (a row without one is a line of its own, as before). A Termin in several
+    /// rooms, and one QIS splits into several ranges.
+    Slot(&'a str, Option<&'a str>, Option<i64>, Option<&'a str>, Option<&'a str>, Option<&'a str>, bool),
 }
 
 /// The Termine of a module's teaching rows, each the rows of one line of the list (owner,
-/// 2026-10-13: „sehr unübersichtlich, wenn da Einzeltermine sind"): the dates of a series of
-/// single dates at one time, one Termin in the series' rhythm; the other single dates of one slot
-/// (event, group, weekday and time), the same date in several rooms among them; the rows of one
-/// row key, a Termin in several rooms; a row without a key alone. A date of a series at another
-/// time is a line of its own. Each line stands where its first row does.
+/// 2026-10-13/14: „sehr unübersichtlich, wenn da Einzeltermine sind", „bündel auch die geteilten
+/// Zeiträume"): the dates of a series of single dates at one time, one Termin in the series'
+/// rhythm; the other single dates of one slot (event, group, weekday and time), the same date in
+/// several rooms among them; the recurring rows of one slot and rhythm, a Termin in several rooms
+/// or in several ranges. A date of a series at another time is a line of its own, and so are the
+/// single dates of a slot beside its weekly rows, as in the week. Each line stands where its first
+/// row does.
 fn termine<'a>(teaching: impl IntoIterator<Item = &'a EventDate>) -> Vec<Vec<&'a EventDate>> {
     let mut lines: Vec<(TerminKey<'a>, Vec<&'a EventDate>)> = Vec::new();
     for date in teaching {
         let key = termin_key(date);
-        match lines.iter_mut().find(|(known, _)| *known != TerminKey::Alone && *known == key) {
+        match lines.iter_mut().find(|(known, _)| *known == key) {
             Some((_, rows)) => rows.push(date),
             None => lines.push((key, vec![date])),
         }
@@ -890,11 +891,26 @@ fn termine<'a>(teaching: impl IntoIterator<Item = &'a EventDate>) -> Vec<Vec<&'a
 
 /// The line of the Termine list a row belongs to (`termine`).
 fn termin_key(date: &EventDate) -> TerminKey<'_> {
-    let (event, from, to) = (date.event_id.as_str(), date.start_time.as_deref(), date.end_time.as_deref());
+    let (event, from, to, dated) = (date.event_id.as_str(), date.start_time.as_deref(), date.end_time.as_deref(), span_of(date).is_some());
     match (date.series, once(date)) {
         (Some(series), _) => TerminKey::Series(event, series, from, to),
-        (None, true) => TerminKey::Once(event, date.group_name.as_deref(), date.weekday, from, to),
-        (None, false) => RowKey::of(date).map_or(TerminKey::Alone, TerminKey::Key),
+        (None, true) => TerminKey::Once(event, date.group_name.as_deref(), date.weekday, from, to, dated),
+        (None, false) => TerminKey::Slot(event, date.group_name.as_deref(), date.weekday, from, to, date.rhythm.as_ref().map(|rhythm| rhythm.code()), dated),
+    }
+}
+
+/// A row's days, its first to its last, one day for a single date; `None` for a row without a date.
+fn span_of(row: &EventDate) -> Option<(Day, Day)> {
+    let first = row.first_date.as_deref().and_then(Day::parse)?;
+    let last = row.last_date.as_deref().and_then(Day::parse).filter(|last| *last >= first).unwrap_or(first);
+    Some((first, last))
+}
+
+/// „06.10." for a day, „09.10.–23.10." for a range.
+fn span_text((first, last): (Day, Day), locale: Locale) -> String {
+    match first == last {
+        true => first.day_month(locale),
+        false => format!("{}–{}", first.day_month(locale), last.day_month(locale)),
     }
 }
 
@@ -917,22 +933,24 @@ struct TerminText {
     listed: Option<String>,
 }
 
-/// The days of a line: none, a range (its first and its last day, ISO), or its days one by one.
+/// The days of a line: none, a range (its first and its last day, ISO), or its days and ranges one
+/// by one (`span_of`).
 #[derive(Debug, PartialEq)]
 enum Dates {
     None,
     Range(String, Option<String>),
-    List(Vec<Day>),
+    List(Vec<(Day, Day)>),
 }
 
 /// The words of one line of the Termine list (`termine`): a series of single dates in its rhythm,
 /// how many and from when to when, its dates in the tooltip; the single dates of one slot counted
-/// and named day by day („6 Einzeltermine · 06.10., 20.10., …"); a Termin in several rooms with all
-/// of them. QIS's „[unbenannt]" names no group, so the line names none (owner, 2026-10-14: it read
-/// as a person QIS does not know).
+/// and named day by day („6 Einzeltermine · 06.10., 20.10., …"); a recurring Termin in its ranges
+/// („wöchentlich · 09.10.–23.10., 06.11.–27.11."), with all its rooms. QIS's „[unbenannt]" names
+/// no group, so the line names none (owner, 2026-10-14: it read as a person QIS does not know).
 fn termin_text(rows: &[EventDate], t: &'static Texts) -> Option<TerminText> {
     let d = rows.first()?;
     let days: Vec<Day> = rows.iter().filter_map(|row| row.first_date.as_deref().and_then(Day::parse)).collect::<BTreeSet<_>>().into_iter().collect();
+    let spans: Vec<(Day, Day)> = rows.iter().filter_map(span_of).collect::<BTreeSet<_>>().into_iter().collect();
     let several = days.len() > 1;
     let series = d.series.filter(|_| several);
     let singles = several && series.is_none() && once(d);
@@ -948,8 +966,8 @@ fn termin_text(rows: &[EventDate], t: &'static Texts) -> Option<TerminText> {
     };
     let group = d.group_name.as_deref().map(str::trim).filter(|group| !group.is_empty() && !group.starts_with('[')).map(str::to_string);
     let head = [d.event_type.clone(), group, rhythm, count].into_iter().flatten().collect();
-    let dates = match (singles, rows.iter().filter_map(|row| row.first_date.as_deref()).min()) {
-        (true, _) => Dates::List(days.clone()),
+    let dates = match (singles || (series.is_none() && spans.len() > 1), rows.iter().filter_map(|row| row.first_date.as_deref()).min()) {
+        (true, _) => Dates::List(spans),
         (false, Some(first)) => {
             let last = rows.iter().filter_map(|row| row.last_date.as_deref()).max().filter(|last| *last != first);
             Dates::Range(first.to_string(), last.map(str::to_string))
@@ -971,24 +989,24 @@ fn termin_text(rows: &[EventDate], t: &'static Texts) -> Option<TerminText> {
 }
 
 /// What the rows of a line say (`value`), each once in their order and joined by `by`; a value
-/// not every date of the line has names its days, or, where most have it, the days it leaves out
-/// („ZB/VI.03 (16.10., 27.11.)", „SFB/1.308 (außer 26.01.) / SFB/1.309 (26.01.)"), so that the line
-/// says of no date what QIS says of another. `None` where none says anything.
+/// not every date or range of the line has names them, or, where most have it, those it leaves out
+/// („ZB/VI.03 (16.10., 27.11.)", „SFB/1.308 (außer 26.01.) / SFB/1.309 (26.01.)", „SFB/1.211
+/// (09.10.–23.10.)"), so that the line says of no date what QIS says of another. `None` where none
+/// says anything.
 fn said_on<'a>(rows: &'a [EventDate], value: impl Fn(&'a EventDate) -> Option<&'a str>, by: &str, t: &'static Texts) -> Option<String> {
-    let day_of = |row: &EventDate| row.first_date.as_deref().and_then(Day::parse);
-    let all: BTreeSet<Day> = rows.iter().filter_map(day_of).collect();
-    let mut values: Vec<(&str, BTreeSet<Day>)> = Vec::new();
+    let all: BTreeSet<(Day, Day)> = rows.iter().filter_map(span_of).collect();
+    let mut values: Vec<(&str, BTreeSet<(Day, Day)>)> = Vec::new();
     for row in rows {
         let Some(said) = value(row).map(str::trim).filter(|said| !said.is_empty()) else { continue };
         match values.iter_mut().find(|(known, _)| *known == said) {
-            Some((_, days)) => days.extend(day_of(row)),
-            None => values.push((said, day_of(row).into_iter().collect())),
+            Some((_, spans)) => spans.extend(span_of(row)),
+            None => values.push((said, span_of(row).into_iter().collect())),
         }
     }
-    let named = |days: &mut dyn Iterator<Item = &Day>| days.map(|day| day.day_month(t.locale)).collect::<Vec<_>>().join(", ");
+    let named = |spans: &mut dyn Iterator<Item = &(Day, Day)>| spans.map(|span| span_text(*span, t.locale)).collect::<Vec<_>>().join(", ");
     let parts: Vec<String> = values
         .into_iter()
-        .map(|(said, days)| match days == all {
+        .map(|(said, days)| match days == all || days.is_empty() {
             true => said.to_string(),
             false if 2 * days.len() > all.len() => format!("{said} ({})", (t.module.except_on)(&named(&mut all.difference(&days)))),
             false => format!("{said} ({})", named(&mut days.iter())),
@@ -1192,8 +1210,8 @@ fn shown_when(slot: &Slot, t: &'static Texts) -> Option<String> {
 
 /// The line under a Termin: type, group and rhythm, its days, then room, lecturers and comment,
 /// joined by „ · ". The days are `<time>` elements: „15.02.2027" to a reader (in the page's
-/// language), 2027-02-15 to a machine (a search engine reading the page); single dates one by one
-/// read „06.10., 20.10.".
+/// language), 2027-02-15 to a machine (a search engine reading the page); single dates and ranges
+/// one by one read „06.10., 20.10." and „09.10.–23.10., 06.11.–27.11."
 fn detail_line(head: Vec<String>, dates: Dates, tail: Vec<String>, locale: Locale) -> impl IntoView {
     let mut lead = head.join(" · ");
     let mut rest = tail.join(" · ");
@@ -1207,10 +1225,14 @@ fn detail_line(head: Vec<String>, dates: Dates, tail: Vec<String>, locale: Local
     let days = match dates {
         Dates::None => None,
         Dates::Range(first, last) => Some(view! { {date_of(&first, locale)}{last.map(|last| view! { " – "{date_of(&last, locale)} })} }.into_any()),
-        Dates::List(days) => Some(
-            days.into_iter()
+        Dates::List(spans) => Some(
+            spans
+                .into_iter()
                 .enumerate()
-                .map(|(n, day)| view! { {(n > 0).then_some(", ")}<time datetime=day.iso()>{day.day_month(locale)}</time> })
+                .map(|(n, (first, last))| {
+                    let till = (last != first).then(|| view! { "–"<time datetime=last.iso()>{last.day_month(locale)}</time> });
+                    view! { {(n > 0).then_some(", ")}<time datetime=first.iso()>{first.day_month(locale)}</time>{till} }
+                })
                 .collect_view()
                 .into_any(),
         ),
@@ -1427,9 +1449,10 @@ mod tests {
     }
 
     /// The single dates of one slot are one line with their days, the same date in several rooms
-    /// one with all of them, a weekly Termin in two rooms one with both (owner, 2026-10-14: „mach
-    /// auch die zwei anderen Bündelungen"); QIS's „[unbenannt]" names no group. The structured data
-    /// keeps a Schedule per date.
+    /// one with all of them, a weekly Termin in two rooms one with both, and one QIS splits into
+    /// ranges one with its ranges (owner, 2026-10-14: „mach auch die zwei anderen Bündelungen",
+    /// „bündel auch die geteilten Zeiträume"); QIS's „[unbenannt]" names no group. The structured
+    /// data keeps a Schedule per date.
     #[test]
     fn single_dates_of_a_slot_and_a_termin_in_several_rooms_are_one_line() {
         let at = |room: &str, date: EventDate| EventDate { room: Some(room.into()), ..date };
@@ -1442,13 +1465,18 @@ mod tests {
         rows.extend(["SFB/6.302", "SFB/6.106", "SFB/6.306"].into_iter().map(|room| at(room, single("152463", "[unbenannt]", "2027-01-19"))));
         let weekly = teaching("152512", "Übung", "1-Gruppe", 5, ("12:30", "14:00"), "weekly", "2026-10-09", "2026-10-23");
         rows.extend([at("SFB/1.211", weekly.clone()), at("SFB/1.210", weekly)]);
+        // The same Termin in two ranges, one room only in the first.
+        let weekly = |first: &str, last: &str| teaching("152512", "Übung", "2-Gruppe", 5, ("14:30", "16:00"), "weekly", first, last);
+        rows.extend([at("SFB/1.211", weekly("2026-10-09", "2026-10-23")), at("SFB/1.210", weekly("2026-10-09", "2026-10-23")), at("SFB/1.210", weekly("2026-11-06", "2026-11-27"))]);
+        // A row of the slot QIS gives no range (12118's): a line of its own, as before.
+        rows.push(at("SFB/1.110", EventDate { first_date: None, last_date: None, ..weekly("", "") }));
         let lines: Vec<String> = termine(&rows)
             .into_iter()
             .map(|line| {
                 let line: Vec<EventDate> = line.into_iter().cloned().collect();
                 let text = termin_text(&line, &DE).unwrap();
                 let dates = match text.dates {
-                    Dates::List(days) => days.iter().map(|day| day.day_month(Locale::De)).collect::<Vec<_>>().join(", "),
+                    Dates::List(spans) => spans.into_iter().map(|span| span_text(span, Locale::De)).collect::<Vec<_>>().join(", "),
                     Dates::Range(first, last) => format!("{first}{}", last.map(|last| format!(" – {last}")).unwrap_or_default()),
                     Dates::None => String::new(),
                 };
@@ -1461,10 +1489,12 @@ mod tests {
                 "Di 14:30–16:00 | Seminar · 1-Gruppe · 6 Einzeltermine | 06.10., 20.10., 10.11., 24.11., 15.12., 12.01. | SFB/1.308 (außer 12.01.) / SFB/1.309 (12.01.)",
                 "Di 14:30–16:00 | Seminar · Einzeltermin | 2027-01-19 | SFB/6.302 / SFB/6.106 / SFB/6.306",
                 "Fr 12:30–14:00 | Übung · 1-Gruppe · wöchentlich | 2026-10-09 – 2026-10-23 | SFB/1.211 / SFB/1.210",
+                "Fr 14:30–16:00 | Übung · 2-Gruppe · wöchentlich | 09.10.–23.10., 06.11.–27.11. | SFB/1.211 (09.10.–23.10.) / SFB/1.210",
+                "Fr 14:30–16:00 | Übung · 2-Gruppe · wöchentlich |  | SFB/1.110",
             ]
         );
         let refs: Vec<&EventDate> = rows.iter().collect();
-        assert_eq!(schedule_of(&refs).len(), 8, "a Schedule per single date, the rooms of one alike");
+        assert_eq!(schedule_of(&refs).len(), 11, "a Schedule per single date, per range and for the row without one, the rooms of one alike");
     }
 
     #[test]
