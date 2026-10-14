@@ -3309,13 +3309,24 @@ to the result.
   dates fall in (`SemesterFacts::ab_week`; without A/B weeks a fortnightly series stays single
   dates there), every three weeks (`Every::ThreeWeeks`, which QIS itself never states) or four.
   A date of a series at another time than its others stands apart as the single date it is.
-  - **The module page** (`folia/crates/widgets/src/module.rs`, `termine`): one line in the list,
-    „Seminar · wöchentlich · 6 Termine · 13.10.2026 – 17.11.2026 · HG 0.20 · …", with the rooms,
-    persons and comments of its dates each once, and its dates in the line's tooltip („in QIS als
-    Einzeltermine: 13.10.2026, 20.10.2026, …"); one slot of the week like a weekly one, its rhythm
-    and days in the tooltip, where its dates were one `.once` slot that counted them („6
-    Termine"); one schema.org `Schedule` in its rhythm (`P1W` to `P4W`) with the days it leaves out
-    (`exceptDate`).
+  - **The module page** (`folia/crates/widgets/src/module.rs`, `termine`, `termin_text`): one line
+    in the list, „Seminar · wöchentlich · 6 Termine · 13.10.2026 – 17.11.2026 · HG 0.20 · …", its
+    dates in the line's tooltip („in QIS als Einzeltermine: 13.10.2026, 20.10.2026, …"); one slot of
+    the week like a weekly one, its rhythm and days in the tooltip, where its dates were one
+    `.once` slot that counted them („6 Termine"); one schema.org `Schedule` in its rhythm (`P1W` to
+    `P4W`) with the days it leaves out (`exceptDate`). Since 2026-10-14 (owner: „mach auch die
+    zwei anderen Bündelungen") the list has one line per Termin in two more ways: the single dates
+    of one slot that are no series, one line that counts and names them („Seminar · 1-Gruppe · 6
+    Einzeltermine · 06.10., 20.10., …"; the week drew them as one slot already), the same date in
+    several rooms among them; and the rows of one row key, a Termin in several rooms as the
+    Studienplan and the calendar read it (C.5), from the earliest start to the latest end. On 2026W
+    that is 4,346 lines on the 1,503 module pages instead of 4,936 (Management, 12950: 60 to 6). A
+    room, person or comment not every date of a line has names its days, or where most have it
+    the days it leaves out (`said_on`: „ZB/VI.03 (16.10., 27.11.) · 'Feedback Session' findet
+    online statt (06.11., 18.12.)", „SFB/1.308 (außer 12.01.) / SFB/1.309 (12.01.)"), so that the
+    line says of no date what QIS says of another. QIS's „[unbenannt]", its group without a name,
+    is no group the line names (owner: it read as a person QIS does not know); the Studienplan and
+    the calendar left it out already.
   - **The Stundenplan and the Studienplan's week** (`Timetable::regular_week`, `studyplan/week.rs`):
     one recurring slot, „ab"/„bis" where it covers a part of the lecture period, A or B, „3-wöch.",
     „4-wöch.", its dates in the tooltip; a date QIS cancels stays in its range (`Row::slot_day`),
