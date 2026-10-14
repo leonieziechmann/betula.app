@@ -298,10 +298,9 @@ fn Hero(home: Option<HomeData>) -> impl IntoView {
     view! {
         <section class="panel home-hero" id="ueberblick">
             <div class="home-hero-text">
-                // On a phone the start page carries the brand, and at the end of its line the way to
-                // the profile page and the switch between the languages (`chrome::ProfileButton`,
-                // `languages`): the phone has no rail to hold them.
-                <div class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span><folia_shell::chrome::ProfileButton/><folia_shell::languages::Languages/></div>
+                // On a phone the start page carries the brand: the phone has no rail. (The way to the
+                // profile page, with the language, is at the head of every page, `chrome::ProfileButton`.)
+                <div class="brand-phone"><span class="logo"><Mark/></span><span><Wordmark small=true/><small>{t.common.tagline}</small></span></div>
                 <p class="eyebrow-pill"><i></i>{t.home.eyebrow}</p>
                 <h1>{t.home.title_before}<span class="nowrap">"BTU Cottbus-Senftenberg"</span>{t.home.title_after}</h1>
                 <p class="lead">{t.home.lead}</p>

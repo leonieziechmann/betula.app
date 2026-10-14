@@ -434,6 +434,25 @@ impl Profiles {
         mine.name.or(mine.program)
     }
 
+    /// The line under each profile wherever the profiles are listed (the profile page, the menu of
+    /// the way to it): its „Mein Studiengang" (`program_of`), the active one's as its store has it
+    /// now, else „Kein Studiengang". Tracked.
+    pub fn program_lines(self, locale: Locale) -> Vec<(u16, String)> {
+        let active = self.active();
+        let own = crate::myprogram::MyProgram::expect().and_then(|mine| mine.with(|doc| doc.name.clone().or_else(|| doc.program.clone())));
+        let none = crate::i18n::texts(locale).profiles.no_program;
+        self.registry.with(|registry| {
+            registry
+                .profiles
+                .iter()
+                .map(|profile| {
+                    let line = if profile.id == active { own.clone() } else { self.program_of(profile.id) };
+                    (profile.id, line.unwrap_or_else(|| none.to_string()))
+                })
+                .collect()
+        })
+    }
+
     /// The number the next profile made gets, for the name it has until it is named („Profil 3");
     /// `None` with `MAX_PROFILES`. Tracked.
     pub fn next_id(self) -> Option<u16> {

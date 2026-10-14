@@ -1,15 +1,20 @@
 // Checks the profiles (folia/crates/stores/src/profiles.rs) and their page (folia/crates/profile).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node profile.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// Desktop: the rail's way to the page; a new profile is empty and the active one, its marks under
-// its own key while the first profile's stay under the plain one; a switch in the sidebar brings
-// a profile's marks back (the rail counts them), renaming, „Profil leeren" and deleting with
-// „Rückgängig"; another tab of the same browser follows a switch, and the Merkliste open there
-// shows the other profile's list; light, dark or the system's (with the switch of the rail); a
-// profile kept as a file and made again of it, and a file that is none; „Mein Studiengang" of the
-// active profile read by the script in <head>. Privacy: no request carries a profile's name or a
-// mark, and none leaves the site. Phone: the way to the page on the start page's brand line, the
-// profiles before the page, no sideways scrolling. English. Without the app: the page explains
-// itself and is `noindex`, and nothing of it shows.
+// Desktop: the rail's way to the page, and no switch of the languages in the rail; a new profile is
+// empty and the active one, its marks under its own key while the first profile's stay under the
+// plain one; a switch in the sidebar brings a profile's marks back (the rail counts them),
+// renaming, „Profil leeren" and deleting with „Rückgängig"; another tab of the same browser follows
+// a switch, and the Merkliste open there shows the other profile's list; the menu of the profiles
+// at the rail's way (a mouse resting on it: the profiles, the way to the page and to the other
+// language, a profile chosen; a right click: the focus on the active profile, a choice with the
+// keyboard, Esc); light, dark or the system's (with the switch of the rail); a profile kept as a
+// file and made again of it, and a file that is none; „Mein Studiengang" of the active profile read
+// by the script in <head>. Privacy: no request carries a profile's name or a mark, and none leaves
+// the site. Phone: the way to the page a box at the right of the search, as high as it, and none on
+// the start page's brand line; a finger held on it opens the menu (the release goes nowhere), a
+// profile tapped there is the active one, a tap on the box leads to the page; the profiles before
+// the page, no sideways scrolling. English. Without the app: the page explains itself, is
+// `noindex`, offers the other language, and the rail's way to it shows.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { readFile, writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -61,7 +66,7 @@ const shown = (page) => page.evaluate(() => ({
   profiles: [...document.querySelectorAll(".pf-item")].map((item) => [item.querySelector("b").textContent, item.getAttribute("aria-checked")]),
   rows: Object.fromEntries([...document.querySelectorAll(".pf-row")].map((row) => [row.querySelector(".pf-row-label").textContent, row.querySelector(".pf-row-value").textContent])),
   note: document.querySelector(".pf-note p")?.textContent ?? null,
-  rail: document.querySelector(".rail .profile-btn")?.getAttribute("title") ?? null,
+  rail: document.querySelector(".rail .profile-btn")?.getAttribute("aria-label") ?? null,
 }));
 const toProfile = (step, page) => step("the rail leads to the profile page", () => page.click(".rail .profile-btn"), () => location.pathname === "/profile" && Boolean(document.querySelector(".pf-head h2")));
 const toCatalog = (step, page) => step("the rail leads back to the catalog", () => page.click('.rail .nav[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelectorAll(".rows a.row").length > 5);
@@ -88,6 +93,7 @@ const mark = async (page, id) => {
   check(await page.evaluate(() => document.querySelector(".rail .profile-btn").getAttribute("aria-current") === "page" && !document.querySelector('.rail .nav[aria-current="page"]')), "the profile page is not the rail's current item, or a tab still is");
   check(await page.evaluate(() => document.querySelector(".topbar h1")?.textContent === "Profil"), "the top bar does not name the page");
   check(await page.evaluate(() => document.getElementById("pf-delete").getAttribute("aria-disabled") === "true"), "the only profile can be deleted");
+  check((await page.evaluate(() => document.querySelectorAll(".rail [data-language]").length)) === 0, "the rail still switches the language: it lives in the profile");
 
   // A new profile: empty, active, its own key.
   await step("„Neues Profil“ asks for a name", () => page.click("#pf-new"), () => document.activeElement?.id === "pf-new-name" && document.activeElement.placeholder === "Profil 2");
@@ -122,7 +128,7 @@ const mark = async (page, id) => {
   await page.bringToFront();
   await step("a switch to the second profile", () => page.click(`.pf-item:has(b:text-is("${NAME}"))`), () => !document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent?.startsWith("2"));
   await other.waitForFunction((id) => [...document.querySelectorAll(".rows a.row")].map((row) => row.dataset.id).join() === id, catalog[2], { timeout: 8000 }).catch(() => problems.push("the other tab's Merkliste did not follow the switch"));
-  check((await other.evaluate(() => document.querySelector(".rail .profile-btn")?.getAttribute("title"))) === `Profil: ${NAME}`, "the other tab's rail did not follow the switch");
+  check((await other.evaluate(() => document.querySelector(".rail .profile-btn")?.getAttribute("aria-label"))) === `Profil: ${NAME}`, "the other tab's rail did not follow the switch");
   await other.close();
 
   // „Profil leeren" and „Rückgängig".
@@ -130,6 +136,32 @@ const mark = async (page, id) => {
   await step("the profile emptied", () => page.click("#pf-clear-yes"), () => document.querySelector('.pf-row[href="/bookmarks"] .pf-row-value')?.textContent === "0 Module" && document.activeElement?.id === "pf-undo");
   check((await kept(page, "betula.p2.bookmarks.v1")) === null && ids(await kept(page, MARKS)).length === 2, "emptying took more or less than the profile's marks");
   await step("„Rückgängig“ puts it back", () => page.click("#pf-undo"), () => document.querySelector('.pf-row[href="/bookmarks"] .pf-row-value')?.textContent === "1 Modul");
+
+  // The menu of the profiles (owner, 2026-10-14: „wenn man beim pc über das profil in der nav bar
+  // links hovert, kann man die profile direkt auswählen"): a mouse resting on the rail's way.
+  const menu = () => page.evaluate(() => {
+    const at = document.querySelector(".profile-menu");
+    return at && { items: [...at.querySelectorAll(".pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...at.querySelectorAll(".tab-menu-way")].map((way) => way.getAttribute("href")), scrim: Boolean(document.querySelector(".tab-scrim")), focus: document.activeElement?.closest(".pm-item")?.querySelector("b")?.textContent ?? null };
+  });
+  await page.mouse.move(700, 450);
+  await page.hover(".rail .profile-btn");
+  await page.waitForSelector(".profile-menu", { timeout: 3000 }).catch(() => problems.push("the menu of the profiles does not open where a mouse rests on the rail's way"));
+  let offered = await menu();
+  check(JSON.stringify(offered) === JSON.stringify({ items: ["Informatik false", `${NAME} true`], ways: ["/profile", "/en/profile"], scrim: false, focus: null }), `the menu of the profiles: ${JSON.stringify(offered)}`);
+  await step("a profile chosen in the menu", () => page.click('.profile-menu .pm-item:has(b:text-is("Informatik"))'), () => !document.querySelector(".profile-menu") && document.querySelector(".pf-head h2")?.textContent === "Informatik" && document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent === "2");
+  // A right click: the menu stays where the mouse goes, the active profile has the focus, and the
+  // keyboard chooses another; Esc closes it, the focus back on the way.
+  await page.click(".rail .profile-btn", { button: "right" });
+  await page.mouse.move(700, 450);
+  await page.waitForTimeout(500);
+  offered = await menu();
+  check(offered?.scrim && offered.focus === "Informatik", `a right click on the rail's way: ${JSON.stringify(offered)}`);
+  await page.keyboard.press("Tab");
+  await step("a profile chosen with the keyboard", () => page.keyboard.press("Enter"), (name) => !document.querySelector(".profile-menu") && document.querySelector(".pf-head h2")?.textContent === name && document.activeElement?.matches(".rail .profile-btn"), NAME);
+  await page.click(".rail .profile-btn", { button: "right" });
+  await page.waitForSelector(".profile-menu", { timeout: 3000 }).catch(() => problems.push("a right click on the rail's way opens no menu"));
+  await page.keyboard.press("Escape");
+  check(await page.evaluate(() => !document.querySelector(".profile-menu") && document.activeElement?.matches(".rail .profile-btn")), "Esc does not close the menu of the profiles, or the focus is lost");
 
   // Light, dark, the system's; and the switch of the rail.
   const theme = () => page.evaluate(() => ({ data: document.documentElement.dataset.theme ?? null, stored: localStorage.getItem("betula.theme"), checked: document.querySelector('.pf-seg [aria-checked="true"][data-theme-value]')?.dataset.themeValue }));
@@ -198,9 +230,32 @@ const mark = async (page, id) => {
 {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const { page, step } = await open(context, "/");
-  const way = await page.evaluate(() => { const button = document.querySelector(".brand-phone .profile-btn"); const r = button?.getBoundingClientRect(); return r && { width: r.width, height: r.height, before: button.nextElementSibling?.classList.contains("languages") }; });
-  check(way && way.width >= 44 && way.height >= 44 && way.before, `phone: the way to the profile page on the brand line: ${JSON.stringify(way)}`);
-  await step("phone: the brand line leads to the profile page", () => page.tap(".brand-phone .profile-btn"), () => location.pathname === "/profile" && Boolean(document.querySelector(".pf-head h2")));
+  await page.evaluate((name) => localStorage.setItem("betula.profiles.v1", `active\t1\nprofile\t1\t0\t\nprofile\t2\t1760443200\t${name}\n`), NAME);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await takeover(page);
+  await page.evaluate(() => { window.__marker = 1; });
+  // The way to the profile page at the head of every page (owner, 2026-10-14: „für die mobile
+  // Version noch ein Konzept wie man an sein Profil rankommt"): a box at the right of the search,
+  // as high as it; the start page's brand line holds nothing else any more.
+  const way = await page.evaluate(() => {
+    const box = document.querySelector(".topbar .top-profile")?.getBoundingClientRect();
+    const search = document.querySelector(".topbar .search").getBoundingClientRect();
+    return box && { size: `${Math.round(box.width)}x${Math.round(box.height)}`, right: Math.round(innerWidth - box.right), gap: Math.round(box.left - search.right), search: Math.round(search.height), brand: document.querySelectorAll(".brand-phone a, .brand-phone button").length };
+  });
+  check(JSON.stringify(way) === JSON.stringify({ size: "48x48", right: 12, gap: 8, search: 48, brand: 0 }), `phone: the way to the profile page at the head: ${JSON.stringify(way)}`);
+  // A finger held on it: the menu of the profiles (owner: „Beim Handy long hold"), and its release
+  // goes nowhere.
+  const cdp = await context.newCDPSession(page);
+  const at = await page.evaluate(() => { const box = document.querySelector(".topbar .top-profile").getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
+  await page.waitForTimeout(650);
+  const held = await page.evaluate(() => ({ items: [...document.querySelectorAll(".profile-menu .pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...document.querySelectorAll(".profile-menu .tab-menu-way")].map((way) => way.getAttribute("href")) }));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(500);
+  check(JSON.stringify(held) === JSON.stringify({ items: ["Profil 1 true", `${NAME} false`], ways: ["/profile", "/en"] }), `phone: a finger held on the way: ${JSON.stringify(held)}`);
+  check(await page.evaluate(() => location.pathname === "/" && Boolean(document.querySelector(".profile-menu"))), "phone: the release of the finger went somewhere, or the menu went");
+  await step("phone: a profile tapped in the menu", () => page.tap(`.profile-menu .pm-item:has(b:text-is("${NAME}"))`), (name) => !document.querySelector(".profile-menu") && document.querySelector(".topbar .top-profile")?.getAttribute("aria-label") === `Profil: ${name}` && document.querySelector(".topbar .top-profile .avatar")?.textContent === "Z", NAME);
+  await step("phone: the box leads to the profile page", () => page.tap(".topbar .top-profile"), (name) => location.pathname === "/profile" && document.querySelector(".pf-head h2")?.textContent === name && document.querySelector(".topbar .top-profile")?.getAttribute("aria-current") === "page", NAME);
   const layout = await page.evaluate(() => { const [side, head] = [document.getElementById("sidebar"), document.querySelector(".pf-head")].map((el) => el.getBoundingClientRect()); return { first: side.bottom <= head.top + 1, overflow: document.documentElement.scrollWidth > innerWidth, theme: Boolean(document.querySelector('[data-theme-value="dark"]')?.getClientRects().length) }; });
   check(layout.first && !layout.overflow && layout.theme, `phone: the profiles before the page, no sideways scrolling, the theme to choose: ${JSON.stringify(layout)}`);
   await context.close();
@@ -211,8 +266,8 @@ const mark = async (page, id) => {
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
   const page = await context.newPage();
   const response = await page.goto(base + "/profile", { waitUntil: "domcontentloaded" });
-  const plain = await page.evaluate(() => ({ explained: document.querySelector(".state")?.textContent.includes("JavaScript") ?? false, robots: document.querySelector('meta[name="robots"]')?.content ?? "", way: document.querySelector(".rail .profile-btn")?.getClientRects().length ?? 0 }));
-  check(response.status() === 200 && plain.explained && plain.robots.startsWith("noindex") && plain.way === 0, `without JavaScript: ${JSON.stringify(plain)}`);
+  const plain = await page.evaluate(() => ({ explained: document.querySelector(".state")?.textContent.includes("JavaScript") ?? false, robots: document.querySelector('meta[name="robots"]')?.content ?? "", way: document.querySelector(".rail .profile-btn")?.getClientRects().length ?? 0, english: document.querySelector('.state a[data-language="en"]')?.getAttribute("href") ?? null }));
+  check(response.status() === 200 && plain.explained && plain.robots.startsWith("noindex") && plain.way === 1 && plain.english === "/en/profile", `without JavaScript: ${JSON.stringify(plain)}`);
   await context.close();
 }
 

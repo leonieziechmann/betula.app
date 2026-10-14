@@ -306,16 +306,12 @@ table { border-collapse: collapse; width: 100%; }
 .rail nav { display: grid; gap: 2px; }
 .nav.soon { opacity: .4; pointer-events: none; }
 .rail-end { margin-top: auto; display: grid; gap: 6px; justify-items: center; }
-/* The switch between the languages (app::languages): in the rail above the theme's and as large,
-   the icon of languages over the code of the language it leads to. A new page load. */
-.languages { display: grid; gap: 2px; justify-items: center; }
-.lang-switch { align-content: center; gap: 2px; }
-.lang-switch .icon { width: 17px; height: 17px; }
-.lang-switch b { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
-.lang-switch:hover { text-decoration: none; }
-/* The way to the profile page (chrome.rs `ProfileButton`): at the end of the rail above the
-   languages, the active profile's badge or a person; current on the profile page as a tab is. */
+/* The way to the profile page (chrome.rs `ProfileButton`): at the end of the rail above the switch
+   between light and dark, the active profile's badge or a person; current on the profile page as a
+   tab is. A mouse resting on it opens the menu of the profiles (`.profile-menu`). The language lives
+   in the profile (shell/src/languages.rs): the rail has no switch of its own any more. */
 .profile-btn .icon { width: 19px; height: 19px; }
+.profile-btn:hover { text-decoration: none; }
 .profile-btn[aria-current="page"]:not(:has(.avatar)) { background: var(--invert); color: var(--on-invert); }
 .profile-btn[aria-current="page"] .avatar { outline: 2px solid var(--tone); outline-offset: 2px; }
 .theme-toggle .icon-sun { display: none; }
@@ -333,8 +329,9 @@ span.js-only { display: contents; }
 /* The view is as high as the window; less what shows of the ground (see „the birch"). */
 .main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
-/* The way back of a page's step, a phone's (chrome.rs `TopBack`). */
-.top-back { display: none; }
+/* The way back of a page's step and the way to the profile page at the head, a phone's (chrome.rs
+   `TopBack`, `ProfileButton`). */
+.top-back, .top-profile { display: none; }
 /* The title sits over the filter panel (its text over the panel's text), the search over the list. */
 .crumb { display: flex; align-items: baseline; gap: 10px; flex: none; width: var(--filters); padding-left: 14px; min-width: 0; }
 .crumb h1 { font-size: 17px; font-weight: 680; letter-spacing: -.025em; white-space: nowrap; }
@@ -2481,6 +2478,23 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .tab-menu-way:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 @media (hover: hover) { .tab-menu-way:hover { background: var(--row-hover); text-decoration: none; } }
 @keyframes tab-menu-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
+/* The menu of the profiles (chrome.rs `ProfileMenu`): a menu as a tab's is, beside the rail's way to
+   the profile page and growing up from its foot, or hanging below the phone's box at its right
+   edge. The profiles as on the profile page (`.pf-item`), the active one checked; below them the
+   way to the profile page and the other language. */
+.profile-menu { width: 272px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; transform-origin: 100% 0; }
+.profile-menu.at-rail { transform-origin: 0 100%; }
+.pm-list { display: grid; gap: 2px; }
+.pm-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border-radius: 9px; text-align: left; color: var(--text); -webkit-tap-highlight-color: transparent; }
+.pm-item-text { flex: 1 1 auto; min-width: 0; display: grid; }
+.pm-item-text b { font-size: 14px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-item-text small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-item > .icon:last-child { flex: none; width: 16px; height: 16px; color: var(--accent-ink); visibility: hidden; }
+.pm-item[aria-checked="true"] > .icon:last-child { visibility: visible; }
+.pm-item:active { background: var(--row-hover); }
+.pm-item:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+@media (hover: hover) { .pm-item:hover { background: var(--row-hover); } }
+.tab-menu-rule { height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
 
 /* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
    The Studienplan: the frame of every page, the sidebar „Anpassen", and the plan in one panel of
@@ -3073,18 +3087,25 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .brand-phone .logo { margin: 0; }
   /* „inoffiziell" stays with the name, whole: where the line has no room for it beside the
-     wordmark (the switch of the languages at its end, a longer language), it goes under it. */
+     wordmark (a longer language), it goes under it. */
   .brand-phone > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
   .brand-phone small { color: var(--text-3); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* The switch between the languages at the end of the brand's line: a target of its own, framed so
-     that it reads as a button where nothing hovers. */
-  .brand-phone .languages { margin-left: auto; }
-  .brand-phone .lang-switch { width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
-  /* The way to the profile page before it, framed as it is (without JavaScript there is none, and
-     the languages keep the line's end). */
-  .brand-phone .profile-btn { flex: none; margin-left: auto; width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
-  html.js .brand-phone .profile-btn ~ .languages { margin-left: 0; }
-  .search { height: 48px; }
+  /* A little less room around the search's icon and words than on a wide screen, and none kept
+     for the button that empties the field while it is empty (Chrome keeps its room even while it
+     is hidden): beside the profile's box the search's words still fit on a phone 390 px wide (and
+     end in „…" on a narrower one). */
+  .search { height: 48px; padding: 0 6px 0 12px; gap: 8px; }
+  .search input { padding-inline: 0; }
+  .search input:placeholder-shown::-webkit-search-cancel-button { display: none; }
+  /* The way to the profile page at the head of every page (chrome.rs `ProfileButton`; owner,
+     2026-10-14: „für die mobile Version noch ein Konzept wie man an sein Profil rankommt"): a box at
+     the right of the search, as the way back is one at its left, with the active profile's badge or
+     a person. A tap leads to the profile page, a finger held on it opens the menu of the profiles
+     (enhance.js), and nothing of the browser's own menu of a link or its preview comes. */
+  .top-profile { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  .top-profile .icon { width: 22px; height: 22px; }
+  .top-profile .avatar { width: 30px; height: 30px; font-size: 14px; }
+  .top-profile:active { background: var(--panel-3); }
   /* The way back of a page's step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links neben der
      search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box as the
      search is, as wide as it is high. It slides in from the left and the search makes room for it,

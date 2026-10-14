@@ -715,9 +715,12 @@
   // TAB_HOLD ms without moving, or a right click (or the menu key) on a tab of the bar or the rail:
   // a tab the app marked `data-hold="menu"` gets its menu from the app (`betula:tab-menu` on the
   // tab, folia/crates/shell/src/chrome.rs `TabMenu`); the catalog's (`data-hold="filters"`) opens
-  // the catalog's list with its filters, on a phone only. The touch that held is no tap (its click
-  // goes) and no swipe. The bar's tabs never get the browser's own menu of a link (nor, app.css,
-  // its preview of one).
+  // the catalog's list with its filters, on a phone only. The way to the profile page
+  // (`data-hold="profiles"`, chrome.rs `ProfileButton`; owner, 2026-10-14: „Beim Handy long hold")
+  // is held the same way, the box at a phone's head with a finger, the rail's with a right click,
+  // and gets the menu of the profiles (`betula:profile-menu`, chrome.rs `ProfileMenu`). The touch
+  // that held is no tap (its click goes) and no swipe. The bar's tabs and the phone's box never get
+  // the browser's own menu of a link (nor, app.css, its preview of one).
   const TAB_HOLD = 420; // ms: a little before the browser's own long press (Android: 400–500)
   let tabHold = null; // the finger on a tab that may hold: { tab, id, x, y, timer }
   let tabHeld = false; // the touch on the bar held a tab: its click is no tap
@@ -744,6 +747,9 @@
       case "menu":
         tab.dispatchEvent(new Event("betula:tab-menu", { bubbles: true }));
         return true;
+      case "profiles":
+        tab.dispatchEvent(new Event("betula:profile-menu", { bubbles: true }));
+        return true;
       case "filters":
         if (!phone()) return false;
         catalogFilters(tab);
@@ -764,7 +770,7 @@
     dropHold();
     tabHeld = false;
     if (!e.isPrimary || e.pointerType === "mouse" || e.button !== 0) return;
-    const tab = e.target.closest?.(".bottomnav > .nav[data-hold]");
+    const tab = e.target.closest?.(".bottomnav > .nav[data-hold], .top-profile[data-hold]");
     if (tab) tabHold = { tab, id: e.pointerId, x: e.clientX, y: e.clientY, timer: setTimeout(fireHold, TAB_HOLD) };
   });
   document.addEventListener("pointermove", (e) => {
@@ -773,9 +779,9 @@
   document.addEventListener("pointerup", (e) => { if (e.pointerId === tabHold?.id) dropHold(); });
   document.addEventListener("pointercancel", (e) => { if (e.pointerId === tabHold?.id) dropHold(); });
   document.addEventListener("contextmenu", (e) => {
-    const tab = e.target.closest?.(".bottomnav > .nav, .rail .nav");
+    const tab = e.target.closest?.(".bottomnav > .nav, .rail .nav, .profile-btn[data-hold]");
     if (!tab) return;
-    const bar = tab.closest(".bottomnav");
+    const bar = tab.closest(".bottomnav, .top-profile");
     if (bar) e.preventDefault();
     // The browser's long press of a finger comes after ours, or a little before it.
     if (tabHeld) return;

@@ -86,12 +86,19 @@ fn ProfileSeo() -> impl IntoView {
 pub fn ProfilePage() -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
-    // A route of the app: the server writes its document, the app the page (§4.2).
+    // A route of the app: the server writes its document, the app the page (§4.2). Without
+    // JavaScript the page offers the other language, which lives in the profile (`Settings`).
     if !APP {
         return view! {
             <Title text=p.title/>
             <ProfileSeo/>
-            <AppStandin shape=Shape::Profile title=p.server_title hint=p.server_hint/>
+            <AppStandin shape=Shape::Profile title=p.server_title hint=p.server_hint>
+                {Locale::ALL.iter().copied().filter(|locale| *locale != t.locale).map(|locale| view! {
+                    <a class="btn secondary" href=locale.path(url::PROFILE) hreflang=locale.code() lang=locale.code() rel="alternate external nofollow" data-language=locale.code()>
+                        <Icon name="languages"/>{locale.name()}
+                    </a>
+                }).collect_view()}
+            </AppStandin>
         }
         .into_any();
     }
@@ -565,7 +572,6 @@ fn ProfileList(note: RwSignal<Option<Note>>) -> impl IntoView {
     let t = i18n::t();
     let p = &t.profile;
     let profiles = Profiles::expect();
-    let mine = MyProgram::expect();
     let all = Memo::new(move |_| profiles.map(Profiles::all).unwrap_or_default());
     let active = Memo::new(move |_| profiles.map_or(0, Profiles::active));
     // A click marks the profile at once; the switch follows after the next frame (R21): every
@@ -585,15 +591,7 @@ fn ProfileList(note: RwSignal<Option<Note>>) -> impl IntoView {
         });
     };
     // The line under each profile: its „Mein Studiengang", the active one's as its store has it.
-    let programs = Memo::new(move |_| {
-        let active = active.get();
-        let own = mine.and_then(|mine| mine.with(|doc| doc.name.clone().or_else(|| doc.program.clone())));
-        all.with(|all| {
-            all.iter()
-                .map(|profile| (profile.id, if profile.id == active { own.clone() } else { profiles.and_then(|profiles| profiles.program_of(profile.id)) }))
-                .collect::<Vec<_>>()
-        })
-    });
+    let programs = Memo::new(move |_| profiles.map(|profiles| profiles.program_lines(t.locale)).unwrap_or_default());
     view! {
         <div class="fgroup first">
             <div class="pf-list" role="radiogroup" aria-label=p.profiles>
@@ -603,14 +601,14 @@ fn ProfileList(note: RwSignal<Option<Note>>) -> impl IntoView {
                     children=move |profile: Profile| {
                         let id = profile.id;
                         let shown = profile.shown(t.locale);
-                        let line = Memo::new(move |_| programs.with(|programs| programs.iter().find(|(of, _)| *of == id).and_then(|(_, program)| program.clone())));
+                        let line = Memo::new(move |_| programs.with(|programs| programs.iter().find(|(of, _)| *of == id).map(|(_, line)| line.clone()).unwrap_or_default()));
                         let on = Memo::new(move |_| checked.get() == id);
                         view! {
                             <button class="pf-item" type="button" role="radio" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| switch(id)>
                                 <Avatar profile/>
                                 <span class="pf-item-text">
                                     <b>{shown}</b>
-                                    <small>{move || line.get().unwrap_or_else(|| p.no_program.to_string())}</small>
+                                    <small>{line}</small>
                                 </span>
                                 <Icon name="check"/>
                             </button>

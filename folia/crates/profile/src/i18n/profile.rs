@@ -92,8 +92,6 @@ pub struct Texts {
     pub language: &'static str,
 
     // ---- the sidebar ----
-    /// The line under a profile without „Mein Studiengang".
-    pub no_program: &'static str,
     pub new_profile: &'static str,
     /// The name field of a new profile, for screen readers, and its button.
     pub new_name: &'static str,
@@ -205,7 +203,6 @@ pub const DE: Texts = Texts {
     theme_dark: "Dunkel",
     language: "Sprache",
 
-    no_program: "Kein Studiengang",
     new_profile: "Neues Profil",
     new_name: "Name des neuen Profils",
     create: "Anlegen",
@@ -300,7 +297,6 @@ pub const EN: Texts = Texts {
     theme_dark: "Dark",
     language: "Language",
 
-    no_program: "No degree programme",
     new_profile: "New profile",
     new_name: "Name of the new profile",
     create: "Create",

@@ -1,7 +1,8 @@
-//! The chrome around every page: the rail with the main navigation and the languages, the top
-//! bar with the page's title and search (and on a phone the way back of a page's step, `TopBack`),
-//! the navigation at the bottom of a phone (`NavItems`) with what its tabs hold besides their pages
-//! (`TabMenu`), and what lets the memory of the tabs follow the router (`FollowTabs`).
+//! The chrome around every page: the rail with the main navigation and the way to the profile
+//! page, the top bar with the page's title and search (and on a phone the way back of a page's step,
+//! `TopBack`, and the way to the profile page), the navigation at the bottom of a phone
+//! (`NavItems`) with what its tabs hold besides their pages (`TabMenu`), the menu of the profiles
+//! (`ProfileMenu`), and what lets the memory of the tabs follow the router (`FollowTabs`).
 
 use folia_routes::url::{self, ProgramTab};
 use leptos::prelude::*;
@@ -11,6 +12,7 @@ use crate::i18n::{self, use_location};
 use crate::languages;
 use crate::pending::Pending;
 use crate::tabs::{Area, TabAgain, Tabs};
+use folia_design::nav;
 use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{program_href, program_name, MineResolved, MyProgram};
@@ -236,7 +238,6 @@ pub fn Rail() -> impl IntoView {
             <nav aria-label=t.app.main_navigation><NavItems/></nav>
             <div class="rail-end">
                 <ProfileButton/>
-                <languages::Languages/>
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>
@@ -246,13 +247,17 @@ pub fn Rail() -> impl IntoView {
 }
 
 /// The way to the profile page (owner, 2026-10-14; `folia_profile`): at the end of the rail above
-/// the languages, and on a phone, which has no rail, at the end of the start page's brand line
-/// beside them. It shows the active profile's badge (`Avatar`) where there is more than one
-/// profile or the one there is has a name, else the icon of a person, and names the profile in its
-/// title. The profiles live in the browser (R20), so it is the browser app's alone (R15), and the
-/// server writes the icon, the same for everybody (R9).
+/// the switch between light and dark, and on a phone, which has no rail, a box at the right of the
+/// search at the head of every page (`top`; owner, 2026-10-14: „für die mobile Version noch ein
+/// Konzept wie man an sein Profil rankommt"), as the way back of a page's step is a box at its left
+/// (`TopBack`). It shows the active profile's badge (`Avatar`) where there is more than one
+/// profile or the one there is has a name, else the icon of a person, and names the profile for
+/// those who do not see it. A mouse resting on it, a right click or a long press opens the menu of
+/// the profiles (`ProfileMenu`). The profiles live in the browser (R20): the server writes the
+/// icon, the same for everybody (R9), and without JavaScript the way leads to the page's stand-in,
+/// which offers the other language (`folia_profile`).
 #[component]
-pub fn ProfileButton() -> impl IntoView {
+pub fn ProfileButton(#[prop(optional)] top: bool) -> impl IntoView {
     let t = i18n::t();
     let location = use_location();
     let profiles = Profiles::expect().filter(|_| APP);
@@ -262,13 +267,286 @@ pub fn ProfileButton() -> impl IntoView {
     // The profile page is current at once, before it is there (`pending`).
     let pending = Pending::expect();
     let here = move || (pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get()) == url::PROFILE).then_some("page");
+    let menu = ProfileMenu::expect().filter(|_| APP);
     view! {
-        <a class="icon-btn profile-btn js-only" href=t.path(url::PROFILE) rel="nofollow" title=label aria-label=label aria-current=here>
+        <a
+            class=if top { "top-profile profile-btn" } else { "icon-btn profile-btn" }
+            href=t.path(url::PROFILE)
+            rel="nofollow"
+            aria-label=label
+            aria-current=here
+            data-hold=APP.then_some("profiles")
+            on:pointerenter=move |ev| {
+                if let Some(menu) = menu {
+                    menu.pointer_on(&ev, true);
+                }
+            }
+            on:pointerleave=move |ev| {
+                if let Some(menu) = menu {
+                    menu.pointer_off(&ev);
+                }
+            }
+            // The page chosen: no menu opens over it a moment later.
+            on:click=move |_| {
+                if let Some(menu) = menu {
+                    menu.close();
+                }
+            }
+        >
             {move || match badge.get() {
                 Some(profile) => view! { <Avatar profile/> }.into_any(),
                 None => view! { <Icon name="user-round"/> }.into_any(),
             }}
         </a>
+    }
+}
+
+/// A mouse resting on the way to the profile page opens its menu this much later; one passing over
+/// it on its way elsewhere opens nothing.
+const HOVER_OPEN: std::time::Duration = std::time::Duration::from_millis(160);
+
+/// A menu the mouse opened goes this much later once the mouse left it and the way: enough to
+/// cross the gap between them, or to come back.
+const HOVER_CLOSE: std::time::Duration = std::time::Duration::from_millis(280);
+
+/// Where the menu of the profiles stands (`ProfileMenu`), and how it opened.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct MenuAt {
+    /// At the rail's way: the menu stands beside it and grows up from its foot. Else at the box of
+    /// a phone's head: the menu hangs below it, at its right edge.
+    rail: bool,
+    /// A mouse resting on the way opened it, and it goes when the mouse has left the way and the
+    /// menu. Else a right click, the menu key or a long press did: it stays until a choice, a tap
+    /// beside it or Esc, and has the focus.
+    hover: bool,
+    /// The way's box on the screen, and the size of the window.
+    bottom: f64,
+    right: f64,
+    width: f64,
+    height: f64,
+}
+
+/// The menu of the profiles (owner, 2026-10-14: „wenn man beim pc über das profil in der nav bar
+/// links hovert, kann man die profile direkt auswählen. Beim Handy long hold."): the profiles of
+/// this browser with their „Mein Studiengang", the active one checked; a click makes one the
+/// active profile (after the next frame, R21; the menu goes at once). Below them the way to the
+/// profile page and the language (`languages::LanguageWays`), which lives in the profile since
+/// 2026-10-14. A mouse resting on a way to the profile page (`ProfileButton`) opens it there; a
+/// right click or the menu key on it does as well (as on a tab, `TabMenu`), and so does a finger
+/// held on the phone's box (enhance.js, `betula:profile-menu`). The browser app's alone.
+#[derive(Clone, Copy)]
+pub struct ProfileMenu {
+    at: RwSignal<Option<MenuAt>>,
+    /// What a mouse's coming or going does a moment later (`HOVER_OPEN`, `HOVER_CLOSE`).
+    timer: StoredValue<Option<TimeoutHandle>>,
+}
+
+impl ProfileMenu {
+    /// Creates the menu's place, closed, and provides it: call it once, in `App`.
+    pub fn provide() -> Self {
+        let menu = ProfileMenu { at: RwSignal::new(None), timer: StoredValue::new(None) };
+        provide_context(menu);
+        menu
+    }
+
+    pub fn expect() -> Option<Self> {
+        use_context::<Self>()
+    }
+
+    /// Drops what a mouse's coming or going was about to do.
+    fn cancel(self) {
+        if let Some(handle) = self.timer.get_value() {
+            handle.clear();
+        }
+        self.timer.set_value(None);
+    }
+
+    fn close(self) {
+        self.cancel();
+        if self.at.with_untracked(Option::is_some) {
+            self.at.set(None);
+        }
+    }
+
+    /// A mouse came onto a way to the profile page (`way`) or onto the menu: an open menu stays,
+    /// and a closed one opens at the way a moment later (`HOVER_OPEN`), unless the mouse leaves
+    /// before.
+    fn pointer_on(self, ev: &leptos::ev::PointerEvent, way: bool) {
+        if ev.pointer_type() != "mouse" {
+            return;
+        }
+        self.cancel();
+        if way && self.at.with_untracked(Option::is_none) {
+            self.open_later(ev);
+        }
+    }
+
+    /// Opens the menu at the way the mouse of `ev` came onto, a moment later (`HOVER_OPEN`).
+    fn open_later(self, ev: &leptos::ev::PointerEvent) {
+        #[cfg(feature = "csr")]
+        {
+            use leptos::wasm_bindgen::JsCast;
+            let Some(way) = ev.current_target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()) else { return };
+            let open = move || {
+                self.timer.set_value(None);
+                self.open_at(&way, true);
+            };
+            self.timer.set_value(set_timeout_with_handle(open, HOVER_OPEN).ok());
+        }
+        #[cfg(not(feature = "csr"))]
+        let _ = (ev, HOVER_OPEN);
+    }
+
+    /// A mouse left a way to the profile page or the menu: a menu the mouse opened goes a moment
+    /// later (`HOVER_CLOSE`), unless the mouse comes back onto either.
+    fn pointer_off(self, ev: &leptos::ev::PointerEvent) {
+        if ev.pointer_type() != "mouse" {
+            return;
+        }
+        self.cancel();
+        if self.at.with_untracked(|at| at.is_some_and(|at| at.hover)) {
+            let close = move || {
+                self.timer.set_value(None);
+                self.at.set(None);
+            };
+            self.timer.set_value(set_timeout_with_handle(close, HOVER_CLOSE).ok());
+        }
+    }
+
+    /// Opens the menu at `way`, a way to the profile page.
+    #[cfg(feature = "csr")]
+    fn open_at(self, way: &leptos::web_sys::Element, hover: bool) {
+        let rect = way.get_bounding_client_rect();
+        let size = |value: Result<leptos::wasm_bindgen::JsValue, leptos::wasm_bindgen::JsValue>| value.ok().and_then(|value| value.as_f64()).unwrap_or(0.0);
+        let (width, height) = leptos::web_sys::window().map_or((0.0, 0.0), |window| (size(window.inner_width()), size(window.inner_height())));
+        let rail = way.closest(".rail").ok().flatten().is_some();
+        self.cancel();
+        self.at.set(Some(MenuAt { rail, hover, bottom: rect.bottom(), right: rect.right(), width, height }));
+    }
+}
+
+/// The focus back on the way to the profile page the menu stood at, where the focus was in the
+/// menu (it goes with the menu).
+fn focus_way(rail: bool) {
+    #[cfg(feature = "csr")]
+    {
+        use leptos::wasm_bindgen::JsCast;
+        let Some(document) = leptos::web_sys::window().and_then(|window| window.document()) else { return };
+        let inside = document.active_element().is_some_and(|active| active.closest(".profile-menu").ok().flatten().is_some());
+        let way = document.query_selector(if rail { ".rail .profile-btn" } else { ".topbar .top-profile" }).ok().flatten();
+        if let Some(way) = way.filter(|_| inside).and_then(|way| way.dyn_into::<leptos::web_sys::HtmlElement>().ok()) {
+            let _ = way.focus();
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = rail;
+}
+
+/// The menu of the profiles where `ProfileMenu` opened it (see there).
+#[component]
+pub fn ProfileSwitcher() -> impl IntoView {
+    let t = i18n::t();
+    let menu = ProfileMenu::expect().filter(|_| APP);
+    let profiles = Profiles::expect().filter(|_| APP);
+    #[cfg(feature = "csr")]
+    Effect::new(move |_| {
+        use leptos::wasm_bindgen::JsCast;
+        let Some(menu) = menu else { return };
+        let open = window_event_listener_untyped("betula:profile-menu", move |ev| {
+            if let Some(way) = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()) {
+                menu.open_at(&way, false);
+            }
+        });
+        let keys = window_event_listener(leptos::ev::keydown, move |ev| {
+            let Some(at) = menu.at.get_untracked() else { return };
+            if ev.key() == "Escape" {
+                ev.prevent_default();
+                focus_way(at.rail);
+                menu.close();
+            }
+        });
+        on_cleanup(move || {
+            open.remove();
+            keys.remove();
+        });
+    });
+    // Another page: the menu goes.
+    let location = use_location();
+    Effect::new(move |before: Option<()>| {
+        location.pathname.track();
+        location.search.track();
+        if let Some(menu) = menu.filter(|_| before.is_some()) {
+            menu.close();
+        }
+    });
+    // Opened by a click or a finger, the active profile has the focus: Tab goes on from there, Esc
+    // closes the menu. A mouse resting on the way leaves the focus where it is.
+    let checked = NodeRef::<leptos::html::Button>::new();
+    Effect::new(move |_| {
+        if let Some(checked) = checked.get() {
+            if menu.is_some_and(|menu| menu.at.with_untracked(|at| at.is_some_and(|at| !at.hover))) {
+                let _ = checked.focus();
+            }
+        }
+    });
+    move || {
+        let menu = menu?;
+        let profiles = profiles?;
+        let at = menu.at.get()?;
+        let active = profiles.active();
+        let lines = profiles.program_lines(t.locale);
+        let choose = move |id: u16| {
+            focus_way(at.rail);
+            menu.close();
+            if id != profiles.active_untracked() {
+                nav::after_paint(move || profiles.switch(id));
+            }
+        };
+        let close = move |_| menu.close();
+        // Beside the rail, its foot at the way's; below the phone's box, at its right edge.
+        let place = if at.rail {
+            format!("left: {:.0}px; bottom: {:.0}px", at.right + 8.0, (at.height - at.bottom).max(8.0))
+        } else {
+            format!("top: {:.0}px; right: {:.0}px", at.bottom + 8.0, (at.width - at.right).max(8.0))
+        };
+        let items = profiles
+            .all()
+            .into_iter()
+            .map(|profile| {
+                let id = profile.id;
+                let on = id == active;
+                let line = lines.iter().find(|(of, _)| *of == id).map(|(_, line)| line.clone()).unwrap_or_default();
+                let node = if on { checked } else { NodeRef::new() };
+                view! {
+                    <button class="pm-item" type="button" role="radio" aria-checked=if on { "true" } else { "false" } node_ref=node on:click=move |_| choose(id)>
+                        <Avatar profile=profile.clone()/>
+                        <span class="pm-item-text">
+                            <b>{profile.shown(t.locale)}</b>
+                            <small>{line}</small>
+                        </span>
+                        <Icon name="check"/>
+                    </button>
+                }
+            })
+            .collect_view();
+        Some(view! {
+            {(!at.hover).then(|| view! { <div class="tab-scrim" on:click=close on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); menu.close() }></div> })}
+            <div
+                class="tab-menu profile-menu"
+                class:at-rail=at.rail
+                role="group"
+                aria-label=t.app.switch_profile
+                style=place
+                on:pointerenter=move |ev| menu.pointer_on(&ev, false)
+                on:pointerleave=move |ev| menu.pointer_off(&ev)
+            >
+                <p class="tab-menu-head">{t.app.profiles}</p>
+                <div class="pm-list" role="radiogroup" aria-label=t.app.profiles>{items}</div>
+                <hr class="tab-menu-rule"/>
+                <a class="tab-menu-way" href=t.path(url::PROFILE) rel="nofollow" on:click=close><Icon name="sliders-horizontal"/><span>{t.app.profile_and_settings}</span></a>
+                <languages::LanguageWays/>
+            </div>
+        })
     }
 }
 
@@ -451,6 +729,7 @@ pub fn TopBar() -> impl IntoView {
                     <span class="pill db-status" id="db-status" hidden></span>
                 }
             }}
+            <ProfileButton top=true/>
         </header>
     }
 }

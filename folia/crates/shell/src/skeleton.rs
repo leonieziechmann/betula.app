@@ -39,9 +39,10 @@ pub fn PendingPage() -> impl IntoView {
 
 /// What the server writes for a route of the app (the Merkliste, the Stundenplan) in the place of
 /// its page (docs/folia/folia-refactor.md §4.2): the page's skeleton until the app runs and takes
-/// the page over, and for a browser without JavaScript what the view needs instead.
+/// the page over, and for a browser without JavaScript what the view needs instead, with the way
+/// to the catalog and the page's own ways (`children`: the profile page's other language).
 #[component]
-pub fn AppStandin(shape: Shape, title: &'static str, hint: &'static str) -> impl IntoView {
+pub fn AppStandin(shape: Shape, title: &'static str, hint: &'static str, #[prop(optional)] children: Option<Children>) -> impl IntoView {
     view! {
         <div class="app-standin" aria-hidden="true">{frame(shape)}</div>
         <noscript>
@@ -49,6 +50,7 @@ pub fn AppStandin(shape: Shape, title: &'static str, hint: &'static str) -> impl
                 <section class="panel">
                     <folia_design::ui::EmptyState title hint>
                         <a class="btn secondary" href=crate::i18n::t().path(folia_routes::url::CATALOG)>{crate::i18n::t().common.to_catalog}</a>
+                        {children.map(|children| children())}
                     </folia_design::ui::EmptyState>
                 </section>
             </crate::frame::Plain>

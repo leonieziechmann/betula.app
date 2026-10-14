@@ -278,7 +278,8 @@ sidebar, its content, the panel beside it.
 The rail and the bottom bar with their counts, the tabs' memory, the header (title, the search
 field, the status of the data — today a pill that `boot.js` keeps alive with a
 `MutationObserver`), the footer, the background, Esc and „Zurück" (R10, R19), „Nach oben", the
-skip link, the landmarks (`header`, `nav`, `main`, `footer`), the theme and the language switch, an
+skip link, the landmarks (`header`, `nav`, `main`, `footer`), the theme, the way to the profile page
+with the menu of the profiles and the language's way, an
 error boundary around the page, and the pending state. Spread today over `App`, `ui::Frame`,
 `tabs.rs`, `nav.rs`, `pending.rs`, `skeleton.rs`, `ground.rs` and `enhance.js`.
 

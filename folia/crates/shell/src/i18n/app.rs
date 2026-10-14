@@ -25,10 +25,15 @@ pub struct Texts {
     pub planned_count: fn(usize) -> String,
     pub logo_label: &'static str,
     pub theme_toggle: &'static str,
-    /// The profile page („Profil"): its title in the top bar, and the way to it in the rail and on
-    /// a phone's start page, named by the active profile („Profil: Zweitstudium").
+    /// The profile page („Profil"): its title in the top bar, and the way to it in the rail and at
+    /// the head of a phone's page, named by the active profile („Profil: Zweitstudium").
     pub profile: &'static str,
     pub profile_of: fn(&str) -> String,
+    /// The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`): its name,
+    /// the head of its list, and its way to the profile page.
+    pub switch_profile: &'static str,
+    pub profiles: &'static str,
+    pub profile_and_settings: &'static str,
     pub search_programs: &'static str,
     pub search_programs_placeholder: &'static str,
     pub search_modules: &'static str,
@@ -61,6 +66,9 @@ pub const DE: Texts = Texts {
     theme_toggle: "Hell oder dunkel",
     profile: "Profil",
     profile_of: |name| format!("Profil: {name}"),
+    switch_profile: "Profil wechseln",
+    profiles: "Profile",
+    profile_and_settings: "Profil & Einstellungen",
     search_programs: "Studiengänge suchen",
     search_programs_placeholder: "Studiengang suchen",
     search_modules: "Module suchen",
@@ -91,6 +99,9 @@ pub const EN: Texts = Texts {
     theme_toggle: "Light or dark",
     profile: "Profile",
     profile_of: |name| format!("Profile: {name}"),
+    switch_profile: "Switch profile",
+    profiles: "Profiles",
+    profile_and_settings: "Profile & settings",
     search_programs: "Search degree programmes",
     search_programs_placeholder: "Search degree programmes",
     search_modules: "Search modules",

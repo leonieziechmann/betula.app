@@ -1,16 +1,18 @@
-//! The switch between the languages of the site (owner, 2026-09-27): a button per other language,
-//! to the page the visitor is on with what its address says (filters, the module beside it). On
-//! the desktop it stands in the rail above the switch between light and dark; on a phone, which
-//! has no rail, at the end of the start page's brand line: one tap away through „Start", and far
-//! from the bottom bar and the lists, where a thumb could hit it by accident.
+//! The way between the languages of the site (owner, 2026-09-27): for every other language a way to
+//! the page the visitor is on with what its address says (filters, the module beside it). It lives
+//! in the profile (owner, 2026-10-14: „allgemein kann man die Spracheinstellungen komplett in das
+//! Profil moven"): in the menu of the profiles at the way to the profile page
+//! (`chrome::ProfileSwitcher`), and among the settings of the profile page, which leads to that page
+//! in the other language and offers it without JavaScript too (its stand-in, `folia_profile`). The
+//! rail and a phone's start page, where the switch stood until then, have none.
 //!
 //! Another language is another address and a new page load (`rel="external"`: neither the router
 //! nor `pending` take it), so the app starts again in that language; what the visitor keeps in this
-//! browser (Merkliste, Stundenplan, „Mein Studiengang") belongs to the site, not to a language, and
-//! stays. With JavaScript the choice is remembered (`data-language`, `enhance.js`), and every later
-//! visit opens in it (`language_script`); the first one opens in the language of the browser.
+//! browser (the profiles with their Merkliste, Stundenplan, „Mein Studiengang") belongs to the site,
+//! not to a language, and stays. The choice is remembered (`data-language`, `enhance.js`), and every
+//! later visit opens in it (`language_script`); the first one opens in the language of the browser.
 //!
-//! The links depend on the address alone, so the server's page stays the same for everybody (R9).
+//! The links depend on the address alone (R9).
 
 use leptos::prelude::*;
 
@@ -18,38 +20,28 @@ use crate::i18n::{self, Locale};
 use crate::tabs::location_of;
 use folia_design::ui::Icon;
 
-/// The switch: for every other language a button with the icon of languages and its code („EN"),
-/// named in its own language.
+/// For every other language a way of the menu of the profiles (`chrome::ProfileSwitcher`): the
+/// icon of languages and the language's name in itself („English"), to this page in it.
 #[component]
-pub fn Languages() -> impl IntoView {
+pub fn LanguageWays() -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let here = Memo::new(move |_| location_of(&location.pathname.get(), &location.search.get()));
     // The same view in another language is a view as well: no page for a crawler (`seo`).
     let rel = move || if here.with(|here| folia_routes::url::listed(here)) { "alternate external" } else { "alternate external nofollow" };
-    let buttons = Locale::ALL
+    Locale::ALL
         .iter()
         .copied()
         .filter(move |locale| *locale != t.locale)
         .map(|locale| {
             view! {
-                <a
-                    class="icon-btn lang-switch"
-                    href=move || here.with(|here| locale.path(here))
-                    hreflang=locale.code()
-                    lang=locale.code()
-                    rel=rel
-                    data-language=locale.code()
-                    title=locale.name()
-                    aria-label=locale.name()
-                >
+                <a class="tab-menu-way" href=move || here.with(|here| locale.path(here)) hreflang=locale.code() lang=locale.code() rel=rel data-language=locale.code()>
                     <Icon name="languages"/>
-                    <b aria-hidden="true">{locale.code().to_uppercase()}</b>
+                    <span>{locale.name()}</span>
                 </a>
             }
         })
-        .collect_view();
-    view! { <nav class="languages" aria-label=t.common.language>{buttons}</nav> }
+        .collect_view()
 }
 
 /// Runs first in the head of every page of the app (with JavaScript only): the page opens in the

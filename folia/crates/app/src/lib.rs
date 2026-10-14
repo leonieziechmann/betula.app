@@ -28,7 +28,7 @@ use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
 use folia_profile::profile::ProfilePage;
 use folia_programs::{program::ProgramPage, programs::ProgramsPage};
-use folia_shell::chrome::{FollowTabs, NavItems, Rail, TabMenu, TopBack, TopBar};
+use folia_shell::chrome::{FollowTabs, NavItems, ProfileMenu, ProfileSwitcher, Rail, TabMenu, TopBack, TopBar};
 use folia_shell::frame::Plain;
 use folia_shell::ground::{Crown, Ground, Wood};
 use folia_shell::pending::Pending;
@@ -117,6 +117,8 @@ pub fn App() -> impl IntoView {
     MineResolved::provide();
     // The way back a page's step puts at the head of a phone's page (`chrome::TopBack`).
     TopBack::provide();
+    // The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`).
+    ProfileMenu::provide();
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();
@@ -156,6 +158,7 @@ pub fn App() -> impl IntoView {
             <Ground/>
             <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
             <TabMenu/>
+            <ProfileSwitcher/>
         </Router>
     }
 }

@@ -1235,10 +1235,16 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     problems.dedup();
     assert!(problems.is_empty(), "{} problems:\n{}", problems.len(), problems.join("\n"));
     // What it follows: the pages of the catalog one after the other, in both languages; the plan
-    // of each study direction; modules and programs.
+    // of each study direction; programs, and modules from the catalog's pages in both languages
+    // (whichever modules they list: a page's way to itself in the other language, which led to a
+    // module as well, lives in the profile since 2026-10-14, and search engines learn the other
+    // language from `hreflang`).
     let (second_plan, areas) = (format!("/programs/{slug}/plan?variant=2"), format!("/programs/{slug}/areas"));
-    for page in ["/catalog?page=2", "/catalog?page=3", "/en/catalog?page=2", "/en/catalog?page=3", second_plan.as_str(), areas.as_str(), "/catalog/module/11101"] {
+    for page in ["/catalog?page=2", "/catalog?page=3", "/en/catalog?page=2", "/en/catalog?page=3", second_plan.as_str(), areas.as_str()] {
         assert!(followed.contains(page), "no link a crawler follows leads to {page}");
+    }
+    for modules in ["/catalog/module/", "/en/catalog/module/"] {
+        assert!(followed.iter().any(|page| page.starts_with(modules)), "no link a crawler follows leads to a module ({modules}…)");
     }
     // The pager as a crawler reads it (e2e/crawl.mjs as well): the unfiltered list's is followed,
     // a filtered list's is not.
