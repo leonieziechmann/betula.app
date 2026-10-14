@@ -146,6 +146,11 @@ pub struct Texts {
     /// The small line of a slot of single dates: „1 Termin · 23.02.", „1 Termin", „3 Termine".
     pub one_date_on: fn(&str) -> String,
     pub dates_count: fn(usize) -> String,
+    /// A line of the list that gathers the single dates of one slot, before their days: „6
+    /// Einzeltermine".
+    pub single_dates: fn(usize) -> String,
+    /// What a value of most dates of a line leaves out, in parentheses after it: „außer 26.01.".
+    pub except_on: fn(&str) -> String,
 
     // ---- „Studiengänge" ----
     /// „12 Curricula", beside the heading.
@@ -243,6 +248,8 @@ pub const DE: Texts = Texts {
     slot_date: "Termin",
     one_date_on: |day| format!("1 Termin · {day}"),
     dates_count: |n| if n == 1 { "1 Termin".to_string() } else { format!("{n} Termine") },
+    single_dates: |n| if n == 1 { "1 Einzeltermin".to_string() } else { format!("{n} Einzeltermine") },
+    except_on: |days| format!("außer {days}"),
 
     curricula: |n| format!("{n} Curricula"),
     no_curriculum: "Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog.",
@@ -336,6 +343,8 @@ pub const EN: Texts = Texts {
     slot_date: "Session",
     one_date_on: |day| format!("1 date · {day}"),
     dates_count: |n| if n == 1 { "1 date".to_string() } else { format!("{n} dates") },
+    single_dates: |n| if n == 1 { "1 single date".to_string() } else { format!("{n} single dates") },
+    except_on: |days| format!("except {days}"),
 
     curricula: |n| if n == 1 { "1 curriculum".to_string() } else { format!("{n} curricula") },
     no_curriculum: "The module is in no curriculum of a degree programme in the catalogue.",
