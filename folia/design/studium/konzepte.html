@@ -944,6 +944,7 @@ a { color: inherit; }
   <header class="pg-head">
     <p class="eyebrow">Betula · Mein Studium · Konzepte vom 14. Oktober 2026</p>
     <h1>Regelstudienplan, Wahlpflicht und alle Studiengänge in „Mein Studium“</h1>
+    <p class="decision"><span><b>Entschieden am 14.10.: Konzept A.</b> Offen ist noch, wie die Studiengänge in den Fakultäten stehen: drei Varianten fürs Handy und eine für den Desktop.</span><button type="button" data-screen-of="A|phone|3">Zu den Varianten<svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg></button></p>
     <p class="lead">„Mein Studium“ plant dein Studium Semester für Semester. Die drei Seiten, auf die es verweist, stammen aus der Zeit davor: Sie sind Seiten eines Studiengangs, nicht deines Studiums. Hier sind vier Konzepte, wie sie sich einfügen, jedes auf dem Handy und am Desktop. Das Beispiel ist Informatik B.Sc. im 3. Fachsemester, mit den Modulen aus dem Snapshot vom 14.10.2026.</p>
     <ul class="issues">
       <li class="issue"><svg class="icon" aria-hidden="true"><use href="#i-triangle-alert"/></svg><b>Ein Bruch beim Wechsel</b><span>Ein Tipp auf „Regelstudienplan“ führt in eine andere Welt: anderer Titel, andere Seitenleiste, „Zurück“ statt ‹. Auf dem Handy kommen erst die Aktionen, dann der Plan.</span></li>
@@ -981,9 +982,125 @@ a { color: inherit; }
       <li><b>„Modul wählen“ an jedem offenen Platz (B).</b> Im Semester, im Gesamtplan und in der Plan-Tabelle öffnet ein Platz wie „Anwendungsfach“ diese Wahl, schon gefiltert auf das Semester.</li>
       <li><b>Die öffentlichen Seiten später im Stil von D, das Handy zuerst.</b> Sie bleiben, was Suchmaschinen und Studieninteressierte sehen, und brauchen auf dem Handy ohnehin Arbeit.</li>
     </ol>
-    <p>„Alle Studiengänge“ bleibt eine eigene Seite im Tab „Studium“: dein Studiengang und der Master danach oben, auf dem Handy mit Filter-Chips und Fakultäten zum Aufklappen.</p>
+    <p>„Alle Studiengänge“ bleibt eine eigene Seite im Tab „Studium“: dein Studiengang und der Master danach oben, darunter die Fakultäten als Akkordeons. <b>Für die Liste darin empfehle ich Variante 1, „Fächer aufklappen“:</b> jedes Fach eine Zeile, eines mit mehreren Angeboten klappt auf wie seine Fakultät, jedes Angebot eine Zeile mit Dauer und LP. Am Desktop bleibt die Matrix der Abschlüsse, in denselben Akkordeons und mit Textzeilen statt Kästchen.</p>
   </section>
 </div>
+<style>
+/* ==================== all programs: the faculties' accordions and what they hold ==================== */
+.faccs { display: grid; gap: 8px; }
+.facc { border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; }
+.facc-h { display: grid; gap: 2px; width: 100%; padding: 12px 14px 13px; text-align: left; }
+.facc-top { display: flex; align-items: center; gap: 10px; }
+.facc-top .tag { flex: none; padding: 1px 8px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; font-weight: 750; letter-spacing: .03em; text-transform: uppercase; }
+.facc-n { margin-left: auto; font-size: 13px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.facc-chev { width: 18px; height: 18px; color: var(--text-3); transition: transform .2s var(--ease); }
+.facc-h[aria-expanded="true"] .facc-chev { transform: rotate(180deg); }
+.facc-name { margin-top: 6px; font-size: 14.5px; font-weight: 640; line-height: 1.3; letter-spacing: -.008em; }
+.facc-sum { font-size: 12.5px; color: var(--text-3); }
+.facc-b { border-top: 1px solid var(--line); }
+.mine-star { width: 13px; height: 13px; margin-left: 6px; vertical-align: -1px; color: var(--text); }
+
+/* Variant 1 and 2: a subject a row; an offer a row inside it. */
+.sj { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; width: 100%; min-height: 56px; padding: 10px 12px 10px 14px; text-align: left; border-top: 1px solid var(--line); }
+.facc-b > .sj:first-child, .facc-b > .sj-w:first-child > .sj { border-top: 0; }
+.sj:hover { background: var(--row-hover); }
+.sj-t { display: grid; gap: 2px; min-width: 0; }
+.sj-t b { font-size: 15px; font-weight: 620; line-height: 1.3; letter-spacing: -.01em; }
+.sj-t small { font-size: 13px; line-height: 1.4; color: var(--text-3); }
+.sj-t .dg { color: var(--text-2); font-weight: 600; }
+.sj .chev { width: 17px; height: 17px; color: var(--text-3); transition: transform .2s var(--ease); }
+.sj[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.sj-n { min-width: 24px; height: 22px; padding: 0 7px; border-radius: 11px; display: grid; place-items: center; background: var(--panel-3); font-size: 12px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.sj-w.open > .sj { background: var(--panel); }
+.offers { padding: 2px 0 8px; background: var(--panel-2); border-top: 1px solid var(--line); }
+.of-lvl { padding: 10px 14px 4px 22px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.of { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 4px 10px; width: 100%; min-height: 46px; padding: 6px 10px 6px 22px; text-align: left; }
+.of:hover { background: var(--row-hover); }
+.of-t { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.of-t b { font-size: 14.5px; font-weight: 620; }
+.of-form { font-size: 13px; color: var(--text-2); }
+.of-t em { flex-basis: 100%; display: inline-flex; align-items: center; font-style: normal; font-size: 12px; font-weight: 650; color: var(--accent-ink); }
+.of-t em .mine-star { margin: 0 4px 0 0; color: var(--accent-ink); }
+.of-f { font-size: 12.5px; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.of .chev { width: 15px; height: 15px; color: var(--text-3); }
+.of.sub { padding-left: 40px; }
+.of.sub::before { content: ""; position: absolute; left: 27px; top: 0; bottom: 0; width: 1.5px; background: var(--line-strong); }
+.of.sub:last-child::before, .of.sub:has(+ .of:not(.sub))::before, .of.sub:has(+ .of-lvl)::before { bottom: 50%; }
+.of.sub::after { content: ""; position: absolute; left: 27px; top: 50%; width: 8px; height: 1.5px; background: var(--line-strong); }
+.of.sub .of-t b { font-weight: 560; color: var(--text); }
+.of.quiet .of-t b { color: var(--text-2); font-weight: 560; }
+.of.quiet .of-f { font-style: italic; }
+.of.is-mine { background: var(--accent-soft); }
+.offers.in-sheet { margin: 0 -14px; padding: 0; background: transparent; border-top: 0; }
+.offers.in-sheet .of { padding-left: 14px; }
+.offers.in-sheet .of.sub { padding-left: 34px; }
+.offers.in-sheet .of.sub::before, .offers.in-sheet .of.sub::after { left: 20px; }
+
+/* Variant 2: the level first. */
+.aseg.lvls { position: sticky; top: 66px; z-index: 12; box-shadow: 0 6px 14px -8px rgba(15, 23, 42, .25); }
+.app.framed .aseg.lvls { top: calc(var(--safe-t) + 66px); }
+.aseg.lvls button { flex: 1 1 auto; padding: 0 6px; font-size: 13px; }
+.aseg.lvls button small { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+
+/* Variant 3: the matrix in small. */
+.mm { display: grid; grid-template-columns: minmax(0, 1fr) 66px 66px; align-items: center; gap: 6px; padding: 8px 10px 8px 14px; border-top: 1px solid var(--line); }
+.mm.three { grid-template-columns: minmax(0, 1fr) 60px 60px 72px; }
+.mm-h { padding-top: 10px; padding-bottom: 4px; border-top: 0; font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.mm-h span:not(:first-child) { text-align: center; }
+.mm-h + .mm { border-top: 0; }
+.mm-n { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.mm-e { text-align: center; color: var(--text-3); }
+.tok { height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 3px; padding: 0 4px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.tok small { font-size: 10.5px; font-weight: 650; color: var(--text-3); }
+.tok:hover { background: var(--row-hover); }
+.tok.is-mine { box-shadow: inset 0 0 0 1.5px var(--text); }
+
+/* The desktop: accordions with the matrix of lines. */
+.dfaccs { display: grid; gap: 8px; }
+.dfacc .facc-h { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "tag name n chev" "tag sum n chev"; align-items: center; column-gap: 12px; padding: 12px 18px; }
+.dfacc .facc-top { display: contents; }
+.dfacc .facc-top .tag { grid-area: tag; align-self: start; margin-top: 2px; }
+.dfacc .facc-n { grid-area: n; margin: 0; }
+.dfacc .facc-chev { grid-area: chev; }
+.dfacc .facc-name { grid-area: name; margin: 0; font-size: 15px; }
+.dfacc .facc-sum { grid-area: sum; }
+.dfacc .facc-h:hover { background: var(--row-hover); }
+.dmx { table-layout: fixed; border-top: 1px solid var(--line); }
+.dmx col.c-subj { width: 24%; }
+.dmx col.c-o { width: 16%; }
+.dmx td { vertical-align: top; }
+.dmx td.nm { padding-top: 11px; font-size: 13.5px; font-weight: 620; }
+.dmx td.nm small { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--text-3); }
+.dmx tbody tr:nth-child(even) { background: var(--row-shade); }
+.dc { padding: 5px 8px !important; }
+.ol { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 10px; width: 100%; padding: 4px 8px; border-radius: 6px; text-align: left; font-size: 13px; }
+.ol:hover { background: var(--row-hover); }
+.ol b { font-weight: 620; min-width: 0; }
+.ol b .mine-star { width: 12px; height: 12px; }
+.ol > span { flex: none; margin-left: auto; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.ol .olf, .ol .po { font-weight: 500; color: var(--text-2); }
+.ol .po { color: var(--text-3); font-size: 12px; }
+.ol.sub { padding-left: 24px; }
+.ol.sub::before { content: ""; position: absolute; left: 12px; top: -2px; height: 14px; width: 7px; border-left: 1.5px solid var(--line-strong); border-bottom: 1.5px solid var(--line-strong); border-bottom-left-radius: 4px; }
+.ol.sub b { font-weight: 520; color: var(--text-2); }
+.ol.quiet b { color: var(--text-2); font-weight: 520; }
+.ol.is-mine { background: var(--accent-soft); }
+
+/* A tap on another program says where it leads. */
+.toast.info { background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); }
+.toast.info .icon { color: var(--accent-ink); }
+
+/* The variant's notes, first beside the device; the decision at the top. */
+.vnote { display: grid; gap: 10px; padding: 14px 16px 15px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.notes .vnote h3, .nts .vnote h3 { margin: 0; font-size: 19px; font-weight: 740; letter-spacing: -.018em; text-transform: none; color: var(--text); }
+.vnote .eyebrow { color: var(--accent-ink); }
+.vnote .try { display: flex; gap: 6px; font-size: 13px; font-weight: 600; color: var(--accent-ink); }
+.vnote .try .icon { width: 15px; height: 15px; margin-top: 2px; }
+.decision { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 11px 14px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 14.5px; line-height: 1.5; color: var(--text); max-width: 980px; }
+.decision b { font-weight: 700; }
+.decision button { display: inline-flex; align-items: center; gap: 4px; font-weight: 650; color: var(--accent-ink); }
+.decision button .icon { width: 15px; height: 15px; }
+</style>
 <script>
 "use strict";
 // ---------------------------------------------------------------------------------------------
@@ -1127,7 +1244,8 @@ const dotOf = (key) => `<span class="dot" style="--c:${AREA[key].c}"></span>`;
 const UI = {
   wpArea: "neb", anwSubject: "Mathematik", season: "S", dkChoice: "anw", fsPage: 3,
   areaTab: { neb: "wahl", fach: "verlangt" }, cArea: "neb", facOpen: { "Fakultät 1": true },
-  dSubject: null, added: new Set(), filled: {}, bSheet: "anw", bSubject: "Physik", bOnlyOffered: true, mineLayer: true, planLayer: true,
+  dSubject: null, added: new Set(), filled: {},
+  subjOpen: new Set(["Fakultät 1|Elektrotechnik"]), lvl: "b", listSheet: null, listVariant: 1, bSheet: "anw", bSubject: "Physik", bOnlyOffered: true, mineLayer: true, planLayer: true,
 };
 
 // Is a module planned in the prototype (a „+" pressed)?
@@ -1269,6 +1387,10 @@ function legendBlock() {
   return `<div class="fg"><p class="fl">Fortschrittsbalken</p><ul class="legend"><li><span class="key p"></span>Bestanden</li><li><span class="key l"></span>Geplant</li><li><span class="key o"></span>Offen</li><li><span class="key" style="background:repeating-linear-gradient(135deg,var(--st-passed) 0 2px,var(--panel-3) 2px 5px)"></span>Über Bedarf</li></ul></div>
     <div class="fg">${storageHint()}</div>`;
 }
+// The program overview of the snapshot of 2026-10-14 (the server's /programs, every current PO):
+// faculty → subject → by stage (b, m, o) the offers: [degree, PO, form, semesters, LP, validated plan, slug, mine].
+const FACS = [{"code":"Fakultät 1","name":"MINT – Mathematik, Informatik, Physik, Elektro- und Informationstechnik","subjects":[["Angewandte Mathematik",{"m":[["M.Sc.","2019","",4,"116–126",1,"master-angewandte-mathematik-2019"]]}],["Artificial Intelligence",{"m":[["M.Sc.","2022","",4,"120",1,"master-artificial-intelligence-2022"]]}],["Cyber Security",{"m":[["M.Sc.","2017","",4,"120",1,"master-cyber-security-2017"]]}],["Dependable Systems",{"o":[["Promotion","2012","",null,null,1,"promotion-dependable-systems-2012"]]}],["Elektrotechnik",{"b":[["B.Sc.","2022","",6,"180",1,"bachelor-elektrotechnik-2022"],["B.Sc.","2022","dual, Ausbildung",7,"210",1,"bachelor-elektrotechnik-dual-2022-a2"],["B.Sc.","2022","dual, Praxis",7,"210",1,"bachelor-elektrotechnik-dual-2022-p2"]],"m":[["M.Sc.","2026","",4,"120",1,"master-elektrotechnik-2026"],["M.Sc.","2026","dual, verkürzt",3,"90",1,"master-elektrotechnik-dual-2026"]]}],["Informatik",{"b":[["B.Sc.","2008","",6,"180",1,"bachelor-informatik-2008",1]],"m":[["M.Sc.","2008","",4,"120",1,"master-informatik-2008"]]}],["Künstliche Intelligenz",{"b":[["B.Sc.","2022","",6,"180",1,"bachelor-kuenstliche-intelligenz-2022"]]}],["Künstliche Intelligenz Technologie",{"b":[["B.Sc.","2022","",6,"180",1,"bachelor-kuenstliche-intelligenz-technologie-2022"]],"m":[["M.Sc.","2022","",4,"120",1,"master-kuenstliche-intelligenz-technologie-2022"]]}],["Mathematical Data Science",{"m":[["M.Sc.","2025","",4,"120",1,"master-mathematical-data-science-2025"]]}],["Mathematics",{"m":[["M.Sc.","2025","",4,"120",1,"master-mathematics-2025"]]}],["Mathematik",{"b":[["B.Sc.","2023","",6,"180",1,"bachelor-mathematik-2023"],["B.Sc.","2023","dual, Praxis",7,"210",1,"bachelor-mathematik-dual-2023"]]}],["Medizininformatik",{"b":[["B.Sc.","2016","",6,"180",1,"bachelor-medizininformatik-2016"]]}],["Micro- and Nanoelectronics",{"m":[["M.Sc.","2024","",4,"120",1,"master-micro-and-nanoelectronics-2024"]]}],["Physics",{"m":[["M.Sc.","2021","",4,"120",1,"master-physics-2021"]]}],["Physik",{"b":[["B.Sc.","2021","",6,"180",1,"bachelor-physik-2021"]]}],["Wirtschaftsmathematik",{"b":[["B.Sc.","2023","",6,"180",1,"bachelor-wirtschaftsmathematik-2023"],["B.Sc.","2023","dual, Praxis",7,"210",1,"bachelor-wirtschaftsmathematik-dual-2023"]]}]]},{"code":"Fakultät 2","name":"Umwelt und Naturwissenschaften","subjects":[["Angewandte Naturwissenschaften",{"b":[["Bachelor","2024","",6,"180",1,"bachelor-angewandte-naturwissenschaften-2024"],["Bachelor","2025","dual, Praxis",7,"210",1,"bachelor-angewandte-naturwissenschaften-dual-2025"]]}],["Biotechnologie",{"b":[["Bachelor","2018","",7,"210",1,"bachelor-biotechnologie-2018"]]}],["Biotechnology",{"m":[["Master","2018","",null,null,1,"master-biotechnology-2018-90"],["Master","2018","erweitert",null,null,1,"master-biotechnology-2018-f0"]]}],["Chemistry: Materials, Engineering and Sustainability",{"m":[["Master","2025","",4,"120",1,"master-chemistry-materials-engineering-and-sustainability-2025"]]}],["Environmental and Resource Management",{"b":[["B.Sc.","2015","",null,null,1,"bachelor-environmental-and-resource-management-2015"]],"m":[["M.Sc.","2021","",null,null,1,"master-environmental-and-resource-management-2021-88"],["M.Sc.","2021","Doppelabschluss",null,null,1,"master-environmental-and-resource-management-2021-d8"]],"o":[["Promotion","2017","",6,"180",1,"promotion-environmental-and-resource-management-2017"]]}],["Landnutzung und Wasserbewirtschaftung",{"b":[["Bachelor","2017","",6,"180",1,"bachelor-landnutzung-und-wasserbewirtschaftung-2017"]]}],["Life Science and International Health",{"b":[["Bachelor","2025","",6,"180",1,"bachelor-life-science-and-international-health-2025"]]}],["Materialchemie",{"b":[["Bachelor","2018","",6,"180",1,"bachelor-materialchemie-2018"]],"m":[["Master","2018","",4,"120",1,"master-materialchemie-2018"]]}],["Umweltingenieurwesen",{"b":[["Bachelor","2021","",6,"180",1,"bachelor-umweltingenieurwesen-2021"]],"m":[["Master","2021","",null,null,1,"master-umweltingenieurwesen-2021"]]}],["Umweltwissenschaften",{"b":[["Bachelor","2025","",6,"66–180",1,"bachelor-umweltwissenschaften-2025"],["Bachelor","2025","dual, Praxis",7,"210",1,"bachelor-umweltwissenschaften-dual-2025"]]}]]},{"code":"Fakultät 3","name":"Maschinenbau, Elektro- und Energiesysteme","subjects":[["Control of Renewable Energy Systems",{"m":[["Master","2025","",4,"120",1,"master-control-of-renewable-energy-systems-2025"]]}],["Elektrotechnik",{"b":[["Bachelor","2018","",7,"210",1,"bachelor-elektrotechnik-2018"]],"m":[["Master","2018","","3–4","90–120",1,"master-elektrotechnik-2018-90"],["Master","2018","erweitert","3–4","90–120",1,"master-elektrotechnik-2018-f0"]]}],["Energietechnik und Energiewirtschaft",{"b":[["Bachelor","2021","",6,"180",1,"bachelor-energietechnik-und-energiewirtschaft-2021"]],"m":[["Master","2021","",4,"120",1,"master-energietechnik-und-energiewirtschaft-2021"]]}],["Hybrid Electric Propulsion Technology",{"m":[["Master","2026","",4,"120",1,"master-hybrid-electric-propulsion-technology-2026"]]}],["Leichtbau und Werkstofftechnologie",{"m":[["Master","2023","",4,"120",1,"master-leichtbau-und-werkstofftechnologie-2023"]]}],["Maschinenbau",{"b":[["Bachelor","2021","",6,"180",1,"bachelor-maschinenbau-2021"],["Bachelor","2021","dual, Ausbildung",7,"210",1,"bachelor-maschinenbau-dual-2021-a2"],["Bachelor","2021","dual, Praxis",7,"210",1,"bachelor-maschinenbau-dual-2021-p2"],["B.Eng.","2018","",7,"210",1,"bachelor-maschinenbau-2018"],["B.Eng.","2018","dual, Praxis",7,"210",1,"bachelor-maschinenbau-dual-2018"]],"m":[["Master","2023","","3–4","90–120",1,"master-maschinenbau-2023-88"],["Master","2023","verkürzt","3–4","90–120",1,"master-maschinenbau-2023-v8"],["Master","2023","dual, Praxis",3,"90",1,"master-maschinenbau-dual-2023"],["Master","2018","","3–4","90–120",1,"master-maschinenbau-2018-90"],["Master","2018","erweitert","3–4","90–120",1,"master-maschinenbau-2018-f0"]]}],["Medizintechnik",{"b":[["Bachelor","2022","",6,"180",1,"bachelor-medizintechnik-2022"],["Bachelor","2022","dual, Praxis",7,"210",1,"bachelor-medizintechnik-dual-2022"]]}],["Power Engineering",{"m":[["Master","2016","",4,"120",1,"master-power-engineering-2016-88"],["Master","2016","Doppelabschluss",4,"120",1,"master-power-engineering-2016-d8"]],"o":[["Promotion","2021","",null,null,1,"promotion-power-engineering-2021"]]}],["Transfers-Fluids-Materials in Aeronautical and Space Applications",{"m":[["Master","2019","",4,"120",1,"master-transfers-fluids-materials-in-aeronautical-and-space-applications-2019"]]}],["Wirtschaftsingenieurwesen",{"b":[["B.Sc.","2023","",6,"60–180",1,"bachelor-wirtschaftsingenieurwesen-2023"],["B.Sc.","2023","dual, Praxis",7,"210",1,"bachelor-wirtschaftsingenieurwesen-dual-2023"],["Bachelor","2018","",7,"210",1,"bachelor-wirtschaftsingenieurwesen-2018"]],"m":[["Master","2025","","3–4","90–120",1,"master-wirtschaftsingenieurwesen-2025-88"],["Master","2025","verkürzt","3–4","90–120",1,"master-wirtschaftsingenieurwesen-2025-v8"],["Master","2025","dual, Praxis","3–4","90–120",1,"master-wirtschaftsingenieurwesen-dual-2025-p8"],["Master","2025","dual, verkürzt","3–4","90–120",1,"master-wirtschaftsingenieurwesen-dual-2025-v8"],["Master","2018","","3–4","90–120",1,"master-wirtschaftsingenieurwesen-2018-90"],["Master","2018","erweitert","3–4","90–120",1,"master-wirtschaftsingenieurwesen-2018-f0"]]}]]},{"code":"Fakultät 4","name":"Humanwissenschaften","subjects":[["Berufspädagogik für Gesundheitsberufe",{"m":[["Master","2015","",4,"120",1,"master-berufspaedagogik-fuer-gesundheitsberufe-2015"]]}],["Hebammenwissenschaft",{"b":[["Bachelor","2026","dual, Praxis",null,null,1,"bachelor-hebammenwissenschaft-2026"],["Bachelor","2021","dual, Praxis",7,"210",1,"bachelor-hebammenwissenschaft-2021"]]}],["Instrumental- und Gesangspädagogik",{"b":[["Bachelor","2026","",8,"240",1,"bachelor-instrumental-und-gesangspaedagogik-2026"],["Bachelor","2026","dual, Praxis",null,null,1,"bachelor-instrumental-und-gesangspaedagogik-dual-2026"],["Bachelor","2019","",8,"240",1,"bachelor-instrumental-und-gesangspaedagogik-2019"]]}],["Lehramt Primarstufe - dual Mathematik-Deutsch",{"m":[["Lehramt Master","2026","dual, Praxis",4,"120",1,"lehramt-master-lehramt-primarstufe-dual-mathematik-deutsch-2026"]]}],["Lehramt Primarstufe Deutsch-Englisch",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-deutsch-englisch-2026"]]}],["Lehramt Primarstufe Deutsch-Kunst",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-deutsch-kunst-2026"]]}],["Lehramt Primarstufe Deutsch-Musik",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-deutsch-musik-2026"]]}],["Lehramt Primarstufe Deutsch-Sachunterricht Gesellschaftswissenschaften",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-deutsch-sachunterricht-gesellschaftswissenschaften-2026"]]}],["Lehramt Primarstufe Deutsch-Sorbisch/Wendisch",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-deutsch-sorbisch-wendisch-2026"]]}],["Lehramt Primarstufe Deutsch-Sport",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-deutsch-sport-2026"]]}],["Lehramt Primarstufe Mathematik-Deutsch",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-deutsch-2026"]]}],["Lehramt Primarstufe Mathematik-Englisch",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-englisch-2026"]]}],["Lehramt Primarstufe Mathematik-Kunst",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-kunst-2026"]]}],["Lehramt Primarstufe Mathematik-Musik",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-musik-2026"]]}],["Lehramt Primarstufe Mathematik-Sachunterricht Naturwissenschaften",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-sachunterricht-naturwissenschaften-2026"]]}],["Lehramt Primarstufe Mathematik-Sorbisch/Wendisch",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-sorbisch-wendisch-2026"]]}],["Lehramt Primarstufe Mathematik-Sport",{"b":[["Lehramt Bachelor","2026","",6,"180",1,"lehramt-bachelor-lehramt-primarstufe-mathematik-sport-2026"]]}],["Pflegewissenschaft",{"b":[["Bachelor","2025","",8,"240",1,"bachelor-pflegewissenschaft-2025-84"],["Bachelor","2025","dual, Ausbildung",8,"240",1,"bachelor-pflegewissenschaft-2025-a4"],["Bachelor","2026","dual, Ausbildung",null,null,1,"bachelor-pflegewissenschaft-2026"]]}],["Physiotherapie",{"b":[["Bachelor","2026","dual, Ausbildung",null,null,1,"bachelor-physiotherapie-2026"]]}],["Soziale Arbeit",{"b":[["Bachelor","2026","",6,"180",1,"bachelor-soziale-arbeit-2026"],["Bachelor","2026","dual, Praxis",6,"180",1,"bachelor-soziale-arbeit-dual-2026"],["Bachelor","2020","",6,"180",1,"bachelor-soziale-arbeit-2020-84"],["Bachelor","2020","Doppelabschluss",6,"180",1,"bachelor-soziale-arbeit-2020-d4"]],"m":[["Master","2020","",4,"120",1,"master-soziale-arbeit-2020"]]}],["Soziale Arbeit in der Transformationsgesellschaft",{"m":[["Master","2026","",4,"120",1,"master-soziale-arbeit-in-der-transformationsgesellschaft-2026"]]}],["Therapiewissenschaften",{"b":[["Bachelor","2017","",8,"210",1,"bachelor-therapiewissenschaften-2017"]]}]]},{"code":"Fakultät 5","name":"Wirtschaft, Recht und Gesellschaft","subjects":[["Betriebswirtschaftslehre",{"b":[["B.A.","2024","",6,"180",1,"bachelor-betriebswirtschaftslehre-2024"],["B.A.","2024","dual, Praxis",7,"210",1,"bachelor-betriebswirtschaftslehre-dual-2024"],["Bachelor","2017","",7,"210",1,"bachelor-betriebswirtschaftslehre-2017-84"],["Bachelor","2019","dual, Praxis",7,"210",1,"bachelor-betriebswirtschaftslehre-dual-2019"]],"m":[["Master","2017","",4,"120",1,"master-betriebswirtschaftslehre-2017"]]}],["Digitale Gesellschaft",{"b":[["Bachelor","2026","",6,"180",1,"bachelor-digitale-gesellschaft-2026"]]}],["Forensic Sciences and Engineering",{"m":[["Master","2025","","3–4","90–120",1,"master-forensic-sciences-and-engineering-2025-88"],["Master","2025","erweitert","3–4","90–120",1,"master-forensic-sciences-and-engineering-2025-f8"]]}],["Kultur und Technik",{"b":[["B.A.","2017","",6,"180",1,"bachelor-kultur-und-technik-2017"]],"m":[["M.A.","2017","",4,"120",1,"master-kultur-und-technik-2017"]]}],["Public Administration",{"m":[["Master","2025","",4,"90–120",1,"master-public-administration-2025-88"],["Master","2025","Teilzeit",4,"90–120",1,"master-public-administration-2025-t8"]]}],["Transformation Studies",{"m":[["Master","2024","",4,"120",1,"master-transformation-studies-2024"]]}],["Wirtschaftsinformatik",{"b":[["Bachelor","2024","",6,"180",1,"bachelor-wirtschaftsinformatik-2024"]]}]]},{"code":"Fakultät 6","name":"Architektur, Bauingenieurwesen und Stadtplanung","subjects":[["Architektur",{"b":[["Bachelor","2022","",6,"180",1,"bachelor-architektur-2022"]],"m":[["Master","2022","",4,"120",1,"master-architektur-2022-88"],["Master","2022","Doppelabschluss",4,"120",1,"master-architektur-2022-d8"]]}],["Bau- und Kunstgeschichte",{"b":[["Bachelor","2022","",6,"180",1,"bachelor-bau-und-kunstgeschichte-2022"]],"m":[["Master","2025","",4,"120",1,"master-bau-und-kunstgeschichte-2025"]]}],["Bauingenieurwesen",{"b":[["B.Sc.","2022","",6,"180",1,"bachelor-bauingenieurwesen-2022-82"],["B.Sc.","2022","erweitert",8,"240",1,"bachelor-bauingenieurwesen-2022-f2"],["B.Sc.","2022","dual, Ausbildung",7,"180",1,"bachelor-bauingenieurwesen-dual-2022-a2"],["B.Sc.","2022","dual, Praxis",8,"240",1,"bachelor-bauingenieurwesen-dual-2022-p2"]],"m":[["Master","2014","",null,null,1,"master-bauingenieurwesen-2014"]]}],["Heritage Conservation and Site Management",{"m":[["Master","2026","",4,"120",1,"master-heritage-conservation-and-site-management-2026"]]}],["Heritage Studies",{"o":[["Promotion","2017","",6,"180",1,"promotion-heritage-studies-2017"]]}],["Klimagerechtes Bauen und Betreiben",{"m":[["Master","2018","",null,null,1,"master-klimagerechtes-bauen-und-betreiben-2018"]]}],["Stadt- und Regionalplanung",{"b":[["Bachelor","2016","",null,null,1,"bachelor-stadt-und-regionalplanung-2016"]],"m":[["Master","2023","",null,null,1,"master-stadt-und-regionalplanung-2023"]]}],["Städtebau und Stadtplanung",{"b":[["Bachelor","2019","",6,"180",1,"bachelor-staedtebau-und-stadtplanung-2019"]]}],["Stadtplanung und Städtebau",{"b":[["Bachelor","2023","",6,"180",1,"bachelor-stadtplanung-und-staedtebau-2023"]]}],["Urban Design and Sustainable Revitalization",{"m":[["Master","2024","",4,"120",1,"master-urban-design-and-sustainable-revitalization-2024-88"],["Master","2024","Doppelabschluss",4,"120",1,"master-urban-design-and-sustainable-revitalization-2024-d8"]]}],["World Heritage Studies",{"m":[["Master","2026","",4,"120",1,"master-world-heritage-studies-2026-88"],["Master","2026","Fernstudium",4,"120",1,"master-world-heritage-studies-2026-o8"],["Master","2021","Doppelabschluss",null,null,1,"master-world-heritage-studies-2021-d8"]]}]]},{"code":"ZfRV","name":"Zentrum für Rechts- und Verwaltungswissenschaften","subjects":[["Wirtschaftsrecht für Technologieunternehmen",{"m":[["Master","2020","","3–4","90–120",1,"master-wirtschaftsrecht-fuer-technologieunternehmen-2020-88"],["Master","2020","erweitert","3–4","90–120",1,"master-wirtschaftsrecht-fuer-technologieunternehmen-2020-f8"]]}]]},{"code":"Ohne Zuordnung","name":"Fakultätsübergreifend oder nicht eindeutig zuzuordnen","subjects":[["Bauen und Erhalten",{"m":[["Master","2007","",4,"120",1,"master-bauen-und-erhalten-2007"]]}],["eBusiness",{"b":[["B.Sc.","2007","",6,"180",1,"bachelor-ebusiness-2007"]]}],["Orientierungsstudium (1 Semester)",{"o":[["ohne Abschluss","2026","",null,null,1,"ohne-abschluss-orientierungsstudium-1-semester-2026"]]}],["Orientierungsstudium (2 Semester)",{"o":[["ohne Abschluss","2026","",null,null,1,"ohne-abschluss-orientierungsstudium-2-semester-2026"]]}]]}];
+const LEVEL_COUNTS = {"b": 65, "m": 63, "l": 14, "o": 6};
 // ---------------------------------------------------------------------------------------------
 // Shells: a phone's page, a desktop's window.
 // ---------------------------------------------------------------------------------------------
@@ -1292,46 +1414,6 @@ let DESK_URL = "betula.app/study";
 const vl = (icon, label, small, current, go = null, set = null, extra = "") => `<button class="vl" type="button"${current ? ` aria-current="true"` : ""}${go ? ` data-go="${go}"` : ""}${set ? ` data-set="${set}"` : ""}>${icon.startsWith("dot:") ? dotOf(icon.slice(4)) : ic(icon)}<span>${label}</span><small${extra}>${small}</small></button>`;
 const act = (icon, label, small = "", go = null, chev = true) => `<button class="act" type="button"${go ? ` data-go="${go}"` : ""}>${ic(icon)}<span>${label}${small ? `<small>${small}</small>` : ""}</span>${chev ? ic("chevron-right", "chev") : "<span></span>"}</button>`;
 const secHead = (title, right = "", extra = "") => `<h2 class="sech two"${extra}>${title}<span class="ln"></span>${right ? `<small>${right}</small>` : ""}</h2>`;
-
-// The page of all programs, on a phone (concepts A, C) and a desktop (A, C, D).
-function programsPhone(back, { pinned = true } = {}) {
-  const facs = FACULTIES.map((f) => {
-    const open = !!UI.facOpen[f.tag];
-    const body = open && f.subjects ? `<div class="progs">${f.subjects.map(([name, ba, ma]) => `<div class="prg"><b>${name}</b><div class="degs">${[...ba, ...ma].map(([d, po, form, mine, other]) => `<span class="deg${mine ? " own" : ""}"><b>${d}</b><span>${po}${form ? ` · ${form}` : ""}${other ? ` · ${other}` : ""}</span>${mine ? ic("star") : ""}</span>`).join("")}</div></div>`).join("")}</div>` : "";
-    return `<div class="fac"><button class="fac-h" type="button" aria-expanded="${open}" data-fac="${f.tag}"><span class="tag">${f.tag}</span><b>${f.name}</b><small>${f.count}</small>${ic("chevron-down")}</button>${body}</div>`;
-  }).join("");
-  return phone({
-    back, search: "Studiengang suchen",
-    content: `<div class="phead"><h1>Alle Studiengänge</h1><p>148 in ihrer aktuellen Prüfungsordnung</p></div>
-      ${pinned ? `<section class="panel chg" ${chg("neu: deiner zuerst")}><div class="rows">
-        <button class="rw" type="button">${ic("star", "star-f")}<span class="rw-t"><b>Informatik B.Sc.</b><small>Dein Studiengang · PO 2008 · in Mein Studium</small></span>${ic("chevron-right", "chev")}</button>
-        <button class="rw" type="button">${ic("graduation-cap")}<span class="rw-t"><b>Informatik M.Sc.</b><small>Danach: der passende Master · PO 2008</small></span>${ic("chevron-right", "chev")}</button>
-      </div></section>` : ""}
-      <div class="chiprow"><span class="fchip">${ic("sliders-horizontal")}Filter</span><span class="fchip">Bachelor <small>65</small></span><span class="fchip">Master <small>63</small></span><span class="fchip">Lehramt <small>14</small></span><span class="fchip">Dual <small>25</small></span><span class="fchip">Mit Regelstudienplan <small>129</small></span></div>
-      <section class="panel">${facs}</section>`,
-  });
-}
-function filtersSide() {
-  const box = (label, n) => `<span class="cbx"><i></i>${label}<small>${n}</small></span>`;
-  return `<p class="side-t">Filter</p>
-    <div class="fg"><p class="fl">Abschluss</p><div class="cbxs">${box("Bachelor", 65)}${box("Master", 63)}${box("Lehramt", 14)}${box("Promotion", 4)}${box("Sonstige", 2)}</div></div>
-    <div class="fg"><p class="fl">Studienform</p><div class="cbxs one">${box("Dual", 25)}${box("Doppelabschluss", 6)}${box("Teilzeit & Fern", 2)}</div></div>
-    <div class="fg"><p class="fl">Daten</p><div class="cbxs one">${box("Mit Regelstudienplan", 129)}</div></div>
-    <div class="fg"><p class="fl">Fakultäten</p><div class="vlist">${FACULTIES.map((f) => `<span class="vl fac-l"><b style="font-weight:650">${f.tag}</b><span class="ell">${f.name}</span><small>${f.count}</small></span>`).join("")}</div></div>`;
-}
-function programsDesk({ pinnedNote = "neu: deiner zuerst" } = {}) {
-  const f = FACULTIES[0];
-  const cell = (list) => `<div class="degs">${list.map(([d, po, form, mine, other]) => `<span class="deg${mine ? " own" : ""}"><b>${d}</b><span>${po}${form ? ` · ${form}` : ""}${other ? ` · ${other}` : ""}</span>${mine ? ic("star") : ""}</span>`).join("")}</div>`;
-  return `<div class="dk-line"><b>148</b> Studiengänge in ihrer aktuellen Prüfungsordnung</div>
-    <section class="panel mine-strip chg" ${chg(pinnedNote)}>
-      <div class="ms-col">${ic("star")}<div><p class="kicker">Dein Studiengang</p><b>Informatik B.Sc.</b><small>PO 2008 · 52 von 180 LP bestanden</small></div><button class="btn" type="button">Mein Studium${ic("chevron-right")}</button></div>
-      <div class="ms-col">${ic("graduation-cap")}<div><p class="kicker">Danach</p><b>Informatik M.Sc.</b><small>PO 2008 · 4 Semester · 120 LP</small></div><button class="btn ghost">Regelstudienplan${ic("chevron-right")}</button></div>
-    </section>
-    <section class="panel"><div class="fac-desk"><span class="tag">${f.tag}</span><b>${f.name}</b><small>${f.count} Studiengänge</small></div>
-      <table class="tbl progtbl"><thead><tr><th>Fach</th><th>Bachelor</th><th>Master</th></tr></thead><tbody>
-      ${f.subjects.map(([name, ba, ma]) => `<tr><td class="nm">${name}</td><td>${cell(ba)}</td><td>${cell(ma)}</td></tr>`).join("")}
-      </tbody></table></section>`;
-}
 
 // =============================================================================================
 // A · Ansichten — Regelstudienplan and Wahlpflicht become views of „Mein Studium"
@@ -1700,6 +1782,237 @@ function bAllDesk() {
   return bGridDesk({ over });
 }
 // =============================================================================================
+// All programs: the faculties as accordions, and inside them the programs (owner, 2026-10-14:
+// „Ich mag die akkordion elemente von den Fakultäten, aber wie die studiengänge dann darin gelistet
+// werden ist eine katastrophe"). Three ways to list them on a phone; a desktop keeps the matrix of
+// the cycles, in the same accordions, with lines of text instead of boxes.
+// =============================================================================================
+const STAGES = [["b", "Bachelor"], ["m", "Master"], ["o", "Weitere"]];
+const OF = { d: 0, po: 1, form: 2, sem: 3, lp: 4, plan: 5, slug: 6, mine: 7, combo: 8 };
+const MINE_SLUG = "bachelor-informatik-2008";
+const starIc = () => ic("star", "star-f mine-star");
+
+// „6 Semester · 180 LP" of an offer; one without a validated plan says so (unknown stays unknown).
+function factsOf(o, short = false) {
+  if (!o[OF.plan]) return "kein geprüfter Plan";
+  return [o[OF.sem] && `${o[OF.sem]}${NB}${short ? "Sem." : "Semester"}`, o[OF.lp] && `${o[OF.lp]}${NB}LP`].filter(Boolean).join(" · ");
+}
+// The offers of one stage in groups of one degree and PO: the plain program first, its forms after.
+function groupsOf(offers) {
+  const groups = [];
+  for (const o of offers) {
+    const g = groups.find((x) => x.d === o[OF.d] && x.po === o[OF.po]);
+    if (g) g.items.push(o);
+    else groups.push({ d: o[OF.d], po: o[OF.po], items: [o] });
+  }
+  return groups;
+}
+// „Lehramt Primarstufe Deutsch-Englisch" is the combination „Deutsch – Englisch" of one group
+// „Lehramt Primarstufe": Fakultät 4 has fourteen of them, fourteen rows of nearly one name.
+const LEHRAMT = /^Lehramt Primarstufe(?: - dual)? (.+)$/;
+function subjectsOf(fac) {
+  const out = [];
+  let group = null;
+  for (const [name, cells] of fac.subjects) {
+    const m = LEHRAMT.exec(name);
+    if (!m) { out.push({ name, cells }); continue; }
+    if (!group) { group = { name: "Lehramt Primarstufe", cells: {}, combos: true }; out.push(group); }
+    const combo = m[1].replace("-", " – ");
+    for (const [k, list] of Object.entries(cells)) {
+      group.cells[k] = group.cells[k] || [];
+      for (const o of list) group.cells[k].push([o[0], o[1], o[2], o[3], o[4], o[5], o[6], o[7] || 0, combo]);
+    }
+  }
+  return out;
+}
+// Under a subject's name: its degree and form, then what its plan says, where it says anything.
+const metaOf = (o) => [`<span class="dg">${o[OF.d]}${o[OF.form] ? ` · ${o[OF.form]}` : ""}</span>`, factsOf(o)].filter(Boolean).join(" · ");
+const offersOf = (s) => STAGES.flatMap(([k]) => s.cells[k] || []);
+const degreesOf = (s) => [...new Set(offersOf(s).map((o) => (s.combos ? o[OF.d].replace("Lehramt ", "") : o[OF.d])))].join(" · ");
+// The forms of study a subject also has, as one says them: „auch dual (Ausbildung, Praxis), verkürzt".
+function formsText(forms) {
+  const by = new Map();
+  for (const f of forms) {
+    const [head, rest] = f.includes(", ") ? f.split(", ") : [f, null];
+    if (!by.has(head)) by.set(head, []);
+    if (rest) by.get(head).push(rest);
+  }
+  return `auch ${[...by].map(([head, rests]) => (rests.length ? `${head} (${rests.join(", ")})` : head)).join(", ")}`;
+}
+const isLehramt = (o) => o[OF.d].startsWith("Lehramt");
+
+// A row of an offer: the degree (with its PO where a stage has two) or the combination, the form,
+// its facts; a form of study stands indented under its program.
+function offerRows(list, s) {
+  const groups = groupsOf(list);
+  const showPo = groups.length > 1 && !s.combos;
+  return groups.map((g) => g.items.map((o, i) => {
+    const head = s.combos || i === 0;
+    const label = o[OF.combo] || (head ? `${o[OF.d]}${showPo ? ` · PO ${o[OF.po]}` : ""}` : o[OF.form]);
+    const form = head && o[OF.form] ? `<span class="of-form">${o[OF.form]}</span>` : "";
+    return `<button class="of${head ? "" : " sub"}${o[OF.plan] ? "" : " quiet"}${o[OF.mine] ? " is-mine" : ""}" type="button" data-open-prog="${o[OF.slug]}" data-label="${s.name} · ${o[OF.d]}${o[OF.form] ? ` · ${o[OF.form]}` : ""}">
+      <span class="of-t"><b>${label}</b>${form}${o[OF.mine] ? `<em>${starIc()}Dein Studiengang</em>` : ""}</span><span class="of-f">${factsOf(o, true)}</span>${ic("chevron-right", "chev")}</button>`;
+  }).join("")).join("");
+}
+
+// The head of a faculty, as the accordion has it: its tag, how many, its name under it.
+function facHead(fac, n, open, summary = "") {
+  return `<button class="facc-h" type="button" aria-expanded="${open}" data-fac="${fac.code}">
+    <span class="facc-top"><span class="tag">${fac.code}</span><span class="facc-n">${n}</span>${ic("chevron-down", "facc-chev")}</span>
+    <b class="facc-name">${fac.name}</b>${summary ? `<small class="facc-sum">${summary}</small>` : ""}</button>`;
+}
+function stageSummary(fac) {
+  const all = fac.subjects.flatMap(([, cells]) => STAGES.flatMap(([k]) => (cells[k] || []).map((o) => [k, o])));
+  const n = (pred) => all.filter(pred).length;
+  const b = n(([k, o]) => k === "b" && !isLehramt(o)), m = n(([k, o]) => k === "m" && !isLehramt(o)), l = n(([, o]) => isLehramt(o)), o = n(([k]) => k === "o");
+  return [b && `${b} Bachelor`, m && `${m} Master`, l && `${l} Lehramt`, o && `${o} weitere`].filter(Boolean).join(" · ");
+}
+
+// Variant 1: a subject is a row; one with several offers folds open like its faculty.
+function listV1(fac) {
+  return subjectsOf(fac).map((s) => {
+    const offers = offersOf(s);
+    const mine = offers.some((o) => o[OF.mine]);
+    if (offers.length === 1) {
+      const o = offers[0];
+      return `<button class="sj one" type="button" data-open-prog="${o[OF.slug]}" data-label="${s.name} · ${o[OF.d]}"><span class="sj-t"><b>${s.name}${mine ? starIc() : ""}</b><small>${metaOf(o)}</small></span>${ic("chevron-right", "chev")}</button>`;
+    }
+    const key = `${fac.code}|${s.name}`;
+    const open = UI.subjOpen.has(key);
+    const count = s.combos ? `${offers.length} Fächerkombinationen` : `${offers.length} Angebote`;
+    return `<div class="sj-w${open ? " open" : ""}"><button class="sj" type="button" aria-expanded="${open}" data-subj="${key}"><span class="sj-t"><b>${s.name}${mine ? starIc() : ""}</b><small><span class="dg">${degreesOf(s)}</span> · ${count}</small></span>${ic("chevron-down", "chev")}</button>
+      ${open ? `<div class="offers">${STAGES.filter(([k]) => s.cells[k]).map(([k, label]) => `<p class="of-lvl">${label}</p>${offerRows(s.cells[k], s)}`).join("")}</div>` : ""}</div>`;
+  }).join("");
+}
+
+// Variant 2: Bachelor, Master, Lehramt or the rest first; a subject one row, several offers a sheet.
+const LEVELS = [["b", "Bachelor"], ["m", "Master"], ["l", "Lehramt"], ["o", "Weitere"]];
+function atLevel(s, lvl) {
+  if (lvl === "l") return [...(s.cells.b || []), ...(s.cells.m || [])].filter(isLehramt);
+  if (lvl === "o") return s.cells.o || [];
+  return (s.cells[lvl] || []).filter((o) => !isLehramt(o));
+}
+function listV2(fac) {
+  const lvl = UI.lvl;
+  const comboOf = (name) => (LEHRAMT.exec(name) || [, name])[1].replace("-", " – ");
+  // The Lehramt's combinations in the order of their names, the dual Master among them.
+  const subjects = lvl === "l" ? [...fac.subjects].sort(([a], [b]) => comboOf(a).localeCompare(comboOf(b), "de")) : fac.subjects;
+  return subjects.map(([name, cells]) => {
+    const s = { name, cells };
+    const list = atLevel(s, lvl);
+    if (!list.length) return "";
+    const combo = lvl === "l" ? comboOf(name) : null;
+    const title = combo || name;
+    const mine = list.some((o) => o[OF.mine]);
+    if (list.length === 1) {
+      const o = list[0];
+      return `<button class="sj one" type="button" data-open-prog="${o[OF.slug]}" data-label="${name} · ${o[OF.d]}"><span class="sj-t"><b>${title}${mine ? starIc() : ""}</b><small>${metaOf(o)}</small></span>${ic("chevron-right", "chev")}</button>`;
+    }
+    const groups = groupsOf(list);
+    const forms = list.filter((o) => o[OF.form]).map((o) => o[OF.form]);
+    const sub = groups.length > 1 ? `${groups.map((g) => g.d).filter((d, i, a) => a.indexOf(d) === i).join(", ")} · ${list.length} Angebote` : `${list[0][OF.d]} · ${formsText(forms)}`;
+    return `<button class="sj" type="button" data-list-sheet="${fac.code}|${name}|${lvl}"><span class="sj-t"><b>${title}${mine ? starIc() : ""}</b><small><span class="dg">${sub}</span></small></span><span class="sj-n">${list.length}</span>${ic("chevron-right", "chev")}</button>`;
+  }).join("");
+}
+
+// Variant 3: the desktop's matrix in small, a subject a row, a degree a button in its column.
+const TOK = { "Lehramt Bachelor": "Lehramt", "Lehramt Master": "Lehramt", "ohne Abschluss": "ohne Abschl." };
+function listV3(fac) {
+  const subs = subjectsOf(fac);
+  const three = subs.some((s) => s.cells.o);
+  const tok = (s, k) => {
+    const list = s.cells[k];
+    if (!list) return `<span class="mm-e">–</span>`;
+    const mine = list.some((o) => o[OF.mine]);
+    const label = s.combos ? `${list.length}${NB}Komb.` : TOK[list[0][OF.d]] || list[0][OF.d];
+    const more = !s.combos && list.length > 1 ? `<small>+${list.length - 1}</small>` : "";
+    const attr = list.length === 1 ? `data-open-prog="${list[0][OF.slug]}" data-label="${s.name} · ${list[0][OF.d]}"` : `data-list-sheet="${fac.code}|${s.name}|${k}"`;
+    return `<button class="tok${mine ? " is-mine" : ""}" type="button" ${attr}>${label}${more}</button>`;
+  };
+  return `<div class="mm mm-h${three ? " three" : ""}"><span>Fach</span><span>Bachelor</span><span>Master</span>${three ? "<span>Weitere</span>" : ""}</div>` +
+    subs.map((s) => `<div class="mm${three ? " three" : ""}"><span class="mm-n">${s.name}${offersOf(s).some((o) => o[OF.mine]) ? starIc() : ""}</span>${tok(s, "b")}${tok(s, "m")}${three ? tok(s, "o") : ""}</div>`).join("");
+}
+
+// The sheet of one subject's offers (variants 2 and 3).
+function listSheet() {
+  if (!UI.listSheet) return "";
+  const [code, name, lvl] = UI.listSheet.split("|");
+  const fac = FACS.find((f) => f.code === code);
+  if (!fac) return "";
+  const s = subjectsOf(fac).find((x) => x.name === name) || { name, cells: (fac.subjects.find(([n]) => n === name) || [, {}])[1] };
+  // Variant 2 asks by level (Lehramt among them), variant 3 by the column of the matrix.
+  const list = UI.listVariant === 2 ? atLevel(s, lvl) : s.cells[lvl] || [];
+  const parts = `<div class="offers in-sheet">${offerRows(list, s)}</div>`;
+  const n = list.length;
+  return `<div class="dim" data-list-sheet=""></div><div class="sheet" role="dialog" aria-label="${s.name}"><span class="grab"></span>
+    <div class="sheet-h"><b>${s.name}</b><small>${fac.code} · ${n} Angebote</small><button class="x" type="button" data-list-sheet="" aria-label="Schließen">${ic("x")}</button></div>
+    <div class="sheet-b">${parts}<p class="hint">${ic("info")}<span>Dauer und LP aus dem geprüften Regelstudienplan der jeweiligen Ordnung.</span></p></div></div>`;
+}
+
+function programsPhone(back, variant = 1) {
+  UI.listVariant = variant;
+  const faculties = FACS.map((fac) => {
+    let body = "", n;
+    if (variant === 2) {
+      n = fac.subjects.reduce((sum, [name, cells]) => sum + atLevel({ name, cells }, UI.lvl).length, 0);
+      if (!n) return "";
+    } else n = fac.subjects.reduce((sum, [, cells]) => sum + STAGES.reduce((x, [k]) => x + (cells[k] || []).length, 0), 0);
+    const open = !!UI.facOpen[fac.code];
+    if (open) body = `<div class="facc-b v${variant}">${variant === 1 ? listV1(fac) : variant === 2 ? listV2(fac) : listV3(fac)}</div>`;
+    return `<section class="facc${open ? " open" : ""}">${facHead(fac, n, open, variant === 2 ? "" : stageSummary(fac))}${body}</section>`;
+  }).join("");
+  const levels = variant === 2 ? `<div class="aseg lvls">${LEVELS.map(([k, label]) => `<button type="button" aria-pressed="${UI.lvl === k}" data-set="lvl:${k}">${label} <small>${LEVEL_COUNTS[k]}</small></button>`).join("")}</div>` : "";
+  const note = { 1: "Fächer aufklappen", 2: "Abschluss zuerst", 3: "Fach × Abschluss" }[variant];
+  return phone({
+    back, search: "Studiengang suchen", sheet: listSheet(),
+    content: `<div class="phead"><h1>Alle Studiengänge</h1><p>148 in ihrer aktuellen Prüfungsordnung</p></div>
+      <section class="panel"><div class="rows">
+        <button class="rw" type="button" data-open-prog="${MINE_SLUG}">${starIc()}<span class="rw-t"><b>Informatik B.Sc.</b><small>Dein Studiengang · PO 2008 · in Mein Studium</small></span>${ic("chevron-right", "chev")}</button>
+        <button class="rw" type="button" data-open-prog="master-informatik-2008" data-label="Informatik · M.Sc.">${ic("graduation-cap")}<span class="rw-t"><b>Informatik M.Sc.</b><small>Danach: der passende Master · 4 Semester · 120 LP</small></span>${ic("chevron-right", "chev")}</button>
+      </div></section>
+      ${levels}
+      ${variant === 2 ? "" : `<div class="chiprow"><span class="fchip">${ic("sliders-horizontal")}Filter</span><span class="fchip">Bachelor <small>65</small></span><span class="fchip">Master <small>63</small></span><span class="fchip">Lehramt <small>14</small></span><span class="fchip">Dual <small>25</small></span></div>`}
+      <div class="faccs chg" ${chg(`Variante: ${note}`)}>${faculties}</div>`,
+  });
+}
+
+// The desktop: the filters beside it, the faculties as accordions, a matrix of lines in each.
+function filtersSide() {
+  const box = (label, n) => `<span class="cbx"><i></i>${label}<small>${n}</small></span>`;
+  return `<p class="side-t">Filter</p>
+    <div class="fg"><p class="fl">Abschluss</p><div class="cbxs">${box("Bachelor", 65)}${box("Master", 63)}${box("Lehramt", 14)}${box("Promotion", 4)}${box("Sonstige", 2)}</div></div>
+    <div class="fg"><p class="fl">Studienform</p><div class="cbxs one">${box("Dual", 25)}${box("Doppelabschluss", 6)}${box("Teilzeit & Fern", 2)}</div></div>
+    <div class="fg"><p class="fl">Daten</p><div class="cbxs one">${box("Mit Regelstudienplan", 129)}</div></div>
+    <div class="fg"><p class="fl">Fakultäten</p><div class="vlist">${FACS.map((f) => `<button class="vl fac-l" type="button" data-fac="${f.code}"${UI.facOpen[f.code] ? ` aria-current="true"` : ""}><b style="font-weight:650">${f.code}</b><span class="ell">${f.name}</span><small>${f.subjects.reduce((x, [, c]) => x + STAGES.reduce((y, [k]) => y + (c[k] || []).length, 0), 0)}</small></button>`).join("")}</div></div>`;
+}
+function deskCell(s, k) {
+  const list = s.cells[k];
+  if (!list) return `<td class="dc"></td>`;
+  const groups = groupsOf(list);
+  const showPo = groups.length > 1 && !s.combos;
+  return `<td class="dc">${groups.map((g) => g.items.map((o, i) => {
+    const head = s.combos || i === 0;
+    const label = o[OF.combo] || (head ? `${o[OF.d]}${showPo ? ` <span class="po">PO ${o[OF.po]}</span>` : ""}` : o[OF.form]);
+    return `<button class="ol${head ? "" : " sub"}${o[OF.plan] ? "" : " quiet"}${o[OF.mine] ? " is-mine" : ""}" type="button" data-open-prog="${o[OF.slug]}" data-label="${s.name} · ${o[OF.d]}${o[OF.form] ? ` · ${o[OF.form]}` : ""}"><b>${label}${head && o[OF.form] ? ` <span class="olf">${o[OF.form]}</span>` : ""}${o[OF.mine] ? starIc() : ""}</b><span>${factsOf(o, true)}</span></button>`;
+  }).join("")).join("")}</td>`;
+}
+function programsDesk() {
+  const faculties = FACS.map((fac) => {
+    const subs = subjectsOf(fac);
+    const three = subs.some((s) => s.cells.o);
+    const n = fac.subjects.reduce((x, [, c]) => x + STAGES.reduce((y, [k]) => y + (c[k] || []).length, 0), 0);
+    const open = !!UI.facOpen[fac.code];
+    const body = open ? `<table class="tbl dmx${three ? " three" : ""}"><colgroup><col class="c-subj"><col><col>${three ? "<col class=\"c-o\">" : ""}</colgroup><thead><tr><th>Fach</th><th>Bachelor</th><th>Master</th>${three ? "<th>Weitere</th>" : ""}</tr></thead><tbody>${subs.map((s) => `<tr><td class="nm">${s.name}${s.combos ? `<small>${offersOf(s).length} Fächerkombinationen</small>` : ""}</td>${deskCell(s, "b")}${deskCell(s, "m")}${three ? deskCell(s, "o") : ""}</tr>`).join("")}</tbody></table>` : "";
+    return `<section class="panel dfacc${open ? " open" : ""}">${facHead(fac, n, open, stageSummary(fac))}${body}</section>`;
+  }).join("");
+  return `<div class="dk-line"><b>148</b> Studiengänge in ihrer aktuellen Prüfungsordnung</div>
+    <section class="panel mine-strip">
+      <div class="ms-col">${ic("star")}<div><p class="kicker">Dein Studiengang</p><b>Informatik B.Sc.</b><small>PO 2008 · 52 von 180 LP bestanden</small></div><button class="btn" type="button" data-open-prog="${MINE_SLUG}">Mein Studium${ic("chevron-right")}</button></div>
+      <div class="ms-col">${ic("graduation-cap")}<div><p class="kicker">Danach</p><b>Informatik M.Sc.</b><small>PO 2008 · 4 Semester · 120 LP</small></div><button class="btn ghost" type="button" data-open-prog="master-informatik-2008" data-label="Informatik · M.Sc.">Regelstudienplan${ic("chevron-right")}</button></div>
+    </section>
+    <div class="dfaccs chg" ${chg("neu: Akkordeons, Zeilen statt Kästchen")}>${faculties}</div>`;
+}
+// =============================================================================================
 // C · Bereiche — the areas of the bar become the chapters: what is asked, what to choose, yours
 // =============================================================================================
 const AREA_RULE = {
@@ -1917,8 +2230,9 @@ const CONCEPTS = {
     plus: ["Kein Wechsel in eine andere Welt: gleicher Titel, gleiche Seitenleiste, ‹ statt „Zurück“.", "Soll und Ist auf einen Blick, Abweichungen wie die Wiederholung sichtbar.", "Wahlpflicht wird planbar: jedes Modul mit „In SoSe 27“.", "Die öffentlichen Seiten der Studiengänge bleiben für Suchmaschinen, wie sie sind."],
     minus: ["Der Regelstudienplan existiert zweimal: deiner hier, der öffentliche beim Studiengang.", "Vier Ansichten am Desktop – mehr zu erklären als heute zwei.", "„Bereiche“ der Leiste und Wahlpflicht bleiben zwei Begriffe, nur besser verbunden."],
     effort: [["Aufwand", "mittel"], ["Neu", "2 Ansichten, 2 Adressen"], ["Daten", "study.rs kennt den Stand jeder Zeile"]],
-    phone: [{ id: "a-over", t: "Übersicht" }, { id: "a-plan", t: "Regelstudienplan" }, { id: "a-wp", t: "Wahlpflicht" }, { id: "a-all", t: "Alle Studiengänge" }],
-    desk: [{ id: "a-d-plan", t: "Regelstudienplan" }, { id: "a-d-wp", t: "Wahlpflicht" }, { id: "a-d-all", t: "Alle Studiengänge" }],
+    phone: [{ id: "a-over", t: "Übersicht" }, { id: "a-plan", t: "Regelstudienplan" }, { id: "a-wp", t: "Wahlpflicht" },
+      { id: "a-all", t: "Studiengänge · Fächer aufklappen", note: "v1" }, { id: "a-all2", t: "Studiengänge · Abschluss zuerst", note: "v2" }, { id: "a-all3", t: "Studiengänge · Fach × Abschluss", note: "v3" }],
+    desk: [{ id: "a-d-plan", t: "Regelstudienplan" }, { id: "a-d-wp", t: "Wahlpflicht" }, { id: "a-d-all", t: "Alle Studiengänge", note: "desk" }],
   },
   B: {
     name: "Im Plan",
@@ -1967,7 +2281,7 @@ const CONCEPTS = {
   },
 };
 const RENDER = {
-  "a-over": aOverview, "a-plan": aPlanPhone, "a-wp": aWpPhone, "a-all": () => programsPhone("a-over"),
+  "a-over": aOverview, "a-plan": aPlanPhone, "a-wp": aWpPhone, "a-all": () => programsPhone("a-over", 1), "a-all2": () => programsPhone("a-over", 2), "a-all3": () => programsPhone("a-over", 3),
   "a-d-plan": aPlanDesk, "a-d-wp": aWpDesk, "a-d-all": aAllDesk,
   "b-over": () => bOverview(), "b-sem": () => bSemester(), "b-sheet": () => bSemester({ sheet: bSheet() }), "b-all": () => bOverview({ sheet: bAllSheet() }),
   "b-d-grid": () => bGridDesk(), "b-d-aside": bAsideDesk, "b-d-all": bAllDesk,
@@ -1976,6 +2290,31 @@ const RENDER = {
   "d-over": dOverview, "d-prog": dProgram, "d-wp": dWp, "d-wp-area": dWpArea, "d-all": dAll,
   "d-d-prog": dProgramDesk, "d-d-all": dAllDesk,
 };
+// The ways to list the programs inside a faculty (owner, 2026-10-14, after choosing A: „wie die
+// studiengänge dann darin gelistet werden ist eine katastrophe").
+const NOTES = {
+  v1: { name: "Fächer aufklappen", tag: "Empfehlung",
+    text: "Jedes Fach ist eine Zeile: der Name, darunter, was es gibt („B.Sc. · M.Sc. · 5 Angebote“). Ein Fach mit einem Angebot führt direkt hin. Eines mit mehreren klappt auf wie seine Fakultät: nach Bachelor und Master, jedes Angebot eine Zeile mit Dauer und LP, die Studienformen eingerückt darunter.",
+    plus: ["Dieselbe Geste wie die Fakultät: ein Akkordeon im Akkordeon.", "Jede Zeile ist ein Ziel, keine Kästchen mehr in den Zeilen.", "Dauer und LP stehen da (dual: 7 Semester · 210 LP); die PO nur, wo ein Fach zwei hat (Maschinenbau 2021 und 2018).", "Das Lehramt ist eine Gruppe „Lehramt Primarstufe“ mit 14 Fächerkombinationen statt 14 Zeilen fast gleichen Namens."],
+    minus: ["Ein Tipp mehr, wo ein Fach mehrere Angebote hat.", "Eine offene große Fakultät wird lang (Fakultät 4: 22 Fächer)."],
+    try: "Öffne Fakultät 3 (Maschinenbau, 10 Angebote) und Fakultät 4 (Lehramt)." },
+  v2: { name: "Abschluss zuerst",
+    text: "Oben wählst du Bachelor, Master, Lehramt oder Weitere; die Fakultäten zeigen nur das. Jedes Fach ist eine Zeile mit Abschluss, Dauer und LP. Hat es mehrere Angebote (dual, verkürzt, zwei Ordnungen), öffnet die Zeile ein Sheet mit allen.",
+    plus: ["Die ruhigste Liste: eine Zeile je Fach.", "Passt dazu, wie man sucht: „ein Master in …“.", "Lehramt ist eine eigene Stufe, der Bachelor bleibt frei von 14 Kombinationen."],
+    minus: ["Bachelor und Master eines Fachs stehen nie nebeneinander (der Master danach steht dafür oben).", "Ein Schalter mehr; Fakultäten ohne Angebot der Stufe fehlen."],
+    try: "Wechsle oben zu „Lehramt“ und tippe in Fakultät 3 auf „Maschinenbau“." },
+  v3: { name: "Fach × Abschluss",
+    text: "Die Matrix des Desktops im Kleinen: je Fach eine Zeile, Spalten Bachelor und Master (und Weitere, wo es sie gibt). Jeder Abschluss ist ein Knopf; „+2“ sagt, dass es weitere Formen gibt, die ein Sheet zeigt.",
+    plus: ["Alles auf denselben senkrechten Linien wie am Desktop.", "Am kompaktesten: auf einen Blick, wo es Bachelor und Master gibt."],
+    minus: ["Abkürzungen ohne Dauer und LP.", "Kleine Ziele, lange Fachnamen schmal umbrochen.", "Lehramt und Promotion passen nur mit Mühe in die Spalten."],
+    try: "Tippe bei Elektrotechnik auf „B.Sc. +2“." },
+  desk: { name: "Matrix in Akkordeons",
+    text: "Am Desktop bleibt die Matrix der Abschlüsse (Fach × Bachelor × Master), wie sie im September festgelegt wurde, aber in denselben Fakultäts-Akkordeons und ohne Kästchen: jedes Angebot eine Textzeile mit Dauer und LP, die Studienformen eingerückt darunter, die PO nur, wo ein Fach zwei hat.",
+    plus: ["Die Zeilen sagen, was sich unterscheidet: dual 7 Semester · 210 LP, verkürzt 3 Semester · 90 LP.", "Die Fakultäten links öffnen ihr Akkordeon."],
+    minus: ["Wo ein Fach viele Angebote hat (Maschinenbau), wird seine Zeile hoch."],
+    try: "Öffne links Fakultät 3 und Fakultät 4." },
+};
+
 // How each concept scores, 1 to 5 (the comparison under the stage).
 const CRITERIA = [
   ["Bleibt in „Mein Studium“", [5, 5, 5, 2], ["Ansichten im selben Rahmen", "Ebene und Sheets im selben Rahmen", "Bereichsseiten im selben Rahmen", "eigene Seite, neuer Look"]],
@@ -1989,7 +2328,7 @@ const CRITERIA = [
 // =============================================================================================
 // The prototype: which concept, which device, which screen; taps inside the device.
 // =============================================================================================
-const S = { c: "A", dev: "phone", at: {}, theme: "auto", chg: true };
+const S = { c: "A", dev: "phone", at: { Aphone: 3, Adesk: 2 }, theme: "auto", chg: true };
 let FRAMED = true;
 let LAST_ADD = null;
 let toastTimer = 0;
@@ -2016,6 +2355,7 @@ function applySet(spec) {
   }
 }
 function enter(i) {
+  UI.listSheet = null;
   const list = screens();
   const n = (i + list.length) % list.length;
   if (list[n].set) Object.assign(UI, list[n].set);
@@ -2025,6 +2365,7 @@ function enter(i) {
 function go(id) {
   const i = screens().findIndex((s) => s.id === id);
   if (i < 0 || i === index()) { render({ keep: true }); return; }
+  UI.listSheet = null;
   S.at[S.c + S.dev] = i;
   render();
 }
@@ -2032,8 +2373,15 @@ function go(id) {
 function probar(c, list, i) {
   return `<div class="probar"><button type="button" data-psheet>${S.c} · ${c.name}${ic("chevron-down")}</button><span class="grow">${i + 1}/${list.length} · ${list[i].t}</span><button type="button" data-step="-1" aria-label="Vorheriger Bildschirm">${ic("chevron-left")}</button><button type="button" data-step="1" aria-label="Nächster Bildschirm">${ic("chevron-right")}</button></div>`;
 }
+function variantHtml(note) {
+  const v = NOTES[note];
+  if (!v) return "";
+  return `<div class="vnote"><p class="eyebrow">${note === "desk" ? "Desktop" : "Liste der Studiengänge"}${v.tag ? ` · ${v.tag}` : ""}</p><h3>${v.name}</h3><p>${v.text}</p>
+    <ul class="pros plus">${v.plus.map((x) => `<li>${x}</li>`).join("")}</ul><ul class="pros minus">${v.minus.map((x) => `<li>${x}</li>`).join("")}</ul>
+    ${v.try ? `<p class="try">${ic("arrow-right")}${v.try}</p>` : ""}</div>`;
+}
 function notesHtml(c, list, i) {
-  return `<p class="eyebrow">Konzept ${S.c}${c.tag ? ` · ${c.tag}` : ""}</p><h2>${c.name}</h2><p>${c.idea}</p>
+  return `${list[i].note ? variantHtml(list[i].note) : ""}<p class="eyebrow">Konzept ${S.c}${c.tag ? ` · ${c.tag}` : ""}</p><h2>${c.name}</h2><p>${c.idea}</p>
     <div><h3>So fügt es sich ein</h3><ul class="where">${c.where.map(([k, v]) => `<li><b>${k}</b><span>${v}</span></li>`).join("")}</ul></div>
     <div><h3>Bildschirme · ${S.dev === "phone" ? "Handy" : "Desktop"}</h3><div class="screens">${list.map((s, n) => `<button type="button" data-screen="${n}"${n === i ? ` aria-current="true"` : ""}><span>${s.t}</span></button>`).join("")}</div></div>
     <div><h3>Stärken</h3><ul class="pros plus">${c.plus.map((x) => `<li>${x}</li>`).join("")}</ul></div>
@@ -2111,6 +2459,16 @@ function pageTo(fs) {
   pager.scrollTo({ left: n * (pager.clientWidth + 12), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 }
 
+// A tap on a program in the prototype: one's own leads to its plan in „Mein Studium", another
+// says where it would lead.
+function openProgram(slug, label) {
+  if (slug === MINE_SLUG && S.c === "A") { go(S.dev === "phone" ? "a-plan" : "a-d-plan"); return; }
+  const slot = $("#devicebox .toast-slot");
+  if (!slot) return;
+  slot.innerHTML = `<div class="toast info" role="status">${ic("arrow-up-right")}<span>Öffnet „${label || "Informatik B.Sc."}“: die Seite des Studiengangs</span></div>`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { slot.innerHTML = ""; }, 2600);
+}
 function showToast(text, fresh = true) {
   const slot = $("#devicebox .toast-slot");
   if (!slot) return;
@@ -2192,7 +2550,7 @@ function applyChg(on) {
 }
 
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-pick],[data-dev],[data-theme-set],[data-screen],[data-step],[data-psheet],[data-undo],[data-add],[data-toggle],[data-fac],[data-jump],[data-fs-step],[data-fs-dot],[data-set],[data-go],#sw-chg,.psheet");
+  const t = e.target.closest("[data-pick],[data-dev],[data-theme-set],[data-screen],[data-screen-of],[data-step],[data-psheet],[data-undo],[data-add],[data-toggle],[data-fac],[data-subj],[data-list-sheet],[data-open-prog],[data-jump],[data-fs-step],[data-fs-dot],[data-set],[data-go],#sw-chg,.psheet");
   if (!t) return;
   if (t.classList.contains("psheet")) { if (e.target === t) closeSheet(); return; }
   if (t.id === "sw-chg") { applyChg(!S.chg); return; }
@@ -2201,12 +2559,16 @@ document.addEventListener("click", (e) => {
   if (d.dev) { S.dev = d.dev; closeSheet(); render(); return; }
   if (d.themeSet) { applyTheme(d.themeSet); return; }
   if (d.screen !== undefined) { closeSheet(); enter(Number(d.screen)); return; }
+  if (d.screenOf) { const [c, dev, n] = d.screenOf.split("|"); S.c = c; S.dev = dev; enter(Number(n)); document.getElementById("stage").scrollIntoView({ behavior: "smooth" }); return; }
   if (d.step) { enter(index() + Number(d.step)); return; }
   if (d.psheet !== undefined) { openSheet(); return; }
   if (d.undo !== undefined) { undo(); return; }
   if (d.add) { e.preventDefault(); add(t); return; }
   if (d.toggle) { UI[d.toggle] = !UI[d.toggle]; render({ keep: true }); return; }
   if (d.fac) { UI.facOpen[d.fac] = !UI.facOpen[d.fac]; render({ keep: true }); return; }
+  if (d.subj) { if (UI.subjOpen.has(d.subj)) UI.subjOpen.delete(d.subj); else UI.subjOpen.add(d.subj); render({ keep: true }); return; }
+  if (d.listSheet !== undefined) { UI.listSheet = d.listSheet || null; render({ keep: true }); return; }
+  if (d.openProg) { openProgram(d.openProg, d.label); return; }
   if (d.jump) { jump(d.jump); return; }
   if (d.fsStep) { pageTo(FS_COLS[Math.max(0, Math.min(FS_COLS.length - 1, FS_COLS.findIndex((c) => c.fs === Number(UI.fsPage)) + Number(d.fsStep)))].fs); return; }
   if (d.fsDot) { pageTo(Number(d.fsDot)); return; }
