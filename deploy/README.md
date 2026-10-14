@@ -558,7 +558,9 @@ agent only acts on a build it has not seen.
 Since 2026-10-01 a finished branch is merged into `develop`, not into master (owner: canary should
 not deploy ten times an hour). A push to `develop` starts nothing: `images.yml` builds on pushes to
 master only, and the agent takes nothing else. When the features gathered there are to reach
-canary, `develop` goes into master in one merge: one build, one deploy.
+canary, `develop` goes into master in one merge: one build, one deploy. A finished feature reaches
+canary right away (owner, 2026-10-14: „Ja immer rauf auf canary dafür ist es da"): its branch goes
+into `develop`, and `develop` into master, one release per feature.
 
 ```bash
 # a finished branch, "Merge branch '<branch>' into develop: <what it brings>"; nothing is built
