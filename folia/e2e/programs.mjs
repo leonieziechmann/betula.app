@@ -157,7 +157,7 @@ const tallRows = (page) => page.evaluate(() => [...document.querySelectorAll("ta
       meta: document.querySelector(".prog-meta").textContent.replace(/\s+/g, " ").trim(),
     };
   });
-  check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 130 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
+  check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 131 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
   check(head.facts.every((fact) => / /.test(fact)), "head: a number and its label are written without a space between them");
   check(head.out === 0, "head: a number stands outside its panel");
   check(head.crumbs.join() === "/programs,/programs?level=bachelor", `head: the path leads to ${head.crumbs.join(" ")}`);
