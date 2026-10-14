@@ -30,6 +30,9 @@
 //!                                      never in a URL, but for a plan handed on by a link
 //!                                      (`share`, `timetable::share`), which the page offers to
 //!                                      take over and whose link preview names its modules
+//! `/profile`                           the visitor's profiles and settings (owner, 2026-10-14):
+//!                                      which profiles there are and what they keep lives in the
+//!                                      browser; the address is the page and nothing more
 //! `/calendar/<code>.ics`               a calendar subscription, served by the server (not a page):
 //!                                      the code says semester, modules and what is hidden
 //!                                      (`timetable::subscription`)
@@ -74,6 +77,9 @@ pub const STUDYPLAN: &str = "/studyplan";
 /// is passed and the Regelstudienplan — the page the Studium tab leads to in the app. What it shows
 /// lives in the browser; the address says only how it is shown (`StudyUrl`).
 pub const STUDY: &str = "/study";
+/// „Profil" (owner, 2026-10-14): the profiles of this browser, what the active one keeps, and the
+/// settings every profile shares. What it shows lives in the browser; the address is the page.
+pub const PROFILE: &str = "/profile";
 
 /// The Stundenplan's address that hands the plan of `code` on (`share::SharedPlan`).
 pub fn share_path(code: &str) -> String {
@@ -151,8 +157,8 @@ pub fn program_catalog_path(slug: &str, open: Option<&str>) -> String {
 /// the unfiltered catalog (`/catalog?page=<n>`; `page` comes after every filter, so
 /// `/catalog?turnus=winter&page=2` is a view) and the plan of a further study direction
 /// (`/programs/<slug>/plan?variant=<n>`). What is the visitor's own and lives in their browser is
-/// no page for search engines either: the Merkliste, the Stundenplan, „Mein Studium" and a
-/// program's „Mein Plan" (`ProgramTab::indexed`). An older examination regulation says `noindex` by its data, not by
+/// no page for search engines either: the Merkliste, the Stundenplan, „Mein Studium", the profile
+/// page and a program's „Mein Plan" (`ProgramTab::indexed`). An older examination regulation says `noindex` by its data, not by
 /// its address, and its links are followed: here it is a page.
 ///
 /// A link to what is not listed carries `rel="nofollow"` (`app::seo::nofollow`), robots.txt keeps
@@ -166,7 +172,7 @@ pub fn listed(address: &str) -> bool {
         None => (address, None),
     };
     let program_tab = path.strip_prefix("/programs/").and_then(|rest| rest.split_once('/')).and_then(|(_, tab)| ProgramTab::from_segment(tab));
-    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || program_tab.is_some_and(|tab| !tab.indexed()) {
+    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || program_tab.is_some_and(|tab| !tab.indexed()) {
         return false;
     }
     match query {
@@ -1805,6 +1811,7 @@ mod tests {
             StudyplanUrl { import: Some("x".to_string()), ..Default::default() }.path(),
             STUDY.to_string(),
             StudyUrl::parse("open=11101").path(),
+            PROFILE.to_string(),
             format!("{}{}", module_path("11101"), ModuleHint::parse("plan=2026W").query()),
         ];
         for view in &views {

@@ -55,15 +55,16 @@ pub const SERVICE_WORKER: &str = "/sw.js";
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
 /// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
 /// view settings live in localStorage, never in the URL and never in server HTML (R9). A browser
-/// that keeps „Mein Studiengang" marks the document with `mine`: the program overview's line about
-/// it is the app's, and the page keeps its room from the first paint, so the list does not move
-/// when the app takes over (R15). On an iPhone or iPad (`navigator.standalone` exists there only)
+/// that keeps „Mein Studiengang" in the active profile (`folia_stores::profiles`: the first keeps
+/// it under the plain key, another under its number) marks the document with `mine`: the program
+/// overview's line about it is the app's, and the page keeps its room from the first paint, so the
+/// list does not move when the app takes over (R15). On an iPhone or iPad (`navigator.standalone` exists there only)
 /// it names the launch screens of this screen, upright and, on a tablet, turned, light and dark
 /// (`launch`): iOS takes them when the app is added to the home screen, from the page as it is
 /// then. Written here and not as sixty `<link>`s into every page, which would cost every visitor
 /// almost a kilobyte for what only a home screen of iOS reads. Public for the one document the
 /// server writes without the app: the login page of closed testing.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem('betula.myprogram.v1')||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})()";
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');var p=/^active\\t([1-9][0-9]{0,2})$/m.exec(localStorage.getItem('betula.profiles.v1')||''),k=p&&p[1]!=='1'?'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1';if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem(k)||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})()";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
@@ -73,3 +74,18 @@ pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('j
 /// aborted because of invalid state. ViewTransition opt-in disabled" in the console. Written
 /// inline, the rule is there before the body is. The duration stays in app.css.
 pub const VIEW_TRANSITION_STYLE: &str = "@view-transition{navigation:auto}";
+
+#[cfg(test)]
+mod tests {
+    use folia_stores::profiles::{key_of, KEYS, STORAGE_KEY};
+
+    /// The head script reads „Mein Studiengang" where the active profile keeps it, as the store
+    /// names the key.
+    #[test]
+    fn the_head_script_reads_the_active_profiles_program() {
+        let mine = KEYS[3];
+        assert_eq!((mine, key_of(mine, 2).as_str()), ("betula.myprogram.v1", "betula.p2.myprogram.v1"));
+        assert!(super::HEAD_SCRIPT.contains(&format!("localStorage.getItem('{STORAGE_KEY}')")), "{}", super::HEAD_SCRIPT);
+        assert!(super::HEAD_SCRIPT.contains("'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1'"), "{}", super::HEAD_SCRIPT);
+    }
+}

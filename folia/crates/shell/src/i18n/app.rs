@@ -25,6 +25,10 @@ pub struct Texts {
     pub planned_count: fn(usize) -> String,
     pub logo_label: &'static str,
     pub theme_toggle: &'static str,
+    /// The profile page („Profil"): its title in the top bar, and the way to it in the rail and on
+    /// a phone's start page, named by the active profile („Profil: Zweitstudium").
+    pub profile: &'static str,
+    pub profile_of: fn(&str) -> String,
     pub search_programs: &'static str,
     pub search_programs_placeholder: &'static str,
     pub search_modules: &'static str,
@@ -55,6 +59,8 @@ pub const DE: Texts = Texts {
     planned_count: |n| format!("{n} geplant"),
     logo_label: "Betula, zur Startseite",
     theme_toggle: "Hell oder dunkel",
+    profile: "Profil",
+    profile_of: |name| format!("Profil: {name}"),
     search_programs: "Studiengänge suchen",
     search_programs_placeholder: "Studiengang suchen",
     search_modules: "Module suchen",
@@ -83,6 +89,8 @@ pub const EN: Texts = Texts {
     planned_count: |n| format!("{n} planned"),
     logo_label: "Betula, to the home page",
     theme_toggle: "Light or dark",
+    profile: "Profile",
+    profile_of: |name| format!("Profile: {name}"),
     search_programs: "Search degree programmes",
     search_programs_placeholder: "Search degree programmes",
     search_modules: "Search modules",

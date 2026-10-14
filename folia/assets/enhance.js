@@ -793,18 +793,32 @@
   // A page the browser kept (Back after a page load) shows its own tab's mark again.
   addEventListener("pageshow", (e) => { if (e.persisted) { tabDrag = null; settleTabs(); } });
 
+  // Light or dark (`theme`: what the switch in the rail chose), or the system's (`system`): on the
+  // document at once, kept for the next page (the head script applies it before the first paint),
+  // the browser's own chrome with it (the colours are --bg of the two themes), and told to the page
+  // (`betula:theme`), whose choice shows it.
+  const setTheme = (theme) => {
+    const chosen = theme === "light" || theme === "dark" ? theme : null;
+    if (chosen) root.dataset.theme = chosen;
+    else delete root.dataset.theme;
+    const dark = chosen ? chosen === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.content = dark ? "#0a0c11" : "#f1f2f4";
+    try { if (chosen) localStorage.setItem("betula.theme", chosen); else localStorage.removeItem("betula.theme"); } catch {}
+    dispatchEvent(new Event("betula:theme"));
+  };
+
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
     switch (target?.dataset.action) {
       case "theme": {
         const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-        root.dataset.theme = dark ? "light" : "dark";
-        // The browser's own chrome follows the chosen theme, not the system's (the head script
-        // does the same on load; the colours are --bg of the two themes).
-        for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.content = dark ? "#f1f2f4" : "#0a0c11";
-        try { localStorage.setItem("betula.theme", root.dataset.theme); } catch {}
+        setTheme(dark ? "light" : "dark");
         break;
       }
+      case "theme-set":
+        // Light, dark or the system's, as the profile page offers them (folia/crates/profile).
+        setTheme(target.dataset.themeValue);
+        break;
       case "sheet-open":
         e.preventDefault();
         openSheet();

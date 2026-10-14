@@ -313,6 +313,11 @@ table { border-collapse: collapse; width: 100%; }
 .lang-switch .icon { width: 17px; height: 17px; }
 .lang-switch b { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
 .lang-switch:hover { text-decoration: none; }
+/* The way to the profile page (chrome.rs `ProfileButton`): at the end of the rail above the
+   languages, the active profile's badge or a person; current on the profile page as a tab is. */
+.profile-btn .icon { width: 19px; height: 19px; }
+.profile-btn[aria-current="page"]:not(:has(.avatar)) { background: var(--invert); color: var(--on-invert); }
+.profile-btn[aria-current="page"] .avatar { outline: 2px solid var(--tone); outline-offset: 2px; }
 .theme-toggle .icon-sun { display: none; }
 :root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
 :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
@@ -3075,6 +3080,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      that it reads as a button where nothing hovers. */
   .brand-phone .languages { margin-left: auto; }
   .brand-phone .lang-switch { width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+  /* The way to the profile page before it, framed as it is (without JavaScript there is none, and
+     the languages keep the line's end). */
+  .brand-phone .profile-btn { flex: none; margin-left: auto; width: 44px; height: 44px; box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+  html.js .brand-phone .profile-btn ~ .languages { margin-left: 0; }
   .search { height: 48px; }
   /* The way back of a page's step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links neben der
      search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box as the
@@ -4086,6 +4095,97 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
   .st-setup { padding: 18px 16px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
   .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
+}
+/* ---------- profiles (folia/crates/profile, folia/crates/stores/src/profiles.rs; owner, 2026-10-14) ----------
+   The profile page: the profiles in the sidebar, where a click switches; the active profile at the
+   head of the page, then „Mein Studiengang", what the profile keeps (each row the way to it) and
+   the settings of the browser. A profile's badge (`.avatar`) is its initial in one of the soft hues
+   of the start page's ways in (`--t-*`), the same in the rail, the list and the head; its letter is
+   mixed towards the text, so that it reads in either theme. */
+.avatar { --tone: var(--t-green); flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: color-mix(in oklch, var(--tone) 16%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tone) 38%, transparent); color: color-mix(in oklch, var(--tone) 70%, var(--text)); font-size: 12.5px; font-weight: 720; line-height: 1; letter-spacing: -.01em; user-select: none; }
+.avatar[data-tone="2"] { --tone: var(--t-ice); }
+.avatar[data-tone="3"] { --tone: var(--t-violet); }
+.avatar[data-tone="4"] { --tone: var(--t-coral); }
+.avatar[data-tone="5"] { --tone: var(--t-teal); }
+.avatar[data-tone="6"] { --tone: var(--t-sun); }
+.avatar[data-tone="7"] { --tone: var(--t-rose); }
+.avatar[data-tone="8"] { --tone: var(--t-slate); }
+.avatar.large { width: 56px; height: 56px; font-size: 23px; box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tone) 42%, transparent); }
+.page-inner.pf { grid-template-columns: minmax(0, 1fr); align-content: start; }
+/* The note of the last thing done, a panel of its own over the head. */
+.offer.pf-note { margin: 0; background: var(--panel); box-shadow: var(--shadow-panel); }
+.pf-note > .icon { color: var(--text-2); }
+/* The head: the badge, the name and what a profile is; „Umbenennen" and „Löschen" at its end. */
+.pf-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 14px 20px; padding: 20px 24px; }
+.pf-head-main { display: flex; align-items: flex-start; gap: 16px; min-width: 0; }
+.pf-head-text { flex: 1 1 auto; min-width: 0; padding-top: 3px; }
+.pf-head h2 { font-size: 24px; line-height: 1.2; font-weight: 720; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.pf-lead { margin-top: 6px; color: var(--text-2); font-size: 14px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
+.pf-made { margin-top: 4px; color: var(--text-3); font-size: 12.5px; }
+.pf-head-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.pf-head-actions .btn, .pf-ways .btn { min-height: 38px; padding: 0 13px; font-size: 13.5px; }
+.pf-head-actions .btn .icon, .pf-ways .btn .icon { width: 16px; height: 16px; }
+.btn[aria-disabled="true"] { color: var(--text-3); cursor: default; }
+.btn[aria-disabled="true"]:hover { background: var(--panel); }
+.btn[aria-disabled="true"]:active { transform: none; }
+.pf-ask { grid-column: 1 / -1; margin: 0; padding: 8px 10px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.pf-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.pf-rename input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 17px; font-weight: 650; }
+/* A part of the page: its heading, then what it holds. */
+.pf-part { padding: 18px 24px 20px; }
+.pf-part > h2 { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 650; letter-spacing: -.015em; }
+.pf-part > h2 .icon { width: 17px; height: 17px; color: var(--text-3); }
+.pf-sub { margin-top: 2px; color: var(--text-3); font-size: 12.5px; }
+.pf-empty { margin-top: 8px; color: var(--text-2); font-size: 14px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
+.pf-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 24px; margin: 14px 0 0; font-size: 14px; }
+.pf-facts > div { display: contents; }
+.pf-facts dt { color: var(--text-3); }
+.pf-facts dd { margin: 0; min-width: 0; font-weight: 560; overflow-wrap: anywhere; }
+.pf-facts dd small { margin-left: 8px; color: var(--warn); font-size: 12px; font-weight: 600; }
+.pf-ways { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+/* What the profile keeps: a row each, the whole row the way to it. */
+.pf-rows { display: grid; margin: 10px -10px 0; }
+.pf-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 46px; padding: 0 10px; border-radius: var(--r-row); color: var(--text); font-size: 14px; text-decoration: none; }
+.pf-row:hover { background: var(--row-hover); text-decoration: none; }
+.pf-row > .icon:first-child { width: 17px; height: 17px; color: var(--text-2); }
+.pf-row-label { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-row-value { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-row > .icon:last-child { width: 16px; height: 16px; color: var(--text-3); }
+.pf-clear { margin: 10px -10px 0; padding-top: 10px; border-top: 1px solid var(--line); }
+/* The settings: a label and a choice each. */
+.pf-setting { display: grid; grid-template-columns: 140px minmax(0, 360px); align-items: center; gap: 8px 16px; margin-top: 14px; }
+.pf-seg { margin: 0; }
+.pf-seg .icon { width: 15px; height: 15px; margin-right: 6px; }
+/* The sidebar: the profiles, a row each, the active one marked as a saved plan is. */
+.pf-list { display: grid; gap: 2px; margin-bottom: 6px; }
+.pf-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 10px; border-radius: var(--r-row); text-align: left; color: var(--text); }
+.pf-item:hover { background: var(--panel-3); }
+.pf-item[aria-checked="true"] { background: var(--panel-3); box-shadow: inset 2.5px 0 0 var(--accent); }
+.pf-item-text { flex: 1 1 auto; min-width: 0; display: grid; }
+.pf-item-text b { font-size: 13.5px; font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-item-text small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-item > .icon:last-child { width: 16px; height: 16px; color: var(--accent-ink); visibility: hidden; }
+.pf-item[aria-checked="true"] > .icon:last-child { visibility: visible; }
+.pf-new { padding: 4px 0 2px; }
+/* The lines under „Als Datei sichern“ and „Aus Datei laden“ end in „…“ where the sidebar is too
+   narrow for them, instead of running out of it. */
+.actions.pf-backup { grid-template-columns: minmax(0, 1fr); }
+.pf-offer { display: grid; gap: 6px; margin: 6px 0 2px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; }
+.pf-offer b { color: var(--text); font-weight: 620; }
+.pf-offer > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.pf-refused > .icon { color: var(--warn); }
+@container page (max-width: 640px) {
+  .pf-head { grid-template-columns: minmax(0, 1fr); }
+  .pf-head-actions { justify-content: flex-start; }
+  .pf-setting { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .pf-head, .pf-part { padding: 16px; }
+  .pf-head h2 { font-size: 21px; }
+  .avatar.large { width: 48px; height: 48px; font-size: 20px; }
+  /* A finger's targets. */
+  .pf-item { min-height: 56px; }
+  .pf-row { min-height: 52px; }
 }
 @keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
 @keyframes st-bar-up { from { transform: translateY(20px); opacity: 0; } }

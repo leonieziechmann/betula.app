@@ -20,6 +20,8 @@ folia_design::texts! {
     myprogram = folia_stores::i18n::myprogram,
     planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
+    profile = folia_profile::i18n::profile,
+    profiles = folia_stores::i18n::profiles,
     program = folia_programs::i18n::program,
     programs = folia_programs::i18n::programs,
     seo = folia_shell::i18n::seo,

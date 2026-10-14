@@ -14,6 +14,7 @@ use crate::tabs::{Area, TabAgain, Tabs};
 use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{program_href, program_name, MineResolved, MyProgram};
+use folia_stores::profiles::{Avatar, Profiles};
 use folia_stores::studyplan::Studyplan;
 
 /// The browser app (`csr`): only there is „Mein Studium", the first page of „Studium".
@@ -35,7 +36,11 @@ pub fn NavItems() -> impl IntoView {
     let tabs = Tabs::expect();
     // The tab of the page the app is going to is current at once, before the page is there.
     let pending = Pending::expect();
-    let current = move |area: Area| (Area::of(&pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get())) == area).then_some("page");
+    // The profile page is no area's: the way to it is current there (`ProfileButton`), no tab.
+    let current = move |area: Area| {
+        let path = pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get());
+        (path != url::PROFILE && Area::of(&path) == area).then_some("page")
+    };
     // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
     // goes back to where it starts (`TabAgain`).
     let again = TabAgain::expect();
@@ -230,12 +235,40 @@ pub fn Rail() -> impl IntoView {
             <a class="logo hit" href=t.path(url::HOME) aria-label=t.app.logo_label><ui::Mark/></a>
             <nav aria-label=t.app.main_navigation><NavItems/></nav>
             <div class="rail-end">
+                <ProfileButton/>
                 <languages::Languages/>
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
                 </button>
             </div>
         </aside>
+    }
+}
+
+/// The way to the profile page (owner, 2026-10-14; `folia_profile`): at the end of the rail above
+/// the languages, and on a phone, which has no rail, at the end of the start page's brand line
+/// beside them. It shows the active profile's badge (`Avatar`) where there is more than one
+/// profile or the one there is has a name, else the icon of a person, and names the profile in its
+/// title. The profiles live in the browser (R20), so it is the browser app's alone (R15), and the
+/// server writes the icon, the same for everybody (R9).
+#[component]
+pub fn ProfileButton() -> impl IntoView {
+    let t = i18n::t();
+    let location = use_location();
+    let profiles = Profiles::expect().filter(|_| APP);
+    let current = Memo::new(move |_| profiles.map(|profiles| (profiles.current(), profiles.count())));
+    let badge = Memo::new(move |_| current.get().filter(|(profile, count)| *count > 1 || !profile.name.is_empty()).map(|(profile, _)| profile));
+    let label = move || current.with(|current| current.as_ref().map_or_else(|| t.app.profile.to_string(), |(profile, _)| (t.app.profile_of)(&profile.shown(t.locale))));
+    // The profile page is current at once, before it is there (`pending`).
+    let pending = Pending::expect();
+    let here = move || (pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get()) == url::PROFILE).then_some("page");
+    view! {
+        <a class="icon-btn profile-btn js-only" href=t.path(url::PROFILE) rel="nofollow" title=label aria-label=label aria-current=here>
+            {move || match badge.get() {
+                Some(profile) => view! { <Avatar profile/> }.into_any(),
+                None => view! { <Icon name="user-round"/> }.into_any(),
+            }}
+        </a>
     }
 }
 
@@ -339,6 +372,8 @@ pub fn TopBar() -> impl IntoView {
     let area_now = Memo::new(move |_| Area::of(&path_now.get()));
     // „Mein Studium" is the visitor's study, not a list of programs: its search is the modules'.
     let study_now = Memo::new(move |_| path_now.get() == url::STUDY);
+    // The profile page is no area's, and names itself (the start page's area writes the wordmark).
+    let profile_now = Memo::new(move |_| path_now.get() == url::PROFILE);
     let pending = StoredValue::new(None::<TimeoutHandle>);
 
     // The search belongs to the page: programs on the program overview, modules everywhere else.
@@ -397,8 +432,9 @@ pub fn TopBar() -> impl IntoView {
                     .find(|(key, _)| key == "q")
                     .map(|(_, value)| value)
                     .unwrap_or_default();
+                let title = if profile_now.get() { t.app.profile } else { title };
                 // The start page carries the name: next to the mark in the rail it reads as the logo.
-                let home = area_now.get() == Area::Home;
+                let home = area_now.get() == Area::Home && !profile_now.get();
                 let heading = if home {
                     view! { <h1><ui::Wordmark small=true/></h1><small>{t.common.tagline}</small> }.into_any()
                 } else {

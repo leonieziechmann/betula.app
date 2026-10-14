@@ -2,7 +2,8 @@
 //! town, and what the local catalog knows of that program.
 //!
 //! Owner clarification (2026-09-24): „Mein Studiengang" is the app's alone and kept in
-//! `localStorage` (`betula.myprogram.v1`, the text of `folia_plans::studyplan::MineDoc`), like the
+//! `localStorage` (`betula.myprogram.v1`, the text of `folia_plans::studyplan::MineDoc`; each
+//! profile its own, `profiles`), like the
 //! Merkliste: empty on the server (R9), in no request, and never dragged along in addresses. The
 //! store is where every page reads it (the Studienplan's Fachsemester and import, the finder,
 //! the Standort); the program's slug stands only in a catalog address that is filtered by it.
@@ -26,33 +27,33 @@ use leptos::prelude::*;
 
 use folia_data::{use_data, DataClient};
 use crate::i18n;
+use crate::profiles::Kept;
 use folia_design::nav;
 use folia_design::ui::Icon;
 
-const STORAGE_KEY: &str = "betula.myprogram.v1";
+/// The first profile's key; another profile's has its number in it (`profiles::key_of`).
+pub(crate) const STORAGE_KEY: &str = "betula.myprogram.v1";
 
 /// The browser app (`csr`): only there is anything stored.
 const APP: bool = cfg!(feature = "csr");
 
-/// „Mein Studiengang", shared through context. Empty on the server, always.
+/// „Mein Studiengang" (the active profile's), shared through context. Empty on the server, always.
 #[derive(Clone, Copy)]
-pub struct MyProgram(RwSignal<MineDoc>);
+pub struct MyProgram(RwSignal<MineDoc>, Kept);
 
 impl MyProgram {
-    /// Reads what this browser has stored and provides it; another tab of the same browser may
-    /// change it, and this one follows.
+    /// Reads what this browser has stored for the active profile and provides it; another tab of
+    /// the same browser may change it, or another profile becomes the active one, and this one
+    /// follows.
     pub fn provide() -> Self {
-        let mine = MyProgram(RwSignal::new(load()));
+        let kept = Kept::of(STORAGE_KEY);
+        let mine = MyProgram(RwSignal::new(load(kept)), kept);
         provide_context(mine);
-        // Effects run in the browser only.
-        Effect::new(move |_| {
-            let handle = window_event_listener_untyped("storage", move |_| {
-                let stored = load();
-                if mine.0.with_untracked(|doc| *doc != stored) {
-                    mine.0.set(stored);
-                }
-            });
-            on_cleanup(move || handle.remove());
+        kept.follow(move || {
+            let stored = load(kept);
+            if mine.0.with_untracked(|doc| *doc != stored) {
+                mine.0.set(stored);
+            }
         });
         mine
     }
@@ -150,15 +151,15 @@ impl MyProgram {
         let mut doc = self.0.try_with_untracked(Clone::clone).unwrap_or_default();
         f(&mut doc);
         if self.0.try_with_untracked(|now| *now != doc).unwrap_or(false) {
-            nav::local_set(STORAGE_KEY, &doc.stored());
+            self.1.write(&doc.stored());
             self.0.set(doc);
         }
     }
 }
 
 /// What this browser has stored; nothing on the server and in a browser that refuses storage.
-fn load() -> MineDoc {
-    restored(nav::local_get(STORAGE_KEY).as_deref())
+fn load(kept: Kept) -> MineDoc {
+    restored(kept.read().as_deref())
 }
 
 /// „Mein Studiengang" of a stored text, read like anything from outside: never an error.

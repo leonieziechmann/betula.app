@@ -134,6 +134,22 @@ fn frame(shape: Shape) -> AnyView {
                 }).collect_view()}
             </div>
         }.into_any()),
+        // The profile page: the active profile's head (its badge, its name) over its program, what
+        // it keeps and the settings; the profiles in the sidebar.
+        Shape::Profile => framed(Side::Toc(3), view! {
+            <div class="page-inner">
+                <div class="panel sk-sweep sk-head">
+                    <div class="sk-title-row">{bar("sk-w4 sk-big")}{bar("sk-w3")}</div>
+                    {bar("sk-w3")}
+                </div>
+                {[3usize, 4, 2].iter().map(|rows| view! {
+                    <div class="panel sk-sweep sk-block">
+                        {lines(&["sk-w3 sk-tall"])}
+                        {table(*rows)}
+                    </div>
+                }).collect_view()}
+            </div>
+        }.into_any()),
         Shape::Program => framed(Side::Toc(6), view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-head">

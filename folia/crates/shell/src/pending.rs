@@ -67,6 +67,8 @@ pub enum Shape {
     Studyplan,
     /// „Mein Studium": the visitor's study, semester by semester.
     Study,
+    /// „Profil": the profiles of this browser, what the active one keeps, the settings.
+    Profile,
     /// Text: the legal pages, a page that does not exist.
     Text,
 }
@@ -89,6 +91,8 @@ impl Shape {
             Shape::Studyplan
         } else if path == url::STUDY {
             Shape::Study
+        } else if path == url::PROFILE {
+            Shape::Profile
         } else {
             Shape::Text
         }
@@ -550,7 +554,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             let (slug, tab) = program(to_path)?;
             program_change(&ProgramUrl::parse(&slug, tab, from_search), &ProgramUrl::parse(&slug, tab, to_search), phone)
         }
-        Shape::Home | Shape::Module | Shape::Text => None,
+        Shape::Home | Shape::Module | Shape::Profile | Shape::Text => None,
     }
 }
 
@@ -815,6 +819,8 @@ mod tests {
         assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1", true), Some(Change::Aside));
         assert_eq!(change("/study", "plan=1&open=11103", "/study", "plan=1&open=11103&full=1", true), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
+        // The profile page has a frame of its own to stand in for it.
+        assert_eq!(change("/bookmarks", "", "/profile", "", false), Some(Change::Page(Shape::Profile)));
     }
 
     #[test]

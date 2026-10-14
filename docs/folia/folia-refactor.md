@@ -470,7 +470,7 @@ app loaded after it.
 
 ```
 composition   folia-app (the UI bundle)            folia-worker           folia-site · folia-server
-features      home · catalog · programs · bookmarks · planner
+features      home · catalog · programs · bookmarks · planner · profile
 widgets       folia-widgets
 UI base       folia-shell · folia-stores · folia-data
               folia-design
@@ -523,7 +523,7 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 |---|---|---|---|
 | `folia-design` | the primitives of `ui.rs` with `ui::{Frame, Plain}`, `icons.rs`, `combobox.rs`, the slider, the gesture of `swipe.rs`, the DOM half of `nav`, the tokens and the base of `app.css`, parts of `enhance.js` | tokens, base styles, the page's frame (sidebar, content, the panel beside it, their handles), components (button, switch, segmented row, chip, badge, tabs, sheet, picker, slider, skeleton, empty state, panel head, prose, icon and sprite), behaviours (resize handle, sheet, swipe, carousel) | iso |
 | `folia-shell` | the chrome of `App` (rail, header, bottom bar, crown, wood), `ui::{BackLink, ToTop}`, `tabs`, `pending`, `skeleton`, `ground`, `languages`, `launch`, the layout half of `nav`, parts of `enhance.js` | the shell of §5: rail, header, footer, background | iso (rendered statically by the site) |
-| `folia-stores` | the stores of `bookmarks`, `studyplan`, `myprogram`; the view settings in `localStorage` (`betula.finder`, `betula.plan.shape` …) | what the visitor keeps: one store type for all of them (load, check, save, follow the other tabs), undo and the question before throwing away | web |
+| `folia-stores` | the stores of `bookmarks`, `studyplan`, `myprogram`; the view settings in `localStorage` (`betula.finder`, `betula.plan.shape` …); since 2026-10-14 `profiles` | what the visitor keeps, in the profile that is active: one store type for all of them (load, check, save, follow the other tabs and the profile), undo and the question before throwing away | web |
 | `folia-widgets` | the view of a module (`pages::module`), the row of a list, `week.rs`, the switches „Merken" and „Einplanen" | what several features show | iso |
 
 **Features** — each its routes' pages, sidebars, texts and styles:
@@ -535,6 +535,7 @@ Inside a layer, a crate may use the crates printed below it in that layer.
 | `folia-programs` | `pages::{programs, program}` | the overview and the plan iso (site pages), „Mein Plan" and the rest web |
 | `folia-bookmarks` | `pages::bookmarks` | web |
 | `folia-planner` | `pages::studyplan::*` (9,800 lines, the largest feature) | web |
+| `folia-profile` | new (owner, 2026-10-14): the profile page, the profiles of a browser (`folia_stores::profiles`) | web |
 
 **Composition and server:**
 
