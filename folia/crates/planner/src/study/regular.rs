@@ -450,12 +450,12 @@ fn PlanTable(ctx: StudyCtx, sheet: Sheet) -> impl IntoView {
             let now = columns.get(usize::from(fs - 1)).is_some_and(|column| column.now);
             if fs == row.first {
                 let span = row.last.saturating_sub(row.first).min(last - fs) + 1;
-                let class = format!("st-cell {}{}", row.class(), if span > 1 { " is-span" } else { "" });
+                let class = format!("st-rsp-c {}{}", row.class(), if span > 1 { " is-span" } else { "" });
                 let credits = row.credits.clone().unwrap_or_else(|| "·".to_string());
                 out.push(view! { <td class="fs" class:now=now colspan=span><span class=class style=format!("--c: {}", row.tone)>{credits}</span></td> }.into_any());
                 fs += span;
             } else if Some(fs) == row.moved {
-                out.push(view! { <td class="fs" class:now=now><span class="st-cell is-moved" style=format!("--c: {}", row.tone)>{row.credits.clone()}</span></td> }.into_any());
+                out.push(view! { <td class="fs" class:now=now><span class="st-rsp-c is-moved" style=format!("--c: {}", row.tone)>{row.credits.clone()}</span></td> }.into_any());
                 fs += 1;
             } else {
                 out.push(view! { <td class="fs" class:now=now></td> }.into_any());

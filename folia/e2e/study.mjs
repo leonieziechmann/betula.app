@@ -16,8 +16,8 @@
 //   removed and taken back; two rows selected and dragged onto a semester of the strip, and back;
 //   a right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an
 //   area's dialog; a module beside the page by its name and by its row, in full and back; the
-//   Gesamtplan, a module's menu, a grey line of the plan added with a click, the view kept; a
-//   reload keeps all of it; nothing of it in a request.
+//   Gesamtplan, each cell as tall as what it lists, a module's menu, a grey line of the plan added
+//   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
 //   and its ways, the box „Studium planen" with a column per semester, the way to all programs, and
 //   no sidebar; one row of pages the browser scrolls (a real touch, CDP; owner, 2026-10-06): the
@@ -320,7 +320,14 @@ if (current !== "2026W") {
 
   // The Gesamtplan: a grey line of the plan, added with a click; the view kept.
   await step("Gesamtplan", () => page.click('.st-views button:has-text("Gesamtplan")'), () => document.querySelector(".st-grid") && document.querySelectorAll(".st-row-head").length === 6);
-  const line = await page.evaluate(() => [...document.querySelectorAll(".st-entry.line")].map((entry) => entry.getAttribute("aria-label")).find((label) => label?.startsWith("Betriebssysteme I")));
+  // A cell as tall as what it lists (the Regelstudienplan's pills once took its class, and the
+  // cells shrank to a pill, their modules over the semesters' heads).
+  const cut = await page.evaluate(() => [...document.querySelectorAll(".st-grid .st-cell")].filter((cell) => {
+    const box = cell.getBoundingClientRect();
+    return [...cell.children].some((child) => { const r = child.getBoundingClientRect(); return r.top < box.top - 1 || r.bottom > box.bottom + 1; });
+  }).length);
+  check(cut === 0, `${cut} cells of the Gesamtplan do not hold what they list`);
+  const line =await page.evaluate(() => [...document.querySelectorAll(".st-entry.line")].map((entry) => entry.getAttribute("aria-label")).find((label) => label?.startsWith("Betriebssysteme I")));
   check(line?.includes("laut Regelstudienplan im 4. FS"), `the plan's line of Betriebssysteme I: ${line}`);
   await step("a module's menu in the Gesamtplan", () => page.click(".st-entry:not(.line) >> nth=0"), () => document.querySelector(".st-pop.root #st-menu-remove"));
   await step("closed by a click beside it", () => page.click(".st-pop-shade", { position: { x: 5, y: 5 } }), () => !document.querySelector(".st-pop"));
@@ -348,7 +355,7 @@ if (current !== "2026W") {
       groups: [...document.querySelectorAll(".st-mx tr.g .st-g b")].map((b) => b.textContent),
       columns: [...document.querySelectorAll(".st-mx thead th.fs b")].map((b) => b.textContent).join(""),
       os: row("Betriebssysteme I")?.querySelector(".st-minec")?.textContent.trim(),
-      passed: document.querySelectorAll(".st-mx .st-cell.is-passed").length,
+      passed: document.querySelectorAll(".st-mx .st-rsp-c.is-passed").length,
       choose: document.querySelectorAll('.st-mx a.st-addb[href="/study?view=areas"]').length,
     };
   });
