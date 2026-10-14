@@ -1,14 +1,16 @@
 // Checks the programs area: the overview by faculty, its sidebar, and the frame every page shares.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node programs.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// Walks: the sidebar is in the same place on every page → overview (faculties in order, every program
-// once, nothing cut off) → filters (links, the sidebar is not rebuilt, the search keeps them) → jump to a
-// faculty without a history entry → program page (views in the sidebar, „Zurück" and Esc lead back to the
-// program in the overview) → the rail's items are tabs that remember where their area was left, and
+// Walks: the sidebar is in the same place on every page → overview (faculties in order as accordions,
+// closed until opened, every program once, nothing cut off) → filters (links, the sidebar is not
+// rebuilt, the search keeps them, what is left is open) → jump to a faculty without a history entry,
+// which opens it → program page (views in the sidebar, „Zurück" and Esc lead back to the program in
+// the overview, its faculty open) → the rail's items are tabs that remember where their area was left, and
 // „Studium" leads to „Mein Studium" first → the program page itself (head, one study plan per study
 // direction, matrix or list, a module beside it and the way back out of it, areas, all modules in the
 // catalog, and „Mein Plan" going on to „Mein Studium") → the plan at
-// every window width (no column runs into another, the list where the matrix has no room) → phone
-// (filters in a sheet) → the overview without JavaScript.
+// every window width (no column runs into another, no row taller than its name, the list where the
+// matrix has no room) → phone (the plan's rows as tall as their names, filters in a sheet, a subject
+// a row that folds open) → the overview without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -42,6 +44,21 @@ const open = async (options, path) => {
   return { page, step, context };
 };
 const box = (page, selector) => page.evaluate((s) => { const r = document.querySelector(s)?.getBoundingClientRect(); return r ? [Math.round(r.left), Math.round(r.top), Math.round(r.width)] : null; }, selector);
+// The rows of the plan that are taller than their names. A row is as tall as its name: a column
+// that gave way („Art", „Bereich", 0 px wide) keeps its cells, and they take no line of their own.
+// In 0 px a cell that wraps stands a letter to a line — „Grundstudium" made every row of Informatik
+// B.Sc. 252 px high on a phone (2026-10-14). A row is 20–21 px taller than its name's text (padding
+// and rule; all 4,563 rows of the plans on a phone and at 1200 px), one line more is 19.6 px.
+const tallRows = (page) => page.evaluate(() => [...document.querySelectorAll("table.planlist tr:not(.group), table.matrix tbody tr:not(.group)")].flatMap((row) => {
+  const name = row.querySelector(".c-name");
+  const range = document.createRange();
+  range.selectNodeContents(name);
+  const height = row.getBoundingClientRect().height;
+  const text = range.getBoundingClientRect().height;
+  return height > text + 30 ? [`„${name.textContent.trim().slice(0, 24)}" is ${Math.round(height)} px high, its name ${Math.round(text)} px`] : [];
+}));
+// A program of the overview on a wide page: a line of the matrix in its faculty's accordion.
+const LINE = ".fx-desk a.prog-line";
 
 // ---------- desktop ----------
 {
@@ -50,68 +67,75 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   const frame = await box(page, "#filters");
   // „Studium" is „Mein Studium" first (owner, 2026-10-04); the overview is one link away.
   await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-setup"));
-  await step("programs", () => page.click('#sidebar a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
+  await step("programs", () => page.click('#sidebar a[href="/programs"]'), (line) => location.pathname === "/programs" && document.querySelectorAll(line).length > 100, LINE);
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), `programs: the sidebar is at ${await box(page, "#sidebar")}, the filter panel was at ${frame}`);
+  // The faculties wait to be opened (owner, 2026-10-14: the accordions); opened, their matrices.
+  check(await page.evaluate(() => document.querySelectorAll("details.facc").length > 5 && document.querySelectorAll("details.facc[open]").length === 0), "overview: a faculty is open without being opened");
+  await page.evaluate(() => document.querySelectorAll("details.facc").forEach((faculty) => { faculty.open = true; }));
 
-  const overview = await page.evaluate(() => {
-    const sections = [...document.querySelectorAll("section.faculty")];
-    const pills = [...document.querySelectorAll(".program-pill")];
+  const overview = await page.evaluate((line) => {
+    const sections = [...document.querySelectorAll("details.facc")];
+    const pills = [...document.querySelectorAll(line)];
     return {
-      codes: sections.map((s) => s.querySelector(".faculty-code").textContent),
-      counted: sections.map((s) => Number(s.querySelector(".tab-count").textContent.replace(/\D/g, ""))).reduce((a, b) => a + b, 0),
+      codes: sections.map((s) => s.querySelector(".facc-tag").textContent),
+      counted: sections.map((s) => Number(s.querySelector(".facc-n").textContent.replace(/\D/g, ""))).reduce((a, b) => a + b, 0),
       pills: pills.length,
       distinct: new Set(pills.map((p) => p.getAttribute("href"))).size,
+      // On a phone the same programs, each once.
+      phone: new Set([...document.querySelectorAll(".fx-phone a[data-id]")].map((p) => p.getAttribute("href"))).size,
       total: Number(document.querySelector(".summary .count").textContent.replace(/\D/g, "")),
-      // A segment says only what differs from its program („dual, Praxis"); its full name is its label.
-      alike: sections.flatMap((s) => [...s.querySelectorAll(".subject")]).filter((row) => { const names = [...row.querySelectorAll(".program-pill")].map((p) => p.getAttribute("aria-label")); return new Set(names).size !== names.length; }).map((row) => row.querySelector(".subject-name").textContent),
-      // The matrix: every column starts on one vertical line, in all sections.
-      lines: ["bachelor", "master", "other"].map((stage) => new Set([...document.querySelectorAll(`.cell[data-stage="${stage}"]`)].map((cell) => Math.round(cell.getBoundingClientRect().left))).size),
-      overflowing: [...document.querySelectorAll(".cell")].filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length,
+      // A form of study says only what differs from its program („dual, Praxis"); its full name is its label.
+      alike: [...document.querySelectorAll(".fx-desk tbody tr")].filter((row) => { const names = [...row.querySelectorAll("a.prog-line")].map((p) => p.getAttribute("aria-label")); return new Set(names).size !== names.length; }).map((row) => row.querySelector(".fx-name").textContent),
+      // The matrix: every column starts on one vertical line, in all faculties.
+      lines: ["bachelor", "master"].map((stage) => new Set([...document.querySelectorAll(`.fx-desk td[data-stage="${stage}"]`)].map((cell) => Math.round(cell.getBoundingClientRect().left))).size),
+      overflowing: [...document.querySelectorAll(".fx-desk td")].filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length,
       cut: [...document.querySelectorAll("#sidebar .toc a, #sidebar .hint, #sidebar .chip")].filter((el) => el.getBoundingClientRect().right > document.getElementById("sidebar").getBoundingClientRect().right + 0.5).map((el) => el.textContent.slice(0, 30)),
     };
-  });
+  }, LINE);
+  await page.evaluate(() => document.querySelectorAll("details.facc").forEach((faculty) => { faculty.open = false; }));
   check(overview.codes.slice(0, 6).join() === "Fakultät 1,Fakultät 2,Fakultät 3,Fakultät 4,Fakultät 5,Fakultät 6" && overview.codes.at(-1) === "Ohne Zuordnung", `overview: sections are ${overview.codes.join(" | ")}`);
-  check(overview.pills === overview.distinct && overview.pills === overview.total && overview.counted === overview.total, `overview: ${overview.pills} links, ${overview.distinct} programs, ${overview.counted} counted in the sections, ${overview.total} in the header`);
+  check(overview.pills === overview.distinct && overview.pills === overview.total && overview.counted === overview.total && overview.phone === overview.total, `overview: ${overview.pills} links, ${overview.distinct} programs, ${overview.phone} on a phone, ${overview.counted} counted in the faculties, ${overview.total} in the header`);
   check(overview.alike.length === 0, `overview: programs of a subject that read the same: ${overview.alike.join(", ")}`);
   check(overview.cut.length === 0, `overview: cut off at the edge of the sidebar: ${overview.cut.join(" | ")}`);
-  check(overview.lines.join() === "1,1,1" && overview.overflowing === 0, `overview: the columns do not line up (${overview.lines}) or a cell overflows (${overview.overflowing})`);
+  check(overview.lines.join() === "1,1" && overview.overflowing === 0, `overview: the columns do not line up (${overview.lines}) or a cell overflows (${overview.overflowing})`);
 
   // Filters are links; the sidebar stays the same element and the toggle keeps the focus.
   await page.evaluate(() => { document.getElementById("sidebar").__same = true; });
-  await step("filter: Master", () => page.click('#sidebar a.chip:has-text("Master")'), () => location.search === "?level=master" && document.querySelectorAll(".program-pill").length < 100);
-  const masters = await page.evaluate(() => ({ pills: document.querySelectorAll(".program-pill").length, chip: Number(document.querySelector('#sidebar a.chip[data-state="with"] .chip-count').textContent), header: Number(document.querySelector(".summary .count").textContent), bachelors: [...document.querySelectorAll(".program-pill b")].filter((b) => /^B\.|Bachelor/.test(b.textContent)).length }));
-  check(masters.pills === masters.chip && masters.pills === masters.header && masters.bachelors === 0, `filter: ${JSON.stringify(masters)}`);
-  await step("filter: and dual", () => page.click('#sidebar a.chip:has-text("Dual")'), () => location.search === "?level=master&form=dual" && document.querySelectorAll(".program-pill").length > 0);
-  check(await page.evaluate(() => [...document.querySelectorAll(".program-pill")].every((p) => p.textContent.includes("dual"))), "filter: a program that is not dual is listed");
+  await step("filter: Master", () => page.click('#sidebar a.chip:has-text("Master")'), (line) => location.search === "?level=master" && document.querySelectorAll(line).length < 100, LINE);
+  const masters = await page.evaluate((line) => ({ pills: document.querySelectorAll(line).length, chip: Number(document.querySelector('#sidebar a.chip[data-state="with"] .chip-count').textContent), header: Number(document.querySelector(".summary .count").textContent), bachelors: [...document.querySelectorAll(`${line} b`)].filter((b) => /^B\.|Bachelor/.test(b.textContent)).length, closed: document.querySelectorAll("details.facc:not([open])").length }), LINE);
+  check(masters.pills === masters.chip && masters.pills === masters.header && masters.bachelors === 0 && masters.closed === 0, `filter: ${JSON.stringify(masters)}`);
+  await step("filter: and dual", () => page.click('#sidebar a.chip:has-text("Dual")'), (line) => location.search === "?level=master&form=dual" && document.querySelectorAll(line).length > 0, LINE);
+  check(await page.evaluate((line) => [...document.querySelectorAll(line)].every((p) => p.getAttribute("aria-label").includes("dual")), LINE), "filter: a program that is not dual is listed");
   check(await page.evaluate(() => document.getElementById("sidebar").__same === true && document.activeElement?.textContent.includes("Dual")), "filter: the sidebar was rebuilt or the toggle lost the focus");
   // The search of the top bar narrows further and keeps the filters.
-  await step("search keeps the filters", () => page.fill("#topsearch", "maschinen"), () => location.search.includes("q=maschinen") && location.search.includes("level=master") && location.search.includes("form=dual") && document.querySelectorAll(".subject").length === 1);
-  await step("reset", () => page.click('#sidebar a:has-text("Zurücksetzen")'), () => location.search === "" && document.querySelectorAll(".program-pill").length > 100);
+  await step("search keeps the filters", () => page.fill("#topsearch", "maschinen"), () => location.search.includes("q=maschinen") && location.search.includes("level=master") && location.search.includes("form=dual") && document.querySelectorAll(".fx-desk tbody tr").length === 1);
+  await step("reset", () => page.click('#sidebar a:has-text("Zurücksetzen")'), (line) => location.search === "" && document.querySelectorAll(line).length > 100 && document.querySelectorAll("details.facc[open]").length === 0, LINE);
 
-  // Jump to a faculty: in view, no history entry.
+  // Jump to a faculty: open and in view, no history entry.
   const entries = await page.evaluate(() => history.length);
   await page.click('#sidebar .toc a:has-text("Fakultät 5")');
   await page.waitForTimeout(800);
-  check(await page.evaluate(() => { const top = document.querySelector("section.faculty:nth-of-type(5)").getBoundingClientRect().top; return top >= 0 && top < innerHeight / 2 && location.hash === ""; }) && (await page.evaluate(() => history.length)) === entries, "jump: the faculty is not in view, or the jump left a history entry");
+  check(await page.evaluate(() => { const faculty = document.querySelector("details.facc:nth-of-type(5)"); const top = faculty.getBoundingClientRect().top; return faculty.open && top >= 0 && top < innerHeight / 2 && location.hash === ""; }) && (await page.evaluate(() => history.length)) === entries, "jump: the faculty is not open and in view, or the jump left a history entry");
 
   // A program: the same frame, its views in the sidebar.
-  await step("program page", () => page.click('.program-pill[href^="/programs/bachelor-informatik"]'), () => location.pathname.startsWith("/programs/bachelor-informatik") && document.querySelector('[data-walk="program-page"]'));
+  await step("open Fakultät 1", () => page.click("details.facc:nth-of-type(1) > summary"), () => document.querySelector("details.facc:nth-of-type(1)").open);
+  await step("program page", () => page.click(`${LINE}[href^="/programs/bachelor-informatik"]`), () => location.pathname.startsWith("/programs/bachelor-informatik") && document.querySelector('[data-walk="program-page"]'));
   check(JSON.stringify(await box(page, "#sidebar")) === JSON.stringify(frame), "program page: the sidebar moved");
   await step("program page: another view", () => page.click('#sidebar .toc.views a:has-text("Wahlpflicht & Bereiche")'), () => location.pathname.endsWith("/areas") && document.querySelector("table.areas") && document.querySelector('#sidebar .toc a[aria-current="page"]')?.textContent === "Wahlpflicht & Bereiche");
 
   // „Zurück" (and Esc) lead to the overview, and the overview shows the program again.
-  const inView = () => page.evaluate(() => { const pill = document.querySelector('.program-pill[data-id^="bachelor-informatik"]')?.getBoundingClientRect(); return Boolean(pill) && pill.top >= 0 && pill.bottom <= innerHeight; });
+  const inView = () => page.evaluate((line) => { const pill = document.querySelector(`${line}[data-id^="bachelor-informatik"]`)?.getBoundingClientRect(); return Boolean(pill) && pill.height > 0 && pill.top >= 0 && pill.bottom <= innerHeight; }, LINE);
   check(await page.evaluate(() => [...document.querySelectorAll('[data-action="back"] kbd')].some((k) => k.textContent === "Esc")), "program page: no back link with its shortcut");
-  await step("program page: Zurück", () => page.click('[data-action="back"]'), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
+  await step("program page: Zurück", () => page.click('[data-action="back"]'), (line) => location.pathname === "/programs" && document.querySelectorAll(line).length > 100, LINE);
   await page.waitForTimeout(400);
-  check(await inView(), "back on the overview the program is not in view");
-  await step("program page again", () => page.click('.program-pill[data-id^="bachelor-informatik"]'), () => location.pathname.startsWith("/programs/bachelor-informatik"));
+  check(await inView(), "back on the overview the program is not in view (its faculty open)");
+  await step("program page again", () => page.click(`${LINE}[data-id^="bachelor-informatik"]`), () => location.pathname.startsWith("/programs/bachelor-informatik"));
   await step("program page: Esc", () => page.keyboard.press("Escape"), () => location.pathname === "/programs");
 
   // The rail's items are tabs: each leads to where its area was left.
   const tab = (area) => page.getAttribute(`.rail a[data-area="${area}"]`, "href");
   await step("a filter in the overview", () => page.click('#sidebar a.chip:has-text("Master")'), () => location.search === "?level=master");
-  await step("a program", () => page.click('.program-pill[data-id^="master-informatik"]'), () => location.pathname.startsWith("/programs/master-informatik"));
+  await step("a program", () => page.click(`${LINE}[data-id^="master-informatik"]`), () => location.pathname.startsWith("/programs/master-informatik"));
   const programPage = await page.evaluate(() => location.pathname);
   check((await tab("programs")) === "/study", `tabs: on a program's page the own tab leads to ${await tab("programs")}, not up to „Mein Studium"`);
   await step("tab: Module", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".rows a.row"));
@@ -143,7 +167,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
       meta: document.querySelector(".prog-meta").textContent.replace(/\s+/g, " ").trim(),
     };
   });
-  check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 130 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
+  check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 131 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
   check(head.facts.every((fact) => / /.test(fact)), "head: a number and its label are written without a space between them");
   check(head.out === 0, "head: a number stands outside its panel");
   check(head.crumbs.join() === "/programs,/programs?level=bachelor", `head: the path leads to ${head.crumbs.join(" ")}`);
@@ -200,8 +224,8 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
 
   await step("close it again", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("open=") && !document.querySelector("#preview"));
   // Esc must now leave the program, not walk back into the module that was just closed.
-  await step("Esc leaves the program", () => page.keyboard.press("Escape"), () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 100);
-  await step("back into the program", () => page.click('.program-pill[data-id^="bachelor-elektrotechnik"]'), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && Boolean(document.querySelector("table.matrix")));
+  await step("Esc leaves the program", () => page.keyboard.press("Escape"), (line) => location.pathname === "/programs" && document.querySelectorAll(line).length > 100, LINE);
+  await step("back into the program", () => page.click(`${LINE}[data-id^="bachelor-elektrotechnik"]`), () => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && Boolean(document.querySelector("table.matrix")));
   // The module seen in full screen out of a program is none of the catalog's business: its tab
   // still leads to the list as it was left, and that list does not reveal the module.
   const catalogTab = await page.getAttribute('.rail a[data-area="catalog"]', "href");
@@ -346,7 +370,8 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
 // get narrower than 200 px, and where even that is not enough for the matrix, the plan is the list —
 // never a matrix that scrolls sideways; the switch says so, and with room the matrix comes back without
 // the choice being touched. At every width every cell keeps to its column, the semesters are equally
-// wide, and the credits of the list stand on one line with the sums of their semesters.
+// wide, the credits of the list stand on one line with the sums of their semesters, and no row is
+// taller than its name (up to 1200 px „Bereich" has given way, at 1000 px „Art" of the eight semesters).
 {
   const fits = (page, chosen, semesters) => page.evaluate(([chosen, semesters]) => {
     const table = document.querySelector("table.matrix, table.planlist");
@@ -389,7 +414,7 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
         await page.setViewportSize({ width, height: 900 });
         // The plan's panel is measured when the browser lays out the new width.
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-        const found = await fits(page, shape, semesters);
+        const found = [...(await fits(page, shape, semesters)), ...(await tallRows(page))];
         check(found.length === 0, `plan (${slug}, ${shape}) at ${width} px: ${found.slice(0, 3).join("; ")}`);
       }
       if (shape === "matrix") check(await page.evaluate(() => localStorage.getItem("betula.plan.shape") === null), `plan (${slug}): a narrow window changed the chosen drawing`);
@@ -437,17 +462,37 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   await context.close();
 }
 
+// ---------- the plan on a phone: every row as tall as its name ----------
+// „Art" and „Bereich" have given way, and Informatik B.Sc. names „Grundstudium" or „Fachstudium" in
+// every row: the rows are one line high, two or four where the name takes them (37, 56, 95 px).
+{
+  const { page, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs/bachelor-informatik-2008/plan");
+  const widths = await page.evaluate(() => [...document.querySelectorAll("table.planlist thead th")].map((th) => Math.round(th.getBoundingClientRect().width)));
+  check(widths.length === 4 && widths[1] === 0 && widths[2] === 0, `phone: „Art" and „Bereich" have not given way (${widths.join(", ")} px)`);
+  const tall = await tallRows(page);
+  check(tall.length === 0, `phone: ${tall.length} rows of the plan are taller than their names: ${tall.slice(0, 3).join("; ")}`);
+  await context.close();
+}
+
 // ---------- phone: the filters are a sheet ----------
 {
   const { page, step, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs");
-  check(await page.evaluate(() => document.querySelector("section.faculty").getBoundingClientRect().top < innerHeight * 0.4), "phone: the first faculty does not start on the first screen");
+  check(await page.evaluate(() => document.querySelector("details.facc").getBoundingClientRect().top < innerHeight * 0.4), "phone: the first faculty does not start on the first screen");
   await step("phone: the sheet opens", () => page.tap(".sheet-toggle"), () => document.querySelector(".sidebar.sheet.open") && document.querySelector(".sidebar.sheet").getBoundingClientRect().top < innerHeight - 200);
   await step("phone: a filter in the sheet", () => page.tap('#sidebar a.chip:has-text("Bachelor")'), () => location.search === "?level=bachelor" && document.querySelector(".sidebar.sheet.open"));
   await step("phone: the sheet closes", () => page.tap('#sidebar .sheet-only a'), () => !document.querySelector(".sidebar.sheet.open"));
-  check(await page.evaluate(() => [...document.querySelectorAll(".faculty-head")].every((head) => head.scrollWidth <= head.clientWidth + 1)), "phone: a faculty's heading does not fit");
-  // On a phone the matrix is one column: the programs of a subject stand under its name.
-  const stacked = await page.evaluate(() => [...document.querySelectorAll(".subject")].filter((row) => { const name = row.querySelector(".subject-name").getBoundingClientRect(); return ![...row.querySelectorAll(".cell:not(.empty)")].every((cell) => cell.getBoundingClientRect().top >= name.bottom - 1 && cell.getBoundingClientRect().right <= innerWidth); }).length);
-  check(stacked === 0, `phone: in ${stacked} rows the programs overlap the name of the subject or leave the screen`);
+  check(await page.evaluate(() => [...document.querySelectorAll(".facc-h")].every((head) => head.scrollWidth <= head.clientWidth + 1)), "phone: a faculty's heading does not fit");
+  // On a phone a subject is a row (owner, 2026-10-14: „Variante 1 mit ausklappen"): one program a
+  // link, several a row that folds open and shows them by degree; nothing leaves the screen.
+  const phoneList = await page.evaluate(() => ({
+    desk: [...document.querySelectorAll(".fx-desk")].some((table) => table.getBoundingClientRect().height > 0),
+    wide: document.documentElement.scrollWidth <= innerWidth + 1,
+  }));
+  check(!phoneList.desk && phoneList.wide, `phone: the matrix shows (${phoneList.desk}) or the page scrolls sideways (${!phoneList.wide})`);
+  // The filter of the sheet left every faculty with something in it open: this one is closed first.
+  await page.evaluate(() => { document.querySelector("details.facc:nth-of-type(1)").open = false; });
+  await step("phone: a faculty opens", () => page.tap("details.facc:nth-of-type(1) > summary"), () => document.querySelector("details.facc:nth-of-type(1)").open);
+  await step("phone: a subject folds open", () => page.tap("details.facc:nth-of-type(1) details.sj-w > summary"), () => { const subject = document.querySelector("details.facc:nth-of-type(1) details.sj-w"); return subject.open && subject.querySelector(".of-lvl") && [...subject.querySelectorAll("a.of")].every((a) => a.getBoundingClientRect().right <= innerWidth + 1); });
   await context.close();
 }
 
@@ -461,9 +506,12 @@ const box = (page, selector) => page.evaluate((s) => { const r = document.queryS
   check((await page.locator("#sidebar a.chip").count()) === 0, "no JS: the site's overview has filters");
   check((await page.locator("#sidebar .jumps a").count()) > 3, "no JS: the overview has no jumps to its faculties");
   check((await page.getAttribute('.rail a[data-area="catalog"]', "href")) === "/catalog", "no JS: a tab is not the plain link to its area");
-  const all = await page.locator(".program-pill").count();
+  const all = await page.locator(LINE).count();
+  // The accordions open without JavaScript.
+  await page.click("details.facc:nth-of-type(1) > summary");
+  check(await page.evaluate(() => document.querySelector("details.facc:nth-of-type(1)").open && document.querySelector("details.facc:nth-of-type(1) a.prog-line").getBoundingClientRect().height > 0), "no JS: a faculty does not open");
   await page.goto(base + "/programs?level=master", { waitUntil: "domcontentloaded" });
-  const masters = await page.locator(".program-pill").count();
+  const masters = await page.locator(LINE).count();
   check(masters > 0 && masters < all, `no JS: an address with a filter does not list what it holds (${masters} of ${all})`);
   // The server's page draws the plan as a list, and only as a list.
   await page.goto(base + "/programs/bachelor-informatik-2008", { waitUntil: "domcontentloaded" });

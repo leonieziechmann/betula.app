@@ -543,7 +543,9 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
         // it) is the aside, and filling the page after „Vollbild" it is a page of its own.
         Shape::Study => {
             let (from, to) = (StudyUrl::parse(from_search), StudyUrl::parse(to_search));
-            local_change(&from, &to, Change::Column(Shape::Study)).or_else(|| (from.open != to.open).then_some(Change::Aside))
+            local_change(&from, &to, Change::Column(Shape::Study))
+                .or_else(|| (from.view != to.view).then_some(Change::Column(Shape::Study)))
+                .or_else(|| (from.open != to.open).then_some(Change::Aside))
         }
         Shape::Programs => Some(Change::Column(Shape::Programs)),
         Shape::Program => {
@@ -806,6 +808,10 @@ mod tests {
         assert_eq!(change("/study", "open=11103", "/study", "", false), Some(Change::Aside));
         assert_eq!(change("/study", "open=11103", "/study", "open=11103&full=1", false), Some(Change::Page(Shape::Module)));
         assert_eq!(change("/study", "open=11103&full=1", "/study", "open=11103", false), Some(Change::Column(Shape::Study)));
+        // Another view of „Mein Studium" is its column; the module beside it stays the aside's.
+        assert_eq!(change("/study", "", "/study", "view=plan", false), Some(Change::Column(Shape::Study)));
+        assert_eq!(change("/study", "view=plan", "/study", "view=areas", true), Some(Change::Column(Shape::Study)));
+        assert_eq!(change("/study", "view=areas", "/study", "view=areas&open=11103", false), Some(Change::Aside));
         assert_eq!(change("/study", "", "/study", "open=11103", true), Some(Change::Aside));
         assert_eq!(change("/study", "", "/study", "utm=x", false), None);
         // A phone's semesters beside the overview come at once; a module opened there comes up as

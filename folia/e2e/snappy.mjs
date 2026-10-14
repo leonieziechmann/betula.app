@@ -118,10 +118,12 @@ for (const slow of [1, 4]) {
   }, slow);
   await watch(page, "all programs" + tag, click(page, '#sidebar a[href="/programs"]'), {
     feedback: () => document.querySelector(".crumb h1")?.textContent === "Studiengänge",
-    result: () => location.pathname === "/programs" && document.querySelectorAll(".program-pill").length > 50,
+    result: () => location.pathname === "/programs" && document.querySelectorAll(".fx-desk a.prog-line").length > 50,
     skeleton: true,
   }, slow);
-  await watch(page, "a program" + tag, click(page, '.program-pill[href^="/programs/bachelor-informatik"]'), {
+  // The faculties are accordions, closed until opened: the program's opens first.
+  await page.click("details.facc:nth-of-type(1) > summary");
+  await watch(page, "a program" + tag, click(page, '.fx-desk a.prog-line[href^="/programs/bachelor-informatik"]'), {
     feedback: () => document.querySelector(".pending-page") || document.querySelector(".prog-head"),
     result: () => location.pathname.startsWith("/programs/bachelor-informatik") && document.querySelector(".prog-head h1"),
     skeleton: true,

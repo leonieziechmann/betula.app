@@ -6,6 +6,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod areas;
+pub mod choices;
 pub mod i18n;
 pub mod plan;
 pub mod study;

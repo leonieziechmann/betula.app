@@ -27,8 +27,8 @@ use folia_model::rows::{
 };
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
-    ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramVersion,
-    Successor, TextItem,
+    ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry,
+    ProgramPlanTotal, ProgramVersion, Successor, TextItem,
 };
 use folia_plans::plan::{self, SemesterPlan};
 use folia_plans::variants::{self, PlanVariant, Supplement};
@@ -101,7 +101,7 @@ pub struct HomeData {
 pub fn home(db: &dyn Database, entries: &[CatalogQuery]) -> Result<HomeData, DbError> {
     let overview = overview(db)?;
     let entry_counts = entries.iter().map(|query| queries::catalog_count(db, query)).collect::<Result<Vec<_>, _>>()?;
-    let ProgramsData { programs, departments, faculties } = programs_overview(db)?;
+    let (programs, departments, faculties) = programs_by_faculty(db)?;
     let mut counted: Vec<(Option<Department>, usize)> = Vec::new();
     for program in programs.iter().filter(|program| program.is_latest_po) {
         let department = faculties
@@ -126,7 +126,7 @@ pub fn home(db: &dyn Database, entries: &[CatalogQuery]) -> Result<HomeData, DbE
 /// names (before and after the restructuring) is named after the one with more modules.
 pub fn program_map(db: &dyn Database) -> Result<crate::graph::ProgramMap, DbError> {
     use crate::graph::MapFaculty;
-    let ProgramsData { programs, departments, faculties } = programs_overview(db)?;
+    let (programs, departments, faculties) = programs_by_faculty(db)?;
     let programs: Vec<Program> = programs.into_iter().filter(|program| program.is_latest_po).collect();
     let code_of = |program: &Program| {
         let faculty = faculties.iter().find(|faculty| faculty.program_id == program.id)?;
@@ -433,12 +433,64 @@ pub struct ProgramsData {
     pub programs: Vec<Program>,
     pub departments: Vec<Department>,
     pub faculties: Vec<ProgramFaculty>,
+    /// What the validated plan of each program in its latest PO says of it as a whole.
+    pub facts: Vec<PlanFacts>,
+}
+
+/// How long a program is and how many credits it comes to, as its validated plan says (the head
+/// of its page says the same): the least and the most where its study directions differ or the
+/// regulation prints a span („116–126"). Never what a source merely states.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PlanFacts {
+    pub program_id: String,
+    /// The last semester its plans name; `None` where none names one.
+    pub semesters: Option<(i64, i64)>,
+    pub credits: Option<(f64, f64)>,
 }
 
 pub fn programs_overview(db: &dyn Database) -> Result<ProgramsData, DbError> {
+    let (programs, departments, faculties) = programs_by_faculty(db)?;
+    let facts = plan_facts(&programs, queries::latest_plan_entries(db)?, queries::latest_plan_totals(db)?);
+    Ok(ProgramsData { programs, departments, faculties, facts })
+}
+
+/// Every program, the departments, and each program's derived faculty.
+type ByFaculty = (Vec<Program>, Vec<Department>, Vec<ProgramFaculty>);
+
+/// `ByFaculty`: the overview without what the plans say (the start page and the map need no more).
+fn programs_by_faculty(db: &dyn Database) -> Result<ByFaculty, DbError> {
     let programs = queries::programs(db)?;
     let faculties = faculties(&programs, &queries::program_department_counts(db)?);
-    Ok(ProgramsData { departments: queries::departments(db)?, faculties, programs })
+    Ok((programs, queries::departments(db)?, faculties))
+}
+
+/// `PlanFacts` of every program in its latest PO with a validated plan, from the rows and sums of
+/// all their plans (`queries::latest_plan_entries`, `latest_plan_totals`).
+fn plan_facts(programs: &[Program], entries: Vec<ProgramPlanEntry>, totals: Vec<ProgramPlanTotal>) -> Vec<PlanFacts> {
+    let mut rows: BTreeMap<String, (Vec<PlanEntry>, Vec<PlanTotal>)> = BTreeMap::new();
+    for row in entries {
+        rows.entry(row.program_id).or_default().0.push(row.entry);
+    }
+    for row in totals {
+        rows.entry(row.program_id).or_default().1.push(row.total);
+    }
+    let span = |values: Vec<f64>| -> Option<(f64, f64)> {
+        let values: Vec<f64> = values.into_iter().filter(|value| *value > 0.0).collect();
+        let low = values.iter().copied().reduce(f64::min)?;
+        let high = values.iter().copied().reduce(f64::max)?;
+        Some((low, high))
+    };
+    programs
+        .iter()
+        .filter(|program| program.is_latest_po && program.has_plan)
+        .filter_map(|program| {
+            let (entries, totals) = rows.get(&program.id)?;
+            let plans = variants::plan_variants(entries, totals, Locale::De);
+            let semesters = span(plans.iter().map(|plan| plan.semesters as f64).collect()).map(|(low, high)| (low as i64, high as i64));
+            let credits = span(plans.iter().flat_map(|plan| [plan.credits, plan.credits_max]).collect());
+            Some(PlanFacts { program_id: program.id.clone(), semesters, credits })
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
