@@ -25,7 +25,7 @@ use folia_plans::studyplan::PlanDoc;
 use folia_routes::url::{self, ProgramTab, ProgramUrl, StudyUrl, StudyView};
 use leptos::prelude::*;
 
-use folia_design::combobox::{ComboItem, Combobox};
+use folia_design::combobox::{with_first, ComboItem, Combobox};
 use folia_design::ui::Icon;
 use folia_shell::pending::Pending;
 use folia_stores::myprogram::{po_of, program_name, ProgramPlans};
@@ -318,17 +318,22 @@ fn LegendMarks() -> impl IntoView {
     }
 }
 
-/// Every program of the snapshot, as the pickers offer them: newest PO first.
+/// Every program of the snapshot, as the pickers offer them: newest PO first, and „Mein
+/// Studiengang" once more at their head.
 pub(super) fn program_items(ctx: StudyCtx) -> (Memo<Vec<Program>>, Signal<Vec<ComboItem>>) {
+    let t = i18n::t();
     let all = Memo::new(move |before| match ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&ProgramsAsk {}))) {
         Some(now) => folia_pages::ask::unless_pending(now, before, Result::unwrap_or_default),
         None => Vec::new(),
     });
+    // „Mein Studiengang" first, under its own heading, as in every program picker (owner,
+    // 2026-10-15); it stays in its place among the others as well.
+    let mine = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
     let items = Signal::derive(move || {
+        let mine = mine.get();
         all.with(|all| {
-            all.iter()
-                .map(|program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po)))
-                .collect::<Vec<_>>()
+            let items: Vec<ComboItem> = all.iter().map(|program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po))).collect();
+            with_first(&items, mine.as_deref(), t.study.my_program)
         })
     });
     (all, items)

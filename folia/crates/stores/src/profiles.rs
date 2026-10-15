@@ -65,6 +65,19 @@ const MAX_ID: u16 = 999;
 /// the Merkliste, the Stundenplan with „Mein Studium", the saved plans and „Mein Studiengang".
 pub const KEYS: [&str; 4] = [crate::bookmarks::STORAGE_KEY, crate::studyplan::STORAGE_KEY, crate::studyplan::SAVED_KEY, crate::myprogram::STORAGE_KEY];
 
+/// What a profile keeps in a tab for the session alone (`sessionStorage`), under the keys of the
+/// first profile like `KEYS`: the Stundenplan's own program (`studyplan`). It is no part of a
+/// profile's file, and it goes when its profile is emptied or deleted (`forget_session`).
+pub const SESSION_KEYS: [&str; 1] = [crate::studyplan::PROGRAM_KEY];
+
+/// Takes out what this tab keeps for the session in profile `id` (`SESSION_KEYS`): emptied,
+/// deleted, or made anew under a number a deleted profile had.
+fn forget_session(id: u16) {
+    for key in SESSION_KEYS {
+        nav::session_set(&key_of(key, id), "");
+    }
+}
+
 /// The key under which profile `id` keeps what the first profile keeps under `key`:
 /// `betula.bookmarks.v1` is `betula.p2.bookmarks.v1` for the second.
 pub fn key_of(key: &str, id: u16) -> String {
@@ -357,6 +370,7 @@ impl Profiles {
         for (key, text) in KEYS.iter().zip(texts) {
             nav::local_set(&key_of(key, id), text);
         }
+        forget_session(id);
         self.store(next);
         Some(id)
     }
@@ -384,6 +398,7 @@ impl Profiles {
         for key in KEYS {
             nav::local_set(&key_of(key, id), "");
         }
+        forget_session(id);
         self.store(next);
         Some(Deleted { profile, at, texts, was_active })
     }
@@ -400,12 +415,15 @@ impl Profiles {
     }
 
     /// Empties profile `id`: its Merkliste, Stundenplan, „Mein Studium", saved plans and „Mein
-    /// Studiengang" go, the profile stays. Hands back what it kept, for `undo_clear`.
+    /// Studiengang" go, and the Stundenplan's program of the session; the profile stays. Hands back
+    /// what it kept, for `undo_clear` (which puts back no program of the session: the Stundenplan
+    /// then shows „Mein Studiengang" again).
     pub fn clear(self, id: u16) -> Cleared {
         let texts = texts_of(id);
         for key in KEYS {
             nav::local_set(&key_of(key, id), "");
         }
+        forget_session(id);
         self.wrote();
         Cleared { id, texts }
     }
@@ -528,6 +546,17 @@ impl Kept {
         nav::local_set(&key_of(self.key, self.profile.get_untracked()), text);
     }
 
+    /// What this tab keeps beside the store's text for the session (`sessionStorage`, one of
+    /// `SESSION_KEYS`), in the profile whose text the store holds; `None` on the server.
+    pub(crate) fn session_read(self, key: &str) -> Option<String> {
+        nav::session_get(&key_of(key, self.profile.get_untracked()))
+    }
+
+    /// Keeps it for the session; an empty one takes the key out (`nav::session_set`).
+    pub(crate) fn session_write(self, key: &str, text: &str) {
+        nav::session_set(&key_of(key, self.profile.get_untracked()), text);
+    }
+
     /// The profile whose text the store holds. Tracked.
     pub(crate) fn profile(self) -> u16 {
         self.profile.get()
@@ -645,7 +674,8 @@ fn checked(key: &str, text: &str) -> String {
     if key == crate::bookmarks::STORAGE_KEY {
         crate::bookmarks::checked(text)
     } else if key == crate::studyplan::STORAGE_KEY {
-        PlanDoc::restored(text).stored()
+        // The Stundenplan's program is the session's, never the stored plan's.
+        PlanDoc::restored(text).stored_without_program()
     } else if key == crate::studyplan::SAVED_KEY {
         SavedPlans::restored(text).stored()
     } else if key == crate::myprogram::STORAGE_KEY {

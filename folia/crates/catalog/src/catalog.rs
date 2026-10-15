@@ -36,7 +36,7 @@ use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
 use folia_stores::bookmarks::Bookmarks;
-use folia_design::combobox::{ClosePopups, ComboItem, Combobox};
+use folia_design::combobox::{with_first, ClosePopups, ComboItem, Combobox};
 use folia_data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale};
@@ -1587,13 +1587,6 @@ impl Choices {
     }
 }
 
-/// The program picker's entries with „Mein Studiengang" (its slug) once more at the top, under
-/// `heading`; the others stay as they are, the program among them.
-fn mine_first(programs: &[ComboItem], mine: Option<&str>, heading: &str) -> Vec<ComboItem> {
-    let first = mine.and_then(|slug| programs.iter().find(|item| item.id == slug)).map(|item| item.clone().in_group(heading));
-    first.into_iter().chain(programs.iter().cloned()).collect()
-}
-
 /// The catalog that `change` leads to from the current filter: what a control links to (a path of
 /// the app: the link writes it with the language's prefix). It keeps the module previewed and the
 /// placeholder the list is looked through for (`fill`).
@@ -1786,13 +1779,13 @@ fn Filters(
 
     // ---- program ----
     let program_picker = {
-        // „Mein Studiengang" first, under its own heading, while its PO is in the snapshot (A.10);
-        // it stays in its place among all the others as well.
+        // „Mein Studiengang" first, under its own heading and above „Alle Studiengänge", while its
+        // PO is in the snapshot (A.10); it stays in its place among all the others as well.
         let mine = MineResolved::expect();
         let mine_slug = Memo::new(move |_| mine.and_then(MineResolved::exact).map(|program| program.slug));
         let items = Memo::new(move |_| {
             let mine = mine_slug.get();
-            choices.with(|c| mine_first(&c.programs, mine.as_deref(), t.catalog.my_program))
+            choices.with(|c| with_first(&c.programs, mine.as_deref(), t.catalog.my_program))
         });
         let selected = Memo::new(move |_| query.with(|q| q.program.as_ref().map(|scope| scope.program_slug.clone())));
         let pick = Callback::new(move |slug: Option<String>| {
@@ -2254,12 +2247,15 @@ mod tests {
     fn mein_studiengang_heads_the_program_picker() {
         let programs = vec![ComboItem::new("bachelor-bwl-2021", "BWL", "B.Sc. · 2021", 1), ComboItem::new("bachelor-informatik-2008", "Informatik", "B.Sc. · 2008", 1)];
         let heading = i18n::DE.catalog.my_program;
-        let listed = mine_first(&programs, Some("bachelor-informatik-2008"), heading);
-        assert_eq!(listed.iter().map(|item| (item.id.as_str(), item.group.as_str())).collect::<Vec<_>>(), [("bachelor-informatik-2008", "Mein Studiengang"), ("bachelor-bwl-2021", ""), ("bachelor-informatik-2008", "")]);
-        assert_eq!(mine_first(&programs, Some("bachelor-bwl-2021"), i18n::EN.catalog.my_program).first().map(|item| item.group.as_str()), Some("My programme"));
+        let listed = with_first(&programs, Some("bachelor-informatik-2008"), heading);
+        assert_eq!(
+            listed.iter().map(|item| (item.id.as_str(), item.group.as_str(), item.first)).collect::<Vec<_>>(),
+            [("bachelor-informatik-2008", "Mein Studiengang", true), ("bachelor-bwl-2021", "", false), ("bachelor-informatik-2008", "", false)]
+        );
+        assert_eq!(with_first(&programs, Some("bachelor-bwl-2021"), i18n::EN.catalog.my_program).first().map(|item| item.group.as_str()), Some("My programme"));
         // None set, or a slug the picker does not know: the picker as it was.
-        assert_eq!(mine_first(&programs, None, heading), programs);
-        assert_eq!(mine_first(&programs, Some("bachelor-weg-1999"), heading), programs);
+        assert_eq!(with_first(&programs, None, heading), programs);
+        assert_eq!(with_first(&programs, Some("bachelor-weg-1999"), heading), programs);
     }
 
     fn switched_on(filter: FitsFilter) -> CatalogQuery {

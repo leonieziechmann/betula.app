@@ -1,6 +1,6 @@
 //! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
-//! „Studiengang" (the timetable's program, „Mein Studiengang" by default, and the way to „Mein
-//! Studium"),
+//! „Studiengang" (the timetable's program, picked for this session, „Mein Studiengang" by default,
+//! and the way to „Mein Studium"),
 //! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view, what is
 //! shown, the Standort and its calendar, and last „Plan": save the timetable under a name, load or
 //! delete a saved one, hand it on by a link (`share.rs`), empty it. The storage hint under it is
@@ -29,10 +29,10 @@ use folia_pages::ask::ProgramsAsk;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
-use folia_design::combobox::{ComboItem, Combobox};
+use folia_design::combobox::{with_first, ComboItem, Combobox};
 use folia_design::format;
 use crate::i18n;
-use folia_stores::myprogram::{po_of, program_name, MyProgram};
+use folia_stores::myprogram::{po_of, MyProgram};
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_stores::studyplan::Saved;
@@ -97,32 +97,34 @@ impl Programs {
             None => Vec::new(),
         });
         let asked = Memo::new(move |_| ctx.url.with(|url| url.import.clone()));
-        let stored = Memo::new(move |_| ctx.plan.and_then(|plan| plan.with(|doc| doc.program.clone())));
+        let picked = Memo::new(move |_| ctx.plan.and_then(|plan| plan.with(|doc| doc.program.clone())));
         let mine = Memo::new(move |_| ctx.mine.and_then(|mine| mine.with(|doc| doc.program.clone())));
         let shown = Memo::new(move |_| {
-            let (asked, stored, mine) = (asked.get(), stored.get(), mine.get());
-            all.with(|all| shown_program(all, asked.as_deref(), stored.as_deref(), mine.as_deref()).cloned())
+            let (asked, picked, mine) = (asked.get(), picked.get(), mine.get());
+            all.with(|all| shown_program(all, asked.as_deref(), picked.as_deref(), mine.as_deref()).cloned())
         });
         Programs { all, mine, shown }
     }
 }
 
 /// The timetable's program: the one the address names (`import=<slug>`, a program page's „In den
-/// Stundenplan"; `import=mine`), else the one stored with the plan, else „Mein Studiengang"; each
-/// only while the snapshot has it.
-fn shown_program<'a>(all: &'a [Program], asked: Option<&str>, stored: Option<&str>, mine: Option<&str>) -> Option<&'a Program> {
+/// Stundenplan"; `import=mine`), else the one picked in this tab's session (`PlanDoc::program`, kept
+/// for the session alone, `folia_stores::studyplan`), else „Mein Studiengang", else none (owner,
+/// 2026-10-15); each only while the snapshot has it.
+fn shown_program<'a>(all: &'a [Program], asked: Option<&str>, picked: Option<&str>, mine: Option<&str>) -> Option<&'a Program> {
     let by_id = |id: &str| all.iter().find(|program| program.id == id);
     let named = match asked {
         Some("mine") => mine.and_then(by_id),
         Some(slug) => all.iter().find(|program| program.slug == slug),
         None => None,
     };
-    named.or_else(|| stored.and_then(by_id)).or_else(|| mine.and_then(by_id))
+    named.or_else(|| picked.and_then(by_id)).or_else(|| mine.and_then(by_id))
 }
 
 /// „Studiengang": the picker, „Mein Studiengang" first under its own heading, and „Mein Studium",
-/// where the whole study is planned. A pick is the timetable's program, stored with the plan;
-/// it sets „Mein Studiengang" only while none is set.
+/// where the whole study is planned. A pick is the timetable's program for this session and the
+/// timetable's alone: it sets no „Mein Studiengang", and the catalog and „Studium" do not hear of it
+/// (owner, 2026-10-15: „nur pro Tab … und Session gespeichert").
 #[component]
 fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
     let t = i18n::t();
@@ -130,9 +132,8 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
     let items = Signal::derive(move || {
         let mine = mine.get();
         all.with(|all| {
-            let item = |program: &Program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po));
-            let own = mine.as_deref().and_then(|id| all.iter().find(|program| program.id == id));
-            own.map(|program| item(program).in_group(t.studyplan_side.mine)).into_iter().chain(all.iter().map(item)).collect::<Vec<_>>()
+            let items: Vec<ComboItem> = all.iter().map(|program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po))).collect();
+            with_first(&items, mine.as_deref(), t.studyplan_side.mine)
         })
     });
     let selected = Signal::derive(move || shown.with(|program| program.as_ref().map(|program| program.id.clone())));
@@ -141,9 +142,6 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
         let Some(program) = all.with_untracked(|all| all.iter().find(|program| program.id == id).cloned()) else { return };
         if let Some(plan) = ctx.plan {
             plan.update(|doc| doc.program = Some(program.id.clone()));
-        }
-        if let Some(mine) = ctx.mine.filter(|mine| untrack(|| mine.with(|doc| doc.program.is_none()))) {
-            mine.set_program(&program.id, &program_name(&program), "", None);
         }
         // An address that named a program (`import=`) has done its part.
         let away = ctx.url.with_untracked(|url| url.import.is_some().then(|| url.without_import().path()));
@@ -594,11 +592,14 @@ mod tests {
         }
     }
 
+    /// The address's, else the one picked in this session, else „Mein Studiengang", else none
+    /// (owner, 2026-10-15).
     #[test]
-    fn the_timetables_program_is_the_addresss_the_plans_or_mine() {
+    fn the_timetables_program_is_the_addresss_the_sessions_or_mine() {
         let all = [program("079-82-2008", "bachelor-informatik-2008", "Informatik"), program("048-82-2022", "bachelor-elektrotechnik-2022", "Elektrotechnik")];
         let id = |found: Option<&Program>| found.map(|program| program.id.clone());
         let (inf, et) = (Some("079-82-2008"), Some("048-82-2022"));
+        // Nothing picked in the session: „Mein Studiengang".
         assert_eq!(id(shown_program(&all, None, None, et)), Some("048-82-2022".into()));
         assert_eq!(id(shown_program(&all, None, inf, et)), Some("079-82-2008".into()));
         assert_eq!(id(shown_program(&all, Some("bachelor-elektrotechnik-2022"), inf, None)), Some("048-82-2022".into()));
