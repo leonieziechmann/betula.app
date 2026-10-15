@@ -675,6 +675,46 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   tables gave up the columns that carry least (Bereich, Turnus, Nr.) as it got narrower. Tried before and dropped
   (owner, 2026-09-20): the matrix as a centred block in a wide empty panel — „liest sich zwar
   leichter, sieht trotzdem komisch aus"; the width wants content, not air.
+  **On a phone the page starts with the program** (owner, 2026-10-15: „wenn man sich die seite von
+  einem studiengang angucken möchte, dann ist das layout komplett unpraktisch"; the box above the
+  page „ist ja mal komplett unnötig"): „Zurück" is the box at the head left of the search, and the
+  way to the profile page gives way to it (`chrome::TopBack`, below); the views
+  (Regelstudienplan, Wahlpflicht & Bereiche) end the head, under the line of the regulations
+  (`program::ProgramViews`, in the HTML twice, the stylesheet showing the layout's); the sidebar
+  ends the page (`Frame` without `sidebar_first`), with the way into the catalog and what is
+  related, after the regulations. What the sidebar offered to do with a program went everywhere:
+  „Als meinen Studiengang setzen" (the program is chosen in „Mein Studium" and on the start page;
+  `MineButton` is gone), „In den Stundenplan", which made no sense there, and „Studium planen"
+  with them. „Ordnungen & Dokumente" and „Im Verzeichnis der BTU" were a jump to the end of the
+  page and a link: the end of the page is „Ordnungen & Dokumente" with the regulations and, last,
+  the program's module tree in the BTU's course catalogue (QIS, `program.source_url`; „Modulbaum
+  des Studiengangs"), on every program's page, also where no regulation is known.
+  **Where the page is narrow** (its container at most 720 px; owner, 2026-10-15, of Informatik on
+  a phone: „wie goofy der header bei Informatik aussieht"): the numbers of the head are one row,
+  each its figure over its word, the room left shared among them — they used to wrap, „117
+  FÜS-Module" alone on a second line behind its rule — and two rows of two on the narrowest phones
+  (at most 330 px, where „116–126 LP" left no room for four). The line of the regulations says
+  „PO 2008 - 2. SÄ 2024" (a screen reader still reads „Prüfungsordnung"), so „aktuell" stays on
+  it; and wherever a part of that line wraps, its line starts without the dot (the dot stands in
+  the room before each part, and the line is cut where that room begins). A name with a word
+  longer than the line breaks inside it.
+- **The way back at the head of a phone's page** (`chrome::TopBack`; owner, 2026-10-05 for a
+  semester of „Mein Studium", 2026-10-15 for a program's page: „lass mal bitte noch den zurück
+  button nach oben links neben die search bar packen. Und wenn der angezeigt wird, dann soll die
+  profilauswahl ausgeblendet werden. Mach das mal als wiederverwendbares system"): a square box
+  left of the search, as high as it; while it is there the way to the profile page right of the
+  search slides out as the box slides in, inert, and the search keeps its width. Two ways to have
+  it. **By the address** (`chrome::back_at_head`): a program's page (unless the module in full,
+  an area or a row of the plan fills it, each with its own way back to the program) leads up to
+  the programs' list as it was left (`Tabs::list`), through the history where that is the step
+  before, as `frame::BackLink` does; the page's own „Zurück" steps aside on a phone (`.at-head`).
+  The address decides and not the page because the server writes the bar before the page: so the
+  server's page has the box and no way to the profile page where the app has them, and nothing
+  moves at the takeover (`e2e/takeover.mjs`, a program's page on a phone); without JavaScript the
+  box is the plain link. Another page that wants its way back at the head is named in
+  `back_at_head`. **By a step of a page** that its address does not name (a semester of „Mein
+  Studium", its views on a phone): `TopBack::follow` shows the box while the step wants it and
+  takes it away with the page, the browser app's alone. A step's box wins over the address's.
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first
@@ -2340,7 +2380,8 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   rail above the switch between light and dark, and on a phone, which has no rail, a box at the
   right of the search at the head of every page (owner, 2026-10-14: „für die mobile Version noch
   ein Konzept wie man an sein Profil rankommt“), as high and as wide as the search is high, in
-  its style — as the way back of a page's step is a box at the search's left (`TopBack`). Beside
+  its style — as the way back of a page is a box at the search's left (`TopBack`), to which it
+  gives way while that is there (owner, 2026-10-15). Beside
   it the search keeps its words on a phone 390 px wide (a little less room around its icon and
   words there); the start page's brand line holds the brand alone. The page is no area's: no tab
   is current on it, the badge is, and the top bar says „Profil“. The server writes the person, the

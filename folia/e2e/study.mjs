@@ -782,14 +782,16 @@ if (current !== "2026W") {
   // The views on a phone: pages of their own behind the overview, the way back at the head.
   const go = (href) => page.evaluate((href) => { const a = document.createElement("a"); a.href = href; document.body.append(a); a.click(); a.remove(); }, href);
   await step("the overview", () => go("/study"), () => location.search === "" && document.querySelector(".st-pager"));
-  await step("the Regelstudienplan on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=plan"]'), () => location.search === "?view=plan" && document.querySelectorAll(".st-rsp-phone .st-fs-sec").length >= 5 && document.querySelector(".top-back.on"));
+  await step("the Regelstudienplan on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=plan"]'), () => location.search === "?view=plan" && document.querySelectorAll(".st-rsp-phone .st-fs-sec").length >= 5 && document.querySelector(".top-back.on") && document.querySelector(".topbar .top-profile").inert);
   const sections = await page.evaluate(() => ({
     strip: [...document.querySelectorAll(".st-fsidx a")].map((a) => a.textContent.trim()),
     cards: document.querySelectorAll(".st-pcard").length,
     wide: document.documentElement.scrollWidth <= innerWidth + 1,
   }));
   check(sections.strip[2] === "3. FS · jetzt" && sections.cards === 23 && sections.wide, `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`);
-  await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on"));
+  // While the way back is at the head, the way to the profile page gives way to it (owner,
+  // 2026-10-15), and it comes back with the overview.
+  await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
   await step("the Wahlpflicht on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=areas"]'), () => location.search === "?view=areas" && document.querySelector(".st-wp-phone .st-fchip[aria-pressed=\"true\"]") && document.querySelector(".st-grp") && document.querySelectorAll(".st-mcard").length > 0);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the Wahlpflicht on a phone scrolls sideways");
   await step("a module planned on a phone", () => page.tap(".st-mcard:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".st-undo")?.textContent.includes("eingeplant"));

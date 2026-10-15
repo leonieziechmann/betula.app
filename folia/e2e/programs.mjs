@@ -164,7 +164,7 @@ const LINE = ".fx-desk a.prog-line";
       facts: facts.map((f) => f.textContent.replace(/\s+/g, " ").trim()),
       out: facts.filter((f) => f.getBoundingClientRect().right > panel.right - 20).length,
       crumbs: [...document.querySelectorAll(".crumbs a")].map((a) => a.getAttribute("href")),
-      meta: document.querySelector(".prog-meta").textContent.replace(/\s+/g, " ").trim(),
+      meta: document.querySelector(".prog-meta").innerText.replace(/\s+/g, " ").trim(),
     };
   });
   check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 131 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
@@ -430,14 +430,50 @@ const LINE = ".fx-desk a.prog-line";
     return {
       wide: document.documentElement.scrollWidth <= innerWidth + 1,
       list: Boolean(document.querySelector("table.planlist")) && !document.querySelector("table.matrix") && !document.querySelector('#sidebar [aria-label="Darstellung des Regelstudienplans"]'),
-      views: document.querySelector("#sidebar .toc.views").getBoundingClientRect().top < document.querySelector(".prog-head").getBoundingClientRect().top,
+      // No box above the page (owner, 2026-10-15): the views end the head, the sidebar (the way
+      // into the catalog, what is related) ends the page, after the regulations and the module tree.
+      views: (() => {
+        const views = document.querySelector(".prog-head .toc.views");
+        const head = document.querySelector(".prog-head").getBoundingClientRect();
+        return Boolean(views?.offsetHeight) && views.getBoundingClientRect().bottom <= head.bottom && !document.querySelector("#sidebar .toc.views")?.offsetHeight
+          && [...views.querySelectorAll("a")].map((a) => a.textContent).join() === "Regelstudienplan,Wahlpflicht & Bereiche";
+      })(),
+      end: (() => {
+        const side = document.querySelector("#sidebar").getBoundingClientRect();
+        const docs = document.querySelector("#dokumente");
+        return side.top >= document.querySelector(".page").getBoundingClientRect().bottom - 1 && document.querySelector("#sidebar .catalog-jump a")?.offsetHeight > 0
+          && [...docs.querySelectorAll(".docrow")].at(-1)?.getAttribute("href")?.includes("qisserver") && docs.getBoundingClientRect().bottom <= side.top;
+      })(),
+      // Nothing to do with the program any more: it is chosen in „Mein Studium".
+      actions: [...document.querySelectorAll("#sidebar .action, #sidebar button")].map((a) => a.textContent.trim()).filter((text) => /Studiengang setzen|Stundenplan|Studium planen|Ordnungen|Verzeichnis/.test(text)),
+      // „Zurück" at the head, left of the search, and the way to the profile page gone meanwhile.
+      back: (() => {
+        const back = document.querySelector(".topbar .top-back.on");
+        const search = document.querySelector(".topbar .search").getBoundingClientRect();
+        const profile = document.querySelector(".topbar .top-profile");
+        const box = back?.getBoundingClientRect();
+        return Boolean(box) && Math.round(box.width) === 48 && box.right < search.left && back.getAttribute("href") === "/programs" && profile.inert && Math.round(profile.getBoundingClientRect().width) === 0
+          && !document.querySelector('.prog-head [data-action="back"]')?.offsetHeight && Math.round(innerWidth - search.right) === 12;
+      })(),
       facts: [...document.querySelectorAll(".prog-facts .pfact")].every((f) => f.getBoundingClientRect().right <= innerWidth),
+      // The numbers one row, each its figure over its word; the line under the name one line, „PO"
+      // for „Prüfungsordnung" (owner, 2026-10-15: „wie goofy der header … aussieht").
+      head: (() => {
+        const tops = (els) => new Set([...els].map((el) => Math.round(el.getBoundingClientRect().top)));
+        const meta = document.querySelector(".prog-meta");
+        return { facts: tops(document.querySelectorAll(".prog-facts .pfact")).size, meta: tops(meta.children).size, text: meta.innerText.replace(/\s+/g, " ").trim(), abbr: meta.querySelector(".po-abbr")?.offsetWidth > 0 && meta.querySelector(".po-word")?.getBoundingClientRect().width <= 1 };
+      })(),
     };
   });
   check(phone.wide, "phone: the program page scrolls sideways");
   check(phone.list, "phone: the plan is not the list, or a switch to the matrix is offered");
-  check(phone.views, "phone: the views of the program are not above the page");
+  check(phone.views, "phone: the views of the program do not end its head");
+  check(phone.end, "phone: the regulations with the module tree, and after them the way into the catalog, do not end the page");
+  check(phone.actions.length === 0, `phone: the sidebar still offers ${phone.actions.join(", ")}`);
+  check(phone.back, "phone: „Zurück\" is not at the head left of the search, or the way to the profile page did not give way");
   check(phone.facts, "phone: a number of the head stands outside the screen");
+  // „Prüfungsordnung" is still there for a screen reader, „PO" is what is seen.
+  check(phone.head.facts === 1 && phone.head.meta === 1 && phone.head.abbr && /^B\.Sc\. Prüfungsordnung PO 2022 aktuell$/.test(phone.head.text), `phone: the head wraps: ${JSON.stringify(phone.head)}`);
   // A module comes up as a sheet over the page (owner, 2026-10-06), in the program's area (the
   // address keeps `open=`), one history entry; closed, the program is there as it was.
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.
@@ -450,10 +486,13 @@ const LINE = ".fx-desk a.prog-line";
   await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the program"));
   check((await page.evaluate(() => history.length)) === entries + 1, "phone: closing the module added a step to the history");
   // An area is the page on a phone, and a module picked from it comes up over it.
-  await page.evaluate(() => [...document.querySelectorAll("#sidebar .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
+  await page.evaluate(() => [...document.querySelectorAll(".prog-head .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
   await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
   await page.evaluate(() => document.querySelector('table.areas tr.group a[data-walk="area"]')?.click());
   await page.waitForFunction(() => location.search.includes("area=") && document.querySelector("#preview .linklist .pre") && !document.querySelector("table.areas"), null, { timeout: 8000 }).catch(() => problems.push("phone: an area did not become the page"));
+  // The area has its own way back, to the program: the one at the head goes, and the way to the
+  // profile page comes back.
+  await page.waitForFunction(() => !document.querySelector(".top-back.on") && !document.querySelector(".top-profile").inert && document.querySelector('#preview .hero-top [data-action="back"]')?.offsetHeight > 0, null, { timeout: 2000 }).catch(() => problems.push("phone: an area as the page kept the way back of the program at the head"));
   await page.evaluate(() => document.querySelector('#preview .linklist a[data-walk="module"]')?.click());
   await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".detail.is-module h2") && document.querySelector(".picked-page .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not come up over it"));
   await page.waitForTimeout(400);

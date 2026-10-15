@@ -8,10 +8,11 @@
 /// owner named each). Since 2026-10-15 by SemVer, raised with every change (owner: „immer wenn wir
 /// changes machen update die version number based on sem ver"; CLAUDE.md, „Versions"): 1.1.0 with
 /// Betula's icon „Tinte" and the start of the installed app; 1.2.0 with nothing said of the data in
-/// the top bar any more (neither its loading nor why the app does not start offline); 1.3.0 with
-/// the program an area has chosen kept for the session alone and „Mein Studiengang" first in
-/// every program picker. The version of the app's crates, the same as the server's; Radix's is in
-/// the snapshot (`Meta::radix_version`).
+/// the top bar any more (neither its loading nor why the app does not start offline); 1.3.0 with a
+/// program's page on a phone starting with the program, „Zurück" at the head instead of the way to
+/// the profile page, and no actions on a program's page; 1.3.1 with its head on a phone without
+/// loose ends. The version of the app's crates, the same as the server's; Radix's is in the
+/// snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

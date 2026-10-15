@@ -8,7 +8,8 @@
 //! store is where every page reads it (the Studienplan's Fachsemester and import, the finder,
 //! the Standort); the program's slug stands only in a catalog address that is filtered by it.
 //!
-//! Where the app offers it (A.10): set on the program's page (`MineButton`); the catalog's tab
+//! Where the app offers it (A.10): set in „Mein Studium" and on the start page, and in the
+//! Studienplan's picker and import (on the program's page until 2026-10-15); the catalog's tab
 //! leads to the program's catalog on its first entry of a session (`MineResolved::catalog_href`,
 //! `tabs::Tabs::href_with_root`); the catalog's program picker lists it first; the program
 //! overview names it; links to its page show the stored Studienrichtung (`program_href`). All of
@@ -26,10 +27,7 @@ use folia_routes::url::{self, CatalogUrl, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 
 use folia_data::{use_data, DataClient};
-use crate::i18n;
 use crate::profiles::Kept;
-use folia_design::nav;
-use folia_design::ui::Icon;
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.myprogram.v1";
@@ -314,121 +312,6 @@ impl ProgramPlans {
     pub fn shown_index(&self, caption: &str, direction: Option<&str>) -> Option<usize> {
         self.place(caption, direction).map(Place::shown)
     }
-
-    /// „PA und IoT", „Seite 18": what the program's page calls the plan of a place.
-    fn label(&self, place: Place) -> Option<String> {
-        self.plans.get(place.shown()).map(|(_, label)| label.clone()).filter(|label| !label.trim().is_empty())
-    }
-
-    /// Whether a click on the plan `shown` (`None`: no plan shown) would keep nothing new, where
-    /// the store holds this program at `kept` (`None`: it holds another program or none;
-    /// `Some(None)`: this one, without a Studienrichtung among these plans).
-    fn holds(&self, kept: Option<Option<Place>>, shown: Option<usize>) -> bool {
-        match (kept, shown) {
-            (None, _) => false,
-            (Some(Some(place)), Some(index)) => self.place_of(index) == place,
-            (Some(_), _) => true,
-        }
-    }
-}
-
-/// „Als meinen Studiengang setzen" among the actions of a program's page (A.10): stores the program
-/// with the Studienrichtung shown (`ProgramPlans::kept`: for a page that fills a core plan's
-/// direction row, its core's caption with the page as the direction; on a tab without the plan,
-/// none); pressed, „Mein Studiengang", a click takes it away again (Studienbeginn and Standort
-/// stay).
-///
-/// Pressed means that a click would store nothing new: this program, and on the plan's tab the plan
-/// shown. On another plan of the same program the button is not pressed, and its title names the
-/// kept one a click replaces („Ersetzt: PA und IoT"), as it names another program. A program kept
-/// without a Studienrichtung, or with one none of its plans has any more, is pressed on every plan.
-///
-/// Part of server HTML like `MarkButton`: unpressed, the same for everybody (R9), kept in its place
-/// but not shown until the app runs (`.mine-toggle`), so the actions do not move at the takeover
-/// (R15). A click flips the button at once and stores after the next frame (R21): what follows
-/// from the program (the catalog's tab, what the local catalog says of it) comes after the button
-/// has answered.
-#[component]
-pub fn MineButton(
-    #[prop(into)] program_id: String,
-    /// The program as „Mein Studiengang" names it (`program_name`).
-    #[prop(into)]
-    name: String,
-    plans: ProgramPlans,
-    /// The plan shown (0-based); `None` on a tab without the plan, and for a program without one.
-    #[prop(into)]
-    shown: Signal<Option<usize>>,
-) -> impl IntoView {
-    let t = i18n::t();
-    let mine = MyProgram::expect().filter(|_| APP);
-    let plans = StoredValue::new(plans);
-    // One memo each (R5), both from the store alone: whether this program is kept and where its
-    // Studienrichtung stands among the plans (`Some(None)`: nowhere), and another program kept
-    // instead.
-    let kept = {
-        let id = program_id.clone();
-        Memo::new(move |_| {
-            let mine = mine?;
-            mine.with(|doc| {
-                let this = doc.program.as_deref() == Some(id.as_str());
-                this.then(|| plans.with_value(|plans| plans.place(doc.caption.as_deref().unwrap_or_default(), doc.direction.as_deref())))
-            })
-        })
-    };
-    let replaced = {
-        let id = program_id.clone();
-        Memo::new(move |_| mine.and_then(|mine| mine.with(|doc| replaced_name(doc, &id))))
-    };
-    let stored = Memo::new(move |_| {
-        let (kept, shown) = (kept.get(), shown.get());
-        plans.with_value(|plans| plans.holds(kept, shown))
-    });
-    // What the last click said, until the store has it.
-    let said = RwSignal::new(None::<bool>);
-    let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| stored.get()));
-    let toggle = move |_: leptos::ev::MouseEvent| {
-        let Some(mine) = mine else { return };
-        let was = pressed.get_untracked();
-        said.set(Some(!was));
-        // Unpressed on a tab without the plan, the program is not kept yet, and nothing says which
-        // of its plans is meant: no Studienrichtung, as the Studienplan's picker keeps it.
-        let (caption, direction) = shown.get_untracked().map(|index| plans.with_value(|plans| plans.kept(index))).unwrap_or_default();
-        let (id, name) = (program_id.clone(), name.clone());
-        nav::after_paint(move || {
-            if was {
-                mine.clear_program();
-            } else {
-                mine.set_program(&id, &name, &caption, direction.as_deref());
-            }
-            said.try_set(None);
-        });
-    };
-    let label = move || if pressed.get() { t.myprogram.mine } else { t.myprogram.set_mine };
-    let tip = move || match (pressed.get(), replaced.get(), kept.get()) {
-        (true, ..) => Some(t.myprogram.unset_title.to_string()),
-        (false, Some(other), _) => Some((t.myprogram.replaces)(&other)),
-        (false, None, Some(Some(place))) => plans.with_value(|plans| plans.label(place)).map(|label| (t.myprogram.replaces)(&label)),
-        (false, None, _) => None,
-    };
-    view! {
-        <button
-            class="action mine-toggle"
-            type="button"
-            on:click=toggle
-            aria-pressed=move || if pressed.get() { "true" } else { "false" }
-            aria-busy=move || said.get().map(|_| "true")
-            title=tip
-        >
-            <Icon name="star"/><span>{label}</span>
-        </button>
-    }
-}
-
-/// The name of another program stored as „Mein Studiengang" than `program_id`, which setting this
-/// one replaces: its stored name, else its id.
-fn replaced_name(doc: &MineDoc, program_id: &str) -> Option<String> {
-    let other = doc.program.as_deref().filter(|stored| *stored != program_id)?;
-    Some(doc.name.clone().filter(|name| !name.trim().is_empty()).unwrap_or_else(|| other.to_string()))
 }
 
 #[cfg(test)]
@@ -540,25 +423,6 @@ mod tests {
         assert_eq!(plans.place("Vertiefung B", None), None);
         let only = ProgramPlans { plans: vec![("Regelstudienplan".to_string(), "Regelstudienplan".to_string())], pages: Vec::new() };
         assert_eq!(only.place("", None), Some(core));
-        assert_eq!((plans.label(page).as_deref(), plans.label(core).as_deref()), (Some("Seite 18"), Some("Kern")));
-    }
-
-    /// Pressed means a click would keep nothing new: this program and, where a plan is shown, that
-    /// plan. Another plan of the same program is not pressed, so a click keeps it instead of
-    /// taking the program away.
-    #[test]
-    fn the_button_is_pressed_on_the_plan_that_is_kept() {
-        let plans = three_plans();
-        let page = Some(Some(Place { core: 0, page: Some(1) }));
-        assert!(plans.holds(page, Some(1)));
-        assert!(!plans.holds(page, Some(0)), "the core plan without the page is another Studienrichtung");
-        assert!(!plans.holds(page, Some(2)));
-        // On a tab without the plan the program is what counts.
-        assert!(plans.holds(page, None));
-        // Kept without a Studienrichtung of these plans: every plan is the program's.
-        assert!(plans.holds(Some(None), Some(2)) && plans.holds(Some(None), None));
-        // Another program, or none.
-        assert!(!plans.holds(None, Some(1)) && !plans.holds(None, None));
     }
 
     /// The snapshot the catalog's tests read: `FOLIA_TEST_SNAPSHOT`, else the one
@@ -620,15 +484,5 @@ mod tests {
         assert_eq!(program_href(Some(&source), &wiing, Some(&core), None), at(supplement.core + 1));
         assert_eq!(program_href(Some(&source), &wiing, Some(&core), Some(&page)), at(supplement.page + 1));
         assert_eq!(program_href(Some(&source), &wiing, Some(&core), Some("Studienplan · Seite 99")), at(supplement.core + 1));
-    }
-
-    #[test]
-    fn setting_a_program_says_which_one_it_replaces() {
-        let doc = restored(Some("program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\n"));
-        assert_eq!(replaced_name(&doc, "048-82-2022").as_deref(), Some("Informatik B.Sc. · PO 2008"));
-        assert_eq!(replaced_name(&doc, "079-82-2008"), None);
-        assert_eq!(replaced_name(&MineDoc::default(), "079-82-2008"), None);
-        // No name stored: the id says which.
-        assert_eq!(replaced_name(&restored(Some("program\t079-82-2008\n")), "048-82-2022").as_deref(), Some("079-82-2008"));
     }
 }

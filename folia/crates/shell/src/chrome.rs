@@ -1,8 +1,9 @@
 //! The chrome around every page: the rail with the main navigation and the way to the profile
-//! page, the top bar with the page's title and search (and on a phone the way back of a page's step,
-//! `TopBack`, and the way to the profile page), the navigation at the bottom of a phone
-//! (`NavItems`) with what its tabs hold besides their pages (`TabMenu`), the menu of the profiles
-//! (`ProfileMenu`), and what lets the memory of the tabs follow the router (`FollowTabs`).
+//! page, the top bar with the page's title and search (and on a phone the way back of a page or of
+//! its step, `TopBack`, and the way to the profile page, which gives way to it), the navigation at
+//! the bottom of a phone (`NavItems`) with what its tabs hold besides their pages (`TabMenu`), the
+//! menu of the profiles (`ProfileMenu`), and what lets the memory of the tabs follow the router
+//! (`FollowTabs`).
 
 use folia_routes::url::{self, StudyUrl, StudyView};
 use leptos::prelude::*;
@@ -255,7 +256,12 @@ pub fn Rail() -> impl IntoView {
 /// icon, the same for everybody (R9), and without JavaScript the way leads to the page's stand-in,
 /// which offers the other language (`folia_profile`).
 #[component]
-pub fn ProfileButton(#[prop(optional)] top: bool) -> impl IntoView {
+pub fn ProfileButton(
+    #[prop(optional)] top: bool,
+    /// The box at the head has given way to the way back (`TopBack`): out of reach until it is back.
+    #[prop(optional, into)]
+    away: Signal<bool>,
+) -> impl IntoView {
     let t = i18n::t();
     let location = use_location();
     let profiles = Profiles::expect().filter(|_| APP);
@@ -273,6 +279,7 @@ pub fn ProfileButton(#[prop(optional)] top: bool) -> impl IntoView {
             rel="nofollow"
             aria-label=label
             aria-current=here
+            inert=move || away.get()
             data-hold=APP.then_some("profiles")
             on:pointerenter=move |ev| {
                 if let Some(menu) = menu {
@@ -551,16 +558,34 @@ pub fn ProfileSwitcher() -> impl IntoView {
 /// A way back at the head of a phone's page, left of the search (owner, 2026-10-05: „wenn man in
 /// der semester ansicht ist, soll es oben links neben der search bar im gleichen style eine
 /// quadratische box sein mit einem zurück pfeil"): a box as the search is and as wide as it is
-/// high, an arrow in it. A page with a step below its first one puts it there while that step
-/// shows (a semester of „Mein Studium", on either side of its overview) and takes it away when it
-/// goes; the box slides in and out, and the search makes room for it (app.css). The browser app's
-/// alone, and a wide screen has none. The page hears it pressed as well (`presses`): where it
-/// leads where the app is already (the page's step not in the address yet), the page goes back
-/// itself.
+/// high, an arrow in it. While it is there, the way to the profile page at the right of the search
+/// gives way (owner, 2026-10-15: „wenn der angezeigt wird, dann soll die profilauswahl ausgeblendet
+/// werden. Mach das mal als wiederverwendbares system"); the two slide out and in, and the search
+/// makes room (app.css). A wide screen has neither.
+///
+/// Two kinds of pages have it. A page whose address names it (a program's page) has it by the
+/// address alone (`back_at_head`): the server writes it as the app does, and the page's own
+/// „Zurück" steps aside on a phone (`frame::BackLink`). A page with a step below its first one that
+/// its address does not name (a semester of „Mein Studium", on either side of its overview) puts it
+/// there while that step shows and takes it away when it goes (`follow`), the browser app's alone.
+/// The page hears it pressed as well (`presses`): where it leads where the app is already (the
+/// page's step not in the address yet), the page goes back itself.
 #[derive(Clone, Copy)]
 pub struct TopBack {
     back: RwSignal<Option<Back>>,
     pressed: RwSignal<u32>,
+}
+
+/// The pages whose way back stands at the head of a phone's page by their address (`TopBack`), and
+/// the area whose list it leads to: a program's page, unless something else fills it — the module
+/// in full, and on a phone an area or a row of the plan, each with its own way back to the program.
+/// The address decides and not the page, because the server writes the bar before the page: so
+/// the server's page has the box where the app's has it, and nothing moves at the takeover. Another
+/// page that wants its way back at the head is named here; its `BackLink` steps aside by itself.
+pub fn back_at_head(path: &str, search: &str) -> Option<Area> {
+    let program = path.strip_prefix(url::PROGRAMS).and_then(|rest| rest.strip_prefix('/')).is_some_and(|slug| !slug.is_empty());
+    let filled = url::parse_pairs(search).iter().any(|(key, _)| matches!(key.as_str(), "full" | "area" | "req"));
+    (program && !filled).then_some(Area::Programs)
 }
 
 /// Where the box at the head leads (`TopBack`).
@@ -594,19 +619,52 @@ impl TopBack {
         }
     }
 
+    /// Shows the box where a page's step wants it, leading where `back` says whenever that changes,
+    /// and takes it away with the page. For the steps an address does not name (`back_at_head`).
+    pub fn follow(back: impl Fn() -> Option<Back> + 'static) {
+        let Some(top) = Self::expect() else { return };
+        Effect::new(move |_| top.set(back()));
+        on_cleanup(move || top.set(None));
+    }
+
     /// How often the box was pressed. Tracked.
     pub fn presses(self) -> u32 {
         self.pressed.get()
     }
 }
 
-/// The box of `TopBack`: there while a page puts it there. Where it went, it keeps its place and its
-/// arrow and slides out, out of reach.
-#[component]
-fn TopBackBox() -> impl IntoView {
+/// Where the box of `TopBack` leads on the page the app is at or going to (`pending`): where the
+/// page's step puts it, else where the address puts it (`back_at_head`) — the list of its area as it
+/// was left (`Tabs::list`), through the history where that is the step before, as `BackLink` does.
+fn top_back_shown() -> Memo<Option<Back>> {
     let t = i18n::t();
+    let location = use_location();
+    let going = Pending::expect();
+    let tabs = Tabs::expect();
     let back = TopBack::expect();
-    let shown = Memo::new(move |_| back.and_then(|back| back.back.get()));
+    Memo::new(move |_| {
+        if let Some(step) = back.and_then(|back| back.back.get()) {
+            return Some(step);
+        }
+        let (path, search) = match going.and_then(|going| going.path().map(|path| (going.search_on(&path).unwrap_or_default(), path))) {
+            Some((search, path)) => (path, search),
+            None => (location.pathname.get(), location.search.get()),
+        };
+        let area = back_at_head(&path, &search)?;
+        let href = tabs.map_or_else(|| area.back_root().to_string(), |tabs| tabs.list(area));
+        let now = crate::tabs::location_of(&location.pathname.get(), &location.search.get());
+        let history = tabs.is_some_and(|tabs| tabs.before(&now) == href);
+        Some(Back { href, label: t.common.back, history })
+    })
+}
+
+/// The box of `TopBack`: there while a page or its address puts it there (`shown`). Where it went,
+/// it keeps its place and its arrow and slides out, out of reach.
+#[component]
+fn TopBackBox(shown: Memo<Option<Back>>) -> impl IntoView {
+    let t = i18n::t();
+    let location = use_location();
+    let back = TopBack::expect();
     let last = Memo::new(move |before: Option<&Option<Back>>| shown.get().or_else(|| before.cloned().flatten()));
     let on = move || shown.with(Option::is_some);
     let click = move |ev: leptos::ev::MouseEvent| {
@@ -630,7 +688,9 @@ fn TopBackBox() -> impl IntoView {
             href=move || last.with(|back| back.as_ref().map(|back| t.path(&back.href)))
             aria-label=move || last.with(|back| back.as_ref().map(|back| back.label))
             title=move || last.with(|back| back.as_ref().map(|back| back.label))
-            data-noscroll=""
+            // A step of the page stays where the page is; the way to another page goes to its top
+            // or to where it was left, as `BackLink` does.
+            data-noscroll=move || last.with(|back| back.as_ref().is_some_and(|back| back.href.split(['?', '#']).next() == Some(location.pathname.get().as_str()))).then_some("")
             on:click=click
         >
             <Icon name="arrow-left"/>
@@ -651,6 +711,9 @@ pub fn TopBar() -> impl IntoView {
     // The profile page is no area's, and names itself (the start page's area writes the wordmark).
     let profile_now = Memo::new(move |_| path_now.get() == url::PROFILE);
     let pending = StoredValue::new(None::<TimeoutHandle>);
+    // The way back at the head, and the way to the profile page giving way to it (`TopBack`).
+    let back = top_back_shown();
+    let backed = Signal::derive(move || back.with(Option::is_some));
 
     // The search belongs to the page: programs on the program overview, modules everywhere else.
     // In the browser app it filters while typing (replacing the history entry, not adding one).
@@ -689,8 +752,8 @@ pub fn TopBar() -> impl IntoView {
     };
 
     view! {
-        <header class="topbar">
-            {APP.then(|| view! { <TopBackBox/> })}
+        <header class="topbar" class:backed=backed>
+            <TopBackBox shown=back/>
             {move || {
                 let study = study_now.get();
                 let programs = area_now.get() == Area::Programs && !study;
@@ -726,7 +789,35 @@ pub fn TopBar() -> impl IntoView {
                     </form>
                 }
             }}
-            <ProfileButton top=true/>
+            <ProfileButton top=true away=backed/>
         </header>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A program's page has its way back at the head by its address, up to the programs' list;
+    /// not where something else fills it (each has its own way back to the program), nor any other
+    /// page.
+    #[test]
+    fn a_programs_page_has_its_way_back_at_the_head() {
+        for (path, search) in [("/programs/bachelor-informatik-2008", ""), ("/programs/bachelor-informatik-2008/areas", ""), ("/programs/bachelor-informatik-2008/plan", "variant=2&open=11103")] {
+            assert_eq!(back_at_head(path, search), Some(Area::Programs), "{path}?{search}");
+        }
+        for (path, search) in [
+            ("/programs/bachelor-informatik-2008/plan", "open=11103&full=1"),
+            ("/programs/bachelor-informatik-2008/areas", "area=348"),
+            ("/programs/bachelor-informatik-2008/plan", "req=4"),
+            ("/programs", ""),
+            ("/programs/", ""),
+            ("/programs", "q=informatik"),
+            ("/study", ""),
+            ("/catalog/module/11103", ""),
+            ("/", ""),
+        ] {
+            assert_eq!(back_at_head(path, search), None, "{path}?{search}");
+        }
     }
 }

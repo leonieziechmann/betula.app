@@ -96,11 +96,17 @@ pub fn Plain(#[prop(optional, into)] class: String, children: Children) -> impl 
 /// Where it leads is read again on every change of the address: after closing the module beside
 /// a program the visitor did *not* come from the list any more, so Esc must follow the link and
 /// not walk the history back into the module it has just closed.
+///
+/// On a page whose way back stands at the head of a phone's page (`chrome::back_at_head`: the same
+/// way, up to the area's list), the link steps aside there (`.at-head`, app.css): one way back, at
+/// the head.
 #[component]
 pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let tabs = crate::tabs::Tabs::expect();
+    let up = to.is_none();
+    let at_head = move || up && crate::chrome::back_at_head(&location.pathname.get(), &location.search.get()) == Some(area);
     let target = to.unwrap_or_else(|| tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.back_root().to_string()));
     let came_from_it = {
         let target = target.clone();
@@ -110,7 +116,7 @@ pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<S
         }
     };
     view! {
-        <a class="ghost" href=t.path(&target) data-action="back" data-back=came_from_it title=t.ui.back_title>
+        <a class="ghost" class:at-head=at_head href=t.path(&target) data-action="back" data-back=came_from_it title=t.ui.back_title>
             <Icon name="arrow-left"/>{t.common.back}<Shortcut keys="Esc"/>
         </a>
     }

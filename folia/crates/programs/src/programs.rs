@@ -519,8 +519,8 @@ pub fn ProgramsPage() -> impl IntoView {
 /// (R15).
 ///
 /// A program gone from the snapshot keeps the strip, which says so first and leads to the newest PO
-/// of the program, where „Als meinen Studiengang setzen" takes that one instead (as the
-/// Studienplan's „PO 2008 übernehmen" does); without one it leads nowhere.
+/// of the program (taken instead in „Mein Studium", as the Studienplan's „PO 2008 übernehmen"
+/// does); without one it leads nowhere.
 #[component]
 fn MineStrip(all: StoredValue<Vec<Faculty>>, facts: StoredValue<BTreeMap<String, PlanFacts>>) -> impl IntoView {
     if !APP {
