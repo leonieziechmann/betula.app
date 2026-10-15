@@ -1233,6 +1233,7 @@ fn VirtualRows(
     // Where the visitor is: which rows to render, which pages to hold, and what `page` in the
     // URL says (replacing the history entry, so Back still leaves the list in one step).
     let navigate = use_navigate();
+    let location = use_location();
     let base = StoredValue::new(current.clone());
     let alive_follow = alive.clone();
     let follow = move || {
@@ -1242,7 +1243,12 @@ fn VirtualRows(
         let Some((offset, viewport)) = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID) else { return };
         let first_visible = index_at(offset);
         let last_visible = index_at(offset + viewport);
-        let range = (first_visible.saturating_sub(BUFFER), (last_visible + 1 + BUFFER).min(total));
+        // Behind the takeover's picture of the server's first page, every row from the first one:
+        // measured, the rows above stand as tall as they stood on that page, and the rows on the
+        // screen where they stood there, not where the average of the rows measured puts them.
+        // At most the 50 rows that page has.
+        let from = if start_page == 1 && nav::behind_picture() { 0 } else { first_visible.saturating_sub(BUFFER) };
+        let range = (from, (last_visible + 1 + BUFFER).min(total));
         ensure_loaded(range.0, range.1);
         let (guess, mut top) = (estimate(), offset_of(first_visible));
         let mut rows = Vec::new();
@@ -1256,7 +1262,12 @@ fn VirtualRows(
             window.set(range);
         }
         let seen = (first_visible / per_page + 1) as u64;
-        if seen != page.get_untracked() {
+        // Only while the address is still this list's. After a click on another filter the list
+        // stays until the new one is there, and a scroll of it meanwhile (the browser keeping its
+        // rows in place as the skeleton of the next list comes and goes above them) took the
+        // address back to its own filter: the click was undone.
+        let ours = base.with_value(|base| CatalogUrl::parse(&location.search.get_untracked()).query == base.query);
+        if seen != page.get_untracked() && ours {
             let target = base.get_value().with_page(seen).with_open(open.get_untracked().as_deref()).path();
             navigate(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
         }
@@ -1310,7 +1321,11 @@ fn VirtualRows(
         }
         let unmeasured = heights.with_value(|heights| heights.iter().take(first_visible).filter(|height| height.is_none()).count());
         shift += unmeasured as f32 * (estimate() - guess);
-        if shift.abs() >= 0.5 {
+        // Not while the server's page stands in front of the list as a picture (the takeover): the
+        // rows are seen first where they are measured to be, which is where that page had them,
+        // and on a phone the window, which the picture lies in, must not move (a list scrolled
+        // before the takeover moved by 14 px).
+        if shift.abs() >= 0.5 && !nav::behind_picture() {
             nav::scroll_list_by(SCROLL_ID, shift);
         }
         layout.update(|n| *n = n.wrapping_add(1));
@@ -1432,17 +1447,17 @@ fn VirtualRows(
             {head}
             {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
-            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--list-h:{:.0}px", offset_of(total)) }>
+            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--list-h:{:.3}px", offset_of(total)) }>
                 <For each=move || { let (first, end) = window.get(); first..end } key=|index| *index children=move |index: usize| {
                     let base = base_rows.clone();
                     let top = move || {
                         layout.track();
-                        format!("--top:{:.0}px", offset_of(index))
+                        format!("--top:{:.3}px", offset_of(index))
                     };
                     // A skeleton row is as tall as a row is taken to be (`--rh`).
                     let skeleton_top = move || {
                         layout.track();
-                        format!("--top:{:.0}px;--rh:{:.0}px", offset_of(index), estimate())
+                        format!("--top:{:.3}px;--rh:{:.0}px", offset_of(index), estimate())
                     };
                     // A row whose page could not be loaded stands there as a skeleton, which is
                     // not measured (no `data-i`): it keeps the place the row is taken to have.
@@ -1467,11 +1482,11 @@ fn VirtualRows(
                 // anew with every list, made half the elements of the page, and a filter took half
                 // as long again (2026-10-02). None for a list as short as most searches find.
                 {fills.then(|| view! {
-                    <div class="vfill above" class:odd=move || window.get().0 % 2 == 1 style=move || { layout.track(); format!("height:{:.0}px;--rh:{:.0}px", offset_of(window.get().0), estimate()) } aria-hidden="true">
+                    <div class="vfill above" class:odd=move || window.get().0 % 2 == 1 style=move || { layout.track(); format!("height:{:.3}px;--rh:{:.0}px", offset_of(window.get().0), estimate()) } aria-hidden="true">
                         {skeleton::fill()}
                         {move || phone.get().then(|| skeleton::cards(FILL_CARDS))}
                     </div>
-                    <div class="vfill below" class:odd=move || window.get().1 % 2 == 1 style=move || { layout.track(); format!("top:{:.0}px;--rh:{:.0}px", offset_of(window.get().1), estimate()) } aria-hidden="true">
+                    <div class="vfill below" class:odd=move || window.get().1 % 2 == 1 style=move || { layout.track(); format!("top:{:.3}px;--rh:{:.0}px", offset_of(window.get().1), estimate()) } aria-hidden="true">
                         {move || phone.get().then(|| skeleton::cards(FILL_CARDS))}
                         {skeleton::fill()}
                     </div>

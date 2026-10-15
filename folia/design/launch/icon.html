@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Betula Icon-Optionen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Options for concept A of konzepte.html (owner, 2026-10-15: „An sich finde ich konzept A am besten.
+     Aber die Schrift unten sieht noch müllig aus. Und das logo wirkt irgendwie altbacken. Bitte
+     erstelle dafür auch noch ein paar moderene optionen. Ich glaube das größte problem sind da die
+     farben, die komisch clashen und der retro farbverlauf."). The icon of the installed app
+     (design/logo/app-icon.svg: a white leaf with a stem and black bars on a green gradient) in four
+     flat versions built from the page's own colours (folia/assets/app.css: the ink #10151f, the
+     accent oklch(.53 .07 149) = #4e7755), each in concept A and on home screens; and the name that
+     Chrome writes under the icon of its splash screen (the manifest's `name`, 24 sp, two lines). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=Roboto+Condensed:wght@400&display=swap">
+<style>
+/* Layout: an intro with what is wrong today, a bar of settings that stays at the top, a grid of
+   options (each a phone playing concept A and its icon on home screens), the recommendation.
+   Tokens: Betula's own, light then dark; the phones carry their own look. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cond: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --seg: color-mix(in oklab, var(--text) 5.5%, var(--panel));
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --shadow-panel: 0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-device: 0 30px 60px -34px rgba(15, 23, 42, .6);
+  --phase-0: color-mix(in oklab, var(--text) 22%, var(--panel));
+  --phase-1: var(--accent);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --seg: color-mix(in oklab, var(--text) 6%, var(--panel));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-device: 0 30px 60px -34px rgba(0, 0, 0, .95);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --seg: color-mix(in oklab, var(--text) 6%, var(--panel));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-panel: 0 0 0 1px var(--line), 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-device: 0 30px 60px -34px rgba(0, 0, 0, .95);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+.page { max-width: 1160px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 88px; display: grid; gap: 22px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+b { font-weight: 650; }
+code { font: 500 .88em/1 ui-monospace, "Cascadia Mono", Consolas, monospace; background: var(--panel-3); padding: .12em .36em; border-radius: 5px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.intro { display: grid; gap: 14px; padding-block: 6px 4px; }
+.eyebrow { font-size: 12px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.intro h1 { font-size: clamp(30px, 4.6vw, 44px); line-height: 1.06; letter-spacing: -.025em; font-weight: 800; max-width: 20ch; }
+.lede { font-size: 16.5px; color: var(--text-2); max-width: 66ch; }
+
+.panel { background: var(--panel); border-radius: 16px; box-shadow: var(--shadow-panel); padding: 24px; min-width: 0; }
+.kicker { font-size: 12px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--accent-ink); }
+
+/* what is wrong today */
+.why { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 26px; }
+.why h2 { grid-column: 1 / -1; font-size: 22px; letter-spacing: -.015em; }
+.why > div { display: grid; gap: 10px; align-content: start; }
+.why p { color: var(--text-2); font-size: 14.5px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 4px; border-radius: 999px; background: var(--panel-3); font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.chip i { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line); }
+.chip.grad i { background: linear-gradient(#6dac78, #2d6945); }
+.splashname { font: 400 19px/1.24 var(--cond); color: var(--text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 290px; padding: 10px 12px; border-radius: 10px; background: var(--panel-3); }
+
+/* settings */
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--panel) 88%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-panel); }
+.ctl { display: flex; align-items: center; gap: 8px; }
+.ctl > span { font-size: 12px; font-weight: 650; color: var(--text-3); }
+.seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--seg); }
+.seg button { border: 0; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 10px; padding: 7px 14px; background: var(--text); color: var(--panel); font-size: 13px; font-weight: 650; cursor: pointer; margin-left: auto; }
+.btn svg { width: 14px; height: 14px; }
+
+/* the options */
+.options { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; }
+.opt { display: grid; gap: 16px; align-content: start; padding: 20px; }
+.opt-head { display: grid; gap: 2px; }
+.opt-head h2 { font-size: 21px; letter-spacing: -.015em; display: flex; align-items: center; gap: 10px; }
+.opt-head h2 .tag { font-size: 11.5px; font-weight: 650; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; background: var(--panel-3); color: var(--text-2); }
+.opt-head h2 .tag.pick { background: var(--accent-soft); color: var(--accent-ink); }
+.opt-head p { color: var(--text-3); font-size: 14px; }
+.opt .phone { justify-self: center; }
+.homes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.home { display: grid; justify-items: center; gap: 6px; padding: 12px 4px 9px; border-radius: 12px; font-size: 11px; font-weight: 550; }
+.home svg { width: 46px; height: 46px; display: block; }
+.home span { line-height: 1; }
+.home-cap { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: -2px; }
+.home-cap span { text-align: center; font-size: 11px; color: var(--text-3); }
+.opt-note { color: var(--text-2); font-size: 14.5px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* the phone */
+.phone { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: min(236px, 100%); }
+.ph-wrap { --k: .5784; position: relative; width: 100%; aspect-ratio: 408 / 862; }
+.ph-device { position: absolute; inset: 0; border-radius: calc(54px * var(--k)); background: var(--device); box-shadow: var(--shadow-device), inset 0 0 0 1px var(--device-ring); }
+.ph-screen { position: absolute; left: calc(9px * var(--k)); top: calc(9px * var(--k)); width: 390px; height: 844px; transform: scale(var(--k)); transform-origin: 0 0; border-radius: 45px; overflow: hidden; background: #000; contain: layout paint; isolation: isolate; }
+.ph-screen > div, .ph-screen > img { position: absolute; }
+.ph-app, .ph-over, .ph-chrome { inset: 0; }
+.ph-app > *, .ph-over > *, .ph-chrome > * { position: absolute; }
+.ph-over div { position: absolute; }
+.ph-shot { display: block; }
+.ph-chrome { pointer-events: none; z-index: 5; }
+.ph-status { left: 0; right: 0; top: 0; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px 0 26px; font: 650 14px/1 var(--font); letter-spacing: -.01em; }
+.ph-status svg { width: 58px; height: 13px; fill: currentColor; }
+.ph-pill { left: 50%; bottom: 8px; width: 108px; height: 4px; margin-left: -54px; border-radius: 2px; }
+.ph-pill.ios { width: 134px; height: 5px; margin-left: -67px; border-radius: 3px; }
+.ph-cap { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-3); }
+.ph-phase { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.ph-phase i { width: 8px; height: 8px; border-radius: 2px; background: var(--phase-0); }
+.ph-phase[data-p="1"] i { background: var(--phase-1); }
+.ph-phase[data-p="2"] i { background: color-mix(in oklab, var(--text) 30%, var(--panel)); }
+.ph-scrub { flex: 1 1 0; width: 0; min-width: 0; accent-color: var(--accent); height: 18px; margin: 0; }
+.ph-play { flex: none; width: 30px; height: 30px; border: 0; border-radius: 8px; display: grid; place-items: center; background: var(--seg); color: var(--text); cursor: pointer; }
+.ph-play svg { width: 14px; height: 14px; }
+.sp, .sp-bg { position: absolute; inset: 0; }
+.ic { position: absolute; transform-origin: 0 0; }
+.ic > * { position: absolute; }
+.ic-bg, .ic-bark { inset: 0; }
+.ic-leaf, .ic-bars { inset: 0; width: 100%; height: 100%; overflow: visible; }
+.sp-name { left: 26px; right: 26px; bottom: 84px; text-align: center; font: 400 24px/1.24 var(--cond); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sp-ios { left: 0; right: 0; bottom: 56px; display: grid; justify-items: center; gap: 9px; }
+.wm { font: 800 28px/1 var(--font); letter-spacing: -.01em; white-space: nowrap; }
+.wm .sc { font-size: .72em; font-weight: 400; letter-spacing: .02em; }
+.wm .e { margin: 0 -.347em 0 -.022em; }
+.wm .u { margin-left: -.03em; }
+.wm .la { margin-left: -.055em; }
+.sp-ios small { font: 500 13px/1 var(--font); letter-spacing: -.08px; }
+
+.reco { display: grid; gap: 14px; }
+.reco > p { color: var(--text-2); max-width: 70ch; }
+.reco ul { margin: 0; padding-left: 20px; color: var(--text-2); display: grid; gap: 6px; max-width: 72ch; }
+.reco h2 { font-size: 24px; letter-spacing: -.015em; }
+.reco h3 { font-size: 17px; margin-top: 6px; }
+.foot { color: var(--text-3); font-size: 13px; }
+
+@media (max-width: 860px) { .why { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .panel { padding: 18px; } .btn { margin-left: 0; } }
+@media (max-width: 520px) {
+  .options { grid-template-columns: minmax(0, 1fr); }
+  .ctl > span { display: none; }
+  .ph-phase b { display: none; }
+}
+</style>
+
+<div class="page" lang="de">
+
+<header class="intro">
+  <div class="eyebrow">Betula · Konzept A · Icon und Schrift · 15. Oktober 2026</div>
+  <h1>Das Blatt, aber zeitgemäß</h1>
+  <p class="lede">Konzept A bleibt: Das Blatt fliegt an seinen Platz und wird zum Zeichen der Startseite. Neu sind das Icon, das Android auf dem Splash und im Launcher zeigt, und der Name darunter. Vier flache Varianten aus den Farben, die die Seite selbst benutzt, jede im Ablauf von A und auf dem Homescreen.</p>
+</header>
+
+<section class="panel why" aria-labelledby="why-title">
+  <h2 id="why-title">Was am Icon von heute stört</h2>
+  <div>
+    <span class="kicker">Der Verlauf</span>
+    <p>Hellgrün oben, Dunkelgrün unten, wie Glanz-Icons um 2012. Keine der beiden Farben kommt in der Seite vor.</p>
+    <div class="chips"><span class="chip grad"><i></i>#6dac78 → #2d6945</span></div>
+  </div>
+  <div>
+    <span class="kicker">Drei Kontraste</span>
+    <p>Schwarze Striche auf weißem Blatt auf grünem Grund. Drei Farben streiten auf 96 Pixeln, und das Schwarz ist härter als alles in der Seite.</p>
+    <div class="chips"><span class="chip"><i style="background:#10151f"></i>#10151f</span><span class="chip"><i style="background:#fff"></i>#ffffff</span><span class="chip"><i style="background:#4b8a5c"></i>Grün</span></div>
+  </div>
+  <div>
+    <span class="kicker">Die Schrift unten</span>
+    <p>Die zeichnet Chrome, nicht Betula: den vollen Namen aus dem Manifest, 24 sp, schmal, nach zwei Zeilen abgeschnitten. Gestalten lässt sie sich nicht, kürzen schon.</p>
+    <p class="splashname">Betula: Modulkatalog für die BTU Cottbus-Senftenberg (inoffiziell)</p>
+  </div>
+</section>
+
+<div class="controls" role="group" aria-label="Einstellungen der Vorschau">
+  <div class="ctl"><span>Erscheinung</span><div class="seg" data-set="look"><button type="button" data-v="light">Hell</button><button type="button" data-v="dark">Dunkel</button></div></div>
+  <div class="ctl"><span>System</span><div class="seg" data-set="system"><button type="button" data-v="android">Android</button><button type="button" data-v="ios">iOS</button></div></div>
+  <div class="ctl"><span>Name</span><div class="seg" data-set="name"><button type="button" data-v="long">heute</button><button type="button" data-v="mid">Betula · Modulkatalog</button><button type="button" data-v="short">Betula</button></div></div>
+  <div class="ctl"><span>Tempo</span><div class="seg" data-set="tempo"><button type="button" data-v="1">1×</button><button type="button" data-v="0.25">¼×</button></div></div>
+  <button class="btn" type="button" id="all"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>Alle abspielen</button>
+</div>
+
+<div class="options">
+  <section class="panel opt" data-icon="today" aria-labelledby="o-today">
+    <div class="opt-head"><h2 id="o-today">Heute <span class="tag">zum Vergleich</span></h2><p>Verlauf, Stiel, schwarze Striche.</p></div>
+    <figure class="phone" data-icon="today" data-name="long"></figure>
+    <div class="homes" data-icon="today"></div>
+    <p class="opt-note">So startet Betula jetzt, mit dem dunklen Splash von heute Morgen.</p>
+  </section>
+
+  <section class="panel opt" data-icon="ink" aria-labelledby="o-ink">
+    <div class="opt-head"><h2 id="o-ink">Tinte <span class="tag pick">Empfehlung</span></h2><p>Papierblatt auf Tinte, die Striche ausgeschnitten.</p></div>
+    <figure class="phone" data-icon="ink"></figure>
+    <div class="homes" data-icon="ink"></div>
+    <p class="opt-note">Schwarz und Weiß wie das Zeichen der Seite und die Rinde einer Birke. Im Dunkeln verschwindet die Scheibe im Hintergrund, nur das Blatt leuchtet. Keine Farbe, die sich mit der Krone der Jahreszeit beißt.</p>
+    <div class="swatches"><span class="chip"><i style="background:#10151f"></i>Tinte #10151f</span><span class="chip"><i style="background:#f4f5f7"></i>Papier #f4f5f7</span></div>
+  </section>
+
+  <section class="panel opt" data-icon="moss" aria-labelledby="o-moss">
+    <div class="opt-head"><h2 id="o-moss">Moos</h2><p>Das Grün der Knöpfe, flach, das Blatt weiß.</p></div>
+    <figure class="phone" data-icon="moss"></figure>
+    <div class="homes" data-icon="moss"></div>
+    <p class="opt-note">Bleibt grün, aber genau im Akzent der Seite, dem Grün von „Module durchsuchen“. Kein Schwarz mehr, die Striche sind Lücken im Blatt.</p>
+    <div class="swatches"><span class="chip"><i style="background:#4e7755"></i>Akzent #4e7755</span><span class="chip"><i style="background:#fff"></i>Weiß</span></div>
+  </section>
+
+  <section class="panel opt" data-icon="sage" aria-labelledby="o-sage">
+    <div class="opt-head"><h2 id="o-sage">Salbei</h2><p>Helles Grün, das Blatt im Akzent.</p></div>
+    <figure class="phone" data-icon="sage"></figure>
+    <div class="homes" data-icon="sage"></div>
+    <p class="opt-note">Leise und freundlich, wie viele Apps von heute. Auf dem hellen Splash fast weiß, im Dunkeln eine helle Scheibe.</p>
+    <div class="swatches"><span class="chip"><i style="background:#d9efdb"></i>Salbei #d9efdb</span><span class="chip"><i style="background:#3b6342"></i>Akzent dunkel #3b6342</span></div>
+  </section>
+
+  <section class="panel opt" data-icon="bark" aria-labelledby="o-bark">
+    <div class="opt-head"><h2 id="o-bark">Rinde</h2><p>Kein Blatt mehr: das Zeichen der Seite als Icon.</p></div>
+    <figure class="phone" data-icon="bark"></figure>
+    <div class="homes" data-icon="bark"></div>
+    <p class="opt-note">Ein Zeichen für alles: Seite, Tab und App. Am grafischsten. Dafür ist das Blatt weg, und in A fliegt nur noch das Zeichen an seinen Platz.</p>
+    <div class="swatches"><span class="chip"><i style="background:#fff"></i>Rinde #ffffff</span><span class="chip"><i style="background:#10151f"></i>Tinte #10151f</span></div>
+  </section>
+</div>
+
+<section class="panel reco" aria-labelledby="reco-title">
+  <span class="kicker">Empfehlung</span>
+  <h2 id="reco-title">Tinte, und als Name nur „Betula“</h2>
+  <p>Tinte nimmt die beiden Farben, die Betula ohnehin trägt: die Tinte der Schrift und das Papier der Flächen. Sie beißt sich mit nichts, auch nicht mit den Kronen der Jahreszeiten, und sie passt zum Zeichen, in das sich das Blatt in Konzept A verwandelt. Im Dunkelmodus verschwindet die Scheibe fast, das helle Blatt bleibt allein. Unter dem Icon steht dann nur noch „Betula“, kurz und in einer Zeile.</p>
+  <h3>Was dafür geändert würde</h3>
+  <ul>
+    <li>Das Icon der App: <code>design/logo/app-icon.mjs</code> zeichnet die neue Variante, <code>render-icons.mjs</code> macht daraus alle PNGs (Launcher, maskierbar, iOS, monochrom fürs Themen-Icon), und die Startbilder für iOS zeichnet der Server mit.</li>
+    <li>Der Name im Manifest: „Betula“ statt „Betula: Modulkatalog für die BTU Cottbus-Senftenberg (inoffiziell)“. Er steht auch im Installationsdialog und in den App-Infos. Die Beschreibung bleibt ausführlich.</li>
+    <li>Konzept A selbst: eine Ebene im Server-HTML, nur in der installierten App beim Kaltstart, ein Tipp überspringt sie, bei „Bewegung reduzieren“ nur ein kurzes Ausblenden.</li>
+    <li>Eine schon installierte App übernimmt ein neues Icon oder einen neuen Namen erst, wenn man es bestätigt: Chrome fragt beim nächsten Abgleich einmal nach.</li>
+  </ul>
+  <p class="foot">Vorschau: Splash wie Chrome ihn zeichnet (maskierbares Icon etwa 208 px, Name in 24 sp), Startbild wie es der Server für iOS malt, die Startseite eines lokalen Folia vom 15. Oktober 2026. Die Homescreens sind angedeutet, ein Launcher schneidet das Icon in seine eigene Form.</p>
+</section>
+
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const W = 390, H = 844, SB = 32, GB = 20, VH = H - SB - GB;
+  const HOLD = 900, REST = 1700;
+  const EASE = "cubic-bezier(.2,.7,.2,1)";
+
+  // The leaf of the app's icon (design/logo/app-icon.svg, a 96 grid), its four bars (each ends on
+  // the leaf's edge), and the mark of the site (a 32 grid, the bars running off its edges).
+  const LEAF = "M48 14.7C49.6 23.6 59.9 37 67.6 49.2C71.7 55.3 71.5 60.4 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C24.5 60.4 24.3 55.3 28.4 49.2C36.1 37 46.4 23.6 48 14.7Z";
+  const STEM = "M48 65.9Q48.8 72.6 45.5 78.2";
+  const BAR_PATHS = ["M48.9 31.3H40.12C39.15 32.85 38.13 34.42 37.08 36H48.9Z", "M50.4 40.2H61.7C62.75 41.77 63.8 43.34 64.82 44.9H50.4Z", "M38.8 49.1H28.46C28.44 49.13 28.42 49.17 28.4 49.2C27.32 50.81 26.53 52.35 26.04 53.8H38.8Z", "M42.7 58H70.57C70.42 59.9 69.59 61.5 68.13 62.7H42.7Z"];
+  const BARS = [[37.08, 31.3, 11.82, 4.7], [50.4, 40.2, 14.42, 4.7], [26.04, 49.1, 12.76, 4.7], [42.7, 58, 27.87, 4.7]];
+  const MARK_BARS = [[0, 7, 13, 3], [23, 12, 9, 3], [0, 17, 5, 3], [17, 22, 15, 3]];
+
+  // The icons. `tile` the ground, `leaf` the leaf (none: the mark), `cuts` the bars, painted in
+  // the ground's colour where they are gaps; `dy` moves a leaf without its stem to the middle.
+  const ICONS = {
+    today: { tile: "linear-gradient(#6dac78, #2d6945)", tileSvg: "url(#g-today)", leaf: "#ffffff", cuts: "#10151f", stem: true, dy: 0, themed: ["#dce8d9", "#2c4a32"] },
+    ink: { tile: "#10151f", leaf: "#f4f5f7", cuts: "#10151f", stem: false, dy: 6.5, themed: ["#dce8d9", "#2c4a32"] },
+    moss: { tile: "#4e7755", leaf: "#ffffff", cuts: "#4e7755", stem: false, dy: 6.5, themed: ["#dce8d9", "#2c4a32"] },
+    sage: { tile: "#d9efdb", leaf: "#3b6342", cuts: "#d9efdb", stem: false, dy: 6.5, themed: ["#dce8d9", "#2c4a32"] },
+    bark: { tile: "#ffffff", leaf: null, cuts: "#10151f", dy: 0, themed: ["#dce8d9", "#2c4a32"] },
+  };
+
+  const LOOKS = {
+    light: { bg: "#f1f2f4", ink: "#10151f", ink3: "#8790a0", bark: "#ffffff", barkInk: "#10151f", splashText: "#202124", pill: "rgba(16,21,31,.82)" },
+    dark: { bg: "#0a0c11", ink: "#eceff5", ink3: "#6a748a", bark: "#e9edf5", barkInk: "#0d1017", splashText: "#ffffff", pill: "rgba(236,239,245,.9)" },
+  };
+  const NAMES = {
+    long: "Betula: Modulkatalog für die BTU Cottbus-Senftenberg (inoffiziell)",
+    mid: "Betula · Modulkatalog",
+    short: "Betula",
+  };
+  const SHOT = (look) => `shots/home-${season()}-${look}.webp`;
+  function season() { const n = new Date().getMonth(); return n < 2 || n > 10 ? "winter" : n < 5 ? "spring" : n < 8 ? "summer" : "autumn"; }
+
+  const root = document.documentElement;
+  const settings = {
+    look: root.dataset.theme === "dark" || root.dataset.theme === "light" ? root.dataset.theme : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+    system: "android",
+    name: "short",
+    tempo: 1,
+  };
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const el = (tag, cls, parent) => { const e = document.createElement(tag); if (cls) e.className = cls; if (parent) parent.appendChild(e); return e; };
+  const place = (e, x, y, w, h) => { Object.assign(e.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px" }); return e; };
+  const svg = (viewBox, inner, cls) => { const s = document.createElementNS("http://www.w3.org/2000/svg", "svg"); s.setAttribute("viewBox", viewBox); if (cls) s.setAttribute("class", cls); s.innerHTML = inner; return s; };
+
+  // The drawing of an icon in its 96 grid: the leaf in `leafFill` with its bars in `cutFill` (the
+  // ground's colour where they are gaps), or the mark's bars in `cutFill`.
+  function glyph(icon, leafFill, cutFill) {
+    if (!icon.leaf) return MARK_BARS.map(([x, y, w, h]) => `<rect x="${x * 3}" y="${y * 3}" width="${w * 3}" height="${h * 3}" style="fill:${cutFill}"/>`).join("");
+    const stem = icon.stem ? `<path d="${STEM}" style="fill:none;stroke:${leafFill}" stroke-width="3.6" stroke-linecap="round"/>` : "";
+    return `<g transform="translate(0 ${icon.dy})">${stem}<path d="${LEAF}" style="fill:${leafFill}"/>${BAR_PATHS.map((d) => `<path d="${d}" style="fill:${cutFill}"/>`).join("")}</g>`;
+  }
+
+  // An icon on a home screen: cut by a launcher's circle, as iOS rounds it, or as Android's themed
+  // icons tint its shape in the colours of the wallpaper.
+  let gradients = 0;
+  function homeIcon(icon, cut) {
+    const id = "c" + ++gradients;
+    const shape = cut === "circle" ? `<circle cx="48" cy="48" r="48"/>` : `<rect width="96" height="96" rx="21.5"/>`;
+    if (cut === "themed") {
+      const [tile, ink] = icon.themed;
+      return `<svg viewBox="0 0 96 96" aria-hidden="true"><defs><clipPath id="${id}"><circle cx="48" cy="48" r="48"/></clipPath></defs><g clip-path="url(#${id})"><rect width="96" height="96" style="fill:${tile}"/>${glyph(icon, ink, icon.leaf ? tile : ink)}</g></svg>`;
+    }
+    const fill = icon.tileSvg ? `url(#${id}g)` : icon.tile;
+    const grad = icon.tileSvg ? `<linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#6dac78"/><stop offset="1" stop-color="#2d6945"/></linearGradient>` : "";
+    return `<svg viewBox="0 0 96 96" aria-hidden="true"><defs>${grad}<clipPath id="${id}">${shape}</clipPath></defs><g clip-path="url(#${id})"><rect width="96" height="96" style="fill:${fill}"/>${glyph(icon, icon.leaf || "none", icon.cuts)}</g></svg>`;
+  }
+  for (const homes of document.querySelectorAll(".homes")) {
+    const icon = ICONS[homes.dataset.icon];
+    const cells = [["#e3e7ec", "#10151f", "circle"], ["#171b23", "#eceff5", "circle"], ["#9fb1c3", "#ffffff", "square"], ["#e9eee6", "#10151f", "themed"]];
+    homes.innerHTML = cells.map(([wall, text, cut]) => `<div class="home" style="background:${wall};color:${text}">${homeIcon(icon, cut)}<span>Betula</span></div>`).join("") + `<div class="home-cap"><span>Android hell</span><span>Android dunkel</span><span>iPhone</span><span>Themen-Icon</span></div>`;
+  }
+
+  // ---------- the system's splash, then concept A ----------
+  function splash(ctx) {
+    const { over, M, android, icon } = ctx;
+    const s = el("div", "sp", over);
+    const sbg = el("div", "sp-bg", s);
+    sbg.style.background = M.bg;
+    const S = android ? 208 : 109;
+    const cx = W / 2, cy = android ? SB + VH / 2 - 12 : H / 2;
+    const ic = place(el("div", "ic", s), cx - S / 2, cy - S / 2, S, S);
+    const bg = el("div", "ic-bg", ic);
+    bg.style.background = icon.tile;
+    bg.style.borderRadius = android ? "50%" : "21.9%";
+    if (!android && ctx.manifestLook === "light") bg.style.boxShadow = "0 12px 24px -10px rgba(15,23,42,.36)";
+    let leaf = null;
+    if (icon.leaf) {
+      leaf = svg("0 0 96 96", `<g transform="translate(0 ${icon.dy})">${icon.stem ? `<path d="${STEM}" style="fill:none;stroke:${icon.leaf}" stroke-width="3.6" stroke-linecap="round"/>` : ""}<path d="${LEAF}" style="fill:${icon.leaf}"/></g>`, "ic-leaf");
+      ic.appendChild(leaf);
+    }
+    const bars = svg("0 0 96 96", icon.leaf ? `<g transform="translate(0 ${icon.dy})">${BAR_PATHS.map((d) => `<path d="${d}" style="fill:${icon.cuts}"/>`).join("")}</g>` : glyph(icon, "none", icon.cuts), "ic-bars");
+    ic.appendChild(bars);
+    let text;
+    if (android) {
+      text = el("div", "sp-name", s);
+      text.textContent = NAMES[ctx.name];
+      text.style.color = M.splashText;
+    } else {
+      text = el("div", "sp-ios", s);
+      const small = ctx.name !== "long";
+      const line = ctx.name === "short" ? "" : `<small style="color:${M.ink3};${small ? "font-size:12px" : ""}">${ctx.name === "mid" ? "Modulkatalog" : "Modulkatalog · inoffiziell"}</small>`;
+      text.innerHTML = `<span class="wm" style="color:${M.ink};${small ? "font-size:22px" : ""}">B<span class="sc e">E</span>T<span class="u">U</span><span class="sc la">LA</span></span>${line}`;
+    }
+    // Where the bars start, in the icon's own pixels.
+    const starts = icon.leaf ? BARS.map(([x, y, w, h]) => [(x * S) / 96, ((y + icon.dy) * S) / 96, (w * S) / 96, (h * S) / 96]) : MARK_BARS.map(([x, y, w, h]) => [(x * S) / 32, (y * S) / 32, (w * S) / 32, (h * S) / 32]);
+    const at = (x, y, size) => `translate(${x - size / 2 - (cx - S / 2)}px, ${y - size / 2 - (cy - S / 2)}px) scale(${size / S})`;
+    return { s, sbg, ic, bg, leaf, bars, text, S, cx, cy, starts, at };
+  }
+
+  // A · Austrieb: the icon flies to the mark of the start page and becomes it.
+  function austrieb(ctx) {
+    const p = splash(ctx), L = ctx.L, t0 = HOLD, icon = ctx.icon;
+    const M = 32, markX = 28 + M / 2, markY = SB + 98 + M / 2;
+    const bark = el("div", "ic-bark", p.ic);
+    p.ic.insertBefore(bark, p.leaf || p.bars);
+    Object.assign(bark.style, { background: L.bark, borderRadius: "21.9%", boxShadow: ctx.look === "light" ? `inset 0 0 0 ${(p.S / M) * 0.9}px rgba(15,23,42,.16)` : "none" });
+    ctx.add(bark, [{ opacity: 0 }, { opacity: 1 }], { delay: t0 + 140, duration: 380, easing: "ease-in-out" });
+    ctx.add(p.bg, [{ opacity: 1, borderRadius: ctx.android ? "50%" : "21.9%" }, { opacity: 1, borderRadius: "21.9%", offset: 0.45 }, { opacity: 0, borderRadius: "21.9%" }], { delay: t0, duration: 520, easing: "ease-in-out" });
+    if (p.leaf) ctx.add(p.leaf, [{ opacity: 1 }, { opacity: 0 }], { delay: t0 + 220, duration: 220, easing: "ease-in" });
+    ctx.add(p.text, [{ opacity: 1 }, { opacity: 0 }], { delay: t0, duration: 180, easing: "ease-out" });
+    ctx.add(p.bars, [{ opacity: 1 }, { opacity: 0 }], { delay: t0 + 200, duration: 1 });
+    MARK_BARS.forEach(([x, y, w, h], i) => {
+      const k = p.S / M, [sx, sy, sw, sh] = p.starts[i];
+      const b = place(el("div", "", p.ic), x * k, y * k, w * k, h * k);
+      b.style.transformOrigin = "0 0";
+      ctx.add(b, [{ opacity: 0 }, { opacity: 1 }], { delay: t0 + 200, duration: 1 });
+      ctx.add(b, [{ transform: `translate(${sx - x * k}px, ${sy - y * k}px) scale(${sw / (w * k)}, ${sh / (h * k)})`, backgroundColor: icon.cuts }, { transform: "none", backgroundColor: L.barkInk }], { delay: t0 + 200 + i * 20, duration: 400, easing: "cubic-bezier(.4,0,.2,1)" });
+    });
+    ctx.add(p.ic, [{ transform: p.at(p.cx, p.cy, p.S) }, { transform: p.at(124, 262, 96), offset: 0.5, easing: "cubic-bezier(.3,0,.2,1)" }, { transform: p.at(markX, markY, M) }], { delay: t0, duration: 640, easing: "cubic-bezier(.45,0,.55,1)" });
+    ctx.add(p.sbg, [{ opacity: 1 }, { opacity: 0 }], { delay: t0 + 200, duration: 460, easing: "ease-in-out" });
+    ctx.add(ctx.shot, [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { delay: t0 + 200, duration: 460, easing: EASE });
+    ctx.add(p.ic, [{ opacity: 1 }, { opacity: 0 }], { delay: t0 + 680, duration: 120 });
+    return { T: t0 + 800 + REST, marks: [t0, t0 + 800] };
+  }
+
+  // ---------- a phone ----------
+  const PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" fill="currentColor"/></svg>';
+  const PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5h3v11H4zM9 2.5h3v11H9z" fill="currentColor"/></svg>';
+  const STATUS = '<svg viewBox="0 0 58 13" aria-hidden="true"><rect x="0" y="8.5" width="3" height="4" rx=".8"/><rect x="4.5" y="6" width="3" height="6.5" rx=".8"/><rect x="9" y="3.5" width="3" height="9" rx=".8"/><rect x="13.5" y="1" width="3" height="11.5" rx=".8"/><path d="M28.5 12.6l-2.6-3.1a4 4 0 015.2 0zM24 7.5a7 7 0 019 0l-1.3 1.6a5 5 0 00-6.4 0zM21.6 4.6a10.6 10.6 0 0113.8 0l-1.3 1.6a8.5 8.5 0 00-11.2 0z"/><rect x="38.5" y="1.5" width="17" height="10" rx="2.6" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".55"/><rect x="40.3" y="3.3" width="11" height="6.4" rx="1.4"/><rect x="56.4" y="4.8" width="1.4" height="3.4" rx=".7" opacity=".55"/></svg>';
+
+  class Phone {
+    constructor(fig) {
+      this.fig = fig;
+      this.icon = ICONS[fig.dataset.icon];
+      this.fixedName = fig.dataset.name;
+      this.anims = [];
+      this.t = 0;
+      this.T = 1;
+      this.marks = [0, 0];
+      this.playing = false;
+      this.visible = false;
+      const wrap = el("div", "ph-wrap", fig);
+      el("div", "ph-device", wrap);
+      this.screen = el("div", "ph-screen", wrap);
+      const cap = el("figcaption", "ph-cap", fig);
+      this.phase = el("span", "ph-phase", cap);
+      this.phase.innerHTML = "<i></i><b></b>";
+      this.scrub = el("input", "ph-scrub", cap);
+      Object.assign(this.scrub, { type: "range", min: 0, step: 1, value: 0 });
+      this.scrub.setAttribute("aria-label", "Zeitpunkt der Animation");
+      this.button = el("button", "ph-play", cap);
+      this.button.type = "button";
+      this.scrub.addEventListener("input", () => { this.pause(); this.seek(+this.scrub.value); });
+      this.button.addEventListener("click", () => (this.playing ? this.pause() : this.play()));
+      const fit = () => wrap.style.setProperty("--k", (wrap.clientWidth / 408).toFixed(4));
+      new ResizeObserver(fit).observe(wrap);
+      fit();
+      this.showButton();
+    }
+
+    build() {
+      for (const a of this.anims) a.cancel();
+      this.anims = [];
+      this.screen.textContent = "";
+      const look = settings.look, L = LOOKS[look], M = L, android = settings.system === "android";
+      const app = el("div", "ph-app", this.screen);
+      place(el("div", "", app), 0, 0, W, SB).style.background = L.bg;
+      const shot = place(el("img", "ph-shot", app), 0, SB, W, VH);
+      shot.alt = "";
+      shot.src = SHOT(look);
+      place(el("div", "", app), 0, H - GB, W, GB).style.background = L.bg;
+      const over = el("div", "ph-over", this.screen);
+      const chrome = el("div", "ph-chrome", this.screen);
+      const status = el("div", "ph-status", chrome);
+      status.innerHTML = "<span>10:24</span>" + STATUS;
+      status.style.color = M.ink;
+      el("i", android ? "ph-pill" : "ph-pill ios", chrome).style.background = M.pill;
+      const ctx = {
+        over, shot, status, L, M, look, manifestLook: look, android, icon: this.icon, name: this.fixedName || settings.name,
+        add: (target, keyframes, options) => {
+          const a = target.animate(keyframes, { fill: "both", ...options });
+          a.pause();
+          this.anims.push(a);
+          return a;
+        },
+      };
+      const { T, marks } = austrieb(ctx);
+      this.T = T;
+      this.marks = marks;
+      this.scrub.max = T;
+      this.p = null;
+      this.seek(0);
+    }
+
+    seek(t) {
+      this.t = Math.max(0, Math.min(this.T, t));
+      for (const a of this.anims) a.currentTime = this.t;
+      this.scrub.value = this.t;
+      const p = this.t < this.marks[0] ? 0 : this.t < this.marks[1] ? 1 : 2;
+      if (p !== this.p) {
+        this.p = p;
+        this.phase.dataset.p = p;
+        this.phase.querySelector("b").textContent = ["System-Splash", "Betula übernimmt", "App"][p];
+      }
+    }
+
+    play() {
+      if (this.t >= this.T - 1) this.seek(0);
+      this.playing = true;
+      this.start = performance.now() - this.t / settings.tempo;
+      for (const a of this.anims) {
+        a.playbackRate = settings.tempo;
+        if (this.t < a.effect.getComputedTiming().endTime) a.play();
+      }
+      this.showButton();
+      cancelAnimationFrame(this.frame);
+      const tick = (now) => {
+        if (!this.playing) return;
+        const t = (now - this.start) * settings.tempo;
+        if (t >= this.T) {
+          this.pause();
+          this.seek(this.T);
+          if (!calm) this.again = setTimeout(() => { if (this.visible && !this.playing) { this.seek(0); this.play(); } }, 300);
+          return;
+        }
+        this.scrub.value = t;
+        this.t = t;
+        const p = t < this.marks[0] ? 0 : t < this.marks[1] ? 1 : 2;
+        if (p !== this.p) this.seek(t);
+        this.frame = requestAnimationFrame(tick);
+      };
+      this.frame = requestAnimationFrame(tick);
+    }
+
+    pause() {
+      if (!this.playing) return;
+      this.playing = false;
+      cancelAnimationFrame(this.frame);
+      clearTimeout(this.again);
+      this.t = Math.min(this.T, (performance.now() - this.start) * settings.tempo);
+      for (const a of this.anims) a.pause();
+      this.seek(this.t);
+      this.showButton();
+    }
+
+    showButton() {
+      this.button.innerHTML = this.playing ? PAUSE : PLAY;
+      this.button.setAttribute("aria-label", this.playing ? "Anhalten" : "Abspielen");
+    }
+  }
+
+  const phones = [...document.querySelectorAll("figure.phone")].map((fig) => new Phone(fig));
+  const rebuild = () => {
+    for (const phone of phones) {
+      const was = phone.playing;
+      phone.pause();
+      phone.build();
+      if (was || (phone.visible && !calm)) phone.play();
+    }
+  };
+  for (const group of document.querySelectorAll(".seg[data-set]")) {
+    const key = group.dataset.set;
+    const mark = () => group.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(String(settings[key]) === b.dataset.v)));
+    mark();
+    group.addEventListener("click", (e) => {
+      const button = e.target.closest("button");
+      if (!button) return;
+      settings[key] = key === "tempo" ? Number(button.dataset.v) : button.dataset.v;
+      mark();
+      if (key === "tempo") {
+        for (const phone of phones) if (phone.playing) { phone.pause(); phone.play(); }
+      } else rebuild();
+    });
+  }
+  document.getElementById("all").addEventListener("click", () => {
+    for (const phone of phones) { phone.pause(); phone.seek(0); phone.play(); }
+  });
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const phone = phones.find((p) => p.fig === entry.target);
+      phone.visible = entry.isIntersecting;
+      if (phone.visible && !phone.playing && !calm && phone.t < phone.T) phone.play();
+      if (!phone.visible && phone.playing) phone.pause();
+    }
+  }, { threshold: 0.45 });
+  for (const phone of phones) {
+    phone.build();
+    seen.observe(phone.fig);
+  }
+})();
+</script>

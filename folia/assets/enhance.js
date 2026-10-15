@@ -1182,12 +1182,20 @@
   // right away, a page being built was laid out ahead of time, in each of its frames (at the
   // start of the app, the whole page twice); nothing else that changes (rows coming and going, the
   // skeleton in the frame after a click) makes the page say where it is either.
+  // Not so the takeover: the app's page stands where the server's stood, as far down (boot.js), and
+  // its button shows as the server's did, at once (it went at the takeover, until the page was
+  // scrolled again).
   new MutationObserver(() => {
     const page = pageScroller(), button = document.getElementById("to-top");
     if (page === topPage && button === topButton) return;
+    const shown = starting() && Boolean(topButton?.hasAttribute("data-shown"));
     topPage = page;
     topButton = button;
-    if (button?.hasAttribute("data-shown") && !topFrame) button.removeAttribute("data-shown");
+    if (shown && button) {
+      button.style.transition = "none";
+      button.setAttribute("data-shown", "");
+      requestAnimationFrame(() => requestAnimationFrame(() => button.style.removeProperty("transition")));
+    } else if (button?.hasAttribute("data-shown") && !topFrame) button.removeAttribute("data-shown");
   }).observe(document.body, { childList: true, subtree: true });
   // A page that loads further down (a reload) or comes back from the browser's memory.
   addEventListener("load", showTopSoon);

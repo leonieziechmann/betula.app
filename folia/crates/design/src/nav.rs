@@ -93,7 +93,10 @@ pub fn scroll_list_by(rows_id: &str, by: f32) {
     }
 }
 
-/// The rendered rows of a virtual list (`[data-i]` children of `content_id`) with their heights.
+/// The rendered rows of a virtual list (`[data-i]` children of `content_id`) with their heights, to
+/// the fraction of a pixel the browser lays them out at: a row of two lines is 85.4 px high on a
+/// phone, and taken as 85 every one of them moved the rows below it up by 0.4 px, against the
+/// server's page they replace at the takeover (1.2 px by the eighth row).
 #[allow(unused_variables)]
 pub fn measure_rows(content_id: &str) -> Vec<(usize, f32)> {
     #[cfg(feature = "csr")]
@@ -103,7 +106,7 @@ pub fn measure_rows(content_id: &str) -> Vec<(usize, f32)> {
         let Ok(rows) = content.query_selector_all("[data-i]") else { return Vec::new() };
         (0..rows.length())
             .filter_map(|i| rows.item(i).and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok()))
-            .filter_map(|row| Some((row.get_attribute("data-i")?.parse().ok()?, row.offset_height() as f32)))
+            .filter_map(|row| Some((row.get_attribute("data-i")?.parse().ok()?, row.get_bounding_client_rect().height() as f32)))
             .collect()
     }
     #[cfg(not(feature = "csr"))]
@@ -332,6 +335,18 @@ pub fn is_phone() -> bool {
     #[cfg(feature = "csr")]
     {
         web_sys::window().and_then(|w| w.match_media("(max-width: 900px)").ok().flatten()).is_some_and(|query| query.matches())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// The server's page still stands in front of the app as a picture (`assets/boot.js`,
+/// `takePicture`): the app has just taken over, and nobody sees what it builds. `false` on the
+/// server.
+pub fn behind_picture() -> bool {
+    #[cfg(feature = "csr")]
+    {
+        web_sys::window().and_then(|w| w.document()).and_then(|d| d.query_selector("body.takeover-picture").ok().flatten()).is_some()
     }
     #[cfg(not(feature = "csr"))]
     false
