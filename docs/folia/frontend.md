@@ -425,8 +425,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   Studiengang" and reaches no other area; a saved plan and a shared one still carry their program,
   and loading or taking one over makes it the session's. Where an area has chosen none in the
   session its program is „Mein Studiengang", and without one there is none. „Mein Studiengang" is
-  set where it is meant: on a program's page („Als meinen Studiengang setzen"), in „Mein Studium",
-  on the start page, on the profile page. **Every program picker lists „Mein Studiengang" first**
+  set where it is meant: in „Mein Studium" (its first visit, „Studiengang wechseln") and on the
+  start page. **Every program picker lists „Mein Studiengang" first**
   („immer der erste Eintrag beim Dropdown"): under its own heading, above „Alle Studiengänge" where
   the picker has it, and in its place among the others as well (`combobox::with_first`; the
   catalog, the Stundenplan, „Studiengang wechseln").
