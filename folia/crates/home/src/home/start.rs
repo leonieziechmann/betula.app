@@ -49,7 +49,8 @@ fn next_step(done: [bool; 3]) -> Option<usize> {
 /// and the way in goes on. Once a program is kept, and without JavaScript, the way to all programs,
 /// „Alle Studiengänge" (owner, 2026-09-28). The server's link carries both words and the stylesheet
 /// shows the ones the app will show (`html.js`, and `html.mine` where the head script found a
-/// program), so they stay when the app takes over.
+/// program), so they stay when the app takes over; where a picker comes, with the picker's chevron
+/// and its room (without them the words moved by 10 px at the takeover on a phone).
 #[component]
 pub fn ProgramPick(
     /// The id of the button; the picker's popup derives the ids of its parts from it.
@@ -64,6 +65,7 @@ pub fn ProgramPick(
                 <Icon name="graduation-cap"/>
                 <span class="if-choose">{t.home.choose_program}</span>
                 <span class="if-all">{t.home.all_programs}</span>
+                <Icon name="chevrons-up-down" class="combo-chevron if-choose"/>
             </a>
         }
         .into_any();

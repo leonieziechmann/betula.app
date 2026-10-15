@@ -446,7 +446,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground-cap { display: none; }
 @media (min-width: 901px) {
   body { timeline-scope: --page; }
-  :root:has(#content > .work.flowing) body > .ground { display: none; }
+  /* Asked of each body's own page: the takeover's picture is a second body (boot.js), and the
+     app's first frame under it may not have its page yet. */
+  body:has(> .main > .content > .work.flowing) > .ground { display: none; }
   .work.flowing {
     display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
     --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
@@ -542,7 +544,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      and the gap above it. */
   @keyframes wood-rise { to { transform: translateY(-208px); } }
   @supports (animation-timeline: scroll()) and (timeline-scope: --page) {
-    :root:has(#content > .work.flowing) .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
+    body:has(> .main > .content > .work.flowing) > .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
   }
   /* „Nach oben" stays above the ground once the page stands still (enhance.js). */
   .to-top { translate: 0 calc(-1 * var(--lift, 0px)); }
@@ -1369,8 +1371,9 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
    program with the way to „Mein Studium", and the program after it or before it with its plan.
    The server writes an empty .mine-room in its place, which keeps its room from the first paint in
    a browser that keeps a program (html.mine, set by the head script), so nothing moves at the
-   takeover. */
-.mine-room { display: none; }
+   takeover. Elsewhere it is no box at all: as .mine-strip's grid (the rule below) the empty box
+   still took the gap of the page's grid, and the faculties moved up by 8 px at the takeover. */
+.mine-strip.mine-room { display: none; }
 html.mine .mine-strip.mine-room { display: block; visibility: hidden; min-height: 72px; }
 .mine-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 0; overflow: hidden; }
 .ms-col { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 72px; padding: 12px 16px; color: var(--text); text-decoration: none; }
@@ -1520,6 +1523,10 @@ a.ms-col:hover { background: var(--row-hover); text-decoration: none; }
 .program-pick .if-choose { display: none; }
 html.js:not(.mine) .program-pick .if-choose { display: inline; }
 html.js:not(.mine) .program-pick .if-all { display: none; }
+/* There, with the picker's chevron at its end and the picker's room, so that nothing moves when
+   the app puts the picker in its place. */
+.intro-actions .program-pick .combo-chevron, .start-btn.program-pick .combo-chevron { width: 16px; height: 16px; color: var(--text-3); }
+html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .intro-actions .pick-combo .combo-trigger { width: auto; min-height: 46px; gap: 8px; padding: 0 14px 0 18px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 14.5px; font-weight: 620; }
 .intro-actions .pick-combo .combo-trigger:hover { background: var(--panel-2); }
 .intro-actions .pick-combo .combo-trigger > .icon:first-child { width: 17px; height: 17px; color: var(--text); }
@@ -1636,7 +1643,7 @@ html.js:not(.mine) .program-pick .if-all { display: none; }
   .wood { display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
   /* Under the wood, as it goes up with the ground, its front colour goes on down to the window's
      edge: a shadow only draws outside the box. */
-  :root:has(#content > .work.flowing) .wood { box-shadow: 0 208px 0 var(--wood-front); }
+  body:has(> .main > .content > .work.flowing) > .wood { box-shadow: 0 208px 0 var(--wood-front); }
   .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; }
   .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
   :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
@@ -3025,8 +3032,11 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
    put its own): grey bars where the text will be. A band of light sweeps over it once the wait is
    long enough to be noticed; the compositor moves it, so it keeps moving while the page is built. */
 /* The server's page in front of the app while the app's first answers are on their way (boot.js,
-   `takePicture`): the body's layout (written in by the script), above everything, taking no clicks. */
-.takeover-picture { position: absolute; left: 0; right: 0; z-index: 2147483000; min-height: 100vh; background: var(--bg); color: var(--text); font: 450 14px/1.45 var(--font); letter-spacing: -.006em; -webkit-font-smoothing: antialiased; pointer-events: none; overflow: hidden; }
+   `takePicture`): a copy of the body after it, which the rules of `body` above lay out as they laid
+   out the page, on every screen. It lies where the body lies, above everything, and takes no
+   clicks. No overflow of its own: what is sticky in it sticks to the window as it did (a box that
+   clips would be what it sticks to). Its background is its own: the body's is the window's. */
+.takeover-picture { position: absolute; top: 0; left: 0; right: 0; z-index: 2147483000; pointer-events: none; }
 /* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the
    page will be; without JavaScript the <noscript> beside it says what the view needs instead. */
 .app-standin { display: contents; }
