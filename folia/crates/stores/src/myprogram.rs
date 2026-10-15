@@ -8,12 +8,13 @@
 //! store is where every page reads it (the Studienplan's Fachsemester and import, the finder,
 //! the Standort); the program's slug stands only in a catalog address that is filtered by it.
 //!
-//! Where the app offers it (A.10): set in „Mein Studium" and on the start page, and in the
-//! Studienplan's picker and import (on the program's page until 2026-10-15); the catalog's tab
-//! leads to the program's catalog on its first entry of a session (`MineResolved::catalog_href`,
-//! `tabs::Tabs::href_with_root`); the catalog's program picker lists it first; the program
-//! overview names it; links to its page show the stored Studienrichtung (`program_href`). All of
-//! it only while the stored program is in the snapshot (`MyProgramInfo::exact`).
+//! Where the app offers it (A.10): set in „Mein Studium" and on the start page (on the program's
+//! page, and with a pick or an import in the Stundenplan where none was set, until 2026-10-15: what
+//! an area picks is the area's, for the session); the catalog's tab leads to the program's catalog
+//! on its first entry of a session (`MineResolved::catalog_href`, `tabs::Tabs::href_with_root`);
+//! every program picker lists it first (`combobox::with_first`); the program overview names it;
+//! links to its page show the stored Studienrichtung (`program_href`). All of it only while the
+//! stored program is in the snapshot (`MyProgramInfo::exact`).
 
 use folia_calendar::select::TownChoice;
 use folia_calendar::semester::SemesterKey;

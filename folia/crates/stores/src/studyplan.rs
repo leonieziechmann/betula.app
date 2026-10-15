@@ -15,6 +15,13 @@
 //! control that was clicked flips its own state first, so the click answers in the next frame
 //! (R21) whatever the work then costs.
 //!
+//! The program the Stundenplan is planned for (`PlanDoc::program`, picked in its sidebar) is the
+//! Stundenplan's alone and kept for the session alone (owner, 2026-10-15: „nur pro Tab
+//! (Katalog/Studiengang/Timetable) und Session gespeichert. Ansonsten wird der Mein Studiengang
+//! genommen und wenn da keiner hinterlegt ist, dann halt keiner"): in this tab's `sessionStorage`
+//! (`betula.studyplan.program`, each profile its own), never in the plan's text. A new session
+//! plans for „Mein Studiengang" again; the `g` line an older build wrote is read past.
+//!
 //! „Einplanen" (`PlanButton`) plans a module from its preview and its page: into the semester
 //! `target_semester` aims at, and for the placeholder the finder was asked for (`PlanHint`). A row
 //! of the catalog swiped to the right on a phone presses it too (`folia_widgets::swipe`, `press`).
@@ -26,7 +33,7 @@ use folia_calendar::semester::{fachsemester, SemesterKey};
 use folia_model::labels::{Code, TurnusSeason};
 use folia_model::rows_detail::DateRow;
 use folia_plans::studyplan::{PlanDoc, SavedPlans};
-use folia_routes::url::ModuleHint;
+use folia_routes::url::{self, ModuleHint};
 use folia_pages::ask::PlanRowsAsk;
 use leptos::prelude::*;
 
@@ -39,6 +46,10 @@ use folia_design::ui::{Icon, Shortcut};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
+
+/// The first profile's key of the Stundenplan's program in this tab's session (`sessionStorage`,
+/// its id); another profile's has its number in it (`profiles::SESSION_KEYS`).
+pub(crate) const PROGRAM_KEY: &str = "betula.studyplan.program";
 
 /// The browser app (`csr`): only there is a plan, and only there does a hint aim the button.
 const APP: bool = cfg!(feature = "csr");
@@ -86,11 +97,15 @@ impl Studyplan {
     }
 
     /// Changes the plan and stores it. What depends on the plan hears of it only when something
-    /// changed; an empty plan takes the key out of the storage (`nav::local_set`).
+    /// changed; an empty plan takes the key out of the storage (`nav::local_set`). Its program
+    /// goes to the session's storage, not with the plan.
     pub fn update<R>(self, f: impl FnOnce(&mut PlanDoc) -> R) -> R {
         let mut doc = self.0.try_with_untracked(Clone::clone).unwrap_or_default();
         let result = f(&mut doc);
         if self.0.try_with_untracked(|now| *now != doc).unwrap_or(false) {
+            if self.0.try_with_untracked(|now| now.program != doc.program).unwrap_or(false) {
+                self.1.session_write(PROGRAM_KEY, doc.program.as_deref().unwrap_or_default());
+            }
             self.1.write(&stored_text(&doc));
             self.0.set(doc);
         }
@@ -186,16 +201,18 @@ fn load_saved(kept: Kept) -> SavedPlans {
     kept.read().as_deref().map(SavedPlans::restored).unwrap_or_default()
 }
 
-/// What this browser has stored. Nothing on the server, and nothing in a browser that refuses
-/// storage (a plan then lasts as long as the page).
+/// What this browser has stored, with the program this tab picked in the session. Nothing on the
+/// server, and nothing in a browser that refuses storage (a plan then lasts as long as the page).
 fn load(kept: Kept) -> PlanDoc {
-    restored(kept.read().as_deref())
+    restored(kept.read().as_deref(), kept.session_read(PROGRAM_KEY).as_deref())
 }
 
-/// The plan of a stored text, read like anything from outside: garbage is dropped line by line,
-/// never an error, and no text reads as more than the caps allow.
-fn restored(stored: Option<&str>) -> PlanDoc {
-    stored.map(PlanDoc::restored).unwrap_or_default()
+/// The plan of a stored text and the program of the session, read like anything from outside:
+/// garbage is dropped line by line, never an error, and no text reads as more than the caps allow.
+/// A program the text names (`g`, an older build's) is not the session's: it is left out.
+fn restored(stored: Option<&str>, program: Option<&str>) -> PlanDoc {
+    let program = program.map(str::trim).filter(|id| url::is_program_id(id)).map(str::to_string);
+    PlanDoc { program, ..stored.map(PlanDoc::restored).unwrap_or_default() }
 }
 
 /// How many modules a plan holds, each once however many semesters it is planned into (a retake):
@@ -204,11 +221,12 @@ fn planned_modules(doc: &PlanDoc) -> usize {
     doc.modules.iter().map(|planned| planned.module_id.as_str()).collect::<BTreeSet<_>>().len()
 }
 
-/// The text a plan is stored as. Empty only when there is nothing at all to keep, and then the key
-/// goes (`nav::local_set`): a plan without modules may still hold hidden Termine, a subscription's
-/// code or a newer build's lines, which must survive (`PlanDoc::is_empty` is not the test).
+/// The text a plan is stored as: all but its program, which is the session's. Empty only when
+/// there is nothing at all to keep, and then the key goes (`nav::local_set`): a plan without
+/// modules may still hold hidden Termine, a subscription's code or a newer build's lines, which
+/// must survive (`PlanDoc::is_empty` is not the test).
 fn stored_text(doc: &PlanDoc) -> String {
-    doc.stored()
+    doc.stored_without_program()
 }
 
 /// What a page asks „Einplanen" to plan into: the semester that „Passt in meinen Stundenplan" in
@@ -666,13 +684,30 @@ mod tests {
     #[test]
     fn what_is_stored_is_read_like_anything_from_outside() {
         // Nothing stored, or garbage: an empty plan, never an error.
-        assert!(restored(None).is_empty());
-        let garbage = restored(Some("<script>alert(1)</script>\nm\t2026X\t12104\t0\t\nm\t2026W\t../../etc\t0\t\n\u{0}\u{7f}\n"));
-        assert!(garbage.is_empty() && garbage.modules.is_empty() && garbage.placeholders.is_empty());
+        assert!(restored(None, None).is_empty());
+        let garbage = restored(Some("<script>alert(1)</script>\nm\t2026X\t12104\t0\t\nm\t2026W\t../../etc\t0\t\n\u{0}\u{7f}\n"), Some("../../etc"));
+        assert!(garbage.is_empty() && garbage.modules.is_empty() && garbage.placeholders.is_empty() && garbage.program.is_none());
         // A good line among bad ones survives alone.
-        let mixed = restored(Some("m\t2026W\t12104\t1790000000\t\nm\tWiSe\t12107\t0\t\ne\t2026W\t0\n"));
+        let mixed = restored(Some("m\t2026W\t12104\t1790000000\t\nm\tWiSe\t12107\t0\t\ne\t2026W\t0\n"), None);
         assert_eq!(mixed.modules_in(key("2026W")), vec!["12104".to_string()]);
         assert!(!mixed.is_empty());
+    }
+
+    /// The Stundenplan's program is the session's (owner, 2026-10-15): what an older build kept in
+    /// the plan's text (`g`) is read past, the program of the session taken, and the text keeps
+    /// none.
+    #[test]
+    fn the_program_of_the_stundenplan_is_the_sessions_alone() {
+        let text = "g\t079-82-2008\nm\t2026W\t12104\t1\t\n";
+        // A new session: „Mein Studiengang" (none of its own), whatever the text named.
+        assert_eq!(restored(Some(text), None).program, None);
+        let picked = restored(Some(text), Some("048-82-2022"));
+        assert_eq!((picked.program.as_deref(), picked.modules_in(key("2026W"))), (Some("048-82-2022"), vec!["12104".to_string()]));
+        // The text written back keeps the plan, not the program.
+        assert_eq!(stored_text(&picked), "m\t2026W\t12104\t1\t\n");
+        assert_eq!(restored(Some(&stored_text(&picked)), Some("048-82-2022")), picked);
+        // A program alone is nothing to keep in the plan's text: the key goes.
+        assert_eq!(stored_text(&PlanDoc { program: Some("048-82-2022".into()), ..PlanDoc::default() }), "");
     }
 
     #[test]
@@ -682,7 +717,7 @@ mod tests {
         let mut doc = PlanDoc::default();
         assert!(doc.plan(key("2026W"), "12104", 1, None));
         doc.set_event(key("2026W"), 149408, true);
-        assert!(stored_text(&doc).contains("m\t2026W\t12104") && restored(Some(&stored_text(&doc))) == doc);
+        assert!(stored_text(&doc).contains("m\t2026W\t12104") && restored(Some(&stored_text(&doc)), None) == doc);
         // The last module goes; what the semester hides stays, so the key stays too.
         doc.unplan(key("2026W"), "12104", &[]);
         assert!(doc.is_empty() && !stored_text(&doc).is_empty());

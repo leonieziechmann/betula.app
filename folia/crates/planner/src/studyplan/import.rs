@@ -8,9 +8,10 @@
 //! timetable already: the two pages share one plan.
 //!
 //! „Übernehmen" answers at once and writes after the next frame (R21): the modules and
-//! placeholders, the program with them, and „Mein Studiengang" where none is set yet. „Übernommen:
-//! 4 Module, 1 Platzhalter · Rückgängig" stands under it until the next change of the kind
-//! (`PlanCtx::undo`, which „Plan leeren" shares).
+//! placeholders, and the program with them as the timetable's of this session (it sets no „Mein
+//! Studiengang", owner 2026-10-15: what is picked in a tab stays the tab's). „Übernommen: 4 Module,
+//! 1 Platzhalter · Rückgängig" stands under it until the next change of the kind (`PlanCtx::undo`,
+//! which „Plan leeren" shares).
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::Season;
@@ -24,7 +25,6 @@ use leptos_router::NavigateOptions;
 
 use folia_design::format;
 use crate::i18n;
-use folia_stores::myprogram::program_name;
 use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
@@ -277,7 +277,7 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
         let Some((program, core, page)) = taken else { return };
         busy.set(true);
         let semester = ctx.key.get_untracked();
-        let (plan, mine, undo, going) = (ctx.plan, ctx.mine, ctx.undo, Pending::expect());
+        let (plan, undo, going) = (ctx.plan, ctx.undo, Pending::expect());
         let away = ctx.url.with_untracked(|url| url.import.is_some().then(|| url.without_import().path()));
         nav::after_paint(move || {
             if let Some(plan) = plan {
@@ -291,10 +291,6 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                 let _ = undo.try_set(Some(note));
             }
             let _ = imported.try_set(Some(form.fs));
-            // The first program taken is „Mein Studiengang" too, as a pick of it would be.
-            if let Some(mine) = mine.filter(|mine| untrack(|| mine.with(|doc| doc.program.is_none()))) {
-                mine.set_program(&program.id, &program_name(&program), &core.full, page.as_ref().map(|(page, _)| page.full.as_str()));
-            }
             if let (Some(going), Some(away)) = (going, away) {
                 going.go(&away, NavigateOptions { replace: true, ..Default::default() });
             }

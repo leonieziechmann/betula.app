@@ -373,11 +373,12 @@ pub fn session_get(key: &str) -> Option<String> {
     None
 }
 
+/// An empty value takes the key out, as `local_set`'s does.
 #[allow(unused_variables)]
 pub fn session_set(key: &str, value: &str) {
     #[cfg(all(feature = "csr", target_arch = "wasm32"))]
     if let Some(storage) = web_sys::window().and_then(|w| w.session_storage().ok().flatten()) {
-        let _ = storage.set_item(key, value);
+        let _ = if value.is_empty() { storage.remove_item(key) } else { storage.set_item(key, value) };
     }
 }
 

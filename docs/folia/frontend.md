@@ -412,6 +412,24 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   dem studium tab swiped, funktioniert der button in der nav bar auch erst, wenn die seite sich
   nicht mehr bewegt. Das muss auch unbedingt gelöst werden. Wenn man den anklickt muss es sofort
   wieder an die standard position gehen"; „Mein Studium" below).
+- **The program an area has chosen is that area's, and only for the session** (owner, 2026-10-15:
+  „dass sich das nur pro Tab (i.e. Katalog/Studiengang/Timetable) und Session gespeichert werden
+  soll. Ansonsten wird der Mein Studiengang genommen und wenn da keiner hinterlegt ist, dann halt
+  keiner"). The catalog's is its filter (`program=`), in its address, which the tabs' memory keeps
+  for the session; its first entry of a session is the catalog of „Mein Studiengang". „Studium"
+  opens on „Mein Studium", the study of „Mein Studiengang", and returns to the program's page it
+  was left at. The Stundenplan's („Studiengang" in its sidebar, `PlanDoc::program`) is kept in the
+  tab's `sessionStorage` (`betula.studyplan.program`, each profile its own;
+  `folia_stores::studyplan`), never in the plan's text, where a build before wrote it as `g` (read
+  past since): a pick or a Fachsemester taken over there is the Stundenplan's alone, sets no „Mein
+  Studiengang" and reaches no other area; a saved plan and a shared one still carry their program,
+  and loading or taking one over makes it the session's. Where an area has chosen none in the
+  session its program is „Mein Studiengang", and without one there is none. „Mein Studiengang" is
+  set where it is meant: in „Mein Studium" (its first visit, „Studiengang wechseln") and on the
+  start page. **Every program picker lists „Mein Studiengang" first**
+  („immer der erste Eintrag beim Dropdown"): under its own heading, above „Alle Studiengänge" where
+  the picker has it, and in its place among the others as well (`combobox::with_first`; the
+  catalog, the Stundenplan, „Studiengang wechseln").
 - **A row of the catalog and of the Merkliste is swiped to mark and to plan its module** (owner,
   2026-09-30: „Nach links wischen merken nach rechts wischen planen. Mach das so, dass dann darunter
   freigelegt wird was die Aktion macht (also Icon und Text)", and the same day for the Merkliste:
@@ -2336,7 +2354,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
 - **What a profile holds** (`profiles::KEYS`): the Merkliste, the Stundenplan with „Mein Studium“
   (one text, `PlanDoc`), the saved plans and „Mein Studiengang“. **What every profile shares** is
   the browser's (R13): the language, light or dark, the widths of the panels, what the finder
-  compares, the tabs' memory of the session.
+  compares, the tabs' memory of the session. The Stundenplan's program of the session is a
+  profile's own (`profiles::SESSION_KEYS`, in `sessionStorage` under the profile's key), no part
+  of its file, and goes when the profile is emptied or deleted.
 - **Keys.** The first profile keeps the plain keys (`betula.bookmarks.v1` …), the ones a browser
   had before there were profiles: nothing moves when profiles come, and a build without them (a
   rollback, an old tab of the installed app) shows the first profile as it is. Another profile

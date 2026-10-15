@@ -22,6 +22,8 @@ pub struct Texts {
     pub direction: &'static str,
     pub choose_program: &'static str,
     pub search_program: &'static str,
+    /// The heading of „Mein Studiengang" at the head of the program pickers.
+    pub my_program: &'static str,
     /// A program of one plan: what its study direction's field says.
     pub no_direction: &'static str,
     /// „WiSe 2025/26 · jetzt 3. FS": a Studienbeginn and the Fachsemester it makes the current one.
@@ -358,6 +360,7 @@ pub const DE: Texts = Texts {
     direction: "Studienrichtung",
     choose_program: "Studiengang wählen",
     search_program: "Studiengang suchen",
+    my_program: "Mein Studiengang",
     no_direction: "Keine zur Wahl in diesem Studiengang",
     start_entry: |semester, fs| format!("{semester} · jetzt {fs}. FS"),
     past_legend: "Deine bisherigen Semester",
@@ -608,6 +611,7 @@ pub const EN: Texts = Texts {
     direction: "Specialisation",
     choose_program: "Choose degree programme",
     search_program: "Search degree programmes",
+    my_program: "My programme",
     no_direction: "None to choose in this programme",
     start_entry: |semester, fs| format!("{semester} · now semester {fs}"),
     past_legend: "Your semesters so far",

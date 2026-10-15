@@ -38,6 +38,28 @@ fn grouped<'a>(ranked: &[usize], group: impl Fn(usize) -> &'a str) -> Vec<usize>
     groups.into_iter().flat_map(|(_, members)| members).collect()
 }
 
+/// The rows of the popup for what is typed, best match first; `None` is the entry that clears the
+/// selection. While nothing is typed it stands first, after the entries that stand above it
+/// (`ComboItem::first`, at the head of the items).
+fn rows_of(items: &[ComboItem], text: &str, clearable: bool) -> Vec<Option<usize>> {
+    let ranked = fuzzy::rank(text, items.iter().map(|item| (item.search.as_str(), item.bonus)));
+    let mut rows: Vec<Option<usize>> = grouped(&ranked, |index| items.get(index).map(|item| item.group.as_str()).unwrap_or_default()).into_iter().map(Some).collect();
+    if clearable && text.trim().is_empty() {
+        let at = rows.iter().take_while(|row| row.and_then(|index| items.get(index)).is_some_and(|item| item.first)).count();
+        rows.insert(at, None);
+    }
+    rows
+}
+
+/// The items with the one of `id` once more at their head, under `heading` and above the entry
+/// that clears the selection (`ComboItem::first`): „Mein Studiengang" in a picker of programs (owner,
+/// 2026-10-15: „immer der erste Eintrag beim Dropdown"), which stays in its place among the others
+/// as well. Without `id`, or with an id none of them has, the items as they are.
+pub fn with_first(items: &[ComboItem], id: Option<&str>, heading: &str) -> Vec<ComboItem> {
+    let first = id.and_then(|id| items.iter().find(|item| item.id == id)).map(|item| ComboItem { first: true, ..item.clone().in_group(heading) });
+    first.into_iter().chain(items.iter().cloned()).collect()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComboItem {
     pub id: String,
@@ -48,13 +70,15 @@ pub struct ComboItem {
     pub bonus: i64,
     /// A heading the entry stands under; entries of one group follow each other. Empty: none.
     pub group: String,
+    /// Stands above the entry that clears the selection while nothing is typed (`with_first`).
+    pub first: bool,
     search: String,
 }
 
 impl ComboItem {
     pub fn new(id: impl Into<String>, label: impl Into<String>, detail: impl Into<String>, bonus: i64) -> Self {
         let (label, detail) = (label.into(), detail.into());
-        Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus, group: String::new() }
+        Self { id: id.into(), search: format!("{label} {detail}"), label, detail, bonus, group: String::new(), first: false }
     }
 
     /// The heading the entry stands under.
@@ -124,15 +148,7 @@ pub fn Combobox(
             return Vec::new();
         }
         let text = text.get();
-        items.with(|items| {
-            let mut rows: Vec<Option<usize>> = Vec::new();
-            if clearable && text.trim().is_empty() {
-                rows.push(None);
-            }
-            let ranked = fuzzy::rank(&text, items.iter().map(|item| (item.search.as_str(), item.bonus)));
-            rows.extend(grouped(&ranked, |index| items.get(index).map(|item| item.group.as_str()).unwrap_or_default()).into_iter().map(Some));
-            rows
-        })
+        items.with(|items| rows_of(items, &text, clearable))
     });
     let shown = move || rows.with(|rows| rows.len().min(MAX_SHOWN));
 
@@ -311,8 +327,10 @@ pub fn Combobox(
                             _ => false,
                         };
                         // The entries without a group after a group's entries: a line, so that they
-                        // do not read as the group's.
-                        let heading = item.as_ref().map(|item| item.group.clone()).filter(|group| *group != last_group).map(|group| {
+                        // do not read as the group's. So is the entry that clears the selection
+                        // after the entries that stand above it.
+                        let group = item.as_ref().map_or_else(String::new, |item| item.group.clone());
+                        let heading = (group != last_group).then_some(group).map(|group| {
                             last_group.clone_from(&group);
                             if group.is_empty() {
                                 view! { <li class="combo-group combo-rule" role="presentation"></li> }.into_any()
@@ -414,7 +432,7 @@ pub fn Combobox(
 mod tests {
     use leptos::prelude::*;
 
-    use super::{grouped, is_open};
+    use super::{grouped, is_open, rows_of, with_first, ComboItem};
 
     #[test]
     fn a_combobox_that_is_gone_is_closed() {
@@ -440,5 +458,22 @@ mod tests {
         assert_eq!(grouped(&[0, 2, 1, 3, 4], group), vec![0, 2, 1, 3, 4]);
         // … and without groups the ranking stays as it is.
         assert_eq!(grouped(&[2, 0], |_| ""), vec![2, 0]);
+    }
+
+    #[test]
+    fn the_first_entry_stands_above_nothing_selected() {
+        let programs = vec![ComboItem::new("bwl", "BWL", "B.Sc. · PO 2021", 1), ComboItem::new("inf", "Informatik", "B.Sc. · PO 2008", 1)];
+        let items = with_first(&programs, Some("inf"), "Mein Studiengang");
+        assert_eq!(items.iter().map(|item| (item.id.as_str(), item.group.as_str(), item.first)).collect::<Vec<_>>(), [("inf", "Mein Studiengang", true), ("bwl", "", false), ("inf", "", false)]);
+        // Nothing typed: „Mein Studiengang", then „Alle Studiengänge", then all of them in their order.
+        assert_eq!(rows_of(&items, "", true), [Some(0), None, Some(1), Some(2)]);
+        assert_eq!(rows_of(&items, " ", false), [Some(0), Some(1), Some(2)]);
+        // Typed: what fits best, „Mein Studiengang" by its heading when it is among it.
+        assert_eq!(rows_of(&items, "bwl", true), [Some(1)]);
+        assert_eq!(rows_of(&items, "inf", true), [Some(0), Some(2)]);
+        // None set, or one the picker does not know: the items as they were, nothing selected first.
+        assert_eq!(with_first(&programs, None, "Mein Studiengang"), programs);
+        assert_eq!(with_first(&programs, Some("weg"), "Mein Studiengang"), programs);
+        assert_eq!(rows_of(&programs, "", true), [None, Some(0), Some(1)]);
     }
 }
