@@ -245,7 +245,11 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   const phoneOrder = await order(page, ".module-page");
   check(phoneOrder[0] === "Termine" && phoneOrder.indexOf("Auf einen Blick") < phoneOrder.indexOf("Inhalte") , `phone: the page does not start with the times and facts: ${phoneOrder}`);
   check(await page.evaluate(() => { const side = document.getElementById("sidebar").getBoundingClientRect(); const article = document.querySelector(".module-page").getBoundingClientRect(); return side.top >= article.bottom - 1 && getComputedStyle(document.querySelector(".toc")).display === "none"; }), "phone: the sidebar is not a block of actions under the module");
-  await step("phone: back returns to the list with the sheet", () => page.click('[data-action="back"]'), (id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2"), id);
+  // „Zurück" is the box at the head, left of the search (owner, 2026-10-15: „mach den
+  // zurückbutton mal überall nach oben neben die suche"); the page's own link steps aside and the
+  // way to the profile page gives way.
+  check(await page.evaluate(() => Boolean(document.querySelector(".topbar .top-back.on")) && !document.querySelector('.module-page [data-action="back"]')?.offsetHeight && document.querySelector(".topbar .top-profile").inert), "phone: the module's page has no „Zurück\" at the head");
+  await step("phone: back returns to the list with the sheet", () => page.tap(".top-back.on"), (id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2") && !document.querySelector(".top-back.on"), id);
   await page.waitForTimeout(500);
   await step("phone: the sheet closed", () => page.tap('.detail.is-module [data-action="close-detail"]'), () => !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector(".rows a.row"));
   await page.waitForTimeout(500);

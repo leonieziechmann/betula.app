@@ -490,9 +490,12 @@ const LINE = ".fx-desk a.prog-line";
   await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
   await page.evaluate(() => document.querySelector('table.areas tr.group a[data-walk="area"]')?.click());
   await page.waitForFunction(() => location.search.includes("area=") && document.querySelector("#preview .linklist .pre") && !document.querySelector("table.areas"), null, { timeout: 8000 }).catch(() => problems.push("phone: an area did not become the page"));
-  // The area has its own way back, to the program: the one at the head goes, and the way to the
-  // profile page comes back.
-  await page.waitForFunction(() => !document.querySelector(".top-back.on") && !document.querySelector(".top-profile").inert && document.querySelector('#preview .hero-top [data-action="back"]')?.offsetHeight > 0, null, { timeout: 2000 }).catch(() => problems.push("phone: an area as the page kept the way back of the program at the head"));
+  // The area has its own way back, to the program, and it is the box at the head as well (owner,
+  // 2026-10-15: „mach den zurückbutton mal überall nach oben"): the area's link steps aside.
+  await page.waitForFunction(() => {
+    const back = document.querySelector(".top-back.on")?.getAttribute("href") ?? "";
+    return back.startsWith("/programs/bachelor-elektrotechnik-2022") && !back.includes("area=") && document.querySelector(".top-profile").inert && !document.querySelector('#preview .hero-top [data-action="back"]')?.offsetHeight;
+  }, null, { timeout: 2000 }).catch(() => problems.push("phone: an area as the page does not have its way back to the program at the head"));
   await page.evaluate(() => document.querySelector('#preview .linklist a[data-walk="module"]')?.click());
   await page.waitForFunction(() => location.search.includes("area=") && location.search.includes("open=") && document.querySelector(".detail.is-module h2") && document.querySelector(".picked-page .linklist .pre"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module out of an area did not come up over it"));
   await page.waitForTimeout(400);

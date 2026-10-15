@@ -3227,10 +3227,11 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      `back_at_head`), the server writes the bar so and nothing slides. */
   .top-profile { overflow: hidden; transition: width .18s var(--ease), margin .18s var(--ease), opacity .14s, transform .18s var(--ease); }
   .topbar.backed .top-profile { width: 0; margin-left: calc(-1 * var(--gap)); opacity: 0; transform: translateX(12px); }
-  /* The page's own „Zurück" where the way back is at the head (frame.rs `BackLink`): one way back.
-     The path beside it takes its place at the left. */
-  .hero-top > .at-head { display: none; }
-  .hero-top > .at-head + .crumbs { margin-left: 10px; }
+  /* A page's own „Zurück" (frame.rs `BackLink`) while the head has the way back, which it put
+     there (owner, 2026-10-15: „mach den zurückbutton mal überall nach oben neben die suche"): one
+     way back. What stood beside it takes its place at the left (the path of a program's page). */
+  .topbar.backed ~ .content .hero-top > .at-head { display: none; }
+  .topbar.backed ~ .content .hero-top > .at-head + .crumbs { margin-left: 10px; }
   /* The way back of a page or of its step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links
      neben der search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box
      as the search is, as wide as it is high. It slides in from the left and the search makes room

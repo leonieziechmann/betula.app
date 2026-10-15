@@ -12,8 +12,9 @@
 /// program's page on a phone starting with the program, „Zurück" at the head instead of the way to
 /// the profile page, and no actions on a program's page; 1.3.1 with its head on a phone without
 /// loose ends; 1.4.0 with the program an area has chosen kept for the session alone and „Mein
-/// Studiengang" first in every program picker. The version of the app's crates, the same as the
-/// server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// Studiengang" first in every program picker; 1.5.0 with every „Zurück" at the head of a phone's
+/// page. The version of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
