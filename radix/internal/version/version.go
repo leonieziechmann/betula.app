@@ -6,8 +6,10 @@
 // stage (Radix 0.5.0, Folia 1.0.1); 2026-09-29 Radix 0.6.0, which builds again at start when
 // another release built the catalog. Since 2026-10-15 by SemVer, raised with every change to Radix
 // (owner: „immer wenn wir changes machen update die version number based on sem ver"; CLAUDE.md,
-// „Versions"). Folia's lives in folia/crates/shell/src/document.rs (VERSION).
+// „Versions"): 0.7.0 the same day (owner: „Radix bitte auch auf 0.7.0 hochziehen") for what came
+// since 0.6.0 unversioned, offline through Cortex (2026-10-04) and a Termin read as a series of
+// dates (2026-10-13). Folia's lives in folia/crates/shell/src/document.rs (VERSION).
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.6.0"
+const Radix = "0.7.0"
