@@ -1352,16 +1352,41 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .pfact + .pfact { margin-left: 16px; padding-left: 16px; border-left: 1px solid var(--line); }
 .pfact b { margin-right: 1px; color: var(--text); font-size: 16px; font-weight: 680; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .prog-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; margin-top: 7px; color: var(--text-2); font-size: 13.5px; }
-.prog-meta > * + *::before { content: "·"; margin: 0 8px; color: var(--text-3); }
+/* The dot between two parts stands in the room before each part, and the line starts as far left
+   as that room is wide and is cut there: a part that wraps to a line of its own starts it without
+   a dot (owner, 2026-10-15, of Informatik on a phone: „wie goofy der header … aussieht", where
+   „· aktuell" stood alone on the second line). */
+.prog-meta { margin-left: -20px; clip-path: inset(-4px -4px -4px 20px); }
+.prog-meta > * { position: relative; padding-left: 20px; }
+.prog-meta > *::before { content: "·"; position: absolute; left: 8px; color: var(--text-3); }
 .prog-meta .degree { font-weight: 650; color: var(--text); }
 .prog-meta .current { color: var(--text-3); }
-.prog-meta .flag { margin-left: 10px; }
-.prog-meta .flag::before { content: none; }
+.prog-meta > .flag { margin-left: 20px; padding-left: 6px; }
+.prog-meta > .flag::before { content: none; }
+.prog-meta .po-abbr { display: none; }
 @container page (max-width: 720px) {
   .prog-title { grid-template-columns: minmax(0, 1fr); }
-  .prog-facts { flex-wrap: wrap; white-space: normal; margin-top: 4px; }
-  .pfact + .pfact { margin-left: 14px; padding-left: 14px; }
+  /* The numbers as one row, each its figure over its word, the room left shared among them:
+     wrapped, the last of them stood alone on a second line behind its rule. Where even that is too
+     narrow, a word breaks at its hyphen („FÜS-Module"). */
+  .prog-facts { margin-top: 8px; white-space: normal; }
+  .pfact { flex: 1 1 auto; min-width: min-content; display: flex; flex-direction: column; line-height: 1.3; white-space: normal; }
+  .pfact + .pfact { margin-left: 12px; padding-left: 12px; }
+  .pfact b { margin-right: 0; font-size: 18px; white-space: nowrap; }
+  /* „PO 2008 - 2. SÄ 2024": the line keeps „aktuell" on a phone. „Prüfungsordnung" is still read out. */
+  .prog-meta .po-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .prog-meta .po-abbr { display: inline; }
 }
+/* On the narrowest phones (320 px) four numbers do not fit one row („116–126 LP"): two rows of
+   two, the rule only between the two of a row. */
+@container page (max-width: 330px) {
+  .prog-facts { display: grid; grid-template-columns: repeat(2, max-content); gap: 8px 0; }
+  .pfact:nth-child(odd) { margin-left: 0; padding-left: 0; border-left: 0; }
+  .pfact:nth-child(even) { margin-left: 16px; padding-left: 16px; }
+}
+/* A name with a word longer than the line (Lehramt … „Gesellschaftswissenschaften" at 320 px)
+   breaks inside it rather than run out of its panel. */
+.prog-title h1 { overflow-wrap: break-word; hyphens: auto; }
 .eyebrow { font-size: 12.5px; color: var(--text-3); margin-bottom: 6px; }
 .subtitle { display: block; color: var(--text-3); font-size: 12.5px; }
 /* A program's line under its name (PO, the semester of its plan, area) wraps in the room the name
