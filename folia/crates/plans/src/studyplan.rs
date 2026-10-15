@@ -86,9 +86,9 @@ const MAX_EVENT: u32 = 999_999_999;
 /// The sixth field of an `m` line for a module taken over from the Regelstudienplan.
 const FROM_PLAN: &str = "plan";
 
-/// What `PlanDoc::holds_saved` compares of a semester: the program, the modules, the placeholders'
-/// plan rows and what is hidden or chosen.
-type Shape<'a> = (Option<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>);
+/// What `PlanDoc::holds_saved` compares of a semester: the modules, the placeholders' plan rows and
+/// what is hidden or chosen.
+type Shape<'a> = (BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, Option<&'a SemesterHides>);
 
 /// The visitor's Studienplan: modules and placeholders per calendar semester, and per semester
 /// what is hidden, what was chosen and the subscription code last handed out.
@@ -109,7 +109,8 @@ type Shape<'a> = (Option<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, 
 /// q  <semester>  <program_id>  <ord>  <caption>  <name>
 /// ```
 ///
-/// `g` is the program the timetable is planned for (`program`). `plan` marks a module taken over
+/// `g` is the program the timetable is planned for (`program`): in a saved plan, not in the text
+/// the browser keeps of the Stundenplan (`stored_without_program`). `plan` marks a module taken over
 /// from the Regelstudienplan (`Planned::from_plan`). `r` hides one Termin, `c` is a made choice
 /// („Nur diesen"): of the choice that holds the row, only the option with it is shown. A choice
 /// whose row QIS changed no longer matches, and the choice is open again, the safe direction.
@@ -125,7 +126,9 @@ type Shape<'a> = (Option<&'a str>, BTreeSet<&'a str>, BTreeSet<(&'a str, i64)>, 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PlanDoc {
     /// The program the timetable is planned for, picked in its sidebar or taken with a
-    /// Regelstudienplan (`g`); `None`: „Mein Studiengang". It gives the import its plans.
+    /// Regelstudienplan (`g`); `None`: „Mein Studiengang". It gives the import its plans. A saved
+    /// or a shared plan carries it; the browser keeps the Stundenplan's for the session alone,
+    /// not in the plan's text (`stored_without_program`, owner 2026-10-15).
     pub program: Option<String>,
     /// By semester, and within one in the order they were planned (`m`).
     pub modules: Vec<Planned>,
@@ -329,8 +332,18 @@ impl PlanDoc {
     /// `c`, `a`; then the lines of unknown tags. Control characters in names become spaces, so a
     /// name never splits its line.
     pub fn stored(&self) -> String {
+        self.text(self.program.as_deref())
+    }
+
+    /// The text of the plan without its program (no `g`): what the browser's store of the
+    /// Stundenplan keeps, whose program is the session's (`folia_stores::studyplan`).
+    pub fn stored_without_program(&self) -> String {
+        self.text(None)
+    }
+
+    fn text(&self, program: Option<&str>) -> String {
         let mut out = String::new();
-        if let Some(program) = self.program.as_deref().filter(|id| url::is_program_id(id)) {
+        if let Some(program) = program.filter(|id| url::is_program_id(id)) {
             let _ = writeln!(out, "g\t{program}");
         }
         let mut modules: Vec<&Planned> = self.modules.iter().filter(|m| url::is_module_id(&m.module_id)).collect();
@@ -764,9 +777,10 @@ impl PlanDoc {
     }
 
     /// Whether semester `s` holds the timetable `saved` holds (`semester_only`, of any semester):
-    /// the same program, modules, placeholder rows and what is hidden and chosen, whenever each
-    /// was planned and however the placeholders are numbered. A loaded plan is marked while this
-    /// holds.
+    /// the same modules, placeholder rows and what is hidden and chosen, whenever each was planned
+    /// and however the placeholders are numbered. A loaded plan is marked while this holds. The
+    /// program is not compared: the Stundenplan's is the session's (2026-10-15), and the plan is
+    /// the same one in the next session and with another program picked.
     pub fn holds_saved(&self, s: SemesterKey, saved: &PlanDoc) -> bool {
         let mut there = PlanDoc::default();
         there.put_semester(s, saved);
@@ -777,7 +791,7 @@ impl PlanDoc {
     fn shape(&self, s: SemesterKey) -> Shape<'_> {
         let modules = self.modules.iter().filter(|m| m.semester == s).map(|m| m.module_id.as_str()).collect();
         let rows = self.placeholders.iter().filter(|p| p.semester == s).map(|p| (p.program_id.as_str(), p.ord)).collect();
-        (self.program.as_deref(), modules, rows, self.hidden.get(&s))
+        (modules, rows, self.hidden.get(&s))
     }
 
     /// Adds a placeholder in pid order, when it is valid, its pid is new, its plan row has none in
@@ -2765,6 +2779,9 @@ town	cottbus
         let mut summer = PlanDoc::default();
         summer.put_semester(s, &saved);
         assert!(summer.holds_saved(s, &saved) && summer.modules_in(s).len() == 5);
+        // The next session, or another program picked: the same plan.
+        let next_session = PlanDoc { program: None, ..working.clone() };
+        assert!(next_session.holds_saved(w, &saved));
         // A change marks it no longer.
         working.unplan(w, "12104", &[]);
         assert!(!working.holds_saved(w, &saved));

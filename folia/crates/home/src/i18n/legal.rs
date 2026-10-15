@@ -273,7 +273,7 @@ pub const DE: Texts = Texts {
             "„Mein Studium“ mit den Modulen, die du als bestanden abhakst, und den Semestern, in die du Module legst,",
             "deine Profile mit ihren Namen und dem Zeitpunkt, an dem du sie angelegt hast, und welches gerade aktiv ist: Jedes Profil hat seine eigene Merkliste, seinen Stundenplan mit den gespeicherten Plänen, „Mein Studium“ und „Mein Studiengang“,",
             "Einstellungen, etwa die Sprache (beim ersten Besuch die deines Browsers), hell oder dunkel, die Breite der Seitenleisten, die Ansicht der Semester in „Mein Studium“ und was „Passt in meinen Stundenplan“ vergleicht,",
-            "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst und wie weit du gescrollt hast,",
+            "für die laufende Sitzung, wo du in jedem Bereich zuletzt warst, welchen Studiengang du im Stundenplan gewählt hast und wie weit du gescrollt hast,",
             "eine Kopie des Katalogs, das Sprachmodell der Suche (sie läuft ganz in deinem Browser), die Dateien der App und bis zu 60 zuletzt besuchte Seiten, damit Betula schnell startet und auch ohne Netz funktioniert.",
         ],
         texts: &[
@@ -428,7 +428,7 @@ pub const EN: Texts = Texts {
             "“My studies” with the modules you tick off as passed and the semesters you put modules into,",
             "your profiles with their names, when you created them and which one is active: each profile has its own saved modules, timetable with its saved plans, “My studies” and “My programme”,",
             "settings, such as the language (on your first visit, your browser's), light or dark, the width of the sidebars, the view of the semesters in “My studies” and what “Fits my timetable” compares,",
-            "for the current browser session, where you last were in each area and how far you had scrolled,",
+            "for the current browser session, where you last were in each area, which degree programme you chose in the timetable and how far you had scrolled,",
             "a copy of the catalogue, the language model of the search (it runs entirely in your browser), the app's files and up to 60 recently visited pages, so that Betula starts quickly and also works offline.",
         ],
         texts: &[
