@@ -10,8 +10,9 @@
 /// Betula's icon „Tinte" and the start of the installed app; 1.2.0 with nothing said of the data in
 /// the top bar any more (neither its loading nor why the app does not start offline); 1.3.0 with a
 /// program's page on a phone starting with the program, „Zurück" at the head instead of the way to
-/// the profile page, and no actions on a program's page. The version of the app's crates, the same
-/// as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// the profile page, and no actions on a program's page; 1.3.1 with its head on a phone without
+/// loose ends. The version of the app's crates, the same as the server's; Radix's is in the
+/// snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

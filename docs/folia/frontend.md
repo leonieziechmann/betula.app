@@ -671,6 +671,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   page and a link: the end of the page is „Ordnungen & Dokumente" with the regulations and, last,
   the program's module tree in the BTU's course catalogue (QIS, `program.source_url`; „Modulbaum
   des Studiengangs"), on every program's page, also where no regulation is known.
+  **Where the page is narrow** (its container at most 720 px; owner, 2026-10-15, of Informatik on
+  a phone: „wie goofy der header bei Informatik aussieht"): the numbers of the head are one row,
+  each its figure over its word, the room left shared among them — they used to wrap, „117
+  FÜS-Module" alone on a second line behind its rule — and two rows of two on the narrowest phones
+  (at most 330 px, where „116–126 LP" left no room for four). The line of the regulations says
+  „PO 2008 - 2. SÄ 2024" (a screen reader still reads „Prüfungsordnung"), so „aktuell" stays on
+  it; and wherever a part of that line wraps, its line starts without the dot (the dot stands in
+  the room before each part, and the line is cut where that room begins). A name with a word
+  longer than the line breaks inside it.
 - **The way back at the head of a phone's page** (`chrome::TopBack`; owner, 2026-10-05 for a
   semester of „Mein Studium", 2026-10-15 for a program's page: „lass mal bitte noch den zurück
   button nach oben links neben die search bar packen. Und wenn der angezeigt wird, dann soll die

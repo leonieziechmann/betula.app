@@ -58,6 +58,8 @@ pub struct Texts {
     pub fues_modules_after: fn(i64) -> &'static str,
     /// „Prüfungsordnung 2008": what stands before the version of the PO.
     pub regulations: &'static str,
+    /// … and in short, where the head is narrow („PO 2008", as the app names a PO elsewhere).
+    pub regulations_short: &'static str,
     pub current: &'static str,
     pub older: &'static str,
 
@@ -191,6 +193,7 @@ pub const DE: Texts = Texts {
     modules_after: |_| " Module",
     fues_modules_after: |_| " FÜS-Module",
     regulations: "Prüfungsordnung ",
+    regulations_short: "PO ",
     current: "aktuell",
     older: "ältere Prüfungsordnung",
 
@@ -309,6 +312,7 @@ pub const EN: Texts = Texts {
     modules_after: |n| if n == 1 { " module" } else { " modules" },
     fues_modules_after: |n| if n == 1 { " FÜS module" } else { " FÜS modules" },
     regulations: "Examination regulations ",
+    regulations_short: "PO ",
     current: "current",
     older: "older examination regulations",
 
