@@ -701,20 +701,29 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 - **The way back at the head of a phone's page** (`chrome::TopBack`; owner, 2026-10-05 for a
   semester of „Mein Studium", 2026-10-15 for a program's page: „lass mal bitte noch den zurück
   button nach oben links neben die search bar packen. Und wenn der angezeigt wird, dann soll die
-  profilauswahl ausgeblendet werden. Mach das mal als wiederverwendbares system"): a square box
-  left of the search, as high as it; while it is there the way to the profile page right of the
-  search slides out as the box slides in, inert, and the search keeps its width. Two ways to have
-  it. **By the address** (`chrome::back_at_head`): a program's page (unless the module in full,
-  an area or a row of the plan fills it, each with its own way back to the program) leads up to
-  the programs' list as it was left (`Tabs::list`), through the history where that is the step
-  before, as `frame::BackLink` does; the page's own „Zurück" steps aside on a phone (`.at-head`).
-  The address decides and not the page because the server writes the bar before the page: so the
-  server's page has the box and no way to the profile page where the app has them, and nothing
-  moves at the takeover (`e2e/takeover.mjs`, a program's page on a phone); without JavaScript the
-  box is the plain link. Another page that wants its way back at the head is named in
-  `back_at_head`. **By a step of a page** that its address does not name (a semester of „Mein
-  Studium", its views on a phone): `TopBack::follow` shows the box while the step wants it and
-  takes it away with the page, the browser app's alone. A step's box wins over the address's.
+  profilauswahl ausgeblendet werden. Mach das mal als wiederverwendbares system", and the same day
+  for every page: „mach den zurückbutton mal überall nach oben neben die suche, wo aktuell noch so
+  einer gelisted ist"): a square box left of the search, as high as it; while it is there the way
+  to the profile page right of the search slides out as the box slides in, inert, and the search
+  keeps its width. **Every „Zurück" of a page is that box on a phone**: `frame::BackLink` (a
+  module's own page, a module in full in a program, the Merkliste, the Stundenplan or „Mein
+  Studium", a program's page, an area or a row of the plan as a page of its own) puts it there,
+  leading where the link leads and through the history where that is the step before
+  (`TopBack::follow`), and steps aside while the head has it (`.topbar.backed ~ .content .at-head`);
+  a page's step that has no such link (a semester of „Mein Studium", its views on a phone) puts it
+  there the same way while the step shows. Each page that put it there takes it away with it, and
+  only its own (a number per `follow`): the page the app goes to may say where before the one it
+  leaves is gone. On the way to another page the bar follows the click, the box there or gone at
+  once. **The server writes the bar before the page** and knows nothing of its links, so the
+  address says which pages have the box from their first paint (`chrome::back_at_head`: a
+  program's page whatever fills it, and a module's own page), leading to the list of its area as
+  it was left until the page says where (on the server's page its list, where the page's link
+  leads too): the server's page has the box and no way to the profile page where the app has
+  them, and nothing moves at the takeover (`e2e/takeover.mjs`: a program's and a module's page on
+  a phone); without JavaScript the box is the plain link. What only the app shows (a module in
+  full, an area as a page) gets the box when it comes. A wide screen keeps „Zurück (Esc)" in the
+  page. Not ways back and so not moved: the × of a module's sheet, the pager's „Zurück", a menu's
+  way back to its first level.
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first
@@ -2578,7 +2587,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
-(Without a crawl of your own: the catalog of betula.app, from `https://betula.app/api/db`, §4.)
+(Without a crawl of your own: the catalog of canary, from `https://canary.betula.app/api/db`, §4.)
 
 ```bash
 bash folia/scripts/dev.sh --watch
@@ -3150,11 +3159,18 @@ cargo test
 ```
 
 needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
-**The real catalog** is the one betula.app serves (owner, 2026-10-01): `/api/db` is the snapshot
-Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip).
+**The real catalog** is the one Betula serves (owner, 2026-10-01): `/api/db` is the snapshot
+Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip). Take canary's:
+it is built from `master`, so its snapshot has the schema the queries of `develop` are written for.
+betula.app still runs Folia 1.0.3 on a snapshot of schema 9 (2026-10-15), and with it
+`the_queries_are_written_for_the_newest_schema` and every test of real data fails. Canary is
+behind its gate: the owner gives the password, which never goes into the repository; the command
+asks for it.
 
 ```bash
-curl --compressed -o snapshot/catalog.db https://betula.app/api/db
+read -rsp "canary password: " pw; echo; curl -sS -o /dev/null -c snapshot/canary.cookies \
+  --data-urlencode "password=$pw" --data-urlencode next=/ https://canary.betula.app/access; unset pw
+curl --compressed -b snapshot/canary.cookies -o snapshot/catalog.db https://canary.betula.app/api/db
 FOLIA_TEST_SNAPSHOT=snapshot/catalog.db cargo test -p folia-server
 ```
 

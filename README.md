@@ -110,9 +110,10 @@ without a build; `--watch` builds again and restarts when Rust code changes, and
 `bash folia/scripts/dev.sh sizes` lists what ships. What ships is minified when the server is built
 (`folia/crates/server/build/main.rs`). Folia talks to Radix only through the snapshot
 endpoint. Flags, endpoints, log events and checks: `docs/folia/frontend.md`. `cargo test --workspace` (in
-`folia/`) needs an exported snapshot (`radix export`), or the one betula.app serves: `curl --compressed -o
-snapshot/catalog.db https://betula.app/api/db`, then `FOLIA_TEST_SNAPSHOT=snapshot/catalog.db`
-(`docs/folia/frontend.md` §4 also names it for `serve-snapshot`). `folia/scripts/build-client.sh` without `--dev` builds the
+`folia/`) needs an exported snapshot (`radix export`), or the one canary serves at
+`https://canary.betula.app/api/db` (behind its gate; betula.app's is of an older schema), then
+`FOLIA_TEST_SNAPSHOT=snapshot/catalog.db` (`docs/folia/frontend.md` §4 has the commands and names it
+for `serve-snapshot`). `folia/scripts/build-client.sh` without `--dev` builds the
 bundle that ships.
 A new worktree forks the main checkout's build cache as `git worktree add` creates it, so only
 the workspace's own crates compile; what that costs and how the caches are kept and dropped:

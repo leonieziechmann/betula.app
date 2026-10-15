@@ -97,16 +97,16 @@ pub fn Plain(#[prop(optional, into)] class: String, children: Children) -> impl 
 /// a program the visitor did *not* come from the list any more, so Esc must follow the link and
 /// not walk the history back into the module it has just closed.
 ///
-/// On a page whose way back stands at the head of a phone's page (`chrome::back_at_head`: the same
-/// way, up to the area's list), the link steps aside there (`.at-head`, app.css): one way back, at
-/// the head.
+/// On a phone the way back is the box at the head of the page, left of the search (owner,
+/// 2026-10-15: „mach den zurückbutton mal überall nach oben neben die suche"): the link puts it there
+/// (`chrome::TopBack::follow`), leading where it leads, and steps aside while the head has it
+/// (`.at-head`, app.css) — on the server's page as well, where the address puts the box there
+/// (`chrome::back_at_head`). A wide screen keeps the link where it is.
 #[component]
 pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let tabs = crate::tabs::Tabs::expect();
-    let up = to.is_none();
-    let at_head = move || up && crate::chrome::back_at_head(&location.pathname.get(), &location.search.get()) == Some(area);
     let target = to.unwrap_or_else(|| tabs.map(|tabs| tabs.list(area)).unwrap_or_else(|| area.back_root().to_string()));
     let came_from_it = {
         let target = target.clone();
@@ -115,8 +115,12 @@ pub fn BackLink(area: crate::tabs::Area, #[prop(optional_no_strip)] to: Option<S
             tabs.is_some_and(|tabs| tabs.before(&now) == target).then_some("history")
         }
     };
+    {
+        let (href, history) = (target.clone(), came_from_it.clone());
+        crate::chrome::TopBack::follow(move || Some(crate::chrome::Back { href: href.clone(), label: t.common.back, history: history().is_some() }));
+    }
     view! {
-        <a class="ghost" class:at-head=at_head href=t.path(&target) data-action="back" data-back=came_from_it title=t.ui.back_title>
+        <a class="ghost at-head" href=t.path(&target) data-action="back" data-back=came_from_it title=t.ui.back_title>
             <Icon name="arrow-left"/>{t.common.back}<Shortcut keys="Esc"/>
         </a>
     }
