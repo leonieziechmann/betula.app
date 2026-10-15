@@ -59,6 +59,7 @@ pub const ICONS: &[(&str, &str)] = &[
     ("layout-list", r#"<rect width="7" height="7" x="3" y="3" rx="1"/> <rect width="7" height="7" x="3" y="14" rx="1"/> <path d="M14 4h7"/> <path d="M14 9h7"/> <path d="M14 15h7"/> <path d="M14 20h7"/>"#),
     ("link", r#"<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/> <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>"#),
     ("list-checks", r#"<path d="m3 17 2 2 4-4"/> <path d="m3 7 2 2 4-4"/> <path d="M13 6h8"/> <path d="M13 12h8"/> <path d="M13 18h8"/>"#),
+    ("list-tree", r#"<path d="M21 12h-8"/> <path d="M21 6H8"/> <path d="M21 18h-8"/> <path d="M3 6v4c0 1.1.9 2 2 2h3"/> <path d="M3 10v6c0 1.1.9 2 2 2h3"/>"#),
     ("map-pin", r#"<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/> <circle cx="12" cy="10" r="3"/>"#),
     ("maximize-2", r#"<polyline points="15 3 21 3 21 9"/> <polyline points="9 21 3 21 3 15"/> <line x1="21" x2="14" y1="3" y2="10"/> <line x1="3" x2="10" y1="21" y2="14"/>"#),
     ("minus", r#"<path d="M5 12h14"/>"#),
