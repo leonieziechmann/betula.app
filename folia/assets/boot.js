@@ -256,29 +256,114 @@ function startData() {
 
 // The server's page as a picture in front of the app while the app's first answers are on their
 // way (`betulaAnswered`, called by the app): the app replaces the page at once, and its first frame
-// would otherwise show its regions empty for the moment the data worker takes. The picture is the
-// body's children with the body's layout and every scroll position, without ids (nothing finds it
-// instead of the app's own), outside the body, and gone once the app has its answers.
-function takePicture() {
+// would otherwise show its regions empty for the moment the data worker takes. The picture is a
+// copy of the body itself, a second <body> after it, so that every rule of app.css that lays out
+// the body and its children lays out the copy as it laid out the page, on every screen. (Copied
+// into a <div> that took four of the body's properties, the children stood in a row on a phone,
+// where the body is a column: the ground a narrow strip at the right for a moment; owner,
+// 2026-10-15: „Das Layout darf sich auf gar keinen Fall verschieben nach dem Laden".) It lies where
+// the body lies (the window keeps its scroll, and what is sticky stays where it stuck), with every
+// scroll position inside and every animation where it was; without ids (nothing finds it instead
+// of the app's own), out of reach of clicks, keys and screen readers, and gone once the app has
+// its answers. `lazy`: the page's boxes that are laid out only near the screen (`lazyBoxes`), with
+// what they stand as.
+function takePicture(lazy) {
   const body = document.body;
-  const picture = document.createElement("div");
-  picture.className = "takeover-picture";
+  const picture = body.cloneNode(true);
+  picture.classList.add("takeover-picture");
   picture.setAttribute("aria-hidden", "true");
-  const style = getComputedStyle(body);
-  for (const property of ["display", "gridTemplateColumns", "gridTemplateRows", "padding"]) picture.style[property] = style[property];
-  picture.style.top = -scrollY + "px";
-  const scrolled = [...body.querySelectorAll("*")].map((el) => [el.scrollTop, el.scrollLeft]);
-  for (const child of body.children) picture.appendChild(child.cloneNode(true));
-  picture.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
-  document.documentElement.appendChild(picture);
+  picture.inert = true;
+  for (const el of [picture, ...picture.querySelectorAll("[id]")]) el.removeAttribute("id");
+  const originals = [...body.querySelectorAll("*")];
+  const scrolled = originals.map((el) => [el.scrollTop, el.scrollLeft]);
+  // A copy starts its CSS animations anew (a module that slid in would slide in again, the
+  // carousel's bar would start over): each one takes the start of the one it copies.
+  const moving = document.getAnimations().filter((a) => a.animationName && a.startTime !== null && a.timeline === document.timeline && body.contains(a.effect?.target));
+  const key = (animation, index) => `${index} ${animation.effect.pseudoElement || ""} ${animation.animationName}`;
+  const order = moving.length || lazy.length ? new Map(originals.map((el, i) => [el, i]).concat([[body, -1]])) : null;
+  const started = new Map(moving.map((a) => [key(a, order.get(a.effect.target)), a.startTime]));
   const copies = picture.querySelectorAll("*");
+  for (const [el, stands] of lazy) copies[order.get(el)]?.style.setProperty("contain-intrinsic-block-size", stands.size);
+  document.documentElement.appendChild(picture);
   scrolled.forEach(([top, left], i) => {
     if ((top || left) && copies[i]) {
       copies[i].scrollTop = top;
       copies[i].scrollLeft = left;
     }
   });
+  if (moving.length) {
+    const copied = new Map([...copies].map((el, i) => [el, i]).concat([[picture, -1]]));
+    for (const animation of picture.getAnimations({ subtree: true })) {
+      const start = started.get(key(animation, copied.get(animation.effect?.target)));
+      if (start !== undefined) animation.startTime = start;
+    }
+  }
+  // The app may scroll the window past the page (on a phone the catalog's `?open=` goes to the
+  // module's row in the whole list): a picture that no longer covers the window would only lay
+  // what stands fixed in it (the bar's ground, the tab bar) over the app's own, so it goes at once.
+  const uncovered = () => {
+    if (picture.getBoundingClientRect().bottom >= innerHeight - 1) return;
+    picture.remove();
+    removeEventListener("scroll", uncovered);
+  };
+  addEventListener("scroll", uncovered, { passive: true });
   return picture;
+}
+
+// The boxes app.css lays out only near the screen (`content-visibility: auto`: the start page's
+// panels, the rows of a list, the weeks of „Termine"), found by the rules that say so. Off the
+// screen such a box stands as large as it was when it was last drawn, or as the rule guesses where
+// it never was; a box made anew (the picture's copy, the app's own) has drawn nothing yet and
+// takes the guess, and everything below it moves (the start page scrolled 3000 px down before the
+// takeover: a heading in the window moved by 671 px). So the new box is told what its original
+// stands as (`contain-intrinsic-block-size`, which counts only while the box is not drawn).
+function lazyBoxes(root) {
+  const selectors = [];
+  const look = (rules) => {
+    for (const rule of rules) {
+      if (rule.selectorText && rule.style?.contentVisibility === "auto") selectors.push(rule.selectorText);
+      if (rule.cssRules) look(rule.cssRules);
+    }
+  };
+  for (const sheet of document.styleSheets) {
+    try {
+      look(sheet.cssRules);
+    } catch {}
+  }
+  if (!selectors.length) return [];
+  return [...root.querySelectorAll(selectors.join(", "))].filter((el) => getComputedStyle(el).contentVisibility === "auto");
+}
+// What such a box stands as: its height inside padding and border, and what it is (its element and
+// classes), by which the app's box of the same place is known.
+function lazyStands(el) {
+  const style = getComputedStyle(el);
+  const inner = el.getBoundingClientRect().height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth);
+  return { tag: el.tagName, classes: [...el.classList], size: `auto ${Math.max(0, inner)}px` };
+}
+
+// The parts of a page that are scrolled down (on a wide screen the page itself in its scroll area,
+// a panel's list), each by where it stands: the element and first class of every part from the
+// body down to it, and which of the parts standing there it is. The app builds its page anew, at
+// the top of each part: it takes the scroll of the server's part of the same place (on a wide
+// screen a page scrolled before the takeover went back to its top).
+const placeOf = (el, root) => {
+  let place = "";
+  for (let e = el; e && e !== root; e = e.parentElement) place = `>${e.tagName}.${e.classList[0] || ""}` + place;
+  return place;
+};
+const kindOf = (el) => el.tagName.toLowerCase() + (el.classList[0] ? "." + CSS.escape(el.classList[0]) : "");
+const partsAt = (root, kind, place) => [...root.querySelectorAll(kind)].filter((el) => placeOf(el, root) === place);
+function scrolledParts(root) {
+  return [...root.querySelectorAll("*")].filter((el) => el.scrollTop > 0).map((el) => {
+    const kind = kindOf(el), place = placeOf(el, root);
+    return { kind, place, nth: partsAt(root, kind, place).indexOf(el), top: el.scrollTop };
+  });
+}
+function carryScroll(parts, root) {
+  for (const { kind, place, nth, top } of parts) {
+    const el = partsAt(root, kind, place)[nth];
+    if (el && el.scrollTop !== top) el.scrollTop = top;
+  }
 }
 
 // The app is on its way: a link followed meanwhile waits for it (enhance.js, `betulaStarted`).
@@ -297,18 +382,39 @@ try {
   ]);
   window.betulaSnapshot = () => app.snapshot_changed();
   window.betulaMap = programMap || null;
-  const picture = takePicture();
+  const lazy = lazyBoxes(document.body).map((el) => [el, lazyStands(el)]);
+  const scrolled = scrolledParts(document.body);
+  // While the picture stands, the window's scroll is the picture's: the browser must not move it
+  // to keep in place what the app builds under it (scroll anchoring), nor while the app's page
+  // takes the sizes and the scroll of the server's (below).
+  const root = document.documentElement;
+  root.style.setProperty("overflow-anchor", "none");
+  const picture = takePicture(lazy);
   // The app has taken the page over once its first answers are in and the picture goes: from then
   // on it is the app (`__betulaApp`, which enhance.js and the checks go by).
   window.betulaAnswered = () => {
     window.betulaAnswered = null;
-    picture.remove();
-    window.__betulaApp = true;
-    window.__betulaStarting = false;
-    // Once the app runs there is nothing to say: it simply works.
-    status("");
-    // Where a link followed meanwhile leads, now within the app (once what it set off has run).
-    setTimeout(() => window.betulaStarted?.(true), 0);
+    // The app's page stands as the server's did: its boxes that are laid out only near the screen
+    // as large, box for box as long as they are the same, and its parts scrolled as far. The
+    // picture stays two frames more, while the app follows the scroll (a virtual list renders the
+    // rows there).
+    const own = lazyBoxes(document.body);
+    for (let i = 0; i < own.length && i < lazy.length; i++) {
+      const was = lazy[i][1];
+      if (own[i].tagName !== was.tag || !was.classes.every((name) => own[i].classList.contains(name))) break;
+      own[i].style.setProperty("contain-intrinsic-block-size", was.size);
+    }
+    carryScroll(scrolled, document.body);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      picture.remove();
+      requestAnimationFrame(() => requestAnimationFrame(() => root.style.removeProperty("overflow-anchor")));
+      window.__betulaApp = true;
+      window.__betulaStarting = false;
+      // Once the app runs there is nothing to say: it simply works.
+      status("");
+      // Where a link followed meanwhile leads, now within the app (once what it set off has run).
+      setTimeout(() => window.betulaStarted?.(true), 0);
+    }));
   };
   document.documentElement.classList.add("app");
   app.start();
@@ -316,6 +422,7 @@ try {
 } catch (error) {
   window.__betulaStarting = false;
   document.querySelector(".takeover-picture")?.remove();
+  document.documentElement.style.removeProperty("overflow-anchor");
   // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
   // to know why (`notice`). A link followed meanwhile loads its page.
   console.info("[catalog] browser app not started:", error);
