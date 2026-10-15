@@ -54,7 +54,9 @@ const PRECACHE = [
   "/apple-touch-icon.png",
   "/assets/icon-192.png",
   "/assets/icon-512.png",
+  "/assets/icon-maskable-334.png",
   "/assets/icon-maskable-512.png",
+  "/assets/icon-maskable-dark-512.png",
   "/manifest.webmanifest",
   "/manifest-dark.webmanifest",
 ];

@@ -68,7 +68,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
                 <meta name="theme-color" content=THEME_LIGHT/>
                 <link rel="icon" href=FAVICON_ICO sizes="32x32"/>
                 <link rel="icon" type="image/svg+xml" href=FAVICON/>
-                // The icon of the app for Google Search; tabs keep the mark (`ICON_192`).
+                // The icon for Google Search (`ICON_192`); tabs take the SVG.
                 <link rel="icon" type="image/png" sizes="192x192" href=ICON_192/>
                 <link rel="apple-touch-icon" href=TOUCH_ICON/>
                 // The app a home screen installs from this page: this language's (`/en/…`).

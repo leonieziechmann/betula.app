@@ -8,14 +8,24 @@ use leptos_meta::Title;
 
 use crate::i18n;
 
-/// The mark of Betula: birch bark that also reads as the rows of a list. Drawn on a 32 px grid, the
-/// size it has in the rail (`.logo`), so its bars fall on whole pixels. Larger cuts: `design/logo`.
+/// The leaf of Betula's icon on its 96 grid, with the four bars of birch bark cut out of it, one
+/// outline (`design/logo/app-icon.mjs`; `node design/logo/render-icons.mjs` prints it when the icon
+/// changes). The server draws the icon with it too (launch screens of iOS, link-preview cards).
+pub const LEAF: &str = "M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z";
+/// How far the leaf is moved down on that grid, so that it stands in the middle of the square (it
+/// has no stem).
+pub const LEAF_DY: f32 = 6.5;
+
+/// Betula's icon (owner, 2026-10-15: „Tinte", the same everywhere): the birch leaf in paper on a
+/// square of ink, with the bars of birch bark cut out of it; turned over in the dark, ink on the
+/// light square (`--logo-tile`, `--logo-leaf`). The icon of the installed app, of the tab and of
+/// the splash screen, so the page's is the one the app started with.
 #[component]
 pub fn Mark() -> impl IntoView {
     view! {
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
-            <rect width="32" height="32" rx="7"/>
-            <path d="M0 7h13v3H0zM23 12h9v3h-9zM0 17h5v3H0zM17 22h15v3H17z"/>
+        <svg class="mark" viewBox="0 0 96 96" aria-hidden="true">
+            <rect width="96" height="96" rx="21"/>
+            <path transform=format!("translate(0 {LEAF_DY})") d=LEAF/>
         </svg>
     }
 }

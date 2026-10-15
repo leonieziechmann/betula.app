@@ -276,7 +276,8 @@ pub fn files() -> Router<AppState> {
         .route(folia_app::ICON_192, get(api::icon_192))
         .route(folia_app::ICON_512, get(api::icon_512))
         .route(folia_app::ICON_MASKABLE, get(api::icon_maskable))
-        .route(folia_app::ICON_MASKABLE_LARGE, get(api::icon_maskable_large))
+        .route(folia_app::ICON_SPLASH, get(api::icon_splash))
+        .route(folia_app::ICON_SPLASH_DARK, get(api::icon_splash_dark))
         .route(folia_app::ICON_MONOCHROME, get(api::icon_monochrome))
         .route("/assets/launch/{file}", get(api::launch_screen))
 }

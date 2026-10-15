@@ -318,12 +318,22 @@ async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
 
 /// The manifests of the installed app (`folia_app::MANIFEST`, `MANIFEST_DARK`): its splash screen
 /// and the strip under its gesture bar are the page's background, light, and dark in the one a
-/// page in the dark names; the same app otherwise, in every language, so that Chrome brings an
-/// installed one up to date instead of taking it for another. Needs no snapshot.
+/// page in the dark names, and so is the icon on its splash screen, turned over in the dark; the
+/// same app otherwise, in every language, so that Chrome brings an installed one up to date
+/// instead of taking it for another, and with the same icon on the home screen (a new one Chrome
+/// would ask the visitor about). Needs no snapshot.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_dark_manifest_is_the_same_app_in_the_dark_colours() {
     let router = crate::router(state(SnapshotStore::new(temp_dir("manifests")).unwrap()));
-    for (prefix, home) in [("", "/"), ("/en", "/en")] {
+    // The icon Chrome on Android takes for a purpose (`ManifestIconSelector`, 158): of the square
+    // ones, the one of the size it asks for, else the smallest larger one, else the largest one.
+    let choose = |manifest: &serde_json::Value, purpose: &str, ideal: u32| {
+        let icons = manifest["icons"].as_array().unwrap().iter().filter(|icon| icon["purpose"] == purpose);
+        let sized = icons.map(|icon| (icon["sizes"].as_str().unwrap().split_once('x').unwrap().0.parse::<u32>().unwrap(), icon["src"].as_str().unwrap().to_string()));
+        let (larger, smaller): (Vec<_>, Vec<_>) = sized.partition(|(size, _)| *size >= ideal);
+        larger.into_iter().min().or_else(|| smaller.into_iter().max()).unwrap().1
+    };
+    for (prefix, home, name) in [("", "/", "Betula · Modulkatalog"), ("/en", "/en", "Betula · Module catalogue")] {
         let mut manifests = Vec::new();
         for (path, colour) in [(folia_app::MANIFEST, folia_app::THEME_LIGHT), (folia_app::MANIFEST_DARK, folia_app::THEME_DARK)] {
             let path = format!("{prefix}{path}");
@@ -331,13 +341,36 @@ async fn the_dark_manifest_is_the_same_app_in_the_dark_colours() {
             assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/manifest+json"), "{path}");
             let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
             assert_eq!((manifest["id"].as_str(), manifest["theme_color"].as_str(), manifest["background_color"].as_str()), (Some(home), Some(colour), Some(colour)), "{path}");
+            // The name Android writes under the icon of its splash screen, in one line.
+            assert_eq!((manifest["name"].as_str(), manifest["short_name"].as_str()), (Some(name), Some("Betula")), "{path}");
+            // Every icon is served, as large as the manifest says.
+            for icon in manifest["icons"].as_array().unwrap() {
+                let (status, _, png) = request(&router, icon["src"].as_str().unwrap(), &[]).await;
+                let size: u32 = icon["sizes"].as_str().unwrap().split_once('x').unwrap().0.parse().unwrap();
+                assert!(status == StatusCode::OK && png.starts_with(b"\x89PNG") && png[16..24] == [size.to_be_bytes(), size.to_be_bytes()].concat()[..], "{path}: {icon}");
+            }
             manifests.push(manifest);
         }
         let (light, mut dark) = (manifests[0].clone(), manifests[1].clone());
+        // On every phone (densities 1 to 4) the launcher (83 dp) takes the same icon from both, and
+        // the splash screen (128 dp) the turned-over one from the dark manifest where it asks for
+        // more than the launcher's (from 2.625 on, most phones of today).
+        for density in (8..=32).map(|eighths| eighths as f32 / 8.0) {
+            let (launcher, splash) = ((83.0 * density).round() as u32, (128.0 * density).round() as u32);
+            assert_eq!(choose(&dark, "maskable", launcher), choose(&light, "maskable", launcher), "{prefix}: launcher at {density}");
+            assert_eq!(choose(&light, "maskable", launcher), folia_app::ICON_MASKABLE, "{prefix}: launcher at {density}");
+            let turned = if density >= 2.625 { folia_app::ICON_SPLASH_DARK } else { folia_app::ICON_MASKABLE };
+            assert_eq!((choose(&light, "maskable", splash).as_str(), choose(&dark, "maskable", splash).as_str()), (if density >= 2.625 { folia_app::ICON_SPLASH } else { folia_app::ICON_MASKABLE }, turned), "{prefix}: splash at {density}");
+        }
         for colour in ["theme_color", "background_color"] {
             dark[colour] = light[colour].clone();
         }
-        assert_eq!(dark, light, "{prefix}: the dark manifest differs from the light one in more than its colours");
+        for icon in dark["icons"].as_array_mut().unwrap() {
+            if icon["src"] == folia_app::ICON_SPLASH_DARK {
+                icon["src"] = folia_app::ICON_SPLASH.into();
+            }
+        }
+        assert_eq!(dark, light, "{prefix}: the dark manifest differs from the light one in more than its colours and the splash screen's icon");
     }
 }
 
@@ -368,7 +401,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 
     // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
     // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
-    for path in [folia_app::STYLESHEET, "/assets/app.css?v=test", folia_app::FONT, folia_app::FAVICON, folia_app::FAVICON_ICO, folia_app::TOUCH_ICON, folia_app::ICON_192, folia_app::ICON_MASKABLE_LARGE, folia_app::ICON_MONOCHROME, folia_app::MANIFEST, folia_app::MANIFEST_DARK, "/en/manifest-dark.webmanifest", "/assets/launch/750x1334.png"] {
+    for path in [folia_app::STYLESHEET, "/assets/app.css?v=test", folia_app::FONT, folia_app::FAVICON, folia_app::FAVICON_ICO, folia_app::TOUCH_ICON, folia_app::ICON_192, folia_app::ICON_MASKABLE, folia_app::ICON_SPLASH, folia_app::ICON_SPLASH_DARK, folia_app::ICON_MONOCHROME, folia_app::MANIFEST, folia_app::MANIFEST_DARK, "/en/manifest-dark.webmanifest", "/assets/launch/750x1334.png"] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
     // Only the launch screens a page names: another name under their path stays behind the gate.
@@ -712,7 +745,9 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         ("/apple-touch-icon-precomposed.png", "image/png", &b"\x89PNG"[..]),
         ("/assets/icon-192.png", "image/png", &b"\x89PNG"[..]),
         ("/assets/icon-512.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-maskable-334.png", "image/png", &b"\x89PNG"[..]),
         ("/assets/icon-maskable-512.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-maskable-dark-512.png", "image/png", &b"\x89PNG"[..]),
         ("/favicon.ico", "image/x-icon", &[0, 0, 1, 0][..]),
     ] {
         let (status, headers, body) = request(&router, path, &[]).await;

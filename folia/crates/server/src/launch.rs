@@ -1,8 +1,10 @@
 //! The launch screens of the installed app on iPhones and iPads (`folia_shell::launch`), drawn in this
-//! process like the link-preview cards: the icon of the installed app (the leaf) in the middle of
-//! the page's background, the wordmark and what Betula is at the bottom, in the light and in the
-//! dark scheme. The same picture as Android's splash screen, which shows the maskable icon on the
-//! manifest's background; and what iOS shows when the icon on the home screen opens into the app.
+//! process like the link-preview cards: Betula's icon in the middle of the page's background, 128
+//! px as Android draws it on its splash screen, turned over in the dark scheme; at the bottom
+//! „Betula · Modulkatalog“, the name Android writes under its icon (owner, 2026-10-15: „Betula dot
+//! Modulkatalog. Das sieht classy aus“). The same picture as Android's splash screen, which shows
+//! the maskable icon on the manifest's background; and what iOS shows when the icon on the home
+//! screen opens into the app. The installed app takes it over from there (`folia_shell::launch`).
 //!
 //! iOS fetches the picture of its screen when the app is added to the home screen and keeps it.
 //! So a picture is drawn on its first request, one at a time (a large one takes a moment of a
@@ -18,9 +20,12 @@ use tokio::sync::Semaphore;
 
 use crate::{cards, logo};
 
-/// The page's background and its text, as in `folia/assets/app.css` (`--bg`, `--text`, `--text-3`).
-const LIGHT: (&str, &str, &str) = ("#f1f2f4", "#10151f", "#8790a0");
-const DARK: (&str, &str, &str) = ("#0a0c11", "#eceff5", "#6a748a");
+/// The page's background and its text, as in `folia/assets/app.css` (`--bg`, `--text`, `--text-2`,
+/// `--text-3`).
+const LIGHT: (&str, &str, &str, &str) = ("#f1f2f4", "#10151f", "#4b5565", "#8790a0");
+const DARK: (&str, &str, &str, &str) = ("#0a0c11", "#eceff5", "#a4adc0", "#6a748a");
+/// How large the icon is drawn: as Android draws it on its splash screen (128 dp).
+pub const ICON: f32 = 128.0;
 
 pub struct Launch {
     kept: Mutex<HashMap<Picture, Bytes>>,
@@ -59,16 +64,15 @@ impl Launch {
 }
 
 /// The picture in CSS pixels; `draw` scales it to the device's.
-fn svg(picture: &Picture, regular: &rustybuzz::Face<'_>) -> String {
+fn svg(picture: &Picture) -> String {
     let (width, height) = picture.points();
     let (w, h) = (width as f32, height as f32);
-    let (background, text, quiet) = if picture.dark { DARK } else { LIGHT };
+    let (background, text, second, quiet) = if picture.dark { DARK } else { LIGHT };
     let mut svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" font-family=\"Inter\"><rect width=\"{w}\" height=\"{h}\" fill=\"{background}\"/>"
     );
-    // The icon in the middle, as large as twice an icon of the home screen on a phone (a quarter
-    // of the shorter side), no larger on a tablet.
-    let size = (0.28 * w.min(h)).clamp(96.0, 128.0);
+    // The icon in the middle.
+    let size = ICON;
     let (x, y) = ((w - size) / 2.0, (h - size) / 2.0);
     if !picture.dark {
         // On the light page it lies on a soft shadow, like the panels of the app.
@@ -83,13 +87,12 @@ fn svg(picture: &Picture, regular: &rustybuzz::Face<'_>) -> String {
             size * 0.22
         ));
     }
-    logo::app_icon(&mut svg, x, y, size, "icon");
-    // At the bottom, clear of the home indicator: the wordmark, and under it what Betula is.
+    logo::app_icon(&mut svg, x, y, size, picture.dark);
+    // At the bottom, clear of the home indicator: the name, as the cards set it.
     let last = h - (0.075 * h).max(44.0);
-    let em = 28.0;
-    logo::wordmark(&mut svg, (w - logo::wordmark_width(regular, em)) / 2.0, last - 24.0, em, text);
     svg.push_str(&format!(
-        "<text x=\"{}\" y=\"{last}\" text-anchor=\"middle\" font-size=\"13\" font-weight=\"500\" letter-spacing=\"-.08\" fill=\"{quiet}\">Modulkatalog · inoffiziell</text></svg>",
+        "<text x=\"{}\" y=\"{last}\" text-anchor=\"middle\" font-size=\"16\" letter-spacing=\"-.16\"><tspan font-weight=\"600\" fill=\"{text}\">Betula</tspan>\
+         <tspan font-weight=\"500\" fill=\"{quiet}\"> · </tspan><tspan font-weight=\"500\" fill=\"{second}\">Modulkatalog</tspan></text></svg>",
         w / 2.0
     ));
     svg
@@ -111,9 +114,8 @@ fn typeface() -> Arc<usvg::fontdb::Database> {
 }
 
 fn draw(picture: Picture) -> Result<Vec<u8>, String> {
-    let regular = rustybuzz::Face::from_slice(cards::INTER_400, 0).ok_or("the typeface of the launch screens cannot be read")?;
     let options = usvg::Options { fontdb: typeface(), font_family: "Inter".to_string(), ..usvg::Options::default() };
-    let tree = usvg::Tree::from_str(&svg(&picture, &regular), &options).map_err(|error| error.to_string())?;
+    let tree = usvg::Tree::from_str(&svg(&picture), &options).map_err(|error| error.to_string())?;
     let (width, height) = picture.pixels();
     let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or("no pixmap")?;
     let ratio = f32::from(picture.screen.ratio);
