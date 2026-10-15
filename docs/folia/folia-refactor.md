@@ -223,7 +223,7 @@ programs, it does.
 - Visitors without JavaScript can read everything, but no longer filter the catalog or the
   programs.
 - A first visit to an app route (a shared Stundenplan) shows the shell and the catalog's download
-  (4.4 MB, with its progress) before its content; accepted by the owner (question 4), with the
+  (4.4 MB) before its content; accepted by the owner (question 4), with the
   first paint kept fast (§6.7).
 
 ## 5. The shell
@@ -315,10 +315,9 @@ that exists.
   0.32 moves with it — one SQLite per workspace), and clang for `wasm32` in `build-client.sh` and
   in Nix (`sqlite-wasm-rs` compiles SQLite from C; the container's clang 18 did); the worker's
   bundle grows by SQLite, some 230 kB in brotli more than sql.js's.
-- **The snapshot moves out of `boot.js` into the worker:** `/api/status`, the download (streamed,
-  progress as events to the UI), the schema check (`user_version`), keeping it, opening it, the
-  update in the background; one download for all tabs (Web Locks), the other tabs told
-  (BroadcastChannel).
+- **The snapshot moves out of `boot.js` into the worker:** `/api/status`, the download, the
+  schema check (`user_version`), keeping it, opening it, the update in the background; one
+  download for all tabs (Web Locks), the other tabs told (BroadcastChannel).
 - **New data at once** (owner, 2026-10-02: „sofort rein mit den neuen daten"; today a new snapshot
   is only used from the next start). The worker checks `/api/status` when it starts, when the tab
   comes back into view and every few minutes while it is open; a new snapshot is downloaded in the
@@ -433,7 +432,7 @@ app loaded after it.
 |---|---|---|
 | 1. first paint | the page as HTML: a site page complete, an app route the shell with its skeleton; the stylesheet, the font; the head scripts set theme, widths, language | the server's HTML cache (or the service worker offline); nothing waits for a script |
 | 2. the shell runs | a small UI bundle: the shell, the router, the design system, `DataClient`; the rail and the header work, a site page stays as it is | `/pkg/…`, kept `immutable` per build |
-| 3. data | the data worker starts in parallel with stage 2, opens the kept snapshot or downloads it (progress in the header) | the worker's own bundle, `/api/db` |
+| 3. data | the data worker starts in parallel with stage 2, opens the kept snapshot or downloads it | the worker's own bundle, `/api/db` |
 | 4. the page | the feature of the current route, loaded when it is first needed; the app takes the page over once its data is there | a bundle per feature (lazy routes), to be proved in the spike |
 | 5. later | the other features in idle time; the semantic search's model last, as today | idle time, low priority |
 
@@ -931,8 +930,9 @@ than §6:
   step two, still open.
 - **The snapshot is the worker's**: it finds the copy kept in IndexedDB (not Cache Storage: the same
   store `boot.js` used, which a worker reads as well, so nothing is downloaded again after the
-  update), checks the schema, downloads (one tab at a time, a Web Lock; progress to the header's
-  pill), keeps and opens it. It looks for a newer snapshot when the tab comes back into view and
+  update), checks the schema, downloads (one tab at a time, a Web Lock; since 2026-10-15 without a
+  word in the header, owner: „Das Laden geht schnell genug"), keeps and opens it. It looks for a
+  newer snapshot when the tab comes back into view and
   every five minutes; a newer one is opened beside the one in use and answers from then on, the page
   forgets its answers and asks again (`snapshot_changed`), and the other tabs open the copy the
   first one kept (a BroadcastChannel).

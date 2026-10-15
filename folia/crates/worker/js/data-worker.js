@@ -24,7 +24,6 @@
 //                                         vectors) → {columns, rows}
 //   {type: "look"}                        the tab is in view again: is there a newer snapshot?
 // Messages to the page, without an id:
-//   {event: "progress", share}            the first download, `share` per cent of it
 //   {event: "snapshot", etag}             a newer snapshot answers from now on
 //
 // A classic worker: sql.js is a classic script (`importScripts`), the bundle a module, which comes
@@ -91,20 +90,10 @@ async function serverSnapshot() {
   return null;
 }
 
-async function download(total, progress) {
+async function download() {
   const response = await fetch("/api/db");
   if (!response.ok) throw new Error("GET /api/db: HTTP " + response.status);
-  const reader = response.body.getReader();
-  const chunks = [];
-  let received = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (total && progress) progress(Math.min(99, Math.round((received / total) * 100)));
-  }
-  return new Blob(chunks);
+  return response.blob();
 }
 
 // The schema of a copy, from the header of the SQLite file, without opening it (`user_version`:
@@ -188,8 +177,7 @@ async function start(build) {
       // Another tab may have kept it meanwhile.
       const theirs = await idbGet(KEPT).catch(() => null);
       if (theirs?.etag === server.etag) return theirs;
-      self.postMessage({ event: "progress", share: 0 });
-      const fresh = { etag: server.etag, blob: await download(server.bytes, (share) => self.postMessage({ event: "progress", share })) };
+      const fresh = { etag: server.etag, blob: await download() };
       await idbPut(KEPT, fresh);
       return fresh;
     });
@@ -228,7 +216,7 @@ async function look() {
     const kept = await oneAtATime(async () => {
       const theirs = await idbGet(KEPT).catch(() => null);
       if (theirs?.etag === server.etag) return theirs;
-      const fresh = { etag: server.etag, blob: await download(0) };
+      const fresh = { etag: server.etag, blob: await download() };
       if ((await schemaOf(fresh.blob)) !== schema) return null;
       await idbPut(KEPT, fresh);
       return fresh;
