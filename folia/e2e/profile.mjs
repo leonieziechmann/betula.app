@@ -169,8 +169,11 @@ const mark = async (page, id) => {
   await page.click('[data-theme-value="dark"]');
   check(JSON.stringify(await theme()) === JSON.stringify({ data: "dark", stored: "dark", checked: "dark" }), `„Dunkel“: ${JSON.stringify(await theme())}`);
   check((await page.evaluate(() => document.querySelector("meta[name=theme-color]").content)) === "#0a0c11", "the browser's chrome did not turn dark");
+  const manifest = () => page.evaluate(() => document.querySelector("link[rel=manifest]").getAttribute("href"));
+  check((await manifest()) === "/manifest-dark.webmanifest", `the page names ${await manifest()} in the dark`);
   await page.click(".rail .theme-toggle");
   check(JSON.stringify(await theme()) === JSON.stringify({ data: "light", stored: "light", checked: "light" }), `the switch of the rail: ${JSON.stringify(await theme())}`);
+  check((await manifest()) === "/manifest.webmanifest", `the page names ${await manifest()} in the light`);
   await page.click('[data-theme-value="system"]');
   check(JSON.stringify(await theme()) === JSON.stringify({ data: null, stored: null, checked: "system" }), `„System“: ${JSON.stringify(await theme())}`);
 

@@ -237,6 +237,7 @@ fn in_every_language() -> Router<AppState> {
         let at = |path: &str| locale.path(path);
         router = router
             .route(&at(folia_app::MANIFEST), get(api::manifest))
+            .route(&at(folia_app::MANIFEST_DARK), get(api::manifest))
             .route(&at(folia_app::OG_IMAGE), get(api::og_image))
             .route(&at("/cards/module/{file}"), get(api::module_card))
             .route(&at("/cards/program/{file}"), get(api::program_card))

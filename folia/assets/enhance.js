@@ -799,19 +799,32 @@
   // A page the browser kept (Back after a page load) shows its own tab's mark again.
   addEventListener("pageshow", (e) => { if (e.persisted) { tabDrag = null; settleTabs(); } });
 
+  // The browser's own chrome in the colours of the theme (they are --bg of the two themes), and the
+  // manifest the page names with it (`folia_app::MANIFEST_DARK`): an installed app takes the colours
+  // of its splash screen and of the strip under the gesture bar from there, as the head script
+  // names it before the first paint.
+  const paintChrome = (dark) => {
+    for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.content = dark ? "#0a0c11" : "#f1f2f4";
+    for (const link of document.querySelectorAll("link[rel=manifest]")) {
+      const href = link.getAttribute("href").replace(/\/manifest(-dark)?\.webmanifest$/, dark ? "/manifest-dark.webmanifest" : "/manifest.webmanifest");
+      if (href !== link.getAttribute("href")) link.setAttribute("href", href);
+    }
+  };
   // Light or dark (`theme`: what the switch in the rail chose), or the system's (`system`): on the
   // document at once, kept for the next page (the head script applies it before the first paint),
-  // the browser's own chrome with it (the colours are --bg of the two themes), and told to the page
-  // (`betula:theme`), whose choice shows it.
+  // the browser's own chrome with it, and told to the page (`betula:theme`), whose choice shows it.
   const setTheme = (theme) => {
     const chosen = theme === "light" || theme === "dark" ? theme : null;
     if (chosen) root.dataset.theme = chosen;
     else delete root.dataset.theme;
-    const dark = chosen ? chosen === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    for (const meta of document.querySelectorAll("meta[name=theme-color]")) meta.content = dark ? "#0a0c11" : "#f1f2f4";
+    paintChrome(chosen ? chosen === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
     try { if (chosen) localStorage.setItem("betula.theme", chosen); else localStorage.removeItem("betula.theme"); } catch {}
     dispatchEvent(new Event("betula:theme"));
   };
+  // The system turns dark or light while the page is open (a phone at nightfall): the stylesheet
+  // follows by itself, the chrome here, unless a theme of its own was chosen.
+  // (Safari before 14 has no `addEventListener` on a media query; there the chrome waits for a page load.)
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", (e) => { if (!root.dataset.theme) paintChrome(e.matches); });
 
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");

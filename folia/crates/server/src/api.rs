@@ -802,17 +802,27 @@ async fn card(state: &AppState, headers: &HeaderMap, key: String, read: impl FnO
 
 /// `GET /manifest.webmanifest`: name, colours and icons of the site for a home screen; `/en/…` the
 /// same in English, an app of its own that starts at `/en` (a home screen keeps each language's).
+/// `/manifest-dark.webmanifest` is the same app in the colours of the dark theme, which a page in
+/// the dark names (`folia_app::MANIFEST_DARK`).
 pub async fn manifest(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    static MANIFESTS: std::sync::OnceLock<Vec<(Locale, &'static [u8])>> = std::sync::OnceLock::new();
-    let locale = language_of(&uri);
-    let manifests = MANIFESTS.get_or_init(|| Locale::ALL.iter().map(|locale| (*locale, &*Box::leak(localized_manifest(*locale).into_bytes().into_boxed_slice()))).collect());
-    let body = manifests.iter().find(|(language, _)| *language == locale).map_or(&include_bytes!("../../../assets/manifest.webmanifest")[..], |(_, body)| body);
+    /// Each manifest by its language and whether it is the dark one.
+    type Manifests = Vec<((Locale, bool), &'static [u8])>;
+    static MANIFESTS: OnceLock<Manifests> = OnceLock::new();
+    let (locale, path) = Locale::split(uri.path());
+    let wanted = (locale, path == folia_app::MANIFEST_DARK);
+    let manifests = MANIFESTS.get_or_init(|| {
+        let each = Locale::ALL.iter().flat_map(|locale| [false, true].map(|dark| (*locale, dark)));
+        each.map(|(locale, dark)| ((locale, dark), &*Box::leak(localized_manifest(locale, dark).into_bytes().into_boxed_slice()))).collect()
+    });
+    let body = manifests.iter().find(|(key, _)| *key == wanted).map_or(&include_bytes!("../../../assets/manifest.webmanifest")[..], |(_, body)| body);
     asset(&state, &uri, &headers, "application/manifest+json", body).await
 }
 
 /// `folia/assets/manifest.webmanifest` in a language: its name, description, language, and where the
-/// app starts. The file is the default language's; a manifest the server cannot read stays as it is.
-pub fn localized_manifest(locale: Locale) -> String {
+/// app starts; `dark`, with the background of the dark page as its colours (`folia_app::THEME_DARK`)
+/// for the splash screen and the strip under the gesture bar. The file is the default language's,
+/// light; a manifest the server cannot read stays as it is.
+pub fn localized_manifest(locale: Locale, dark: bool) -> String {
     let file = include_str!("../../../assets/manifest.webmanifest");
     let Ok(mut manifest) = serde_json::from_str::<serde_json::Value>(file) else { return file.to_string() };
     let t = texts(locale);
@@ -823,6 +833,10 @@ pub fn localized_manifest(locale: Locale) -> String {
         fields.insert("lang".to_string(), json!(locale.code()));
         fields.insert("id".to_string(), json!(home));
         fields.insert("start_url".to_string(), json!(home));
+        if dark {
+            fields.insert("theme_color".to_string(), json!(folia_app::THEME_DARK));
+            fields.insert("background_color".to_string(), json!(folia_app::THEME_DARK));
+        }
     }
     serde_json::to_string(&manifest).unwrap_or_else(|_| file.to_string())
 }

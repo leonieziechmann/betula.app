@@ -2,7 +2,7 @@
 //
 // What it keeps is the shell of the app — a page of the site (any one: the browser app renders
 // the page the address names from the local catalog), the scripts, the styles, the sprite of the
-// icons, the WASM bundle, the font, the site's icons and the manifest. The catalog itself (`/api/db`) lives in IndexedDB,
+// icons, the WASM bundle, the font, the site's icons and the manifests. The catalog itself (`/api/db`) lives in IndexedDB,
 // where `boot.js` keeps it, and the worker never touches it or the other `/api/*` answers. Nor a
 // Studienplan's calendar feed (`/calendar/…`): a calendar service fetches it from its own servers,
 // and a feed kept here would be somebody's plan in Cache Storage, or the shell offline.
@@ -56,8 +56,9 @@ const PRECACHE = [
   "/assets/icon-512.png",
   "/assets/icon-maskable-512.png",
   "/manifest.webmanifest",
+  "/manifest-dark.webmanifest",
 ];
-const ASSET = /^\/(assets\/|pkg\/|favicon\.ico$|apple-touch-icon(-precomposed)?\.png$|manifest\.webmanifest$)/;
+const ASSET = /^\/(assets\/|pkg\/|favicon\.ico$|apple-touch-icon(-precomposed)?\.png$|manifest(-dark)?\.webmanifest$)/;
 // A language's cards and calendar feeds too (`/en/cards/…`, `/en/calendar/…`).
 const NEVER = /^\/(api\/|access|sw\.js$|([a-z]{2}\/)?(cards|calendar)\/)/;
 

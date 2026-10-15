@@ -316,6 +316,31 @@ async fn the_launch_screens_of_ios_are_drawn_as_large_as_their_screen() {
     }
 }
 
+/// The manifests of the installed app (`folia_app::MANIFEST`, `MANIFEST_DARK`): its splash screen
+/// and the strip under its gesture bar are the page's background, light, and dark in the one a
+/// page in the dark names; the same app otherwise, in every language, so that Chrome brings an
+/// installed one up to date instead of taking it for another. Needs no snapshot.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_dark_manifest_is_the_same_app_in_the_dark_colours() {
+    let router = crate::router(state(SnapshotStore::new(temp_dir("manifests")).unwrap()));
+    for (prefix, home) in [("", "/"), ("/en", "/en")] {
+        let mut manifests = Vec::new();
+        for (path, colour) in [(folia_app::MANIFEST, folia_app::THEME_LIGHT), (folia_app::MANIFEST_DARK, folia_app::THEME_DARK)] {
+            let path = format!("{prefix}{path}");
+            let (status, headers, body) = request(&router, &path, &[]).await;
+            assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap()), (StatusCode::OK, "application/manifest+json"), "{path}");
+            let manifest: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!((manifest["id"].as_str(), manifest["theme_color"].as_str(), manifest["background_color"].as_str()), (Some(home), Some(colour), Some(colour)), "{path}");
+            manifests.push(manifest);
+        }
+        let (light, mut dark) = (manifests[0].clone(), manifests[1].clone());
+        for colour in ["theme_color", "background_color"] {
+            dark[colour] = light[colour].clone();
+        }
+        assert_eq!(dark, light, "{prefix}: the dark manifest differs from the light one in more than its colours");
+    }
+}
+
 /// Closed testing (`access`): nothing but the login page and what it needs, and a calendar
 /// subscription with a valid code, answers without the password; with it the site is what it
 /// was. Needs no snapshot.
@@ -343,7 +368,7 @@ async fn closed_testing_asks_for_the_password_before_anything_else() {
 
     // Open stays what the login page, a home screen and a supervisor need; crawlers are sent away
     // from everything but the calendar feeds (Google Calendar asks robots.txt before fetching one).
-    for path in [folia_app::STYLESHEET, "/assets/app.css?v=test", folia_app::FONT, folia_app::FAVICON, folia_app::FAVICON_ICO, folia_app::TOUCH_ICON, folia_app::ICON_192, folia_app::ICON_MASKABLE_LARGE, folia_app::ICON_MONOCHROME, folia_app::MANIFEST, "/assets/launch/750x1334.png"] {
+    for path in [folia_app::STYLESHEET, "/assets/app.css?v=test", folia_app::FONT, folia_app::FAVICON, folia_app::FAVICON_ICO, folia_app::TOUCH_ICON, folia_app::ICON_192, folia_app::ICON_MASKABLE_LARGE, folia_app::ICON_MONOCHROME, folia_app::MANIFEST, folia_app::MANIFEST_DARK, "/en/manifest-dark.webmanifest", "/assets/launch/750x1334.png"] {
         assert_eq!(request(&router, path, &[]).await.0, StatusCode::OK, "{path}");
     }
     // Only the launch screens a page names: another name under their path stays behind the gate.
@@ -640,6 +665,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         ("/assets/app.css?x=1&v=test", revalidate),
         ("/assets/inter-latin.woff2", revalidate),
         ("/manifest.webmanifest", revalidate),
+        ("/manifest-dark.webmanifest", revalidate),
         ("/sw.js", revalidate),
         ("/sw.js?v=test", revalidate),
         ("/assets/og.png?v=test", revalidate),
@@ -676,7 +702,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert_eq!(boot, crate::assets::text("boot.js").replace("__SCHEMA__", &folia_model::SCHEMA_VERSION.to_string()).replace("__SEMANTIC_MODEL__", "null"));
     assert!(!boot.contains("__SCHEMA__") && !boot.contains("__SEMANTIC_MODEL__"), "{boot}");
     // Every answer names the build that gave it; the worker keeps only the answers of its own.
-    for path in ["/", "/catalog", "/assets/app.css?v=test", folia_app::SERVICE_WORKER, "/manifest.webmanifest"] {
+    for path in ["/", "/catalog", "/assets/app.css?v=test", folia_app::SERVICE_WORKER, "/manifest.webmanifest", "/manifest-dark.webmanifest"] {
         let (_, headers, _) = request(&router, path, &[]).await;
         assert_eq!(headers.get(crate::BUILD_HEADER).and_then(|value| value.to_str().ok()), Some("test"), "{path}");
     }
