@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -63,8 +63,8 @@ wanted ones are alternatives, the unwanted ones are all left out: (Meer or Köhl
 
 **Every route in every language** (2026-09-27, `docs/folia/i18n.md`): the addresses above are the
 German pages; the same page in English is the same address under `/en` (`/en/catalog?…`, the start
-page `/en`), and so are the cards, the manifest and the calendar feed (`/en/cards/…`,
-`/en/manifest.webmanifest`, `/en/calendar/<code>.ics`). `/de/…` leads to the plain address. The
+page `/en`), and so are the cards, the manifests and the calendar feed (`/en/cards/…`,
+`/en/manifest.webmanifest`, `/en/manifest-dark.webmanifest`, `/en/calendar/<code>.ics`). `/de/…` leads to the plain address. The
 paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split`, R23).
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
@@ -2120,8 +2120,11 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, both the mark;
   `/apple-touch-icon.png` (180 px, full bleed: iOS rounds it and uses it for the home screen and
   for previews in Messages) and `/manifest.webmanifest` (name, colours, icons 192/512, maskable
-  ones of 512 and 1024 px and a monochrome one), all the icon of the installed app; and
-  `theme-color` (the page background; the head script and the theme switch turn it dark). The
+  ones of 512 and 1024 px and a monochrome one), all the icon of the installed app;
+  `/manifest-dark.webmanifest`, the same app in the dark page's colours; and `theme-color` (the
+  page background). The head script and the theme switch turn both dark: the page names the dark
+  manifest instead of the light one and the dark `theme-color`, and so does a page open when the
+  system turns dark, unless a theme of Betula's own was chosen. The
   pictures are made from the mark's grids and from `folia/design/logo/app-icon.mjs` by
   `node folia/design/logo/render-icons.mjs`. The manifest makes the site installable; the service
   worker makes it start without a network.
@@ -2149,8 +2152,27 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     or a teardrop shows the whole of it. With themed icons (Material You) the launcher tints the
     monochrome icon, the leaf with its marks cut out, in the colours of the wallpaper; without it
     the icon of an installed app did not take part. The splash screen of the installed app is
-    Android's own: the manifest's background (the light page, `#f1f2f4`) with the maskable icon in
-    its middle, drawn at about 220 dp, which the 1024 px icon keeps sharp.
+    Android's own: the manifest's background with the maskable icon in its middle, drawn at about
+    220 dp, which the 1024 px icon keeps sharp.
+  - **Light and dark on Android** (2026-10-15; owner: „wenn Betula als pwa installiert startet, dann
+    wird bei dem loading screen nicht der Darkmodus berücksichtigt, weshalb dann die gesture bar
+    unten die falsche farbe hat"). Chrome (158 as of 2026-10; `WebappIntentDataProvider`,
+    `WebappActivity`) reads one `theme_color` and one `background_color` from a manifest and no
+    dark ones: `color_scheme_dark` of the draft is not parsed, and its own experiment's dark fields
+    are filled by nothing. The installed app is drawn in them as long as it is open, whatever the
+    page says: the splash screen in the background, and the strip under the gesture bar in the
+    theme colour (`WebAppNavigationBarThemeColor`; without a theme colour in the window's
+    background, the same colour again). A standalone app does not draw edge to edge (only the
+    media viewer of a Custom Tab does), so `viewport-fit=cover` and the page's `theme-color` do not
+    reach that strip; the page's `theme-color` colours the status bar. With one manifest the strip
+    of a phone in the dark was the light page. So there are two, the same app (`id`, the start, the
+    icons) in the colours of either theme, and a page names the one of its theme (`MANIFEST_DARK`):
+    a phone in the dark installs the app dark, splash screen and strip. Chrome looks at the
+    manifest a page of the installed app names once a day at most (`WebappDataStorage`, a month
+    when the WebAPK server asks for fewer updates) and has the app minted again when its colours
+    differ (`BACKGROUND_COLOR_DIFFERS`, `THEME_COLOR_DIFFERS`; the same `id`, so the address of the
+    manifest may change): a phone that turned dark, or a theme chosen in Betula, reaches the
+    installed app on a later start. Installing the app again makes it at once.
   - **iOS** draws no splash screen for a web app: it shows the picture the page names for exactly
     its screen, orientation and colour scheme (`apple-touch-startup-image`), and without one a
     blank screen until the page is drawn. The head script names the pictures of the screen it runs
@@ -2645,7 +2667,8 @@ healthcheck, which must not restart a server that still serves its last snapshot
 `/assets/app.css`, `/assets/icons.svg` (the sprite every icon points at), `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
 `/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/assets/icon-maskable-1024.png`,
-`/assets/icon-monochrome-512.png`, `/manifest.webmanifest`, `/assets/launch/<w>x<h>[-dark].png`
+`/assets/icon-monochrome-512.png`, `/manifest.webmanifest`, `/manifest-dark.webmanifest` (the same
+in the dark theme's colours), `/assets/launch/<w>x<h>[-dark].png`
 (the launch screens of iOS), `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`,
 `/sitemap.xml`, and
 `GET`/`POST /access` (the login page of closed testing). The stylesheet and the scripts answer
@@ -2807,7 +2830,8 @@ FOLIA_ACCESS_GATE=on FOLIA_ACCESS_PASSWORD='…' cargo run -p folia-server
   restart or a new container keeps everybody in, **a new password ends every visit at once**.
 - **Open without the password** is only what the login page, a home screen and a supervisor
   need: `/access`, the stylesheet, the font, the icons, the launch screens of iOS (those of the
-  listed screens only), `/manifest.webmanifest` (browsers fetch it without cookies), `/healthz`
+  listed screens only), the manifests (`/manifest.webmanifest`, `/manifest-dark.webmanifest`, each
+  language's: browsers fetch them without cookies), `/healthz`
   (uptime monitor), `/livez` (the container's healthcheck) and
   `/robots.txt`, which says `Disallow: /` while the gate is on, except `Allow: /calendar/`. The
   login page is `noindex` and `no-store`.
@@ -3309,8 +3333,10 @@ cd e2e && node launch.mjs
 
 checks the launch screens of iOS: an iPhone (with `navigator.standalone`, as iOS has it) names
 the two pictures of its screen, upright, light and dark; an iPad also the turned ones; a desktop
-browser none. Every picture named is served as a PNG exactly as large as the screen. Needs no
-snapshot.
+browser none. Every picture named is served as a PNG exactly as large as the screen. And the
+manifest a page names: the dark one in a dark system or with „Dunkel" chosen in Betula, the light
+one in a light system or with „Hell" chosen, in English `/en/…`, each served in its colours.
+Needs no snapshot.
 
 ```bash
 cd e2e && node bookmarks.mjs
