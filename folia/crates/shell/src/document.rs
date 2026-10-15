@@ -7,8 +7,10 @@
 /// 2026-09-29: Folia 1.0.2, the same day 1.0.3 with the wood behind every page; until then the
 /// owner named each). Since 2026-10-15 by SemVer, raised with every change (owner: „immer wenn wir
 /// changes machen update die version number based on sem ver"; CLAUDE.md, „Versions"): 1.1.0 with
-/// Betula's icon „Tinte" and the start of the installed app. The version of the app's crates, the
-/// same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// Betula's icon „Tinte" and the start of the installed app; 1.2.0 with nothing said of the data in
+/// the top bar any more (neither its loading nor why the app does not start offline). The version
+/// of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

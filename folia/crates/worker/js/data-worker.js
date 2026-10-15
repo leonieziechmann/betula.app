@@ -17,7 +17,7 @@
 // Messages from the page (each answer carries the `id` of its request):
 //   {id, type: "start", schema}           find, fetch and open the catalog (`schema`: the build's
 //                                         SCHEMA_VERSION)
-//                                         → {etag} | {error, notice?}
+//                                         → {etag} | {error}
 //   {id, type: "ask", name, question}     a question by its name and its fields in JSON → {answer}:
 //                                         the JSON of its Result<Answer, DataError>
 //   {id, type: "query", sql, params}      a statement of boot.js's own (the semantic search's
@@ -130,12 +130,6 @@ function oneAtATime(job) {
   return self.navigator.locks ? self.navigator.locks.request("betula-catalog-download", job) : job();
 }
 
-function failure(message, notice) {
-  const error = new Error(message);
-  error.notice = notice;
-  return error;
-}
-
 async function openCopy(kept) {
   const db = new SQL.Database(new Uint8Array(await kept.blob.arrayBuffer()));
   return { etag: kept.etag, db };
@@ -167,12 +161,12 @@ async function start(build) {
   const serverFits = server && server.schema_version >= schema;
   let kept = await keptCopy();
   if (kept && (await schemaOf(kept.blob)) < schema) {
-    if (!server) throw failure("the local copy of the catalog is older than this build, and the server is not reachable", "offline");
+    if (!server) throw new Error("the local copy of the catalog is older than this build, and the server is not reachable");
     kept = null;
   }
   if (!kept) {
-    if (!server) throw failure("no local copy of the catalog and the server is not reachable");
-    if (!serverFits) throw failure(`the server's catalog is of schema ${server.schema_version}, this build reads ${schema}`);
+    if (!server) throw new Error("no local copy of the catalog and the server is not reachable");
+    if (!serverFits) throw new Error(`the server's catalog is of schema ${server.schema_version}, this build reads ${schema}`);
     kept = await oneAtATime(async () => {
       // Another tab may have kept it meanwhile.
       const theirs = await idbGet(KEPT).catch(() => null);
@@ -273,7 +267,7 @@ self.onmessage = ({ data }) => {
       if (data.type !== "start" && !app) throw new Error("the catalog is not open");
       self.postMessage({ id: data.id, ...(await handler(data)) });
     } catch (e) {
-      self.postMessage({ id: data.id, error: e instanceof Error ? e.message : String(e), notice: e?.notice });
+      self.postMessage({ id: data.id, error: e instanceof Error ? e.message : String(e) });
     }
   });
 };

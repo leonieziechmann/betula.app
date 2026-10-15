@@ -356,6 +356,11 @@ mod tests {
             assert_eq!(Area::from_name(name), Some(area));
         }
         assert_eq!(Area::from_name("study"), None);
+        // The count's signal needs an owner, as on a page: where the server is built in the same
+        // run (a plain `cargo test`), `leptos_axum` turns on Leptos's sandboxed arenas, which keep
+        // a signal in the arena of its owner and have none outside one.
+        let owner = Owner::new();
+        owner.set();
         let again = TabAgain(RwSignal::new([0; 5]));
         again.tapped(Area::Programs);
         again.tapped(Area::Programs);

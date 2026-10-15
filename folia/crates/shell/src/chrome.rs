@@ -724,7 +724,6 @@ pub fn TopBar() -> impl IntoView {
                         <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input/>
                         <ui::Shortcut keys=t.common.search_shortcut/>
                     </form>
-                    <span class="pill db-status" id="db-status" hidden></span>
                 }
             }}
             <ProfileButton top=true/>
