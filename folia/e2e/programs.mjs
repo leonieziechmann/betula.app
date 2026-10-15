@@ -164,7 +164,7 @@ const LINE = ".fx-desk a.prog-line";
       facts: facts.map((f) => f.textContent.replace(/\s+/g, " ").trim()),
       out: facts.filter((f) => f.getBoundingClientRect().right > panel.right - 20).length,
       crumbs: [...document.querySelectorAll(".crumbs a")].map((a) => a.getAttribute("href")),
-      meta: document.querySelector(".prog-meta").textContent.replace(/\s+/g, " ").trim(),
+      meta: document.querySelector(".prog-meta").innerText.replace(/\s+/g, " ").trim(),
     };
   });
   check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 131 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
@@ -456,6 +456,13 @@ const LINE = ".fx-desk a.prog-line";
           && !document.querySelector('.prog-head [data-action="back"]')?.offsetHeight && Math.round(innerWidth - search.right) === 12;
       })(),
       facts: [...document.querySelectorAll(".prog-facts .pfact")].every((f) => f.getBoundingClientRect().right <= innerWidth),
+      // The numbers one row, each its figure over its word; the line under the name one line, „PO"
+      // for „Prüfungsordnung" (owner, 2026-10-15: „wie goofy der header … aussieht").
+      head: (() => {
+        const tops = (els) => new Set([...els].map((el) => Math.round(el.getBoundingClientRect().top)));
+        const meta = document.querySelector(".prog-meta");
+        return { facts: tops(document.querySelectorAll(".prog-facts .pfact")).size, meta: tops(meta.children).size, text: meta.innerText.replace(/\s+/g, " ").trim(), abbr: meta.querySelector(".po-abbr")?.offsetWidth > 0 && meta.querySelector(".po-word")?.getBoundingClientRect().width <= 1 };
+      })(),
     };
   });
   check(phone.wide, "phone: the program page scrolls sideways");
@@ -465,6 +472,8 @@ const LINE = ".fx-desk a.prog-line";
   check(phone.actions.length === 0, `phone: the sidebar still offers ${phone.actions.join(", ")}`);
   check(phone.back, "phone: „Zurück\" is not at the head left of the search, or the way to the profile page did not give way");
   check(phone.facts, "phone: a number of the head stands outside the screen");
+  // „Prüfungsordnung" is still there for a screen reader, „PO" is what is seen.
+  check(phone.head.facts === 1 && phone.head.meta === 1 && phone.head.abbr && /^B\.Sc\. Prüfungsordnung PO 2022 aktuell$/.test(phone.head.text), `phone: the head wraps: ${JSON.stringify(phone.head)}`);
   // A module comes up as a sheet over the page (owner, 2026-10-06), in the program's area (the
   // address keeps `open=`), one history entry; closed, the program is there as it was.
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.

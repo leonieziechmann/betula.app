@@ -1038,7 +1038,9 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>, tab: ProgramTab) -> im
             </div>
             <p class="prog-meta">
                 <span class="degree">{program.degree().to_string()}</span>
-                <span>{t.program.regulations}{program.po_version.clone()}</span>
+                // „Prüfungsordnung 2008 - 2. SÄ 2024", where the head is narrow „PO 2008 - 2. SÄ
+                // 2024" (app.css), so the line keeps „aktuell"; read out in full either way.
+                <span class="po"><span class="po-word">{t.program.regulations}</span><span class="po-abbr" aria-hidden="true">{t.program.regulations_short}</span>{program.po_version.clone()}</span>
                 {program.study_variant.as_ref().map(|v| view! { <span>{format::variant_short(v, t.locale)}</span> })}
                 {if program.is_latest_po {
                     view! { <span class="current">{t.program.current}</span> }.into_any()
