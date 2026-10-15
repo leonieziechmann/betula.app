@@ -225,8 +225,8 @@ pub async fn gate(State(state): State<AppState>, request: Request, next: Next) -
     // calendar service has no password to give. The check characters turn guesses away before any
     // handler runs, and what it shows is the QIS schedule of the modules the code names; every
     // other path under `/calendar/` stays behind the gate. Its answer is `private` already.
-    // Every language's manifest is the home screen's, like the icons.
-    let manifest = folia_locale::Locale::split(path).1 == folia_app::MANIFEST;
+    // Every language's manifest, light and dark, is the home screen's, like the icons.
+    let manifest = [folia_app::MANIFEST, folia_app::MANIFEST_DARK].contains(&folia_locale::Locale::split(path).1);
     if OPEN.contains(&path) || launch_screen || manifest || folia_calendar::subscription::is_feed_path(path) {
         return next.run(request).await;
     }

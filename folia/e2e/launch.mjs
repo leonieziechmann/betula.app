@@ -1,7 +1,9 @@
 // Checks the launch screens of the installed app on iOS (folia/crates/shell/src/launch.rs): on an iPhone the
 // head script names the pictures of its screen, upright, light and dark; on an iPad also turned;
 // anywhere else none. Every picture it names is served, as a PNG exactly as large as the screen.
-// Needs no snapshot.
+// And the manifest whose colours Android's splash screen and the strip under the gesture bar take
+// (folia_app::MANIFEST_DARK): a page in the dark names the dark one, a theme chosen in Betula
+// wins over the system's, and each is served in its colours. Needs no snapshot.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node launch.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 import { chromium } from "playwright-core";
 
@@ -45,6 +47,33 @@ check(
 
 const desktop = await named({ viewport: { width: 1300, height: 900 } }, false);
 check(desktop.length === 0, `a desktop browser names ${JSON.stringify(desktop)}`);
+
+// The manifest a page names, in the system's scheme or in a theme chosen in Betula, and its colours.
+async function manifest(colorScheme, path, chosen) {
+  const context = await browser.newContext({ colorScheme, viewport: { width: 393, height: 852 }, isMobile: true, hasTouch: true });
+  if (chosen) await context.addInitScript((theme) => localStorage.setItem("betula.theme", theme), chosen);
+  const page = await context.newPage();
+  await page.goto(base + path, { waitUntil: "domcontentloaded" });
+  const href = await page.evaluate(() => document.querySelector("link[rel=manifest]").getAttribute("href"));
+  const response = await context.request.get(base + href);
+  const json = response.ok() ? await response.json() : {};
+  await context.close();
+  return { href, status: response.status(), id: json.id, theme: json.theme_color, background: json.background_color };
+}
+for (const [colorScheme, path, chosen, href, colour] of [
+  ["light", "/", null, "/manifest.webmanifest", "#f1f2f4"],
+  ["dark", "/", null, "/manifest-dark.webmanifest", "#0a0c11"],
+  ["dark", "/en/catalog", null, "/en/manifest-dark.webmanifest", "#0a0c11"],
+  ["light", "/", "dark", "/manifest-dark.webmanifest", "#0a0c11"],
+  ["dark", "/", "light", "/manifest.webmanifest", "#f1f2f4"],
+]) {
+  const got = await manifest(colorScheme, path, chosen);
+  const id = path.startsWith("/en") ? "/en" : "/";
+  check(
+    JSON.stringify(got) === JSON.stringify({ href, status: 200, id, theme: colour, background: colour }),
+    `${path} in the ${colorScheme} system${chosen ? `, ${chosen} chosen,` : ""} names ${JSON.stringify(got)}`,
+  );
+}
 
 await browser.close();
 console.log(JSON.stringify({ problems }, null, 2));

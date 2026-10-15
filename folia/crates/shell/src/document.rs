@@ -34,6 +34,16 @@ pub const ICON_MASKABLE_LARGE: &str = "/assets/icon-maskable-1024.png";
 pub const ICON_MONOCHROME: &str = "/assets/icon-monochrome-512.png";
 /// Name, colours and icons of the site for a home screen or an installed window.
 pub const MANIFEST: &str = "/manifest.webmanifest";
+/// The same in the colours of the dark theme, which a page in the dark names instead (the head
+/// script, the theme switch). Chrome on Android (158 as of 2026-10) reads one `theme_color` and
+/// one `background_color` from a manifest and no dark ones (`color_scheme_dark` of the draft is not
+/// parsed): the splash screen of the installed app is the background, the strip under its gesture
+/// bar the theme colour (and without one the window's background, the same colour), all the time
+/// the app is open, whatever the page says. So the installed app takes the colours of the
+/// manifest the page named, and Chrome brings them up to date from the manifest a page names when
+/// they differ (the same `id`, looked at once a day at most): a phone in the dark gets a dark
+/// splash and a dark strip.
+pub const MANIFEST_DARK: &str = "/manifest-dark.webmanifest";
 /// The page background of the light and the dark theme (`--bg`), for the browser's own chrome.
 pub const THEME_LIGHT: &str = "#f1f2f4";
 pub const THEME_DARK: &str = "#0a0c11";
@@ -53,7 +63,8 @@ pub const SERVICE_WORKER: &str = "/sw.js";
 /// drawn in (`data-season`: March–May spring, June–August summer, September–November autumn,
 /// December–February winter; the server's page is the same all year, R9), and applies what this browser
 /// remembers (theme, widths of the filter panel and the module preview), so nothing flashes or jumps; the
-/// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme. Such personal
+/// colour of the browser's own chrome (`theme-color`, `THEME_DARK`) follows the theme, and so does
+/// the manifest the page names (`MANIFEST_DARK`), whose colours an installed app takes. Such personal
 /// view settings live in localStorage, never in the URL and never in server HTML (R9). A browser
 /// that keeps „Mein Studiengang" in the active profile (`folia_stores::profiles`: the first keeps
 /// it under the plain key, another under its number) marks the document with `mine`: the program
@@ -64,7 +75,7 @@ pub const SERVICE_WORKER: &str = "/sw.js";
 /// then. Written here and not as sixty `<link>`s into every page, which would cost every visitor
 /// almost a kilobyte for what only a home screen of iOS reads. Public for the one document the
 /// server writes without the app: the login page of closed testing.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11'}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');var p=/^active\\t([1-9][0-9]{0,2})$/m.exec(localStorage.getItem('betula.profiles.v1')||''),k=p&&p[1]!=='1'?'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1';if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem(k)||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})()";
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11';m=document.querySelector('link[rel=manifest]');if(m)m.href=m.getAttribute('href').replace('/manifest.webmanifest','/manifest-dark.webmanifest')}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');var p=/^active\\t([1-9][0-9]{0,2})$/m.exec(localStorage.getItem('betula.profiles.v1')||''),k=p&&p[1]!=='1'?'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1';if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem(k)||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})()";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
@@ -87,5 +98,14 @@ mod tests {
         assert_eq!((mine, key_of(mine, 2).as_str()), ("betula.myprogram.v1", "betula.p2.myprogram.v1"));
         assert!(super::HEAD_SCRIPT.contains(&format!("localStorage.getItem('{STORAGE_KEY}')")), "{}", super::HEAD_SCRIPT);
         assert!(super::HEAD_SCRIPT.contains("'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1'"), "{}", super::HEAD_SCRIPT);
+    }
+
+    /// In the dark the head script turns the browser's chrome dark and names the dark manifest in
+    /// place of the light one, a language's as well (`/en/manifest.webmanifest`).
+    #[test]
+    fn the_head_script_names_the_dark_manifest_in_the_dark() {
+        use super::{HEAD_SCRIPT, MANIFEST, MANIFEST_DARK, THEME_DARK};
+        assert!(HEAD_SCRIPT.contains(&format!("m.content='{THEME_DARK}'")), "{HEAD_SCRIPT}");
+        assert!(HEAD_SCRIPT.contains(&format!("m.href=m.getAttribute('href').replace('{MANIFEST}','{MANIFEST_DARK}')")), "{HEAD_SCRIPT}");
     }
 }
