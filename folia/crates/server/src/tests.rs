@@ -787,6 +787,13 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert!(status == StatusCode::OK && head(&mine).contains("noindex") && mine.contains(&format!("href=\"/catalog?program={slug}\"")), "{mine}");
     let (_, _, robots) = request(&router, "/robots.txt", &[]).await;
     assert!(String::from_utf8(robots).unwrap().contains("Sitemap: https://catalog.example/sitemap.xml"));
+    // The profile page is the visitor's too: its stand-in, the same for everybody, is no page to
+    // list, and the way to it from every page is none to follow.
+    assert!(!sitemap.contains("/profile</loc>"));
+    let (status, _, body) = request(&router, folia_routes::url::PROFILE, &[]).await;
+    let profile = String::from_utf8(body).unwrap();
+    assert!(status == StatusCode::OK && head(&profile).contains("noindex") && profile.contains("app-standin"), "{profile}");
+    assert!(profile.contains("href=\"/profile\" rel=\"nofollow\""), "the rail's way to it: {profile}");
 
     // The map of the programs is laid out once per snapshot and handed on as it is. Its ETag is
     // its content's: a new layout of the same catalog must not be a „304" from a browser's cache.
@@ -1157,7 +1164,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     assert!(!robots_allow(example, "Googlebot", "/index.php") && robots_allow(example, "Googlebot", "/index.php?x=1"));
     assert!(!robots_allow(example, "Googlebot", "/fish.html") && robots_allow(example, "Googlebot", "/fish/salmon/1") && robots_allow(example, "Googlebot", "/Fish"));
 
-    for page in ["/", "/en", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
+    for page in ["/", "/en", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/profile", "/en/profile", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
         assert!(robots_allow(&robots, "Googlebot", page), "{page}: {robots}");
     }
     for view in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=2", "/catalog?sort=title", "/catalog?q=analysis", "/catalog?page=2&open=11101", "/en/catalog?form=lecture", "/en/catalog?page=2&sort=ects", "/programs?level=master", "/en/programs?plan=1", "/bookmarks?turnus=winter", "/api/db", "/api/status"] {
@@ -1203,6 +1210,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
         format!("/programs/{slug}/my-plan"),
         "/bookmarks".to_string(),
         "/studyplan".to_string(),
+        folia_routes::url::PROFILE.to_string(),
         folia_routes::url::IMPRINT.to_string(),
         folia_routes::url::PRIVACY.to_string(),
     ];
@@ -1227,10 +1235,16 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     problems.dedup();
     assert!(problems.is_empty(), "{} problems:\n{}", problems.len(), problems.join("\n"));
     // What it follows: the pages of the catalog one after the other, in both languages; the plan
-    // of each study direction; modules and programs.
+    // of each study direction; programs, and modules from the catalog's pages in both languages
+    // (whichever modules they list: a page's way to itself in the other language, which led to a
+    // module as well, lives in the profile since 2026-10-14, and search engines learn the other
+    // language from `hreflang`).
     let (second_plan, areas) = (format!("/programs/{slug}/plan?variant=2"), format!("/programs/{slug}/areas"));
-    for page in ["/catalog?page=2", "/catalog?page=3", "/en/catalog?page=2", "/en/catalog?page=3", second_plan.as_str(), areas.as_str(), "/catalog/module/11101"] {
+    for page in ["/catalog?page=2", "/catalog?page=3", "/en/catalog?page=2", "/en/catalog?page=3", second_plan.as_str(), areas.as_str()] {
         assert!(followed.contains(page), "no link a crawler follows leads to {page}");
+    }
+    for modules in ["/catalog/module/", "/en/catalog/module/"] {
+        assert!(followed.iter().any(|page| page.starts_with(modules)), "no link a crawler follows leads to a module ({modules}…)");
     }
     // The pager as a crawler reads it (e2e/crawl.mjs as well): the unfiltered list's is followed,
     // a filtered list's is not.
@@ -1287,6 +1301,48 @@ async fn a_page_asked_for_at_once_is_rendered_once() {
     }
     assert_eq!(answers.iter().filter(|answer| *answer == "miss").count(), 1, "{answers:?}");
     assert_eq!(answers.iter().filter(|answer| *answer == "hit").count(), 7, "{answers:?}");
+}
+
+/// A page rendered beside others keeps its own `<title>`. Leptos writes the title into the page
+/// only after rendering it (`leptos_meta`'s `inject_meta_context`), after a tick of the executor
+/// and outside the page's arena: in the arena of whichever page ran last on that thread. A title
+/// read from the page's signals then was another page's, or a value that is not there, a panic
+/// (betula.app, 2026-10-14: "you tried to access a reactive value … already disposed" at the
+/// catalog's title, under a crawler's burst of `/catalog?program=…`). On one thread, pages
+/// rendered at once take their turns at exactly that tick.
+#[tokio::test]
+async fn a_page_rendered_beside_others_keeps_its_title() {
+    let store = store_with("titles", &snapshot_file());
+    let slugs: Vec<String> = {
+        let db = NativeDatabase::open(&snapshot_file()).unwrap();
+        folia_query::programs(&db).unwrap().into_iter().filter(|p| p.is_latest_po).map(|p| p.slug).take(2).collect()
+    };
+    let mut pages: Vec<String> = ["/", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
+        .into_iter()
+        .map(String::from)
+        .collect();
+    for slug in &slugs {
+        pages.extend([format!("/catalog?program={slug}"), format!("/en/catalog?program={slug}&semester=1"), format!("/programs/{slug}/plan"), format!("/programs/{slug}/areas")]);
+    }
+    let title = |body: &[u8]| String::from_utf8_lossy(body).split("<title>").nth(1).and_then(|rest| rest.split("</title>").next()).map(str::to_string);
+
+    let router = crate::router(state(store.clone()));
+    let mut alone = Vec::new();
+    for page in &pages {
+        let (status, _, body) = request(&router, page, &[]).await;
+        alone.push((status, title(&body)));
+    }
+    assert!(alone.iter().all(|(_, title)| title.is_some()), "{alone:?}");
+
+    // All at once, each with a place to render in and a cache that has none of them yet.
+    let mut state = state(store);
+    state.renders = Arc::new(crate::busy::Places::new("render", pages.len(), std::time::Duration::from_secs(600)));
+    state.render_wait = std::time::Duration::from_secs(600);
+    let router = crate::router(state);
+    let together = futures_util::future::join_all(pages.iter().map(|page| request(&router, page, &[]))).await;
+    for ((page, alone), (status, _, body)) in pages.iter().zip(&alone).zip(&together) {
+        assert_eq!(&(*status, title(body)), alone, "{page}");
+    }
 }
 
 /// The warm-up renders the pages of the sitemap into the cache, past the gate, and says how many.
@@ -1496,6 +1552,7 @@ async fn a_page_in_english_stays_in_english() {
         format!("/programs/{slug}/my-plan"),
         "/bookmarks".to_string(),
         "/studyplan".to_string(),
+        folia_routes::url::PROFILE.to_string(),
         folia_routes::url::IMPRINT.to_string(),
         folia_routes::url::PRIVACY.to_string(),
     ];

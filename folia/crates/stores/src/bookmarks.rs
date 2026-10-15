@@ -12,20 +12,21 @@
 //! Every button reads its own state through a memo of its own, so marking a module changes that
 //! module's buttons and nothing else (R5): not the list around it, not the preview next to it.
 //!
-//! The key is versioned. What is stored is a line per module, the newest first:
-//! `<module id>\t<seconds since 1970 when it was marked>`. It is read like anything that comes
-//! from outside: ids that could not be ids are dropped (they end up in links and queries), a
-//! module counts once, and the list has an upper limit.
+//! The key is versioned, and each profile has its own (`profiles::key_of`). What is stored is a
+//! line per module, the newest first: `<module id>\t<seconds since 1970 when it was marked>`. It
+//! is read like anything that comes from outside: ids that could not be ids are dropped (they end
+//! up in links and queries), a module counts once, and the list has an upper limit.
 
 use folia_model::ids::is_module_id;
 use folia_pages::MAX_BOOKMARKS;
 use leptos::prelude::*;
 
 use crate::i18n;
-use folia_design::nav;
+use crate::profiles::Kept;
 use folia_design::ui::{Icon, Shortcut};
 
-const STORAGE_KEY: &str = "betula.bookmarks.v1";
+/// The first profile's key; another profile's has its number in it (`profiles::key_of`).
+pub(crate) const STORAGE_KEY: &str = "betula.bookmarks.v1";
 
 /// A marked module and when it was marked (seconds since 1970; 0 if unknown).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,31 +89,36 @@ impl Marks {
     }
 }
 
-/// The visitor's marked modules, shared through context. Empty on the server, always.
+/// The visitor's marked modules (the active profile's), shared through context. Empty on the
+/// server, always.
 #[derive(Clone, Copy)]
-pub struct Bookmarks(RwSignal<Marks>);
+pub struct Bookmarks(RwSignal<Marks>, Kept);
 
 impl Bookmarks {
-    /// Reads what this browser has stored and provides the list. Another tab of the same browser
-    /// may change it; this one follows.
+    /// Reads what this browser has stored for the active profile and provides the list. Another
+    /// tab of the same browser may change it, or another profile becomes the active one; this one
+    /// follows.
     pub fn provide() -> Self {
-        let bookmarks = Bookmarks(RwSignal::new(load()));
+        let kept = Kept::of(STORAGE_KEY);
+        let bookmarks = Bookmarks(RwSignal::new(load(kept)), kept);
         provide_context(bookmarks);
-        // Effects run in the browser only.
-        Effect::new(move |_| {
-            let handle = window_event_listener_untyped("storage", move |_| {
-                let stored = load();
-                if bookmarks.0.with_untracked(|marks| *marks != stored) {
-                    bookmarks.0.set(stored);
-                }
-            });
-            on_cleanup(move || handle.remove());
+        kept.follow(move || {
+            let stored = load(kept);
+            if bookmarks.0.with_untracked(|marks| *marks != stored) {
+                bookmarks.0.set(stored);
+            }
         });
         bookmarks
     }
 
     pub fn expect() -> Option<Self> {
         use_context::<Bookmarks>()
+    }
+
+    /// The profile whose marks these are. Tracked: a page that lists what was marked when it was
+    /// opened starts again from another profile's marks.
+    pub fn profile(self) -> u16 {
+        self.1.profile()
     }
 
     /// Whether the module is marked. Tracked: read it in a memo per button, not in a list.
@@ -173,17 +179,28 @@ impl Bookmarks {
     }
 
     fn save(self) {
-        nav::local_set(STORAGE_KEY, &self.0.with_untracked(Marks::stored));
+        self.1.write(&self.0.with_untracked(Marks::stored));
     }
 }
 
 /// What this browser has stored. Nothing on the server, and nothing in a browser that refuses
 /// storage (marks then last as long as the page).
-fn load() -> Marks {
-    nav::local_get(STORAGE_KEY).map(|stored| Marks::restored(&stored)).unwrap_or_default()
+fn load(kept: Kept) -> Marks {
+    kept.read().map(|stored| Marks::restored(&stored)).unwrap_or_default()
 }
 
-fn now() -> u64 {
+/// A stored list as the store reads it and writes it back (a profile brought from a file,
+/// `profiles::Backup`).
+pub(crate) fn checked(stored: &str) -> String {
+    Marks::restored(stored).stored()
+}
+
+/// How many modules a stored list marks.
+pub(crate) fn count(stored: &str) -> usize {
+    Marks::restored(stored).0.len()
+}
+
+pub(crate) fn now() -> u64 {
     #[cfg(feature = "csr")]
     {
         (web_sys::js_sys::Date::now() / 1000.0).max(0.0) as u64

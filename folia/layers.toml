@@ -36,7 +36,7 @@ crates = ["folia-widgets"]
 name = "features"
 apart = true
 no_sql = true
-crates = ["folia-home", "folia-catalog", "folia-programs", "folia-bookmarks", "folia-planner"]
+crates = ["folia-home", "folia-catalog", "folia-programs", "folia-bookmarks", "folia-planner", "folia-profile"]
 
 [[layer]]
 name = "composition"

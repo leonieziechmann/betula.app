@@ -7,7 +7,8 @@
 > `folia-locale`, `folia-pack`, `folia-model`, `folia-calendar`, `folia-search`, `folia-routes`,
 > `folia-query`, `folia-timetable`, `folia-plans`, `folia-semantic`, `folia-pages` — the data
 > (`folia-data`), the UI — `folia-design`, `folia-stores`, `folia-shell`, `folia-widgets` and the
-> features `folia-home`, `folia-catalog`, `folia-programs`, `folia-bookmarks`, `folia-planner` — and
+> features `folia-home`, `folia-catalog`, `folia-programs`, `folia-bookmarks`, `folia-planner`,
+> `folia-profile` — and
 > `folia-worker`, `folia-app`, `folia-client`, `folia-server` with the binary `folia`;
 > docs/folia/folia-refactor.md §7 has the map).
 
@@ -30,12 +31,12 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `pack/` | Values as codes that travel in a link (`pack::to_code`, `pack::from_code`): serde's data model as bits (fields by their place, numbers in as many bits as their size needs, `pack::set` and `pack::list` for ids), written in the 66 unreserved characters of an address (`A–Z a–z 0–9 - . _ ~`), the last two of them check the rest. No I/O, no dependency but serde; the format is frozen (`folia/crates/pack/src/lib.rs`). |
 | `data/` | `DataClient`: where every page asks its questions. On the server it answers them on its thread from the active snapshot; in the browser it sends them to the data worker. |
 | `design/`, `stores/`, `shell/`, `widgets/` | The UI below the pages (Leptos, feature `ssr` for the server, `csr` for the browser): building blocks and the languages, what a visitor keeps, the shell (chrome, frame, a step between pages, the ground), what several pages show. |
-| `home/`, `catalog/`, `programs/`, `bookmarks/`, `planner/` | The features: each its pages and their texts. None uses another. |
+| `home/`, `catalog/`, `programs/`, `bookmarks/`, `planner/`, `profile/` | The features: each its pages and their texts. None uses another. |
 | `app/` | The composition: the document and `App` with its routes. |
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -50,6 +51,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
+| `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
@@ -1995,7 +1997,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   visitor's. Every link of the server's HTML to anything else carries `rel="nofollow"`: the toggles
   and the orders of the lists, the tags that take a filter away, the pager of a filtered list, the
   catalog narrowed down to a program or an area, the examples on the start page, the Merkliste and
-  the Stundenplan in the navigation, the language switch on a view, a program's other examination
+  the Stundenplan in the navigation, the language's way on a view, a program's other examination
   regulations from its „Mein Plan“ (they keep the view, and lead to theirs; from the plan they are
   followed) (`seo::nofollow` where the target decides). The pager of the unfiltered catalog and the
   plans of the study directions are followed. `nofollow` is a hint, and a crawler keeps asking for
@@ -2214,6 +2216,84 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), English
 pages.
 
+### Profiles (`folia/crates/stores/src/profiles.rs`, `folia/crates/profile`; 2026-10-14)
+
+Owner, 2026-10-14: „eine Profile funktion, so dass man mehrere Profile in Betula anlegen kann und
+dann eine seite hat, wo man seine ganzen informationen/einstellungen verwalten kann". A profile is
+a set of what a visitor keeps, side by side with others in one browser: a second program beside
+the first, a change of program tried out apart from the real plan, a browser two people share.
+There is no account (R20): the profiles live in the browser like the Merkliste.
+
+- **What a profile holds** (`profiles::KEYS`): the Merkliste, the Stundenplan with „Mein Studium“
+  (one text, `PlanDoc`), the saved plans and „Mein Studiengang“. **What every profile shares** is
+  the browser's (R13): the language, light or dark, the widths of the panels, what the finder
+  compares, the tabs' memory of the session.
+- **Keys.** The first profile keeps the plain keys (`betula.bookmarks.v1` …), the ones a browser
+  had before there were profiles: nothing moves when profiles come, and a build without them (a
+  rollback, an old tab of the installed app) shows the first profile as it is. Another profile
+  keeps its number after `betula.` (`betula.p2.bookmarks.v1`, `profiles::key_of`). The list is
+  `betula.profiles.v1`: `active<TAB>2`, then `profile<TAB><n><TAB><made, s since 1970><TAB><name>`
+  per profile; the first alone, unnamed, writes none. It is read like anything from outside
+  (numbers 1–999, a profile once, at most 8, a name one line of at most 40 characters, the active
+  one among them), never as no profile, and what stands under the plain keys always has its
+  profile (the first deleted and written to by a build without profiles since: it is listed
+  again).
+- **Switching** is the browser's, not a tab's: every tab follows, as marks do. The stores follow
+  the active profile through `profiles::Kept`: they read the new profile's texts when it changes
+  (here, in another tab, or when the profile page wrote into them: emptied, put back) and write
+  only under the key of the profile whose text they hold, so a switch never writes one profile's
+  text under another's. What a page keeps for „Rückgängig“ (the Stundenplan's `PlanCtx::undo`, the
+  Merkliste's emptied list) is dropped with another profile, and the Merkliste lists the new
+  profile's marks as if it had been opened with them. The script in `<head>` reads „Mein
+  Studiengang“ of the active profile for `html.mine`.
+- **The way to it** (`chrome::ProfileButton`): the profile's badge (its initial in one of the
+  eight soft hues `--t-*`; a person while there is one profile without a name) at the end of the
+  rail above the switch between light and dark, and on a phone, which has no rail, a box at the
+  right of the search at the head of every page (owner, 2026-10-14: „für die mobile Version noch
+  ein Konzept wie man an sein Profil rankommt“), as high and as wide as the search is high, in
+  its style — as the way back of a page's step is a box at the search's left (`TopBack`). Beside
+  it the search keeps its words on a phone 390 px wide (a little less room around its icon and
+  words there); the start page's brand line holds the brand alone. The page is no area's: no tab
+  is current on it, the badge is, and the top bar says „Profil“. The server writes the person, the
+  same for everybody (R9), and without JavaScript the way leads to the page's stand-in.
+- **The menu of the profiles** (`chrome::ProfileMenu`, `ProfileSwitcher`; owner, 2026-10-14:
+  „wenn man beim pc über das profil in der nav bar links hovert, kann man die profile direkt
+  auswählen. Beim Handy long hold.“): the profiles with their „Mein Studiengang“
+  (`Profiles::program_lines`, as on the page), the active one checked; a click makes one the
+  active profile after the next frame (R21), and the menu goes at once. Below them „Profil &
+  Einstellungen“ (the page) and the other language (`languages::LanguageWays`: this page in it, a
+  page load). A mouse resting on the rail's way for 160 ms opens it beside the way, growing up
+  from its foot, without moving the focus; it goes 280 ms after the mouse has left the way and
+  the menu (the gap between them is crossed in that time), and a mouse passing over the way opens
+  nothing. A right click or the menu key on the way opens it as a tab's menu is opened
+  (`TabMenu`): over a dimmed page, the focus on the active profile, until a choice, a click beside
+  it or Esc (the focus back on the way). On a phone a finger held on the box opens it below the
+  box (enhance.js, `data-hold="profiles"` → `betula:profile-menu`, as a tab is held), and the
+  finger's release goes nowhere; a tap on the box is the page.
+- **The page** (R17): the sidebar holds the profiles (a click marks one and switches after the
+  next frame, R21; under each its „Mein Studiengang“), „Neues Profil“ (a name, none: „Profil 3“;
+  the new profile is empty and active), and „Sichern & übertragen“. The page is the active
+  profile: its head (badge, name, when it was made; „Umbenennen“, „Löschen“ — the only profile is
+  emptied, not deleted), „Mein Studiengang“ (program with the plan of its Studienrichtung,
+  Studienbeginn and Fachsemester, Urlaubssemester, Standort; changed in „Mein Studium“), what it
+  keeps (Merkliste, Stundenplan, „Mein Studium“, saved plans, each row the way there; „Profil
+  leeren“), and the settings (light, dark or the system's, set by `enhance.js` as the rail's
+  switch is, `data-action="theme-set"`, which says so with `betula:theme`; the language, a page
+  load). The language lives in the profile since 2026-10-14 (owner: „allgemein kann man die
+  Spracheinstellungen komplett in das Profil moven“): here and in the menu of the profiles; the
+  rail and the start page's brand line have no switch any more, and without JavaScript the page's
+  stand-in offers the other language (docs/folia/i18n.md). A profile deleted or emptied comes back
+  with „Rückgängig“ at the head until the page is left. On a phone the sidebar comes first
+  (`sidebar_first`), and this is where a phone chooses light or dark at all.
+- **A profile as a file** („Als Datei sichern“, `profiles::Backup`): JSON,
+  `{"betula": "profile", "version": 1, "name": …, "stores": {"betula.bookmarks.v1": …}}`, the
+  stores named by the first profile's keys, made in the browser (a Blob) and named
+  `betula-<name>-<day>.json`. „Aus Datei laden“ reads it in the browser (at most 4 MB), checks
+  every store as the store reads its text, says what it holds and asks; the profile it makes is a
+  new one, its name told apart from a profile of the same name („Zweitstudium (2)“). A file of a
+  later layout is refused, not half read. Neither reaches the server; the privacy notice says so
+  („Speicher im Browser“).
+
 ## 2. Rules
 
 R1–R8 from `docs/history/frontend-rewrite.md` §5 apply. In short: navigation state reaches pages as
@@ -2234,7 +2314,9 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 - **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
   and the preview live in `localStorage` and are applied before the first paint by the script in
   `<head>`. So does the language (`betula.language`, `docs/folia/i18n.md`): the first script of the head
-  opens the page in it, which is a page load, because a language is an address.
+  opens the page in it, which is a page load, because a language is an address. They are the
+  browser's, the same in every profile (the profile page sets light, dark or the system's and the
+  language, the menu of the profiles the language; the rail's switch light or dark).
 - **R14. Virtual oversizing.** A small control takes the pointer in an area larger than it shows:
   an invisible layer that belongs to the control itself (a wrapper element would receive the click
   instead of the control). Set per side with `--hit`, `--hit-x`/`--hit-y`, `--hit-t/-r/-b/-l`;
@@ -2297,7 +2379,9 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   visitor on the server). Marked modules, and whatever follows them (passed modules, the own
   program), live in `localStorage` under a versioned key (`betula.<what>.v<n>`), behind one
   store per kind that is provided through context and is empty on the server
-  (`bookmarks::Bookmarks`). They never become part of a URL (URLs are requested from the server
+  (`bookmarks::Bookmarks`), each profile its own (2026-10-14, „Profiles"): the first under the plain
+  key, another under its number (`betula.p2.bookmarks.v1`), the profiles and the active one under
+  `betula.profiles.v1`. They never become part of a URL (URLs are requested from the server
   and end up in its logs), of server HTML (R9) or of a request; a URL may carry how such data is
   shown, never the data. What is read from storage is checked like what comes from a URL.
   The privacy notice lists what a browser keeps („Speicher im Browser" in
@@ -3247,6 +3331,26 @@ place (the address still the list's) and „Zurück" returning. Without the app:
 shows without JavaScript, `/bookmarks` explains itself and is `noindex`; with JavaScript but
 before the takeover the buttons are invisible and their room is kept (the heading is exactly as
 tall as once the app runs).
+
+```bash
+cd e2e && node profile.mjs
+```
+
+drives the profiles and their page: the rail's way to the page (current there, no tab), no switch
+of the languages in the rail, the first profile unnamed with the browser's marks; „Neues Profil“
+(the name asked for, the profile empty and active, the rail's badge, the list as kept, its marks
+under `betula.p2.…` alone); a switch in the sidebar bringing a profile's marks back; renaming;
+another tab whose Merkliste and rail follow a switch; „Profil leeren“ and „Rückgängig“; the menu of
+the profiles (a mouse resting on the rail's way: the profiles, the page, the other language, a
+profile chosen; a right click: the focus on the active profile, one chosen with the keyboard, Esc);
+light, dark and the system's with the rail's switch and the browser's chrome; a profile as a file
+(its name, its JSON) and a profile made of it, a file that is none; deleting the active profile and
+„Rückgängig“; the script in `<head>` reading the active profile's program. Privacy: no request
+carries a profile's name or a mark, none leaves the site. English; on a phone the box at the head
+(as high as the search, at its right, nothing on the brand line), a finger held on it (the menu, a
+release that goes nowhere, a profile tapped there), a tap leading to the page, the profiles before
+the page, no sideways scrolling; without JavaScript the page explains itself, is `noindex`, offers
+the other language, and the rail's way to it shows.
 
 ```bash
 cd e2e && node programs.mjs

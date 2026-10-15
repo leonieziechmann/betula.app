@@ -1,10 +1,11 @@
 // Checks the browser app in another language (docs/folia/i18n.md): on `/en/…` it takes over like on the
 // German pages, every step stays under `/en` and inside the app (no page load), every link it
-// writes leads to an English page or to what has no language, and the switch in the rail leads to
-// the same page in German, as a page load of its own. Then the language a browser opens the site in
-// (`app::languages::language_script`): its own on the first visit, kept in `localStorage`, the
-// kept one on every later visit, the switch's once it was used, the default for a browser that
-// speaks none of the site's languages. (An automated browser is left where it is, so the checks
+// writes leads to an English page or to what has no language, and the language's way in the menu of
+// the profiles (a mouse resting on the rail's way to the profile page; the language lives in the
+// profile since 2026-10-14) leads to the same page in German, as a page load of its own. Then the
+// language a browser opens the site in (`app::languages::language_script`): its own on the first
+// visit, kept in `localStorage`, the kept one on every later visit, the way's once it was used, the
+// default for a browser that speaks none of the site's languages. (An automated browser is left where it is, so the checks
 // of the German pages run as they are; here the browser says it is none.)
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node languages.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a page load after takeover, a console error, a link out of English, or a step that does
@@ -64,9 +65,14 @@ await step("the timetable", () => page.click('.rail a.nav[data-area="studyplan"]
 await step("the home page", () => page.click('.rail a.nav[data-area="home"]'), () => location.pathname === "/en");
 await step("the search of the top bar", () => page.fill("#topsearch", "mathe"), () => location.pathname === "/en/catalog" && location.search.includes("q=mathe"));
 
-// The switch: the same page in German, loaded anew.
+// The language's way in the menu of the profiles: the same page in German, loaded anew.
+const toGerman = async (tab) => {
+  await tab.hover(".rail .profile-btn");
+  await tab.waitForSelector('.profile-menu a[hreflang="de"]', { timeout: 3000 }).catch(() => problems.push("the menu of the profiles offers no way to German"));
+  await tab.click('.profile-menu a[hreflang="de"]');
+};
 const english = new URL(page.url());
-await page.click('.rail .languages a[hreflang="de"]');
+await toGerman(page);
 await page.waitForFunction(() => document.documentElement.lang === "de" && window.__betulaApp === true, null, { timeout: 60000 }).catch(() => problems.push("the switch did not lead to a German page"));
 const german = new URL(page.url());
 if (german.pathname !== english.pathname.replace(/^\/en/, "") || german.search !== english.search) problems.push(`the switch led from ${english.pathname}${english.search} to ${german.pathname}${german.search}`);
@@ -95,7 +101,7 @@ const arrive = async (tab, path, expected, name) => {
   if (kept !== "en") problems.push(`the first visit kept ${kept}, not en`);
   await arrive(tab, "/programs", "/en/programs", "the next visit of the English browser");
   await tab.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the app did not take over on /en/programs"));
-  await tab.click('.rail .languages a[hreflang="de"]');
+  await toGerman(tab);
   await tab.waitForFunction(() => location.pathname === "/programs" && document.documentElement.lang === "de", null, { timeout: 15000 }).catch(() => problems.push(`the switch led to ${tab.url()}`));
   kept = await tab.evaluate(() => localStorage.getItem("betula.language"));
   if (kept !== "de") problems.push(`the switch kept ${kept}, not de`);

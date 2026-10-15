@@ -236,6 +236,15 @@ pub fn StudyplanPage() -> impl IntoView {
         phone: phone_layout(),
         days: RwSignal::new(false),
     };
+    // What „Rückgängig" puts back is the plan of the profile it was taken from: with another
+    // profile (chosen here or in another tab, `folia_stores::profiles`) there is nothing to undo.
+    Effect::new(move |before: Option<u16>| {
+        let profile = plan.map_or(0, Studyplan::profile);
+        if before.is_some_and(|before| before != profile) {
+            ctx.undo.set(None);
+        }
+        profile
+    });
 
     // What fills the page: the plan, or the module after „Vollbild" (until then the plan's panel of
     // it stands beside the plan, on a phone a sheet over it).

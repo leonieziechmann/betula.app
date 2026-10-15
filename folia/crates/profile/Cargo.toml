@@ -1,0 +1,35 @@
+[package]
+name = "folia-profile"
+version = "1.0.3"
+edition = "2021"
+description = "Betula's profile page: the profiles of a browser, what the active one keeps, the settings"
+
+[lib]
+name = "folia_profile"
+
+[features]
+ssr = ["leptos/ssr", "leptos_meta/ssr", "folia-design/ssr", "folia-data/ssr", "folia-shell/ssr", "folia-stores/ssr"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:wasm-bindgen-futures", "folia-design/csr", "folia-shell/csr", "folia-stores/csr"]
+
+[dependencies]
+leptos = "0.8.20"
+leptos_meta = "0.8"
+folia-design = { path = "../design" }
+folia-data = { path = "../data" }
+folia-shell = { path = "../shell" }
+folia-stores = { path = "../stores" }
+folia-calendar = { path = "../calendar" }
+folia-locale = { path = "../locale" }
+folia-pages = { path = "../pages" }
+folia-plans = { path = "../plans" }
+folia-routes = { path = "../routes" }
+wasm-bindgen = { version = "0.2", optional = true }
+# Reading a file the visitor picks (`Blob::text`, a promise).
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Element", "HtmlElement", "HtmlInputElement", "HtmlAnchorElement", "Node", "Event", "EventTarget", "Storage", "Blob", "BlobPropertyBag", "Url", "File", "FileList"] }
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+indexing_slicing = "deny"
+panic = "deny"
