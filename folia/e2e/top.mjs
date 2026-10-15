@@ -58,6 +58,19 @@ const wheel = async (page, x, y, dy, times) => {
   for (let i = 0; i < times; i++) { await page.mouse.wheel(0, dy); await page.waitForTimeout(90); }
   await page.waitForTimeout(600);
 };
+// How far the list has moved on the screen: a row below the middle of what is seen, where it
+// stands now, and later how far it has gone up since. Not the scroll position: the list makes up
+// for rows that turn out taller or shorter than they were taken for by scrolling by the
+// difference, which moves the scroll position and nothing that is seen.
+const markRow = (page) => page.evaluate((PAGE) => {
+  const area = document.querySelector(PAGE).getBoundingClientRect();
+  const row = [...document.querySelectorAll(".vrow")].find((row) => row.getBoundingClientRect().top > area.top + area.height / 2);
+  return row ? { i: row.dataset.i, top: row.getBoundingClientRect().top } : null;
+}, PAGE);
+const movedSince = (page, mark) => page.evaluate((mark) => {
+  const row = mark && document.querySelector(`.vrow[data-i="${mark.i}"]`);
+  return row ? Math.round(mark.top - row.getBoundingClientRect().top) : null;
+}, mark);
 
 // ---------- a wide screen: the catalog's whole list ----------
 {
@@ -77,11 +90,12 @@ const wheel = async (page, x, y, dy, times) => {
   check(b.shown && b.seen, `far down the list: the button does not show: ${JSON.stringify(b)} ${JSON.stringify(w)}`);
   check(Math.abs(panel.right - b.right - 16) <= 1 && Math.abs(panel.bottom - b.bottom - 16) <= 1 && b.width === 40, `the button is not in the corner of the list: ${JSON.stringify(b)} ${JSON.stringify(panel)}`);
   check(/[?&]page=\d/.test(w.search) && w.first > 100, `far down the list: the list did not follow: ${JSON.stringify(w)}`);
-  // The wheel over the button turns the list under it.
-  const before = w.top;
+  // The wheel over the button turns the list under it, each notch its whole way, as over the list.
+  const mark = await markRow(page);
   await wheel(page, (b.left + b.right) / 2, (b.top + b.bottom) / 2, 100, 3);
+  const moved = await movedSince(page, mark);
   w = await where(page);
-  check(w.top > before + 150, `the wheel over the button did not turn the list: ${before} → ${JSON.stringify(w)}`);
+  check(moved !== null && moved >= 250, `the wheel over the button did not turn the list its way (300 px): ${moved} px from row ${mark?.i}, ${JSON.stringify(w)}`);
   await page.click("#to-top");
   await page.waitForTimeout(900);
   w = await where(page);

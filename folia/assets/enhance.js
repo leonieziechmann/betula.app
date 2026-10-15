@@ -1180,13 +1180,38 @@
   addEventListener("load", showTopSoon);
   addEventListener("pageshow", (e) => { if (e.persisted) showTopSoon(); });
   // The button stands over the page but is no part of what scrolls: the wheel over it turns the
-  // page under it, as over the page itself. A phone scrolls the window anyway.
+  // page under it, as over the page itself. A phone scrolls the window anyway. A mouse's notch
+  // glides as the browser's own wheel does, but written here a frame at a time: over the virtual
+  // list the browser's smooth scrolling ended where the list made up for rows measured anew (a
+  // script's scroll ends a smooth one), half its way short (top.mjs). Each frame moves the page
+  // by its share of the way, so that what the list makes up in between stays made up; another
+  // notch adds its way to what is left. A touchpad's small steps, and less motion: at once.
+  let turning = 0; // the next frame of a wheel's glide
+  let turn = null; // the page it turns, its way, how much of it is gone, and since when
+  const stopTurning = () => {
+    cancelAnimationFrame(turning);
+    turning = 0;
+    turn = null;
+  };
   document.addEventListener("wheel", (e) => {
     if (e.ctrlKey || !e.target.closest?.("#to-top")) return;
     const page = pageScroller();
     if (!page || page === document.scrollingElement) return;
     const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * page.clientHeight : e.deltaY;
-    page.scrollBy({ top: dy, behavior: Math.abs(dy) >= 50 ? glide() : "instant" });
+    if (Math.abs(dy) < 50 || glide() === "instant") { page.scrollBy({ top: dy, behavior: "instant" }); return; }
+    const left = turn?.page === page ? turn.way - turn.gone : 0;
+    turn = { page, way: left + dy, gone: 0, start: performance.now() };
+    if (turning) return;
+    const step = (now) => {
+      // A frame can have begun before the notch that it is the first frame of.
+      const t = Math.min(1, Math.max(0, (now - turn.start) / 200));
+      const gone = Math.round(turn.way * (1 - (1 - t) ** 3));
+      if (gone !== turn.gone) turn.page.scrollTop += gone - turn.gone;
+      turn.gone = gone;
+      if (t < 1) turning = requestAnimationFrame(step);
+      else stopTurning();
+    };
+    turning = requestAnimationFrame(step);
   }, { passive: true });
   let rising = 0; // the next frame of a glide to the top
   const STOP_RISING = ["wheel", "touchstart", "pointerdown", "keydown"];
@@ -1200,6 +1225,7 @@
     const page = pageScroller();
     if (!page) return;
     stopRising();
+    stopTurning();
     const put = (y) => { if (page === document.scrollingElement) window.scrollTo(0, y); else page.scrollTop = y; };
     // A keyboard goes on from the start of the page, where „Zum Inhalt springen" leads, and not
     // from the button, which is gone at the top.
