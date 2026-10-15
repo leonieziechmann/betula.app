@@ -2578,7 +2578,7 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
 ./radix.exe serve-snapshot --addr 127.0.0.1:8090
 ```
 
-(Without a crawl of your own: the catalog of betula.app, from `https://betula.app/api/db`, §4.)
+(Without a crawl of your own: the catalog of canary, from `https://canary.betula.app/api/db`, §4.)
 
 ```bash
 bash folia/scripts/dev.sh --watch
@@ -3150,11 +3150,18 @@ cargo test
 ```
 
 needs a snapshot (`snapshot/current.json` or `FOLIA_TEST_SNAPSHOT`) and fails without one.
-**The real catalog** is the one betula.app serves (owner, 2026-10-01): `/api/db` is the snapshot
-Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip).
+**The real catalog** is the one Betula serves (owner, 2026-10-01): `/api/db` is the snapshot
+Radix exported, byte for byte (44 MB; `--compressed` takes it in brotli or gzip). Take canary's:
+it is built from `master`, so its snapshot has the schema the queries of `develop` are written for.
+betula.app still runs Folia 1.0.3 on a snapshot of schema 9 (2026-10-15), and with it
+`the_queries_are_written_for_the_newest_schema` and every test of real data fails. Canary is
+behind its gate: the owner gives the password, which never goes into the repository; the command
+asks for it.
 
 ```bash
-curl --compressed -o snapshot/catalog.db https://betula.app/api/db
+read -rsp "canary password: " pw; echo; curl -sS -o /dev/null -c snapshot/canary.cookies \
+  --data-urlencode "password=$pw" --data-urlencode next=/ https://canary.betula.app/access; unset pw
+curl --compressed -b snapshot/canary.cookies -o snapshot/catalog.db https://canary.betula.app/api/db
 FOLIA_TEST_SNAPSHOT=snapshot/catalog.db cargo test -p folia-server
 ```
 
