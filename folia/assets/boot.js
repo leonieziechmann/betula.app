@@ -23,34 +23,8 @@ const SCHEMA = __SCHEMA__;
 // id of the passage model it was made for, or null when the server does not know it. A name, as SCHEMA.
 const SEMANTIC_MODEL = __SEMANTIC_MODEL__;
 
-// What this script says, in the page's language as its address says it (`folia_locale::Locale::split`;
-// docs/folia/i18n.md). The first is the default, without a prefix. (Offline the service worker may
-// answer with a page it kept in another language; the address is still the visitor's.)
-const LANGUAGES = [
-  {
-    prefix: "",
-    offline: "Offline – die Daten werden neu geladen, sobald du online bist",
-  },
-  {
-    prefix: "/en",
-    offline: "Offline – the data will be loaded again once you are online",
-  },
-];
-const T = LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
-
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch((error) => console.info("[catalog] no service worker:", error));
-}
-
-// The status in the top bar says one thing only: why the app does not start, where the visitor
-// needs to know (offline, with a copy of the catalog of an older schema). The loading of the data
-// is not announced (owner, 2026-10-15: „Das Laden geht schnell genug, so dass man es nicht sehen
-// muss"; on a phone its words took the search's room, „D…", and gave it back at the takeover).
-function status(text) {
-  const el = document.getElementById("db-status");
-  if (!el) return;
-  el.textContent = text;
-  el.hidden = !text;
 }
 
 // IndexedDB, where the map of the programs is kept beside the catalog (the data worker keeps the
@@ -216,11 +190,8 @@ function startData() {
     }
     const question = asked.get(data.id);
     asked.delete(data.id);
-    if (data.error) {
-      const error = new Error(data.error);
-      if (data.notice === "offline") error.notice = T.offline;
-      question?.reject(error);
-    } else question?.resolve(data);
+    if (data.error) question?.reject(new Error(data.error));
+    else question?.resolve(data);
   };
   worker.onerror = (event) => fail(new Error(event.message || "the data worker failed"));
   // Back in view: the worker looks for a newer snapshot (and every few minutes by itself).
@@ -411,9 +382,11 @@ try {
   window.__betulaStarting = false;
   document.querySelector(".takeover-picture")?.remove();
   document.documentElement.style.removeProperty("overflow-anchor");
-  // Not fatal: the site stays a classic website. The pill says nothing, unless the visitor needs
-  // to know why (`notice`). A link followed meanwhile loads its page.
+  // Not fatal: the site stays a classic website, and says nothing of it: neither that its data is
+  // loading nor, offline with a copy of an older schema, why the app does not start (owner,
+  // 2026-10-15: „Ach mach das einfach weg. Das Laden geht schnell genug, so dass man es nicht sehen
+  // muss", and „den Offline-Hinweis auch weg"; on a phone the words took the search's room beside
+  // them). A link followed meanwhile loads its page.
   console.info("[catalog] browser app not started:", error);
-  status(error.notice || "");
   window.betulaStarted?.(false);
 }

@@ -1158,7 +1158,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   and if anything fails, the site stays a website served from the HTML cache.
   A copy of an older schema than the build reads is never opened (`user_version` in the SQLite
   header against `folia_model::SCHEMA_VERSION`): with the network it is replaced first, offline the
-  app does not start, and the status says so. A server whose own snapshot is older says so in
+  app does not start (and nothing says so). A server whose own snapshot is older says so in
   `/api/status` (`snapshot.outdated`), and nothing is downloaded from it. A newer snapshot is
   shown at once (owner, 2026-10-02): the worker looks when the tab comes back into view and every
   five minutes, opens a new one beside the one in use and answers from it; the page shows the
@@ -2274,13 +2274,13 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   site").
   `folia/e2e/deploy.mjs` plays a deploy with two builds whose stylesheets differ. `boot.js` finds
   `/api/status` unreachable offline and simply opens the copy it has, unless that copy is of an
-  older schema than the build reads: then the app does not start, the page stays the one the
-  worker kept, and the status says „Offline – die Daten werden neu geladen, sobald du online
-  bist" (the only case in which a failed start says anything). Once the app runs it says
-  nothing: the „Offline bereit" notice is gone (owner, 2026-09-21: „wenn es einfach
-  funktioniert, dann passt das"), and neither is the loading of the data on a first visit any more
-  (owner, 2026-10-15: „Das Laden geht schnell genug, so dass man es nicht sehen muss"; on a phone
-  its words took the search's room, „D…", and gave it back at the takeover). `folia/e2e/pwa.mjs` cuts the network and loads pages afresh; `folia/e2e/schema.mjs` plants a copy of an older schema and starts with and without a network, and one that cannot be read.
+  older schema than the build reads: then the app does not start and the page stays the one the
+  worker kept. Nothing of the data is said in the top bar any more: not „Offline bereit" once the
+  app runs (owner, 2026-09-21: „wenn es einfach funktioniert, dann passt das"), not the loading of
+  the data on a first visit, and not why the app does not start offline (owner, 2026-10-15: „Ach
+  mach das einfach weg. Das Laden geht schnell genug, so dass man es nicht sehen muss", „Ja, den
+  Offline-Hinweis auch weg"; on a phone the words took the search's room beside them, „D…", and
+  gave it back at the takeover). `folia/e2e/pwa.mjs` cuts the network and loads pages afresh; `folia/e2e/schema.mjs` plants a copy of an older schema and starts with and without a network, and one that cannot be read.
 
 Not done: submitting the sitemap to the search consoles (needs the owner's accounts), English
 pages.

@@ -38,7 +38,6 @@ const installed = await until(async () => {
   return false;
 }, 120000);
 check(installed, "the service worker did not cache the shell");
-check(!(await page.evaluate(() => document.getElementById("db-status")?.getClientRects().length > 0)), "the status pill is still shown once the app runs");
 
 // A page seen with the network is kept; the rest comes from the shell.
 await page.goto(base + "/programs/bachelor-informatik-2008/plan", { waitUntil: "domcontentloaded" });

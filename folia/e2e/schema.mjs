@@ -5,10 +5,10 @@
 // IndexedDB: the server's own, its header saying one schema less (`user_version`, four bytes at
 // offset 60), which is all that tells a copy from before the last migration. Then:
 //   1. without a network the app does not start on it: the page stays the one the service worker
-//      kept, and the status says why, where an error page used to be;
+//      kept, where an error page used to be, and says nothing of it (owner, 2026-10-15: „den
+//      Offline-Hinweis auch weg");
 //   2. with the network the app starts only on the server's copy, which is downloaded first, as
-//      on a first visit, without a word in the status (owner, 2026-10-15: the loading is not
-//      announced), and kept;
+//      on a first visit, and kept;
 //   3. a copy of the build's own schema under an older ETag still starts the app at once, and the
 //      server's copy replaces it in the background for the next start, as before;
 //   4. a copy the browser cannot read any more (its file gone, 2026-10-02: the app then never
@@ -37,14 +37,8 @@ if (!(schema > 0) || !(server?.schema_version >= schema)) {
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
 try {
   const context = await browser.newContext({ viewport: { width: 1300, height: 900 } });
-  // In every document, before its scripts: each text the status pill shows (boot.js empties it
-  // once the app runs), and the copy of the catalog as boot.js keeps it in IndexedDB.
+  // In every document, before its scripts: the copy of the catalog as boot.js keeps it in IndexedDB.
   await context.addInitScript(() => {
-    window.__statuses = [];
-    new MutationObserver(() => {
-      const text = document.getElementById("db-status")?.textContent;
-      if (text && window.__statuses.at(-1) !== text) window.__statuses.push(text);
-    }).observe(document, { childList: true, subtree: true, characterData: true });
     const store = (mode, act) => new Promise((resolve, reject) => {
       const open = indexedDB.open("betula-catalog", 1);
       open.onupgradeneeded = () => open.result.createObjectStore("snapshots");
@@ -83,7 +77,6 @@ try {
     return false;
   };
   const started = (ms) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: ms }).then(() => true, () => false);
-  const statuses = () => page.evaluate(() => window.__statuses);
   const errorPage = () => page.evaluate(() => Boolean(document.querySelector(".state-error, .fatal")));
 
   // A first visit keeps the server's copy; once the worker is in charge, the page is seen again
@@ -104,11 +97,8 @@ try {
   await page.evaluate((args) => window.__plant(args), ['"before-the-release"', schema - 1]);
   await context.setOffline(true);
   await page.reload({ waitUntil: "domcontentloaded" }).catch((error) => problems.push("offline: the page did not load (" + String(error).slice(0, 120) + ")"));
-  const said = await until(() => {
-    const pill = document.getElementById("db-status");
-    return Boolean(pill && !pill.hidden && pill.textContent.startsWith("Offline"));
-  }, null, 30000);
-  check(said, `offline, an older copy: the status does not say why the app does not start (${JSON.stringify(await statuses())})`);
+  check(await until(() => window.__betulaStarting === false, null, 30000), "offline, an older copy: boot.js did not give up on the app");
+  check(await page.evaluate(() => !document.body.textContent.includes("Offline –")), "offline, an older copy: the page says that it is offline");
   check(await page.evaluate(() => window.__betulaApp !== true), "offline, an older copy: the app started on it");
   check(!(await errorPage()), "offline, an older copy: an error page");
   check(await page.evaluate((path) => location.pathname === path && Boolean(document.querySelector("table.ptable")), path), "offline, an older copy: not the plan the worker kept");
@@ -119,8 +109,6 @@ try {
   check(await started(120000), "online, an older copy: the app did not start");
   const opened = await page.evaluate(() => window.betulaData?.etag);
   check(opened === server.etag, `online, an older copy: the app opened ${opened}, not the server's copy ${server.etag}`);
-  const replacing = await statuses();
-  check(replacing.length === 0, `online, an older copy: the status said something while the data loaded (${JSON.stringify(replacing)})`);
   const replaced = await page.evaluate(() => window.__copy());
   check(replaced?.etag === server.etag && replaced?.schema === server.schema_version, `online, an older copy: kept ${JSON.stringify(replaced)}`);
   const drawn = await page.waitForFunction(() => document.querySelector('#plan table.ptable tbody a[data-walk="module"]'), null, { timeout: 30000 }).then(() => true, () => false);
@@ -132,7 +120,6 @@ try {
   await page.reload({ waitUntil: "domcontentloaded" });
   check(await started(60000), "the build's schema, an older ETag: the app did not start");
   check((await page.evaluate(() => window.betulaData?.etag)) === '"an-older-export"', "the build's schema, an older ETag: the app did not start on the copy it had");
-  check((await statuses()).length === 0, `the build's schema, an older ETag: the status said something (${JSON.stringify(await statuses())})`);
   const followed = await until((etag) => window.__copy().then((copy) => copy?.etag === etag), server.etag, 60000);
   check(followed, "the build's schema, an older ETag: the server's copy did not replace it in the background");
 
