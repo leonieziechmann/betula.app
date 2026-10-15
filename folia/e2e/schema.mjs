@@ -7,7 +7,8 @@
 //   1. without a network the app does not start on it: the page stays the one the service worker
 //      kept, and the status says why, where an error page used to be;
 //   2. with the network the app starts only on the server's copy, which is downloaded first, as
-//      on a first visit ("Daten werden geladen …"), and kept;
+//      on a first visit, without a word in the status (owner, 2026-10-15: the loading is not
+//      announced), and kept;
 //   3. a copy of the build's own schema under an older ETag still starts the app at once, and the
 //      server's copy replaces it in the background for the next start, as before;
 //   4. a copy the browser cannot read any more (its file gone, 2026-10-02: the app then never
@@ -83,7 +84,6 @@ try {
   };
   const started = (ms) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: ms }).then(() => true, () => false);
   const statuses = () => page.evaluate(() => window.__statuses);
-  const loading = (texts) => texts.some((text) => text.startsWith("Daten werden geladen"));
   const errorPage = () => page.evaluate(() => Boolean(document.querySelector(".state-error, .fatal")));
 
   // A first visit keeps the server's copy; once the worker is in charge, the page is seen again
@@ -120,7 +120,7 @@ try {
   const opened = await page.evaluate(() => window.betulaData?.etag);
   check(opened === server.etag, `online, an older copy: the app opened ${opened}, not the server's copy ${server.etag}`);
   const replacing = await statuses();
-  check(loading(replacing), `online, an older copy: the status never said that the data is loading (${JSON.stringify(replacing)})`);
+  check(replacing.length === 0, `online, an older copy: the status said something while the data loaded (${JSON.stringify(replacing)})`);
   const replaced = await page.evaluate(() => window.__copy());
   check(replaced?.etag === server.etag && replaced?.schema === server.schema_version, `online, an older copy: kept ${JSON.stringify(replaced)}`);
   const drawn = await page.waitForFunction(() => document.querySelector('#plan table.ptable tbody a[data-walk="module"]'), null, { timeout: 30000 }).then(() => true, () => false);
@@ -132,7 +132,7 @@ try {
   await page.reload({ waitUntil: "domcontentloaded" });
   check(await started(60000), "the build's schema, an older ETag: the app did not start");
   check((await page.evaluate(() => window.betulaData?.etag)) === '"an-older-export"', "the build's schema, an older ETag: the app did not start on the copy it had");
-  check(!loading(await statuses()), "the build's schema, an older ETag: the app waited for a download");
+  check((await statuses()).length === 0, `the build's schema, an older ETag: the status said something (${JSON.stringify(await statuses())})`);
   const followed = await until((etag) => window.__copy().then((copy) => copy?.etag === etag), server.etag, 60000);
   check(followed, "the build's schema, an older ETag: the server's copy did not replace it in the background");
 
