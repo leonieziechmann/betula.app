@@ -29,14 +29,10 @@ const SEMANTIC_MODEL = __SEMANTIC_MODEL__;
 const LANGUAGES = [
   {
     prefix: "",
-    loading: "Daten werden geladen …",
-    loadingShare: (percent) => `Daten werden geladen … ${percent} %`,
     offline: "Offline – die Daten werden neu geladen, sobald du online bist",
   },
   {
     prefix: "/en",
-    loading: "Loading the data …",
-    loadingShare: (percent) => `Loading the data … ${percent} %`,
     offline: "Offline – the data will be loaded again once you are online",
   },
 ];
@@ -46,21 +42,16 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch((error) => console.info("[catalog] no service worker:", error));
 }
 
-let statusState = null;
-function status(text, state) {
-  statusState = text ? { text, state: state || "" } : null;
-  applyStatus();
-}
-function applyStatus() {
+// The status in the top bar says one thing only: why the app does not start, where the visitor
+// needs to know (offline, with a copy of the catalog of an older schema). The loading of the data
+// is not announced (owner, 2026-10-15: „Das Laden geht schnell genug, so dass man es nicht sehen
+// muss"; on a phone its words took the search's room, „D…", and gave it back at the takeover).
+function status(text) {
   const el = document.getElementById("db-status");
   if (!el) return;
-  const text = statusState ? statusState.text : "";
-  if (el.textContent !== text) el.textContent = text;
+  el.textContent = text;
   el.hidden = !text;
-  el.dataset.state = statusState ? statusState.state : "";
 }
-// The app re-renders the top bar; keep the status visible across that.
-new MutationObserver(applyStatus).observe(document.documentElement, { childList: true, subtree: true });
 
 // IndexedDB, where the map of the programs is kept beside the catalog (the data worker keeps the
 // catalog in the same store).
@@ -218,8 +209,7 @@ function startData() {
     asked.clear();
   };
   worker.onmessage = ({ data }) => {
-    // What the worker says by itself: how far the first download is, and a newer snapshot in use.
-    if (data.event === "progress") return status(data.share ? T.loadingShare(data.share) : T.loading);
+    // What the worker says by itself: a newer snapshot in use.
     if (data.event === "snapshot") {
       window.betulaData.etag = data.etag;
       return window.betulaSnapshot?.();
@@ -410,8 +400,6 @@ try {
       requestAnimationFrame(() => requestAnimationFrame(() => root.style.removeProperty("overflow-anchor")));
       window.__betulaApp = true;
       window.__betulaStarting = false;
-      // Once the app runs there is nothing to say: it simply works.
-      status("");
       // Where a link followed meanwhile leads, now within the app (once what it set off has run).
       setTimeout(() => window.betulaStarted?.(true), 0);
     }));
