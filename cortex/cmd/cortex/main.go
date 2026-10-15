@@ -22,7 +22,8 @@ import (
 	"github.com/leonieziechmann/betula/cortex/internal/version"
 )
 
-// cortexVersion is the release of Cortex (GET /status, `cortex version`).
+// cortexVersion is the release of Cortex (GET /status, `cortex version`): by SemVer, raised with
+// every change to Cortex (owner, 2026-10-15; CLAUDE.md, „Versions").
 const cortexVersion = "1.0.0"
 
 // The streams of the commands; the tests replace them.

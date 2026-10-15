@@ -18,6 +18,26 @@ deploys an hour; `deploy/README.md` section 12).
   before the site's legal texts are set, not to keep anything secret; the owner gives the password,
   and it never goes into the repository, which is public.
 
+## Versions
+
+Folia, Radix and Cortex each have a version by SemVer, and every change raises the version of
+each of them whose shipped sources it changes, without being asked (owner, 2026-10-15: „immer wenn
+wir changes machen update die version number based on sem ver"):
+
+- MAJOR for what breaks those who use it (Radix: a snapshot Folia cannot read, its flags or its
+  environment; Cortex: its client's API; Folia: addresses that go away, what a browser keeps that
+  it cannot read any more), MINOR for something new or visibly different, PATCH for a fix that
+  changes nothing else. Docs, `design/`, `research/` and the checks alone raise nothing. A version
+  the owner names wins.
+- The bump is a commit of the branch on top of `develop` as it is when the branch is merged: a
+  branch that `develop` overtook raises the newer version again, so `develop` always says what is
+  in it, and `master` takes the versions with the release.
+- Folia: `version` of the crates at the app's version, those at the same version as
+  `folia/crates/server/Cargo.toml` (the libraries at 0.1.0 stay; `cargo` updates
+  `folia/Cargo.lock`); the page's ground and `x-build` show it. Radix:
+  `radix/internal/version/version.go`, which every snapshot carries (`radix_version`). Cortex:
+  `cortexVersion` in `cortex/cmd/cortex/main.go`.
+
 ## Layout
 
 `radix/` and `cortex/` are the two Go modules (run `go` in each; Radix imports `cortex/client` through a
