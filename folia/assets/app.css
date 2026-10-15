@@ -340,8 +340,8 @@ span.js-only { display: contents; }
 /* The view is as high as the window; less what shows of the ground (see „the birch"). */
 .main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
-/* The way back of a page's step and the way to the profile page at the head, a phone's (chrome.rs
-   `TopBack`, `ProfileButton`). */
+/* The way back of a page or of its step and the way to the profile page at the head, a phone's
+   (chrome.rs `TopBack`, `ProfileButton`). */
 .top-back, .top-profile { display: none; }
 /* The title sits over the filter panel (its text over the panel's text), the search over the list. */
 .crumb { display: flex; align-items: baseline; gap: 10px; flex: none; width: var(--filters); padding-left: 14px; min-width: 0; }
@@ -1342,6 +1342,9 @@ details.more > summary { cursor: pointer; color: var(--text-2); font-weight: 560
 .crumbs { margin-left: auto; display: flex; align-items: center; color: var(--text-3); font-size: 12.5px; }
 .crumbs a { color: var(--text-3); }
 .crumbs a + a::before { content: "/"; margin: 0 7px; color: var(--line-strong); }
+/* The views of a program in its head: a phone's, where the sidebar ends the page (program.rs
+   `ProgramViews`); a wider screen has them in the sidebar. */
+.prog-head .toc.views { display: none; }
 .prog-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 24px; }
 .prog-title h1 { min-width: 0; font-size: 26px; line-height: 1.15; font-weight: 700; letter-spacing: -.03em; text-wrap: pretty; }
 .prog-facts { display: flex; align-items: baseline; color: var(--text-3); font-size: 12.5px; white-space: nowrap; }
@@ -2995,21 +2998,16 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 /* „Zeigen" without a Termin to show: the line in the chips' place. */
 .sidebar .sp-none { margin-top: 0; }
 
-/* „Einplanen" on a module's page and „Mein Studiengang" on a program's: part of server HTML (R9,
-   unpressed), kept in place but not shown until the app runs, and gone without JavaScript (R15) —
-   the pattern of .mark-toggle, so nothing moves at the takeover. */
-.plan-toggle, .mine-toggle { visibility: hidden; }
-.app .plan-toggle, .app .mine-toggle { visibility: visible; }
-html:not(.js) .plan-toggle, html:not(.js) .mine-toggle { display: none; }
+/* „Einplanen" on a module's page: part of server HTML (R9, unpressed), kept in place but not shown
+   until the app runs, and gone without JavaScript (R15) — the pattern of .mark-toggle, so nothing
+   moves at the takeover. */
+.plan-toggle { visibility: hidden; }
+.app .plan-toggle { visibility: visible; }
+html:not(.js) .plan-toggle { display: none; }
 .plan-toggle[aria-busy="true"] { cursor: progress; }
 /* The line under „Einplanen" among a sidebar's actions (its semester, the placeholder, the other
    semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
 .actions > .plan-toggle { min-width: 0; }
-.mine-toggle[aria-pressed="true"] .icon { fill: currentColor; color: var(--text); }
-/* In a sidebar of 248px „Als meinen Studiengang setzen" takes two lines, pressed „Mein
-   Studiengang" one. Two lines this close fit the action's height, so the button keeps it in both
-   and the actions below do not move when the app shows the pressed one (R15). */
-.action.mine-toggle > span { line-height: 1.3; }
 
 /* ---------- closed testing: the login page ----------
    A document of its own (folia/crates/server/src/access.rs): no rail, no app, one column in the middle of the
@@ -3193,10 +3191,21 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .top-profile .icon { width: 22px; height: 22px; }
   .top-profile .avatar { width: 30px; height: 30px; font-size: 14px; }
   .top-profile:active { background: var(--panel-3); }
-  /* The way back of a page's step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links neben der
-     search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box as the
-     search is, as wide as it is high. It slides in from the left and the search makes room for it,
-     and back out the same way. */
+  /* While the way back is at the head, the way to the profile page gives way to it (owner,
+     2026-10-15: „wenn der angezeigt wird, dann soll die profilauswahl ausgeblendet werden"): it
+     slides out to the right as the way back slides in from the left, and the search keeps its
+     width. Where a page has the way back from its first paint (its address, chrome.rs
+     `back_at_head`), the server writes the bar so and nothing slides. */
+  .top-profile { overflow: hidden; transition: width .18s var(--ease), margin .18s var(--ease), opacity .14s, transform .18s var(--ease); }
+  .topbar.backed .top-profile { width: 0; margin-left: calc(-1 * var(--gap)); opacity: 0; transform: translateX(12px); }
+  /* The page's own „Zurück" where the way back is at the head (frame.rs `BackLink`): one way back.
+     The path beside it takes its place at the left. */
+  .hero-top > .at-head { display: none; }
+  .hero-top > .at-head + .crumbs { margin-left: 10px; }
+  /* The way back of a page or of its step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links
+     neben der search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box
+     as the search is, as wide as it is high. It slides in from the left and the search makes room
+     for it, and back out the same way. */
   .top-back { flex: none; display: grid; place-items: center; width: 0; height: 48px; margin-right: calc(-1 * var(--gap)); border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(-12px); overflow: hidden; transition: width .18s var(--ease), margin .18s var(--ease), opacity .14s, transform .18s var(--ease); -webkit-tap-highlight-color: transparent; }
   .top-back.on { width: 48px; margin-right: 0; opacity: 1; transform: none; }
   .top-back .icon { flex: none; width: 22px; height: 22px; }
@@ -3345,6 +3354,12 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sidebar .panel-head, .toc.jumps { display: none; }
   .sidebar .body { padding: 2px 8px 8px; overflow: visible; }
   .toc.views { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 3px; padding: 6px 0 2px; }
+  /* A program's views stand under its name, and the sidebar after the page holds the way into the
+     catalog and what is related (owner, 2026-10-15: the box above the page „ist ja mal komplett
+     unnötig"). */
+  .prog-head .toc.views { display: grid; margin-top: 10px; padding: 0; }
+  .sidebar .toc.views { display: none; }
+  .sidebar .catalog-jump { margin: 0; }
   .toc.views .flabel { display: none; }
   .toc.views a { justify-content: center; min-height: 42px; padding: 0 6px; text-align: center; font-size: 13.5px; background: var(--panel-3); }
   /* The view one is on stays the inverted one; the row above must not take its background. */
@@ -3442,6 +3457,13 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .block { padding: 18px 16px; }
   .ptable th:first-child, .ptable td:first-child, .variants, .footnote, .docrow, .fues > summary, .my-plan-links { padding-left: 16px; }
   .ptable th:last-child, .ptable td:last-child, .variants, .footnote, .docrow, .fues > summary, .my-plan-links { padding-right: 16px; }
+  /* A document's name and what it is under each other: side by side a phone left the name a word
+     („Prüfungsor…", „Modulbau…"). */
+  .docrow { display: grid; grid-template-columns: 16px minmax(0, 1fr) 16px; column-gap: 12px; row-gap: 1px; padding-block: 9px; }
+  .docrow > .icon:first-child { grid-row: 1 / 3; }
+  .docrow .docname { grid-column: 2; white-space: normal; }
+  .docrow small { grid-column: 2; margin-left: 0; white-space: normal; }
+  .docrow > .go { grid-column: 3; grid-row: 1 / 3; }
   .prog-title h1 { font-size: 23px; }
   .home-hero-text { padding: 20px 16px 18px; }
   .home-hero .lead { font-size: 15.5px; }

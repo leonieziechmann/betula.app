@@ -36,7 +36,7 @@ use folia_plans::plan;
 use folia_plans::variants::{self, plan_variants, Choice, PlanVariant};
 use folia_routes::CatalogQuery;
 use folia_routes::filter::ProgramScope;
-use folia_routes::url::{self, CatalogUrl, LocalView, PlanView, ProgramTab, ProgramUrl, StudyplanUrl};
+use folia_routes::url::{self, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::hooks::use_params_map;
@@ -45,7 +45,6 @@ use folia_data::{use_data, DataError, PageStatus};
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
 use folia_widgets::local::ModuleInPlace;
-use folia_stores::myprogram::{program_name, MineButton, MyProgram, ProgramPlans};
 use folia_design::nav;
 use folia_widgets::list::phone_layout;
 use folia_widgets::module::ModulePanel;
@@ -222,8 +221,10 @@ pub fn ProgramPage() -> impl IntoView {
                     let data = data.clone();
                     move || view! { <ProgramAside data=data.clone() variant open area req target links/> }
                 };
+                // On a phone the sidebar ends the page (owner, 2026-10-15: the box above the page
+                // „ist ja mal komplett unnötig"): the views stand in the head there.
                 view! {
-                    <Frame title=t.program.program sidebar sidebar_first=true aside aside_picked=picked>
+                    <Frame title=t.program.program sidebar aside aside_picked=picked>
                         <ProgramView data tab variant shape=drawn room links open area req/>
                     </Frame>
                 }
@@ -306,8 +307,14 @@ fn row_trail(row: usize, entry: &PlanEntry, plan: &PlanVariant, group: &AreaGrou
     steps
 }
 
-/// Views of the program, how the plan is drawn, where its areas are, what is related to it and
-/// what can be done with it.
+/// The way into the catalog, the views of the program, how the plan is drawn, where its areas are
+/// and what is related to it. On a phone it ends the page: the views stand in the head there
+/// (`ProgramViews`), and the way into the catalog and what is related come after the regulations.
+///
+/// What it offered to do with the program went (owner, 2026-10-15): „Als meinen Studiengang
+/// setzen" (the program is chosen in „Mein Studium" and on the start page), „In den Stundenplan",
+/// which made no sense there, and „Studium planen" with it; the regulations and the program at the
+/// BTU are links at the end of the page (`ProgramView`).
 #[component]
 fn ProgramSidebar(
     data: ProgramData,
@@ -332,24 +339,6 @@ fn ProgramSidebar(
     };
     let related = data.counterpart.is_some() || !data.versions.is_empty();
     let areas = area_groups(&data.areas);
-    // „Mein Studiengang" and the Studienplan take the plan shown: its Studienrichtung is what the
-    // store keeps (a page that fills a core plan's row: the core, with the page as its direction),
-    // and „In den Stundenplan" takes it over (A.10). Only the plan's tab shows one.
-    let plans = plan_variants(&data.plan_entries, &data.plan_totals, crate::i18n::locale());
-    let count = plans.len();
-    let mine_plans = ProgramPlans::new(&plans, variants::supplements(&plans));
-    let shown = Signal::derive(move || (tab == ProgramTab::Plan && count > 0).then(|| variant.get().saturating_sub(1)));
-    let import = {
-        let slug = p.slug.clone();
-        move || t.path(&StudyplanUrl { view: PlanView::Overview, import: Some(slug.clone()), variant: variant.get().clamp(1, count.max(1)), ..Default::default() }.path())
-    };
-    // The view the app is going to is the current one at once (`pending`); its page follows.
-    let going = Pending::expect();
-    let slug = p.slug.clone();
-    let shown_tab = Memo::new(move |_| {
-        let path = going.and_then(|going| going.path());
-        path.and_then(|path| ProgramTab::ALL.iter().copied().find(|v| path == url::program_path(&slug, *v) || (*v == ProgramTab::default() && path == url::program_path(&slug, *v).trim_end_matches(v.segment()).trim_end_matches('/')))).unwrap_or(tab)
-    });
     let shapes = (tab == ProgramTab::Plan && !data.plan_entries.is_empty()).then_some(());
     let jumps = (tab == ProgramTab::Areas && !areas.is_empty()).then_some(());
     view! {
@@ -361,13 +350,7 @@ fn ProgramSidebar(
                 <Icon name="chevron-right"/>
             </a>
         </div>
-        <nav class="toc views" aria-label=t.program.views_label>
-            <p class="flabel label">{t.program.views}</p>
-            {ProgramTab::VIEWS.iter().map(|view| {
-                let view = *view;
-                view! { <a data-walk="tab" href=t.path(&url::program_path(&p.slug, view)) rel=(!view.indexed()).then_some("nofollow") data-noscroll="" aria-current=move || (shown_tab.get() == view).then_some("page")>{view.label(t.locale)}</a> }
-            }).collect_view()}
-        </nav>
+        <ProgramViews slug=p.slug.clone() tab/>
         // How the plan is drawn is a personal setting: it is kept in this browser and needs
         // JavaScript, so the switch is not there without it (R15), nor on a phone, where the
         // plan is always the list. Where the page is too narrow for the matrix, the switch shows
@@ -444,30 +427,34 @@ fn ProgramSidebar(
                 }).collect_view()}
             </div>
         })}
-        <div class="fgroup actions">
-            <p class="flabel label">{t.program.actions}</p>
-            // Both are part of server HTML, invisible until the app runs and gone without it
-            // (`.mine-toggle`), so the actions under them do not move at the takeover (R15).
-            <MineButton program_id=p.id.clone() name=program_name(&p) plans=mine_plans shown/>
-            <PlanStudies program_id=p.id.clone()/>
-            {(count > 0).then(|| view! {
-                <a class="action mine-toggle" href=import rel="nofollow"><Icon name="calendar-plus"/><span>{t.program.to_studyplan}</span></a>
-            })}
-            {(!data.documents.is_empty()).then(|| view! { <a class="action" href="#dokumente" data-action="jump"><Icon name="file-check-2"/>{t.program.documents}</a> })}
-            <a class="action" href=p.source_url.clone() rel="noopener"><Icon name="arrow-up-right"/>{t.program.at_btu}</a>
-        </div>
     }
 }
 
-/// „Studium planen" among the actions of the visitor's own program („Mein Studiengang"): the way to
-/// „Mein Studium", where its study is planned. The app's alone (R9): kept in its place and not shown
-/// until the app runs (`.mine-toggle`), and there only while the program is the one kept.
+/// The views of the program, the one shown marked: in the sidebar, and on a phone in the head of
+/// the page instead, under the program's name (owner, 2026-10-15: the box above the page went, and
+/// the sidebar ends the page there). Both are in the HTML; the stylesheet shows the one of the
+/// layout, so nothing moves at the takeover.
 #[component]
-fn PlanStudies(#[prop(into)] program_id: String) -> impl IntoView {
+fn ProgramViews(slug: String, tab: ProgramTab) -> impl IntoView {
     let t = i18n::t();
-    let mine = MyProgram::expect().filter(|_| APP);
-    let kept = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.as_deref() == Some(program_id.as_str()))));
-    move || kept.get().then(|| view! { <a class="action mine-toggle" href=t.path(url::STUDY)><Icon name="graduation-cap"/><span>{t.program.plan_studies}</span><Icon name="chevron-right"/></a> })
+    // The view the app is going to is the current one at once (`pending`); its page follows.
+    let going = Pending::expect();
+    let shown_tab = {
+        let slug = slug.clone();
+        Memo::new(move |_| {
+            let path = going.and_then(|going| going.path());
+            path.and_then(|path| ProgramTab::ALL.iter().copied().find(|v| path == url::program_path(&slug, *v) || (*v == ProgramTab::default() && path == url::program_path(&slug, *v).trim_end_matches(v.segment()).trim_end_matches('/')))).unwrap_or(tab)
+        })
+    };
+    view! {
+        <nav class="toc views" aria-label=t.program.views_label>
+            <p class="flabel label">{t.program.views}</p>
+            {ProgramTab::VIEWS.iter().map(|view| {
+                let view = *view;
+                view! { <a data-walk="tab" href=t.path(&url::program_path(&slug, view)) rel=(!view.indexed()).then_some("nofollow") data-noscroll="" aria-current=move || (shown_tab.get() == view).then_some("page")>{view.label(t.locale)}</a> }
+            }).collect_view()}
+        </nav>
+    }
 }
 
 #[component]
@@ -526,7 +513,7 @@ fn ProgramView(
         // nor is „Mein Plan".
         <Seo title=format!("{name}: {view_name}") description=description path=address card=folia_shell::seo::program_card(&p.slug) noindex=!p.is_latest_po || !tab.indexed() data=trail/>
         <article class="page-inner" data-walk="program-page" data-walk-id=p.slug.clone()>
-            <ProgramHead program=p.clone() plans=plans.clone()/>
+            <ProgramHead program=p.clone() plans=plans.clone() tab/>
 
             {match tab {
                 ProgramTab::Plan => {
@@ -543,7 +530,10 @@ fn ProgramView(
                 ProgramTab::MyPlan => view! { <MyPlanTab slug=p.slug.clone()/> }.into_any(),
             }}
 
-            {(!data.documents.is_empty()).then(|| view! {
+            // The regulations, and the program's module tree in the BTU's course catalogue, where
+            // its page leads (owner, 2026-10-15: „Ordnungen und Dokumente und Im Verzeichnis der BTU
+            // ab nach unten"; they were actions in the sidebar).
+            {(!data.documents.is_empty() || !p.source_url.is_empty()).then(|| view! {
                 <section class="panel" id="dokumente">
                     <header class="block-head"><h2>{t.program.documents}</h2></header>
                     <ul class="doclist">
@@ -557,6 +547,16 @@ fn ProgramView(
                                 </a>
                             </li>
                         }).collect_view()}
+                        {(!p.source_url.is_empty()).then(|| view! {
+                            <li>
+                                <a class="docrow" href=p.source_url.clone() rel="noopener">
+                                    <Icon name="list-tree"/>
+                                    <span class="docname">{t.program.module_tree}</span>
+                                    <small>{t.program.at_btu}</small>
+                                    <Icon name="arrow-up-right" class="go"/>
+                                </a>
+                            </li>
+                        })}
                     </ul>
                 </section>
             })}
@@ -1007,9 +1007,11 @@ fn shared_semester_totals(plan: &PlanVariant) -> Vec<(i64, i64, f64)> {
 }
 
 /// The head of the page: where the visitor is, what the program is called, what it is in numbers
-/// and under which regulations. The numbers stand on the title's line, right of it.
+/// and under which regulations. The numbers stand on the title's line, right of it. On a phone the
+/// views of the program end it (`ProgramViews`), and „Zurück" is at the head of the page
+/// (`chrome::TopBack`).
 #[component]
-fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
+fn ProgramHead(program: Program, plans: Vec<PlanVariant>, tab: ProgramTab) -> impl IntoView {
     let t = i18n::t();
     let level = url::LevelGroup::of(&program.degree_level);
     let level_link = url::ProgramsUrl { levels: vec![level], ..Default::default() }.path();
@@ -1044,6 +1046,7 @@ fn ProgramHead(program: Program, plans: Vec<PlanVariant>) -> impl IntoView {
                     view! { <span class="flag">{t.program.older}</span> }.into_any()
                 }}
             </p>
+            <ProgramViews slug=program.slug.clone() tab/>
         </header>
     }
 }

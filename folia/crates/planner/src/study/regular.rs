@@ -562,18 +562,9 @@ fn PlanTable(ctx: StudyCtx, sheet: Sheet) -> impl IntoView {
 /// the step before. Set once for the view, whatever it draws meanwhile, and taken away with it.
 pub(super) fn view_back(ctx: StudyCtx) {
     let t = i18n::t();
-    let back = TopBack::expect();
-    Effect::new(move |_| {
-        let phone = ctx.phone.get();
+    TopBack::follow(move || {
         let history = ctx.view_back.get();
-        if let Some(back) = back {
-            back.set(phone.then(|| Back { href: StudyUrl::default().path(), label: t.study_views.to_overview, history }));
-        }
-    });
-    on_cleanup(move || {
-        if let Some(back) = back {
-            back.set(None);
-        }
+        ctx.phone.get().then(|| Back { href: StudyUrl::default().path(), label: t.study_views.to_overview, history })
     });
 }
 

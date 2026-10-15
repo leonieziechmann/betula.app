@@ -39,11 +39,11 @@ pub struct Texts {
     pub counterpart: fn(&str) -> String,
     /// „ (aktuell)" after the newest PO of the program.
     pub current_po: &'static str,
-    pub actions: &'static str,
-    /// Takes the plan shown into the Stundenplan.
-    pub to_studyplan: &'static str,
+    /// The section at the end of the page: the regulations, and the program's module tree at the BTU.
     pub documents: &'static str,
-    /// The program's page in the BTU's directory.
+    /// The program's module tree in the BTU's course catalogue (QIS), where its modules are listed …
+    pub module_tree: &'static str,
+    /// … and where it is.
     pub at_btu: &'static str,
 
     // The head of the page.
@@ -150,8 +150,6 @@ pub struct Texts {
     pub my_plan_hint: &'static str,
     pub to_my_studies: &'static str,
     pub all_modules: &'static str,
-    /// „Studium planen": among the actions of the visitor's own program, the way to „Mein Studium".
-    pub plan_studies: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -182,10 +180,9 @@ pub const DE: Texts = Texts {
     related: "Verwandt",
     counterpart: |level| format!("Passender {level}"),
     current_po: " (aktuell)",
-    actions: "Aktionen",
-    to_studyplan: "In den Stundenplan",
     documents: "Ordnungen & Dokumente",
-    at_btu: "Im Verzeichnis der BTU",
+    module_tree: "Modulbaum des Studiengangs",
+    at_btu: "Vorlesungsverzeichnis der BTU",
 
     crumbs: "Pfad",
     semesters_title: "Fachsemester laut Regelstudienplan",
@@ -271,7 +268,6 @@ pub const DE: Texts = Texts {
     my_plan_hint: "„Mein Plan“ heißt jetzt „Mein Studium“: dein ganzes Studium, Semester für Semester, unter „Studium“.",
     to_my_studies: "Zu „Mein Studium“",
     all_modules: "Alle Module des Studiengangs im Katalog",
-    plan_studies: "Studium planen",
 };
 
 pub const EN: Texts = Texts {
@@ -302,10 +298,9 @@ pub const EN: Texts = Texts {
     related: "Related",
     counterpart: |level| format!("Matching {level}"),
     current_po: " (current)",
-    actions: "Actions",
-    to_studyplan: "Add to timetable",
     documents: "Regulations & documents",
-    at_btu: "In BTU's directory",
+    module_tree: "Module tree of the programme",
+    at_btu: "BTU course catalogue",
 
     crumbs: "Breadcrumb",
     semesters_title: "Semesters according to the standard study plan",
@@ -391,5 +386,4 @@ pub const EN: Texts = Texts {
     my_plan_hint: "\u{201c}My plan\u{201d} is \u{201c}My studies\u{201d} now: your whole studies, semester by semester, under \u{201c}Study\u{201d}.",
     to_my_studies: "To \u{201c}My studies\u{201d}",
     all_modules: "All modules of the degree programme in the catalogue",
-    plan_studies: "Plan your studies",
 };

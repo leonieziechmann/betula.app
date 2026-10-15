@@ -58,14 +58,11 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     // The way back at the head, as soon as the row leaves the overview and while it is anywhere
     // else (owner, 2026-10-06: „der sollte eigentlich sofort eingeblendet werden, wenn man weg
     // swiped, von der main page").
-    let back = TopBack::expect();
-    Effect::new(move |_| {
-        let away = pages.away();
+    TopBack::follow(move || {
         let history = ctx.from_overview.get();
-        if let Some(back) = back {
-            back.set(away.then(|| Back { href: url::STUDY.to_string(), label: s.overview, history }));
-        }
+        pages.away().then(|| Back { href: url::STUDY.to_string(), label: s.overview, history })
     });
+    let back = TopBack::expect();
     // The tab of „Studium" tapped again, or the way back pressed: back to the overview at once,
     // wherever the row is or goes (owner, 2026-10-06: „Wenn man den anklickt muss es sofort wieder
     // an die standard position gehen"). Where the address says a semester, the link (or Back
@@ -79,11 +76,6 @@ pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
             pages.home();
         }
         now
-    });
-    on_cleanup(move || {
-        if let Some(back) = back {
-            back.set(None);
-        }
     });
     view! {
         <h1 class="visually-hidden">{t.study.title}</h1>
