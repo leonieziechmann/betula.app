@@ -1,12 +1,14 @@
 //! What the document of every page links and runs: where the host serves the files of
 //! `folia/assets`, the colours of the browser's own chrome, and the script before the first paint.
 
-/// The release of Folia as the owner names it (2026-09-21: Folia and Radix are both
-/// alpha-0.2.0; 2026-09-22: Folia alpha-0.2.1 with the phone's filter sheet; 2026-09-23:
-/// Folia alpha-0.2.2, Radix alpha-0.3.0; 2026-09-27, after the public release: Folia 1.0.1,
-/// Radix 0.5.0, no stage in front any more; 2026-09-29: Folia 1.0.2, the same day 1.0.3 with the
-/// wood behind every page): the version of the app's crates, the same as the server's.
-/// Radix's is in the snapshot (`Meta::radix_version`).
+/// The release of Folia (2026-09-21: Folia and Radix are both alpha-0.2.0; 2026-09-22: Folia
+/// alpha-0.2.1 with the phone's filter sheet; 2026-09-23: Folia alpha-0.2.2, Radix alpha-0.3.0;
+/// 2026-09-27, after the public release: Folia 1.0.1, Radix 0.5.0, no stage in front any more;
+/// 2026-09-29: Folia 1.0.2, the same day 1.0.3 with the wood behind every page; until then the
+/// owner named each). Since 2026-10-15 by SemVer, raised with every change (owner: „immer wenn wir
+/// changes machen update die version number based on sem ver"; CLAUDE.md, „Versions"): 1.1.0 with
+/// Betula's icon „Tinte" and the start of the installed app. The version of the app's crates, the
+/// same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
