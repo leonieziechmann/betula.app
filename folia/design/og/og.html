@@ -24,9 +24,10 @@ body { background: #f1f2f4; color: #10151f; font: 450 28px/1.35 "Inter", system-
 .card { position: absolute; inset: 40px; border-radius: 22px; background: #fff; box-shadow: 0 0 0 1px rgba(15, 23, 42, .08), 0 30px 60px -30px rgba(15, 23, 42, .25); overflow: hidden; }
 .text { position: absolute; left: 64px; top: 60px; width: 640px; }
 .lockup { display: flex; align-items: center; gap: 22px; }
-.mark { display: block; flex: none; border-radius: 22%; box-shadow: 0 0 0 1px rgba(15, 23, 42, .12); }
-.mark rect { fill: #fff; }
-.mark path { fill: #10151f; }
+/* Betula's icon, the paper leaf on ink (design/logo/app-icon.mjs, folia_design::ui::Mark). */
+.mark { display: block; flex: none; }
+.mark rect { fill: #10151f; }
+.mark path { fill: #f4f5f7; }
 .wordmark { display: inline-block; font: 800 64px/1 "Inter", sans-serif; letter-spacing: -.01em; white-space: nowrap; }
 .wordmark .sc { font-size: .72em; font-weight: 400; letter-spacing: .02em; }
 .wordmark .e { margin: 0 -.347em 0 -.022em; }
@@ -88,7 +89,7 @@ svg.crown { position: absolute; left: 0; top: 0; width: 1120px; height: 96px; }
   </svg>
   <div class="text">
     <div class="lockup">
-      <svg class="mark" width="76" height="76" viewBox="0 0 96 96"><rect width="96" height="96"/><path d="M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z"/></svg>
+      <svg class="mark" width="76" height="76" viewBox="0 0 96 96"><rect width="96" height="96" rx="21"/><path transform="translate(0 6.5)" d="M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"/></svg>
       <span class="wordmark"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span>
     </div>
     <h1 id="h1">Alle Module und Studiengänge der BTU Cottbus-Senftenberg.</h1>

@@ -176,7 +176,8 @@ var jobs = map[string]Job{
 		// The worker's install asks for its shell again with cache: "no-cache".
 		wave([]string{"/", "/assets/app.css", "/assets/enhance.js", "/assets/boot.js", "/assets/sql-wasm.js", "/assets/sql-wasm.wasm",
 			"/pkg/folia_client.js", "/pkg/folia_client_bg.wasm", "/assets/inter-latin.woff2", "/assets/favicon.svg", "/favicon.ico",
-			"/apple-touch-icon.png", "/assets/icon-192.png", "/assets/icon-512.png", "/assets/icon-maskable-512.png", "/manifest.webmanifest", "/manifest-dark.webmanifest"}, true)
+			"/apple-touch-icon.png", "/assets/icon-192.png", "/assets/icon-512.png", "/assets/icon-maskable-334.png", "/assets/icon-maskable-512.png", "/assets/icon-maskable-dark-512.png",
+			"/manifest.webmanifest", "/manifest-dark.webmanifest"}, true)
 		return append(out, jobResult("job:js-first", start, out))
 	},
 	// A returning visitor with the app installed: the page is revalidated through the service

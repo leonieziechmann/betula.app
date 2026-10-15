@@ -63,7 +63,8 @@ const OPEN: &[&str] = &[
     folia_app::ICON_192,
     folia_app::ICON_512,
     folia_app::ICON_MASKABLE,
-    folia_app::ICON_MASKABLE_LARGE,
+    folia_app::ICON_SPLASH,
+    folia_app::ICON_SPLASH_DARK,
     folia_app::ICON_MONOCHROME,
     folia_app::MANIFEST,
 ];
@@ -351,7 +352,7 @@ fn login_page(state: &AppState, status: StatusCode, next: &str, problem: Option<
             </head>
             <body class="gate">
                 <main class="gate-main">
-                    // The lockup stands on the page like in the app: on a panel the light mark would vanish.
+                    // The lockup stands on the page, above the panel.
                     <div class="gate-brand">
                         <span class="logo"><folia_design::ui::Mark/></span>
                         <span><folia_design::ui::Wordmark/><small>{app_texts.common.tagline}</small></span>

@@ -30,6 +30,10 @@
   --on-invert: #ffffff;
   --bark: #ffffff;
   --bark-ink: #10151f;
+  /* Betula's icon (ui::Mark): the paper leaf on ink, turned over in the dark, as the app's icon
+     (design/logo/app-icon.mjs). */
+  --logo-tile: #10151f;
+  --logo-leaf: #f4f5f7;
   /* The frame of a phone in a picture of the app: dark in both themes, as phones are. */
   --device: #1b2130;
 
@@ -119,6 +123,8 @@
     --on-invert: #0d1017;
     --bark: #e9edf5;
     --bark-ink: #0d1017;
+    --logo-tile: #e9edf5;
+    --logo-leaf: #10151f;
     --accent: oklch(.53 .07 149);
     --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
     --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
@@ -171,6 +177,8 @@
   --on-invert: #0d1017;
   --bark: #e9edf5;
   --bark-ink: #0d1017;
+  --logo-tile: #e9edf5;
+  --logo-leaf: #10151f;
   --accent: oklch(.53 .07 149);
   --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
   --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-green: oklch(.8 .09 150); --t-coral: oklch(.8 .09 35); --t-rose: oklch(.78 .09 355); --t-slate: oklch(.78 .04 260);
@@ -269,13 +277,16 @@ table { border-collapse: collapse; width: 100%; }
 
 /* ---------- rail ---------- */
 .rail { grid-row: 1 / span 2; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--gap) 0; }
-/* The mark: birch bark that also reads as the rows of a list; light in both themes (--bark). Drawn
-   on a 32px grid (bars 3px, 2px apart, 7px to the edges). Its middle sits on the middle of the top
-   bar, so mark and wordmark read as one on the start page. */
+/* Betula's icon (owner, 2026-10-15: „Tinte"): the birch leaf in paper on a square of ink, the bars
+   of birch bark cut out of it; turned over in the dark. The square's corner is the icon's own (21 of
+   96, 7px at 32px). In the rail it is as large as the buttons under it (owner, the same day: „so
+   groß wie die nav icons"), 40px on their edges, and as high as the top bar beside it, whose
+   middle it shares with the wordmark; the buttons stay where they were. */
 .logo { --hit: 4px; width: 32px; height: 32px; margin: 4px 0 10px; border-radius: 7px; display: block; flex: none; box-shadow: var(--shadow-panel); }
+.rail .logo { width: 40px; height: 40px; margin: 0 0 6px; border-radius: 8.75px; }
 .mark { display: block; width: 100%; height: 100%; }
-.mark rect { fill: var(--bark); }
-.mark path { fill: var(--bark-ink); }
+.mark rect { fill: var(--logo-tile); }
+.mark path { fill: var(--logo-leaf); }
 /* The wordmark: B, T and U in full, E, L and A as small capitals, the E under the bar of the T.
    Measured on Inter 800: the stem of the T starts .252em from its origin, its bar ends .587em above
    the baseline. The small capitals are sized so that the air above the E equals the air between
@@ -1966,7 +1977,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .goal-head { display: flex; align-items: center; gap: 9px; color: var(--text); font-size: 14px; font-weight: 680; }
 .goal-head .ico { flex: none; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); }
 .goal-head .icon { width: 15px; height: 15px; }
-.mini-mark { flex: none; width: 18px; height: 18px; border-radius: 5px; overflow: hidden; box-shadow: 0 0 0 1px var(--line-strong); }
+.mini-mark { flex: none; width: 18px; height: 18px; }
 .goal-badges { display: flex; gap: 4px; margin-top: 10px; }
 .goal-badges i { height: 16px; width: 34px; border-radius: 4px; background: var(--panel-3); }
 .goal-badges i:first-child { background: var(--invert); width: 26px; }
@@ -3037,6 +3048,33 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
    clicks. No overflow of its own: what is sticky in it sticks to the window as it did (a box that
    clips would be what it sticks to). Its background is its own: the body's is the window's. */
 .takeover-picture { position: absolute; top: 0; left: 0; right: 0; z-index: 2147483000; pointer-events: none; }
+/* The start of the installed app on a phone or a tablet (owner, 2026-10-15: concept A of
+   design/launch/konzepte.html): the page's first picture is the system's splash screen again, and
+   then the icon flies to the page's own (.logo) while the background clears. The head script makes
+   it (folia_app::HEAD_SCRIPT), above everything, the takeover picture too; enhance.js plays it, and
+   without enhance.js it goes by itself (launch-gone, which reduced motion leaves alone).
+   Android draws its splash in the window under the status bar: the icon 128px, its middle 16px
+   above the window's (24px on a tablet), cut round by the launcher's mask, its leaf as large as on
+   the icon of 128px; the name under it fades with Chrome's splash. iOS shows the picture the
+   server draws (launch.rs), which the screen's geometry places here (--mid, --name, written by the
+   head script): the icon in the middle of the screen, rounded, on a soft shadow in the light, and
+   the name at the bottom, with its baseline at --name. */
+.launch { position: fixed; inset: 0; z-index: 2147483647; background: var(--bg); animation: launch-gone .3s 4s both; }
+@keyframes launch-gone { to { opacity: 0; visibility: hidden; } }
+.launch-icon { position: absolute; left: calc(50% - 64px); top: calc(50% - 80px); width: 128px; height: 128px; }
+@media (min-width: 600px) and (min-height: 600px) { .launch-icon { top: calc(50% - 88px); } }
+.launch-icon b { position: absolute; inset: 0; border-radius: 50%; background: var(--logo-tile); }
+.launch-icon i { position: absolute; left: 0; top: 0; width: 96px; height: 96px; transform-origin: 0 0; transform: scale(1.33333) translateY(6.5px); background: var(--logo-leaf); clip-path: path("M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"); }
+.launch.ios .launch-icon { top: calc(var(--mid) - 64px); }
+.launch.ios .launch-icon b { border-radius: 21.875%; box-shadow: 0 6.4px 17.92px -8.3px rgba(15, 23, 42, .2); }
+:root[data-theme="dark"] .launch.ios .launch-icon b { box-shadow: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .launch.ios .launch-icon b { box-shadow: none; } }
+/* Its baseline is 13.82px under its top: Inter at 16px on a line of 16px. */
+.launch-name { position: absolute; left: 0; right: 0; top: calc(var(--name) - 13.82px); font: 500 16px/1 var(--font); letter-spacing: -.16px; text-align: center; white-space: pre; color: var(--text-2); -webkit-font-smoothing: antialiased; }
+.launch-name::before { content: "Betula"; font-weight: 600; color: var(--text); }
+.launch-name i { font-style: normal; }
+.launch-name i::before { content: " · "; color: var(--text-3); }
+.launch-name i::after { content: "Modulkatalog"; }
 /* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the
    page will be; without JavaScript the <noscript> beside it says what the view needs instead. */
 .app-standin { display: contents; }
@@ -4467,6 +4505,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
 @keyframes cap-in { from { opacity: 0; } }
 @keyframes swipe-spring { from { transform: scale(.72); } }
 /* The wood keeps its animation: it is tied to the scroll (the ground's), it moves only as the
-   visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). */
-@media (prefers-reduced-motion: reduce) { *:not(.wood), *::before, *::after { animation: none !important; transition: none !important; } }
+   visitor scrolls (owner, 2026-09-30: with less motion it stayed down behind the ground). The start
+   of the installed app keeps the fade that takes it away without enhance.js (.launch). */
+@media (prefers-reduced-motion: reduce) { *:not(.wood, .launch), *::before, *::after { animation: none !important; transition: none !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }

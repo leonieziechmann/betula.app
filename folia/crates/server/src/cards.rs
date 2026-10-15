@@ -510,24 +510,14 @@ fn hex([red, green, blue]: [u8; 3]) -> String {
     format!("#{red:02x}{green:02x}{blue:02x}")
 }
 
-/// The logo at (x, y of its top): the mark on its 96 grid and the wordmark with the spacing of
-/// `design/logo/logo.html` (display cut; offsets in em of the wordmark's size, measured on Inter).
+/// The logo at (x, y of its top): Betula's icon and the wordmark (`logo`), the capitals' middle
+/// on the icon's middle.
 fn logo(svg: &mut String, x: f32, y: f32) {
-    let mark = 52.0;
-    let scale = mark / 96.0;
-    svg.push_str(&format!(
-        "<g transform=\"translate({x} {y}) scale({scale})\"><rect x=\".5\" y=\".5\" width=\"95\" height=\"95\" rx=\"20.5\" fill=\"#fff\" stroke=\"{INK}\" stroke-opacity=\".14\" stroke-width=\"1.6\"/>\
-         <path fill=\"{INK}\" d=\"M0 20h40v8H0zM68 36h28v8H68zM0 52h16v8H0zM52 68h44v8H52z\"/></g>"
-    ));
+    let icon = 52.0;
+    crate::logo::app_icon(svg, x, y, icon, false);
     let size = 44.0;
-    let small = size * 0.72;
-    let left = x + mark + 18.0;
-    // Capitals are .728 em high: their middle on the middle of the mark.
-    let baseline = y + mark / 2.0 + size * 0.364;
-    for (offset, letter, capital) in [(0.0, "B", true), (0.63871, "E", false), (0.83563, "T", true), (1.47239, "U", true), (2.14984, "L", false), (2.57135, "A", false)] {
-        let (font_size, weight) = if capital { (size, 800) } else { (small, 400) };
-        svg.push_str(&format!("<text x=\"{}\" y=\"{baseline}\" font-size=\"{font_size}\" font-weight=\"{weight}\" fill=\"{INK}\">{letter}</text>", left + offset * size));
-    }
+    // Capitals are .728 em high: their middle on the middle of the icon.
+    crate::logo::wordmark(svg, x + icon + 18.0, y + icon / 2.0 + size * 0.364, size, INK);
 }
 
 /// A mask of the birch at (x, y), `scale` times its size and cut to its box, as the stylesheet
