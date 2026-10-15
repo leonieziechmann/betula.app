@@ -1037,21 +1037,25 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   for the page: the catalog's list, the marked modules, a framed page — and the button stands
   16 px inside its panel, left of a module or an area that floats beside it (`--preview`, now
   declared on the view so that the button can use it), and goes up with the view when the ground
-  comes; the wheel over it turns the page under it. On a phone it is the window, and the button
-  floats 12 px above the bottom bar at its right edge (44 px), under the bars, the sheets and the
-  skeleton of a page. It shows once the page is more than a screen down — the page is asked where
-  it is when it scrolls and when another page stands there, never for a skeleton, so the frame
-  after a click (R21) lays out nothing ahead of time for it — and takes it to its top: at once to
-  a screen above the top, then gliding the rest in a third of a second, a frame at a time. Not the
-  browser's own smooth scrolling: over the virtual list it would build every row it passes and end
-  where the list makes up for a row taller than estimated (a script's scroll ends a smooth one);
-  written frame by frame, the glide arrives at the top whatever the list did in between. A wheel,
-  a touch, a click or a key stops it; where less motion is wanted it is up at once. The list
-  follows as it follows any scroll (`page` leaves the address), a module beside it stays, and on a
-  wide screen the ground goes back down (the page has left its end). Pressed with the keyboard,
-  the focus goes to the start of the page (`#content`, where „Zum Inhalt springen" leads), not to
-  where the button was; Tab from the end of a page meets it before the ground. It needs
-  JavaScript (R15); the classic site before the takeover has it as well.
+  comes; the wheel over it turns the page under it, a mouse's notch gliding as the browser's own
+  wheel does, written frame by frame like the way up (below) and by each frame's share of the way,
+  so that what the list makes up in between stays made up and the notch goes its whole way (the
+  browser's smooth scrolling ended at half of it, where the list made up for rows measured anew).
+  On a phone it is the window, and the button floats 12 px above the bottom bar at its right edge
+  (44 px), under the bars, the sheets and the skeleton of a page. It shows once the page is more
+  than a screen down — the page is asked where it is when it scrolls and when another page stands
+  there, never for a skeleton, so the frame after a click (R21) lays out nothing ahead of time for
+  it — and takes it to its top: at once to a screen above the top, then gliding the rest in a
+  third of a second, a frame at a time. Not the browser's own smooth scrolling: over the virtual
+  list it would build every row it passes and end where the list makes up for a row taller than
+  estimated (a script's scroll ends a smooth one); written frame by frame, the glide arrives at
+  the top whatever the list did in between. A wheel, a touch, a click or a key stops it; where
+  less motion is wanted it is up at once. The list follows as it follows any scroll (`page` leaves
+  the address), a module beside it stays, and on a wide screen the ground goes back down (the page
+  has left its end). Pressed with the keyboard, the focus goes to the start of the page
+  (`#content`, where „Zum Inhalt springen" leads), not to where the button was; Tab from the end
+  of a page meets it before the ground. It needs JavaScript (R15); the classic site before the
+  takeover has it as well.
 - **The Stundenplan on a phone** (owner, 2026-09-27: „Es gibt keine Wochenansicht beim Kalender
   auf dem Smartphone"; `folia/crates/planner/src/studyplan/week.rs` `WeekCarousel`, `mod.rs`): „Woche" is
   the week grid of a wide screen too, fitted to the height the screen leaves under the bar of the
@@ -3278,15 +3282,17 @@ cd e2e && node top.mjs
 ```
 
 drives „Nach oben": on a wide screen the catalog's whole list (out of sight at its top and less
-than a screen down, in the corner of the list far down; the wheel over it turning the list; a click
-bringing the list to its top with its first row, `page` gone from the address, the button gone
-and no page loaded; a wheel stopping the way up; with a module beside the list the button left of
-it and the module staying; Enter on it, and Tab going on from the start of the page; the module's
-page opened from far down starting without it, and Back to the list far down bringing it again), a
-long page with the ground in (the button above it, the ground going back down), less motion (up at
-once); on a phone the window (the button 12 px above the bottom bar, a tap), and a page far down
-before the app takes over (the app's own button there after it); the classic site with the app
-kept away; without JavaScript no button.
+than a screen down, in the corner of the list far down; the wheel over it turning the list its
+whole way, measured by a row on the screen, since the list's making up for rows measured anew
+moves the scroll position and nothing that is seen; a click bringing the list to its top with its
+first row, `page` gone from the address, the button gone and no page loaded; a wheel stopping the
+way up; with a module beside the list the button left of it and the module staying; Enter on it,
+and Tab going on from the start of the page; the module's page opened from far down starting
+without it, and Back to the list far down bringing it again), a long page with the ground in (the
+button above it, the ground going back down), less motion (up at once); on a phone the window (the
+button 12 px above the bottom bar, a tap), and a page far down before the app takes over (the
+app's own button there after it); the classic site with the app kept away; without JavaScript no
+button.
 
 ```bash
 cd e2e && node pwa.mjs
