@@ -701,20 +701,29 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 - **The way back at the head of a phone's page** (`chrome::TopBack`; owner, 2026-10-05 for a
   semester of „Mein Studium", 2026-10-15 for a program's page: „lass mal bitte noch den zurück
   button nach oben links neben die search bar packen. Und wenn der angezeigt wird, dann soll die
-  profilauswahl ausgeblendet werden. Mach das mal als wiederverwendbares system"): a square box
-  left of the search, as high as it; while it is there the way to the profile page right of the
-  search slides out as the box slides in, inert, and the search keeps its width. Two ways to have
-  it. **By the address** (`chrome::back_at_head`): a program's page (unless the module in full,
-  an area or a row of the plan fills it, each with its own way back to the program) leads up to
-  the programs' list as it was left (`Tabs::list`), through the history where that is the step
-  before, as `frame::BackLink` does; the page's own „Zurück" steps aside on a phone (`.at-head`).
-  The address decides and not the page because the server writes the bar before the page: so the
-  server's page has the box and no way to the profile page where the app has them, and nothing
-  moves at the takeover (`e2e/takeover.mjs`, a program's page on a phone); without JavaScript the
-  box is the plain link. Another page that wants its way back at the head is named in
-  `back_at_head`. **By a step of a page** that its address does not name (a semester of „Mein
-  Studium", its views on a phone): `TopBack::follow` shows the box while the step wants it and
-  takes it away with the page, the browser app's alone. A step's box wins over the address's.
+  profilauswahl ausgeblendet werden. Mach das mal als wiederverwendbares system", and the same day
+  for every page: „mach den zurückbutton mal überall nach oben neben die suche, wo aktuell noch so
+  einer gelisted ist"): a square box left of the search, as high as it; while it is there the way
+  to the profile page right of the search slides out as the box slides in, inert, and the search
+  keeps its width. **Every „Zurück" of a page is that box on a phone**: `frame::BackLink` (a
+  module's own page, a module in full in a program, the Merkliste, the Stundenplan or „Mein
+  Studium", a program's page, an area or a row of the plan as a page of its own) puts it there,
+  leading where the link leads and through the history where that is the step before
+  (`TopBack::follow`), and steps aside while the head has it (`.topbar.backed ~ .content .at-head`);
+  a page's step that has no such link (a semester of „Mein Studium", its views on a phone) puts it
+  there the same way while the step shows. Each page that put it there takes it away with it, and
+  only its own (a number per `follow`): the page the app goes to may say where before the one it
+  leaves is gone. On the way to another page the bar follows the click, the box there or gone at
+  once. **The server writes the bar before the page** and knows nothing of its links, so the
+  address says which pages have the box from their first paint (`chrome::back_at_head`: a
+  program's page whatever fills it, and a module's own page), leading to the list of its area as
+  it was left until the page says where (on the server's page its list, where the page's link
+  leads too): the server's page has the box and no way to the profile page where the app has
+  them, and nothing moves at the takeover (`e2e/takeover.mjs`: a program's and a module's page on
+  a phone); without JavaScript the box is the plain link. What only the app shows (a module in
+  full, an area as a page) gets the box when it comes. A wide screen keeps „Zurück (Esc)" in the
+  page. Not ways back and so not moved: the × of a module's sheet, the pager's „Zurück", a menu's
+  way back to its first level.
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first

@@ -563,29 +563,38 @@ pub fn ProfileSwitcher() -> impl IntoView {
 /// werden. Mach das mal als wiederverwendbares system"); the two slide out and in, and the search
 /// makes room (app.css). A wide screen has neither.
 ///
-/// Two kinds of pages have it. A page whose address names it (a program's page) has it by the
-/// address alone (`back_at_head`): the server writes it as the app does, and the page's own
-/// „Zurück" steps aside on a phone (`frame::BackLink`). A page with a step below its first one that
-/// its address does not name (a semester of „Mein Studium", on either side of its overview) puts it
-/// there while that step shows and takes it away when it goes (`follow`), the browser app's alone.
+/// Every page's „Zurück" is that box on a phone (owner, 2026-10-15: „mach den zurückbutton mal
+/// überall nach oben neben die suche, wo aktuell noch so einer gelisted ist"): a page's
+/// `frame::BackLink` puts it there, leading where the link leads, and steps aside itself (app.css).
+/// A page with a step below its first one that has no such link (a semester of „Mein Studium", on
+/// either side of its overview) puts it there while that step shows and takes it away when it goes;
+/// both through `follow`, the browser app's alone. The server writes the bar before the page and
+/// knows nothing of its links, so the address says which pages have the box from their first paint
+/// (`back_at_head`): the server writes it as the app has it, and nothing moves at the takeover.
 /// The page hears it pressed as well (`presses`): where it leads where the app is already (the
 /// page's step not in the address yet), the page goes back itself.
 #[derive(Clone, Copy)]
 pub struct TopBack {
-    back: RwSignal<Option<Back>>,
+    /// Where the box leads, and which page's `follow` put it there.
+    back: RwSignal<Option<(u64, Back)>>,
+    /// The last of those numbers given out.
+    given: StoredValue<u64>,
     pressed: RwSignal<u32>,
 }
 
-/// The pages whose way back stands at the head of a phone's page by their address (`TopBack`), and
-/// the area whose list it leads to: a program's page, unless something else fills it — the module
-/// in full, and on a phone an area or a row of the plan, each with its own way back to the program.
-/// The address decides and not the page, because the server writes the bar before the page: so
-/// the server's page has the box where the app's has it, and nothing moves at the takeover. Another
-/// page that wants its way back at the head is named here; its `BackLink` steps aside by itself.
-pub fn back_at_head(path: &str, search: &str) -> Option<Area> {
-    let program = path.strip_prefix(url::PROGRAMS).and_then(|rest| rest.strip_prefix('/')).is_some_and(|slug| !slug.is_empty());
-    let filled = url::parse_pairs(search).iter().any(|(key, _)| matches!(key.as_str(), "full" | "area" | "req"));
-    (program && !filled).then_some(Area::Programs)
+/// The pages that have their way back at the head of a phone's page from their first paint
+/// (`TopBack`), by their address, and the area whose list it leads to until the page says where
+/// (the server's page, where it is the link of its „Zurück" as well): a program's page — with
+/// whatever fills it, which has a way back of its own — and a module's own page. A page with a
+/// `BackLink` that the server renders is named here, or the bar changes when the app takes over.
+pub fn back_at_head(path: &str) -> Option<Area> {
+    if crate::tabs::page_below(path, url::PROGRAMS).is_some() {
+        Some(Area::Programs)
+    } else if crate::tabs::page_below(path, &format!("{}/module", url::CATALOG)).is_some() {
+        Some(Area::Catalog)
+    } else {
+        None
+    }
 }
 
 /// Where the box at the head leads (`TopBack`).
@@ -603,7 +612,7 @@ pub struct Back {
 impl TopBack {
     /// Creates the box's place, empty, and provides it: call it once, in `App`.
     pub fn provide() -> Self {
-        let back = TopBack { back: RwSignal::new(None), pressed: RwSignal::new(0) };
+        let back = TopBack { back: RwSignal::new(None), given: StoredValue::new(0), pressed: RwSignal::new(0) };
         provide_context(back);
         back
     }
@@ -612,19 +621,27 @@ impl TopBack {
         use_context::<Self>()
     }
 
-    /// Shows the box leading to `back`, or none.
-    pub fn set(self, back: Option<Back>) {
-        if self.back.with_untracked(|now| *now != back) {
-            self.back.set(back);
-        }
-    }
-
-    /// Shows the box where a page's step wants it, leading where `back` says whenever that changes,
-    /// and takes it away with the page. For the steps an address does not name (`back_at_head`).
+    /// Shows the box where a page (its `BackLink`, its step) wants it, leading where `back` says
+    /// whenever that changes, and takes it away with the page. What another page put there in the
+    /// meantime stays: the page the app goes to may say where before the one it leaves is gone.
     pub fn follow(back: impl Fn() -> Option<Back> + 'static) {
         let Some(top) = Self::expect() else { return };
-        Effect::new(move |_| top.set(back()));
-        on_cleanup(move || top.set(None));
+        let me = top.given.get_value().wrapping_add(1);
+        top.given.set_value(me);
+        Effect::new(move |_| top.put(me, back()));
+        on_cleanup(move || top.put(me, None));
+    }
+
+    /// `me`'s way back, or none where `me` has put the box there.
+    fn put(self, me: u64, back: Option<Back>) {
+        let next = match back {
+            Some(back) => Some((me, back)),
+            None if self.back.with_untracked(|now| now.as_ref().is_some_and(|(owner, _)| *owner == me)) => None,
+            None => return,
+        };
+        if self.back.with_untracked(|now| *now != next) {
+            self.back.set(next);
+        }
     }
 
     /// How often the box was pressed. Tracked.
@@ -634,8 +651,10 @@ impl TopBack {
 }
 
 /// Where the box of `TopBack` leads on the page the app is at or going to (`pending`): where the
-/// page's step puts it, else where the address puts it (`back_at_head`) — the list of its area as it
-/// was left (`Tabs::list`), through the history where that is the step before, as `BackLink` does.
+/// page puts it (its `BackLink`, its step), else where its address puts it (`back_at_head`) — the
+/// list of its area as it was left (`Tabs::list`), through the history where that is the step
+/// before, as `BackLink` does. On the way to another page (another path) the page that is left has
+/// no say: the bar follows the click, the box there or gone at once.
 fn top_back_shown() -> Memo<Option<Back>> {
     let t = i18n::t();
     let location = use_location();
@@ -643,14 +662,13 @@ fn top_back_shown() -> Memo<Option<Back>> {
     let tabs = Tabs::expect();
     let back = TopBack::expect();
     Memo::new(move |_| {
-        if let Some(step) = back.and_then(|back| back.back.get()) {
+        let headed = going.and_then(|going| going.path());
+        let elsewhere = headed.as_ref().is_some_and(|path| *path != location.pathname.get());
+        if let Some((_, step)) = back.and_then(|back| back.back.get()).filter(|_| !elsewhere) {
             return Some(step);
         }
-        let (path, search) = match going.and_then(|going| going.path().map(|path| (going.search_on(&path).unwrap_or_default(), path))) {
-            Some((search, path)) => (path, search),
-            None => (location.pathname.get(), location.search.get()),
-        };
-        let area = back_at_head(&path, &search)?;
+        let path = headed.unwrap_or_else(|| location.pathname.get());
+        let area = back_at_head(&path)?;
         let href = tabs.map_or_else(|| area.back_root().to_string(), |tabs| tabs.list(area));
         let now = crate::tabs::location_of(&location.pathname.get(), &location.search.get());
         let history = tabs.is_some_and(|tabs| tabs.before(&now) == href);
@@ -798,26 +816,16 @@ pub fn TopBar() -> impl IntoView {
 mod tests {
     use super::*;
 
-    /// A program's page has its way back at the head by its address, up to the programs' list;
-    /// not where something else fills it (each has its own way back to the program), nor any other
-    /// page.
+    /// A program's page and a module's own page have their way back at the head from their first
+    /// paint, by their address; a list, „Mein Studium" and the other pages do not.
     #[test]
-    fn a_programs_page_has_its_way_back_at_the_head() {
-        for (path, search) in [("/programs/bachelor-informatik-2008", ""), ("/programs/bachelor-informatik-2008/areas", ""), ("/programs/bachelor-informatik-2008/plan", "variant=2&open=11103")] {
-            assert_eq!(back_at_head(path, search), Some(Area::Programs), "{path}?{search}");
+    fn the_pages_with_a_way_back_have_it_at_the_head() {
+        for path in ["/programs/bachelor-informatik-2008", "/programs/bachelor-informatik-2008/areas", "/programs/bachelor-informatik-2008/plan"] {
+            assert_eq!(back_at_head(path), Some(Area::Programs), "{path}");
         }
-        for (path, search) in [
-            ("/programs/bachelor-informatik-2008/plan", "open=11103&full=1"),
-            ("/programs/bachelor-informatik-2008/areas", "area=348"),
-            ("/programs/bachelor-informatik-2008/plan", "req=4"),
-            ("/programs", ""),
-            ("/programs/", ""),
-            ("/programs", "q=informatik"),
-            ("/study", ""),
-            ("/catalog/module/11103", ""),
-            ("/", ""),
-        ] {
-            assert_eq!(back_at_head(path, search), None, "{path}?{search}");
+        assert_eq!(back_at_head("/catalog/module/11103"), Some(Area::Catalog));
+        for path in ["/programs", "/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile", "/", "/impressum"] {
+            assert_eq!(back_at_head(path), None, "{path}");
         }
     }
 }
