@@ -557,8 +557,8 @@ pub fn standard_picture(season: Season, locale: Locale) -> &'static [u8] {
     }
 }
 
-/// The mark as pictures (`design/logo/render-icons.mjs`): `/favicon.ico` for what asks for it
-/// unprompted, the icon of iOS, and the icons the manifest names.
+/// Betula's icon as pictures (`design/logo/render-icons.mjs`): `/favicon.ico` for what asks for it
+/// unprompted, the icon of iOS, and the icons the manifests name.
 pub async fn favicon_ico(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     asset(&state, &uri, &headers, "image/x-icon", include_bytes!("../../../assets/favicon.ico")).await
 }
@@ -576,11 +576,15 @@ pub async fn icon_512(State(state): State<AppState>, uri: Uri, headers: HeaderMa
 }
 
 pub async fn icon_maskable(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-maskable-334.png")).await
+}
+
+pub async fn icon_splash(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
     asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-maskable-512.png")).await
 }
 
-pub async fn icon_maskable_large(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-maskable-1024.png")).await
+pub async fn icon_splash_dark(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-maskable-dark-512.png")).await
 }
 
 pub async fn icon_monochrome(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
@@ -820,8 +824,9 @@ pub async fn manifest(State(state): State<AppState>, uri: Uri, headers: HeaderMa
 
 /// `folia/assets/manifest.webmanifest` in a language: its name, description, language, and where the
 /// app starts; `dark`, with the background of the dark page as its colours (`folia_app::THEME_DARK`)
-/// for the splash screen and the strip under the gesture bar. The file is the default language's,
-/// light; a manifest the server cannot read stays as it is.
+/// for the splash screen and the strip under the gesture bar, and the icon of the splash screen
+/// turned over (`folia_app::ICON_SPLASH_DARK`; the launcher's stays). The file is the default
+/// language's, light; a manifest the server cannot read stays as it is.
 pub fn localized_manifest(locale: Locale, dark: bool) -> String {
     let file = include_str!("../../../assets/manifest.webmanifest");
     let Ok(mut manifest) = serde_json::from_str::<serde_json::Value>(file) else { return file.to_string() };
@@ -836,6 +841,10 @@ pub fn localized_manifest(locale: Locale, dark: bool) -> String {
         if dark {
             fields.insert("theme_color".to_string(), json!(folia_app::THEME_DARK));
             fields.insert("background_color".to_string(), json!(folia_app::THEME_DARK));
+            let icons = fields.get_mut("icons").and_then(|icons| icons.as_array_mut()).into_iter().flatten();
+            for src in icons.filter_map(|icon| icon.get_mut("src")).filter(|src| *src == folia_app::ICON_SPLASH) {
+                *src = json!(folia_app::ICON_SPLASH_DARK);
+            }
         }
     }
     serde_json::to_string(&manifest).unwrap_or_else(|_| file.to_string())

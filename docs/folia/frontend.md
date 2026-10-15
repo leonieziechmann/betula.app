@@ -72,21 +72,23 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 - **Name and logo** (owner decision 2026-09-20, domain `betula.app`): the product is **Betula**
   (the birch; B-T-U stands in the name). Running text says „Betula", only the wordmark stresses
   the three letters: BᴇTUʟᴀ in Inter 800 with E, L and A as small capitals and the E under the bar
-  of the T (`ui::Wordmark`, `.wordmark`; the spacing is measured, not guessed). The mark is birch
-  bark that also reads as the rows of a list (`ui::Mark`, 32 px grid; favicon on the same grid).
-  The rail carries the mark, the top bar of the start page the wordmark with „Modulkatalog ·
-  inoffiziell", so the two read as one logo; on a phone the start page carries both itself.
-  „Inoffiziell" always stays with the name, and nothing borrows the university's colours or mark.
-  Sizes, grids and numbers: `folia/design/logo/logo.html`.
-- **The icon of the installed app is a birch leaf** (owner, 2026-09-26): the mark cut to a circle
-  „sieht bei einer Kugel mit Material You wirklich nach nichts aus" (its bars run out to the edges
-  of its square, and a launcher's circle leaves a white disc with stubs). The leaf is white on the
-  green of the birch leaf and carries the mark's four bars as the marks of bark, entering from its
-  edges as they enter the square: close enough to the mark that it is recognised, and whole in any
-  shape a launcher cuts and in one colour for Android's themed icons. It is the icon of the home
-  screen (the manifest's icons, `apple-touch-icon.png`, the splash screens) and, since 2026-10-01,
-  of the site's results in Google Search (owner: the app icon there); the site keeps the mark in
-  the tab, the rail and the link previews („ich mag das aktuelle Icon eigentlich sehr").
+  of the T (`ui::Wordmark`, `.wordmark`; the spacing is measured, not guessed). The rail carries
+  the icon, the top bar of the start page the wordmark with „Modulkatalog · inoffiziell", so the
+  two read as one logo; on a phone the start page carries both itself. „Inoffiziell" always
+  stays with the name, and nothing borrows the university's colours or mark. Sizes, grids and
+  numbers: `folia/design/logo/logo.html`.
+- **The icon is a birch leaf in paper on a square of ink** (owner, 2026-10-15: „Tinte", „mit
+  Abstand das beste"), with four bars of birch bark cut out of it that also read as the rows of a
+  list, entering from its edges left and right in turn; in the dark it turns over, an ink leaf on
+  a light square (owner: „im dark modus muss das invertiert werden"). It is the same everywhere
+  („das neue icon komplett verwendet"): the rail, the start page and the login page
+  (`ui::Mark`, in `--logo-tile` and `--logo-leaf`), the tab, the link previews, the home screen,
+  the splash screens and the start of the installed app, and the site's results in Google Search.
+  The leaf stands whole in any shape a launcher cuts and in one colour for Android's themed icons
+  (owner, 2026-09-26, of a mark whose bars ran out to the edges of its square: „sieht bei einer
+  Kugel mit Material You wirklich nach nichts aus"). Before, the site had a mark of its own (a
+  white square with four ink bars) and the app's icon was this leaf, white with a stem on a green
+  gradient (owner, 2026-10-15: the colours clashed, the gradient looked retro).
   `folia/design/logo/app-icon.mjs`, described in `logo.html`.
 - **Layout:** a thin icon rail (52 px), a top bar with the search, and the whole remaining screen
   for content, with 8 px gaps and 9 px corners. The catalog is three panels side by side: filters,
@@ -1807,7 +1809,7 @@ matters most — „organisch ohne Popup, einfach intuitiv". So:
   the marks of the bark are a mask in the stylesheet, as wide as the trunk and repeated down it),
   and the figures (modules, programs, faculties, the Termine of the current semester) hang to its
   left as tags on branches of two lengths, each thick where it leaves the trunk and thin at its
-  tag (`dl.tree-figures`). Flat, as the mark is: the first trunk was shaded at its edges and the
+  tag (`dl.tree-figures`). Flat, as the icon is: the first trunk was shaded at its edges and the
   tags had shadows, which looked round („warum ist das Ding jetzt plötzlich 3D?"); the trunk is one
   tone now and the tags are outlined. Only from a container width of 700 px on: on a phone the
   trunk down the edge looked wrong and the figures took the height the way in needs, so there
@@ -1956,11 +1958,11 @@ The pieces: `folia/crates/shell/src/ground.rs` (`Crown`, `Ground`; the ground's 
 and the current semester), „the birch" in `folia/assets/app.css`, the ground's behaviour in
 `folia/assets/enhance.js`. The crown runs along the whole top on every screen (owner, the same
 evening: „durchgehend und auf allen Geräten"; the first build hung only where nothing stood — at
-the mark, at the end of the title column, right of the search — and fell apart into clumps with a
+the logo, at the end of the title column, right of the search — and fell apart into clumps with a
 thin edge between them and a gap on wide screens). Two masks per season (`folia/assets/birch/`): a
 tile of 1200 px that repeats to the right edge, dense at the top and hanging deeper and shallower in
 long waves (never below 46 px, so nothing hangs out under the search), and at the left end a head of
-420 px: the mark, and over the title a clearing where only the crown's edge hangs in, the twigs at
+420 px: the logo, and over the title a clearing where only the crown's edge hangs in, the twigs at
 its sides leaning away („ein natürlicher Platz für die Schrift", as the name had it before). The
 head ends in the tile's own end, and the tile is cut to its box from 420 px on (`mask-clip:
 content-box`), so the seam does not show and nothing is drawn twice. A phone has no title in its
@@ -2092,7 +2094,7 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   card is drawn in (`birch::Season`: the months the site's script goes by, on the server's clock),
   half as large again as along the site's top, since a preview is seen small. The card has a head
   of its own (`<season>-card-head.svg`): its clearing is just as wide as the wordmark („viel zu
-  weit und links etwas daneben" was the site's head there), and the mark stands in front of the
+  weit und links etwas daneben" was the site's head there), and the icon stands in front of the
   crown before it, as the rail's does. The season is part of what a card's hash is made of, so a
   card is drawn anew, under a new ETag, when the season turns. The grey, the face, the crown and
   the face's hairline are drawn once per season and every card onto a copy: the crown's 1,500
@@ -2117,15 +2119,17 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     `FOLIA_CARD_OUT=<dir> cargo test -p folia-server cards_for_review` (`FOLIA_CARD_SEASON=spring`
     for another season than today's).
 - **Who the site is, outside a page** (static in the document's head, `app::shell`, so it
-  survives the takeover): `/favicon.ico` (32 and 48 px) and the SVG icon, both the mark;
-  `/apple-touch-icon.png` (180 px, full bleed: iOS rounds it and uses it for the home screen and
-  for previews in Messages) and `/manifest.webmanifest` (name, colours, icons 192/512, maskable
-  ones of 512 and 1024 px and a monochrome one), all the icon of the installed app;
-  `/manifest-dark.webmanifest`, the same app in the dark page's colours; and `theme-color` (the
-  page background). The head script and the theme switch turn both dark: the page names the dark
-  manifest instead of the light one and the dark `theme-color`, and so does a page open when the
-  system turns dark, unless a theme of Betula's own was chosen. The
-  pictures are made from the mark's grids and from `folia/design/logo/app-icon.mjs` by
+  survives the takeover), all of it the icon: `/favicon.ico` (32 and 48 px) and the SVG icon (turned
+  over where the browser is dark); `/apple-touch-icon.png` (180 px, full bleed: iOS rounds it and
+  uses it for the home screen and for previews in Messages) and `/manifest.webmanifest` (the name
+  „Betula · Modulkatalog", „Betula · Module catalogue" in English, which Android writes under the
+  icon of its splash screen (owner, 2026-10-15: „Das sieht classy aus"); colours; icons 192/512,
+  maskable ones of 334 px for the launcher and 512 px for the splash screen, and a monochrome
+  one); `/manifest-dark.webmanifest`, the same app in the dark page's colours and with the splash
+  screen's icon turned over; and `theme-color` (the page background). The head script and the
+  theme switch turn both dark: the page names the dark manifest instead of the light one and the
+  dark `theme-color`, and so does a page open when the system turns dark, unless a theme of
+  Betula's own was chosen. The pictures are made from `folia/design/logo/app-icon.mjs` by
   `node folia/design/logo/render-icons.mjs`. The manifest makes the site installable; the service
   worker makes it start without a network.
   - **Google Search** (2026-10-01) shows one picture per host beside the results, taken from the
@@ -2133,10 +2137,10 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     JPEG, PPM, TIFF; square, larger than 48 px recommended) and does not document how it chooses
     among several; as far as can be seen, the largest. So the start page links the icon of the
     app once more, as an `icon` of 192 px (`app::ICON_192`, square and a multiple of 48): larger
-    than the mark's ICO (48 px at most) and than `apple-touch-icon.png` (180), it is the largest
-    of either kind of link (`folia/crates/server/src/tests.rs` checks that). The tab keeps the mark: Chromium
-    takes the SVG and does not even fetch the PNG (tried at 1×, 2× and 3×), and Firefox takes the
-    SVG whatever else is linked (`selectIcons` in its `FaviconLoader.sys.mjs`).
+    than the ICO (48 px at most) and than `apple-touch-icon.png` (180), it is the largest
+    of either kind of link (`folia/crates/server/src/tests.rs` checks that). The tab takes the SVG: Chromium
+    does not even fetch the PNG (tried at 1×, 2× and 3×), and Firefox takes the SVG whatever else
+    is linked (`selectIcons` in its `FaviconLoader.sys.mjs`).
   - **Why Google showed none** (2026-10-01): until 2026-09-27 `betula.app` was the placeholder
     (`deploy/stacks/placeholder.yml`): `noindex, nofollow`, no icon linked, `/favicon.ico` a 204
     without content. Google takes the icon anew only when it processes the start page again,
@@ -2152,8 +2156,16 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     or a teardrop shows the whole of it. With themed icons (Material You) the launcher tints the
     monochrome icon, the leaf with its marks cut out, in the colours of the wallpaper; without it
     the icon of an installed app did not take part. The splash screen of the installed app is
-    Android's own: the manifest's background with the maskable icon in its middle, drawn at about
-    220 dp, which the 1024 px icon keeps sharp.
+    Chrome's own (`SplashLayout`): the manifest's background, the maskable icon at 128 dp cut by
+    the launcher's mask, its middle 16 dp above the window's (24 on a tablet), and the manifest's
+    name under it, 24 sp, its bottom 48 dp above the window's. Chrome takes the icon of the size it
+    asks for or the next larger one (`ManifestIconSelector`): 83 dp for the launcher, which 334 px
+    serve up to a density of 4.02, and 128 dp for the splash screen, which asks for more than 334 px
+    from a density of 2.61 on (most phones of today) and takes the 512. So the dark manifest names
+    a turned-over 512 (`ICON_SPLASH_DARK`) and the same launcher's icon: only the splash screen
+    turns over in the dark, and the home screen's icon never changes with the theme (Chrome asks
+    the visitor once before it takes a new icon or name: the change to „Tinte" and the new name
+    are asked about once).
   - **Light and dark on Android** (2026-10-15; owner: „wenn Betula als pwa installiert startet, dann
     wird bei dem loading screen nicht der Darkmodus berücksichtigt, weshalb dann die gesture bar
     unten die falsche farbe hat"). Chrome (158 as of 2026-10; `WebappIntentDataProvider`,
@@ -2181,13 +2193,33 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     screen. Sixty `<link>`s for all screens in every page would have cost every visitor almost a
     kilobyte for what only a home screen of iOS reads. The server draws them
     (`/assets/launch/<width>x<height>[-dark].png`, `folia/crates/server/src/launch.rs`, resvg like the cards)
-    for the screens of `app::launch` (12 iPhones, 9 iPads): the icon of the installed app in the
-    middle of the page's background, as large as twice an icon of the home screen, on a soft
-    shadow in the light, the wordmark and „Modulkatalog · inoffiziell" at the bottom; on its first
+    for the screens of `app::launch` (12 iPhones, 9 iPads): the icon in the middle of the page's
+    background, 128 px as on Android's splash screen, on a soft shadow in the light and turned over
+    in the dark, and „Betula · Modulkatalog" at the bottom; on its first
     request, one at a time, and keeps them (20–40 kB each, 2 MB for all). The gate lets them
     through like the icons. A screen that is not listed gets no picture and starts blank as before:
     a new iPhone is one line in `folia/crates/shell/src/launch.rs`. Look at all of them with
     `FOLIA_LAUNCH_OUT=<dir> cargo test -p folia-server launch_screens_for_review`.
+  - **The start of the installed app** (2026-10-15; owner: „ich möchte einen viel cooleren
+    ladebildschirm haben", then concept A of `folia/design/launch/konzepte.html`, with „Tinte" and
+    the new name from `icon.html`). Where the installed app starts on a phone or a tablet
+    (`display-mode: standalone` or `navigator.standalone`, and a coarse pointer), the head script
+    lays the picture of the system's splash screen over the page before its first paint (`.launch`,
+    beside the body, where the app's takeover does not reach it): on Android the icon where Chrome
+    draws it, round; on iOS the launch screen as the server draws it, which the screen's geometry
+    places (`--mid`, `--name`, less the status bar above the window). The first picture of the page
+    is the splash screen again. enhance.js holds it while Chrome fades its own splash from above it
+    (350 ms; 150 on iOS, whose switch from the launch screen is at once), then the icon flies to the
+    page's own, the first `.logo` on the screen, in 640 ms along the way of concept A, and turns
+    from the launcher's circle into its square while the background clears; on the logo it goes,
+    and the page's own is under it. Without a logo on the screen (a phone's page other than the
+    start page) or with reduced motion it only fades; a tap takes it away; once the icon flies,
+    taps reach the page. Once a session (`betula.launched` in sessionStorage): a link or a reload
+    in the app is no start. Not on the login page of closed testing (it names no manifest and runs
+    no enhance.js), and without enhance.js the picture fades by itself after 4 s (`launch-gone`,
+    which reduced motion leaves alone). Chrome's name under the icon fades with its splash; on iOS
+    the name of the picture fades as the icon sets off. `folia/e2e/launch.mjs` checks where it
+    stands, that it lands on the logo, and when it is not there.
 - **Offline (`folia/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
   worker keeps the shell of the app — a page of the site (the browser app renders whatever the
   address names from the local catalog), the scripts, the styles, the bundle, the font, the icons,
@@ -2666,9 +2698,9 @@ heard from; for an uptime monitor), `GET /livez` (200 while the process answers;
 healthcheck, which must not restart a server that still serves its last snapshot),
 `/assets/app.css`, `/assets/icons.svg` (the sprite every icon points at), `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
-`/assets/icon-512.png`, `/assets/icon-maskable-512.png`, `/assets/icon-maskable-1024.png`,
-`/assets/icon-monochrome-512.png`, `/manifest.webmanifest`, `/manifest-dark.webmanifest` (the same
-in the dark theme's colours), `/assets/launch/<w>x<h>[-dark].png`
+`/assets/icon-512.png`, `/assets/icon-maskable-334.png`, `/assets/icon-maskable-512.png`,
+`/assets/icon-maskable-dark-512.png`, `/assets/icon-monochrome-512.png`, `/manifest.webmanifest`,
+`/manifest-dark.webmanifest` (the same in the dark theme's colours), `/assets/launch/<w>x<h>[-dark].png`
 (the launch screens of iOS), `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`,
 `/sitemap.xml`, and
 `GET`/`POST /access` (the login page of closed testing). The stylesheet and the scripts answer

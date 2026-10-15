@@ -1,19 +1,25 @@
-// The icon of the installed app, drawn from numbers: a birch leaf, white, with the four bars of the
-// mark on it as the black marks of birch bark, on the green of the birch leaf (design/logo/logo.html).
-// The site keeps its mark (the square of bark in the tab, the rail, the link previews); the leaf is
-// what a home screen shows. The mark's bars run out to the edges of its square, and a launcher that
-// cuts a circle out of it leaves a white disc with stubs (owner, 2026-09-26: „sieht bei einer Kugel
-// mit Material You wirklich nach nichts aus"); the leaf stands whole in the middle of any shape, and
-// in one colour for Android's themed icons.
+// The icon of Betula, drawn from numbers: a birch leaf in paper on a square of ink, the four bars of
+// the old mark cut out of it as the marks of birch bark (design/logo/logo.html). „Tinte“ (owner,
+// 2026-10-15: „Bitte setze tinte um, das ist mit abstand das beste. Aber im dark modus muss das
+// invertiert werden. Und dann kann das neue icon komplett verwendet werden“): it is the app's icon
+// and the site's logo, in the tab, the rail, the start page and the link previews; on a dark page
+// and on the splash screen of the dark theme it is inverted, an ink leaf on paper. Until then the
+// leaf was white with a stem and black bars on a green gradient, and the site had a mark of its own
+// (a square of bark with the bars); the flat ink takes the two colours the page wears anyway.
+// The leaf stands whole in the middle of any shape a launcher cuts, and in one colour for
+// Android's themed icons (owner, 2026-09-26, of the old mark: „sieht bei einer Kugel mit Material You
+// wirklich nach nichts aus“).
 //
-// Every picture of the icon comes from here: `render-icons.mjs` makes the icons of the manifest and
-// of iOS from it and prints the paths the server draws the launch screens of iOS with
-// (`folia/crates/server/src/logo.rs`). Change the icon here, then paste.
+// Every picture of the icon comes from here: `render-icons.mjs` makes the icons of the manifest, of
+// iOS and of the tab from it and prints the path the page shows as its logo
+// (`folia/crates/design/src/ui.rs`, `Mark`), which the server draws the launch screens of iOS and
+// the link-preview cards with too. Change the icon here, render, then paste the path there and
+// into `design/og/og.html` and `logo.html`.
 //
 // The leaf is three cubic curves on its right, mirrored to the left; the bars are horizontal bands
-// that enter the leaf from its edges, from the left and the right in turn, as they enter the mark's
-// square. They are cut to the leaf by computing where they meet its edge, so the pictures need no
-// clip paths and no masks.
+// that enter the leaf from its edges, from the left and the right in turn, as they entered the old
+// mark's square. They are cut out of the leaf by computing where they meet its edge, so the pictures
+// need no clip paths and no masks, and the cut leaf is one outline.
 
 // ---------- the leaf on the 96 grid ----------
 // Its right half, from the tip down to the base, as cubic Bézier segments [p0, p1, p2, p3].
@@ -30,16 +36,17 @@ const BARS = [
   { y: 49.1, h: 4.7, side: -1, end: 38.8 },
   { y: 58, h: 4.7, side: 1, end: 42.7 },
 ];
-const STEM = { d: "M48 65.9Q48.8 72.6 45.5 78.2", width: 3.6 };
+// The leaf has no stem: it is moved down by this much, so that it stands in the middle of the square.
+export const DY = 6.5;
 
 // ---------- colours ----------
-// The green of the birch leaf: the owner's tone (oklch .6867 .0996 149) at the top, deeper towards
-// the bottom (oklch .47 .085 155). A vertical gradient: every row of a picture is one colour, which
-// keeps the PNGs small. The leaf is white, its marks are the ink of the app.
-export const GREEN_TOP = "#6dac78";
-export const GREEN_BOTTOM = "#2d6945";
-export const WHITE = "#ffffff";
+// The ink of the app's text and the paper of its pages (folia/assets/app.css: --text, and a white
+// a little softer than the panels). In the dark the icon turns over: the square takes the light of
+// the dark theme's bark (--bark there), the leaf the ink.
 export const INK = "#10151f";
+export const PAPER = "#f4f5f7";
+export const PAPER_DARK = "#e9edf5";
+export const WHITE = "#ffffff";
 
 // ---------- geometry ----------
 const n = (v) => { const r = Math.round(v * 100) / 100; return String(Object.is(r, -0) ? 0 : r); };
@@ -105,7 +112,7 @@ function build() {
     return d + along(y, down ? ends[1] : ends[0]);
   };
   const cut = `M${n(tip[0])} ${n(tip[1])}${walk(right, BARS.filter((bar) => bar.side > 0), true)}${walk(left, BARS.filter((bar) => bar.side < 0), false)}Z`;
-  return { leaf, marks, cut, stem: STEM };
+  return { leaf, marks, cut };
 }
 
 export const ICON = build();
@@ -114,25 +121,27 @@ export const ICON = build();
 // How large the glyph is in the full-bleed maskable and monochrome icons: a launcher shows the
 // middle 87 % of them (Chromium pads the web's maskable icon so that its safe circle, 80 %, lands
 // on Android's, 66 of 108 dp; the mask shows 72 dp), so the glyph is drawn smaller by that much
-// and looks as large on a phone as in the plain icons. Its far ends (the tip, the stem) stay at
+// and looks as large on a phone as in the plain icons. Its far ends (the tip, the base) stay within
 // 30 % of the width from the middle, well inside the safe circle of 40 %.
 export const MASKABLE = 0.873;
 
-// The glyph (leaf, marks, stem), scaled by `k` around the middle. `mono`: one colour, white, the
-// bars cut out (the monochrome icon of Android's themed icons).
-export function glyph({ k = 1, mono = false } = {}) {
-  const t = k === 1 ? "" : ` transform="translate(${n(48 - 48 * k)} ${n(48 - 48 * k)}) scale(${k})"`;
-  const stem = `<path d="${ICON.stem.d}" fill="none" stroke="${WHITE}" stroke-width="${ICON.stem.width}" stroke-linecap="round"/>`;
-  if (mono) return `<g${t}>${stem}<path d="${ICON.cut}" fill="${WHITE}"/></g>`;
-  return `<g${t}>${stem}<path d="${ICON.leaf}" fill="${WHITE}"/><path d="${ICON.marks}" fill="${INK}"/></g>`;
+// The cut leaf in `fill`, scaled by `k` around the middle of the square.
+export function glyph({ k = 1, fill = PAPER } = {}) {
+  const t = k === 1 ? `translate(0 ${DY})` : `translate(${n(48 - 48 * k)} ${n(48 - 48 * k)}) scale(${k}) translate(0 ${DY})`;
+  return `<path transform="${t}" d="${ICON.cut}" fill="${fill}"/>`;
 }
-// The green ground: a square, rounded by `radius` (0: full bleed).
-export function ground({ radius = 0, id = "g" } = {}) {
-  return `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${GREEN_TOP}"/><stop offset="1" stop-color="${GREEN_BOTTOM}"/></linearGradient></defs>`
-    + `<rect width="96" height="96"${radius ? ` rx="${radius}"` : ""} fill="url(#${id})"/>`;
+// The square in `fill`, rounded by `radius` (0: full bleed).
+export function ground({ radius = 0, fill = INK } = {}) {
+  return `<rect width="96" height="96"${radius ? ` rx="${radius}"` : ""} fill="${fill}"/>`;
 }
-// A whole icon as an SVG document on the 96 grid.
-export function icon({ radius = 0, k = 1, mono = false, size } = {}) {
+// A whole icon as an SVG document on the 96 grid: paper on ink, or `dark`, ink on paper; `mono`,
+// the leaf alone in white (Android's themed icons tint it).
+export function icon({ radius = 0, k = 1, mono = false, dark = false, size } = {}) {
   const dims = size ? ` width="${size}" height="${size}"` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"${dims}>${mono ? "" : ground({ radius })}${glyph({ k, mono })}</svg>`;
+  if (mono) return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"${dims}>${glyph({ k, fill: WHITE })}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"${dims}>${ground({ radius, fill: dark ? PAPER_DARK : INK })}${glyph({ k, fill: dark ? INK : PAPER })}</svg>`;
+}
+// The icon of the tab: the square rounded as on the page, and turned over where the browser is dark.
+export function favicon() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><style>rect{fill:${INK}}path{fill:${PAPER}}@media (prefers-color-scheme:dark){rect{fill:${PAPER_DARK}}path{fill:${INK}}}</style><rect width="96" height="96" rx="21"/><path transform="translate(0 ${DY})" d="${ICON.cut}"/></svg>\n`;
 }

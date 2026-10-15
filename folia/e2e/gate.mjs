@@ -28,7 +28,7 @@ for (const path of ["/api/db", "/api/status", "/sitemap.xml", "/pkg/folia_client
   check((await status(path)) === 401, `${path} answers without the password`);
 }
 // What a home screen reads: the manifest and its icons, and the launch screens of iOS.
-for (const path of ["/assets/app.css", "/assets/inter-latin.woff2", "/favicon.ico", "/manifest.webmanifest", "/manifest-dark.webmanifest", "/en/manifest-dark.webmanifest", "/assets/icon-maskable-1024.png", "/assets/icon-monochrome-512.png", "/assets/launch/1179x2556.png"]) {
+for (const path of ["/assets/app.css", "/assets/inter-latin.woff2", "/favicon.ico", "/manifest.webmanifest", "/manifest-dark.webmanifest", "/en/manifest-dark.webmanifest", "/assets/icon-maskable-334.png", "/assets/icon-maskable-dark-512.png", "/assets/icon-monochrome-512.png", "/assets/launch/1179x2556.png"]) {
   check((await status(path)) === 200, `${path} is not open`);
 }
 check((await status("/healthz")) !== 401, "/healthz is behind the gate (a supervisor has no password)");

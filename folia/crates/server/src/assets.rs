@@ -219,6 +219,20 @@ mod tests {
         }
     }
 
+    /// The leaf of Betula's icon is one outline (`folia_design::ui::LEAF`, which the page's logo and
+    /// the server's pictures draw), and what draws it elsewhere draws that one: the start of the
+    /// installed app (app.css, as a clip path), the tab (favicon.svg) and the picture of the link
+    /// previews (design/og/og.html, made into the og PNGs). A new leaf is pasted into each.
+    #[test]
+    fn the_icon_is_the_same_leaf_everywhere() {
+        use folia_design::ui::{LEAF, LEAF_DY};
+        assert!(text("app.css").contains(&format!("clip-path:path(\"{LEAF}\")")), "the start of the installed app");
+        assert!(text("app.css").contains(&format!("translateY({LEAF_DY}px)")), "the start of the installed app");
+        assert!(written("favicon.svg").contains(LEAF), "the tab");
+        let og = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../design/og/og.html")).unwrap();
+        assert!(og.contains(&format!("translate(0 {LEAF_DY})\" d=\"{LEAF}\"")), "the link previews");
+    }
+
     /// The masks a stylesheet names, as `warm::files` reads them.
     fn masks(css: &str) -> std::collections::BTreeSet<&str> {
         crate::warm::masks(css).collect()

@@ -22,6 +22,64 @@
   const phone = () => narrow.matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
   const typing = (el) => el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "submit"].includes(el.type)) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+
+  // The start of the installed app (owner, 2026-10-15: concept A of design/launch/konzepte.html).
+  // The head script has laid the picture of the system's splash screen over the page (`.launch`,
+  // app.css). It stands while Android's own splash fades from above it (300 ms; on iOS the switch
+  // from the launch screen is at once), then the icon flies to the page's own, the first `.logo` on
+  // the screen (the rail's, or on a phone the start page's), and turns from the circle the launcher
+  // cut into the icon's square, while the background clears; there it goes, and the page's own is
+  // under it. Without a logo on the screen, or with reduced motion, the picture fades. A tap takes
+  // it away at once, and once the icon flies, taps reach the page.
+  const launch = document.querySelector("html > .launch");
+  // Faded by itself already (app.css, launch-gone): this script came too late.
+  if (launch && getComputedStyle(launch).opacity !== "1") launch.remove();
+  else if (launch) {
+    launch.style.animation = "none";
+    const icon = launch.querySelector(".launch-icon");
+    const tile = icon.querySelector("b");
+    const ios = launch.classList.contains("ios");
+    const timing = (delay, duration, easing) => ({ delay, duration, easing, fill: "both" });
+    // Played, or taken away by a tap: once.
+    let begun = false;
+    let wait = 0;
+    const go = () => launch.remove();
+    const fade = (duration) => launch.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, duration, "ease-out")).finished.then(go, go);
+    const play = () => {
+      if (begun) return;
+      begun = true;
+      launch.style.pointerEvents = "none";
+      const from = icon.getBoundingClientRect();
+      const logo = [...document.querySelectorAll(".logo")].map((el) => el.getBoundingClientRect())
+        .find((r) => r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth);
+      if (!logo || matchMedia("(prefers-reduced-motion: reduce)").matches) return fade(300);
+      // The way of concept A: a little more up than across in its first half, where the icon has
+      // already lost most of its size.
+      const k = logo.width / from.width;
+      const dx = logo.left + logo.width / 2 - (from.left + from.width / 2);
+      const dy = logo.top + logo.height / 2 - (from.top + from.height / 2);
+      icon.animate([
+        { transform: "none" },
+        { transform: `translate(${dx * 0.47}px, ${dy * 0.6}px) scale(${k + (1 - k) * 0.364})`, offset: 0.5, easing: "cubic-bezier(.3,0,.2,1)" },
+        { transform: `translate(${dx}px, ${dy}px) scale(${k})` },
+      ], timing(0, 640, "cubic-bezier(.45,0,.55,1)"));
+      if (ios) tile.animate([{ boxShadow: getComputedStyle(tile).boxShadow }, { boxShadow: "none" }], timing(0, 240, "ease-out"));
+      else tile.animate([{ borderRadius: "50%" }, { borderRadius: "21.875%" }], timing(0, 300, "ease-in-out"));
+      launch.querySelector(".launch-name")?.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, 180, "ease-out"));
+      launch.animate([{ backgroundColor: getComputedStyle(launch).backgroundColor }, { backgroundColor: "transparent" }], timing(200, 460, "ease-in-out"));
+      icon.animate([{ opacity: 1 }, { opacity: 0 }], timing(680, 120, "linear")).finished.then(go, go);
+    };
+    // Two frames: the picture has been painted, and from then on Android fades its splash.
+    requestAnimationFrame(() => requestAnimationFrame(() => { wait = setTimeout(play, ios ? 150 : 350); }));
+    launch.addEventListener("pointerdown", () => {
+      if (begun) return;
+      begun = true;
+      clearTimeout(wait);
+      launch.style.pointerEvents = "none";
+      fade(150);
+    });
+  }
+
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
   // Open, the page behind it is dimmed and stands still (html.sheet-open), and a tap on it closes
   // the sheet. However it goes (its buttons, a swipe down, a tap beside it, Esc, Back), the page
