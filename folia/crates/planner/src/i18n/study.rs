@@ -23,7 +23,8 @@ pub struct Texts {
     pub search_program: &'static str,
     /// The heading of „Mein Studiengang" at the head of the program pickers.
     pub my_program: &'static str,
-    /// A program of one plan: what its study direction's row says.
+    /// A program of one plan: what its study direction's row says (short, so that a phone's row has it
+    /// whole).
     pub no_direction: &'static str,
     /// „1. und 2. FS nach Regelstudienplan füllen" (the span written already) and its hint; in the
     /// first Fachsemester, where there is nothing before it, what the box says instead.
@@ -382,7 +383,7 @@ pub const DE: Texts = Texts {
     choose_program: "Studiengang wählen",
     search_program: "Studiengang suchen",
     my_program: "Mein Studiengang",
-    no_direction: "Keine zur Wahl in diesem Studiengang",
+    no_direction: "Keine zur Wahl",
     fill_past: |span| format!("{span} nach Regelstudienplan füllen"),
     fill_past_hint: "Danach markierst du nur noch, was du bestanden hast. Die kommenden Semester bleiben leer.",
     fill_later: "Semester davor nach Regelstudienplan füllen",
@@ -644,7 +645,7 @@ pub const EN: Texts = Texts {
     choose_program: "Choose degree programme",
     search_program: "Search degree programmes",
     my_program: "My programme",
-    no_direction: "None to choose in this programme",
+    no_direction: "None to choose",
     fill_past: |span| format!("Fill {span} from the standard study plan"),
     fill_past_hint: "Then you only mark what you passed. The semesters to come stay empty.",
     fill_later: "Fill the semesters before from the standard study plan",
