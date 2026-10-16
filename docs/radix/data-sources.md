@@ -232,7 +232,7 @@ Program, degree, PO version, regulation documents.
 | Code path | `parser/detail.go:207-211`, `normalizePrereqText` turns „keine", „none", „entfällt" … into `'-'`. Module IDs are extracted later, by consumers, by scanning for 5-digit numbers. |
 | Freshness | As S2. |
 | Conflicts | Single source. 644 modules have mandatory text (485 with a 5-digit number), 2,527 have recommended text (1,199 with a number). `'-'` is a sentinel. |
-| Authority | **S2.** Text kept for display, NULL instead of `'-'`. Referenced modules are extracted **once in Go** into `module_prerequisite(module_id, required_module_id, kind)`, only for numbers that are existing module IDs; the rest stays text. |
+| Authority | **S2.** Text kept for display, NULL instead of `'-'`. Referenced modules are extracted **once in Go** into `module_prerequisite(module_id, required_module_id, kind)`, only for numbers that are existing module IDs; the rest stays text. Since 2026-10-16 a number the text only names to rule it out („Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul 12212") is none, and neither is a module the module replaces (§15). |
 | Provenance | Single-source; the link rows are derived and rebuilt on each fetch of the module. |
 
 ### 5.12 Successor modules, phase-out, "not offered"
@@ -834,3 +834,65 @@ descriptions of 11985 and 11986: 217 requests with Radix's user agent, one at a 
 The German descriptions of 12160 and 38105 are `radix/internal/parser/testdata/qis_module_<id>.html`,
 cut to the description (`TestReplacementRows`, `TestBuildReadsAReplacementFromBothModules`,
 `TestDetailParser_RemarksNameSuccessorOrPredecessor`).
+
+## 15. What a prerequisite text rules out is no prerequisite (2026-10-16)
+
+**What was wrong.** Radix took every five-digit number of a prerequisite text for a prerequisite.
+Most pages of a module that replaced another rule the old one out in that very field: 11903
+„Digitaltechnik" states under „Zwingende Voraussetzungen" „Keine erfolgreiche Teilnahme am
+zugehörigen Auslaufmodul *12212 - Digitaltechnik.*", and 12212 states the same of 11903, its
+successor. So Folia named 12212 a mandatory prerequisite of 11903, and 11903 one of 12212. The
+owner found it on 11903 („Da wird fälschlicher weise erkannt, dass das auslaufmodul, was durch die
+11903 abgelöst wird eine voraussetzung ist") and asked for two rules: „auslaufmodule können keine
+voraussetzung für das folgemodul sein", and „verneinungen sollten auch erkannt werden… (False
+positive bei den voraussetzungen ist aber besser als false negative)".
+
+**Now.** `normalize.PrerequisiteIDs` reads the numbers a text asks for. A number stands for no
+prerequisite when a phrase that rules modules out governs it:
+
+| Phrase | Its reach |
+|---|---|
+| „Keine (erfolgreiche) Teilnahme", „Keine erfolgreiche Belegung", „Kein (erfolgreicher) Abschluss", „kein paralleler Besuch", „Doppelbelegung", „nicht für Studierende"; "No successful participation", "No successful completion", "No successful enrolment", "No double occupancy", "must not have", "not for students" | from the phrase to the end of its statement |
+| „nicht mehr möglich", „wurde nicht (erfolgreich) abgeschlossen"; "no longer possible", "was not successfully completed" | the whole sentence, the numbers before the phrase too |
+
+A statement ends at a full stop, a semicolon, ! or ?, at „aber", „jedoch", „sondern", "but",
+"however", or at the end of a line, unless the next line goes on with it: a list item that begins
+with a module number („• 11116 - Höhere Mathematik K"), a conjunction („UND", „ALS AUCH", "AS WELL
+AS"), or another line that begins in lower case ("in associated phase-out modules"). So the list a
+phrase opens is ruled out with it, and a list item that states something of its own is not.
+
+Only these phrases count, never a bare „nicht" or „kein". The catalog is full of negations that
+keep the module a prerequisite: „ist wünschenswert, aber nicht zwingend erforderlich", „Ein
+Abschluss ist für die Anmeldung zu Modul 23105 nicht erforderlich", "is helpful but not
+essential", "The module cannot be successfully completed without knowledge of", „Modul 13210
+Hochfrequenztechnik 1 (nicht mehr im Angebot ab SS 2011)" as one of two alternatives,
+„Nichtlineare Berechnungen und Stabilität (11512)", „Keine Teilnahmevoraussetzungen". A statement
+that says what is needed („erforderlich", „notwendig", „nötig", "required" …) rules nothing out
+either: „Kein Abschluss erforderlich, Teilnahme an Modul 12345 genügt". A number named once outside
+an exclusion stays: where a text is unclear, Radix keeps a prerequisite too
+many rather than lose one, as the owner asked.
+
+`writeModuleLinks` then leaves out the modules a module replaces, over any number of steps (the
+replacements of `module_successor`, read from either page as §14 says): 12103 is no prerequisite of
+11903, which replaced 12212, which replaced 12103, even where a text names it without ruling it
+out. The direction counts. A module that phases out may name its successor as a prerequisite and
+keeps it: 36422 „Konstruktionslehre" recommends 36102 „Einführung in die Konstruktionslehre", one of
+the three modules that replaced it, and 12017 recommends 11991, its successor. The texts stay as
+the pages state them; only the links change.
+
+**How many.** The snapshot on canary on 2026-10-16 (built 12:25 UTC by Radix 0.7.0) had 3,194
+rows in `module_prerequisite`. Read again with both rules, 346 of them fall away, every one
+mandatory, from the texts of 306 modules, and none is added. 240 rows linked a module with one that
+replaces it or that it replaces (237 directly, 3 over two steps, such as 11974, which replaced
+38428, which replaced 38501); 238 of them fall away, the two above stay. Every row that falls away
+is ruled out by its text already, so leaving out the replaced modules removes nothing more today:
+it holds where a page names a replaced module plainly. The other rows that fall away are modules
+that rule each other out: 11108 and 11282 („Höhere Mathematik T2"), 13613 and 13703 („Keine
+Doppelbelegung"); 11863 rules out 14478 and keeps 11862.
+
+**Checked** on 2026-10-16 with the snapshot of canary (`/api/db`): every prerequisite text with a
+number, turned back from its Markdown into the plain text Radix reads, the numbers before and
+after compared text by text; and the copies on b-tu.de of 11903 and 12212, two requests with
+Radix's user agent. `TestPrerequisiteIDs` (normalize) holds texts of the catalog of both kinds,
+`TestBuildKeepsReplacedModulesOutOfThePrerequisites` (catalogbuild) the chain 12103 → 12212 →
+11903.

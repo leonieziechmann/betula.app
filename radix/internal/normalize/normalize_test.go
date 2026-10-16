@@ -290,3 +290,60 @@ func TestIsNoneAndModuleIDs(t *testing.T) {
 		t.Errorf("ModuleIDs = %v", got)
 	}
 }
+
+// The texts are those of the catalog (canary, 2026-10-16), as the parser reads them: a list item
+// on a line of its own, starting with „• ".
+func TestPrerequisiteIDs(t *testing.T) {
+	cases := []struct {
+		module, text string
+		want         []string
+	}{
+		// The modules a text rules out are none of its prerequisites.
+		{"11903", "Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul 12212 - Digitaltechnik.", nil},
+		{"12212", "Keine erfolgreiche Teilnahme am zugehörigen Nachfolgemodul 11903 - Digitaltechnik.", nil},
+		{"11107", "Keine erfolgreiche Teilnahme an den Modulen:\n• 11281- Höhere Mathematik T1 – BI\n• 11116 - Höhere Mathematik K", nil},
+		{"11195", "No successful participation in associated follow-up module\n• 11689 Power Generation from Wind Energy AS WELL AS\n" +
+			"in associated phase-out modules\n• 35415 Technology for Decentralized Power Generation and Storage 1 AND\n" +
+			"• 35435 Renewable Generation and Storage of Electrical Energy.", nil},
+		{"12164", "Keine erfolgreiche Teilnahme an zugehörigen Auslaufmodulen\n• 38407 Strategie und Umsetzung von Gründung und Wachstum SOWIE\n" +
+			"• 38206 Gründungsmanagement\nALS AUCH am zugehörigen Nachfolgemodul\n• 12231 Gründungsmanagement.", nil},
+		{"11999", "Keine Doppelbelegung mit Modul:\n• 13966 - Internetrecht und Datenschutzrecht", nil},
+		{"43420", "Doppelbelegung mit zugehörigem Auslaufmodul 43402 - Behandlung fester Abfälle nicht zulässig.", nil},
+		{"25106", "No double occupancy with Module 13676 - Denkmalpflege.", nil},
+		{"12276", "Kein erfolgreicher Abschluss von Modul 14293 Porous Materials.", nil},
+		{"13733", "• Kein Abschluss des Moduls 37105 Kultur und Gesellschaft", nil},
+		{"13909", "• kein paralleler Besuch des Moduls 13947 - Seminar Empirische Wirtschaftsforschung (Hinweis: beide Seminare können in jeweils unterschiedlichen Semestern belegt werden)", nil},
+		{"14358", "Keine erfolgreiche Belegung von Modul 12637 Digitale Fabrikplanung.", nil},
+		{"13952", "No successfull completion of module 35463 - Labor Regelungstechnik", nil},
+		{"14723", "No successful enrolment for 35443 International Management.", nil},
+		{"14995", "Students must not have previously taken and passed Module 14297 (Polymer Chemistry)", nil},
+		{"14293", "Module 12276 Porous Materials was not successfully completed.", nil},
+		{"11626", "• Für Studierende, die bereits am Modul 12110 Mediendesign erfolgreich teilgenommen haben, ist eine Belegung nicht mehr möglich.", nil},
+		// Only the statement that rules out a module loses it.
+		{"11863", "• Successful participation in module 11862 - Pervasive System Security.\n• No successful participation in module 14478 - Praxis der Seitenkanal-Angriffe.", []string{"11862"}},
+		{"", "Keine erfolgreiche Teilnahme am Modul 11111; Kenntnisse aus Modul 22222", []string{"22222"}},
+		{"", "Keine erfolgreiche Teilnahme an 11111, aber Kenntnisse aus 22222 sind hilfreich.", []string{"22222"}},
+		{"", "Keine erfolgreiche Teilnahme am Modul\n• 11111\nKenntnisse aus Modul 22222", []string{"22222"}},
+		{"", "Keine Teilnahme an:\n• 11111\n• Erfolgreicher Abschluss von 22222", []string{"22222"}},
+		// A text that negates something else keeps its modules.
+		{"11293", "Kenntnis des Stoffes des Moduls\n• 11113: Mathematik IT-2 (Lineare Algebra)\nist wünschenswert, aber nicht zwingend erforderlich.", []string{"11113"}},
+		{"11361", "Kenntnisse der Theoretischen Physik auf dem Niveau eines Bachelor-Studienganges, das Modul Computational Physics 13408 ist empfehlenswert, aber nicht Bedingung", []string{"13408"}},
+		{"11975", "Knowledge of the contents of module\n• 12144 Personalökonomie und Industrielle Beziehungen\nis helpful but not essential.", []string{"12144"}},
+		{"22406", "Das Modul 11444 (Grundlagen der Numerischen Mathematik) oder das Modul 11202 (Numerische Mathematik I) sollte als Voraussetzung vorher oder zeitlich parallel belegt werden. " +
+			"Ein Abschluss ist für die Anmeldung zum Modul nicht erforderlich.", []string{"11444", "11202"}},
+		{"23436", "11144 (MM1), 23427 (MM3)\n(This courses should be taken before or simultaneously with the module. A certificate is not required for the registration.)", []string{"11144", "23427"}},
+		{"33327", "• Modul 33328 Grundlagen der Hochfrequenztechnik oder\n• Modul 13210 Hochfrequenztechnik 1 (nicht mehr im Angebot ab SS 2011)", []string{"33328", "13210"}},
+		{"11881", "The module cannot be successfully completed without knowledge of the content of\n• 11112 Mathematik IT-1 (Diskrete Mathematik)\n• 11113 Mathematik IT-2 (Lineare Algebra)", []string{"11112", "11113"}},
+		{"13565", "Kenntnis des Stoffes der Module\n• 11112 : Mathematik IT-1 (Diskrete Mathematik)\nOhne grundlegende Kenntnisse in diesem Gebiet ist ein Bestehen des Moduls schwer möglich.", []string{"11112"}},
+		{"11605", "• Schwingungsanfällige Tragwerke (23503)\n• Nichtlineare Berechnungen und Stabilität (11512)", []string{"23503", "11512"}},
+		{"11454", "Kenntnis des Stoffes von Modul:\n• 12101: Algorithmieren und Programmieren\nalternativ für Nicht-IT-Studiengänge:\n• 12105: Einführung in die Programmierung", []string{"12101", "12105"}},
+		{"14315", "für Bachelor-Studierende:\nKenntnisse der Inhalte eines der folgenden Module\n• 12283 – Elektrische und magnetische Felder, ODER\n• 11866 – Allgemeine Physik II (Elektrizität und Magnetismus)\nfür Masterstudierende: keine", []string{"12283", "11866"}},
+		{"", "Keine Teilnahmevoraussetzungen, Kenntnisse aus Modul 22222 sind hilfreich.", []string{"22222"}},
+		{"", "Kein Abschluss erforderlich, Teilnahme an Modul 22222 genügt.", []string{"22222"}},
+	}
+	for _, c := range cases {
+		if got := PrerequisiteIDs(c.text); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s: PrerequisiteIDs(%q) = %v, want %v", c.module, c.text, got, c.want)
+		}
+	}
+}
