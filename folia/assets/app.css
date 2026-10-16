@@ -3423,12 +3423,17 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      scrolls inside it; half up, a finger moves the sheet, as a phone's own sheets do. The page
      behind stays where it is, dimmed and still, the tab bar under it. Its close stays at its top
      right while the content scrolls. The browser app's alone: the server's page shows the module
-     as the page, as before. */
-  :root.app .detail.is-module { --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); --sheet-half: calc(48dvh - var(--sheet-top)); position: fixed; z-index: 45; inset: var(--sheet-top) 0 auto 0; width: auto; height: calc(100dvh - var(--sheet-top)); margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(var(--sheet-half)); transition: transform .34s cubic-bezier(.22, 1, .36, 1); animation: module-sheet-in .34s cubic-bezier(.22, 1, .36, 1); }
+     as the page, as before. Here it stands where it rests: half up, all up (`is-full`) or below
+     the screen (`is-gone`); every way between is enhance.js's, on one spring that starts where
+     the sheet is and as fast as it goes (owner, 2026-10-16: „die animation … muss … physics based
+     sein"), its coming up from below included — the panel of the page beside a list on a wide
+     screen has an entrance of its own, which is not the sheet's. */
+  :root.app .detail.is-module { --sheet-top: calc(env(safe-area-inset-top, 0px) + 10px); --sheet-half: calc(48dvh - var(--sheet-top)); position: fixed; z-index: 45; inset: var(--sheet-top) 0 auto 0; width: auto; height: calc(100dvh - var(--sheet-top)); margin: 0; display: flex; flex-direction: column; overflow: hidden; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(var(--sheet-half)); animation: none; }
   :root.app .detail.is-module.is-full { transform: none; }
-  :root.app .detail.is-module.is-dragging { transition: none; animation: none; }
-  :root.app .detail.is-module.is-gone { transform: translateY(100%); transition: transform .22s cubic-bezier(.4, 0, .9, .4); }
-  :root.app .detail.is-module.calm, :root.app[data-settling] .detail.is-module { animation: none; }
+  :root.app .detail.is-module.is-gone { transform: translateY(100%); }
+  /* The picture of the page held in front of the next one (pending.rs, `hold`) without the sheet:
+     the sheet is in front of it, on its way. */
+  :root.app .pending-page.held .detail.is-module { display: none; }
   :root.app .detail.is-module::before { content: ""; position: absolute; z-index: 2; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
   :root.app .detail.is-module > .scroll { position: static; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   :root.app .detail.is-module .hero { padding-top: 20px; }
@@ -3437,9 +3442,14 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   :root.app .detail.is-module .hero-top > [data-action="close-detail"] { position: absolute; z-index: 2; top: 16px; right: 10px; width: 40px; height: 40px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; background: var(--panel-3); color: var(--text); font-size: 0; }
   :root.app .detail.is-module .hero-top > [data-action="close-detail"] .icon { width: 18px; height: 18px; }
   :root.app .detail.is-module .hero-top > [data-action="close-detail"] kbd { display: none; }
+  /* No „Vollbild" on the sheet (owner, 2026-10-16: „Vollbild als knopf ergibt keinen sinn, der muss
+     raus"): all up it is the whole screen already. Where the module is shown at the side of a wide
+     page it stays, and so does the Stundenplan's „Modul ansehen", which leads to what its panel
+     does not show. */
+  :root.app .detail.is-module .full-view { display: none; }
   html.app:has(.detail.is-module) { overflow: hidden; overscroll-behavior: none; }
-  html.app:has(.detail.is-module)::after { content: ""; position: fixed; inset: 0; z-index: 44; background: rgba(15, 23, 42, .34); animation: fade-in .24s; transition: opacity .22s; }
-  html.app:has(.detail.is-module.is-gone)::after { opacity: 0; }
+  /* Drawn down from half up, the page behind is less and less dimmed (`--sheet-shade`, enhance.js). */
+  html.app:has(.detail.is-module)::after { content: ""; position: fixed; inset: 0; z-index: 44; background: rgba(15, 23, 42, .34); opacity: var(--sheet-shade, 1); animation: fade-in .24s; }
   .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: var(--bar) 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
   .pending-page .sidebar, .app-standin .sidebar, .sk-standin { display: none; }
   .sk-home { grid-template-columns: minmax(0, 1fr); }
@@ -4634,7 +4644,6 @@ a.st-rsp-name:hover { text-decoration: underline; }
 
 .back { display: none; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
-@keyframes module-sheet-in { from { transform: translateY(100%); } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
 @keyframes cap-in { from { opacity: 0; } }

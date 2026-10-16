@@ -241,8 +241,26 @@ const sheetOf = () => page.evaluate(() => {
   return { top: Math.round(box.top), left: Math.round(box.left), right: Math.round(box.right), full: sheet.classList.contains("is-full"), scrolled: Math.round(sheet.querySelector(":scope > .scroll")?.scrollTop ?? -1), title: Boolean(sheet.querySelector("h2")) };
 });
 const listAt = () => page.evaluate(() => ({ y: Math.round(scrollY), search: location.search, entries: history.length }));
+// Where the sheet stands frame by frame from now on, for `ms`: [ms, its top] (its skeleton's
+// included, not a copy of it in a picture of the page).
+const watchSheet = (ms) => page.evaluate((ms) => {
+  window.__sheetTops = [];
+  const t0 = performance.now();
+  const tick = (now) => {
+    const sheet = [...document.querySelectorAll(".detail.is-module")].find((s) => !s.closest(".pending-page"));
+    if (sheet) window.__sheetTops.push([now, sheet.getBoundingClientRect().top]);
+    if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}, ms);
+const sheetTops = () => page.evaluate(() => window.__sheetTops);
 const listed = await listAt();
 const rowAt = await page.evaluate(() => { const row = [...document.querySelectorAll(".rows a.row")].find((a) => a.getBoundingClientRect().top > 220); const box = row.getBoundingClientRect(); return { x: box.left + 60, y: box.top + 20 }; });
+// It comes up from below in one move (owner, 2026-10-16: „Wenn man etwas anklickt, dann sollte es
+// eine animation geben, wie es sich öffnet, so dass es nicht einfach erscheint"): seen well below
+// its place first, never lower again than a frame before (but for the spring's last pixels), and
+// no „Vollbild" on it (owner, the same day: „der muss raus").
+await watchSheet(1500);
 await page.touchscreen.tap(rowAt.x, rowAt.y);
 await page.waitForFunction(() => location.search.includes("open=") && document.querySelector(".detail.is-module h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: a tap on a row did not bring the module's sheet"));
 await page.waitForTimeout(500);
@@ -250,6 +268,9 @@ let sheet = await sheetOf();
 let list = await listAt();
 check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4 && sheet.left === 0 && sheet.right === 390 && sheet.title, `sheet: the module does not come up to half the screen: ${JSON.stringify(sheet)}`);
 check(list.y === listed.y && list.entries === listed.entries + 1, `sheet: the list moved under it, or the history took more than a step: ${JSON.stringify([listed, list])}`);
+const rising = (await sheetTops()).map(([, top]) => Math.round(top));
+check(rising.length > 4 && Math.max(...rising) > 844 * 0.48 + 150 && rising.every((top, i) => i === 0 || top <= rising[i - 1] + 3), `sheet: it does not come up from below in one move: ${rising.join(" ")}`);
+check(await page.evaluate(() => { const full = document.querySelector('.detail.is-module [data-action="fullscreen"]'); return !full || getComputedStyle(full).display === "none"; }), "sheet: it shows „Vollbild“");
 await swipe(200, sheet.top + 80, sheet.top - 220, { steps: 10, ms: 24 });
 sheet = await sheetOf();
 check(sheet?.full && sheet.top < 30, `sheet: a finger up does not take it all up: ${JSON.stringify(sheet)}`);
@@ -270,14 +291,36 @@ await swipe(200, sheet.top + 80, sheet.top + 420, { steps: 12, ms: 30 });
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: drawn down from half up, it did not close"));
 list = await listAt();
 check(list.y === listed.y && list.entries === listed.entries + 1 && list.search === listed.search, `sheet: closing it did not go back to the list as it was: ${JSON.stringify([listed, list])}`);
-// A flick up takes it all up; a tap beside it, its × and Back close it.
+// A flick up takes it all up. Let go slowly on its way down from there, it goes on as slowly as it
+// went and comes to rest half up, without a jump (owner, 2026-10-16: „Aktuell snapped das richtig
+// komisch von voll zu mitte, selbst wenn man ganz langsam swiped"; a fixed curve went off at more
+// than 2 px per ms); a gentle flick down takes it there too, and a quick one away, past half up
+// („wenn man mit genug speed … das zu macht, dann soll von ganz oben nach ganz zu gehen").
 await page.touchscreen.tap(rowAt.x, rowAt.y);
 await page.waitForFunction(() => document.querySelector(".detail.is-module h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: it did not come again"));
 await page.waitForTimeout(500);
 await swipe(200, 600, 400, { steps: 4, ms: 12 });
 check((await sheetOf())?.full, "sheet: a flick up does not take it all up");
-await swipe(200, 200, 360, { steps: 4, ms: 12 });
-check((await sheetOf())?.full === false, "sheet: a flick down from all up does not take it to half");
+await watchSheet(2500);
+await swipe(200, 140, 360, { steps: 44, ms: 20 });
+await page.waitForTimeout(300);
+const slow = await sheetTops();
+const fastest = Math.max(...slow.slice(1).map(([at, top], i) => (top - slow[i][1]) / Math.max(1, at - slow[i][0])));
+sheet = await sheetOf();
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4 && fastest < 1.6, `sheet: let go slowly from all up, it does not glide to half up as slowly as it went (${fastest.toFixed(2)} px per ms at most): ${JSON.stringify(sheet)}`);
+await swipe(200, 600, 400, { steps: 4, ms: 12 });
+await swipe(200, 200, 420, { steps: 12, ms: 20 });
+sheet = await sheetOf();
+check(sheet && !sheet.full && Math.abs(sheet.top - 844 * 0.48) < 4, `sheet: a gentle flick down from all up does not take it to half up: ${JSON.stringify(sheet)}`);
+await swipe(200, 600, 400, { steps: 4, ms: 12 });
+check((await sheetOf())?.full, "sheet: a flick up does not take it all up again");
+await swipe(200, 150, 520, { steps: 3, ms: 8 });
+await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: a quick flick down from all up did not take it away"));
+check((await listAt()).y === listed.y, "sheet: the list did not stay where it was");
+// A tap beside it, its × and Back close it.
+await page.touchscreen.tap(rowAt.x, rowAt.y);
+await page.waitForFunction(() => document.querySelector(".detail.is-module h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: it did not come once more"));
+await page.waitForTimeout(500);
 await page.touchscreen.tap(200, 150);
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: a tap beside it did not close it"));
 await page.touchscreen.tap(rowAt.x, rowAt.y);
@@ -290,12 +333,6 @@ await page.waitForFunction(() => document.querySelector(".detail.is-module h2"),
 await page.evaluate(() => history.back());
 await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 4000 }).catch(() => problems.push("sheet: Back did not close it"));
 check((await listAt()).y === listed.y, "sheet: the list did not stay where it was");
-// „Vollbild": the module's own page.
-await page.touchscreen.tap(rowAt.x, rowAt.y);
-await page.waitForFunction(() => document.querySelector('.detail.is-module [data-action="fullscreen"]'), null, { timeout: 8000 });
-await page.waitForTimeout(500);
-await page.tap('.detail.is-module [data-action="fullscreen"]');
-await page.waitForFunction(() => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page h2"), null, { timeout: 8000 }).catch(() => problems.push("sheet: „Vollbild“ did not lead to the module's page"));
 
 // ---- a tab held (owner, 2026-10-06: „wenn man die buttons in der nav bar lange gedrückt hält,
 // dass dann eine special aktion kommt. Bei mein Studium währe das dann eine auswahl von

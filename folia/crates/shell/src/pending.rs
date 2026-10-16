@@ -689,6 +689,14 @@ mod browser {
                 }
             }
         }
+        // On a phone the window is what scrolls, and the picture stands fixed over the screen
+        // (app.css): it shows the page as far down as the window has it, not from its top (a
+        // module's sheet coming up over a list scrolled down had the list jump to its start
+        // behind it, and back).
+        let down = web_sys::window().and_then(|w| w.scroll_y().ok()).unwrap_or(0.0);
+        if down > 0.0 {
+            picture.set_scroll_top(down.round() as i32);
+        }
         let started = now();
         let quiet = std::rc::Rc::new(std::cell::Cell::new(0u8));
         fn look(picture: web_sys::Element, data: folia_data::DataClient, started: f64, quiet: std::rc::Rc<std::cell::Cell<u8>>) {

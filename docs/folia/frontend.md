@@ -44,7 +44,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 |---|---|
 | `/` | Landing page: every function with a link |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
-| `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list (2026-10-06, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
+| `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas][&plan=1][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), on a phone a semester rather than the overview (`plan=1`, 2026-10-05, a step after the overview that Back and the tab leave; since 2026-10-06 the overview and the semesters are pages of one row a finger moves, and the address follows where it comes to rest; a desktop shows both at once and ignores it; only in the view of the semesters), which module stands beside the page, and whether it fills it. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
@@ -551,21 +551,51 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   „Mein Studium" and the Stundenplan comes up from below as a sheet over the page, to half the
   screen, with a grabber at its top. It follows what a phone's own sheets do (the „medium" and
   „large" detents of iOS, the half-expanded state of Material's bottom sheet): a finger takes it
-  all up (`is-full`), the whole screen but a strip at its top, or down and away, which closes it;
-  where it was heading when let go decides, and a flick goes the way of the flick (from all up a
-  flick down goes to half, from half away). Half up, a finger moves the sheet and the content does
-  not scroll yet; all up the content scrolls inside the sheet and keeps its scroll to itself, and
-  a finger down where the content is at its top takes the sheet down. Pulled up past all up, the
-  rest of the finger's way scrolls the content. A tap on the grabber takes it all up and back. Its
-  × stays at its top right while the content scrolls; „Vollbild" leads where it leads beside a
-  wide page (the module's own page, or the module in the area's place). Closed by a finger, its ×
-  or a tap beside it, it slides down and its close link is followed — back through the history
-  where the page without the module is the step before (`data-back="history"`), so that Back does
-  not bring it again; Back and Esc close it at once. The page behind it stays where it is, dimmed
-  and still, the tab bar under it; a touch beside the sheet moves nothing. A module that comes in
-  place of its skeleton, or of another module (a link in it), stands where that stood. The pages
-  under it keep what was theirs when a module was the page and is no more: the Stundenplan no
-  longer scrolls back to where it was left when the sheet goes, since it never left it.
+  all up (`is-full`), the whole screen but a strip at its top, or down and away, which closes it.
+  Half up, a finger moves the sheet and the content does not scroll yet; all up the content
+  scrolls inside the sheet and keeps its scroll to itself, and a finger down where the content is
+  at its top takes the sheet down. Pulled up past all up, the rest of the finger's way scrolls the
+  content, and let go there the content goes on as the finger went, slower and slower. A tap on
+  the grabber takes it all up and back. Its × stays at its top right while the content scrolls.
+  It has no „Vollbild" (owner, 2026-10-16: „Vollbild als knopf ergibt keinen sinn, der muss
+  raus"): all up it is the whole screen already; beside a wide page the module keeps it, and the
+  Stundenplan's sheet keeps „Modul ansehen", which leads to what its panel does not show. Closed
+  by a finger, its × or a tap beside it, it slides down and its close link is followed — back
+  through the history where the page without the module is the step before
+  (`data-back="history"`), so that Back does not bring it again; Back and Esc close it at once.
+  The page behind it stays where it is, dimmed and still, the tab bar under it; a touch beside the
+  sheet moves nothing. The pages under it keep what was theirs when a module was the page and is
+  no more: the Stundenplan no longer scrolls back to where it was left when the sheet goes, since
+  it never left it.
+- **The module's sheet moves as a thing does** (owner, 2026-10-16: „Wenn man etwas anklickt, dann
+  sollte es eine animation geben, wie es sich öffnet, so dass es nicht einfach erscheint … wenn
+  man mit genug speed oder swipe weite das zu macht, dann soll von ganz oben nach ganz zu gehen.
+  Ja und dann muss die animation zu der mitte auch physics based sein. Aktuell snapped das richtig
+  komisch von voll zu mitte, selbst wenn man ganz langsam swiped. Das muss sich einfach natürlich
+  anfühlen"; enhance.js „a module's sheet"). Each of its moves is a damped spring, played as Web
+  Animations, which the compositor runs while the page's thread builds the module; the stylesheet
+  only holds it where it rests. It comes up from below in one move, from its skeleton on to the
+  module: before, the skeleton's entrance ended where the module came, which stood there at once
+  for a frame and then came up from below again; on a phone, whose module takes longer than the
+  step's own wait, the skeleton went, the list behind jumped to its top, and the module came up a
+  second time. Let go, it goes on from where it is and as fast as the finger went, to where it
+  would come to rest thrown at that speed (slowing down by 0.0025 px per ms²): all up in the upper
+  half of the way to half up, half up down to a third of the way from there to the bottom, below
+  that away; a flick (0.45 px per ms) goes at least to the next stop its way. So a slow pull comes
+  to rest at the stop it is nearest as slowly as it was let go (a fixed curve of a third of a
+  second set off at more than 2 px per ms whatever the finger's speed), a gentle flick down from
+  all up stops half up, and a quick one (from about 1.4 px per ms where a finger lets go 100 to
+  200 px down) or a long one takes it away — a flick down from all up always stopped half up
+  before. Going away its spring is softer and without a swing, so that a thrown sheet keeps going
+  rather than shooting off; to a stop the swing is too small to see. The page behind is less
+  dimmed the further the sheet is below half up. A finger catches it on its way. A sheet that
+  comes in the place of another (the module in its skeleton's, another module's through a link in
+  it) goes on where that one was — on its way, at rest, or under the finger — and a skeleton whose
+  page shows nothing beside itself while the module's answer is on its way stays on the screen
+  until the module comes. The picture of the page held in front of the next one while its answers
+  come (`pending::hold`) shows the page as far down as the window has it on a phone, where the
+  window is what scrolls (it showed the page from its top). With reduced motion every move is
+  short and without a swing, as the bottom bar's.
 - **Local views (owner, 2026-09-24: „so, dass man das in jedem Tab ganz einfach implementieren
   kann als lokale Ansicht"; `folia/crates/widgets/src/local.rs`):** showing a module in place is one mechanism,
   not a feature of a page. The program page and the marked modules use it, and so will the
@@ -1160,11 +1190,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     and away with the row still at its semester) and the Stundenplan's import; a finger is the
     browser's own touch (CDP), so that the browser scrolls. The glides are measured where the row's
     first page is drawn, since a glide draws the pages of a row that does not scroll meanwhile.
-  - `node folia/e2e/phone.mjs` checks a module of the catalog as a sheet: half the screen, all up by
-    a finger, its content scrolling there and back, down a third to half, down and away (the list
-    where it was, the history as before the module), a flick up and down, a tap beside it, its ×,
-    Back, „Vollbild"; and a tab held: „Studium"'s three ways (the finger's release going nowhere, a
-    tap beside closing them, a way taken), a short tap as ever, the catalog's list with its filters.
+  - `node folia/e2e/phone.mjs` checks a module of the catalog as a sheet: coming up from below in
+    one move to half the screen, without „Vollbild", all up by a finger, its content scrolling there
+    and back, down a third to half, down and away (the list where it was, the history as before the
+    module), a flick up, let go slowly on its way down from all up gliding to half up no faster than
+    1.6 px per ms, a gentle flick down from all up to half up and a quick one away, a tap beside it,
+    its ×, Back; and a tab held: „Studium"'s three ways (the finger's release going nowhere, a tap
+    beside closing them, a way taken), a short tap as ever, the catalog's list with its filters.
 - **The search in the top bar belongs to the page:** modules everywhere, programs on `/programs`.
   In the browser app it filters while typing (history entry replaced, not added). How it finds and
   orders modules: „The search of the catalog“ below.
