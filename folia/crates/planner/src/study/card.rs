@@ -10,9 +10,12 @@
 //!
 //! Nothing moves while the card is used (owner, the same day: „Wenn man eine aktion macht, wie
 //! semester +/- darf nicht unterbrochen werden durch layout shifts"): the sentence is one line,
-//! every row is as tall whatever it says (its line one line, cut with „…"), the study direction's
-//! row is there for a program without one too, and what follows the card keeps its height (app.css
-//! „Dein Studium").
+//! every row is as tall whatever it says (its line one line, cut with „…"), and what follows the
+//! card keeps its height (app.css „Dein Studium"). The one move is the study direction's: its row
+//! is there only where the program has study directions, unfolding as such a program is picked and
+//! folding away for one without (owner, the same day: „wenn ein studiengang keine ausrichtung hat,
+//! dann sollte das nicht eingeblendet sein, ansonsten ist das verwirrend. Mach mal ne nette
+//! animation, wenn sich das ausklappt"); − and + never move it.
 
 use std::collections::BTreeSet;
 
@@ -105,9 +108,10 @@ pub(super) fn StudyCard(
     /// Under the program: its plan's length, „Regelstudienplan: 6 Semester, 180 LP".
     #[prop(into)]
     plan_line: Signal<Option<String>>,
-    /// The study directions of the program picked (none where it has one plan) and the one shown.
+    /// The study directions of the program picked (none where it has one plan), `None` while its
+    /// plans are on their way; and the one shown.
     #[prop(into)]
-    directions: Signal<Vec<ComboItem>>,
+    directions: Signal<Option<Vec<ComboItem>>>,
     #[prop(into)] direction: Signal<usize>,
     on_direction: Callback<usize>,
     /// The Studienbeginn; `None` while there is none yet (the first visit, before a program).
@@ -124,8 +128,17 @@ pub(super) fn StudyCard(
     let s = &t.study;
     let step = Memo::new(move |_| start.get().map(|start| leave.with(|leave| step_of(start, now.get(), leave))).unwrap_or(1));
     let program_changed = Memo::new(move |_| kept.with(|kept| kept.as_ref().is_some_and(|kept| program.with(|program| program.as_deref() != Some(kept.program.as_str())))));
+    // The study direction's row: whether it is unfolded, its directions and the one picked. While
+    // the plans of a program picked are on their way it stays as it is (it neither folds nor
+    // unfolds in between), and folding away it keeps what it said.
+    let fold = Memo::new(move |before: Option<&(bool, Vec<ComboItem>, usize)>| match directions.get() {
+        None => before.cloned().unwrap_or_default(),
+        Some(items) if items.is_empty() => before.map_or_else(Default::default, |(_, items, at)| (false, items.clone(), *at)),
+        Some(items) => (true, items, direction.get()),
+    });
+    let unfolded = Memo::new(move |_| fold.with(|(open, ..)| *open));
     let direction_changed = Memo::new(move |_| {
-        !program_changed.get() && !directions.with(Vec::is_empty) && kept.with(|kept| kept.as_ref().is_some_and(|kept| kept.direction != direction.get()))
+        !program_changed.get() && fold.with(|(open, _, at)| *open && kept.with(|kept| kept.as_ref().is_some_and(|kept| kept.direction != *at)))
     });
     let start_changed = Memo::new(move |_| kept.with(|kept| kept.as_ref().is_some_and(|kept| start.get() != Some(kept.start))));
 
@@ -163,7 +176,7 @@ pub(super) fn StudyCard(
     };
     let direction_note = move || {
         let was = kept.with(|kept| kept.as_ref().and_then(|kept| kept.direction_label.clone()));
-        let count = directions.with(Vec::len);
+        let count = fold.with(|(_, items, _)| items.len());
         note(direction_changed.get(), was, Part::Direction, (count > 1).then(|| (s.directions_line)(count)))
     };
     let fs_value = move || match start.get() {
@@ -215,20 +228,21 @@ pub(super) fn StudyCard(
                 />
                 <p class="st-srow-note">{program_note}</p>
             </div>
-            <div class="st-srow" class:changed=move || direction_changed.get()>
-                <span class="label">{s.direction}</span>
-                // A program of one plan: nothing to choose, which the row says (the row is there all
-                // the same, so that nothing under it moves when the program changes).
-                <Select
-                    id=ids.direction
-                    label=s.direction
-                    items=directions
-                    selected=Signal::derive(move || if directions.with(Vec::is_empty) { String::new() } else { direction.get().to_string() })
-                    on_select=Callback::new(move |value: String| on_direction.run(value.parse().unwrap_or(0)))
-                    disabled=Signal::derive(move || directions.with(Vec::is_empty))
-                    placeholder=s.no_direction
-                />
-                <p class="st-srow-note">{direction_note}</p>
+            // Folded away, out of reach of Tab and of a reader, where the program has one plan.
+            <div class="st-fold" class:open=move || unfolded.get() inert=move || !unfolded.get()>
+                <div class="st-fold-in">
+                    <div class="st-srow" class:changed=move || direction_changed.get()>
+                        <span class="label">{s.direction}</span>
+                        <Select
+                            id=ids.direction
+                            label=s.direction
+                            items=Signal::derive(move || fold.with(|(_, items, _)| items.clone()))
+                            selected=Signal::derive(move || fold.with(|(_, _, at)| at.to_string()))
+                            on_select=Callback::new(move |value: String| on_direction.run(value.parse().unwrap_or(0)))
+                        />
+                        <p class="st-srow-note">{direction_note}</p>
+                    </div>
+                </div>
             </div>
             <div class="st-srow" class:changed=move || start_changed.get() data-start=move || start.get().map(SemesterKey::key)>
                 <span class="label">{s.fs_row}</span>
