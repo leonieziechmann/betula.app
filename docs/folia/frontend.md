@@ -830,8 +830,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     M.Sc., ins 1. Fachsemester."), then a row each for the program (its picker reads as the value,
     no box until pointed at; under it the plan's length, „Regelstudienplan: 6 Semester, 180 LP"),
     the study direction (owner: „es gibt noch studiengänge, wie etechnik, wo man noch ausrichtungen
-    hat"; „MIT und EET", „eine von 2"; „Keine zur Wahl in diesem Studiengang" where the program has
-    one plan) and the Fachsemester with − and + (under it „seit WiSe 2022/23", the semesters of leave
+    hat"; „MIT und EET", „eine von 2"; „Keine zur Wahl" where the program has one plan, short so
+    that a phone's row has it whole) and the Fachsemester with − and + (under it „seit WiSe 2022/23", the semesters of leave
     among them). The Fachsemester is asked for, not the Studienbeginn: the card keeps the semester
     that makes the current one that Fachsemester (`study::start_of_fs`, the semesters of leave not
     counted); below the first it is a study that begins in one of the next two semesters. A row
