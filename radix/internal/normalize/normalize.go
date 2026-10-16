@@ -350,6 +350,128 @@ func ModuleIDs(text string) []string {
 	return ids
 }
 
+var (
+	// A phrase that rules out the modules after it, to the end of its statement:
+	// „Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul 12212", „Kein Abschluss des
+	// Moduls", „kein paralleler Besuch des Moduls", „Keine Doppelbelegung mit Modul", "No
+	// successful participation in module", "No double occupancy with Module", "Students must
+	// not have previously taken and passed Module". The noun has to end there, so „Keine
+	// Teilnahmevoraussetzungen" rules out nothing.
+	excludesAfter = regexp.MustCompile(`(?i)` +
+		`\bkein(?:e|en|er|em)?\s+(?:(?:erfolgreich|vorherig|parallel|gleichzeitig|bisherig)\w*\s+(?:(?:oder|und|bzw\.?)\s+)?)*(?:teilnahme|belegung|abschluss|besuch|anrechnung)\b` +
+		`|doppelbelegung` +
+		`|\bno\s+(?:(?:succes+ful+|prior|previous|parallel|simultaneous)\s+(?:(?:or|and)\s+)?)*(?:participation|completion|completition|enrol+ment|registration|attendance)\b` +
+		`|\bdouble\s+(?:occupancy|enrol+ment|registration|booking)\b` +
+		`|\b(?:must|may|should|shall)\s+not\s+have\b` +
+		`|\bnicht\s+für\s+studierende\b|\bnot\s+(?:open\s+)?(?:to|for)\s+students\b`)
+	// A phrase that rules out every module of its sentence, the ones before it too: „Für
+	// Studierende, die bereits am Modul 12110 Mediendesign erfolgreich teilgenommen haben, ist
+	// eine Belegung nicht mehr möglich.", "Module 12276 Porous Materials was not successfully
+	// completed."
+	excludesSentence = regexp.MustCompile(`(?i)\bnicht\s+mehr\s+möglich\b|\bno\s+longer\s+(?:possible|permitted|allowed)\b` +
+		`|\b(?:was|were)\s+not\s+(?:successfully\s+)?(?:completed|passed|taken)\b` +
+		`|\b(?:wurde|wurden)\s+nicht\s+(?:erfolgreich\s+)?(?:abgeschlossen|bestanden|absolviert)\b`)
+	// A statement that says what is needed rules nothing out: „Kein Abschluss erforderlich,
+	// Teilnahme an 12345 genügt".
+	statesANeed = regexp.MustCompile(`(?i)\b(?:erforderlich|notwendig|nötig|vorausgesetzt|verlangt|required|necessary|needed)\b`)
+	// Where a statement ends within a line: a full stop, a semicolon, ! or ? before a space or
+	// the end, or a clause that turns against it („…, aber Kenntnisse aus 12345").
+	statementStop = regexp.MustCompile(`(?i)[.;!?](?:\s|$)|,?\s+(?:aber|jedoch|sondern|but|however)\b`)
+	// A line that goes on with the statement before it: the module number of a list item
+	// („• 11116 - Höhere Mathematik K"), „Modul 11282 …", a conjunction, or a lower-case word
+	// that carries on the sentence ("in associated phase-out modules").
+	listedModule   = regexp.MustCompile(`(?i)^(?:modul(?:e|s|en)?\b\s*)?\d{5}\b|^(?:und|oder|sowie|bzw|als auch|and|or|as well as)\b`)
+	lineLead       = regexp.MustCompile(`^[\s•*_"'„“”‚‘’(\-–]*`)
+	lowerCaseStart = regexp.MustCompile(`^\p{Ll}`)
+)
+
+// PrerequisiteIDs returns the module IDs a prerequisite text asks for: ModuleIDs without
+// those the text only names to rule them out („Keine erfolgreiche Teilnahme am zugehörigen
+// Auslaufmodul 12212 - Digitaltechnik.", "No successful participation in module 14478",
+// „Keine Doppelbelegung mit Modul 13966"). Only a phrase that states such an exclusion
+// counts, never a bare „nicht": „wünschenswert, aber nicht zwingend erforderlich", „Ein
+// Abschluss ist für die Anmeldung zu Modul 12345 nicht erforderlich", „(nicht mehr im Angebot
+// ab SS 2011)" and "cannot be successfully completed without knowledge of" keep their modules.
+// A module named once outside an exclusion stays, so a prerequisite too many is more likely
+// than one missing (owner, 2026-10-16: „False positive bei den voraussetzungen ist aber besser
+// als false negative").
+func PrerequisiteIDs(text string) []string {
+	type span struct{ from, to int }
+	var excluded []span
+	exclude := func(from, to int) {
+		if !statesANeed.MatchString(text[from:to]) {
+			excluded = append(excluded, span{from, to})
+		}
+	}
+	for _, m := range excludesAfter.FindAllStringIndex(text, -1) {
+		exclude(m[0], statementEnd(text, m[1]))
+	}
+	for _, m := range excludesSentence.FindAllStringIndex(text, -1) {
+		exclude(sentenceStart(text, m[0]), statementEnd(text, m[1]))
+	}
+
+	var ids []string
+	seen := make(map[string]bool)
+	for _, m := range moduleIDToken.FindAllStringIndex(text, -1) {
+		id := text[m[0]:m[1]]
+		if seen[id] {
+			continue
+		}
+		ruledOut := false
+		for _, s := range excluded {
+			if m[0] >= s.from && m[0] < s.to {
+				ruledOut = true
+				break
+			}
+		}
+		if !ruledOut {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// statementEnd is where the statement that runs through i ends: at a statementStop, or at the
+// end of a line unless the next one goes on with it, as the items of a list it opens do
+// („Keine erfolgreiche Teilnahme an den Modulen:" and „• 11107 …", „• 11116 …").
+func statementEnd(text string, i int) int {
+	for {
+		lineEnd := len(text)
+		if n := strings.IndexByte(text[i:], '\n'); n >= 0 {
+			lineEnd = i + n
+		}
+		if loc := statementStop.FindStringIndex(text[i:lineEnd]); loc != nil {
+			return i + loc[0]
+		}
+		if lineEnd == len(text) || !continuesStatement(text[lineEnd+1:]) {
+			return lineEnd
+		}
+		i = lineEnd + 1
+	}
+}
+
+// continuesStatement reports whether the line at the start of rest goes on with the statement
+// of the line before it. A list item does when it names a module first; any other line also
+// when it starts in lower case.
+func continuesStatement(rest string) bool {
+	line, _, _ := strings.Cut(rest, "\n")
+	item := strings.HasPrefix(strings.TrimSpace(line), "•")
+	line = lineLead.ReplaceAllString(line, "")
+	return listedModule.MatchString(line) || (!item && lowerCaseStart.MatchString(line))
+}
+
+// sentenceStart is where the sentence that holds i begins: after the last statementStop
+// before it on its line, or at the line's start.
+func sentenceStart(text string, i int) int {
+	lineStart := strings.LastIndexByte(text[:i], '\n') + 1
+	start := lineStart
+	for _, loc := range statementStop.FindAllStringIndex(text[lineStart:i], -1) {
+		start = lineStart + loc[1]
+	}
+	return start
+}
+
 // Module kinds in a program, shared by all sources.
 const (
 	KindCompulsory = "compulsory"
