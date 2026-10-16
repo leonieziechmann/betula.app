@@ -2,8 +2,9 @@
 // file (it is links); before the app has taken over (`window.__betulaApp`) panels keep their scroll
 // position across page loads, and a link followed while the app is starting waits for it. In both
 // modes: the shortcuts (Esc closes the preview or leaves the module page, F opens the previewed
-// module full screen, Ctrl+K or "/" jumps to the search; in the app M marks the module the visitor
-// is at and P plans it into the Studienplan), the theme switch, the filter sheet (and a page's
+// module full screen, Ctrl+K or "/" jumps to the search, Alt and a digit — Ctrl and Alt off Windows —
+// goes to a tab of the navigation; in the app M marks the module the visitor is at and P plans it
+// into the Studienplan), the theme switch, the filter sheet (and a page's
 // dialogs where a phone shows them as sheets), the swipe along the phone's bottom bar from tab to
 // tab, the widths of the filter panel and the module preview (dragged, kept in localStorage), the
 // room the panels make for the ground at the end of a page, and the way back to the top of a page
@@ -1538,6 +1539,75 @@
     rising = requestAnimationFrame(step);
     for (const type of STOP_RISING) addEventListener(type, stopRising, { capture: true, passive: true });
   }
+
+  // ---- the navigation's keys ----
+  // Every tab of the navigation is a digit away (owner, 2026-10-16: „wenn man ctrl/alt drückt
+  // sollen dann die shortcuts bei den nav items angezeigt werden. Wichtig ist, dass … so übliche
+  // shortcuts, wie ctrl+c/s/p usw. weiter funktionieren"): 1 the start page, 2 the modules,
+  // 3 „Studium", 4 the Merkliste, 5 the Stundenplan (`data-key` of the tabs, chrome.rs `NavItems`),
+  // each a click on its tab. With the keys a page has to itself on each system: Alt on Windows, Ctrl
+  // and Alt elsewhere (⌃⌥ on a Mac, the keys of a page's own access keys there). Ctrl and a digit
+  // chooses the browser's tab everywhere, Alt and a digit Firefox's on Linux, ⌥ and a digit types a
+  // character on a Mac; what Ctrl, Alt or ⌘ do with any other key (Ctrl+C, S, P and the rest) stays
+  // the browser's and the system's, and so does AltGr. Held a moment, the keys show each tab's digit
+  // (`data-nav-keys` on the root, app.css); another key or the mouse with them, and nothing shows
+  // until they are let go.
+  const system = navigator.userAgentData?.platform || navigator.platform || "";
+  const mac = /mac|iphone|ipad|ipod/i.test(system);
+  const windows = /^win/i.test(system);
+  // The navigation's keys and no other: no Shift, no ⌘ or Windows key, no AltGr (on Windows, Ctrl
+  // and Alt; a Mac's ⌥ reads as AltGr in Firefox).
+  const navHeld = (e) => e.altKey && (windows ? !e.ctrlKey : e.ctrlKey) && !e.shiftKey && !e.metaKey && !(!mac && e.getModifierState?.("AltGraph"));
+  const MODIFIERS = new Set(["Alt", "AltGraph", "Control", "Shift", "Meta", "OS", "Fn"]);
+  const NAV_KEYS_AFTER = 250; // ms: Alt+← or Alt+Tab shows nothing
+  let navShowing = 0; // the timer that shows the digits
+  let navSpent = false; // another key or the mouse went with the keys
+  const navShown = () => root.hasAttribute("data-nav-keys");
+  const navHide = () => {
+    clearTimeout(navShowing);
+    navShowing = 0;
+    root.removeAttribute("data-nav-keys");
+  };
+  // The keys as `e` finds them: the digits show a moment after the navigation's are held, and go.
+  const navFollow = (e) => {
+    if (!navHeld(e) || navSpent) navHide();
+    else if (!navShowing && !navShown()) navShowing = setTimeout(() => { navShowing = 0; root.setAttribute("data-nav-keys", ""); }, NAV_KEYS_AFTER);
+  };
+  // The tab of a digit in the navigation on the screen: the rail's, or a phone's bar's.
+  const navTab = (digit) => [...document.querySelectorAll(`.rail nav > .nav[data-key="${digit}"], .bottomnav > .nav[data-key="${digit}"]`)].find((tab) => tab.getClientRects().length);
+  // A modal dialog has the page to itself, as it has the mouse.
+  const modalOpen = () => { try { return !!document.querySelector("dialog:modal"); } catch { return false; } };
+  addEventListener("keydown", (e) => {
+    const digit = /^Digit([1-9])$/.exec(e.code)?.[1];
+    if (digit && navHeld(e)) {
+      const tab = !modalOpen() && navTab(digit);
+      if (!tab) return;
+      e.preventDefault();
+      // Once while the key is held: again, a tab leads its area back to where it starts.
+      if (!e.repeat) tab.click();
+      return;
+    }
+    // A key held repeats itself, a modifier too (Windows).
+    if (e.repeat && MODIFIERS.has(e.key)) return;
+    if (MODIFIERS.has(e.key) && !navShowing && !navShown()) navFollow(e);
+    else {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) navSpent = true;
+      navHide();
+    }
+  }, true);
+  addEventListener("keyup", (e) => {
+    if (!e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) navSpent = false;
+    // Let go once the digits showed: an Alt held for them opens no menu of the browser.
+    if (navShown() && MODIFIERS.has(e.key) && !navHeld(e)) e.preventDefault();
+    navFollow(e);
+  }, true);
+  addEventListener("pointerdown", (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) navSpent = true;
+    navHide();
+  }, true);
+  // Off to another window or the browser's own bar (Alt+Tab, Alt+D): the keys come back let go.
+  addEventListener("blur", () => { navSpent = false; navHide(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) { navSpent = false; navHide(); } });
 
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
