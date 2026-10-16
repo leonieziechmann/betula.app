@@ -821,30 +821,49 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Plan" is this page. The visitor's own program carries „Studium
     planen", the start page's step „Studiengang wählen" leads here once a program is kept, and so
     does the Stundenplan's „Studium planen →".
+  - **The study as a card** (`card.rs`; owner, 2026-10-16: „Der Studiengang modale dialog ist
+    designtechnisch echt schwach … Ich stelle mir das eher so als card vor, in der man dann
+    editiert. Also so ein ding von ich bin in informatik 9. semester", and of the concepts in
+    `folia/design/studiengang/konzepte.html` the same day: „option a mit karte finde ich auch am
+    besten"). „Studiengang wechseln" and the first visit are one card: over its rows the sentence
+    they make („Du studierst Informatik B.Sc. im 9. Fachsemester.", „Du wechselst zu Informatik
+    M.Sc., ins 1. Fachsemester."), then a row each for the program (its picker reads as the value,
+    no box until pointed at; under it the plan's length, „Regelstudienplan: 6 Semester, 180 LP"),
+    the study direction (owner: „es gibt noch studiengänge, wie etechnik, wo man noch ausrichtungen
+    hat"; „MIT und EET", „eine von 2"; „Keine zur Wahl in diesem Studiengang" where the program has
+    one plan) and the Fachsemester with − and + (under it „seit WiSe 2022/23", the semesters of leave
+    among them). The Fachsemester is asked for, not the Studienbeginn: the card keeps the semester
+    that makes the current one that Fachsemester (`study::start_of_fs`, the semesters of leave not
+    counted); below the first it is a study that begins in one of the next two semesters. A row
+    that differs from what is kept is tinted and says in its line what it was, with „Zurück" („vorher
+    Informatik B.Sc. · PO 2008"); what was before shows only once something changed. **Nothing
+    moves while the card is used** (owner: „aktuell passiert es noch, dass das layout jumped, wenn
+    man zum beispiel das semester ändert. Das darf auf keinen fall passieren. Wenn man eine aktion
+    macht, wie semester +/- darf nicht unterbrochen werden durch layout shifts"): the sentence is one
+    line (two on a phone), every row as tall whatever it says, its line one line cut with „…", the
+    direction's row there for a program without one too, a picker's list lies over what follows,
+    the box under the card has one height whatever it says, the foot's „Übernehmen" says the same
+    whatever changes and what it counts („2 Änderungen") stands on its left (on a phone over the
+    buttons). `e2e/study.mjs` measures the card's parts before and after + and − (the first visit,
+    a phone's sheet); measured as well at another program, a direction and the way back, not a
+    pixel moved.
   - **The first visit** (`setup.rs`): while no program or no Studienbeginn is kept, „Richte dein
-    Studium einmal ein": the program (the one kept elsewhere offered), the Studienbeginn (each
-    entry says the Fachsemester it makes the current one; assumed by `studyplan::intake_start` until
-    picked), the study direction where the program has several plans, and how the semesters before
-    the current one begin: empty, or „1. und 2. FS nach Regelstudienplan füllen" (`study::fill_past`,
-    the Stundenplan's import per Fachsemester; then only marking what was passed is left). „Studium anlegen"
-    stores it in one go (`MyProgram::set_study`). Changed later in „Studiengang wechseln" (`side.rs`),
-    a dialog that says before anything changes what of the plan counts in the new program („Bestanden
-    36 von 46 LP kommen dort vor", the modules that count nowhere there, which stay as „ohne
-    Bereich"): nothing of the plan is touched by a change, and changing back counts all as before.
-    Another program picked there starts in its first Fachsemester now, with its first plan; the
-    program kept, picked again, brings back its Studienbeginn and its direction (owner, 2026-10-16:
-    „wenn man den studiengang wechselt, dann ist es wahrscheinlich, dass das fachsemester wieder bei
-    1 ist. Aber wenn man zurück den aktuellen studiengang auswählt. Dann sollten die werte wieder
-    zurück"). How the dialog and the first visit should look is open: the owner found the dialog
-    without hierarchy („es ist schwer zu verstehen, was man da machen soll … Ich stelle mir das eher
-    so als card vor, in der man dann editiert. Also so ein ding von ich bin in informatik 9.
-    semester"), and `folia/design/studiengang/konzepte.html` has three ways, each on a desktop and a
-    phone, for the switch and the first visit: A „Karte" (the sidebar's card, a row a value, a
-    changed row green with what was before; the recommendation, with B's sentence as its head), B
-    „Satz" („Ich studiere [Informatik B.Sc.] und bin jetzt im [9.] Fachsemester"), C „Zeitstrahl"
-    (the Fachsemester picked on a strip of semesters, the program before hatched as „bisher"); all
-    ask for the Fachsemester rather than the Studienbeginn and show what was before only once
-    something changed.
+    Studium einmal ein": the card, empty („Wähle deinen Studiengang und dein Fachsemester."; the
+    program kept elsewhere offered, the Fachsemester assumed by `studyplan::intake_start` until it
+    is counted), and a box that fills the semesters before the current one from the plan, „1. und
+    2. FS nach Regelstudienplan füllen" (`study::fill_past`, the Stundenplan's import per
+    Fachsemester; then only marking what was passed is left), in the first Fachsemester there and
+    saying there are none. „Studium anlegen" stores it in one go (`MyProgram::set_study`).
+  - **„Studiengang wechseln"** (`side.rs`, a dialog of size m): the card with what is kept, and
+    under it, once the program or its direction changed, what of the plan counts there before
+    anything changes („Bestanden 36 von 46 LP kommen dort vor", the first modules that count nowhere
+    there, which stay as „ohne Bereich"); where only the Fachsemester changed, that the plan stays as
+    it is. Nothing of the plan is touched by a change, and changing back counts all as before.
+    Another program starts in its first Fachsemester now, with its first plan; the program kept,
+    picked again, brings back its Studienbeginn and its direction (owner, 2026-10-16: „wenn man den
+    studiengang wechselt, dann ist es wahrscheinlich, dass das fachsemester wieder bei 1 ist. Aber
+    wenn man zurück den aktuellen studiengang auswählt. Dann sollten die werte wieder zurück"), and
+    so does a changed program's „Zurück".
   - **The overview** (`overview.rs`): „46 von 180 LP bestanden", the credits passed, planned
     („davon 6 über Bedarf") and not planned yet, and a bar of the areas, each as wide as it asks
     (and as what goes beyond it): passed in the area's colour, planned in its tint, open grey,

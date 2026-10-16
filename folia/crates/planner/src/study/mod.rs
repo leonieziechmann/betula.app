@@ -28,6 +28,7 @@
 //! what it needs of it through a memo of its own (R5). A click answers in the next frame and the
 //! store follows after it (R21, `StudyCtx::change`).
 
+mod card;
 mod choose;
 mod dialog;
 mod dom;

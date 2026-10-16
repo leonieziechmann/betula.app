@@ -1,18 +1,21 @@
-//! The first visit of „Mein Studium" (owner, 2026-10-04: the program is set once): the program, the
-//! Studienbeginn and the study direction, and how the semesters before the current one begin —
-//! empty, or filled from the Regelstudienplan, so that only ticking off is left (`study::fill_past`).
+//! The first visit of „Mein Studium" (owner, 2026-10-04: the program is set once): the study as the
+//! card of „Studiengang wechseln", empty (owner, 2026-10-16, concept A „Karte"; `card.rs`) — the
+//! program, its study direction and the Fachsemester — and whether the semesters before the current
+//! one are filled from the Regelstudienplan, so that only ticking off is left (`study::fill_past`).
 //! „Studium anlegen" stores it all in „Mein Studiengang" at once. A program kept from elsewhere
-//! (the program's page, the Stundenplan) is the one offered; so is its Studienbeginn.
+//! (the program's page, the Stundenplan) is the one offered; so is its Studienbeginn. As in the
+//! card nothing moves while it is used: the box that fills the semesters before is there in the
+//! first Fachsemester too, where there are none and it says so.
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study;
 use leptos::prelude::*;
 
-use folia_design::combobox::{Combobox, Select};
 use folia_design::ui::Icon;
 use folia_stores::myprogram::program_name;
 
-use super::side::{direction_options, kept_plan, plans_of, program_items, start_options};
+use super::card::{Ids, Part, StudyCard};
+use super::side::{direction_options, kept_plan, plan_line, plans_of, program_items, title_of};
 use super::{assumed_start, chosen, input_of, now_secs, rows_of, Setup as Asked, State, StudyCtx};
 use crate::i18n;
 
@@ -21,7 +24,7 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let kept = ctx.mine.map(|mine| untrack(move || mine.get())).unwrap_or_default();
-    let (_, items) = program_items(ctx);
+    let (all, items) = program_items(ctx);
     let program = RwSignal::new(kept.program.clone());
     let source = plans_of(ctx, program.into());
     // What the visitor picked; until then what is kept, or assumed.
@@ -71,7 +74,8 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
         let fs = study::fs_of(start, now, &leave.get())?;
         (has_plan && fs > 1).then(|| (t.study.fs_span)(1, fs - 1))
     });
-    let options = Memo::new(move |_| start_options(ctx.now.get(), &leave.get(), t));
+    let title = Memo::new(move |_| program.with(|program| all.with(|all| title_of(all, program.as_deref()))));
+    let line = Memo::new(move |_| source.with(|source| source.as_ref().and_then(Option::as_ref).map(|source| plan_line(source, plan_index.get().unwrap_or(0), t))));
     let directions = Memo::new(move |_| source.with(|source| source.as_ref().and_then(|source| source.as_ref().map(direction_options)).unwrap_or_default()));
     let ready = Memo::new(move |_| source.with(|source| matches!(source, Some(Some(_)))) && start_now.with(Option::is_some));
 
@@ -104,61 +108,40 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
                     {move || gone.get().map(|name| view! { <p class="st-gone"><Icon name="triangle-alert"/><span>{(s.gone)(&name)}</span></p> })}
                 </div>
             </header>
-            <div class="st-fields">
-                <label class="st-field wide">
-                    <span class="label">{s.program}</span>
-                    <Combobox
-                        id="st-program"
-                        label=s.program
-                        placeholder=s.choose_program
-                        search_placeholder=s.search_program
-                        icon="graduation-cap"
-                        min_width=420.0
-                        items
-                        selected=Signal::derive(move || program.get())
-                        on_select=pick_program
-                        clearable=false
-                    />
-                </label>
-                <div class="st-field">
-                    <span class="label">{s.start}</span>
-                    <Select
-                        id="st-start"
-                        label=s.start
-                        items=Signal::derive(move || options.get())
-                        selected=Signal::derive(move || start_now.get().map(SemesterKey::key).unwrap_or_default())
-                        on_select=Callback::new(move |value: String| start.set(SemesterKey::parse(&value)))
-                        disabled=Signal::derive(move || program.with(Option::is_none))
-                        placeholder=s.program_first
-                    />
-                </div>
-                <div class="st-field">
-                    <span class="label">{s.direction}</span>
-                    // A program of one plan: nothing to choose, which the field says.
-                    <Select
-                        id="st-direction"
-                        label=s.direction
-                        items=Signal::derive(move || directions.get())
-                        selected=Signal::derive(move || if directions.with(Vec::is_empty) { String::new() } else { plan_index.get().unwrap_or(0).to_string() })
-                        on_select=Callback::new(move |value: String| direction.set(value.parse().ok()))
-                        disabled=Signal::derive(move || directions.with(Vec::is_empty))
-                        placeholder=s.no_direction
-                    />
-                </div>
-            </div>
-            {move || before.get().map(|span| view! {
-                <fieldset class="st-choice">
-                    <legend>{s.past_legend}</legend>
-                    <button type="button" role="radio" aria-checked=move || if fill.get() { "false" } else { "true" } on:click=move |_| fill.set(false)>
-                        <span class="st-radio" aria-hidden="true"></span>
-                        <span><b>{s.start_empty}</b><span>{s.start_empty_hint}</span></span>
-                    </button>
-                    <button type="button" role="radio" id="st-fill" aria-checked=move || if fill.get() { "true" } else { "false" } on:click=move |_| fill.set(true)>
-                        <span class="st-radio" aria-hidden="true"></span>
-                        <span><b>{(s.fill_past)(&span)}</b><span>{s.fill_past_hint}</span></span>
-                    </button>
-                </fieldset>
-            })}
+            <StudyCard
+                ids=Ids { program: "st-program", direction: "st-direction", less: "st-fs-less", more: "st-fs-more" }
+                items
+                program=program
+                on_program=pick_program
+                title=title
+                plan_line=line
+                directions=directions
+                direction=Signal::derive(move || plan_index.get().unwrap_or(0))
+                on_direction=Callback::new(move |index: usize| direction.set(Some(index)))
+                start=start_now
+                on_start=Callback::new(move |key: SemesterKey| start.set(Some(key)))
+                now=ctx.now
+                leave=leave
+                kept=Signal::derive(|| None)
+                on_back=Callback::new(|_: Part| {})
+            />
+            // Whether the semesters before the current one are filled from the plan: in the first
+            // Fachsemester there are none, and the box says so.
+            <button
+                class="st-check big st-fill"
+                type="button"
+                role="checkbox"
+                id="st-fill"
+                aria-checked=move || if fill.get() && before.with(Option::is_some) { "true" } else { "false" }
+                disabled=move || before.with(Option::is_none)
+                on:click=move |_| fill.update(|fill| *fill = !*fill)
+            >
+                <span class="st-box" class:with=move || fill.get() && before.with(Option::is_some) aria-hidden="true"><Icon name="check"/></span>
+                {move || match before.get() {
+                    Some(span) => view! { <span><b>{(s.fill_past)(&span)}</b><span>{s.fill_past_hint}</span></span> }.into_any(),
+                    None => view! { <span><b>{s.fill_later}</b><span>{s.fill_later_hint}</span></span> }.into_any(),
+                }}
+            </button>
             <footer class="st-setup-foot">
                 <p class="hint"><Icon name="shield-check"/><span>{s.stays_here}</span></p>
                 <a class="ghost" href=t.path(folia_routes::url::PROGRAMS)>{s.all_programs}</a>
