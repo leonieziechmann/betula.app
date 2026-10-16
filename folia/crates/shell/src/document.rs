@@ -17,8 +17,10 @@
 /// app's select in place of the browser's and the Regelstudienplan's heads in rows; 1.7.0 with a
 /// module's sheet on a phone that comes up from below in one move, goes on as the finger let it
 /// go, on a spring, and has no „Vollbild"; 1.8.0 with the tabs of the navigation a digit away (Alt,
-/// or Ctrl and Alt, and 1–5). The version of the app's crates, the same as the server's; Radix's
-/// is in the snapshot (`Meta::radix_version`).
+/// or Ctrl and Alt, and 1–5); 1.9.0 with „Dein Studium" as a card in „Studiengang wechseln" and on
+/// the first visit, the Fachsemester counted with − and +, the study direction a row of it, nothing
+/// moving while it is used. The version of the app's crates, the same as the server's; Radix's is
+/// in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
