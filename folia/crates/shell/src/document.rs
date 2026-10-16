@@ -14,9 +14,10 @@
 /// loose ends; 1.4.0 with the program an area has chosen kept for the session alone and „Mein
 /// Studiengang" first in every program picker; 1.5.0 with every „Zurück" at the head of a phone's
 /// page; 1.6.0 with the dialogs in three sizes, „Schließen Esc" and the buttons on the right, the
-/// app's select in place of the browser's and the Regelstudienplan's heads in rows; 1.7.0 with the
-/// tabs of the navigation a digit away (Alt, or Ctrl and Alt, and 1–5). The version of the app's
-/// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// app's select in place of the browser's and the Regelstudienplan's heads in rows; 1.7.0 with a
+/// module's sheet on a phone that comes up from below in one move, goes on as the finger let it
+/// go, on a spring, and has no „Vollbild". The version of the app's crates, the same as the
+/// server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
