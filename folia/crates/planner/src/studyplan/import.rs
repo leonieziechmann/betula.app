@@ -27,6 +27,7 @@ use folia_design::format;
 use crate::i18n;
 use folia_design::nav;
 use folia_shell::pending::Pending;
+use folia_design::combobox::{ComboItem, Select};
 use folia_design::ui::Icon;
 use super::{key_of, PlanCtx};
 
@@ -253,14 +254,14 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
         })
     });
 
-    let pick_core = move |ev: leptos::ev::Event| {
-        let (Some(id), Ok(index)) = (id.get_untracked(), event_target_value(&ev).parse::<usize>()) else { return };
+    let pick_core = Callback::new(move |value: String| {
+        let (Some(id), Ok(index)) = (id.get_untracked(), value.parse::<usize>()) else { return };
         core_pick.set(Some((id, index)));
-    };
-    let pick_fs = move |ev: leptos::ev::Event| {
-        let (Some(id), Ok(fs)) = (id.get_untracked(), event_target_value(&ev).parse::<u8>()) else { return };
+    });
+    let pick_fs = Callback::new(move |value: String| {
+        let (Some(id), Ok(fs)) = (id.get_untracked(), value.parse::<u8>()) else { return };
         fs_pick.set(Some((id, fs)));
-    };
+    });
     let take = move |_| {
         if busy.get_untracked() {
             return;
@@ -382,29 +383,25 @@ pub(super) fn ImportGroup(ctx: PlanCtx, program: Memo<Option<Program>>, imported
                 (false, _) => view! {
                     {move || {
                         (!cores.with(Vec::is_empty)).then(|| view! {
-                            <span class="select-wrap plain">
-                                <select aria-label=s.plan prop:value=move || core.get().map(|core| core.to_string()).unwrap_or_default() on:change=pick_core>
-                                    <For
-                                        each=move || cores.get()
-                                        key=|entry| entry.clone()
-                                        children=move |(index, label): (usize, String)| view! { <option value=index.to_string() selected=move || core.get() == Some(index)>{label}</option> }
-                                    />
-                                </select>
-                                <Icon name="chevrons-up-down"/>
-                            </span>
+                            <Select
+                                id="sp-import-plan"
+                                label=s.plan
+                                items=Signal::derive(move || cores.with(|cores| cores.iter().map(|(index, label)| ComboItem::new(index.to_string(), label.clone(), "", 0)).collect()))
+                                selected=Signal::derive(move || core.get().map(|core| core.to_string()).unwrap_or_default())
+                                on_select=pick_core
+                                small=true
+                            />
                         })
                     }}
                     <div class="sp-import-go">
-                        <span class="select-wrap plain">
-                            <select aria-label=s.fachsemester prop:value=move || fs.get().map(|fs| fs.to_string()).unwrap_or_default() on:change=pick_fs>
-                                <For
-                                    each=move || semesters.get()
-                                    key=|fs| *fs
-                                    children=move |n: u8| view! { <option value=n.to_string() selected=move || fs.get() == Some(n)>{(s.fs)(n)}</option> }
-                                />
-                            </select>
-                            <Icon name="chevrons-up-down"/>
-                        </span>
+                        <Select
+                            id="sp-import-fs"
+                            label=s.fachsemester
+                            items=Signal::derive(move || semesters.with(|semesters| semesters.iter().map(|n| ComboItem::new(n.to_string(), (s.fs)(*n), "", 0)).collect()))
+                            selected=Signal::derive(move || fs.get().map(|fs| fs.to_string()).unwrap_or_default())
+                            on_select=pick_fs
+                            small=true
+                        />
                         <button
                             class="btn primary"
                             type="button"

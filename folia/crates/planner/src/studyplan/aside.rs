@@ -53,6 +53,7 @@ use folia_shell::pending::Pending;
 use folia_shell::frame::ErrorState;
 use folia_shell::pending::same_page;
 use folia_shell::tabs::Tabs;
+use folia_design::combobox::{ComboItem, Select};
 use folia_design::ui::{Icon, Shortcut};
 use super::head::blocked_line;
 use super::{full_href, key_of, PlanCtx};
@@ -482,12 +483,12 @@ fn Actions(
     let elsewhere = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.elsewhere.clone()).unwrap_or_default()));
     let removing = RwSignal::new(false);
 
-    let set_fills = move |ev: leptos::ev::Event| {
+    let set_fills = Callback::new(move |value: String| {
         let Some(plan) = ctx.plan else { return };
-        let pid = event_target_value(&ev).parse::<u32>().ok();
+        let pid = value.parse::<u32>().ok();
         let Some((id, sem)) = choices.with_untracked(|c| c.as_ref().map(|c| (c.id.clone(), c.sem))) else { return };
         plan.update(|doc| doc.set_fills(sem, &id, pid));
-    };
+    });
     let remove = move |_: leptos::ev::MouseEvent| {
         let Some(plan) = ctx.plan else { return };
         let Some((id, sem)) = place.with_untracked(|place| place.as_ref().and_then(|place| Some((place.id.clone(), place.sem?)))) else { return };
@@ -505,12 +506,17 @@ fn Actions(
         planned.get().then(|| {
             view! {
                 {move || (!placeholders.with(Vec::is_empty)).then(|| view! {
-                    <select aria-label=t.studyplan_aside.counts_for on:change=set_fills>
-                        <option value="" prop:selected=move || fills.get().is_none()>{t.studyplan_aside.no_placeholder}</option>
-                        {move || placeholders.get().into_iter().map(|(pid, label)| view! {
-                            <option value=pid.to_string() prop:selected=move || fills.get() == Some(pid)>{label}</option>
-                        }).collect_view()}
-                    </select>
+                    <Select
+                        id="sp-counts-for"
+                        label=t.studyplan_aside.counts_for
+                        items=Signal::derive(move || {
+                            let none = ComboItem::new("", t.studyplan_aside.no_placeholder, "", 0);
+                            std::iter::once(none).chain(placeholders.with(|placeholders| placeholders.iter().map(|(pid, label)| ComboItem::new(pid.to_string(), label.clone(), "", 0)).collect::<Vec<_>>())).collect()
+                        })
+                        selected=Signal::derive(move || fills.get().map(|pid| pid.to_string()).unwrap_or_default())
+                        on_select=set_fills
+                        small=true
+                    />
                 })}
                 <button class="mini" type="button" on:click=remove aria-busy=move || removing.get().then_some("true")>{t.studyplan_aside.remove}</button>
             }

@@ -63,6 +63,16 @@ const FILLED = [
 ].join("\n") + "\n";
 
 const takeover = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+// A select of the app (`combobox::Select`): its button, then the entry of `value`.
+const pick = async (page, id, value) => {
+  await page.click(`#${id}`);
+  const index = await page.waitForFunction(([id, value]) => {
+    const options = [...document.querySelectorAll(`#${id}-list [role=option]`)];
+    return options.length && options.findIndex((option) => option.dataset.value === value) + 1;
+  }, [id, value], { timeout: 5000 }).then((handle) => handle.jsonValue()).catch(() => 0);
+  if (!index) return problems.push(`#${id} has no entry ${value}`);
+  await page.click(`#${id}-option-${index - 1}`);
+};
 const open = async (options, path, { requests } = {}) => {
   const context = await browser.newContext(options);
   const page = await context.newPage();
@@ -141,10 +151,10 @@ if (current !== "2026W") {
     // The list follows what is typed in the next frame.
     await page.waitForFunction(() => document.querySelector("#st-program-list [role=option]")?.textContent.startsWith("Informatik"), null, { timeout: 5000 }).catch(() => {});
     await page.keyboard.press("Enter");
-  }, () => document.querySelector("#st-start")?.value === "2026W" && !document.querySelector("#st-create")?.disabled);
+  }, () => document.querySelector("#st-start")?.dataset.value === "2026W" && !document.querySelector("#st-create")?.disabled);
   check(!(await page.$("#st-fill")), "a first semester is offered to be filled from the plan");
   check((await stored(page, MINE)) === null, "a pick in the setup was stored before „Studium anlegen“");
-  await step("Studienbeginn WiSe 2025/26", () => page.selectOption("#st-start", "2025W"), () => document.querySelector("#st-fill")?.textContent.includes("1. und 2. FS nach Regelstudienplan füllen"));
+  await step("Studienbeginn WiSe 2025/26", () => pick(page, "st-start", "2025W"), () => document.querySelector("#st-fill")?.textContent.includes("1. und 2. FS nach Regelstudienplan füllen"));
   await step("fill from the plan", () => page.click("#st-fill"), () => document.querySelector("#st-fill")?.getAttribute("aria-checked") === "true");
   await step("Studium anlegen", () => page.click("#st-create"), () => document.querySelector(".st-over") && document.querySelector(".st-card-sem"));
   check((await stored(page, MINE)) === THIRD, `what „Studium anlegen“ stored: ${JSON.stringify(await stored(page, MINE))}`);
@@ -228,7 +238,7 @@ if (current !== "2026W") {
   await step("to now", () => page.click(".st-strip .st-tab.is-now"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   const empty = await page.evaluate(() => ({ words: document.querySelector(".st-card-sem .st-empty p")?.textContent, icon: Boolean(document.querySelector(".st-card-sem .st-empty-icon .icon")), rows: document.querySelectorAll(".st-card-sem .st-addrow").length }));
   check(empty.words === "Noch keine Module" && empty.icon && empty.rows === 0, `an empty semester is no mark with „Module hinzufügen“ under it: ${JSON.stringify(empty)}`);
-  await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices") && document.querySelector("#st-plan-fs")?.value === "3");
+  await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices") && document.querySelector("#st-plan-fs")?.dataset.value === "3");
   const offered = await page.evaluate(() => [...document.querySelectorAll(".st-dialog[open] .st-choice-row")].map((row) => ({ name: row.querySelector(".st-choice-name")?.textContent, on: row.querySelector(".st-tick")?.getAttribute("aria-checked") })));
   check(offered.some((row) => row.name === "Theoretische Informatik" && row.on === "true") && offered.some((row) => row.name === "Anwendungsfach" && row.on === "false"), `what „Module hinzufügen“ offers: ${JSON.stringify(offered)}`);
   const ticked = offered.filter((row) => row.on === "true").length;
