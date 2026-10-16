@@ -97,6 +97,18 @@ impl Area {
             Area::Studyplan => url::STUDYPLAN,
         }
     }
+
+    /// The digit of its tab with the navigation's keys (Alt, or Ctrl and Alt, and the digit;
+    /// enhance.js): the tabs from the top of the rail down, from the left of a phone's bar.
+    pub fn key(self) -> &'static str {
+        match self {
+            Area::Home => "1",
+            Area::Catalog => "2",
+            Area::Programs => "3",
+            Area::Bookmarks => "4",
+            Area::Studyplan => "5",
+        }
+    }
 }
 
 /// Path and query as one string, the way links are written.
