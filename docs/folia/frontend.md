@@ -2561,12 +2561,16 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   digits of the row above the letters only, so Alt and the number pad still type a character by
   its code on Windows; Ctrl, Alt or ⌘ with any other key (Ctrl+C, S, P and the rest) stays the
   browser's and the system's, and so does AltGr (on Windows Ctrl and Alt, which is why Alt is
-  alone there). Held for a quarter of a second, the keys show each tab's digit at its mark
-  (`NavKey`, `:root[data-nav-keys]`): at its foot in the rail, left of it in a phone's bar (a
-  tablet with a keyboard), where its name is below it and its count at its right; another key or
-  the mouse with them, and nothing shows until they are let go, so
-  Alt+← or Alt+Tab shows nothing. Let go after the digits showed, the Alt opens no menu of
-  the browser. Nothing while a modal dialog is open (`enhance.js`, „the navigation's keys").
+  alone there). Pressed, the keys show at once what leads to each tab, in full (owner, the same
+  day: „zeig ruhig die shortcuts gleich an, dann findet vlt jemand die auch. und zeig mal die volle
+  kombo. Also "alt + 1" oder so"): „Alt + 1" on Windows, „Strg + Alt + 1" („Ctrl + Alt + 1" in
+  English) on Linux, „⌃ + ⌥ + 1" on a Mac — the tab's digit (`NavKey`) after the words of the
+  system and the language, which enhance.js gives `--nav-keys`; inverted, as a tooltip, beside the
+  rail's tab and above a phone's bar (a tablet with a keyboard), there while `:root[data-nav-keys]`.
+  Whoever presses Alt for anything else sees them as well, and so finds them. Another key or the
+  mouse with them, and they go until the keys are let go. An Alt held for a quarter of a second or
+  longer was held for them: let go, it opens no menu of the browser; tapped, it is the browser's
+  as ever. Nothing while a modal dialog is open (`enhance.js`, „the navigation's keys").
 - **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
   and the preview live in `localStorage` and are applied before the first paint by the script in
   `<head>`. So does the language (`betula.language`, `docs/folia/i18n.md`): the first script of the head
@@ -3690,14 +3694,15 @@ cd e2e && node navkeys.mjs
 
 drives the navigation's keys (R10) on three systems made up through `navigator.platform`: on
 Linux Ctrl and Alt and a digit go to the tab, 1 to 5 one after another while the keys stay held,
-and from the search with a text typed, without a page load; held a moment, they show the digits
-1 to 5 at the rail's tabs and none in the hidden bar, and let go, none; Ctrl alone, Alt alone, a
-quick Ctrl and Alt, Ctrl+Alt+X and a click while they are held show nothing; Alt and a digit, Ctrl
-and a digit, Ctrl, Alt and Shift and a digit, a digit no tab has, Ctrl+C, S and P do nothing and
-keep their default, and so do the keys while a modal dialog is open. On Windows Alt alone, with
-the digits shown while it is held and its keyup taken once they showed (a quick Alt keeps its
-own), and Ctrl and Alt (AltGr) do nothing; on a Mac ⌃⌥, ⌥ and ⌘ with a digit do nothing. Where
-the app does not start, Ctrl+Alt+3 loads the page of „Studium".
+and from the search with a text typed, without a page load; pressed, they show at once
+„Strg + Alt + 1" to „… 5" at the rail's tabs and nothing in the hidden bar, and let go, nothing;
+Ctrl alone, Alt alone, Ctrl+Alt+X and a click while they are held show nothing; Alt and a digit,
+Ctrl and a digit, Ctrl, Alt and Shift and a digit, a digit no tab has, Ctrl+C, S and P do nothing
+and keep their default, and so do the keys while a modal dialog is open. On Windows Alt alone,
+„Alt + 1" to „… 5" while it is held, its keyup taken after it was held, and a tapped Alt shows them
+and keeps its own; Ctrl and Alt (AltGr) do nothing. On a Mac ⌃⌥, „⌃ + ⌥ + 1", while ⌥ or ⌘ with a
+digit do nothing; in English „Ctrl + Alt + 1". Where the app does not start, Ctrl+Alt+3 loads the
+page of „Studium".
 
 ## 5. Not done yet
 
