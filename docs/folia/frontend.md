@@ -140,6 +140,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     mouse, closed the preview with Esc and knew its selection by label). Without the app the same
     places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
     the links have set.
+    **A choice of a few entries** (a Studienbeginn, a study direction, the plan's semester in
+    „Module hinzufügen", the Stundenplan's plan, Fachsemester and placeholder) is `combobox::Select`
+    (owner, 2026-10-16: „Dropdown menus allgemein sind im browser styling passe das mal an, so dass
+    das mehr mit der combobox matcht"): the combobox's button and popup without its search field,
+    in place of the browser's `<select>`, whose list Windows drew as a blue bar on grey and a phone
+    as a wheel. The button keeps the focus while the popup is open (the select-only combobox of the
+    ARIA patterns): ↑ ↓, Pos1, Ende, Bild ↑ ↓ mark an entry, Enter or the space bar takes it, Esc
+    closes the popup and nothing else (in a dialog the dialog stays open), letters jump to the entry
+    they begin; an entry's detail stands beside it („WiSe 2025/26 · jetzt 3. FS" is „WiSe 2025/26"
+    and „jetzt 3. FS"). On a phone it opens in place, as the combobox does. `small` is the button
+    of a bar of tools (34 px, 46 on a phone); the button and its entries carry their value in
+    `data-value` (the checks read it, as they read a `select`'s value).
   - **The areas of a program** („Bereich", with a program selected, curriculum only): of the
     areas of its module tree (`pages::CatalogArea`, from `v_program_module_area`) only those a
     student chooses from (owner, 2026-09-21: „eigentlich will man auch nur nach den Wahlpflicht­
@@ -724,6 +736,25 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   full, an area as a page) gets the box when it comes. A wide screen keeps „Zurück (Esc)" in the
   page. Not ways back and so not moved: the × of a module's sheet, the pager's „Zurück", a menu's
   way back to its first level.
+- **Dialogs: one frame in three sizes** (owner, 2026-10-16: „Die Modalen [Dialoge] sind nicht
+  einheitlich und total unordentlich … Neben Close steht kein esc … Die Buttons für bestätigen und
+  abbruch sind links … Modale menus springen zu viel in der größe. Erstelle dir mal 3 verschiedene
+  größen"; app.css „The dialogs", `planner/src/study/dialog.rs`, `ui::DialogClose`). A kind of
+  dialog picks its size by what it holds and keeps it while it is open, whatever its content does:
+  **s**, a question or a note, 440 px wide and as tall as what it says; **m**, a form or an
+  overview, 600 × 600 px („Studiengang wechseln", the areas, an area); **l**, a list to choose
+  from, 840 × 720 px („Module hinzufügen", a choice's modules); each at most the window less 24 px
+  all round, its body scrolling inside. Until then the width was the kind's and the height the
+  content's: „Module hinzufügen" shrank from 720 to 310 px when its tab changed, „Studiengang
+  wechseln" grew and shrank with the program picked. The head says what the dialog is and has its
+  way out, „× Schließen Esc" as a module beside a list has it (on a phone the × alone; the map of
+  the start page, a picture as large as the window allows and no dialog of these sizes, has the
+  same way out); the foot has the buttons on the right, the primary last, and what it says about
+  them on their left. On a phone a dialog is a sheet as wide as the screen — s as tall as its
+  content, m three quarters of the screen, l all but its top — whose buttons share its width, the
+  cancel too, at least 24 px over the screen's foot (`max(24px, 14px + safe-area)`; owner: „Beim
+  handy müssen die buttons etwas weiter vom boden weg sein. Und die volle breite (zusammen)
+  einnehmen").
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first
@@ -770,6 +801,20 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     a dialog that says before anything changes what of the plan counts in the new program („Bestanden
     36 von 46 LP kommen dort vor", the modules that count nowhere there, which stay as „ohne
     Bereich"): nothing of the plan is touched by a change, and changing back counts all as before.
+    Another program picked there starts in its first Fachsemester now, with its first plan; the
+    program kept, picked again, brings back its Studienbeginn and its direction (owner, 2026-10-16:
+    „wenn man den studiengang wechselt, dann ist es wahrscheinlich, dass das fachsemester wieder bei
+    1 ist. Aber wenn man zurück den aktuellen studiengang auswählt. Dann sollten die werte wieder
+    zurück"). How the dialog and the first visit should look is open: the owner found the dialog
+    without hierarchy („es ist schwer zu verstehen, was man da machen soll … Ich stelle mir das eher
+    so als card vor, in der man dann editiert. Also so ein ding von ich bin in informatik 9.
+    semester"), and `folia/design/studiengang/konzepte.html` has three ways, each on a desktop and a
+    phone, for the switch and the first visit: A „Karte" (the sidebar's card, a row a value, a
+    changed row green with what was before; the recommendation, with B's sentence as its head), B
+    „Satz" („Ich studiere [Informatik B.Sc.] und bin jetzt im [9.] Fachsemester"), C „Zeitstrahl"
+    (the Fachsemester picked on a strip of semesters, the program before hatched as „bisher"); all
+    ask for the Fachsemester rather than the Studienbeginn and show what was before only once
+    something changed.
   - **The overview** (`overview.rs`): „46 von 180 LP bestanden", the credits passed, planned
     („davon 6 über Bedarf") and not planned yet, and a bar of the areas, each as wide as it asks
     (and as what goes beyond it): passed in the area's colour, planned in its tint, open grey,
@@ -792,7 +837,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     - **„Regelstudienplan"** (`view=plan`): the plan as its regulation prints it, a row a row of it,
       grouped by the areas of the progress in their colours (each with what is taken of what it
       asks), a column each Fachsemester with the semester it is for the student (the current one
-      shaded). The credits stand in the cell of the row's Fachsemester in the look of where the row
+      shaded). Every column's head has the same lines, so that the numbers stand in one row (owner,
+      2026-10-16: „die semester so durcheinander angezeigt"; „WiSe 26/27" broke into two lines and
+      „SoSe 27" did not, and the heads, aligned at their foot, put each number at another height):
+      „jetzt" over the current one (its place kept in the others, none where no column is the
+      current one), the Fachsemester, the half of the year, the year. The credits stand in the cell of the row's Fachsemester in the look of where the row
       stands — passed in the area's colour, planned in its tint, not passed and taken again in the
       warning's, open as a ring — and where the student has it in another semester a dashed cell
       there too; „Bei dir" says the semester, or offers „Einplanen" (into the semester it fits

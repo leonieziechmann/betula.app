@@ -232,10 +232,10 @@ await page.waitForFunction(() => !document.querySelector(".map-dialog .cap-link.
 check(await page.evaluate(() => document.querySelector(".map-dialog").open), "the first Escape closed the dialog");
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => !document.querySelector(".map-dialog").open);
-// The ✕ closes it too; the caption's link opens the program in the app.
+// „Schließen" closes it too; the caption's link opens the program in the app.
 await page.click(".cslide.is-current");
 await page.waitForSelector(".map-dialog[open]");
-await page.click(".map-dialog-close");
+await page.click(".map-dialog .dlg-close");
 await page.waitForFunction(() => !document.querySelector(".map-dialog").open);
 await page.click(".cslide.is-current");
 await page.waitForSelector(".map-dialog[open]");

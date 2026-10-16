@@ -2,22 +2,29 @@
 //! content is the dialog open (`StudyCtx::dialog`). On a desktop it stands in the middle of the
 //! window; on a phone it is a sheet from below, which a finger drags down to close it as it does
 //! the catalog's filters (owner, 2026-10-05: „dass man die einfach wieder runter sliden kann";
-//! `data-sheet`, enhance.js). Escape, „×" and a click beside it close it, and the browser gives
-//! the focus back to what opened it.
+//! `data-sheet`, enhance.js). Escape, „Schließen" and a click beside it close it, and the browser
+//! gives the focus back to what opened it.
+//!
+//! One frame in three sizes (owner, 2026-10-16: „Modale menus springen zu viel in der größe.
+//! Erstelle dir mal 3 verschiedene größen, unter den man dann auswählen kann"; app.css „The
+//! dialogs"): each kind of dialog has its size, and the frame keeps it while the dialog is open,
+//! whatever its content does — „Module hinzufügen" shrank to a third when its tab changed, and
+//! „Studiengang wechseln" grew and shrank with the program picked. Its head says what it is and
+//! the way out with its key, its foot has the buttons on the right.
 
 use leptos::prelude::*;
 
-use folia_design::ui::Icon;
+use folia_design::ui::DialogClose;
 
 use super::{overview, picker, side, Dialog, StudyCtx};
-use crate::i18n;
 
-/// The class of a dialog's kind: how wide it is.
+/// The size of a dialog's kind (app.css „The dialogs"): „l" for a list to choose from, „m" for a
+/// form or an overview, „s" for a question or a note. The areas and an area are one size, so that
+/// a phone's sheet does not move when an area of the list is opened in it.
 fn class_of(dialog: &Dialog) -> &'static str {
     match dialog {
-        Dialog::Add { .. } | Dialog::Cell { .. } => "wide",
-        Dialog::Switch => "medium",
-        Dialog::Area(_) | Dialog::Areas => "narrow",
+        Dialog::Add { .. } | Dialog::Cell { .. } => "l",
+        Dialog::Switch | Dialog::Area(_) | Dialog::Areas => "m",
     }
 }
 
@@ -68,7 +75,7 @@ pub(super) fn DialogHost(ctx: StudyCtx) -> impl IntoView {
     }
 }
 
-/// The head of a dialog: its title, a line under it, and „×".
+/// The head of a dialog: its title, a line under it, and „Schließen" with its key.
 #[component]
 pub(super) fn DialogHead(
     ctx: StudyCtx,
@@ -78,7 +85,6 @@ pub(super) fn DialogHead(
     #[prop(optional)]
     tone: Option<&'static str>,
 ) -> impl IntoView {
-    let t = i18n::t();
     view! {
         <header class="st-dlg-head">
             <span class="st-grip" aria-hidden="true"></span>
@@ -89,7 +95,7 @@ pub(super) fn DialogHead(
                 </h2>
                 {sub.map(|sub| view! { <p>{sub}</p> })}
             </div>
-            <button class="icon-btn hit st-dlg-close" type="button" aria-label=t.study.close on:click=move |_| ctx.dialog.set(None)><Icon name="x"/></button>
+            <DialogClose on_close=Callback::new(move |()| ctx.dialog.set(None))/>
         </header>
     }
 }

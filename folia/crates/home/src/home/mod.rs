@@ -76,7 +76,7 @@ use crate::i18n::{self, Texts};
 use folia_design::nav;
 use folia_shell::seo::{self, Seo};
 use folia_shell::frame::ErrorState;
-use folia_design::ui::{Icon, Mark, Wordmark};
+use folia_design::ui::{DialogClose, Icon, Mark, Wordmark};
 
 /// A way into the catalog: a filter people come for, with the number of modules behind it. The
 /// tint colours its icon (`t-…` in app.css), after what it is about: winter cool, summer warm.
@@ -623,7 +623,7 @@ fn Showcase(map: Option<Arc<ProgramMap>>, modules: Option<u64>) -> impl IntoView
                             <h2 id="karte-titel">{home.map_heading}</h2>
                             <p>{home.map_hint}</p>
                         </div>
-                        <button type="button" class="icon-btn map-dialog-close" aria-label=home.close_map on:click=move |_| close_map()><Icon name="x"/></button>
+                        <DialogClose label=home.close_map on_close=Callback::new(move |()| close_map())/>
                     </header>
                     {move || map_built.get().then(|| view! { <MapStage map=map.clone()/> })}
                 </dialog>
