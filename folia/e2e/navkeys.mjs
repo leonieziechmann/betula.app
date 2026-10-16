@@ -3,8 +3,11 @@
 // so übliche shortcuts, wie ctrl+c/s/p usw. weiter funktionieren"): with Ctrl and Alt (Alt alone
 // on Windows, ⌃⌥ on a Mac; the system is made up through `navigator.platform`) and a digit the app
 // goes to the tab of the navigation, 1 the start page to 5 the Stundenplan, without a page load and
-// from the search as well; held a moment, the keys show the digits at the rail's tabs, and let go
-// they go; a key or the mouse with them, and nothing shows; Ctrl alone, Ctrl+C, S, P, Ctrl or Alt
+// from the search as well; pressed, the keys show at once in full at the rail's tabs (owner, the
+// same day: „zeig ruhig die shortcuts gleich an … und zeig mal die volle kombo. Also "alt + 1""),
+// in the words of the system and the language, and let go they go; a key or the mouse with them,
+// and nothing shows; an Alt held for them opens no menu of the browser, a tapped one keeps its
+// own; Ctrl alone, Ctrl+C, S, P, Ctrl or Alt
 // and a digit where they are the browser's, and AltGr (Ctrl and Alt on Windows) do nothing and
 // keep their default; nothing while a modal dialog is open; where the app does not start, the keys
 // load the tab's page.
@@ -16,8 +19,12 @@ const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
-// Longer than the keys are held before the digits show (enhance.js, NAV_KEYS_AFTER).
+// Longer than an Alt is held for the keys, not tapped for the browser's menu (enhance.js,
+// NAV_HELD_MS); the keys show at once, so a moment is enough to see them.
 const HELD_MS = 450;
+const MOMENT_MS = 40;
+// What the rail's tabs say while `modifiers` (as the system writes them) are held.
+const combos = (words) => [1, 2, 3, 4, 5].map((digit) => `${words}${digit}`).join("|");
 
 // A page of the app on a wide screen, on the system `platform` names (undefined: the browser's).
 const open = async (platform, path, options = {}) => {
@@ -51,10 +58,13 @@ const state = (page) => page.evaluate(() => ({
   path: location.pathname,
   loaded: window.__marker !== 1,
   shown: document.documentElement.hasAttribute("data-nav-keys"),
+  // What each of the rail's tabs says (its words, from `--nav-keys`, and its digit), where shown.
   digits: [...document.querySelectorAll(".rail .nav")].map((tab) => {
     const key = tab.querySelector(".nav-key");
-    return key && getComputedStyle(key).display !== "none" ? key.textContent : "";
-  }).join(""),
+    if (!key || getComputedStyle(key).display === "none") return "";
+    const words = getComputedStyle(key, "::before").content;
+    return (words && words !== "none" && words !== "normal" ? JSON.parse(words) : "") + key.textContent;
+  }).join("|").replace(/^\|+$/, ""),
   bar: [...document.querySelectorAll(".bottomnav .nav-key")].some((key) => key.getClientRects().length > 0),
 }));
 const prevented = async (page, code, type = "keydown") => (await page.evaluate(() => window.__keys)).filter((k) => k.type === type && k.code === code).map((k) => k.prevented);
@@ -91,19 +101,16 @@ const stays = async (page, label, modifiers, digit) => {
     await holding(page, [alone], () => page.waitForTimeout(HELD_MS));
     check(!(await state(page)).shown, `${label}: ${alone} alone shows the digits`);
   }
-  // Ctrl and Alt held: the digits at the rail's five tabs, none in the hidden bar; let go, gone.
+  // Ctrl and Alt pressed: at once the keys in full at the rail's five tabs, none in the hidden bar;
+  // let go, gone.
   await holding(page, ["Control", "Alt"], async () => {
-    await page.waitForTimeout(HELD_MS);
+    await page.waitForTimeout(MOMENT_MS);
     const held = await state(page);
-    check(held.shown && held.digits === "12345", `${label}: Ctrl+Alt held shows ${held.shown ? held.digits : "nothing"}`);
+    check(held.shown && held.digits === combos("Strg + Alt + "), `${label}: Ctrl+Alt pressed shows ${held.shown ? held.digits : "nothing"}`);
     check(!held.bar, `${label}: the hidden bar shows digits`);
   });
   await clearKeys(page);
   check(!(await state(page)).shown, `${label}: the digits stay after the keys are let go`);
-  // Quick, the keys show nothing.
-  await holding(page, ["Control", "Alt"], () => page.waitForTimeout(80));
-  await page.waitForTimeout(HELD_MS);
-  check(!(await state(page)).shown, `${label}: a quick Ctrl+Alt shows the digits`);
   // Another key with them: nothing while they are held.
   await holding(page, ["Control", "Alt"], async () => {
     await page.keyboard.press("KeyX");
@@ -122,14 +129,14 @@ const stays = async (page, label, modifiers, digit) => {
 
   // Every tab, with the keys held through several digits; the digits stay meanwhile.
   await holding(page, ["Control", "Alt"], async () => {
-    await page.waitForTimeout(HELD_MS);
+    await page.waitForTimeout(MOMENT_MS);
     for (const [digit, path] of [["1", "/"], ["3", "/study"], ["4", "/bookmarks"], ["5", "/studyplan"]]) {
       await page.keyboard.press(`Digit${digit}`);
       const ok = await page.waitForFunction((path) => location.pathname === path, path, { timeout: 5000 }).then(() => true, () => false);
       check(ok, `${label}: Ctrl+Alt+${digit} (held) went to ${(await state(page)).path}, not ${path}`);
     }
     const held = await state(page);
-    check(held.shown && held.digits === "12345", `${label}: the digits went on the way (${held.digits})`);
+    check(held.shown && held.digits === combos("Strg + Alt + "), `${label}: the digits went on the way (${held.digits})`);
     check(!held.loaded, `${label}: a tab loaded the page again`);
   });
   await goes(page, label, ["Control", "Alt"], "2", "/catalog");
@@ -169,15 +176,17 @@ const stays = async (page, label, modifiers, digit) => {
   await holding(page, ["Alt"], async () => {
     await page.waitForTimeout(HELD_MS);
     const held = await state(page);
-    check(held.shown && held.digits === "12345", `${label}: Alt held shows ${held.shown ? held.digits : "nothing"}`);
+    check(held.shown && held.digits === combos("Alt + "), `${label}: Alt held shows ${held.shown ? held.digits : "nothing"}`);
   });
-  // Let go after the digits showed: the Alt opens no menu of the browser (its keyup is taken).
-  check((await prevented(page, "AltLeft", "keyup")).at(-1) === true, `${label}: the Alt let go after the digits keeps its default`);
+  // Let go after it was held for them: the Alt opens no menu of the browser (its keyup is taken).
+  check((await prevented(page, "AltLeft", "keyup")).at(-1) === true, `${label}: the Alt held for the keys keeps its default`);
   check(!(await state(page)).shown, `${label}: the digits stay after Alt is let go`);
-  // A quick Alt is the browser's (its menu): its keyup keeps its default.
+  // A tapped Alt shows them at once, and is the browser's (its menu): its keyup keeps its default.
   await clearKeys(page);
-  await page.keyboard.press("Alt");
-  check((await prevented(page, "AltLeft", "keyup")).every((p) => !p), `${label}: a quick Alt lost its default`);
+  await holding(page, ["Alt"], async () => {
+    check((await state(page)).shown, `${label}: a tapped Alt shows nothing`);
+  });
+  check((await prevented(page, "AltLeft", "keyup")).every((p) => !p), `${label}: a tapped Alt lost its default`);
   await goes(page, label, ["Alt"], "1", "/");
   await goes(page, label, ["Alt"], "3", "/study");
   await stays(page, label, ["Control", "Alt"], "2");
@@ -189,9 +198,27 @@ const stays = async (page, label, modifiers, digit) => {
 {
   const label = "mac";
   const { context, page } = await open("MacIntel", "/catalog");
+  await holding(page, ["Control", "Alt"], async () => {
+    await page.waitForTimeout(MOMENT_MS);
+    const held = await state(page);
+    check(held.digits === combos("⌃ + ⌥ + "), `${label}: ⌃⌥ pressed shows ${held.digits || "nothing"}`);
+  });
   await goes(page, label, ["Control", "Alt"], "5", "/studyplan");
   await stays(page, label, ["Alt"], "1");
   await stays(page, label, ["Meta"], "1");
+  await context.close();
+}
+
+// ---- English: the keys in its words
+{
+  const label = "english";
+  const { context, page } = await open("Linux x86_64", "/en/catalog");
+  await holding(page, ["Control", "Alt"], async () => {
+    await page.waitForTimeout(MOMENT_MS);
+    const held = await state(page);
+    check(held.digits === combos("Ctrl + Alt + "), `${label}: Ctrl+Alt pressed shows ${held.digits || "nothing"}`);
+  });
+  await goes(page, label, ["Control", "Alt"], "4", "/en/bookmarks");
   await context.close();
 }
 
