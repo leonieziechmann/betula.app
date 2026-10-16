@@ -14,8 +14,8 @@
   // The page's language, as its address says it (`folia_locale::Locale::split`): the prefix of its
   // addresses and its words (docs/folia/i18n.md). The first is the default, without a prefix.
   const LANGUAGES = [
-    { prefix: "", linkCopied: "Link kopiert", copied: "Kopiert" },
-    { prefix: "/en", linkCopied: "Link copied", copied: "Copied" },
+    { prefix: "", linkCopied: "Link kopiert", copied: "Kopiert", ctrl: "Strg" },
+    { prefix: "/en", linkCopied: "Link copied", copied: "Copied", ctrl: "Ctrl" },
   ];
   const language = () => LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
   const appRuns = () => window.__betulaApp === true;
@@ -1549,29 +1549,36 @@
   // and Alt elsewhere (⌃⌥ on a Mac, the keys of a page's own access keys there). Ctrl and a digit
   // chooses the browser's tab everywhere, Alt and a digit Firefox's on Linux, ⌥ and a digit types a
   // character on a Mac; what Ctrl, Alt or ⌘ do with any other key (Ctrl+C, S, P and the rest) stays
-  // the browser's and the system's, and so does AltGr. Held a moment, the keys show each tab's digit
-  // (`data-nav-keys` on the root, app.css); another key or the mouse with them, and nothing shows
-  // until they are let go.
+  // the browser's and the system's, and so does AltGr. Pressed, the keys show at once what leads to
+  // each tab, in full (`data-nav-keys` on the root, `--nav-keys` the words before the digit, app.css;
+  // owner, 2026-10-16: „zeig ruhig die shortcuts gleich an, dann findet vlt jemand die auch. und zeig
+  // mal die volle kombo. Also "alt + 1" oder so"); another key or the mouse with them, and they go
+  // until the keys are let go.
   const system = navigator.userAgentData?.platform || navigator.platform || "";
   const mac = /mac|iphone|ipad|ipod/i.test(system);
   const windows = /^win/i.test(system);
+  root.style.setProperty("--nav-keys", JSON.stringify(windows ? "Alt + " : mac ? "⌃ + ⌥ + " : `${language().ctrl} + Alt + `));
   // The navigation's keys and no other: no Shift, no ⌘ or Windows key, no AltGr (on Windows, Ctrl
   // and Alt; a Mac's ⌥ reads as AltGr in Firefox).
   const navHeld = (e) => e.altKey && (windows ? !e.ctrlKey : e.ctrlKey) && !e.shiftKey && !e.metaKey && !(!mac && e.getModifierState?.("AltGraph"));
   const MODIFIERS = new Set(["Alt", "AltGraph", "Control", "Shift", "Meta", "OS", "Fn"]);
-  const NAV_KEYS_AFTER = 250; // ms: Alt+← or Alt+Tab shows nothing
-  let navShowing = 0; // the timer that shows the digits
+  // An Alt held this long was held for the keys: let go, it opens no menu of the browser. Tapped,
+  // it is the browser's as ever.
+  const NAV_HELD_MS = 250;
+  let navSince = 0; // when the keys showed
   let navSpent = false; // another key or the mouse went with the keys
   const navShown = () => root.hasAttribute("data-nav-keys");
   const navHide = () => {
-    clearTimeout(navShowing);
-    navShowing = 0;
+    navSince = 0;
     root.removeAttribute("data-nav-keys");
   };
-  // The keys as `e` finds them: the digits show a moment after the navigation's are held, and go.
+  // The keys as `e` finds them: shown while the navigation's are held, and gone.
   const navFollow = (e) => {
     if (!navHeld(e) || navSpent) navHide();
-    else if (!navShowing && !navShown()) navShowing = setTimeout(() => { navShowing = 0; root.setAttribute("data-nav-keys", ""); }, NAV_KEYS_AFTER);
+    else if (!navShown()) {
+      navSince = performance.now();
+      root.setAttribute("data-nav-keys", "");
+    }
   };
   // The tab of a digit in the navigation on the screen: the rail's, or a phone's bar's.
   const navTab = (digit) => [...document.querySelectorAll(`.rail nav > .nav[data-key="${digit}"], .bottomnav > .nav[data-key="${digit}"]`)].find((tab) => tab.getClientRects().length);
@@ -1589,7 +1596,7 @@
     }
     // A key held repeats itself, a modifier too (Windows).
     if (e.repeat && MODIFIERS.has(e.key)) return;
-    if (MODIFIERS.has(e.key) && !navShowing && !navShown()) navFollow(e);
+    if (MODIFIERS.has(e.key) && !navShown()) navFollow(e);
     else {
       if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) navSpent = true;
       navHide();
@@ -1597,8 +1604,7 @@
   }, true);
   addEventListener("keyup", (e) => {
     if (!e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) navSpent = false;
-    // Let go once the digits showed: an Alt held for them opens no menu of the browser.
-    if (navShown() && MODIFIERS.has(e.key) && !navHeld(e)) e.preventDefault();
+    if (navShown() && MODIFIERS.has(e.key) && !navHeld(e) && performance.now() - navSince >= NAV_HELD_MS) e.preventDefault();
     navFollow(e);
   }, true);
   addEventListener("pointerdown", (e) => {

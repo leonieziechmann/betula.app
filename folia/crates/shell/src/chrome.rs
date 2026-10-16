@@ -124,8 +124,9 @@ pub fn NavItems() -> impl IntoView {
 }
 
 /// The digit that leads to a tab with the navigation's keys (owner, 2026-10-16: „wenn man ctrl/alt
-/// drückt sollen dann die shortcuts bei den nav items angezeigt werden"): at the tab's foot while
-/// they are held (enhance.js, app.css). A name read out says the tab's own, not its digit.
+/// drückt sollen dann die shortcuts bei den nav items angezeigt werden"): beside the tab while they
+/// are held, after the words of the system, „Alt + 1" (enhance.js, app.css). A name read out says
+/// the tab's own, not its digit.
 #[component]
 fn NavKey(area: Area) -> impl IntoView {
     view! { <kbd class="nav-key" aria-hidden="true">{area.key()}</kbd> }
