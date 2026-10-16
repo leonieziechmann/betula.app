@@ -76,7 +76,8 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
     });
     let title = Memo::new(move |_| program.with(|program| all.with(|all| title_of(all, program.as_deref()))));
     let line = Memo::new(move |_| source.with(|source| source.as_ref().and_then(Option::as_ref).map(|source| plan_line(source, plan_index.get().unwrap_or(0), t))));
-    let directions = Memo::new(move |_| source.with(|source| source.as_ref().and_then(|source| source.as_ref().map(direction_options)).unwrap_or_default()));
+    // `None` while the plans are on their way (the card's row of them stays as it is meanwhile).
+    let directions = Memo::new(move |_| source.with(|source| source.as_ref().map(|source| source.as_ref().map(direction_options).unwrap_or_default())));
     let ready = Memo::new(move |_| source.with(|source| matches!(source, Some(Some(_)))) && start_now.with(Option::is_some));
 
     let create = move |_| {
