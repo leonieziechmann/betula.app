@@ -85,7 +85,7 @@ if (!plan.includes('content="noindex')) failures.push("/studyplan: offered to se
 // So does „Mein Studium", the Studium tab's first page in the app; the server's tab is the overview.
 const study = await get("/study");
 if (!study.includes('content="noindex')) failures.push("/study: offered to search engines");
-if (!/<a [^>]*data-area="programs" href="\/programs"/.test(overview)) failures.push("the server's Studium tab does not lead to the overview");
+if (!/<a [^>]*data-area="programs"[^>]* href="\/programs"/.test(overview)) failures.push("the server's Studium tab does not lead to the overview");
 await get("/catalog?turnus=winter&form=exercise&lang=en");
 if (programs[0]) await get(`/catalog?program=${programs[0].split("/").pop()}&list=fues`);
 await get("/catalog/module/00000", 404);

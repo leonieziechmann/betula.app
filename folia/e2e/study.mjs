@@ -2,7 +2,8 @@
 // page of the Studium tab (owner, mockup of 2026-10-04).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node study.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // 1 a fresh browser: the Studium tab leads to it; it asks to set the study up once and stores
-//   nothing by being looked at; the program, a Studienbeginn of last winter and „1. und 2. FS nach
+//   nothing by being looked at; the program, its third Fachsemester (+ twice; nothing of the card
+//   moves meanwhile) and „1. und 2. FS nach
 //   Regelstudienplan füllen" set it up: the overview, the first two semesters filled.
 // 2 Informatik B.Sc. in its third semester, the first two filled and nothing marked as passed: the
 //   overview says nothing of it, only the credits; the sidebar has the program as one card, which
@@ -63,16 +64,9 @@ const FILLED = [
 ].join("\n") + "\n";
 
 const takeover = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
-// A select of the app (`combobox::Select`): its button, then the entry of `value`.
-const pick = async (page, id, value) => {
-  await page.click(`#${id}`);
-  const index = await page.waitForFunction(([id, value]) => {
-    const options = [...document.querySelectorAll(`#${id}-list [role=option]`)];
-    return options.length && options.findIndex((option) => option.dataset.value === value) + 1;
-  }, [id, value], { timeout: 5000 }).then((handle) => handle.jsonValue()).catch(() => 0);
-  if (!index) return problems.push(`#${id} has no entry ${value}`);
-  await page.click(`#${id}-option-${index - 1}`);
-};
+// Where the parts of the study's card are (owner, 2026-10-16: „Wenn man eine aktion macht, wie
+// semester +/- darf nicht unterbrochen werden durch layout shifts").
+const cardAt = (page, scope) => page.evaluate((scope) => [...document.querySelectorAll(`${scope} .st-study-say, ${scope} .st-srow, ${scope} .st-stepper button, ${scope} #st-fill, ${scope} #st-create, ${scope} .st-effect, ${scope} .st-dlg-foot .btn`)].map((el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); }).join(" "), scope);
 const open = async (options, path, { requests } = {}) => {
   const context = await browser.newContext(options);
   const page = await context.newPage();
@@ -151,10 +145,14 @@ if (current !== "2026W") {
     // The list follows what is typed in the next frame.
     await page.waitForFunction(() => document.querySelector("#st-program-list [role=option]")?.textContent.startsWith("Informatik"), null, { timeout: 5000 }).catch(() => {});
     await page.keyboard.press("Enter");
-  }, () => document.querySelector("#st-start")?.dataset.value === "2026W" && !document.querySelector("#st-create")?.disabled);
-  check(!(await page.$("#st-fill")), "a first semester is offered to be filled from the plan");
+  }, () => document.querySelector(".st-setup .st-srow[data-start]")?.dataset.start === "2026W" && !document.querySelector("#st-create")?.disabled);
+  check(await page.$eval("#st-fill", (box) => box.disabled), "a first semester is offered to be filled from the plan");
   check((await stored(page, MINE)) === null, "a pick in the setup was stored before „Studium anlegen“");
-  await step("Studienbeginn WiSe 2025/26", () => pick(page, "st-start", "2025W"), () => document.querySelector("#st-fill")?.textContent.includes("1. und 2. FS nach Regelstudienplan füllen"));
+  // The Fachsemester, not the Studienbeginn (owner, 2026-10-16: „ich bin in informatik 9. semester"):
+  // two up is the third, begun in the WiSe 2025/26; nothing of the card moves meanwhile.
+  const setupAt = await cardAt(page, ".st-setup");
+  await step("3. Fachsemester", async () => { await page.click("#st-fs-more"); await page.click("#st-fs-more"); }, () => document.querySelector(".st-setup .st-srow[data-start]")?.dataset.start === "2025W" && document.querySelector("#st-fill")?.textContent.includes("1. und 2. FS nach Regelstudienplan füllen"));
+  check((await cardAt(page, ".st-setup")) === setupAt, `+ moved the card: ${setupAt} → ${await cardAt(page, ".st-setup")}`);
   await step("fill from the plan", () => page.click("#st-fill"), () => document.querySelector("#st-fill")?.getAttribute("aria-checked") === "true");
   await step("Studium anlegen", () => page.click("#st-create"), () => document.querySelector(".st-over") && document.querySelector(".st-card-sem"));
   check((await stored(page, MINE)) === THIRD, `what „Studium anlegen“ stored: ${JSON.stringify(await stored(page, MINE))}`);
@@ -703,6 +701,12 @@ if (current !== "2026W") {
   await step("the areas dragged down", () => drag(320), () => !document.querySelector(".st-dialog[open]"));
   await step("the program's card", () => page.tap("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   check((await page.evaluate(() => document.querySelector(".st-dialog[open] .st-dlg-head p"))) === null, "„Studiengang wechseln“ still has its lead");
+  // − and + count the Fachsemester, and nothing of the sheet moves while they do (measured once it
+  // has come up).
+  await page.waitForFunction(() => document.querySelector(".st-dialog[open]")?.getAnimations().every((animation) => animation.playState !== "running"));
+  const sheetAt = await cardAt(page, ".st-dialog[open]");
+  await step("+ and −", async () => { await page.tap("#st-switch-more"); await page.tap("#st-switch-more"); await page.tap("#st-switch-less"); }, () => document.querySelector(".st-dialog[open] .st-study-say")?.textContent === "Du studierst Informatik B.Sc. im 4. Fachsemester." && document.querySelector(".st-foot-state")?.textContent === "1 Änderung");
+  check((await cardAt(page, ".st-dialog[open]")) === sheetAt, `− and + moved the sheet: ${sheetAt} → ${await cardAt(page, ".st-dialog[open]")}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   // A column leads to its semester, one that is over to the left of the overview; Back to the
   // overview.
@@ -824,7 +828,7 @@ if (current !== "2026W") {
 {
   const html = await fetch(base + "/study").then((r) => r.text());
   check(html.includes('content="noindex') && html.includes("<title>Mein Studium · Betula</title>"), "the server's page of „Mein Studium“ is not one page for no index");
-  check(/<a [^>]*data-area="programs" href="\/programs"/.test(html), "the server's Studium tab does not lead to the overview");
+  check(/<a [^>]*data-area="programs"[^>]* href="\/programs"/.test(html), "the server's Studium tab does not lead to the overview");
   const old = await fetch(base + "/programs/bachelor-informatik-2008/my-plan").then((r) => r.text());
   check(old.includes('href="/study"') && old.includes('content="noindex'), "„Mein Plan“ does not lead on to „Mein Studium“");
 }
