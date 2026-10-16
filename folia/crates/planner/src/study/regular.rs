@@ -90,9 +90,18 @@ struct Group {
 #[derive(Clone, Debug, PartialEq)]
 struct Column {
     fs: u8,
-    /// The semester it is for the student, short: „WiSe 25/26".
-    when: Option<String>,
+    /// The semester it is for the student, short, its half of the year and its year: („WiSe",
+    /// „25/26"), („SoSe", „26").
+    when: Option<(String, String)>,
     now: bool,
+}
+
+/// „WiSe 25/26" as its half of the year and its year, each a line of a column's head.
+fn halves(short: &str) -> (String, String) {
+    match short.split_once(' ') {
+        Some((season, year)) => (season.to_string(), year.to_string()),
+        None => (short.to_string(), String::new()),
+    }
 }
 
 /// A Fachsemester, or several the plan's rows span together, as a phone's section.
@@ -229,7 +238,7 @@ impl Sheet {
         // The columns: every Fachsemester of the plan.
         let last = view.lines.iter().map(|line| line.last).max().unwrap_or(1);
         let semester_of = |fs: u8| study::semester_of_fs(study.start, fs, &ready.setup.leave);
-        let columns: Vec<Column> = (1..=last).map(|fs| Column { fs, when: semester_of(fs).map(|s| short(s, t)), now: semester_of(fs) == Some(study.now) }).collect();
+        let columns: Vec<Column> = (1..=last).map(|fs| Column { fs, when: semester_of(fs).map(|s| halves(&short(s, t))), now: semester_of(fs) == Some(study.now) }).collect();
 
         // The foot: the plan's sums, a span where it sums several Fachsemester together; what the
         // student has in each (passed in one that is over, else passed and planned).
@@ -499,10 +508,17 @@ fn PlanTable(ctx: StudyCtx, sheet: Sheet) -> impl IntoView {
                             <th scope="col" class="nm">{v.col_module}</th>
                             <th scope="col" class="st-kindc">{v.col_kind}</th>
                             {sheet.columns.iter().map(|column| view! {
+                                // Every head the same lines, so that the numbers stand in one row
+                                // (owner, 2026-10-16: „die semester so durcheinander angezeigt";
+                                // „WiSe 26/27" broke into two lines and „SoSe 27" did not): the
+                                // mark of the current one (its place kept in the others), the
+                                // Fachsemester, the half of the year, the year.
                                 <th scope="col" class="fs" class:now=column.now>
-                                    <b>{column.fs}</b>
-                                    {column.when.clone().map(|when| view! { <small>{when}</small> })}
-                                    {column.now.then(|| view! { <small class="st-now-w">{t.study.now}</small> })}
+                                    <span class="st-fs-head">
+                                        <span class="st-fs-now">{column.now.then(|| view! { <span class="st-now">{t.study.now}</span> })}</span>
+                                        <b>{column.fs}</b>
+                                        {column.when.clone().map(|(season, year)| view! { <small>{season}</small><small>{year}</small> })}
+                                    </span>
                                 </th>
                             }).collect_view()}
                             <th scope="col" class="st-minec">{move || if mine.get() { v.col_mine } else { v.col_credits }}</th>

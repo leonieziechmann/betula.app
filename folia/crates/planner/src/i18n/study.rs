@@ -26,8 +26,11 @@ pub struct Texts {
     pub my_program: &'static str,
     /// A program of one plan: what its study direction's field says.
     pub no_direction: &'static str,
-    /// „WiSe 2025/26 · jetzt 3. FS": a Studienbeginn and the Fachsemester it makes the current one.
-    pub start_entry: fn(&str, u8) -> String,
+    /// The Studienbeginn's field while no program is chosen.
+    pub program_first: &'static str,
+    /// „jetzt 3. FS": beside a Studienbeginn („WiSe 2025/26"), the Fachsemester it makes the
+    /// current one.
+    pub start_entry: fn(u8) -> String,
     /// „Deine bisherigen Semester": how the semesters before the current one begin.
     pub past_legend: &'static str,
     pub start_empty: &'static str,
@@ -362,7 +365,8 @@ pub const DE: Texts = Texts {
     search_program: "Studiengang suchen",
     my_program: "Mein Studiengang",
     no_direction: "Keine zur Wahl in diesem Studiengang",
-    start_entry: |semester, fs| format!("{semester} · jetzt {fs}. FS"),
+    program_first: "Erst den Studiengang wählen",
+    start_entry: |fs| format!("jetzt {fs}. FS"),
     past_legend: "Deine bisherigen Semester",
     start_empty: "Leer beginnen",
     start_empty_hint: "Du trägst selbst ein, was du belegt hast – aus dem Regelstudienplan oder dem Katalog.",
@@ -613,7 +617,8 @@ pub const EN: Texts = Texts {
     search_program: "Search degree programmes",
     my_program: "My programme",
     no_direction: "None to choose in this programme",
-    start_entry: |semester, fs| format!("{semester} · now semester {fs}"),
+    program_first: "Choose the programme first",
+    start_entry: |fs| format!("now semester {fs}"),
     past_legend: "Your semesters so far",
     start_empty: "Start empty",
     start_empty_hint: "You enter what you took yourself – from the standard study plan or the catalogue.",

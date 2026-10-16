@@ -8,11 +8,11 @@ use folia_calendar::semester::SemesterKey;
 use folia_plans::study;
 use leptos::prelude::*;
 
-use folia_design::combobox::Combobox;
+use folia_design::combobox::{Combobox, Select};
 use folia_design::ui::Icon;
 use folia_stores::myprogram::program_name;
 
-use super::side::{direction_options, kept_plan, plans_of, program_items, start_options, PlainSelect};
+use super::side::{direction_options, kept_plan, plans_of, program_items, start_options};
 use super::{assumed_start, chosen, input_of, now_secs, rows_of, Setup as Asked, State, StudyCtx};
 use crate::i18n;
 
@@ -120,33 +120,31 @@ pub(super) fn Setup(ctx: StudyCtx) -> impl IntoView {
                         clearable=false
                     />
                 </label>
-                <label class="st-field">
+                <div class="st-field">
                     <span class="label">{s.start}</span>
-                    <PlainSelect
+                    <Select
                         id="st-start"
                         label=s.start
-                        options=Signal::derive(move || options.get())
-                        chosen=Signal::derive(move || start_now.get().map(SemesterKey::key).unwrap_or_default())
-                        pick=Callback::new(move |value: String| start.set(SemesterKey::parse(&value)))
+                        items=Signal::derive(move || options.get())
+                        selected=Signal::derive(move || start_now.get().map(SemesterKey::key).unwrap_or_default())
+                        on_select=Callback::new(move |value: String| start.set(SemesterKey::parse(&value)))
                         disabled=Signal::derive(move || program.with(Option::is_none))
+                        placeholder=s.program_first
                     />
-                </label>
-                <label class="st-field">
+                </div>
+                <div class="st-field">
                     <span class="label">{s.direction}</span>
-                    {move || if directions.with(Vec::is_empty) {
-                        view! { <span class="select-wrap plain"><select id="st-direction" aria-label=s.direction disabled=true><option>{s.no_direction}</option></select><Icon name="chevrons-up-down"/></span> }.into_any()
-                    } else {
-                        view! {
-                            <PlainSelect
-                                id="st-direction"
-                                label=s.direction
-                                options=Signal::derive(move || directions.get())
-                                chosen=Signal::derive(move || plan_index.get().unwrap_or(0).to_string())
-                                pick=Callback::new(move |value: String| direction.set(value.parse().ok()))
-                            />
-                        }.into_any()
-                    }}
-                </label>
+                    // A program of one plan: nothing to choose, which the field says.
+                    <Select
+                        id="st-direction"
+                        label=s.direction
+                        items=Signal::derive(move || directions.get())
+                        selected=Signal::derive(move || if directions.with(Vec::is_empty) { String::new() } else { plan_index.get().unwrap_or(0).to_string() })
+                        on_select=Callback::new(move |value: String| direction.set(value.parse().ok()))
+                        disabled=Signal::derive(move || directions.with(Vec::is_empty))
+                        placeholder=s.no_direction
+                    />
+                </div>
             </div>
             {move || before.get().map(|span| view! {
                 <fieldset class="st-choice">
