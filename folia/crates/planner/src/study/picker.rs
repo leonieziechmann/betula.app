@@ -19,6 +19,7 @@ use folia_routes::filter::{CatalogQuery, ProgramRelation, ProgramScope};
 use leptos::prelude::*;
 
 use folia_data::use_ask;
+use folia_design::combobox::{ComboItem, Select};
 use folia_design::ui::Icon;
 
 use super::dialog::DialogHead;
@@ -345,7 +346,7 @@ fn PickFoot(ctx: StudyCtx, semester: SemesterKey, picked: RwSignal<Vec<(String, 
                     format!("{}{compare}", (st.after_add)(&semester.label(t.locale), &n(after, t)))
                 })}</p>
             </div>
-            <button class="btn secondary st-pc" type="button" on:click=move |_| ctx.dialog.set(None)>{st.cancel}</button>
+            <button class="btn secondary" type="button" on:click=move |_| ctx.dialog.set(None)>{st.cancel}</button>
             <button class="btn primary" type="button" id="st-insert" disabled=move || picked.with(Vec::is_empty) on:click=insert><Icon name="plus"/>{move || (st.insert)(picked.with(Vec::len))}</button>
         </footer>
     }
@@ -413,7 +414,7 @@ pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, cho
         .flatten()
         .unwrap_or_default()
     });
-    let options = Memo::new(move |_| (1..=fs_of.get().1).map(|fs| (fs.to_string(), (st.fs_long)(fs))).collect::<Vec<_>>());
+    let options = Memo::new(move |_| (1..=fs_of.get().1).map(|fs| ComboItem::new(fs.to_string(), (st.fs_long)(fs), "", 0)).collect::<Vec<_>>());
 
     // The catalog.
     let text = RwSignal::new(String::new());
@@ -446,16 +447,17 @@ pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, cho
                 <button type="button" aria-pressed=move || if in_catalog.get() { "true" } else { "false" } on:click=move |_| in_catalog.set(true)>{st.tab_catalog}</button>
             </div>
             {move || (!in_catalog.get() && fs_of.get().1 > 0).then(|| view! {
-                <label class="st-inline">
+                <div class="st-inline">
                     <span class="label">{st.plan_semester}</span>
-                    <super::side::PlainSelect
+                    <Select
                         id="st-plan-fs"
                         label=st.plan_semester
-                        options=Signal::derive(move || options.get())
-                        chosen=Signal::derive(move || fs.get().to_string())
-                        pick=Callback::new(move |value: String| fs.set(value.parse().unwrap_or(1)))
+                        items=Signal::derive(move || options.get())
+                        selected=Signal::derive(move || fs.get().to_string())
+                        on_select=Callback::new(move |value: String| fs.set(value.parse().unwrap_or(1)))
+                        small=true
                     />
-                </label>
+                </div>
             })}
         </div>
         <div class="st-dlg-body st-pick">

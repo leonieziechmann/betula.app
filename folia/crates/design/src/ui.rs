@@ -255,6 +255,25 @@ pub fn Shortcut(keys: &'static str) -> impl IntoView {
     view! { <JsOnly><kbd>{keys}</kbd></JsOnly> }
 }
 
+/// The way out of a dialog (owner, 2026-10-16: „Neben Close steht kein esc, das sollte einheitlich,
+/// wie im rest der app sein"): „× Schließen" with its key, as a module beside the catalog's list has
+/// it; on a phone, which has no keys, the × alone in the sheet's corner. Esc itself is the dialog's:
+/// a `<dialog>` shown modally closes with it.
+#[component]
+pub fn DialogClose(
+    #[prop(into)] on_close: Callback<()>,
+    /// What it closes, for screen readers („Karte schließen"); „Schließen" without it.
+    #[prop(optional)]
+    label: Option<&'static str>,
+) -> impl IntoView {
+    let t = i18n::t();
+    view! {
+        <button class="ghost hit dlg-close" type="button" aria-label=label.unwrap_or(t.common.close) on:click=move |_| on_close.run(())>
+            <Icon name="x"/><span class="dlg-close-word">{t.common.close}</span><Shortcut keys="Esc"/>
+        </button>
+    }
+}
+
 /// „Nach oben" (owner, 2026-09-26: after a while in the catalog's list it was hard to get back to
 /// its top): one button for every page, floating in the corner of what scrolls — the page on a
 /// wide screen (left of a module or an area that floats beside it), the window on a phone, above

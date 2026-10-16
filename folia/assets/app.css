@@ -597,6 +597,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ghost { min-height: 36px; padding: 0 10px; border-radius: var(--r-ctl); color: var(--text-2); font-weight: 550; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .ghost:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
 .ghost .icon { width: 16px; height: 16px; }
+/* The way out of a dialog, „Schließen" with its key (`ui::DialogClose`), as a module beside a list
+   has it; a phone, which has no keys, has the × alone in the sheet's corner. */
+.dlg-close { flex: none; }
 .icon-btn { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; color: var(--text-3); text-decoration: none; transition: background .12s, color .12s, transform .12s; }
 .icon-btn:hover { background: var(--panel-3); color: var(--text); }
 .icon-btn:active { transform: scale(.94); }
@@ -653,12 +656,6 @@ details.fgroup.more > summary { display: flex; color: var(--text-3); font-weight
 .flabel .legend { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-3) !important; font-weight: 500 !important; }
 .legend .box { margin-left: 5px; }
 .more .flabel { margin-top: 12px; }
-.select-wrap { position: relative; display: block; }
-.select-wrap select { appearance: none; width: 100%; min-height: 40px; padding: 0 34px 0 40px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 600; cursor: pointer; text-overflow: ellipsis; }
-.select-wrap select:hover { background: var(--panel-3); }
-.select-wrap > .icon:first-child { position: absolute; left: 12px; top: 11px; color: var(--text-2); pointer-events: none; }
-.select-wrap > .icon:last-child { position: absolute; right: 10px; top: 12px; width: 16px; height: 16px; color: var(--text-3); pointer-events: none; }
-.select-wrap.plain select { padding-left: 12px; font-weight: 520; min-height: 36px; font-size: 13px; }
 
 /* One of a few: the row fills the width, every choice the same share of it. Where a choice's words
    (span.seg-label) are wider than its share they end in „…"; what follows them (a count, „bald")
@@ -760,6 +757,13 @@ html:not(.js) .fit-chip { display: none; }
 .combo-clear .icon { width: 14px; height: 14px; }
 .combo:has(.combo-clear) .combo-value { margin-right: 26px; }
 .more .combo-trigger { min-height: 36px; font-size: 13px; font-weight: 560; }
+/* A select (`combobox::Select`, owner, 2026-10-16: „Dropdown menus allgemein sind im browser
+   styling passe das mal an, so dass das mehr mit der combobox matcht"): the combobox's button and
+   popup, no search; the smaller one in a bar of tools. */
+.combo.small .combo-trigger { min-height: 34px; gap: 8px; padding: 0 8px 0 10px; font-size: 13px; font-weight: 560; }
+.combo.small .combo-chevron { width: 15px; height: 15px; }
+.combo-trigger[disabled] { cursor: default; background: var(--panel-2); color: var(--text-3); }
+.combo-trigger[disabled] .combo-value.placeholder { color: var(--text-3); }
 .more .combo-clear { top: 4px; }
 .combo-pop { position: fixed; z-index: 60; left: var(--x, 8px); top: var(--y, auto); bottom: var(--b, auto); width: var(--w, 340px); max-height: var(--h, 420px); display: flex; flex-direction: column; overflow: hidden; background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-pop); animation: pop-in .12s var(--ease); }
 .combo-search { flex: none; height: 44px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--text-3); }
@@ -1825,7 +1829,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .show-play .icon { width: 14px; height: 14px; fill: currentColor; }
 @media (prefers-reduced-motion: reduce) { .show-progress { animation: show-progress 7s linear forwards !important; } }
 
-/* The map, large: a dialog over the page (Escape, the ✕ or a click beside it closes it). Its grid
+/* The map, large: a dialog over the page (Escape, „Schließen" or a click beside it closes it). Its grid
    places the head, the map and the caption one under the other, the legend on the map's upper
    left corner; on a wide screen the legend and the caption stand beside the map, under the head. */
 .map-dialog { width: min(1120px, calc(100vw - 48px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; border: 0; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); overflow: hidden; overscroll-behavior: contain; }
@@ -1838,7 +1842,6 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .map-dialog-head > div { flex: 1 1 auto; min-width: 0; }
 .map-dialog-head h2 { font-size: 17px; font-weight: 680; letter-spacing: -.015em; }
 .map-dialog-head p { margin-top: 4px; color: var(--text-2); font-size: 13.5px; line-height: 1.5; max-width: 80ch; text-wrap: pretty; }
-.map-dialog-close { flex: none; }
 /* 4:3 as wide as the dialog, unless the height of the screen (less head and caption) is shorter. */
 .map-dialog .map-live { grid-area: map; aspect-ratio: auto; height: min(calc(min(1120px, 100vw - 48px) * 3 / 4), calc(100vh - 48px - 170px)); }
 .map-dialog .map-cap { grid-area: cap; height: 54px; }
@@ -2311,14 +2314,14 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .ability:not(:nth-child(3n)) { border-right: 1px solid var(--line); }
 }
 /* A wide screen: the map as large as the height allows (4:3), the head, the legend and what is
-   shown in a column on its left, the ✕ in the dialog's corner. */
+   shown in a column on its left, „Schließen" in the dialog's corner. */
 @media (min-width: 1100px) and (min-aspect-ratio: 7 / 5) {
   .map-dialog { --side: 340px; width: min(calc(100vw - 48px), calc((100vh - 48px) * 4 / 3 + var(--side))); height: min(calc(100vh - 48px), calc((100vw - 48px - var(--side)) * 3 / 4)); }
   .map-dialog[open] { grid-template-columns: var(--side) minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "head map" "key map" "cap map"; }
   .map-dialog-head { padding: 24px 24px 16px; border-bottom: 0; }
   .map-dialog-head h2 { font-size: 19px; line-height: 1.25; text-wrap: balance; }
   .map-dialog-head p { margin-top: 8px; font-size: 14px; line-height: 1.55; }
-  .map-dialog-close { position: absolute; top: 12px; right: 12px; z-index: 2; background: color-mix(in srgb, var(--panel) 90%, transparent); box-shadow: 0 0 0 1px var(--line); }
+  .map-dialog-head .dlg-close { position: absolute; top: 12px; right: 12px; z-index: 2; background: color-mix(in srgb, var(--panel) 90%, transparent); box-shadow: 0 0 0 1px var(--line); }
   .map-dialog .map-live { height: auto; border-left: 1px solid var(--line); }
   .map-dialog .map-holder { inset: 20px; }
   .map-dialog .live-key { grid-area: key; align-self: auto; justify-self: stretch; display: grid; gap: 9px; margin: 0 24px; padding: 16px 0 18px; border-radius: 0; border-top: 1px solid var(--line); background: none; box-shadow: none; color: var(--text-2); font-size: 13px; }
@@ -2936,7 +2939,7 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    (.sp-event > h3 + .sp-rowline …), each Termin a line with its eye, the one the address points
    at current; an open choice under „1 von 4 wählen" (.sp-choice); what is hidden dimmed. */
 .sp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
-.sp-actions select { min-height: 32px; max-width: 100%; padding: 0 8px; border: 0; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; }
+.sp-actions > .combo { max-width: 100%; }
 .sp-event { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); }
 /* The first event stands right under the head, whose rule is enough. */
 .dbody > .sp-event:first-child { border-top: 0; margin-top: 0; }
@@ -2998,10 +3001,10 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
    „Plan speichern" and one line per saved plan (name, modules, ×), the loaded one marked. */
 .sp-program .combo { width: 100%; }
 .sp-more { display: inline-block; margin: 6px 2px 0; font-size: 13px; font-weight: 560; }
-.sp-import > .select-wrap { margin-top: 8px; }
+.sp-import > .combo { margin-top: 8px; }
 .seg button small { margin-left: 5px; color: var(--text-3); font-size: 11px; font-weight: 500; }
 .sp-import-go { display: flex; gap: 8px; margin-top: 8px; }
-.sp-import-go > .select-wrap { flex: 1; min-width: 0; }
+.sp-import-go > .combo { flex: 1; min-width: 0; }
 .sp-import-go > .btn { flex: none; min-height: 36px; }
 .sp-import > .hint, .sp-import > .note-action { margin-top: 6px; }
 .sp-save { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0 6px; }
@@ -3207,6 +3210,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* The crown carries the bar's frosted ground (see „the birch"), so the bar itself lets it through. */
   .topbar { position: sticky; top: 0; z-index: 21; height: auto; padding: 20px 12px 10px; }
   .crumb, .top-end, kbd { display: none; }
+  .dlg-close { width: 40px; height: 40px; padding: 0; justify-content: center; }
+  .dlg-close-word { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
   .brand-phone .logo { margin: 0; }
   /* „inoffiziell" stays with the name, whole: where the line has no room for it beside the
@@ -3358,7 +3363,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .box { width: 18px; height: 18px; border-radius: 5px; }
   .box .icon { width: 13px; height: 13px; }
   .seg a, .seg button { min-height: 40px; font-size: 14.5px; }
-  .combo-trigger, .more .combo-trigger { min-height: 46px; font-size: 15px; }
+  .combo-trigger, .more .combo-trigger, .combo.small .combo-trigger { min-height: 46px; font-size: 15px; }
   .combo-clear, .more .combo-clear { top: 9px; }
   /* The popup of a picker opens under its button and across the panel it stands in (owner,
      2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen (mit margin
@@ -3372,7 +3377,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .combo-foot { display: none; }
   .credits { --knob: 24px; --thumb: 40px; }
   .slider::before { left: 8px; right: 8px; }
-  .select-wrap select, .select-wrap.plain select, .field input, .range input { min-height: 46px; font-size: 15px; }
+  .field input, .range input { min-height: 46px; font-size: 15px; }
   details.fgroup > summary { min-height: 40px; }
   .framed { display: flex; flex-direction: column; }
   .framed > .page { padding: 0 12px 12px; }
@@ -3572,9 +3577,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sp-exam { grid-template-columns: minmax(0, 1fr) auto; }
   .sp-exam .eye { grid-column: 2; grid-row: 1 / span 2; }
   .sp-field { grid-template-columns: minmax(0, 1fr); }
-  .sp-field > .seg, .sp-field > select { max-width: none; width: 100%; }
+  .sp-field > .seg { max-width: none; width: 100%; }
   .sp-row { min-height: 48px; }
-  .sp-actions select { min-height: 44px; }
   .sk.sk-week-tall { height: 300px; }
 }
 /* ---------- „Mein Studium" (folia/crates/planner/src/study) ----------
@@ -3890,27 +3894,47 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-grid-legend > span { display: inline-flex; align-items: center; gap: 5px; }
 .st-grid-legend .icon { width: 13px; height: 13px; }
 
-/* The dialogs: in the middle of the window, a sheet from below on a phone. */
-.st-dialog { width: min(480px, calc(100vw - 48px)); max-width: none; max-height: calc(100dvh - 48px); padding: 0; border: 0; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); overflow: hidden; overscroll-behavior: contain; }
-.st-dialog.medium { width: min(680px, calc(100vw - 48px)); }
-.st-dialog.wide { width: min(760px, calc(100vw - 48px)); }
+/* The dialogs: in the middle of the window, a sheet from below on a phone. One frame in three
+   sizes (owner, 2026-10-16: „Modale menus springen zu viel in der größe. Erstelle dir mal 3
+   verschiedene größen, unter den man dann auswählen kann"), which a kind of dialog picks by what it
+   holds and keeps while it is open, whatever its content does (`study/dialog.rs`):
+   - s, a question or a note: 440 px wide, as tall as what it says;
+   - m, a form or an overview: 600 × 600 px („Studiengang wechseln", the areas, an area);
+   - l, a list to choose from: 840 × 720 px („Module hinzufügen", a choice's modules);
+   each at most the window less 24 px all round, the body scrolling inside. On a phone each is a
+   sheet as wide as the screen: s as tall as its content, m three quarters of the screen, l all
+   but its top. Until then the width was the kind's and the height the content's: „Module
+   hinzufügen" shrank to a third when its tab changed, „Studiengang wechseln" grew and shrank with
+   the program picked. The map of the start page is a picture as large as the window allows, no
+   dialog of these sizes; its head and its way out are theirs. */
+.st-dialog { width: min(440px, calc(100vw - 48px)); max-width: none; height: auto; max-height: calc(100dvh - 48px); padding: 0; border: 0; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); overflow: hidden; overscroll-behavior: contain; }
+.st-dialog.m { width: min(600px, calc(100vw - 48px)); height: min(600px, calc(100dvh - 48px)); }
+.st-dialog.l { width: min(840px, calc(100vw - 48px)); height: min(720px, calc(100dvh - 48px)); }
 .st-dialog[open] { display: flex; flex-direction: column; animation: dialog-in .3s var(--spring); }
 .st-dialog::backdrop { background: rgba(10, 12, 17, .5); }
 .st-dialog[open]::backdrop { animation: fade-in .2s ease-out; }
 :root:has(.st-dialog[open]) { overflow: hidden; }
 .st-dlg { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.st-dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 12px 12px 22px; }
-.st-dlg-head > div { flex: 1 1 auto; min-width: 0; }
+/* Head, bar and foot as tall as what they hold; the body takes the rest of the frame and scrolls. */
+.st-dlg-head, .st-dlg-bar, .st-dlg-foot { flex: none; }
+.st-dlg-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 14px 12px 22px; }
+.st-dlg-head > div { flex: 1 1 auto; min-width: 0; padding-top: 2px; }
+.st-dlg-head .dlg-close { margin-top: -6px; }
 .st-dlg-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
 .st-dlg-head h2 .st-dot { width: 10px; height: 10px; }
 .st-dlg-head p { margin: 4px 0 0; color: var(--text-2); font-size: 13.5px; line-height: 1.5; text-wrap: pretty; }
-.st-dlg-close { flex: none; }
 .st-grip { display: none; }
 .st-dlg-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 0 22px 12px; border-bottom: 1px solid var(--line); }
+/* As tall with the plan's semester to pick as without it (the small select, 34 px, its padding
+   and its line): the line under it stays where it is. */
+.st-dlg-bar:not(.column) { min-height: 47px; }
 .st-dlg-bar.column { flex-direction: column; align-items: stretch; }
 .st-inline { display: inline-flex; align-items: center; gap: 8px; }
 .st-dlg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 22px 18px; }
-.st-dlg-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 22px; border-top: 1px solid var(--line); background: var(--panel); }
+/* The buttons on the right, the primary last, as dialogs have them (owner, 2026-10-16: „Die
+   Buttons für bestätigen und abbruch sind links, anstatt der üblichen position rechts"); what the
+   foot says about them on their left. */
+.st-dlg-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 22px; border-top: 1px solid var(--line); background: var(--panel); }
 .st-foot-text { flex: 1 1 auto; min-width: 0; }
 .st-foot-text p { margin: 0; font-size: 13.5px; }
 .st-foot-text .st-sub { font-size: 12.5px; }
@@ -3970,7 +3994,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .st-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .st-field.wide { grid-column: 1 / -1; }
-.st-field .combo, .st-field .select-wrap, .st-field select { width: 100%; }
+.st-field .combo { width: 100%; }
 .st-counts { margin-top: 18px; }
 .st-counts h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
 .st-count-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -4080,10 +4104,18 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-mx th:last-child, .st-mx td:last-child { padding-right: 20px; text-align: right; }
 .st-mx thead th { border-top: 0; padding-top: 4px; padding-bottom: 8px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; vertical-align: bottom; }
 .st-mx thead th.fs { text-align: center; text-transform: none; letter-spacing: 0; }
-.st-mx thead th.fs b { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
-.st-mx thead th.fs small { display: block; font-size: 10.5px; font-weight: 550; line-height: 1.3; color: var(--text-3); }
+/* A Fachsemester's head (owner, 2026-10-16: „die semester so durcheinander angezeigt"): the same
+   lines in every column, so that the numbers stand in one row — the mark of the current one (its
+   place kept in the others, and in none where no column is the current one), the Fachsemester,
+   the half of the year, the year. Until then „WiSe 26/27" broke into two lines and „SoSe 27" did
+   not, and the heads, aligned at their foot, put each number at another height. */
+.st-fs-head { display: flex; flex-direction: column; align-items: center; }
+.st-fs-now { display: flex; align-items: flex-end; justify-content: center; height: 21px; padding-bottom: 4px; }
+.st-mx:not(:has(th.fs.now)) .st-fs-now { display: none; }
+.st-fs-now .st-now { padding: 0 5px; border-radius: 5px; font-size: 10px; line-height: 17px; }
+.st-fs-head b { font-size: 13px; font-weight: 700; line-height: 17px; color: var(--text); }
+.st-fs-head small { font-size: 10.5px; font-weight: 550; line-height: 13px; color: var(--text-3); white-space: nowrap; }
 .st-mx thead th.fs.now small { color: var(--accent-ink); font-weight: 650; }
-.st-mx thead th.fs small.st-now-w { text-transform: uppercase; font-size: 9.5px; letter-spacing: .06em; }
 .st-mx .fs { text-align: center; padding-left: 3px; padding-right: 3px; }
 .st-mx .fs.now { background: color-mix(in oklab, var(--accent) 7%, transparent); }
 .st-mx tr.g > th { padding: 14px 20px 6px; border-top: 1px solid var(--line-strong); }
@@ -4444,7 +4476,9 @@ a.st-rsp-name:hover { text-decoration: underline; }
      `data-sheet`): the sheet follows it (.dragging), the dim behind it fading as it goes (--drag,
      its share of the way); let go short of closing, it slides back up; let go far enough, or
      flicked, it goes on down (.dropped) and closes. */
-  .st-dialog, .st-dialog.medium, .st-dialog.wide { width: 100vw; max-width: 100vw; max-height: 92dvh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
+  .st-dialog, .st-dialog.m, .st-dialog.l { width: 100vw; max-width: 100vw; height: auto; max-height: 92dvh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
+  .st-dialog.m { height: 75dvh; }
+  .st-dialog.l { height: 92dvh; }
   .st-dialog[open] { animation: sheet-in .22s var(--ease); }
   .st-dialog:not(.dragging) { transition: transform .3s var(--ease); }
   .st-dialog::backdrop { opacity: calc(1 - var(--drag, 0) * .9); }
@@ -4452,9 +4486,16 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-dialog.dropped::backdrop { opacity: 0; transition: opacity .2s; }
   .st-grip { display: block; position: absolute; top: 6px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--line-strong); }
   .st-dlg-head { position: relative; padding: 18px 8px 10px 16px; touch-action: none; cursor: grab; }
+  .st-dlg-head > div { padding-top: 0; }
+  .st-dlg-head .dlg-close { margin: -10px 0 0; }
   .st-dlg-head h2 { font-size: 17px; }
   .st-dlg-bar, .st-dlg-body, .st-dlg-foot { padding-left: 16px; padding-right: 16px; }
-  .st-dlg-foot { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  /* The buttons side by side across the sheet, the primary on the right, and off the screen's
+     foot (owner, 2026-10-16: „Beim handy müssen die buttons etwas weiter vom boden weg sein. Und
+     die volle breite (zusammen) einnehmen"); what the foot says above them. */
+  .st-dlg-foot { padding-top: 14px; padding-bottom: max(24px, calc(14px + env(safe-area-inset-bottom))); }
+  .st-dlg-foot > .btn { flex: 1 1 0; min-width: 0; min-height: 48px; }
+  .st-dlg-foot > .st-foot-text { flex: 1 1 100%; }
   .st-fields, .st-count-row { grid-template-columns: minmax(0, 1fr); }
   .st-setup { padding: 18px 16px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }

@@ -25,7 +25,7 @@ use folia_plans::studyplan::PlanDoc;
 use folia_routes::url::{self, ProgramTab, ProgramUrl, StudyUrl, StudyView};
 use leptos::prelude::*;
 
-use folia_design::combobox::{with_first, ComboItem, Combobox};
+use folia_design::combobox::{with_first, ComboItem, Combobox, Select};
 use folia_design::ui::Icon;
 use folia_shell::pending::Pending;
 use folia_stores::myprogram::{po_of, program_name, ProgramPlans};
@@ -360,45 +360,16 @@ pub(super) fn plans_of(ctx: StudyCtx, id: Signal<Option<String>>) -> Memo<Option
     })
 }
 
-/// The semesters a study may have begun in, each with the Fachsemester it makes the current one.
-pub(super) fn start_options(now: SemesterKey, leave: &BTreeSet<SemesterKey>, t: &Texts) -> Vec<(String, String)> {
+/// The semesters a study may have begun in, each with the Fachsemester it makes the current one
+/// beside it („WiSe 2025/26", „jetzt 3. FS").
+pub(super) fn start_options(now: SemesterKey, leave: &BTreeSet<SemesterKey>, t: &Texts) -> Vec<ComboItem> {
     (-STARTS_AFTER..=STARTS_BEFORE)
         .filter_map(|n| now.plus(-n))
         .map(|start| {
-            let label = match study::fs_of(start, now, leave) {
-                Some(fs) => (t.study.start_entry)(&start.label(t.locale), fs),
-                None => start.label(t.locale),
-            };
-            (start.key(), label)
+            let fs = study::fs_of(start, now, leave).map(|fs| (t.study.start_entry)(fs)).unwrap_or_default();
+            ComboItem::new(start.key(), start.label(t.locale), fs, 0)
         })
         .collect()
-}
-
-/// A select of `options` (value, label) with `chosen`; `pick` gets the value picked.
-#[component]
-pub(super) fn PlainSelect(
-    id: &'static str,
-    label: &'static str,
-    #[prop(into)] options: Signal<Vec<(String, String)>>,
-    #[prop(into)] chosen: Signal<String>,
-    pick: Callback<String>,
-    #[prop(optional, into)] disabled: Signal<bool>,
-) -> impl IntoView {
-    view! {
-        <span class="select-wrap plain">
-            <select id=id aria-label=label prop:value=move || chosen.get() disabled=move || disabled.get() on:change=move |ev| pick.run(event_target_value(&ev))>
-                <For
-                    each=move || options.get()
-                    key=|entry| entry.clone()
-                    children=move |(value, text): (String, String)| {
-                        let here = value.clone();
-                        view! { <option value=value selected=move || chosen.with(|chosen| *chosen == here)>{text}</option> }
-                    }
-                />
-            </select>
-            <Icon name="chevrons-up-down"/>
-        </span>
-    }
 }
 
 /// The plan picked of `source` (an index of its plans), as „Mein Studiengang" keeps it: its
@@ -411,10 +382,10 @@ pub(super) fn kept_plan(source: &PlanSource, index: usize) -> (String, Option<St
 }
 
 /// The plans of `source` to choose a study direction from: index and label, where there are two.
-pub(super) fn direction_options(source: &PlanSource) -> Vec<(String, String)> {
+pub(super) fn direction_options(source: &PlanSource) -> Vec<ComboItem> {
     match source.variants.len() {
         0 | 1 => Vec::new(),
-        _ => source.variants.iter().enumerate().map(|(index, plan)| (index.to_string(), plan.label.clone())).collect(),
+        _ => source.variants.iter().enumerate().map(|(index, plan)| ComboItem::new(index.to_string(), plan.label.clone(), "", 0)).collect(),
     }
 }
 
@@ -458,12 +429,21 @@ pub(super) fn SwitchDialog(ctx: StudyCtx) -> impl IntoView {
     let start = RwSignal::new(before.get_untracked().map(|(_, setup)| setup.start));
     let direction = RwSignal::new(before.get_untracked().and_then(|(_, setup)| setup.shown).unwrap_or(0));
     let source = plans_of(ctx, program.into());
-    // A program picked anew starts with its first plan.
+    // Another program starts with its first plan, in its first Fachsemester now: who changes
+    // program mostly begins the new one (owner, 2026-10-16: „wenn man den studiengang wechselt, dann
+    // ist es wahrscheinlich, dass das fachsemester wieder bei 1 ist. Aber wenn man zurück den
+    // aktuellen studiengang auswählt. Dann sollten die werte wieder zurück"). The program kept,
+    // picked again, brings back its Studienbeginn and its study direction.
     let pick_program = Callback::new(move |id: Option<String>| {
-        if id.is_some() && id != program.get_untracked() {
-            program.set(id);
-            direction.set(0);
+        if id.is_none() || id == program.get_untracked() {
+            return;
         }
+        let kept = before.with_untracked(|before| before.as_ref().map(|(kept, setup)| (Some(&kept.id) == id.as_ref(), setup.start, setup.shown, setup.now)));
+        if let Some((same, kept_start, shown, now)) = kept {
+            start.set(Some(if same { kept_start } else { now }));
+            direction.set(if same { shown.unwrap_or(0) } else { 0 });
+        }
+        program.set(id);
     });
     let preview = Memo::new(move |_| {
         let (_, setup) = before.get()?;
@@ -507,27 +487,27 @@ pub(super) fn SwitchDialog(ctx: StudyCtx) -> impl IntoView {
                         clearable=false
                     />
                 </label>
-                <label class="st-field">
+                <div class="st-field">
                     <span class="label">{s.start}</span>
-                    <PlainSelect
+                    <Select
                         id="st-switch-start"
                         label=s.start
-                        options=Signal::derive(move || options.get())
-                        chosen=Signal::derive(move || start.get().map(SemesterKey::key).unwrap_or_default())
-                        pick=Callback::new(move |value: String| start.set(SemesterKey::parse(&value)))
+                        items=Signal::derive(move || options.get())
+                        selected=Signal::derive(move || start.get().map(SemesterKey::key).unwrap_or_default())
+                        on_select=Callback::new(move |value: String| start.set(SemesterKey::parse(&value)))
                     />
-                </label>
+                </div>
                 {move || (!directions.with(Vec::is_empty)).then(|| view! {
-                    <label class="st-field">
+                    <div class="st-field">
                         <span class="label">{s.direction}</span>
-                        <PlainSelect
+                        <Select
                             id="st-switch-direction"
                             label=s.direction
-                            options=Signal::derive(move || directions.get())
-                            chosen=Signal::derive(move || direction.get().to_string())
-                            pick=Callback::new(move |value: String| direction.set(value.parse().unwrap_or(0)))
+                            items=Signal::derive(move || directions.get())
+                            selected=Signal::derive(move || direction.get().to_string())
+                            on_select=Callback::new(move |value: String| direction.set(value.parse().unwrap_or(0)))
                         />
-                    </label>
+                    </div>
                 })}
             </div>
             {move || preview.get().map(|counts| {

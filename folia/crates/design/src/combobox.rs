@@ -1,4 +1,5 @@
-//! A picker with a search field, for long lists (programs, lecturers, departments).
+//! A picker with a search field, for long lists (programs, lecturers, departments), and `Select`,
+//! its button and popup without the search, for a few entries (a Studienbeginn, a study direction).
 //!
 //! Type a few letters (word starts, initials and typos are understood, `folia_search::fuzzy`), move
 //! with the arrow keys, Enter takes the marked entry, Esc closes. It belongs to the browser app;
@@ -428,11 +429,287 @@ pub fn Combobox(
     }
 }
 
+/// How long letters typed one after the other look for one entry together.
+const TYPED_MS: u64 = 700;
+
+/// The entry that typed letters lead to: the next after `from` that begins with them. A letter
+/// typed again and again goes from one entry it begins to the next, as in the browser's own list.
+fn typed_row(items: &[ComboItem], typed: &str, from: usize) -> Option<usize> {
+    let typed = typed.to_lowercase();
+    let first = typed.chars().next()?;
+    let (needle, start) = if typed.chars().all(|c| c == first) { (first.to_string(), from + 1) } else { (typed, from) };
+    let count = items.len().min(MAX_SHOWN);
+    (0..count).map(|step| (start + step) % count).find(|row| items.get(*row).is_some_and(|item| item.label.to_lowercase().starts_with(&needle)))
+}
+
+/// A choice among a few entries that need no search (owner, 2026-10-16: „Dropdown menus allgemein
+/// sind im browser styling passe das mal an, so dass das mehr mit der combobox matcht"): the
+/// combobox's button and popup without its search field, in place of the browser's `<select>`,
+/// whose list each browser and system draws its own way (Windows a blue bar on grey, a phone a
+/// wheel). The button keeps the focus while the popup is open (the select-only combobox of the
+/// ARIA patterns): ↑ ↓, Pos1, Ende, Bild ↑ ↓ mark an entry, Enter or the space bar takes it, Esc
+/// closes the popup and nothing else, letters jump to the entry they begin; the mouse as in the
+/// combobox, and on a phone it opens in place as the combobox does.
+#[component]
+pub fn Select(
+    /// Id of the button; the parts of the popup derive theirs from it.
+    id: &'static str,
+    /// What is being picked, for screen readers: „Studienbeginn".
+    label: &'static str,
+    #[prop(into)] items: Signal<Vec<ComboItem>>,
+    /// The id of the selected entry.
+    #[prop(into)]
+    selected: Signal<String>,
+    /// The id of the entry picked, when it is another than the one selected.
+    #[prop(into)]
+    on_select: Callback<String>,
+    #[prop(optional, into)] disabled: Signal<bool>,
+    /// What the button says while no entry is selected.
+    #[prop(optional)]
+    placeholder: &'static str,
+    #[prop(optional)] icon: Option<&'static str>,
+    /// The popup is as wide as the button, but not narrower than this (its foot, the keys, needs
+    /// 300 px).
+    #[prop(default = 300.0)]
+    min_width: f64,
+    /// The smaller button, for a bar of tools („Plan-Semester").
+    #[prop(optional)]
+    small: bool,
+) -> impl IntoView {
+    let t = i18n::t();
+    let open = RwSignal::new(false);
+    let active = RwSignal::new(0usize);
+    let place = RwSignal::new(None::<PopupPlace>);
+    let typed = RwSignal::new((String::new(), 0u32));
+    let root = NodeRef::<leptos::html::Div>::new();
+    let list_id = format!("{id}-list");
+    let option_id = move |row: usize| format!("{id}-option-{row}");
+    let count = move || items.with(|items| items.len().min(MAX_SHOWN));
+
+    let current = Memo::new(move |_| {
+        let selected = selected.get();
+        items.with(|items| items.iter().find(|item| item.id == selected).map(|item| (item.label.clone(), item.detail.clone())))
+    });
+    let mark = move |row: usize| {
+        active.set(row);
+        nav::reveal_in_list(&option_id(row), false);
+    };
+    // Opens the popup with `at` marked, else the selected entry, in the middle of the list.
+    let show = move |at: Option<usize>| {
+        if disabled.get_untracked() {
+            return;
+        }
+        place.set(nav::popup_place(id, min_width));
+        open.set(true);
+        let selected = selected.get_untracked();
+        let start = at.or_else(|| items.with_untracked(|items| items.iter().position(|item| item.id == selected))).filter(|row| *row < MAX_SHOWN).unwrap_or(0);
+        active.set(start);
+        let option = option_id(start);
+        request_animation_frame(move || nav::reveal_in_list(&option, true));
+    };
+    let hide = move || {
+        if is_open(open) {
+            open.set(false);
+        }
+    };
+    let choose = move |row: usize| {
+        let Some(picked) = items.with_untracked(|items| items.get(row).map(|item| item.id.clone())) else { return };
+        hide();
+        nav::focus_by_id(id);
+        if picked != selected.get_untracked() {
+            on_select.run(picked);
+        }
+    };
+    // Letters typed: the entry they lead to, from the one marked (or selected, while closed).
+    let type_letter = move |letter: String| -> Option<usize> {
+        let (mut text, generation) = typed.get_untracked();
+        text.push_str(&letter);
+        let generation = generation.wrapping_add(1);
+        typed.set((text.clone(), generation));
+        set_timeout(
+            move || {
+                if typed.try_with_untracked(|(_, now)| *now == generation) == Some(true) {
+                    typed.set((String::new(), generation));
+                }
+            },
+            std::time::Duration::from_millis(TYPED_MS),
+        );
+        let from = if open.get_untracked() { active.get_untracked() } else { items.with_untracked(|items| items.iter().position(|item| item.id == selected.get_untracked())).unwrap_or(0) };
+        items.with_untracked(|items| typed_row(items, &text, from))
+    };
+
+    // Whatever moves the button closes the popup on a computer (see `Combobox`).
+    if let Some(ClosePopups(signal)) = use_context::<ClosePopups>() {
+        Effect::new(move |_| {
+            signal.track();
+            if open.get_untracked() && !nav::is_phone() && nav::popup_place(id, min_width) != place.get_untracked() {
+                hide();
+            }
+        });
+    }
+    Effect::new(move |_| {
+        let handle = window_event_listener(leptos::ev::resize, move |_| {
+            if !nav::is_phone() {
+                hide();
+            } else if is_open(open) {
+                place.set(nav::popup_place(id, min_width));
+            }
+        });
+        on_cleanup(move || handle.remove());
+    });
+
+    let on_key = move |ev: KeyboardEvent| {
+        if disabled.get_untracked() {
+            return;
+        }
+        let key = ev.key();
+        let last = count().saturating_sub(1);
+        // A letter (the space bar too while letters are being typed).
+        let letter = (key.chars().count() == 1 && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() && (key != " " || typed.with_untracked(|(text, _)| !text.is_empty()))).then(|| key.clone());
+        if !open.get_untracked() {
+            match key.as_str() {
+                "ArrowDown" | "ArrowUp" | "Enter" | " " => show(None),
+                "Home" => show(Some(0)),
+                "End" => show(Some(last)),
+                _ => match letter.and_then(type_letter) {
+                    Some(row) => show(Some(row)),
+                    None => return,
+                },
+            }
+            ev.prevent_default();
+            return;
+        }
+        let now = active.get_untracked().min(last);
+        match key.as_str() {
+            "ArrowDown" => mark((now + 1).min(last)),
+            "ArrowUp" => mark(now.saturating_sub(1)),
+            "PageDown" => mark((now + PAGE_STEP).min(last)),
+            "PageUp" => mark(now.saturating_sub(PAGE_STEP)),
+            "Home" => mark(0),
+            "End" => mark(last),
+            "Enter" => choose(now),
+            " " if letter.is_none() => choose(now),
+            "Escape" => {
+                hide();
+                nav::focus_by_id(id);
+            }
+            // Tab moves on; the popup closes when the focus has left.
+            "Tab" => return,
+            _ => match letter.and_then(type_letter) {
+                Some(row) => mark(row),
+                None => return,
+            },
+        }
+        ev.prevent_default();
+        ev.stop_propagation();
+    };
+    let on_focus_out = move |ev: FocusEvent| {
+        if !is_open(open) {
+            return;
+        }
+        let stays = ev.related_target().is_some_and(|target| {
+            root.get_untracked().is_some_and(|root| target.dyn_ref::<web_sys::Node>().is_some_and(|node| root.contains(Some(node))))
+        });
+        if !stays {
+            hide();
+        }
+    };
+    // A press on the popup (an entry, the scrollbar, the frame) must not take the focus from the
+    // button.
+    let keep_focus = move |ev: MouseEvent| ev.prevent_default();
+
+    let popup = {
+        let list_id = list_id.clone();
+        move || {
+            open.get().then(|| {
+                let style = move || place.get().map(|place| place.style()).unwrap_or_default();
+                let entries = move || {
+                    let selected = selected.get_untracked();
+                    items.with(|items| {
+                        items
+                            .iter()
+                            .take(MAX_SHOWN)
+                            .enumerate()
+                            .map(|(row, item)| {
+                                let is_selected = item.id == selected;
+                                let detail = item.detail.clone();
+                                view! {
+                                    <li
+                                        class="combo-option"
+                                        role="option"
+                                        id=option_id(row)
+                                        data-value=item.id.clone()
+                                        aria-selected=if is_selected { "true" } else { "false" }
+                                        class:active=move || active.get() == row
+                                        on:mousemove=move |_| if active.get_untracked() != row { active.set(row) }
+                                        on:click=move |_| choose(row)
+                                    >
+                                        <span class="combo-label">{item.label.clone()}</span>
+                                        {(!detail.is_empty()).then(|| view! { <small>{detail}</small> })}
+                                        {is_selected.then(|| view! { <Icon name="check"/> })}
+                                    </li>
+                                }
+                            })
+                            .collect_view()
+                    })
+                };
+                view! {
+                    <div class="combo-pop" style=style on:mousedown=keep_focus>
+                        <ul class="combo-list scroll" id=list_id.clone() role="listbox" aria-label=label>{entries}</ul>
+                        <div class="combo-foot"><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.combobox.key_move}" "<kbd>"Enter"</kbd>" "{t.combobox.key_take}" "<kbd>"Esc"</kbd>" "{t.combobox.key_close}</div>
+                    </div>
+                }
+            })
+        }
+    };
+
+    view! {
+        <div class="combo select" class:small=small node_ref=root data-open=move || open.get().then_some("true") on:focusout=on_focus_out>
+            <button
+                type="button"
+                class="combo-trigger"
+                id=id
+                role="combobox"
+                aria-haspopup="listbox"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                aria-controls=list_id
+                aria-activedescendant=move || open.get().then(|| option_id(active.get()))
+                aria-label=move || match current.get() {
+                    Some((name, _)) => format!("{label}: {name}"),
+                    None => format!("{label}: {placeholder}"),
+                }
+                // What is selected, as a `<select>` has its value (the checks read it).
+                data-value=move || selected.get()
+                disabled=move || disabled.get()
+                on:click=move |_| {
+                    if open.get_untracked() {
+                        hide();
+                    } else {
+                        show(None);
+                    }
+                    nav::focus_by_id(id);
+                }
+                on:keydown=on_key
+            >
+                {icon.map(|name| view! { <Icon name=name/> })}
+                <span class="combo-value" class:placeholder=move || current.get().is_none()>
+                    {move || match current.get() {
+                        Some((name, detail)) => view! { {name}{(!detail.is_empty()).then(|| view! { <small>{detail}</small> })} }.into_any(),
+                        None => placeholder.into_any(),
+                    }}
+                </span>
+                <Icon name="chevrons-up-down" class="combo-chevron"/>
+            </button>
+            {popup}
+        </div>
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use leptos::prelude::*;
 
-    use super::{grouped, is_open, rows_of, with_first, ComboItem};
+    use super::{grouped, is_open, rows_of, typed_row, with_first, ComboItem};
 
     #[test]
     fn a_combobox_that_is_gone_is_closed() {
@@ -475,5 +752,21 @@ mod tests {
         assert_eq!(with_first(&programs, None, "Mein Studiengang"), programs);
         assert_eq!(with_first(&programs, Some("weg"), "Mein Studiengang"), programs);
         assert_eq!(rows_of(&programs, "", true), [None, Some(0), Some(1)]);
+    }
+
+    #[test]
+    fn letters_lead_to_the_entry_they_begin() {
+        let starts: Vec<ComboItem> = ["WiSe 2026/27", "SoSe 2026", "WiSe 2025/26", "SoSe 2025"].iter().map(|label| ComboItem::new(*label, *label, "", 0)).collect();
+        // One letter again and again: from one entry it begins to the next, round the end.
+        assert_eq!(typed_row(&starts, "s", 0), Some(1));
+        assert_eq!(typed_row(&starts, "ss", 1), Some(3));
+        assert_eq!(typed_row(&starts, "s", 3), Some(1));
+        // Several letters: the first entry from the one marked on that begins with all of them.
+        assert_eq!(typed_row(&starts, "wise 2025", 0), Some(2));
+        assert_eq!(typed_row(&starts, "WISE 2026", 1), Some(0));
+        // Nothing begins so, or nothing typed.
+        assert_eq!(typed_row(&starts, "x", 0), None);
+        assert_eq!(typed_row(&starts, "", 0), None);
+        assert_eq!(typed_row(&[], "w", 0), None);
     }
 }
