@@ -830,9 +830,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     M.Sc., ins 1. Fachsemester."), then a row each for the program (its picker reads as the value,
     no box until pointed at; under it the plan's length, „Regelstudienplan: 6 Semester, 180 LP"),
     the study direction (owner: „es gibt noch studiengänge, wie etechnik, wo man noch ausrichtungen
-    hat"; „MIT und EET", „eine von 2"; „Keine zur Wahl" where the program has one plan, short so
-    that a phone's row has it whole) and the Fachsemester with − and + (under it „seit WiSe 2022/23", the semesters of leave
-    among them). The Fachsemester is asked for, not the Studienbeginn: the card keeps the semester
+    hat"; „MIT und EET", „eine von 2"; only where the program has study directions, see below) and
+    the Fachsemester with − and + (under it „seit WiSe 2022/23", the semesters of leave among
+    them). The Fachsemester is asked for, not the Studienbeginn: the card keeps the semester
     that makes the current one that Fachsemester (`study::start_of_fs`, the semesters of leave not
     counted); below the first it is a study that begins in one of the next two semesters. A row
     that differs from what is kept is tinted and says in its line what it was, with „Zurück" („vorher
@@ -840,13 +840,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     moves while the card is used** (owner: „aktuell passiert es noch, dass das layout jumped, wenn
     man zum beispiel das semester ändert. Das darf auf keinen fall passieren. Wenn man eine aktion
     macht, wie semester +/- darf nicht unterbrochen werden durch layout shifts"): the sentence is one
-    line (two on a phone), every row as tall whatever it says, its line one line cut with „…", the
-    direction's row there for a program without one too, a picker's list lies over what follows,
-    the box under the card has one height whatever it says, the foot's „Übernehmen" says the same
-    whatever changes and what it counts („2 Änderungen") stands on its left (on a phone over the
-    buttons). `e2e/study.mjs` measures the card's parts before and after + and − (the first visit,
-    a phone's sheet); measured as well at another program, a direction and the way back, not a
-    pixel moved.
+    line (two on a phone), every row as tall whatever it says, its line one line cut with „…", a
+    picker's list lies over what follows, the box under the card has one height whatever it says,
+    the foot's „Übernehmen" says the same whatever changes and what it counts („2 Änderungen")
+    stands on its left (on a phone over the buttons). `e2e/study.mjs` measures the card's parts
+    before and after + and − (the first visit, a phone's sheet). The one move is the study
+    direction's row (owner, the same day: „wenn ein studiengang keine ausrichtung hat, dann sollte
+    das nicht eingeblendet sein, ansonsten ist das verwirrend. Mach mal ne nette animation, wenn
+    sich das ausklappt"): it is there only where the program has study directions, unfolds as such a
+    program is picked (its height from nothing to its own, what it says sliding down into its place
+    a moment after) and folds away, quicker, for one without; while a program's plans are on their
+    way it stays as it is, and folded it is out of reach of Tab (`inert`). With less motion asked
+    for it is there or gone at once.
   - **The first visit** (`setup.rs`): while no program or no Studienbeginn is kept, „Richte dein
     Studium einmal ein": the card, empty („Wähle deinen Studiengang und dein Fachsemester."; the
     program kept elsewhere offered, the Fachsemester assumed by `studyplan::intake_start` until it

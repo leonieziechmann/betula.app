@@ -137,6 +137,10 @@ if (current !== "2026W") {
     legend: document.querySelector(".st-legend") !== null,
   }));
   check(fresh.title === "Mein Studium" && fresh.heading === "Richte dein Studium einmal ein" && fresh.tab === "page" && fresh.all && fresh.create === true && !fresh.legend, `the page without a program: ${JSON.stringify(fresh)}`);
+  // No program, no study direction to choose: its row is folded away, out of reach of Tab (owner,
+  // 2026-10-16: „wenn ein studiengang keine ausrichtung hat, dann sollte das nicht eingeblendet sein").
+  const fold = await page.$eval(".st-setup .st-fold", (el) => ({ height: el.getBoundingClientRect().height, inert: el.inert }));
+  check(fold.height === 0 && fold.inert, `the study direction's row without a program: ${JSON.stringify(fold)}`);
   check((await stored(page, PLAN)) === null && (await stored(page, MINE)) === null, "looking at „Mein Studium“ stored something");
   // The program: a winter intake starts in the current winter, which has nothing before it.
   await step("pick a program", async () => {

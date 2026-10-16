@@ -475,14 +475,15 @@ pub(super) fn SwitchDialog(ctx: StudyCtx) -> impl IntoView {
         }
     });
     let title = Memo::new(move |_| program.with(|program| all.with(|all| title_of(all, program.as_deref()))));
-    let directions = Memo::new(move |_| source.with(|source| source.as_ref().and_then(|source| source.as_ref().map(direction_options)).unwrap_or_default()));
+    // `None` while the plans are on their way (the card's row of them stays as it is meanwhile).
+    let directions = Memo::new(move |_| source.with(|source| source.as_ref().map(|source| source.as_ref().map(direction_options).unwrap_or_default())));
     let line = Memo::new(move |_| source.with(|source| source.as_ref().and_then(Option::as_ref).map(|source| plan_line(source, direction.get(), t))));
     // What changed: the program, its direction (of the same program), the Studienbeginn.
     let changed = Memo::new(move |_| {
         kept.with(|kept| {
             kept.as_ref().map_or((false, false, false), |kept| {
                 let other = program.with(|program| program.as_deref() != Some(kept.program.as_str()));
-                let direction = !other && !directions.with(Vec::is_empty) && direction.get() != kept.direction;
+                let direction = !other && directions.with(|directions| directions.as_ref().is_some_and(|directions| !directions.is_empty())) && direction.get() != kept.direction;
                 (other, direction, start.get() != Some(kept.start))
             })
         })
