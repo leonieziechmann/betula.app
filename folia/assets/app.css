@@ -1152,8 +1152,9 @@ button.action:hover { background: var(--panel-3); }
   .mark-switch > span:first-of-type { min-width: 64px; }
   .mini { min-height: 38px; padding: 0 14px; font-size: 14px; }
   .bottomnav .nav-count { top: -1px; right: 9px; box-shadow: 0 0 0 2px var(--panel); }
-  /* A tablet with a keyboard: the bar's tabs show their digits as the rail's do. */
-  :root[data-nav-keys] .bottomnav .nav-key { right: 9px; bottom: -4px; box-shadow: 0 0 0 2px var(--panel), inset 0 0 0 1px var(--line-strong); }
+  /* A tablet with a keyboard: the bar's tabs show their digits too, left of the mark (its name is
+     below it, its count at its right). */
+  :root[data-nav-keys] .bottomnav .nav-key { left: -6px; right: auto; top: 6.5px; bottom: auto; box-shadow: 0 0 0 2px var(--panel), inset 0 0 0 1px var(--line-strong); }
 }
 
 /* ---------- detail panel ---------- */

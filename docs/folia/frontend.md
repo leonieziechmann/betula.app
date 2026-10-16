@@ -2461,9 +2461,10 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   digits of the row above the letters only, so Alt and the number pad still type a character by
   its code on Windows; Ctrl, Alt or ⌘ with any other key (Ctrl+C, S, P and the rest) stays the
   browser's and the system's, and so does AltGr (on Windows Ctrl and Alt, which is why Alt is
-  alone there). Held for a quarter of a second, the keys show each tab's digit at the foot of its
-  mark (`NavKey`, `:root[data-nav-keys]`; in the rail, and in a phone's bar for a tablet with a
-  keyboard); another key or the mouse with them, and nothing shows until they are let go, so
+  alone there). Held for a quarter of a second, the keys show each tab's digit at its mark
+  (`NavKey`, `:root[data-nav-keys]`): at its foot in the rail, left of it in a phone's bar (a
+  tablet with a keyboard), where its name is below it and its count at its right; another key or
+  the mouse with them, and nothing shows until they are let go, so
   Alt+← or Alt+Tab shows nothing. Let go after the digits showed, the Alt opens no menu of
   the browser. Nothing while a modal dialog is open (`enhance.js`, „the navigation's keys").
 - **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
