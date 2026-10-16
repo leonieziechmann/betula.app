@@ -452,7 +452,8 @@ pub fn ModulePanel(
                         // Closing it leaves the page where it is (on a phone the window is what scrolls).
                         <a class="icon-btn back" href=close_href.clone() data-noscroll="" aria-label=t.module.close_preview><Icon name="arrow-left"/></a>
                         <span class="mono">{id.clone()}</span>
-                        <a class="ghost" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="F"/></a>
+                        // Not on a phone, where the panel is a sheet that goes all up (app.css).
+                        <a class="ghost full-view" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="F"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" data-back=back data-noscroll="" title=t.module.close_preview_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     <Heading data=data.clone() hint/>
