@@ -828,7 +828,7 @@ if (current !== "2026W") {
 {
   const html = await fetch(base + "/study").then((r) => r.text());
   check(html.includes('content="noindex') && html.includes("<title>Mein Studium · Betula</title>"), "the server's page of „Mein Studium“ is not one page for no index");
-  check(/<a [^>]*data-area="programs" href="\/programs"/.test(html), "the server's Studium tab does not lead to the overview");
+  check(/<a [^>]*data-area="programs"[^>]* href="\/programs"/.test(html), "the server's Studium tab does not lead to the overview");
   const old = await fetch(base + "/programs/bachelor-informatik-2008/my-plan").then((r) => r.text());
   check(old.includes('href="/study"') && old.includes('content="noindex'), "„Mein Plan“ does not lead on to „Mein Studium“");
 }
