@@ -13,8 +13,6 @@
 //! says what of the plan counts in the new one before anything changes (`SwitchDialog`). Nothing of
 //! the plan goes with a change; what counts nowhere there shows as „ohne Bereich".
 
-use std::collections::BTreeSet;
-
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::{CatalogRow, Program};
 use folia_pages::ask::{PlanSourceAsk, ProgramsAsk};
@@ -25,18 +23,15 @@ use folia_plans::studyplan::PlanDoc;
 use folia_routes::url::{self, ProgramTab, ProgramUrl, StudyUrl, StudyView};
 use leptos::prelude::*;
 
-use folia_design::combobox::{with_first, ComboItem, Combobox, Select};
+use folia_design::combobox::{with_first, ComboItem};
 use folia_design::ui::Icon;
 use folia_shell::pending::Pending;
 use folia_stores::myprogram::{po_of, program_name, ProgramPlans};
 
+use super::card::{Ids, Kept, Part, StudyCard};
 use super::dialog::DialogHead;
 use super::{chosen, input_of, n, rows_of, Dialog, Plans, Ready, Setup, StudyCtx, View};
 use crate::i18n::{self, Texts};
-
-/// How many semesters before the current one the Studienbeginn's select offers, and after it.
-const STARTS_BEFORE: i32 = 16;
-const STARTS_AFTER: i32 = 2;
 
 #[component]
 pub(super) fn StudySidebar(ctx: StudyCtx) -> impl IntoView {
@@ -360,18 +355,6 @@ pub(super) fn plans_of(ctx: StudyCtx, id: Signal<Option<String>>) -> Memo<Option
     })
 }
 
-/// The semesters a study may have begun in, each with the Fachsemester it makes the current one
-/// beside it („WiSe 2025/26", „jetzt 3. FS").
-pub(super) fn start_options(now: SemesterKey, leave: &BTreeSet<SemesterKey>, t: &Texts) -> Vec<ComboItem> {
-    (-STARTS_AFTER..=STARTS_BEFORE)
-        .filter_map(|n| now.plus(-n))
-        .map(|start| {
-            let fs = study::fs_of(start, now, leave).map(|fs| (t.study.start_entry)(fs)).unwrap_or_default();
-            ComboItem::new(start.key(), start.label(t.locale), fs, 0)
-        })
-        .collect()
-}
-
 /// The plan picked of `source` (an index of its plans), as „Mein Studiengang" keeps it: its
 /// caption and the page of a direction.
 pub(super) fn kept_plan(source: &PlanSource, index: usize) -> (String, Option<String>) {
@@ -402,7 +385,7 @@ struct Counts {
 fn counts(source: &PlanSource, setup: &Setup, doc: &PlanDoc, rows: &[CatalogRow]) -> Counts {
     let input = input_of(source, setup, doc, rows);
     let there = study::study(&input);
-    let mut counts = Counts { name: source.program.name.clone(), passed: (0.0, 0.0), planned: (0.0, 0.0), nowhere: Vec::new() };
+    let mut counts = Counts { name: format!("{} {}", source.program.name, source.program.degree()), passed: (0.0, 0.0), planned: (0.0, 0.0), nowhere: Vec::new() };
     for item in there.semesters.iter().flat_map(|semester| semester.items.iter()).filter(|item| item.passed || !item.failed) {
         let credits = item.credits.unwrap_or(0.0);
         let counted = item.area.is_some();
@@ -417,18 +400,52 @@ fn counts(source: &PlanSource, setup: &Setup, doc: &PlanDoc, rows: &[CatalogRow]
     counts
 }
 
-/// „Studiengang wechseln": another program, its study direction and the Studienbeginn; what of the
-/// plan counts there, before anything changes.
+/// The length of the plan `index` of `source` (its first where there is no such), under the
+/// program of the card: „Regelstudienplan: 6 Semester, 180 LP"; without a plan, that there is none.
+pub(super) fn plan_line(source: &PlanSource, index: usize, t: &Texts) -> String {
+    match source.variants.get(index).or_else(|| source.variants.first()) {
+        Some(plan) => {
+            let credits = if plan.credits_max - plan.credits > 0.5 { format!("{}–{}", n(plan.credits, t), n(plan.credits_max, t)) } else { n(plan.credits, t) };
+            (t.study.plan_line)(plan.semesters, &credits)
+        }
+        None => t.study.no_plan_line.to_string(),
+    }
+}
+
+/// „Informatik B.Sc." of the program `id` among `all`.
+pub(super) fn title_of(all: &[Program], id: Option<&str>) -> Option<String> {
+    let id = id?;
+    all.iter().find(|program| program.id == id).map(|program| format!("{} {}", program.name, program.degree()))
+}
+
+/// „Studiengang wechseln" (owner, 2026-10-16, concept A „Karte"): the study as a card (`card.rs`),
+/// a row each for the program, its study direction and the Fachsemester, each changed where it
+/// stands; under it, once the program or its direction changed, what of the plan counts there,
+/// before anything changes. The program kept, picked again, brings everything back. The frame and
+/// what is in it keep their size while it is used (owner: „das layout jumped, wenn man zum
+/// beispiel das semester ändert. Das darf auf keinen fall passieren"): what is under the card has
+/// one height whatever it says, and the button says „Übernehmen" whatever changes.
 #[component]
 pub(super) fn SwitchDialog(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
     let (all, items) = program_items(ctx);
-    let before = Memo::new(move |_| ctx.with_ready(|ready| (ready.program.clone(), ready.setup.clone())));
-    let program = RwSignal::new(before.get_untracked().map(|(program, _)| program.id));
-    let start = RwSignal::new(before.get_untracked().map(|(_, setup)| setup.start));
-    let direction = RwSignal::new(before.get_untracked().and_then(|(_, setup)| setup.shown).unwrap_or(0));
+    let before = Memo::new(move |_| ctx.with_ready(|ready| (ready.program.clone(), ready.setup.clone(), ready.plans.clone())));
+    let program = RwSignal::new(before.get_untracked().map(|(program, ..)| program.id));
+    let start = RwSignal::new(before.get_untracked().map(|(_, setup, _)| setup.start));
+    let direction = RwSignal::new(before.get_untracked().and_then(|(_, setup, _)| setup.shown).unwrap_or(0));
     let source = plans_of(ctx, program.into());
+    let kept = Memo::new(move |_| {
+        before.with(|before| {
+            before.as_ref().map(|(program, setup, plans)| Kept {
+                program: program.id.clone(),
+                name: program_name(program),
+                direction: setup.shown.unwrap_or(0),
+                direction_label: setup.shown.and_then(|shown| plans.iter().find(|(index, _)| *index == shown).map(|(_, label)| label.clone())),
+                start: setup.start,
+            })
+        })
+    });
     // Another program starts with its first plan, in its first Fachsemester now: who changes
     // program mostly begins the new one (owner, 2026-10-16: „wenn man den studiengang wechselt, dann
     // ist es wahrscheinlich, dass das fachsemester wieder bei 1 ist. Aber wenn man zurück den
@@ -438,118 +455,118 @@ pub(super) fn SwitchDialog(ctx: StudyCtx) -> impl IntoView {
         if id.is_none() || id == program.get_untracked() {
             return;
         }
-        let kept = before.with_untracked(|before| before.as_ref().map(|(kept, setup)| (Some(&kept.id) == id.as_ref(), setup.start, setup.shown, setup.now)));
-        if let Some((same, kept_start, shown, now)) = kept {
-            start.set(Some(if same { kept_start } else { now }));
-            direction.set(if same { shown.unwrap_or(0) } else { 0 });
+        if let Some(kept) = kept.get_untracked() {
+            let same = id.as_deref() == Some(kept.program.as_str());
+            start.set(Some(if same { kept.start } else { ctx.now.get_untracked() }));
+            direction.set(if same { kept.direction } else { 0 });
         }
         program.set(id);
     });
-    let preview = Memo::new(move |_| {
-        let (_, setup) = before.get()?;
-        let source = source.get()??;
-        let start = start.get()?;
-        let (shown, core, page) = chosen(&source, Some(&kept_plan(&source, direction.get()).0), kept_plan(&source, direction.get()).1.as_deref());
-        let setup = Setup { shown, core, page, start, start_stored: true, ..setup };
-        let doc = ctx.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
-        let rows = ctx.rows.with(|rows| rows_of(&source, rows));
-        Some(counts(&source, &setup, &doc, &rows))
+    let back = Callback::new(move |part: Part| {
+        let Some(kept) = kept.get_untracked() else { return };
+        match part {
+            Part::Program => {
+                program.set(Some(kept.program));
+                start.set(Some(kept.start));
+                direction.set(kept.direction);
+            }
+            Part::Direction => direction.set(kept.direction),
+            Part::Start => start.set(Some(kept.start)),
+        }
     });
-    let changed = Memo::new(move |_| before.with(|before| before.as_ref().map(|(program, _)| program.id.clone())) != program.get());
-    let options = Memo::new(move |_| before.with(|before| before.as_ref().map(|(_, setup)| start_options(setup.now, &setup.leave, t)).unwrap_or_default()));
+    let title = Memo::new(move |_| program.with(|program| all.with(|all| title_of(all, program.as_deref()))));
     let directions = Memo::new(move |_| source.with(|source| source.as_ref().and_then(|source| source.as_ref().map(direction_options)).unwrap_or_default()));
+    let line = Memo::new(move |_| source.with(|source| source.as_ref().and_then(Option::as_ref).map(|source| plan_line(source, direction.get(), t))));
+    // What changed: the program, its direction (of the same program), the Studienbeginn.
+    let changed = Memo::new(move |_| {
+        kept.with(|kept| {
+            kept.as_ref().map_or((false, false, false), |kept| {
+                let other = program.with(|program| program.as_deref() != Some(kept.program.as_str()));
+                let direction = !other && !directions.with(Vec::is_empty) && direction.get() != kept.direction;
+                (other, direction, start.get() != Some(kept.start))
+            })
+        })
+    });
+    // What counts there; while the plans of a program picked are on their way, what counted in the
+    // one before, so that nothing under the card comes and goes.
+    let preview = Memo::new(move |shown: Option<&Option<Counts>>| {
+        let now = (|| {
+            let (_, setup, _) = before.get()?;
+            let source = source.get()??;
+            let start = start.get()?;
+            let (caption, page) = kept_plan(&source, direction.get());
+            let (shown, core, page) = chosen(&source, Some(&caption), page.as_deref());
+            let setup = Setup { shown, core, page, start, start_stored: true, ..setup };
+            let doc = ctx.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
+            let rows = ctx.rows.with(|rows| rows_of(&source, rows));
+            Some(counts(&source, &setup, &doc, &rows))
+        })();
+        now.or_else(|| shown.cloned().flatten())
+    });
     let apply = move |_| {
         let (Some(mine), Some(Some(source)), Some(start)) = (ctx.mine, source.get_untracked(), start.get_untracked()) else { return };
         let (caption, page) = kept_plan(&source, direction.get_untracked());
         mine.set_study(&source.program.id, &program_name(&source.program), &caption, page.as_deref(), start);
         ctx.dialog.set(None);
     };
-    let name_of = move || before.with(|before| before.as_ref().map(|(program, setup)| (program_name(program), setup.start.label(t.locale))));
+    let effect = move || {
+        let (other, direction, start) = changed.get();
+        let note = |text: &'static str| view! { <p class="st-effect-note"><Icon name="info"/><span>{text}</span></p> }.into_any();
+        if !(other || direction) {
+            return note(if start { s.effect_start } else { s.effect_idle });
+        }
+        let Some(counts) = preview.get() else { return note(s.effect_idle) };
+        let figure = |label: &'static str, (all, there): (f64, f64)| view! {
+            <div class="st-count">
+                <p class="label">{label}</p>
+                <p class="st-count-n"><b>{n(there, t)}</b>" "<span>{format!("{} {}", (s.of_credits)(&n(all, t)), s.counts_there)}</span></p>
+            </div>
+        };
+        let names: Vec<&str> = counts.nowhere.iter().take(3).map(|(name, ..)| name.as_str()).collect();
+        let nowhere = (!names.is_empty()).then(|| (s.not_there)(&names.join(", "), counts.nowhere.len().saturating_sub(names.len())));
+        let whole = nowhere.clone();
+        view! {
+            <h3>{(s.counts_title)(&counts.name)}</h3>
+            <div class="st-count-row">
+                {figure(s.counts_passed, counts.passed)}
+                {figure(s.counts_planned, counts.planned)}
+            </div>
+            <p class="st-nowhere-line" title=whole>{nowhere}</p>
+            <p class="st-safe"><Icon name="shield-check"/><span>{s.nothing_lost}</span></p>
+        }
+        .into_any()
+    };
+    let count = move || {
+        let (other, direction, start) = changed.get();
+        usize::from(other) + usize::from(direction) + usize::from(start)
+    };
     view! {
         <DialogHead ctx title=s.switch_title/>
         <div class="st-dlg-body st-switch">
-            {move || name_of().map(|(name, since)| view! {
-                <p class="st-before"><span class="label">{s.switch_before}</span><b>{name}</b><span>{(s.since)(&since)}</span></p>
-            })}
-            <div class="st-fields">
-                <label class="st-field wide">
-                    <span class="label">{s.new_program}</span>
-                    <Combobox
-                        id="st-switch-program"
-                        label=s.program
-                        placeholder=s.choose_program
-                        search_placeholder=s.search_program
-                        icon="graduation-cap"
-                        min_width=420.0
-                        items
-                        selected=Signal::derive(move || program.get())
-                        on_select=pick_program
-                        clearable=false
-                    />
-                </label>
-                <div class="st-field">
-                    <span class="label">{s.start}</span>
-                    <Select
-                        id="st-switch-start"
-                        label=s.start
-                        items=Signal::derive(move || options.get())
-                        selected=Signal::derive(move || start.get().map(SemesterKey::key).unwrap_or_default())
-                        on_select=Callback::new(move |value: String| start.set(SemesterKey::parse(&value)))
-                    />
-                </div>
-                {move || (!directions.with(Vec::is_empty)).then(|| view! {
-                    <div class="st-field">
-                        <span class="label">{s.direction}</span>
-                        <Select
-                            id="st-switch-direction"
-                            label=s.direction
-                            items=Signal::derive(move || directions.get())
-                            selected=Signal::derive(move || direction.get().to_string())
-                            on_select=Callback::new(move |value: String| direction.set(value.parse().unwrap_or(0)))
-                        />
-                    </div>
-                })}
-            </div>
-            {move || preview.get().map(|counts| {
-                let figure = |label: &'static str, (all, there): (f64, f64)| view! {
-                    <div class="st-count">
-                        <p class="label">{label}</p>
-                        <p class="st-count-n"><b>{n(there, t)}</b>" "<span>{(s.of_credits)(&n(all, t))}</span></p>
-                        <p class="st-sub">{s.counts_there}</p>
-                    </div>
-                };
-                view! {
-                    <section class="st-counts" aria-label=(s.counts_title)(&counts.name)>
-                        <h3>{(s.counts_title)(&counts.name)}</h3>
-                        <div class="st-count-row">
-                            {figure(s.counts_passed, counts.passed)}
-                            {figure(s.counts_planned, counts.planned)}
-                        </div>
-                        {(!counts.nowhere.is_empty()).then(|| view! {
-                            <div class="st-nowhere">
-                                <p>{s.not_there}</p>
-                                <ul>
-                                    {counts.nowhere.iter().map(|(name, credits, passed)| view! {
-                                        <li><span>{name.clone()}</span><span class="st-sub">{format!("{} · {}", (s.credits)(&n(*credits, t)), if *passed { s.passed_word } else { s.planned_word })}</span></li>
-                                    }).collect_view()}
-                                </ul>
-                            </div>
-                        })}
-                        <p class="st-safe"><Icon name="shield-check"/><span>{s.nothing_lost}</span></p>
-                    </section>
-                }
-            })}
+            <StudyCard
+                ids=Ids { program: "st-switch-program", direction: "st-switch-direction", less: "st-switch-less", more: "st-switch-more" }
+                items
+                program=program
+                on_program=pick_program
+                title=title
+                plan_line=line
+                directions=directions
+                direction=direction
+                on_direction=Callback::new(move |index: usize| direction.set(index))
+                start=start
+                on_start=Callback::new(move |key: SemesterKey| start.set(Some(key)))
+                now=ctx.now
+                leave=Signal::derive(move || before.with(|before| before.as_ref().map(|(_, setup, _)| setup.leave.clone()).unwrap_or_default()))
+                kept=kept
+                on_back=back
+            />
+            <section class="st-effect" aria-live="polite">{effect}</section>
         </div>
         <footer class="st-dlg-foot">
+            <p class="st-foot-state">{move || (s.changes)(count())}</p>
             <button class="btn secondary" type="button" on:click=move |_| ctx.dialog.set(None)>{s.cancel}</button>
-            <button class="btn primary" type="button" id="st-switch-go" disabled=move || source.with(|source| !matches!(source, Some(Some(_)))) on:click=apply>
-                {move || {
-                    let name = all.with(|all| all.iter().find(|p| Some(&p.id) == program.get().as_ref()).map(|p| p.name.clone()));
-                    match (changed.get(), name) {
-                        (true, Some(name)) => (s.switch_to)(&name),
-                        _ => s.apply.to_string(),
-                    }
-                }}
+            <button class="btn primary" type="button" id="st-switch-go" disabled=move || count() == 0 || source.with(|source| !matches!(source, Some(Some(_)))) on:click=apply>
+                {s.apply}
             </button>
         </footer>
     }

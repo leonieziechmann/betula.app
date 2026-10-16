@@ -129,6 +129,29 @@ pub fn semester_of_fs(start: SemesterKey, fs: u8, leave: &BTreeSet<SemesterKey>)
     None
 }
 
+/// The Studienbeginn that makes `now` Fachsemester `fs` (`fs_of` the other way round, counted
+/// back from `now`): the `fs`-th semester that is no semester of leave, `now` the first. What
+/// „Mein Studium" asks for is the Fachsemester (owner, 2026-10-16: „ich bin in informatik 9.
+/// semester"); it keeps the Studienbeginn.
+pub fn start_of_fs(now: SemesterKey, fs: u8, leave: &BTreeSet<SemesterKey>) -> Option<SemesterKey> {
+    if fs == 0 || fs > MAX_FS {
+        return None;
+    }
+    let mut n: u8 = 0;
+    let mut at = now;
+    // Every semester of leave adds one; there are at most `MAX_SEMESTERS` of them.
+    for _ in 0..(usize::from(MAX_FS) + studyplan::MAX_SEMESTERS) {
+        if !leave.contains(&at) {
+            n += 1;
+            if n == fs {
+                return Some(at);
+            }
+        }
+        at = at.plus(-1)?;
+    }
+    None
+}
+
 /// A row of the plan the study counts: the plan it comes from and its first and last
 /// Fachsemester.
 #[derive(Clone, Copy, Debug)]
@@ -1502,6 +1525,22 @@ mod tests {
         assert_eq!(semester_of_fs(start, 2, &leave), Some(key("2026W")));
         assert_eq!(semester_of_fs(start, 2, &BTreeSet::new()), Some(key("2026S")));
         assert_eq!(semester_of_fs(start, 0, &leave), None);
+    }
+
+    #[test]
+    fn the_start_of_a_fachsemester_counts_back_past_leave() {
+        let leave: BTreeSet<SemesterKey> = [key("2026S")].into_iter().collect();
+        let now = key("2026W");
+        assert_eq!(start_of_fs(now, 1, &leave), Some(now));
+        assert_eq!(start_of_fs(now, 2, &leave), Some(key("2025W")));
+        assert_eq!(start_of_fs(now, 3, &leave), Some(key("2025S")));
+        assert_eq!(start_of_fs(now, 9, &BTreeSet::new()), Some(key("2022W")));
+        assert_eq!((start_of_fs(now, 0, &leave), start_of_fs(now, 31, &leave)), (None, None));
+        // The other way round: the start found makes `now` that Fachsemester.
+        for fs in 1..=20 {
+            let start = start_of_fs(now, fs, &leave).unwrap();
+            assert_eq!(fs_of(start, now, &leave), Some(fs));
+        }
     }
 
     #[test]

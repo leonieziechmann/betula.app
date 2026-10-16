@@ -16,28 +16,21 @@ pub struct Texts {
     pub setup_lead: &'static str,
     /// The program kept is in the catalog no longer (its stored name).
     pub gone: fn(&str) -> String,
-    /// „Studiengang", „Studienbeginn", „Studienrichtung": the fields' labels.
+    /// „Studiengang", „Studienrichtung": the rows' names.
     pub program: &'static str,
-    pub start: &'static str,
     pub direction: &'static str,
     pub choose_program: &'static str,
     pub search_program: &'static str,
     /// The heading of „Mein Studiengang" at the head of the program pickers.
     pub my_program: &'static str,
-    /// A program of one plan: what its study direction's field says.
+    /// A program of one plan: what its study direction's row says.
     pub no_direction: &'static str,
-    /// The Studienbeginn's field while no program is chosen.
-    pub program_first: &'static str,
-    /// „jetzt 3. FS": beside a Studienbeginn („WiSe 2025/26"), the Fachsemester it makes the
-    /// current one.
-    pub start_entry: fn(u8) -> String,
-    /// „Deine bisherigen Semester": how the semesters before the current one begin.
-    pub past_legend: &'static str,
-    pub start_empty: &'static str,
-    pub start_empty_hint: &'static str,
-    /// „1. und 2. FS nach Regelstudienplan füllen" (the span written already) and its hint.
+    /// „1. und 2. FS nach Regelstudienplan füllen" (the span written already) and its hint; in the
+    /// first Fachsemester, where there is nothing before it, what the box says instead.
     pub fill_past: fn(&str) -> String,
     pub fill_past_hint: &'static str,
+    pub fill_later: &'static str,
+    pub fill_later_hint: &'static str,
     /// „Studium anlegen".
     pub create: &'static str,
     /// „Bleibt in diesem Browser."
@@ -67,12 +60,39 @@ pub struct Texts {
     /// Where all of it lives.
     pub storage_hint: &'static str,
 
-    // „Studiengang wechseln".
+    // „Studiengang wechseln" and the first visit: the study as a card (`card.rs`).
     pub switch_title: &'static str,
-    /// „Bisher" and „seit WiSe 2025/26".
-    pub switch_before: &'static str,
+    /// „seit WiSe 2025/26".
     pub since: fn(&str) -> String,
-    pub new_program: &'static str,
+    /// The card, for screen readers.
+    pub card: &'static str,
+    /// The sentence over the rows: „Du studierst Informatik B.Sc. im 9. Fachsemester.", „Du
+    /// beginnst … im SoSe 2027.", „… jetzt im Urlaubssemester."; where the program changes „Du
+    /// wechselst zu Informatik M.Sc., ins 1. Fachsemester.", „… ab SoSe 2027."; before a program is
+    /// chosen what is to do.
+    pub say_studies: fn(&str, u8) -> String,
+    pub say_begins: fn(&str, &str) -> String,
+    pub say_leave: fn(&str) -> String,
+    pub say_switch: fn(&str, u8) -> String,
+    pub say_switch_begins: fn(&str, &str) -> String,
+    pub say_none: &'static str,
+    /// The rows' names: „Studiengang" and „Studienrichtung" are `program` and `direction`.
+    pub fs_row: &'static str,
+    /// „Ein Fachsemester weniger", „… mehr": the stepper's buttons.
+    pub fs_less: &'static str,
+    pub fs_more: &'static str,
+    /// Under a program: „Regelstudienplan: 6 Semester, 180 LP"; without a plan in the catalog.
+    pub plan_line: fn(i64, &str) -> String,
+    pub no_plan_line: &'static str,
+    /// Under a study direction: „eine von 2".
+    pub directions_line: fn(usize) -> String,
+    /// Under the Fachsemester: „seit WiSe 2022/23" and „2 Urlaubssemester".
+    pub leave_line: fn(usize) -> String,
+    /// „vorher Informatik B.Sc. · PO 2008": what a changed row was.
+    pub was: fn(&str) -> String,
+    /// Under the card before anything changed, and where only the Studienbeginn did.
+    pub effect_idle: &'static str,
+    pub effect_start: &'static str,
     /// „So zählt dein Plan in Wirtschaftsinformatik".
     pub counts_title: fn(&str) -> String,
     pub counts_passed: &'static str,
@@ -80,14 +100,13 @@ pub struct Texts {
     /// „von 46 LP" … „kommen dort vor".
     pub of_credits: fn(&str) -> String,
     pub counts_there: &'static str,
-    /// The modules that count for nothing there.
-    pub not_there: &'static str,
+    /// The modules that count for nothing there, the first few by name and how many more.
+    pub not_there: fn(&str, usize) -> String,
     pub passed_word: &'static str,
-    pub planned_word: &'static str,
     pub nothing_lost: &'static str,
+    /// „Noch nichts geändert", „1 Änderung", „2 Änderungen": the foot.
+    pub changes: fn(usize) -> String,
     pub cancel: &'static str,
-    /// „Zu Wirtschaftsinformatik wechseln"; „Übernehmen" where the program stays.
-    pub switch_to: fn(&str) -> String,
     pub apply: &'static str,
 
     // The overview.
@@ -359,19 +378,15 @@ pub const DE: Texts = Texts {
     setup_lead: "Damit Betula weiß, wie deine Module zählen. Das machst du einmal; ändern kannst du es jederzeit unter „Mein Studiengang“.",
     gone: |name| format!("„{name}“ ist nicht mehr im Katalog. Wähle deinen Studiengang neu."),
     program: "Studiengang",
-    start: "Studienbeginn",
     direction: "Studienrichtung",
     choose_program: "Studiengang wählen",
     search_program: "Studiengang suchen",
     my_program: "Mein Studiengang",
     no_direction: "Keine zur Wahl in diesem Studiengang",
-    program_first: "Erst den Studiengang wählen",
-    start_entry: |fs| format!("jetzt {fs}. FS"),
-    past_legend: "Deine bisherigen Semester",
-    start_empty: "Leer beginnen",
-    start_empty_hint: "Du trägst selbst ein, was du belegt hast – aus dem Regelstudienplan oder dem Katalog.",
     fill_past: |span| format!("{span} nach Regelstudienplan füllen"),
     fill_past_hint: "Danach markierst du nur noch, was du bestanden hast. Die kommenden Semester bleiben leer.",
+    fill_later: "Semester davor nach Regelstudienplan füllen",
+    fill_later_hint: "Im 1. Fachsemester gibt es noch keine.",
     create: "Studium anlegen",
     stays_here: "Bleibt in diesem Browser.",
     all_programs: "Alle Studiengänge ansehen",
@@ -392,20 +407,34 @@ pub const DE: Texts = Texts {
     storage_hint: "Was du planst und als bestanden markierst, bleibt in diesem Browser.",
 
     switch_title: "Studiengang wechseln",
-    switch_before: "Bisher",
     since: |semester| format!("seit {semester}"),
-    new_program: "Neuer Studiengang",
+    card: "Dein Studium",
+    say_studies: |program, fs| format!("Du studierst {program} im {fs}. Fachsemester."),
+    say_begins: |program, semester| format!("Du beginnst {program} im {semester}."),
+    say_leave: |program| format!("Du studierst {program}, jetzt im Urlaubssemester."),
+    say_switch: |program, fs| format!("Du wechselst zu {program}, ins {fs}. Fachsemester."),
+    say_switch_begins: |program, semester| format!("Du wechselst zu {program}, ab {semester}."),
+    say_none: "Wähle deinen Studiengang und dein Fachsemester.",
+    fs_row: "Fachsemester",
+    fs_less: "Ein Fachsemester weniger",
+    fs_more: "Ein Fachsemester mehr",
+    plan_line: |semesters, credits| format!("Regelstudienplan: {semesters} Semester, {credits} LP"),
+    no_plan_line: "Ohne Regelstudienplan in Betula",
+    directions_line: |n| format!("eine von {n}"),
+    leave_line: |n| if n == 1 { "1 Urlaubssemester".to_string() } else { format!("{n} Urlaubssemester") },
+    was: |value| format!("vorher {value}"),
+    effect_idle: "Ändere eine Angabe. Hier steht dann, wie dein Plan danach zählt.",
+    effect_start: "Nur der Studienbeginn ändert sich. Was du geplant und bestanden hast, bleibt, wie es ist.",
     counts_title: |name| format!("So zählt dein Plan in {name}"),
     counts_passed: "Bestanden",
     counts_planned: "Geplant",
     of_credits: |n| format!("von {n} LP"),
     counts_there: "kommen dort vor",
-    not_there: "Diese Module kommen dort nicht vor. Sie bleiben in deinen Semestern und erscheinen als „ohne Bereich“:",
+    not_there: |names, more| if more > 0 { format!("Dort ohne Bereich: {names} und {more} weitere") } else { format!("Dort ohne Bereich: {names}") },
     passed_word: "bestanden",
-    planned_word: "geplant",
     nothing_lost: "Nichts wird gelöscht. Wechselst du zurück, zählt alles wieder wie vorher.",
+    changes: |n| match n { 0 => "Noch nichts geändert".to_string(), 1 => "1 Änderung".to_string(), _ => format!("{n} Änderungen") },
     cancel: "Abbrechen",
-    switch_to: |name| format!("Zu {name} wechseln"),
     apply: "Übernehmen",
 
     overview: "Übersicht",
@@ -611,19 +640,15 @@ pub const EN: Texts = Texts {
     setup_lead: "So that Betula knows how your modules count. You do this once; you can change it any time under \u{201c}My programme\u{201d}.",
     gone: |name| format!("\u{201c}{name}\u{201d} is no longer in the catalogue. Choose your degree programme again."),
     program: "Degree programme",
-    start: "Start of studies",
     direction: "Specialisation",
     choose_program: "Choose degree programme",
     search_program: "Search degree programmes",
     my_program: "My programme",
     no_direction: "None to choose in this programme",
-    program_first: "Choose the programme first",
-    start_entry: |fs| format!("now semester {fs}"),
-    past_legend: "Your semesters so far",
-    start_empty: "Start empty",
-    start_empty_hint: "You enter what you took yourself – from the standard study plan or the catalogue.",
     fill_past: |span| format!("Fill {span} from the standard study plan"),
     fill_past_hint: "Then you only mark what you passed. The semesters to come stay empty.",
+    fill_later: "Fill the semesters before from the standard study plan",
+    fill_later_hint: "In semester 1 there are none yet.",
     create: "Set up my studies",
     stays_here: "Stays in this browser.",
     all_programs: "See all degree programmes",
@@ -644,20 +669,34 @@ pub const EN: Texts = Texts {
     storage_hint: "What you plan and mark as passed stays in this browser.",
 
     switch_title: "Change degree programme",
-    switch_before: "So far",
     since: |semester| format!("since {semester}"),
-    new_program: "New degree programme",
+    card: "Your studies",
+    say_studies: |program, fs| format!("You study {program} in semester {fs}."),
+    say_begins: |program, semester| format!("You begin {program} in {semester}."),
+    say_leave: |program| format!("You study {program}, on leave this semester."),
+    say_switch: |program, fs| format!("You change to {program}, into semester {fs}."),
+    say_switch_begins: |program, semester| format!("You change to {program}, from {semester}."),
+    say_none: "Choose your degree programme and your semester.",
+    fs_row: "Semester",
+    fs_less: "One semester less",
+    fs_more: "One semester more",
+    plan_line: |semesters, credits| format!("Standard study plan: {semesters} semesters, {credits} CP"),
+    no_plan_line: "No standard study plan in Betula",
+    directions_line: |n| format!("one of {n}"),
+    leave_line: |n| if n == 1 { "1 semester of leave".to_string() } else { format!("{n} semesters of leave") },
+    was: |value| format!("before: {value}"),
+    effect_idle: "Change something. How your plan counts then shows here.",
+    effect_start: "Only the start of your studies changes. What you planned and passed stays as it is.",
     counts_title: |name| format!("How your plan counts in {name}"),
     counts_passed: "Passed",
     counts_planned: "Planned",
     of_credits: |n| format!("of {n} CP"),
     counts_there: "occur there",
-    not_there: "These modules do not occur there. They stay in your semesters and show as \u{201c}no area\u{201d}:",
+    not_there: |names, more| if more > 0 { format!("No area there: {names} and {more} more") } else { format!("No area there: {names}") },
     passed_word: "passed",
-    planned_word: "planned",
     nothing_lost: "Nothing is deleted. If you change back, everything counts as before.",
+    changes: |n| match n { 0 => "Nothing changed yet".to_string(), 1 => "1 change".to_string(), _ => format!("{n} changes") },
     cancel: "Cancel",
-    switch_to: |name| format!("Change to {name}"),
     apply: "Apply",
 
     overview: "Overview",

@@ -3979,42 +3979,77 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-area-list button { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 11px 12px; border: 0; border-radius: 10px; background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .st-area-list .st-card-head .icon { width: 16px; height: 16px; color: var(--text-3); }
 .st-area-list .st-card-line { font-size: 12.5px; }
-/* „Studiengang wechseln" and the first visit. */
-.st-before { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--panel-2); font-size: 13.5px; }
-.st-before > span:last-child { color: var(--text-2); }
-.st-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.st-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.st-field.wide { grid-column: 1 / -1; }
-.st-field .combo { width: 100%; }
-.st-counts { margin-top: 18px; }
-.st-counts h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; }
+/* „Dein Studium" as a card (study/card.rs; owner, 2026-10-16, concept A „Karte" of
+   folia/design/studiengang/konzepte.html), in „Studiengang wechseln" and on the first visit. Over
+   the rows the sentence they make; a row each for the program, its study direction and the
+   Fachsemester: its name, its value (the program's and the direction's a picker that reads as the
+   value, no box until pointed at, the chevron its way to change; the Fachsemester with − and +) and
+   a line under it — what else it says, or where it changed what it was, with „Zurück". Nothing
+   moves while it is used (owner: „Wenn man eine aktion macht, wie semester +/- darf nicht
+   unterbrochen werden durch layout shifts"): the sentence one line (two on a phone), every row as
+   tall whatever it says, its line one line cut with „…", the direction's row there for a program
+   without one too; a picker's list lies over what follows; under the card what the change does, in
+   a box of one height. */
+.st-study { border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.st-study-say { height: 47px; margin: 0; padding: 13px 16px 12px; border-bottom: 1px solid var(--line); font-size: 15.5px; font-weight: 650; line-height: 22px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-srow { display: grid; grid-template-columns: 124px minmax(0, 1fr); grid-template-rows: 40px 18px; column-gap: 12px; row-gap: 2px; align-items: center; padding: 8px 12px 8px 16px; transition: background .15s; }
+.st-srow + .st-srow { border-top: 1px solid var(--line); }
+.st-srow:last-child { border-radius: 0 0 12px 12px; }
+.st-srow > .label { grid-row: 1; grid-column: 1; }
+.st-srow > .combo, .st-srow > .st-fs-line { grid-row: 1; grid-column: 2; align-self: start; min-width: 0; }
+.st-srow-note { grid-row: 2; grid-column: 2; display: flex; align-items: center; gap: 8px; min-width: 0; height: 18px; margin: 0; font-size: 12.5px; line-height: 18px; color: var(--text-2); white-space: nowrap; }
+.st-srow-note > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.st-srow.changed { background: color-mix(in oklab, var(--accent) 8%, var(--panel-2)); }
+.st-srow.changed .combo-value, .st-srow.changed .st-fs-value { color: var(--accent-ink); }
+.st-back { flex: none; height: 20px; padding: 0 7px; border: 0; border-radius: 5px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font: inherit; font-size: 12px; font-weight: 620; line-height: 20px; cursor: pointer; }
+.st-back:hover { background: var(--panel-3); color: var(--text); }
+.st-srow .combo-trigger { min-height: 40px; width: calc(100% + 10px); margin-left: -10px; padding: 0 10px; background: transparent; box-shadow: none; font-size: 15px; font-weight: 650; }
+.st-srow .combo-trigger:hover { background: color-mix(in oklab, var(--text) 5%, transparent); }
+.st-srow .combo[data-open] .combo-trigger, .st-srow .combo-trigger:focus-visible { background: var(--panel); box-shadow: inset 0 0 0 2px var(--accent); }
+.st-srow .combo-trigger[disabled] { background: transparent; }
+.st-srow .combo-trigger[disabled] .combo-chevron { visibility: hidden; }
+.st-srow .combo-value small { font-size: 13px; }
+.st-fs-line { display: flex; align-items: center; gap: 12px; height: 40px; }
+.st-fs-value { flex: 1 1 auto; min-width: 0; font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-stepper { flex: none; display: inline-flex; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.st-stepper button { width: 44px; height: 36px; border: 0; background: none; color: var(--text); font: inherit; font-size: 19px; font-weight: 500; line-height: 1; cursor: pointer; touch-action: manipulation; }
+.st-stepper button:first-child { border-radius: var(--r-ctl) 0 0 var(--r-ctl); box-shadow: 1px 0 0 var(--line-strong); }
+.st-stepper button:last-child { border-radius: 0 var(--r-ctl) var(--r-ctl) 0; }
+.st-stepper button:hover:not([disabled]) { background: var(--panel-3); }
+.st-stepper button:active:not([disabled]) { background: var(--accent-soft); }
+.st-stepper button[disabled] { color: var(--text-3); opacity: .5; cursor: default; }
+/* What the change does: one box under the card, as tall whatever it says. */
+.st-effect { display: flex; flex-direction: column; min-height: 150px; margin-top: 14px; }
+.st-effect h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-effect-note { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0; padding: 14px 18px; border: 1.5px dashed var(--line-strong); border-radius: 10px; color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.st-effect-note .icon { flex: none; width: 16px; height: 16px; color: var(--text-3); }
 .st-count-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.st-count { padding: 12px 14px; border-radius: 10px; background: var(--panel-2); }
+.st-count { padding: 10px 13px; border-radius: 10px; background: var(--panel-2); }
 .st-count p { margin: 0; }
-.st-count-n b { font-size: 22px; font-weight: 700; }
+.st-count-n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-count-n b { font-size: 21px; font-weight: 700; }
 .st-count-n span { color: var(--text-2); font-size: 13px; }
-.st-nowhere { margin-top: 12px; font-size: 13px; }
-.st-nowhere p { margin: 0 0 6px; color: var(--text-2); }
-.st-nowhere ul { list-style: none; margin: 0; padding: 0; }
-.st-nowhere li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
-.st-safe { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; color: var(--text-2); font-size: 12.5px; }
+.st-nowhere-line { height: 18px; margin: 10px 0 0; font-size: 12.5px; line-height: 18px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-safe { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 0; color: var(--text-2); font-size: 12.5px; }
 .st-safe .icon { flex: none; width: 16px; height: 16px; color: var(--ok); }
-.st-setup { padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; }
+.st-foot-state { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The first visit: the card, the box that fills the semesters before, the way on. */
+.st-setup { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+.st-setup > .st-study, .st-setup > .st-fill { max-width: 680px; }
+/* As tall in the first Fachsemester, where it says there is nothing before, as with the semesters
+   it fills: „Studium anlegen" under it stays where it is. */
+.st-fill { align-items: flex-start; min-height: 64px; text-align: left; }
+.st-fill .st-box { margin-top: 1px; }
+.st-fill b { font-weight: 650; }
+.st-fill > span:last-child > span { color: var(--text-2); font-size: 12.5px; font-weight: 500; }
+.st-fill[disabled] { color: var(--text-3); cursor: default; }
+.st-fill[disabled] .st-box { opacity: .5; }
 .st-setup-head { display: flex; gap: 14px; align-items: flex-start; }
 .st-setup-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); }
 .st-setup-head h1 { margin: 0; font-size: 21px; font-weight: 700; letter-spacing: -.015em; }
 .st-setup-head p { margin: 4px 0 0; color: var(--text-2); max-width: 70ch; text-wrap: pretty; }
 .st-gone { display: flex; gap: 8px; align-items: flex-start; color: var(--warn) !important; }
 .st-gone .icon { flex: none; margin-top: 2px; }
-.st-choice { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
-.st-choice legend { margin-bottom: 8px; padding: 0; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
-.st-choice button { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border: 0; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.st-choice button[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.st-choice button > span:last-child { display: flex; flex-direction: column; gap: 2px; }
-.st-choice b { font-weight: 650; }
-.st-choice button > span:last-child > span { color: var(--text-2); font-size: 13px; }
-.st-radio { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--text-3); background: var(--panel); }
-[aria-checked="true"] > .st-radio { box-shadow: inset 0 0 0 5px var(--accent); }
 .st-setup-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 4px; }
 .st-setup-foot .hint { flex: 1 1 auto; display: flex; align-items: center; gap: 8px; margin: 0; }
 .st-setup-foot .hint .icon { width: 16px; height: 16px; }
@@ -4486,9 +4521,20 @@ a.st-rsp-name:hover { text-decoration: underline; }
      die volle breite (zusammen) einnehmen"); what the foot says above them. */
   .st-dlg-foot { padding-top: 14px; padding-bottom: max(24px, calc(14px + env(safe-area-inset-bottom))); }
   .st-dlg-foot > .btn { flex: 1 1 0; min-width: 0; min-height: 48px; }
-  .st-dlg-foot > .st-foot-text { flex: 1 1 100%; }
-  .st-fields, .st-count-row { grid-template-columns: minmax(0, 1fr); }
+  .st-dlg-foot > .st-foot-text, .st-dlg-foot > .st-foot-state { flex: 1 1 100%; }
   .st-setup { padding: 18px 16px; }
+  /* The card on a phone: a row's name over its value, the sentence two lines. */
+  .st-study-say { height: 70px; padding: 12px 14px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .st-srow { grid-template-columns: minmax(0, 1fr); grid-template-rows: 16px 44px 18px; padding: 10px 14px; }
+  .st-srow > .label { grid-row: 1; grid-column: 1; }
+  .st-srow > .combo, .st-srow > .st-fs-line { grid-row: 2; grid-column: 1; }
+  .st-srow-note { grid-row: 3; grid-column: 1; }
+  .st-srow .combo-trigger { min-height: 44px; font-size: 16px; }
+  .st-fs-line { height: 44px; }
+  .st-fs-value { font-size: 16px; }
+  .st-stepper button { width: 52px; height: 44px; }
+  .st-effect { min-height: 186px; }
+  .st-fill { min-height: 96px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
   .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
 }
