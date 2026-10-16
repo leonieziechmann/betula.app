@@ -1141,6 +1141,12 @@ button.action:hover { background: var(--panel-3); }
 .nav .ind { position: relative; }
 .nav-count { position: absolute; top: 3px; right: 2px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--bg); font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0; }
 .nav[aria-current="page"] .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
+/* The navigation's keys (chrome.rs `NavKey`, enhance.js): while the keys that lead to the tabs are
+   held a moment (Alt, or Ctrl and Alt), each tab shows its digit, a key at the foot of its mark, in
+   the corner the count leaves free; cut out of what is behind it, as the count is. */
+.nav-key { display: none; }
+:root[data-nav-keys] .nav-key { position: absolute; right: -4px; bottom: -3px; min-width: 17px; height: 17px; padding: 0 4px; display: grid; place-items: center; border-radius: 5px; background: var(--panel); color: var(--text); box-shadow: 0 0 0 2px var(--bg), inset 0 0 0 1px var(--line-strong); font-size: 10.5px; font-weight: 600; line-height: 1; animation: nav-key-in .12s ease-out; }
+@keyframes nav-key-in { from { opacity: 0; transform: scale(.8); } }
 @media (max-width: 900px) {
   /* 44px for a finger; the glyph ends at the card's inner edge (14px), like the card's text. */
   .row-wrap > .mark-toggle { --hit-y: 8px; --hit-l: 6px; --hit-r: 1px; right: 1px; width: 44px; height: 44px; margin-top: -22px; border-radius: var(--r-ctl); }
@@ -1150,6 +1156,9 @@ button.action:hover { background: var(--panel-3); }
   .mark-switch > span:first-of-type { min-width: 64px; }
   .mini { min-height: 38px; padding: 0 14px; font-size: 14px; }
   .bottomnav .nav-count { top: -1px; right: 9px; box-shadow: 0 0 0 2px var(--panel); }
+  /* A tablet with a keyboard: the bar's tabs show their digits too, left of the mark (its name is
+     below it, its count at its right). */
+  :root[data-nav-keys] .bottomnav .nav-key { left: -6px; right: auto; top: 6.5px; bottom: auto; box-shadow: 0 0 0 2px var(--panel), inset 0 0 0 1px var(--line-strong); }
 }
 
 /* ---------- detail panel ---------- */

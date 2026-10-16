@@ -1,9 +1,9 @@
 //! The chrome around every page: the rail with the main navigation and the way to the profile
 //! page, the top bar with the page's title and search (and on a phone the way back of a page or of
 //! its step, `TopBack`, and the way to the profile page, which gives way to it), the navigation at
-//! the bottom of a phone (`NavItems`) with what its tabs hold besides their pages (`TabMenu`), the
-//! menu of the profiles (`ProfileMenu`), and what lets the memory of the tabs follow the router
-//! (`FollowTabs`).
+//! the bottom of a phone (`NavItems`, with the digits of its keys, `NavKey`) with what its tabs
+//! hold besides their pages (`TabMenu`), the menu of the profiles (`ProfileMenu`), and what lets
+//! the memory of the tabs follow the router (`FollowTabs`).
 
 use folia_routes::url::{self, StudyUrl, StudyView};
 use leptos::prelude::*;
@@ -31,7 +31,8 @@ pub fn FollowTabs() -> impl IntoView {
     }
 }
 
-/// The main navigation. Its items are tabs: each leads to where its area was left (`tabs`).
+/// The main navigation. Its items are tabs: each leads to where its area was left (`tabs`), and is
+/// a digit away on a keyboard (`Area::key`, `NavKey`).
 #[component]
 pub fn NavItems() -> impl IntoView {
     let t = i18n::t();
@@ -88,15 +89,16 @@ pub fn NavItems() -> impl IntoView {
         (None, _) => 0,
     });
     view! {
-        <a class="nav" data-area="home" href=t.path(url::HOME) on:click=tap(Area::Home) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/></span>{t.app.home}</a>
-        <a class="nav" data-area="catalog" href=move || href(Area::Catalog) on:click=tap(Area::Catalog) data-hold=APP.then_some("filters") data-list=catalog_list title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/></span>{t.app.modules}</a>
-        <a class="nav" data-area="programs" href=move || href(Area::Programs) on:click=tap(Area::Programs) data-hold=APP.then_some("menu") title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/></span>{t.app.study}</a>
+        <a class="nav" data-area="home" data-key=Area::Home.key() href=t.path(url::HOME) on:click=tap(Area::Home) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/><NavKey area=Area::Home/></span>{t.app.home}</a>
+        <a class="nav" data-area="catalog" data-key=Area::Catalog.key() href=move || href(Area::Catalog) on:click=tap(Area::Catalog) data-hold=APP.then_some("filters") data-list=catalog_list title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/><NavKey area=Area::Catalog/></span>{t.app.modules}</a>
+        <a class="nav" data-area="programs" data-key=Area::Programs.key() href=move || href(Area::Programs) on:click=tap(Area::Programs) data-hold=APP.then_some("menu") title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/><NavKey area=Area::Programs/></span>{t.app.study}</a>
         // The marked modules exist in the browser app only (R15). How many there are is known
         // there alone, so the number is never part of server HTML (R9). What the visitor keeps is
         // no page for a crawler (`seo`), here and in the Studienplan.
-        <a class="nav js-only" data-area="bookmarks" href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
+        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
             <span class="ind">
                 <Icon name="bookmark"/>
+                <NavKey area=Area::Bookmarks/>
                 {move || {
                     let marked = Bookmarks::expect().map(|bookmarks| bookmarks.count()).unwrap_or(0);
                     (marked > 0).then(|| view! { <span class="nav-count num" aria-label=(t.app.marked_count)(marked)>{if marked > 99 { "99+".to_string() } else { marked.to_string() }}</span> })
@@ -107,9 +109,10 @@ pub fn NavItems() -> impl IntoView {
         // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
         // number of its modules (R9). The number is a memo of its own: most changes of the plan
         // (a hidden Termin, a move) leave it as it is.
-        <a class="nav js-only" data-area="studyplan" href=move || href(Area::Studyplan) on:click=tap(Area::Studyplan) rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
+        <a class="nav js-only" data-area="studyplan" data-key=Area::Studyplan.key() href=move || href(Area::Studyplan) on:click=tap(Area::Studyplan) rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
             <span class="ind">
                 <Icon name="calendar-range"/>
+                <NavKey area=Area::Studyplan/>
                 {move || {
                     let planned = planned.get();
                     (planned > 0).then(|| view! { <span class="nav-count num" aria-label=(t.app.planned_count)(planned)>{if planned > 99 { "99+".to_string() } else { planned.to_string() }}</span> })
@@ -118,6 +121,14 @@ pub fn NavItems() -> impl IntoView {
             {t.app.studyplan}
         </a>
     }
+}
+
+/// The digit that leads to a tab with the navigation's keys (owner, 2026-10-16: „wenn man ctrl/alt
+/// drückt sollen dann die shortcuts bei den nav items angezeigt werden"): at the tab's foot while
+/// they are held (enhance.js, app.css). A name read out says the tab's own, not its digit.
+#[component]
+fn NavKey(area: Area) -> impl IntoView {
+    view! { <kbd class="nav-key" aria-hidden="true">{area.key()}</kbd> }
 }
 
 /// Where a tab's menu stands (`TabMenu`): the tab's area, and its box on the screen.

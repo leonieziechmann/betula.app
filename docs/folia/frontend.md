@@ -2550,6 +2550,23 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   the previewed module full screen; ↑/↓ move through the list (rows are links, so this is just
   focus) and Enter opens the selected row; Ctrl+K or `/` jumps to the search. Every view is a real
   history entry, so the browser's back always works too.
+  The tabs of the navigation are a digit away (owner, 2026-10-16: „wenn man ctrl/alt drückt sollen
+  dann die shortcuts bei den nav items angezeigt werden. Wichtig ist, dass … so übliche shortcuts,
+  wie ctrl+c/s/p usw. weiter funktionieren"): 1 the start page, 2 the modules, 3 „Studium",
+  4 the Merkliste, 5 the Stundenplan (`Area::key`), each a click on its tab — a second time a tab
+  leads its area back to where it starts, as a click does. The keys are the ones a page has to
+  itself on each system: **Alt** and the digit on Windows, **Ctrl and Alt** and the digit elsewhere
+  (⌃⌥ on a Mac, the keys of a page's own access keys there). Ctrl and a digit chooses the browser's
+  tab everywhere, Alt and a digit Firefox's on Linux, ⌥ and a digit types a character on a Mac; the
+  digits of the row above the letters only, so Alt and the number pad still type a character by
+  its code on Windows; Ctrl, Alt or ⌘ with any other key (Ctrl+C, S, P and the rest) stays the
+  browser's and the system's, and so does AltGr (on Windows Ctrl and Alt, which is why Alt is
+  alone there). Held for a quarter of a second, the keys show each tab's digit at its mark
+  (`NavKey`, `:root[data-nav-keys]`): at its foot in the rail, left of it in a phone's bar (a
+  tablet with a keyboard), where its name is below it and its count at its right; another key or
+  the mouse with them, and nothing shows until they are let go, so
+  Alt+← or Alt+Tab shows nothing. Let go after the digits showed, the Alt opens no menu of
+  the browser. Nothing while a modal dialog is open (`enhance.js`, „the navigation's keys").
 - **R13. Personal view settings never go into the URL**: theme and the widths of the filter panel
   and the preview live in `localStorage` and are applied before the first paint by the script in
   `<head>`. So does the language (`betula.language`, `docs/folia/i18n.md`): the first script of the head
@@ -3666,6 +3683,21 @@ built for the first time), a later one the result without a skeleton, and no ske
 All of it once more with the CPU slowed down four times (200 ms for the first frame), where the
 skeletons are what bridges the wait. The numbers it prints are the time to the first frame and
 to the result.
+
+```bash
+cd e2e && node navkeys.mjs
+```
+
+drives the navigation's keys (R10) on three systems made up through `navigator.platform`: on
+Linux Ctrl and Alt and a digit go to the tab, 1 to 5 one after another while the keys stay held,
+and from the search with a text typed, without a page load; held a moment, they show the digits
+1 to 5 at the rail's tabs and none in the hidden bar, and let go, none; Ctrl alone, Alt alone, a
+quick Ctrl and Alt, Ctrl+Alt+X and a click while they are held show nothing; Alt and a digit, Ctrl
+and a digit, Ctrl, Alt and Shift and a digit, a digit no tab has, Ctrl+C, S and P do nothing and
+keep their default, and so do the keys while a modal dialog is open. On Windows Alt alone, with
+the digits shown while it is held and its keyup taken once they showed (a quick Alt keeps its
+own), and Ctrl and Alt (AltGr) do nothing; on a Mac ⌃⌥, ⌥ and ⌘ with a digit do nothing. Where
+the app does not start, Ctrl+Alt+3 loads the page of „Studium".
 
 ## 5. Not done yet
 
