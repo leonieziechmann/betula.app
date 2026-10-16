@@ -239,9 +239,12 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   await step("phone: a tap opens the module's sheet", () => page.tap(`a.row[data-id="${id}"]`), (id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2"), id);
   const sheetOrder = await order(page, ".detail.is-module");
   check(sheetOrder[0] === "Termine" && sheetOrder.indexOf("Auf einen Blick") < sheetOrder.indexOf("Inhalte"), `phone: the sheet does not start with the times and facts: ${sheetOrder}`);
-  // „Vollbild": the module's page, its sidebar a block of actions under it.
+  // No „Vollbild" on the sheet (owner, 2026-10-16: „Vollbild als knopf ergibt keinen sinn, der muss
+  // raus"): all up it is the whole screen. The module's page, where a link leads (a shared one, the
+  // search), has its sidebar as a block of actions under it.
   await page.waitForTimeout(400);
-  await step("phone: „Vollbild“ opens the module's page", () => page.tap('.detail.is-module [data-action="fullscreen"]'), (id) => location.pathname === `/catalog/module/${id}` && document.querySelector(".module-page h2"), id);
+  check(await page.evaluate(() => getComputedStyle(document.querySelector('.detail.is-module [data-action="fullscreen"]')).display === "none"), "phone: the module's sheet shows „Vollbild“");
+  await step("phone: a link to the module's page", () => page.evaluate((id) => { const a = Object.assign(document.createElement("a"), { href: `/catalog/module/${id}` }); document.body.append(a); a.click(); a.remove(); }, id), (id) => location.pathname === `/catalog/module/${id}` && document.querySelector(".module-page h2"), id);
   const phoneOrder = await order(page, ".module-page");
   check(phoneOrder[0] === "Termine" && phoneOrder.indexOf("Auf einen Blick") < phoneOrder.indexOf("Inhalte") , `phone: the page does not start with the times and facts: ${phoneOrder}`);
   check(await page.evaluate(() => { const side = document.getElementById("sidebar").getBoundingClientRect(); const article = document.querySelector(".module-page").getBoundingClientRect(); return side.top >= article.bottom - 1 && getComputedStyle(document.querySelector(".toc")).display === "none"; }), "phone: the sidebar is not a block of actions under the module");
