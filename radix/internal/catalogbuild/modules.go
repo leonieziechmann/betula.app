@@ -308,11 +308,26 @@ func (b *builder) writeModuleLinks() error {
 	}
 	sort.Strings(ids)
 
+	// The modules each module replaces, as either of the two pages states it.
+	replaces := make(map[string][]string)
 	for _, id := range ids {
 		d := b.src.modulePages[id].detail
+		for _, successor := range d.SuccessorModules {
+			replaces[successor] = append(replaces[successor], id)
+		}
+		replaces[id] = append(replaces[id], d.PredecessorModules...)
+	}
+
+	for _, id := range ids {
+		d := b.src.modulePages[id].detail
+		// A module that phases out is no prerequisite of the module that replaces it, over any
+		// number of steps (owner, 2026-10-16: „auslaufmodule können keine voraussetzung für das
+		// folgemodul sein"): 11903 names 12212, which it replaces, in „Keine erfolgreiche
+		// Teilnahme am zugehörigen Auslaufmodul 12212 - Digitaltechnik.".
+		predecessors := ancestors(replaces, id)
 		for kind, text := range map[string]string{"mandatory": d.PrerequisitesMandatory, "recommended": d.PrerequisitesRecommended} {
-			for _, required := range normalize.ModuleIDs(text) {
-				if required == id || !b.moduleIDs[required] {
+			for _, required := range normalize.PrerequisiteIDs(text) {
+				if required == id || !b.moduleIDs[required] || predecessors[required] {
 					continue
 				}
 				if _, err := b.tx.Exec("INSERT OR IGNORE INTO module_prerequisite (module_id, required_module_id, kind) VALUES (?, ?, ?)", id, required, kind); err != nil {
@@ -340,6 +355,23 @@ func (b *builder) writeModuleLinks() error {
 		}
 	}
 	return nil
+}
+
+// ancestors are the modules id replaces, and those they replaced in turn.
+func ancestors(replaces map[string][]string, id string) map[string]bool {
+	seen := make(map[string]bool)
+	queue := []string{id}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		for _, older := range replaces[current] {
+			if !seen[older] {
+				seen[older] = true
+				queue = append(queue, older)
+			}
+		}
+	}
+	return seen
 }
 
 // flagIf is NULL when the fact is unknown, else 0/1.
