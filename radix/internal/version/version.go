@@ -8,8 +8,10 @@
 // (owner: „immer wenn wir changes machen update die version number based on sem ver"; CLAUDE.md,
 // „Versions"): 0.7.0 the same day (owner: „Radix bitte auch auf 0.7.0 hochziehen") for what came
 // since 0.6.0 unversioned, offline through Cortex (2026-10-04) and a Termin read as a series of
-// dates (2026-10-13). Folia's lives in folia/crates/shell/src/document.rs (VERSION).
+// dates (2026-10-13); 0.7.1 on 2026-10-16, where a prerequisite text rules a module out or a
+// module replaces one, the module is no prerequisite (docs/radix/data-sources.md §15). Folia's
+// lives in folia/crates/shell/src/document.rs (VERSION).
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.7.0"
+const Radix = "0.7.1"

@@ -139,3 +139,61 @@ func TestBuildReadsAReplacementFromBothModules(t *testing.T) {
 	want(t, db, "SELECT module_id, successor_id, successor_title FROM v_module_successor ORDER BY module_id",
 		"12917|11162|Wirtschaftsprüfung", "38105|12160|Allgemeine Betriebswirtschaftslehre I: Grundlagen der BWL")
 }
+
+// qisPrerequisiteRows are the two rows of a QIS description that state prerequisites.
+func qisPrerequisiteRows(recommended, mandatory string) string {
+	return `<tr><td class="tabelle1_alignleft">Empfohlene Voraussetzungen:</td><td class="tabelle2inhalt">` + recommended + `</td></tr>
+		<tr><td class="tabelle1_alignleft">Zwingende Voraussetzungen:</td><td class="tabelle2inhalt">` + mandatory + `</td></tr>`
+}
+
+// A module that phases out is no prerequisite of the module that replaces it (owner,
+// 2026-10-16): 11903 replaced 12212, which replaced 12103. 11903 rules out 12212 in its text
+// („Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul 12212"), 12212 rules out 11903, and
+// 12103 is left out even where a text names it without ruling it out. 12101 is a prerequisite.
+func TestBuildKeepsReplacedModulesOutOfThePrerequisites(t *testing.T) {
+	db, err := catalogdb.Open(filepath.Join(t.TempDir(), "prerequisites.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	put := func(source, key, body string) {
+		t.Helper()
+		if err := db.PutPage(catalogdb.RawPage{Source: source, Key: key, URL: key, HTTPStatus: 200, Body: []byte(body),
+			FetchedAt: time.Date(2026, 10, 16, 7, 0, 0, 0, time.UTC)}); err != nil {
+			t.Fatalf("PutPage failed: %v", err)
+		}
+	}
+
+	put(catalogdb.SourceQISModuleList, "rows-000000", `<table summary="Suchergebnis">
+		<tr><th>Nr.</th><th>Modultitel</th><th>Sprache</th><th>LP</th><th>FÜS</th><th>Teilnehmerbeschränkung</th></tr>
+		<tr><td>11903</td><td><a href="/rds?pord.pordnr=13000">Digitaltechnik</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12044</td><td><a href="/rds?pord.pordnr=13001">Rechnerarchitektur</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12101</td><td><a href="/rds?pord.pordnr=13002">Algorithmieren und Programmieren</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12103</td><td><a href="/rds?pord.pordnr=13003">Technische Informatik</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+		<tr><td>12212</td><td><a href="/rds?pord.pordnr=13971">Digitaltechnik</a></td><td>Deutsch</td><td>6</td><td></td><td></td></tr>
+	</table>`)
+	put(catalogdb.SourceQISModulePage, "11903", qisModulePage("11903", "Digitaltechnik", "6", "",
+		qisPrerequisiteRows("Kenntnis des Stoffes der Module 12101 und 12103.",
+			"Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul <em>12212 - Digitaltechnik.</em>")))
+	put(catalogdb.SourceQISModulePage, "12212", qisModulePage("12212 - Auslaufmodul", "Digitaltechnik", "6", "",
+		qisPrerequisiteRows("Kenntnis von elektrischen und elektronischen Grundlagen, Modul 12103.",
+			"Keine erfolgreiche Teilnahme am zugehörigen Nachfolgemodul <em>11903 - Digitaltechnik</em>."),
+		qisReplacementRow("Nachfolgemodul/e", "Auslaufmodul ab: 23.05.2019", "11903", "13000")))
+	put(catalogdb.SourceQISModulePage, "12103", qisModulePage("12103 - Auslaufmodul", "Technische Informatik", "6", "",
+		qisReplacementRow("Nachfolgemodul/e", "Auslaufmodul ab: 01.10.2015", "12212", "13971")))
+	put(catalogdb.SourceQISModulePage, "12044", qisModulePage("12044", "Rechnerarchitektur", "6", "",
+		qisPrerequisiteRows("Kenntnis des Stoffes von Modul 11903 Digitaltechnik.", "keine")))
+	put(catalogdb.SourceQISModulePage, "12101", qisModulePage("12101", "Algorithmieren und Programmieren", "6", ""))
+
+	if _, err := Build(context.Background(), db); err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+
+	want(t, db, "SELECT module_id, successor_id FROM module_successor ORDER BY module_id", "12103|12212", "12212|11903")
+	want(t, db, "SELECT module_id, required_module_id, kind FROM module_prerequisite ORDER BY 1, 2",
+		"11903|12101|recommended", "12044|11903|recommended")
+	// The texts stay as the page states them.
+	want(t, db, "SELECT prerequisites_mandatory FROM module WHERE id = '11903'",
+		"Keine erfolgreiche Teilnahme am zugehörigen Auslaufmodul *12212 - Digitaltechnik.*")
+}
