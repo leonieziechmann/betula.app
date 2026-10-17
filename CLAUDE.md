@@ -15,8 +15,9 @@ deploys an hour; `deploy/README.md` section 12).
   canary dafür ist es da"): once it is merged into `develop`, release `develop` into `master` — one
   merge per finished feature, not per commit — and try the feature on canary once it is deployed
   (its `x-build` header changes). Canary is closed testing so that the owner can try features
-  before the site's legal texts are set, not to keep anything secret; the owner gives the password,
-  and it never goes into the repository, which is public.
+  before the site's legal texts are set, not to keep anything secret. The password is in the
+  environment variable `CANARY_PW` (owner, 2026-10-17), and it never goes into the repository,
+  which is public.
 
 ## Versions
 
