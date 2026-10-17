@@ -37,8 +37,11 @@
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it, through the history; a tap anywhere on the credits opens the areas
 //   as a sheet a finger drags down to close it (a short pull: it slides back), the program's card
-//   opens „Studiengang wechseln" without a lead; nothing scrolls sideways; boxes and ⋯ as tall as a
-//   finger.
+//   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
+//   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
+//   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
+//   foot, the picker at the top of its body, all as it was with the keyboard gone; nothing scrolls
+//   sideways; boxes and ⋯ as tall as a finger.
 // 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
@@ -66,6 +69,21 @@ const FILLED = [
 const takeover = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 // Where the parts of the study's card are (owner, 2026-10-16: „Wenn man eine aktion macht, wie
 // semester +/- darf nicht unterbrochen werden durch layout shifts").
+// The screen's keyboard as a browser has it (`folia_design::keyboard`): the part of the page shown
+// shrinks by `kb` px while the page stays; 0, it has gone.
+const screenKeyboard = async (page, kb) => {
+  await page.evaluate((kb) => {
+    const viewport = window.visualViewport;
+    if (kb) {
+      const height = document.documentElement.clientHeight - kb;
+      Object.defineProperty(viewport, "height", { get: () => height, configurable: true });
+    } else {
+      delete viewport.height;
+    }
+    viewport.dispatchEvent(new Event("resize"));
+  }, kb);
+  await page.waitForTimeout(100);
+};
 const cardAt = (page, scope) => page.evaluate((scope) => [...document.querySelectorAll(`${scope} .st-study-say, ${scope} .st-srow, ${scope} .st-stepper button, ${scope} #st-fill, ${scope} #st-create, ${scope} .st-effect, ${scope} .st-dlg-foot .btn`)].map((el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); }).join(" "), scope);
 const open = async (options, path, { requests } = {}) => {
   const context = await browser.newContext(options);
@@ -711,6 +729,33 @@ if (current !== "2026W") {
   const sheetAt = await cardAt(page, ".st-dialog[open]");
   await step("+ and −", async () => { await page.tap("#st-switch-more"); await page.tap("#st-switch-more"); await page.tap("#st-switch-less"); }, () => document.querySelector(".st-dialog[open] .st-study-say")?.textContent === "Du studierst Informatik B.Sc. im 4. Fachsemester." && document.querySelector(".st-foot-state")?.textContent === "1 Änderung");
   check((await cardAt(page, ".st-dialog[open]")) === sheetAt, `− and + moved the sheet: ${sheetAt} → ${await cardAt(page, ".st-dialog[open]")}`);
+  // Under the card, what nothing but the Fachsemester changed means: a line at the foot of the body,
+  // without a box (owner, 2026-10-17: „die änderungsbox … sieht akward aus. Mach die mal weg und
+  // den Text nach unten bündig").
+  const note = await page.evaluate(() => {
+    const [note, body] = [".st-effect-note", ".st-dlg-body"].map((sel) => document.querySelector(`.st-dialog[open] ${sel}`));
+    return { text: note?.textContent, box: note && getComputedStyle(note).borderTopStyle, below: note && Math.round(body.getBoundingClientRect().bottom - note.getBoundingClientRect().bottom) };
+  });
+  check(note.text?.startsWith("Nur der Studienbeginn ändert sich") && note.box === "none" && note.below >= 10 && note.below <= 24, `the note under the card is not a line at the foot of the body: ${JSON.stringify(note)}`);
+  // The program's picker across the sheet, 8 px off its edges, its button and its list one box
+  // (owner, 2026-10-17: „Eingabeboxen/comboboxen immer von ganz links nach ganz rechts mit 8pt
+  // margin zum Rand in der Mobile Version"). The screen's keyboard up, the sheet is the part of the
+  // page shown, without its foot, the picker at the top of its body and its list above the keyboard
+  // („das modal kann ruhig full screen werden, wenn man das Keyboard öffnet. (Aber nur bei
+  // onscreen keyboard)"); the keyboard gone, all as it was.
+  const sheetNow = await cardAt(page, ".st-dialog[open]");
+  await step("the program's picker", () => page.tap("#st-switch-program"), () => document.activeElement?.id === "st-switch-program-search");
+  const across = await page.evaluate(() => ["#st-switch-program", ".st-dialog[open] .combo-pop"].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return `${Math.round(r.left)}|${Math.round(innerWidth - r.right)}`; }));
+  check(across.every((edges) => edges === "8|8") && !(await page.evaluate(() => document.documentElement.hasAttribute("data-keyboard"))), `the program's picker is not across the sheet, or a field alone is a keyboard: ${across}`);
+  await screenKeyboard(page, 336);
+  const typing = await page.evaluate(() => {
+    const at = (sel) => document.querySelector(sel).getBoundingClientRect();
+    const [dialog, body, label, pop] = [".st-dialog[open]", ".st-dialog[open] .st-dlg-body", ".st-dialog[open] .st-srow:has(.combo[data-open]) > .label", ".st-dialog[open] .combo-pop"].map(at);
+    return { shown: innerHeight - 336, dialog: [dialog.top, dialog.bottom].map(Math.round), foot: getComputedStyle(document.querySelector(".st-dialog[open] .st-dlg-foot")).display, label: Math.round(label.top - body.top), pop: Math.round(pop.bottom) };
+  });
+  check(typing.dialog[0] === 0 && typing.dialog[1] === typing.shown && typing.foot === "none" && typing.label === 8 && typing.pop <= typing.shown - 7, `the keyboard up, the sheet is not the part shown with the picker at its top: ${JSON.stringify(typing)}`);
+  await step("the keyboard gone", async () => { await page.keyboard.press("Escape"); await screenKeyboard(page, 0); }, () => !document.documentElement.hasAttribute("data-keyboard") && !document.querySelector(".st-dialog[open] .combo[data-open]"));
+  check((await cardAt(page, ".st-dialog[open]")) === sheetNow, `the keyboard gone, the sheet is not as it was: ${sheetNow} → ${await cardAt(page, ".st-dialog[open]")}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   // A column leads to its semester, one that is over to the left of the overview; Back to the
   // overview.

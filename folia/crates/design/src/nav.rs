@@ -197,7 +197,7 @@ pub fn width_of(id: &str) -> Option<f64> {
 
 /// Where the popup of a picker goes. On a computer it is fixed to the window, so no panel clips
 /// it: under its button, or above it when there is more room. On a phone it opens in place, under
-/// its button, and spans the panel the picker stands in (`inset`).
+/// its button, and spans what the picker stands in (`inset`): a dialog, a sheet, a panel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PopupPlace {
     pub left: f64,
@@ -205,14 +205,19 @@ pub struct PopupPlace {
     pub bottom: Option<f64>,
     pub width: f64,
     pub max_height: f64,
-    /// How far the picker stands in from the left and the right edge of the panel it is in;
-    /// `None` outside a panel.
+    /// How far the picker stands in from the left and the right edge of the dialog, the sheet or
+    /// the panel it is in; `None` outside of them.
     pub inset: Option<(f64, f64)>,
+    /// The picker's button spans its line (nothing beside it, as wide as the picker): on a phone,
+    /// open, it spans the width of its list as well, so that the two are one box (`data-wide`).
+    /// Where its content begins and ends, from the picker's edges, stays (`--tx`, `--tr`).
+    pub wide: Option<(f64, f64)>,
 }
 
 impl PopupPlace {
-    /// Custom properties for `.combo-pop`: its place in the window, which a phone ignores, and
-    /// how far in its panel the picker stands (`--pl`, `--pr`), which only a phone uses.
+    /// Custom properties for the picker (`.combo`, whose popup has them as well): the popup's
+    /// place in the window, which a phone ignores, and how far in what it stands in the picker
+    /// stands (`--pl`, `--pr`), which only a phone uses.
     pub fn style(&self) -> String {
         let vertical = match (self.top, self.bottom) {
             (Some(top), _) => format!("--y:{top:.0}px"),
@@ -220,7 +225,8 @@ impl PopupPlace {
             (None, None) => String::new(),
         };
         let inset = self.inset.map(|(left, right)| format!("--pl:{left:.1}px;--pr:{right:.1}px;")).unwrap_or_default();
-        format!("--x:{:.0}px;--w:{:.0}px;--h:{:.0}px;{inset}{vertical}", self.left, self.width, self.max_height)
+        let content = self.wide.map(|(left, right)| format!("--tx:{left:.1}px;--tr:{right:.1}px;")).unwrap_or_default();
+        format!("--x:{:.0}px;--w:{:.0}px;--h:{:.0}px;{inset}{content}{vertical}", self.left, self.width, self.max_height)
     }
 }
 
@@ -237,19 +243,49 @@ pub fn popup_place(trigger_id: &str, min_width: f64) -> Option<PopupPlace> {
         let width = rect.width().max(min_width).min(viewport_width - 16.0);
         let left = rect.left().min(viewport_width - width - 8.0).max(8.0);
         let (below, above) = (viewport_height - rect.bottom() - 12.0, rect.top() - 12.0);
-        // The popup's box (`.combo`, around the button) in its panel.
-        let inset = trigger.closest(".combo").ok().flatten().zip(trigger.closest(".panel").ok().flatten()).map(|(combo, panel)| {
-            let (combo, panel) = (combo.get_bounding_client_rect(), panel.get_bounding_client_rect());
-            (combo.left() - panel.left(), panel.right() - combo.right())
+        // The popup's box (`.combo`, around the button) in what it stands in: a dialog (a sheet on
+        // a phone), else its panel (the filters' sheet is one).
+        let combo = trigger.closest(".combo").ok().flatten();
+        let inset = combo.clone().zip(trigger.closest("dialog, .panel").ok().flatten()).map(|(combo, surface)| {
+            let (combo, surface) = (combo.get_bounding_client_rect(), surface.get_bounding_client_rect());
+            (combo.left() - surface.left(), surface.right() - combo.right())
+        });
+        // A button that spans its line: nothing beside it, its picker across what it stands in
+        // but for the room at the edges (a card's padding and the dialog's, at most 40 px each),
+        // and the button as wide as its picker (a card's row's reaches out past it, an open one
+        // past its list's edges: no narrower is what counts). One among the words of a line (a
+        // step's) keeps its size.
+        let spans = inset.is_some_and(|(left, right)| left <= 40.0 && right <= 40.0);
+        let wide = combo.filter(|combo| spans && alone_on_its_line(combo)).and_then(|combo| {
+            let picker = combo.get_bounding_client_rect();
+            if rect.width() < picker.width() - 12.0 {
+                return None;
+            }
+            let style = window.get_computed_style(&trigger).ok().flatten()?;
+            let padding = |side: &str| style.get_property_value(side).ok()?.trim_end_matches("px").parse::<f64>().ok();
+            Some((rect.left() + padding("padding-left")? - picker.left(), picker.right() - rect.right() + padding("padding-right")?))
         });
         Some(if below >= 300.0 || below >= above {
-            PopupPlace { left, top: Some(rect.bottom() + 4.0), bottom: None, width, max_height: below.clamp(160.0, 460.0), inset }
+            PopupPlace { left, top: Some(rect.bottom() + 4.0), bottom: None, width, max_height: below.clamp(160.0, 460.0), inset, wide }
         } else {
-            PopupPlace { left, top: None, bottom: Some(viewport_height - rect.top() + 4.0), width, max_height: above.clamp(160.0, 460.0), inset }
+            PopupPlace { left, top: None, bottom: Some(viewport_height - rect.top() + 4.0), width, max_height: above.clamp(160.0, 460.0), inset, wide }
         })
     }
     #[cfg(not(feature = "csr"))]
     None
+}
+
+/// Nothing of the element's parent stands beside it: whatever else it holds is above or below it
+/// (a picker's label over it on a phone, a line under it), or not shown.
+#[cfg(feature = "csr")]
+fn alone_on_its_line(element: &web_sys::Element) -> bool {
+    let Some(parent) = element.parent_element() else { return true };
+    let rect = element.get_bounding_client_rect();
+    let siblings = parent.children();
+    (0..siblings.length()).filter_map(|index| siblings.item(index)).filter(|sibling| sibling != element).all(|sibling| {
+        let other = sibling.get_bounding_client_rect();
+        other.width() == 0.0 || other.height() == 0.0 || other.bottom() <= rect.top() + 1.0 || other.top() >= rect.bottom() - 1.0
+    })
 }
 
 /// Moves the focus without scrolling anything; text fields get their content selected.

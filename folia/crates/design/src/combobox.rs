@@ -307,9 +307,6 @@ pub fn Combobox(
 
     let popup = move || {
         open.get().then(|| {
-            // Its own reaction: placed again, the popup is not drawn anew (its search field would
-            // lose the focus).
-            let style = move || place.get().map(|place| place.style()).unwrap_or_default();
             let entries = move || {
                 let rows = rows.get();
                 let hidden = rows.len().saturating_sub(MAX_SHOWN);
@@ -366,7 +363,7 @@ pub fn Combobox(
                 (entries, none, more)
             };
             view! {
-                <div class="combo-pop" style=style on:mousedown=keep_focus>
+                <div class="combo-pop" on:mousedown=keep_focus>
                     <div class="combo-search">
                         <Icon name="search"/>
                         <input
@@ -394,7 +391,17 @@ pub fn Combobox(
     };
 
     view! {
-        <div class="combo" node_ref=root data-open=move || open.get().then_some("true") on:focusout=on_focus_out>
+        <div
+            class="combo"
+            node_ref=root
+            data-open=move || open.get().then_some("true")
+            // The popup's place, on the picker so that its button can span the list on a phone
+            // (`PopupPlace`): an attribute of its own, so the popup placed again is not drawn
+            // anew (its search field would lose the focus).
+            style=move || open.get().then(|| place.get().map(|place| place.style())).flatten()
+            data-wide=move || (open.get() && place.get().is_some_and(|place| place.wide.is_some())).then_some("")
+            on:focusout=on_focus_out
+        >
             <button
                 type="button"
                 class="combo-trigger"
@@ -622,7 +629,6 @@ pub fn Select(
         let list_id = list_id.clone();
         move || {
             open.get().then(|| {
-                let style = move || place.get().map(|place| place.style()).unwrap_or_default();
                 let entries = move || {
                     let selected = selected.get_untracked();
                     items.with(|items| {
@@ -654,7 +660,7 @@ pub fn Select(
                     })
                 };
                 view! {
-                    <div class="combo-pop" style=style on:mousedown=keep_focus>
+                    <div class="combo-pop" on:mousedown=keep_focus>
                         <ul class="combo-list scroll" id=list_id.clone() role="listbox" aria-label=label>{entries}</ul>
                         <div class="combo-foot"><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.combobox.key_move}" "<kbd>"Enter"</kbd>" "{t.combobox.key_take}" "<kbd>"Esc"</kbd>" "{t.combobox.key_close}</div>
                     </div>
@@ -664,7 +670,15 @@ pub fn Select(
     };
 
     view! {
-        <div class="combo select" class:small=small node_ref=root data-open=move || open.get().then_some("true") on:focusout=on_focus_out>
+        <div
+            class="combo select"
+            class:small=small
+            node_ref=root
+            data-open=move || open.get().then_some("true")
+            style=move || open.get().then(|| place.get().map(|place| place.style())).flatten()
+            data-wide=move || (open.get() && place.get().is_some_and(|place| place.wide.is_some())).then_some("")
+            on:focusout=on_focus_out
+        >
             <button
                 type="button"
                 class="combo-trigger"
