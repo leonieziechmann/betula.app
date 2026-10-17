@@ -49,6 +49,9 @@
      the accent's lightness, the same in both themes, with white labels (5.6:1). */
   --remove: oklch(.53 .12 27);
   --on-remove: #ffffff;
+  /* Its stripes (a row swiped out of the plan): a shade darker, so its white labels keep their
+     contrast on them. */
+  --remove-stripe: color-mix(in srgb, var(--remove) 76%, #000);
   --ok: #0b7f58;      --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
   --no: #b3261e;      --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
   --warn: #8f5a0a;    --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
@@ -3456,6 +3459,12 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .row-wrap[data-armed][data-side="mark"] > .swipe-ground[data-marked] { background: var(--panel-3); color: var(--text-2); }
   .row-wrap[data-side="plan"] > .swipe-ground[data-planned], .row-wrap[data-armed][data-side="plan"] > .swipe-ground { background: var(--accent); color: var(--on-accent); }
   .row-wrap[data-armed][data-side="plan"] > .swipe-ground[data-planned] { background: var(--remove); color: var(--on-remove); }
+  /* Out of the plan the red is striped too, at 45° (owner, 2026-10-17: „schwer zu erkennen … für
+     rot grün blinde, ob wir jetzt planen oder entplanen … 45 Grad Striche im Hintergrund"): the
+     accent and the red are told apart by more than their hue. The stripes come in with the red,
+     under the ground's words. */
+  .swipe-ground::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, transparent 0 7px, var(--remove-stripe) 7px 11px); opacity: 0; transition: opacity .16s; pointer-events: none; }
+  .row-wrap[data-armed][data-side="plan"] > .swipe-ground[data-planned]::before { opacity: 1; }
   .row-wrap[data-armed] .swipe-act .icon { animation: swipe-spring .36s var(--spring); }
   .row-wrap[data-done] .swipe-act.fills .icon { fill: currentColor; }
   .filters { position: fixed; inset: auto 0 0 0; z-index: 40; max-height: 84vh; border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop); transform: translateY(105%); transition: transform .3s var(--ease); }
