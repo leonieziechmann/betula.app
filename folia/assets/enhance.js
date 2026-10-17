@@ -442,9 +442,14 @@
     out.push(x1);
     return out;
   };
+  // Where a glide stands `k` keyframes in: never before its first one nor past its last. An
+  // animation the compositor has just started can be a frame ahead of the page's clock, its time
+  // a little below 0 (on a phone busy with the page a swipe has gone to, the finger of the next
+  // swipe catches the glide just then): before, that was no keyframe at all, and the bar stood
+  // still with its lens and the wrong icon in it, no swipe moving it again.
   const sampleAt = (values, k) => {
-    const i = Math.min(Math.floor(k), values.length - 1), j = Math.min(i + 1, values.length - 1);
-    return values[i] + (values[j] - values[i]) * unit(k - i);
+    const at = k > 0 ? Math.min(k, values.length - 1) : 0, i = Math.floor(at), j = Math.min(i + 1, values.length - 1);
+    return values[i] + (values[j] - values[i]) * (at - i);
   };
   const stopGlide = (glide) => {
     cancelAnimationFrame(glide.frame);
