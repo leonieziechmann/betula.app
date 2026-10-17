@@ -2,9 +2,10 @@
 // lange gedrückt hält (auf dem handy) soll dabei sich die border aufladen und wrnn das voll ist soll
 // ein dropdown mit so 3 bis 5 semestern kommen in die man das einplanen kann … Beim pc soll einfach
 // on hover das dropdown kommen, oder wenn mann den shortcut lange gedrückt hält oder mit modifier";
-// folia/crates/stores/src/studyplan/menu.rs, enhance.js). On a wide screen: a mouse resting on the
+// folia/crates/design/src/holdmenu.rs, folia/crates/stores/src/studyplan/menu.rs, enhance.js). On a wide screen: a mouse resting on the
 // switch opens it under the pair of switches, „Merken" uncovered, and leaving closes it; a semester
-// taken plans there (one nothing is planned in yet included) and the menu goes; Shift+P opens it with
+// taken plans there (one nothing is planned in yet included) and the menu goes; on a module's page
+// the sidebar's „Einplanen" has the same menu beside it, and no „Anderes Semester"; Shift+P opens it with
 // the focus on the semester P plans into, the arrows and Enter take another, a digit too, Esc closes
 // it with the preview still open; P pressed plans as ever, P held opens the menu and plans nothing;
 // a right click opens it; a module offered in the summer alone says so of the winters. On a phone: a
@@ -34,20 +35,20 @@ const waitPlanned = (page, id, list, what) => page.waitForFunction(([key, id, wa
   const got = (localStorage.getItem(key) || "").split("\n").map((l) => l.split("\t")).filter((f) => f[0] === "m" && f[2] === id).map((f) => f[1]).sort();
   return JSON.stringify(got) === JSON.stringify([...want].sort());
 }, [STORE, id, list], { timeout: 4000 }).catch(async () => problems.push(`${what}: planned in ${JSON.stringify(await plannedIn(page, id))}, not ${JSON.stringify(list)}`));
-const menuGone = (page, what) => page.waitForFunction(() => !document.querySelector(".plan-menu"), null, { timeout: 2000 }).catch(() => problems.push(`${what}: the menu stayed`));
+const menuGone = (page, what) => page.waitForFunction(() => !document.querySelector(".hold-menu"), null, { timeout: 2000 }).catch(() => problems.push(`${what}: the menu stayed`));
 const menu = (page) => page.evaluate(() => {
-  const el = document.querySelector(".plan-menu");
+  const el = document.querySelector(".hold-menu");
   if (!el) return null;
   const box = (e) => { const r = e.getBoundingClientRect(); return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width }; };
   return {
     box: box(el),
-    shade: Boolean(document.querySelector(".plan-menu-shade")),
+    shade: Boolean(document.querySelector(".hold-menu-shade")),
     keys: el.classList.contains("by-keys"),
-    entries: [...el.querySelectorAll(".plan-menu-item")].map((e) => {
-      const label = e.querySelector(".plan-menu-label");
-      return { text: label.textContent, whole: label.scrollWidth <= label.clientWidth, note: e.querySelector(".plan-menu-note")?.textContent || "", checked: e.getAttribute("aria-checked") === "true", n: e.dataset.n };
+    entries: [...el.querySelectorAll(".hold-menu-item")].map((e) => {
+      const label = e.querySelector(".hold-menu-label");
+      return { text: label.textContent, whole: label.scrollWidth <= label.clientWidth, note: e.querySelector(".hold-menu-note")?.textContent || "", checked: e.getAttribute("aria-checked") === "true", n: e.dataset.n };
     }),
-    focus: document.activeElement?.closest?.(".plan-menu-item")?.dataset.n || null,
+    focus: document.activeElement?.closest?.(".hold-menu-item")?.dataset.n || null,
     mark: box(document.querySelector(".detail .hero .mark-toggle")),
     pair: box(document.querySelector(".detail .hero .switches")),
     expanded: document.querySelector('.detail .hero .plan-toggle[data-action="plan"]').getAttribute("aria-expanded"),
@@ -69,7 +70,7 @@ const open = async (page, id) => {
 
   // A mouse resting on the switch: the menu under the pair, „Merken" uncovered, five semesters.
   await page.hover(SWITCH);
-  await page.waitForSelector(".plan-menu", { timeout: 2000 }).catch(() => problems.push("hover: no menu"));
+  await page.waitForSelector(".hold-menu", { timeout: 2000 }).catch(() => problems.push("hover: no menu"));
   let m = await menu(page);
   if (m) {
     check(m.entries.length === 5, `hover: ${m.entries.length} semesters, not 5`);
@@ -88,10 +89,10 @@ const open = async (page, id) => {
 
   // A semester further on, nothing planned there yet: planned there, and the menu goes.
   await page.hover(SWITCH);
-  await page.waitForSelector(".plan-menu", { timeout: 2000 });
+  await page.waitForSelector(".hold-menu", { timeout: 2000 });
   const third = (await menu(page))?.entries[2]?.text || "";
-  await page.click(".plan-menu-item >> nth=2");
-  await page.waitForFunction(() => document.querySelector('.plan-menu-item[data-n="3"]')?.getAttribute("aria-checked") === "true", null, { timeout: 1000 }).catch(() => problems.push("taken: the semester did not flip in the menu"));
+  await page.click(".hold-menu-item >> nth=2");
+  await page.waitForFunction(() => document.querySelector('.hold-menu-item[data-n="3"]')?.getAttribute("aria-checked") === "true", null, { timeout: 1000 }).catch(() => problems.push("taken: the semester did not flip in the menu"));
   await menuGone(page, "taken");
   const later = await plannedIn(page, "12330");
   check(later.length === 1, `taken: planned in ${JSON.stringify(later)}`);
@@ -102,7 +103,7 @@ const open = async (page, id) => {
   await page.mouse.move(40, 450);
   await page.locator(".detail .hero h2").click();
   await page.keyboard.press("Shift+P");
-  await page.waitForSelector(".plan-menu", { timeout: 2000 }).catch(() => problems.push("Shift+P: no menu"));
+  await page.waitForSelector(".hold-menu", { timeout: 2000 }).catch(() => problems.push("Shift+P: no menu"));
   m = await menu(page);
   check(m?.keys && m?.focus === "1", `Shift+P: the focus is not on the first semester (${m?.focus})`);
   await page.keyboard.press("ArrowDown");
@@ -114,13 +115,13 @@ const open = async (page, id) => {
   check(await page.evaluate((sel) => document.activeElement === document.querySelector(sel), SWITCH), "Shift+P, Enter: the focus did not come back to the switch");
   // A digit takes its semester.
   await page.keyboard.press("Shift+P");
-  await page.waitForSelector(".plan-menu", { timeout: 2000 });
+  await page.waitForSelector(".hold-menu", { timeout: 2000 });
   await page.keyboard.press("5");
   await menuGone(page, "Shift+P, 5");
   check((await plannedIn(page, "12330")).length === 3, "Shift+P, 5: the fifth semester was not planned");
   // Esc closes the menu, and only the menu.
   await page.keyboard.press("Shift+P");
-  await page.waitForSelector(".plan-menu", { timeout: 2000 });
+  await page.waitForSelector(".hold-menu", { timeout: 2000 });
   await page.keyboard.press("Escape");
   await menuGone(page, "Esc");
   check(await page.evaluate(() => location.search.includes("open=12330")), "Esc: the preview closed with the menu");
@@ -144,16 +145,44 @@ const open = async (page, id) => {
 
   // A right click: the menu, a click beside it closes it.
   await page.click(SWITCH, { button: "right" });
-  await page.waitForSelector(".plan-menu", { timeout: 2000 }).catch(() => problems.push("right click: no menu"));
+  await page.waitForSelector(".hold-menu", { timeout: 2000 }).catch(() => problems.push("right click: no menu"));
   check((await menu(page))?.shade, "right click: no shade to click beside the menu");
   await page.mouse.click(40, 450);
   await menuGone(page, "right click, a click beside it");
   check(await page.evaluate(() => location.search.includes("open=12330")), "right click: the click beside the menu went somewhere");
 
+  // The module's page: the sidebar's „Einplanen" has the same menu, beside it, its neighbours free;
+  // „Anderes Semester" is no more (owner, 2026-10-17: „ich finde das un intuitiv … Und es soll halt
+  // einheitlich sein").
+  await page.goto(`${base}/catalog/module/12330`, { waitUntil: "domcontentloaded" });
+  const ACTION = '.actions .plan-toggle[data-action="plan"]';
+  await page.waitForFunction((sel) => window.__betulaApp === true && document.querySelector(sel)?.checkVisibility(), ACTION, { timeout: 60000 }).catch(() => problems.push("page: no „Einplanen“ among the sidebar's actions"));
+  await page.waitForTimeout(300);
+  check(!(await page.evaluate(() => [...document.querySelectorAll(".actions button")].some((b) => /Anderes Semester/.test(b.textContent)))), "page: „Anderes Semester“ is still there");
+  await page.hover(ACTION);
+  await page.waitForSelector(".hold-menu", { timeout: 2000 }).catch(() => problems.push("page, the sidebar: no menu"));
+  const beside = await page.evaluate((sel) => {
+    const menu = document.querySelector(".hold-menu")?.getBoundingClientRect();
+    const action = document.querySelector(sel).getBoundingClientRect();
+    const others = [...document.querySelectorAll(".actions > :not(.plan-toggle)")].map((el) => el.getBoundingClientRect());
+    return menu && { right: menu.left >= action.right, free: others.every((o) => o.right <= menu.left || o.width === 0), rows: document.querySelectorAll(".hold-menu .hold-menu-item").length };
+  }, ACTION);
+  check(beside?.right && beside?.free && beside?.rows === 5, `page, the sidebar: the menu is not beside the action with five semesters (${JSON.stringify(beside)})`);
+  await page.screenshot({ path: process.env.SHOTS ? `${process.env.SHOTS}/planmenu-sidebar.png` : undefined });
+  const before = (await plannedIn(page, "12330")).length;
+  await page.click(".hold-menu-item >> nth=3");
+  await menuGone(page, "page, the sidebar: a semester taken");
+  check((await plannedIn(page, "12330")).length === before + 1, "page, the sidebar: the semester taken was not planned");
+  // A right click on it, and the hero's switch on the page: one menu at a time, the same.
+  await page.click(ACTION, { button: "right" });
+  await page.waitForSelector(".hold-menu", { timeout: 2000 }).catch(() => problems.push("page, the sidebar: a right click opens no menu"));
+  await page.keyboard.press("Escape");
+  await menuGone(page, "page, the sidebar: Esc");
+
   // A module of the summers: the winters say it is not offered there.
   await open(page, "11103");
   await page.keyboard.press("Shift+P");
-  await page.waitForSelector(".plan-menu", { timeout: 2000 });
+  await page.waitForSelector(".hold-menu", { timeout: 2000 });
   m = await menu(page);
   const winters = m?.entries.filter((e) => e.text.includes("WiSe")) || [];
   check(winters.length >= 2 && winters.every((e) => e.note === "nicht angeboten"), `a summer module: the winters say ${JSON.stringify(winters)}`);
@@ -174,8 +203,8 @@ const open = async (page, id) => {
   const at = await page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, SWITCH);
   const ring = () => page.evaluate((sel) => {
     const el = document.querySelector(sel);
-    const rect = el.querySelector(".plan-charge rect");
-    return { charge: el.getAttribute("data-charge"), offset: parseFloat(getComputedStyle(rect).strokeDashoffset), shown: getComputedStyle(el.querySelector(".plan-charge")).opacity };
+    const rect = el.querySelector(".hold-charge rect");
+    return { charge: el.getAttribute("data-charge"), offset: parseFloat(getComputedStyle(rect).strokeDashoffset), shown: getComputedStyle(el.querySelector(".hold-charge")).opacity };
   }, SWITCH);
 
   // Held: the border fills, then the menu.
@@ -203,7 +232,7 @@ const open = async (page, id) => {
   check((await ring()).charge === null, "held: the border stayed");
   await page.screenshot({ path: process.env.SHOTS ? `${process.env.SHOTS}/planmenu-phone.png` : undefined });
   // A tap takes a semester.
-  await page.tap(".plan-menu-item >> nth=1");
+  await page.tap(".hold-menu-item >> nth=1");
   await menuGone(page, "phone, a semester tapped");
   check((await plannedIn(page, "12330")).length === 1, "phone: the semester tapped was not planned");
 

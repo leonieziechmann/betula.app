@@ -36,8 +36,10 @@
 /// Studium"; 1.17.1 with a shared link to a module far down the catalog (`/catalog?open=11787`) no
 /// longer freezing the tab as the app takes the page over; 1.18.0 with the semesters of „Einplanen"
 /// besides its own, a menu under the switch — a mouse resting on it, Shift+P or P held, a right
-/// click, on a phone a finger held while its border fills. The version of the app's crates, the
-/// same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// click, on a phone a finger held while its border fills; 1.19.0 with that menu a building block of
+/// every switch that has one, „Einplanen" among the sidebar's actions with it beside, and no
+/// „Anderes Semester". The version of the app's crates, the same as the server's; Radix's is in the
+/// snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
