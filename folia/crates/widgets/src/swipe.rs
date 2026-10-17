@@ -13,9 +13,12 @@
 //! aimed as the switch aims (`studyplan::target_semester`, from the module's own Termine as on its
 //! page), and the placeholder the finder asked for. What is said is what the swipe does, not what
 //! the module is: a marked module's row uncovers „Entfernen · von der Merkliste", a planned one's
-//! „Entfernen · aus WiSe 2026/27". It is read once, when the finger starts. Past a third of the
-//! card (at most `ARM`), or flicked that way, the action is armed: the ground takes the colour of
-//! its side (the inverted look of a marked module, the accent for the plan) and the icon springs.
+//! „Entfernen · aus WiSe 2026/27". It is read once, when the finger starts. The ground starts in
+//! the look of what the module is, and past a third of the card (at most `ARM`), or flicked that
+//! way, the action is armed: the ground takes the look of what the module will be and the icon
+//! springs (owner, 2026-10-17) — „Merken" from the quiet ground to the inverted look of a marked
+//! module, „Entfernen" back; „Einplanen" to the accent, „Entfernen" out of the plan from the accent
+//! to red.
 //! Let go armed, and the ground says what was done („Gemerkt", „Eingeplant", „Entfernt"), the card
 //! goes aside as far as that takes and holds a moment before it glides back, and the action
 //! follows after the next frame (R21); let go before, and the card glides back and nothing
@@ -29,7 +32,8 @@
 //! nothing, and the next tap only stops that fling); a flick is measured by the events' own times.
 //! A mouse (a narrow window) drags the card the same way. The card moves inside its own place
 //! (app.css: the row clips it, and draws the card's ring and shadow while it does), so it never
-//! reaches past the page's edge, which would let the page scroll sideways.
+//! reaches past the page's edge, which would let the page scroll sideways; the row's bookmark goes
+//! with it as one.
 
 use std::time::Duration;
 
@@ -351,8 +355,9 @@ impl RowSwipe {
         (self.phase.get() != Phase::Rest).then(|| self.card.with(|card| format!("--swipe:{:.1}px;--open:{:.3}", card.offset, card.open)))
     }
 
-    /// The ground under the card while the row is swiped: each side's icon, its word and its line.
-    /// Nobody reads it but the eye: the switches it stands for are the module's.
+    /// The ground under the card while the row is swiped: each side's icon, its word and its line,
+    /// and what the module was (`data-marked`, `data-planned`), whose look it starts in. Nobody
+    /// reads it but the eye: the switches it stands for are the module's.
     pub fn ground_view(self) -> impl IntoView {
         let done = self.done;
         let side = move |act: Option<Act>, side: Side| {
@@ -372,8 +377,11 @@ impl RowSwipe {
         };
         move || {
             self.ground.get().map(|ground| {
+                // What the module was when the finger started: the ground starts in its look.
+                let marked = ground.marked.then_some("");
+                let planned = ground.aim.as_ref().is_some_and(Aim::pressed).then_some("");
                 view! {
-                    <div class="swipe-ground" aria-hidden="true">
+                    <div class="swipe-ground" aria-hidden="true" data-marked=marked data-planned=planned>
                         {side(ground.plan, Side::Plan)}
                         {side(ground.mark, Side::Mark)}
                     </div>

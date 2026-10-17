@@ -495,10 +495,20 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   finder's semester and placeholder), „von der Merkliste". What the ground says is what the swipe
   does, not what the module is: on a marked module the left side says „Entfernen · von der
   Merkliste", on a planned one the right side „Entfernen · aus WiSe 2026/27"; it is read once, when
-  the finger starts. The mark's side has its icon where the row's bookmark stands. It is quiet
-  until the action is armed, a third of the card or 120 px away (or half as far and flicked, as the
-  sheet measures a flick): then it takes the colour of its side — the inverted look of a marked
-  module, the accent for the plan — and the icon springs. Let go armed, the ground says what was
+  the finger starts. The mark's side has its icon where the row's bookmark stands, and the row's
+  bookmark goes with the card as one (it trailed the finger by the 120 ms its button's transform
+  eases in, owner, 2026-10-17: „nicht fest attached, sondern floated so mit"); its colours still
+  ease in, its place does not (the same day: „Die transition soll weiter bleiben, aber nur für
+  farbe und nicht position"). The ground starts in
+  the look of what the module is, and once the action is armed, a third of the card or 120 px away
+  (or half as far and flicked, as the sheet measures a flick), it takes the look of what the module
+  will be and the icon springs (owner, 2026-10-17: „erst dunkel ist und dann hell wird, wenn es dann
+  gemerkt ist. Und dann hell ist, wenn es schon gemerkt ist und dann dunkel wird, wenn es wieder
+  entmerkt wird", in the dark theme, and „das gleiche mit grün für einplanen und rot für
+  entfernen"): „Merken" from the quiet ground to the inverted look of a marked module (its switch
+  on the module's page), „Entfernen · von der Merkliste" from that look back to the quiet ground;
+  „Einplanen" from the quiet ground to the accent, „Entfernen · aus …" from the accent to a muted
+  red at the accent's lightness (`--remove`, white labels as on the accent). Let go armed, the ground says what was
   done („Gemerkt", „Eingeplant", „Entfernt"), the card goes aside as far as that takes, holds a
   moment and glides back, and the action follows after the next frame (R21); let go before, the
   card glides back and nothing happens. The row stays where it is (R5: marking and planning change
