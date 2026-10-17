@@ -497,7 +497,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   Merkliste", on a planned one the right side „Entfernen · aus WiSe 2026/27"; it is read once, when
   the finger starts. The mark's side has its icon where the row's bookmark stands, and the row's
   bookmark goes with the card as one (it trailed the finger by the 120 ms its button's transform
-  eases in, owner, 2026-10-17: „nicht fest attached, sondern floated so mit"). The ground starts in
+  eases in, owner, 2026-10-17: „nicht fest attached, sondern floated so mit"); its colours still
+  ease in, its place does not (the same day: „Die transition soll weiter bleiben, aber nur für
+  farbe und nicht position"). The ground starts in
   the look of what the module is, and once the action is armed, a third of the card or 120 px away
   (or half as far and flicked, as the sheet measures a flick), it takes the look of what the module
   will be and the icon springs (owner, 2026-10-17: „erst dunkel ist und dann hell wird, wenn es dann

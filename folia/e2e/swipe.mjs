@@ -71,6 +71,7 @@ const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
     styled: wrap.hasAttribute("style"),
     dx: Math.round(card.left - place.left),
     markDx: toggle ? Math.round(new DOMMatrixReadOnly(getComputedStyle(toggle).transform).m41) : null,
+    markEases: toggle ? getComputedStyle(toggle).transitionProperty : null,
     said: shown ? shown.innerText.replace(/\s*\n\s*/g, " | ").trim() : null,
     ground: ground ? getComputedStyle(ground).backgroundColor : null,
     marked: wrap.querySelector(".mark-toggle")?.getAttribute("aria-pressed") === "true",
@@ -122,6 +123,7 @@ check(Math.abs(now.dx + 60) <= 1, `left: the card went ${now.dx} px, not -60 (70
 check(now.said === "Merken", `left: the ground says ${JSON.stringify(now.said)}, not „Merken"`);
 check(!now.armed && now.ground === colour.quiet, `left: armed before its time (${now.armed}, ${now.ground})`);
 check(Math.abs(now.markDx - now.dx) <= 1, `left: the row's bookmark trails the card (${now.markDx} px, the card ${now.dx} px)`);
+check(/\bcolor\b/.test(now.markEases ?? "") && !/transform|\ball\b/.test(now.markEases ?? ""), `left: the bookmark's colours do not ease in, or its place does (${now.markEases})`);
 check(!now.wide && now.scrollY === start.scrollY, `left: the page moved (${now.wide ? "wider than the window" : ""} ${start.scrollY} → ${now.scrollY})`);
 await swipe(0, 0, -90, 0, { steps: 6, hold: true, from: true });
 await page.waitForTimeout(250); // the ground's colour comes in .16 s

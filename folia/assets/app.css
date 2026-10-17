@@ -3353,13 +3353,16 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      the card goes (--open, 0–1). Armed (data-armed), the ground changes from the look of what the
      module is to that of what it will be (below), and the icon springs. Done (data-done), it says
      what was done: the card goes aside as far as that takes, holds a moment and glides back with
-     the ease of the sheet. The row's bookmark goes with the card as one, without the transition
-     of its button (it trailed the finger by 120 ms). */
+     the ease of the sheet. The row's bookmark goes with the card as one: its button's colours
+     still ease in, its place does not (it trailed the finger by 120 ms; owner, 2026-10-17: „Die
+     transition soll weiter bleiben, aber nur für farbe und nicht position"). */
   .row-wrap.swipes { touch-action: pan-y; touch-action: pan-y pinch-zoom; }
   .row-wrap[data-swipe] { overflow: hidden; overflow: clip; border-radius: var(--r-panel); box-shadow: var(--shadow-panel); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .row-wrap[data-swipe] > .row, .row-wrap[data-swipe] > .mark-toggle { transform: translateX(var(--swipe, 0px)); }
-  .row-wrap[data-swipe="drag"] > .row, .row-wrap[data-swipe="drag"] > .mark-toggle { transition: none; }
-  .row-wrap[data-swipe="glide"] > .row, .row-wrap[data-swipe="glide"] > .mark-toggle { transition: transform .34s var(--ease); }
+  .row-wrap[data-swipe="drag"] > .row { transition: none; }
+  .row-wrap[data-swipe="drag"] > .mark-toggle { transition: background .12s, color .12s; }
+  .row-wrap[data-swipe="glide"] > .row { transition: transform .34s var(--ease); }
+  .row-wrap[data-swipe="glide"] > .mark-toggle { transition: transform .34s var(--ease), background .12s, color .12s; }
   /* A module whose mark was taken away on the Merkliste stands there dimmed (.unmarked). Swiped,
      its card is whole at once: the ground would show through it. */
   .row-wrap.unmarked[data-swipe] > .row { opacity: 1; }
