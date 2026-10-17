@@ -3399,7 +3399,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      full screen werden, wenn man das Keyboard öffnet. (Aber nur bei onscreen keyboard)"): a sheet
      takes the part of the screen the keyboard leaves, from edge to edge, so that the field and
      what it finds stay in view, and its foot waits for the keyboard to go; so does a dialog
-     (below), and the bar of the tabs. */
+     (below), and the bar of the tabs. It glides there and back, by its top and height
+     (`folia_design::keyboard`, owner, the same day: „Animation bitte. Aktuell springt das noch
+     komisch"). */
   :root[data-keyboard] :is(.filters, .sidebar.sheet):is(.open, :target) { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-height, 100dvh); max-height: none; border-radius: 0; }
   :root[data-keyboard] :is(.filters .filter-actions, .sidebar.sheet .sheet-only, .bottomnav) { display: none; }
   /* What was picked beside a program (a module, an area, a row of the plan) has no room beside
@@ -3430,13 +3432,23 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      marks of the way in. */
   .combo[data-open] { --ml: min(0px, 8px - var(--pl, 8px)); --mr: min(0px, 8px - var(--pr, 8px)); }
   .combo[data-open][data-wide] > .combo-trigger { width: calc(100% - var(--ml) - var(--mr)); margin-left: var(--ml); padding-left: calc(var(--tx) - var(--ml)); padding-right: calc(var(--tr) - var(--mr)); }
-  .combo-pop { position: relative; z-index: 1; inset: auto; width: auto; max-height: 46vh; margin: 6px var(--mr, 0px) 0 var(--ml, 0px); contain: inline-size; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
+  /* Nothing jumps as it opens (owner, 2026-10-17: „Animation bitte. Aktuell springt das noch
+     komisch"): the button draws out to the list's width and back, the list unrolls down out of it
+     (clipped, not faded: what it covers does not show through it meanwhile). */
+  .combo-trigger { transition: background .12s, box-shadow .12s, margin-left .22s var(--ease), width .22s var(--ease), padding .22s var(--ease); }
+  .combo-pop { position: relative; z-index: 1; inset: auto; width: auto; max-height: 46vh; margin: 6px var(--mr, 0px) 0 var(--ml, 0px); contain: inline-size; box-shadow: inset 0 0 0 1px var(--line-strong); animation: pop-down .24s var(--ease); }
   /* With the screen's keyboard up, what is typed in goes to the top of what scrolls it, a picker
      with its list ending above the keyboard (`--kb-room`), a text field so too
      (`folia_design::keyboard`); what scrolls it has the room to below what it holds, as much as is
-     shown. */
+     shown (`--kb-pad`), and keeps it a moment after the keyboard has gone, while it scrolls back
+     (`data-keyboard-leaving`). */
   :root[data-keyboard] .combo-pop { max-height: max(160px, var(--kb-room, 46vh)); }
-  :root[data-keyboard] :is(body, .st-dlg-body, .filters .body, .sidebar.sheet .body) { padding-bottom: var(--vv-height, 0px); }
+  :root:is([data-keyboard], [data-keyboard-leaving]) body { padding-bottom: var(--kb-pad, 0px); }
+  /* In a dialog's body or a sheet's, the room is a mark out of the flow below what is shown, not
+     padding: a body that may shrink cannot shrink its padding, which pushed the dialog's foot out
+     of it once the keyboard had gone. */
+  :root:is([data-keyboard], [data-keyboard-leaving]) :is(.st-dlg-body, .filters .body, .sidebar.sheet .body) { position: relative; }
+  :root:is([data-keyboard], [data-keyboard-leaving]) :is(.st-dlg-body, .filters .body, .sidebar.sheet .body)::after { content: ""; position: absolute; top: 100%; left: 0; width: 1px; height: var(--kb-pad, 0px); pointer-events: none; }
   .combo-option { min-height: 44px; align-items: center; font-size: 15px; }
   .combo-foot { display: none; }
   .credits { --knob: 24px; --thumb: 40px; }
@@ -4637,7 +4649,8 @@ a.st-rsp-name:hover { text-decoration: underline; }
   /* A dialog's search field 8 px off the sheet's edges, as an open picker. */
   .st-dialog .st-search-box { margin-left: -8px; margin-right: -8px; }
   /* The screen's keyboard up: the dialog is the part of the screen the keyboard leaves, from edge
-     to edge (as a sheet, above), its foot back with the keyboard gone. */
+     to edge (as a sheet, above), its foot back with the keyboard gone; it glides there and back
+     (`folia_design::keyboard`). */
   :root[data-keyboard] .st-dialog[open] { inset: var(--vv-top, 0px) 0 auto; height: var(--vv-height, 100dvh); max-height: none; margin: 0; border-radius: 0; }
   :root[data-keyboard] .st-dialog .st-dlg-head { padding-top: max(18px, env(safe-area-inset-top)); }
   :root[data-keyboard] .st-dialog .st-dlg-foot { display: none; }
@@ -4755,6 +4768,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
 @keyframes slide-in { from { transform: translateX(24px); opacity: 0; } }
 @keyframes preview-in { from { transform: translateX(16px); opacity: 0; } }
 @keyframes pop-in { from { transform: translateY(-4px); opacity: 0; } }
+@keyframes pop-down { from { clip-path: inset(0 0 100% 0 round var(--r-panel)); } to { clip-path: inset(0 0 0 0 round var(--r-panel)); } }
 @keyframes cap-in { from { opacity: 0; } }
 @keyframes swipe-spring { from { transform: scale(.72); } }
 /* The wood keeps its animation: it is tied to the scroll (the ground's), it moves only as the

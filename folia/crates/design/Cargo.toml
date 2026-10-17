@@ -1,6 +1,6 @@
 [package]
 name = "folia-design"
-version = "1.14.0"
+version = "1.15.0"
 edition = "2021"
 description = "The design of Betula's app: building blocks, icons, formats, the browser's means and the languages"
 
@@ -11,7 +11,7 @@ name = "folia_design"
 # The browser app: what reads the window (storage, sizes, the address).
 # Server rendering (the web server; the tests that render a component).
 ssr = ["leptos/ssr", "leptos_router/ssr", "leptos_meta/ssr"]
-csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen"]
+csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "dep:js-sys"]
 
 [dependencies]
 leptos = "0.8.20"
@@ -25,6 +25,8 @@ folia-routes = { path = "../routes" }
 # The pickers rank what is typed as the catalog's search does.
 folia-search = { path = "../search" }
 wasm-bindgen = { version = "0.2", optional = true }
+# A dialog that glides over the screen's keyboard (`keyboard`): its keyframes, `Element.animate`.
+js-sys = { version = "0.3", optional = true }
 # JavaScript handles (a ResizeObserver) kept until a component is cleaned up: cleanups are `Send`.
 send_wrapper = "0.6"
 web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "HtmlCollection", "VisualViewport", "CssStyleDeclaration"] }
