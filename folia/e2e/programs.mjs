@@ -520,6 +520,15 @@ const LINE = ".fx-desk a.prog-line";
 {
   const { page, step, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "/programs");
   check(await page.evaluate(() => document.querySelector("details.facc").getBoundingClientRect().top < innerHeight * 0.4), "phone: the first faculty does not start on the first screen");
+  // The way back at the head, left of the search, up to „Mein Studium" (owner, 2026-10-17), and
+  // the way to the profile page gone meanwhile.
+  check(await page.evaluate(() => {
+    const back = document.querySelector(".topbar .top-back.on");
+    const search = document.querySelector(".topbar .search").getBoundingClientRect();
+    const profile = document.querySelector(".topbar .top-profile");
+    return Math.round(back?.getBoundingClientRect().width ?? 0) === 48 && back.getAttribute("href") === "/study" && back.getBoundingClientRect().right < search.left
+      && profile.inert && Math.round(profile.getBoundingClientRect().width) === 0;
+  }), "phone: the overview has no way back to „Mein Studium“ at the head, or the way to the profile page did not give way");
   await step("phone: the sheet opens", () => page.tap(".sheet-toggle"), () => document.querySelector(".sidebar.sheet.open") && document.querySelector(".sidebar.sheet").getBoundingClientRect().top < innerHeight - 200);
   await step("phone: a filter in the sheet", () => page.tap('#sidebar a.chip:has-text("Bachelor")'), () => location.search === "?level=bachelor" && document.querySelector(".sidebar.sheet.open"));
   await step("phone: the sheet closes", () => page.tap('#sidebar .sheet-only a'), () => !document.querySelector(".sidebar.sheet.open"));
@@ -559,6 +568,14 @@ const LINE = ".fx-desk a.prog-line";
   await page.goto(base + "/programs/bachelor-informatik-2008", { waitUntil: "domcontentloaded" });
   check((await page.locator("table.planlist").count()) === 1 && (await page.locator("table.matrix").count()) === 0, "no JS: the server's plan is not the list");
   await context.close();
+  // On a phone the overview's way back leads to „Mein Studium", which needs the browser app: without
+  // JavaScript it is not there, and the way to the profile page is.
+  const phone = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const narrow = await phone.newPage();
+  await narrow.goto(base + "/programs", { waitUntil: "domcontentloaded" });
+  check(await narrow.evaluate(() => !document.querySelector(".topbar .top-back")?.getBoundingClientRect().width && !document.querySelector(".topbar .top-profile").inert && Math.round(document.querySelector(".topbar .top-profile").getBoundingClientRect().width) === 48),
+    "no JS, phone: the overview has a way back to „Mein Studium“, or no way to the profile page");
+  await phone.close();
 }
 
 await browser.close();

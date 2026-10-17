@@ -495,10 +495,20 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   finder's semester and placeholder), „von der Merkliste". What the ground says is what the swipe
   does, not what the module is: on a marked module the left side says „Entfernen · von der
   Merkliste", on a planned one the right side „Entfernen · aus WiSe 2026/27"; it is read once, when
-  the finger starts. The mark's side has its icon where the row's bookmark stands. It is quiet
-  until the action is armed, a third of the card or 120 px away (or half as far and flicked, as the
-  sheet measures a flick): then it takes the colour of its side — the inverted look of a marked
-  module, the accent for the plan — and the icon springs. Let go armed, the ground says what was
+  the finger starts. The mark's side has its icon where the row's bookmark stands, and the row's
+  bookmark goes with the card as one (it trailed the finger by the 120 ms its button's transform
+  eases in, owner, 2026-10-17: „nicht fest attached, sondern floated so mit"); its colours still
+  ease in, its place does not (the same day: „Die transition soll weiter bleiben, aber nur für
+  farbe und nicht position"). The ground starts in
+  the look of what the module is, and once the action is armed, a third of the card or 120 px away
+  (or half as far and flicked, as the sheet measures a flick), it takes the look of what the module
+  will be and the icon springs (owner, 2026-10-17: „erst dunkel ist und dann hell wird, wenn es dann
+  gemerkt ist. Und dann hell ist, wenn es schon gemerkt ist und dann dunkel wird, wenn es wieder
+  entmerkt wird", in the dark theme, and „das gleiche mit grün für einplanen und rot für
+  entfernen"): „Merken" from the quiet ground to the inverted look of a marked module (its switch
+  on the module's page), „Entfernen · von der Merkliste" from that look back to the quiet ground;
+  „Einplanen" from the quiet ground to the accent, „Entfernen · aus …" from the accent to a muted
+  red at the accent's lightness (`--remove`, white labels as on the accent). Let go armed, the ground says what was
   done („Gemerkt", „Eingeplant", „Entfernt"), the card goes aside as far as that takes, holds a
   moment and glides back, and the action follows after the next frame (R21); let go before, the
   card glides back and nothing happens. The row stays where it is (R5: marking and planning change
@@ -794,17 +804,22 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   leading where the link leads and through the history where that is the step before
   (`TopBack::follow`), and steps aside while the head has it (`.topbar.backed ~ .content .at-head`);
   a page's step that has no such link (a semester of „Mein Studium", its views on a phone) puts it
-  there the same way while the step shows. Each page that put it there takes it away with it, and
+  there the same way while the step shows. The program overview has it too, up to „Mein Studium"
+  as it was left (owner, 2026-10-17: „wenn man auf alle Studiengänge geht, dann fehlt da ein
+  zurück button, um zur mein Studium ansicht zurück zu kommen"; `chrome::Up::Study`), through the
+  history where that is the step before. Each page that put it there takes it away with it, and
   only its own (a number per `follow`): the page the app goes to may say where before the one it
   leaves is gone. On the way to another page the bar follows the click, the box there or gone at
   once. **The server writes the bar before the page** and knows nothing of its links, so the
   address says which pages have the box from their first paint (`chrome::back_at_head`: a
-  program's page whatever fills it, and a module's own page), leading to the list of its area as
-  it was left until the page says where (on the server's page its list, where the page's link
-  leads too): the server's page has the box and no way to the profile page where the app has
-  them, and nothing moves at the takeover (`e2e/takeover.mjs`: a program's and a module's page on
-  a phone); without JavaScript the box is the plain link. What only the app shows (a module in
-  full, an area as a page) gets the box when it comes. A wide screen keeps „Zurück (Esc)" in the
+  program's page whatever fills it, and a module's own page, leading to the list of its area as
+  it was left until the page says where — on the server's page its list, where the page's link
+  leads too —, and the program overview, leading to „Mein Studium"): the server's page has the
+  box and no way to the profile page where the app has them, and nothing moves at the takeover
+  (`e2e/takeover.mjs`: the overview, a program's and a module's page on a phone); without
+  JavaScript the box is the plain link, and the overview has none, „Mein Studium" being the app's
+  alone (`.topbar.app-back`, app.css: the way to the profile page stays). What only the app
+  shows (a module in full, an area as a page) gets the box when it comes. A wide screen keeps „Zurück (Esc)" in the
   page. Not ways back and so not moved: the × of a module's sheet, the pager's „Zurück", a menu's
   way back to its first level.
 - **Dialogs: one frame in three sizes** (owner, 2026-10-16: „Die Modalen [Dialoge] sind nicht

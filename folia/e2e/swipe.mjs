@@ -4,8 +4,10 @@
 // Merkliste"), with real touches (`Input.dispatchTouchEvent`, as tabbar.mjs): the card follows the
 // finger inside its own place (the page never grows sideways) and uncovers at the side it leaves
 // what the swipe does — „Merken" to the left, „Einplanen" with its semester to the right,
-// „Entfernen" where the module is marked or planned already — quiet until the action is armed, then
-// in the side's colour; let go armed, the ground says what was done while the card holds and glides
+// „Entfernen" where the module is marked or planned already — in the look of what the module is
+// until the action is armed, then in that of what it will be (owner, 2026-10-17: „Merken" from the
+// quiet ground to the inverted look, „Entfernen" back; „Einplanen" to the accent, „Entfernen" out
+// of the plan from the accent to red), the row's bookmark going with the card as one; let go armed, the ground says what was done while the card holds and glides
 // back, and the module is marked (its bookmark, the Merkliste's count) or planned (the
 // Stundenplan's count); a short slow pull glides back and does nothing, a short flick does it;
 // neither a swipe nor its end is a tap or a step of the history, and a tap right after a swipe is a
@@ -57,7 +59,7 @@ async function open(context, path) {
 const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
   const wrap = document.querySelectorAll(rows)[i];
   const place = wrap.getBoundingClientRect(), card = wrap.querySelector(".row").getBoundingClientRect();
-  const ground = wrap.querySelector(".swipe-ground");
+  const ground = wrap.querySelector(".swipe-ground"), toggle = wrap.querySelector(".mark-toggle");
   const shown = ground && [...ground.querySelectorAll(".swipe-act")].find((act) => getComputedStyle(act).visibility === "visible");
   const count = (area) => document.querySelector(`.bottomnav .nav[data-area="${area}"] .nav-count`)?.textContent ?? "";
   return {
@@ -68,6 +70,8 @@ const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
     done: "done" in wrap.dataset,
     styled: wrap.hasAttribute("style"),
     dx: Math.round(card.left - place.left),
+    markDx: toggle ? Math.round(new DOMMatrixReadOnly(getComputedStyle(toggle).transform).m41) : null,
+    markEases: toggle ? getComputedStyle(toggle).transitionProperty : null,
     said: shown ? shown.innerText.replace(/\s*\n\s*/g, " | ").trim() : null,
     ground: ground ? getComputedStyle(ground).backgroundColor : null,
     marked: wrap.querySelector(".mark-toggle")?.getAttribute("aria-pressed") === "true",
@@ -82,12 +86,12 @@ const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
     loaded: window.__marker === 1,
   };
 };
-// The colours the ground takes when armed: the inverted look of a marked module, the accent.
+// The colours the ground takes: quiet, the inverted look of a marked module, the accent, red.
 const colours = () => {
   const probe = document.createElement("i");
   document.body.append(probe);
   const of = (value) => { probe.style.color = value; return getComputedStyle(probe).color; };
-  const out = { invert: of("var(--invert)"), accent: of("var(--accent)"), quiet: of("var(--panel-3)") };
+  const out = { invert: of("var(--invert)"), accent: of("var(--accent)"), quiet: of("var(--panel-3)"), remove: of("var(--remove)") };
   probe.remove();
   return out;
 };
@@ -118,6 +122,8 @@ check(now.swipe === "drag" && now.side === "mark", `left: the row is not taken b
 check(Math.abs(now.dx + 60) <= 1, `left: the card went ${now.dx} px, not -60 (70 less the slop)`);
 check(now.said === "Merken", `left: the ground says ${JSON.stringify(now.said)}, not „Merken"`);
 check(!now.armed && now.ground === colour.quiet, `left: armed before its time (${now.armed}, ${now.ground})`);
+check(Math.abs(now.markDx - now.dx) <= 1, `left: the row's bookmark trails the card (${now.markDx} px, the card ${now.dx} px)`);
+check(/\bcolor\b/.test(now.markEases ?? "") && !/transform|\ball\b/.test(now.markEases ?? ""), `left: the bookmark's colours do not ease in, or its place does (${now.markEases})`);
 check(!now.wide && now.scrollY === start.scrollY, `left: the page moved (${now.wide ? "wider than the window" : ""} ${start.scrollY} → ${now.scrollY})`);
 await swipe(0, 0, -90, 0, { steps: 6, hold: true, from: true });
 await page.waitForTimeout(250); // the ground's colour comes in .16 s
@@ -150,16 +156,29 @@ now = await rested("right");
 check(now.planned === "1" && now.marked, `right: the Stundenplan counts ${JSON.stringify(now.planned)}, the mark ${now.marked}`);
 check(await page.evaluate((id) => (localStorage.getItem("betula.studyplan.v1") || "").includes(`\t${id}\t`), now.id), "right: the plan does not hold the module");
 
-// ---- again, each way: now the swipe takes away, and says from where
-await swipe(box.x + 60, box.y, -170, 0, { hold: true });
+// ---- again, each way: now the swipe takes away, and says from where; the ground starts in the
+// look of what the module is and goes to that of what it will be
+await swipe(box.x + 60, box.y, -70, 0, { steps: 6, hold: true });
+await page.waitForTimeout(250);
+now = await state();
+check(!now.armed && now.ground === colour.invert, `left again: not in the look of a marked module before it is armed (${now.armed}, ${now.ground}, not ${colour.invert})`);
+await swipe(0, 0, -100, 0, { steps: 6, hold: true, from: true });
+await page.waitForTimeout(250);
 now = await state();
 check(now.said === "Entfernen | von der Merkliste" && now.armed, `left again: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
+check(now.ground === colour.quiet, `left again: armed, not quiet (${now.ground}, not ${colour.quiet})`);
 await lift();
 now = await rested("left again");
 check(!now.marked && now.marks === "", `left again: the module is still marked (${now.marked}, ${now.marks})`);
-await swipe(box.x - 60, box.y, 170, 0, { hold: true });
+await swipe(box.x - 60, box.y, 70, 0, { steps: 6, hold: true });
+await page.waitForTimeout(250);
+now = await state();
+check(!now.armed && now.ground === colour.accent, `right again: not in the accent before it is armed (${now.armed}, ${now.ground}, not ${colour.accent})`);
+await swipe(0, 0, 100, 0, { steps: 6, hold: true, from: true });
+await page.waitForTimeout(250);
 now = await state();
 check(now.said === `Entfernen | aus ${semester}` && now.armed, `right again: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
+check(now.ground === colour.remove, `right again: armed, not red (${now.ground}, not ${colour.remove})`);
 await lift();
 now = await rested("right again");
 check(now.planned === "", `right again: the Stundenplan still counts ${now.planned}`);
