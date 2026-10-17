@@ -25,8 +25,9 @@
 /// 1.12.0 with a module's Termine folded under its week, a slot showing its line, the facts two side
 /// by side and „Studiengänge" last, five of them; 1.13.0 with a phone's pickers and fields 8 px off
 /// the edges, a dialog or a sheet the part of the screen its keyboard leaves, and the note of
-/// „Studiengang wechseln" a line at the foot of its body. The version of the app's crates, the same
-/// as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// „Studiengang wechseln" a line at the foot of its body; 1.14.0 with every text field up at the
+/// top of what scrolls it while the keyboard is there, not only a picker. The version of the app's
+/// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
