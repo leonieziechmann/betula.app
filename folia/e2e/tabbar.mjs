@@ -11,8 +11,10 @@
 // nothing lies further and the tab stays; a finger catches the glide where it is and goes on from
 // there, so two swipes in a row go two tabs, and at either end, where a quick swipe lets go with
 // the lens past the last tab, the row goes on from there with the finger and never against it
-// (owner, 2026-10-02: „Probleme, wenn man schnell swiped über den rand hinaus"); a tap right after
-// a quick swipe is a tap; the hover a finger leaves on the tab it tapped lights nothing once a swipe
+// (owner, 2026-10-02: „Probleme, wenn man schnell swiped über den rand hinaus"), also in the
+// glide's first frame, which the compositor has ahead of the page's clock (owner, 2026-10-17: „wenn
+// man zu schnell swiped, dann gibt es einen Bug wo die blockiert"); a tap right after a quick swipe
+// is a tap; the hover a finger leaves on the tab it tapped lights nothing once a swipe
 // has gone on to another tab (owner: „wird das davor angeklickt noch hervorgehoben"), while a mouse
 // still lights the tab it points at; up or down, the bar scrolls the page. Then the site while the
 // app is starting (owner, 2026-10-02: on a phone „friert das häufig ein", a tab tapped right after
@@ -259,6 +261,23 @@ now = await settled("a tap after a swipe", "home");
 await swipe(middle, y, -110, 0, { steps: 4 });
 await swipe(middle, y, -110, 0, { steps: 4 });
 now = await settled("two swipes", "programs");
+
+// ---- a finger that catches the glide while the compositor has it ahead of the page's clock (its
+// time below 0: just started, the next swipe of a phone busy with the page coming then) takes the
+// row where it was let go, and the bar comes to rest (owner, 2026-10-17: „wenn man zu schnell
+// swiped, dann gibt es einen Bug wo die blockiert und dann wird auch irgendwie ein falsches Icon
+// gezeigt"; the lens stood with the wrong icon in it, and no swipe moved the bar again)
+await swipe(middle, y, -110, 0, { steps: 4 });
+await page.evaluate(() => {
+  const bar = document.querySelector(".bottomnav");
+  for (const anim of document.getAnimations()) if (anim.effect?.target && bar.contains(anim.effect.target)) anim.startTime = document.timeline.currentTime + 1000;
+});
+await swipe(middle, y, -14, 0, { steps: 3, hold: true });
+held = await state();
+check(held.swipe === "drag" && held.current === "bookmarks", `ahead: the finger did not take the bar (${held.swipe}, ${held.current})`);
+check(held.near.every(Number.isFinite) && held.off <= 0.5, `ahead: the row is not where it was let go (the names ${held.near}, the copy in the lens ${held.off} px off)`);
+await swipe(0, 0, -60, 0, { steps: 4, from: true });
+now = await settled("ahead", "studyplan");
 
 // ---- a tab tapped and then swiped from keeps the hover the finger left on it (Safari's), which
 // lights nothing once another tab is current („wenn man erst was anklickt und dann swiped wird das
