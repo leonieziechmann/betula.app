@@ -4,7 +4,8 @@
 // modes: the shortcuts (Esc closes the preview or leaves the module page, F opens the previewed
 // module full screen, Ctrl+K or "/" jumps to the search, Alt and a digit — Ctrl and Alt off Windows —
 // goes to a tab of the navigation; in the app M marks the module the visitor is at and P plans it
-// into the Studienplan), the theme switch, the filter sheet (and a page's
+// into the Studienplan, P held or Shift+P opens the semesters it plans into), „Einplanen" held by a
+// finger, the theme switch, the filter sheet (and a page's
 // dialogs where a phone shows them as sheets), the swipe along the phone's bottom bar from tab to
 // tab, the widths of the filter panel and the module preview (dragged, kept in localStorage), the
 // room the panels make for the ground at the end of a page, and the way back to the top of a page
@@ -1196,6 +1197,98 @@
   // A page the browser kept (Back after a page load) shows its own tab's mark again.
   addEventListener("pageshow", (e) => { if (e.persisted) { tabDrag = null; settleTabs(); } });
 
+  // ---- „Einplanen" held: the semesters it plans into ----
+  // (owner, 2026-10-17: „wenn man es lange gedrückt hält (auf dem handy) soll dabei sich die border
+  // aufladen und wrnn das voll ist soll ein dropdown mit so 3 bis 5 semestern kommen in die man das
+  // einplanen kann … Beim pc soll einfach on hover das dropdown kommen, oder wenn mann den shortcut
+  // lange gedrückt hält oder mit modifier"). A finger on the switch beside „Merken" fills its
+  // border (`data-charge`, the ring `svg.plan-charge`, app.css); held PLAN_HOLD ms without moving,
+  // the border is full and the menu of the semesters opens (`betula:plan-menu` on the switch, its
+  // `detail` what opened it; folia/crates/stores/src/studyplan/menu.rs). Lifted before, it is a tap
+  // and plans as ever, and a finger that moves scrolls or drags the sheet. A right click opens the
+  // menu at once; P held or Shift+P on a keyboard (the shortcuts below), and a mouse resting on the
+  // switch, which the app hears itself. The touch that held is no tap (its click goes).
+  const PLAN_HOLD = 450; // ms until the border is full: about the browser's own long press (Android: 400–500)
+  const PLAN_CHARGE_FROM = 90; // ms a finger rests before the border begins to fill: a tap shows nothing
+  let planHold = null; // the finger on the switch: { el, id, x, y, ring, timer, full }
+  let planHeld = false; // the touch held the switch: its click is no tap
+  let planKey = null; // P down: { el, code, timer, held }
+  const planSwitch = (target) => (appRuns() ? target?.closest?.('.hero .plan-toggle[data-action="plan"]') : null);
+  const planMenu = (el, by) => el.dispatchEvent(new CustomEvent("betula:plan-menu", { bubbles: true, detail: by }));
+  const dropPlanHold = () => {
+    if (!planHold) return;
+    clearTimeout(planHold.timer);
+    planHold.ring?.cancel();
+    planHold.el.removeAttribute("data-charge");
+    planHold = null;
+  };
+  const firePlanHold = () => {
+    const hold = planHold;
+    if (!hold || hold.full) return;
+    clearTimeout(hold.timer);
+    if (!hold.el.isConnected) { dropPlanHold(); return; }
+    hold.full = true;
+    hold.ring?.finish();
+    hold.el.setAttribute("data-charge", "full");
+    planHeld = true;
+    planMenu(hold.el, "hold");
+    navigator.vibrate?.(8);
+  };
+  // The finger lifted: a border that was full fades, one that was filling goes.
+  const endPlanHold = (e) => {
+    if (e.pointerId !== planHold?.id) return;
+    if (!planHold.full) { dropPlanHold(); return; }
+    const { el, ring } = planHold;
+    planHold = null;
+    el.setAttribute("data-charge", "done");
+    setTimeout(() => {
+      if (el.getAttribute("data-charge") !== "done") return;
+      el.removeAttribute("data-charge");
+      ring?.cancel();
+    }, 300);
+  };
+  document.addEventListener("pointerdown", (e) => {
+    dropPlanHold();
+    planHeld = false;
+    if (!e.isPrimary || e.pointerType === "mouse" || e.button !== 0) return;
+    const el = planSwitch(e.target);
+    if (!el) return;
+    // The ring's length is 100 (`pathLength`): it is drawn from nothing to whole.
+    const ring = el.querySelector(".plan-charge rect")?.animate?.([{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }],
+      { duration: PLAN_HOLD - PLAN_CHARGE_FROM, delay: PLAN_CHARGE_FROM, easing: "linear", fill: "both" });
+    el.setAttribute("data-charge", "on");
+    planHold = { el, id: e.pointerId, x: e.clientX, y: e.clientY, ring, timer: setTimeout(firePlanHold, PLAN_HOLD), full: false };
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (planHold && !planHold.full && e.pointerId === planHold.id && Math.max(Math.abs(e.clientX - planHold.x), Math.abs(e.clientY - planHold.y)) >= TAB_SLOP) dropPlanHold();
+  });
+  document.addEventListener("pointerup", endPlanHold);
+  document.addEventListener("pointercancel", endPlanHold);
+  document.addEventListener("contextmenu", (e) => {
+    const el = planSwitch(e.target);
+    if (!el) return;
+    e.preventDefault();
+    // The browser's own long press of a finger: before ours it is ours, after it nothing.
+    if (planHold?.el === el) { firePlanHold(); return; }
+    if (planHeld) return;
+    planMenu(el, "click");
+  });
+  addEventListener("click", (e) => {
+    if (!planHeld || !e.isTrusted) return;
+    planHeld = false;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+  // P let go before it was held: the switch is pressed, as P always did; held, the menu was.
+  addEventListener("keyup", (e) => {
+    if (!planKey || e.code !== planKey.code) return;
+    const { el, timer, held } = planKey;
+    clearTimeout(timer);
+    planKey = null;
+    if (!held && el.isConnected) el.click();
+  });
+  addEventListener("blur", () => { clearTimeout(planKey?.timer); planKey = null; });
+
   // The browser's own chrome in the colours of the theme (they are --bg of the two themes), and the
   // manifest the page names with it (`folia_app::MANIFEST_DARK`): an installed app takes the colours
   // of its splash screen and of the strip under the gesture bar from there, as the head script
@@ -1771,8 +1864,10 @@
 
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
-    // An open picker has the keyboard to itself (its Esc closes the picker, nothing else).
-    if (e.target.closest?.(".combo[data-open]")) return;
+    // An open picker has the keyboard to itself (its Esc closes the picker, nothing else), and so
+    // has the menu of „Einplanen" while the focus is in it; open, its Esc is its own (menu.rs).
+    if (e.target.closest?.(".combo[data-open], .plan-menu")) return;
+    if (e.key === "Escape" && document.querySelector(".plan-menu")) return;
     // The filter toggles are links that act as switches: the space bar flips them, too.
     if (e.key === " " && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1808,10 +1903,23 @@
     } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns()) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
-      // it ambiguous which module is meant, so P waits there.
+      // it ambiguous which module is meant, so P waits there. Pressed, it plans once P is let go
+      // (the keyup above); held PLAN_HOLD ms, or with Shift, it opens the menu of the semesters
+      // (owner, 2026-10-17: „wenn mann den shortcut lange gedrückt hält oder mit modifier").
       const row = document.activeElement?.closest?.(".row-wrap");
       const plan = row && !row.querySelector('[aria-current="true"]') ? null : document.querySelector('.hero [data-action="plan"]');
-      if (plan) { e.preventDefault(); plan.click(); }
+      if (!plan) return;
+      e.preventDefault();
+      if (e.repeat) return;
+      clearTimeout(planKey?.timer);
+      planKey = null;
+      if (e.shiftKey) { planMenu(plan, "keys"); return; }
+      const key = planKey = { el: plan, code: e.code, held: false, timer: 0 };
+      key.timer = setTimeout(() => {
+        if (planKey !== key || !plan.isConnected) return;
+        key.held = true;
+        planMenu(plan, "keys");
+      }, PLAN_HOLD);
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");

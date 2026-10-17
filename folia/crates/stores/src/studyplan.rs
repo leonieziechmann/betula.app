@@ -25,13 +25,16 @@
 //! „Einplanen" (`PlanButton`) plans a module from its preview and its page: into the semester
 //! `target_semester` aims at, and for the placeholder the finder was asked for (`PlanHint`). A row
 //! of the catalog swiped to the right on a phone presses it too (`folia_widgets::swipe`, `press`).
+//! Beside „Merken" it has a menu of the semesters besides (`menu`, owner 2026-10-17): a mouse
+//! resting on it, a finger held on it while its border fills, P held or Shift+P.
 
 use std::collections::BTreeSet;
 
 use folia_calendar::select::{Selection, TownChoice};
 use folia_calendar::semester::{fachsemester, SemesterKey};
-use folia_model::labels::{Code, TurnusSeason};
+use folia_model::labels::{Code, TurnusParity, TurnusSeason};
 use folia_model::rows_detail::DateRow;
+use folia_plans::study::Offer;
 use folia_plans::studyplan::{PlanDoc, SavedPlans};
 use folia_routes::url::{self, ModuleHint};
 use folia_pages::ask::PlanRowsAsk;
@@ -43,6 +46,10 @@ use crate::myprogram::MyProgram;
 use crate::profiles::Kept;
 use folia_design::nav;
 use folia_design::ui::{Icon, Shortcut};
+
+mod menu;
+
+pub use menu::{PlanMenu, PlanMenuHost};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
@@ -305,13 +312,20 @@ pub enum PlanLook {
 /// next frame (R21): what follows from the plan (the week beside the module, the finder, the
 /// lists) is computed after the button has answered.
 ///
+/// Beside „Merken" (`PlanLook::Hero`) it has a menu of the semesters besides (`menu`): a mouse
+/// resting on it opens it, and so does what enhance.js names with `betula:plan-menu` on it — a
+/// finger held while the border fills (`svg.plan-charge`, app.css), P held or Shift+P, a right
+/// click. The sidebar's look has „Anderes Semester" under it instead.
+///
 /// `current` is the snapshot's current semester, `newest` the semester of the module's newest
-/// teaching events (`target_semester`).
+/// teaching events (`target_semester`); `turnus` and `parity` say which semesters the menu marks as
+/// not offering the module.
 #[component]
 pub fn PlanButton(
     #[prop(into)] id: String,
     #[prop(into)] title: String,
     turnus: Option<Code<TurnusSeason>>,
+    #[prop(optional_no_strip)] parity: Option<Code<TurnusParity>>,
     current: SemesterKey,
     newest: Option<SemesterKey>,
     #[prop(optional, into)] hint: Signal<Option<PlanHint>>,
@@ -321,6 +335,7 @@ pub fn PlanButton(
     let plan = Studyplan::expect().filter(|_| APP);
     let source = use_data().ok();
     let turnus = turnus.and_then(|turnus| turnus.known());
+    let parity = parity.and_then(|parity| parity.known());
     // One memo per button (R5), from the plan and the hint alone.
     let aim = {
         let id = id.clone();
@@ -335,10 +350,15 @@ pub fn PlanButton(
     // What the last click said, until the plan it writes after the next frame has it.
     let said = RwSignal::new(None::<bool>);
     let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| aim.with(|aim| aim.pressed)));
+    let menu = PlanMenu::expect().filter(|_| APP && look == PlanLook::Hero);
     let toggle = {
         let id = id.clone();
         move |_: leptos::ev::MouseEvent| {
             let Some(plan) = plan else { return };
+            // The switch itself chosen: its menu goes, and none opens a moment later.
+            if let Some(menu) = menu {
+                menu.close();
+            }
             let (was, aim) = (pressed.get_untracked(), aim.get_untracked());
             said.set(Some(!was));
             press(plan, source.clone(), id.clone(), aim, was, move || {
@@ -361,10 +381,65 @@ pub fn PlanButton(
     };
     match look {
         PlanLook::Hero => {
+            let planning = {
+                let (id, title) = (id.clone(), title.clone());
+                move || menu::Planning { id: id.clone(), title: title.clone(), current, newest, turnus, offer: Offer { season: turnus, parity }, hint: hint.get_untracked() }
+            };
+            let node = NodeRef::<leptos::html::Button>::new();
+            // What enhance.js names on this switch: a finger held, the keys, a right click.
+            #[cfg(feature = "csr")]
+            {
+                let planning = planning.clone();
+                Effect::new(move |_| {
+                    let Some(menu) = menu else { return };
+                    let planning = planning.clone();
+                    let handle = window_event_listener_untyped("betula:plan-menu", move |ev| {
+                        use leptos::wasm_bindgen::JsCast;
+                        let Some(button) = node.get_untracked() else { return };
+                        let own: &leptos::web_sys::Element = &button;
+                        if ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()).as_ref() != Some(own) {
+                            return;
+                        }
+                        let detail = ev.dyn_ref::<leptos::web_sys::CustomEvent>().and_then(|ev| ev.detail().as_string());
+                        menu.open_named(planning(), detail.as_deref(), own);
+                    });
+                    on_cleanup(move || handle.remove());
+                });
+            }
+            let open = {
+                let id = id.clone();
+                Memo::new(move |_| menu.is_some_and(|menu| menu.is_open_for(&id)))
+            };
+            let expanded = move || if open.get() { "true" } else { "false" };
+            // While its menu is open the switch says nothing more over it.
+            let tip = move || (!open.get()).then(tip);
             let note = move || aim.with(|aim| hero_note(aim, t)).map(|note| view! { <small>{note}</small> });
             view! {
-                <button class="plan-toggle mark-switch hit" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
+                <button
+                    class="plan-toggle mark-switch hit"
+                    type="button"
+                    data-action="plan"
+                    aria-haspopup="menu"
+                    aria-expanded=expanded
+                    node_ref=node
+                    on:click=toggle
+                    on:pointerenter=move |ev| {
+                        if let Some(menu) = menu {
+                            menu.pointer_on(&ev, planning.clone());
+                        }
+                    }
+                    on:pointerleave=move |ev| {
+                        if let Some(menu) = menu {
+                            menu.pointer_off(&ev);
+                        }
+                    }
+                    aria-pressed=pressed_attr
+                    aria-busy=busy
+                    title=tip
+                >
                     {icon}<span>{label}</span>{note}<Shortcut keys="P"/>
+                    // The border that fills while a finger holds the switch (enhance.js, app.css).
+                    <svg class="plan-charge" aria-hidden="true"><rect width="100%" height="100%" rx="9" pathLength="100"/></svg>
                 </button>
             }
             .into_any()
