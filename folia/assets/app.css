@@ -3338,12 +3338,14 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      the row glides on while the page a tap opened is being built (the width and margins it moved
      before showed one or two frames of their 180 ms on a phone, and none at all on the way back).
      As long and as soft as the glide over the keyboard (280 ms, folia_design::keyboard); what
-     comes fades in a moment later than what goes. Where a page has the way back from its first
-     paint (its address, chrome.rs `back_at_head`), the server writes the bar so and nothing
-     moves. The row's end, out at the right, is clipped, so the page never scrolls sideways. */
+     comes fades in on the same curve, there as soon as there is room for it (a fade that began
+     later and evenly left an end of the row empty for a few frames). Where a page has the way
+     back from its first paint (its address, chrome.rs `back_at_head`), the server writes the bar
+     so and nothing moves. The row's end, out at the right, is clipped, so the page never scrolls
+     sideways. */
   .topbar { --row-shift: calc(48px + var(--gap)); overflow-x: clip; }
   .topbar > .search { transition: transform .28s var(--ease); }
-  .top-profile { transition: transform .28s var(--ease), opacity .22s .04s; }
+  .top-profile { transition: transform .28s var(--ease), opacity .2s var(--ease); }
   .topbar.backed:not(.app-back) > .search, html.js .topbar.backed > .search { transform: translateX(var(--row-shift)); }
   .topbar.backed:not(.app-back) .top-profile, html.js .topbar.backed .top-profile { opacity: 0; transform: translateX(var(--row-shift)) scale(.9); transition: transform .28s var(--ease), opacity .14s; }
   /* A page's own „Zurück" (frame.rs `BackLink`) while the head has the way back, which it put
@@ -3357,7 +3359,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      a flex container puts what is placed absolutely, at its start and in the middle of its
      height), one box and the gap further left while it is away, and comes in with the row. */
   .top-back { position: absolute; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(calc(-1 * var(--row-shift))) scale(.9); transition: transform .28s var(--ease), opacity .14s; -webkit-tap-highlight-color: transparent; }
-  .top-back.on { opacity: 1; transform: none; transition: transform .28s var(--ease), opacity .22s .04s; }
+  .top-back.on { opacity: 1; transform: none; transition: transform .28s var(--ease), opacity .2s var(--ease); }
   .top-back .icon { flex: none; width: 22px; height: 22px; }
   .top-back:active { background: var(--panel-3); }
   /* The program overview's way back leads up to „Mein Studium" (owner, 2026-10-17; chrome.rs
