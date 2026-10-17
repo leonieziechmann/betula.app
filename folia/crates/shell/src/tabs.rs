@@ -265,6 +265,12 @@ impl Tabs {
         .unwrap_or_else(|| area.back_root().to_string())
     }
 
+    /// „Mein Studium" as it was left: where „Studium"'s tab leads up to inside its area, and where
+    /// the way back of the program overview leads (`chrome::Up::Study`).
+    pub fn study(self) -> String {
+        self.0.with_untracked(|memory| memory.study.clone()).unwrap_or_else(|| url::STUDY.to_string())
+    }
+
     /// The catalog's list as it was left, if it was: what the catalog's tab held opens with its
     /// filters (`chrome::NavItems`), where the tab itself may lead to a module's page.
     pub fn catalog_list(self) -> Option<String> {

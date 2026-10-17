@@ -891,6 +891,14 @@ if (current !== "2026W") {
   await step("the Wahlpflicht on a phone", () => page.tap('.st-mine-panel .st-ways a[href="/study?view=areas"]'), () => location.search === "?view=areas" && document.querySelector(".st-wp-phone .st-fchip[aria-pressed=\"true\"]") && document.querySelector(".st-grp") && document.querySelectorAll(".st-mcard").length > 0);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the Wahlpflicht on a phone scrolls sideways");
   await step("a module planned on a phone", () => page.tap(".st-mcard:not(.taken) button.st-addb >> nth=0"), () => document.querySelector(".st-undo")?.textContent.includes("eingeplant"));
+  // „Alle Studiengänge" has its way back at the head too, up to „Mein Studium" (owner, 2026-10-17:
+  // „wenn man auf alle Studiengänge geht, dann fehlt da ein zurück button"): back through the
+  // history, which does not grow, and the way to the profile page gives way meanwhile.
+  await step("the overview once more", () => go("/study"), () => location.search === "" && document.querySelector(".st-pager"));
+  const before = await page.evaluate(() => history.length);
+  await step("all programs on a phone", () => page.tap('.st-rest a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelector(".faccs") && document.querySelector(".top-back.on")?.getAttribute("href") === "/study" && document.querySelector(".topbar .top-profile").inert);
+  await step("the way back from all programs", () => page.tap(".top-back.on"), () => location.pathname === "/study" && location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
+  check((await page.evaluate(() => history.length)) === before + 1, "the way back from all programs added a step to the history");
   await context.close();
 }
 
