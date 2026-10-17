@@ -586,7 +586,7 @@ fn plan_button(data: &ModuleData, hint: Signal<Option<PlanHint>>, look: PlanLook
     let (current, newest) = semesters_of(&data.semesters, &data.schedule);
     let m = &data.module;
     current.or(newest).map(|current| {
-        view! { <PlanButton id=m.id.clone() title=m.title.clone() turnus=m.turnus_season.clone() current newest hint look/> }
+        view! { <PlanButton id=m.id.clone() title=m.title.clone() turnus=m.turnus_season.clone() parity=m.turnus_parity.clone() current newest hint look/> }
     })
 }
 

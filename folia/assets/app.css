@@ -3092,6 +3092,51 @@ html:not(.js) .plan-toggle { display: none; }
 /* The line under „Einplanen" among a sidebar's actions (its semester, the placeholder, the other
    semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
 .actions > .plan-toggle { min-width: 0; }
+/* „Einplanen" held (enhance.js, folia/crates/stores/src/studyplan/menu.rs; owner, 2026-10-17: „wenn
+   man es lange gedrückt hält (auf dem handy) soll dabei sich die border aufladen"): a finger on the
+   switch beside „Merken" fills its border, round from its top left corner, and the menu of the
+   semesters opens once it is full (`data-charge`: on, full, done). The ring (svg.plan-charge, its
+   length 100) lies on the switch's edge in the accent, over the switch's own box, which keeps its
+   size: nothing moves. Full, it stays while the finger does and fades once it goes. A finger held
+   selects none of its words and gets no menu of the browser's. */
+.hero .plan-toggle.mark-switch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.plan-charge { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; fill: none; stroke: var(--accent); stroke-width: 2.5px; opacity: 0; }
+.plan-charge rect { stroke-dasharray: 100; stroke-dashoffset: 100; }
+.plan-toggle[data-charge] .plan-charge { opacity: 1; }
+.plan-toggle:is([data-charge="full"], [data-charge="done"]) .plan-charge rect { stroke-dashoffset: 0; }
+.plan-toggle[data-charge="done"] .plan-charge { opacity: 0; transition: opacity .25s ease-out; }
+/* The menu of the semesters (studyplan/menu.rs `PlanMenuHost`): under the pair of switches at their
+   right edge (above them where the window has more room there), as wide as what it says (at most
+   360px, `menu::WIDTH`), over the page as a tab's menu is:
+   the current semester and the four after it, each a switch with its mark at its end — „geplant",
+   or „nicht angeboten" where the module's turnus leaves the semester out — and on a wide screen its
+   digit. On a phone across the screen 8px off its edges, as a picker's list is, its semesters as
+   tall as a finger needs and the page dimmed a little behind it (`.plan-menu-shade`); on a wide
+   screen a menu a mouse opened has no shade, and the shade of the others is a click beside it. */
+.plan-menu-shade { position: fixed; inset: 0; z-index: 72; }
+.plan-menu { position: fixed; z-index: 73; width: max-content; min-width: 232px; max-width: calc(100vw - 16px); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); transform-origin: 100% 0; animation: tab-menu-in .16s var(--ease); }
+.plan-menu.above { transform-origin: 100% 100%; }
+.plan-menu-head { margin: 0; padding: 5px 10px; overflow: hidden; color: var(--text-3); font-size: 12px; font-weight: 560; white-space: nowrap; text-overflow: ellipsis; }
+.plan-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 8px 0 10px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 500; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan-menu-item > .icon { flex: none; width: 16px; height: 16px; color: var(--text-2); }
+.plan-menu-item[aria-checked="true"] > .icon { color: var(--accent-ink); }
+.plan-menu-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-menu-note { flex: none; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.plan-menu-note.on { padding: 1px 6px; border-radius: 5px; background: var(--invert); color: var(--on-invert); }
+.plan-menu-note.warn { color: var(--warn); font-weight: 520; }
+.plan-menu-item > kbd { flex: none; padding: 1px 6px; }
+.plan-menu-item:active { background: var(--row-hover); }
+.plan-menu-item:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+@media (hover: hover) { .plan-menu-item:hover { background: var(--row-hover); } }
+@media (max-width: 900px) {
+  .plan-menu-shade { background: rgba(15, 23, 42, .16); animation: fade-in .12s; }
+  .plan-menu.on-phone { left: 8px; right: 8px; width: auto; max-width: none; padding: 6px; border-radius: 14px; }
+  .plan-menu-head { padding: 7px 10px 5px; font-size: 13px; }
+  .plan-menu-item { min-height: 48px; gap: 12px; font-size: 15px; }
+  .plan-menu-item > .icon { width: 18px; height: 18px; }
+  .plan-menu-note { font-size: 12.5px; }
+  .plan-menu-item > kbd { display: none; }
+}
 
 /* ---------- closed testing: the login page ----------
    A document of its own (folia/crates/server/src/access.rs): no rail, no app, one column in the middle of the
