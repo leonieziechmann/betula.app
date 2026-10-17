@@ -1,5 +1,6 @@
 //! Texts of the Stundenplan's store and its buttons on other pages (`studyplan.rs`): „Einplanen"
-//! beside „Merken", and „Anderes Semester" in the sidebar of a module's page.
+//! beside „Merken" with its menu of the semesters (`studyplan/menu.rs`), and „Anderes Semester" in
+//! the sidebar of a module's page.
 
 pub struct Texts {
     /// The switch's label: „Einplanen" while the module is not planned where it aims, „Eingeplant"
@@ -28,6 +29,10 @@ pub struct Texts {
     pub semester_of_study: fn(u8, &str) -> String,
     /// … and the mark at the end of a semester the module is planned in.
     pub planned_mark: &'static str,
+    /// The head of the menu of „Einplanen" beside „Merken": „Einplanen in" …
+    pub plan_into: &'static str,
+    /// … and what a semester of it says where the module's turnus leaves it out.
+    pub not_offered: &'static str,
     /// What a row swiped to the right uncovers on a module planned where it aims (`swipe.rs`):
     /// „Entfernen" …
     pub remove: &'static str,
@@ -49,6 +54,8 @@ pub const DE: Texts = Texts {
     semesters_of: |title| format!("{title}: Semester"),
     semester_of_study: |n, semester| format!("{n}. FS · {semester}"),
     planned_mark: "geplant",
+    plan_into: "Einplanen in",
+    not_offered: "nicht angeboten",
     remove: "Entfernen",
     out_of: |semester| format!("aus {semester}"),
     removed: "Entfernt",
@@ -66,6 +73,8 @@ pub const EN: Texts = Texts {
     semesters_of: |title| format!("{title}: semesters"),
     semester_of_study: |n, semester| format!("{} sem. · {semester}", folia_design::i18n::format::ordinal(i64::from(n))),
     planned_mark: "planned",
+    plan_into: "Plan for",
+    not_offered: "not offered",
     remove: "Remove",
     out_of: |semester| format!("from {semester}"),
     removed: "Removed",
