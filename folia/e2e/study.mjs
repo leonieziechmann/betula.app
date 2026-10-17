@@ -40,8 +40,8 @@
 //   opens „Studiengang wechseln" without a lead, − and + move nothing of it, under the card a line
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
-//   foot, the picker at the top of its body, all as it was with the keyboard gone; nothing scrolls
-//   sideways; boxes and ⋯ as tall as a finger.
+//   foot, the picker at the top of its body, gliding there and scrolling up frame by frame, all as
+//   it was with the keyboard gone; nothing scrolls sideways; boxes and ⋯ as tall as a finger.
 // 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
@@ -69,8 +69,24 @@ const FILLED = [
 const takeover = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 // Where the parts of the study's card are (owner, 2026-10-16: „Wenn man eine aktion macht, wie
 // semester +/- darf nicht unterbrochen werden durch layout shifts").
+// Until nothing of `selector` moves: none of its animations running (a dialog gliding, a picker's
+// button drawing out, its list unrolling) and its scrolling body still for four frames.
+const still = (page, selector) => page.evaluate((selector) => new Promise((done) => {
+  let last = null, frames = 0;
+  const started = performance.now();
+  const tick = () => {
+    const element = document.querySelector(selector);
+    const moving = element?.getAnimations({ subtree: true }).some((animation) => animation.playState === "running");
+    const at = [...(element?.querySelectorAll(".st-dlg-body") ?? [])].map((body) => body.scrollTop).join() + "|" + scrollY;
+    frames = !moving && at === last ? frames + 1 : 0;
+    last = at;
+    if (frames >= 4 || performance.now() - started > 3000) done(); else requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}), selector);
 // The screen's keyboard as a browser has it (`folia_design::keyboard`): the part of the page shown
-// shrinks by `kb` px while the page stays; 0, it has gone.
+// shrinks by `kb` px while the page stays; 0, it has gone. Then until the dialog has glided and its
+// body scrolled.
 const screenKeyboard = async (page, kb) => {
   await page.evaluate((kb) => {
     const viewport = window.visualViewport;
@@ -82,7 +98,7 @@ const screenKeyboard = async (page, kb) => {
     }
     viewport.dispatchEvent(new Event("resize"));
   }, kb);
-  await page.waitForTimeout(100);
+  await still(page, ".st-dialog[open]");
 };
 const cardAt = (page, scope) => page.evaluate((scope) => [...document.querySelectorAll(`${scope} .st-study-say, ${scope} .st-srow, ${scope} .st-stepper button, ${scope} #st-fill, ${scope} #st-create, ${scope} .st-effect, ${scope} .st-dlg-foot .btn`)].map((el) => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round).join(); }).join(" "), scope);
 const open = async (options, path, { requests } = {}) => {
@@ -745,9 +761,25 @@ if (current !== "2026W") {
   // onscreen keyboard)"); the keyboard gone, all as it was.
   const sheetNow = await cardAt(page, ".st-dialog[open]");
   await step("the program's picker", () => page.tap("#st-switch-program"), () => document.activeElement?.id === "st-switch-program-search");
+  await still(page, ".st-dialog[open]");
   const across = await page.evaluate(() => ["#st-switch-program", ".st-dialog[open] .combo-pop"].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return `${Math.round(r.left)}|${Math.round(innerWidth - r.right)}`; }));
   check(across.every((edges) => edges === "8|8") && !(await page.evaluate(() => document.documentElement.hasAttribute("data-keyboard"))), `the program's picker is not across the sheet, or a field alone is a keyboard: ${across}`);
+  // It glides there and its body scrolls, frame by frame: nothing jumps (owner, the same day, after
+  // a try on her phone: „Animation bitte. Aktuell springt das noch komisch").
+  await page.evaluate(() => {
+    window.__rise = [];
+    const tick = () => {
+      const dialog = document.querySelector(".st-dialog[open]");
+      if (dialog) window.__rise.push([Math.round(dialog.getBoundingClientRect().top), dialog.querySelector(".st-dlg-body").scrollTop]);
+      if (window.__rise.length < 90) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
   await screenKeyboard(page, 336);
+  const rise = await page.evaluate(() => window.__rise);
+  const [firstTop, lastTop, lastScroll] = [rise[0][0], rise[rise.length - 1][0], rise[rise.length - 1][1]];
+  const ways = [new Set(rise.map(([top]) => top).filter((top) => top > lastTop + 2 && top < firstTop - 2)).size, new Set(rise.map(([, scroll]) => scroll).filter((scroll) => scroll > 2 && scroll < lastScroll - 2)).size];
+  check(ways[0] >= 3 && ways[1] >= 3, `the sheet jumps over the keyboard (${ways} frames on the way): ${rise.map((frame) => frame.join("/")).join(" ")}`);
   const typing = await page.evaluate(() => {
     const at = (sel) => document.querySelector(sel).getBoundingClientRect();
     const [dialog, body, label, pop] = [".st-dialog[open]", ".st-dialog[open] .st-dlg-body", ".st-dialog[open] .st-srow:has(.combo[data-open]) > .label", ".st-dialog[open] .combo-pop"].map(at);
@@ -755,6 +787,7 @@ if (current !== "2026W") {
   });
   check(typing.dialog[0] === 0 && typing.dialog[1] === typing.shown && typing.foot === "none" && typing.label === 8 && typing.pop <= typing.shown - 7, `the keyboard up, the sheet is not the part shown with the picker at its top: ${JSON.stringify(typing)}`);
   await step("the keyboard gone", async () => { await page.keyboard.press("Escape"); await screenKeyboard(page, 0); }, () => !document.documentElement.hasAttribute("data-keyboard") && !document.querySelector(".st-dialog[open] .combo[data-open]"));
+  await still(page, ".st-dialog[open]");
   check((await cardAt(page, ".st-dialog[open]")) === sheetNow, `the keyboard gone, the sheet is not as it was: ${sheetNow} → ${await cardAt(page, ".st-dialog[open]")}`);
   await step("close it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
   // A column leads to its semester, one that is over to the left of the overview; Back to the

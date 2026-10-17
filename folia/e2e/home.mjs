@@ -364,6 +364,8 @@ for (const [id, wide] of [["home-program", true], ["start-program", false]]) {
   const [before, said] = [await button(), await words()];
   await page.click(`#${id}`);
   await page.waitForSelector(`#${id}-search`);
+  // Once its button has drawn out and its list unrolled.
+  await page.waitForFunction((id) => document.getElementById(id).closest(".combo").getAnimations({ subtree: true }).every((animation) => animation.playState !== "running"), id, { timeout: 3000 }).catch(() => {});
   const spread = await page.evaluate((id) => {
     const panel = document.getElementById(id).closest(".panel").getBoundingClientRect();
     const pop = document.getElementById(`${id}-search`).closest(".combo-pop").getBoundingClientRect();
