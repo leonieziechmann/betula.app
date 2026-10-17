@@ -122,6 +122,9 @@ pub fn App() -> impl IntoView {
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();
+    // The screen's keyboard of a phone: a dialog or a sheet then takes the part of the screen it
+    // leaves (`folia_design::keyboard`). An effect, so the browser alone runs it.
+    Effect::new(|_| folia_design::keyboard::watch());
     view! {
         // Description, canonical address and the rest of what search engines read belong to the
         // page (`seo::Seo`), not to the app: a page must not carry two descriptions.

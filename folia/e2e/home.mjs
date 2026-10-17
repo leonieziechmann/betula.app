@@ -351,24 +351,27 @@ check(await page.evaluate(() => location.pathname === "/"), "phone: a swipe open
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: the page scrolls sideways");
 // A phone: the first panel is its text alone, without the birch and its figures.
 check(await page.evaluate(() => !document.querySelector(".hero-trunk").checkVisibility() && !document.querySelector(".tree-figures").checkVisibility()), "phone: the first panel shows the birch or its figures");
-// A phone: „Studiengang wählen" opens in place and across its panel, 16 px in from its edges,
+// A phone: „Studiengang wählen" opens in place and across its panel, 8 px in from its edges,
 // however far in its button stands (the way in: beside the marks, over the line through them) and
-// however long the names it lists; its button stays where it was (owner, 2026-09-29: „von ganz
-// links bis nach ganz rechts. Kein Überstand").
-for (const id of ["home-program", "start-program"]) {
+// however long the names it lists (owner, 2026-09-29: „von ganz links bis nach ganz rechts. Kein
+// Überstand"; 2026-10-17: „mit 8pt margin zum Rand"). A button that spans its line spans the list's
+// width with it, one box; the way in's, a step's button among its words, keeps its size; what a
+// button says stays where it was.
+for (const [id, wide] of [["home-program", true], ["start-program", false]]) {
   await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: "center" }), id);
   const button = () => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.width)}`; }, id);
-  const before = await button();
+  const words = () => page.evaluate((id) => { const r = document.querySelector(`#${id} .combo-value`).getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }, id);
+  const [before, said] = [await button(), await words()];
   await page.click(`#${id}`);
   await page.waitForSelector(`#${id}-search`);
   const spread = await page.evaluate((id) => {
     const panel = document.getElementById(id).closest(".panel").getBoundingClientRect();
     const pop = document.getElementById(`${id}-search`).closest(".combo-pop").getBoundingClientRect();
     const top = document.elementFromPoint(panel.left + 32, pop.top + 22);
-    return { left: Math.round(pop.left - panel.left), right: Math.round(panel.right - pop.right), onTop: Boolean(top?.closest(".combo-pop")), sideways: document.documentElement.scrollWidth > window.innerWidth };
+    return { left: Math.round(pop.left - panel.left), right: Math.round(panel.right - pop.right), onTop: Boolean(top?.closest(".combo-pop")), sideways: document.documentElement.scrollWidth > window.innerWidth, pop: `${Math.round(pop.left)},${Math.round(pop.width)}` };
   }, id);
-  const after = await button();
-  check(spread.left === 16 && spread.right === 16 && spread.onTop && !spread.sideways && after === before, `phone: the picker ${id} does not open across its panel: ${JSON.stringify({ ...spread, before, after })}`);
+  const [after, says] = [await button(), await words()];
+  check(spread.left === 8 && spread.right === 8 && spread.onTop && !spread.sideways && says === said && after === (wide ? spread.pop : before), `phone: the picker ${id} does not open across its panel: ${JSON.stringify({ ...spread, before, after, said, says })}`);
   await page.keyboard.press("Escape");
 }
 // The name, not the button (its hit area reaches past it).
