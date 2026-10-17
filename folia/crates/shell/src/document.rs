@@ -28,9 +28,11 @@
 /// „Studiengang wechseln" a line at the foot of its body; 1.14.0 with every text field up at the
 /// top of what scrolls it while the keyboard is there, not only a picker; 1.15.0 with all of it
 /// moving rather than jumping: the dialog or the sheet gliding over the keyboard and back, what is
-/// typed in scrolling up smoothly, an open picker's button drawing out and its list unrolling. The
-/// version of the app's crates, the same as the server's; Radix's is in the snapshot
-/// (`Meta::radix_version`).
+/// typed in scrolling up smoothly, an open picker's button drawing out and its list unrolling;
+/// 1.16.0 with a row swiped on a phone going from the look of what its module is to that of what
+/// it will be — „Merken" to the inverted look and back, „Einplanen" to the accent, out of the plan
+/// to red — and its bookmark going with the card as one. The version of the app's crates, the same
+/// as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
