@@ -450,7 +450,7 @@ if (current !== "2026W") {
     // view; no way back at the head.
     pages: [...document.querySelectorAll(".st-pager > .st-slot")].map((slot) => (slot.classList.contains("is-overview") ? "O" : "S") + (slot.hasAttribute("data-here") && !slot.inert ? "!" : "") + (slot.inert ? "" : "+")).join(" "),
     dots: [...document.querySelectorAll(".st-dock .st-dots span")].map((dot) => (dot.classList.contains("overview") ? "O" : "S") + (dot.classList.contains("here") ? "!" : "") + (dot.classList.contains("now") ? "*" : "")).join(" "),
-    back: (() => { const back = document.querySelector(".top-back"); return back ? `${Math.round(back.getBoundingClientRect().width)}${back.inert ? " inert" : ""}` : "none"; })(),
+    back: (() => { const back = document.querySelector(".top-back"); return back ? `${getComputedStyle(back).opacity}${back.inert ? " inert" : ""}` : "none"; })(),
   }));
   check(landing.sideways <= 0 && landing.parts.join() === "st-over,st-mine-panel,st-planbox,st-rest" && landing.legend.join() === "bestanden,geplant,offen"
     && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht"
@@ -705,7 +705,7 @@ if (current !== "2026W") {
   glide = await glided();
   check(glide > 60 && glide <= 360, `the way back is no quick glide: ${glide} ms`);
   check((await page.evaluate(() => history.length)) === entries, "the way back added a step to the history");
-  await page.waitForFunction(() => document.querySelector(".top-back")?.inert && document.querySelector(".top-back").getBoundingClientRect().width === 0, null, { timeout: 2000 }).catch(() => problems.push("the way back stays on the overview"));
+  await page.waitForFunction(() => document.querySelector(".top-back")?.inert && getComputedStyle(document.querySelector(".top-back")).opacity === "0", null, { timeout: 2000 }).catch(() => problems.push("the way back stays on the overview"));
   // The credits one place to tap (owner, 2026-10-06: „die progress bar komplett zu einer
   // clickfläche werden"): their headline, the bar, the legend and „Bereiche ›" open the areas.
   // The whole box, not only the bar (owner, the same day: „nicht nur der ganze balken, sondern die
@@ -896,8 +896,32 @@ if (current !== "2026W") {
   // history, which does not grow, and the way to the profile page gives way meanwhile.
   await step("the overview once more", () => go("/study"), () => location.search === "" && document.querySelector(".st-pager"));
   const before = await page.evaluate(() => history.length);
+  // The way back and the way to the profile page change places as one row that glides (owner,
+  // 2026-10-17: „Mach das mal smooth"): by `transform` and `opacity` alone, which the browser runs
+  // on a thread of its own while the page is being built, every box as wide as before.
+  const watchRow = () => page.evaluate(() => {
+    const row = (window.__row = { moved: new Set(), widths: new Set() });
+    const end = performance.now() + 700;
+    const tick = () => {
+      for (const el of document.querySelectorAll(".topbar > .top-back, .topbar > .search, .topbar > .top-profile")) {
+        for (const animation of el.getAnimations()) row.moved.add(`${el.classList[0]}:${animation.transitionProperty}`);
+        row.widths.add(`${el.classList[0]}:${el.offsetWidth}`);
+      }
+      if (performance.now() < end) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  const rowMoved = async (what) => {
+    await page.waitForTimeout(750);
+    const row = await page.evaluate(() => ({ moved: [...window.__row.moved].sort().join(), widths: [...window.__row.widths].sort().join() }));
+    check(row.moved === "search:transform,top-back:opacity,top-back:transform,top-profile:opacity,top-profile:transform" && row.widths === "search:310,top-back:48,top-profile:48", `${what}: the row at the head does not glide by transform and opacity alone: ${JSON.stringify(row)}`);
+  };
+  await watchRow();
   await step("all programs on a phone", () => page.tap('.st-rest a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelector(".faccs") && document.querySelector(".top-back.on")?.getAttribute("href") === "/study" && document.querySelector(".topbar .top-profile").inert);
+  await rowMoved("the way back coming");
+  await watchRow();
   await step("the way back from all programs", () => page.tap(".top-back.on"), () => location.pathname === "/study" && location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
+  await rowMoved("the way back going");
   check((await page.evaluate(() => history.length)) === before + 1, "the way back from all programs added a step to the history");
   await context.close();
 }

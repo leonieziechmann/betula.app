@@ -452,7 +452,7 @@ const LINE = ".fx-desk a.prog-line";
         const search = document.querySelector(".topbar .search").getBoundingClientRect();
         const profile = document.querySelector(".topbar .top-profile");
         const box = back?.getBoundingClientRect();
-        return Boolean(box) && Math.round(box.width) === 48 && box.right < search.left && back.getAttribute("href") === "/programs" && profile.inert && Math.round(profile.getBoundingClientRect().width) === 0
+        return Boolean(box) && Math.round(box.width) === 48 && box.right < search.left && back.getAttribute("href") === "/programs" && profile.inert && getComputedStyle(profile).opacity === "0"
           && !document.querySelector('.prog-head [data-action="back"]')?.offsetHeight && Math.round(innerWidth - search.right) === 12;
       })(),
       facts: [...document.querySelectorAll(".prog-facts .pfact")].every((f) => f.getBoundingClientRect().right <= innerWidth),
@@ -527,7 +527,7 @@ const LINE = ".fx-desk a.prog-line";
     const search = document.querySelector(".topbar .search").getBoundingClientRect();
     const profile = document.querySelector(".topbar .top-profile");
     return Math.round(back?.getBoundingClientRect().width ?? 0) === 48 && back.getAttribute("href") === "/study" && back.getBoundingClientRect().right < search.left
-      && profile.inert && Math.round(profile.getBoundingClientRect().width) === 0;
+      && profile.inert && getComputedStyle(profile).opacity === "0";
   }), "phone: the overview has no way back to „Mein Studium“ at the head, or the way to the profile page did not give way");
   await step("phone: the sheet opens", () => page.tap(".sheet-toggle"), () => document.querySelector(".sidebar.sheet.open") && document.querySelector(".sidebar.sheet").getBoundingClientRect().top < innerHeight - 200);
   await step("phone: a filter in the sheet", () => page.tap('#sidebar a.chip:has-text("Bachelor")'), () => location.search === "?level=bachelor" && document.querySelector(".sidebar.sheet.open"));
@@ -573,7 +573,7 @@ const LINE = ".fx-desk a.prog-line";
   const phone = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const narrow = await phone.newPage();
   await narrow.goto(base + "/programs", { waitUntil: "domcontentloaded" });
-  check(await narrow.evaluate(() => !document.querySelector(".topbar .top-back")?.getBoundingClientRect().width && !document.querySelector(".topbar .top-profile").inert && Math.round(document.querySelector(".topbar .top-profile").getBoundingClientRect().width) === 48),
+  check(await narrow.evaluate(() => !document.querySelector(".topbar .top-back")?.getBoundingClientRect().width && !document.querySelector(".topbar .top-profile").inert && Math.round(document.querySelector(".topbar .top-profile").getBoundingClientRect().width) === 48 && getComputedStyle(document.querySelector(".topbar .top-profile")).opacity === "1"),
     "no JS, phone: the overview has a way back to „Mein Studium“, or no way to the profile page");
   await phone.close();
 }
