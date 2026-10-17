@@ -3328,12 +3328,24 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .top-profile .avatar { width: 30px; height: 30px; font-size: 14px; }
   .top-profile:active { background: var(--panel-3); }
   /* While the way back is at the head, the way to the profile page gives way to it (owner,
-     2026-10-15: „wenn der angezeigt wird, dann soll die profilauswahl ausgeblendet werden"): it
-     slides out to the right as the way back slides in from the left, and the search keeps its
-     width. Where a page has the way back from its first paint (its address, chrome.rs
-     `back_at_head`), the server writes the bar so and nothing slides. */
-  .top-profile { overflow: hidden; transition: width .18s var(--ease), margin .18s var(--ease), opacity .14s, transform .18s var(--ease); }
-  .topbar.backed:not(.app-back) .top-profile, html.js .topbar.backed .top-profile { width: 0; margin-left: calc(-1 * var(--gap)); opacity: 0; transform: translateX(12px); }
+     2026-10-15: „wenn der angezeigt wird, dann soll die profilauswahl ausgeblendet werden"), and the
+     two change places smoothly (owner, 2026-10-17: „Aktuell ist die Animation noch etwas akward …
+     Mach das mal smooth"): the way back, the search and the way to the profile page move as one
+     row, by a box and the gap, the way back coming in at the left as the way to the profile page
+     goes out at the right, each fading and growing a little as it comes. The search keeps its
+     width. Nothing of the bar's layout changes (the way back stands over the start of the row, out
+     of it), only `transform` and `opacity` do: the browser runs those on a thread of their own, so
+     the row glides on while the page a tap opened is being built (the width and margins it moved
+     before showed one or two frames of their 180 ms on a phone, and none at all on the way back).
+     As long and as soft as the glide over the keyboard (280 ms, folia_design::keyboard); what
+     comes fades in a moment later than what goes. Where a page has the way back from its first
+     paint (its address, chrome.rs `back_at_head`), the server writes the bar so and nothing
+     moves. The row's end, out at the right, is clipped, so the page never scrolls sideways. */
+  .topbar { --row-shift: calc(48px + var(--gap)); overflow-x: clip; }
+  .topbar > .search { transition: transform .28s var(--ease); }
+  .top-profile { transition: transform .28s var(--ease), opacity .22s .04s; }
+  .topbar.backed:not(.app-back) > .search, html.js .topbar.backed > .search { transform: translateX(var(--row-shift)); }
+  .topbar.backed:not(.app-back) .top-profile, html.js .topbar.backed .top-profile { opacity: 0; transform: translateX(var(--row-shift)) scale(.9); transition: transform .28s var(--ease), opacity .14s; }
   /* A page's own „Zurück" (frame.rs `BackLink`) while the head has the way back, which it put
      there (owner, 2026-10-15: „mach den zurückbutton mal überall nach oben neben die suche"): one
      way back. What stood beside it takes its place at the left (the path of a program's page). */
@@ -3341,10 +3353,11 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .topbar.backed ~ .content .hero-top > .at-head + .crumbs { margin-left: 10px; }
   /* The way back of a page or of its step (chrome.rs `TopBack`; owner, 2026-10-05: „oben links
      neben der search bar im gleichen style eine quadratische box … mit einem zurück pfeil"): a box
-     as the search is, as wide as it is high. It slides in from the left and the search makes room
-     for it, and back out the same way. */
-  .top-back { flex: none; display: grid; place-items: center; width: 0; height: 48px; margin-right: calc(-1 * var(--gap)); border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(-12px); overflow: hidden; transition: width .18s var(--ease), margin .18s var(--ease), opacity .14s, transform .18s var(--ease); -webkit-tap-highlight-color: transparent; }
-  .top-back.on { width: 48px; margin-right: 0; opacity: 1; transform: none; }
+     as the search is, as wide as it is high. It stands where the row starts (out of the row: where
+     a flex container puts what is placed absolutely, at its start and in the middle of its
+     height), one box and the gap further left while it is away, and comes in with the row. */
+  .top-back { position: absolute; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); opacity: 0; transform: translateX(calc(-1 * var(--row-shift))) scale(.9); transition: transform .28s var(--ease), opacity .14s; -webkit-tap-highlight-color: transparent; }
+  .top-back.on { opacity: 1; transform: none; transition: transform .28s var(--ease), opacity .22s .04s; }
   .top-back .icon { flex: none; width: 22px; height: 22px; }
   .top-back:active { background: var(--panel-3); }
   /* The program overview's way back leads up to „Mein Studium" (owner, 2026-10-17; chrome.rs
