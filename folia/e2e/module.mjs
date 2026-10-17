@@ -9,6 +9,9 @@
 // the Tab key, side by side or, where the line has no room for that, one over the other beside
 // the badges (a line of their own only on a phone); „Einplanen" keeps its width when pressed; what
 // the plan adds to it shows, and on the module's page the heading is as tall as the server's.
+// On a phone (owner, 2026-10-17): the Termine under the week folded, a slot tapped unfolds them and
+// marks its line in sight (the sheet half up going all up), the facts two side by side,
+// „Studiengänge" last with five curricula and „Alle … anzeigen".
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -263,6 +266,85 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   const shared = await context.newPage();
   await shared.goto(base + "/catalog?turnus=winter&open=11112", { waitUntil: "domcontentloaded" });
   await shared.waitForFunction(() => location.pathname === "/catalog" && location.search.includes("open=11112") && document.querySelector(".detail.is-module h2"), null, { timeout: 120000 }).catch(() => problems.push("phone: a shared preview link did not bring the module's sheet"));
+  await context.close();
+}
+
+// ---------- the height of a phone spent on what is read (owner, 2026-10-17) ----------
+// The Termine under the week are folded, and a slot tapped unfolds them and marks its line, in
+// sight, without a history entry; the sheet half up goes all up for it. The facts stand two side
+// by side. „Studiengänge" is the last section, with five curricula and „Alle … anzeigen".
+{
+  const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
+  const { page, step, context } = await open(phone, "/catalog?events=yes");
+  await page.waitForSelector(".rows a.row", { timeout: 8000 }).catch(() => problems.push("termine: no module with Termine"));
+  // A module whose Termine have a week, as the server's page says.
+  const id = await page.evaluate(async () => {
+    for (const row of [...document.querySelectorAll(".rows a.row")].slice(0, 24)) {
+      const html = await (await fetch(`/catalog/module/${row.dataset.id}`)).text();
+      if (html.includes('class="evfold"')) return row.dataset.id;
+    }
+    return null;
+  });
+  if (!id) problems.push("termine: none of the first modules with Termine has a week");
+  else {
+    const sheet = ".detail.is-module";
+    await step("termine: the module's sheet", () => page.evaluate((id) => document.querySelector(`a.row[data-id="${id}"]`)?.click(), id), (id) => location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module .week"), id);
+    await page.waitForTimeout(700);
+    const folded = await page.evaluate((sheet) => {
+      const fold = document.querySelector(`${sheet} details.evfold`);
+      const facts = [...document.querySelectorAll(`${sheet} .fact`)].map((fact) => Math.round(fact.getBoundingClientRect().top));
+      const labels = [...document.querySelectorAll(`${sheet} .section > .label`)].map((label) => label.firstChild.textContent);
+      return { open: fold?.open, summary: fold?.querySelector("summary").textContent, facts: facts.length, rows: new Set(facts).size, last: labels[labels.length - 1], labels };
+    }, sheet);
+    check(folded.open === false && /^Termine als Liste\(\d+\)$/.test(folded.summary), `termine: the list under the week is not folded: ${JSON.stringify(folded)}`);
+    check(folded.rows < folded.facts, `termine: no two facts stand side by side on a phone: ${JSON.stringify(folded)}`);
+    check(!folded.labels.includes("Studiengänge") || folded.last === "Studiengänge", `termine: „Studiengänge" is not the last section: ${folded.labels}`);
+    const entries = await page.evaluate(() => history.length);
+    // A slot tapped where the sheet shows it, half up; the sheet goes all up, the list unfolds,
+    // the slot and its line are marked and the line is in sight.
+    const target = await page.evaluate((sheet) => {
+      const root = document.querySelector(sheet);
+      const slot = root.querySelector('a.slot[data-action="termin"]');
+      // The slot into the part of the screen the sheet half up shows (its content scrolled there).
+      const over = slot.getBoundingClientRect().top + 24 - innerHeight;
+      if (over > 0) root.querySelector(":scope > .scroll").scrollTop += over;
+      const r = slot.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: Math.min(r.top + 12, innerHeight - 4), half: !root.classList.contains("is-full") };
+    }, sheet);
+    await page.touchscreen.tap(target.x, target.y);
+    await page.waitForTimeout(900);
+    const shown = await page.evaluate((sheet) => {
+      const root = document.querySelector(sheet);
+      const slot = root.querySelector('a.slot[aria-current="true"]');
+      const lines = (slot?.dataset.lines || "").split(" ").filter(Boolean).map((id) => root.querySelector(`#${id}`));
+      const line = lines[0]?.getBoundingClientRect();
+      return {
+        open: root.querySelector("details.evfold").open, full: root.classList.contains("is-full"), picked: lines.length > 0 && lines.every((el) => el?.classList.contains("picked")),
+        seen: Boolean(line) && line.top >= 0 && line.bottom <= innerHeight, hash: location.hash, others: root.querySelectorAll(".ev.picked").length - lines.length,
+      };
+    }, sheet);
+    check(shown.open && shown.picked && shown.seen && shown.others === 0 && shown.hash === "", `termine: a tapped slot did not show its line, marked and in sight: ${JSON.stringify(shown)}`);
+    check(!target.half || shown.full, "termine: the sheet half up did not go all up for the line");
+    check((await page.evaluate(() => history.length)) === entries, "termine: a tapped slot left a history entry");
+    // Its line folds it again, and the marks go.
+    await page.tap(`${sheet} details.evfold > summary`);
+    await page.waitForTimeout(500);
+    const shut = await page.evaluate((sheet) => ({ open: document.querySelector(`${sheet} details.evfold`).open, marks: document.querySelectorAll(`${sheet} .ev.picked, ${sheet} .slot[aria-current="true"]`).length }), sheet);
+    check(!shut.open && shut.marks === 0, `termine: the list's line did not fold it: ${JSON.stringify(shut)}`);
+  }
+  // Algorithmen und Datenstrukturen belongs to more than five curricula.
+  await step("programs: a module of many", () => page.evaluate(() => { const a = Object.assign(document.createElement("a"), { href: "/catalog?events=yes&open=11112" }); document.body.append(a); a.click(); a.remove(); }), () => location.search.includes("open=11112") && document.querySelector(".detail.is-module .linklist.programs"));
+  const programs = () => page.evaluate(() => {
+    const list = document.querySelector(".detail.is-module .linklist.programs");
+    const more = document.querySelector(".detail.is-module .runout-more");
+    return { all: list.children.length, shown: [...list.children].filter((a) => a.offsetHeight > 0).length, more: more && more.offsetHeight > 0 ? more.textContent : null };
+  });
+  const cut = await programs();
+  check(cut.all > 5 && cut.shown === 5 && cut.more === `Alle ${cut.all} anzeigen`, `programs: not five of them and „Alle … anzeigen": ${JSON.stringify(cut)}`);
+  await page.evaluate(() => document.querySelector(".detail.is-module .runout-more")?.click());
+  await page.waitForTimeout(500);
+  const all = await programs();
+  check(all.shown === all.all && all.more === null, `programs: „Alle … anzeigen" did not show them all: ${JSON.stringify(all)}`);
   await context.close();
 }
 

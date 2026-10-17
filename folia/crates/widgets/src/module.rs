@@ -479,13 +479,13 @@ fn sections(data: &ModuleData, t: &'static Texts) -> Vec<(&'static str, &'static
         (true, "termine", words.dates),
         (!data.exams.is_empty(), "pruefungstermine", words.exam_dates),
         (true, "blick", words.at_a_glance),
-        (!data.programs.is_empty(), "studiengaenge", words.programs),
         (prerequisites, "voraussetzungen", words.prerequisites),
         (m.contents.is_some(), "inhalte", words.contents),
         (m.learning_outcomes.is_some(), "lernziele", words.learning_outcomes),
         (m.exam_details.is_some(), "pruefungsleistung", words.assessment),
         (literature, "literatur", words.literature),
         (m.remarks.is_some(), "bemerkungen", words.remarks),
+        (!data.programs.is_empty(), "studiengaenge", words.programs),
     ]
     .into_iter()
     .filter(|(present, ..)| *present)
@@ -622,13 +622,37 @@ fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
     }
 }
 
-/// Schedule, key facts and programs: the right column of the page, the top of the preview.
+/// The longest value of a fact of „Auf einen Blick" that stands beside another, some two lines of
+/// it on a phone: a longer one takes the line of the facts to itself. One whose longest word does
+/// not fit beside another takes it as well, by the stylesheet (app.css `.facts`).
+const FACT_BESIDE: usize = 24;
+
+/// Whether a fact takes the line of the facts to itself: its value is longer than `FACT_BESIDE`.
+fn fact_wide(value: Option<&str>) -> bool {
+    value.is_some_and(|value| value.chars().count() > FACT_BESIDE)
+}
+
+/// Schedule and key facts: the right column of the page, the top of the preview.
 #[component]
 fn Side(data: ModuleData) -> impl IntoView {
     let t = i18n::t();
     let m = data.module.clone();
     let derived = derive(&data, t);
     let words = &t.module;
+    // Two facts side by side where their values are short (owner, 2026-10-17: „Da könnten einige
+    // auch nebeneinander passen. Setz das mal bitte um, so dass möglichst effizient vertical space
+    // frei gegeben wird"); the persons and the teaching forms always have a line of their own.
+    let exam = m.exam_form.as_ref().map(|form| format::exam_short(form, t.locale)).or(m.exam_form_raw.clone());
+    let grading = m.is_graded.map(|g| if g { words.graded.to_string() } else { words.ungraded.to_string() }).or(m.grading_raw.clone());
+    let duration = m.duration_raw.clone();
+    let places = match (m.is_limited, m.participant_limit) {
+        (Some(true), Some(n)) => Some((words.places_max)(n)),
+        (Some(true), None) => m.limitation_raw.clone().or(Some(words.limited.to_string())),
+        (Some(false), _) => Some(words.unlimited.to_string()),
+        (None, _) => None,
+    };
+    let language = m.language_raw.clone();
+    let location = (!derived.campus.is_empty()).then(|| derived.campus.join(", "));
     view! {
         {(!data.successors.is_empty()).then(|| view! {
             <p class="note">
@@ -645,26 +669,22 @@ fn Side(data: ModuleData) -> impl IntoView {
         <div class="section" id="blick">
             <h3 class="label">{words.at_a_glance}</h3>
             <dl class="facts">
-                <Fact icon="file-check-2" label=words.exam value=m.exam_form.as_ref().map(|form| format::exam_short(form, t.locale)).or(m.exam_form_raw.clone())/>
-                <Fact icon="award" label=words.grading value=m.is_graded.map(|g| if g { words.graded.to_string() } else { words.ungraded.to_string() }).or(m.grading_raw.clone())/>
-                <Fact icon="clock-3" label=words.duration value=m.duration_raw.clone()/>
-                <Fact icon="users-round" label=words.places value=match (m.is_limited, m.participant_limit) {
-                    (Some(true), Some(n)) => Some((words.places_max)(n)),
-                    (Some(true), None) => m.limitation_raw.clone().or(Some(words.limited.to_string())),
-                    (Some(false), _) => Some(words.unlimited.to_string()),
-                    (None, _) => None,
-                }/>
-                <Fact icon="languages" label=words.language value=m.language_raw.clone()/>
-                <Fact icon="map-pin" label=words.location value=(!derived.campus.is_empty()).then(|| derived.campus.join(", "))/>
+                <Fact icon="file-check-2" label=words.exam wide=fact_wide(exam.as_deref()) value=exam/>
+                <Fact icon="award" label=words.grading wide=fact_wide(grading.as_deref()) value=grading/>
+                <Fact icon="clock-3" label=words.duration wide=fact_wide(duration.as_deref()) value=duration/>
+                <Fact icon="users-round" label=words.places wide=fact_wide(places.as_deref()) value=places/>
+                <Fact icon="languages" label=words.language wide=fact_wide(language.as_deref()) value=language/>
+                <Fact icon="map-pin" label=words.location wide=fact_wide(location.as_deref()) value=location/>
                 <Fact wide=true icon="user-round" label=words.responsible value=(!derived.responsible.is_empty()).then(|| derived.responsible.join("; "))/>
                 <Fact wide=true icon="layout-list" label=words.teaching_forms value=(!derived.workload.is_empty()).then(|| derived.workload.join(" · "))/>
             </dl>
         </div>
-        <Programs data=data.clone()/>
     }
 }
 
-/// Prerequisites and the texts of the module description: the main column of the page.
+/// Prerequisites and the texts of the module description, and last the programs: the main column of
+/// the page. The programs stand at the end of the module (owner, 2026-10-17: „die Studiengänge
+/// können ganz an den Schluss das interessiert einen wahrscheinlich eh nicht").
 #[component]
 fn Main(data: ModuleData) -> impl IntoView {
     let t = i18n::t();
@@ -715,6 +735,7 @@ fn Main(data: ModuleData) -> impl IntoView {
             </div>
         })}
         {m.remarks.clone().map(|text| view! { <div class="section" id="bemerkungen"><h3 class="label">{words.remarks}</h3><Prose text lang=lang()/></div> })}
+        <Programs data=data.clone()/>
     }
 }
 
@@ -764,6 +785,10 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     // alone; in the app the other modules planned into the semester of these Termine.
     let overlay = plan_overlay(&m.id, newest_key.as_deref().and_then(SemesterKey::parse), current.and_then(|c| SemesterKey::parse(&c.key)));
     let own = own_groups(&teaching, t);
+    // Under a week the list is folded (owner, 2026-10-17: „die Termine können ruhig ausklappbar
+    // sein, so dass nicht so viel vertical space verschwendet wird"): a slot unfolds it and marks
+    // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open.
+    let folded = !own.is_empty();
     let slots = Memo::new(move |_| overlay.with(|overlay| with_overlay(&own, overlay, t)));
     let week_line = move || {
         overlay.with(|overlay| overlay.line.clone()).map(|(warn, text)| match warn {
@@ -796,11 +821,12 @@ fn Schedule(data: ModuleData) -> impl IntoView {
         .collect();
     let exam_note = exam_semester.as_ref().and_then(|(_, label)| exam_note(exams.iter().filter_map(|(_, r)| r.as_ref()), label, t));
 
-    // A line per Termin (`termine`, `termin_text`); an exam date as read (`exam_reading`).
-    let event_list = |dates: Vec<(Vec<EventDate>, Option<ExamReading>)>| {
+    // A line per Termin (`termine`, `termin_text`), with the id its slots lead to; an exam date as
+    // read (`exam_reading`).
+    let event_list = |dates: Vec<(Option<String>, Vec<EventDate>, Option<ExamReading>)>| {
         dates
             .into_iter()
-            .filter_map(|(rows, reading)| {
+            .filter_map(|(id, rows, reading)| {
                 let d = rows.first()?.clone();
                 let mut text = termin_text(&rows, t)?;
                 let (mut open, mut stated, mut marker) = (words.time_open, None, None);
@@ -829,8 +855,8 @@ fn Schedule(data: ModuleData) -> impl IntoView {
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
                 Some(match d.source_url.clone() {
-                    Some(href) => view! { <a class="ev" href=href rel="noopener" title=listed>{body}</a> }.into_any(),
-                    None => view! { <div class="ev" title=listed>{body}</div> }.into_any(),
+                    Some(href) => view! { <a class="ev" id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
+                    None => view! { <div class="ev" id=id title=listed>{body}</div> }.into_any(),
                 })
             })
             .collect_view()
@@ -843,12 +869,28 @@ fn Schedule(data: ModuleData) -> impl IntoView {
             {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
-            {(!teaching.is_empty()).then(|| view! { <div class="evlist">{event_list(termine(&teaching).into_iter().map(|rows| (rows.into_iter().cloned().collect(), None)).collect())}</div> })}
+            {(!teaching.is_empty()).then(|| {
+                let lines: Vec<(Option<String>, Vec<EventDate>, Option<ExamReading>)> =
+                    termine(&teaching).into_iter().enumerate().map(|(n, rows)| (Some(termin_id(n)), rows.into_iter().cloned().collect(), None)).collect();
+                let count = lines.len();
+                let list = view! { <div class="evlist">{event_list(lines)}</div> };
+                match folded {
+                    true => view! {
+                        <details class="evfold">
+                            <summary data-action="fold">{words.dates_list}<span class="num">{format!("({count})")}</span></summary>
+                            {list}
+                        </details>
+                    }
+                    .into_any(),
+                    false => list.into_any(),
+                }
+            })}
         </div>
+        // The exam dates stay open (owner, 2026-10-17: „Prüfungen einfach ausgeklappt lassen").
         {exam_semester.map(|(_, label)| view! {
             <div class="section" id="pruefungstermine">
                 <h3 class="label">{words.exam_dates}<span>{label}</span></h3>
-                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| (vec![d], reading)).collect())}</div>
+                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| (None, vec![d], reading)).collect())}</div>
                 {exam_line}
                 {exam_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             </div>
@@ -888,6 +930,28 @@ fn termine<'a>(teaching: impl IntoIterator<Item = &'a EventDate>) -> Vec<Vec<&'a
         }
     }
     lines.into_iter().map(|(_, rows)| rows).collect()
+}
+
+/// The id of the `n`th line of the Termine list (from 0), which its slots of the week lead to:
+/// „termin-1". The same in every language, as the sections' anchors are.
+fn termin_id(n: usize) -> String {
+    format!("termin-{}", n + 1)
+}
+
+/// Per row, the line of the Termine list it stands on (`termine`, which makes the lines in the
+/// order their first rows come).
+fn line_of_rows(teaching: &[EventDate]) -> Vec<usize> {
+    let mut keys: Vec<TerminKey<'_>> = Vec::new();
+    teaching
+        .iter()
+        .map(|date| {
+            let key = termin_key(date);
+            keys.iter().position(|known| *known == key).unwrap_or_else(|| {
+                keys.push(key);
+                keys.len() - 1
+            })
+        })
+        .collect()
 }
 
 /// The line of the Termine list a row belongs to (`termine`).
@@ -1042,14 +1106,17 @@ fn own_slots(teaching: &[EventDate], t: &'static Texts) -> Vec<GridSlot> {
 }
 
 /// `own_slots`, each with the keys of the rows it stands for (`RowKey`): what the Studienplan
-/// names when one of them clashes with it.
+/// names when one of them clashes with it. Each slot leads to the lines of the Termine list its rows
+/// stand on (`GridSlot::lines`, `termin_id`).
 fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>)> {
     /// Once, the series, weekday, from, to, event, group.
     type Key<'a> = (bool, Option<Series>, u8, u16, u16, &'a str, Option<&'a str>);
-    /// A slot's key, its first row, the days of its single dates, and the keys of its rows.
-    type Group<'a> = (Key<'a>, &'a EventDate, BTreeSet<Option<&'a str>>, Vec<RowKey>);
+    /// A slot's key, its first row, the days of its single dates, the keys of its rows, and the
+    /// lines of the list they stand on.
+    type Group<'a> = (Key<'a>, &'a EventDate, BTreeSet<Option<&'a str>>, Vec<RowKey>, BTreeSet<usize>);
+    let lines = line_of_rows(teaching);
     let mut groups: Vec<Group<'_>> = Vec::new();
-    for date in teaching {
+    for (date, line) in teaching.iter().zip(lines) {
         let day = date.weekday.and_then(|day| u8::try_from(day).ok()).filter(|day| (1..=7).contains(day));
         let from = date.start_time.as_deref().and_then(minutes);
         let to = date.end_time.as_deref().and_then(minutes);
@@ -1061,19 +1128,21 @@ fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<R
         let key = (once, date.series, day, from, to, date.event_id.as_str(), date.group_name.as_deref());
         let row = RowKey::of(date);
         match groups.iter_mut().find(|(known, ..)| *known == key) {
-            Some((_, _, dates, rows)) => {
+            Some((_, _, dates, rows, on)) => {
                 dates.insert(date.first_date.as_deref());
                 rows.extend(row);
+                on.insert(line);
             }
-            None => groups.push((key, date, BTreeSet::from([date.first_date.as_deref()]), row.into_iter().collect())),
+            None => groups.push((key, date, BTreeSet::from([date.first_date.as_deref()]), row.into_iter().collect(), BTreeSet::from([line]))),
         }
     }
     groups
         .into_iter()
-        .map(|((once, series, day, from, to, ..), date, dates, rows)| {
+        .map(|((once, series, day, from, to, ..), date, dates, rows, on)| {
             // A date of a series alone at its time is the single date it is.
             let once = once || (series.is_some() && dates.len() == 1);
-            (own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t), rows)
+            let slot = own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t);
+            (GridSlot { lines: on.into_iter().map(termin_id).collect(), ..slot }, rows)
         })
         .collect()
 }
@@ -1321,7 +1390,13 @@ fn exam_note<'a>(readings: impl Iterator<Item = &'a ExamReading> + Clone, semest
     (!parts.is_empty()).then(|| parts.join(" "))
 }
 
-/// The programs the module belongs to: curricula first, then how many accept it as FÜS.
+/// How many curricula „Studiengänge" shows before the rest runs out under „Alle anzeigen" (owner,
+/// 2026-10-17: „zeige da maximal 5 mit Auslauffunktion").
+const PROGRAMS_SHOWN: usize = 5;
+
+/// The programs the module belongs to: curricula first, then how many accept it as FÜS. Five at
+/// most, the fifth running out under a button that shows the rest (`.runout`, app.css, and
+/// enhance.js „runout"); without JavaScript all of them.
 #[component]
 fn Programs(data: ModuleData) -> impl IntoView {
     let t = i18n::t();
@@ -1334,12 +1409,14 @@ fn Programs(data: ModuleData) -> impl IntoView {
     }).collect();
     let fues = resolved.iter().filter(|l| l.relation.as_ref().is_some_and(|r| r.is(Relation::Fues))).count();
     let unresolved = data.programs.iter().filter(|l| l.resolve_status.is(ResolveStatus::Unresolved)).count();
+    let count = curricular.len();
+    let cut = count > PROGRAMS_SHOWN;
 
     (!data.programs.is_empty()).then(|| view! {
         <div class="section" id="studiengaenge">
-            <h3 class="label">{words.programs}<span>{(words.curricula)(curricular.len())}</span></h3>
+            <h3 class="label">{words.programs}<span>{(words.curricula)(count)}</span></h3>
             {curricular.is_empty().then(|| view! { <p class="hint">{words.no_curriculum}</p> })}
-            <div class="linklist">
+            <div class="linklist programs" class:runout=cut id="studiengaenge-liste">
                 {curricular.into_iter().map(|(link, semesters)| {
                     let slug = link.program_slug.clone().unwrap_or_default();
                     view! {
@@ -1355,6 +1432,11 @@ fn Programs(data: ModuleData) -> impl IntoView {
                     }
                 }).collect_view()}
             </div>
+            {cut.then(|| view! {
+                <button type="button" class="runout-more js-only" data-action="runout" aria-controls="studiengaenge-liste" aria-expanded="false">
+                    {(words.programs_all)(count)}<Icon name="chevron-down"/>
+                </button>
+            })}
             {(fues > 0).then(|| view! { <p class="hint">{(words.fues)(fues)}</p> })}
             {(unresolved > 0).then(|| view! { <p class="hint">{(words.unresolved)(unresolved)}</p> })}
         </div>
@@ -1532,6 +1614,37 @@ mod tests {
         let (_, styles) = crate::week::geometry(&slots, crate::week::MIN_HOURS).unwrap();
         assert!(styles[0].ends_with("--lane:0;--lanes:2") && styles[3].ends_with("--lane:1;--lanes:2"), "{styles:?}");
         assert!(styles[1].ends_with("--lane:0;--lanes:1") && styles[2].ends_with("--lane:0;--lanes:1"), "{styles:?}");
+    }
+
+    /// A slot of the week leads to the lines of the list its rows stand on (owner, 2026-10-17:
+    /// „wenn man auf einen Termin im Kalender klickt, dass sich die Termine automatisch ausklappen
+    /// und dann der angeklickte Termin highlighted wird"): the Friday Übung to both of its lines (its
+    /// ranges, and the row QIS gives none), the Tuesday single date to its own.
+    #[test]
+    fn a_slot_leads_to_its_lines() {
+        let weekly = |first: &str, last: &str| teaching("152512", "Übung", "2-Gruppe", 5, ("14:30", "16:00"), "weekly", first, last);
+        let rows = [
+            weekly("2026-10-09", "2026-10-23"),
+            teaching("148019", "Vorlesung", "[unbenannt]", 2, ("11:45", "15:00"), "single", "2027-02-23", "2027-02-23"),
+            weekly("2026-11-06", "2026-11-27"),
+            EventDate { first_date: None, last_date: None, ..weekly("", "") },
+        ];
+        assert_eq!(termine(&rows).len(), 3);
+        let slots = own_slots(&rows, &DE);
+        let lines: Vec<(u8, Vec<&str>)> = slots.iter().map(|s| (s.day, s.lines.iter().map(String::as_str).collect())).collect();
+        assert_eq!(lines, [(5, vec!["termin-1", "termin-3"]), (2, vec!["termin-2"])]);
+        // The week with the plan beside it keeps where its own slots lead.
+        assert!(with_overlay(&own_groups(&rows, &DE), &Overlay::default(), &DE).iter().all(|s| !s.lines.is_empty()));
+    }
+
+    /// Two facts side by side where their values are short (owner, 2026-10-17); a long one takes the
+    /// line to itself.
+    #[test]
+    fn a_long_fact_takes_its_line() {
+        assert!(!fact_wide(Some("Zentralcampus")));
+        assert!(!fact_wide(Some("Deutsch / Englisch")));
+        assert!(fact_wide(Some("Zentralcampus, Sachsendorf")));
+        assert!(!fact_wide(None));
     }
 
     #[test]

@@ -151,6 +151,8 @@ pub struct Texts {
     pub single_dates: fn(usize) -> String,
     /// What a value of most dates of a line leaves out, in parentheses after it: „außer 26.01.".
     pub except_on: fn(&str) -> String,
+    /// „Termine als Liste": the line that unfolds the list under the week (its count follows).
+    pub dates_list: &'static str,
 
     // ---- „Studiengänge" ----
     /// „12 Curricula", beside the heading.
@@ -160,6 +162,9 @@ pub struct Texts {
     pub fues: fn(usize) -> String,
     /// „3 weitere Nennungen gehören zu Studiengängen, die nicht im Katalog stehen."
     pub unresolved: fn(usize) -> String,
+    /// „Alle 12 anzeigen": the button under the first curricula that shows the rest; the value is
+    /// how many there are.
+    pub programs_all: fn(usize) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -250,11 +255,13 @@ pub const DE: Texts = Texts {
     dates_count: |n| if n == 1 { "1 Termin".to_string() } else { format!("{n} Termine") },
     single_dates: |n| if n == 1 { "1 Einzeltermin".to_string() } else { format!("{n} Einzeltermine") },
     except_on: |days| format!("außer {days}"),
+    dates_list: "Termine als Liste",
 
     curricula: |n| format!("{n} Curricula"),
     no_curriculum: "Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog.",
     fues: |n| format!("Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in {n} Studiengängen."),
     unresolved: |n| format!("{n} weitere Nennungen gehören zu Studiengängen, die nicht im Katalog stehen."),
+    programs_all: |n| format!("Alle {n} anzeigen"),
 };
 
 pub const EN: Texts = Texts {
@@ -312,7 +319,7 @@ pub const EN: Texts = Texts {
     mandatory_verbatim: "Mandatory, as written",
     recommended_verbatim: "Recommended, as written",
 
-    source: "DataClient: BTU's module description",
+    source: "Source: BTU's module description",
     fetched: |date| format!(" · retrieved {date}"),
     original: "Original",
 
@@ -345,6 +352,7 @@ pub const EN: Texts = Texts {
     dates_count: |n| if n == 1 { "1 date".to_string() } else { format!("{n} dates") },
     single_dates: |n| if n == 1 { "1 single date".to_string() } else { format!("{n} single dates") },
     except_on: |days| format!("except {days}"),
+    dates_list: "Dates as a list",
 
     curricula: |n| if n == 1 { "1 curriculum".to_string() } else { format!("{n} curricula") },
     no_curriculum: "The module is in no curriculum of a degree programme in the catalogue.",
@@ -362,4 +370,5 @@ pub const EN: Texts = Texts {
             format!("{n} further mentions belong to degree programmes that are not in the catalogue.")
         }
     },
+    programs_all: |n| format!("Show all {n}"),
 };
