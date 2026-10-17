@@ -1179,13 +1179,22 @@ button.action:hover { background: var(--panel-3); }
 .section { padding-top: 20px; }
 .section > .label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .section > .label span { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 550; color: var(--text-2); font-size: 12.5px; }
-.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-.fact { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
-.fact.wide { grid-column: 1 / -1; }
+/* The key facts of a module, two side by side where their values fit (owner, 2026-10-17: „Da
+   könnten einige auch nebeneinander passen. Setz das mal bitte um, so dass möglichst effizient
+   vertical space frei gegeben wird"; on a phone they were one under the other). Each is half the
+   line, its value broken between words where it has to („Zentralcampus" over „Cottbus"), and no
+   narrower than its longest word: one whose word does not fit beside another goes to a line of its
+   own and takes it, and so does one left alone before it. Long values (module.rs `FACT_BESIDE`),
+   the persons and the teaching forms are `.wide`: a line of their own, where they wrap. */
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.fact { flex: 1 1 calc(50% - 4px); display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.fact.wide { flex-basis: 100%; min-width: 0; }
 .fact .ico { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--panel); color: var(--text-2); box-shadow: 0 0 0 1px var(--line); flex: none; }
 .fact .ico .icon { width: 16px; height: 16px; }
 .fact dt { color: var(--text-3); font-size: 11.5px; }
-.fact dd { margin: 0; font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+.fact dd { margin: 0; font-weight: 600; font-size: 13.5px; text-wrap: balance; }
+.fact.wide > div { min-width: 0; }
+.fact.wide dd { overflow-wrap: anywhere; text-wrap: wrap; }
 /* A column per day, equal ones; a fitted grid (the Stundenplan's) gives each day its share of the
    week instead, more where modules stand side by side (--cols, folia/crates/widgets/src/week.rs). */
 .week { display: grid; grid-template-columns: 30px var(--cols, repeat(var(--days, 5), minmax(0, 1fr))); gap: 0 5px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 10px 10px 12px 4px; }
@@ -1281,6 +1290,25 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 .ev .when + b { font-weight: 560; }
 .ev .odd { display: flex; gap: 5px; color: var(--warn); }
 .ev .odd .icon { flex: none; width: 13px; height: 13px; margin-top: 2px; }
+/* The Termine under a module's week, folded (details.evfold > summary + .evlist; owner, 2026-10-17:
+   „die Termine können ruhig ausklappbar sein, so dass nicht so viel vertical space verschwendet
+   wird"): one quiet line as the Stundenplan's, „+" while folded, „–" while open, the whole line a
+   finger's target. It unfolds and folds as a thing does (enhance.js „a module's Termine"); a slot of
+   the week unfolds it and marks itself (aria-current) and its lines (.picked), which light up a
+   moment (.lit). The exam dates stay open. */
+.evfold > summary { display: flex; align-items: center; gap: 5px; min-height: 44px; margin-bottom: -4px; list-style: none; cursor: pointer; color: var(--text-2); font-weight: 580; font-size: 13.5px; -webkit-user-select: none; user-select: none; }
+.evfold > summary::-webkit-details-marker { display: none; }
+.evfold > summary:hover { color: var(--text); }
+.evfold > summary .num { color: var(--text-3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.evfold > summary::after { content: "+"; color: var(--text-3); font-weight: 500; }
+.evfold[open] > summary::after { content: "–"; }
+.evfold > .evlist { margin-top: 0; padding-top: 4px; }
+.ev.picked, a.ev.picked:hover { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.ev.lit { animation: ev-lit 1.6s var(--ease); }
+@keyframes ev-lit { from { background: color-mix(in srgb, var(--accent) 30%, var(--panel)); } }
+.ev { scroll-margin: 12px 0; }
+/* What unfolds keeps what is not unfolded yet inside it (enhance.js). */
+.unfolding { overflow: hidden; }
 .note { display: flex; gap: 10px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r-row); background: var(--warn-soft); color: var(--warn); font-size: 12.5px; font-weight: 520; }
 .note .icon { width: 16px; height: 16px; margin-top: 1px; }
 /* An explanation, not a warning: why a row of the plan names no module. */
@@ -1300,6 +1328,15 @@ a.ev:hover { background: var(--panel-2); text-decoration: none; }
 /* The note at the right end gives way before the name does. */
 .pre small { flex: 0 1 auto; min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; }
 .pre > .icon { color: var(--text-3); width: 16px; height: 16px; }
+/* A module's programs, five at most (owner, 2026-10-17: „zeige da maximal 5 mit
+   Auslauffunktion"): the fifth runs out under „Alle … anzeigen", which unfolds the rest and goes
+   (enhance.js „runout"). Without JavaScript, all of them. */
+html.js .linklist.runout:not(.all) > :nth-child(n + 6) { display: none; }
+html.js .linklist.runout:not(.all) > :nth-child(5) { -webkit-mask-image: linear-gradient(#000, transparent 85%); mask-image: linear-gradient(#000, transparent 85%); }
+.runout-more { position: relative; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 44px; margin-top: -24px; color: var(--text-2); font-weight: 580; font-size: 13.5px; }
+.runout-more:hover { color: var(--text); }
+.runout-more .icon { width: 16px; height: 16px; }
+.runout-more[aria-expanded="true"] { display: none; }
 /* A module's texts (ui::Prose: Markdown, catalog::text). Owner, 2026-10-01: „support für Blocksatz",
    „Paragraphen sollen als solche erkennbar sein", „Listen sollen erkannt werden und dementsprechend
    formatiert werden". Paragraphs stand apart by a gap, a list a little closer to the line that leads
@@ -3508,7 +3545,14 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .bottomnav-copy > .nav { color: transparent; }
   .bottomnav-copy > .nav .ind { background: none; color: var(--on-invert); transition: none; }
   .bottomnav .bottomnav-copy .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
-  .facts { grid-template-columns: 1fr; }
+  .fact { gap: 10px; padding: 8px 10px; }
+  .fact .ico { width: 28px; height: 28px; }
+  /* A program's kind under its line rather than at its right end, where it took the room of the
+     name and a long one was cut („Wahlpflich…"). */
+  .linklist.programs > .pre { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 10px; padding-block: 9px; }
+  .linklist.programs > .pre > b { grid-column: 1; }
+  .linklist.programs > .pre > small { grid-column: 1; grid-row: 2; margin: 3px 0 0; overflow: visible; white-space: normal; }
+  .linklist.programs > .pre > .icon { grid-column: 2; grid-row: 1 / 3; }
   .prog-head { padding: 10px 16px 14px; }
   .block { padding: 18px 16px; }
   .ptable th:first-child, .ptable td:first-child, .variants, .footnote, .docrow, .fues > summary, .my-plan-links { padding-left: 16px; }
