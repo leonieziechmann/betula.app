@@ -854,8 +854,17 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   profilauswahl ausgeblendet werden. Mach das mal als wiederverwendbares system", and the same day
   for every page: „mach den zurückbutton mal überall nach oben neben die suche, wo aktuell noch so
   einer gelisted ist"): a square box left of the search, as high as it; while it is there the way
-  to the profile page right of the search slides out as the box slides in, inert, and the search
-  keeps its width. **Every „Zurück" of a page is that box on a phone**: `frame::BackLink` (a
+  to the profile page right of the search gives way to it, inert, and the search keeps its width.
+  The two change places as one row that glides (owner, 2026-10-17: „Aktuell ist die Animation noch
+  etwas akward … Mach das mal smooth"): the box, the search and the way to the profile page move by
+  a box and the gap, what comes fading in and growing a little, what goes fading out, in 280 ms on
+  the curve of the glide over the keyboard. Nothing of the bar's layout changes (the box stands
+  over the row's start, out of it; the row's end is clipped), only `transform` and `opacity`, which
+  the browser runs on a thread of their own: the glide goes on while the page a tap opened is
+  built. Before, width and margins moved in 180 ms, and a phone (the CPU four times slower) showed
+  one or two of their frames on the way to „Alle Studiengänge" and none on the way back, the page's
+  first 100–400 ms of work in their way.
+  **Every „Zurück" of a page is that box on a phone**: `frame::BackLink` (a
   module's own page, a module in full in a program, the Merkliste, the Stundenplan or „Mein
   Studium", a program's page, an area or a row of the plan as a page of its own) puts it there,
   leading where the link leads and through the history where that is the step before
