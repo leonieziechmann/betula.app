@@ -239,6 +239,38 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   The sidebar jumps to the sections of the page (without history entries, so Esc still leaves the
   page) and holds the actions: „Merken", copy the link, the original at the BTU, and the place
   where the semester plan will live.
+- **A module spends the height of a phone on what is read** (owner, 2026-10-17, of the module's
+  sheet on a phone, „bestimmt ist das teils auch auf die pc Version übertragbar"; the same parts
+  everywhere, `folia/crates/widgets/src/module.rs`, app.css, enhance.js „a module's Termine"):
+  - **The Termine under the week are folded** („die Termine können ruhig ausklappbar sein, so dass
+    nicht so viel vertical space verschwendet wird"): a quiet line „Termine als Liste (5) +" as the
+    Stundenplan's, which unfolds and folds the list as a thing does, its height from nothing to its
+    own and back (`details.evfold`, a `<details>` that opens without JavaScript too). A slot of the
+    week is a link to its lines (`GridSlot::lines`, `termin-<n>`): tapped, it unfolds the list, is
+    marked as the list's line is (the accent), and its lines light up a moment („dass wenn man auf
+    einen Termin im Kalender klickt, dass sich die Termine automatisch ausklappen und dann der
+    angeklickte Termin highlighted wird"). The week stays where it is („Idealer Weise ohne den view
+    zu verschieben aber wenn sich sein muss, dann mach eine animation rein"): the list unfolds under
+    it, and only where a line is out of sight then does what scrolls glide, as little as brings it
+    in (a third of a second and a little more the further), while the list unfolds; a sheet half up
+    goes all up for it on its spring. Folded again, the marks go. Without a week (Termine without a
+    time) the list is all there is and stays open; the exam dates stay open („Prüfungen einfach
+    ausgeklappt lassen").
+  - **The facts stand two side by side** where their values fit („Da könnten einige auch
+    nebeneinander passen … so dass möglichst effizient vertical space frei gegeben wird"; a phone
+    had them one under the other): each half the line, its value broken between words where it has
+    to („Zentralcampus" over „Cottbus") and no narrower than its longest word, so one whose word does
+    not fit beside another takes a line of its own, and so does the one left alone before it; a
+    value longer than 24 letters (`FACT_BESIDE`), the persons and the teaching forms always do. On a
+    phone the boxes are a little tighter. The eight facts of a module took eight rows of a phone of
+    390 px and take five (Prüfung and Benotung, Dauer and Plätze, Sprache and Standort, then the
+    persons and the teaching forms): 313 px instead of 506.
+  - **„Studiengänge" is the last section** („die Studiengänge können ganz an den Schluss das
+    interessiert einen wahrscheinlich eh nicht"), after the texts, on a wide page at the end of the
+    description's column, and shows five curricula at most („zeige da maximal 5 mit
+    Auslauffunktion"): the fifth runs out under „Alle 12 anzeigen", which unfolds the rest and goes,
+    the focus on the sixth; without JavaScript all of them. On a phone a program's kind stands under
+    its line, where the name keeps its width and a long kind is whole („Wahlpflich…" was cut off).
 - **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
   „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
   formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in

@@ -74,6 +74,10 @@ pub struct GridSlot {
     pub clash: bool,
     /// Where a click leads: `Some` draws a link that keeps the page's scroll, `None` a plain box.
     pub href: Option<String>,
+    /// The lines of the list under the grid that the slot stands for, by their ids (a module's
+    /// Termine): the slot is a link to the first of them, and a click shows them there instead of
+    /// following it (`data-action="termin"`, enhance.js). Empty for a slot that shows nothing below.
+    pub lines: Vec<String>,
     /// The slot of what is shown beside the grid (`aria-current`).
     pub current: bool,
     /// The page's buttons on the slot, in their order (`slot_buttons`); none for a slot to look at.
@@ -413,9 +417,15 @@ fn slot_view(slot: &GridSlot, style: String, framed: bool) -> AnyView {
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every
     // click but those on its buttons through to the link.
     let act = (!slot.acts.is_empty()).then(|| view! { <div class="slot-acts" class:asks=slot.asks style=style.clone()>{slot_buttons(&slot.acts)}</div> });
-    let drawn = match slot.href.clone() {
-        Some(href) => view! { <a class=class href=href data-noscroll="" style=style title=title aria-current=current>{label}{small}{place}</a> }.into_any(),
-        None => view! { <div class=class style=style title=title aria-current=current>{label}{small}{place}</div> }.into_any(),
+    let drawn = match (slot.lines.first(), slot.href.clone()) {
+        // A link to its lines in the list under the grid, which a click shows there (enhance.js);
+        // without JavaScript the address's fragment leads to the first.
+        (Some(first), _) => view! {
+            <a class=class href=format!("#{first}") data-action="termin" data-lines=slot.lines.join(" ") style=style title=title aria-current=current>{label}{small}{place}</a>
+        }
+        .into_any(),
+        (None, Some(href)) => view! { <a class=class href=href data-noscroll="" style=style title=title aria-current=current>{label}{small}{place}</a> }.into_any(),
+        (None, None) => view! { <div class=class style=style title=title aria-current=current>{label}{small}{place}</div> }.into_any(),
     };
     view! { {drawn}{act} }.into_any()
 }

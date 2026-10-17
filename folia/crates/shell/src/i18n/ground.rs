@@ -26,5 +26,5 @@ pub const EN: Texts = Texts {
     imprint: "Legal notice",
     privacy: "Privacy",
     data_of: |date| format!("Data as of {date}"),
-    source: "DataClient: BTU",
+    source: "Source: BTU",
 };

@@ -976,6 +976,133 @@
     shownSheet = moduleSheet();
   });
 
+  // ---- a module's Termine: the list under its week ----
+  // (owner, 2026-10-17: „die Termine können ruhig ausklappbar sein, so dass nicht so viel vertical
+  // space verschwendet wird. Und dann sollte es so sein, dass wenn man auf einen Termin im Kalender
+  // klickt, dass sich die Termine automatisch ausklappen und dann der angeklickte Termin highlighted
+  // wird. Idealer Weise ohne den view zu verschieben aber wenn sich sein muss, dann mach eine
+  // animation rein, so dass man versteht was mit der Cam passiert ist.") Under a week the list is
+  // folded (`details.evfold`, folia/crates/widgets/src/module.rs); its line unfolds and folds it as
+  // a thing does, its height from nothing to its own and back. A slot of the week (`a.slot`,
+  // `data-action="termin"`, its lines in `data-lines`) unfolds it, marks itself and its lines, and
+  // the lines light up a moment (app.css `.picked`, `.lit`). The week stays where it is: the list
+  // unfolds under it. Only where a line is out of sight then does what scrolls glide, as little as
+  // brings it in, while the list unfolds; a module's sheet half up goes all up for it on its spring.
+  const FOLD_OPEN = 300; // ms
+  const FOLD_SHUT = 200;
+  const folding = new WeakMap(); // a list on its way: { anim, to }
+  // `el` from `from` px high to `to`, then `done`; what it holds stays inside it on the way.
+  const growFold = (el, from, to, ms, done) => {
+    folding.get(el)?.anim.cancel();
+    if (glide() === "instant") { done?.(); return; }
+    el.classList.add("unfolding");
+    const anim = el.animate([{ height: `${from}px`, opacity: from ? 1 : 0 }, { height: `${to}px`, opacity: to ? 1 : 0 }], { duration: ms, easing: to ? "cubic-bezier(.2, .7, .2, 1)" : "cubic-bezier(.4, 0, 1, 1)" });
+    const way = { anim, to };
+    folding.set(el, way);
+    const end = () => { if (folding.get(el) === way) folding.delete(el); el.classList.remove("unfolding"); };
+    anim.onfinish = () => { end(); done?.(); };
+    anim.oncancel = end;
+  };
+  const foldList = (fold) => fold.querySelector(":scope > .evlist");
+  // Open, and its height grows from what is shown now (nothing, or where a fold was on its way).
+  const unfoldList = (fold) => {
+    const list = foldList(fold);
+    if (!list) return;
+    const shown = fold.open ? list.getBoundingClientRect().height : 0;
+    folding.get(list)?.anim.cancel();
+    fold.open = true;
+    const to = list.offsetHeight;
+    if (to > shown + 1) growFold(list, shown, to, FOLD_OPEN);
+  };
+  const shutList = (fold) => {
+    const list = foldList(fold);
+    for (const el of fold.closest(".section")?.querySelectorAll('.slot[aria-current="true"]') ?? []) el.removeAttribute("aria-current");
+    for (const el of fold.querySelectorAll(".ev.picked")) el.classList.remove("picked", "lit");
+    if (!list) { fold.open = false; return; }
+    growFold(list, list.getBoundingClientRect().height, 0, FOLD_SHUT, () => { fold.open = false; });
+  };
+  // What scrolls the list: the module's sheet or its panel, or the page.
+  const scrollerOf = (el) => {
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+    }
+    return document.scrollingElement;
+  };
+  // The part of the screen where `scroller` shows its content: below what stands over the page at
+  // its top, above the bar at the bottom; `lift` px higher for a sheet on its way all up.
+  const viewOf = (scroller, lift) => {
+    if (scroller !== document.scrollingElement) {
+      const r = scroller.getBoundingClientRect();
+      return { top: r.top - lift + scroller.clientTop, bottom: Math.min(innerHeight, r.top - lift + scroller.clientTop + scroller.clientHeight) };
+    }
+    // A bar in the upper half of the screen covers what is above its bottom, one in the lower half
+    // (a phone's, which floats over the edge) what is below its top.
+    let top = 0, bottom = innerHeight;
+    for (const bar of document.querySelectorAll(".topbar, .bottomnav")) {
+      const r = bar.getBoundingClientRect(), place = getComputedStyle(bar).position;
+      if (!r.height || (place !== "fixed" && place !== "sticky")) continue;
+      if (r.top + r.bottom < innerHeight) top = Math.max(top, r.bottom);
+      else bottom = Math.min(bottom, r.top);
+    }
+    return { top, bottom };
+  };
+  // A glide of what scrolls by `by` px, frame by frame: what unfolds below grows meanwhile and lets
+  // it go further than it could at first. A wheel, a touch, a click or a key stops it.
+  let gliding = 0;
+  const STOP_GLIDING = ["wheel", "touchstart", "pointerdown", "keydown"];
+  const stopGliding = () => {
+    if (!gliding) return;
+    cancelAnimationFrame(gliding);
+    gliding = 0;
+    for (const type of STOP_GLIDING) removeEventListener(type, stopGliding, true);
+  };
+  const glideBy = (scroller, by) => {
+    stopGliding();
+    const put = (y) => { if (scroller === document.scrollingElement) window.scrollTo(0, y); else scroller.scrollTop = y; };
+    const from = scroller.scrollTop, to = from + by;
+    if (glide() === "instant") { put(to); return; }
+    const start = performance.now(), ms = Math.min(560, 320 + Math.abs(by) / 3);
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / ms);
+      put(from + by * (1 - (1 - t) ** 3));
+      if (t < 1) gliding = requestAnimationFrame(step);
+      else stopGliding();
+    };
+    gliding = requestAnimationFrame(step);
+    for (const type of STOP_GLIDING) addEventListener(type, stopGliding, { capture: true, passive: true });
+  };
+  const showTermin = (slot) => {
+    const section = slot.closest(".section");
+    const lines = (slot.dataset.lines || "").split(" ").filter(Boolean).map((id) => section?.querySelector(`#${CSS.escape(id)}`)).filter(Boolean);
+    if (!lines.length) return false;
+    for (const el of section.querySelectorAll('.slot[aria-current="true"]')) el.removeAttribute("aria-current");
+    for (const el of section.querySelectorAll(".ev.picked")) el.classList.remove("picked", "lit");
+    slot.setAttribute("aria-current", "true");
+    const fold = lines[0].closest("details.evfold");
+    if (fold) unfoldList(fold);
+    for (const line of lines) {
+      line.classList.add("picked");
+      void line.offsetWidth; // the light comes again with each tap
+      line.classList.add("lit");
+    }
+    // Where the lines stand once the list is open (its height grows meanwhile; they are where they
+    // will be already) and the sheet they are in all up (`lift` px higher than it is), and how far
+    // what scrolls has to go to show them: nothing where they are in sight, else as little as
+    // brings them in, the first of them before the rest.
+    const scroller = scrollerOf(lines[0]);
+    const sheet = moduleSheet();
+    const inSheet = Boolean(sheet?.contains(scroller));
+    const lift = inSheet ? Math.max(0, sheetY(sheet)) : 0;
+    const view = viewOf(scroller, lift), gap = 12;
+    const first = lines[0].getBoundingClientRect().top - lift, last = lines[lines.length - 1].getBoundingClientRect().bottom - lift;
+    let by = 0;
+    if (last > view.bottom - gap) by = last - (view.bottom - gap);
+    if (first - by < view.top + gap) by = first - (view.top + gap);
+    if (inSheet && !sheet.classList.contains("is-full")) glideSheet(sheet, lift, 0, "full");
+    if (Math.abs(by) >= 1) glideBy(scroller, by);
+    return true;
+  };
+
   // ---- a tab held: what it holds besides its page ----
   // (owner, 2026-10-06: „wenn man die buttons in der nav bar lange gedrückt hält, dass dann eine
   // special aktion kommt. Bei mein Studium währe das dann eine auswahl von Regelstudienplan,
@@ -1138,6 +1265,33 @@
         addEventListener("scrollend", done, { once: true });
         setTimeout(done, 2000);
         section.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+        break;
+      }
+      case "fold": {
+        // The line of a module's folded Termine („a module's Termine"): open and shut as a thing does.
+        const fold = target.parentElement;
+        if (!fold?.matches("details.evfold")) break;
+        e.preventDefault();
+        // On its way it turns back.
+        const way = folding.get(foldList(fold) ?? fold);
+        if (way ? way.to > 0 : fold.open) shutList(fold);
+        else unfoldList(fold);
+        break;
+      }
+      case "termin":
+        // A slot of a module's week: its lines in the list under it.
+        if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && showTermin(target)) e.preventDefault();
+        break;
+      case "runout": {
+        // „Alle … anzeigen" under a list cut short (app.css `.runout`): the rest unfolds below it, and
+        // the first of the rest takes the focus the button had, which goes.
+        const list = target.closest(".section")?.querySelector(".linklist.runout");
+        if (!list || list.classList.contains("all")) break;
+        const from = list.offsetHeight;
+        list.classList.add("all");
+        target.setAttribute("aria-expanded", "true");
+        growFold(list, from, list.offsetHeight, FOLD_OPEN);
+        list.children[5]?.focus({ preventScroll: true });
         break;
       }
       case "search": {
