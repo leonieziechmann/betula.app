@@ -1,6 +1,6 @@
 //! Texts of the Stundenplan's store and its buttons on other pages (`studyplan.rs`): „Einplanen"
-//! beside „Merken" with its menu of the semesters (`studyplan/menu.rs`), and „Anderes Semester" in
-//! the sidebar of a module's page.
+//! beside „Merken" and in the sidebar of a module's page, with its menu of the semesters
+//! (`studyplan/menu.rs`).
 
 pub struct Texts {
     /// The switch's label: „Einplanen" while the module is not planned where it aims, „Eingeplant"
@@ -19,17 +19,15 @@ pub struct Texts {
     pub plan_for_hint: fn(&str, &str) -> String,
     /// … and plan it there.
     pub plan_hint: fn(&str) -> String,
-    /// „Anderes Semester": the button that opens the list of semesters in the sidebar …
-    pub other_semester: &'static str,
-    /// … the list's name for screen readers („Analysis I: Semester"; the value is the module's
-    /// title) …
+    /// The menu of the semesters: its name for screen readers („Analysis I: Semester"; the value is
+    /// the module's title) …
     pub semesters_of: fn(&str) -> String,
     /// … „3. FS · WiSe 2027/28": a semester of it, with the student's semester of study where the
     /// start of the studies is known (the number and the semester, written already) …
     pub semester_of_study: fn(u8, &str) -> String,
     /// … and the mark at the end of a semester the module is planned in.
     pub planned_mark: &'static str,
-    /// The head of the menu of „Einplanen" beside „Merken": „Einplanen in" …
+    /// The head of the menu: „Einplanen in" …
     pub plan_into: &'static str,
     /// … and what a semester of it says where the module's turnus leaves it out.
     pub not_offered: &'static str,
@@ -50,7 +48,6 @@ pub const DE: Texts = Texts {
     unplan_hint: |semester| format!("Eingeplant in {semester}. Noch einmal nimmt das Modul aus dem Plan"),
     plan_for_hint: |semester, name| format!("In {semester} einplanen, für „{name}“"),
     plan_hint: |semester| format!("In {semester} einplanen"),
-    other_semester: "Anderes Semester",
     semesters_of: |title| format!("{title}: Semester"),
     semester_of_study: |n, semester| format!("{n}. FS · {semester}"),
     planned_mark: "geplant",
@@ -69,7 +66,6 @@ pub const EN: Texts = Texts {
     unplan_hint: |semester| format!("Planned for {semester}. Once more removes the module from the plan"),
     plan_for_hint: |semester, name| format!("Plan for {semester}, for \u{201c}{name}\u{201d}"),
     plan_hint: |semester| format!("Plan for {semester}"),
-    other_semester: "Another semester",
     semesters_of: |title| format!("{title}: semesters"),
     semester_of_study: |n, semester| format!("{} sem. · {semester}", folia_design::i18n::format::ordinal(i64::from(n))),
     planned_mark: "planned",

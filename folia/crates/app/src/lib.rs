@@ -21,6 +21,7 @@ use leptos_router::{path, SsrMode};
 
 use folia_bookmarks::bookmarks::BookmarksPage;
 use folia_catalog::catalog::CatalogPage;
+use folia_design::holdmenu::{HoldMenu, HoldMenuHost};
 use folia_design::ui;
 use folia_home::home::HomePage;
 use folia_home::legal::{ImprintPage, PrivacyPage};
@@ -37,7 +38,7 @@ use folia_shell::{languages, pending, seo, skeleton};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{MineResolved, MyProgram};
 use folia_stores::profiles::Profiles;
-use folia_stores::studyplan::{PlanMenu, PlanMenuHost, Studyplan};
+use folia_stores::studyplan::Studyplan;
 use folia_catalog::module::ModulePage;
 
 pub use folia_design::{asset, BuildId};
@@ -119,8 +120,8 @@ pub fn App() -> impl IntoView {
     TopBack::provide();
     // The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`).
     ProfileMenu::provide();
-    // The menu of the semesters at „Einplanen" beside „Merken" (`studyplan::PlanMenu`).
-    PlanMenu::provide();
+    // The menu a switch holds besides its click, „Einplanen"'s semesters (`holdmenu::HoldMenu`).
+    HoldMenu::provide();
     // A click answers in the next frame and the page follows (`pending`): its listeners have to
     // come before the router's, so before `<Router>` is built.
     let pending = Pending::provide();
@@ -164,7 +165,7 @@ pub fn App() -> impl IntoView {
             <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
             <TabMenu/>
             <ProfileSwitcher/>
-            <PlanMenuHost/>
+            <HoldMenuHost/>
         </Router>
     }
 }

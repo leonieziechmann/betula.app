@@ -7,6 +7,7 @@
 
 pub mod combobox;
 pub mod format;
+pub mod holdmenu;
 pub mod i18n;
 pub mod icons;
 pub mod keyboard;
