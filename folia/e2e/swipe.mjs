@@ -10,6 +10,8 @@
 // of the plan from the accent to red), the row's bookmark going with the card as one; let go armed, the ground says what was done while the card holds and glides
 // back, and the module is marked (its bookmark, the Merkliste's count) or planned (the
 // Stundenplan's count); a short slow pull glides back and does nothing, a short flick does it;
+// nothing waits for the animation: a card holding what was done or gliding back is the next
+// finger's at once, where it stands, and the swipe right after one undoes it;
 // neither a swipe nor its end is a tap or a step of the history, and a tap right after a swipe is a
 // tap; up or down, a row scrolls the page. On the Merkliste a module swiped off it stays, dimmed,
 // its card whole while swiped, and is marked again by the next swipe. A mouse in a narrow window
@@ -196,6 +198,32 @@ const mark = await page.evaluate(() => { const r = document.querySelectorAll(".v
 await page.touchscreen.tap(mark.x, mark.y);
 now = await rested("a tap after a flick");
 check(!now.marked && now.marks === "", `a tap after a flick: the bookmark did not take the mark away (${now.marked}, ${now.marks})`);
+
+// ---- nothing waits for the animation (owner, 2026-10-17: „Ich will, dass man sofort korrigieren
+// kann und nicht erst warten muss, bis die Animation fertig ist"): the card that holds what was done
+// is the next finger's at once, where it stands, and that swipe undoes the last one; a card on its
+// way back is taken where its glide has come, and the end of that glide leaves it to the finger
+await swipe(box.x + 60, box.y, -170, 0);
+await page.waitForTimeout(120);
+const held = await state();
+check(held.marked && held.done && held.swipe === "glide", `at once: the first swipe did not mark (${held.marked}, ${held.done}, ${held.swipe})`);
+await swipe(box.x + 60, box.y, -16, 0, { steps: 2, hold: true });
+now = await state();
+check(now.swipe === "drag" && Math.abs(now.dx - held.dx) <= 8, `at once: the card was not taken where it stood (${now.swipe}, ${held.dx} → ${now.dx} px)`);
+check(now.said === "Entfernen | von der Merkliste" && now.armed, `at once: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
+await lift();
+now = await rested("at once");
+check(!now.marked && now.marks === "", `at once: the second swipe did not take the mark away (${now.marked}, ${now.marks})`);
+await swipe(box.x + 60, box.y, -100, 0, { steps: 10, ms: 30 });
+await swipe(box.x + 60, box.y, -14, 0, { steps: 1, hold: true });
+now = await state();
+check(now.swipe === "drag" && now.dx < -20, `on its way back: the card was not taken where it was (${now.swipe}, ${now.dx} px)`);
+await page.waitForTimeout(500);
+const after = await state();
+check(after.swipe === "drag" && after.dx === now.dx, `on its way back: the end of the glide took the card from the finger (${after.swipe}, ${now.dx} → ${after.dx} px)`);
+await lift();
+now = await rested("on its way back");
+check(!now.marked, "on its way back: the module was marked");
 
 // ---- up the row scrolls the page, and nothing of a swipe starts
 const top = now.scrollY;

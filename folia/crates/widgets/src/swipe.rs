@@ -26,6 +26,11 @@
 //! planning change what the row's buttons say, not the list (R5), unless the list is filtered by
 //! them („Gemerkt", „Passt in meinen Stundenplan").
 //!
+//! Nothing of it waits for its animation (owner, 2026-10-17: „Ich will, dass man sofort korrigieren
+//! kann und nicht erst warten muss, bis die Animation fertig ist"): a card that holds what was done
+//! or glides back is the next finger's at once, from where it stands, and what its ground says is
+//! read anew — a swipe right after one undoes it.
+//!
 //! The finger is read as along the bottom bar (`enhance.js`): the first move past `SLOP` decides —
 //! sideways the card is the finger's, up or down the page scrolls (`touch-action: pan-y`), and a
 //! swipe is no tap. Its moves are the row's alone (a quick one left to Chromium ends in a fling of
@@ -160,6 +165,8 @@ struct Finger {
     speed: f64,
     /// The card's width, measured when the finger took it.
     width: f64,
+    /// Where the card stood when the finger took it (px): 0 at rest, else where its glide was.
+    from: f64,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -203,6 +210,9 @@ pub struct RowSwipe {
     armed: RwSignal<bool>,
     done: RwSignal<bool>,
     ground: RwSignal<Option<Ground>>,
+    /// How many times a finger took the card: what was timed for it before (its hold, its rest)
+    /// is left undone once another finger has it.
+    turn: StoredValue<u32>,
 }
 
 impl RowSwipe {
@@ -227,6 +237,7 @@ impl RowSwipe {
             armed: RwSignal::new(false),
             done: RwSignal::new(false),
             ground: RwSignal::new(None),
+            turn: StoredValue::new(0),
         }
     }
 
@@ -240,12 +251,12 @@ impl RowSwipe {
         self.finger.set_value(None);
         // A new touch: its click is a tap.
         self.swiped.set_value(f64::NEG_INFINITY);
-        // The card still on its way back takes taps only.
-        if !self.phone.get_untracked() || !ev.is_primary() || ev.button() != 0 || self.phase.get_untracked() != Phase::Rest {
+        // A card on its way back is watched as one at rest: the finger takes it where it is.
+        if !self.phone.get_untracked() || !ev.is_primary() || ev.button() != 0 || self.phase.get_untracked() == Phase::Drag {
             return;
         }
         let (x, y) = (f64::from(ev.client_x()), f64::from(ev.client_y()));
-        self.finger.set_value(Some(Finger { id: ev.pointer_id(), x, y, taken: false, pull: 0.0, at: ev.time_stamp(), speed: 0.0, width: 0.0 }));
+        self.finger.set_value(Some(Finger { id: ev.pointer_id(), x, y, taken: false, pull: 0.0, at: ev.time_stamp(), speed: 0.0, width: 0.0, from: 0.0 }));
         // What the plan's side needs is asked now, so that it is there by the time the finger has
         // moved far enough to take the card (`read`).
         if let (Some(_), Some(source)) = (self.plan, self.source.get_value()) {
@@ -272,9 +283,11 @@ impl RowSwipe {
             // The first move past the slop decides: along the row the finger has the card, else
             // the page scrolls.
             match (dx.abs() > dy.abs()).then(|| self.take(finger.id)).flatten() {
-                Some(width) => {
+                Some((width, from)) => {
                     finger.taken = true;
                     finger.width = width;
+                    finger.from = from;
+                    finger.pull = from;
                 }
                 None => {
                     self.finger.set_value(None);
@@ -390,18 +403,33 @@ impl RowSwipe {
         }
     }
 
-    /// The finger takes the card: what its sides do is read now, once. `None` where the row has
-    /// nothing to offer (no marks, no plan in this browser), which leaves the finger to the page.
-    fn take(self, pointer: i32) -> Option<f64> {
+    /// The finger takes the card: what its sides do is read now, once — also of a card that still
+    /// says what the last swipe did, which has been done by now. Its width and where it stands;
+    /// `None` where the row has nothing to offer (no marks, no plan in this browser), which leaves
+    /// the finger to the page.
+    fn take(self, pointer: i32) -> Option<(f64, f64)> {
         let wrap = self.wrap.get_untracked()?;
         let ground = self.read()?;
         let width = f64::from(wrap.offset_width());
+        // A card holding what was done or gliding back stays where it is, and what was timed for
+        // it is left undone.
+        let from = if self.phase.get_untracked() == Phase::Glide { offset_now(&wrap) } else { 0.0 };
+        self.turn.update_value(|turn| *turn = turn.wrapping_add(1));
         // A mouse moved off the row still moves the card.
         let _ = wrap.set_pointer_capture(pointer);
         self.ground.set(Some(ground));
         self.done.set(false);
+        let arm = arm_at(width);
+        self.card.set(Card { offset: from, open: (from.abs() / arm).min(1.0) });
+        put(self.side, Side::of(from));
+        put(self.armed, from.abs() >= arm);
         self.phase.set(Phase::Drag);
-        Some(width)
+        Some((width, from))
+    }
+
+    /// Whether no finger has taken the card since `turn`: what was timed then still goes ahead.
+    fn still(self, turn: Option<u32>) -> bool {
+        self.turn.try_get_value() == turn
     }
 
     /// What the two sides of the row say and start from.
@@ -428,7 +456,7 @@ impl RowSwipe {
     /// The finger at `x` at the time `at` (the event's): the card follows, and how fast the finger
     /// goes is kept, mostly of the last moves, as the sheet measures a flick.
     fn follow(self, finger: &mut Finger, x: f64, at: f64) {
-        let pull = beyond_slop(x - finger.x);
+        let pull = finger.from + beyond_slop(x - finger.x);
         if (pull - finger.pull).abs() < f64::EPSILON {
             return;
         }
@@ -480,7 +508,12 @@ impl RowSwipe {
         self.done.set(true);
         self.phase.set(Phase::Glide);
         // Measured once the ground says it: the words of what was done differ from the action's.
+        // A finger that took the card meanwhile has it: it holds and glides no more.
+        let turn = self.turn.try_get_value();
         nav::after_paint(move || {
+            if !self.still(turn) {
+                return;
+            }
             if let Some(room) = self.room(side, width) {
                 self.card.try_update(|card| {
                     if card.offset.abs() < room {
@@ -488,7 +521,7 @@ impl RowSwipe {
                     }
                 });
             }
-            set_timeout(move || self.glide(), HOLD);
+            set_timeout(move || if self.still(turn) { self.glide() }, HOLD);
         });
         let id = self.id.get_value();
         match side {
@@ -524,8 +557,13 @@ impl RowSwipe {
     fn glide(self) {
         self.phase.try_set(Phase::Glide);
         self.card.try_update(|card| card.offset = 0.0);
+        let turn = self.turn.try_get_value();
         set_timeout(
             move || {
+                // A finger took the card on its way: it is not at rest.
+                if !self.still(turn) {
+                    return;
+                }
                 self.phase.try_set(Phase::Rest);
                 self.side.try_set(None);
                 self.armed.try_set(false);
@@ -535,6 +573,23 @@ impl RowSwipe {
             },
             GLIDE,
         );
+    }
+}
+
+/// Where the card of the row `wrap` stands now, in px from its place: also on its way back, as
+/// far as its glide has come.
+fn offset_now(wrap: &leptos::web_sys::HtmlDivElement) -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        wrap.query_selector(":scope > .row")
+            .ok()
+            .flatten()
+            .map_or(0.0, |card| card.get_bounding_client_rect().left() - wrap.get_bounding_client_rect().left())
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = wrap;
+        0.0
     }
 }
 
