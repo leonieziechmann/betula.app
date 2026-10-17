@@ -12,9 +12,11 @@
 //!
 //! While it is up, the root carries `data-keyboard` and where the part shown is (`--vv-top`,
 //! `--vv-height`), and app.css makes a dialog or a sheet on a phone that part, from edge to edge,
-//! without its foot. A picker being typed in goes to the top of what scrolls it, and its list ends
-//! above the keyboard (`--kb-room`); once the keyboard has gone, what scrolled is back where it
-//! was.
+//! without its foot. What is typed in goes to the top of what scrolls it, so that what follows it
+//! shows: a picker, whose list ends above the keyboard (`--kb-room`), or any other text field
+//! (owner, the same day: „Aber das kann ruhig bei jeder combobox/Textfeld passieren"), but one in
+//! what stays where it is (the page's bar of the search, a dialog's bar). Once the keyboard has
+//! gone, what scrolled is back where it was.
 
 /// Watches for the keyboard, once for the life of the app; nothing on the server.
 pub fn watch() {
@@ -38,7 +40,7 @@ mod browser {
     /// keyboard.
     const MARGIN: f64 = 8.0;
 
-    /// What scrolls a picker: a box (a dialog's body, a sheet's) or the page.
+    /// What scrolls a field: a box (a dialog's body, a sheet's) or the page.
     enum Scroller {
         Page,
         Box(Element),
@@ -76,7 +78,7 @@ mod browser {
             }
         }
 
-        /// Where a picker scrolled up comes to stand: the top of the box, or of the part of the
+        /// Where a field scrolled up comes to stand: the top of the box, or of the part of the
         /// page shown, below what stays at its top (a phone's bar of the search) above `x`.
         fn view_top(&self, window: &Window, viewport: &VisualViewport, x: f64) -> f64 {
             match self {
@@ -85,8 +87,7 @@ mod browser {
                     let top = viewport.offset_top();
                     let mut at = window.document().and_then(|document| document.element_from_point(x as f32, (top + 1.0) as f32));
                     while let Some(element) = at {
-                        let position = window.get_computed_style(&element).ok().flatten().and_then(|style| style.get_property_value("position").ok()).unwrap_or_default();
-                        if matches!(position.as_str(), "sticky" | "fixed") {
+                        if stays(window, &element) {
                             return top.max(element.get_bounding_client_rect().bottom());
                         }
                         at = element.parent_element();
@@ -95,6 +96,32 @@ mod browser {
                 }
             }
         }
+
+        /// `element`, or a box it is in short of this, stays where it is as this scrolls (the
+        /// page's bar of the search, a dialog's bar over its body).
+        fn passes_over(&self, window: &Window, element: &Element) -> bool {
+            let mut at = Some(element.clone());
+            while let Some(element) = at {
+                let end = match self {
+                    Self::Box(scroller) => scroller == &element,
+                    Self::Page => matches!(element.tag_name().as_str(), "BODY" | "HTML"),
+                };
+                if end {
+                    return false;
+                }
+                if stays(window, &element) {
+                    return true;
+                }
+                at = element.parent_element();
+            }
+            false
+        }
+    }
+
+    /// Fixed to the window or sticking to the top of what scrolls.
+    fn stays(window: &Window, element: &Element) -> bool {
+        let position = window.get_computed_style(element).ok().flatten().and_then(|style| style.get_property_value("position").ok()).unwrap_or_default();
+        matches!(position.as_str(), "sticky" | "fixed")
     }
 
     #[derive(Default)]
@@ -103,9 +130,10 @@ mod browser {
         /// The page's width, and the tallest the page was at it where a finger points (there the
         /// keyboard may shrink the page as well).
         tall: (f64, f64),
-        /// The picker scrolled up for the keyboard, what scrolled it and where that stood before.
+        /// What was scrolled up for the keyboard (a picker, a field), what scrolled it and where
+        /// that stood before.
         scrolled: Option<(Element, Scroller, f64)>,
-        /// How tall the part shown was when the picker was scrolled up.
+        /// How tall the part shown was when it was scrolled up.
         scrolled_for: f64,
     }
 
@@ -167,43 +195,49 @@ mod browser {
         }
     }
 
-    /// The picker `field` types in, if it is one, at the top of what scrolls it, its list down to
-    /// the keyboard.
+    /// What `field` types in at the top of what scrolls it, so that what follows it shows: the
+    /// picker it searches, its list down to the keyboard, else the field (with the box it stands
+    /// in, a search's), each with its name over it. Not one in what stays where it is.
     fn reveal(state: &mut State, window: &Window, viewport: &VisualViewport, style: &CssStyleDeclaration, field: &Element) {
-        let Some(picker) = field.closest(".combo[data-open]").ok().flatten() else { return };
+        let picker = field.closest(".combo[data-open]").ok().flatten();
+        let unit = picker.clone().or_else(|| field.closest("label").ok().flatten()).unwrap_or_else(|| field.clone());
         // Scrolled up once for the keyboard (again as it grows or shrinks), so that what the
         // finger scrolls meanwhile stays where it went.
-        let fresh = !state.scrolled.as_ref().is_some_and(|(scrolled, ..)| scrolled == &picker);
+        let fresh = !state.scrolled.as_ref().is_some_and(|(scrolled, ..)| scrolled == &unit);
         let scroll = fresh || (viewport.height() - state.scrolled_for).abs() > 1.0;
         state.scrolled_for = viewport.height();
         if fresh {
-            // Another picker scrolled up before: what scrolled it back first.
+            // Another one scrolled up before: what scrolled it back first.
             if let Some((_, scroller, top)) = state.scrolled.take() {
                 scroller.scroll_to(window, top);
             }
-            let scroller = Scroller::of(window, &picker);
+            let scroller = Scroller::of(window, &unit);
+            if scroller.passes_over(window, &unit) {
+                return;
+            }
             let before = scroller.top(window);
-            state.scrolled = Some((picker.clone(), scroller, before));
+            state.scrolled = Some((unit.clone(), scroller, before));
         }
         let Some((_, scroller, _)) = state.scrolled.as_ref() else { return };
-        let Some(popup) = picker.query_selector(".combo-pop").ok().flatten() else { return };
         // Its name over it goes up with it (a card's row, a group of filters).
-        let head = picker.previous_element_sibling().filter(|label| {
-            label.matches("label, .label, .flabel, legend, h2, h3, h4").unwrap_or(false) && label.get_bounding_client_rect().bottom() <= picker.get_bounding_client_rect().top() + 1.0
+        let head = unit.previous_element_sibling().filter(|label| {
+            label.matches("label, .label, .flabel, legend, h2, h3, h4").unwrap_or(false) && label.get_bounding_client_rect().bottom() <= unit.get_bounding_client_rect().top() + 1.0
         });
-        let top = head.as_ref().unwrap_or(&picker);
+        let top = head.as_ref().unwrap_or(&unit);
         let x = {
-            let rect = picker.get_bounding_client_rect();
+            let rect = unit.get_bounding_client_rect();
             (rect.left() + rect.right()) / 2.0
         };
-        // As far up as what scrolls it goes, and its list down to the keyboard; a shorter list
-        // may let it scroll less far, so the two are measured again until they hold.
+        let popup = picker.and_then(|picker| picker.query_selector(".combo-pop").ok().flatten());
+        // As far up as what scrolls it goes, and a picker's list down to the keyboard; a shorter
+        // list may let it scroll less far, so the two are measured again until they hold.
         let bottom = viewport.offset_top() + viewport.height() - MARGIN;
         for _ in 0..3 {
             if scroll {
                 let by = top.get_bounding_client_rect().top() - scroller.view_top(window, viewport, x) - MARGIN;
                 scroller.scroll_to(window, scroller.top(window) + by);
             }
+            let Some(popup) = popup.as_ref() else { break };
             let room = bottom - popup.get_bounding_client_rect().top();
             let _ = style.set_property("--kb-room", &format!("{:.0}px", room.floor()));
             if popup.get_bounding_client_rect().bottom() <= bottom + 0.5 {

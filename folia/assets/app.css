@@ -3431,9 +3431,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .combo[data-open] { --ml: min(0px, 8px - var(--pl, 8px)); --mr: min(0px, 8px - var(--pr, 8px)); }
   .combo[data-open][data-wide] > .combo-trigger { width: calc(100% - var(--ml) - var(--mr)); margin-left: var(--ml); padding-left: calc(var(--tx) - var(--ml)); padding-right: calc(var(--tr) - var(--mr)); }
   .combo-pop { position: relative; z-index: 1; inset: auto; width: auto; max-height: 46vh; margin: 6px var(--mr, 0px) 0 var(--ml, 0px); contain: inline-size; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
-  /* With the screen's keyboard up, the picker typed in goes to the top of what scrolls it and its
-     list ends above the keyboard (`--kb-room`, `folia_design::keyboard`); what scrolls it has the
-     room to below what it holds, as much as is shown. */
+  /* With the screen's keyboard up, what is typed in goes to the top of what scrolls it, a picker
+     with its list ending above the keyboard (`--kb-room`), a text field so too
+     (`folia_design::keyboard`); what scrolls it has the room to below what it holds, as much as is
+     shown. */
   :root[data-keyboard] .combo-pop { max-height: max(160px, var(--kb-room, 46vh)); }
   :root[data-keyboard] :is(body, .st-dlg-body, .filters .body, .sidebar.sheet .body) { padding-bottom: var(--vv-height, 0px); }
   .combo-option { min-height: 44px; align-items: center; font-size: 15px; }
