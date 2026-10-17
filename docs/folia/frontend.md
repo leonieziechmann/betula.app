@@ -845,7 +845,17 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   search (owner, the same day, of the dialog of „Mein Studiengang": „Aber das kann ruhig bei jeder
   combobox/Textfeld passieren"); not one in what stays where it is (the bar of the search, a
   dialog's bar). Once the keyboard has gone, what scrolled is back where it was. Before, the sheet
-  stayed at the screen's foot behind the keyboard, and the picker's list with it.
+  stayed at the screen's foot behind the keyboard, and the picker's list with it. **Nothing of it
+  jumps** (owner, the same day, after a try on her phone: „Animation bitte. Aktuell springt das
+  noch komisch"): the dialog or the sheet glides into that part and back by its top and height
+  (`Element.animate` from where it stood to its new place, 280 ms, a glide under way going on from
+  where it is), what is typed in scrolls up and back smoothly, and what scrolled keeps its room
+  below (an out-of-flow mark, `--kb-pad`; padding pushed the dialog's foot out) a moment after the
+  keyboard has gone (`data-keyboard-leaving`), so that it scrolls back rather than jumping to its
+  new end. An open picker's button draws out to its list's width and back, the list unrolls from
+  it (clipped, so that what it covers does not show through it). With less motion asked for, all
+  of it is there at once. `e2e/study.mjs` takes the sheet's top and its body's scroll frame by
+  frame.
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first

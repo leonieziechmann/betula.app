@@ -131,6 +131,7 @@ check(await page.evaluate(() => Boolean(document.querySelector("#pick-area-list"
 // its foot away, its picker and its list 8 px off its edges (owner, 2026-10-17: „Eingabeboxen/
 // comboboxen immer von ganz links nach ganz rechts mit 8pt margin zum Rand … das modal kann ruhig
 // full screen werden, wenn man das Keyboard öffnet").
+await page.waitForFunction(() => document.getElementById("filters").getAnimations({ subtree: true }).every((animation) => animation.playState !== "running"), null, { timeout: 3000 }).catch(() => {});
 const typing = await page.evaluate(() => {
   const sheet = document.getElementById("filters").getBoundingClientRect();
   const edges = ["#pick-area", "#filters .combo-pop"].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return `${Math.round(r.left)}|${Math.round(innerWidth - r.right)}`; });
