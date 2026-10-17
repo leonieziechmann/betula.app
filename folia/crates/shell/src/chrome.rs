@@ -594,16 +594,32 @@ pub struct TopBack {
     pressed: RwSignal<u32>,
 }
 
+/// Where the way back at the head of a phone's page leads by the page's address (`back_at_head`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Up {
+    /// The list of the area as it was left (`Tabs::list`).
+    List(Area),
+    /// „Mein Studium" as it was left (`Tabs::study`), up from the program overview its „Alle
+    /// Studiengänge" leads to (owner, 2026-10-17: „wenn man auf alle Studiengänge geht, dann fehlt
+    /// da ein zurück button, um zur mein Studium ansicht zurück zu kommen"). The browser app's
+    /// alone, as „Mein Studium" is: without JavaScript the overview is where „Studium" starts, and
+    /// its bar has no way back (app.css).
+    Study,
+}
+
 /// The pages that have their way back at the head of a phone's page from their first paint
-/// (`TopBack`), by their address, and the area whose list it leads to until the page says where
-/// (the server's page, where it is the link of its „Zurück" as well): a program's page — with
-/// whatever fills it, which has a way back of its own — and a module's own page. A page with a
-/// `BackLink` that the server renders is named here, or the bar changes when the app takes over.
-pub fn back_at_head(path: &str) -> Option<Area> {
-    if crate::tabs::page_below(path, url::PROGRAMS).is_some() {
-        Some(Area::Programs)
+/// (`TopBack`), by their address, and where it leads until the page says where (the server's
+/// page, where it is the link of its „Zurück" as well): a program's page — with whatever fills it,
+/// which has a way back of its own — and a module's own page up to the list of their area, the
+/// program overview up to „Mein Studium". A page with a `BackLink` that the server renders is
+/// named here, or the bar changes when the app takes over.
+pub fn back_at_head(path: &str) -> Option<Up> {
+    if path == url::PROGRAMS {
+        Some(Up::Study)
+    } else if crate::tabs::page_below(path, url::PROGRAMS).is_some() {
+        Some(Up::List(Area::Programs))
     } else if crate::tabs::page_below(path, &format!("{}/module", url::CATALOG)).is_some() {
-        Some(Area::Catalog)
+        Some(Up::List(Area::Catalog))
     } else {
         None
     }
@@ -664,9 +680,9 @@ impl TopBack {
 
 /// Where the box of `TopBack` leads on the page the app is at or going to (`pending`): where the
 /// page puts it (its `BackLink`, its step), else where its address puts it (`back_at_head`) — the
-/// list of its area as it was left (`Tabs::list`), through the history where that is the step
-/// before, as `BackLink` does. On the way to another page (another path) the page that is left has
-/// no say: the bar follows the click, the box there or gone at once.
+/// list of its area as it was left (`Tabs::list`), or „Mein Studium" as it was left, through the
+/// history where that is the step before, as `BackLink` does. On the way to another page (another
+/// path) the page that is left has no say: the bar follows the click, the box there or gone at once.
 fn top_back_shown() -> Memo<Option<Back>> {
     let t = i18n::t();
     let location = use_location();
@@ -680,8 +696,10 @@ fn top_back_shown() -> Memo<Option<Back>> {
             return Some(step);
         }
         let path = headed.unwrap_or_else(|| location.pathname.get());
-        let area = back_at_head(&path)?;
-        let href = tabs.map_or_else(|| area.back_root().to_string(), |tabs| tabs.list(area));
+        let href = match back_at_head(&path)? {
+            Up::List(area) => tabs.map_or_else(|| area.back_root().to_string(), |tabs| tabs.list(area)),
+            Up::Study => tabs.map_or_else(|| url::STUDY.to_string(), Tabs::study),
+        };
         let now = crate::tabs::location_of(&location.pathname.get(), &location.search.get());
         let history = tabs.is_some_and(|tabs| tabs.before(&now) == href);
         Some(Back { href, label: t.common.back, history })
@@ -716,6 +734,8 @@ fn TopBackBox(shown: Memo<Option<Back>>) -> impl IntoView {
             class:on=on
             inert=move || !on()
             href=move || last.with(|back| back.as_ref().map(|back| t.path(&back.href)))
+            // „Mein Studium", where the program overview's leads, is no page for search engines.
+            rel=move || last.with(|back| back.as_ref().and_then(|back| crate::seo::nofollow(&back.href)))
             aria-label=move || last.with(|back| back.as_ref().map(|back| back.label))
             title=move || last.with(|back| back.as_ref().map(|back| back.label))
             // A step of the page stays where the page is; the way to another page goes to its top
@@ -744,6 +764,11 @@ pub fn TopBar() -> impl IntoView {
     // The way back at the head, and the way to the profile page giving way to it (`TopBack`).
     let back = top_back_shown();
     let backed = Signal::derive(move || back.with(Option::is_some));
+    // The program overview's way back leads to „Mein Studium", the browser app's alone (`Up::Study`):
+    // the server writes the bar as the app has it, for the app's first paint, and without
+    // JavaScript the box is not there and the way to the profile page stays in reach (app.css).
+    let app_back = Memo::new(move |_| back_at_head(&path_now.get()) == Some(Up::Study));
+    let away = Signal::derive(move || backed.get() && (APP || !app_back.get()));
 
     // The search belongs to the page: programs on the program overview, modules everywhere else.
     // In the browser app it filters while typing (replacing the history entry, not adding one).
@@ -782,7 +807,7 @@ pub fn TopBar() -> impl IntoView {
     };
 
     view! {
-        <header class="topbar" class:backed=backed>
+        <header class="topbar" class:backed=backed class:app-back=app_back>
             <TopBackBox shown=back/>
             {move || {
                 let study = study_now.get();
@@ -819,7 +844,7 @@ pub fn TopBar() -> impl IntoView {
                     </form>
                 }
             }}
-            <ProfileButton top=true away=backed/>
+            <ProfileButton top=true away/>
         </header>
     }
 }
@@ -829,14 +854,16 @@ mod tests {
     use super::*;
 
     /// A program's page and a module's own page have their way back at the head from their first
-    /// paint, by their address; a list, „Mein Studium" and the other pages do not.
+    /// paint, by their address, up to their area's list, and the program overview up to „Mein
+    /// Studium"; the other lists, „Mein Studium" and the other pages do not.
     #[test]
     fn the_pages_with_a_way_back_have_it_at_the_head() {
         for path in ["/programs/bachelor-informatik-2008", "/programs/bachelor-informatik-2008/areas", "/programs/bachelor-informatik-2008/plan"] {
-            assert_eq!(back_at_head(path), Some(Area::Programs), "{path}");
+            assert_eq!(back_at_head(path), Some(Up::List(Area::Programs)), "{path}");
         }
-        assert_eq!(back_at_head("/catalog/module/11103"), Some(Area::Catalog));
-        for path in ["/programs", "/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile", "/", "/impressum"] {
+        assert_eq!(back_at_head("/catalog/module/11103"), Some(Up::List(Area::Catalog)));
+        assert_eq!(back_at_head("/programs"), Some(Up::Study));
+        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile", "/", "/impressum"] {
             assert_eq!(back_at_head(path), None, "{path}");
         }
     }
