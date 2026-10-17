@@ -43,7 +43,8 @@
 /// 1.20.1 with a row swiped on a phone the next finger's at once, while it still says what was done
 /// or glides back; 1.20.2 with the bar at a phone's bottom taken where it stands by a swipe that
 /// catches its glide in the first frame, which stood still with the wrong icon in its lens and
-/// moved no more. The version of the app's crates, the same as the server's; Radix's is in the
+/// moved no more; 1.21.0 with the red of a row swiped out of the plan striped at 45°, for the
+/// red-green blind. The version of the app's crates, the same as the server's; Radix's is in the
 /// snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

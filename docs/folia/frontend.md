@@ -561,7 +561,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   entfernen"): „Merken" from the quiet ground to the inverted look of a marked module (its switch
   on the module's page), „Entfernen · von der Merkliste" from that look back to the quiet ground;
   „Einplanen" from the quiet ground to the accent, „Entfernen · aus …" from the accent to a muted
-  red at the accent's lightness (`--remove`, white labels as on the accent). Let go armed, the ground says what was
+  red at the accent's lightness (`--remove`, white labels as on the accent), striped at 45° a shade
+  darker (owner, 2026-10-17: „schwer zu erkennen … für rot grün blinde, ob wir jetzt planen oder
+  entplanen … 45 Grad Striche im Hintergrund"), so that it is told from the accent by more than its
+  hue. Let go armed, the ground says what was
   done („Gemerkt", „Eingeplant", „Entfernt"), the card goes aside as far as that takes, holds a
   moment and glides back, and the action follows after the next frame (R21); let go before, the
   card glides back and nothing happens. Nothing of it waits for its animation (owner, 2026-10-17:
