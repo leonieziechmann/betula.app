@@ -564,7 +564,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   red at the accent's lightness (`--remove`, white labels as on the accent). Let go armed, the ground says what was
   done („Gemerkt", „Eingeplant", „Entfernt"), the card goes aside as far as that takes, holds a
   moment and glides back, and the action follows after the next frame (R21); let go before, the
-  card glides back and nothing happens. The row stays where it is (R5: marking and planning change
+  card glides back and nothing happens. Nothing of it waits for its animation (owner, 2026-10-17:
+  „Ich will, dass man sofort korrigieren kann und nicht erst warten muss, bis die Animation fertig
+  ist"): a card that holds what was done or glides back is the next finger's at once, from where it
+  stands (read from the page, as far as its glide has come), its hold and its rest are left undone,
+  and what its ground says is read anew, so a swipe right after one undoes it. The row stays where it is (R5: marking and planning change
   what the module's buttons say, not the list — unless the list is filtered by them, „Gemerkt",
   „Passt in meinen Stundenplan"; on the Merkliste a module swiped off it stays, dimmed, as with
   its button). The card moves inside its own place: while it is swiped the row
