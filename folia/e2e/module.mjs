@@ -5,6 +5,9 @@
 // Phone: a tap opens the module's page directly (never the preview), the page has the order of the
 // preview (times and facts, then the description), back returns to the tapped row, and a shared
 // link with a preview becomes the page.
+// A shared link with a preview of a module far down the whole list, loaded directly, on both: the
+// page answers all the while, the list renders a few screens of rows, the module is beside the
+// list (a sheet on a phone) with its row in view and marked.
 // „Einplanen" and „Merken": one pair at the right end of the line of the badges, in the order of
 // the Tab key, side by side or, where the line has no room for that, one over the other beside
 // the badges (a line of their own only on a phone); „Einplanen" keeps its width when pressed; what
@@ -267,6 +270,78 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   await shared.goto(base + "/catalog?turnus=winter&open=11112", { waitUntil: "domcontentloaded" });
   await shared.waitForFunction(() => location.pathname === "/catalog" && location.search.includes("open=11112") && document.querySelector(".detail.is-module h2"), null, { timeout: 120000 }).catch(() => problems.push("phone: a shared preview link did not bring the module's sheet"));
   await context.close();
+}
+
+// ---------- a shared preview link far down the whole list, loaded directly ----------
+// The list starts at the module's row, far below the server's first page, while the takeover's
+// picture of that page still stands. It rendered every row from the first one down to there
+// (`/catalog?open=11787`: 2,986 of them), asked for all their pages and built and measured them all
+// again with each answer: on a wide screen the tab froze for minutes, on a phone for seconds
+// (2026-10-17). The page has to answer all the while, the list holds a few screens of rows at
+// most, and the module stands beside the list (a sheet on a phone) with its row in view and marked.
+{
+  // A module near the end of the unfiltered list, as the server's pages list it.
+  const pages = Number((await (await fetch(base + "/catalog")).text()).match(/class="pager".*?<span class="num">[^<]*?(\d+)<\/span>/s)?.[1] || 1);
+  const far = await (await fetch(`${base}/catalog?page=${Math.ceil(pages * 0.9)}`)).text();
+  const id = [...far.matchAll(/<a [^>]*>/g)].map(([a]) => a).filter((a) => a.includes('class="row"')).map((a) => a.match(/data-id="([^"]+)"/)?.[1])[25];
+  check(id, `far down: no module on page ${Math.ceil(pages * 0.9)} of ${pages} of the catalog`);
+  const devices = { desktop: { viewport: { width: 1440, height: 900 } }, phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } };
+  for (const [device, options] of id ? Object.entries(devices) : []) {
+    const context = await browser.newContext(options);
+    const page = await context.newPage();
+    page.on("console", (m) => { if (m.type() === "error") problems.push(`far down, ${device}: console: ${m.text().slice(0, 300)}`); });
+    page.on("pageerror", (e) => problems.push(`far down, ${device}: pageerror: ${String(e).slice(0, 300)}`));
+    // The most rows the list has held at once, from the first moment on.
+    await page.addInitScript(() => {
+      window.__mostRows = 0;
+      new MutationObserver(() => { window.__mostRows = Math.max(window.__mostRows, document.getElementById("rows-virtual")?.querySelectorAll(":scope > .vrow").length || 0); }).observe(document, { childList: true, subtree: true });
+    });
+    await page.goto(`${base}/catalog?open=${id}`, { waitUntil: "domcontentloaded" });
+    // Where the page is, asked every quarter of a second; `null` when it does not answer within 3 s.
+    const state = () => Promise.race([
+      page.evaluate((id) => {
+        const row = document.querySelector(`#rows-virtual a.row[data-id="${id}"]`);
+        const phone = matchMedia("(max-width: 900px)").matches;
+        const box = row?.getBoundingClientRect();
+        // In view: on a wide screen in the list's part of the scroll area, under the heads of its
+        // columns; on a phone beginning in the window between the bar and the sheet (the row
+        // stands in the middle of the window, as when coming back to the list, where the sheet,
+        // half the screen high, begins).
+        const edge = (selector, side) => document.querySelector(selector)?.getBoundingClientRect()[side];
+        const area = document.getElementById("catalog-scroll");
+        const top = phone ? edge(".topbar", "bottom") ?? 0 : Math.max(edge("#catalog-scroll", "top") ?? 0, edge("#rows-head", "bottom") ?? 0);
+        const bottom = phone ? Math.min(innerHeight, edge(".detail.is-module", "top") ?? innerHeight) : (edge("#catalog-scroll", "top") ?? 0) + (area?.clientHeight ?? 0);
+        return {
+          app: window.__betulaApp === true,
+          preview: Boolean(document.querySelector(".detail.is-module h2")),
+          marked: row?.getAttribute("aria-current") === "true",
+          seen: Boolean(box) && box.top >= top - 1 && (phone ? box.top < bottom : box.bottom <= bottom + 1),
+          where: box && { top: Math.round(box.top), bottom: Math.round(box.bottom), from: Math.round(top), to: Math.round(bottom) },
+          rows: window.__mostRows,
+        };
+      }, id),
+      new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+    ]);
+    const started = Date.now();
+    let now = await state();
+    let after = 0;
+    // Until the module and its row are there, then a few seconds more.
+    while (now && Date.now() - started < 120000 && after < 12) {
+      if (now.app && now.preview && now.marked) after++;
+      await page.waitForTimeout(250);
+      now = await state();
+    }
+    timings[`far down, ${device}`] = Date.now() - started;
+    if (!now) problems.push(`far down, ${device}: /catalog?open=${id} did not answer for 3 s after ${Date.now() - started - 3000} ms`);
+    else {
+      check(now.app, `far down, ${device}: the browser app never took over`);
+      check(now.preview, `far down, ${device}: /catalog?open=${id} did not bring the module ${device === "phone" ? "as a sheet" : "beside the list"}`);
+      check(now.marked && now.seen, `far down, ${device}: the module's row is ${now.marked ? `not in view (${JSON.stringify(now.where)})` : "not there or not marked"}`);
+      // A screen of rows and ten above and below it, not every row from the first one.
+      check(now.rows <= 120, `far down, ${device}: the list held ${now.rows} rows at once`);
+    }
+    await context.close();
+  }
 }
 
 // ---------- the height of a phone spent on what is read (owner, 2026-10-17) ----------

@@ -1434,10 +1434,16 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   the URL follows the row at the top of the screen (history entry replaced); a shared link with
   `page=7` starts there, and coming back from a module the list centres on its row
   (`queries::catalog_position`: the row's place in the ordered list, one window query, no pages
-  loaded before it). A filter change starts at the top: the list is rendered anew, but its panel
-  is the same element as before and keeps the scroll position, which the new list would otherwise
-  take for its own and write into the URL as its page (the first list of a visit is left as it
-  is: a page the browser restored). The server renders the page the URL names, with pager links (no JavaScript,
+  loaded before it), as does a shared link with `open`, loaded directly. Behind the takeover's
+  picture of the server's first page the list renders every row from the first one, so that the
+  rows on the screen stand where that page had them, but only while the top of the screen is on
+  that page: a link to a module further down is at its row before the picture goes, and from the
+  first row that was every row down to it (2026-10-17, `/catalog?open=11787`: 2,986 rows, every
+  page of them asked for and all of them built and measured again with each answer; a wide
+  screen froze for minutes, a phone for seconds; `e2e/module.mjs`). A filter change starts at the
+  top: the list is rendered anew, but its panel is the same element as before and keeps the
+  scroll position, which the new list would otherwise take for its own and write into the URL as
+  its page (the first list of a visit is left as it is: a page the browser restored). The server renders the page the URL names, with pager links (no JavaScript,
   search engines). Inside a program the list is in plan order with the plan's semester at every
   row; the headings between the semesters are gone (the semester filter is for that) — so the
   elective modules, which the plan places in no semester, are simply the rows after the last
@@ -3540,7 +3546,12 @@ filter panel was, the same order of sections in both, jumps without history entr
 for sidebar and filter panel, Esc back to the list with the row in view. Phone: a tap opens the
 page directly, the page starts with times and facts, back returns to the tapped row deep in the
 endless list, a shared preview link becomes the page; „Einplanen" and „Merken" on a line of
-their own under the badges, filling it half each.
+their own under the badges, filling it half each. On both, a shared preview link of a module far
+down the unfiltered list (90 % of the way, from the server's pages), loaded directly: the page
+answers within 3 s all the while, the list never holds more than 120 rows, the module stands
+beside the list (a sheet on a phone) with its row marked and in view (on a phone it begins above
+the sheet). Before the fix of 2026-10-17 a wide screen stopped answering and a phone's list held
+2,945 rows.
 
 ```bash
 cd e2e && node phone.mjs
