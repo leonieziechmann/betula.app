@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -128,14 +128,23 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **Pickers** (`folia/crates/design/src/combobox.rs`: program, area, lecturers, department) have a search that
     forgives typos and knows initials and abbreviations (`folia_search::fuzzy`: „infomatik bsc"), arrow
     keys, Enter, Esc. Their popup is fixed to the window, so no panel clips it; on a phone it
-    opens in place, under its button and across the panel the picker stands in (owner,
-    2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen … von ganz
-    links bis nach ganz rechts. Kein Überstand"): 16 px in from either edge of the panel, however
-    far in its button stands (the way in's, beside the marks), and never narrower than the
-    button; no name it lists widens it (a long one pushed the popup and the button out of the
-    panel). There nothing that moves the window closes it: the on-screen keyboard
-    that opens for the search field shrinks the window and scrolls the field into view, which
-    used to close the popup the moment it opened. The module comment of the component lists what
+    opens in place, under its button and across what the picker stands in, a dialog, a sheet or
+    a panel (owner, 2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen
+    … von ganz links bis nach ganz rechts. Kein Überstand"; 2026-10-17: „Eingabeboxen/comboboxen
+    immer von ganz links nach ganz rechts mit 8pt margin zum Rand in der Mobile Version"): 8 px in
+    from either edge, however far in its button stands (the way in's, beside the marks; a card's
+    row in a dialog), and never narrower than the button; no name it lists widens it (a long one
+    pushed the popup and the button out of the panel). A button that spans its line (nothing
+    beside it, its picker across what it stands in but for 40 px at either edge, `nav::popup_place`)
+    spans the list's width with it while open, its content where it was, so that the two are one
+    box (a card's row's comes out over the card's edges so); one among the words of a line (a step
+    of the way in, a bar's) keeps its size. Until 1.12.0 the popup stood 16 px in from a panel's
+    edges and in a dialog no wider than the button, under a button narrower than it. A sheet's
+    fields stand 8 px off its edges too (the catalog's filters, the Stundenplan's). There nothing
+    that moves the window closes it: the on-screen keyboard that opens for the search field
+    shrinks the window and scrolls the field into view, which used to close the popup the moment
+    it opened (and what the keyboard does to a dialog, a sheet and the picker: „The screen's
+    keyboard"). The module comment of the component lists what
     keeps it predictable (it is a rewrite: the picker of the old frontend lost its mark to the
     mouse, closed the preview with Esc and knew its selection by label). Without the app the same
     places hold a plain `select` or text field inside a GET form, and hidden inputs carry what
@@ -784,7 +793,24 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   content, m three quarters of the screen, l all but its top — whose buttons share its width, the
   cancel too, at least 24 px over the screen's foot (`max(24px, 14px + safe-area)`; owner: „Beim
   handy müssen die buttons etwas weiter vom boden weg sein. Und die volle breite (zusammen)
-  einnehmen").
+  einnehmen"); a search field in it spans it 8 px off its edges, as a picker does.
+- **The screen's keyboard** (`folia/crates/design/src/keyboard.rs`; owner, 2026-10-17: „dann muss das
+  Fenster auch hoch gehen, wenn das virtual keyboard rein kommt, so dass man noch sehen kann was
+  man macht. Also das modal kann ruhig full screen werden, wenn man das Keyboard öffnet. (Aber nur
+  bei onscreen keyboard)"). A browser lays the keyboard over the page and tells it nothing: it
+  shrinks only the part of the page it shows (`visualViewport`; Chrome on Android, Safari) or the
+  page with it (Firefox). So it counts as up while a text field has the focus and the part shown is
+  more than 120 px shorter than the page was at that width (the tallest seen, where a finger
+  points; on a computer the window as it is): never with a keyboard of wire or radio, which covers
+  nothing, nor on a computer whose window is made lower. The root then carries `data-keyboard` and
+  where that part is (`--vv-top`, `--vv-height`). On a phone a dialog is then that part, from edge
+  to edge, and so is the catalog's filters or another sheet; the dialog's foot (the buttons), the
+  sheet's („1.200 Module anzeigen") and the tab bar wait for the keyboard to go. A picker being
+  typed in goes to the top of what scrolls it, its name over it (a dialog's body, a sheet's, the
+  page under its bar of the search), what scrolls it having the room to while the keyboard is up,
+  and its list ends above the keyboard (`--kb-room`); once the keyboard has gone, what scrolled is
+  back where it was. Before, the sheet stayed at the screen's foot behind the keyboard, and the
+  picker's list with it.
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first
@@ -863,7 +889,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     under it, once the program or its direction changed, what of the plan counts there before
     anything changes („Bestanden 36 von 46 LP kommen dort vor", the first modules that count nowhere
     there, which stay as „ohne Bereich"); where only the Fachsemester changed, that the plan stays as
-    it is. Nothing of the plan is touched by a change, and changing back counts all as before.
+    it is. Before any change and where only the Fachsemester changed, that is a line at the foot of
+    the body over the dialog's foot, without a box (owner, 2026-10-17: „die änderungsbox, wo die
+    Änderungen drin stehen sieht akward aus. Mach die mal weg und den Text nach unten bündig"; it
+    was a dashed box under the card, on a phone cut off by the foot); with what counts there,
+    „Nichts wird gelöscht …" stands there. Nothing of the plan is touched by a change, and changing
+    back counts all as before.
     Another program starts in its first Fachsemester now, with its first plan; the program kept,
     picked again, brings back its Studienbeginn and its direction (owner, 2026-10-16: „wenn man den
     studiengang wechselt, dann ist es wahrscheinlich, dass das fachsemester wieder bei 1 ist. Aber

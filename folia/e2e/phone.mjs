@@ -3,8 +3,9 @@
 // top, it closes; a short slow pull lets it snap back; a tap beside it and a mouse at its head
 // close it too), what is picked in the sheet is a draft (the sheet counts, the list and the
 // address follow once, when it closes, with one history entry), the picker staying open while
-// the window shrinks (the on-screen keyboard), the area picker, and the virtual list (the page
-// scrolls, the last rows come at its end, the height stays, rows do not overlap).
+// the window shrinks (the on-screen keyboard; the sheet then the window, without its foot, the
+// picker 8 px off its edges), the area picker, and the virtual list (the page scrolls, the last
+// rows come at its end, the height stays, rows do not overlap).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node phone.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -126,6 +127,16 @@ await page.setViewportSize({ width: 390, height: 500 }); // the on-screen keyboa
 await page.evaluate(() => document.getElementById("pick-area-search")?.scrollIntoView());
 await page.waitForTimeout(400);
 check(await page.evaluate(() => Boolean(document.querySelector("#pick-area-list")) && document.querySelector("#pick-area").closest(".combo").hasAttribute("data-open")), "picker: the popup closed when the viewport shrank (the keyboard)");
+// The keyboard up (here the window shrinks with it, as Firefox has it): the sheet is the window,
+// its foot away, its picker and its list 8 px off its edges (owner, 2026-10-17: „Eingabeboxen/
+// comboboxen immer von ganz links nach ganz rechts mit 8pt margin zum Rand … das modal kann ruhig
+// full screen werden, wenn man das Keyboard öffnet").
+const typing = await page.evaluate(() => {
+  const sheet = document.getElementById("filters").getBoundingClientRect();
+  const edges = ["#pick-area", "#filters .combo-pop"].map((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return `${Math.round(r.left)}|${Math.round(innerWidth - r.right)}`; });
+  return { on: document.documentElement.hasAttribute("data-keyboard"), sheet: [Math.round(sheet.top), Math.round(sheet.bottom)], foot: getComputedStyle(document.querySelector("#filters .filter-actions")).display, edges };
+});
+check(typing.on && typing.sheet[0] === 0 && typing.sheet[1] === 500 && typing.foot === "none" && typing.edges.every((edges) => edges === "8|8"), `picker: with the keyboard up the sheet is not the window, or its picker not across it: ${JSON.stringify(typing)}`);
 await page.keyboard.type("praktische");
 await page.waitForFunction(() => document.querySelector("#pick-area-list .combo-option .combo-label")?.textContent.includes("Praktische"), null, { timeout: 5000 }).catch(() => problems.push("picker: typing did not narrow the list"));
 // Enter takes the first entry; the sheet then counts as many modules as the entry says, and the

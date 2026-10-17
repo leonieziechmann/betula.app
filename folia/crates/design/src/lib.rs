@@ -1,13 +1,15 @@
 //! The design of the app: the building blocks every page uses (`ui`, `icons`, `combobox`), how
 //! numbers and dates are written (`format`), the browser's own means (`nav`: storage, sizes,
-//! popups) and the languages with the texts of these parts (`i18n`, and `texts!`, with which
-//! every crate of the app puts its texts together). Below the shell and the features: it knows
-//! no page, no data and no store (docs/folia/folia-refactor.md §7.4).
+//! popups; `keyboard`: the screen's keyboard of a phone) and the languages with the texts of these
+//! parts (`i18n`, and `texts!`, with which every crate of the app puts its texts together). Below
+//! the shell and the features: it knows no page, no data and no store
+//! (docs/folia/folia-refactor.md §7.4).
 
 pub mod combobox;
 pub mod format;
 pub mod i18n;
 pub mod icons;
+pub mod keyboard;
 pub mod nav;
 pub mod ui;
 

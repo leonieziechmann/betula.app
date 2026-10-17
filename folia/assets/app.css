@@ -3354,6 +3354,17 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      nothing, enhance.js), and the sheet's list keeps its scroll to itself at either end. */
   html.sheet-open { overflow: hidden; overscroll-behavior: none; }
   .filters .body, .sidebar.sheet .body { overscroll-behavior: contain; }
+  /* A sheet's fields, pickers and boxes 8 px off its edges, as an open picker (below; a sidebar's
+     sheet, further down, too). */
+  .filters .body { padding-left: 8px; padding-right: 8px; }
+  .filters .fgroup, .sidebar.sheet .fgroup { padding-left: 0; padding-right: 0; }
+  /* The screen's keyboard up (`folia_design::keyboard`; owner, 2026-10-17: „das modal kann ruhig
+     full screen werden, wenn man das Keyboard öffnet. (Aber nur bei onscreen keyboard)"): a sheet
+     takes the part of the screen the keyboard leaves, from edge to edge, so that the field and
+     what it finds stay in view, and its foot waits for the keyboard to go; so does a dialog
+     (below), and the bar of the tabs. */
+  :root[data-keyboard] :is(.filters, .sidebar.sheet):is(.open, :target) { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-height, 100dvh); max-height: none; border-radius: 0; }
+  :root[data-keyboard] :is(.filters .filter-actions, .sidebar.sheet .sheet-only, .bottomnav) { display: none; }
   /* What was picked beside a program (a module, an area, a row of the plan) has no room beside
      the page on a phone: it is the page until it is closed. The browser app renders an area or a
      row as a page of its own and a module as a sheet over the page (below); this is for the same
@@ -3367,14 +3378,27 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .seg a, .seg button { min-height: 40px; font-size: 14.5px; }
   .combo-trigger, .more .combo-trigger, .combo.small .combo-trigger { min-height: 46px; font-size: 15px; }
   .combo-clear, .more .combo-clear { top: 9px; }
-  /* The popup of a picker opens under its button and across the panel it stands in (owner,
-     2026-09-29: „Komboboxen auf dem Handy sollen immer die volle Breite einnehmen (mit margin
-     etc) aber sie sollen halt von ganz links bis nach ganz rechts"): out past its button to
-     16 px from the panel's edges, a panel's padding on a phone, and never narrower than the
-     button (`--pl`, `--pr`: how far in the picker stands, `nav::popup_place`). The names it
-     lists never widen it: a long one pushed the popup and the picker's button out of the panel.
-     Above what it covers, the line through the marks of the way in. */
-  .combo-pop { position: relative; z-index: 1; inset: auto; width: auto; max-height: 46vh; margin: 6px min(0px, 16px - var(--pr, 16px)) 0 min(0px, 16px - var(--pl, 16px)); contain: inline-size; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
+  /* An open picker spans what it stands in, a dialog, a sheet or a panel, from 8 px off its one
+     edge to 8 px off the other (owner, 2026-09-29: „Komboboxen auf dem Handy sollen immer die
+     volle Breite einnehmen (mit margin etc) aber sie sollen halt von ganz links bis nach ganz
+     rechts"; 2026-10-17: „Eingabeboxen/comboboxen immer von ganz links nach ganz rechts mit 8pt
+     margin zum Rand in der Mobile Version"). Its list opens in place under its button, out past
+     the button to there and never narrower than it (`--pl`, `--pr`: how far in the picker
+     stands, `nav::popup_place`), and a button that spans its line (`data-wide`: nothing beside
+     it, as wide as the picker) spans the same, its content where it was (`--tx`, `--tr`: where it
+     begins and ends), so that button and list are one box; a picker in a card's row, whose button
+     reads as its value, comes out over the card's edges so. A button in a line with others (a
+     step's, a bar's) keeps its size. The names it lists never widen it: a long one pushed the
+     popup and the picker's button out of the panel. Above what it covers, the line through the
+     marks of the way in. */
+  .combo[data-open] { --ml: min(0px, 8px - var(--pl, 8px)); --mr: min(0px, 8px - var(--pr, 8px)); }
+  .combo[data-open][data-wide] > .combo-trigger { width: calc(100% - var(--ml) - var(--mr)); margin-left: var(--ml); padding-left: calc(var(--tx) - var(--ml)); padding-right: calc(var(--tr) - var(--mr)); }
+  .combo-pop { position: relative; z-index: 1; inset: auto; width: auto; max-height: 46vh; margin: 6px var(--mr, 0px) 0 var(--ml, 0px); contain: inline-size; box-shadow: inset 0 0 0 1px var(--line-strong); animation: none; }
+  /* With the screen's keyboard up, the picker typed in goes to the top of what scrolls it and its
+     list ends above the keyboard (`--kb-room`, `folia_design::keyboard`); what scrolls it has the
+     room to below what it holds, as much as is shown. */
+  :root[data-keyboard] .combo-pop { max-height: max(160px, var(--kb-room, 46vh)); }
+  :root[data-keyboard] :is(body, .st-dlg-body, .filters .body, .sidebar.sheet .body) { padding-bottom: var(--vv-height, 0px); }
   .combo-option { min-height: 44px; align-items: center; font-size: 15px; }
   .combo-foot { display: none; }
   .credits { --knob: 24px; --thumb: 40px; }
@@ -3390,8 +3414,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .sidebar.sheet:target, .sidebar.sheet.open { transform: none; }
   .sidebar.sheet .panel-head { display: flex; position: relative; padding-top: 22px; }
   .sidebar.sheet .panel-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
-  .sidebar.sheet .body { overflow-y: auto; padding: 0 12px 12px; }
-  .sidebar.sheet .sheet-only { display: flex; position: sticky; bottom: 0; margin: 12px -12px -12px; background: var(--panel); }
+  .sidebar.sheet .body { overflow-y: auto; padding: 0 8px 12px; }
+  .sidebar.sheet .sheet-only { display: flex; position: sticky; bottom: 0; margin: 12px -8px -12px; background: var(--panel); }
   .summary { padding: 4px 16px 0; }
   /* The program page's „Darstellung": the plan is always the list on a phone, and the app leaves
      the switch out; the server's copy goes too, so nothing moves at the takeover. */
@@ -4054,11 +4078,18 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-stepper button:hover:not([disabled]) { background: var(--panel-3); }
 .st-stepper button:active:not([disabled]) { background: var(--accent-soft); }
 .st-stepper button[disabled] { color: var(--text-3); opacity: .5; cursor: default; }
-/* What the change does: one box under the card, as tall whatever it says. */
-.st-effect { display: flex; flex-direction: column; min-height: 150px; margin-top: 14px; }
+/* What the change does: under the card, down to the foot of the body (the body a column), and on a
+   computer as tall whatever it says. While nothing or only the Fachsemester changed, a line at the
+   foot of the body, without a box (owner, 2026-10-17: „die änderungsbox, wo die Änderungen drin
+   stehen sieht akward aus. Mach die mal weg und den Text nach unten bündig"); with what counts
+   there, „Nichts wird gelöscht" stands there. */
+.st-switch { display: flex; flex-direction: column; }
+.st-switch > .st-study { flex: none; }
+.st-effect { flex: 1 0 auto; display: flex; flex-direction: column; min-height: 150px; margin-top: 14px; }
 .st-effect h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-effect-note { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0; padding: 14px 18px; border: 1.5px dashed var(--line-strong); border-radius: 10px; color: var(--text-2); font-size: 13px; text-wrap: pretty; }
-.st-effect-note .icon { flex: none; width: 16px; height: 16px; color: var(--text-3); }
+.st-effect-note { display: flex; align-items: flex-start; gap: 8px; margin: auto 0 0; color: var(--text-2); font-size: 12.5px; line-height: 18px; text-wrap: pretty; }
+.st-effect-note .icon { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--text-3); }
+.st-effect > .st-safe { margin-top: auto; padding-top: 8px; }
 .st-count-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .st-count { padding: 10px 13px; border-radius: 10px; background: var(--panel-2); }
 .st-count p { margin: 0; }
@@ -4558,6 +4589,13 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-dlg-foot { padding-top: 14px; padding-bottom: max(24px, calc(14px + env(safe-area-inset-bottom))); }
   .st-dlg-foot > .btn { flex: 1 1 0; min-width: 0; min-height: 48px; }
   .st-dlg-foot > .st-foot-text, .st-dlg-foot > .st-foot-state { flex: 1 1 100%; }
+  /* A dialog's search field 8 px off the sheet's edges, as an open picker. */
+  .st-dialog .st-search-box { margin-left: -8px; margin-right: -8px; }
+  /* The screen's keyboard up: the dialog is the part of the screen the keyboard leaves, from edge
+     to edge (as a sheet, above), its foot back with the keyboard gone. */
+  :root[data-keyboard] .st-dialog[open] { inset: var(--vv-top, 0px) 0 auto; height: var(--vv-height, 100dvh); max-height: none; margin: 0; border-radius: 0; }
+  :root[data-keyboard] .st-dialog .st-dlg-head { padding-top: max(18px, env(safe-area-inset-top)); }
+  :root[data-keyboard] .st-dialog .st-dlg-foot { display: none; }
   .st-setup { padding: 18px 16px; }
   /* The card on a phone: a row's name over its value, the sentence two lines. */
   .st-study-say { height: 70px; padding: 12px 14px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
@@ -4569,7 +4607,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-fs-line { height: 44px; }
   .st-fs-value { font-size: 16px; }
   .st-stepper button { width: 52px; height: 44px; }
-  .st-effect { min-height: 186px; }
+  .st-effect { min-height: 0; }
   .st-fill { min-height: 96px; }
   .st-undo { bottom: calc(76px + env(safe-area-inset-bottom)); }
   .st-undo.over-dock { bottom: calc(104px + env(safe-area-inset-bottom)); }
