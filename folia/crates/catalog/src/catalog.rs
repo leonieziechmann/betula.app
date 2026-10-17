@@ -1246,8 +1246,12 @@ fn VirtualRows(
         // Behind the takeover's picture of the server's first page, every row from the first one:
         // measured, the rows above stand as tall as they stood on that page, and the rows on the
         // screen where they stood there, not where the average of the rows measured puts them.
-        // At most the 50 rows that page has.
-        let from = if start_page == 1 && nav::behind_picture() { 0 } else { first_visible.saturating_sub(BUFFER) };
+        // Only while the top of the screen is on that page, so at most the 50 rows it has. A list
+        // that starts at a module further down (a shared `?open=`) is there before the picture
+        // goes: from the first row, all 3,000 rows down to it were built, every page of them
+        // asked for, and each answer built and measured them all again; the tab froze for
+        // minutes (2026-10-17, `/catalog?open=11787`, row 2,986).
+        let from = if start_page == 1 && first_visible < per_page && nav::behind_picture() { 0 } else { first_visible.saturating_sub(BUFFER) };
         let range = (from, (last_visible + 1 + BUFFER).min(total));
         ensure_loaded(range.0, range.1);
         let (guess, mut top) = (estimate(), offset_of(first_visible));

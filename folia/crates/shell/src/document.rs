@@ -33,8 +33,9 @@
 /// it will be — „Merken" to the inverted look and back, „Einplanen" to the accent, out of the plan
 /// to red — and its bookmark going with the card as one; 1.16.1 with the bookmark's colours easing
 /// in still; 1.17.0 with the way back at the head of „Alle Studiengänge" on a phone, up to „Mein
-/// Studium". The version of the app's crates, the same as the server's; Radix's is in the snapshot
-/// (`Meta::radix_version`).
+/// Studium"; 1.17.1 with a shared link to a module far down the catalog (`/catalog?open=11787`) no
+/// longer freezing the tab as the app takes the page over. The version of the app's crates, the
+/// same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
