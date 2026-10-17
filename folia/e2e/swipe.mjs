@@ -7,7 +7,8 @@
 // „Entfernen" where the module is marked or planned already — in the look of what the module is
 // until the action is armed, then in that of what it will be (owner, 2026-10-17: „Merken" from the
 // quiet ground to the inverted look, „Entfernen" back; „Einplanen" to the accent, „Entfernen" out
-// of the plan from the accent to red), the row's bookmark going with the card as one; let go armed, the ground says what was done while the card holds and glides
+// of the plan from the accent to red, striped at 45° so that it is told from the accent by more than
+// its hue), the row's bookmark going with the card as one; let go armed, the ground says what was done while the card holds and glides
 // back, and the module is marked (its bookmark, the Merkliste's count) or planned (the
 // Stundenplan's count); a short slow pull glides back and does nothing, a short flick does it;
 // nothing waits for the animation: a card holding what was done or gliding back is the next
@@ -76,6 +77,7 @@ const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
     markEases: toggle ? getComputedStyle(toggle).transitionProperty : null,
     said: shown ? shown.innerText.replace(/\s*\n\s*/g, " | ").trim() : null,
     ground: ground ? getComputedStyle(ground).backgroundColor : null,
+    striped: ground ? Number(getComputedStyle(ground, "::before").opacity) : null,
     marked: wrap.querySelector(".mark-toggle")?.getAttribute("aria-pressed") === "true",
     dimmed: wrap.classList.contains("unmarked"),
     opacity: Number(getComputedStyle(wrap.querySelector(".row")).opacity),
@@ -149,6 +151,7 @@ await swipe(0, 0, 80, 0, { steps: 5, hold: true, from: true });
 await page.waitForTimeout(250);
 now = await state();
 check(now.armed && now.ground === colour.accent, `right: not armed in the accent at ${now.dx} px (${now.ground})`);
+check(now.striped === 0, `right: „Einplanen" is striped (${now.striped})`);
 const semester = (now.said ?? "").split(" | ")[1];
 await lift();
 await page.waitForTimeout(120);
@@ -180,7 +183,7 @@ await swipe(0, 0, 100, 0, { steps: 6, hold: true, from: true });
 await page.waitForTimeout(250);
 now = await state();
 check(now.said === `Entfernen | aus ${semester}` && now.armed, `right again: the ground says ${JSON.stringify(now.said)} (${now.armed})`);
-check(now.ground === colour.remove, `right again: armed, not red (${now.ground}, not ${colour.remove})`);
+check(now.ground === colour.remove && now.striped === 1, `right again: armed, not red and striped (${now.ground}, not ${colour.remove}; stripes ${now.striped})`);
 await lift();
 now = await rested("right again");
 check(now.planned === "", `right again: the Stundenplan still counts ${now.planned}`);
