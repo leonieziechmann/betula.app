@@ -312,7 +312,7 @@ pub const EN: Texts = Texts {
     mandatory_verbatim: "Mandatory, as written",
     recommended_verbatim: "Recommended, as written",
 
-    source: "DataClient: BTU's module description",
+    source: "Source: BTU's module description",
     fetched: |date| format!(" · retrieved {date}"),
     original: "Original",
 
