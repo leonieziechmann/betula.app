@@ -837,12 +837,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   nothing, nor on a computer whose window is made lower. The root then carries `data-keyboard` and
   where that part is (`--vv-top`, `--vv-height`). On a phone a dialog is then that part, from edge
   to edge, and so is the catalog's filters or another sheet; the dialog's foot (the buttons), the
-  sheet's („1.200 Module anzeigen") and the tab bar wait for the keyboard to go. A picker being
-  typed in goes to the top of what scrolls it, its name over it (a dialog's body, a sheet's, the
-  page under its bar of the search), what scrolls it having the room to while the keyboard is up,
-  and its list ends above the keyboard (`--kb-room`); once the keyboard has gone, what scrolled is
-  back where it was. Before, the sheet stayed at the screen's foot behind the keyboard, and the
-  picker's list with it.
+  sheet's („1.200 Module anzeigen") and the tab bar wait for the keyboard to go. What is typed in
+  goes to the top of what scrolls it, its name over it (a dialog's body, a sheet's, the page under
+  its bar of the search), what scrolls it having the room to while the keyboard is up, so that what
+  follows it shows: a picker, whose list ends above the keyboard (`--kb-room`), and any other text
+  field, the buttons beside a profile's or a plan's name, the hits under „Module hinzufügen"'s
+  search (owner, the same day, of the dialog of „Mein Studiengang": „Aber das kann ruhig bei jeder
+  combobox/Textfeld passieren"); not one in what stays where it is (the bar of the search, a
+  dialog's bar). Once the keyboard has gone, what scrolled is back where it was. Before, the sheet
+  stayed at the screen's foot behind the keyboard, and the picker's list with it.
 - **„Mein Studium": the Studium tab plans the study** (owner, 2026-10-04; `folia/crates/planner/src/study`,
   `folia/crates/plans/src/study.rs`). Owner: „Primär soll man da sein Studium planen können. Also das
   aktuelle und zukünftige Semester … der Regelstudienplan ist ja eine Illusion". After a first
