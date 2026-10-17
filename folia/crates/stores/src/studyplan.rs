@@ -25,8 +25,9 @@
 //! „Einplanen" (`PlanButton`) plans a module from its preview and its page: into the semester
 //! `target_semester` aims at, and for the placeholder the finder was asked for (`PlanHint`). A row
 //! of the catalog swiped to the right on a phone presses it too (`folia_widgets::swipe`, `press`).
-//! Beside „Merken" it has a menu of the semesters besides (`menu`, owner 2026-10-17): a mouse
-//! resting on it, a finger held on it while its border fills, P held or Shift+P.
+//! Wherever it stands it has the menu of the semesters besides (`menu`, owner 2026-10-17), opened
+//! as every switch's menu is (`folia_design::holdmenu`): a mouse resting on it, a finger held on it
+//! while its border fills, a right click, P held or Shift+P.
 
 use std::collections::BTreeSet;
 
@@ -44,12 +45,11 @@ use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use crate::myprogram::MyProgram;
 use crate::profiles::Kept;
+use folia_design::holdmenu::{Anchor, HoldMenu, HoldRing};
 use folia_design::nav;
 use folia_design::ui::{Icon, Shortcut};
 
 mod menu;
-
-pub use menu::{PlanMenu, PlanMenuHost};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
@@ -296,8 +296,8 @@ pub enum PlanLook {
     /// the switch with its label and its shortcut (R10), and in the app a small line of what the
     /// plan adds (`hero_note`).
     Hero,
-    /// Among the actions of a module page's sidebar: the semester under the label, and „Anderes
-    /// Semester" for the other semesters.
+    /// Among the actions of a module page's sidebar: the semester under the label; its menu stands
+    /// beside it.
     Action,
 }
 
@@ -312,10 +312,10 @@ pub enum PlanLook {
 /// next frame (R21): what follows from the plan (the week beside the module, the finder, the
 /// lists) is computed after the button has answered.
 ///
-/// Beside „Merken" (`PlanLook::Hero`) it has a menu of the semesters besides (`menu`): a mouse
-/// resting on it opens it, and so does what enhance.js names with `betula:plan-menu` on it — a
-/// finger held while the border fills (`svg.plan-charge`, app.css), P held or Shift+P, a right
-/// click. The sidebar's look has „Anderes Semester" under it instead.
+/// In every look it has the menu of the semesters besides (`menu`, `folia_design::holdmenu`): a
+/// mouse resting on it opens it, and so does what enhance.js names on it (`data-hold-menu`) — a
+/// finger held while its border fills (`HoldRing`), P held or Shift+P, a right click. Beside
+/// „Merken" it stands under the pair of switches, in a sidebar beside the action.
 ///
 /// `current` is the snapshot's current semester, `newest` the semester of the module's newest
 /// teaching events (`target_semester`); `turnus` and `parity` say which semesters the menu marks as
@@ -350,7 +350,7 @@ pub fn PlanButton(
     // What the last click said, until the plan it writes after the next frame has it.
     let said = RwSignal::new(None::<bool>);
     let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| aim.with(|aim| aim.pressed)));
-    let menu = PlanMenu::expect().filter(|_| APP && look == PlanLook::Hero);
+    let menu = HoldMenu::expect().filter(|_| APP);
     let toggle = {
         let id = id.clone();
         move |_: leptos::ev::MouseEvent| {
@@ -369,182 +369,76 @@ pub fn PlanButton(
     // The label reads `pressed` alone; the other texts read the click's word and the aim, never
     // `pressed` with the aim it comes from (R16).
     let label = move || label_text(pressed.get(), t);
-    let tip = move || {
-        let said = said.get();
-        aim.with(|aim| tooltip_text(aim, said.unwrap_or(aim.pressed), t))
-    };
     let pressed_attr = move || if pressed.get() { "true" } else { "false" };
     let busy = move || said.get().map(|_| "true");
     let icon = move || match pressed.get() {
         true => view! { <Icon name="calendar-check-2"/> }.into_any(),
         false => view! { <Icon name="calendar-plus"/> }.into_any(),
     };
-    match look {
+    // The menu of the semesters, made when it opens, as the plan is then.
+    let (at, radius, place) = match look {
+        PlanLook::Hero => (Anchor::Below, 9.0, "hero"),
+        PlanLook::Action => (Anchor::Beside, 5.0, "side"),
+    };
+    let owner = menu::owner_of(&id, place);
+    let mine = MyProgram::expect();
+    let make = {
+        let (id, title, owner) = (id.clone(), title.clone(), owner.clone());
+        move || {
+            let what = menu::Planning { id: id.clone(), title: title.clone(), current, newest, turnus, offer: Offer { season: turnus, parity }, hint: hint.get_untracked() };
+            plan.map(|plan| menu::menu_of(what, owner.clone(), plan, mine.and_then(MyProgram::start), t))
+        }
+    };
+    let node = NodeRef::<leptos::html::Button>::new();
+    if let Some(menu) = menu {
+        menu.listen(node, at, make.clone());
+    }
+    let open = Memo::new(move |_| menu.is_some_and(|menu| menu.is_open_for(&owner)));
+    let expanded = move || if open.get() { "true" } else { "false" };
+    // While its menu is open the switch says nothing more over it.
+    let tip = move || {
+        let said = said.get();
+        (!open.get()).then(|| aim.with(|aim| tooltip_text(aim, said.unwrap_or(aim.pressed), t)))
+    };
+    let hover_on = move |ev: leptos::ev::PointerEvent| {
+        if let Some(menu) = menu {
+            menu.pointer_on(&ev, at, make.clone());
+        }
+    };
+    let hover_off = move |ev: leptos::ev::PointerEvent| {
+        if let Some(menu) = menu {
+            menu.pointer_off(&ev);
+        }
+    };
+    let (class, words) = match look {
         PlanLook::Hero => {
-            let planning = {
-                let (id, title) = (id.clone(), title.clone());
-                move || menu::Planning { id: id.clone(), title: title.clone(), current, newest, turnus, offer: Offer { season: turnus, parity }, hint: hint.get_untracked() }
-            };
-            let node = NodeRef::<leptos::html::Button>::new();
-            // What enhance.js names on this switch: a finger held, the keys, a right click.
-            #[cfg(feature = "csr")]
-            {
-                let planning = planning.clone();
-                Effect::new(move |_| {
-                    let Some(menu) = menu else { return };
-                    let planning = planning.clone();
-                    let handle = window_event_listener_untyped("betula:plan-menu", move |ev| {
-                        use leptos::wasm_bindgen::JsCast;
-                        let Some(button) = node.get_untracked() else { return };
-                        let own: &leptos::web_sys::Element = &button;
-                        if ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()).as_ref() != Some(own) {
-                            return;
-                        }
-                        let detail = ev.dyn_ref::<leptos::web_sys::CustomEvent>().and_then(|ev| ev.detail().as_string());
-                        menu.open_named(planning(), detail.as_deref(), own);
-                    });
-                    on_cleanup(move || handle.remove());
-                });
-            }
-            let open = {
-                let id = id.clone();
-                Memo::new(move |_| menu.is_some_and(|menu| menu.is_open_for(&id)))
-            };
-            let expanded = move || if open.get() { "true" } else { "false" };
-            // While its menu is open the switch says nothing more over it.
-            let tip = move || (!open.get()).then(tip);
             let note = move || aim.with(|aim| hero_note(aim, t)).map(|note| view! { <small>{note}</small> });
-            view! {
-                <button
-                    class="plan-toggle mark-switch hit"
-                    type="button"
-                    data-action="plan"
-                    aria-haspopup="menu"
-                    aria-expanded=expanded
-                    node_ref=node
-                    on:click=toggle
-                    on:pointerenter=move |ev| {
-                        if let Some(menu) = menu {
-                            menu.pointer_on(&ev, planning.clone());
-                        }
-                    }
-                    on:pointerleave=move |ev| {
-                        if let Some(menu) = menu {
-                            menu.pointer_off(&ev);
-                        }
-                    }
-                    aria-pressed=pressed_attr
-                    aria-busy=busy
-                    title=tip
-                >
-                    {icon}<span>{label}</span>{note}<Shortcut keys="P"/>
-                    // The border that fills while a finger holds the switch (enhance.js, app.css).
-                    <svg class="plan-charge" aria-hidden="true"><rect width="100%" height="100%" rx="9" pathLength="100"/></svg>
-                </button>
-            }
-            .into_any()
+            ("plan-toggle mark-switch hit", view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
         }
         PlanLook::Action => {
             let line = move || aim.with(|aim| semester_line(aim, t));
-            view! {
-                <button class="plan-toggle action" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
-                    {icon}<span>{label}<small>{line}</small></span>
-                </button>
-                <OtherSemesters id title current/>
-            }
-            .into_any()
+            ("plan-toggle action", view! { <span>{label}<small>{line}</small></span> }.into_any())
         }
-    }
-}
-
-/// „Anderes Semester" in the sidebar of a module's page: the semesters the plan holds and the
-/// current one with the four after it (`menu_semesters`), each a switch that plans the module
-/// there or takes it out. The list is the browser app's; the button that opens it is part of
-/// server HTML like the one above it, so the actions under it do not move at the takeover.
-#[component]
-fn OtherSemesters(id: String, title: String, current: SemesterKey) -> impl IntoView {
-    let t = i18n::t();
-    let plan = Studyplan::expect().filter(|_| APP);
-    let mine = MyProgram::expect();
-    let open = RwSignal::new(false);
-    let entries = Memo::new(move |_| {
-        let start = mine.and_then(MyProgram::start);
-        let semesters = match plan {
-            Some(plan) => plan.with(|doc| menu_semesters(current, doc)),
-            None => menu_semesters(current, &PlanDoc::default()),
-        };
-        semesters.into_iter().map(|semester| (semester, semester_entry(semester, start, t))).collect::<Vec<_>>()
-    });
-    let list = move || {
-        let id = id.clone();
-        open.get().then(|| {
-            view! {
-                <div class="sp-sub" role="group" aria-label=(t.planner.semesters_of)(&title)>
-                    <For each=move || entries.get() key=|entry| entry.clone() let:entry>
-                        <SemesterSwitch id=id.clone() semester=entry.0 label=entry.1/>
-                    </For>
-                </div>
-            }
-        })
     };
     view! {
-        <button class="plan-toggle action" type="button" aria-expanded=move || if open.get() { "true" } else { "false" } on:click=move |_| open.update(|open| *open = !*open)>
-            <Icon name="calendar-range"/><span>{t.planner.other_semester}</span>
-        </button>
-        {list}
-    }
-}
-
-/// One semester of „Anderes Semester": the module planned there or not, flipped at once and
-/// written after the next frame (R21).
-#[component]
-fn SemesterSwitch(id: String, semester: SemesterKey, label: String) -> impl IntoView {
-    let t = i18n::t();
-    let plan = Studyplan::expect().filter(|_| APP);
-    let source = use_data().ok();
-    let planned = {
-        let id = id.clone();
-        Memo::new(move |_| plan.is_some_and(|plan| plan.is_planned(semester, &id)))
-    };
-    let said = RwSignal::new(None::<bool>);
-    let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| planned.get()));
-    let toggle = move |_: leptos::ev::MouseEvent| {
-        let Some(plan) = plan else { return };
-        let was = pressed.get_untracked();
-        said.set(Some(!was));
-        let (id, source) = (id.clone(), source.clone());
-        nav::after_paint(move || {
-            match (was, source) {
-                (true, Some(source)) => {
-                    let ask = plan.with_untracked(|doc| only_its_events_ask(doc, semester, &id));
-                    leptos::task::spawn_local(async move {
-                        let events = source.ask(ask).await.map(|(mine, theirs)| events_alone(&mine, &theirs)).unwrap_or_default();
-                        plan.update(|doc| doc.unplan(semester, &id, &events));
-                        said.try_set(None);
-                    });
-                }
-                (true, None) => {
-                    plan.update(|doc| doc.unplan(semester, &id, &[]));
-                    said.try_set(None);
-                }
-                (false, _) => {
-                    plan.update(|doc| {
-                        doc.plan(semester, &id, now(), None);
-                    });
-                    said.try_set(None);
-                }
-            }
-        });
-    };
-    let icon = move || match pressed.get() {
-        true => view! { <Icon name="calendar-check-2"/> }.into_any(),
-        false => view! { <Icon name="calendar-plus"/> }.into_any(),
-    };
-    // Where it is planned, said in words at the end of the line (the pill of `.action em`).
-    let mark = move || pressed.get().then(|| view! { <em>{t.planner.planned_mark}</em> });
-    view! {
-        <button class="action" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-busy=move || said.get().map(|_| "true")>
-            {icon}<span>{label}</span>{mark}
+        <button
+            class=class
+            type="button"
+            data-action="plan"
+            data-hold-menu=""
+            aria-haspopup="menu"
+            aria-expanded=expanded
+            node_ref=node
+            on:click=toggle
+            on:pointerenter=hover_on
+            on:pointerleave=hover_off
+            aria-pressed=pressed_attr
+            aria-busy=busy
+            title=tip
+        >
+            {icon}{words}
+            // The border that fills while a finger holds the switch (enhance.js, app.css).
+            <HoldRing radius/>
         </button>
     }
 }
@@ -719,14 +613,6 @@ fn events_alone(own: &[DateRow], others: &[DateRow]) -> Vec<u32> {
     let theirs: BTreeSet<&str> = others.iter().map(|row| row.date.event_id.as_str()).collect();
     let alone: BTreeSet<u32> = own.iter().filter(|row| !theirs.contains(row.date.event_id.as_str())).filter_map(|row| row.date.event_id.parse().ok()).collect();
     alone.into_iter().collect()
-}
-
-/// The semesters „Anderes Semester" offers: those the plan holds, and the current one with the
-/// four after it, in order.
-pub fn menu_semesters(current: SemesterKey, doc: &PlanDoc) -> Vec<SemesterKey> {
-    let mut all: BTreeSet<SemesterKey> = doc.semesters().into_iter().collect();
-    all.extend((0..=4).filter_map(|n| current.plus(n)));
-    all.into_iter().collect()
 }
 
 /// „3. FS · SoSe 2027" with a known Studienbeginn (numbers first), else „SoSe 2027".
@@ -1022,13 +908,7 @@ mod tests {
     }
 
     #[test]
-    fn another_semester_is_one_the_plan_holds_or_one_of_the_next() {
-        let now = key("2026W");
-        let mut doc = PlanDoc::default();
-        assert_eq!(menu_semesters(now, &doc), ["2026W", "2027S", "2027W", "2028S", "2028W"].map(key));
-        // A retake planned long before, and a semester further on, stand in order.
-        assert!(doc.plan(key("2025W"), "12104", 1, None) && doc.plan(key("2029W"), "12104", 1, None));
-        assert_eq!(menu_semesters(now, &doc), ["2025W", "2026W", "2027S", "2027W", "2028S", "2028W", "2029W"].map(key));
+    fn a_semester_of_the_menu_says_its_fachsemester_where_the_studienbeginn_is_known() {
         // The Fachsemester first, when the Studienbeginn is known.
         assert_eq!(semester_entry(key("2027W"), Some(key("2026W")), &DE), "3. FS · WiSe 2027/28");
         assert_eq!(semester_entry(key("2025W"), Some(key("2026W")), &DE), "WiSe 2025/26");
