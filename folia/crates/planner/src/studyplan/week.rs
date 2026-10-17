@@ -867,6 +867,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         alt: item.alt.is_some(),
         clash,
         href: Some(href.clone()),
+        lines: Vec::new(),
         current: false,
         acts: Vec::new(),
         asks: false,
