@@ -38,8 +38,9 @@
 /// besides its own, a menu under the switch — a mouse resting on it, Shift+P or P held, a right
 /// click, on a phone a finger held while its border fills; 1.19.0 with that menu a building block of
 /// every switch that has one, „Einplanen" among the sidebar's actions with it beside, and no
-/// „Anderes Semester". The version of the app's crates, the same as the server's; Radix's is in the
-/// snapshot (`Meta::radix_version`).
+/// „Anderes Semester"; 1.19.1 with a row swiped on a phone the next finger's at once, while it still
+/// says what was done or glides back. The version of the app's crates, the same as the server's;
+/// Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
