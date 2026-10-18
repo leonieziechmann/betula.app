@@ -3041,7 +3041,13 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   One exception: a kind no source states is left out, not „Art nicht angegeben" — students
   trying Betula asked what that meant, while a module without a kind reads as not assigned
   without being told (owner, 2026-10-18); `KindBadge` draws nothing, the program's tables leave
-  the cell empty as they do for LP and Turnus. Never a default kind either.
+  the cell empty as they do for LP and Turnus. Never a default kind either. A module in the
+  program's minor („Komplex Nebenfach", „Nebenfach", „Künstlerisches Nebenfach", „Minor
+  Subject" in its area's path; `folia_design::ui::in_minor`) that no source makes Pflicht reads
+  „Nebenfach" instead of „Wahlpflicht", in the program's list, on the module page and in the
+  table of the areas (owner, 2026-10-18: the Anwendungsfach of Informatik „als Anwendung oder
+  minor"); its kind stays elective for the filters and the planner, and the plan's table keeps
+  the slot's own name („Anwendungsfach").
   A code without a label is shown as it is (`labels::Code`), and the label test flags it. What
   Radix infers is said where it is shown: a kind whose `kind_basis` is `inferred` reads
   „Wahlpflicht · abgeleitet", its title saying from what (`folia_design::ui::KindBadge`, in the
