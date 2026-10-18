@@ -99,6 +99,38 @@ fn card_at(x: f64, step: f64, count: usize) -> (usize, bool) {
     (index, (x - index as f64 * step).abs() <= 2.0)
 }
 
+/// Which way the row last moved, told by how far it is from the overview: into it (`home`) or out
+/// of it, and how far it was when it last went a px that way (px). Less than a px (a finger's
+/// tremble, a scroll rounded) changes nothing.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Heading {
+    home: bool,
+    off: Option<f64>,
+}
+
+impl Heading {
+    /// The heading once the row is `off` px from the overview.
+    fn to(self, off: f64) -> Self {
+        match self.off {
+            Some(was) if was - off >= 1.0 => Heading { home: true, off: Some(off) },
+            Some(was) if off - was >= 1.0 => Heading { home: false, off: Some(off) },
+            Some(_) => self,
+            None => Heading { home: false, off: Some(off) },
+        }
+    }
+}
+
+/// Whether the way back at the head shows, the row `off` px from the overview with its pages
+/// `step` apart, on its way into the overview (`home`) or not: while the row is off the overview
+/// (by more than a px or two), but not once it moves back into it from the page next to it. So the
+/// way back goes with the row's first move back as it comes with its first move off (owner,
+/// 2026-10-18: „ich finde das einblenden und ausblenden sollte gleich schnell gehen … verschwindet
+/// aber bei der home page, erst wenn ich aufgehört habe zu swipen und der screen still steht"); at
+/// the page next to the overview, come there from further out, it stays.
+fn way_back_shows(off: f64, step: f64, home: bool) -> bool {
+    off > 2.0 && !(home && off < step - 2.0)
+}
+
 /// The address of a semester's page.
 pub(super) fn plan_path() -> String {
     StudyUrl::default().with_plan(true).path()
@@ -149,9 +181,12 @@ pub(super) struct Pages {
     /// The page the row rests at: it alone can be used, the row is as tall as it, and the address
     /// says it.
     here: RwSignal<usize>,
-    /// The row is not at the overview: it rests at a semester, or is on its way from the overview
-    /// (a finger, the browser's fling, a glide). The way back at the head shows meanwhile.
+    /// The row is not at the overview and not on its way back into it: it rests at a semester, or
+    /// is on its way from the overview (a finger, the browser's fling, a glide). The way back at the
+    /// head shows meanwhile (`way_back_shows`).
     away: RwSignal<bool>,
+    /// Which way the row last moved, into the overview or out of it.
+    heading: StoredValue<Heading>,
     /// The row has been placed where the address says (the first time at once).
     placed: StoredValue<bool>,
     quiet: StoredValue<Option<TimeoutHandle>>,
@@ -182,6 +217,7 @@ impl Pages {
             shown: RwSignal::new(start),
             here: RwSignal::new(start),
             away: RwSignal::new(order.with_untracked(|order| order.get(start).is_some_and(|page| *page != Page::Overview))),
+            heading: StoredValue::new(Heading::default()),
             placed: StoredValue::new(false),
             quiet: StoredValue::new(None),
             lifted: StoredValue::new(false),
@@ -248,13 +284,21 @@ impl Pages {
     }
 
     /// The row is at `x` px along, its pages `step` apart: the dots follow the page in the middle,
-    /// and the way back at the head shows unless it is at the overview (to a px or two).
+    /// and the way back at the head shows unless the row is at the overview (to a px or two) or on
+    /// its way back into it (`way_back_shows`); with the first frame of a glide of the app's to the
+    /// overview it goes at once.
     fn track(self, x: f64, step: f64) {
         let (index, _) = card_at(x, step, self.order.with_untracked(Vec::len));
         if index != self.shown.get_untracked() {
             self.shown.set(index);
         }
-        let away = self.index_of(Page::Overview).is_some_and(|overview| (x - overview as f64 * step).abs() > 2.0);
+        let away = self.index_of(Page::Overview).is_some_and(|overview| {
+            let off = (x - overview as f64 * step).abs();
+            let heading = self.heading.get_value().to(off);
+            self.heading.set_value(heading);
+            let gliding_home = self.glide.with_value(|glide| glide.to) == Some(overview);
+            !gliding_home && way_back_shows(off, step, heading.home)
+        });
         if away != self.away.get_untracked() {
             self.away.set(away);
         }
@@ -641,6 +685,40 @@ mod tests {
         assert_eq!(ease_out(0.0), 0.0);
         assert_eq!(ease_out(1.0), 1.0);
         assert!(ease_out(0.25) > 0.55, "more than half the way in a quarter of the time");
+    }
+
+    /// The way back at the head comes with the row's first move off the overview and goes with its
+    /// first move back into it (owner, 2026-10-18: „das einblenden und ausblenden sollte gleich
+    /// schnell gehen"), not only once the row rests there; at the page next to the overview it
+    /// stays, the row come there from further out. 378 px a step.
+    #[test]
+    fn the_way_back_comes_and_goes_with_the_first_move() {
+        // A finger draws the row off the overview: a few px, and the way back is there.
+        let mut heading = Heading::default().to(0.0);
+        assert!(!way_back_shows(0.0, 378.0, heading.home), "at the overview");
+        for off in [1.0, 3.0, 40.0, 200.0, 378.0] {
+            heading = heading.to(off);
+            assert!(!heading.home && way_back_shows(off, 378.0, heading.home) == (off > 2.0), "{off} px off");
+        }
+        // Back from the semester next to it: the first px decide nothing, a few more and it goes.
+        heading = heading.to(377.5);
+        assert!(!heading.home && way_back_shows(377.5, 378.0, heading.home), "a finger's tremble at the semester");
+        heading = heading.to(372.0);
+        assert!(heading.home && !way_back_shows(372.0, 378.0, heading.home), "on its way back into the overview");
+        heading = heading.to(371.6);
+        assert!(heading.home, "a tremble on the way changes nothing");
+        // Out again before it is there: it comes again.
+        heading = heading.to(380.0);
+        assert!(!heading.home && way_back_shows(380.0, 378.0, heading.home));
+        // From two semesters out into the one next to the overview: it stays, there and at rest.
+        let mut far = Heading::default().to(756.0);
+        for off in [700.0, 500.0, 379.0, 377.0] {
+            far = far.to(off);
+            assert!(far.home && way_back_shows(off, 378.0, far.home), "{off} px off, coming from further out");
+        }
+        // Past it into the overview: then it goes.
+        far = far.to(300.0);
+        assert!(!way_back_shows(300.0, 378.0, far.home));
     }
 
     #[test]

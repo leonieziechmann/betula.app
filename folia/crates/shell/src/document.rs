@@ -44,8 +44,9 @@
 /// or glides back; 1.20.2 with the bar at a phone's bottom taken where it stands by a swipe that
 /// catches its glide in the first frame, which stood still with the wrong icon in its lens and
 /// moved no more; 1.21.0 with the red of a row swiped out of the plan striped at 45°, for the
-/// red-green blind. The version of the app's crates, the same as the server's; Radix's is in the
-/// snapshot (`Meta::radix_version`).
+/// red-green blind; 1.22.0 with the way back at the head of „Mein Studium" on a phone going with the
+/// row's first move back into the overview, as it comes with its first move off. The version of the
+/// app's crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

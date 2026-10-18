@@ -823,6 +823,21 @@ if (current !== "2026W") {
   check(backWhileHeld, "the way back does not show while a finger draws the row off the overview");
   await page.waitForFunction(atOverview, null, { timeout: 3000 }).catch(() => problems.push("the overview drawn a little did not come back"));
   await page.waitForFunction(() => !document.querySelector(".top-back.on"), null, { timeout: 2000 }).catch(() => problems.push("the way back stays at the overview after a finger let it go"));
+  // And it goes as soon (owner, 2026-10-18: „das einblenden und ausblenden sollte gleich schnell
+  // gehen … verschwindet aber bei der home page, erst wenn ich aufgehört habe zu swipen"): from the
+  // semester next to the overview, with the finger's first move back into the overview, while the
+  // finger still holds the row; let go short of half way, the row goes back to the semester, and
+  // the way back with it.
+  await step("the overview drawn to the right again", async () => { moved = await swipe(".st-progress", 260, { row: ".st-pager" }); }, resting("SoSe 2026"));
+  const pager = await page.$eval(".st-pager", (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.min(Math.max(r.top + 120, 160), 600) }; });
+  await touch("touchStart", pager.x, pager.y);
+  for (let i = 1; i <= 8; i++) { await page.waitForTimeout(16); await touch("touchMove", pager.x - 6 * i, pager.y); }
+  await page.waitForTimeout(150);
+  const backGoneWhileHeld = await page.evaluate(() => !document.querySelector(".top-back.on") && document.querySelector(".topbar .top-profile")?.inert === false);
+  await touch("touchEnd", 0, 0);
+  check(backGoneWhileHeld, "the way back stays while a finger draws the row back into the overview");
+  await page.waitForFunction(new Function(`return (${resting("SoSe 2026").toString()})() && document.querySelector(".top-back.on")`), null, { timeout: 3000 }).catch(() => problems.push("let go short of half way, the row did not go back to the semester with the way back"));
+  await step("the way back from the semester before", () => page.tap(".top-back.on"), atOverview);
   // The tab of „Studium" and the way back, tapped while the browser still flings the row to the
   // next page: the row back at the overview at once (owner, 2026-10-06: „funktioniert der button in
   // der nav bar auch erst, wenn die seite sich nicht mehr bewegt … Wenn man den anklickt muss es
