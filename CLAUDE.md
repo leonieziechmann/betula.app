@@ -25,11 +25,16 @@ Folia, Radix and Cortex each have a version by SemVer, and every change raises t
 each of them whose shipped sources it changes, without being asked (owner, 2026-10-15: „immer wenn
 wir changes machen update die version number based on sem ver"):
 
+- PATCH for a fix and for a small change of behaviour, even one that is seen (an animation, a
+  timing, a gesture, a text, a look tuned); MINOR only for a larger change or a new feature, not
+  for every change one notices (owner, 2026-10-18: „dass die minor versions nicht ganz so
+  inflationär verwendet werden sollen. Gerade so kleine behavior changes können immer einfach nur
+  die letzte nummer sein. In der mitte ist dann für größere changes/neue features da").
 - MAJOR for what breaks those who use it (Radix: a snapshot Folia cannot read, its flags or its
   environment; Cortex: its client's API; Folia: addresses that go away, what a browser keeps that
-  it cannot read any more), MINOR for something new or visibly different, PATCH for a fix that
-  changes nothing else. Docs, `design/`, `research/` and the checks alone raise nothing. A version
-  the owner names wins.
+  it cannot read any more), and never alone: a change that would raise it is talked over with the
+  owner first („die major version besprechen wir zusammen").
+- Docs, `design/`, `research/` and the checks alone raise nothing. A version the owner names wins.
 - The bump is a commit of the branch on top of `develop` as it is when the branch is merged: a
   branch that `develop` overtook raises the newer version again, so `develop` always says what is
   in it, and `master` takes the versions with the release.
