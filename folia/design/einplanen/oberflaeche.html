@@ -260,7 +260,8 @@ button.pl { cursor: pointer; }
 .snack-wrap { position: absolute; z-index: 6; left: 50%; bottom: 18px; translate: -50% 0; width: max-content; max-width: calc(100% - 24px); display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
 .p-app .snack-wrap { bottom: 84px; width: calc(100% - 24px); }
 .p-app.sheet-open .snack-wrap { bottom: 20px; }
-.snack { display: flex; align-items: center; gap: 2px; min-height: 52px; padding: 4px 6px 4px 12px; border-radius: 14px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
+.snack { display: flex; flex-direction: column; border-radius: 14px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); overflow: hidden; animation: rise .26s var(--ease); }
+.snack-row { display: flex; align-items: center; gap: 2px; min-height: 52px; padding: 4px 6px 4px 12px; }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 .snack .ok { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
 .snack .ok .i { width: 13px !important; height: 13px !important; stroke-width: 3 !important; }
@@ -277,10 +278,24 @@ button.pl { cursor: pointer; }
 .snack .tx { height: 40px; padding: 0 10px !important; border-radius: 9px; color: var(--on-invert); font-size: 13px; font-weight: 650; white-space: nowrap; }
 .snack .tx:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
 .snack .said { flex: 1; font-size: 13.5px; padding-right: 8px; }
-.snack-sub { display: flex; align-items: center; gap: 8px; align-self: center; padding: 6px 12px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-pop); font-size: 12.5px; font-weight: 600; color: var(--text); cursor: pointer; animation: rise .22s var(--ease); }
-.snack-sub .box { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--on-accent); }
-.snack-sub[aria-checked="true"] .box { background: var(--accent); box-shadow: none; }
-.snack-sub .box .i { width: 11px !important; height: 11px !important; stroke-width: 3.2 !important; }
+/* „Weitere Module auch nach SoSe 27" (owner, 2026-10-18: „die Option mit, die nächsten Module auch
+   in das Semester planen ist genial. Aber das Design von der Box muss … angepasst werden die sieht
+   aktuell etwas unaufgeräumt aus"): the note's second row, not a box of its own; its icon under the
+   check, its words where the semester's line starts, a switch at the end. It comes in when a module
+   was moved, and stays in every note while the session plans there, switched on, where it is
+   switched off again. */
+.snack-keep { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px 11px !important; border-top: 1px solid color-mix(in srgb, var(--on-invert) 14%, transparent) !important; color: var(--on-invert); font-size: 13px; font-weight: 520; text-align: left; animation: unfold .26s var(--ease); }
+.snack-keep:hover { background: color-mix(in srgb, var(--on-invert) 6%, transparent) !important; }
+.snack-keep .ico { display: grid; place-items: center; width: 22px; opacity: .65; }
+.snack-keep .ico .i { width: 15px !important; height: 15px !important; }
+.snack-keep > span:nth-child(2) { flex: 1; min-width: 0; }
+.snack-keep b { font-weight: 700; }
+.snack-keep[aria-checked="true"] .ico { opacity: 1; color: var(--accent); }
+.switch { position: relative; flex: none; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in srgb, var(--on-invert) 24%, transparent); transition: background .18s; }
+.switch::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-invert); transition: transform .22s var(--spring); }
+.snack-keep[aria-checked="true"] .switch { background: var(--accent); }
+.snack-keep[aria-checked="true"] .switch::after { transform: translateX(14px); background: #fff; }
+@keyframes unfold { from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; } to { opacity: 1; max-height: 60px; } }
 .ask-card { display: flex; flex-direction: column; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
 .d-app .ask-card { width: 380px; }
 .ask-card > div { flex: 1; min-width: 0; line-height: 1.3; }
@@ -445,7 +460,7 @@ button.pl { cursor: pointer; }
 .reco li b { color: var(--text); font-weight: 640; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pop, .snack, .snack-sub, .ask-card, .banner, .strip, .aim-menu, .p-sheet, .snack .sv.flip b, .stepper .c.flip span { animation: none; }
+  .pop, .snack, .snack-keep, .ask-card, .banner, .strip, .aim-menu, .p-sheet, .snack .sv.flip b, .stepper .c.flip span { animation: none; }
   .rw[data-swipe="glide"] .card { transition: none; }
 }
 @media (max-width: 960px) {
@@ -492,13 +507,13 @@ button.pl { cursor: pointer; }
   <section class="concept" id="e" aria-labelledby="e-title">
     <header class="c-head">
       <span class="c-tag">E</span>
-      <div><h2 id="e-title">Hinweis mit Stepper <small>Gewählt</small></h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt darüber ein kleines Kästchen „Weitere auch nach SoSe 27“. Fehlt das Studium, öffnet „Einplanen“ einen Dialog: „Dein Studium“ und das Semester des Moduls, alles vorausgefüllt und änderbar. Im besten Fall genügt „Einrichten und einplanen“.</p></div>
+      <div><h2 id="e-title">Hinweis mit Stepper <small>Gewählt</small></h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt in derselben Leiste eine zweite Zeile „Weitere Module auch nach SoSe 27“ mit einem Schalter; eingeschaltet steht sie in jeder weiteren Leiste, bis man ihn ausschaltet. Fehlt das Studium, öffnet „Einplanen“ einen Dialog: „Dein Studium“ und das Semester des Moduls, alles vorausgefüllt und änderbar. Im besten Fall genügt „Einrichten und einplanen“.</p></div>
       <button class="c-reset" type="button" data-reset="e">Zurücksetzen</button>
     </header>
     <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · oben „noch nicht“ wählen und dann einplanen: der Dialog</p>
     <div class="stage" data-concept="e"></div>
     <div class="c-notes">
-      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später.</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li></ul></div>
+      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später.</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li><li>Nach dem Verschieben: Schalter „Weitere Module auch nach …“ in der zweiten Zeile.</li></ul></div>
       <div><h3>Gut</h3><ul><li><b>Man sieht immer, was passiert ist,</b> auch beim Wischen in der Liste.</li><li>Ein anderes Semester ist <b>ein Tipp</b> auf ›.</li><li>Am Rechner wie am Handy dieselbe Leiste.</li></ul></div>
       <div><h3>Ohne Studium</h3><ul><li><b>Ein Dialog statt der Leiste:</b> Studiengang, Fachsemester und das Semester des Moduls, vorausgefüllt.</li><li>Studiengang aus dem Filter, sonst der erste der Studiengänge des Moduls (Pflicht zuerst); antippen zeigt höchstens drei und „Anderer Studiengang …“.</li><li>Fachsemester aus dem Filter, sonst vermutet; das Semester wie immer. <b>Ein Druck auf „Einrichten und einplanen“</b>, danach die Leiste.</li></ul></div>
     </div>
@@ -612,6 +627,7 @@ const ICON = {
   down: '<path d="m7 10 5 5 5-5"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  stack: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
   full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
 };
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
@@ -709,14 +725,18 @@ const snackOf = (st) => {
   const ask = st.ask ? `<div class="ask-card wide">${askHtml(st)}</div>` : "";
   if (!s) return ask ? `<div class="snack-wrap">${ask}</div>` : "";
   let bar;
-  if (s.kind === "removed") bar = `<div class="snack"><span class="ok no">${icon("minus")}</span><span class="said">${esc(modOf(s.k).t)} entfernt</span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>`;
+  if (s.kind === "removed") bar = `<div class="snack"><div class="snack-row"><span class="ok no">${icon("minus")}</span><span class="said">${esc(modOf(s.k).t)} entfernt</span><button class="tx" type="button" data-act="undo">Rückgängig</button></div></div>`;
   else {
     const i = st.planned[s.k];
     const fs = fsOf(st, i);
-    bar = `<div class="snack"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${modOf(s.k).offered(i) ? "" : " · kein Angebot"}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>`;
+    // The switch for the next modules: once a module was moved, and while the session plans
+    // somewhere chosen (then on, to switch it off where it is seen).
+    const keep = s.stepped || st.chosen != null
+      ? `<button class="snack-keep" type="button" role="switch" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="ico">${icon("stack")}</span><span>Weitere Module auch nach <b>${esc(sem(i))}</b></span><span class="switch" aria-hidden="true"></span></button>`
+      : "";
+    bar = `<div class="snack"><div class="snack-row"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${modOf(s.k).offered(i) ? "" : " · kein Angebot"}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>${keep}</div>`;
   }
-  const keep = s.kind !== "removed" && s.stepped ? `<div class="snack-sub" role="checkbox" aria-checked="${st.chosen === st.planned[s.k]}" data-act="keep" data-i="${st.planned[s.k]}"><span class="box">${st.chosen === st.planned[s.k] ? icon("check") : ""}</span>Weitere auch nach ${esc(sem(st.planned[s.k]))}</div>` : "";
-  return `<div class="snack-wrap">${ask}${keep}${bar}</div>`;
+  return `<div class="snack-wrap">${ask}${bar}</div>`;
 };
 const heroOf = (st, c, phone) => {
   const m = modOf(st.open);
