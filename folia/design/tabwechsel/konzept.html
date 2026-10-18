@@ -10,7 +10,9 @@
      bildshirm, weil erst Skeltons geladen werden, bevor der content kommt … so dass die Seiten/tabs im
      Hintergrund geladen bleiben und nur getauscht werden müssen … Es soll sich wie so ein
      Spielkartenwechsel anfühlen … Aktuell wird noch an einem neuen history/back system gearbeitet.
-     Deswegen würde ich das aktuell noch nicht implementiert"). A concept, not built: what happens
+     Deswegen würde ich das aktuell noch nicht implementiert"; then: „Also das initiale öffnen kann
+     ruhig etwas laden/kurz Skeltons zeigen. Aber wenn die App dann einmal läuft, dann muss es sich
+     instant und einfach nur gut anfühlen"). A concept, not built: what happens
      today (filmed and measured on canary, Folia 1.22.0, 2026-10-18, Chromium 141 in a phone's window
      with the processor four times slower), how the pages can stay (measured with canary's own pages),
      what the pages have to learn for it (read in the code of that day), the change of cards
@@ -90,6 +92,7 @@ a { color: var(--accent-ink); text-underline-offset: 3px; }
 .block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
 .block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
 .block > .lead { margin-top: 6px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead b { color: var(--text); font-weight: 650; }
 .block > * + h3 { margin-top: 22px; }
 .block h3 { font-size: 15.5px; font-weight: 700; }
 .muted { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
@@ -99,6 +102,8 @@ a { color: var(--accent-ink); text-underline-offset: 3px; }
 .intro h1 { margin-top: 8px; font-size: clamp(27px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
 .intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
 .quote { margin-top: 18px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 650; }
+.rule-quote { margin-top: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
 .cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
 .btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-weight: 650; text-decoration: none; }
 .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -217,20 +222,21 @@ td .no { color: var(--no); font-weight: 650; }
       <h1>Tabs, die stehen bleiben, und ein Wechsel wie zwischen Karten</h1>
       <p class="lead">Heute baut Betula bei jedem Tabwechsel die ganze Seite neu, und am Handy sieht man das. Künftig bleibt die Seite jedes Tabs gebaut, und ein Wechsel tauscht nur, welche vorn liegt. Am Handy wird daraus ein Kartenwechsel. Dieses Blatt sagt, warum es heute flackert, wie die Seiten stehen bleiben können, was sich dafür an ihnen ändert und wie es zum neuen Zurück passt. Gebaut wird es nach dem Zurück, nicht vorher.</p>
       <blockquote class="quote">„Wenn man zum Beispiel Tabs switched, dann flickert der bildshirm, weil erst Skeltons geladen werden, bevor der content kommt … so dass die Seiten/tabs im Hintergrund geladen bleiben und nur getauscht werden müssen. … Es soll sich wie so ein Spielkartenwechsel anfühlen. Der content soll so nach hinten gehen und dann der neue Tab davor geschoben werden.“</blockquote>
+      <blockquote class="quote rule-quote"><b>Die Vorgabe, am selben Tag:</b> „Also das initiale öffnen kann ruhig etwas laden/kurz Skeltons zeigen. Aber wenn die App dann einmal läuft, dann muss es sich instant und einfach nur gut anfühlen.“</blockquote>
       <div class="cta">
         <a class="btn" href="prototyp.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>Prototyp ausprobieren</a>
         <small>Am besten am Handy: sechs Kartenwechsel, mit Tippen und Wischen auf der Leiste.</small>
       </div>
-      <nav class="toc" aria-label="Inhalt"><a href="#heute">Was heute passiert</a><a href="#buehnen">Tabs, die stehen bleiben</a><a href="#seiten">Was die Seiten lernen</a><a href="#karten">Kartenwechsel</a><a href="#zurueck">Zurück</a><a href="#schritte">Schritte</a><a href="#offen">Offen</a></nav>
+      <nav class="toc" aria-label="Inhalt"><a href="#heute">Was heute passiert</a><a href="#buehnen">Tabs, die stehen bleiben</a><a href="#seiten">Was die Seiten lernen</a><a href="#karten">Kartenwechsel</a><a href="#sonst">Auch sonst sofort</a><a href="#zurueck">Zurück</a><a href="#schritte">Schritte</a><a href="#offen">Entschieden</a></nav>
     </div>
     <aside class="rules" aria-labelledby="short-title">
       <h2 id="short-title">In fünf Sätzen</h2>
       <ol>
         <li><span><b>Heute baut jeder Tabwechsel die Seite neu.</b> Gedrosselt wie ein Handy dauert das 0,2 bis 4 Sekunden: Erst steht ein Skelett da, dann noch einmal die alte Seite, dann die neue. Das ist das Flackern.</span></li>
-        <li><span><b>Künftig bleibt jede Seite gebaut.</b> Liegt ihr Tab hinten, zeichnet der Browser sie nur nicht. Ein Wechsel tauscht, welche vorn liegt: mit den echten Seiten von canary 14 ms bis zum Bild, ebenso gedrosselt.</span></li>
+        <li><span><b>Künftig bleibt jede Seite gebaut.</b> Gebaut werden alle beim Start, der laden darf; liegt ein Tab hinten, zeichnet der Browser seine Seite nur nicht. Ein Wechsel tauscht, welche vorn liegt: mit den echten Seiten von canary 14 ms bis zum Bild, ebenso gedrosselt.</span></li>
         <li><span><b>Am Handy wird der Tausch ein Kartenwechsel.</b> Die Seite geht nach hinten, die neue kommt davor; wischst du auf der Leiste, folgt sie dem Finger. Der Prototyp hat sechs Varianten.</span></li>
         <li><span><b>Gebaut wird es auf dem neuen Zurück.</b> Die Bühne eines Tabs zeigt das Oberste seines Stapels, wie Schritt 4 des Zurück-Konzepts ihn anlegt. Adressen und Verlauf bleiben, wie sie dort festgelegt sind.</span></li>
-        <li><span><b>Zwei kleine Dinge gehen schon vorher:</b> Die alte Seite kommt nach dem Skelett nicht mehr zurück, und die Markierung in der Leiste springt sofort. Das kommt dem Umbau des Zurück nicht in die Quere.</span></li>
+        <li><span><b>Läuft die App, ist alles sofort da, nicht nur ein Tab.</b> Auch das Modul-Sheet und die Seiten in einem Tab zeigen heute Skelett und alte Seite. Das Zurückblitzen geht schon jetzt weg, ohne dem Umbau des Zurück in die Quere zu kommen.</span></li>
       </ol>
     </aside>
   </header>
@@ -277,7 +283,7 @@ td .no { color: var(--no); font-weight: 650; }
         <div class="stage"><b>Merkliste</b><code>/bookmarks?sort=title</code><small>wo du ihn verlassen hast</small></div>
         <div class="stage"><b>Stundenplan</b><code>/studyplan</code><small>noch nicht besucht: leer</small></div>
       </div>
-      <div class="stage other"><b>Ohne Tab</b><small>Profil, Impressum, Datenschutz, eine Seite, die es nicht gibt: eine sechste Bühne, die wie heute jedes Mal gebaut wird.</small></div>
+      <div class="stage other"><b>Ohne Tab</b><small>Profil, Impressum, Datenschutz, eine Seite, die es nicht gibt: eine sechste Bühne, auf der die zuletzt besuchte stehen bleibt.</small></div>
     </figure>
     <ol class="rules-list">
       <li><span><b>Ein Ort je Bühne.</b> Vorn ist es die Adresse des Routers, dahinter die, bei der du den Tab verlassen hast: das Oberste seines Stapels. Ändert sich die Adresse innerhalb des Tabs (ein Filter, ein Modul daneben), ändert sich die Seite auf ihrer Bühne so, wie sie es heute tut.</span></li>
@@ -285,9 +291,24 @@ td .no { color: var(--no); font-weight: 650; }
       <li><span><b>Hinten heißt gebaut, nicht gezeichnet.</b> Eine Bühne hinten ist <code>content-visibility: hidden</code> und <code>inert</code>: Der Browser behält, was er ausgerechnet hat, zeichnet nichts davon, und nichts darin lässt sich antippen oder vorlesen. Sie nimmt keinen Platz ein. Wo ein Browser <code>content-visibility</code> nicht kennt (Safari vor 18), steht sie mit <code>display: none</code> dahinter: langsamer, aber richtig.</span></li>
       <li><span><b>Ein Wechsel tauscht nur.</b> Führt ein Tipp in einen Tab, dessen Bühne den Ort schon zeigt, gibt es kein Skelett, kein <code>hold</code> und keinen Frame Verzug: Der Router nimmt die Adresse im Tipp selbst, und die Bühne kommt im selben Bild nach vorn.</span></li>
       <li><span><b>Die Scrollposition bleibt.</b> Am Handy scrollt das Fenster: Betula merkt sich die Position je Tab und setzt sie im selben Bild, in dem die Bühne nach vorn kommt. Am Rechner behalten die Panels ihre eigene.</span></li>
-      <li><span><b>Der erste Besuch baut.</b> Ist eine Bühne leer, steht ihr Skelett darin, bis die Antworten da sind; die alte Seite kommt nie zurück. Später kann Betula leere Bühnen bauen, während das Handy nichts zu tun hat (Schritt 3).</span></li>
+      <li><span><b>Gebaut wird beim Start.</b> Zuerst die Seite, die du öffnest, wie heute. Während du sie liest, baut Betula die anderen Tabs, einen nach dem anderen, jeden in einem eigenen Task und nur, solange kein Finger auf dem Bildschirm liegt: Das gehört zum Start, der laden darf. Tippst du in dieser Zeit einen Tab, der noch nicht steht, wird er sofort gebaut, mit Skelett. Danach kommt keiner mehr mit einem.</span></li>
       <li><span><b>Der Server bleibt, wie er ist.</b> Er rendert mit <code>&lt;Routes&gt;</code> eine Seite je Adresse. Im Browser treten die Bühnen an dessen Stelle, mit derselben Tabelle der Seiten: <code>leptos_router</code> lässt sich keine zweite Adresse unterschieben, also wählt jede Bühne ihre Seite selbst, aus ihrem Ort.</span></li>
     </ol>
+    <h3>Was das Vorbauen kostet</h3>
+    <p class="muted">Der Thread beim ersten Bau eines Tabs, gedrosselt wie oben, als Summe seiner langen Tasks, und der längste davon. Ein Tipp, der in einen Task fällt, wartet, bis er fertig ist.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th scope="col">Tab</th><th scope="col">Thread</th><th scope="col">längster Task</th></tr></thead>
+        <tbody>
+          <tr><td>Start</td><td class="num">0,6 s</td><td class="num">0,3 s</td></tr>
+          <tr><td>Module</td><td class="num">1,3 s</td><td class="num">0,4 s</td></tr>
+          <tr><td>Studium</td><td class="num"><span class="no">3,6 s</span></td><td class="num"><span class="no">1,8 s</span></td></tr>
+          <tr><td>Merkliste</td><td class="num">0,3 s</td><td class="num">0,2 s</td></tr>
+          <tr><td>Stundenplan</td><td class="num">0,3 s</td><td class="num">0,1 s</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Die vier Tabs neben der Startseite kosten zusammen rund 5,4 s Thread, ohne Drosselung unter 1 s. Darum baut Betula vor, wenn nichts passiert, die günstigen zuerst; und Studium wird kleiner, bevor es vorgebaut wird, denn in einen Task von 1,8 s fällt ein Tipp.</p>
     <div class="measure">
       <div class="good"><span class="big num">14 <small>ms</small></span><p>Median eines Wechsels bis zum Bild, die fünf Seiten nebeneinander, vier davon <code>content-visibility: hidden</code>. Höchstens 24 ms bei 20 Wechseln; in einem ersten Lauf ein Ausreißer von 0,8 s.</p></div>
       <div><span class="big num">69 <small>ms</small></span><p>Dasselbe mit <code>display: none</code>: Der Browser vergisst, was er ausgerechnet hat, und rechnet bei jedem Wechsel neu; Ausreißer bis 1,4 s.</p></div>
@@ -338,28 +359,51 @@ td .no { color: var(--no); font-weight: 650; }
     </ol>
   </section>
 
+  <section class="block" id="sonst" aria-labelledby="else-title">
+    <h2 id="else-title">Auch sonst sofort, wenn die App läuft</h2>
+    <p class="lead">Deine Vorgabe gilt nicht nur für Tabs. Gemessen am 18.10. wie oben, nachdem die App lief und die Tabs schon besucht waren:</p>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col">Was</th><th scope="col">Was man sieht</th><th scope="col">Bis es da ist</th></tr></thead>
+        <tbody>
+          <tr><td data-label="Was">Ein Modul aus der Liste öffnen</td><td data-label="Was man sieht">ein Skelett im Sheet, ab 0,1 bis 1,1 s</td><td data-label="Bis es da ist">0,6 bis 3,2 s</td></tr>
+          <tr><td data-label="Was">Das Sheet wieder schließen</td><td data-label="Was man sieht">danach noch einmal das Bild der Liste</td><td data-label="Bis es da ist">0,7 bis 1,7 s, bis alles ruht</td></tr>
+          <tr><td data-label="Was">„Alle Studiengänge“ aus „Mein Studium“</td><td data-label="Was man sieht">ein Skelett ab 0,17 s, dann die alte Seite</td><td data-label="Bis es da ist">0,7 s</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ol class="rules-list">
+      <li><span><b>Kein Aufblitzen, bei keinem Schritt.</b> Schritt 0 gilt für jeden Schritt mit einem Skelett, nicht nur für Tabs.</span></li>
+      <li><span><b>Das Modul-Sheet kommt mit seinem Kopf.</b> Titel, Nummer, LP und Sprache stehen schon in der Zeile, aus der es kommt. Das Sheet gleitet sofort hoch und zeigt sie, der Rest füllt sich, während es gleitet; ein Skelett sieht man nicht. Die Frage nach dem Modul geht schon beim Aufsetzen des Fingers an den Daten-Worker, nicht erst beim Loslassen.</span></li>
+      <li><span><b>Seiten in einem Tab bleiben im Stapel.</b> Was du einmal geöffnet hast (alle Studiengänge, ein Studiengang, eine Modulseite), bleibt unter dem Obersten gebaut: Zurück und der zweite Besuch sind sofort da. Ein erster Besuch beginnt beim Aufsetzen des Fingers, 100 bis 150 ms vor dem Tipp.</span></li>
+      <li><span><b>Filter ohne Skelettzeilen.</b> Die alte Liste bleibt stehen, bis die neue fertig ist; der Daten-Worker rechnet sie vorher aus, wie heute schon bei der Suche.</span></li>
+      <li><span><b>Was teuer ist, wird kleiner.</b> Ein Task über 100 ms, gedrosselt, ist einer, in den ein Tipp fallen kann. Zuerst Studium (1,8 s), das Modul-Sheet (bis 0,9 s) und die Liste (0,4 s).</span></li>
+    </ol>
+  </section>
+
   <section class="block" id="zurueck" aria-labelledby="back-title">
     <h2 id="back-title">Wie es zum neuen Zurück passt</h2>
     <p class="lead">Das <a href="../zurueck/konzept.html">Zurück-Konzept</a> gibt jedem Tab am Handy einen eigenen Stapel; ein Tab kommt so wieder, wie du ihn verlassen hast. Die Bühnen sind dieser Satz, zu sehen statt nur im Verlauf.</p>
     <ol class="rules-list">
       <li><span><b>Der Navigator schreibt, die Bühne folgt.</b> Der Navigator entscheidet, was im Verlauf steht und wohin ein Tab führt. Die Bühne zeigt, was der Router danach zeigt, und hält es fest, wenn ihr Tab nach hinten geht. Ein zweites Gedächtnis neben dem Stapel gibt es nicht.</span></li>
       <li><span><b>Darum danach.</b> Bühnen und Navigator ändern dieselben Stellen: <code>pending.rs</code>, <code>tabs.rs</code>, <code>chrome.rs</code>. Parallel gebaut kämen sie sich in die Quere; nach Schritt 4 des Zurück-Konzepts setzen die Bühnen auf fertige Stapel auf.</span></li>
-      <li><span><b>Zurück im Tab.</b> „Tab noch einmal“ und Zurück auf einer Modulseite wechseln die Seite auf der Bühne, wie heute. Später kann eine Bühne die Seite darunter mithalten, die Liste unter einer Modulseite (Schritt 4 hier); dann ist auch das sofort da.</span></li>
+      <li><span><b>Zurück im Tab.</b> „Tab noch einmal“ und Zurück auf einer Modulseite wechseln die Seite auf der Bühne, wie heute. Dazu hält eine Bühne die Seiten darunter mit, die Liste unter einer Modulseite (Schritt 5 hier); dann ist auch das sofort da.</span></li>
       <li><span><b>Zurück zum Start.</b> Von der Startseite eines Tabs führt Zurück zum Start, ein Tabwechsel. Vorschlag: rückwärts gespielt. Die Karte geht, woher sie kam, und Start kommt von hinten nach vorn, damit Zurück anders aussieht als ein Tipp auf „Start“.</span></li>
     </ol>
   </section>
 
   <section class="block" id="schritte" aria-labelledby="steps-title">
-    <h2 id="steps-title">In fünf Schritten</h2>
+    <h2 id="steps-title">In sechs Schritten</h2>
     <p class="lead">Jeder Schritt geht für sich auf canary. Keiner braucht eine MAJOR: Keine Adresse geht weg, und was ein Browser behält, bleibt lesbar.</p>
     <ol class="steps">
-      <li class="now"><span class="n">0</span><b>Schon jetzt: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Nach einem Skelett hält <code>hold</code> das Skelett statt der alten Seite, und die Markierung der Leiste wechselt beim Tippen ohne Farbübergang. Zwei kleine Stellen in <code>pending.rs</code> und <code>app.css</code>, unabhängig vom Zurück. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
+      <li class="now"><span class="n">0</span><b>Schon jetzt: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Nach einem Skelett hält <code>hold</code> das Skelett statt der alten Seite, bei Tabs, beim Modul-Sheet und bei jeder Seite; die Markierung der Leiste wechselt beim Tippen ohne Farbübergang. Zwei kleine Stellen in <code>pending.rs</code> und <code>app.css</code>, unabhängig vom Zurück. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
       <li><span class="n">1</span><b>Bühnen</b><span class="ver">Folia MINOR</span><p>Nach Schritt 4 des Zurück-Konzepts. Die Seiten bleiben gebaut, ein Tabwechsel tauscht nur, die Scrollposition bleibt je Tab; Titel, Ids und Listener gehören der vorderen Bühne. Am Rechner wie am Handy.</p></li>
-      <li><span class="n">2</span><b>Kartenwechsel am Handy</b><span class="ver">Folia MINOR</span><p>Die Variante, die du wählst: getippt, auf der Leiste gewischt mit der Karte am Finger, ein Tipp und ein Finger mitten im Wechsel, rückwärts für Zurück.</p></li>
-      <li><span class="n">3</span><b>Vorwärmen, wenn es sich lohnt</b><span class="ver">Folia PATCH</span><p>Leere Bühnen bauen, während das Handy nichts zu tun hat, die günstigsten zuerst (Merkliste, Stundenplan, Studium), nie während ein Finger auf dem Bildschirm liegt. Erst messen: Ein Bau ist ein langer Task, und ein Tipp darin wartet auf ihn.</p></li>
-      <li><span class="n">4</span><b>Den Stapel mithalten</b><span class="ver">Folia PATCH</span><p>Die Seite unter dem Obersten bleibt auch gebaut, so ist Zurück innerhalb eines Tabs ebenso sofort da.</p></li>
+      <li><span class="n">2</span><b>Alle Tabs beim Start</b><span class="ver">Folia PATCH</span><p>Nach der ersten Seite baut Betula die anderen Tabs vor, in Ruhe und einen nach dem anderen. Vorher wird Studium kleiner, damit kein Tipp in einen Task von Sekunden fällt.</p></li>
+      <li><span class="n">3</span><b>Kartenwechsel am Handy</b><span class="ver">Folia MINOR</span><p>Die Variante, die du wählst: getippt, auf der Leiste gewischt mit der Karte am Finger, ein Tipp und ein Finger mitten im Wechsel, rückwärts für Zurück.</p></li>
+      <li><span class="n">4</span><b>Das Modul-Sheet sofort</b><span class="ver">Folia PATCH</span><p>Es gleitet mit dem Kopf aus seiner Zeile hoch, gefragt wird beim Aufsetzen des Fingers, gebaut in zwei Teilen: der Kopf im ersten Bild, der Rest danach.</p></li>
+      <li><span class="n">5</span><b>Der Stapel bleibt</b><span class="ver">Folia PATCH</span><p>Seiten innerhalb eines Tabs bleiben unter dem Obersten gebaut, ein erster Besuch beginnt beim Aufsetzen des Fingers, und Filter kommen ohne Skelettzeilen.</p></li>
     </ol>
-    <p class="note">Geprüft wird mit einem neuen <code>e2e/stages.mjs</code>: Ein Wechsel in einen gebauten Tab zeigt kein Skelett und kein Bild der alten Seite, ist im nächsten Frame da und behält die Scrollposition; Titel und Ids sind die der vorderen Bühne; gedrosselt wie oben unter 50 ms. Die Karten wie die Leiste: nur Transform und Opacity, kein langer Task während des Wechsels. <code>snappy.mjs</code> und <code>tabbar.mjs</code> laufen weiter.</p>
+    <p class="note">Geprüft wird mit einem neuen <code>e2e/stages.mjs</code>: Ein Wechsel in einen gebauten Tab zeigt kein Skelett und kein Bild der alten Seite, ist im nächsten Frame da und behält die Scrollposition, und ist der Start vorbei, kommt kein Tab mehr mit Skelett; Titel und Ids sind die der vorderen Bühne; gedrosselt wie oben unter 50 ms. Die Karten wie die Leiste: nur Transform und Opacity, kein langer Task während des Wechsels. <code>snappy.mjs</code> und <code>tabbar.mjs</code> laufen weiter.</p>
   </section>
 
   <section class="block" id="nicht" aria-labelledby="not-title">
@@ -368,13 +412,13 @@ td .no { color: var(--no); font-weight: 650; }
       <li><b>Kein Wischen über die Seite selbst</b>Zeilen wischen schon („Merken“, „Einplanen“), „Mein Studium“ wischt seine Semester, und am iPhone ist der linke Rand Zurück. Gewechselt wird auf der Leiste.</li>
       <li><b>Keine View Transitions für den Tabwechsel</b>Sie zeigen während des Wechsels ein Bild der alten Seite statt der Seite selbst, folgen keinem Finger und lassen sich mitten drin nicht greifen. Für das Laden der Website bleibt <code>@view-transition</code>, wie es ist.</li>
       <li><b>Nichts davon in der Adresse</b>Was hinten steht, lebt in diesem Browser. Die Adresse sagt weiter nur, wo du bist, wie das Zurück-Konzept es festlegt.</li>
-      <li><b>Kein Nein</b>Ist eine Bühne gerade leer, nach einem Neuladen etwa, geht der Wechsel trotzdem, eben mit Skelett. Die Karte kommt dann mit ihm.</li>
+      <li><b>Kein Nein</b>Ist eine Bühne leer, weil Betula gerade erst startet, geht der Wechsel trotzdem, eben mit Skelett, und die Karte kommt mit ihm.</li>
     </ul>
   </section>
 
   <section class="block" id="offen" aria-labelledby="open-title">
-    <h2 id="open-title">Offen</h2>
-    <p class="lead">Was du im Prototyp entscheiden kannst, und eine Frage dazu:</p>
+    <h2 id="open-title">Entschieden und offen</h2>
+    <p class="lead"><b>Entschieden am 18.10.:</b> Der Start darf laden und kurz Skelette zeigen. Läuft die App, ist alles sofort da: jeder Tab, das Modul-Sheet, die Seiten in einem Tab. Offen ist, was du im Prototyp entscheiden kannst, und eine Frage dazu:</p>
     <ul class="open">
       <li><b>Welche Animation?</b> Vorgeschlagen: Stapel.</li>
       <li><b>Folgt die Karte beim Wischen dem Finger, oder kommt sie erst beim Loslassen?</b> Vorgeschlagen: Sie folgt dem Finger.</li>
