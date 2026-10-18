@@ -545,15 +545,18 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   the page answering what was done. × and Esc put it away, and a finger swiping it down (the same
   day: „Auf dem Handy soll es die Geste geben die notification nach unten weg zu wischen"); a part
   of it may take a finger swiped sideways (`Sideways`), and a swipe is never a tap as well. On a
-  wide screen one bar across the page right of the rail; on a phone a card as wide as the bottom bar
-  and over it (over a module's sheet at the bottom of the screen), under the bar in the order of
-  what lies on what and flat, so it casts nothing on the bar and comes up from behind it (the same
-  day: „keinen schatten auf die navbar werfen"), without ×. Dark in both themes (the same day: „dark
-  modus muss natürlich auch dafür funktionieren"): inverted on the light page, a raised dark surface
-  with a fine edge on the dark one (`--toast`, `--on-toast`). The host shows it while it has
-  something to say, gives it what it says as one element, and lets go of it on `on_gone` — of this
-  note alone, a newer one that took its place staying (a key that makes the next note). The note of
-  „Einplanen" is the first that uses it.
+  wide screen one bar across the content: right of the sidebar where the page has one, the catalog's
+  filters or the sidebar of the frame, as wide as its handle makes it (the same day: „Bei der pc
+  Version soll die notification nicht über die sidebar (z.b. filter) gehen, sondern nur über den
+  content"), else right of the rail; on a phone a card as wide as the bottom bar and over it (over a
+  module's sheet at the bottom of the screen), under the bar in the order of what lies on what and
+  flat, so it casts nothing on the bar and comes up from behind it (the same day: „keinen schatten
+  auf die navbar werfen"), without ×. Dark in both themes (the same day: „dark modus muss natürlich
+  auch dafür funktionieren"): inverted on the light page, a raised dark surface with a fine edge on
+  the dark one (`--toast`, `--on-toast`). The host shows it while it has something to say, gives it
+  what it says as one element, and lets go of it on `on_gone` — of this note alone, a newer one that
+  took its place staying (a key that makes the next note). The note of „Einplanen" is the first that
+  uses it.
 - **A tab held gives what it holds besides its page** (owner, 2026-10-06: „wenn man die buttons in
   der nav bar lange gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das
   dann eine auswahl von Regelstudienplan, Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch
@@ -3791,24 +3794,25 @@ Fachsemester" and the module „wie im Regelstudienplan (1. Semester)", its row'
 behind; ‹ into the past, the warning of the past; „Einrichten und einplanen" stores the program and
 a Studienbeginn and plans the module, and the note says the semester and „eingeplant · 1. FS", no
 switch yet, × at its end. A click on the semester's right half moves it at once („verschoben · 2.
-FS") and brings „Weitere Module auch nach …"; the note is one bar right of the rail, one line high
-with the switch in it and the module named, dark with light text in the dark theme and the light
-one; the left half moves it back without the arrows moving, ← and → move it back and forth; the
-switch on keeps the semester for the session; „Rückgängig" takes the module out. Analysis I then
-plans into the semester chosen (P), its note shows the switch on, which turns off there; ‹ stops at
-the first Fachsemester, and so does the left half; P on the module planned takes it out („Analysis I
-entfernt") and „Rückgängig" puts it back. The note waits: it stands 6 s without a thing done, and a
-click elsewhere puts it away, as do ×, Esc, a key not its own (↓), another module opened and a long
-scroll; a little scroll does not. With SoSe 2034 chosen for the next modules, the dialog says „für
-weitere Module gewählt" and „Aufheben" aims as without it. On a phone a row swiped to the right
-opens the dialog as a sheet from below, nothing planned, the search not growing as it opens; „Ohne
-Studium einplanen" plans and puts the question aside for the session; the note stands over the
-bottom bar without the module's name or ×, as wide as the bar, under it and without a shadow; a tap
-on the semester's right half moves the module, brings the switch as a row over the semester and
-leaves the semester under the finger, between the arrows the warning alone („kein Angebot"); a
-finger swiped over it to the left moves it on, to the right back, a short one not at all; swiped
-down the note goes and the plan stays. The next row swiped plans at once; a little scroll leaves its
-note, a long one puts it away, and so do a tap elsewhere and a module opened.
+FS") and brings „Weitere Module auch nach …"; the note is one bar across the content right of the
+filters, one line high with the switch in it and the module named, dark with light text in the dark
+theme and the light one; the left half moves it back without the arrows moving, ← and → move it back
+and forth; the switch on keeps the semester for the session; „Rückgängig" takes the module out.
+Analysis I then plans into the semester chosen (P), its note shows the switch on, which turns off
+there; ‹ stops at the first Fachsemester, and so does the left half; P on the module planned takes
+it out („Analysis I entfernt") and „Rückgängig" puts it back. The note waits: it stands 6 s without
+a thing done, and a click elsewhere puts it away, as do ×, Esc, a key not its own (↓), another
+module opened and a long scroll; a little scroll does not. With SoSe 2034 chosen for the next
+modules, the dialog says „für weitere Module gewählt" and „Aufheben" aims as without it. On a phone
+a row swiped to the right opens the dialog as a sheet from below, nothing planned, the search not
+growing as it opens; „Ohne Studium einplanen" plans and puts the question aside for the session; the
+note stands over the bottom bar without the module's name or ×, as wide as the bar, under it and
+without a shadow; a tap on the semester's right half moves the module, brings the switch as a row
+over the semester and leaves the semester under the finger, between the arrows the warning alone
+(„kein Angebot"); a finger swiped over it to the left moves it on, to the right back, a short one
+not at all; swiped down the note goes and the plan stays. The next row swiped plans at once; a
+little scroll leaves its note, a long one puts it away, and so do a tap elsewhere and a module
+opened.
 
 The other checks that plan (`module.mjs`, `swipe.mjs`, `snappy.mjs`) put the question aside for the
 session first (`betula.plan.asked`), as a student who answered „Ohne Studium einplanen".
