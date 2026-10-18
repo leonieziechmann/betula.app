@@ -252,9 +252,6 @@ pub(super) struct StudyCtx {
     pub drag: RwSignal<Option<(SemesterKey, Vec<String>)>>,
     /// The note of the last change that „Rückgängig" takes back, and the plan before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
-    /// A phone's semester was come to from its overview: the step before it in the history is the
-    /// overview, and the way back goes back there (`phone.rs`).
-    pub from_overview: RwSignal<bool>,
     /// The same for a view (the Regelstudienplan, the Wahlpflicht) on a phone.
     pub view_back: RwSignal<bool>,
     /// The choice the Wahlpflicht shows (an index of `PlanView::choices`): a row's „Wählen" picks
@@ -556,7 +553,6 @@ pub fn StudyPage() -> impl IntoView {
         selection: RwSignal::new(Selection::default()),
         drag: RwSignal::new(None),
         undo: RwSignal::new(None),
-        from_overview: RwSignal::new(false),
         view_back: RwSignal::new(false),
         choice: RwSignal::new(None),
     };
@@ -568,17 +564,27 @@ pub fn StudyPage() -> impl IntoView {
         }
         now
     });
+    // What lies over the page (folia_shell::nav): the menu, the rows selected, the dialog. On a
+    // phone whose browser has `CloseWatcher` (Android) Back closes the newest, as Esc does
+    // elsewhere; a new address closes them.
+    folia_shell::nav::layer_while(move || ctx.dialog.with(Option::is_some), move || ctx.dialog.set(None), folia_shell::nav::Kind::Dialog);
+    folia_shell::nav::layer_while(move || ctx.selection.with(|selection| !selection.keys.is_empty()), move || ctx.selection.set(Selection::default()), folia_shell::nav::Kind::Over);
+    folia_shell::nav::layer_while(move || ctx.menu.with(Option::is_some), move || ctx.menu.set(None), folia_shell::nav::Kind::Over);
     // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
-    // where no dialog takes it first.
+    // where no dialog takes it first. Where Back's watcher has the newest of them, it does.
     Effect::new(move |_| {
         let handle = window_event_listener(leptos::ev::keydown, move |ev| {
-            if ev.key() != "Escape" || ev.default_prevented() {
+            if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() {
                 return;
             }
+            // What this Esc closes is all it does: no close request after it reaches the page's
+            // state (the semester of a phone's row) as well.
             if ctx.menu.with_untracked(Option::is_some) {
+                ev.prevent_default();
                 ctx.menu.set(None);
                 dom::give_focus_back();
             } else if ctx.dialog.with_untracked(Option::is_none) && ctx.selection.with_untracked(|selection| !selection.keys.is_empty()) {
+                ev.prevent_default();
                 ctx.selection.set(Selection::default());
             }
         });

@@ -29,10 +29,15 @@
 //!
 //! The app only hears where the row is (`scroll`): the dots follow the page in the middle. Once the
 //! row rests (`scrollend`, or no move for `QUIET` where a browser does not say), the page there is
-//! the one that can be used (the others are inert), the semester there the one in focus, and the
-//! address follows: a semester is a step after the overview (`StudyUrl::plan`), the overview the
-//! step before it again (back through the history where it came before). Back, the box „Studium
-//! planen" and its columns, and the way back at the head move the row in turn. The row is as tall as
+//! the one that can be used (the others are inert) and the semester there the one in focus. The
+//! row writes no step of the history (owner, 2026-10-18: „wenn man mehrfach seitlich swiped … und
+//! dann zurück geht, dann sollte man gleich auf der mein Studium main page landen";
+//! folia/design/zurueck/konzept.html): a swipe is no tap, and the browsers skip an entry written
+//! without one. Which semester it shows is kept in the entry the browser is at (`nav::keep`), for a
+//! reload and for Back from a page opened over it; and while it is off the overview it is the
+//! page's state that Back undoes first (`nav::Kind::State`, `phone.rs`): on Android Back, and on
+//! every phone the way back at the head, bring it back to the overview. The box „Studium planen"
+//! and its columns move the row in turn. The row is as tall as
 //! the page it rests at (the others count for nothing, app.css) and at least as tall as the screen
 //! below it, so that a page coming in shows as far down as the screen does; it changes only at
 //! rest, never under a finger. A page comes in from its top wherever the window was scrolled to in
@@ -131,15 +136,24 @@ fn way_back_shows(off: f64, step: f64, home: bool) -> bool {
     off > 2.0 && !(home && off < step - 2.0)
 }
 
-/// The address of a semester's page.
+/// The address of a semester's page, as an older version wrote it (`plan=1`): still read, never
+/// written; without JavaScript the box „Studium planen" links it.
 pub(super) fn plan_path() -> String {
     StudyUrl::default().with_plan(true).path()
 }
 
-/// The page the address and the focus put the row at: the semester in focus where the address
-/// says a semester, else the overview. Tracked.
+/// Under what the entry of the history keeps the semester the row shows (`nav::keep`).
+const KEPT: &str = "semester";
+
+/// The semester the entry the browser is at keeps (`nav::kept`).
+pub(super) fn kept_semester() -> Option<SemesterKey> {
+    folia_shell::nav::kept(KEPT).as_deref().and_then(SemesterKey::parse)
+}
+
+/// The page the entry and the focus put the row at: the semester in focus where the entry keeps a
+/// semester (or an older address says one), else the overview. Tracked.
 fn wanted(ctx: StudyCtx) -> Option<Page> {
-    if ctx.url.with(|url| url.plan) {
+    if ctx.url.with(|url| url.plan) || kept_semester().is_some() {
         ctx.focused().map(Page::Semester)
     } else {
         Some(Page::Overview)
@@ -480,20 +494,24 @@ impl Pages {
         self.follow(page);
     }
 
-    /// The address follows the page the row came to rest at: a semester a step after the overview,
-    /// the overview back through the history where it was the step before.
+    /// The row came to rest at `page`: the entry the browser is at keeps the semester (none at the
+    /// overview), and at the overview the rows selected go with the semester. An older address that
+    /// names a semester (`plan=1`) gives way to the overview's in place.
     fn follow(self, page: Page) {
-        let plan = page != Page::Overview;
-        if self.ctx.url.with_untracked(|url| url.plan) == plan {
-            return;
-        }
-        if !plan && self.ctx.from_overview.get_untracked() {
-            dom::history_back();
-            return;
-        }
-        let to = if plan { plan_path() } else { url::STUDY.to_string() };
-        if let Some(going) = self.going {
-            going.go(&to, NavigateOptions { scroll: false, ..Default::default() });
+        let semester = match page {
+            Page::Semester(key) => Some(key.key()),
+            Page::Overview => None,
+        };
+        folia_shell::nav::keep(KEPT, semester.as_deref());
+        if page == Page::Overview {
+            if self.ctx.selection.with_untracked(|selection| !selection.keys.is_empty()) {
+                self.ctx.selection.set(Selection::default());
+            }
+            if self.ctx.url.with_untracked(|url| url.plan) {
+                if let Some(going) = self.going {
+                    going.go(url::STUDY, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+                }
+            }
         }
     }
 
@@ -543,18 +561,37 @@ pub(super) fn Pager(ctx: StudyCtx, pages: Pages) -> impl IntoView {
             ctx.selection.set(Selection::default());
         }
     });
-    // The row follows the address: to the semester in focus where it says a semester (Back, the
-    // box „Studium planen" and its columns), to the overview where it does not (the way back).
+    // The row follows the address (an older one names a semester, `plan=1`) and the entry: to the
+    // semester in focus where either says a semester, to the overview where neither does.
     let plan = Memo::new(move |_| ctx.url.with(|url| url.plan));
     Effect::new(move |_| {
         let plan = plan.get();
         if pages.node.get().is_none() {
             return;
         }
-        let page = untrack(|| if plan { ctx.focused().map(Page::Semester) } else { Some(Page::Overview) });
+        let page = untrack(|| if plan || kept_semester().is_some() { ctx.focused().map(Page::Semester) } else { Some(Page::Overview) });
         if let Some(index) = page.and_then(|page| pages.order.with_untracked(|order| order.iter().position(|other| *other == page))) {
             pages.place(index, 10);
         }
+    });
+    // And the entry: Back or Forward to the overview's entry from a page opened over it (a module's
+    // sheet) brings the semester it keeps, or the overview.
+    let open = Memo::new(move |_| ctx.url.with(|url| url.open.is_some()));
+    Effect::new(move |before: Option<bool>| {
+        let open = open.get();
+        if before == Some(true) && !open && pages.node.get_untracked().is_some() && !ctx.url.with_untracked(|url| url.plan) {
+            let page = match kept_semester() {
+                Some(key) => Page::Semester(key),
+                None => Page::Overview,
+            };
+            if let Some(index) = pages.index_of(page) {
+                if let Page::Semester(key) = page {
+                    ctx.focus.set(Some(key));
+                }
+                pages.place(index, 10);
+            }
+        }
+        open
     });
     // And the focus, where the row rests at a semester (a row's „Einplanen", a semester added); at
     // the overview the address moves it.

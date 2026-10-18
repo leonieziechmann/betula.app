@@ -138,6 +138,8 @@ pub fn App() -> impl IntoView {
         <Router base=locale.prefix()>
             <pending::Bind/>
             <FollowTabs/>
+            // A new address closes what lies over the old page (`nav`).
+            <folia_shell::nav::Follow/>
             <a class="skip-link" href="#content">{t.app.skip_to_content}</a>
             <Crown/>
             <Wood/>

@@ -475,16 +475,21 @@ const LINE = ".fx-desk a.prog-line";
   // „Prüfungsordnung" is still there for a screen reader, „PO" is what is seen.
   check(phone.head.facts === 1 && phone.head.meta === 1 && phone.head.abbr && /^B\.Sc\. Prüfungsordnung PO 2022 aktuell$/.test(phone.head.text), `phone: the head wraps: ${JSON.stringify(phone.head)}`);
   // A module comes up as a sheet over the page (owner, 2026-10-06), in the program's area (the
-  // address keeps `open=`), one history entry; closed, the program is there as it was.
+  // address keeps `open=`), one history entry; closed, the program is there as it was, a step back.
+  // The page came from outside: its first use lays the way up under it, up to Start
+  // (folia/crates/shell/src/nav.rs, `seed`).
   // Clicked through the DOM: the sticky top bar covers the first rows on a phone.
-  const entries = await page.evaluate(() => history.length);
+  const stack = () => page.evaluate(() => ({ entries: navigation.entries().map((entry) => { const url = new URL(entry.url); return url.pathname + url.search; }), at: navigation.currentEntry.index }));
   await page.evaluate(() => document.querySelector('table.planlist tbody a[data-walk="module"]')?.click());
   await page.waitForFunction(() => location.pathname.startsWith("/programs/bachelor-elektrotechnik") && location.search.includes("open=") && document.querySelector(".detail.is-module h2") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: a module did not come up as a sheet over the program"));
-  check((await page.evaluate(() => history.length)) === entries + 1, "phone: opening a module took more than one history entry");
+  const opened = await stack();
+  check(opened.entries.slice(0, opened.at).join(" ") === "/ /study /programs /programs/bachelor-elektrotechnik-2022" && opened.entries[opened.at].includes("open=") && opened.at === opened.entries.length - 1,
+    `phone: opening a module took more than one history entry, or the first use did not lay the way up under the program (${JSON.stringify(opened)})`);
   await page.waitForTimeout(400);
   await page.tap('.detail.is-module [data-action="close-detail"]');
   await page.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module") && document.querySelector("table.planlist"), null, { timeout: 8000 }).catch(() => problems.push("phone: closing the module did not leave the program"));
-  check((await page.evaluate(() => history.length)) === entries + 1, "phone: closing the module added a step to the history");
+  const closed = await stack();
+  check(closed.at === opened.at - 1 && closed.entries.length === opened.entries.length, `phone: closing the module added a step to the history (${JSON.stringify(closed)})`);
   // An area is the page on a phone, and a module picked from it comes up over it.
   await page.evaluate(() => [...document.querySelectorAll(".prog-head .toc.views a")].find((a) => a.getAttribute("href")?.endsWith("/areas"))?.click());
   await page.waitForFunction(() => location.pathname.endsWith("/areas") && document.querySelector('table.areas tr.group a[data-walk="area"]'), null, { timeout: 8000 }).catch(() => problems.push("phone: the areas did not open"));
