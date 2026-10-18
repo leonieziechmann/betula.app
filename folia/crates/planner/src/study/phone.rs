@@ -17,10 +17,12 @@
 //! a box left of the search (owner, 2026-10-05: „wenn man in der semester ansicht ist, soll es oben
 //! links neben der search bar im gleichen style eine quadratische box sein mit einem zurück pfeil";
 //! 2026-10-06: „Mach bei beiden Richtungen weiterhin den pfeil oben hin um zurück zu kommen";
-//! `chrome::TopBack`), from the moment the row leaves the overview. It and the tab of „Studium"
-//! tapped again bring the row back at once, wherever it is or goes. It is no „Zurück" of `enhance.js` (`data-action="back"`), whose Esc would
-//! leave the semesters while it closes a menu or a dialog of theirs. Over the tab bar the dots of
-//! the row stay (`Dock`).
+//! `chrome::TopBack`), from the moment the row leaves the overview. A semester is the page's state,
+//! not a step of the history (`folia_shell::nav`, `Kind::State`): the way back, Back on Android and
+//! the tab of „Studium" tapped again bring the row back to the overview at once, wherever it is or
+//! goes; what lies over the semester (the rows selected, a menu) goes first. It is no „Zurück" of
+//! `enhance.js` (`data-action="back"`), whose Esc would leave the semesters while it closes a menu
+//! or a dialog of theirs. Over the tab bar the dots of the row stay (`Dock`).
 
 use folia_calendar::semester::SemesterKey;
 use folia_plans::study::When;
@@ -43,25 +45,20 @@ use crate::i18n::{self, Texts};
 pub(super) fn Phone(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
+    // The semester the entry keeps (a reload, Back from a page opened over it) is the one in focus.
+    if let Some(key) = untrack(super::pager::kept_semester) {
+        ctx.focus.set(Some(key));
+    }
     let pages = Pages::new(ctx);
     provide_context(pages);
-    // Where a semester comes after the overview in the history, the overview is the step before it.
-    Effect::new(move |before: Option<bool>| {
-        let plan = ctx.url.with(|url| url.plan);
-        if !plan {
-            ctx.from_overview.set(false);
-        } else if before == Some(false) {
-            ctx.from_overview.set(true);
-        }
-        plan
-    });
+    // Off the overview, with no module's sheet over it (a place of its own, which Back closes
+    // first), the semester is the page's state that Back undoes: on Android Back brings the row to
+    // the overview, and so does the way back at the head on every phone (`folia_shell::nav`).
+    folia_shell::nav::layer_while(move || pages.away() && ctx.url.with(|url| url.open.is_none()), move || pages.home(), folia_shell::nav::Kind::State);
     // The way back at the head, as soon as the row leaves the overview and while it is anywhere
     // else (owner, 2026-10-06: „der sollte eigentlich sofort eingeblendet werden, wenn man weg
     // swiped, von der main page").
-    TopBack::follow(move || {
-        let history = ctx.from_overview.get();
-        pages.away().then(|| Back { href: url::STUDY.to_string(), label: s.overview, history })
-    });
+    TopBack::follow(move || pages.away().then(|| Back { href: url::STUDY.to_string(), label: s.overview, history: false }));
     let back = TopBack::expect();
     // The tab of „Studium" tapped again, or the way back pressed: back to the overview at once,
     // wherever the row is or goes (owner, 2026-10-06: „Wenn man den anklickt muss es sofort wieder
@@ -221,9 +218,21 @@ fn PlanBox(ctx: StudyCtx) -> impl IntoView {
     let preview = Memo::new(move |_| ctx.with_ready(|ready| Preview::of(ready, t)));
     let href = t.path(&plan_path());
     let head_href = href.clone();
+    // The row slides to the semester: the page's state, no step of the history (`pager.rs`).
+    let pages = use_context::<Pages>();
+    let turn = move |ev: leptos::ev::MouseEvent, to: Option<SemesterKey>| {
+        if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
+            return;
+        }
+        ctx.focus.set(to);
+        if let (Some(pages), Some(to)) = (pages, to.or_else(|| ctx.focused())) {
+            ev.prevent_default();
+            pages.turn_to(to);
+        }
+    };
     view! {
         <section class="panel st-planbox" aria-labelledby="st-planbox-title">
-            <a class="st-planbox-head" id="st-planbox-title" href=head_href data-noscroll="" on:click=move |_| ctx.focus.set(None)>
+            <a class="st-planbox-head" id="st-planbox-title" href=head_href data-noscroll="" on:click=move |ev| turn(ev, None)>
                 <span>{s.plan_box}</span>
                 <Icon name="chevron-right"/>
             </a>
@@ -239,7 +248,7 @@ fn PlanBox(ctx: StudyCtx) -> impl IntoView {
                             let style = format!("--plan:{:.4};--passed:{:.4};--planned:{:.4}{}", column.plan, column.passed, column.planned, if stacked { ";--seam:2px" } else { "" });
                             view! {
                                 <li class="st-col" class:is-now=column.now>
-                                    <a href=href.clone() data-noscroll="" aria-label=column.title on:click=move |_| ctx.focus.set(Some(key))>
+                                    <a href=href.clone() data-noscroll="" aria-label=column.title on:click=move |ev| turn(ev, Some(key))>
                                         <span class="st-col-bar" class:stacked=stacked style=style aria-hidden="true">
                                             <i class="track"></i>
                                             <i class="passed"></i>

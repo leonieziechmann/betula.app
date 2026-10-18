@@ -31,7 +31,6 @@ use folia_plans::studyplan::{self, Placeholder, PlaceholderLine, PlanDoc};
 use folia_routes::filter::{CatalogQuery, KindFilter, ProgramRelation, ProgramScope, TurnusFilter};
 use folia_routes::url::{self, CatalogUrl, StudyplanUrl};
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 
 use folia_design::format;
 use crate::i18n::{self, Locale};
@@ -410,6 +409,7 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
     let areas = Memo::new(move |_| list.with(|list| list.areas.clone()));
 
     let going = Pending::expect();
+    let tabs = folia_shell::tabs::Tabs::expect();
     let remove = move |id: String| {
         let Some(plan) = ctx.plan else { return };
         let Some((group, at, title)) = list.with_untracked(|list| list.place_of(&id)) else { return };
@@ -418,8 +418,10 @@ pub(super) fn ModuleList(ctx: PlanCtx) -> impl IntoView {
         gone.set(Some((group, at, id.clone(), title)));
         ctx.undo.set(Some((format!("{REMOVED}{id}"), plan.with_untracked(Clone::clone))));
         // The module beside the plan goes with it, as the panel's „Entfernen" closes it.
-        if let Some(going) = going.filter(|_| ctx.url.with_untracked(|url| url.open.as_deref() == Some(id.as_str()))) {
-            going.go(&ctx.url.with_untracked(|url| url.with_open(None, None).path()), NavigateOptions { replace: true, scroll: false, ..Default::default() });
+        if ctx.url.with_untracked(|url| url.open.as_deref() == Some(id.as_str())) {
+            let page = ctx.url.with_untracked(|url| url.with_open(None, None).path());
+            let now = ctx.url.with_untracked(|url| url.path());
+            folia_shell::nav::close_to(going, &page, || tabs.is_some_and(|tabs| folia_shell::pending::same_page(&tabs.before(&now), &page)));
         }
         plan.update_after_paint(move |doc| doc.unplan(key, &id, &events));
     };

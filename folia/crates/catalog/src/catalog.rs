@@ -225,13 +225,16 @@ pub fn CatalogPage() -> impl IntoView {
             std::time::Duration::from_millis(50),
         );
     };
-    // The sheet went (`enhance.js`: its buttons, a swipe down, a tap beside it, Esc, Back, which
-    // takes the sheet's own step in the history): the list follows the draft. Where Back left
-    // the page with the sheet open, the draft goes with it.
+    // The sheet went (`enhance.js`). With „Module anzeigen" the list follows the draft, one step of
+    // the history; any other way (its ×, a swipe down, a tap beside it, Esc, Back) throws the draft
+    // away (owner, 2026-10-18: „Die Filter sollen bei der Mobile Version verworfen werden, wenn man
+    // das Fenster schließt").
     Effect::new(move |_| {
-        let closed = window_event_listener_untyped("betula:sheet-closed", move |_| apply());
+        let applied = window_event_listener_untyped("betula:sheet-applied", move |_| apply());
+        let closed = window_event_listener_untyped("betula:sheet-closed", move |_| draft.set(None));
         let left = window_event_listener_untyped("betula:sheet-left", move |_| draft.set(None));
         on_cleanup(move || {
+            applied.remove();
             closed.remove();
             left.remove();
         });
@@ -1734,7 +1737,8 @@ fn Filters(
         if phone.get_untracked() {
             draft.set(Some(next));
         } else if let Some(going) = going {
-            going.go(&CatalogUrl { query: next, page: 1, open: open.get_untracked(), fill: fill.get_untracked() }.path(), NavigateOptions { scroll: false, ..Default::default() });
+            // A step of the history for every pause (`Pending::go_beside`).
+            going.go_beside(&CatalogUrl { query: next, page: 1, open: open.get_untracked(), fill: fill.get_untracked() }.path());
         }
     });
     // A link of the panel is the list it leads to, so on a phone its address is what the draft
@@ -2061,7 +2065,8 @@ fn Filters(
     };
 
     view! {
-        // `data-draft`: the sheet of a phone is a step of its own in the history (`enhance.js`).
+        // `data-draft`: on a phone what is picked in the sheet is a draft, which only „Module
+        // anzeigen" applies (`enhance.js`).
         <aside class="panel filters" id="filters" aria-label=t.catalog.filters data-draft="" on:click=into_draft>
             <form on:submit=move |ev| ev.prevent_default()>
                 <div class="panel-head">
@@ -2155,7 +2160,7 @@ fn Filters(
                 </div>
                 <div class="filter-actions">
                     <button class="btn primary apply" type="submit">{t.catalog.apply}</button>
-                    <a class="btn primary show" href="#" data-action="sheet-close">{move || facts.with(|f| (t.catalog.show)(f.total, &format::count(f.total, t.locale)))}</a>
+                    <a class="btn primary show" href="#" data-action="sheet-apply">{move || facts.with(|f| (t.catalog.show)(f.total, &format::count(f.total, t.locale)))}</a>
                 </div>
             </form>
         </aside>

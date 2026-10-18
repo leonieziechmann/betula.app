@@ -63,8 +63,18 @@
 /// on a wide screen across the content alone, right of the sidebar where a page has one; 1.24.4
 /// with the note going down out of sight from where it stands, on a phone with a module's sheet as
 /// it closes; 1.24.5 with the start of the installed app where the system left its splash, round,
-/// the wordmark at the bottom, and the page's logo and wordmark coming where they land. The version
-/// of the app's crates, the same as the server's; Radix's is in the snapshot
+/// the wordmark at the bottom, and the page's logo and wordmark coming where they land; 1.24.6 with
+/// the skeleton staying until the new page comes, not the page before coming back after it (a
+/// change of tab, „Alle Studiengänge", a program's views), and a tab's mark changing in the frame of
+/// the tap, without its fade or the browser's highlight; 1.25.0 with Back as an app has it on a
+/// phone (what lies over a page closed first and with no entry of its own, on Android through
+/// `CloseWatcher`; the semester of „Mein Studium"'s row the state of its entry; the filters' sheet
+/// thrown away unless „Module anzeigen" applies it; a stack for each tab with Start under it, a
+/// change of tabs writing the history in place, a link from outside laying its way up under it on
+/// its first use; the arrow at the head Back) and on a desktop one step of the history per pause of
+/// a second; 1.25.1 with the note of „Einplanen" on a wide screen laid out for the room it has —
+/// one line, the switch a row over „Rückgängig", no name —, nothing of it over anything else. The
+/// version of the app's crates, the same as the server's; Radix's is in the snapshot
 /// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

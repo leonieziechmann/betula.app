@@ -72,7 +72,11 @@ if ((await previewWidth()) !== dragged) problems.push(`the preview forgot its wi
 await step("F opens the full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page"));
 if (!(await page.evaluate(() => [...document.querySelectorAll(".module-page .hero-top kbd")].some((k) => k.textContent === "Esc")))) problems.push("the module page does not show the shortcut Esc");
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/catalog" && location.search.includes("open=") && document.querySelector(".rows"));
-await step("Esc closes the preview", () => page.keyboard.press("Escape"), () => !location.search.includes("open="));
+// Back through the history, where the list was the step before: the address goes first, the page a
+// frame later (folia/crates/shell/src/pending.rs, `back_to`; `main` is busy until then), and the
+// links of the page before (the filters' keep the preview) would lead back to it: the next step
+// waits for the page.
+await step("Esc closes the preview", () => page.keyboard.press("Escape"), () => !location.search.includes("open=") && !document.querySelector(".detail") && document.getElementById("content")?.getAttribute("aria-busy") !== "true");
 // The virtual list: as long as the whole list from the start, only what is on screen rendered,
 // the last rows there as soon as the list is scrolled to its end, and `page` in the URL follows.
 await step("reset the filters", () => page.click('#filters a:has-text("Zurücksetzen")'), () => location.pathname === "/catalog" && !location.search.includes("turnus") && document.querySelectorAll(".rows a.row").length > 10);

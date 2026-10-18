@@ -45,8 +45,9 @@ pub struct Texts {
     pub keep_for: &'static str,
     /// … and what it does, as its tooltip.
     pub keep_hint: &'static str,
-    /// „Datenbanken entfernt": a module taken out (its title).
-    pub note_removed: fn(&str) -> String,
+    /// „Datenbanken entfernt": a module taken out, after its title (which gives way where the note
+    /// is narrow, the word never).
+    pub note_removed: &'static str,
 
     /// The dialog for a study not set up: „Datenbanken einplanen" (the module's title) …
     pub setup_title: fn(&str) -> String,
@@ -139,7 +140,7 @@ pub const DE: Texts = Texts {
     later: "Ein Semester später",
     keep_for: "Weitere Module auch nach",
     keep_hint: "Für diese Sitzung: „Einplanen“ plant auch die nächsten Module in dieses Semester",
-    note_removed: |title| format!("{title} entfernt"),
+    note_removed: "entfernt",
 
     setup_title: |title| format!("{title} einplanen"),
     setup_lead: "Richte dabei dein Studium ein, dann stehen Fachsemester dabei.",
@@ -213,7 +214,7 @@ pub const EN: Texts = Texts {
     later: "One semester later",
     keep_for: "Plan further modules for",
     keep_hint: "For this session: \u{201c}Plan\u{201d} puts the next modules into this semester as well",
-    note_removed: |title| format!("{title} removed"),
+    note_removed: "removed",
 
     setup_title: |title| format!("Plan {title}"),
     setup_lead: "Set up your studies on the way, and your semesters of study show with the plan.",
