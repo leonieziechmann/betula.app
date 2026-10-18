@@ -32,7 +32,9 @@
   // turns from its circle into the icon's square, its leaf and colours into the logo's (Brave's
   // leaf is a little smaller, Android's own splash keeps ink and paper in the dark); the wordmark at
   // the bottom flies to the page's own, the first on the screen (the top bar's, or the start
-  // page's), while the background clears. There they go, and the page's own are under them.
+  // page's), while the background clears. The page's own are not there while they fly: they come
+  // in the frame in which the picture goes, where its icon and wordmark land (owner, 2026-10-18:
+  // „das Icon soll erst existieren wenn es hin geflogen ist", `launch-logo`, `launch-mark`, app.css).
   // Without a logo on the screen, or with reduced motion, the picture fades; without a wordmark on
   // the screen, the launch's fades as the icon sets off. A tap takes it away at once, and once the
   // icon flies, taps reach the page.
@@ -53,12 +55,15 @@
     const go = () => launch.remove();
     const fade = (duration) => launch.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, duration, "ease-out")).finished.then(go, go);
     // The first of the page's own on the screen.
-    const shown = (selector) => [...document.querySelectorAll(selector)].filter((el) => !launch.contains(el)).map((el) => el.getBoundingClientRect())
-      .find((r) => r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth);
+    const shown = (selector) => [...document.querySelectorAll(selector)].filter((el) => !launch.contains(el)).find((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+    });
     // The way of concept A from one box to another, middle to middle: a little more up than across
-    // in its first half, where it has already lost most of its size.
-    const fly = (el, to) => {
+    // in its first half, where it has already lost most of its size. How much it shrinks.
+    const fly = (el, target) => {
       const from = el.getBoundingClientRect();
+      const to = target.getBoundingClientRect();
       const k = to.height / from.height;
       const dx = to.left + to.width / 2 - (from.left + from.width / 2);
       const dy = to.top + to.height / 2 - (from.top + from.height / 2);
@@ -67,7 +72,7 @@
         { transform: `translate(${dx * 0.47}px, ${dy * 0.6}px) scale(${k + (1 - k) * 0.364})`, offset: 0.5, easing: "cubic-bezier(.3,0,.2,1)" },
         { transform: `translate(${dx}px, ${dy}px) scale(${k})` },
       ], timing(0, 640, "cubic-bezier(.45,0,.55,1)"));
-      el.animate([{ opacity: 1 }, { opacity: 0 }], timing(680, 120, "linear"));
+      return k;
     };
     const play = () => {
       if (begun) return;
@@ -75,9 +80,14 @@
       launch.style.pointerEvents = "none";
       const logo = shown(".logo");
       if (!logo || matchMedia("(prefers-reduced-motion: reduce)").matches) return fade(300);
-      fly(icon, logo);
-      if (ios) tile.animate([{ boxShadow: getComputedStyle(tile).boxShadow }, { boxShadow: "none" }], timing(0, 240, "ease-out"));
-      else tile.animate([{ borderRadius: "50%" }, { borderRadius: "21.875%" }], timing(0, 300, "ease-in-out"));
+      const root = document.documentElement;
+      root.classList.add("launch-logo");
+      const k = fly(icon, logo);
+      if (!ios) tile.animate([{ borderRadius: "50%" }, { borderRadius: "21.875%" }], timing(0, 300, "ease-in-out"));
+      // iOS's shadow goes as it sets off; the logo's ring and shadow come on the last stretch, in the
+      // icon's own size, which the flight scales.
+      const ring = getComputedStyle(logo).boxShadow.replace(/(-?[\d.]+)px/g, (_, v) => `${v / k}px`);
+      tile.animate([{ boxShadow: getComputedStyle(tile).boxShadow }, { boxShadow: "none", offset: 0.375 }, { boxShadow: "none", offset: 0.625 }, { boxShadow: ring }], timing(0, 640, "linear"));
       // The leaf as large as the logo's on the way's first stretch; the logo's colours on its last,
       // where the icon is small: ink and paper changing places pass through grey.
       const page = getComputedStyle(document.documentElement);
@@ -86,10 +96,17 @@
         el.animate([{ backgroundColor: getComputedStyle(el).backgroundColor }, { backgroundColor: page.getPropertyValue(colour).trim() }], timing(400, 240, "ease-in-out"));
       }
       const mark = name && shown(".wordmark:not(.ground .wordmark)");
-      if (mark) fly(name, mark);
-      else name?.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, 180, "ease-out"));
-      launch.animate([{ backgroundColor: getComputedStyle(launch).backgroundColor }, { backgroundColor: "transparent" }], timing(200, 460, "ease-in-out"));
-      Promise.all(launch.getAnimations({ subtree: true }).map((a) => a.finished)).then(go, go);
+      if (mark) {
+        root.classList.add("launch-mark");
+        fly(name, mark);
+      } else name?.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, 180, "ease-out"));
+      launch.animate([{ backgroundColor: getComputedStyle(launch).backgroundColor }, { backgroundColor: "transparent" }], timing(200, 440, "ease-in-out"));
+      // Landed: the page's own come in the frame the picture goes.
+      const land = () => {
+        root.classList.remove("launch-logo", "launch-mark");
+        go();
+      };
+      Promise.all(launch.getAnimations({ subtree: true }).map((a) => a.finished)).then(land, land);
     };
     // Two frames: the picture has been painted, and from then on the system fades its splash.
     requestAnimationFrame(() => requestAnimationFrame(() => { wait = setTimeout(play, ios ? 150 : 350); }));

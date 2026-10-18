@@ -3259,6 +3259,10 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 .launch.ios .launch-icon b { border-radius: 21.875%; box-shadow: 0 6.4px 17.92px -8.3px rgba(15, 23, 42, .2); }
 :root[data-theme="dark"] .launch.ios .launch-icon b { box-shadow: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .launch.ios .launch-icon b { box-shadow: none; } }
+/* While the icon and the wordmark fly, the page's own are not there yet: they come where these land
+   (owner, 2026-10-18: „das Icon soll erst existieren wenn es hin geflogen ist"); the ground's
+   wordmark, which nothing flies to, stays. */
+html.launch-logo .logo, html.launch-mark .wordmark:not(.launch .wordmark, .ground .wordmark) { visibility: hidden; }
 /* Its baseline is 19px under its top: Inter at 22px on a line of 22px (.8633em). */
 .launch-name { position: absolute; left: 0; right: 0; top: calc(var(--name, 100% - 70px) - 19px); font: 800 22px/1 var(--font); text-align: center; white-space: nowrap; }
 /* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the

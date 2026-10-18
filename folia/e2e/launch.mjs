@@ -105,6 +105,8 @@ async function start(device, { ios = false, installed = true, reduced = false, t
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
   const facts = await page.evaluate(() => {
     const o = document.querySelector("html > .launch");
+    // Where it stands before it flies, should the flight have begun on a slow load.
+    for (const a of document.getAnimations().filter((a) => o?.contains(a.effect?.target))) a.currentTime = 0;
     const box = (el) => el && (({ left, top, width, height }) => [left, top, width, height].map((v) => Math.round(v * 10) / 10))(el.getBoundingClientRect());
     const leaf = o && getComputedStyle(o.querySelector(".launch-icon i"));
     return o && {
@@ -130,15 +132,20 @@ async function start(device, { ios = false, installed = true, reduced = false, t
       }));
       Object.assign(facts, await page.evaluate(() => {
         const box = ({ left, top, width, height }) => [left, top, width, height].map((v) => Math.round(v * 10) / 10);
-        const logo = [...document.querySelectorAll(".logo")].map((el) => el.getBoundingClientRect()).find((r) => r.width > 0 && r.bottom > 0 && r.top < innerHeight);
+        const el = [...document.querySelectorAll(".logo")].find((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight; });
+        const logo = el?.getBoundingClientRect();
         const own = document.getAnimations().filter((a) => a.effect?.target?.closest?.(".launch"));
         const moved = own.some((a) => a.effect.getKeyframes().some((k) => k.transform && k.transform !== "none"));
         const landed = box(document.querySelector("html > .launch .launch-icon").getBoundingClientRect());
+        // The page's logo is not there while the icon flies to it.
+        const hidden = !!el && getComputedStyle(el).visibility === "hidden";
         for (const a of own) a.play();
-        return { landed, logo: logo && box(logo), moved };
+        return { landed, logo: logo && box(logo), moved, hidden };
       }));
       await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 });
       facts.gone = await page.waitForFunction(() => !document.querySelector("html > .launch"), null, { timeout: 3000 }).then(() => true, () => false);
+      // And there once it has gone.
+      facts.back = await page.evaluate(() => [...document.querySelectorAll(".logo, .wordmark")].every((el) => getComputedStyle(el).visibility === "visible"));
     }
     // Once a session: a page the app goes to (or loads again) is no start.
     await page.goto(base + "/en", { waitUntil: "domcontentloaded" });
@@ -151,7 +158,7 @@ const pixel = { viewport: { width: 412, height: 839 }, screen: { width: 412, hei
 const iphone = { viewport: { width: 393, height: 793 }, screen: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true };
 const tab = { viewport: { width: 1280, height: 752 }, screen: { width: 1280, height: 800 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 const near = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) < 0.6);
-const landed = (facts) => (facts.logo ? facts.moved && near(facts.landed, facts.logo) : !facts.moved);
+const landed = (facts) => (facts.logo ? facts.moved && near(facts.landed, facts.logo) && facts.hidden && facts.back : !facts.moved);
 
 // The wordmark as the page sets it (`.wordmark.small`, 22 px), centred, its baseline at the box's
 // top + 19.
