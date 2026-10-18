@@ -28,8 +28,8 @@
   --text-3: #8790a0;
   --invert: #161b26;
   --on-invert: #ffffff;
-  /* The note of „Einplanen" (.plan-toast): dark in both themes — inverted on the light page, on the
-     dark one raised a little over the panels, never a bright bar across the screen. */
+  /* A note that waits for interaction (.wait-note): dark in both themes — inverted on the light
+     page, on the dark one raised a little over the panels, never a bright bar across the screen. */
   --toast: var(--invert); --on-toast: var(--on-invert); --toast-warn: #f5c26b;
   --toast-ring: none;
   --bark: #ffffff;
@@ -3103,28 +3103,47 @@ html:not(.js) .plan-toggle { display: none; }
 /* The line under „Einplanen" among a sidebar's actions (its semester, the placeholder, the other
    semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
 .actions > .plan-toggle { min-width: 0; }
-/* The note of „Einplanen" (.plan-toast, folia/crates/widgets/src/plannote.rs; owner, 2026-10-18,
-   concept E of folia/design/einplanen/oberflaeche.html): a check, the module, ‹ the semester ›
-   with its Fachsemester and the warning under it, „Rückgängig"; once the module was moved, the
-   switch „Weitere Module auch nach …". The semester and its arrows are one control: a tap on its
-   left half is ‹, on its right half ›, a finger swiped over it moves the module, and its words
-   follow the finger and come in from the side the semester came from (owner, the same day: „müssen
-   die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch swiping
-   unterstützt werden"). Nothing of the page moves under it as a finger swipes it (`touch-action`).
-   On a wide screen one bar across the page right of the rail, as wide as the panels, one line high
-   (the same day: „bei der pc Version kann die notification ruhig über die ganze Breite rechts von
-   der sidebar gehen und dann vllt etwas weniger hoch sein"): the switch comes in at the right
-   before „Rückgängig", so nothing under the pointer moves; × at the end. On a phone a card as wide
-   as the bottom bar and over it, but under it in the order of what lies on what and flat, so it
-   casts nothing on the bar and comes up from behind it (the same day: „keinen schatten auf die
-   navbar werfen"); over a module's sheet at the bottom of the screen. Its switch is a row over the
-   semester, which stays under the finger, and a finger swipes it down and away. Dark in both themes
-   (`--toast`); nothing in it changes its size as the arrows move the module (the semester's column
-   keeps a width, and what it says is cut, the warning last). */
-.plan-toast { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: plan-toast-in .26s var(--ease); }
-@keyframes plan-toast-in { from { opacity: 0; transform: translateY(10px); } }
-.plan-toast[data-drag] { transition: none; }
-.plan-toast.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
+/* A note that waits for interaction (.wait-note, folia/crates/design/src/waitnote.rs; owner,
+   2026-10-18: „Bau diese notification mal bitte als wait for interaction notification. Vielleicht
+   brauchen wir das später nochmal"): over the page at the bottom, what was just done and what
+   follows from it (its first child), × at the end; it stands until the student does something
+   else. On a wide screen one bar across the page right of the rail, as wide as the panels (the
+   same day: „bei der pc Version kann die notification ruhig über die ganze Breite rechts von der
+   sidebar gehen und dann vllt etwas weniger hoch sein"). On a phone a card as wide as the bottom
+   bar and over it, but under it in the order of what lies on what and flat, so it casts nothing on
+   the bar and comes up from behind it (the same day: „keinen schatten auf die navbar werfen");
+   over a module's sheet at the bottom of the screen; no ×, a finger swipes it down and away.
+   Nothing of the page moves under it as a finger swipes it (`touch-action`). Dark in both themes
+   (`--toast`). */
+.wait-note { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: flex; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: wait-note-in .26s var(--ease); }
+@keyframes wait-note-in { from { opacity: 0; transform: translateY(10px); } }
+.wait-note > :first-child { flex: 1 1 auto; min-width: 0; }
+.wait-note[data-drag] { transition: none; }
+.wait-note.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
+.wait-note-close { flex: none; display: grid; place-items: center; width: 34px; height: 40px; margin-right: 6px; border: 0; border-radius: 9px; background: none; color: var(--on-toast); opacity: .72; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wait-note-close > .icon { width: 16px; height: 16px; }
+@media (hover: hover) { .wait-note-close:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); opacity: 1; } }
+.wait-note-close:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
+.wait-note :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 900px) {
+  /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
+  .wait-note { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); border-radius: 14px; box-shadow: var(--toast-ring); animation-name: wait-note-rise; }
+  @keyframes wait-note-rise { from { transform: translateY(calc(100% + 24px)); } }
+  :root:has(.detail.is-module) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .wait-note-close { display: none; }
+}
+/* The note of „Einplanen" (.plan-toast in a .wait-note, folia/crates/widgets/src/plannote.rs;
+   owner, 2026-10-18, concept E of folia/design/einplanen/oberflaeche.html): a check, the module,
+   ‹ the semester › with its Fachsemester and the warning under it, „Rückgängig"; once the module
+   was moved, the switch „Weitere Module auch nach …". The semester and its arrows are one control:
+   a tap on its left half is ‹, on its right half ›, a finger swiped over it moves the module, and
+   its words follow the finger and come in from the side the semester came from (owner, the same
+   day: „müssen die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss
+   auch swiping unterstützt werden"). On a wide screen one line: the switch comes in at the right
+   before „Rückgängig", so nothing under the pointer moves. On a phone the switch is a row over the
+   semester, which stays under the finger. Nothing in it changes its size as the arrows move the
+   module (the semester's column keeps a width, and what it says is cut, the warning last). */
+.plan-toast { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; }
 .plan-toast-main { grid-area: main; display: flex; align-items: center; gap: 2px; min-width: 0; padding: 4px 0 4px 14px; }
 .plan-toast-end { grid-area: end; display: flex; align-items: center; padding: 4px 6px 4px 0; }
 .plan-toast-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
@@ -3133,15 +3152,13 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-mark.out > .icon { stroke-width: 2.25; }
 .plan-toast-title { min-width: 0; max-width: 300px; margin-right: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .plan-toast-stepper { flex: 0 1 auto; display: flex; align-items: center; min-width: 0; border-radius: 9px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.plan-toast-step, .plan-toast-undo, .plan-toast-close { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan-toast-step, .plan-toast-undo { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .plan-toast-step { display: grid; place-items: center; width: 34px; height: 40px; }
 .plan-toast-step > .icon { width: 18px; height: 18px; }
 .plan-toast-step[disabled] { opacity: .3; cursor: default; }
 .plan-toast-undo { min-height: 40px; padding: 0 12px; font-weight: 650; }
-.plan-toast-close { display: grid; place-items: center; width: 34px; height: 40px; margin-left: 2px; opacity: .72; }
-.plan-toast-close > .icon { width: 16px; height: 16px; }
-@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover, .plan-toast-close:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); opacity: 1; } }
-.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active, .plan-toast-close:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
+@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); } }
+.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
 /* As wide whatever it says (12. FS and „kein Angebot" with „verschoben" fit): the arrows never move
    under the pointer as the module moves. */
 .plan-toast-at { flex: none; display: flex; justify-content: center; width: 200px; overflow: hidden; }
@@ -3165,15 +3182,11 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-toast); transition: transform .18s var(--ease); }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch { background: var(--accent); }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch::after { transform: translateX(14px); }
-.plan-toast :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 900px) {
-  /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
-  .plan-toast { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; border-radius: 14px; box-shadow: var(--toast-ring); animation-name: plan-toast-rise; }
-  @keyframes plan-toast-rise { from { transform: translateY(calc(100% + 24px)); } }
-  :root:has(.detail.is-module) .plan-toast { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .plan-toast { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; }
   .plan-toast-main { min-height: 56px; padding: 0 0 0 4px; }
   .plan-toast-end { padding: 6px 6px 6px 0; }
-  .plan-toast-mark:not(.out), .plan-toast-title, .plan-toast-close { display: none; }
+  .plan-toast-mark:not(.out), .plan-toast-title { display: none; }
   .plan-toast-mark.out { margin-left: 8px; }
   .plan-toast-stepper { flex: 1 1 auto; align-self: stretch; }
   .plan-toast-at { flex: 1 1 auto; width: auto; min-width: 0; }

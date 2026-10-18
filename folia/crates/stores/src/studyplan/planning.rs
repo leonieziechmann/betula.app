@@ -72,7 +72,8 @@ pub enum NoteKind {
 pub struct Note {
     /// Which press it answers: the plan it writes is this note's only while it is.
     pub turn: u32,
-    /// Counts every change of the note: what was timed for it before is left undone.
+    /// Counts every change of the note (a step): what the page does right after one belongs to it
+    /// (`folia_design::waitnote::WaitNote`, `changed`).
     pub shown: u32,
     pub what: Pressed,
     pub kind: NoteKind,
@@ -330,7 +331,6 @@ impl Planning {
     pub fn keep(self, at: SemesterKey) {
         let next = if self.chosen.get_untracked() == Some(at) { None } else { Some(at) };
         self.choose(next);
-        self.renew();
     }
 
     /// The semester the session plans the next modules into (P3), or the session's again.
@@ -339,19 +339,10 @@ impl Planning {
         nav::session_set(CHOSEN_KEY, &semester.map(SemesterKey::key).unwrap_or_default());
     }
 
-    /// The note stands a while anew (what the pointer or the keyboard does on it).
-    pub fn renew(self) {
-        let shown = self.next_turn();
-        self.note.update(|note| {
-            if let Some(note) = note.as_mut() {
-                note.shown = shown;
-            }
-        });
-    }
-
-    /// The note goes, once its while is over (`shown` the one it was timed for) or at once.
-    pub fn dismiss(self, shown: Option<u32>) {
-        if self.note.with_untracked(|note| note.as_ref().is_some_and(|note| shown.is_none_or(|shown| note.shown == shown))) {
+    /// The note of the press `turn` goes: the student moved on, or put it away
+    /// (`folia_widgets::plannote`). A newer note stays.
+    pub fn dismiss(self, turn: u32) {
+        if self.note.with_untracked(|note| note.as_ref().is_some_and(|note| note.turn == turn)) {
             self.note.set(None);
         }
     }

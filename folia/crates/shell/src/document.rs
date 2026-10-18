@@ -57,8 +57,10 @@
 /// module or search, a longer scroll; × and Esc on a wide screen), on a phone under the bottom bar
 /// and flat, and in the dialog for a study the search for a program the app's picker as wide as the
 /// programs, a program known a row with its picker, and „Aufheben" for a semester chosen for the
-/// next modules. The version of the app's crates, the same as the server's; Radix's is in the
-/// snapshot (`Meta::radix_version`).
+/// next modules; 1.24.2 with that note a note that waits for interaction, a building block of its
+/// own (`folia_design::waitnote`): no timer, it stands until the student does something else — a
+/// click or a tap elsewhere, a key not its own, another page, a longer scroll. The version of the
+/// app's crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
