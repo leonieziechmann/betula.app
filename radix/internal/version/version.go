@@ -9,9 +9,11 @@
 // „Versions"): 0.7.0 the same day (owner: „Radix bitte auch auf 0.7.0 hochziehen") for what came
 // since 0.6.0 unversioned, offline through Cortex (2026-10-04) and a Termin read as a series of
 // dates (2026-10-13); 0.7.1 on 2026-10-16, where a prerequisite text rules a module out or a
-// module replaces one, the module is no prerequisite (docs/radix/data-sources.md §15). Folia's
+// module replaces one, the module is no prerequisite (docs/radix/data-sources.md §15); 0.8.0 on
+// 2026-10-18, a module of a Wahlpflicht slot of the plan that no source gives a kind is
+// Wahlpflicht, inferred (schema 14; docs/radix/schema-v2.md, „Kinds from the plan's slots"). Folia's
 // lives in folia/crates/shell/src/document.rs (VERSION).
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.7.1"
+const Radix = "0.8.0"

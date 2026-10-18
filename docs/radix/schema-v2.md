@@ -80,6 +80,10 @@ Arbeit, which v1 labelled „B.Sc.", has none.
   `pdf_plan` > `module_page` (remarks) > `qis_tree` (a label on the area path). `precedence` is
   1–3 for stated, 4–6 for inferred statements. The tree's v1 default „Pflicht" no longer exists:
   without a label the tree states no kind.
+- Two kinds are inferred: a thesis by its title (`qis_tree`, precedence 6), and Wahlpflicht for a
+  module of a Wahlpflicht slot of the validated plan that nothing else gives a kind (`pdf_plan`,
+  precedence 4; section „Kinds from the plan's slots"). `in_plan` counts only what the plan states
+  about the module itself (schema 14).
 
 ## 3. Read views (the contract)
 
@@ -99,7 +103,7 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_module_successor` | module × successor | `module_id, successor_id, successor_title` |
 | `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks` (the series of single dates a row belongs to, section „Series of single dates“; schema 13) |
 | `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url, room_short` |
-| `v_module_program_link` | module × listed triple | `module_id, ord, degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, po_version, is_latest_po, relation, kind, kind_source, area` |
+| `v_module_program_link` | module × listed triple | `module_id, ord, degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, po_version, is_latest_po, relation, kind, kind_source, area, kind_basis` (whether the kind is inferred; schema 14) |
 | `v_program` | program | `id, slug, name, degree_level, degree_type, study_variant, degree_label, degree_raw, degree_display, po_version, po_year, po_amendment, family_key, name_key, is_latest_po, stg_code, abschl_code, source_url, fetched_at, has_plan, plan_validated_at, plan_status, curricular_modules, fues_modules, documents` |
 | `v_program_module` | program × module | `program_id, module_id, relation, kind, kind_source, kind_basis, precedence, area, section, in_tree, on_module_page, in_plan, module_title, module_credits, offer_status, turnus_season, plan_semester, abbrev` (unique within the program) |
 | `v_program_module_area` | tree placement | `program_id, module_id, area_id, area, area_label, depth, area_ord, section, kind, kind_basis` |
@@ -842,6 +846,49 @@ the row of its first date, or that has fewer than three dates, and counts the se
 `build.finished` counts `event_series` and `event_series_dates`. A database migrated to 13 and not
 built again has no series, which a reader reads as before, date by date. Both columns are part of
 the content digest.
+
+### Kinds from the plan's slots (2026-10-18)
+
+„Art nicht angegeben" stood at modules a student plainly takes as Wahlpflicht: Systemtheorie I and
+II in Informatik B.Sc. (owner, 2026-10-18: „warum ist das zum Beispiel Systemtheorie bei
+Informatik kein Wahlpflicht modul. Weil man kann es als solches belegen"). The tree files them
+under „Grundstudium / Komplex Nebenfach / Maschinenbau / Elektrotechnik", a label that names no
+kind, their pages state none for Informatik, and the plan names no module there but two rows
+„Anwendungsfach", Wahlpflicht, 6 LP each. Of the curricular pairs of canary's snapshot of
+2026-10-18, 4,238 of 10,599 had no kind.
+
+Every build now infers one there (`catalogbuild.writeSlotKinds`, after every stated statement): a
+row of a validated plan that names no module, marked Wahlpflicht and no FÜS row (by its kind or
+its name, as Folia's `plan::is_fues`), is a slot; the areas of the tree it is filled from are the
+ones Folia lists for it (`plans::plan::areas_for_row`, ported line by line: the same name, a name
+within the other, the areas below a name above them — „Anwendungsfach" for those below „Komplex
+Nebenfach" but „Wahlpflichtmodule Praktische Mathematik", which another row names —, rows that list
+areas, study directions); and a module placed there that no statement gives a kind gets a
+statement `pdf_plan`, `elective`, `inferred`, its `area_label` the row's name, no `area_id`. Every
+stated kind still wins (precedence 4), and the plan does not name the module, so `in_plan` stays 0
+(migration 0014). `testdata/slot_words.tsv` holds the Go and the Rust port to the same words and
+scores; `TestSlotKindsOnSnapshot` runs the rule on a snapshot and writes the slots and their
+areas for a diff with `cargo run -p folia-pages --example area_survey`:
+
+    RADIX_SLOT_SNAPSHOT=snapshot/catalog.db RADIX_SLOT_ROWS=/tmp/rows.tsv go test ./internal/catalogbuild -run TestSlotKindsOnSnapshot -v
+
+On that snapshot: 580 Wahlpflicht slots, the same areas as Folia's for all of them; 1,338 pairs in
+59 programs become Wahlpflicht, among them the 37 of Informatik B.Sc.'s Anwendungsfach without a
+kind (Physik 4, Maschinenbau / Elektrotechnik 16, Wirtschaftswissenschaften 9, Bauingenieurwesen
+7, Mathematik 1), Soziale Arbeit's „Wahl eines Modules aus Anlage 2c", Elektrotechnik's
+„Wahlpflichtmodule der Studienrichtung". Not inferred, on purpose:
+
+- **A Pflicht slot.** Physics M.Sc. prints „Minor Subject (Anlage 1b)" as Pflicht: the slot must
+  be filled, which says nothing about the forty modules it is filled from. Folia counts such a
+  row as one module, too.
+- **Siblings.** „Every known kind in the area is Wahlpflicht, so the rest is too" would add 291
+  pairs, but Power Engineering's „Common Modules", one of them stated Wahlpflicht and 21 without a
+  kind, are most likely the common Pflicht. Without a slot of the plan, no kind.
+
+`v_module_program_link` carries `kind_basis` (schema 14), so that the module page can say what the
+list says: Folia shows an inferred kind as „Wahlpflicht · abgeleitet", its title naming the plan
+(`folia_design::ui::KindBadge`). An area that is a Nebenfach or Anwendungsfach stays what the tree
+calls it: the module page names the area beside the kind.
 
 Open:
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // scrape reads GET /metrics into series → value. The counters are shared by every test
@@ -52,8 +53,17 @@ func TestMetricsCountWhatACycleDid(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
+	// A download counts when its handler returns, after its last byte: the client can have read
+	// it before. Closed unread, the snapshot could still be being written when the counters were
+	// read (1 run in 5 after migration 0014 made it a little larger).
+	download := `radix_snapshot_requests_total{file="catalog.db",code="200"}`
 	after := scrape(t, srv)
+	for deadline := time.Now().Add(2 * time.Second); after[download] == before[download] && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+		after = scrape(t, srv)
+	}
 
 	grew := func(series string, want float64) {
 		t.Helper()
