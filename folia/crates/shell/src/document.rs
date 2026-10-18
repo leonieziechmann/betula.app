@@ -77,8 +77,10 @@
 /// 1.25.2 saying „abgeleitet" beside a kind Radix infers, „Wahlpflicht · abgeleitet", in a
 /// program's list and on the module page (schema 14); 1.25.4 with the note of „Einplanen" on a wide
 /// screen in order — the check and the module's name at the left, the semester, „Rückgängig" and ×
-/// at the right, the switch a row over all of it, lined up with them. The version of the app's
-/// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// at the right, the switch a row over all of it, lined up with them; 1.26.0 with every tab's page
+/// kept built on a stage of its own (`stage`), a change of tab only swapping which one is in front:
+/// a tab seen before there in the frame of the tap, as it was left, scrolled as far. The version of
+/// the app's crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

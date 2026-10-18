@@ -1943,7 +1943,7 @@ darf die App ruhig etwas laden/kurz Skeltons zeigen. Aber wenn die App dann einm
 es sich instant und einfach nur gut anfühlen"; and on the prototypes: „Es ist nice zu sehen, dass
 die Seiten gleich da sind. Das muss auf jeden Fall rein". The concept with its steps and what was
 measured is `folia/design/tabwechsel/konzept.html`; step 0 (the skeleton held instead of the page
-before, the tab's mark at once) is Folia 1.24.6, this is step 1:
+before, the tab's mark at once) is Folia 1.24.6, this is step 1 (Folia 1.26.0):
 
 - **A stage for each tab** (`stage::Stages`, in `main`): Start, Module, Studium, Merkliste,
   Stundenplan, and one for the pages of no tab (the profile, the legal pages, a page that does not
