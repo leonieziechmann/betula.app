@@ -216,6 +216,12 @@ pub struct CatalogRow {
     pub responsible: Option<String>,
     /// Present when a program is selected.
     pub kind: Option<Code<ModuleKind>>,
+    /// Where the kind comes from and whether a source states it or Betula infers it: the badge
+    /// says „abgeleitet" (`folia_design::ui::KindBadge`).
+    #[serde(default)]
+    pub kind_source: Option<Code<KindSource>>,
+    #[serde(default)]
+    pub kind_basis: Option<Code<KindBasis>>,
     pub plan_semester: Option<i64>,
     pub area: Option<String>,
 }
@@ -240,6 +246,8 @@ impl FromRow for CatalogRow {
             exam_form: Code::parse_opt(row.opt_text("exam_form")?),
             responsible: row.opt_text("responsible")?,
             kind: Code::parse_opt(row.opt_text("kind")?),
+            kind_source: Code::parse_opt(row.opt_text("kind_source")?),
+            kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
             plan_semester: row.opt_int("plan_semester")?,
             area: row.opt_text("area")?,
         })

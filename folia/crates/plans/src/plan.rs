@@ -640,6 +640,28 @@ mod tests {
 
     const E: Option<ModuleKind> = Some(ModuleKind::Elective);
 
+    /// Radix infers the kinds of the plan's Wahlpflicht slots with this rule, ported to Go
+    /// (`catalogbuild.areasForRow`): radix/internal/catalogbuild/testdata/slot_words.tsv holds both
+    /// to the same words and scores (Radix's `TestSlotWords` reads it too).
+    #[test]
+    fn the_words_and_scores_are_radixs() {
+        let fixture = include_str!("../../../../radix/internal/catalogbuild/testdata/slot_words.tsv");
+        let mut checked = 0;
+        for line in fixture.lines().filter(|line| !line.is_empty() && !line.starts_with('#')) {
+            let fields: Vec<&str> = line.split('\t').collect();
+            match fields.as_slice() {
+                ["words", name, expected] => {
+                    let got = distinctive(name).join(" ");
+                    assert_eq!(if got.is_empty() { "∅" } else { got.as_str() }, *expected, "distinctive({name:?})");
+                }
+                ["fit", row, name, score] => assert_eq!(fit(&distinctive(row), &distinctive(name)).to_string(), *score, "fit({row:?}, {name:?})"),
+                _ => panic!("neither words<TAB>name<TAB>words nor fit<TAB>row<TAB>name<TAB>score: {line:?}"),
+            }
+            checked += 1;
+        }
+        assert!(checked >= 20, "the fixture holds the cases of distinctive and fit");
+    }
+
     fn labels(areas: &[CatalogArea]) -> Vec<&str> {
         areas.iter().map(|area| area.label.as_str()).collect()
     }

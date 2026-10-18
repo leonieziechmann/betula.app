@@ -223,6 +223,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"programs", b.writePrograms},
 		{"module page assignments", b.writePageAssignments},
 		{"plan assertions", b.writePlanAssertions},
+		{"kinds of plan slots", b.writeSlotKinds}, // needs every stated statement
 		{"events", b.writeEvents},
 		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},

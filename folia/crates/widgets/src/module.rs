@@ -1426,7 +1426,7 @@ fn Programs(data: ModuleData) -> impl IntoView {
                                 {link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default()}
                                 <span class="subtitle">"PO "{link.po_version.clone().unwrap_or_default()}{semesters.map(|semesters| format!(" · {semesters}"))}{link.area.clone().map(|area| format!(" · {area}"))}</span>
                             </b>
-                            <small><KindBadge kind=link.kind.clone()/></small>
+                            <small><KindBadge kind=link.kind.clone() basis=link.kind_basis.clone() source=link.kind_source.clone()/></small>
                             <Icon name="chevron-right"/>
                         </a>
                     }
@@ -1918,6 +1918,7 @@ mod tests {
             kind: Some(Code::parse("compulsory")),
             kind_source: None,
             area: None,
+            kind_basis: None,
         };
         let semester = |key: &str, label: &str, starts: &str, ends: &str| Semester {
             key: key.into(),
