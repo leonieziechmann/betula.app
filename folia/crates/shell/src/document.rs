@@ -49,8 +49,11 @@
 /// „Einplanen" planning at once into the semester the session plans for and a note at the bottom
 /// saying where, its ‹ › moving the module (into the past as well), „Weitere Module auch nach …" and
 /// „Rückgängig", where no study is set up one dialog that sets it up and plans the module, and the
-/// menu of the semesters gone. The version of the app's crates, the same as the server's; Radix's is
-/// in the snapshot (`Meta::radix_version`).
+/// menu of the semesters gone; 1.24.0 with that note one bar across the page right of the rail on a
+/// wide screen, one line high with the module named, on a phone its switch a row over the arrows,
+/// dark in the dark theme as well, and the catalog's hint of a program's plan no longer taking its
+/// look. The version of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

@@ -28,8 +28,10 @@
   --text-3: #8790a0;
   --invert: #161b26;
   --on-invert: #ffffff;
-  /* A warning on the inverted ground (the note of „Einplanen": „liegt zurück"). */
-  --warn-on-invert: #f5c26b;
+  /* The note of „Einplanen" (.plan-toast): dark in both themes — inverted on the light page, on the
+     dark one raised a little over the panels, never a bright bar across the screen. */
+  --toast: var(--invert); --on-toast: var(--on-invert); --toast-warn: #f5c26b;
+  --toast-ring: none;
   --bark: #ffffff;
   --bark-ink: #10151f;
   /* Betula's icon (ui::Mark): the paper leaf on ink, turned over in the dark, as the app's icon
@@ -130,7 +132,8 @@
     --text-3: #6a748a;
     --invert: #e9edf5;
     --on-invert: #0d1017;
-    --warn-on-invert: #8f5a0a;
+    --toast: #232938; --on-toast: #eceff5; --toast-warn: #f0b861;
+    --toast-ring: inset 0 0 0 1px rgba(255, 255, 255, .1);
     --bark: #e9edf5;
     --bark-ink: #0d1017;
     --logo-tile: #e9edf5;
@@ -185,7 +188,8 @@
   --text-3: #6a748a;
   --invert: #e9edf5;
   --on-invert: #0d1017;
-  --warn-on-invert: #8f5a0a;
+  --toast: #232938; --on-toast: #eceff5; --toast-warn: #f0b861;
+  --toast-ring: inset 0 0 0 1px rgba(255, 255, 255, .1);
   --bark: #e9edf5;
   --bark-ink: #0d1017;
   --logo-tile: #e9edf5;
@@ -3099,52 +3103,60 @@ html:not(.js) .plan-toggle { display: none; }
 /* The line under „Einplanen" among a sidebar's actions (its semester, the placeholder, the other
    semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
 .actions > .plan-toggle { min-width: 0; }
-/* The note of „Einplanen" (folia/crates/widgets/src/plannote.rs; owner, 2026-10-18, concept E of
-   folia/design/einplanen/oberflaeche.html): over the page at the bottom of the window, on the
-   inverted ground of „Mein Studium"'s note (.st-undo): a check, ‹ the semester ›, with what happened
-   under it, and „Rückgängig"; under that, once the module was moved, the switch „Weitere Module
-   auch nach …" as a second row of the same note. Nothing in it changes its size as the arrows move
-   the module (the semester's column keeps a width). On a phone across the screen over the bottom
-   bar; over a module's sheet at the bottom of the screen. */
-.plan-note { position: fixed; z-index: 62; left: 50%; bottom: 20px; translate: -50% 0; display: flex; flex-direction: column; width: max-content; max-width: calc(100vw - 24px); overflow: hidden; border-radius: 14px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 13.5px; animation: plan-note-in .26s var(--ease); }
-@keyframes plan-note-in { from { opacity: 0; transform: translateY(10px); } }
-.plan-note-row { display: flex; align-items: center; gap: 2px; min-height: 52px; padding: 6px 6px 6px 12px; }
-.plan-note-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
-.plan-note-mark > .icon { width: 13px; height: 13px; stroke-width: 3; }
-.plan-note-mark.out { background: color-mix(in oklab, var(--on-invert) 18%, transparent); color: var(--on-invert); }
-.plan-note-mark.out > .icon { stroke-width: 2.25; }
-.plan-note-step, .plan-note-undo { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-invert); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.plan-note-step { display: grid; place-items: center; width: 34px; height: 40px; }
-.plan-note-step > .icon { width: 18px; height: 18px; }
-.plan-note-step[disabled] { opacity: .3; cursor: default; }
-.plan-note-undo { min-height: 40px; padding: 0 12px; font-weight: 650; }
-@media (hover: hover) { .plan-note-step:hover:not([disabled]), .plan-note-undo:hover, .plan-note-keep:hover { background: color-mix(in oklab, var(--on-invert) 10%, transparent); } }
-.plan-note-step:active:not([disabled]), .plan-note-undo:active { background: color-mix(in oklab, var(--on-invert) 16%, transparent); }
-.plan-note-at { display: flex; flex-direction: column; align-items: center; min-width: 128px; padding: 0 2px; line-height: 1.25; text-align: center; }
-.plan-note-at > b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.plan-note-at > small { font-size: 11.5px; opacity: .75; white-space: nowrap; }
-.plan-note-at > small .past { font-style: normal; font-weight: 650; color: var(--warn-on-invert); }
-.plan-note-at:has(.past) > small { opacity: 1; }
-.plan-note-sep { flex: none; width: 1px; height: 26px; margin: 0 6px; background: color-mix(in oklab, var(--on-invert) 22%, transparent); }
-.plan-note-said { min-width: 0; padding: 0 8px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.plan-note-keep { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px 0 14px; border: 0; border-top: 1px solid color-mix(in oklab, var(--on-invert) 14%, transparent); background: none; color: var(--on-invert); font: inherit; font-size: 13px; text-align: left; cursor: pointer; animation: plan-note-unfold .22s var(--ease); -webkit-tap-highlight-color: transparent; }
-.plan-note-keep > .icon { flex: none; width: 15px; height: 15px; opacity: .75; }
-.plan-note-keep > span:first-of-type { flex: 1 1 auto; min-width: 0; }
-.plan-note-keep b { font-weight: 700; }
-.plan-note-switch { flex: none; position: relative; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in oklab, var(--on-invert) 26%, transparent); transition: background .15s; }
-.plan-note-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-invert); transition: transform .18s var(--ease); }
-.plan-note-keep[aria-checked="true"] .plan-note-switch { background: var(--accent); }
-.plan-note-keep[aria-checked="true"] .plan-note-switch::after { transform: translateX(14px); }
-@keyframes plan-note-unfold { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 60px; } }
-.plan-note :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.plan-note b { color: inherit; }
+/* The note of „Einplanen" (.plan-toast, folia/crates/widgets/src/plannote.rs; owner, 2026-10-18,
+   concept E of folia/design/einplanen/oberflaeche.html): a check, the module, ‹ the semester ›
+   with what happened under it, „Rückgängig"; once the module was moved, the switch „Weitere Module
+   auch nach …". On a wide screen one bar across the page right of the rail, as wide as the panels,
+   one line high (owner, 2026-10-18: „bei der pc Version kann die notification ruhig über die ganze
+   Breite rechts von der sidebar gehen und dann vllt etwas weniger hoch sein"): the switch comes
+   in at the right before „Rückgängig", so nothing under the pointer moves. On a phone a card over
+   the bottom bar (over a module's sheet at the bottom of the screen), the switch a row over the
+   arrows, which stay under the finger. Dark in both themes (`--toast`); nothing in it changes its
+   size as the arrows move the module (the semester's column keeps a width). */
+.plan-toast { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; animation: plan-toast-in .26s var(--ease); }
+@keyframes plan-toast-in { from { opacity: 0; transform: translateY(10px); } }
+.plan-toast-main { grid-area: main; display: flex; align-items: center; gap: 2px; min-width: 0; padding: 4px 0 4px 14px; }
+.plan-toast-end { grid-area: end; display: flex; align-items: center; padding: 4px 6px 4px 0; }
+.plan-toast-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.plan-toast-mark > .icon { width: 13px; height: 13px; stroke-width: 3; }
+.plan-toast-mark.out { background: color-mix(in oklab, var(--on-toast) 18%, transparent); color: var(--on-toast); }
+.plan-toast-mark.out > .icon { stroke-width: 2.25; }
+.plan-toast-title { min-width: 0; max-width: 300px; margin-right: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.plan-toast-step, .plan-toast-undo { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan-toast-step { display: grid; place-items: center; width: 34px; height: 40px; }
+.plan-toast-step > .icon { width: 18px; height: 18px; }
+.plan-toast-step[disabled] { opacity: .3; cursor: default; }
+.plan-toast-undo { min-height: 40px; padding: 0 12px; font-weight: 650; }
+@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); } }
+.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
+.plan-toast-at { display: flex; flex-direction: column; align-items: center; min-width: 128px; padding: 0 2px; line-height: 1.25; text-align: center; }
+.plan-toast-at > b { color: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-toast-at > small { font-size: 11.5px; opacity: .75; white-space: nowrap; }
+.plan-toast-at > small .past { font-style: normal; font-weight: 650; color: var(--toast-warn); }
+.plan-toast-at:has(.past) > small { opacity: 1; }
+.plan-toast-sep { flex: none; width: 1px; height: 26px; margin: 0 6px; background: color-mix(in oklab, var(--on-toast) 22%, transparent); }
+.plan-toast-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.plan-toast-keep { grid-area: keep; display: flex; align-items: center; gap: 10px; min-height: 40px; margin-right: 2px; padding: 0 10px 0 12px; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; font-size: 13px; text-align: left; cursor: pointer; animation: plan-toast-keep-in .2s var(--ease); -webkit-tap-highlight-color: transparent; }
+@keyframes plan-toast-keep-in { from { opacity: 0; transform: translateX(8px); } }
+.plan-toast-keep > .icon { flex: none; width: 15px; height: 15px; opacity: .75; }
+.plan-toast-keep > span:first-of-type { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-toast-keep b { color: inherit; font-weight: 700; }
+.plan-toast-switch { flex: none; position: relative; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in oklab, var(--on-toast) 26%, transparent); transition: background .15s; }
+.plan-toast-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-toast); transition: transform .18s var(--ease); }
+.plan-toast-keep[aria-checked="true"] .plan-toast-switch { background: var(--accent); }
+.plan-toast-keep[aria-checked="true"] .plan-toast-switch::after { transform: translateX(14px); }
+.plan-toast :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 900px) {
-  .plan-note { left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); translate: none; width: auto; max-width: none; }
-  :root:has(.detail.is-module) .plan-note { bottom: calc(10px + env(safe-area-inset-bottom)); }
-  .plan-note-at { flex: 1 1 auto; min-width: 0; }
-  .plan-note-step { width: 40px; height: 44px; }
-  .plan-note-said { flex: 1 1 auto; }
-  .plan-note-keep { min-height: 48px; font-size: 14px; }
+  .plan-toast { left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; border-radius: 14px; }
+  :root:has(.detail.is-module) .plan-toast { bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .plan-toast-main { min-height: 52px; padding: 6px 0 6px 12px; }
+  .plan-toast-end { padding: 6px 6px 6px 0; }
+  .plan-toast-title { display: none; }
+  .plan-toast-at { flex: 1 1 auto; min-width: 0; }
+  .plan-toast-step { width: 40px; height: 44px; }
+  .plan-toast-said { flex: 1 1 auto; }
+  .plan-toast-keep { min-height: 48px; margin: 0; padding: 0 12px 0 14px; border-radius: 0; border-bottom: 1px solid color-mix(in oklab, var(--on-toast) 14%, transparent); font-size: 14px; animation: plan-toast-unfold .22s var(--ease); }
+  @keyframes plan-toast-unfold { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 60px; } }
 }
 /* „Einplanen" where no study is set up (folia/crates/widgets/src/plansetup.rs): a dialog of the
    app's (.st-dialog), as wide as the card of „Mein Studium" needs; „Dein Studium" as that card, the
