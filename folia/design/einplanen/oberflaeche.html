@@ -42,7 +42,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
   --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
   --remove: #c2410c; --on-remove: #ffffff;
-  --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel)); --warn-inv: #f5c26b;
   --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
   --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
@@ -65,7 +65,7 @@
     --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
     --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
     --remove: #e5664a; --on-remove: #0d1017;
-    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel));
+    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --warn-inv: #8f5a0a;
     --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
     --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
     --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
@@ -85,7 +85,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
   --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
   --remove: #e5664a; --on-remove: #0d1017;
-  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel));
+  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --warn-inv: #8f5a0a;
   --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
   --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
@@ -279,6 +279,8 @@ button.pl { cursor: pointer; }
 .snack .sv { display: grid; justify-items: center; min-width: 108px; line-height: 1.2; }
 .snack .sv b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .snack .sv small { font-size: 11px; opacity: .7; }
+.snack .sv small .past { font-style: normal; font-weight: 650; color: var(--warn-inv); }
+.snack .sv:has(.past) small { opacity: 1; }
 .snack .sv.flip b { animation: flip .22s var(--ease); }
 @keyframes flip { from { opacity: 0; transform: translateY(6px); } }
 .snack .sep { width: 1px; height: 26px; margin: 0 6px; background: color-mix(in srgb, var(--on-invert) 18%, transparent); }
@@ -546,7 +548,7 @@ button.pl { cursor: pointer; }
     <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · oben „noch nicht, ohne Filter“ wählen, einplanen, einen Studiengang wählen oder suchen · danach das Fachsemester auf 5: Datenbanken liegt laut Plan hinter dir</p>
     <div class="stage" data-concept="e"></div>
     <div class="c-notes">
-      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später.</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li><li>Nach dem Verschieben: Schalter „Weitere Module auch nach …“ in der zweiten Zeile.</li></ul></div>
+      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später, auch in ein vergangenes (dann steht „liegt zurück“ dabei).</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li><li>Nach dem Verschieben: Schalter „Weitere Module auch nach …“ in der zweiten Zeile.</li></ul></div>
       <div><h3>Gut</h3><ul><li><b>Man sieht immer, was passiert ist,</b> auch beim Wischen in der Liste.</li><li>Ein anderes Semester ist <b>ein Tipp</b> auf ›.</li><li>Am Rechner wie am Handy dieselbe Leiste.</li></ul></div>
       <div><h3>Ohne Studium</h3><ul><li><b>Ein Dialog statt der Leiste:</b> Studiengang, Fachsemester und das Semester des Moduls. Mit Filter ist alles vorausgefüllt, <b>ein Druck auf „Einrichten und einplanen“</b>.</li><li><b>Ohne Filter</b> nimmt Betula keinen Studiengang an: die des Moduls stehen offen da (höchstens drei, Pflicht zuerst), darunter gleich die Suche nach jedem anderen.</li><li><b>Danach der Regelstudienplan:</b> wo er das Modul hinlegt, daraus Fachsemester und Semester, die zusammenpassen; nur, was du nicht selbst gesetzt hast. Liegt das hinter dir, kommt es ins nächste Semester, mit Hinweis; ‹ geht auch in die Vergangenheit, mit Warnung.</li></ul></div>
     </div>
@@ -691,6 +693,9 @@ const aimOf = (st) => st.chosen ?? SESSION;
 // Where a click plans a module: the session's semester, or the next one that offers it.
 const targetOf = (st, m) => { let i = aimOf(st); while (!m.offered(i)) i++; return i; };
 const count = (st) => Object.keys(st.planned).length;
+// How far back E's ‹ goes: to the first Fachsemester, or six semesters while the study is not known.
+// Betula does not say no to the past (owner, 18.10.); only before the study there is no semester.
+const floorAt = (st) => st.start ?? SESSION - 6;
 // The question for the study: with the filter of the catalog (Informatik B.Sc., 1. Semester) one tap;
 // without it, the programs of the module first planned.
 const ASK = { program: "Informatik B.Sc.", fs: 1 };
@@ -765,10 +770,10 @@ const snackOf = (st) => {
     const fs = fsOf(st, i);
     // The switch for the next modules: once a module was moved, and while the session plans
     // somewhere chosen (then on, to switch it off where it is seen).
-    const keep = (s.stepped || st.chosen != null) && i >= SESSION
+    const keep = s.stepped || st.chosen != null
       ? `<button class="snack-keep" type="button" role="switch" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="ico">${icon("stack")}</span><span>Weitere Module auch nach <b>${esc(sem(i))}</b></span><span class="switch" aria-hidden="true"></span></button>`
       : "";
-    bar = `<div class="snack"><div class="snack-row"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${i < SESSION ? "liegt zurück" : s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${i >= SESSION && !modOf(s.k).offered(i) ? " · kein Angebot" : ""}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>${keep}</div>`;
+    bar = `<div class="snack"><div class="snack-row"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= floorAt(st) ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${i < SESSION ? '<em class="past">liegt zurück</em>' : s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${i >= SESSION && !modOf(s.k).offered(i) ? " · kein Angebot" : ""}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>${keep}</div>`;
   }
   return `<div class="snack-wrap">${ask}${bar}</div>`;
 };
@@ -909,7 +914,7 @@ const act = (c, key, st, el) => {
     case "close": if (key.endsWith("-p")) st.open = null; st.strip = false; break;
     case "plan": press(c, key, st, k); break;
     case "step": {
-      const was = st.planned[k], to = Math.max(Math.min(SESSION, was), was + Number(el.dataset.d));
+      const was = st.planned[k], to = Math.max(Math.min(floorAt(st), was), was + Number(el.dataset.d));
       if (to !== was) { st.planned[k] = to; st.flip = true; }
       if (c === "e") { st.snack = { ...st.snack, k, kind: "planned", stepped: true }; settle(c, key, st); }
       break;
