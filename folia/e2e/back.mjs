@@ -9,21 +9,27 @@
 //   step of the history; the arrow at the head and Back bring the overview; turned three times by
 //   ‹ ›, one Back; the entry keeps the semester across a reload.
 // 3 the selection first: a long press selects a row, Back lets go of it and the semester stays,
-//   the next Back brings the overview.
+//   the next Back brings the overview; the arrow at the head the same.
 // 4 the catalog's filters: Back throws the sheet's draft away and writes nothing, „Module anzeigen"
 //   applies it as one step, Back leads to the list before it.
 // 5 a module's sheet closed by its × goes back a step instead of writing one: Forward brings it, Back
 //   from the list does not.
 // 6 a stack for each tab: Start under every tab; a change of tabs writes the history in place, the
 //   tab left comes back as it was, Back leads up through the tab to Start; Forward does not lead into
-//   what a change of tabs left over; the tab tapped again leads to its first page.
+//   what a change of tabs left over; the tab tapped again leads to its first page; Start is
+//   the first entry, and its tab leads nowhere else (not to the profile, which lay above it).
 // 7 a link to a page of another tab (a module's program) changes the tab, what lies above the page
 //   under it.
 // 8 a link from outside: while it is only read, Back leaves Betula; its first use (the arrow) lays
 //   the list and Start under it.
 // An iPhone (no CloseWatcher): Back is the history; a dialog goes with the page it leaves.
 // A wide screen: filter clicks closer than a second are one step, after a pause another; the
-// module beside the list closed by its × goes back where the list was the step before.
+// module beside the list closed by its × goes back where the list was the step before, and so does
+// the tab of the list; after two steps back at once a module is a step of its own with its address;
+// after a reload, whose page keeps the entries it wrote, the × still goes back, and nothing loads
+// the page anew.
+// On a phone every new entry comes with a tap (`navigator.userActivation`): Chrome's Back skips one
+// a page added without one.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
 
@@ -48,12 +54,25 @@ const open = async (options, path, { iphone = false } = {}) => {
   const context = await browser.newContext(options);
   // An iPhone: Safari has no CloseWatcher.
   if (iphone) await context.addInitScript(() => { delete window.CloseWatcher; });
+  // Every new entry comes with a tap (`navigator.userActivation`): Chrome's Back skips an entry a
+  // page added without one (its history manipulation intervention), which Playwright's own steps
+  // through the history would never show.
+  await context.addInitScript(() => {
+    window.__untapped = [];
+    const push = history.pushState.bind(history);
+    history.pushState = (state, title, url) => {
+      if (!navigator.userActivation.isActive) window.__untapped.push(String(url));
+      return push(state, title, url);
+    };
+  });
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push(`console (${during}): ` + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push(`pageerror (${during}): ` + String(e).slice(0, 300)));
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
   await takeover(page);
   await page.evaluate(() => { window.__marker = 1; });
+  // The phone's steps are taps; the wide screen's clicks through the page are none.
+  const taps = Boolean(options.hasTouch);
   const step = async (name, action, until, arg) => {
     during = name;
     await action();
@@ -64,6 +83,8 @@ const open = async (options, path, { iphone = false } = {}) => {
       problems.push(`${name}: did not happen (${page.url()})`);
     }
     if (!(await page.evaluate(() => window.__marker === 1))) problems.push(`${name}: the page was loaded again`);
+    const untapped = await page.evaluate(() => window.__untapped.splice(0));
+    if (taps && untapped.length) problems.push(`${name}: a new entry without a tap (${untapped.join(", ")})`);
   };
   const seed = async (entries) => {
     await page.evaluate((entries) => { for (const [key, text] of entries) localStorage.setItem(key, text); }, entries);
@@ -152,6 +173,17 @@ await part("Android", async () => {
   await step("Back lets go of the selection", () => back(page), new Function(`return !document.querySelector(".st-selbar") && (${resting("WiSe 2026/27").toString()})()`));
   await step("the next Back: the overview", () => back(page), resting(null));
   check((await where(page)).at === start.at, "the selection or the semester moved the history");
+  // The arrow at the head is Back as well: the selection first, the semester staying; then the overview.
+  await step("„Studium planen“ for the arrow", () => page.tap(".st-planbox-head"), resting("WiSe 2026/27"));
+  const again = await middle(page, ".st-pager > .st-slot[data-here] .st-row .st-what");
+  await step("a long press for the arrow", async () => {
+    await touch("touchStart", again.x, again.y);
+    await page.waitForTimeout(700);
+    await touch("touchEnd", 0, 0);
+  }, () => document.querySelector(".st-selbar"));
+  await step("the arrow lets go of the selection", () => page.tap(".top-back.on"), new Function(`return !document.querySelector(".st-selbar") && (${resting("WiSe 2026/27").toString()})()`));
+  await step("the arrow again: the overview", () => page.tap(".top-back.on"), resting(null));
+  check((await where(page)).at === start.at, "the arrow moved the history");
 
   // 4 the catalog's filters
   await step("„Module“", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".vlist"));
@@ -220,6 +252,13 @@ await part("tabs", async () => {
   await step("Back: „Mein Studium“", () => page.evaluate(() => history.back()), () => location.pathname === "/study");
   await step("Back: Start", () => page.evaluate(() => history.back()), () => location.pathname === "/");
   await step("„Module“: the module as it was left", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), () => /[?&]open=/.test(location.search));
+  // Start is the entry under every tab and leads nowhere else: not to the profile, which lay above
+  // it for a while.
+  await step("Back: the list", () => page.evaluate(() => history.back()), () => !/[?&]open=/.test(location.search) && !document.querySelector(".detail.is-module"));
+  await step("the profile", () => page.tap(".topbar .top-profile"), () => location.pathname === "/profile");
+  await step("„Studium“ from the profile", () => page.tap('.bottomnav a.nav[data-area="programs"]'), () => location.pathname === "/study");
+  await step("Start", () => page.tap('.bottomnav a.nav[data-area="home"]'), () => location.pathname === "/");
+  check((await where(page)).at === 0, `Start is not the first entry: ${JSON.stringify(await where(page))}`);
 });
 
 // ---------- a link from outside ----------
@@ -277,6 +316,34 @@ await part("wide", async () => {
   await step("its ×", () => page.click('#preview [data-action="close-detail"]'), () => !/[?&]open=/.test(location.search));
   now = await where(page);
   check(now.at === opened.at - 1, `the × wrote a step instead of going back: ${JSON.stringify(opened)} → ${JSON.stringify(now)}`);
+  // A tab whose page as it was left is the step before goes back there: the history does not grow.
+  await step("„Studium“ in the rail", () => page.click('.rail a.nav[data-area="programs"]'), () => location.pathname === "/study");
+  const away = await where(page);
+  await step("„Module“ in the rail, the list the step before", () => page.click('.rail a.nav[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".vlist"));
+  now = await where(page);
+  check(now.at === away.at - 1 && now.length === away.length, `the tab wrote a step instead of going back to the list: ${JSON.stringify(away)} → ${JSON.stringify(now)}`);
+  // Two steps back at once (the browser's menu of the history), which the router's own list of
+  // steps does not see: a module opened then is a step of its own with its address all the same.
+  await step("a module", () => page.click(".rows a.row >> nth=0"), () => /[?&]open=/.test(location.search) && document.querySelector("#preview h2"));
+  const one = new URL(page.url()).searchParams.get("open");
+  // Through the page: the module beside the list lies over a part of it at this width.
+  await step("another", () => page.$eval(".rows a.row >> nth=1", (row) => row.click()), (one) => /[?&]open=/.test(location.search) && new URL(location.href).searchParams.get("open") !== one, one);
+  const second = new URL(page.url()).searchParams.get("open");
+  await step("two steps back at once", () => page.evaluate(() => history.go(-2)), () => !/[?&]open=/.test(location.search) && !document.querySelector("#preview h2"));
+  const list = await where(page);
+  await step("the second one again", () => page.$eval(`.rows a.row[data-id="${second}"]`, (row) => row.click()), (second) => new URL(location.href).searchParams.get("open") === second && document.querySelector("#preview h2"), second);
+  now = await where(page);
+  check(now.at === list.at + 1, `the module opened after two steps back is no step of its own: ${JSON.stringify(list)} → ${JSON.stringify(now)}`);
+  // A reload keeps the entries the page wrote (they share its document): the × still goes back
+  // where the list was the step before, and nothing loads the page anew.
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await takeover(page);
+  await page.evaluate(() => { window.__marker = 1; });
+  await page.waitForFunction(() => document.querySelector("#preview h2"), null, { timeout: 20000 }).catch(() => problems.push("the module beside the list did not come back after the reload"));
+  const reloaded = await where(page);
+  await step("its × after a reload", () => page.click('#preview [data-action="close-detail"]'), () => !/[?&]open=/.test(location.search) && !document.querySelector("#preview h2"));
+  now = await where(page);
+  check(now.at === reloaded.at - 1 && now.length === reloaded.length, `after a reload the × did not go back where the list was: ${JSON.stringify(reloaded)} → ${JSON.stringify(now)}`);
 });
 
 await browser.close();

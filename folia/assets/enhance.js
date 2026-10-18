@@ -128,7 +128,9 @@
   // The step before in the history is where `link` leads: Back goes there instead of a new step,
   // the same entry as before, and the history does not grow. The browser says it where it has the
   // Navigation API (Chrome, Safari from 26.2, Firefox from 147); else the app's guess
-  // (`data-back`), and the classic site's, which can only ask the referrer.
+  // (`data-back`), and the classic site's, which can only ask the referrer. Not a step of another
+  // load of a page (the site's pages before the app took over, another language): going back
+  // there would load that page anew.
   const samePage = (a, b) => {
     const norm = (u) => u.origin + u.pathname.replace(/^((?:\/[a-z]{2})?\/programs\/[^/]+)\/?$/, "$1/plan") + u.search;
     try { return norm(new URL(a, location.href)) === norm(new URL(b, location.href)); } catch { return false; }
@@ -137,7 +139,7 @@
     const nav = window.navigation;
     if (appRuns() && nav?.currentEntry && typeof nav.entries === "function") {
       const before = nav.entries()[nav.currentEntry.index - 1];
-      return !!before && samePage(before.url, link.href);
+      return !!before && before.sameDocument && samePage(before.url, link.href);
     }
     return appRuns() ? link.dataset.back === "history" : document.referrer.startsWith(location.origin);
   };

@@ -69,7 +69,8 @@ pub fn NavItems() -> impl IntoView {
     // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
     // goes back to where it starts (`TabAgain`). On a phone the tab is a stack of its own: the
     // history becomes Start and the tab's stack as it was left, and in its own tab back to its
-    // first page (`nav::tab`).
+    // first page (`nav::tab`). Elsewhere the tab's page goes back through the history where it is
+    // the step before (folia/design/zurueck/konzept.html), else it is a step of its own.
     let again = TabAgain::expect();
     let tap = move |area: Area| {
         move |ev: leptos::ev::MouseEvent| {
@@ -79,7 +80,8 @@ pub fn NavItems() -> impl IntoView {
             }
             let here = untrack(|| current(area)).is_some();
             if let Some(pending) = pending.filter(|_| APP) {
-                if crate::nav::tab(pending, area, &untrack(|| target(area))) {
+                let to = untrack(|| target(area));
+                if crate::nav::tab(pending, area, &to) || pending.back_if_before(&to) {
                     ev.prevent_default();
                 }
             }
@@ -739,9 +741,6 @@ fn TopBackBox(shown: Memo<Option<Back>>) -> impl IntoView {
     // history where the step before is where it leads, as the browser says it at the moment of
     // the press (`nav::came_from`); else its link leads up.
     let click = move |ev: leptos::ev::MouseEvent| {
-        if let Some(back) = back {
-            back.pressed.update(|presses| *presses = presses.wrapping_add(1));
-        }
         if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
             return;
         }
@@ -750,6 +749,11 @@ fn TopBackBox(shown: Memo<Option<Back>>) -> impl IntoView {
         crate::nav::seed();
         if crate::nav::arrow(crate::nav::came_from(&href, || guess)) {
             ev.prevent_default();
+        } else if let Some(back) = back {
+            // The link leads on; where it leads where the app is already, the page hears the press
+            // and goes back itself (`presses`). Not where the arrow closed something or went back:
+            // one press, one step.
+            back.pressed.update(|presses| *presses = presses.wrapping_add(1));
         }
     };
     view! {

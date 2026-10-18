@@ -32,8 +32,9 @@
 //!   stack, and comes back as it was; what is left over ahead is no way Forward. A page come to from
 //!   outside (a link in a messenger) stays as it came while it is only read, so Back leads back out;
 //!   its first use lays under it what lies above it, up to Start (`seed`). Where the browser lacks
-//!   the Navigation API, or the history below was written by an earlier load of the page (a reload),
-//!   each link is a step of its own as before.
+//!   the Navigation API, or an entry below is of another load of a page (the site's pages before the
+//!   app took over, another language: going there loads that page anew; a reload keeps the entries
+//!   the page wrote), each link is a step of its own as before.
 
 use leptos::prelude::*;
 
@@ -232,12 +233,19 @@ pub fn close_top() -> bool {
 }
 
 /// The address of the step before the current one in this tab's history (path and query, without
-/// the language's prefix), where the browser says it (the Navigation API); `None` where it does not
-/// or where that step is no page of this app.
+/// the language's prefix), where the browser says it (the Navigation API); `None` where it does not,
+/// where that step is no page of this app, or where it is of another load of a page (the site's
+/// pages before the app took over, another language): going back there would load that page anew.
 pub fn before() -> Option<String> {
     #[cfg(feature = "csr")]
     {
-        browser::entries().and_then(|(entries, at)| at.checked_sub(1).and_then(|before| entries.into_iter().nth(before)).flatten())
+        let (entries, at) = browser::seen()?;
+        let before = entries.into_iter().nth(at.checked_sub(1)?)?;
+        if before.same {
+            before.url
+        } else {
+            None
+        }
     }
     #[cfg(not(feature = "csr"))]
     None
@@ -247,7 +255,7 @@ pub fn before() -> Option<String> {
 pub fn knows_history() -> bool {
     #[cfg(feature = "csr")]
     {
-        browser::entries().is_some()
+        browser::seen().is_some()
     }
     #[cfg(not(feature = "csr"))]
     false
@@ -307,11 +315,11 @@ pub fn back() {
 }
 
 /// Whether the step before is the level above within the tab on a phone: its stack has Start under
-/// it, and the browser is above the tab's first page.
+/// it, the browser is above the tab's first page, and that step is of this load of the page.
 pub fn up_in_tab() -> bool {
     #[cfg(feature = "csr")]
     {
-        phone() && browser::stacked().is_some_and(|(_, at, base)| at > base + 1)
+        phone() && browser::stacked().is_some_and(|(entries, at, base)| at > base + 1 && entries.get(at - 1).is_some_and(|entry| entry.same))
     }
     #[cfg(not(feature = "csr"))]
     false
@@ -408,8 +416,8 @@ pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &st
 
 /// A tab of the bar tapped on a phone: in another tab, to its stack as it was left (else to `href`,
 /// where its link leads, with what lies above it); in its own, back to its first page. True where it
-/// did; false where the link has to take the step itself (a wide screen, no Navigation API, a history
-/// below written by an earlier load of the page).
+/// did; false where the link has to take the step itself (a wide screen, no Navigation API, an entry
+/// below of another load of a page).
 pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
     #[cfg(feature = "csr")]
     {
@@ -425,11 +433,20 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
         if now == area {
             let first = if area == Area::Home { base } else { base + 1 };
             if at > first {
+                // An entry of another load of a page would load that page anew: the link then.
+                if !entries.get(first).is_some_and(|entry| entry.same) {
+                    return false;
+                }
                 browser::go(first as i32 - at as i32);
             }
             return true;
         }
-        let stack = browser::saved(area).unwrap_or_else(|| chain_of(href).into_iter().map(|url| Entry { url, semester: None }).collect());
+        // Start is the entry under every tab, and its own tab nothing above it.
+        let stack = if area == Area::Home {
+            Vec::new()
+        } else {
+            browser::saved(area).unwrap_or_else(|| chain_of(href).into_iter().map(|url| Entry { url, semester: None }).collect())
+        };
         let Some(from) = pending.router_at() else { return false };
         browser::tab_to(pending, (&from.0, &from.1), entries, at, base, stack)
     }
@@ -689,7 +706,8 @@ mod browser {
 
     /// An entry of the history as the Navigation API has it: its address (as an app path, `None`
     /// for one not of this app), its key, and whether it is of the document the page is (an entry
-    /// an earlier load of the page wrote is loaded again when the browser goes there).
+    /// of another load is loaded again when the browser goes there; the entries a page wrote stay
+    /// its own across a reload).
     pub(super) struct Seen {
         pub url: Option<String>,
         pub key: String,
@@ -705,7 +723,7 @@ mod browser {
         Some(format!("{path}{}", url.search()))
     }
 
-    fn seen() -> Option<(Vec<Seen>, usize)> {
+    pub(super) fn seen() -> Option<(Vec<Seen>, usize)> {
         let window: JsValue = web_sys::window()?.into();
         let navigation = get(&window, "navigation")?;
         let list = get(&navigation, "entries")?.dyn_into::<Function>().ok()?.call0(&navigation).ok()?.dyn_into::<Array>().ok()?;
@@ -771,6 +789,8 @@ mod browser {
         scrolling: Option<String>,
         /// Ends a step whose `popstate` never came.
         guard: Option<leptos::prelude::TimeoutHandle>,
+        /// The entry a step of `history.go` leads to: a `popstate` elsewhere is the visitor's own.
+        expect: Option<usize>,
     }
 
     thread_local! {
@@ -824,9 +844,11 @@ mod browser {
                     // A step whose `popstate` does not come within a second ends the rewrite where
                     // the browser is.
                     let guard = leptos::prelude::set_timeout_with_handle(finish, std::time::Duration::from_millis(1000)).ok();
+                    let expect = seen().and_then(|(_, at)| at.checked_add_signed(delta as isize));
                     REWRITE.with(|rewrite| {
                         if let Some(rewrite) = rewrite.borrow_mut().as_mut() {
                             rewrite.guard = guard;
+                            rewrite.expect = expect;
                         }
                     });
                     go(delta);
@@ -872,6 +894,14 @@ mod browser {
 
     pub(super) fn on_popstate() -> bool {
         if rewriting() {
+            // Not the entry the step led to: the visitor went back or forward meanwhile. The
+            // rewrite ends where the browser is, and the router hears of the step as of any other.
+            let expected = REWRITE.with(|rewrite| rewrite.borrow().as_ref().and_then(|rewrite| rewrite.expect));
+            let at = seen().map(|(_, at)| at);
+            if expected.is_some() && at.is_some() && expected != at {
+                finish();
+                return false;
+            }
             REWRITE.with(|rewrite| {
                 if let Some(guard) = rewrite.borrow_mut().as_mut().and_then(|rewrite| rewrite.guard.take()) {
                     guard.clear();
@@ -891,7 +921,7 @@ mod browser {
     /// Writes the history for a change of tabs: Start and `stack` above it, the browser at its
     /// top (`super::plan`). The tab left keeps its stack (`save`). The router waits meanwhile
     /// (`Pending::hold`) and takes the top at the end. False where the history cannot be written in
-    /// place: an entry it would walk through was written by an earlier load of the page.
+    /// place: an entry it would walk through is of another load of a page.
     pub(super) fn tab_to(pending: crate::pending::Pending, from: (&str, &str), entries: Vec<Seen>, at: usize, base: usize, stack: Vec<super::Entry>) -> bool {
         if entries.get(base..=at).is_none_or(|walked| walked.iter().any(|entry| !entry.same)) {
             return false;
@@ -914,7 +944,7 @@ mod browser {
             Some(turn) => pending.release(turn, top_of_page),
             None => top_of_page(),
         });
-        REWRITE.with(|rewrite| *rewrite.borrow_mut() = Some(Rewrite { ops, done: Some(done), scrolling, guard: None }));
+        REWRITE.with(|rewrite| *rewrite.borrow_mut() = Some(Rewrite { ops, done: Some(done), scrolling, guard: None, expect: None }));
         run();
         true
     }
@@ -953,6 +983,10 @@ mod browser {
     /// row's semester where the browser is at „Mein Studium".
     fn save(entries: &[Seen], base: usize, at: usize) {
         let area = tab_at(entries, base, at);
+        // Start has no stack of its own (the profile, the legal pages are only above it for a while).
+        if area == Area::Home {
+            return;
+        }
         let urls: Vec<String> = entries.iter().take(at + 1).skip(base + 1).filter_map(|entry| entry.url.clone()).collect();
         let semester = (urls.last().map(String::as_str) == Some(folia_routes::url::STUDY)).then(|| kept("semester")).flatten();
         let mut all: Vec<_> = stacks().into_iter().filter(|(other, _, _)| other != name(area)).collect();
@@ -967,32 +1001,6 @@ mod browser {
     pub(super) fn saved(area: Area) -> Option<Vec<super::Entry>> {
         let (_, semester, urls) = stacks().into_iter().find(|(other, _, _)| other == name(area))?;
         Some(urls.into_iter().map(|url| Entry { semester: (url == folia_routes::url::STUDY).then(|| semester.clone()).flatten(), url }).collect())
-    }
-
-    /// The addresses of the history's entries this app wrote (path and query, without the
-    /// language's prefix; `None` for one that is not of this app) and the index of the current
-    /// one, where the browser has the Navigation API.
-    pub(super) fn entries() -> Option<(Vec<Option<String>>, usize)> {
-        let window: JsValue = web_sys::window()?.into();
-        let navigation = get(&window, "navigation")?;
-        let list = get(&navigation, "entries")?.dyn_into::<Function>().ok()?.call0(&navigation).ok()?.dyn_into::<Array>().ok()?;
-        let index = get(&get(&navigation, "currentEntry")?, "index")?.as_f64()?;
-        if index < 0.0 {
-            return None;
-        }
-        let origin = web_sys::window()?.location().origin().ok()?;
-        let addresses = list
-            .iter()
-            .map(|entry| {
-                let url = web_sys::Url::new(&get(&entry, "url")?.as_string()?).ok()?;
-                if url.origin() != origin {
-                    return None;
-                }
-                let path = crate::i18n::app_path(&url.pathname())?.to_string();
-                Some(format!("{path}{}", url.search()))
-            })
-            .collect();
-        Some((addresses, index as usize))
     }
 }
 

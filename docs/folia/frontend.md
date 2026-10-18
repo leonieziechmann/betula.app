@@ -1855,7 +1855,9 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   module's × and Esc beside a list, its sheet on a phone, „Entfernen" of a planned module in the
   Stundenplan: `Pending::back_to`, `nav::close_to`, `cameFrom` in `enhance.js`), so that Back does
   not bring it again and Forward does; what it changes shows in the next frame, as with a link.
-  Elsewhere the page without it takes the place of the current entry. The step before is what the
+  Elsewhere the page without it takes the place of the current entry. A tab whose page as it was
+  left is the step before goes back there too (on a wide screen, and on a phone where the tab's
+  stack cannot be written in place; `Pending::back_if_before`). The step before is what the
   browser says it is (the Navigation API: Chrome, Edge, Safari from 26.2, Firefox from 147;
   `nav::came_from`), else what the memory of the tabs guesses (`data-back="history"`).
 - **A stack for each tab on a phone** (`nav::tab`, `nav::steer`): the history is Start and, right
@@ -1875,9 +1877,16 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   wenn die app verwendet wurde dann über start menu"); its first use (a link, a tab, the arrow)
   lays under it what lies above it, up to Start (`nav::seed`, `nav::chain_of`): under a module's
   page the catalog and Start, under a program „Alle Studiengänge", „Mein Studium" and Start.
-- **Where it stops**: without the Navigation API, or where the entries below were written by an
-  earlier load of the page (after a reload), a change of tabs cannot write the history in place,
-  and each link is a step of its own, as before.
+- **The router's own list of steps** knows nothing of a step back by several at once or of a change
+  of tabs, and leptos_router 0.8 leaves out a push to the address that list ends at: the address
+  and the history then stayed behind where the page went. So `Pending` writes each new step itself
+  and lets the router take its place (`Pending::commit`).
+- **Where it stops**: without the Navigation API, or where an entry below is of another load of a
+  page (the site's pages before the app took over, another language; going there loads that page
+  anew), a change of tabs cannot write the history in place and each link is a step of its own, as
+  before; the app's own ways back go there only as a link, never through the history. A reload is
+  no such load: the entries a page wrote stay its own (they share its document, as the HTML
+  standard has it; measured in Chromium).
 
 `node folia/e2e/back.mjs` checks it (§4).
 
@@ -3842,16 +3851,18 @@ drives Back as § „Back" has it. A phone as Android has it (Back a close reque
 of „Mein Studium" closes with Back and writes no entry, and Forward opens nothing; the box
 „Studium planen" turns the row to the current semester without a step of the history and the
 entry keeps it across a reload, the arrow at the head and Back bring the overview, three turns by
-‹ › take one Back; the selection first, then the semester; the catalog's filters: Back throws the
+‹ › take one Back; the selection first, then the semester, by Back and by the arrow; the catalog's filters: Back throws the
 sheet's draft away and writes nothing, „Module anzeigen" is one step, Back leads to the list
 before; a module's sheet closed by its × goes back a step. A stack for each tab: Start under every
 tab, a change of tabs writing the history in place, Forward not leading into what it left over,
 the tab left coming back as it was, Back up through the tab to Start, the tab tapped again leading
 to its first page, a module's program changing the tab with „Mein Studium" and „Alle Studiengänge"
-under it. A link from outside: Back leaves Betula while it is only read, the arrow lays the list
+under it, Start's tab leading to Start after the profile lay above it. A link from outside: Back leaves Betula while it is only read, the arrow lays the list
 and Start under it. An iPhone (no `CloseWatcher`): Back is the history, and a dialog goes with the
 page it leaves. A wide screen: filters closer than a second one step, after a pause another; the
-module beside the list closed by its × going back where the list was the step before.
+module beside the list closed by its × going back where the list was the step before, and the
+list's tab as well; after two steps back at once a module opened is a step of its own with its
+address; after a reload the × still goes back, without loading the page anew.
 
 ```bash
 cd e2e && node swipe.mjs

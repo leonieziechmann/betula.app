@@ -498,11 +498,22 @@ impl Pending {
         });
     }
 
+    /// Back to `to` where the browser says it is the step before (a tab's page as it was left, on a
+    /// wide screen): the same entry as before, and the history does not grow. False where it is not,
+    /// or where the step changes nothing the visitor sees.
+    pub(crate) fn back_if_before(&self, to: &str) -> bool {
+        if !crate::nav::knows_history() || !crate::nav::came_from(to, || false) {
+            return false;
+        }
+        let Some(change) = self.change_to(to) else { return false };
+        self.back_to(to.to_string(), change);
+        true
+    }
+
     /// Back to `to`, the step before: closing what stands beside a page where the page without it
     /// is the step before (`nav::came_from`), so that Back does not bring it again. What the step
     /// changes shows at once, as a link's does; the router takes it when the browser has gone back
     /// (its `popstate`). A second press before the browser has moved is the same step.
-    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
     fn back_to(&self, to: String, change: Change) {
         let Some(inner) = self.inner else { return };
         if inner.with_value(|inner| inner.due && inner.via == Via::History) {
@@ -552,7 +563,15 @@ impl Pending {
         match via {
             Via::Link { replace, scroll } => {
                 if let Some(navigate) = navigate {
-                    navigate(&to, NavigateOptions { replace, scroll, ..Default::default() });
+                    // A new step is written here, and the router takes its place: the router leaves
+                    // out a step to the address its own list of steps ends at, and that list knows
+                    // nothing of a step back by several at once or a change of tabs (`nav`), so the
+                    // address and the history would stay behind where the page goes.
+                    #[cfg(feature = "csr")]
+                    if !replace {
+                        browser::push_entry(&to);
+                    }
+                    navigate(&to, NavigateOptions { replace: cfg!(feature = "csr") || replace, scroll, ..Default::default() });
                 }
             }
             Via::History => {
@@ -840,6 +859,13 @@ mod browser {
             });
         }
         look(picture, data, started, quiet);
+    }
+
+    /// A new entry of the history for `to` (an address of the app), as the router writes one.
+    pub(super) fn push_entry(to: &str) {
+        if let Some(history) = web_sys::window().and_then(|window| window.history().ok()) {
+            let _ = history.push_state_with_url(&JsValue::UNDEFINED, "", Some(&crate::i18n::locale().path(to)));
+        }
     }
 
     /// The browser's own Back or Forward, handed to the router now: it reads the address
