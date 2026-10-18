@@ -1887,11 +1887,12 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   it, or a link to a page of another tab, such as a module's program (owner: „Tab Wechsel, das wird
   sonst giga irritierend") — writes the history in place: what is missing first, while the tap is
   fresh (Chrome skips an entry written without one when Back is pressed), then the entries in place
-  (`history.go`, `replaceState`; `nav::plan`). The router waits meanwhile and shows what the tap
-  changed in the next frame (`Pending::hold`, `release`). The tab left keeps its stack (in
-  `sessionStorage`, `betula.nav.stacks`) and comes back as it was left; what is left over ahead is
-  no way Forward (`nav::on_popstate` steps back out of it). The tab tapped again leads to its first
-  page. A module's own page opened out of a tab that shows its modules in place stays in that tab
+  (`history.go`, `replaceState`; `nav::plan`). What the tap changes shows in the next frame
+  (`Pending::hold`); the history is written after that frame, as a link's step is (the tap stays
+  fresh for seconds), and the router takes the top at the end (`Pending::release`). The tab left
+  keeps its stack (in `sessionStorage`, `betula.nav.stacks`) and comes back as it was left; what is
+  left over ahead is no way Forward (`nav::on_popstate` steps back out of it). The tab tapped again
+  leads to its first page. A module's own page opened out of a tab that shows its modules in place stays in that tab
   (`nav::tab_of_page`).
 - **A link from outside** (a messenger) stays as it came while it is only read, so that Back leads
   back out (owner: „wenn es keine Interaktion mit dem back graphen gab dann in den massanger, aber

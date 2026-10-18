@@ -484,18 +484,15 @@ impl Pending {
         Some(turn)
     }
 
-    /// The history is written (`hold`): the router takes where the browser is now, after the next
-    /// frame, as `start` lets it, so that what the step changes is seen first; then `then`. Nothing
-    /// where a newer navigation took the step's place.
+    /// The history is written (`hold`; after the frame that showed the step, `nav`): the router
+    /// takes where the browser is now; then `then`. Nothing where a newer navigation took the step's
+    /// place.
     pub(crate) fn release(&self, turn: u64, then: impl FnOnce() + 'static) {
         let Some(inner) = self.inner else { return };
-        let pending = *self;
-        folia_design::nav::after_paint(move || {
-            if inner.try_with_value(|inner| inner.due && inner.turn == turn).unwrap_or(false) {
-                pending.commit();
-                then();
-            }
-        });
+        if inner.try_with_value(|inner| inner.due && inner.turn == turn).unwrap_or(false) {
+            self.commit();
+            then();
+        }
     }
 
     /// Back to `to` where the browser says it is the step before (a tab's page as it was left, on a

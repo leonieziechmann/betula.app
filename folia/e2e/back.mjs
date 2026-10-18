@@ -78,7 +78,8 @@ const open = async (options, path, { iphone = false } = {}) => {
     await action();
     try {
       await page.waitForFunction(until, arg, { timeout: 8000 });
-      await page.waitForFunction(() => !document.querySelector(".pending-page.held"), null, { timeout: 2000 });
+      // And for the router: until it takes the step (`main` busy) the links of the page before are there.
+      await page.waitForFunction(() => !document.querySelector(".pending-page.held") && document.getElementById("content")?.getAttribute("aria-busy") !== "true", null, { timeout: 2000 });
     } catch {
       problems.push(`${name}: did not happen (${page.url()})`);
     }

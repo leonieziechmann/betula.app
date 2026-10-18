@@ -27,14 +27,15 @@
 //!   out (owner, 2026-10-18: „Erst zur Startseite dann raus"). A change of tabs — the bar, or a link
 //!   to a page of another tab („Tab Wechsel, das wird sonst giga irritierend") — writes the history
 //!   in place: first what is missing, while the tap is fresh (an entry written without one the
-//!   browsers skip on Back), then the entries in place (`history.go`, `replaceState`); the router
-//!   waits meanwhile and takes the top once it is written (`Pending::hold`). The tab left keeps its
-//!   stack, and comes back as it was; what is left over ahead is no way Forward. A page come to from
-//!   outside (a link in a messenger) stays as it came while it is only read, so Back leads back out;
-//!   its first use lays under it what lies above it, up to Start (`seed`). Where the browser lacks
-//!   the Navigation API, or an entry below is of another load of a page (the site's pages before the
-//!   app took over, another language: going there loads that page anew; a reload keeps the entries
-//!   the page wrote), each link is a step of its own as before.
+//!   browsers skip on Back), then the entries in place (`history.go`, `replaceState`). What the tap
+//!   changes shows at once (`Pending::hold`), the history is written after the frame that shows it
+//!   (the tap stays fresh for seconds), and the router takes the top once it is written. The tab
+//!   left keeps its stack, and comes back as it was; what is left over ahead is no way Forward. A
+//!   page come to from outside (a link in a messenger) stays as it came while it is only read, so
+//!   Back leads back out; its first use lays under it what lies above it, up to Start (`seed`).
+//!   Where the browser lacks the Navigation API, or an entry below is of another load of a page (the
+//!   site's pages before the app took over, another language: going there loads that page anew; a
+//!   reload keeps the entries the page wrote), each link is a step of its own as before.
 
 use leptos::prelude::*;
 
@@ -396,16 +397,19 @@ pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &st
         if rewriting() {
             return true;
         }
-        seed();
         let to = to.split('#').next().unwrap_or(to);
-        let Some((entries, at, base)) = browser::stacked() else { return false };
+        let Some((entries, at, base, landing)) = browser::stacked_or_seeded() else { return false };
         let from = browser::tab_at(&entries, base, at);
         let into = tab_of_page(to.split('?').next().unwrap_or(to), from);
         if into == from {
+            // The link takes its own step, above the way up its first use lays under the page.
+            if let Some(landing) = landing {
+                browser::seed_now(landing);
+            }
             return false;
         }
         let stack = chain_of(to).into_iter().map(|url| Entry { url, semester: None }).collect();
-        browser::tab_to(pending, (from_path, from_search), entries, at, base, stack)
+        browser::tab_to(pending, (from_path, from_search), entries, at, base, stack, landing)
     }
     #[cfg(not(feature = "csr"))]
     {
@@ -427,8 +431,7 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
         if rewriting() {
             return true;
         }
-        seed();
-        let Some((entries, at, base)) = browser::stacked() else { return false };
+        let Some((entries, at, base, landing)) = browser::stacked_or_seeded() else { return false };
         let now = browser::tab_at(&entries, base, at);
         if now == area {
             let first = if area == Area::Home { base } else { base + 1 };
@@ -436,6 +439,9 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
                 // An entry of another load of a page would load that page anew: the link then.
                 if !entries.get(first).is_some_and(|entry| entry.same) {
                     return false;
+                }
+                if let Some(landing) = landing {
+                    browser::seed_now(landing);
                 }
                 browser::go(first as i32 - at as i32);
             }
@@ -448,7 +454,7 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
             browser::saved(area).unwrap_or_else(|| chain_of(href).into_iter().map(|url| Entry { url, semester: None }).collect())
         };
         let Some(from) = pending.router_at() else { return false };
-        browser::tab_to(pending, (&from.0, &from.1), entries, at, base, stack)
+        browser::tab_to(pending, (&from.0, &from.1), entries, at, base, stack, landing)
     }
     #[cfg(not(feature = "csr"))]
     {
@@ -760,12 +766,26 @@ mod browser {
     }
 
     /// A page come to from outside, not used yet: the first entry of the app, not Start.
+    /// A page come to from outside, not used yet (`seed`): its address, the first of the app's
+    /// entries and not Start.
+    pub(super) struct Landing(String);
+
+    pub(super) fn landing() -> Option<Landing> {
+        let (entries, at) = seen()?;
+        match entries.first() {
+            Some(Seen { url: Some(url), same: true, .. }) if at == 0 && url.as_str() != "/" => Some(Landing(url.clone())),
+            _ => None,
+        }
+    }
+
     pub(super) fn seed() -> bool {
-        let Some((entries, at)) = seen() else { return false };
-        let landing = match entries.first() {
-            Some(Seen { url: Some(url), same: true, .. }) if at == 0 && url.as_str() != "/" => url.clone(),
-            _ => return false,
-        };
+        landing().is_some_and(seed_now)
+    }
+
+    /// Lays under the page come to from outside what lies above it, up to Start: Start in its
+    /// entry's place, then the way up to it and the page itself, which keeps what its entry kept
+    /// (the row's semester).
+    pub(super) fn seed_now(Landing(landing): Landing) -> bool {
         let Some(history) = web_sys::window().and_then(|window| window.history().ok()) else { return false };
         let locale = crate::i18n::locale();
         let state = history.state().unwrap_or(JsValue::NULL);
@@ -773,11 +793,24 @@ mod browser {
             return false;
         }
         for url in super::chain_of(&landing) {
-            // The page itself keeps what its entry kept (the row's semester).
             let kept = if url == landing { state.clone() } else { JsValue::NULL };
             let _ = history.push_state_with_url(&kept, "", Some(&locale.path(&url)));
         }
         true
+    }
+
+    /// The history as a phone's stacks have it (`stacked`), or, where the first use of a page come
+    /// to from outside is to lay the way up under it (`landing`), as it will be then: Start, the
+    /// way up and the page, the browser at the page.
+    pub(super) fn stacked_or_seeded() -> Option<(Vec<Seen>, usize, usize, Option<Landing>)> {
+        match landing() {
+            Some(landing) => {
+                let entries: Vec<Seen> = std::iter::once("/".to_string()).chain(super::chain_of(&landing.0)).map(|url| Seen { url: Some(url), key: String::new(), same: true }).collect();
+                let at = entries.len().checked_sub(1)?;
+                Some((entries, at, 0, Some(landing)))
+            }
+            None => stacked().map(|(entries, at, base)| (entries, at, base, None)),
+        }
     }
 
     // ---- a change of tabs writing the history ----
@@ -791,6 +824,10 @@ mod browser {
         guard: Option<leptos::prelude::TimeoutHandle>,
         /// The entry a step of `history.go` leads to: a `popstate` elsewhere is the visitor's own.
         expect: Option<usize>,
+        /// The way up to lay under a page come to from outside first (`seed_now`).
+        seed: Option<Landing>,
+        /// The history is being written: it waits for the frame that shows the tap.
+        started: bool,
     }
 
     thread_local! {
@@ -868,8 +905,12 @@ mod browser {
             guard.clear();
         }
         // What lies ahead now is what the change of tabs left over: Forward does not lead there.
-        if let Some((entries, at)) = seen() {
-            STALE.with(|stale| stale.borrow_mut().extend(entries.into_iter().skip(at + 1).map(|entry| entry.key)));
+        // Not where the visitor's own step came before anything was written: what lies ahead is
+        // theirs then.
+        if rewrite.started {
+            if let Some((entries, at)) = seen() {
+                STALE.with(|stale| stale.borrow_mut().extend(entries.into_iter().skip(at + 1).map(|entry| entry.key)));
+            }
         }
         if let (Some(scrolling), Some(history)) = (rewrite.scrolling, web_sys::window().and_then(|window| window.history().ok())) {
             let _ = Reflect::set(&history, &JsValue::from_str("scrollRestoration"), &JsValue::from_str(&scrolling));
@@ -894,11 +935,12 @@ mod browser {
 
     pub(super) fn on_popstate() -> bool {
         if rewriting() {
-            // Not the entry the step led to: the visitor went back or forward meanwhile. The
-            // rewrite ends where the browser is, and the router hears of the step as of any other.
-            let expected = REWRITE.with(|rewrite| rewrite.borrow().as_ref().and_then(|rewrite| rewrite.expect));
+            // Not the entry the step led to, or no step taken yet: the visitor went back or forward
+            // meanwhile. The rewrite ends where the browser is, and the router hears of the step as
+            // of any other.
+            let (started, expected) = REWRITE.with(|rewrite| rewrite.borrow().as_ref().map_or((true, None), |rewrite| (rewrite.started, rewrite.expect)));
             let at = seen().map(|(_, at)| at);
-            if expected.is_some() && at.is_some() && expected != at {
+            if !started || (expected.is_some() && at.is_some() && expected != at) {
                 finish();
                 return false;
             }
@@ -919,10 +961,12 @@ mod browser {
     }
 
     /// Writes the history for a change of tabs: Start and `stack` above it, the browser at its
-    /// top (`super::plan`). The tab left keeps its stack (`save`). The router waits meanwhile
-    /// (`Pending::hold`) and takes the top at the end. False where the history cannot be written in
-    /// place: an entry it would walk through is of another load of a page.
-    pub(super) fn tab_to(pending: crate::pending::Pending, from: (&str, &str), entries: Vec<Seen>, at: usize, base: usize, stack: Vec<super::Entry>) -> bool {
+    /// top (`super::plan`), and first the way up under a page come to from outside (`landing`). The
+    /// tab left keeps its stack (`save`). What the tap changes shows at once (`Pending::hold`); the
+    /// history is written after the frame that shows it, so that the tap answers as quickly as a
+    /// link's, and the router takes the top at the end. False where the history cannot be written
+    /// in place: an entry it would walk through is of another load of a page.
+    pub(super) fn tab_to(pending: crate::pending::Pending, from: (&str, &str), entries: Vec<Seen>, at: usize, base: usize, stack: Vec<super::Entry>, landing: Option<Landing>) -> bool {
         if entries.get(base..=at).is_none_or(|walked| walked.iter().any(|entry| !entry.same)) {
             return false;
         }
@@ -930,9 +974,6 @@ mod browser {
         let top = stack.last().map_or_else(|| "/".to_string(), |entry| entry.url.clone());
         let (top_path, top_search) = top.split_once('?').unwrap_or((top.as_str(), ""));
         let turn = crate::pending::change(from.0, from.1, top_path, top_search, true).and_then(|change| pending.hold(top.clone(), change));
-        let Some(history) = web_sys::window().and_then(|window| window.history().ok()) else { return false };
-        let scrolling = Reflect::get(&history, &JsValue::from_str("scrollRestoration")).ok().and_then(|value| value.as_string());
-        let _ = Reflect::set(&history, &JsValue::from_str("scrollRestoration"), &JsValue::from_str("manual"));
         let ops = super::plan(base, at, &stack).into();
         // The page the router then shows starts at its top, as a link's does.
         let top_of_page = || {
@@ -944,9 +985,36 @@ mod browser {
             Some(turn) => pending.release(turn, top_of_page),
             None => top_of_page(),
         });
-        REWRITE.with(|rewrite| *rewrite.borrow_mut() = Some(Rewrite { ops, done: Some(done), scrolling, guard: None, expect: None }));
-        run();
+        REWRITE.with(|rewrite| *rewrite.borrow_mut() = Some(Rewrite { ops, done: Some(done), scrolling: None, guard: None, expect: None, seed: landing, started: false }));
+        folia_design::nav::after_paint(begin);
         true
+    }
+
+    /// The frame that shows the tap is there: the history is written now (`tab_to`), unless the
+    /// visitor's own step ended the rewrite meanwhile.
+    fn begin() {
+        let Some(seed) = REWRITE.with(|rewrite| {
+            rewrite.borrow_mut().as_mut().map(|rewrite| {
+                rewrite.started = true;
+                rewrite.seed.take()
+            })
+        }) else {
+            return;
+        };
+        if let Some(landing) = seed {
+            seed_now(landing);
+        }
+        // The page the router then shows starts at its top: the browser's own scrolling waits.
+        if let Some(history) = web_sys::window().and_then(|window| window.history().ok()) {
+            let scrolling = Reflect::get(&history, &JsValue::from_str("scrollRestoration")).ok().and_then(|value| value.as_string());
+            let _ = Reflect::set(&history, &JsValue::from_str("scrollRestoration"), &JsValue::from_str("manual"));
+            REWRITE.with(|rewrite| {
+                if let Some(rewrite) = rewrite.borrow_mut().as_mut() {
+                    rewrite.scrolling = scrolling;
+                }
+            });
+        }
+        run();
     }
 
     // ---- the stacks the tabs were left with ----
