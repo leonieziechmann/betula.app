@@ -1,0 +1,766 @@
+<title>Einplanen-Oberflächen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Three ways to show and change what „Einplanen" did, for the behaviour of verhalten.html (owner,
+     2026-10-18: „D funktioniert auch am besten mit den gesten. Da musst du aber noch ein paar ui
+     Konzepte machen, weil das was du da präsentiert hast war schon clunky."). The click and the swipe
+     plan at once into the semester of the session (verhalten.html); what differs is how that is
+     answered, changed, taken back, and how the study is asked for where none is set up: E a slim
+     note with a stepper, F a longer swipe and arrows at the switch, G the result as a pill that
+     opens the semesters. Each on a desktop and on a phone whose rows a finger really swipes. The
+     student, the modules and the day (Tuesday, 20 October 2026: the session plans for WiSe 26/27)
+     are examples. Tokens are Betula's (folia/assets/app.css), the swipe's looks those of 1.16. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the brief and what the three share, a bar with the study set up or not, one panel per
+   concept (a desktop and a phone that work, what to try, how it goes, its strengths and
+   weaknesses), the comparison and the recommendation. Tokens: Betula's own (light, then dark). */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --remove: #c2410c; --on-remove: #ffffff;
+  --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130; --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --remove: #e5664a; --on-remove: #0d1017;
+    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --remove: #e5664a; --on-remove: #0d1017;
+  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-2); }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The setting: a bar that stays at the top, under the phone's status bar. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.bar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-panel); }
+.bar .group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.bar .jump { margin-left: auto; display: flex; gap: 4px; }
+.bar .jump a { padding: 6px 10px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.bar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A concept. */
+.concept { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; scroll-margin-top: 80px; }
+.c-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px 18px; align-items: start; padding: 22px 24px 18px; }
+.c-tag { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--invert); color: var(--on-invert); font-size: 17px; font-weight: 760; }
+.c-head h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.c-head h2 small { margin-left: 8px; font-size: 12px; font-weight: 650; color: var(--accent-ink); letter-spacing: .02em; }
+.c-head p { margin-top: 4px; max-width: 78ch; color: var(--text-2); text-wrap: pretty; }
+.c-reset { align-self: center; height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.c-reset:hover { background: var(--panel-3); color: var(--text); }
+.try { margin: 0 24px 16px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13.5px; font-weight: 550; }
+.try b { font-weight: 700; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 26px 24px; background: var(--wood); }
+.c-notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 28px; padding: 18px 24px 22px; }
+.c-notes h3 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.c-notes ul { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--text-2); }
+.c-notes li + li { margin-top: 4px; }
+.c-notes li b { color: var(--text); font-weight: 620; }
+
+/* The devices: a window and a phone, scaled to fit (--s). */
+.device { margin: 0; min-width: 0; }
+.device figcaption { margin-top: 10px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; }
+.desk .fit { --w: 780; --h: 540; }
+.desk .frame { border-radius: 12px; background: var(--device); padding: 0 6px 6px; box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.desk .chrome { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; }
+.desk .chrome i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
+.desk .chrome span { min-width: 0; margin-left: 12px; padding: 2px 10px; border-radius: 5px; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .62); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk .screen { border-radius: 6px; }
+.phone { width: 300px; }
+.phone .fit { --w: 390; --h: 800; }
+.phone .frame { padding: 9px; border-radius: 44px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.phone .screen { border-radius: 36px; }
+
+/* ---------- Betula inside the devices ---------- */
+.app { position: relative; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; -webkit-user-select: none; user-select: none; }
+.app .panel { border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.app .label { font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.app svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.app kbd { padding: 1px 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px var(--mono); }
+.app button { border: 0; background: none; cursor: pointer; }
+.search { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); }
+.mono { font-family: var(--mono); font-size: 11.5px; }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11.5px; font-weight: 600; color: var(--text); }
+/* Where a module is planned, at its row and at its switch. */
+.pl { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px 1px 5px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); font: 600 11px/1.45 var(--font); white-space: nowrap; }
+.pl svg.i { width: 12px; height: 12px; }
+.pl .q { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 9.5px; font-weight: 800; }
+button.pl { cursor: pointer; }
+.pop { animation: pop .42s var(--spring); }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { opacity: 1; } }
+.undo-link { padding: 0 2px !important; color: var(--accent-ink) !important; font: 650 11.5px var(--font) !important; text-decoration: underline; text-underline-offset: 2px; }
+.gone { color: var(--text-3); font-size: 11.5px; }
+/* The desktop: the search, the list, the module beside it. */
+.d-app { position: absolute; inset: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr); gap: 8px; padding: 8px; }
+.d-app > .search { grid-column: 1 / -1; }
+.list { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.list-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 14px 8px; font-size: 13px; color: var(--text-2); }
+.list-head > b { font-size: 17px; color: var(--text); }
+.drow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; margin: 0 6px; padding: 9px 10px; border-radius: var(--r-row); cursor: pointer; }
+.drow:hover { background: var(--row-hover); }
+.drow + .drow { margin-top: 1px; }
+.drow.cur { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
+.drow b { font-size: 13px; font-weight: 640; }
+.m { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); font-size: 11.5px; }
+.lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 700; font-size: 13px; }
+.lp small { font-weight: 500; color: var(--text-3); }
+.detail { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.hero { padding: 12px 16px 14px 18px; border-bottom: 1px solid var(--line); }
+.hero-top { display: flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 12.5px; }
+.hero-top .mono { margin-right: auto; padding: 3px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.hero-top span:not(.mono) { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; }
+.hero h3 { margin-top: 8px; font-size: 21px; line-height: 1.16; letter-spacing: -.025em; font-weight: 720; }
+.hero .en { color: var(--text-2); font-size: 13px; }
+.hero-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; margin-right: auto; }
+.b { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; font-weight: 560; color: var(--text-2); }
+.b.strong { background: var(--invert); color: var(--on-invert); box-shadow: none; font-weight: 700; }
+.b.warn { background: var(--warn-soft); color: var(--warn); box-shadow: none; }
+.pair { display: flex; flex-wrap: nowrap; gap: 6px; }
+.sw { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 10px !important; border-radius: var(--r-ctl); background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; transition: background .16s, color .16s; }
+.sw:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.sw small { font-size: 12px; font-weight: 520; color: var(--text-3); }
+.sw.on { background: var(--invert) !important; color: var(--on-invert); box-shadow: none; }
+.sw.on small { color: color-mix(in srgb, var(--on-invert) 72%, transparent); }
+.sw.on kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
+.body { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.body p { color: var(--text-2); font-size: 12.5px; }
+.body i { display: block; height: 40px; border-radius: 8px; background: var(--panel-2); }
+.under { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+/* The phone: the list a finger swipes, the bar of the tabs, the module's sheet when a row is tapped. */
+.p-app { position: absolute; inset: 0; }
+.p-status { position: absolute; left: 30px; right: 30px; top: 16px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 650; }
+.p-top { position: absolute; left: 12px; right: 12px; top: 52px; display: flex; gap: 8px; }
+.p-top .search { flex: 1; height: 46px; }
+.p-top i { width: 46px; height: 46px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); }
+.p-head { position: absolute; left: 12px; right: 12px; top: 108px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.p-head > b { font-size: 18px; color: var(--text); margin-right: 2px; }
+.p-list { position: absolute; left: 12px; right: 12px; top: 150px; display: flex; flex-direction: column; gap: 8px; }
+.rw { position: relative; border-radius: 12px; box-shadow: var(--shadow-panel); overflow: hidden; touch-action: pan-y; }
+.card { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--panel); cursor: pointer; }
+.rw[data-swipe="glide"] .card { transition: transform .32s var(--ease); }
+.card b { font-size: 15px; font-weight: 650; }
+.card .m { font-size: 12px; }
+.card .lp { font-size: 15px; }
+.card .lp small { font-size: 11px; }
+.card.cur::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.ground { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--panel-3); color: var(--text-2); transition: background .16s, color .16s; }
+.ground .i { width: 20px !important; height: 20px !important; }
+.ground .gw { display: grid; line-height: 1.25; min-width: 0; }
+.ground .gw b { font-size: 15px; font-weight: 650; white-space: nowrap; }
+.ground .gw small { font-size: 12.5px; font-weight: 520; opacity: .85; white-space: nowrap; }
+.ground .dots { display: flex; gap: 5px; margin-left: 4px; }
+.ground .dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .3; transition: opacity .12s, transform .12s; }
+.ground .dots i.on { opacity: 1; transform: scale(1.35); }
+.rw[data-armed] .ground { background: var(--accent); color: var(--on-accent); }
+.rw[data-armed][data-planned] .ground { background: var(--remove); color: var(--on-remove); }
+.rw[data-planned]:not([data-armed]) .ground { background: var(--accent); color: var(--on-accent); }
+.p-nav { position: absolute; left: 10px; right: 10px; bottom: 12px; height: 60px; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; justify-items: center; border-radius: 16px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-pop); }
+.p-nav span { position: relative; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); }
+.p-nav span.on { background: var(--invert); }
+.p-nav span em { position: absolute; top: -6px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font: 700 10px/16px var(--font); font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--panel); }
+.p-shade { position: absolute; inset: 0; z-index: 3; background: rgba(15, 23, 42, .3); }
+.p-sheet { position: absolute; z-index: 4; left: 0; right: 0; top: 300px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: sheet-in .3s var(--ease); }
+@keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
+.p-sheet::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+.p-sheet .hero { padding: 20px 16px 16px; }
+.p-sheet .hero-top .x { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 50%; background: var(--panel-3); color: var(--text); cursor: pointer; }
+.p-sheet .hero h3 { font-size: 23px; }
+.p-sheet .badges { margin-right: 0; }
+.p-sheet .switches { display: flex; gap: 8px; width: 100%; }
+.p-sheet .switches > * { flex: 1 1 0; min-width: 0; }
+.p-sheet .sw { justify-content: center; min-height: 46px; font-size: 15px; padding: 0 12px !important; }
+.p-sheet kbd { display: none; }
+.p-sheet .body p { font-size: 13.5px; }
+
+/* ---------- E: a slim note with a stepper ---------- */
+.snack-wrap { position: absolute; z-index: 6; left: 50%; bottom: 18px; translate: -50% 0; width: max-content; max-width: calc(100% - 24px); display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.p-app .snack-wrap { bottom: 84px; width: calc(100% - 24px); }
+.p-app.sheet-open .snack-wrap { bottom: 20px; }
+.snack { display: flex; align-items: center; gap: 2px; min-height: 52px; padding: 4px 6px 4px 12px; border-radius: 14px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.snack .ok { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.snack .ok .i { width: 13px !important; height: 13px !important; stroke-width: 3 !important; }
+.snack .ok.no { background: color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.snack .arr { display: grid; place-items: center; width: 34px; height: 40px; border-radius: 9px; color: var(--on-invert); }
+.snack .arr:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
+.snack .arr[disabled] { opacity: .25; cursor: default; }
+.snack .sv { display: grid; justify-items: center; min-width: 108px; line-height: 1.2; }
+.snack .sv b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.snack .sv small { font-size: 11px; opacity: .7; }
+.snack .sv.flip b { animation: flip .22s var(--ease); }
+@keyframes flip { from { opacity: 0; transform: translateY(6px); } }
+.snack .sep { width: 1px; height: 26px; margin: 0 6px; background: color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.snack .tx { height: 40px; padding: 0 10px !important; border-radius: 9px; color: var(--on-invert); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.snack .tx:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
+.snack .said { flex: 1; font-size: 13.5px; padding-right: 8px; }
+.snack-sub { display: flex; align-items: center; gap: 8px; align-self: center; padding: 6px 12px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-pop); font-size: 12.5px; font-weight: 600; color: var(--text); cursor: pointer; animation: rise .22s var(--ease); }
+.snack-sub .box { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--on-accent); }
+.snack-sub[aria-checked="true"] .box { background: var(--accent); box-shadow: none; }
+.snack-sub .box .i { width: 11px !important; height: 11px !important; stroke-width: 3.2 !important; }
+.ask-card { display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
+.ask-card > div { flex: 1; min-width: 0; line-height: 1.3; }
+.ask-card b { display: block; font-size: 13px; font-weight: 700; }
+.ask-card span { font-size: 12.5px; color: var(--text-2); }
+.yes { height: 34px; padding: 0 14px !important; border-radius: 9px; background: var(--accent) !important; color: var(--on-accent); font-size: 13px; font-weight: 650; }
+.nope { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: var(--text-3); }
+.nope:hover { background: var(--panel-3); color: var(--text); }
+
+/* ---------- F: a longer swipe, arrows at the switch, the session's semester in the list's head ---------- */
+.aim { display: inline-flex; align-items: center; gap: 6px; height: 28px; margin-left: auto; padding: 0 8px 0 10px !important; border-radius: 8px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.aim b { color: var(--text); font-weight: 700; }
+.aim.chosen { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-ink); }
+.aim.chosen b { color: var(--accent-ink); }
+.aim .i { width: 13px !important; height: 13px !important; }
+.aim-wrap { position: relative; margin-left: auto; }
+.aim-menu { position: absolute; z-index: 7; right: 0; top: 34px; width: 210px; padding: 6px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .18s var(--ease); }
+.aim-menu p { padding: 4px 8px 6px; font-size: 11.5px; color: var(--text-3); font-weight: 600; line-height: 1.35; }
+.aim-menu button { display: flex; justify-content: space-between; width: 100%; padding: 8px 10px !important; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: left; }
+.aim-menu button:hover { background: var(--row-hover); }
+.aim-menu button[aria-checked="true"] { color: var(--accent-ink); }
+.aim-menu button small { color: var(--text-3); font-weight: 500; }
+.stepper { display: inline-flex; align-items: stretch; border-radius: var(--r-ctl); background: var(--invert); color: var(--on-invert); overflow: hidden; }
+.stepper > button { display: grid; place-items: center; min-height: 32px; color: var(--on-invert); }
+.stepper .a { width: 30px; }
+.stepper .a:hover, .stepper .c:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
+.stepper .a[disabled] { opacity: .25; cursor: default; }
+.stepper .c { display: inline-flex !important; align-items: center; gap: 7px; padding: 0 6px !important; font-size: 13px; font-weight: 650; white-space: nowrap; box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 18%, transparent), inset -1px 0 0 color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.stepper .c small { font-weight: 520; opacity: .72; font-size: 12px; }
+.stepper .c.flip span { animation: flip .22s var(--ease); display: inline-block; }
+.p-sheet .stepper > button { min-height: 46px; }
+.p-sheet .stepper .a { width: 42px; }
+.p-sheet .stepper .c { flex: 1; justify-content: center; font-size: 15px; }
+.banner { display: flex; align-items: center; gap: 10px; padding: 9px 8px 9px 12px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); animation: rise .26s var(--ease); }
+.banner > div { flex: 1; min-width: 0; line-height: 1.3; }
+.banner b { display: block; font-size: 12.5px; font-weight: 700; color: var(--accent-ink); }
+.banner span { font-size: 12.5px; color: var(--text); font-weight: 600; }
+.hero .banner { margin-top: 10px; }
+.p-banner { position: absolute; left: 12px; right: 12px; z-index: 2; }
+
+/* ---------- G: the result as a pill that opens the semesters ---------- */
+.pillsw { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 10px !important; border-radius: 999px; background: var(--invert) !important; color: var(--on-invert); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.pillsw small { font-weight: 520; opacity: .72; font-size: 12px; }
+.pillsw .q { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 800; }
+.pillsw[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--accent-line); }
+.p-sheet .pillsw { justify-content: center; min-height: 46px; font-size: 15px; }
+.strip { margin-top: 10px; padding: 8px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); animation: rise .2s var(--ease); }
+.strip-ask { display: flex; align-items: center; gap: 8px; margin: -2px -2px 8px; padding: 8px 6px 8px 10px; border-radius: 9px; background: var(--accent-soft); }
+.strip-ask div { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.3; color: var(--text); }
+.strip-ask div b { display: block; color: var(--accent-ink); font-size: 12px; }
+.sems { display: flex; gap: 4px; }
+.sems button { flex: 1 1 0; min-width: 0; display: grid; justify-items: center; padding: 6px 4px !important; border-radius: 8px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); line-height: 1.2; }
+.sems button b { font-size: 12.5px; font-weight: 700; }
+.sems button small { font-size: 10.5px; color: var(--text-3); }
+.sems button.off small { color: var(--warn); }
+.sems button[aria-pressed="true"] { background: var(--accent) !important; box-shadow: none; color: var(--on-accent); }
+.sems button[aria-pressed="true"] small { color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+.sems .trash { flex: 0 0 38px; color: var(--remove); place-items: center; }
+.strip-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.strip-foot .box { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--on-accent); }
+.strip-foot[aria-checked="true"] .box { background: var(--accent); box-shadow: none; }
+.strip-foot .box .i { width: 11px !important; height: 11px !important; stroke-width: 3.2 !important; }
+.sems button b, .sems button small { white-space: nowrap; }
+.p-sheet .sems button { padding: 9px 2px !important; }
+.p-sheet .sems button b { font-size: 12.5px; }
+.p-sheet .sems button small { font-size: 10px; }
+
+/* The comparison and the recommendation. */
+.cmp, .reco { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 80px; }
+.cmp h2, .reco h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.cmp .scroll { margin-top: 14px; overflow-x: auto; }
+.cmp table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; }
+.cmp th, .cmp td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.cmp thead th { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.cmp tbody th { font-weight: 600; color: var(--text); width: 24%; }
+.cmp td { color: var(--text-2); }
+.cmp td b { color: var(--text); }
+.reco p { margin-top: 10px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.reco p b { color: var(--text); font-weight: 640; }
+.reco ul { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); max-width: 80ch; }
+.reco li + li { margin-top: 6px; }
+.reco li b { color: var(--text); font-weight: 640; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop, .snack, .snack-sub, .ask-card, .banner, .strip, .aim-menu, .p-sheet, .snack .sv.flip b, .stepper .c.flip span { animation: none; }
+  .rw[data-swipe="glide"] .card { transition: none; }
+}
+@media (max-width: 960px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 22px 16px; }
+  .stage .desk { width: 100%; }
+  .stage .phone { order: -1; }
+  .c-notes { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 20px; }
+  .c-head { grid-template-columns: auto minmax(0, 1fr); padding: 18px 16px 14px; }
+  .c-reset { grid-column: 1 / -1; justify-self: start; }
+  .try { margin: 0 16px 14px; }
+  .cmp, .reco { padding: 18px 16px; }
+  .bar .jump { display: none; }
+}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Einplanen · 18.10.2026</p>
+      <h1>Sofort eingeplant, und dann?</h1>
+      <p class="lead">Drei Oberflächen für Konzept D. Ein Tipp auf „Einplanen“ oder ein Wisch nach rechts plant sofort ins Semester der Sitzung, wie im Verhaltensblatt. Hier geht es darum, wie Betula das zeigt, wie man das Semester ändert, wie man es zurücknimmt und wie es nach dem Studium fragt. Auf dem Handy-Prototyp lässt sich wirklich wischen.</p>
+      <p class="quote">„D funktioniert auch am besten mit den <b>Gesten</b>. Da musst du aber noch ein paar <b>UI-Konzepte</b> machen, weil das was du da präsentiert hast war schon <b>clunky</b>.“</p>
+    </div>
+    <aside class="rules" aria-labelledby="share-title">
+      <p class="kicker" id="share-title">Was alle drei gemeinsam haben</p>
+      <ul>
+        <li><b>Ein Tipp oder ein Wisch plant sofort,</b> nichts geht dazwischen auf.</li>
+        <li><b>Der Knopf sagt vorher leise, wohin:</b> „Einplanen · WiSe 26/27“.</li>
+        <li><b>Das Ergebnis steht an der Zeile</b> und am Knopf, mit Fachsemester, wo es eins gibt.</li>
+        <li><b>Höchstens eine Zeile Text,</b> keine Gitter, keine Erklärsätze in der App.</li>
+        <li><b>Ohne Studium</b> fragt Betula einmal, vorausgefüllt aus dem Filter: ein Tipp auf „Ja“.</li>
+      </ul>
+    </aside>
+  </header>
+
+  <nav class="bar" aria-label="Einstellungen">
+    <div class="group"><span class="kicker">Studium</span>
+      <div class="seg" role="group" aria-label="Studium"><button type="button" data-setup="1" aria-pressed="true">eingerichtet, 3. FS</button><button type="button" data-setup="0" aria-pressed="false">noch nicht, Filter: Informatik · 1. Semester</button></div>
+    </div>
+    <div class="jump"><a href="#e">E</a><a href="#f">F</a><a href="#g">G</a><a href="#vergleich">Vergleich</a></div>
+  </nav>
+
+  <section class="concept" id="e" aria-labelledby="e-title">
+    <header class="c-head">
+      <span class="c-tag">E</span>
+      <div><h2 id="e-title">Hinweis mit Stepper</h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt darüber ein kleines Kästchen „Weitere auch nach SoSe 27“. Fehlt das Studium, steht darüber eine helle Karte „Ist das dein Studium?“.</p></div>
+      <button class="c-reset" type="button" data-reset="e">Zurücksetzen</button>
+    </header>
+    <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · eine Zeile antippen und im Modul „Einplanen“</p>
+    <div class="stage" data-concept="e"></div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später.</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Man sieht immer, was passiert ist,</b> auch beim Wischen in der Liste.</li><li>Ein anderes Semester ist <b>ein Tipp</b> auf ›.</li><li>Am Rechner wie am Handy dieselbe Leiste.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Eine Leiste mehr über der Seite, für ein paar Sekunden.</li><li>Fehlt das Studium, stehen zwei Dinge übereinander.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="f" aria-labelledby="f-title">
+    <header class="c-head">
+      <span class="c-tag">F</span>
+      <div><h2 id="f-title">Weiterwischen <small>Empfehlung</small></h2><p>Der Wisch ist das Werkzeug: kurz gewischt plant er ins Semester der Sitzung, weiter gewischt springt er Semester für Semester weiter, Punkte zeigen wohin. Kein Hinweis legt sich über die Seite; das Ergebnis erscheint an der Zeile, mit „Rückgängig“ daneben. Im Modul wird „Eingeplant“ zu ‹ Semester ›. Oben an der Liste steht, wohin die Sitzung plant, zum Ändern.</p></div>
+      <button class="c-reset" type="button" data-reset="f">Zurücksetzen</button>
+    </header>
+    <p class="try"><b>Probier:</b> eine Zeile kurz nach rechts wischen, eine andere weit · oben „Einplanen nach …“ antippen · im Modul die Pfeile</p>
+    <div class="stage" data-concept="f"></div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Kurz wischen: Semester der Sitzung. Weiter wischen: die nächsten, ein Punkt je Semester.</li><li>Im Modul: „Einplanen“, danach ‹ › am Knopf, die Mitte nimmt es heraus.</li><li>„Einplanen nach …“ an der Liste: für alle weiteren in dieser Sitzung.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Jedes Semester in einer Bewegung,</b> ohne einen Tipp mehr.</li><li><b>Nichts legt sich über die Seite;</b> das Ergebnis steht, wo man hingeschaut hat.</li><li>Das Semester der Sitzung ist <b>immer sichtbar</b> und nur dort zu ändern.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Weiterwischen muss man einmal entdecken (die Punkte helfen).</li><li>„Rückgängig“ an der Zeile ist klein und geht nach ein paar Sekunden.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="g" aria-labelledby="g-title">
+    <header class="c-head">
+      <span class="c-tag">G</span>
+      <div><h2 id="g-title">Pille</h2><p>Das Ergebnis ist der Schalter: nach dem Tipp springt „Einplanen“ zu einer Pille „✓ WiSe 26/27 · 3. FS ▾“, an der Zeile ebenso. Die Pille antippen klappt darunter die Semester auf, mit Papierkorb. Fehlt das Studium, trägt die Pille ein kleines „?“ statt des Fachsemesters, und oben im Aufgeklappten steht die Frage.</p></div>
+      <button class="c-reset" type="button" data-reset="g">Zurücksetzen</button>
+    </header>
+    <p class="try"><b>Probier:</b> eine Zeile nach rechts wischen und danach ihre Pille antippen · im Modul „Einplanen“, dann die Pille</p>
+    <div class="stage" data-concept="g"></div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, die Pille springt herein.</li><li>Pille antippen: die Semester darunter, eins antippen verschiebt.</li><li>Papierkorb in der Pille: wieder raus.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Am ruhigsten:</b> keine Leiste, kein Hinweis, nur das Ergebnis.</li><li>Die Frage nach dem Studium hängt <b>am „?“</b>, ohne zu drängeln.</li><li>Dasselbe an der Zeile und im Modul.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Ein anderes Semester sind <b>zwei Tipps</b>.</li><li>Das „?“ übersieht man leicht; dann bleibt das Studium uneingerichtet.</li><li>Kein „Rückgängig“; zurück geht es über den Papierkorb.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="cmp" id="vergleich" aria-labelledby="cmp-title">
+    <h2 id="cmp-title">Vergleich</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">E Hinweis mit Stepper</th><th scope="col">F Weiterwischen</th><th scope="col">G Pille</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Einplanen</th><td>1 Tipp oder Wisch</td><td>1 Tipp oder Wisch</td><td>1 Tipp oder Wisch</td></tr>
+          <tr><th scope="row">In ein anderes Semester</th><td>+1 Tipp je Semester</td><td><b>dieselbe Bewegung</b>, weiter gewischt; im Modul +1 Tipp je Semester</td><td>+2 Tipps</td></tr>
+          <tr><th scope="row">Zurücknehmen</th><td>„Rückgängig“ in der Leiste</td><td>„Rückgängig“ an der Zeile, oder wieder wischen</td><td>Papierkorb, oder wieder wischen</td></tr>
+          <tr><th scope="row">Was über der Seite liegt</th><td>eine Leiste, ein paar Sekunden</td><td><b>nichts</b></td><td><b>nichts</b></td></tr>
+          <tr><th scope="row">Semester der Sitzung ändern</th><td>Kästchen nach dem Verschieben</td><td><b>Schalter an der Liste,</b> immer sichtbar</td><td>Kästchen im Aufgeklappten</td></tr>
+          <tr><th scope="row">Frage nach dem Studium</th><td>helle Karte über der Leiste</td><td>Zeile im Modul oder über der Liste</td><td>„?“ an der Pille</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="reco" aria-labelledby="reco-title">
+    <h2 id="reco-title">Empfehlung</h2>
+    <p><b>F, weil der Wisch alles kann und nichts dazwischenkommt.</b> Kurz gewischt ist es der schnelle Weg, weiter gewischt jedes andere Semester. Das Ergebnis steht dort, wo man gerade hinschaut. Im Modul werden aus „Eingeplant“ Pfeile, und das Semester der Sitzung steht offen an der Liste statt in einem Hinweis, der wieder verschwindet.</p>
+    <ul>
+      <li><b>Von G übernehmen:</b> die Pille an der Zeile springt beim Einplanen herein; das ist die Bestätigung, ohne Leiste.</li>
+      <li><b>Von E als Rückfall:</b> wenn „Rückgängig“ an der Zeile zu klein ist, kommt die schmale Leiste von E nur für „Entfernt · Rückgängig“.</li>
+      <li><b>Am Rechner</b> gibt es keinen Wisch; dort tragen „Einplanen“, die Pfeile am Knopf und der Schalter an der Liste alles.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+"use strict";
+// ---------- the day, the semesters, the modules (examples) ----------
+// Tuesday, 20 October 2026: the session plans for WiSe 26/27 (verhalten.html, P1).
+const SESSION = 4053; // WiSe 2026/27, as Betula numbers semesters: year * 2 + 1 for a winter
+const sem = (i) => { const y = Math.floor(i / 2); return i % 2 ? `WiSe ${y % 100}/${(y + 1) % 100}` : `SoSe ${y % 100}`; };
+const winter = (i) => i % 2 === 1;
+const MODS = [
+  { k: "db", id: "12330", t: "Datenbanken", en: "Databases", lp: 6, turnus: "jedes Semester", offered: () => true, times: "Vorlesung Di 9:15–10:45 · Übung Do 13:45–15:15" },
+  { k: "ana", id: "11103", t: "Analysis I", en: "Analysis I", lp: 8, turnus: "nur SoSe", offered: (i) => !winter(i), times: "Laut Modulbeschreibung im Sommersemester." },
+  { k: "bs", id: "12101", t: "Betriebssysteme I", en: "Operating Systems I", lp: 6, turnus: "jedes Semester", offered: () => true, times: "Vorlesung Mo 11:30–13:00 · Übung Mi 9:15–10:45" },
+  { k: "dt", id: "11205", t: "Digitaltechnik", en: "Digital Engineering", lp: 6, turnus: "nur WiSe", offered: (i) => winter(i), times: "Vorlesung Fr 9:15–10:45" },
+  { k: "pm", id: "41320", t: "Projektmanagement", en: "Project Management", lp: 4, turnus: "jedes Semester", offered: () => true, times: "Blockseminar 8.–10. Januar 2027" },
+];
+const modOf = (k) => MODS.find((m) => m.k === k);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const ICON = {
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  plus: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>',
+  done: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18m-12 6 2 2 4-4"/>',
+  minus: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M10 16h4"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  mark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  left: '<path d="m15 6-6 6 6 6"/>',
+  right: '<path d="m9 6 6 6-6 6"/>',
+  down: '<path d="m7 10 5 5 5-5"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+
+// ---------- one student per screen ----------
+let SETUP = true;
+const STATES = {};
+const fresh = (dev) => ({
+  planned: { bs: SESSION + 1 }, // one module planned already, in the summer
+  open: dev === "d" ? "db" : null, // the module beside the list, or the phone's sheet
+  start: SETUP ? SESSION - 2 : null, // the semester of the first Fachsemester (Lena: WiSe 24/25 → 3. FS)
+  asked: false, // the question answered or put aside
+  ask: false, // the question is waiting
+  chosen: null, // the session's semester, changed by the student (P3)
+  snack: null, // E: { k, kind, from, stepped }
+  undo: null, // F, G: { k, kind, from }
+  strip: false, // G: the semesters open at the pill
+  aimMenu: false, // F
+  flash: null, // the module whose pill just came in
+  flip: false,
+});
+const fsOf = (st, i) => (st.start == null ? null : i - st.start + 1);
+const withFs = (st, i) => (fsOf(st, i) ? `${sem(i)} · ${fsOf(st, i)}. FS` : sem(i));
+const aimOf = (st) => st.chosen ?? SESSION;
+// Where a click plans a module: the session's semester, or the next one that offers it.
+const targetOf = (st, m) => { let i = aimOf(st); while (!m.offered(i)) i++; return i; };
+const count = (st) => Object.keys(st.planned).length;
+// The question for the study: the filter of the catalog says Informatik B.Sc., 1. Semester.
+const ASK = { program: "Informatik B.Sc.", fs: 1 };
+const planIt = (st, k, i) => { st.planned[k] = i; st.flash = k; if (st.start == null && !st.asked) st.ask = true; };
+
+// ---------- the parts every screen shares ----------
+const rowPill = (st, c, m) => {
+  const i = st.planned[m.k];
+  if (i == null) return "";
+  const pop = st.flash === m.k ? " pop" : "";
+  const fs = fsOf(st, i);
+  if (c === "g") return `<button class="pl${pop}" type="button" data-act="pill" data-k="${m.k}">${icon("check")}${esc(sem(i))}${fs ? ` · ${fs}. FS` : ' · <span class="q">?</span>'}${icon("down")}</button>`;
+  return `<span class="pl${pop}">${icon("cal")}${esc(fs ? `${fs}. FS · ${sem(i)}` : sem(i))}</span>`;
+};
+const rowUndo = (st, c, m) => {
+  if (c !== "f" || st.undo?.k !== m.k) return "";
+  return st.undo.kind === "removed" ? `<span class="gone">aus ${esc(sem(st.undo.from))} genommen</span><button class="undo-link" type="button" data-act="undo">Rückgängig</button>` : `<button class="undo-link" type="button" data-act="undo">Rückgängig</button>`;
+};
+const meta = (st, c, m) => `<span class="m"><span class="mono">${m.id}</span>${rowPill(st, c, m) || esc(m.turnus)}${rowUndo(st, c, m)}</span>`;
+const badges = (m) => `<div class="badges"><span class="b strong">${m.lp} LP</span><span class="b${m.turnus.startsWith("nur") ? " warn" : ""}">${esc(m.turnus)}</span><span class="b">DE</span></div>`;
+const markSw = () => `<button class="sw" type="button" data-act="none">${icon("mark")}<span>Merken</span><kbd>M</kbd></button>`;
+// „Einplanen" before the click: where it plans, said quietly in the switch.
+const planSw = (st, m) => `<button class="sw" type="button" data-act="plan" data-k="${m.k}">${icon("plus")}<span>Einplanen</span><small>${esc(sem(targetOf(st, m)))}</small><kbd>P</kbd></button>`;
+const switchOf = (st, c, m, phone) => {
+  const i = st.planned[m.k];
+  if (i == null) return planSw(st, m);
+  if (c === "e") return `<button class="sw on" type="button" data-act="plan" data-k="${m.k}">${icon("done")}<span>Geplant</span><small>${esc(withFs(st, i))}</small><kbd>P</kbd></button>`;
+  if (c === "f") return `<div class="stepper"><button class="a" type="button" data-act="step" data-d="-1" data-k="${m.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><button class="c${st.flip ? " flip" : ""}" type="button" data-act="plan" data-k="${m.k}" title="Aus dem Plan nehmen"><span>${icon("done")}</span><span>${esc(sem(i))}</span>${fsOf(st, i) ? `<small>${fsOf(st, i)}. FS</small>` : ""}</button><button class="a" type="button" data-act="step" data-d="1" data-k="${m.k}" aria-label="Ein Semester später">${icon("right")}</button></div>`;
+  const fs = fsOf(st, i);
+  return `<button class="pillsw${st.flash === m.k ? " pop" : ""}" type="button" data-act="pill" data-k="${m.k}" aria-expanded="${st.strip}">${icon("check")}<span>${esc(sem(i))}</span>${fs ? `<small>${fs}. FS</small>` : '<span class="q">?</span>'}${icon("down")}</button>`;
+};
+// G: the semesters under the pill.
+const stripOf = (st, m) => {
+  if (!st.strip || st.planned[m.k] == null) return "";
+  const i = st.planned[m.k];
+  const ask = st.ask ? `<div class="strip-ask"><div><b>Ist das dein Studium?</b>${ASK.program} · ${ASK.fs}. Fachsemester</div><button class="yes" type="button" data-act="yes">Ja</button><button class="nope" type="button" data-act="no" aria-label="Nein">${icon("x")}</button></div>` : "";
+  const sems = [0, 1, 2, 3].map((n) => SESSION + n).map((s) => `<button type="button" class="${m.offered(s) ? "" : "off"}" aria-pressed="${s === i}" data-act="move" data-i="${s}" data-k="${m.k}"><b>${sem(s)}</b><small>${m.offered(s) ? (fsOf(st, s) ? `${fsOf(st, s)}. FS` : "&nbsp;") : "kein Angebot"}</small></button>`).join("");
+  const keep = i !== aimOf(st) || st.chosen != null ? `<div class="strip-foot" role="checkbox" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="box">${st.chosen === i ? icon("check") : ""}</span>Weitere auch nach ${esc(sem(i))}</div>` : "";
+  return `<div class="strip">${ask}<div class="sems">${sems}<button class="trash" type="button" data-act="remove" data-k="${m.k}" aria-label="Aus dem Plan nehmen">${icon("trash")}</button></div>${keep}</div>`;
+};
+// F: the question as a line in the module, or over the list.
+const bannerOf = (st) => st.ask ? `<div class="banner"><div><b>Ist das dein Studium?</b><span>${ASK.program} · ${ASK.fs}. Fachsemester</span></div><button class="yes" type="button" data-act="yes">Ja</button><button class="nope" type="button" data-act="no" aria-label="Nein">${icon("x")}</button></div>` : "";
+// F: where the session plans, at the head of the list.
+const aimOf_ = (st) => `<div class="aim-wrap"><button class="aim${st.chosen != null ? " chosen" : ""}" type="button" data-act="aimmenu">${icon("cal")}nach <b>${esc(sem(aimOf(st)))}</b>${icon("down")}</button>${st.aimMenu ? `<div class="aim-menu" role="menu"><p>Wohin „Einplanen“ in dieser Sitzung plant</p>${[0, 1, 2, 3].map((n) => SESSION + n).map((s) => `<button type="button" role="menuitemradio" aria-checked="${aimOf(st) === s}" data-act="aim" data-i="${s}">${sem(s)}<small>${s === SESSION ? "jetzt" : fsOf(st, s) ? `${fsOf(st, s)}. FS` : ""}</small></button>`).join("")}</div>` : ""}</div>`;
+// E: the note with the stepper, and what stands over it.
+const snackOf = (st) => {
+  const s = st.snack;
+  const ask = st.ask ? `<div class="ask-card"><div><b>Ist das dein Studium?</b><span>${ASK.program} · ${ASK.fs}. Fachsemester</span></div><button class="yes" type="button" data-act="yes">Ja</button><button class="nope" type="button" data-act="no" aria-label="Nein">${icon("x")}</button></div>` : "";
+  if (!s) return ask ? `<div class="snack-wrap">${ask}</div>` : "";
+  let bar;
+  if (s.kind === "removed") bar = `<div class="snack"><span class="ok no">${icon("minus")}</span><span class="said">${esc(modOf(s.k).t)} entfernt</span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>`;
+  else {
+    const i = st.planned[s.k];
+    const fs = fsOf(st, i);
+    bar = `<div class="snack"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${modOf(s.k).offered(i) ? "" : " · kein Angebot"}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>`;
+  }
+  const keep = s.kind !== "removed" && s.stepped ? `<div class="snack-sub" role="checkbox" aria-checked="${st.chosen === st.planned[s.k]}" data-act="keep" data-i="${st.planned[s.k]}"><span class="box">${st.chosen === st.planned[s.k] ? icon("check") : ""}</span>Weitere auch nach ${esc(sem(st.planned[s.k]))}</div>` : "";
+  return `<div class="snack-wrap">${ask}${keep}${bar}</div>`;
+};
+const heroOf = (st, c, phone) => {
+  const m = modOf(st.open);
+  const line = phone ? `<div class="hero-line">${badges(m)}<div class="switches">${switchOf(st, c, m, true)}${markSw()}</div></div>` : `<div class="hero-line">${badges(m)}<div class="pair">${switchOf(st, c, m, false)}${markSw()}</div></div>`;
+  const extra = c === "g" ? stripOf(st, m) : c === "f" ? `${st.undo?.k === m.k && st.undo.kind === "removed" ? `<p class="under">aus ${esc(sem(st.undo.from))} genommen <button class="undo-link" type="button" data-act="undo">Rückgängig</button></p>` : ""}${bannerOf(st)}` : "";
+  const top = phone ? `<div class="hero-top"><span class="mono">${m.id}</span><span class="x" data-act="close">${icon("x")}</span></div>` : `<div class="hero-top"><span class="mono">${m.id}</span><span>${icon("full")}Vollbild <kbd>F</kbd></span><span>${icon("x")}Schließen <kbd>Esc</kbd></span></div>`;
+  return `<header class="hero">${top}<h3>${esc(m.t)}</h3><p class="en">${esc(m.en)}</p>${line}${extra}</header><div class="body"><span class="label">Termine</span><p>${esc(m.times)}</p><i></i><i></i></div>`;
+};
+const headOf = (st, c) => `${SETUP ? "" : `<span class="tag">Informatik B.Sc.</span><span class="tag">1. Semester</span>`}${c === "f" ? aimOf_(st) : ""}`;
+const deskOf = (st, c) => {
+  const rows = MODS.map((m) => `<div class="drow${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
+  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${SETUP ? "1.200" : 64}</b> Module ${headOf(st, c)}</div>${rows}</section><section class="panel detail">${heroOf(st, c, false)}${c === "e" ? snackOf(st) : ""}</section></div>`;
+};
+const phoneOf = (st, c) => {
+  const rows = MODS.map((m) => `<div class="rw" data-k="${m.k}"${st.planned[m.k] != null ? " data-planned" : ""}><div class="ground"></div><div class="card${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div></div>`).join("");
+  const sheet = st.open ? `<div class="p-shade" data-act="close"></div><section class="p-sheet">${heroOf(st, c, true)}</section>` : "";
+  const banner = c === "f" && st.ask && !st.open ? `<div class="p-banner" style="top:520px">${bannerOf(st)}</div>` : "";
+  return `<div class="app p-app${st.open ? " sheet-open" : ""}"><div class="p-status"><span>10:24</span><span>Di, 20. Okt.</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-head"><b>${SETUP ? "1.200" : 64}</b>Module ${headOf(st, c)}</div><div class="p-list">${rows}</div>${banner}<nav class="p-nav"><span></span><span class="on"></span><span></span><span></span><span>${count(st) ? `<em>${count(st)}</em>` : ""}</span></nav>${sheet}${c === "e" ? snackOf(st) : ""}</div>`;
+};
+
+// ---------- what the taps and the swipes do ----------
+const timers = {};
+const later = (key, what, ms, f) => { const id = `${key}:${what}`; clearTimeout(timers[id]); timers[id] = setTimeout(() => { f(); draw(key); }, ms); };
+// A plan or a removal, by the switch or by a swipe (`to`: the semester a long swipe chose).
+const press = (c, key, st, k, to) => {
+  const was = st.planned[k];
+  if (was != null) {
+    delete st.planned[k];
+    st.strip = false;
+    if (c === "e") st.snack = { k, kind: "removed", from: was };
+    else st.undo = { k, kind: "removed", from: was };
+  } else {
+    planIt(st, k, to ?? targetOf(st, modOf(k)));
+    if (c === "e") st.snack = { k, kind: "planned", stepped: false };
+    if (c === "f") st.undo = { k, kind: "planned" };
+  }
+  settle(c, key, st);
+};
+// What goes by itself: E's note, F's „Rückgängig", the pill's spring.
+const settle = (c, key, st) => {
+  if (c === "e" && st.snack) later(key, "snack", st.snack.stepped ? 7000 : 4500, () => { st.snack = null; });
+  if (st.undo) later(key, "undo", 5000, () => { st.undo = null; });
+  if (st.flash) later(key, "flash", 700, () => { st.flash = null; });
+};
+const act = (c, key, st, el) => {
+  const k = el.dataset.k, i = el.dataset.i != null ? Number(el.dataset.i) : null;
+  st.flip = false;
+  switch (el.dataset.act) {
+    case "open": st.open = k; st.strip = false; st.aimMenu = false; break;
+    case "close": if (key.endsWith("-p")) st.open = null; st.strip = false; break;
+    case "plan": press(c, key, st, k); break;
+    case "step": {
+      const was = st.planned[k], to = Math.max(SESSION, was + Number(el.dataset.d));
+      if (to !== was) { st.planned[k] = to; st.flip = true; }
+      if (c === "e") { st.snack = { ...st.snack, k, kind: "planned", stepped: true }; settle(c, key, st); }
+      break;
+    }
+    case "undo":
+      if (c === "e" && st.snack) { const s = st.snack; if (s.kind === "removed") st.planned[s.k] = s.from; else delete st.planned[s.k]; st.snack = null; }
+      else if (st.undo) { const u = st.undo; if (u.kind === "removed") st.planned[u.k] = u.from; else delete st.planned[u.k]; st.undo = null; }
+      break;
+    case "keep": st.chosen = st.chosen === i ? null : i; if (c === "e") settle(c, key, st); break;
+    case "aimmenu": st.aimMenu = !st.aimMenu; break;
+    case "aim": st.chosen = i === SESSION ? null : i; st.aimMenu = false; break;
+    case "pill": if (st.open !== k) { st.open = k; st.strip = true; } else st.strip = !st.strip; break;
+    case "move": st.planned[k] = i; st.flash = k; settle(c, key, st); break;
+    case "remove": press(c, key, st, k); break;
+    case "yes": st.start = SESSION - ASK.fs + 1; st.ask = false; st.asked = true; break;
+    case "no": st.ask = false; st.asked = true; break;
+    default: return;
+  }
+  draw(key);
+};
+
+// ---------- the swipe: a finger on a row of the phone's list ----------
+// As the app's (1.16): armed a third of the way, the ground from quiet to the accent, and red where
+// the module is planned. F goes on: every SWIPE_STEP further is the next semester, a dot each.
+const SWIPE_ARM = 96, SWIPE_STEP = 58, SWIPE_SLOP = 10;
+let drag = null, swallow = false;
+const scaleOf = (el) => parseFloat(getComputedStyle(el.closest(".fit")).getPropertyValue("--s")) || 1;
+const groundOf = (d) => {
+  const st = STATES[d.key], m = modOf(d.k), c = d.key[0], planned = st.planned[m.k];
+  const armed = d.dx >= SWIPE_ARM;
+  d.wrap.toggleAttribute("data-armed", armed);
+  if (planned != null) { d.to = null; return `${icon("minus")}<span class="gw"><b>Entfernen</b><small>aus ${esc(sem(planned))}</small></span>`; }
+  const base = targetOf(st, m);
+  const step = c === "f" && armed ? Math.min(3, Math.floor((d.dx - SWIPE_ARM) / SWIPE_STEP)) : 0;
+  d.to = base + step;
+  const note = m.offered(d.to) ? withFs(st, d.to) : `${sem(d.to)} · kein Angebot`;
+  const dots = c === "f" ? `<span class="dots">${[0, 1, 2, 3].map((n) => `<i class="${armed && n === step ? "on" : ""}"></i>`).join("")}</span>` : "";
+  return `${icon("plus")}<span class="gw"><b>Einplanen</b><small>${esc(note)}</small></span>${dots}`;
+};
+document.addEventListener("pointerdown", (e) => {
+  const card = e.target.closest(".p-app .card");
+  if (!card || e.target.closest("button")) return;
+  const scr = card.closest(".screen");
+  drag = { card, wrap: card.parentElement, ground: card.previousElementSibling, key: scr.dataset.screen, k: card.dataset.k, x0: e.clientX, y0: e.clientY, s: scaleOf(scr), dx: 0, on: false, id: e.pointerId };
+});
+document.addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = (e.clientX - drag.x0) / drag.s, dy = (e.clientY - drag.y0) / drag.s;
+  if (!drag.on) {
+    if (Math.abs(dy) > SWIPE_SLOP && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }
+    if (dx < SWIPE_SLOP) return;
+    drag.on = true;
+    try { drag.card.setPointerCapture(drag.id); } catch {}
+    drag.wrap.dataset.swipe = "drag";
+  }
+  e.preventDefault();
+  drag.dx = Math.max(0, dx - SWIPE_SLOP);
+  const room = 300, shown = drag.dx <= room ? drag.dx : room + (drag.dx - room) * .25;
+  drag.card.style.transform = `translateX(${shown}px)`;
+  const was = drag.step, html = groundOf(drag);
+  if (html !== drag.html) { drag.ground.innerHTML = html; drag.html = html; }
+  if (drag.to !== was) { drag.step = drag.to; if (drag.dx >= SWIPE_ARM) navigator.vibrate?.(6); }
+}, { passive: false });
+const endDrag = (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  drag = null;
+  if (!d.on) return;
+  swallow = true;
+  setTimeout(() => { swallow = false; }, 350);
+  const armed = d.dx >= SWIPE_ARM;
+  d.wrap.dataset.swipe = "glide";
+  if (armed) d.ground.querySelector("b").textContent = STATES[d.key].planned[d.k] != null ? "Entfernt" : "Eingeplant";
+  d.card.style.transform = "";
+  setTimeout(() => {
+    const st = STATES[d.key];
+    if (armed) press(d.key[0], d.key, st, d.k, d.to ?? undefined);
+    draw(d.key);
+  }, armed ? 360 : 320);
+};
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
+
+// ---------- the page around the screens ----------
+const draw = (key) => {
+  const el = document.querySelector(`[data-screen="${key}"]`);
+  if (!el) return;
+  const [c, dev] = key.split("-");
+  const st = STATES[key] || (STATES[key] = fresh(dev));
+  el.innerHTML = dev === "d" ? deskOf(st, c) : phoneOf(st, c);
+  // A semester stepped flips once, not at every drawing after.
+  st.flip = false;
+};
+const reset = (c) => { ["d", "p"].forEach((dev) => { STATES[`${c}-${dev}`] = fresh(dev); draw(`${c}-${dev}`); }); };
+document.querySelectorAll(".stage").forEach((stage) => {
+  const c = stage.dataset.concept;
+  stage.innerHTML = `<figure class="device desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span>betula.app/catalog?open=…</span></div><div class="fit"><div class="screen" data-screen="${c}-d"></div></div></div><figcaption>Am Rechner: Tipp auf „Einplanen“</figcaption></figure><figure class="device phone"><div class="frame"><div class="fit"><div class="screen" data-screen="${c}-p"></div></div></div><figcaption>Am Handy: Zeilen nach rechts wischen</figcaption></figure>`;
+});
+document.addEventListener("click", (e) => {
+  const set = e.target.closest("[data-setup]");
+  if (set) {
+    SETUP = set.dataset.setup === "1";
+    set.parentElement.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === set)));
+    ["e", "f", "g"].forEach(reset);
+    return;
+  }
+  const r = e.target.closest("[data-reset]");
+  if (r) { reset(r.dataset.reset); return; }
+  if (swallow) return;
+  const target = e.target.closest("[data-act]");
+  const scr = e.target.closest("[data-screen]");
+  if (!target || !scr) return;
+  const key = scr.dataset.screen;
+  act(key[0], key, STATES[key], target);
+});
+const fit = () => document.querySelectorAll(".fit").forEach((f) => {
+  const w = Number(getComputedStyle(f).getPropertyValue("--w"));
+  f.style.setProperty("--s", Math.min(1, f.clientWidth / w).toFixed(4));
+});
+new ResizeObserver(fit).observe(document.body);
+["e", "f", "g"].forEach(reset);
+fit();
+</script>
