@@ -721,7 +721,7 @@ a { color: inherit; text-decoration: none; }
   } catch {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch {} };
   const PAGES_NOTES = {
-    kept: "Jede Seite bleibt gebaut, auch wenn ihr Tab nicht vorn ist: Ein Wechsel zeigt sie sofort, so weit gescrollt, wie du sie verlassen hast.",
+    kept: "Gebaut werden alle Seiten beim Start, und jede bleibt gebaut, auch wenn ihr Tab nicht vorn ist: Ein Wechsel zeigt sie sofort, so weit gescrollt, wie du sie verlassen hast.",
     today: "Wie die App heute: Die Seite wird bei jedem Wechsel neu gebaut. Erst steht ihr Skelett da, dann kommt ohne Animation noch einmal die alte Seite, bis die neue ihre Daten hat; gescrollt ist sie wieder oben. Die Zeiten sind die Hälfte dessen, was canary gedrosselt zeigte.",
   };
   const rate = () => (settings.slow ? 0.2 : 1);
