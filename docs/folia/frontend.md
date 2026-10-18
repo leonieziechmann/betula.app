@@ -2614,8 +2614,11 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     page's own, the first `.logo` on the screen, in 640 ms along the way of concept A, turns from
     its circle into its square and its leaf into the logo's size, and takes the logo's colours on
     the last stretch, where it is small; the wordmark flies the same way to the page's own, the
-    first on the screen (on a phone the start page's, beside the logo), while the background clears;
-    on them they go, and the page's own are under them. Without a logo on the screen (a phone's
+    first on the screen (on a phone the start page's, beside the logo), while the background clears.
+    The page's own are not there while they fly (owner, 2026-10-18: „das Icon soll erst existieren
+    wenn es hin geflogen ist"; `html.launch-logo`, `html.launch-mark`): they come in the frame the
+    picture goes, under where the icon, which took the logo's ring and shadow on the last stretch,
+    and the wordmark landed. Without a logo on the screen (a phone's
     page other than the start page) or with reduced motion it only fades, and without a wordmark on
     the screen the launch's fades as the icon sets off; a tap takes it away; once the icon flies,
     taps reach the page. Once a session (`betula.launched` in sessionStorage): a link or a reload
