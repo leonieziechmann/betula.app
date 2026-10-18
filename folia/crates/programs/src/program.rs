@@ -38,8 +38,8 @@ use folia_routes::CatalogQuery;
 use folia_routes::filter::ProgramScope;
 use folia_routes::url::{self, CatalogUrl, LocalView, ProgramTab, ProgramUrl};
 use leptos::prelude::*;
-use leptos_meta::Title;
-use leptos_router::hooks::use_params_map;
+use folia_design::stage::Title;
+use folia_design::i18n::use_params_map;
 
 use folia_data::{use_data, DataError, PageStatus};
 use folia_design::format;

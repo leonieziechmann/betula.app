@@ -13,15 +13,14 @@ pub fn list_viewport(scroller_id: &str, heads: &[&str], content_id: &str) -> Opt
     #[cfg(feature = "csr")]
     {
         let window = web_sys::window()?;
-        let document = window.document()?;
-        let content = document.get_element_by_id(content_id)?.get_bounding_client_rect();
+        let content = crate::stage::by_id(content_id)?.get_bounding_client_rect();
         if is_phone() {
             let height = window.inner_height().ok()?.as_f64()? as f32;
             return Some(((-content.top() as f32).max(0.0), height));
         }
-        let area = document.get_element_by_id(scroller_id)?;
+        let area = crate::stage::by_id(scroller_id)?;
         let area_box = area.get_bounding_client_rect();
-        let under_heads = heads.last().and_then(|id| document.get_element_by_id(id)).map_or(area_box.top(), |head| head.get_bounding_client_rect().bottom());
+        let under_heads = heads.last().and_then(|id| crate::stage::by_id(id)).map_or(area_box.top(), |head| head.get_bounding_client_rect().bottom());
         let top = under_heads.max(area_box.top()) as f32;
         let bottom = (area_box.top() + f64::from(area.client_height())) as f32;
         Some(((top - content.top() as f32).max(0.0), (bottom - top).max(0.0)))
@@ -32,10 +31,10 @@ pub fn list_viewport(scroller_id: &str, heads: &[&str], content_id: &str) -> Opt
 
 /// How tall the heads are together; 0 without them (and on a phone, which shows no heads).
 #[cfg(feature = "csr")]
-fn height_of(document: &web_sys::Document, ids: &[&str]) -> f32 {
+fn height_of(ids: &[&str]) -> f32 {
     use wasm_bindgen::JsCast;
     ids.iter()
-        .filter_map(|id| document.get_element_by_id(id).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()))
+        .filter_map(|id| crate::stage::by_id(id).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()))
         .map(|element| element.offset_height() as f32)
         .sum()
 }
@@ -51,7 +50,7 @@ pub fn scroll_list_to_start(rows_id: &str) {
             options.set_top(0.0);
             options.set_behavior(web_sys::ScrollBehavior::Instant);
             window.scroll_to_with_scroll_to_options(&options);
-        } else if let Some(rows) = window.document().and_then(|d| d.get_element_by_id(rows_id)) {
+        } else if let Some(rows) = crate::stage::by_id(rows_id) {
             rows.set_scroll_top(0);
         }
     }
@@ -65,10 +64,9 @@ pub fn scroll_list_to(scroller_id: &str, heads: &[&str], content_id: &str, offse
     // the heads stand at the top once it has.
     #[cfg(feature = "csr")]
     if !is_phone() {
-        let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
-        let (Some(area), Some(content)) = (document.get_element_by_id(scroller_id), document.get_element_by_id(content_id)) else { return };
+        let (Some(area), Some(content)) = (crate::stage::by_id(scroller_id), crate::stage::by_id(content_id)) else { return };
         let start = content.get_bounding_client_rect().top() - area.get_bounding_client_rect().top() + f64::from(area.scroll_top());
-        area.set_scroll_top((start + f64::from(offset) - f64::from(height_of(&document, heads))).round() as i32);
+        area.set_scroll_top((start + f64::from(offset) - f64::from(height_of(heads))).round() as i32);
         return;
     }
     if let Some((now, _)) = list_viewport(scroller_id, heads, content_id) {
@@ -87,7 +85,7 @@ pub fn scroll_list_by(rows_id: &str, by: f32) {
             options.set_top(f64::from(by));
             options.set_behavior(web_sys::ScrollBehavior::Instant);
             window.scroll_by_with_scroll_to_options(&options);
-        } else if let Some(rows) = window.document().and_then(|d| d.get_element_by_id(rows_id)) {
+        } else if let Some(rows) = crate::stage::by_id(rows_id) {
             rows.set_scroll_top(rows.scroll_top() + by.round() as i32);
         }
     }
@@ -102,7 +100,7 @@ pub fn measure_rows(content_id: &str) -> Vec<(usize, f32)> {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
-        let Some(content) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(content_id)) else { return Vec::new() };
+        let Some(content) = crate::stage::by_id(content_id) else { return Vec::new() };
         let Ok(rows) = content.query_selector_all("[data-i]") else { return Vec::new() };
         (0..rows.length())
             .filter_map(|i| rows.item(i).and_then(|node| node.dyn_into::<web_sys::HtmlElement>().ok()))
@@ -138,7 +136,7 @@ pub fn watch_size(id: &str, on_change: impl Fn() + 'static) -> Option<send_wrapp
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
-        let element = web_sys::window()?.document()?.get_element_by_id(id)?;
+        let element = crate::stage::by_id(id)?;
         let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::js_sys::Array)>::new(move |_entries| on_change());
         let observer = web_sys::ResizeObserver::new(callback.as_ref().unchecked_ref()).ok()?;
         observer.observe(&element);
@@ -173,7 +171,7 @@ pub fn watch_scroll(id: &str, on_scroll: impl Fn() + 'static) -> Option<send_wra
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
-        let target: web_sys::EventTarget = web_sys::window()?.document()?.get_element_by_id(id)?.into();
+        let target: web_sys::EventTarget = crate::stage::by_id(id)?.into();
         let callback = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |_event| on_scroll());
         let options = web_sys::AddEventListenerOptions::new();
         options.set_passive(true);
@@ -189,7 +187,7 @@ pub fn watch_scroll(id: &str, on_scroll: impl Fn() + 'static) -> Option<send_wra
 pub fn width_of(id: &str) -> Option<f64> {
     #[cfg(feature = "csr")]
     {
-        Some(web_sys::window()?.document()?.get_element_by_id(id)?.get_bounding_client_rect().width())
+        Some(crate::stage::by_id(id)?.get_bounding_client_rect().width())
     }
     #[cfg(not(feature = "csr"))]
     None
@@ -236,7 +234,7 @@ pub fn popup_place(trigger_id: &str, min_width: f64) -> Option<PopupPlace> {
     #[cfg(feature = "csr")]
     {
         let window = web_sys::window()?;
-        let trigger = window.document()?.get_element_by_id(trigger_id)?;
+        let trigger = crate::stage::by_id(trigger_id)?;
         let rect = trigger.get_bounding_client_rect();
         let viewport_width = window.inner_width().ok()?.as_f64()?;
         let viewport_height = window.inner_height().ok()?.as_f64()?;
@@ -294,7 +292,7 @@ pub fn focus_by_id(id: &str) {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
-        let element = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(id));
+        let element = crate::stage::by_id(id);
         let Some(element) = element.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
         let options = web_sys::FocusOptions::new();
         options.set_prevent_scroll(true);
@@ -312,7 +310,7 @@ pub fn reveal_in_list(entry_id: &str, center: bool) {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
-        let entry = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(entry_id));
+        let entry = crate::stage::by_id(entry_id);
         let Some(entry) = entry.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
         let Some(list) = entry.parent_element() else { return };
         let (top, height, view) = (entry.offset_top(), entry.offset_height(), list.client_height());
@@ -361,7 +359,7 @@ pub fn after_paint(run: impl FnOnce() + 'static) {
 /// Closes the filter sheet of the phone layout.
 pub fn close_filter_sheet() {
     #[cfg(feature = "csr")]
-    if let Some(filters) = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id("filters")) {
+    if let Some(filters) = crate::stage::by_id("filters") {
         let _ = filters.class_list().remove_1("open");
     }
 }
@@ -462,7 +460,7 @@ pub fn link_under(target: Option<leptos::web_sys::EventTarget>) -> Option<String
 pub fn reveal_selector(selector: &str) -> bool {
     #[cfg(feature = "csr")]
     {
-        let found = web_sys::window().and_then(|w| w.document()).and_then(|d| d.query_selector(selector).ok().flatten());
+        let found = crate::stage::select(selector);
         let Some(element) = found else { return false };
         let options = web_sys::ScrollIntoViewOptions::new();
         options.set_block(web_sys::ScrollLogicalPosition::Center);
@@ -481,7 +479,7 @@ pub fn focus_selector(selector: &str) -> bool {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
-        let found = web_sys::window().and_then(|w| w.document()).and_then(|d| d.query_selector(selector).ok().flatten());
+        let found = crate::stage::select(selector);
         let Some(element) = found.and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok()) else { return false };
         element.focus().is_ok()
     }
@@ -495,7 +493,7 @@ pub fn focus_selector(selector: &str) -> bool {
 pub fn reveal_row(rows_id: &str, module_id: &str) -> bool {
     #[cfg(feature = "csr")]
     {
-        let rows = web_sys::window().and_then(|w| w.document()).and_then(|d| d.get_element_by_id(rows_id));
+        let rows = crate::stage::by_id(rows_id);
         let safe = module_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
         let row = rows.filter(|_| safe).and_then(|rows| rows.query_selector(&format!("a.row[data-id=\"{module_id}\"]")).ok().flatten());
         let Some(row) = row else { return false };

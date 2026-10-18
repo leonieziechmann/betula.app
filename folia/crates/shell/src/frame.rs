@@ -4,7 +4,7 @@
 
 use leptos::prelude::*;
 
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use folia_data::DataError;
 use crate::i18n;

@@ -29,7 +29,7 @@ use folia_stores::myprogram::{program_href, program_name, MineResolved, MyProgra
 use folia_stores::profiles::{Avatar, Backup, Cleared, Deleted, NoBackup, Profile, Profiles, Summary, MAX_NAME, MAX_PROFILES};
 use folia_stores::studyplan::{Saved, Studyplan};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use crate::i18n::{self, Texts};
 use folia_data::{use_ask, use_data};

@@ -5,7 +5,7 @@
 use folia_pages::ask::ModuleAsk;
 use folia_routes::url::{self, ModuleHint};
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
+use folia_design::i18n::use_params_map;
 
 use folia_data::{use_data, PageStatus};
 use crate::i18n::{self, use_location};

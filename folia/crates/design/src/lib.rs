@@ -11,6 +11,7 @@ pub mod i18n;
 pub mod icons;
 pub mod keyboard;
 pub mod nav;
+pub mod stage;
 pub mod ui;
 pub mod waitnote;
 

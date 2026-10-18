@@ -4,7 +4,7 @@
 use folia_model::labels::{Code, ModuleKind, OfferStatus};
 use folia_model::text::{self, Block, Inline, Item, List, ListKind};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use crate::stage::Title;
 
 use crate::i18n;
 

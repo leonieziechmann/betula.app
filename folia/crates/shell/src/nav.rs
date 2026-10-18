@@ -184,19 +184,26 @@ pub enum Kind {
 }
 
 /// What lies over a page while `open` says so (tracked); `close` closes it. Within a component: the
-/// layer goes with it.
+/// layer goes with it. A page whose stage goes behind (`folia_design::stage`) is left, as it was
+/// when a new address took its place: what lies over it is closed (`Follow` would find it gone from
+/// the list), and the semester of its row, the page's own state, stays without its watcher, so that
+/// Back and Esc are the page's in front.
 pub fn layer_while(open: impl Fn() -> bool + 'static, close: impl Fn() + 'static, kind: Kind) {
     #[cfg(feature = "csr")]
     {
         let close: std::rc::Rc<dyn Fn()> = std::rc::Rc::new(close);
         let id = StoredValue::new_local(None::<u64>);
+        let front = folia_design::stage::front();
         Effect::new(move |_| {
-            let now = open();
-            match (now, id.get_value()) {
+            let (open, front) = (open(), front.get());
+            match (open && front, id.get_value()) {
                 (true, None) => id.set_value(Some(browser::open(close.clone(), kind))),
                 (false, Some(layer)) => {
                     id.set_value(None);
                     browser::gone(layer);
+                    if open && kind != Kind::State {
+                        close();
+                    }
                 }
                 _ => {}
             }
@@ -973,11 +980,14 @@ mod browser {
         save(&entries, base, at);
         let top = stack.last().map_or_else(|| "/".to_string(), |entry| entry.url.clone());
         let (top_path, top_search) = top.split_once('?').unwrap_or((top.as_str(), ""));
+        // A tab whose page stands on its stage comes to the front at once, scrolled where it was
+        // left (`stage`); the history is written behind it.
+        let standing = pending.stands(&top);
         let turn = crate::pending::change(from.0, from.1, top_path, top_search, true).and_then(|change| pending.hold(top.clone(), change));
         let ops = super::plan(base, at, &stack).into();
         // The page the router then shows starts at its top, as a link's does.
-        let top_of_page = || {
-            if let Some(window) = web_sys::window() {
+        let top_of_page = move || {
+            if let (false, Some(window)) = (standing, web_sys::window()) {
                 window.scroll_to_with_x_and_y(0.0, 0.0);
             }
         };

@@ -111,13 +111,33 @@ pub fn of_address() -> Locale {
     use_context::<RequestUrl>().and_then(|url| url.parse().ok()).map_or_else(Locale::default, |url| Locale::split(url.path()).0)
 }
 
-/// The router's location with the path of the app: `pathname` without the language's prefix
-/// (`/en/catalog` reads `/catalog`), the rest as the router has it. Use it instead of
+/// Where the page this is called in is, with the path of the app: `pathname` without the
+/// language's prefix (`/en/catalog` reads `/catalog`), the rest as the router has it. On a stage
+/// (`crate::stage`) it is the stage's place, which is the router's while the stage is the one the
+/// router shows and where the stage was left while another is. Use it instead of
 /// `leptos_router::hooks::use_location` wherever a path is compared or remembered.
 pub fn use_location() -> Location {
+    match crate::stage::Stage::here() {
+        Some(stage) => stage.location,
+        None => router_location(),
+    }
+}
+
+/// The router's location with the path of the app, wherever this is called: for what stands
+/// around the stages (the chrome, the memory of the tabs, the stages themselves).
+pub fn router_location() -> Location {
     let location = leptos_router::hooks::use_location();
     let pathname = location.pathname;
     Location { pathname: Memo::new(move |_| pathname.with(|path| Locale::split(path).1.to_string())), ..location }
+}
+
+/// The params of the page's path (a module's `id`, a program's `slug` and `tab`): on a stage those
+/// of the stage's place, else the router's route's.
+pub fn use_params_map() -> Memo<leptos_router::params::ParamsMap> {
+    match crate::stage::Stage::here() {
+        Some(stage) => stage.params,
+        None => leptos_router::hooks::use_params_map(),
+    }
 }
 
 /// An address the browser is at or goes to (`/en/catalog`), as the app's path (`/catalog`), if

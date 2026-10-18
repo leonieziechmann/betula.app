@@ -8,31 +8,32 @@
 // in every frame. Tab into the ground brings it into view. A phone scrolls the ground with the page, and
 // under a page shorter than the window the ground lies just past the window's lower edge.
 import { chromium } from "playwright-core";
+import { fileURLToPath } from "node:url";
 
 const base = (process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
 const problems = [];
 const check = (ok, message) => { if (!ok) problems.push(message); };
 
-const PAGE = "#content > .work.flowing";
+const PAGE = "#content > .page-stage.front > .work.flowing";
 // The ground that shows: the page's own on a wide screen, the one after the view on a phone.
 const facts = (PAGE) => {
   const box = (el) => el && el.getBoundingClientRect();
-  const visible = () => [...document.querySelectorAll(".ground")].find((g) => getComputedStyle(g).display !== "none");
-  const page = document.querySelector(PAGE);
-  const side = document.querySelector(".sidebar, .filters");
-  const body = document.querySelector(".sidebar > .body, .filters .body");
+  const visible = () => [...allOnPage(".ground")].find((g) => getComputedStyle(g).display !== "none");
+  const page = onPage(PAGE);
+  const side = onPage(".sidebar, .filters");
+  const body = onPage(".sidebar > .body, .filters .body");
   const ground = box(visible());
   const inner = page.querySelector(":scope > .page > .page-inner");
   return {
     inset: Math.round(scrollY),
     room: document.documentElement.scrollHeight - innerHeight,
     bar: getComputedStyle(document.documentElement).scrollbarWidth,
-    rail: Math.round(box(document.querySelector(".rail")).top),
-    topbar: Math.round(box(document.querySelector(".topbar")).top),
+    rail: Math.round(box(onPage(".rail")).top),
+    topbar: Math.round(box(onPage(".topbar")).top),
     groundTop: Math.round(ground.top),
     // The foot of the wood behind the page (none on a phone).
-    woodBottom: getComputedStyle(document.querySelector(".wood")).display === "none" ? null : Math.round(box(document.querySelector(".wood")).bottom),
+    woodBottom: getComputedStyle(onPage(".wood")).display === "none" ? null : Math.round(box(onPage(".wood")).bottom),
     // The start page has no panel beside it (owner, 2026-09-28).
     sideBottom: side ? Math.round(box(side).bottom) : null,
     sideScroll: body ? Math.round(body.scrollTop) : null,
@@ -45,16 +46,16 @@ const facts = (PAGE) => {
     // Where the page ends (a page of panels: their ring with it), and where the area ends.
     contentBottom: inner ? Math.round(box(inner.parentElement).bottom) : null,
     areaBottom: Math.round(box(page).bottom),
-    viewHeight: Math.round(box(document.querySelector(".main")).height),
+    viewHeight: Math.round(box(onPage(".main")).height),
   };
 };
 const at = (page) => page.evaluate(facts, PAGE);
 // The wood goes with the ground in every frame: the frames in which it did not are counted.
 const watchWood = (page) => page.evaluate(() => {
-  const visible = () => [...document.querySelectorAll(".ground")].find((g) => getComputedStyle(g).display !== "none");
+  const visible = () => [...allOnPage(".ground")].find((g) => getComputedStyle(g).display !== "none");
   window.__woodOff = 0;
   const tick = () => {
-    const wood = document.querySelector(".wood").getBoundingClientRect().bottom;
+    const wood = onPage(".wood").getBoundingClientRect().bottom;
     const ground = visible().getBoundingClientRect().top;
     if (Math.abs(wood - Math.min(ground, innerHeight)) > 0.5) window.__woodOff++;
     requestAnimationFrame(tick);
@@ -66,12 +67,12 @@ const wheel = async (page, x, y, dy, times) => {
   for (let i = 0; i < times; i++) { await page.mouse.wheel(0, dy); await page.waitForTimeout(90); }
   await page.waitForTimeout(600);
 };
-const toEnd = (page) => page.evaluate((PAGE) => { const el = document.querySelector(PAGE); el.scrollTop = el.scrollHeight; }, PAGE);
+const toEnd = (page) => page.evaluate((PAGE) => { const el = onPage(PAGE); el.scrollTop = el.scrollHeight; }, PAGE);
 // The round corners the ground draws for each panel it cut off, once the area stands still with it
 // up (`data-rest`): each 1 px wider than its panel on both sides, its foot 8 px above the ground;
 // none for a panel that is not there. What is off is listed.
 const corners = (page) => page.evaluate((PAGE) => {
-  const area = document.querySelector(PAGE);
+  const area = onPage(PAGE);
   const ground = area.querySelector(":scope > .ground").getBoundingClientRect();
   const off = [];
   for (const [name, of] of [["cap-side", ":scope > .filters, :scope > .sidebar"], ["cap-list", ":scope > .list.short"], ["cap-preview", ":scope > .detail"]]) {
@@ -89,12 +90,14 @@ const corners = (page) => page.evaluate((PAGE) => {
 // (owner, 2026-09-30: drawn along with the ground they looked off): whether they are still there
 // two frames later.
 const nudge = (page) => page.evaluate((PAGE) => new Promise((done) => {
-  const area = document.querySelector(PAGE);
+  const area = onPage(PAGE);
   area.scrollTop -= 40;
   requestAnimationFrame(() => requestAnimationFrame(() => done(area.hasAttribute("data-rest") || [...area.querySelectorAll(":scope > .ground > .ground-cap")].some((cap) => getComputedStyle(cap).display !== "none"))));
 }), PAGE);
 const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const context = await browser.newContext({ viewport });
+  // What a step looks for is on the page in front (on-page.js; the steps' selectors: what is seen).
+  await context.addInitScript({ path: fileURLToPath(new URL("on-page.js", import.meta.url)) });
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push(`${url}: console: ${m.text().slice(0, 300)}`); });
   page.on("pageerror", (e) => problems.push(`${url}: pageerror: ${String(e).slice(0, 300)}`));
@@ -114,7 +117,7 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   f = await at(page);
   check(f.inset === 0 && f.pageTop === 0, `the wheel over the header or the rail moved something: ${JSON.stringify(f)}`);
   // Just short of the ground; then the wheel brings it as the end of the page, the wood on it.
-  await page.evaluate((PAGE) => { const el = document.querySelector(PAGE); el.scrollTop = el.scrollHeight - el.clientHeight - 300; }, PAGE);
+  await page.evaluate((PAGE) => { const el = onPage(PAGE); el.scrollTop = el.scrollHeight - el.clientHeight - 300; }, PAGE);
   await page.waitForTimeout(300);
   await watchWood(page);
   const view = f.viewHeight;
@@ -127,14 +130,14 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   f = await at(page);
   check(!f.pageEnd && f.groundTop > 692, `upwards the page and the ground did not go back together: ${JSON.stringify(f)}`);
   // Tab from the page's last link into the ground: it comes into view.
-  await page.evaluate((PAGE) => { const el = document.querySelector(PAGE); el.scrollTop = el.scrollHeight - el.clientHeight - 400; const all = [...el.querySelectorAll(":scope > .page a[href], :scope > .page summary")]; all.at(-1).focus(); }, PAGE);
+  await page.evaluate((PAGE) => { const el = onPage(PAGE); el.scrollTop = el.scrollHeight - el.clientHeight - 400; const all = [...el.querySelectorAll(":scope > .page a[href], :scope > .page summary")]; all.at(-1).focus(); }, PAGE);
   await page.waitForTimeout(300);
   await page.keyboard.press("Tab");
   await page.waitForTimeout(900);
   const focused = await page.evaluate(() => { const el = document.activeElement; const r = el?.getBoundingClientRect(); return { inGround: Boolean(el?.closest(".ground")), top: r && Math.round(r.top), bottom: r && Math.round(r.bottom), inset: Math.round(scrollY) }; });
   check(focused.inGround && focused.top >= 56 && focused.bottom <= 893 && focused.inset === 0, `Tab into the ground did not bring it into view: ${JSON.stringify(focused)}`);
   // Leaving through the ground: the next page starts at its top.
-  await page.click('.work.flowing > .ground .ground-legal a[href="/impressum"]');
+  await page.click('.work.flowing > .ground .ground-legal a[href="/impressum"] >> visible=true');
   await page.waitForTimeout(1000);
   f = await at(page);
   check(new URL(page.url()).pathname === "/impressum" && f.pageTop === 0 && f.groundTop >= 900, `the page opened from the ground does not start at its top: ${JSON.stringify(f)}`);
@@ -167,15 +170,15 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
 // stands on the ground in every frame.
 {
   const { context, page } = await open("/catalog?q=datenbank");
-  const listBottom = () => page.evaluate(() => Math.round(document.querySelector(".panel.list").getBoundingClientRect().bottom));
+  const listBottom = () => page.evaluate(() => Math.round(onPage(".panel.list").getBoundingClientRect().bottom));
   let f = await at(page);
   check(f.room === 0 && f.groundTop >= 900 && f.sideBottom === 892, `the catalog: the window has room, or the ground shows, or the filters do not end 8 px above the window's edge: ${JSON.stringify(f)}`);
-  check(await page.evaluate(() => document.querySelector(".panel.list").classList.contains("short")), "a short list is not pinned");
-  const rows = await page.evaluate(() => Math.round(document.querySelector("#rows .row").getBoundingClientRect().top));
+  check(await page.evaluate(() => onPage(".panel.list").classList.contains("short")), "a short list is not pinned");
+  const rows = await page.evaluate(() => Math.round(onPage("#rows .row").getBoundingClientRect().top));
   await watchWood(page);
   await wheel(page, 900, 400, 100, 4);
   f = await at(page);
-  const after = await page.evaluate(() => Math.round(document.querySelector("#rows .row").getBoundingClientRect().top));
+  const after = await page.evaluate(() => Math.round(onPage("#rows .row").getBoundingClientRect().top));
   check(f.inset === 0 && f.groundTop === 692 && rows === after && f.sideBottom === 892 && f.groundTop - f.sideBodyBottom === 8, `a short list: the ground did not come as the end of the page, or the rows moved: ${JSON.stringify(f)} (rows ${rows} → ${after})`);
   check(f.woodOff === 0 && f.woodBottom === f.groundTop, `a short list: the wood did not stand on the ground in every frame: ${JSON.stringify(f)}`);
   check(f.sideEnd === false, `a short list: the filters are not longer than their panel, so this tells nothing: ${JSON.stringify(f)}`);
@@ -208,7 +211,7 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const { context, page } = await open("/", { width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(500);
-  const f = await page.evaluate(() => ({ ground: Math.round(document.querySelector("body > .ground").getBoundingClientRect().bottom), inner: innerHeight, position: getComputedStyle(document.querySelector("body > .ground")).position }));
+  const f = await page.evaluate(() => ({ ground: Math.round(onPage("body > .ground").getBoundingClientRect().bottom), inner: innerHeight, position: getComputedStyle(onPage("body > .ground")).position }));
   check(f.position === "relative" && Math.abs(f.ground - f.inner) <= 1, `a phone: the ground is not at the end of the page: ${JSON.stringify(f)}`);
   await context.close();
 }
@@ -220,10 +223,10 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
 {
   const { context, page } = await open("/studyplan", { width: 390, height: 844 });
   const f = await page.evaluate(() => {
-    const el = document.querySelector("body > .ground");
+    const el = onPage("body > .ground");
     const ground = el.getBoundingClientRect();
     // How far down the page and the ground right after it would reach.
-    const needs = document.querySelector("#content").getBoundingClientRect().bottom + parseFloat(getComputedStyle(el).marginTop) + ground.height;
+    const needs = onPage("#content").getBoundingClientRect().bottom + parseFloat(getComputedStyle(el).marginTop) + ground.height;
     return { room: document.documentElement.scrollHeight - innerHeight, needs: Math.round(needs), top: Math.round(ground.top), bottom: Math.round(ground.bottom), inner: innerHeight };
   });
   check(f.needs < f.inner, `a phone: the empty Stundenplan is not shorter than the window any more, so it tells nothing: ${JSON.stringify(f)}`);
