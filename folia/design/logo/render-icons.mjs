@@ -8,10 +8,15 @@
 //   icon-maskable-334.png     full bleed, the glyph inside the safe circle: Android's launchers, in
 //                             both manifests. Chrome asks for 83 dp there (334 px up to a density
 //                             of 4.02).
-//   icon-maskable-512.png     the same for the splash screen of the light theme, which Chrome draws
-//                             at 128 dp (from a density of 2.61 on more than 334 px, so it takes
-//                             this one and never the launcher's).
-//   icon-maskable-dark-512.png   turned over, for the splash screen of the dark theme: only the
+//   icon-splash-512.png       the splash screen of the light theme, which Chromium draws at 128 dp
+//                             (from a density of 2.61 on more than 334 px, so it takes this one and
+//                             never the launcher's): the maskable one cut round, transparent outside
+//                             the circle (owner, 2026-10-18: „wenn das Icon schon am Anfang rund
+//                             ist … im Zweifelsfall mach halt das Icon Bild rund"). Named maskable,
+//                             so that Chromium takes it before the plain ones; a browser that
+//                             installs a shortcut (Brave) draws it as it is, round, and a mask of
+//                             Android's shows only its middle, which is the full-bleed one's.
+//   icon-splash-dark-512.png  turned over, for the splash screen of the dark theme: only the
 //                             dark manifest names it (folia_app::MANIFEST_DARK). The launcher's
 //                             icon is the same in both manifests, so a theme that changes never
 //                             changes the app's icon on the home screen (Chrome would ask the
@@ -47,8 +52,8 @@ const files = {
   "icon-192.png": await png(192, icon({ radius: 21 })),
   "icon-512.png": await png(512, icon({ radius: 21 })),
   "icon-maskable-334.png": await png(334, icon({ k: MASKABLE })),
-  "icon-maskable-512.png": await png(512, icon({ k: MASKABLE })),
-  "icon-maskable-dark-512.png": await png(512, icon({ k: MASKABLE, dark: true })),
+  "icon-splash-512.png": await png(512, icon({ radius: 48, k: MASKABLE })),
+  "icon-splash-dark-512.png": await png(512, icon({ radius: 48, k: MASKABLE, dark: true })),
   "icon-monochrome-512.png": await png(512, icon({ k: MASKABLE, mono: true })),
 };
 for (const [name, bytes] of Object.entries(files)) writeFileSync(assets + name, bytes);

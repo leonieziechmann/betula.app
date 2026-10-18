@@ -517,7 +517,7 @@ fn logo(svg: &mut String, x: f32, y: f32) {
     crate::logo::app_icon(svg, x, y, icon, false);
     let size = 44.0;
     // Capitals are .728 em high: their middle on the middle of the icon.
-    crate::logo::wordmark(svg, x + icon + 18.0, y + icon / 2.0 + size * 0.364, size, INK);
+    crate::logo::wordmark(svg, &crate::logo::DISPLAY, x + icon + 18.0, y + icon / 2.0 + size * 0.364, size, INK);
 }
 
 /// A mask of the birch at (x, y), `scale` times its size and cut to its box, as the stylesheet
