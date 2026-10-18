@@ -1561,8 +1561,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   only near the screen (`content-visibility: auto`); the window's scroll is not anchored while it
   stands, and the app's page takes the scroll of the server's parts and those sizes before the
   picture goes (`e2e/takeover.mjs`). From then on
-  links, filters and the search are client-side navigation; a step keeps the page before in front
-  of the new one until its answers are there (`pending::hold`, at most 400 ms). Until the takeover,
+  links, filters and the search are client-side navigation; a step keeps what is in front, the
+  page before or the skeleton where one stands, in front of the new one until its answers are
+  there (`pending::hold`, at most 400 ms). Until the takeover,
   and if anything fails, the site stays a website served from the HTML cache.
   A copy of an older schema than the build reads is never opened (`user_version` in the SQLite
   header against `folia_model::SCHEMA_VERSION`): with the network it is replaced first, offline the
@@ -1673,6 +1674,9 @@ overview, building the page 25–75 ms, style and layout the rest.
   the title and the search of the top bar, the catalog's filter panel and the tags above its list
   (so the head of the list has its height before the rows come), the row whose module opens, the
   views of a program, the toggles of the program overview, the sidebar of the marked modules.
+  The mark of a tab changes without a fade (only a hover fades in) and without the browser's tap
+  highlight on the bottom bar: a fade waits for the thread, which builds the page then, and the
+  mark seemed to stay on the tab before (owner, 2026-10-18; Folia 1.24.6).
   Two clicks before the first has reached the page add up: the second link already leads from
   where the first goes (the toggles' addresses follow the panel).
 - **What still has to be computed stands there as a skeleton** (`folia/crates/shell/src/skeleton.rs`): the frame
@@ -1686,6 +1690,13 @@ overview, building the page 25–75 ms, style and layout the rest.
   of a page (the count, a chip, a module's page), the checks included, finds a skeleton instead.
   `main` says `aria-busy` meanwhile. A module that replaces its skeleton does not slide in
   once more (`data-settling` for that frame), nor does a skeleton where a module stood already.
+  The skeleton of a page or a column stays until the new page has its answers: `pending::hold`
+  puts a copy of it in front of the page the router builds, its sweeps at the times of the
+  skeleton's (`getAnimations`), until no answer is on its way (at most 400 ms). Until Folia
+  1.24.6 that picture was one of the page before, which came back between the skeleton and the
+  new page on every tab of a phone (owner, 2026-10-18: „dann flickert der bildshirm, weil erst
+  Skeltons geladen werden, bevor der content kommt"; filmed in
+  `folia/design/tabwechsel/konzept.html`).
 - **A skeleton only where the wait is seen:** a change of the same kind that took at least 50 ms
   the last time (`SLOW_MS`, smoothed), and always the first time. A result that comes quicker
   would come about when the skeleton does, and the skeleton would only flash; then the click
