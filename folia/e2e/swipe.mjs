@@ -9,8 +9,8 @@
 // quiet ground to the inverted look, „Entfernen" back; „Einplanen" to the accent, „Entfernen" out
 // of the plan from the accent to red, striped at 45° so that it is told from the accent by more than
 // its hue), the row's bookmark going with the card as one; let go armed, the ground says what was done while the card holds and glides
-// back, and the module is marked (its bookmark, the Merkliste's count) or planned (the
-// Stundenplan's count); a short slow pull glides back and does nothing, a short flick does it;
+// back, and the module is marked (its bookmark, the Merkliste's count) or planned (in the semester
+// its ground named); a short slow pull glides back and does nothing, a short flick does it;
 // nothing waits for the animation: a card holding what was done or gliding back is the next
 // finger's at once, where it stands, and the swipe right after one undoes it;
 // neither a swipe nor its end is a tap or a step of the history, and a tap right after a swipe is a
@@ -83,6 +83,8 @@ const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
     opacity: Number(getComputedStyle(wrap.querySelector(".row")).opacity),
     marks: count("bookmarks"),
     planned: count("studyplan"),
+    // The semesters the plan holds the module in (the tab counts the current semester alone).
+    plannedIn: (localStorage.getItem("betula.studyplan.v1") || "").split("\n").map((line) => line.split("\t")).filter((f) => f[0] === "m" && f[2] === wrap.querySelector(".row").dataset.id).map((f) => f[1]),
     wide: document.scrollingElement.scrollWidth > innerWidth,
     scrollY: Math.round(scrollY),
     path: location.pathname + location.search,
@@ -117,6 +119,8 @@ const rested = async (what, i = 1) => {
   check(now.path === "/catalog" && now.loaded, `${what}: the page changed (${now.path}, loaded again: ${!now.loaded})`);
   return now;
 };
+// The key of a semester the ground names: „SoSe 2027" 2027S, „WiSe 2026/27" 2026W.
+const keyOf = (said) => { const m = /^(WiSe|SoSe) (\d{4})/.exec(said ?? ""); return m ? m[2] + (m[1] === "WiSe" ? "W" : "S") : null; };
 const box = await page.evaluate(() => { const r = document.querySelectorAll(".vrow .row-wrap")[1].getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), width: r.width }; });
 let now = await state();
 const start = now;
@@ -161,8 +165,9 @@ await page.waitForTimeout(120);
 now = await state();
 check(now.said === `Eingeplant | ${semester}`, `right: the ground says ${JSON.stringify(now.said)} once done`);
 now = await rested("right");
-check(now.planned === "1" && now.marked, `right: the Stundenplan counts ${JSON.stringify(now.planned)}, the mark ${now.marked}`);
-check(await page.evaluate((id) => (localStorage.getItem("betula.studyplan.v1") || "").includes(`\t${id}\t`), now.id), "right: the plan does not hold the module");
+// Planned where the ground said: the semester the session plans for where the module is offered
+// then, else the next that offers it (Analysis I, a summer module, in the summer after a winter).
+check(now.plannedIn.length === 1 && now.plannedIn[0] === keyOf(semester) && now.marked, `right: planned in ${JSON.stringify(now.plannedIn)}, not ${semester} as the ground said; the mark ${now.marked}`);
 
 // ---- again, each way: now the swipe takes away, and says from where; the ground starts in the
 // look of what the module is and goes to that of what it will be
@@ -189,7 +194,7 @@ check(now.said === `Entfernen | aus ${semester}` && now.armed, `right again: the
 check(now.ground === colour.remove && now.striped === 1, `right again: armed, not red and striped (${now.ground}, not ${colour.remove}; stripes ${now.striped})`);
 await lift();
 now = await rested("right again");
-check(now.planned === "", `right again: the Stundenplan still counts ${now.planned}`);
+check(now.plannedIn.length === 0 && now.planned === "", `right again: still planned in ${JSON.stringify(now.plannedIn)} (the Stundenplan counts ${JSON.stringify(now.planned)})`);
 
 // ---- a short slow pull glides back and does nothing; a short flick does it, and the row's
 // bookmark tapped right after it (the card still aside) is a tap: it takes the mark away again
