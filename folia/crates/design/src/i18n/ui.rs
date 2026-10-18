@@ -11,8 +11,6 @@ pub struct Texts {
     /// The banner of a browser app that crashed, and its link.
     pub crashed: &'static str,
     pub reload_page: &'static str,
-    /// „Art nicht angegeben": no source states the kind of a module in a program.
-    pub kind_unknown: &'static str,
     /// „ · abgeleitet" after a kind no source states and Betula infers.
     pub kind_inferred: &'static str,
     /// The title of such a kind: from what it is inferred.
@@ -32,7 +30,6 @@ pub const DE: Texts = Texts {
     reload: "Neu laden",
     crashed: "Etwas ist schiefgelaufen.",
     reload_page: "Seite neu laden",
-    kind_unknown: "Art nicht angegeben",
     kind_inferred: " · abgeleitet",
     kind_inferred_title: |source| match source {
         Some(KindSource::PdfPlan) => "Abgeleitet: Der Regelstudienplan sieht einen Wahlpflichtplatz vor, der aus diesem Bereich des Modulbaums belegt wird. Ausdrücklich nennt keine Quelle die Art.",
@@ -53,7 +50,6 @@ pub const EN: Texts = Texts {
     reload: "Reload",
     crashed: "Something went wrong.",
     reload_page: "Reload the page",
-    kind_unknown: "Kind not stated",
     kind_inferred: " · inferred",
     kind_inferred_title: |source| match source {
         Some(KindSource::PdfPlan) => "Inferred: the study plan has a compulsory elective slot that is filled from this area of the module tree. No source states the kind itself.",
