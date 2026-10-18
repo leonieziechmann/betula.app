@@ -42,7 +42,6 @@ use folia_timetable::exams::{self, ExamRow, ExamShape, ExamWarning, Termin, Term
 use folia_timetable::model::{Attendance, Basis, Event, Row, Timetable};
 use folia_timetable::occur::Every;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 
 use folia_data::DataError;
 use folia_design::format;
@@ -482,6 +481,7 @@ fn Actions(
     let fills = Memo::new(move |_| choices.with(|c| c.as_ref().and_then(|c| c.fills)));
     let elsewhere = Memo::new(move |_| choices.with(|c| c.as_ref().map(|c| c.elsewhere.clone()).unwrap_or_default()));
     let removing = RwSignal::new(false);
+    let tabs = Tabs::expect();
 
     let set_fills = Callback::new(move |value: String| {
         let Some(plan) = ctx.plan else { return };
@@ -494,11 +494,12 @@ fn Actions(
         let Some((id, sem)) = place.with_untracked(|place| place.as_ref().and_then(|place| Some((place.id.clone(), place.sem?)))) else { return };
         let events = table.with_untracked(|t| t.as_ref().filter(|t| t.key == sem).map(|t| only_its_events(t, &id)).unwrap_or_default());
         removing.set(true);
-        // In place of the panel's own entry: Back leads to where the visitor was before opening
-        // the module, not to a panel of a module the plan no longer holds.
-        if let Some(going) = going {
-            going.go(&ctx.url.with_untracked(|url| url.with_open(None, None).path()), NavigateOptions { replace: true, scroll: false, ..Default::default() });
-        }
+        // The panel's own entry goes: back where the plan without it is the step before, else in
+        // its place; Back leads to where the visitor was before opening the module, not to a panel
+        // of a module the plan no longer holds (`nav::close_to`).
+        let page = ctx.url.with_untracked(|url| url.with_open(None, None).path());
+        let now = ctx.url.with_untracked(|url| url.path());
+        folia_shell::nav::close_to(going, &page, || tabs.is_some_and(|tabs| same_page(&tabs.before(&now), &page)));
         plan.update_after_paint(move |doc| doc.unplan(sem, &id, &events));
     };
 

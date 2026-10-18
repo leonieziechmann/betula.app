@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, a link from outside), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -47,7 +47,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
 | `/catalog/module/<id>` | The module's own page: a sidebar as wide as the filter panel (sections of the page, actions), the module on the rest of the screen |
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
-| `/study[?view=plan\|areas][&plan=1][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), on a phone a semester rather than the overview (`plan=1`, 2026-10-05, a step after the overview that Back and the tab leave; since 2026-10-06 the overview and the semesters are pages of one row a finger moves, and the address follows where it comes to rest; a desktop shows both at once and ignores it; only in the view of the semesters), which module stands beside the page, and whether it fills it. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
+| `/study[?view=plan\|areas][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
@@ -229,15 +229,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     behind the sheet, 250–540 ms of a phone's time with the CPU throttled 4×; now the tap costs
     the panel and one count). The panel shows the draft, its button counts the modules it holds
     (`pages::catalog_summary`, which says what `pages::catalog` says about the same filter, the
-    semester of a plan included), and the list and the address follow once, when the sheet
-    closes, whichever way it closes. So a sheet adds one history entry, not one per tap. The
-    links of the panel stay links (they work without JavaScript and on the desktop, where every
-    change still applies at once): on a phone their address becomes the draft. This is the one
-    place where a filter lives outside the URL, for as long as the sheet is open.
-  - **Back closes the sheet**, as in an app: the open sheet of the browser app is a step of its
-    own in the history (`data-draft` on the panel; `enhance.js` pushes a same-address entry when
-    the sheet opens and takes it back before the list follows, so the list's own entry takes its
-    place). The programs overview's sheet applies every tap at once and has no such step.
+    semester of a plan included), and the list and the address follow once, when „Module
+    anzeigen" applies it, as one history entry, not one per tap. Any other way of closing the
+    sheet — its ×, a swipe, a tap beside it, Esc, Back — throws the draft away and leaves the list
+    as it was (owner, 2026-10-18: „Die Filter sollen bei der Mobile Version verworfen werden, wenn
+    man das Fenster schließt ist zurück macht"; until then each way applied it). The links of the
+    panel stay links (they work without JavaScript and on the desktop, where every change still
+    applies at once): on a phone their address becomes the draft. This is the one place where a
+    filter lives outside the URL, for as long as the sheet is open.
+  - **Back closes the sheet**, as in an app, and the sheet has no entry in the history: on Android
+    Back is a close request to its `CloseWatcher` (`enhance.js`); on an iPhone, which has none,
+    Back leaves the list and the sheet goes with it (§ „Back" below). Until 2026-10-18 the open
+    sheet was a step of its own in the history. The programs overview's sheet applies every tap
+    at once.
   - **Credits:** a slider with two knobs (0–30, the right end means „no upper limit") and the two
     exact numbers under it. The knobs cannot pass each other; the filter follows when a knob is
     let go.
@@ -390,8 +394,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   inside the area (a module, a program) the area's own tab leads up to the area's list as it was
   left; on the list it is the plain link. The same memory serves „Zurück" on a module's and a
   program's page (`ui::BackLink`; Esc does the same): it leads to the area's list, through the
-  browser history if that list is where the visitor came from (`data-back="history"`, so the
-  history does not grow), and as a plain link otherwise (after a change of tabs „Zurück" leads
+  browser history if that list is where the visitor came from (as the browser says it where it
+  can, else as the memory guesses it, `data-back="history"`; so the history does not grow), and
+  as a plain link otherwise (after a change of tabs „Zurück" leads
   up, not back to the other area). And it tells a list which row to show again: the catalog
   scrolls to the module whose page was open just before, the program overview to the program.
   The memory is personal state: `sessionStorage`, never the URL, never server HTML; without the
@@ -583,7 +588,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   list's address in `data-list`); before the app runs none does.
 - **The tab of the area one is in, tapped again, takes its page back to where it starts**
   (`tabs::TabAgain`, counted by `NavItems`, also where the tab leads to the address the app is at
-  and the router has nothing to do): „Mein Studium" goes back to its overview at once, wherever the
+  and the router has nothing to do; on a phone the history goes back to the tab's first entry,
+  `nav::tab`): „Mein Studium" goes back to its overview at once, wherever the
   row of its pages is or goes, and at the overview up to its top (owner, 2026-10-06: „wenn man in
   dem studium tab swiped, funktioniert der button in der nav bar auch erst, wenn die seite sich
   nicht mehr bewegt. Das muss auch unbedingt gelöst werden. Wenn man den anklickt muss es sofort
@@ -742,8 +748,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   raus"): all up it is the whole screen already; beside a wide page the module keeps it, and the
   Stundenplan's sheet keeps „Modul ansehen", which leads to what its panel does not show. Closed
   by a finger, its × or a tap beside it, it slides down and its close link is followed — back
-  through the history where the page without the module is the step before
-  (`data-back="history"`), so that Back does not bring it again; Back and Esc close it at once.
+  through the history where the page without the module is the step before (as the browser says
+  it, else `data-back="history"`; § „Back"), so that Back does not bring it again; Back and Esc
+  close it at once.
   The page behind it stays where it is, dimmed and still, the tab bar under it; a touch beside the
   sheet moves nothing. The pages under it keep what was theirs when a module was the page and is
   no more: the Stundenplan no longer scrolls back to where it was left when the sheet goes, since
@@ -941,7 +948,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   module's own page, a module in full in a program, the Merkliste, the Stundenplan or „Mein
   Studium", a program's page, an area or a row of the plan as a page of its own) puts it there,
   leading where the link leads and through the history where that is the step before
-  (`TopBack::follow`), and steps aside while the head has it (`.topbar.backed ~ .content .at-head`);
+  (`TopBack::follow`; on a phone the box is Back, § „Back": what lies over the page closes first,
+  and inside a tab's stack it goes one step back), and steps aside while the head has it
+  (`.topbar.backed ~ .content .at-head`);
   a page's step that has no such link (a semester of „Mein Studium", its views on a phone) puts it
   there the same way while the step shows. The program overview has it too, up to „Mein Studium"
   as it was left (owner, 2026-10-17: „wenn man auf alle Studiengänge geht, dann fehlt da ein
@@ -1208,9 +1217,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     next page, the row turns in the next frame or the one after (22–30 ms after the click) and is at
     the overview a quarter of a second later, without a move of the browser's after it. A finger
     on the row makes a glide wait until it lets go. The way back slides in and out in 180 ms, the sheets come up in 200–220 ms, the dots change
-    in 150 ms. Where the row comes to rest the address follows (`/study?plan=1` a semester, a step
-    after the overview, the overview back through the history where it came before), and Back, the
-    links and the way back move the row in turn. At its ends the row keeps the finger's move to
+    in 150 ms. Where the row comes to rest its entry of the history keeps the semester, no step and
+    no address of its own (2026-10-18, § „Back"; until then `/study?plan=1`, a step after the
+    overview), and Back, the links and the way back move the row in turn. At its ends the row keeps the finger's move to
     itself, and the window, while it is there, has no horizontal overscroll of its own, which a
     browser could take for a swipe back through the history (`overscroll-behavior-x`). The page that
     comes in shows from its top, wherever the window was scrolled to in the one before, as a page of
@@ -1224,8 +1233,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     bar im gleichen style eine quadratische box sein mit einem zurück pfeil"; 2026-10-06: „Mach bei
     beiden Richtungen weiterhin den pfeil oben hin um zurück zu kommen"; `chrome::TopBack`, which a
     page with a step below its first one fills while that step shows; until then „‹ Übersicht" over
-    the cards): back through the history where the overview came before, else to it; no Esc, which
-    closes the semesters' menus and dialogs. It slides in from the left as soon as the row leaves
+    the cards): it brings the overview in place, as Back does (the semester is a state of the
+    entry, which Back undoes first; § „Back"); Esc, a close request in Chrome, closes the
+    semesters' menus and dialogs first. It slides in from the left as soon as the row leaves
     the overview, under the finger, in a fling or a glide (owner, 2026-10-06: „Der zurück wird
     aktuell erst eingeblendet, wenn man dann aufhört zu swipen. Aber der sollte eigentlich sofort
     eingeblendet werden, wenn man weg swiped, von der main page"; measured: with the first move of
@@ -1824,6 +1834,94 @@ misses its 200 ms for the first frame now and then on the machine of these measu
 of the three, without fills too.
 
 `node folia/e2e/tabbar.mjs` checks the start (§4).
+
+### Back (`folia/crates/shell/src/nav.rs`, 2026-10-18)
+
+Owner, 2026-10-18: „wir müssen unbedingt an der browser history/backgraphen überarbeiten": Back
+opened dialogs again, the selection bar of „Mein Studium" stayed after Back, and after a few
+semesters turned one Back did not lead to the overview as the arrow at the head did; „am handy ist
+das ja eher wie eine App … der back graph beim handy ist halt eher so dass man zurück zum main
+screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its decisions is
+`folia/design/zurueck/konzept.html`; what it came to:
+
+- **A phone and a desktop each have their own Back**, and the layout shown decides which (owner,
+  the same day: „wenn die mobile version gezeigt wird, sollte auch das mobile verhalten verwendet
+  werden"; `nav::phone`, the 900 px of `folia_design::nav::is_phone`). On a desktop Back is the
+  browser's history: a page, a module beside a list, a filter are steps of it. On a phone Back and
+  the arrow at the head of a page are one key (owner: „wenn oben links ein back pfeil ist das immer
+  gleich sein, wie die handy back option"; `nav::arrow`): it closes first what lies over the page,
+  then leads one level up, through the tab to Start, and from there out of Betula.
+- **Android first** (owner: „auf gar keinen Fall darf Android darunter leiden. Dann geht es halt
+  nur auf Android."): what Safari cannot do, an iPhone does without, and nothing on Android is made
+  worse for it. Safari has no `CloseWatcher`: on an iPhone the swipe from the edge is a step of the
+  history, and what lies over a page goes with the page it leaves; its ×, a tap beside it and the
+  arrow close it. Whether that is enough there is open (owner: „Iphone konnte ich noch nicht testen
+  aber wenn es nicht passt kümmert ich mich später darum").
+- **What lies over a page has no entry in the history** (`nav::layer_while`): the menus (a tab
+  held, the profiles, a row's), the selection and the dialogs of „Mein Studium", the filters'
+  sheet, and on a phone the semester its row shows. Forward never opens one again, and a dialog
+  Back closed does not come back. In the phone's layout each one open has a `CloseWatcher` (Chrome
+  on Android from 126), and Back closes the newest; a `<dialog>` shown modally has the browser's
+  own. A watcher made without a fresh tap joins the group of the one before, and one Back would
+  close both: the selection, which a long press opens, gets its watcher with the finger's release.
+  Chrome takes Esc for the same close request; where a watcher has it, the page's own Esc stands
+  aside (`nav::watched`). A new address closes what lies over the old one (`nav::Follow`), the
+  semester aside.
+- **The semester of „Mein Studium"'s row is the entry's state, not its address** (`nav::keep`,
+  `history.replaceState` under `betula.semester`): turning the row (a finger, ‹ ›, „Studium
+  planen", a column) writes no step, a reload, Back and Forward bring the semester with the entry,
+  and Back from a semester brings the overview at once, however many were turned, as the arrow does.
+  `?plan=1`, which said it until then, is still read (without JavaScript the box „Studium planen"
+  links it) and gives way to `/study` in the same entry once the row is back at the overview.
+- **The filters' sheet of a phone throws its draft away** whichever way it closes but its button
+  (owner: „Die Filter sollen bei der Mobile Version verworfen werden, wenn man das Fenster schließt
+  ist zurück macht"): its ×, a swipe down, a tap beside it, Esc and Back leave the list as it was;
+  „Module anzeigen" applies the draft as one step (`enhance.js`, `sheet-apply`). A step beside a
+  page — another filter, order or search of a list, another view of a page — takes the place of the
+  current entry on a phone, so that Back leads up rather than through every filter; on a desktop it
+  is a step of its own after a pause of a second, closer to the one before it takes its place
+  (`Pending::in_place`, `PAUSE_MS`; owner: „Auf dem pc schritt pro Pause", „die 1s am rechner
+  passt"). The search's first key on a page is a step of its own and the keys after it take its
+  place; on a phone the first one too.
+- **Closing what stands beside a page goes back** where the page without it is the step before (a
+  module's × and Esc beside a list, its sheet on a phone, „Entfernen" of a planned module in the
+  Stundenplan: `Pending::back_to`, `nav::close_to`, `cameFrom` in `enhance.js`), so that Back does
+  not bring it again and Forward does; what it changes shows in the next frame, as with a link.
+  Elsewhere the page without it takes the place of the current entry. A tab whose page as it was
+  left is the step before goes back there too (on a wide screen, and on a phone where the tab's
+  stack cannot be written in place; `Pending::back_if_before`). The step before is what the
+  browser says it is (the Navigation API: Chrome, Edge, Safari from 26.2, Firefox from 147;
+  `nav::came_from`), else what the memory of the tabs guesses (`data-back="history"`).
+- **A stack for each tab on a phone** (`nav::tab`, `nav::steer`): the history is Start and, right
+  above it, the stack of the tab the visitor is in, so that Back leads up through the tab to Start
+  and then out (owner: „Erst zur Startseite dann raus"). A change of tabs — the bar, a swipe along
+  it, or a link to a page of another tab, such as a module's program (owner: „Tab Wechsel, das wird
+  sonst giga irritierend") — writes the history in place: what is missing first, while the tap is
+  fresh (Chrome skips an entry written without one when Back is pressed), then the entries in place
+  (`history.go`, `replaceState`; `nav::plan`). What the tap changes shows in the next frame
+  (`Pending::hold`); the history is written after that frame, as a link's step is (the tap stays
+  fresh for seconds), and the router takes the top at the end (`Pending::release`). The tab left
+  keeps its stack (in `sessionStorage`, `betula.nav.stacks`) and comes back as it was left; what is
+  left over ahead is no way Forward (`nav::on_popstate` steps back out of it). The tab tapped again
+  leads to its first page. A module's own page opened out of a tab that shows its modules in place stays in that tab
+  (`nav::tab_of_page`).
+- **A link from outside** (a messenger) stays as it came while it is only read, so that Back leads
+  back out (owner: „wenn es keine Interaktion mit dem back graphen gab dann in den massanger, aber
+  wenn die app verwendet wurde dann über start menu"); its first use (a link, a tab, the arrow)
+  lays under it what lies above it, up to Start (`nav::seed`, `nav::chain_of`): under a module's
+  page the catalog and Start, under a program „Alle Studiengänge", „Mein Studium" and Start.
+- **The router's own list of steps** knows nothing of a step back by several at once or of a change
+  of tabs, and leptos_router 0.8 leaves out a push to the address that list ends at: the address
+  and the history then stayed behind where the page went. So `Pending` writes each new step itself
+  and lets the router take its place (`Pending::commit`).
+- **Where it stops**: without the Navigation API, or where an entry below is of another load of a
+  page (the site's pages before the app took over, another language; going there loads that page
+  anew), a change of tabs cannot write the history in place and each link is a step of its own, as
+  before; the app's own ways back go there only as a link, never through the history. A reload is
+  no such load: the entries a page wrote stay its own (they share its document, as the HTML
+  standard has it; measured in Chromium).
+
+`node folia/e2e/back.mjs` checks it (§4).
 
 ### The search of the catalog (`folia/crates/search/src/lib.rs`, 2026-09-30)
 
@@ -3768,8 +3866,9 @@ scrolls as it would under a finger): the page behind the open sheet standing sti
 the dimmed page, the sheet's list scrolled past its end), the sheet swiped down from its list,
 its head and its buttons (following the finger, snapping back after a short slow pull), a mouse
 drag at its head and a tap beside it closing it, the draft (taps change the sheet's count but
-neither the list nor the address; its button, a swipe and the close button apply it with one
-history entry; „Zurücksetzen" empties it), the area picker staying open while the window
+neither the list nor the address; „Module anzeigen" applies it with one history entry, a swipe,
+the close button and Esc throw it away, „Zurücksetzen" empties it; Back walks the lists applied,
+an iPhone's within the page), the area picker staying open while the window
 shrinks (the on-screen keyboard) and counting its modules, and the virtual list with the window
 scrolling (the last rows at its end, the page keeping its height, no two rows overlapping,
 `page` following).
@@ -3797,8 +3896,8 @@ cd e2e && node tabbar.mjs
 
 drives the phone's bottom bar with real touches as `phone.mjs` does, each carrying its time so
 that a flick is a flick however slow the protocol: a swipe to the left goes one tab to the right
-and one to the right one tab to the left, from wherever on the bar it starts, as one step of the
-history and without a page load; while the finger is down the row of tabs follows it and the mark
+and one to the right one tab to the left, from wherever on the bar it starts, as a tap does (the
+history written in place, Start the entry under every tab: § „Back") and without a page load; while the finger is down the row of tabs follows it and the mark
 stays (the bar's lens, over the tab's and in its colour, with a copy of the row inside that lies
 over the row) and the page stands still; let go, the row and the lens glide as Web Animations,
 and once the tab is current its own mark is back and nothing of the swipe is left on the bar; a
@@ -3808,6 +3907,28 @@ there, two swipes in a row go two tabs, a tap right after a quick swipe is a tap
 the bar scrolls the page; while the app is starting (its bundle held back for 3 s) a tab tapped
 and a swipe are current at once, the page is not loaded again, and the app shows the last one's
 page once it runs; where the app does not start (its bundle fails) a swipe loads the tab's page.
+
+```bash
+cd e2e && node back.mjs
+```
+
+drives Back as § „Back" has it. A phone as Android has it (Back a close request to the newest
+`CloseWatcher` where something lies over the page, Escape in Chromium, else a step back): a dialog
+of „Mein Studium" closes with Back and writes no entry, and Forward opens nothing; the box
+„Studium planen" turns the row to the current semester without a step of the history and the
+entry keeps it across a reload, the arrow at the head and Back bring the overview, three turns by
+‹ › take one Back; the selection first, then the semester, by Back and by the arrow; the catalog's filters: Back throws the
+sheet's draft away and writes nothing, „Module anzeigen" is one step, Back leads to the list
+before; a module's sheet closed by its × goes back a step. A stack for each tab: Start under every
+tab, a change of tabs writing the history in place, Forward not leading into what it left over,
+the tab left coming back as it was, Back up through the tab to Start, the tab tapped again leading
+to its first page, a module's program changing the tab with „Mein Studium" and „Alle Studiengänge"
+under it, Start's tab leading to Start after the profile lay above it. A link from outside: Back leaves Betula while it is only read, the arrow lays the list
+and Start under it. An iPhone (no `CloseWatcher`): Back is the history, and a dialog goes with the
+page it leaves. A wide screen: filters closer than a second one step, after a pause another; the
+module beside the list closed by its × going back where the list was the step before, and the
+list's tab as well; after two steps back at once a module opened is a step of its own with its
+address; after a reload the × still goes back, without loading the page anew.
 
 ```bash
 cd e2e && node swipe.mjs
@@ -3991,9 +4112,10 @@ its column, no row taller than its name, the list where the matrix has no room),
 groups of rows with the sidebar leading to each of them without a history entry, „Mein Plan"
 leading to all of the program's modules in the catalog (as many as the head counts), and on a
 phone the plan as a list without a switch, its rows as tall as their names (Informatik B.Sc.,
-„Art" and „Bereich" given way), and a page that does not scroll sideways, a module becoming the
-page with one tap and one history entry and „Zurück" leading back, an area becoming the page and
-a module picked out of it leading back to the area.
+„Art" and „Bereich" given way), and a page that does not scroll sideways, a module coming up as a
+sheet over the page with one history entry (over „Mein Studium", „Alle Studiengänge" and Start,
+which the first use of a page come from outside lays under it) and its × going back a step, an
+area becoming the page and a module picked out of it leading back to the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086
