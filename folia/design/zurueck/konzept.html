@@ -8,7 +8,10 @@
      mein Studium main page aber die Bar unten ist noch offen … wenn man mehrfach seitlich swiped …
      und dann zurück geht, dann sollte man gleich auf der mein Studium main page landen … am handy
      ist das ja eher wie eine App … der back graph beim handy ist halt eher so dass man zurück zum
-     main screen kommt und nicht die Seiten rückwärts abzuspielen. Erstelle als erstes ein Konzept").
+     main screen kommt und nicht die Seiten rückwärts abzuspielen. Erstelle als erstes ein Konzept"; then:
+     „Also die Lösung muss auch für Safari Nutzer funktionieren davon haben wir 30% mit ca. der Nutzer am
+     phone 40%"). On a phone one way for every browser, the iPhone's (all of them Safari underneath) included.
+     The owner's answers to the open questions, the same day, are rules now (see „Entschieden").
      What is wrong today comes from reading the code of 2026-10-18 (Folia 1.22.0): tabs.rs, chrome.rs,
      frame.rs, pending.rs, enhance.js, study/pager.rs, phone.rs, focus.rs, dialog.rs, studyplan/aside.rs.
      The devices play the proposed rules with a simulated history; the modules and numbers are
@@ -166,6 +169,11 @@ code, .mono { font-family: var(--mono); font-size: .86em; }
 .ctl button.sys:hover { opacity: .9; }
 .ctl button:disabled { opacity: .45; cursor: default; }
 .ctl svg.i { width: 14px; height: 14px; }
+.ctl-note { margin-top: 6px; text-align: center; color: var(--text-3); font-size: 12px; }
+.ios { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ios > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.ios h3 { font-size: 15px; font-weight: 700; }
+.ios p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 
 /* Under each device: what is open, the history as Betula writes it, and what the next Back does. */
 .trace { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 13px; }
@@ -180,6 +188,8 @@ code, .mono { font-family: var(--mono); font-size: .86em; }
 .hist li.cur { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
 .hist li.fwd { opacity: .45; }
 .hist li.ext b { color: var(--text-3); font-weight: 600; }
+.hist li.lay b { color: var(--warn); }
+.hist li.stale b { text-decoration: line-through; }
 .hist .k { color: var(--text-3); font: 600 11px var(--mono); padding-top: 3px; }
 .hist b { font-weight: 620; }
 .hist .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 5px; background: var(--panel-3); color: var(--text-2); font-size: 11px; font-weight: 600; vertical-align: 1px; }
@@ -464,6 +474,8 @@ pre.code .c { opacity: .55; }
 .steps h3 { font-size: 15px; font-weight: 700; }
 .steps p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 .steps .v { margin-top: 6px; color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.check { margin: 8px 0 0; padding-left: 20px; color: var(--text-2); font-size: 14px; }
+.check li + li { margin-top: 3px; }
 .not { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .not div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); }
 .not h3 { font-size: 14px; font-weight: 700; }
@@ -481,7 +493,7 @@ pre.code .c { opacity: .55; }
   .stage .desk { width: 100%; }
   .stage .phone { order: -1; width: min(300px, 100%); }
   .block { padding: 18px 16px; }
-  .faults, .kinds, .parts, .cards2, .steps, .not, .rule-box { grid-template-columns: minmax(0, 1fr); }
+  .faults, .kinds, .parts, .cards2, .steps, .not, .rule-box, .ios { grid-template-columns: minmax(0, 1fr); }
   .graph { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 520px) {
@@ -498,27 +510,28 @@ pre.code .c { opacity: .55; }
     <div>
       <p class="kicker">Betula · Zurück · 18.10.2026</p>
       <h1>Am Handy führt Zurück nach oben, am Rechner durch den Verlauf</h1>
-      <p class="lead">Am Handy ist Betula eine App: Die Zurück-Taste und der Pfeil oben links sind ein und dieselbe. Sie schließt zuerst, was offen ist, und geht dann Stufe für Stufe hinauf bis zur Startseite des Tabs, nie rückwärts durch alles, was du gesehen hast. Am Rechner bleibt Zurück der Verlauf des Browsers. Dieses Blatt legt das Verhalten fest, sagt, was in die Adresse gehört, und schlägt eine Architektur vor, die beides aus einem System bedient.</p>
+      <p class="lead">Am Handy ist Betula eine App: Zurück und der Pfeil oben links sind ein und dieselbe Taste, auf Android die Zurück-Taste oder -Geste, auf dem iPhone das Wischen vom linken Rand, in Safari wie in der installierten App. Sie schließt zuerst, was offen ist, und geht dann Stufe für Stufe hinauf bis zur Startseite des Tabs, nie rückwärts durch alles, was du gesehen hast. Am Rechner bleibt Zurück der Verlauf des Browsers. Dieses Blatt legt das Verhalten fest, sagt, was in die Adresse gehört, und schlägt eine Architektur vor, die beides aus einem System bedient.</p>
       <p class="quote">„Zum Beispiel kann man <b>modale Dialoge wieder mit zurück öffnen</b>, was halt keine andere App so macht. Aber <b>schließen sollte man die mit back können</b> … was wirklich in die url mit rein soll … beim pc ist back ja in der history zurück gehen. Aber am handy ist das ja eher wie eine App und da muss zum Beispiel wenn oben links ein back pfeil ist <b>das immer gleich sein, wie die handy back option</b> … dass man <b>zurück zum main screen</b> kommt und nicht die Seiten rückwärts abzuspielen.“</p>
-      <nav class="toc" aria-label="Inhalt"><a href="#spielen">Ausprobieren</a><a href="#heute">Was heute schiefgeht</a><a href="#adresse">Die Adresse</a><a href="#regeln">Regeln</a><a href="#architektur">Architektur</a><a href="#schritte">Schritte</a><a href="#offen">Offen</a></nav>
+      <p class="quote">„Also die Lösung <b>muss auch für Safari Nutzer funktionieren</b> davon haben wir 30% mit ca. der Nutzer am phone 40%“</p>
+      <nav class="toc" aria-label="Inhalt"><a href="#spielen">Ausprobieren</a><a href="#heute">Was heute schiefgeht</a><a href="#adresse">Die Adresse</a><a href="#regeln">Regeln</a><a href="#iphone">iPhone</a><a href="#architektur">Architektur</a><a href="#schritte">Schritte</a><a href="#offen">Entschieden</a></nav>
     </div>
     <aside class="rules" aria-labelledby="core-title">
       <p class="kicker" id="core-title">Das Verhalten in sechs Sätzen</p>
       <ol>
         <li><span><b>Am Handy sind Zurück und der Pfeil oben links eine Taste.</b> Was die eine tut, tut die andere, auf jeder Seite.</span></li>
-        <li><span><b>Zurück schließt zuerst, was offen ist:</b> ein Menü, einen Dialog, die Auswahl, das Semester im Wischer. Nichts davon steht im Verlauf, also öffnet es weder Zurück noch Vorwärts wieder.</span></li>
+        <li><span><b>Zurück schließt zuerst, was offen ist:</b> ein Menü, einen Dialog, die Auswahl, das Semester im Wischer. Nichts Geschlossenes kommt wieder, weder mit Zurück noch mit Vorwärts.</span></li>
         <li><span><b>Dann führt Zurück eine Stufe hinauf:</b> vom Modul zur Liste, vom Bereich zum Studiengang, von der Startseite eines Tabs zum Start, vom Start aus Betula hinaus.</span></li>
-        <li><span><b>Jeder Tab hat seinen eigenen Stapel.</b> Ein Tab kommt so wieder, wie du ihn verlassen hast, und Zurück bleibt in ihm.</span></li>
-        <li><span><b>Am Rechner ist Zurück der Verlauf des Browsers.</b> Jede Seite, Ansicht, Vorschau und jeder Filter ist ein Schritt. Dialoge und Menüs sind keiner; Esc schließt sie.</span></li>
+        <li><span><b>Jeder Tab hat seinen eigenen Stapel.</b> Ein Tab kommt so wieder, wie du ihn verlassen hast, und Zurück bleibt in ihm. Ein Link in einen anderen Bereich wechselt den Tab.</span></li>
+        <li><span><b>Am Rechner ist Zurück der Verlauf des Browsers.</b> Jede Seite, Ansicht und Vorschau ist ein Schritt, Filter einer je Pause. Dialoge und Menüs sind keiner, Esc schließt sie; was du schließt, bringt ← nicht wieder.</span></li>
         <li><span><b>Die Adresse sagt, wo du bist, nicht was offen ist.</b> Sie zeigt auf jedem Gerät dasselbe, und ein Dialog steht nie darin.</span></li>
       </ol>
-      <div class="who"><div><b>Handy</b>bis 900 px Breite, wie heute <code>nav::is_phone</code>: ein Stapel je Tab</div><div><b>Rechner</b>breiter: der Verlauf des Browsers, wie man ihn von jeder Website kennt</div></div>
+      <div class="who"><div><b>Handy</b>wo die Handy-Ansicht gezeigt wird (heute bis 900 px Breite), Android und iPhone gleich: ein Stapel je Tab</div><div><b>Rechner</b>wo die Ansicht für den Rechner gezeigt wird: der Verlauf des Browsers, wie man ihn von jeder Website kennt</div></div>
     </aside>
   </header>
 
   <section class="block" id="spielen" aria-labelledby="play-title">
     <h2 id="play-title">Zum Ausprobieren</h2>
-    <p class="lead">Wähle eine Situation oder tippe selbst. Unter jedem Gerät steht, was gerade offen ist, der Verlauf des Browsers so, wie Betula ihn schreibt (oben das Neueste), und was das nächste Zurück tut. Am Handy ist ◁ die Zurück-Taste von Android, die Geste vom Rand tut dasselbe. Lang drücken wählt eine Zeile aus, zur Seite ziehen wischt, ein Sheet lässt sich nach unten ziehen. Am Rechner sind ← und → die des Browsers.</p>
+    <p class="lead">Wähle eine Situation oder tippe selbst. Unter jedem Gerät steht, was gerade offen ist, der Verlauf des Browsers so, wie Betula ihn schreibt (oben das Neueste; gelb die Einträge der Ebenen, blass, was vorwärts liegt), und was das nächste Zurück tut. Am Handy ist ◁ das Zurück: die Taste oder Geste von Android, auf dem iPhone das Wischen vom linken Rand. Lang drücken wählt eine Zeile aus, zur Seite ziehen wischt, ein Sheet lässt sich nach unten ziehen. Am Rechner sind ← und → die des Browsers.</p>
     <div class="stories" id="stories" role="group" aria-label="Situation"></div>
     <div class="story" id="story" aria-live="polite"></div>
     <div class="stage">
@@ -531,6 +544,7 @@ pre.code .c { opacity: .55; }
         <figcaption>Am Handy</figcaption>
         <div class="frame"><div class="fit"><div class="screen" id="phoneScreen"></div></div></div>
         <div class="ctl"><button class="sys" type="button" id="phoneBack"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5 7 12l9 7z" fill="currentColor" stroke="none"/></svg>Zurück</button><button type="button" id="phoneFwd">Vorwärts</button></div>
+        <p class="ctl-note">Android: Taste oder Geste · iPhone: vom linken Rand wischen</p>
         <div class="trace" id="phoneTrace"></div>
       </figure>
     </div>
@@ -558,9 +572,9 @@ pre.code .c { opacity: .55; }
       <article class="fault own">
         <p class="kicker">Von dir gesehen</p>
         <h3>Nach dem Wischen führt Zurück nicht zur Übersicht</h3>
-        <p>Für alle Semester schreibt der Code nur einen Eintrag, aber erst, wenn die Reihe nach dem Wischen ruht. Für den Browser ist Wischen kein Tippen. Chrome, Safari und Firefox überspringen mit ihrer Zurück-Taste Einträge, die ohne Tippen entstanden sind, damit keine Seite jemanden festhält; nach einem Zurück zählt auch ein früheres Tippen nicht mehr. Der Pfeil oben ruft <code>history.back()</code> selbst auf und wird nicht übersprungen: Deshalb tut er, was die Taste nicht tut.</p>
+        <p>Für alle Semester schreibt der Code nur einen Eintrag, aber erst, wenn die Reihe nach dem Wischen ruht. Für den Browser ist Wischen kein Tippen. Chrome, Safari und Firefox überspringen mit ihrer Zurück-Taste und dem Wischen vom Rand Einträge, die ohne Tippen entstanden sind, damit keine Seite jemanden festhält; nach einem Zurück zählt auch ein früheres Tippen nicht mehr. Der Pfeil oben ruft <code>history.back()</code> selbst auf und wird nicht übersprungen: Deshalb tut er, was die Taste nicht tut.</p>
         <p class="why">Der Eintrag entsteht in <code>settle()</code> nach dem Scrollen (pager.rs:496); wer zur Übersicht zurückwischt, geht selbst zurück (pager.rs:491) und verbraucht so das letzte Tippen.</p>
-        <p class="fix"><b>Künftig:</b> Wischen schreibt nie einen Eintrag. Welches Semester sich zeigt, gehört zur Seite, und Zurück schließt es wie eine Ebene.</p>
+        <p class="fix"><b>Künftig:</b> Wischen schreibt nie einen Eintrag. Der Eintrag fürs Semester liegt schon bereit, angelegt beim Tippen auf „Studium“; Wischen geht nur hinein und wieder heraus. Auf Android wie am iPhone.</p>
       </article>
       <article class="fault">
         <p class="kicker">Dahinter</p>
@@ -574,7 +588,7 @@ pre.code .c { opacity: .55; }
         <h3>Ein Dialog bleibt stehen, während die Seite dahinter wechselt</h3>
         <p>Die Dialoge von „Mein Studium“ sind echte <code>&lt;dialog&gt;</code>. Android schließt sie mit Zurück schon jetzt von selbst. Am iPhone und am Rechner wechselt Zurück auf einem Semester oder bei offenem Modul nur die Seite dahinter, und der Dialog bleibt offen; Menüs bleiben ebenso liegen.</p>
         <p class="why">Der Dialog hängt an einem Signal der Seite und hört nicht auf den Ort (dialog.rs:36–44).</p>
-        <p class="fix"><b>Künftig:</b> Ebenen gehören zu ihrer Seite. Wechselt der Ort, gehen sie mit.</p>
+        <p class="fix"><b>Künftig:</b> Ebenen gehören zu ihrer Seite und haben am Handy ihren Eintrag, auch am iPhone. Wechselt der Ort, gehen sie mit.</p>
       </article>
       <article class="fault">
         <p class="kicker">Dahinter</p>
@@ -591,23 +605,23 @@ pre.code .c { opacity: .55; }
     <p class="lead">Dialoge stehen schon heute nicht in der Adresse, und das bleibt so. Was am Handy wieder aufgeht, sind Module (<code>open=</code>) und Bereiche oder Zeilen eines Studiengangs (<code>area=</code>, <code>req=</code>). Sie gehören in die Adresse, denn ein geteilter Link soll genau sie zeigen. Falsch ist nur, wie ihr Schließen den Verlauf schreibt. Eine Sache geht hinaus: <code>plan=1</code>, das Semester im Wischer.</p>
     <div class="kinds">
       <div class="kind"><p class="kicker">Ort · in der Adresse</p><h3>Was man teilen und neu laden kann</h3><p>Die Seite, ihre Filter und Ansicht, das Modul neben der Liste. Eine Adresse zeigt auf jedem Gerät dasselbe: das Handy als Sheet von unten, der Rechner daneben.</p><p class="ex">/catalog?program=informatik&amp;open=13221</p></div>
-      <div class="kind"><p class="kicker">Zustand der Seite · im Eintrag</p><h3>Wie eine Seite gerade aussieht</h3><p>Welches Semester der Wischer am Handy zeigt. Es steht im Verlaufseintrag (<code>history.state</code>), überlebt Neuladen und Tabwechsel, ist aber kein eigener Schritt.</p><p class="ex">/study + { semester: "SoSe 27" }</p></div>
-      <div class="kind"><p class="kicker">Ebene · nirgends</p><h3>Was über einer Seite liegt</h3><p>Dialog, Menü, Auswahl, der Entwurf der Filter. Weder Adresse noch Eintrag. Am Handy schließt Zurück sie trotzdem, am Rechner Esc.</p><p class="ex">„Studiengang wechseln“, „Bereiche“, ⋯</p></div>
+      <div class="kind"><p class="kicker">Schritt · Eintrag ohne Adresse</p><h3>Wie eine Seite gerade aussieht</h3><p>Welches Semester der Wischer am Handy zeigt. Für „ein Semester“ gibt es einen Eintrag ohne neue Adresse, der bereitliegt, bevor du wischst; welches, merkt sich Betula daneben. Neuladen und Tabwechsel bringen dasselbe Semester wieder.</p><p class="ex">/study + { semester }</p></div>
+      <div class="kind"><p class="kicker">Ebene · nie in der Adresse</p><h3>Was über einer Seite liegt</h3><p>Dialog, Menü, Auswahl, der Entwurf der Filter. Am Handy bekommt eine Ebene einen Eintrag ohne neue Adresse, damit Zurück sie schließt, auch das Wischen am iPhone. Am Rechner bekommt sie keinen, dort schließt Esc.</p><p class="ex">/study + { ebene: „Studiengang wechseln“ }</p></div>
     </div>
     <div class="table">
       <table>
         <thead><tr><th scope="col">Was</th><th scope="col">Heute</th><th scope="col">Künftig</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Seite, Filter, Suche, Ordnung <code>q</code>, <code>program</code>, … <code>sort</code></th><td>Adresse</td><td class="same">Adresse. Am Handy ersetzt eine Änderung den Eintrag, am Rechner ist sie ein Schritt.</td></tr>
+          <tr><th scope="row">Seite, Filter, Suche, Ordnung <code>q</code>, <code>program</code>, … <code>sort</code></th><td>Adresse; am Rechner jeder Klick ein Schritt</td><td class="chg">Adresse. Am Handy ist jedes Übernehmen der Filter ein Schritt, Suche und Ordnung ersetzen den Eintrag; am Rechner ein Schritt je Pause.</td></tr>
           <tr><th scope="row">Seite der Liste <code>page</code></th><td>Adresse, ersetzt beim Scrollen</td><td class="same">wie heute</td></tr>
           <tr><th scope="row">Ansicht, Studienrichtung <code>view</code>, <code>variant</code>, im Stundenplan <code>sem</code></th><td>Adresse, jeder Wechsel ein Schritt</td><td class="same">Adresse. Am Handy ersetzt ein Wechsel den Eintrag.</td></tr>
           <tr><th scope="row">Modul neben der Liste oder als Sheet <code>open</code>, im Stundenplan mit <code>row</code></th><td>Adresse; Schließen schreibt manchmal einen neuen Schritt</td><td class="chg">Adresse. Schließen nimmt den Eintrag immer zurück.</td></tr>
           <tr><th scope="row">Modul im Vollbild <code>full=1</code></th><td>Adresse</td><td class="same">wie heute</td></tr>
           <tr><th scope="row">Bereich, Zeile eines Studiengangs <code>area</code>, <code>req</code></th><td>Adresse; am Handy eine Seite</td><td class="same">Adresse; am Handy eine Stufe</td></tr>
-          <tr><th scope="row">Semester im Wischer am Handy <code>plan=1</code></th><td>Adresse, aber welches Semester steht nirgends</td><td class="chg">Eintrag (<code>history.state</code>), mit dem Semester selbst. <code>plan=1</code> wird noch gelesen, nicht mehr geschrieben.</td></tr>
+          <tr><th scope="row">Semester im Wischer am Handy <code>plan=1</code></th><td>Adresse, aber welches Semester steht nirgends</td><td class="chg">ein Eintrag ohne Adresse, der bereitliegt; welches Semester, merkt sich Betula. <code>plan=1</code> wird noch gelesen, nicht mehr geschrieben.</td></tr>
           <tr><th scope="row">Auftrag fürs Einplanen <code>fill</code>, <code>plan</code> auf der Modulseite</th><td>Adresse</td><td class="same">wie heute: er reist mit dem Link</td></tr>
           <tr><th scope="row">Mitgebrachtes <code>share</code>, <code>#m=</code>, <code>import</code></th><td>Adresse, nach der Antwort ersetzt</td><td class="same">wie heute</td></tr>
-          <tr><th scope="row">Dialoge, Menüs, Tab- und Profilmenü, Auswahl, Filterentwurf</th><td>nirgends; der Filterentwurf mit einem Platzhalter-Eintrag</td><td class="chg">nirgends. Am Handy schließt Zurück sie, ohne Eintrag.</td></tr>
+          <tr><th scope="row">Dialoge, Menüs, Tab- und Profilmenü, Auswahl, Filterentwurf</th><td>nirgends; der Filterentwurf mit einem Platzhalter-Eintrag</td><td class="chg">nie in der Adresse. Am Handy je ein Eintrag ohne Adresse, den das Schließen zurücknimmt; am Rechner keiner.</td></tr>
           <tr><th scope="row">Semester im Fokus, Gesamtplan am Rechner</th><td>Speicher, <code>localStorage</code></td><td class="same">wie heute</td></tr>
         </tbody>
       </table>
@@ -616,20 +630,20 @@ pre.code .c { opacity: .55; }
 
   <section class="block" id="regeln" aria-labelledby="rules-title">
     <h2 id="rules-title">Die Regeln zum Nachschlagen</h2>
-    <p class="lead">Jeder Link und jede Taste wird zu einer von sieben Absichten; die Politik des Geräts macht daraus Schritte im Verlauf. Am Handy schreibt nur „Öffnen“ und „Tab“ einen neuen Eintrag, und nur auf ein Tippen hin.</p>
+    <p class="lead">Jeder Link und jede Taste wird zu einer von sieben Absichten; die Politik des Geräts macht daraus Schritte im Verlauf. Am Handy schreiben nur „Öffnen“, „Tab“ und „Ebene“ einen neuen Eintrag, und nur auf ein Tippen hin.</p>
     <div class="table">
       <table>
         <thead><tr><th scope="col">Absicht</th><th scope="col">Zum Beispiel</th><th scope="col">Handy</th><th scope="col">Rechner</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Öffnen</th><td>ein Modul, ein Studiengang, eine Ansicht als Seite, ein Bereich</td><td><b>neuer Eintrag</b> im Stapel des Tabs (<code>pushState</code>)</td><td><b>neuer Eintrag</b></td></tr>
-          <tr><th scope="row">Daneben</th><td>Filter, Suche, Ordnung, Ansicht eines Studiengangs, Semester im Stundenplan</td><td><b>ersetzt</b> den Eintrag (<code>replaceState</code>)</td><td><b>neuer Eintrag</b>; die Suche ersetzt ab dem zweiten Zeichen</td></tr>
-          <tr><th scope="row">Wischen</th><td>die Semester in „Mein Studium“</td><td>ändert den Zustand im Eintrag, <b>nie ein neuer</b></td><td>kein Wischer: das Semester im Fokus, im Speicher</td></tr>
-          <tr><th scope="row">Hinauf</th><td>Pfeil, „Zurück (Esc)“, × eines Moduls, ein Sheet nach unten</td><td><code>history.back()</code>: der Schritt davor ist immer die Stufe darüber</td><td><code>history.back()</code>, wo der Schritt davor die Stufe darüber ist; sonst ein neuer Eintrag</td></tr>
-          <tr><th scope="row">Tab</th><td>die Leiste, ein Link auf die Startseite eines Tabs</td><td>legt den <b>Stapel des Tabs</b> oben auf; an seiner Startseite springt Zurück zum Start</td><td>neuer Eintrag des Orts, an dem der Tab verlassen wurde</td></tr>
+          <tr><th scope="row">Öffnen</th><td>ein Modul, ein Studiengang, eine Ansicht als Seite, ein Bereich</td><td><b>neuer Eintrag</b> im Stapel des Tabs (<code>pushState</code>); aus einer Ebene heraus nimmt er deren Eintrag ein; eine Seite eines anderen Bereichs ist ein Tabwechsel</td><td><b>neuer Eintrag</b></td></tr>
+          <tr><th scope="row">Daneben</th><td>Filter, Suche, Ordnung, Ansicht eines Studiengangs, Semester im Stundenplan</td><td><b>ersetzt</b> den Eintrag (<code>replaceState</code>); das Filter-Sheet schreibt bei jedem Übernehmen <b>einen Schritt</b></td><td><b>ein Schritt je Pause</b>: Klicks dicht hintereinander (unter einer Sekunde) sind einer; die Suche ersetzt ab dem zweiten Zeichen</td></tr>
+          <tr><th scope="row">Wischen</th><td>die Semester in „Mein Studium“</td><td>geht in den <b>bereitliegenden Eintrag</b> und wieder heraus (<code>history.forward()</code>, <code>back()</code>); schreibt nie</td><td>kein Wischer: das Semester im Fokus, im Speicher</td></tr>
+          <tr><th scope="row">Hinauf</th><td>Pfeil, „Zurück (Esc)“, × eines Moduls, ein Sheet nach unten</td><td><code>history.back()</code>: der Schritt davor ist immer die Stufe darüber</td><td><code>history.back()</code>, wo der Schritt davor die Stufe darüber ist; sonst ein neuer Eintrag, und wo × etwas daneben schließt, ersetzt es den Eintrag</td></tr>
+          <tr><th scope="row">Tab</th><td>die Leiste, ein Link auf eine Seite eines anderen Bereichs</td><td>schreibt den Verlauf auf <b>Start und den Stapel des Tabs</b> um: erst anlegen, was fehlt, dann ersetzen. Unter der Startseite eines Tabs liegt immer Start; eine Seite aus einem Link bekommt darunter, was darüber steht</td><td>neuer Eintrag des Orts, an dem der Tab verlassen wurde</td></tr>
           <tr><th scope="row">Tab noch einmal</th><td>der Tab, in dem du bist</td><td><code>history.go(−n)</code> zur Startseite des Tabs, das Semester zurück auf die Übersicht</td><td>neuer Eintrag der Startseite, oder zurück, wo sie der Schritt davor ist</td></tr>
-          <tr><th scope="row">Ebene</th><td>Dialog, Menü, Auswahl, Filter, das Semester im Wischer</td><td><b>kein Eintrag</b>; Zurück schließt die oberste</td><td><b>kein Eintrag</b>; Esc schließt die oberste</td></tr>
-          <tr><th scope="row">Zurück des Systems</th><td>die Taste, die Geste</td><td>erst die oberste Ebene, dann eine Stufe hinauf</td><td>der Verlauf des Browsers; offene Ebenen gehen mit der Seite</td></tr>
-          <tr><th scope="row">Vorwärts</th><td>Menü des Browsers, Geste</td><td>bringt den Ort zurück, den Zurück verlassen hat, auch ein Modul; nie eine Ebene, denn keine steht im Verlauf (Betula sagt nicht nein)</td><td>der Verlauf des Browsers; nie eine Ebene</td></tr>
+          <tr><th scope="row">Ebene</th><td>Dialog, Menü, Auswahl, Filter, das Semester im Wischer</td><td><b>Eintrag ohne neue Adresse</b>, auf den Tipp hin (beim langen Druck beim Loslassen); Schließen nimmt ihn zurück</td><td><b>kein Eintrag</b>; Esc schließt die oberste</td></tr>
+          <tr><th scope="row">Zurück des Systems</th><td>Taste und Geste von Android, das Wischen vom Rand am iPhone</td><td>wie der Pfeil: erst die oberste Ebene, dann eine Stufe hinauf</td><td>der Verlauf des Browsers; offene Ebenen gehen mit der Seite</td></tr>
+          <tr><th scope="row">Vorwärts</th><td>Menü des Browsers, Geste</td><td>bringt den Ort zurück, den Zurück verlassen hat, auch ein Modul (Betula sagt nicht nein); an Einträgen von Ebenen und an Resten eines anderen Tabs prallt es ab</td><td>der Verlauf des Browsers; nie eine Ebene</td></tr>
         </tbody>
       </table>
     </div>
@@ -637,12 +651,25 @@ pre.code .c { opacity: .55; }
     <p class="lead" style="margin-top:4px;max-width:82ch;color:var(--text-2)">Jeder Tab ist ein Stapel, unten seine Startseite. Zurück nimmt das Oberste: erst die Ebenen (gelb), dann die Seiten. Die Startseite jedes Tabs führt zum Start, der Start aus Betula hinaus.</p>
     <div class="graph" aria-label="Rückweg je Tab">
       <div class="tabcol"><h4>Start</h4><div class="nd root">Start<small>dann aus Betula hinaus</small></div><span class="up">↑</span><div class="nd lay">Karte des Campus</div></div>
-      <div class="tabcol"><h4>Module</h4><div class="nd root">Liste<small>mit Filter und Suche</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet</small></div><span class="up">↑</span><div class="nd">Studiengang, eine Modulseite<small>was das Modul nennt</small></div><span class="up">↑</span><div class="nd lay">Filter · „Einplanen“-Menü</div></div>
+      <div class="tabcol"><h4>Module</h4><div class="nd root">Liste<small>mit Filter und Suche</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet</small></div><span class="up">↑</span><div class="nd">eine Modulseite<small>eine Voraussetzung, die das Modul nennt</small></div><span class="up">↑</span><div class="nd lay">Filter · „Einplanen“-Menü</div></div>
       <div class="tabcol"><h4>Studium</h4><div class="nd root">Mein Studium<small>Übersicht</small></div><span class="up">↑</span><div class="nd lay">Semester im Wischer</div><span class="up">↑</span><div class="nd">Regelstudienplan, Alle Studiengänge<small>dann Studiengang, Bereich</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet</small></div><span class="up">↑</span><div class="nd lay">Auswahl · Menü · Dialog</div></div>
       <div class="tabcol"><h4>Merkliste</h4><div class="nd root">Merkliste</div><span class="up">↑</span><div class="nd">Modul<small>Sheet, dann Vollbild</small></div></div>
       <div class="tabcol"><h4>Stundenplan</h4><div class="nd root">Woche<small>Semester und Ansicht ersetzen</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet, dann „Modul ansehen“</small></div><span class="up">↑</span><div class="nd lay">„Anpassen“</div></div>
     </div>
-    <p class="graph-note">Ein Link in einen anderen Bereich, etwa vom Modul zum Studiengang, legt die Seite auf den Stapel des Tabs, in dem du bist; der Tab bleibt markiert, und Zurück kehrt zum Modul zurück. Nur die Leiste und Links auf die Startseite eines Tabs wechseln den Tab.</p>
+    <p class="graph-note">Ein Link in einen anderen Bereich, etwa vom Modul zum Studiengang, wechselt in dessen Tab. Dort liegt darunter, was darüber steht (Mein Studium, Alle Studiengänge), und Zurück führt dort hinauf. Der Tab, aus dem du kamst, bleibt, wie er war: Ein Tipp auf ihn bringt dich zum Modul zurück.</p>
+  </section>
+
+  <section class="block" id="iphone" aria-labelledby="ios-title">
+    <h2 id="ios-title">Am iPhone genauso</h2>
+    <p class="lead">Rund 40 % der Handys sind iPhones, und dort laufen alle Browser mit Safaris Technik. Ein iPhone hat keine Zurück-Taste: Zurück ist das Wischen vom linken Rand, in Safari wie in der installierten App. Es folgt dem Verlauf, und keine Seite kann es abfangen. Darum steht am Handy alles, was Zurück schließen soll, im Verlauf, für alle Browser auf dieselbe Weise. Das Verhalten oben gilt am iPhone Satz für Satz.</p>
+    <div class="ios">
+      <div><h3>Wischen vom Rand ist Zurück</h3><p>Es tut, was der Pfeil oben links tut: schließt erst die Ebene, das Modul, die Auswahl, das Semester, dann eine Stufe hinauf. Weil jede Ebene einen Eintrag hat, braucht es dafür kein <code>CloseWatcher</code>, das Safari nicht kennt.</p></div>
+      <div><h3>Einträge nur auf ein Tippen</h3><p>Safari überspringt Einträge, die ohne Tippen entstanden sind, wie Chrome. Deshalb liegt der Eintrag fürs Semester bereit, bevor du wischst, und ein geteilter Link bekommt den Stapel darunter beim ersten Tippen.</p></div>
+      <div><h3>Das Bild beim Wischen</h3><p>Safari zeigt beim Wischen ein Bild der Seite, zu der es geht, auch innerhalb einer Seite. Betula legt den Eintrag einer Ebene an, bevor es sie zeichnet, damit das Bild darunter stimmt, und animiert nicht noch einmal, wo Safari schon animiert hat (<code>hasUAVisualTransition</code>, ab Safari 26.2; davor nach Zurück gar nicht).</p></div>
+      <div><h3>Der linke Rand im Wischer</h3><p>Am iPhone ist Wischen vom linken Bildschirmrand immer Zurück. In „Mein Studium“ liegen die vergangenen Semester links: Um sie zu sehen, wischst du nach rechts. Beginnt diese Bewegung ganz am Rand, nimmt Safari sie als Zurück und führt zum Start; aus der Mitte heraus wischt der Wischer. Abschalten lässt sich das nicht; es steht auf der Prüfliste.</p></div>
+      <div><h3>Nach einem Tabwechsel</h3><p>Der Verlauf wird an Ort und Stelle umgeschrieben. Unter der Startseite eines Tabs liegt danach Start, also stimmt Safaris Bild beim Wischen zum Start. Eine Stufe innerhalb des Tabs kann beim ersten Wischen noch ein altes Bild zeigen; nach dem Loslassen stimmt die Seite.</p></div>
+      <div><h3>Geprüft wird von Hand</h3><p>Kein Testwerkzeug wischt wie ein Finger am Rand. Gebaut wird zuerst für Chrome und auf Android geprüft; danach geht jemand mit einem iPhone die Prüfliste in Schritt 7 durch, in Safari und als installierte App. Was dort hakt, wird nachgezogen.</p></div>
+    </div>
   </section>
 
   <section class="block" id="architektur" aria-labelledby="arch-title">
@@ -650,7 +677,7 @@ pre.code .c { opacity: .55; }
     <p class="lead">Ein System für beide Geräte: Seiten sagen nur, was sie wollen; ein Navigator entscheidet, was das im Verlauf heißt. Am Rechner ist das fast, was heute schon geschieht; am Handy wird daraus der Stapel einer App. Der Router bleibt, wie er ist. Zwei Regeln der Browser bestimmen den Bau:</p>
     <div class="rule-box">
       <div><b>Ein neuer Eintrag nur auf ein Tippen hin</b><p>Chrome, Safari und Firefox überspringen mit ihrer Zurück-Taste Einträge, die ohne Tippen, Klicken oder Taste entstanden sind; nach einem Zurück zählt erst das nächste Tippen wieder. Nichts, was ein Wischen, ein Zeitgeber, das Scrollen oder <code>popstate</code> auslöst, darf <code>pushState</code> rufen. Ersetzen und Zurückgehen dürfen sie.</p></div>
-      <div><b>Was kein Ort ist, schließt die Plattform</b><p>Für Ebenen gibt es <code>CloseWatcher</code>: Zurück schließt die oberste, ohne den Verlauf zu berühren. <code>&lt;dialog&gt;</code> und <code>popover</code> tun es in Chromium schon von selbst. So bleibt nichts im Verlauf liegen, was Zurück oder Vorwärts wieder öffnen könnte.</p></div>
+      <div><b>Was Zurück schließen soll, braucht einen Eintrag</b><p>Das iPhone hat keine Zurück-Taste, nur das Wischen vom Rand, und Safari kennt kein <code>CloseWatcher</code>: Zurück kann dort nur, was im Verlauf steht. Darum bekommt am Handy jede Ebene einen Eintrag ohne neue Adresse, auf Android genauso. Was man ohne Tippen braucht, das Semester im Wischer, liegt schon bereit.</p></div>
     </div>
     <div class="arch">
       <div class="band"><h3>Eingaben</h3><p>Tippen auf einen Link · die Tableiste · der Pfeil oben links · Esc · Wischen · ein Sheet nach unten · das Zurück des Systems (<code>popstate</code>, Schließ-Anfrage)</p></div>
@@ -660,8 +687,8 @@ pre.code .c { opacity: .55; }
         <p>Liest jeden Linkklick, statt ihn wie heute als neuen Schritt durchzureichen, fragt den Rückweg, wie Ziel und Ort zueinander stehen, und lässt die Politik des Geräts entscheiden (Handy oder Rechner). Links bleiben Links: Sie gehen ohne JavaScript, der Navigator liest sie nur.</p>
         <div class="parts">
           <div class="part"><b>Rückweg</b><small>folia-routes, rein</small><p>Zu jedem Ort sein Tab, ob er die Startseite eines Tabs ist, seine Stufe darüber, und wie zwei Orte zueinander stehen: darunter, daneben, darüber, anderer Tab. Mit Tests für jede Route, wie <code>url.rs</code> sie heute hat.</p><p class="rep">ersetzt <code>Area::back_root</code>, <code>chrome::Up</code>, <code>back_at_head</code>, <code>local::back_href</code>, das <code>back_to</code> der Modulseite</p></div>
-          <div class="part"><b>Verlauf</b><small>nav, einziger Schreiber</small><p>Schreibt als Einziges in den Verlauf: Orte über den Router (push oder replace), sonst <code>history.back()</code> und <code>go()</code>. Jeder Eintrag trägt Nummer, Tab, Art und ob er die Startseite eines Stapels ist; ein Spiegel kennt die Einträge davor, auch nach einem Neuladen. Hört <code>popstate</code> vor dem Router und entscheidet: zeichnen, zum Start springen, abprallen.</p><p class="rep">ersetzt <code>Tabs::before</code>, <code>data-back</code>, <code>from_overview</code>, <code>view_back</code>, <code>pager::follow</code>, das <code>pushState</code> in enhance.js</p></div>
-          <div class="part"><b>Ebenen</b><small>nav, ein Stapel</small><p>Alles, was über einer Seite liegt: Dialoge, Menüs, die Auswahl, die Filter am Handy, das Semester im Wischer. Bindet die oberste an das Schließen der Plattform, schließt sie, wenn der Ort wechselt, und lässt ein Esc genau eine schließen.</p><p class="rep">ersetzt die Esc-Kette in enhance.js, <code>betulaSheet</code>, die eigenen Esc-Handler der Menüs</p></div>
+          <div class="part"><b>Verlauf</b><small>nav, einziger Schreiber</small><p>Schreibt als Einziges in den Verlauf: Orte über den Router (push oder replace), Ebenen und das Semester als Einträge ohne neue Adresse, sonst <code>back()</code>, <code>forward()</code> und <code>go()</code>. Jeder Eintrag trägt Nummer, Tab, Art und ob er die Startseite eines Stapels ist; ein Spiegel kennt die Einträge davor, auch nach einem Neuladen. Hört <code>popstate</code> vor dem Router und entscheidet: zeichnen, über liegengebliebene Einträge hinweggehen, abprallen. Beim Tabwechsel schreibt er den Verlauf um; unter einen geteilten Link legt er beim ersten Benutzen, was darüber steht.</p><p class="rep">ersetzt <code>Tabs::before</code>, <code>data-back</code>, <code>from_overview</code>, <code>view_back</code>, <code>pager::follow</code>, das <code>pushState</code> in enhance.js</p></div>
+          <div class="part"><b>Ebenen</b><small>nav, ein Stapel</small><p>Alles, was über einer Seite liegt: Dialoge, Menüs, die Auswahl, die Filter am Handy. Gibt jeder am Handy ihren Eintrag und nimmt ihn beim Schließen zurück, schließt sie, wenn der Ort wechselt, und lässt ein Esc genau eine schließen. Ein <code>&lt;dialog&gt;</code>, den Android selbst schließt, nimmt seinen Eintrag mit (<code>close</code>).</p><p class="rep">ersetzt die Esc-Kette in enhance.js, <code>betulaSheet</code>, die eigenen Esc-Handler der Menüs</p></div>
         </div>
       </div>
       <div class="flow">ein Ort</div>
@@ -670,19 +697,21 @@ pre.code .c { opacity: .55; }
     <div class="cards2">
       <div>
         <h3>Was jeder Eintrag trägt</h3>
-        <p>In <code>history.state</code>, neben dem des Routers: <code>n</code> (fortlaufend), <code>tab</code>, <code>kind</code> (Seite oder Sheet), <code>root</code> (Startseite eines Stapels) und, für „Mein Studium“, das Semester im Wischer. Der Spiegel in <code>sessionStorage</code> (<code>betula.nav</code>, je Profil) kennt die Einträge davor; wo es die Navigation API gibt (seit Januar 2026 in allen großen Browsern), liefert <code>navigation.entries()</code> dasselbe.</p>
+        <p>In <code>history.state</code>, neben dem des Routers: <code>n</code> (fortlaufend), <code>tab</code>, <code>kind</code> (Seite, Sheet, Ebene, Semester) und <code>root</code> (Startseite eines Stapels). Welches Semester der Eintrag „Semester“ zeigt, merkt sich Betula daneben, damit Wischen nichts schreiben muss. Der Spiegel in <code>sessionStorage</code> (<code>betula.nav</code>, je Profil) kennt die Einträge davor; wo es die Navigation API gibt (seit Januar 2026 in allen großen Browsern), liefert <code>navigation.entries()</code> dasselbe.</p>
         <p>Dazu die Stapel der Tabs am Handy, statt nur des letzten Orts. Die heutige <code>betula.tabs</code> wird gelesen, also verliert kein Browser, was er behalten hat.</p>
       </div>
       <div>
-        <h3>Wie die Ebenen schließen</h3>
+        <h3>Ein Weg für alle Handys</h3>
         <ul>
-          <li><b>Chrome, Edge, Samsung Internet, Firefox:</b> <code>CloseWatcher</code>, für das Zurück von Android und für Esc. Eine Ebene wird beim Tippen geöffnet, das sie bringt; die Auswahl beim Loslassen nach dem langen Druck, sonst fasst der Browser sie mit der Ebene darunter zusammen.</li>
-          <li><b>Safari am Handy:</b> kein CloseWatcher. Eine Ebene, die per Tipp aufgeht, bekommt einen Eintrag ohne neue Adresse, der beim Schließen zurückgenommen wird; so schließt sie das Wischen vom Rand. Vorwärts prallt an ihm ab, denn eine Ebene ist kein Ort. Das Semester im Wischer bekommt keinen.</li>
-          <li><b>Rechner:</b> Esc, über CloseWatcher, wo es ihn gibt. Zurück bleibt der Verlauf.</li>
-          <li>Liegt ein Modul (ein Ort) über dem Semester im Wischer, ruht dessen Watcher, bis das Modul zu ist: Zurück schließt immer, was oben liegt.</li>
+          <li><b>Ebenen:</b> ein Eintrag ohne neue Adresse, angelegt beim Tippen, das sie öffnet, die Auswahl beim Loslassen nach dem langen Druck. Schließen nimmt ihn zurück (<code>history.back()</code>), Zurück, Geste und Wischen nehmen ihn mit, Vorwärts prallt an ihm ab.</li>
+          <li><b>Das Semester im Wischer:</b> Sein Eintrag entsteht beim Tippen auf „Studium“ (anlegen, gleich wieder zurück) und liegt vorwärts bereit. Der erste Wisch geht hinein (<code>history.forward()</code>), der Wisch zurück zur Übersicht wieder heraus. Kommst du von einer anderen Seite zur Übersicht zurück, wird deren Eintrag dafür genommen (vor, ersetzen, zurück); das braucht kein Tippen.</li>
+          <li><b>Tabs:</b> erst anlegen, was fehlt, solange das Tippen frisch ist, dann die Einträge an Ort und Stelle ersetzen und zum Ziel gehen. Die Seite zeigt den Tab sofort, der Verlauf folgt in den Frames danach.</li>
+          <li><b>Kein CloseWatcher:</b> Er wäre auf Android bequemer, aber Safari kennt ihn nicht; ein Weg für alle Handys lässt sich einmal bauen und einmal prüfen.</li>
+          <li><b>Rechner:</b> Ebenen ohne Eintrag, Esc schließt die oberste. Zurück bleibt der Verlauf.</li>
         </ul>
       </div>
     </div>
+<div class="band" style="margin-top:12px"><h3>Handy oder Rechner</h3><p>Das Verhalten folgt der Ansicht: Wo die Handy-Ansicht gezeigt wird, gilt das Handy-Verhalten. Beide fragen dieselbe Bedingung (<code>nav::is_phone</code> und das Stylesheet), heute die Breite bis 900 px. Besser wäre später die Frage nach Maus und Trackpad: Geräte nur mit Touch, also Handys und Tablets (<code>(hover: none) and (pointer: coarse)</code>), bekommen die Handy-Ansicht in jeder Breite; mit Maus oder Trackpad (<code>hover: hover</code>), etwa ein Tablet-PC mit Tastatur, die des Rechners, sobald Platz ist. Steckt man die Tastatur an oder ab, wechseln Ansicht und Verhalten zusammen; jeder Eintrag sagt, wie er entstand, also bleibt der Verlauf lesbar.</p></div>
 <pre class="code"><span class="c">// folia-routes: der Rückweg, rein, mit Tests für jede Route</span>
 pub enum Tab { Start, Module, Studium, Merkliste, Stundenplan }
 pub enum Relation { Same, Beside, Below, Above(u8), OtherTab(Tab) }
@@ -696,29 +725,33 @@ pub enum Intent { Open(String), Beside(String), Up, Tab(Tab), TabAgain }
 impl Nav {
     pub fn go(&amp;self, intent: Intent);
     pub fn layer(&amp;self, kind: LayerKind, close: Callback&lt;()&gt;) -&gt; Layer;  <span class="c">// fällt Layer weg, ist die Ebene zu</span>
-    pub fn show(&amp;self, state: PageState);                              <span class="c">// das Semester im Wischer: replaceState</span>
+    pub fn show(&amp;self, state: PageState);                              <span class="c">// das Semester im Wischer: schreibt nichts</span>
     pub fn way_back(&amp;self) -&gt; Signal&lt;bool&gt;;                           <span class="c">// ob der Pfeil oben links steht</span>
 }
 
 <span class="c">// die Politik: eine reine Funktion je Gerät, mit Tests für jede Situation dieser Seite</span>
-struct Entry { n: u32, tab: Tab, kind: Kind, root: bool, page: Option&lt;PageState&gt; }
+enum Kind { Page, Sheet, Layer(LayerId), Semester }
+struct Entry { n: u32, tab: Tab, kind: Kind, root: bool }
 enum Op { Push(String, Entry), Replace(String, Entry), Go(i32), Close(LayerId) }
+<span class="c">// Push nur im Tippen und vor jedem Go; was danach kommt, ist Replace oder Go</span>
 fn plan(policy: Policy, stack: &amp;[Entry], open: &amp;[LayerId], intent: &amp;Intent) -&gt; Vec&lt;Op&gt;;</pre>
     <div class="table">
       <table>
-        <thead><tr><th scope="col">Was die Browser können (Oktober 2026)</th><th scope="col">Chrome, Edge, Samsung Internet</th><th scope="col">Firefox</th><th scope="col">Safari</th></tr></thead>
+        <thead><tr><th scope="col">Was die Handys können (Oktober 2026)</th><th scope="col">Android: Chrome, Samsung Internet, Firefox</th><th scope="col">iPhone: Safari und alle Browser dort</th></tr></thead>
         <tbody>
-          <tr><th scope="row">Zurück schließt Ebenen (<code>CloseWatcher</code>)</th><td>ja, auch <code>&lt;dialog&gt;</code> und <code>popover</code></td><td>ab 149, Android ab 157</td><td>nein, nur in der Technology Preview</td></tr>
-          <tr><th scope="row">Überspringt Einträge ohne Tippen</th><td>ja</td><td>ja</td><td>ja</td></tr>
-          <tr><th scope="row">Navigation API (<code>navigation.entries()</code>)</th><td>ja</td><td>ab 147</td><td>ab 26.2</td></tr>
-          <tr><th scope="row">Zurück des Systems</th><td>Taste, Geste</td><td>Taste, Geste</td><td>im Browser das Wischen vom Rand; installiert keins außer dem Pfeil</td></tr>
+          <tr><th scope="row">Zurück des Systems</th><td>Taste oder Geste</td><td>Wischen vom linken Rand, im Browser wie installiert; nicht abschaltbar</td></tr>
+          <tr><th scope="row">Einträge ohne Tippen</th><td>werden beim Zurück übersprungen</td><td>werden beim Zurück übersprungen</td></tr>
+          <tr><th scope="row">Zurück schließt Ebenen ohne Eintrag (<code>CloseWatcher</code>)</th><td>ja, auch <code>&lt;dialog&gt;</code> von selbst</td><td>nein, nur in der Technology Preview: darum der Eintrag</td></tr>
+          <tr><th scope="row">Bild der Zielseite beim Zurück</th><td>mit der Vorschau-Geste neuerer Android-Versionen</td><td>ja, auch innerhalb einer Seite</td></tr>
+          <tr><th scope="row">Browser hat schon animiert (<code>hasUAVisualTransition</code>)</th><td>Chrome ab 118</td><td>ab 26.2</td></tr>
+          <tr><th scope="row">Navigation API (<code>navigation.entries()</code>)</th><td>Chrome; Firefox ab 147</td><td>ab 26.2</td></tr>
         </tbody>
       </table>
     </div>
     <div class="cards2">
       <div>
         <h3>Prüfen</h3>
-        <p><code>e2e/back.mjs</code> spielt die Situationen dieser Seite auf einem Handy und in einem breiten Fenster. Playwrights <code>goBack</code> springt auf einen bestimmten Eintrag und überspringt nichts; deshalb prüft der Test außerdem, dass jedes <code>pushState</code> in einem Tippen geschieht (<code>navigator.userActivation.isActive</code>), und spielt das Zurück von Android als Esc, das in Chrome dieselbe Schließ-Anfrage ist.</p>
+        <p><code>e2e/back.mjs</code> spielt die Situationen dieser Seite auf einem Handy und in einem breiten Fenster. Playwrights <code>goBack</code> springt auf einen bestimmten Eintrag und überspringt nichts; deshalb prüft der Test außerdem, dass jedes <code>pushState</code> in einem Tippen geschieht (<code>navigator.userActivation.isActive</code>), und spielt das Zurück mit <code>history.back()</code>. Was nur ein echtes iPhone zeigt (das Wischen vom Rand, Safaris Bild dabei), prüft die Prüfseite aus Schritt 1 von Hand.</p>
         <p>Rückweg und Politik bekommen reine Tests, wie <code>pending.rs</code> heute: jede Route mit ihrer Stufe darüber, jede Situation mit dem Verlauf, den sie ergibt.</p>
       </div>
       <div>
@@ -729,15 +762,16 @@ fn plan(policy: Policy, stack: &amp;[Entry], open: &amp;[LayerId], intent: &amp;
   </section>
 
   <section class="block" id="schritte" aria-labelledby="steps-title">
-    <h2 id="steps-title">In sechs Schritten</h2>
-    <p class="lead">Jeder Schritt geht für sich auf canary und behebt etwas, das du sehen kannst. Keiner braucht eine MAJOR: Keine Adresse geht weg (<code>plan=1</code> wird weiter gelesen), und was ein Browser behält (<code>betula.tabs</code>), wird übernommen.</p>
+    <h2 id="steps-title">In sieben Schritten</h2>
+    <p class="lead">Zuerst für Chrome gebaut und auf Android geprüft; zuletzt geht jemand mit einem iPhone die Prüfliste durch. Jeder Schritt geht für sich auf canary und behebt etwas, das du sehen kannst. Keiner braucht eine MAJOR: Keine Adresse geht weg (<code>plan=1</code> wird weiter gelesen), und was ein Browser behält (<code>betula.tabs</code>), wird übernommen.</p>
     <ol class="steps">
-      <li><h3>Ebenen</h3><p>Ein Stapel für Dialoge, Menüs, Auswahl und Filter. Zurück (CloseWatcher, in Safari ein Eintrag) und Esc schließen die oberste; ein neuer Ort schließt die alten. Behebt: die Leiste der Auswahl nach Zurück, offene Menüs und Dialoge vor wechselnden Seiten, ein Esc, das zwei Dinge tut, den liegengebliebenen Platzhalter der Filter.</p><p class="v">Folia MINOR</p></li>
-      <li><h3>Verlauf</h3><p>Einträge mit Nummer und Art, der Spiegel, ein einziger Schreiber. Schließen nimmt den eigenen Eintrag zurück; der Pfeil ist Zurück; „Entfernen“ im Stundenplan nimmt zurück statt zu ersetzen; die Suche schreibt beim ersten Zeichen einen Schritt und ersetzt danach. Behebt: Module und Bereiche, die Zurück wieder öffnet, Pfeil und Zurück, die auseinanderführen, Zurück, das nichts tut.</p><p class="v">Folia MINOR</p></li>
-      <li><h3>Wischer</h3><p>Das Semester als Zustand des Eintrags und als Ebene am Handy; Wischen schreibt nichts; der Studium-Tab führt auf einem Semester zurück zur Übersicht. Behebt: Zurück nach dem Wischen.</p><p class="v">Folia PATCH</p></li>
-      <li><h3>Stapel je Tab</h3><p>Ein Tabwechsel legt den Stapel des Tabs oben auf, Zurück von der Startseite eines Tabs springt zum Start, Links bleiben im Tab, in dem du bist.</p><p class="v">Folia MINOR</p></li>
-      <li><h3>Geteilte Links</h3><p>Unter einem Link von außen liegt, was darüber steht, spätestens beim ersten Tippen: Modulseite, Liste, Start. Pfeil und Zurück führen auch dort gleich.</p><p class="v">Folia PATCH</p></li>
-      <li><h3>Prüfen und beschreiben</h3><p><code>e2e/back.mjs</code>, die Tests für Rückweg und Politik, und ein Abschnitt „Zurück“ in <code>docs/folia/frontend.md</code> statt der verstreuten Sätze von heute.</p><p class="v">mit jedem Schritt der Teil, der zu ihm gehört</p></li>
+      <li><h3>Ebenen</h3><p>Ein Stapel für Dialoge, Menüs, Auswahl und Filter, am Handy jede mit ihrem Eintrag ohne neue Adresse. Zurück, das Wischen vom Rand und Esc schließen die oberste; ein neuer Ort schließt die alten. Behebt: die Leiste der Auswahl nach Zurück, offene Menüs und Dialoge vor wechselnden Seiten, ein Esc, das zwei Dinge tut, den liegengebliebenen Eintrag der Filter.</p><p class="v">Folia MINOR</p></li>
+      <li><h3>Verlauf</h3><p>Einträge mit Nummer und Art, der Spiegel, ein einziger Schreiber. Schließen nimmt den eigenen Eintrag zurück; der Pfeil ist Zurück; „Entfernen“ im Stundenplan nimmt zurück statt zu ersetzen; die Suche schreibt beim ersten Zeichen einen Schritt und ersetzt danach; Filter am Rechner ein Schritt je Pause, am Handy je Übernehmen. Behebt: Module und Bereiche, die Zurück wieder öffnet, Pfeil und Zurück, die auseinanderführen, Zurück, das nichts tut.</p><p class="v">Folia MINOR</p></li>
+      <li><h3>Wischer</h3><p>Der Eintrag fürs Semester liegt bereit, Wischen geht nur hinein und heraus und schreibt nichts; der Studium-Tab führt auf einem Semester zurück zur Übersicht. Behebt: Zurück nach dem Wischen.</p><p class="v">Folia PATCH</p></li>
+      <li><h3>Stapel je Tab</h3><p>Ein Tabwechsel schreibt den Verlauf auf Start und den Stapel des Tabs um, Zurück von der Startseite eines Tabs führt zum Start, und ein Link in einen anderen Bereich wechselt den Tab, mit dem, was darüber steht, darunter.</p><p class="v">Folia MINOR</p></li>
+      <li><h3>Geteilte Links</h3><p>Solange ein Link von außen nur gelesen wird, führt Zurück zurück, woher er kam. Beim ersten Benutzen legt Betula darunter, was darüber steht: Modulseite, Liste, Start.</p><p class="v">Folia PATCH</p></li>
+      <li><h3>Prüfen und beschreiben</h3><p><code>e2e/back.mjs</code> auf einem Handy und in einem breiten Fenster, die Tests für Rückweg und Politik, und ein Abschnitt „Zurück“ in <code>docs/folia/frontend.md</code> statt der verstreuten Sätze von heute.</p><p class="v">mit jedem Schritt der Teil, der zu ihm gehört</p></li>
+      <li><h3>Am iPhone prüfen</h3><p>Mit einem Kommilitonen, in Safari und als installierte App, jeweils vom linken Rand gewischt:</p><ol class="check"><li>Ein Dialog geht zu, die Seite bleibt.</li><li>Eine Auswahl (lang drücken) geht, das Semester bleibt.</li><li>Nach dreimal seitlich Wischen in „Mein Studium“: die Übersicht.</li><li>Ein geschlossenes Modul kommt nicht wieder.</li><li>Nach einem Tabwechsel: erst die Startseite des Tabs, dann Start.</li><li>Auf der Übersicht ganz am linken Rand nach rechts: Das führt zum Start. Stört das?</li><li>Das Bild beim Wischen zeigt die Seite, auf der du landest.</li></ol><p class="v">was hakt, als PATCH danach</p></li>
     </ol>
   </section>
 
@@ -748,31 +782,45 @@ fn plan(policy: Policy, stack: &amp;[Entry], open: &amp;[LayerId], intent: &amp;
       <div><h3>Kein Eintrag ohne Tippen</h3><p>Was ein Wischen, ein Zeitgeber oder das Scrollen auslöst, schreibt keinen neuen Eintrag. Die Browser würden ihn beim Zurück überspringen.</p></div>
       <div><h3>Keine Dialoge in der Adresse</h3><p>Ein geteilter Link öffnet nie einen Dialog, ein Menü oder eine Auswahl, sondern den Ort darunter.</p></div>
       <div><h3>Am Rechner kein App-Stapel</h3><p>Zurück bleibt der Verlauf, über Tabs hinweg, wie auf jeder Website. Nur „Zurück (Esc)“ in der Seite geht hinauf.</p></div>
+      <div><h3>Kein Sonderweg fürs iPhone</h3><p>Android und iPhone nutzen denselben Weg. <code>CloseWatcher</code>, das Safari nicht kennt, braucht es dafür nicht.</p></div>
       <div><h3>Kein Festhalten</h3><p>Zurück schließt höchstens, was offen ist. Betula fragt nie „Wirklich verlassen?“.</p></div>
-      <div><h3>Nicht jede Änderung ein Schritt am Handy</h3><p>Filter, Suche, Ansichten und Semester ersetzen den Eintrag. Zurück führt hinauf, nicht durch deine Filter.</p></div>
     </div>
   </section>
 
   <section class="block" id="offen" aria-labelledby="open-title">
-    <h2 id="open-title">Was du noch entscheiden solltest</h2>
+    <h2 id="open-title">Entschieden</h2>
+    <p class="lead">Deine Antworten vom 18.10.2026, jetzt Regeln dieses Blatts:</p>
     <ul class="open">
-      <li><b>Zurück von der Startseite eines Tabs:</b> zum Start und erst dann aus Betula hinaus (vorgeschlagen, so machen es Android-Apps mit Tableiste), oder gleich hinaus?</li>
-      <li><b>Ein geteilter Link am Handy:</b> Zurück erst zur Liste und zum Start, so wie der Pfeil (vorgeschlagen), oder gleich zurück in den Messenger, aus dem er kam?</li>
-      <li><b>Ein Link in einen anderen Bereich,</b> etwa ein Studiengang, den ein Modul nennt: Er bleibt im Tab, in dem du bist, und Zurück kehrt zum Modul zurück (vorgeschlagen), oder er wechselt den Tab? Links auf die Startseite eines Tabs, etwa „Im Katalog suchen“, wechseln in beiden Fällen.</li>
-      <li><b>Filter am Rechner:</b> jeder Klick ein Schritt im Verlauf (wie heute), oder ein Schritt je Pause von einer Sekunde?</li>
-      <li><b>Safari am iPhone, nicht installiert:</b> Das Wischen vom Rand gehört dort dem Browser. Es schließt Ebenen, die per Tipp aufgingen, führt aber von einem Semester, zu dem du gewischt hast, zur Seite davor. Reicht das? Installiert gibt es dort nur den Pfeil.</li>
-      <li><b>Die Grenze zwischen Handy und Rechner:</b> heute 900 px Breite. Ein Tablet quer bekommt damit das Verhalten des Rechners. Soll ein Gerät ohne Maus (<code>pointer: coarse</code>) immer das des Handys bekommen?</li>
+      <li><b>Zurück von der Startseite eines Tabs:</b> erst zum Start, dann aus Betula hinaus.</li>
+      <li><b>Ein geteilter Link am Handy:</b> Solange du ihn nur liest, führt Zurück zurück in den Messenger. Sobald du Betula benutzt (etwas öffnest, den Pfeil tippst, den Tab wechselst), legt Betula darunter, was darüber steht, und Zurück führt über Liste und Start hinaus. Der Pfeil zählt als Benutzen: Nur beim allerersten Druck führen er und Zurück darum verschieden.</li>
+      <li><b>Ein Link in einen anderen Bereich:</b> wechselt den Tab („das wird sonst giga irritierend“).</li>
+      <li><b>Filter:</b> am Rechner ein Schritt je Pause, am Handy ein Schritt je „Module anzeigen“.</li>
+      <li><b>Safari:</b> Gebaut wird zuerst für Chrome; dann geht ein Kommilitone mit iPhone die Prüfliste in Schritt 7 durch.</li>
+      <li><b>Handy oder Rechner:</b> vorerst 900 px Breite, und das Verhalten folgt der Ansicht. Später besser nach Maus und Tastatur statt nach der Breite (Architektur, „Handy oder Rechner“).</li>
     </ul>
-    <p class="src">Quellen zu den Browsern: <a href="https://chromium.googlesource.com/chromium/src/+/127.0.6533.99/docs/history_manipulation_intervention.md">Chromium, History manipulation intervention</a> · <a href="https://bugs.webkit.org/show_bug.cgi?id=248303">WebKit, Bug 248303</a> · <a href="https://developer.mozilla.org/docs/Web/API/CloseWatcher">MDN, CloseWatcher</a> · <a href="https://caniuse.com/mdn-api_closewatcher_close">caniuse, CloseWatcher</a> · <a href="https://caniuse.com/wf-navigation">caniuse, Navigation API</a></p>
+    <h3 style="margin-top:20px;font-size:16px;font-weight:700">Noch offen</h3>
+    <ul class="open">
+      <li><b>Die Pause am Rechner:</b> eine Sekunde (vorgeschlagen), oder länger?</li>
+      <li><b>Zurück im Filter-Sheet:</b> Es übernimmt die Wahl wie heute, als Schritt wie „Module anzeigen“ (vorgeschlagen). Oder soll Zurück die Wahl verwerfen?</li>
+    </ul>
+    <p class="src">Quellen zu den Browsern: <a href="https://chromium.googlesource.com/chromium/src/+/127.0.6533.99/docs/history_manipulation_intervention.md">Chromium, History manipulation intervention</a> · <a href="https://bugs.webkit.org/show_bug.cgi?id=248303">WebKit, Bug 248303</a> · <a href="https://developer.mozilla.org/docs/Web/API/CloseWatcher">MDN, CloseWatcher</a> · <a href="https://caniuse.com/mdn-api_closewatcher_close">caniuse, CloseWatcher</a> · <a href="https://caniuse.com/wf-navigation">caniuse, Navigation API</a> · <a href="https://developer.mozilla.org/docs/Web/API/NavigateEvent/hasUAVisualTransition">MDN, hasUAVisualTransition</a> · <a href="https://lists.w3.org/Archives/Public/public-css-archive/2023Jan/0578.html">Safaris Bild beim Wischen innerhalb einer Seite</a></p>
   </section>
 </div>
 
 <script>
 "use strict";
 // ---------- the model: a browser's history and Betula's two ways of going back ----------
-// The phone writes an entry only for a place opened by a tap; what lies over a page and the semester
-// the row of „Mein Studium" shows are closed by Back without an entry (CloseWatcher). The desktop
-// keeps the browser's history of places. Pure: the page below only draws what it says.
+// One way for every phone, Android and iPhone alike. The iPhone has no Back key, only the swipe from the
+// left edge, and Safari has no CloseWatcher: Back can only do what is in the history. So on a phone
+// everything Back closes has an entry: a place a new address, a layer (dialog, sheet, menu, the
+// selection, the filters) one without. Entries are written only on a tap; the semester of the row lies
+// ready above the overview, written on the tap that brought one there, and a swipe only moves into it
+// and out (forward, back). A change of tabs rewrites the history in place, so that Start always lies
+// right under a tab's start. The desktop keeps the browser's history of places; its layers have no
+// entries. Pure: the page below only draws what it says.
+// The owner's decisions (2026-10-18): from a tab's start to Start, then out; a shared link leads back out
+// while nothing was used in it, and lays its stack under it with the first use; a page of another area
+// is a change of tabs; filters a step each time the phone's sheet applies them, on a desktop each pause.
 const TABS = ["home", "catalog", "study", "bookmarks", "plan"];
 const TAB_ROOT = { home: "/", catalog: "/catalog", study: "/study", bookmarks: "/bookmarks", plan: "/studyplan" };
 const TAB_NAME = { home: "Start", catalog: "Module", study: "Studium", bookmarks: "Merkliste", plan: "Stundenplan" };
@@ -794,6 +842,7 @@ const SEMS = {
 };
 const SEM_ORDER = [-2, -1, 0, 1, 2, 3];
 const SEM_MIN = -2, SEM_MAX = 3;
+const PAUSE_MS = 1000; // on a desktop a filter's clicks closer together than this are one step
 
 function parse(url) {
   const k = url.indexOf("?");
@@ -829,9 +878,13 @@ function parentOf(url, mem = {}) {
   if (path.startsWith("/programs/")) return mem.programs || "/programs";
   return null;
 }
-function labelOf(s) {
+// What a phone's entry shows under its layers: a page, a module's sheet over one, or a semester of the row.
+const viewOf = (s) => (s.kind === "layer" ? { url: s.url, kind: s.under, step: s.step, root: s.uroot } : { url: s.url, kind: s.kind, step: s.step, root: !!s.root });
+function labelOf(s, ahead) {
   if (!s) return "";
   if (s.ext) return s.label;
+  if (s.kind === "layer") return `${labelOf({ ...s, kind: s.under })} + ${LAYER_NAME[s.layer]}`;
+  if (s.kind === "step") return ahead ? "Semester · liegt bereit" : `Mein Studium · ${SEMS[s.step].name}`;
   const { path, q } = parse(s.url);
   const open = q.get("open");
   const mod = open ? `${MODS[open].name} über ` : "";
@@ -863,20 +916,14 @@ class History {
 
 class Device {
   constructor() { this.reset(); }
-  reset() { this.h = new History(); this.layers = []; this.sel = new Set(); this.draft = null; this.n = 0; this.focus = 1; this.mem = {}; this.note = ""; this.stacks = {}; }
+  reset() { this.h = new History(); this.layers = []; this.sel = new Set(); this.draft = null; this.n = 0; this.focus = 1; this.mem = {}; this.note = ""; this.stacks = {}; this.fresh = false; this.last = 0; }
   get cur() { return this.h.cur; }
   get s() { return this.h.cur.state; }
   st(url, extra = {}) { return { n: ++this.n, url, kind: parse(url).q.has("open") ? "sheet" : "screen", ...extra }; }
   start(url, from = "Messenger") { this.reset(); this.h.push({ url: "extern", state: { ext: true, label: from } }); this.land(url); }
   out() { return !!this.s.ext; }
-  closed(id) {
-    if (id === "selection") this.sel.clear();
-    if (id === "filters" && this.draft) { const to = this.draft; this.draft = null; if (to !== this.s.url) this.change(to, true); }
-  }
+  closed(id) { if (id === "selection") this.sel.clear(); }
   toggleDraft(key, value) { this.draft = toggled(this.draft ?? this.s.url, key, value); }
-  close(id) { if (!this.layers.includes(id)) return; this.layers = this.layers.filter((l) => l !== id); this.closed(id); }
-  closeAll() { const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null; this.sel.clear(); }
-  openLayer(id) { if (!this.layers.includes(id)) this.layers.push(id); }
   hold(row) { this.openLayer("selection"); this.sel.add(row); }
   pick(row) {
     if (this.layers.includes("selection")) {
@@ -895,97 +942,185 @@ class Phone extends Device {
   tab() { return this.out() ? "home" : this.s.tab; }
   get rootAt() {
     const t = this.tab();
-    for (let k = this.h.i; k >= 0; k--) { const s = this.h.list[k].state; if (s.root && s.tab === t) return k; }
+    for (let k = this.h.i; k >= 0; k--) { const s = this.h.list[k].state; if (s.kind !== "layer" && s.root && s.tab === t) return k; }
     return this.base;
   }
   entry(url, tab, extra = {}) { return { url, state: this.st(url, { tab, ...extra }) }; }
-  // A link from outside: the stack up to Start is laid under it, so that Back and the arrow lead the same way.
+  isOverview() { return !this.out() && this.s.kind === "screen" && this.s.url === "/study"; }
+  isSem() { return !this.out() && this.s.kind === "step"; }
+  // A link from outside. While nothing in it is used, Back leads back out (to the messenger); the first use
+  // (a tap that opens something, the arrow, a tab) lays under it what lies above it, up to Start.
   land(url) {
+    if (url === "/") { this.h.push(this.entry("/", "home", { root: true })); return; }
+    this.h.push(this.entry(url, areaOf(url), { root: isTabRoot(url) }));
+    this.fresh = true;
+  }
+  seed() {
+    if (!this.fresh) return;
+    this.fresh = false;
+    const url = this.cur.url, tab = areaOf(url);
+    const chain = this.chainOf(url, tab);
+    this.h.replace(this.entry("/", "home", { root: true }));
+    chain.forEach((u, k) => this.h.push(this.entry(u, tab, k === 0 ? { root: true } : {})));
+    this.arm(true);
+  }
+  // What lies above a page in its tab, its tab's start first.
+  chainOf(url, t) {
     const chain = [];
-    for (let u = url; u; u = parentOf(u)) chain.unshift(u);
-    if (chain[0] !== "/") chain.unshift("/");
-    const tab = areaOf(url);
-    chain.forEach((u, k) => this.h.push(this.entry(u, k === 0 ? "home" : tab, k <= 1 ? { root: true } : {})));
+    for (let u = url; u && areaOf(u) === t; u = parentOf(u)) chain.unshift(u);
+    if (!chain.length || !isTabRoot(chain[0])) chain.unshift(TAB_ROOT[t]);
+    return chain;
   }
-  // A tab's own page is a change of tabs; anything else goes onto this tab's stack.
+  // The entry of a semester, ready above the overview. Written on a tap (push, then back); else the entry
+  // ahead is taken for it (forward, replace, back), which needs no tap.
+  arm(tap) {
+    if (!this.isOverview()) return;
+    const next = this.h.list[this.h.i + 1];
+    if (next && next.state.kind === "step") { next.state.stale = false; return; }
+    const e = { url: "/study", state: { n: ++this.n, url: "/study", tab: "study", kind: "step", step: 1 } };
+    if (!next && tap) { this.h.push(e); this.h.go(-1); }
+    else if (next) this.h.list[this.h.i + 1] = e;
+    else { this.h.push(e); this.h.go(-1); this.note = "Ohne Tippen angelegt: Der Browser überspränge diesen Eintrag beim Zurück."; }
+  }
+  // A tab's own page is a change of tabs; anything else goes onto this tab's stack. From a layer, the place
+  // takes the layer's entry: no new entry after a step back.
   open(url) {
-    if (isTabRoot(url) && areaOf(url) !== this.tab()) return this.tabTo(areaOf(url), url);
+    this.seed();
+    if (areaOf(url) !== this.tab()) return this.tabTo(areaOf(url), url);
+    const v = viewOf(this.s);
     const sheet = parse(url).q.has("open");
-    this.closeAll();
-    this.h.push(this.entry(url, this.tab(), sheet && this.s.step ? { step: this.s.step } : {}));
+    const e = this.entry(url, this.tab(), sheet && v.kind === "step" ? { step: v.step } : {});
+    if (this.s.kind === "layer") {
+      const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null;
+      this.h.replace(e);
+    } else this.h.push(e);
+    if (url === "/study") this.arm(true);
   }
-  change(url, fromLayer) { if (!fromLayer) this.closeAll(); this.h.replace({ url, state: { ...this.s, url } }); }
-  // Back, its gesture and the arrow at the head: one and the same.
+  // Beside: another filter, another view of the same page. It takes the place entry's place.
+  change(url, fromLayer) {
+    this.seed();
+    if (!fromLayer) { while (this.s.kind === "layer") this.h.go(-1); const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null; }
+    this.h.replace({ url, state: { ...this.s, url } });
+  }
+  openLayer(id) {
+    if (this.layers.includes(id)) return;
+    this.seed();
+    const v = viewOf(this.s);
+    this.layers.push(id);
+    this.h.push({ url: this.cur.url, state: { n: ++this.n, url: v.url, tab: this.tab(), kind: "layer", layer: id, under: v.kind, step: v.step, uroot: v.root } });
+  }
+  // Closed by its ×, a tap beside it, dragged down or by a button: its entry is taken back.
+  close(id) {
+    if (!this.layers.includes(id)) return;
+    if (this.applies(id)) return this.apply();
+    if (this.s.kind === "layer" && this.s.layer === id) this.h.go(-1);
+    this.layers = this.layers.filter((l) => l !== id);
+    this.closed(id);
+    if (id === "filters") this.draft = null;
+    this.passStale(-1);
+  }
+  // The filters' sheet with a changed draft: closing it (its button, a tap beside, down, Back) applies the
+  // draft as a step of its own: the sheet's entry becomes the filtered list. No push: on Back the browser
+  // has already gone back, and Betula goes forward into the sheet's entry and replaces it.
+  applies(id) { return id === "filters" && this.draft && this.draft !== viewOf(this.s).url && this.s.kind === "layer" && this.s.layer === id; }
+  apply() {
+    const to = this.draft; this.draft = null;
+    this.layers = this.layers.filter((l) => l !== "filters");
+    this.h.replace(this.entry(to, this.tab()));
+  }
+  passStale(d) { while (this.s.kind === "layer" && !this.layers.includes(this.s.layer)) if (!this.h.go(d)) break; }
+  // Back, its gesture, the swipe from the left edge and the arrow at the head: one and the same.
   back() {
     if (this.out()) return false;
-    if (this.layers.length) { const id = this.layers.pop(); this.closed(id); return "layer"; }
-    if (this.s.kind === "screen" && this.s.step) { this.h.replace({ url: this.cur.url, state: { ...this.s, step: undefined } }); return "step"; }
-    if (this.s.root && this.s.tab !== "home") {
-      const jump = this.base - this.h.i;
-      this.h.go(jump);
-      if (jump < -1) this.note = "Zurück springt über die Einträge der anderen Tabs hinweg zum Start.";
-      return "start";
-    }
-    return this.h.go(-1) ? "history" : false;
-  }
-  // Forward is asked for: it brings back the place Back left, a module too. A layer never, as none is in the history.
-  forward() {
-    if (!this.h.go(1)) return false;
-    this.closeAll();
+    if (this.applies("filters")) { this.apply(); return "applied"; }
+    const from = this.s;
+    if (!this.h.go(-1)) return false;
+    if (from.kind === "layer") { this.layers = this.layers.filter((l) => l !== from.layer); this.closed(from.layer); if (from.layer === "filters") this.draft = null; }
+    else { this.layers = []; this.sel.clear(); this.draft = null; }
+    this.passStale(-1);
     return true;
   }
-  saveStack() { if (!this.out()) this.stacks[this.tab()] = this.h.list.slice(this.rootAt, this.h.i + 1).map((e) => ({ url: e.url, state: { ...e.state } })); }
-  // A tab of the bar: its own stack, as it was left, laid on top. Its first page leads back to Start.
+  // The arrow at the head: Back. On a shared link not used yet it is the first use as well.
+  arrowBack() { this.seed(); return this.back(); }
+  // Forward brings back a place Back left; at a layer's entry and at what a change of tabs left over it bounces off.
+  forward() {
+    const next = this.h.list[this.h.i + 1];
+    if (!next) return false;
+    const st = next.state;
+    if (!this.out() && (st.kind === "layer" || st.stale)) { this.note = st.kind === "layer" ? "Vorwärts öffnet keinen Dialog wieder." : "Vorwärts führt nicht in den Rest eines anderen Tabs."; return false; }
+    this.h.go(1);
+    return true;
+  }
+  saveStack() {
+    if (this.out()) return;
+    this.stacks[this.tab()] = this.h.list.slice(this.rootAt, this.h.i + 1).filter((e) => e.state.kind !== "layer").map((e) => ({ url: e.url, state: { ...e.state } }));
+  }
+  // A tab of the bar: the history becomes Start and the tab's stack as it was left. First what is missing is
+  // written (on the tap), then the entries in place are rewritten (back, replace, forward).
   tabTo(t, url) {
+    this.seed();
     if (!url && t === this.tab() && !this.out()) return this.again();
     this.saveStack();
-    this.closeAll();
-    if (t === "home") { this.h.go(this.base - this.h.i); return; }
-    const stack = url ? [this.entry(url, t, { root: true })] : (this.stacks[t] || [this.entry(TAB_ROOT[t], t, { root: true })]);
-    for (const e of stack) this.h.push({ url: e.url, state: { ...e.state, n: ++this.n } });
+    this.layers = []; this.sel.clear(); this.draft = null;
+    const base = this.base;
+    const stack = t === "home" ? [] : url ? this.chainOf(url, t).map((u, k) => this.entry(u, t, k === 0 ? { root: true } : {})) : (this.stacks[t] || [this.entry(TAB_ROOT[t], t, { root: true })]);
+    const all = stack.map((e) => ({ url: e.url, state: { ...e.state, n: ++this.n, stale: false } }));
+    const top = all[all.length - 1];
+    if (top && top.url === "/study" && top.state.kind === "screen") all.push({ url: "/study", state: { n: ++this.n, url: "/study", tab: "study", kind: "step", step: 1 } });
+    if (base + all.length > this.h.i) this.h.list.splice(this.h.i + 1);
+    all.forEach((e, k) => { this.h.list[base + 1 + k] = e; });
+    this.h.i = base + stack.length;
+    for (let k = this.h.i + 1; k < this.h.list.length; k++) if (this.h.list[k].state.tab !== t || this.h.list[k].state.kind === "layer") this.h.list[k].state.stale = true;
   }
   again() {
+    this.seed();
     const root = this.rootAt;
-    if (this.h.i === root && !this.layers.length && !this.s.step) { this.note = "Schon am Anfang des Tabs: die Seite geht nach oben."; return; }
-    this.closeAll();
+    if (this.h.i === root && !this.layers.length) { this.note = "Schon am Anfang des Tabs: die Seite geht nach oben."; return; }
+    this.layers = []; this.sel.clear(); this.draft = null;
     this.h.go(root - this.h.i);
-    if (this.s.step) this.h.replace({ url: this.cur.url, state: { ...this.s, step: undefined } });
+    this.arm(true);
   }
-  isRow() { const s = this.s; return !this.out() && s.url === "/study" && s.kind === "screen"; }
-  // The semester the row shows is part of the page's entry; a swipe never writes a new one.
+  // The row of „Mein Studium": a swipe moves into the entry that lies ready and out of it. It writes nothing:
+  // which semester shows, Betula keeps itself.
   swipe(d) {
-    if (!this.isRow()) return;
-    if (this.layers.includes("selection")) { this.note = "Mit einer Auswahl wischt der Finger nicht zur Seite."; return; }
-    const to = (this.s.step || 0) + d;
-    if (to < SEM_MIN || to > SEM_MAX) return;
-    this.h.replace({ url: this.cur.url, state: { ...this.s, step: to || undefined } });
+    if (this.layers.length) { if (this.layers.includes("selection")) this.note = "Mit einer Auswahl wischt der Finger nicht zur Seite."; return; }
+    if (this.isOverview()) {
+      if (d < SEM_MIN || d > SEM_MAX) return;
+      this.arm(false); this.h.go(1); this.s.step = d;
+      return;
+    }
+    if (!this.isSem()) return;
+    const to = this.s.step + d;
+    if (to === 0) { this.h.go(-1); return; }
+    if (to >= SEM_MIN && to <= SEM_MAX) this.s.step = to;
   }
-  arrowSem(d) { // ‹ ›: to the semester before or after, past the overview
-    if (!this.isRow()) return;
-    let to = (this.s.step || 0) + d;
-    if (to === 0) to += d;
-    if (to < SEM_MIN || to > SEM_MAX) return;
-    this.close("selection");
-    this.h.replace({ url: this.cur.url, state: { ...this.s, step: to } });
+  arrowSem(d) { // ‹ ›: past the overview; turning lets the selection go
+    if (this.layers.includes("selection")) this.close("selection");
+    if (!this.isSem()) return;
+    let to = this.s.step + d; if (to === 0) to += d;
+    if (to >= SEM_MIN && to <= SEM_MAX) this.s.step = to;
   }
-  toSem(k) { if (this.isRow()) this.h.replace({ url: this.cur.url, state: { ...this.s, step: k } }); }
-  watchers() {
-    const w = [...this.layers].reverse().map((id) => LAYER_NAME[id]);
-    if (!this.out() && this.s.kind === "screen" && this.s.step) w.push(`das Semester ${SEMS[this.s.step].name}`);
-    return w;
-  }
+  toSem(k) { if (!this.isOverview() || this.layers.length) return; this.seed(); this.arm(true); this.h.go(1); this.s.step = k; }
+  watchers() { return [...this.layers].reverse().map((id) => LAYER_NAME[id]); }
   nextBack() {
-    const s = this.s, prev = this.h.prev?.state;
+    const s = this.s;
     if (s.ext) return "nichts mehr in Betula";
-    if (this.layers.length) return `schließt ${LAYER_NAME[this.layers[this.layers.length - 1]]}`;
-    if (s.kind === "screen" && s.step) return "führt zur Übersicht von „Mein Studium“";
+    if (s.kind === "layer") return `schließt ${LAYER_NAME[s.layer]}`;
+    if (s.kind === "step") return "führt zur Übersicht von „Mein Studium“";
     if (s.kind === "sheet") return "schließt das Modul";
-    if (s.root && s.tab !== "home") return "führt zu Start";
+    let k = this.h.i - 1;
+    while (k >= 0 && this.h.list[k].state.kind === "layer" && !this.layers.includes(this.h.list[k].state.layer)) k--;
+    const prev = this.h.list[k]?.state;
     if (!prev || prev.ext) return "verlässt Betula";
     return `führt zu ${labelOf(prev)}`;
   }
-  arrow() { const s = this.s; return !s.ext && (!s.root || (s.kind === "screen" && !!s.step)); }
-  dismiss() { if (this.layers.length) this.close(this.layers[this.layers.length - 1]); else if (this.s.kind === "sheet") this.back(); }
+  arrow() { const s = this.s; if (s.ext) return false; const v = viewOf(s); return v.kind === "step" || v.kind === "sheet" || !v.root; }
+  nextArrow() {
+    if (!this.arrow()) return null;
+    if (!this.fresh) return "dasselbe";
+    return `führt zu ${labelOf({ url: parentOf(this.cur.url) || TAB_ROOT[this.tab()] })}: das erste Benutzen legt darunter, was darüber steht`;
+  }
+  dismiss() { if (this.layers.length) this.close(this.layers[this.layers.length - 1]); else if (this.s.kind === "sheet") { this.seed(); this.back(); } }
 }
 
 class Desk extends Device {
@@ -998,8 +1133,16 @@ class Desk extends Device {
     if (u === "/study" || u === "/programs") this.mem.programs = u;
     this.mem[a] = u;
   }
+  closeAll() { const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null; this.sel.clear(); }
   open(url) { this.remember(); this.closeAll(); this.h.push({ url, state: this.st(url) }); }
-  change(url) { this.open(url); }
+  // Beside the page (a filter, a view): one step for every pause, clicks close together are one.
+  change(url, now = Date.now()) {
+    if (this.s.beside && now - this.last < PAUSE_MS) this.h.replace({ url, state: { ...this.st(url), beside: true } });
+    else { this.open(url); this.s.beside = true; }
+    this.last = now;
+  }
+  openLayer(id) { if (!this.layers.includes(id)) this.layers.push(id); }
+  close(id) { if (!this.layers.includes(id)) return; this.layers = this.layers.filter((l) => l !== id); this.closed(id); }
   back() { if (!this.h.go(-1)) return false; this.closeAll(); return true; }
   forward() { if (!this.h.go(1)) return false; this.closeAll(); return true; }
   parent() { return this.out() ? null : parentOf(this.s.url, { catalog: this.mem.catalog, programs: this.mem.programs }); }
@@ -1008,6 +1151,8 @@ class Desk extends Device {
     const p = this.parent();
     if (!p) return false;
     if (this.h.prev?.state.url === p) return this.back();
+    // Closing what stands beside the page (a preview, an area): no step of its own, so ← does not bring it back.
+    if (parse(p).path === parse(this.s.url).path) { this.closeAll(); this.h.replace({ url: p, state: this.st(p) }); return true; }
     this.open(p);
     return true;
   }
@@ -1032,9 +1177,11 @@ class Desk extends Device {
     if (this.layers.length) return `schließt ${LAYER_NAME[this.layers[this.layers.length - 1]]}`;
     const p = this.parent();
     if (!p) return "nichts: keine Seite darüber";
-    return `führt zu ${labelOf({ url: p })}${this.h.prev?.state.url === p ? ", durch den Verlauf" : ", als neuer Schritt"}`;
+    return `führt zu ${labelOf({ url: p })}${this.h.prev?.state.url === p ? ", durch den Verlauf" : parse(p).path === parse(this.s.url).path ? ", ohne neuen Schritt" : ", als neuer Schritt"}`;
   }
 }
+
+
 
 // ---------- drawing ----------
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -1063,7 +1210,7 @@ const CHANGE = `<p class="sentence">Du studierst <b>Informatik B.Sc.</b> im <b>3
 
 // The phone.
 function pPage(p) {
-  const s = p.s;
+  const s = viewOf(p.s);
   const url = s.kind === "sheet" ? without(s.url, "open") : s.url;
   const { path, q } = parse(url);
   if (path === "/") return `<div class="p-title"><b>Hallo!</b><small>Betula · Modulkatalog · inoffiziell</small></div>
@@ -1123,9 +1270,9 @@ function pLayerHTML(p, id) {
 }
 function phoneHTML(p) {
   if (p.out()) return `<div class="app p-app"><div class="p-out"><div><b>${esc(p.s.label)}</b><p>Außerhalb von Betula. Mit Vorwärts kommst du zurück.</p></div></div></div>`;
-  const s = p.s, selecting = p.layers.includes("selection");
+  const s = viewOf(p.s), selecting = p.layers.includes("selection");
   const arrow = p.arrow();
-  const row = s.url === "/study" && (s.kind === "screen" || s.step);
+  const row = s.url === "/study" && (s.kind === "screen" || !!s.step);
   const at = s.step || 0;
   let over = s.kind === "sheet" ? pSheetHTML(parse(s.url).q.get("open")) : "";
   for (const id of p.layers) over += pLayerHTML(p, id);
@@ -1133,8 +1280,8 @@ function phoneHTML(p) {
     ? `<div class="p-selbar"><span><b>${p.sel.size} ausgewählt</b><small>${selLp(p)} LP</small></span><button data-act="close" data-id="selection">Verschieben</button><button data-act="close" data-id="selection">Entfernen</button><button class="x" data-act="close" data-id="selection" aria-label="Auswahl aufheben">${icon("x")}</button></div>`
     : `<nav class="p-nav">${TABS.map((t) => `<button class="${p.tab() === t ? "on" : ""}" data-act="tab" data-tab="${t}"><span class="ind">${icon(TAB_ICON[t])}</span>${TAB_NAME[t]}</button>`).join("")}</nav>`;
   return `<div class="app p-app"><div class="p-status"><span>14:32</span><span>●●● 82 %</span></div>
-    <div class="p-top">${arrow ? `<button class="box back" data-act="back" aria-label="Zurück">${icon("back")}</button>` : ""}<div class="search">${icon("search")}<span>Modul, Nummer, Thema …</span></div>${arrow ? "" : `<span class="box">${icon("user")}</span>`}</div>
-    <div class="p-body${row ? " pager" : ""}" data-row-body="${row && s.kind === "screen" && parse(s.url).q.get("view") !== "plan" ? 1 : 0}">${pPage(p)}</div>
+    <div class="p-top">${arrow ? `<button class="box back" data-act="arrow" aria-label="Zurück">${icon("back")}</button>` : ""}<div class="search">${icon("search")}<span>Modul, Nummer, Thema …</span></div>${arrow ? "" : `<span class="box">${icon("user")}</span>`}</div>
+    <div class="p-body${row ? " pager" : ""}" data-row-body="${row && (s.kind === "screen" || s.kind === "step") && parse(s.url).q.get("view") !== "plan" ? 1 : 0}">${pPage(p)}</div>
     ${row && parse(s.url).q.get("view") !== "plan" ? `<div class="p-dots">${SEM_ORDER.map((k) => `<i class="${k === 0 ? "ov" : ""}${k === at ? " on" : ""}"></i>`).join("")}</div>` : ""}
     ${bottom}${over}</div>`;
 }
@@ -1197,15 +1344,19 @@ function deskHTML(d) {
 // Under the devices.
 function traceHTML(dev) {
   const items = dev.h.list.map((e, k) => {
-    const s = e.state, cls = [k === dev.h.i ? "cur" : "", k > dev.h.i ? "fwd" : "", s.ext ? "ext" : ""].join(" ");
-    const tag = dev.mode === "phone" && !s.ext ? `<span class="tag">${TAB_NAME[s.tab]}${s.root ? " · Anfang" : ""}</span>` : "";
-    const where = s.ext ? "" : `<code>${esc(e.url)}${s.step ? ` + { semester: "${SEMS[s.step].name}" }` : ""}</code>`;
-    return `<li class="${cls}"><span class="k">${k}</span><span><b>${esc(s.ext ? `außerhalb: ${s.label}` : labelOf(s))}</b>${tag}${where}</span></li>`;
+    const s = e.state, ahead = k > dev.h.i;
+    const cls = [k === dev.h.i ? "cur" : "", ahead ? "fwd" : "", s.ext ? "ext" : "", s.kind === "layer" ? "lay" : "", s.stale ? "stale" : ""].join(" ");
+    const what = s.kind === "layer" ? "Ebene" : s.kind === "step" ? (ahead ? "liegt bereit" : "Semester") : s.root ? "Anfang" : "";
+    const tag = dev.mode === "phone" && !s.ext ? `<span class="tag">${TAB_NAME[s.tab]}${what ? ` · ${what}` : ""}${s.stale ? " · Rest" : ""}</span>` : "";
+    const extra = s.kind === "layer" ? ` + { ebene }` : s.kind === "step" ? ` + { semester }` : "";
+    const where = s.ext ? "" : `<code>${esc(e.url)}${extra}</code>`;
+    return `<li class="${cls}"><span class="k">${k}</span><span><b>${esc(s.ext ? `außerhalb: ${s.label}` : labelOf(s, ahead))}</b>${tag}${where}</span></li>`;
   }).reverse().join("");
   const w = dev.watchers();
+  if (dev.mode === "phone" && dev.isSem()) w.push(`das Semester ${SEMS[dev.s.step].name}`);
   const open = w.length ? w.map((t) => `<span>${esc(t)}</span>`).join("") : "<em>nichts</em>";
   const next = dev.mode === "phone"
-    ? `<dt>Zurück</dt><dd>${esc(dev.nextBack())}</dd><dt>Pfeil oben</dt><dd>${dev.out() ? "–" : dev.arrow() ? "dasselbe" : "steht hier nicht: Anfang des Tabs. Zurück tut trotzdem, was links steht."}</dd>`
+    ? `<dt>Zurück</dt><dd>${esc(dev.nextBack())}</dd><dt>Pfeil oben</dt><dd>${dev.out() ? "–" : dev.arrow() ? esc(dev.nextArrow()) : "steht hier nicht: Anfang des Tabs. Zurück tut trotzdem, was links steht."}</dd>`
     : `<dt>← des Browsers</dt><dd>${esc(dev.nextBack())}</dd><dt>Zurück (Esc)</dt><dd>${esc(dev.nextUp())}</dd>`;
   const note = dev.note ? `<p class="note">${esc(dev.note)}</p>` : "";
   dev.note = "";
@@ -1215,17 +1366,17 @@ function traceHTML(dev) {
 // ---------- the situations ----------
 const STORIES = [
   { k: "Dialog", t: "Ein Dialog geht mit Zurück zu",
-    text: "„Studiengang wechseln“ ist offen. Am Handy schließt Zurück den Dialog und sonst nichts. Er steht nicht im Verlauf, also kann ihn weder Zurück noch Vorwärts wieder öffnen. Am Rechner schließt ihn Esc; Zurück verlässt die Seite, und der Dialog geht mit.",
+    text: "„Studiengang wechseln“ ist offen. Am Handy schließt Zurück den Dialog und sonst nichts: Er hat einen eigenen Eintrag ohne neue Adresse (gelb im Verlauf), den Zurück mitnimmt; Vorwärts prallt daran ab. Am iPhone tut das Wischen vom Rand dasselbe. Am Rechner schließt ihn Esc; Zurück verlässt die Seite, und der Dialog geht mit.",
     today: "Android schließt diese Dialoge schon jetzt mit Zurück. Am iPhone und am Rechner wechselt Zurück auf einem Semester oder bei einem offenen Modul nur die Seite dahinter, und der Dialog bleibt stehen.",
     try: "Drück am Handy Zurück, dann Vorwärts. Am Rechner Esc oder ←.",
     phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.openLayer("change"); },
     desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.openLayer("change"); } },
   { k: "Modul", t: "Was du geschlossen hast, bleibt zu",
-    text: "Im Katalog war Compilerbau offen, darin bist du zu „Informatik B.Sc.“ gegangen und mit Zurück wieder beim Modul. Schließ es jetzt mit × oder zieh es nach unten: Das nimmt seinen Eintrag zurück. Das nächste Zurück führt zum Start, nie wieder ins Modul. Nur wer Vorwärts drückt, bekommt es zurück: das ist ein Wunsch, kein Versehen.",
-    today: "Weil Betula nach dem Zurück falsch rät, was davor war, schreibt das Schließen die Liste als neuen Schritt. Das nächste Zurück öffnet das Modul wieder.",
+    text: "Im Katalog war Compilerbau offen. Darin bist du zu „Informatik B.Sc.“ gegangen, was in den Tab Studium wechselt, und mit dem Tab „Module“ wieder beim Modul. Schließ es jetzt mit × oder zieh es nach unten: Das nimmt seinen Eintrag zurück. Das nächste Zurück führt zum Start, nie wieder ins Modul; nur Vorwärts bringt es zurück, wenn du das willst.",
+    today: "Kommst du über den Verlauf zu einem Modul zurück und schließt es dann, rät Betula falsch, was davor war: Das Schließen schreibt die Liste als neuen Schritt, und das nächste Zurück öffnet das Modul wieder.",
     try: "Am Handy × oder nach unten ziehen, dann Zurück. Am Rechner „Schließen“, dann ←.",
-    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("catalog"); p.open("/catalog?open=13221"); p.open("/programs/informatik/plan"); p.back(); },
-    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("catalog"); d.open("/catalog?open=13221"); d.open("/programs/informatik/plan"); d.back(); } },
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("catalog"); p.open("/catalog?open=13221"); p.open("/programs/informatik/plan"); p.tabTo("catalog"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("catalog"); d.open("/catalog?open=13221"); d.open("/programs/informatik/plan"); d.tabTo("catalog"); } },
   { k: "Auswahl", t: "Erst die Auswahl, dann die Übersicht",
     text: "Zwei Zeilen im WiSe 26/27 sind ausgewählt, die Leiste liegt über den Tabs. Zurück beendet zuerst die Auswahl: Die Leiste geht, die Tabs kommen wieder, das Semester bleibt. Erst das nächste Zurück führt zur Übersicht.",
     today: "Zurück führt gleich zur Übersicht. Die Leiste bleibt über den Tabs liegen und lässt sich nicht mehr bedienen.",
@@ -1233,8 +1384,8 @@ const STORIES = [
     phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.toSem(1); p.hold("13802"); p.pick("11101"); },
     desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.hold("13802"); d.pick("11101"); } },
   { k: "Wischen", t: "Dreimal gewischt, einmal zurück",
-    text: "Von der Übersicht dreimal nach links gewischt, bis WiSe 27/28. Das Wischen schreibt keinen Eintrag; welches Semester sich zeigt, gehört zur Seite. Ein Zurück führt zur Übersicht, genau wie der Pfeil.",
-    today: "Der Eintrag fürs Semester entsteht nach dem Wischen, ohne Tippen. Chrome überspringt ihn mit der Zurück-Taste, sobald du vorher einmal zurück warst; der Pfeil oben nicht.",
+    text: "Von der Übersicht dreimal nach links gewischt, bis WiSe 27/28. Der Eintrag fürs Semester lag schon bereit, seit du „Studium“ getippt hast; der erste Wisch ging nur hinein, die anderen haben nichts geschrieben. Ein Zurück führt zur Übersicht, genau wie der Pfeil, am iPhone auch das Wischen vom Rand.",
+    today: "Der Eintrag fürs Semester entsteht erst nach dem Wischen, ohne Tippen. Chrome und Safari überspringen ihn beim Zurück der Taste oder Geste, sobald du vorher einmal zurück warst; der Pfeil oben nicht.",
     try: "Wisch weiter oder zurück über die Übersicht, dann drück Zurück.",
     phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.swipe(1); p.swipe(1); p.swipe(1); },
     desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.swipe(1); d.swipe(1); } },
@@ -1244,22 +1395,22 @@ const STORIES = [
     try: "Drück abwechselnd den Pfeil oben links und Zurück.",
     phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.open("/programs"); p.open("/programs/informatik/plan"); p.change("/programs/informatik/plan?view=areas"); p.open("/programs/informatik/plan?view=areas&area=pi"); },
     desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.open("/programs"); d.open("/programs/informatik/plan"); d.change("/programs/informatik/plan?view=areas"); d.open("/programs/informatik/plan?view=areas&area=pi"); } },
-  { k: "Filter", t: "Filter sind am Handy kein Schritt",
-    text: "Die Filter sind offen, Informatik und WiSe sind gewählt. Zurück schließt das Sheet und übernimmt die Wahl, ohne neuen Eintrag; das nächste Zurück führt zum Start, nicht zum ungefilterten Katalog. Am Rechner ist jeder Filter ein Schritt im Verlauf.",
-    today: "Am Handy wie hier, nur mit einem Platzhalter-Eintrag, der liegen bleibt, wenn du den Katalog über die Tasten verlässt.",
-    try: "Tippe einen Filter an und drück Zurück, dann noch einmal.",
+  { k: "Filter", t: "Ein Schritt je „Module anzeigen“",
+    text: "Die Filter sind offen, Informatik und WiSe sind gewählt. „38 Module anzeigen“ übernimmt beides als einen Schritt; Zurück, nach unten ziehen oder daneben tippen tun dasselbe. Das nächste Zurück führt zum Katalog ohne Filter, dann zum Start. Am Rechner ist jede Pause beim Klicken ein Schritt: Die beiden Filter, dicht hintereinander geklickt, sind einer.",
+    today: "Am Handy schon fast so, nur bleibt der Eintrag des Sheets liegen, wenn du den Katalog über die Tasten verlässt, und Zurück tut danach einmal nichts. Am Rechner ist heute jeder Klick ein Schritt.",
+    try: "Tippe „38 Module anzeigen“, dann zweimal Zurück. Am Rechner zwei Filter schnell nacheinander, dann ←.",
     phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("catalog"); p.openLayer("filters"); p.toggleDraft("program", "informatik"); p.toggleDraft("turnus", "wise"); },
-    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("catalog"); d.change("/catalog?program=informatik"); d.change("/catalog?program=informatik&turnus=wise"); } },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("catalog"); const t0 = Date.now(); d.change("/catalog?program=informatik", t0); d.change("/catalog?program=informatik&turnus=wise", t0 + 300); } },
   { k: "Tabs", t: "Ein Tab kommt wieder, wie er war",
-    text: "In „Studium“ zu „Alle Studiengänge“, dann in „Module“ ein Modul geöffnet, dann zurück zu „Studium“. Das Handy zeigt „Alle Studiengänge“ wieder, und Zurück bleibt im Tab: Mein Studium, Start, hinaus, nie zurück in die Module. Am Rechner geht ← durch alles, was du gesehen hast.",
+    text: "In „Studium“ zu „Alle Studiengänge“, dann in „Module“ ein Modul geöffnet, dann zurück zu „Studium“. Das Handy zeigt „Alle Studiengänge“ wieder, und Zurück bleibt im Tab: Mein Studium, Start, hinaus, nie zurück in die Module. Dafür wird der Verlauf umgeschrieben: Unter dem Tab liegt immer Start, was übrig bleibt, ist durchgestrichen. Am Rechner geht ← durch alles, was du gesehen hast.",
     today: "Auch am Handy spielt Zurück alles rückwärts ab: das Modul, die Module, dann wieder „Studium“.",
     try: "Drück am Handy dreimal Zurück. Wechsle die Tabs und schau, wie der Verlauf wächst.",
     phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.open("/programs"); p.tabTo("catalog"); p.open("/catalog?open=13221"); p.tabTo("study"); },
     desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.open("/programs"); d.tabTo("catalog"); d.open("/catalog?open=13221"); d.tabTo("study"); } },
   { k: "Geteilter Link", t: "Ein Link aus dem Messenger",
-    text: "Jemand hat dir die Modulseite von Compilerbau geschickt. Am Handy legt Betula darunter, was darüber steht: Module und Start. Pfeil und Zurück führen zur Liste, dann zum Start, dann zurück in den Messenger. Am Rechner verlässt ← Betula sofort; „Zurück (Esc)“ führt zur Liste.",
+    text: "Jemand hat dir die Modulseite von Compilerbau geschickt. Liest du nur und drückst Zurück, bist du wieder im Messenger. Benutzt du Betula, tippst etwa den Pfeil oben links oder „Gehört zu Informatik B.Sc.“, legt Betula darunter, was darüber steht: Module und Start; dann führt Zurück über sie hinaus. Am Rechner verlässt ← Betula sofort; „Zurück (Esc)“ führt zur Liste.",
     today: "Zurück verlässt Betula sofort. Der Pfeil oben schreibt die Liste als neuen Schritt, und Zurück führt danach wieder zur Modulseite.",
-    try: "Drück am Handy Zurück, bis du im Messenger bist.",
+    try: "Drück Zurück: Messenger. Dann „Situation neu starten“, den Pfeil oben links tippen und Zurück drücken.",
     phone: (p) => { p.start("/catalog/module/13221"); },
     desk: (d) => { d.start("/catalog/module/13221"); } },
 ];
@@ -1303,6 +1454,7 @@ function act(dev, el) {
   else if (a === "layer") dev.openLayer(v.id);
   else if (a === "close") dev.close(v.id);
   else if (a === "dismiss") dev.dismiss();
+  else if (a === "arrow") dev.arrowBack();
   else if (a === "back" || a === "b-back") dev.back();
   else if (a === "b-fwd") dev.forward();
   else if (a === "esc") dev.esc();
@@ -1324,7 +1476,7 @@ let touch = null, eat = false;
 phoneScreen.addEventListener("pointerdown", (e) => {
   const row = e.target.closest("[data-row]"), body = e.target.closest('[data-row-body="1"]'), sheet = e.target.closest("[data-drag]");
   touch = { x: e.clientX, y: e.clientY, body: !!body, sheet: !!sheet, moved: false, used: false, timer: 0 };
-  if (row && phone.isRow()) {
+  if (row && phone.isSem()) {
     const t = touch;
     t.timer = setTimeout(() => { if (touch === t && !t.moved) { t.used = true; phone.hold(row.dataset.row); render(); } }, 450);
   }
