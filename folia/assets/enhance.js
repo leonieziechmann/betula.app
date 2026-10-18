@@ -26,12 +26,18 @@
 
   // The start of the installed app (owner, 2026-10-15: concept A of design/launch/konzepte.html).
   // The head script has laid the picture of the system's splash screen over the page (`.launch`,
-  // app.css). It stands while Android's own splash fades from above it (300 ms; on iOS the switch
-  // from the launch screen is at once), then the icon flies to the page's own, the first `.logo` on
-  // the screen (the rail's, or on a phone the start page's), and turns from the circle the launcher
-  // cut into the icon's square, while the background clears; there it goes, and the page's own is
-  // under it. Without a logo on the screen, or with reduced motion, the picture fades. A tap takes
-  // it away at once, and once the icon flies, taps reach the page.
+  // app.css), where the system had its own. It stands while the system fades its splash from above
+  // it (300 ms; on iOS the switch from the launch screen is at once), then the icon flies to the
+  // page's own, the first `.logo` on the screen (the rail's, or on a phone the start page's), and
+  // turns from its circle into the icon's square, its leaf and colours into the logo's (Brave's
+  // leaf is a little smaller, Android's own splash keeps ink and paper in the dark); the wordmark at
+  // the bottom flies to the page's own, the first on the screen (the top bar's, or the start
+  // page's), while the background clears. The page's own are not there while they fly: they come
+  // in the frame in which the picture goes, where its icon and wordmark land (owner, 2026-10-18:
+  // „das Icon soll erst existieren wenn es hin geflogen ist", `launch-logo`, `launch-mark`, app.css).
+  // Without a logo on the screen, or with reduced motion, the picture fades; without a wordmark on
+  // the screen, the launch's fades as the icon sets off. A tap takes it away at once, and once the
+  // icon flies, taps reach the page.
   const launch = document.querySelector("html > .launch");
   // Faded by itself already (app.css, launch-gone): this script came too late.
   if (launch && getComputedStyle(launch).opacity !== "1") launch.remove();
@@ -39,6 +45,8 @@
     launch.style.animation = "none";
     const icon = launch.querySelector(".launch-icon");
     const tile = icon.querySelector("b");
+    const leaf = icon.querySelector("i");
+    const name = launch.querySelector(".launch-name .wordmark");
     const ios = launch.classList.contains("ios");
     const timing = (delay, duration, easing) => ({ delay, duration, easing, fill: "both" });
     // Played, or taken away by a tap: once.
@@ -46,31 +54,61 @@
     let wait = 0;
     const go = () => launch.remove();
     const fade = (duration) => launch.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, duration, "ease-out")).finished.then(go, go);
-    const play = () => {
-      if (begun) return;
-      begun = true;
-      launch.style.pointerEvents = "none";
-      const from = icon.getBoundingClientRect();
-      const logo = [...document.querySelectorAll(".logo")].map((el) => el.getBoundingClientRect())
-        .find((r) => r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth);
-      if (!logo || matchMedia("(prefers-reduced-motion: reduce)").matches) return fade(300);
-      // The way of concept A: a little more up than across in its first half, where the icon has
-      // already lost most of its size.
-      const k = logo.width / from.width;
-      const dx = logo.left + logo.width / 2 - (from.left + from.width / 2);
-      const dy = logo.top + logo.height / 2 - (from.top + from.height / 2);
-      icon.animate([
+    // The first of the page's own on the screen.
+    const shown = (selector) => [...document.querySelectorAll(selector)].filter((el) => !launch.contains(el)).find((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+    });
+    // The way of concept A from one box to another, middle to middle: a little more up than across
+    // in its first half, where it has already lost most of its size. How much it shrinks.
+    const fly = (el, target) => {
+      const from = el.getBoundingClientRect();
+      const to = target.getBoundingClientRect();
+      const k = to.height / from.height;
+      const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+      const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+      el.animate([
         { transform: "none" },
         { transform: `translate(${dx * 0.47}px, ${dy * 0.6}px) scale(${k + (1 - k) * 0.364})`, offset: 0.5, easing: "cubic-bezier(.3,0,.2,1)" },
         { transform: `translate(${dx}px, ${dy}px) scale(${k})` },
       ], timing(0, 640, "cubic-bezier(.45,0,.55,1)"));
-      if (ios) tile.animate([{ boxShadow: getComputedStyle(tile).boxShadow }, { boxShadow: "none" }], timing(0, 240, "ease-out"));
-      else tile.animate([{ borderRadius: "50%" }, { borderRadius: "21.875%" }], timing(0, 300, "ease-in-out"));
-      launch.querySelector(".launch-name")?.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, 180, "ease-out"));
-      launch.animate([{ backgroundColor: getComputedStyle(launch).backgroundColor }, { backgroundColor: "transparent" }], timing(200, 460, "ease-in-out"));
-      icon.animate([{ opacity: 1 }, { opacity: 0 }], timing(680, 120, "linear")).finished.then(go, go);
+      return k;
     };
-    // Two frames: the picture has been painted, and from then on Android fades its splash.
+    const play = () => {
+      if (begun) return;
+      begun = true;
+      launch.style.pointerEvents = "none";
+      const logo = shown(".logo");
+      if (!logo || matchMedia("(prefers-reduced-motion: reduce)").matches) return fade(300);
+      const root = document.documentElement;
+      root.classList.add("launch-logo");
+      const k = fly(icon, logo);
+      if (!ios) tile.animate([{ borderRadius: "50%" }, { borderRadius: "21.875%" }], timing(0, 300, "ease-in-out"));
+      // iOS's shadow goes as it sets off; the logo's ring and shadow come on the last stretch, in the
+      // icon's own size, which the flight scales.
+      const ring = getComputedStyle(logo).boxShadow.replace(/(-?[\d.]+)px/g, (_, v) => `${v / k}px`);
+      tile.animate([{ boxShadow: getComputedStyle(tile).boxShadow }, { boxShadow: "none", offset: 0.375 }, { boxShadow: "none", offset: 0.625 }, { boxShadow: ring }], timing(0, 640, "linear"));
+      // The leaf as large as the logo's on the way's first stretch; the logo's colours on its last,
+      // where the icon is small: ink and paper changing places pass through grey.
+      const page = getComputedStyle(document.documentElement);
+      leaf.animate([{ transform: getComputedStyle(leaf).transform }, { transform: `scale(${icon.offsetWidth / 96}) translateY(6.5px)` }], timing(0, 360, "ease-in-out"));
+      for (const [el, colour] of [[tile, "--logo-tile"], [leaf, "--logo-leaf"]]) {
+        el.animate([{ backgroundColor: getComputedStyle(el).backgroundColor }, { backgroundColor: page.getPropertyValue(colour).trim() }], timing(400, 240, "ease-in-out"));
+      }
+      const mark = name && shown(".wordmark:not(.ground .wordmark)");
+      if (mark) {
+        root.classList.add("launch-mark");
+        fly(name, mark);
+      } else name?.animate([{ opacity: 1 }, { opacity: 0 }], timing(0, 180, "ease-out"));
+      launch.animate([{ backgroundColor: getComputedStyle(launch).backgroundColor }, { backgroundColor: "transparent" }], timing(200, 440, "ease-in-out"));
+      // Landed: the page's own come in the frame the picture goes.
+      const land = () => {
+        root.classList.remove("launch-logo", "launch-mark");
+        go();
+      };
+      Promise.all(launch.getAnimations({ subtree: true }).map((a) => a.finished)).then(land, land);
+    };
+    // Two frames: the picture has been painted, and from then on the system fades its splash.
     requestAnimationFrame(() => requestAnimationFrame(() => { wait = setTimeout(play, ios ? 150 : 350); }));
     launch.addEventListener("pointerdown", () => {
       if (begun) return;
@@ -80,26 +118,51 @@
       fade(150);
     });
   }
+  // Where the installed app's page begins under the status bar, for the place of its next start
+  // (folia_app::HEAD_SCRIPT, `betula.launch.top`): a finger's place on the screen less its place in
+  // the page, at the first touch while the page is not zoomed, and only what the bars around the
+  // page leave room for. iOS places its start by the screen alone.
+  if (!("standalone" in navigator) && matchMedia("(display-mode: standalone)").matches) {
+    const measure = (event) => {
+      if (event.pointerType !== "touch" || Math.abs((window.visualViewport?.scale ?? 1) - 1) > 0.01) return;
+      removeEventListener("pointerdown", measure, true);
+      const upright = innerHeight >= innerWidth;
+      const bars = (upright ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - innerHeight;
+      const top = Math.round((event.screenY - event.clientY) * 100) / 100;
+      if (top > 0 && top <= bars) {
+        try {
+          localStorage.setItem("betula.launch.top", (upright ? "p" : "l") + top);
+        } catch {}
+      }
+    };
+    addEventListener("pointerdown", measure, { capture: true, passive: true });
+  }
 
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
   // Open, the page behind it is dimmed and stands still (html.sheet-open), and a tap on it closes
-  // the sheet. However it goes (its buttons, a swipe down, a tap beside it, Esc, Back), the page
-  // hears `betula:sheet-closed`: the catalog's list follows what was picked in the sheet only
-  // then. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog in
-  // the browser app) is a step of its own in the history, as a sheet is in an app, so that Back
-  // closes it instead of leaving the page; where Back does leave the page with a sheet open, the
-  // page hears `betula:sheet-left`.
+  // the sheet. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog
+  // in the browser app) applies it only with its button („Module anzeigen", `sheet-apply`): the
+  // page hears `betula:sheet-applied`, and the list follows as one step of the history. Any other
+  // way it goes (its ×, a swipe down, a tap beside it, Esc, Back) throws the draft away (owner,
+  // 2026-10-18: „Die Filter sollen bei der Mobile Version verworfen werden, wenn man das Fenster
+  // schließt"): the page hears `betula:sheet-closed`, or `betula:sheet-left` where Back left the
+  // page with the sheet open. The sheet has no entry in the history: where the browser has
+  // `CloseWatcher` (Android), Back closes it as it closes what else lies over a page
+  // (folia/crates/shell/src/nav.rs); without it (an iPhone) Back leaves the page, and the sheet
+  // goes with it.
   const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
-  let step = false; // the current history entry is the open sheet's own step
-  let afterStep = null; // what follows once the browser has gone back past that step
+  let sheetWatch = null; // the open sheet's CloseWatcher
+  const dropWatch = () => { const w = sheetWatch; sheetWatch = null; try { w?.destroy(); } catch {} };
   const openSheet = () => {
     const sheet = filters();
     if (!sheet) return;
     sheet.classList.add("open");
     root.classList.add("sheet-open");
-    if (!step && phone() && sheet.hasAttribute("data-draft")) {
-      history.pushState({ betulaSheet: true }, "");
-      step = true;
+    if (!sheetWatch && phone() && typeof window.CloseWatcher === "function") {
+      try {
+        sheetWatch = new CloseWatcher();
+        sheetWatch.onclose = () => { sheetWatch = null; closeSheet(); };
+      } catch { sheetWatch = null; }
     }
   };
   const closeSheet = (how = "closed") => {
@@ -107,23 +170,36 @@
     const was = sheet?.classList.contains("open");
     sheet?.classList.remove("open");
     root.classList.remove("sheet-open");
-    if (!was) return;
-    const tell = () => sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
-    // The sheet's step goes before the list follows: the list's own entry takes its place.
-    const own = step && history.state?.betulaSheet === true;
-    step = false;
-    if (own) { afterStep = tell; history.back(); } else tell();
+    dropWatch();
+    if (was) sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
   };
   // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
-  const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) root.classList.remove("sheet-open"); };
+  const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) { root.classList.remove("sheet-open"); dropWatch(); } };
   addEventListener("popstate", (e) => {
     // The browser app hands a step of the history to its router a frame later, so that the page
     // can answer first (folia/crates/shell/src/pending.rs): that is the same step again, not another one.
     if (e.betulaReplay) return;
-    if (afterStep) { const then = afterStep; afterStep = null; then(); } // the sheet's own step, taken back above
-    else if (step) { step = false; closeSheet(); } // Back closes the sheet
-    else closeSheet("left");
+    closeSheet("left");
   });
+
+  // The step before in the history is where `link` leads: Back goes there instead of a new step,
+  // the same entry as before, and the history does not grow. The browser says it where it has the
+  // Navigation API (Chrome, Safari from 26.2, Firefox from 147); else the app's guess
+  // (`data-back`), and the classic site's, which can only ask the referrer. Not a step of another
+  // load of a page (the site's pages before the app took over, another language): going back
+  // there would load that page anew.
+  const samePage = (a, b) => {
+    const norm = (u) => u.origin + u.pathname.replace(/^((?:\/[a-z]{2})?\/programs\/[^/]+)\/?$/, "$1/plan") + u.search;
+    try { return norm(new URL(a, location.href)) === norm(new URL(b, location.href)); } catch { return false; }
+  };
+  const cameFrom = (link) => {
+    const nav = window.navigation;
+    if (appRuns() && nav?.currentEntry && typeof nav.entries === "function") {
+      const before = nav.entries()[nav.currentEntry.index - 1];
+      return !!before && before.sameDocument && samePage(before.url, link.href);
+    }
+    return appRuns() ? link.dataset.back === "history" : document.referrer.startsWith(location.origin);
+  };
 
   // ---- classic mode: scroll positions of the panels survive a page load ----
   const listKey = () => location.search.replace(/([?&])(page|open)=[^&]*/g, "$1");
@@ -777,7 +853,7 @@
     glideSheet(sheet, y, v, "gone", () => {
       const link = liveSheet()?.querySelector('[data-action="close-detail"]');
       if (!link) return;
-      if (link.dataset.back === "history") history.back(); else link.click();
+      if (cameFrom(link)) history.back(); else link.click();
     });
   };
   // The content going on after the finger let go (px per ms, the finger's way), slower and slower
@@ -1252,12 +1328,15 @@
         e.preventDefault();
         closeSheet();
         break;
+      case "sheet-apply":
+        e.preventDefault();
+        closeSheet("applied");
+        break;
       case "back": {
         // The link leads to the list of the area. If that list is where the visitor came from,
         // go back through the history instead: the same entry as before, and no new one. The app
         // knows and says so (`data-back`); the classic site can only ask the referrer.
-        const cameFromIt = appRuns() ? target.dataset.back === "history" : document.referrer.startsWith(location.origin);
-        if (cameFromIt && history.length > 1) { e.preventDefault(); history.back(); }
+        if (cameFrom(target) && history.length > 1) { e.preventDefault(); history.back(); }
         break;
       }
       case "jump": {
@@ -1800,8 +1879,12 @@
     }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
     if (plain && e.key === "Escape") {
-      if (filters()?.classList.contains("open")) { closeSheet(); return; }
+      // One Esc, one thing: nothing it closes here goes on as a close request to a watcher.
+      if (filters()?.classList.contains("open")) { e.preventDefault(); closeSheet(); return; }
       if (typing(document.activeElement)) { document.activeElement.blur(); return; }
+      // What lies over the page (a menu, the selection, a dialog: folia/crates/shell/src/nav.rs)
+      // takes this Esc itself; the module beside the page waits for the next one.
+      if (root.hasAttribute("data-layers") || root.hasAttribute("data-state") || modalOpen()) return;
       // The preview first; on a module's own page Esc goes back to where the visitor came from.
       (document.querySelector('[data-action="close-detail"]') || document.querySelector('[data-action="back"]'))?.click();
     } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement)) {

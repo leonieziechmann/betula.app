@@ -2,7 +2,9 @@
 // stands still while the sheet's list scrolls by itself; swiped down wherever its list is at the
 // top, it closes; a short slow pull lets it snap back; a tap beside it and a mouse at its head
 // close it too), what is picked in the sheet is a draft (the sheet counts, the list and the
-// address follow once, when it closes, with one history entry), the picker staying open while
+// address follow once, with one history entry, when „Module anzeigen" applies it; any other way of
+// closing the sheet throws it away, owner, 2026-10-18; Back closes it as Android has it, a close
+// request, and an iPhone's Back leaves the list with it), the picker staying open while
 // the window shrinks (the on-screen keyboard; the sheet then the window, without its foot, the
 // picker 8 px off its edges), the area picker, and the virtual list (the page scrolls, the last
 // rows come at its end, the height stays, rows do not overlap).
@@ -170,7 +172,9 @@ for (const label of ["Winter", "Vorlesung"]) {
   const chip = `#filters a.chip:has-text("${label}")`;
   const shown = (await state()).show;
   await page.tap(chip);
-  await page.waitForFunction((shown) => document.querySelector("#filters .show")?.textContent !== shown, shown, { timeout: 5000 }).catch(() => problems.push(`draft: a tap on ${label} did not change the count in the sheet`));
+  // The draft's own count: until its answer is there the sheet shows the list's (a moment where the
+  // data worker is busy).
+  await page.waitForFunction(([shown, all]) => { const text = document.querySelector("#filters .show")?.textContent; return text !== shown && Number(String(text).replace(/\D/g, "")) !== all; }, [shown, number(start.list)], { timeout: 5000 }).catch(() => problems.push(`draft: a tap on ${label} did not change the count in the sheet`));
   check((await page.getAttribute(chip, "data-state")) === "with", `draft: ${label} does not show as picked`);
 }
 const drafted = await state();
@@ -183,42 +187,54 @@ await closed("draft: its button");
 await page.waitForFunction(() => /turnus=winter/.test(location.search) && /form=lecture/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push(`draft: the button did not apply the draft (${page.url()})`));
 await page.waitForFunction((n) => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")) === n, number(drafted.show), { timeout: 5000 }).catch(() => problems.push(`draft: the list does not hold what the sheet said (${drafted.show})`));
 check((await state()).entries === start.entries + 1, `draft: the sheet left ${(await state()).entries - start.entries} history entries (one is right)`);
-// A swipe down applies what was picked as well.
+// Any other way of closing the sheet throws what was picked away (owner, 2026-10-18: „Die Filter
+// sollen bei der Mobile Version verworfen werden, wenn man das Fenster schließt"): a swipe down …
+const applied = await state();
 await openSheet("draft by swipe");
 const before = (await state()).show;
 await page.tap('#filters a.chip:has-text("Übung")');
 await page.waitForFunction((shown) => document.querySelector("#filters .show")?.textContent !== shown, before, { timeout: 5000 }).catch(() => problems.push("draft: a tap on Übung did not change the count in the sheet"));
-const swiped = (await state()).show;
 const top = await page.locator("#filters .panel-head h2").boundingBox();
 await swipe(top.x + 20, top.y + 8, top.y + 200, { steps: 6, ms: 12 });
 await closed("draft: a swipe");
-await page.waitForFunction(() => /form=[^&]*exercise/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push(`draft: the swipe did not apply the draft (${page.url()})`));
-await page.waitForFunction((n) => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")) === n, number(swiped), { timeout: 5000 }).catch(() => problems.push(`draft: after the swipe the list does not hold what the sheet said (${swiped})`));
-// „Zurücksetzen" in the sheet empties the draft; the list follows when the sheet goes.
-await openSheet("reset");
+let now = await state();
+check(now.search === applied.search && now.entries === applied.entries, `draft: the swipe applied the draft or wrote an entry (${now.search}, ${now.entries - applied.entries})`);
+await openSheet("draft thrown away");
+check(!(await page.$eval('#filters a.chip:has-text("Übung")', (el) => el.dataset.state === "with")), "draft: the sheet opened again with the draft a swipe threw away");
+// … its ×, after „Zurücksetzen" in the sheet; „Module anzeigen" after it shows the whole catalog.
 await page.tap("#filters .panel-head a.ghost");
 await page.waitForFunction((n) => Number(document.querySelector("#filters .show")?.textContent.replace(/\D/g, "")) === n, number(start.show), { timeout: 5000 }).catch(() => problems.push("reset: the sheet does not count the whole catalog"));
-check(/turnus=winter/.test((await state()).search), "reset: the address changed before the sheet was closed");
+check((await state()).search === applied.search, "reset: the address changed before the sheet was closed");
 await page.tap("#filters .sheet-close");
 await closed("reset: its close button");
-await page.waitForFunction(() => location.search === "", null, { timeout: 5000 }).catch(() => problems.push(`reset: closing the sheet did not show the whole catalog (${page.url()})`));
-// Back closes the sheet, as in an app (the sheet is a step of its own in the history), and the
-// list follows what was picked, like with any other way of closing it.
+now = await state();
+check(now.search === applied.search && now.entries === applied.entries, `reset: its × applied the reset (${now.search})`);
+await openSheet("reset applied");
+await page.tap("#filters .panel-head a.ghost");
+await page.waitForFunction((n) => Number(document.querySelector("#filters .show")?.textContent.replace(/\D/g, "")) === n, number(start.show), { timeout: 5000 }).catch(() => problems.push("reset: the sheet does not count the whole catalog"));
+await page.tap("#filters .show");
+await closed("reset: „Module anzeigen“");
+await page.waitForFunction(() => location.search === "", null, { timeout: 5000 }).catch(() => problems.push(`reset: „Module anzeigen“ did not show the whole catalog (${page.url()})`));
+check((await state()).entries === applied.entries + 1, "reset: „Module anzeigen“ is not one step of the history");
+// … and Back, as Android has it: a close request to the sheet (Escape in Chromium), which stays on
+// the list and writes nothing.
 const beforeBack = await state();
 await openSheet("back");
 await page.tap('#filters a.chip:has-text("Seminar")');
 await page.waitForFunction((shown) => document.querySelector("#filters .show")?.textContent !== shown, beforeBack.show, { timeout: 5000 }).catch(() => problems.push("back: a tap on Seminar did not change the count in the sheet"));
-const backCount = (await state()).show;
-await page.evaluate(() => history.back());
+await page.keyboard.press("Escape");
 await closed("back: Back");
-await page.waitForFunction(() => /form=seminar/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push(`back: Back left the page or dropped what was picked (${page.url()})`));
-await page.waitForFunction((n) => Number(document.querySelector(".count")?.textContent.replace(/\D/g, "")) === n, number(backCount), { timeout: 5000 }).catch(() => problems.push(`back: the list does not hold what the sheet said (${backCount})`));
-check((await state()).entries === beforeBack.entries + 1, `back: the sheet left ${(await state()).entries - beforeBack.entries} history entries (one is right)`);
-// From there Back walks the lists the sheet applied, one step each.
+now = await state();
+check(now.search === beforeBack.search && now.entries === beforeBack.entries, `back: Back applied the draft, left the list or wrote an entry (${now.search}, ${now.entries - beforeBack.entries})`);
+// From there Back walks the lists „Module anzeigen“ applied, one step each.
 await page.evaluate(() => history.back());
-await page.waitForFunction(() => location.search === "", null, { timeout: 5000 }).catch(() => problems.push(`back: did not return to the list before the sheet (${page.url()})`));
+await page.waitForFunction(() => /turnus=winter/.test(location.search) && /form=lecture/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push(`back: did not return to the list the sheet applied before (${page.url()})`));
+// An iPhone's Back is the history: it leaves the list for the one before, and the sheet goes with
+// it, what was picked thrown away.
+await openSheet("an iPhone's Back");
+await page.tap('#filters a.chip:has-text("Seminar")');
 await page.evaluate(() => history.back());
-await page.waitForFunction(() => /form=[^&]*exercise/.test(location.search), null, { timeout: 5000 }).catch(() => problems.push(`back: did not return to the list two sheets before (${page.url()})`));
+await page.waitForFunction(() => location.pathname === "/catalog" && !/turnus|seminar/.test(location.search) && !document.documentElement.classList.contains("sheet-open") && !document.querySelector("#filters.open"), null, { timeout: 5000 }).catch(() => problems.push(`an iPhone's Back: did not leave the list for the one before with the sheet closed (${page.url()})`));
 
 // ---- the virtual list on a phone: the page scrolls, the last rows come when it is scrolled down
 await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });

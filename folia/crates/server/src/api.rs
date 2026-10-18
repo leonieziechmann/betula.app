@@ -580,11 +580,11 @@ pub async fn icon_maskable(State(state): State<AppState>, uri: Uri, headers: Hea
 }
 
 pub async fn icon_splash(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-maskable-512.png")).await
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-splash-512.png")).await
 }
 
 pub async fn icon_splash_dark(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
-    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-maskable-dark-512.png")).await
+    asset(&state, &uri, &headers, "image/png", include_bytes!("../../../assets/icon-splash-dark-512.png")).await
 }
 
 pub async fn icon_monochrome(State(state): State<AppState>, uri: Uri, headers: HeaderMap) -> Response {
