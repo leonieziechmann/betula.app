@@ -244,7 +244,7 @@ td .no { color: var(--no); font-weight: 650; }
         <li><span><b>Künftig bleibt jede Seite gebaut.</b> Gebaut werden alle beim Start, der laden darf; liegt ein Tab hinten, zeichnet der Browser seine Seite nur nicht. Ein Wechsel tauscht, welche vorn liegt: mit den echten Seiten von canary 14 ms bis zum Bild, ebenso gedrosselt.</span></li>
         <li><span><b>Am Handy wechselt die Seite auf der Achse.</b> Sie gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der Seite ihres Tabs. Gewischt wird nur auf der Leiste, und die Seite folgt dem Finger. So hast du es im Prototyp gewählt.</span></li>
         <li><span><b>Gebaut wird es auf dem neuen Zurück.</b> Die Bühne eines Tabs zeigt das Oberste seines Stapels, wie Schritt 4 des Zurück-Konzepts ihn anlegt. Adressen und Verlauf bleiben, wie sie dort festgelegt sind.</span></li>
-        <li><span><b>Läuft die App, ist alles sofort da, nicht nur ein Tab.</b> Auch das Modul-Sheet und die Seiten in einem Tab zeigen heute Skelett und alte Seite. Das Zurückblitzen geht schon jetzt weg, ohne dem Umbau des Zurück in die Quere zu kommen.</span></li>
+        <li><span><b>Läuft die App, ist alles sofort da, nicht nur ein Tab.</b> Auch das Modul-Sheet und die Seiten in einem Tab zeigen heute Skelett und alte Seite. Das Zurückblitzen ist seit dem 18.10. weg, ohne dem Umbau des Zurück in die Quere zu kommen.</span></li>
       </ol>
     </aside>
   </header>
@@ -408,7 +408,7 @@ td .no { color: var(--no); font-weight: 650; }
     <h2 id="steps-title">In sechs Schritten</h2>
     <p class="lead">Jeder Schritt geht für sich auf canary. Keiner braucht eine MAJOR: Keine Adresse geht weg, und was ein Browser behält, bleibt lesbar.</p>
     <ol class="steps">
-      <li class="now"><span class="n">0</span><b>Schon jetzt: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Nach einem Skelett hält <code>hold</code> das Skelett statt der alten Seite, bei Tabs, beim Modul-Sheet und bei jeder Seite; die Markierung der Leiste wechselt beim Tippen ohne Farbübergang. Zwei kleine Stellen in <code>pending.rs</code> und <code>app.css</code>, unabhängig vom Zurück. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
+      <li class="now"><span class="n">0</span><b>Gebaut am 18.10.: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Steht ein Skelett da, hält <code>hold</code> ein Bild des Skeletts vor die neue Seite statt eines Bilds der alten, bis ihre Antworten da sind; sein Schimmer läuft darin weiter. Das gilt für jeden Tab und jede Seite mit Skelett, auch „Alle Studiengänge“ und die Ansichten eines Studiengangs; beim Modul-Sheet blitzte nichts zurück. Die Markierung wechselt beim Tippen ohne Farbübergang und ohne das Tap-Highlight des Browsers. Gefilmt wie oben, lokal und gedrosselt: Skelett, Bild des Skeletts, neue Seite, die Markierung im ersten Bild. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
       <li><span class="n">1</span><b>Bühnen</b><span class="ver">Folia MINOR</span><p>Nach Schritt 4 des Zurück-Konzepts. Die Seiten bleiben gebaut, ein Tabwechsel tauscht nur, die Scrollposition bleibt je Tab; Titel, Ids und Listener gehören der vorderen Bühne. Am Rechner wie am Handy.</p></li>
       <li><span class="n">2</span><b>Alle Tabs beim Start</b><span class="ver">Folia PATCH</span><p>Nach der ersten Seite baut Betula die anderen Tabs vor, in Ruhe und einen nach dem anderen. Vorher wird Studium kleiner, damit kein Tipp in einen Task von Sekunden fällt.</p></li>
       <li><span class="n">3</span><b>Achse am Handy</b><span class="ver">Folia MINOR</span><p>Getippt und auf der Leiste gewischt, die Seite am Finger; ein Tipp und ein Finger mitten im Wechsel; Zurück zum Start wie ein Tipp auf „Start“.</p></li>
@@ -430,7 +430,7 @@ td .no { color: var(--no); font-weight: 650; }
 
   <section class="block" id="offen" aria-labelledby="open-title">
     <h2 id="open-title">Entschieden und offen</h2>
-    <p class="lead"><b>Entschieden am 18.10.:</b> Die Seiten bleiben stehen („Das muss auf jeden Fall rein“). Der Start darf laden und kurz Skelette zeigen; läuft die App, ist alles sofort da: jeder Tab, das Modul-Sheet, die Seiten in einem Tab. Am Handy wechselt die Seite auf der Achse, und gewischt wird nur auf der Leiste. Schritt 0 kommt schon jetzt: Der Umbau des Zurück ist bisher Konzept, und in <code>pending.rs</code> ändert er nur den Klick-Listener, nicht <code>hold</code>. Offen ist noch:</p>
+    <p class="lead"><b>Entschieden am 18.10.:</b> Die Seiten bleiben stehen („Das muss auf jeden Fall rein“). Der Start darf laden und kurz Skelette zeigen; läuft die App, ist alles sofort da: jeder Tab, das Modul-Sheet, die Seiten in einem Tab. Am Handy wechselt die Seite auf der Achse, und gewischt wird nur auf der Leiste. Schritt 0 ist gebaut: Der Umbau des Zurück ist bisher Konzept, und in <code>pending.rs</code> ändert er nur den Klick-Listener, nicht <code>hold</code>. Offen ist noch:</p>
     <ul class="open">
       <li><b>Folgt die Seite beim Wischen auf der Leiste dem Finger, oder kommt sie erst beim Loslassen?</b> Vorgeschlagen, und so im Prototyp: Sie folgt dem Finger.</li>
     </ul>
