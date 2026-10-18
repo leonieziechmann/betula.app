@@ -12,10 +12,16 @@
 //! Studiengang wahrscheinlich falsch ist. Deswegen möchte ich das gleich expandiert haben, wo man
 //! einen Studiengang auswählen kann aus maximal 3, und darunter gleich eine combobox"): the module's
 //! programs stand open, three at most, compulsory first, the newest regulation of each, and the
-//! search for any other under them. Once a program is known, its Regelstudienplan fills in what the
-//! student has not set (`folia_stores::studyplan::fit`); the filter's semester is read by the time.
-//! A semester behind the student is allowed, with a warning (the same day: „Betula sollte bei sowas
-//! nicht nein sagen").
+//! search for any other under them, the app's picker as it is, as wide as the programs (the same
+//! day: „Erstmal ist es zu weit links, dann wird es breiter wenn man rein klickt und die combox ist
+//! nicht so styled, wie alle anderen in der App"). A program known is a row as in „Mein Studium",
+//! its picker the way to another with the module's programs first (the same day: „was ist das für
+//! ein clusterfuck, wenn man schon ein Studiengangs ausgewählt hat und den doch nochmal ändern
+//! möchte"). Once a program is known, its Regelstudienplan fills in what the student has not set
+//! (`folia_stores::studyplan::fit`); the filter's semester is read by the time. A semester behind
+//! the student is allowed, with a warning (the same day: „Betula sollte bei sowas nicht nein
+//! sagen"). Where „Weitere Module auch nach …" aimed the click, the module's row says so, with
+//! „Aufheben".
 //!
 //! A native `<dialog>` shown modally, in the frame of the app's dialogs (app.css „The dialogs"): in
 //! the middle of the window on a desktop, a sheet from below on a phone.
@@ -36,7 +42,7 @@ use folia_design::combobox::{with_first, ComboItem, Combobox};
 use folia_design::ui::{DialogClose, Icon};
 use folia_stores::myprogram::{po_of, program_name, MyProgram};
 use folia_stores::studyplan::fit::{self, Filled, FsFrom, Known};
-use folia_stores::studyplan::{Planning, SetupAsk, Studyplan};
+use folia_stores::studyplan::{target_semester, Planning, SetupAsk, Studyplan};
 
 use crate::i18n::{self, Texts};
 
@@ -184,13 +190,26 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     // A page that means a semester (the finder's, a placeholder's) has set the module's.
     let means = what.hint.as_ref().is_some_and(|hint| hint.semester.is_some() || hint.fill.is_some());
     let semester_set = RwSignal::new(means.then_some(ask.target));
+    // Where the click aimed; „Weitere Module auch nach …" aimed it (the semester chosen for the next
+    // modules, P3): the module's row says so and offers to clear it, which aims as without it —
+    // the session's semester where the module is offered then, as `target_semester` (owner,
+    // 2026-10-18, a dialog that stood at „SoSe 2034 · 16. FS" without a word why).
+    let aim = RwSignal::new(ask.target);
+    let chosen_aim = RwSignal::new(!means && untrack(|| planning.chosen()) == Some(ask.target));
+    let unchosen = chosen_aim.get_untracked().then(|| plan.map(|plan| plan.with_untracked(|doc| target_semester(planning.session(now), what.newest, what.offer, None, doc)))).flatten();
+    let clear = unchosen.map(|unchosen| {
+        Callback::new(move |()| {
+            planning.choose(None);
+            chosen_aim.set(false);
+            aim.set(unchosen);
+        })
+    });
     let filled = {
         let offer = what.offer;
-        let aim = ask.target;
         Memo::new(move |_| {
             fit::fill(&Known {
                 now,
-                aim,
+                aim: aim.get(),
                 offer,
                 program: program_id.with(Option::is_some),
                 place: place.get().and_then(|(n, _)| n),
@@ -205,14 +224,10 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     // The Studienbeginn the Fachsemester means, and the earliest semester ‹ reaches.
     let start = Memo::new(move |_| filled.get().fs.and_then(|fs| study::start_of_fs(now, fs, &leave.get())));
     let floor = Memo::new(move |_| start.get().filter(|start| *start <= now).unwrap_or_else(|| now.plus(-6).unwrap_or(now)));
-    // The list of programs: open while none is chosen, and when asked for.
-    let listing = RwSignal::new(None::<bool>);
-    let list_open = Memo::new(move |_| listing.get().unwrap_or_else(|| program_id.with(Option::is_none)));
-
     let pick = Callback::new(move |id: Option<String>| {
-        let Some(id) = id else { return };
-        picked.set(Some(id));
-        listing.set(Some(false));
+        if let Some(id) = id {
+            picked.set(Some(id));
+        }
     });
     let step_fs = move |by: i32| {
         let next = match filled.get_untracked().fs {
@@ -269,27 +284,38 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
         }
         None => view! { {p.ask_program} }.into_any(),
     };
-    // The program's row: what it is and where it comes from, the list under it when open.
+    // The program: while none is known the module's programs stand open with the search under them
+    // (`ProgramList`); once one is, it is a row as in „Mein Studium", its picker the way to another,
+    // the module's programs first in it.
     let title = what.title.clone();
+    let known = Memo::new(move |_| program.with(Option::is_some));
+    let items = Signal::derive(move || {
+        let first = mine.and_then(|mine| mine.with(|doc| doc.program.clone()));
+        let all = programs.with(|all| program_items(all, first.as_deref(), t));
+        offered.with(|offered| offered.iter().map(|offered| ComboItem::new(offered.id.clone(), offered.name.clone(), detail_of(offered.kind, offered.at, t), 0).in_group(p.with_module)).chain(all).collect::<Vec<_>>())
+    });
     let program_row = move || {
-        let list = list_open.get().then(|| {
-            view! { <ProgramList what=title.clone() offered picked=program_id pick programs mine/> }
-        });
-        let chosen = program.get().map(|program| {
-            let name = format!("{} {}", program.name, program.degree());
-            let note = program_note(from.get(), place.get(), t);
-            view! {
-                <span class="label">{p.program_row}</span>
-                <button class="plan-setup-change" type="button" aria-expanded=move || if list_open.get() { "true" } else { "false" } on:click=move |_| listing.set(Some(!list_open.get_untracked()))>
-                    <span>{name}</span><Icon name="chevron-down"/>
-                </button>
-                <p class="st-srow-note"><span>{note}</span></p>
-            }
-        });
-        match chosen {
-            Some(chosen) => view! { <div class="st-srow plan-setup-program">{chosen}{list}</div> }.into_any(),
-            None => view! { <div class="st-srow plan-setup-program open">{list}</div> }.into_any(),
+        if !known.get() {
+            return view! { <ProgramList what=title.clone() offered pick programs mine/> }.into_any();
         }
+        view! {
+            <div class="st-srow plan-setup-program">
+                <span class="label">{p.program_row}</span>
+                <Combobox
+                    id="plan-setup-program"
+                    label=p.program_row
+                    placeholder=p.search_program
+                    search_placeholder=p.search_placeholder
+                    min_width=360.0
+                    items
+                    selected=Signal::derive(move || program_id.get())
+                    on_select=pick
+                    clearable=false
+                />
+                <p class="st-srow-note"><span>{move || program_note(from.get(), place.get(), t)}</span></p>
+            </div>
+        }
+        .into_any()
     };
     let fs_value = move || filled.get().fs.map_or_else(|| "–".to_string(), |fs| (p.fs_long)(fs));
     let fs_note = move || fs_note_of(filled.get(), start.get(), filter_fs.get().map(|(_, at)| at), filter_semester, t);
@@ -308,8 +334,7 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     };
     let module_note = {
         let offer = what.offer;
-        let aim = ask.target;
-        move || module_note_of(filled.get(), place.get().and_then(|(n, _)| n), now, aim, offer, t)
+        move || module_note_of(filled.get(), place.get().and_then(|(n, _)| n), now, chosen_aim.get().then(|| aim.get()), clear, offer, t)
     };
     let warning = move || warning_of(filled.get(), place.get().and_then(|(n, _)| n), now, semester_set.with(Option::is_some), t);
 
@@ -363,29 +388,29 @@ fn SetupDialog(ask: SetupAsk, planning: Planning) -> impl IntoView {
     }
 }
 
-/// The module's programs (three at most, compulsory first, `offers_of`) as buttons, and the search
-/// for any other under them.
+/// Every program for the search, „Mein Studiengang" once more at their head (`with_first`).
+fn program_items(all: &[Program], first: Option<&str>, t: &'static Texts) -> Vec<ComboItem> {
+    let items: Vec<ComboItem> = all.iter().map(|program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po))).collect();
+    with_first(&items, first, t.planner.my_program)
+}
+
+/// While no program is known: the module's programs (three at most, compulsory first, `offers_of`)
+/// as buttons, and the search for any other under them — the app's picker as it is, as wide as the
+/// buttons (app.css).
 #[component]
-fn ProgramList(what: String, offered: Memo<Vec<Offered>>, picked: Memo<Option<String>>, pick: Callback<Option<String>>, programs: Memo<Vec<Program>>, mine: Option<MyProgram>) -> impl IntoView {
+fn ProgramList(what: String, offered: Memo<Vec<Offered>>, pick: Callback<Option<String>>, programs: Memo<Vec<Program>>, mine: Option<MyProgram>) -> impl IntoView {
     let t = i18n::t();
     let p = &t.planner;
     let items = Signal::derive(move || {
         let first = mine.and_then(|mine| mine.with(|doc| doc.program.clone()));
-        programs.with(|all| {
-            let items: Vec<ComboItem> = all.iter().map(|program| ComboItem::new(program.id.clone(), program.name.clone(), format!("{} · PO {}", program.degree(), po_of(program)), i64::from(program.is_latest_po))).collect();
-            with_first(&items, first.as_deref(), p.my_program)
-        })
+        programs.with(|all| program_items(all, first.as_deref(), t))
     });
     let buttons = move || {
         offered.get().into_iter().map(|offered| {
             let id = offered.id.clone();
-            let on = {
-                let id = id.clone();
-                move || picked.with(|picked| picked.as_deref() == Some(id.as_str()))
-            };
             let detail = detail_of(offered.kind, offered.at, t);
             view! {
-                <button type="button" role="radio" aria-checked=move || if on() { "true" } else { "false" } on:click=move |_| pick.run(Some(id.clone()))>
+                <button type="button" role="radio" aria-checked="false" on:click=move |_| pick.run(Some(id.clone()))>
                     <span>{offered.name}</span>
                     <small class:req=matches!(offered.kind, Some(ModuleKind::Compulsory))>{detail}</small>
                 </button>
@@ -506,8 +531,9 @@ fn fs_note_of(filled: Filled, start: Option<SemesterKey>, filter_at: Option<Seme
 }
 
 /// Under the module's semester: behind the student, not offered, as the plan places it, where the
-/// plan places it; else this semester.
-fn module_note_of(filled: Filled, place: Option<u8>, now: SemesterKey, aim: SemesterKey, offer: folia_plans::study::Offer, t: &'static Texts) -> AnyView {
+/// plan places it; the semester „Weitere Module auch nach …" chose (`chosen`, while the module stays
+/// there), with „Aufheben" (`clear`); else this semester.
+fn module_note_of(filled: Filled, place: Option<u8>, now: SemesterKey, chosen: Option<SemesterKey>, clear: Option<Callback<()>>, offer: folia_plans::study::Offer, t: &'static Texts) -> AnyView {
     let p = &t.planner;
     let at = filled.semester;
     let fs_there = filled.fs.map(|fs| i32::from(fs) + i32::from(at.index()) - i32::from(now.index()));
@@ -519,10 +545,12 @@ fn module_note_of(filled: Filled, place: Option<u8>, now: SemesterKey, aim: Seme
         ((p.as_in_plan)(i64::from(n)), "good")
     } else if let Some(n) = place.filter(|_| filled.fs.is_some()) {
         ((p.in_plan_at)(i64::from(n)), "")
+    } else if chosen == Some(at) {
+        let clear = clear.map(|clear| view! { <button class="st-back" type="button" on:click=move |_| clear.run(())>{p.chosen_clear}</button> });
+        return view! { <span>{p.chosen_note}</span>{clear} }.into_any();
     } else if at == now {
         (p.this_semester.to_string(), "")
     } else {
-        let _ = aim;
         (String::new(), "")
     };
     view! { <span class=class>{text}</span> }.into_any()
