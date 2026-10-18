@@ -4,8 +4,7 @@
 // modes: the shortcuts (Esc closes the preview or leaves the module page, F opens the previewed
 // module full screen, Ctrl+K or "/" jumps to the search, Alt and a digit — Ctrl and Alt off Windows —
 // goes to a tab of the navigation; in the app M marks the module the visitor is at and P plans it
-// into the Studienplan, P held or Shift+P opens the semesters it plans into), a switch held by a
-// finger or right-clicked (its menu), the theme switch, the filter sheet (and a page's
+// into the Studienplan), the theme switch, the filter sheet (and a page's
 // dialogs where a phone shows them as sheets), the swipe along the phone's bottom bar from tab to
 // tab, the widths of the filter panel and the module preview (dragged, kept in localStorage), the
 // room the panels make for the ground at the end of a page, and the way back to the top of a page
@@ -1242,114 +1241,6 @@
   // A page the browser kept (Back after a page load) shows its own tab's mark again.
   addEventListener("pageshow", (e) => { if (e.persisted) { tabDrag = null; settleTabs(); } });
 
-  // ---- a switch held: its menu ----
-  // (owner, 2026-10-17, of „Einplanen": „wenn man es lange gedrückt hält (auf dem handy) soll dabei
-  // sich die border aufladen und wrnn das voll ist soll ein dropdown mit so 3 bis 5 semestern kommen
-  // … Beim pc soll einfach on hover das dropdown kommen, oder wenn mann den shortcut lange gedrückt
-  // hält oder mit modifier"; and „Bau das system gleich so, dass man das dann später auch für merken
-  // machen kann"). A switch with a menu besides its click (`[data-hold-menu]`, „Einplanen" wherever
-  // it stands; folia/crates/design/src/holdmenu.rs) fills its border under a finger (`data-charge`,
-  // the ring `svg.hold-charge`, app.css); held HOLD_MS without moving, the border is full and its
-  // menu opens (`betula:hold-menu` on the switch, its `detail` what opened it). Lifted before, it is
-  // a tap and does what the switch does, and a finger that moves scrolls or drags the sheet. A right
-  // click opens the menu at once; the switch's key held or with Shift does (`holdKeyDown`, the
-  // shortcuts below), and a mouse resting on the switch, which the app hears itself. The touch that
-  // held is no tap (its click goes).
-  const HOLD_MS = 450; // ms until the border is full: about the browser's own long press (Android: 400–500)
-  const HOLD_CHARGE_FROM = 90; // ms a finger rests before the border begins to fill: a tap shows nothing
-  let hold = null; // the finger on a switch: { el, id, x, y, ring, timer, full }
-  let held = false; // the touch held a switch: its click is no tap
-  let holdKey = null; // a switch's key down: { el, code, timer, held }
-  const holdSwitch = (target) => (appRuns() ? target?.closest?.("[data-hold-menu]") : null);
-  const holdMenu = (el, by) => el.dispatchEvent(new CustomEvent("betula:hold-menu", { bubbles: true, detail: by }));
-  const dropHoldTouch = () => {
-    if (!hold) return;
-    clearTimeout(hold.timer);
-    hold.ring?.cancel();
-    hold.el.removeAttribute("data-charge");
-    hold = null;
-  };
-  const fireHoldTouch = () => {
-    const h = hold;
-    if (!h || h.full) return;
-    clearTimeout(h.timer);
-    if (!h.el.isConnected) { dropHoldTouch(); return; }
-    h.full = true;
-    h.ring?.finish();
-    h.el.setAttribute("data-charge", "full");
-    held = true;
-    holdMenu(h.el, "hold");
-    navigator.vibrate?.(8);
-  };
-  // The finger lifted: a border that was full fades, one that was filling goes.
-  const endHoldTouch = (e) => {
-    if (e.pointerId !== hold?.id) return;
-    if (!hold.full) { dropHoldTouch(); return; }
-    const { el, ring } = hold;
-    hold = null;
-    el.setAttribute("data-charge", "done");
-    setTimeout(() => {
-      if (el.getAttribute("data-charge") !== "done") return;
-      el.removeAttribute("data-charge");
-      ring?.cancel();
-    }, 300);
-  };
-  document.addEventListener("pointerdown", (e) => {
-    dropHoldTouch();
-    held = false;
-    if (!e.isPrimary || e.pointerType === "mouse" || e.button !== 0) return;
-    const el = holdSwitch(e.target);
-    if (!el) return;
-    // The ring's length is 100 (`pathLength`): it is drawn from nothing to whole.
-    const ring = el.querySelector(":scope > .hold-charge rect")?.animate?.([{ strokeDashoffset: 100 }, { strokeDashoffset: 0 }],
-      { duration: HOLD_MS - HOLD_CHARGE_FROM, delay: HOLD_CHARGE_FROM, easing: "linear", fill: "both" });
-    el.setAttribute("data-charge", "on");
-    hold = { el, id: e.pointerId, x: e.clientX, y: e.clientY, ring, timer: setTimeout(fireHoldTouch, HOLD_MS), full: false };
-  });
-  document.addEventListener("pointermove", (e) => {
-    if (hold && !hold.full && e.pointerId === hold.id && Math.max(Math.abs(e.clientX - hold.x), Math.abs(e.clientY - hold.y)) >= TAB_SLOP) dropHoldTouch();
-  });
-  document.addEventListener("pointerup", endHoldTouch);
-  document.addEventListener("pointercancel", endHoldTouch);
-  document.addEventListener("contextmenu", (e) => {
-    const el = holdSwitch(e.target);
-    if (!el) return;
-    e.preventDefault();
-    // The browser's own long press of a finger: before ours it is ours, after it nothing.
-    if (hold?.el === el) { fireHoldTouch(); return; }
-    if (held) return;
-    holdMenu(el, "click");
-  });
-  addEventListener("click", (e) => {
-    if (!held || !e.isTrusted) return;
-    held = false;
-    e.preventDefault();
-    e.stopPropagation();
-  }, true);
-  // A switch's key (P for „Einplanen"): pressed, it clicks the switch once it is let go (the keyup
-  // below), as the key always did; held HOLD_MS, or with Shift, it opens the switch's menu instead.
-  const holdKeyDown = (e, el) => {
-    e.preventDefault();
-    if (e.repeat) return;
-    clearTimeout(holdKey?.timer);
-    holdKey = null;
-    if (e.shiftKey) { holdMenu(el, "keys"); return; }
-    const key = holdKey = { el, code: e.code, held: false, timer: 0 };
-    key.timer = setTimeout(() => {
-      if (holdKey !== key || !el.isConnected) return;
-      key.held = true;
-      holdMenu(el, "keys");
-    }, HOLD_MS);
-  };
-  addEventListener("keyup", (e) => {
-    if (!holdKey || e.code !== holdKey.code) return;
-    const { el, timer, held: menu } = holdKey;
-    clearTimeout(timer);
-    holdKey = null;
-    if (!menu && el.isConnected) el.click();
-  });
-  addEventListener("blur", () => { clearTimeout(holdKey?.timer); holdKey = null; });
-
   // The browser's own chrome in the colours of the theme (they are --bg of the two themes), and the
   // manifest the page names with it (`folia_app::MANIFEST_DARK`): an installed app takes the colours
   // of its splash screen and of the strip under the gesture bar from there, as the head script
@@ -1925,10 +1816,8 @@
 
   // ---- shortcuts (each is written next to its button) ----
   addEventListener("keydown", (e) => {
-    // An open picker has the keyboard to itself (its Esc closes the picker, nothing else), and so
-    // has a switch's menu while the focus is in it; open, its Esc is its own (holdmenu.rs).
-    if (e.target.closest?.(".combo[data-open], .hold-menu")) return;
-    if (e.key === "Escape" && document.querySelector(".hold-menu")) return;
+    // An open picker has the keyboard to itself (its Esc closes the picker, nothing else).
+    if (e.target.closest?.(".combo[data-open]")) return;
     // The filter toggles are links that act as switches: the space bar flips them, too.
     if (e.key === " " && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1955,21 +1844,20 @@
       // Where its button is shown: a phone's sheet has none (app.css).
       const full = document.querySelector('[data-action="fullscreen"]');
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); }
-    } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns()) {
+    } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
       // „Merken" for what the visitor is at: the row the keyboard is on, else the module that is
       // open (its preview, or its page). The buttons belong to the browser app.
       const row = document.activeElement?.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : document.querySelector('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
-    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns()) {
+    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
-      // it ambiguous which module is meant, so P waits there. Pressed, it plans once P is let go;
-      // held, or with Shift, it opens the menu of the semesters (owner, 2026-10-17: „wenn mann den
-      // shortcut lange gedrückt hält oder mit modifier"; `holdKeyDown`).
+      // it ambiguous which module is meant, so P waits there. What it planned the note at the
+      // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs).
       const row = document.activeElement?.closest?.(".row-wrap");
       const plan = row && !row.querySelector('[aria-current="true"]') ? null : document.querySelector('.hero [data-action="plan"]');
-      if (plan) holdKeyDown(e, plan);
+      if (plan) { e.preventDefault(); plan.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");

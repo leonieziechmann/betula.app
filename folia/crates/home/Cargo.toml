@@ -1,6 +1,6 @@
 [package]
 name = "folia-home"
-version = "1.22.0"
+version = "1.24.0"
 edition = "2021"
 description = "The start page of Betula and the legal pages"
 
