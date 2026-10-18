@@ -473,16 +473,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     small line names them. The sidebar of a module's page says the same under its action. The
     browser app's alone (R9): where a session plans depends on the day.
   - **The note** (`PlanNote`, app.css „The note of „Einplanen"", `.plan-toast`) after a click, P or
-    a row swiped. On a wide screen one bar across the page right of the rail, one line high, the
-    module named in it and the switch beside the semester, × at the end (owner, 2026-10-18: „bei der
-    pc Version kann die notification ruhig über die ganze Breite rechts von der sidebar gehen und
-    dann vllt etwas weniger hoch sein"); on a phone a card as wide as the bottom bar and over it
-    (over a module's sheet at the bottom of the screen), under the bar in the order of what lies on
-    what and flat, so it casts nothing on the bar and comes up from behind it (the same day: „keinen
-    schatten auf die navbar werfen"); its switch a row over the semester, so that what is under the
-    finger stays where it was. Dark in both themes (the same day: „dark modus muss natürlich auch
-    dafür funktionieren"): inverted on the light page, a raised dark surface with a fine edge on the
-    dark one (`--toast`, `--on-toast`). In it a check, the semester between ‹ and › with a line
+    a row swiped, a note that waits for interaction (below; owner, 2026-10-18: „Bau diese
+    notification mal bitte als wait for interaction notification"): it stands until the student does
+    something else; a newer one takes its place, and another profile takes it away. On a wide screen
+    the module is named in it and the switch stands beside the semester (the same day: „bei der pc
+    Version kann die notification ruhig über die ganze Breite rechts von der sidebar gehen und dann
+    vllt etwas weniger hoch sein"); on a phone its switch is a row over the semester, so that what
+    is under the finger stays where it was. In it a check, the semester between ‹ and › with a line
     under it — its Fachsemester and the warning („kein Angebot" where the turnus leaves it out,
     „liegt zurück" in a semester behind the student, in the warning's colour), and what happened
     („eingeplant", „verschoben") where there is room: on a phone only where nothing else is said
@@ -492,26 +489,17 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     „müssen die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch
     swiping unterstützt werden"): a tap on its left half is ‹, on its right half ›, and a finger
     swiped sideways over it moves the module a semester the way a page turns (to the left the next
-    one), the words following the finger and coming in from the side the semester came from. It
-    moves the module at once, a semester at a time, into the past as well (the same day: „Betula
-    sollte bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first Fachsemester (six back
-    where the Studienbeginn is not known); ← and → do the same while the note stands, where the keys
-    mean nothing else (a field, a picker, a menu, a slider, a panel's handle, a dialog). Once it was
-    moved, a second row „Weitere Module auch nach SoSe 27" with a switch makes that semester the
-    session's for the next modules (P3, `betula.plan.chosen`), a past one too; while it is on it
-    stands in every note, to be switched off where it is seen. A module taken out says „Datenbanken
-    entfernt", with „Rückgängig". „Rückgängig" puts back the plan as it was before the click while
-    the plan is still what the note made of it, else undoes what the note did alone. The note stands
-    4.5 s, 7 s once moved, and as long as the pointer or the focus is on it; a newer one takes its
-    place, and another profile takes it away. It goes as soon as the student moves on (the same day:
-    „sobald erkannt wurde, dass damit nicht interagiert wurde und der Nutzer weiter macht soll es
-    ausgeblendet werden. Aber wir müssen aufpassen, dass versehentliche Interaktionen, wie ein klein
-    wenig scrollen kein Problem sind"): another page or tab, another module opened or its panel or
-    sheet closed, other filters or another search (the address but its `page`, which the list writes
-    as it scrolls), a scroll of anything further than a fifth of the window (140 to 260 px) — not a
-    little one, and nothing within 0.4 s of the press, which is the page answering it. A finger
-    swipes it down and away (the same day: „Auf dem Handy soll es die Geste geben die notification
-    nach unten weg zu wischen"); × and Esc put it away on a wide screen.
+    one; the note's `Sideways`), the words following the finger and coming in from the side the
+    semester came from. It moves the module at once, a semester at a time, into the past as well
+    (the same day: „Betula sollte bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first
+    Fachsemester (six back where the Studienbeginn is not known); ← and → do the same while the note
+    stands, its own keys, where the keys mean nothing else (a field, a picker, a menu, a slider, a
+    panel's handle, a dialog). Once it was moved, a second row „Weitere Module auch nach SoSe 27"
+    with a switch makes that semester the session's for the next modules (P3, `betula.plan.chosen`),
+    a past one too; while it is on it stands in every note, to be switched off where it is seen. A
+    module taken out says „Datenbanken entfernt", with „Rückgängig". „Rückgängig" puts back the plan
+    as it was before the click while the plan is still what the note made of it, else undoes what
+    the note did alone.
   - **Where no study is set up** (no Studienbeginn stored, and the session has not answered with
     „Ohne Studium einplanen"), „Einplanen" — its switch, P, a row swiped — opens one dialog instead
     (owner, 2026-10-18: „so dass man im best case nur auf ok drücken muss, dann das Studium
@@ -546,6 +534,39 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   - **A row swiped to the right** on a phone (`swipe.rs`) does what the switch does, the note or
     the dialog after it; its ground says „Einplanen" with the semester, and keeps saying it where
     the dialog comes next.
+- **A note that waits for interaction** (`folia_design::waitnote::WaitNote`, app.css „A note that
+  waits for interaction", `.wait-note`; owner, 2026-10-18: „Bau diese notification mal bitte als
+  wait for interaction notification. Vielleicht brauchen wir das später nochmal"): at the bottom of
+  the window, over the page, what was just done and what follows from it, and × at its end. It has
+  no timer: it stands until the student does something, and what is done with it keeps it; anything
+  else is moving on, and it goes (the same day: „sobald erkannt wurde, dass damit nicht interagiert
+  wurde und der Nutzer weiter macht soll es ausgeblendet werden. Aber wir müssen aufpassen, dass
+  versehentliche Interaktionen, wie ein klein wenig scrollen kein Problem sind") — a click or a tap
+  elsewhere; a key that is not its own (`on_key`), not a modifier, Tab, a function key or a key with
+  a modifier; another page or tab, another module opened or its panel or sheet closed, other filters
+  or another search (the address but its `page`, which the catalog's list writes as it scrolls); a
+  scroll of anything further than a fifth of the window (140 to 260 px), not a little one. Nothing
+  within 0.4 s of its coming or of a change of it by the student's hand (`changed`) counts, which is
+  the page answering what was done. It goes down out of sight, from where it stands, and then the
+  host lets go of it (the same day: „wenn man da die Modul Ansicht schließt sollte die notification
+  auch mit eher Animation nach unten raus geschlossen werden. Aktuell ist das ziemlich unangenehm
+  anzusehen"): its place is kept from its coming, so what changes around it — a module's sheet that
+  closes on a phone, a page without a sidebar — never moves it on its way out, and a module's sheet
+  sliding away takes it along at once (enhance.js `sheet-away` on the document). × and Esc put it
+  away, and a finger swiping it down (the same day: „Auf dem Handy soll es die Geste geben die
+  notification nach unten weg zu wischen"); a part of it may take a finger swiped sideways
+  (`Sideways`), and a swipe is never a tap as well. On a wide screen one bar across the content:
+  right of the sidebar where the page has one, the catalog's filters or the sidebar of the frame, as
+  wide as its handle makes it (the same day: „Bei der pc Version soll die notification nicht über
+  die sidebar (z.b. filter) gehen, sondern nur über den content"), else right of the rail; on a
+  phone a card as wide as the bottom bar and over it (over a module's sheet at the bottom of the
+  screen), under the bar in the order of what lies on what and flat, so it casts nothing on the bar
+  and comes up from behind it (the same day: „keinen schatten auf die navbar werfen"), without ×.
+  Dark in both themes (the same day: „dark modus muss natürlich auch dafür funktionieren"): inverted
+  on the light page, a raised dark surface with a fine edge on the dark one (`--toast`,
+  `--on-toast`). The host shows it while it has something to say, gives it what it says as one
+  element, and lets go of it on `on_gone` — of this note alone, a newer one that took its place
+  staying (a key that makes the next note). The note of „Einplanen" is the first that uses it.
 - **A tab held gives what it holds besides its page** (owner, 2026-10-06: „wenn man die buttons in
   der nav bar lange gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das
   dann eine auswahl von Regelstudienplan, Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch
@@ -2623,8 +2644,8 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
   uses it for the home screen and for previews in Messages) and `/manifest.webmanifest` (the name
   „Betula · Modulkatalog", „Betula · Module catalogue" in English, which Android writes under the
   icon of its splash screen (owner, 2026-10-15: „Das sieht classy aus"); colours; icons 192/512,
-  maskable ones of 334 px for the launcher and 512 px for the splash screen, and a monochrome
-  one); `/manifest-dark.webmanifest`, the same app in the dark page's colours and with the splash
+  a maskable one of 334 px for the launcher, a round one of 512 px for the splash screen, and a
+  monochrome one); `/manifest-dark.webmanifest`, the same app in the dark page's colours and with the splash
   screen's icon turned over; and `theme-color` (the page background). The head script and the
   theme switch turn both dark: the page names the dark manifest instead of the light one and the
   dark `theme-color`, and so does a page open when the system turns dark, unless a theme of
@@ -2654,10 +2675,25 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     72): the leaf is drawn smaller by that much and sits in the middle, so a circle, a squircle
     or a teardrop shows the whole of it. With themed icons (Material You) the launcher tints the
     monochrome icon, the leaf with its marks cut out, in the colours of the wallpaper; without it
-    the icon of an installed app did not take part. The splash screen of the installed app is
-    Chrome's own (`SplashLayout`): the manifest's background, the maskable icon at 128 dp cut by
-    the launcher's mask, its middle 16 dp above the window's (24 on a tablet), and the manifest's
-    name under it, 24 sp, its bottom 48 dp above the window's. Chrome takes the icon of the size it
+    the icon of an installed app did not take part. The splash screen of the installed app
+    depends on what installed it (screen recordings of both on a Pixel, 2026-10-18):
+    - **Chrome** installs a WebAPK, and from Android 12 on Android draws its splash screen: the
+      launcher's icon (ink and paper, whatever the theme) cut round, 240 dp, in the middle of the
+      whole screen, on the manifest's background, and no name.
+    - **Brave** (and what else installs a shortcut) draws Chromium's (`SplashLayout`,
+      `WebappSplashController`) after its own with Brave's lion: the manifest's background, the
+      picture of the splash screen as it is (a shortcut forgets that it is maskable) at 128 dp,
+      and the manifest's name under it, 24 sp, its bottom 48 dp above the bottom; the icon's middle
+      16 dp above the middle (24 on a tablet). Up to Chromium 154 that is the whole screen's;
+      from 155 on (`setupSplashInsets`) the screen's less the bars, the gesture area at the bottom
+      counted (32 dp with gestures, where the bar is 24). Brave fetches the picture once, when the
+      app is added to the home screen.
+
+    The picture of the splash screen is the maskable icon cut round (`ICON_SPLASH`,
+    `icon-splash-512.png`; owner, 2026-10-18: „wenn das Icon schon am Anfang rund ist … im
+    Zweifelsfall mach halt das Icon Bild rund"): named maskable, so that Chromium takes it before
+    the plain ones, and drawn as it is by a shortcut, round from the start; a mask of Android's
+    shows only its middle, which is the full-bleed icon's. Chrome takes the icon of the size it
     asks for or the next larger one (`ManifestIconSelector`): 83 dp for the launcher, which 334 px
     serve up to a density of 4.02, and 128 dp for the splash screen, which asks for more than 334 px
     from a density of 2.61 on (most phones of today) and takes the 512. So the dark manifest names
@@ -2694,7 +2730,9 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     (`/assets/launch/<width>x<height>[-dark].png`, `folia/crates/server/src/launch.rs`, resvg like the cards)
     for the screens of `app::launch` (12 iPhones, 9 iPads): the icon in the middle of the page's
     background, 128 px as on Android's splash screen, on a soft shadow in the light and turned over
-    in the dark, and „Betula · Modulkatalog" at the bottom; on its first
+    in the dark, and the wordmark at the bottom as the start page sets it (`.wordmark.small`,
+    22 px; owner, 2026-10-18: „unten gerne den BeTUla Schriftzug mit dem Styling wie im Start
+    Screen"); on its first
     request, one at a time, and keeps them (20–40 kB each, 2 MB for all). The gate lets them
     through like the icons. A screen that is not listed gets no picture and starts blank as before:
     a new iPhone is one line in `folia/crates/shell/src/launch.rs`. Look at all of them with
@@ -2704,21 +2742,37 @@ Aim: a search for a module or a program of the BTU finds the page here. What tha
     the new name from `icon.html`). Where the installed app starts on a phone or a tablet
     (`display-mode: standalone` or `navigator.standalone`, and a coarse pointer), the head script
     lays the picture of the system's splash screen over the page before its first paint (`.launch`,
-    beside the body, where the app's takeover does not reach it): on Android the icon where Chrome
-    draws it, round; on iOS the launch screen as the server draws it, which the screen's geometry
-    places (`--mid`, `--name`, less the status bar above the window). The first picture of the page
-    is the splash screen again. enhance.js holds it while Chrome fades its own splash from above it
+    beside the body, where the app's takeover does not reach it), with the wordmark at the bottom.
+    The icon stands where the system left its own, so that nothing jumps (owner, 2026-10-18:
+    „springt der loading screen immer noch"; until then it stood 16 dp above the page's middle,
+    where Chromium had it before it drew edge to edge: 14 dp under Brave's and smaller and lighter
+    than Chrome's): in Chrome Android's, 240 dp in the middle of the screen with the launcher's
+    colours (`.sys`); in Brave Chromium's, 128 dp with the leaf of the round picture (.873),
+    placed by the Chromium the user agent names; on iOS the launch screen as the server draws it.
+    The screen's geometry places it in the page (`--mid`, `--size`, `--leaf`, `--leaf-at`, `--name`),
+    less the status bar above the page: on Android what enhance.js measured at the first touch of
+    an earlier start (a finger's place on the screen less its place in the page,
+    `betula.launch.top`, kept only where the bars around the page leave room for it), else the bars
+    less a gesture bar of 24 dp; on iOS the whole difference. The first picture of the page is the
+    splash screen again. enhance.js holds it while the system fades its own splash from above it
     (350 ms; 150 on iOS, whose switch from the launch screen is at once), then the icon flies to the
-    page's own, the first `.logo` on the screen, in 640 ms along the way of concept A, and turns
-    from the launcher's circle into its square while the background clears; on the logo it goes,
-    and the page's own is under it. Without a logo on the screen (a phone's page other than the
-    start page) or with reduced motion it only fades; a tap takes it away; once the icon flies,
+    page's own, the first `.logo` on the screen, in 640 ms along the way of concept A, turns from
+    its circle into its square and its leaf into the logo's size, and takes the logo's colours on
+    the last stretch, where it is small; the wordmark flies the same way to the page's own, the
+    first on the screen (on a phone the start page's, beside the logo), while the background clears.
+    The page's own are not there while they fly (owner, 2026-10-18: „das Icon soll erst existieren
+    wenn es hin geflogen ist"; `html.launch-logo`, `html.launch-mark`): they come in the frame the
+    picture goes, under where the icon, which took the logo's ring and shadow on the last stretch,
+    and the wordmark landed. Without a logo on the screen (a phone's
+    page other than the start page) or with reduced motion it only fades, and without a wordmark on
+    the screen the launch's fades as the icon sets off; a tap takes it away; once the icon flies,
     taps reach the page. Once a session (`betula.launched` in sessionStorage): a link or a reload
     in the app is no start. Not on the login page of closed testing (it names no manifest and runs
     no enhance.js), and without enhance.js the picture fades by itself after 4 s (`launch-gone`,
-    which reduced motion leaves alone). Chrome's name under the icon fades with its splash; on iOS
-    the name of the picture fades as the icon sets off. `folia/e2e/launch.mjs` checks where it
-    stands, that it lands on the logo, and when it is not there.
+    which reduced motion leaves alone). Brave's name under the icon fades with its splash into the
+    wordmark. `folia/e2e/launch.mjs` checks where it stands for Chrome, Brave before and from
+    Chromium 155 and iOS, that it lands on the logo, when it is not there, and the measured status
+    bar.
 - **Offline (`folia/assets/sw.js`, served as `/sw.js`, registered by `boot.js`; 2026-09-21):** the
   worker keeps the shell of the app — a page of the site (the browser app renders whatever the
   address names from the local catalog), the scripts, the styles, the bundle, the font, the icons,
@@ -3225,8 +3279,8 @@ heard from; for an uptime monitor), `GET /livez` (200 while the process answers;
 healthcheck, which must not restart a server that still serves its last snapshot),
 `/assets/app.css`, `/assets/icons.svg` (the sprite every icon points at), `/assets/favicon.svg`, `/sw.js` (the service worker with the build written in),
 `/assets/og.png`, `/favicon.ico`, `/apple-touch-icon.png`, `/assets/icon-192.png`,
-`/assets/icon-512.png`, `/assets/icon-maskable-334.png`, `/assets/icon-maskable-512.png`,
-`/assets/icon-maskable-dark-512.png`, `/assets/icon-monochrome-512.png`, `/manifest.webmanifest`,
+`/assets/icon-512.png`, `/assets/icon-maskable-334.png`, `/assets/icon-splash-512.png`,
+`/assets/icon-splash-dark-512.png`, `/assets/icon-monochrome-512.png`, `/manifest.webmanifest`,
 `/manifest-dark.webmanifest` (the same in the dark theme's colours), `/assets/launch/<w>x<h>[-dark].png`
 (the launch screens of iOS), `/cards/module/<id>.png`, `/cards/program/<slug>.png`, `/robots.txt`,
 `/sitemap.xml`, and
@@ -3898,23 +3952,26 @@ Fachsemester" and the module „wie im Regelstudienplan (1. Semester)", its row'
 behind; ‹ into the past, the warning of the past; „Einrichten und einplanen" stores the program and
 a Studienbeginn and plans the module, and the note says the semester and „eingeplant · 1. FS", no
 switch yet, × at its end. A click on the semester's right half moves it at once („verschoben · 2.
-FS") and brings „Weitere Module auch nach …"; the note is one bar right of the rail, one line high
-with the switch in it and the module named, dark with light text in the dark theme and the light
-one; the left half moves it back without the arrows moving, ← and → move it back and forth; the
-switch on keeps the semester for the session; „Rückgängig" takes the module out. Analysis I then
-plans into the semester chosen (P), its note shows the switch on, which turns off there; ‹ stops at
-the first Fachsemester, and so does the left half; P on the module planned takes it out („Analysis I
-entfernt") and „Rückgängig" puts it back; the note goes by itself. ×, Esc, another module opened and
-a long scroll put it away, a little scroll does not. With SoSe 2034 chosen for the next modules, the
-dialog says „für weitere Module gewählt" and „Aufheben" aims as without it. On a phone a row swiped
-to the right opens the dialog as a sheet from below, nothing planned, the search not growing as it
-opens; „Ohne Studium einplanen" plans and puts the question aside for the session; the note stands
-over the bottom bar without the module's name or ×, as wide as the bar, under it and without a
-shadow; a tap on the semester's right half moves the module, brings the switch as a row over the
-semester and leaves the semester under the finger, between the arrows the warning alone („kein
-Angebot"); a finger swiped over it to the left moves it on, to the right back, a short one not at
-all; swiped down the note goes and the plan stays. The next row swiped plans at once; a little
-scroll leaves its note, a long one puts it away, and so does a module opened.
+FS") and brings „Weitere Module auch nach …"; the note is one bar across the content right of the
+filters, one line high with the switch in it and the module named, dark with light text in the dark
+theme and the light one; the left half moves it back without the arrows moving, ← and → move it back
+and forth; the switch on keeps the semester for the session; „Rückgängig" takes the module out.
+Analysis I then plans into the semester chosen (P), its note shows the switch on, which turns off
+there; ‹ stops at the first Fachsemester, and so does the left half; P on the module planned takes
+it out („Analysis I entfernt") and „Rückgängig" puts it back. The note waits: it stands 6 s without
+a thing done, and a click elsewhere puts it away, as do ×, Esc, a key not its own (↓), another
+module opened and a long scroll; a little scroll does not. With SoSe 2034 chosen for the next
+modules, the dialog says „für weitere Module gewählt" and „Aufheben" aims as without it. On a phone
+a row swiped to the right opens the dialog as a sheet from below, nothing planned, the search not
+growing as it opens; „Ohne Studium einplanen" plans and puts the question aside for the session; the
+note stands over the bottom bar without the module's name or ×, as wide as the bar, under it and
+without a shadow; a tap on the semester's right half moves the module, brings the switch as a row
+over the semester and leaves the semester under the finger, between the arrows the warning alone
+(„kein Angebot"); a finger swiped over it to the left moves it on, to the right back, a short one
+not at all; swiped down the note goes and the plan stays. The next row swiped plans at once; a
+little scroll leaves its note, a long one puts it away, and so do a tap elsewhere and a module
+opened; planned from a module's sheet, the note goes down with the sheet as it closes, never up
+first.
 
 The other checks that plan (`module.mjs`, `swipe.mjs`, `snappy.mjs`) put the question aside for the
 session first (`betula.plan.asked`), as a student who answered „Ohne Studium einplanen".
@@ -3967,7 +4024,10 @@ the two pictures of its screen, upright, light and dark; an iPad also the turned
 browser none. Every picture named is served as a PNG exactly as large as the screen. And the
 manifest a page names: the dark one in a dark system or with „Dunkel" chosen in Betula, the light
 one in a light system or with „Hell" chosen, in English `/en/…`, each served in its colours.
-Needs no snapshot.
+And the start of the installed app: where its icon and wordmark stand for Chrome (Android's
+splash), Brave (Chromium's, before and from 155) and iOS, under a measured status bar, that they
+fly to the logo once a session, fade without one or with reduced motion, and go at a tap; the
+status bar measured at a touch, and kept only where it fits. Needs no snapshot.
 
 ```bash
 cd e2e && node bookmarks.mjs

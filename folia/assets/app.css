@@ -28,8 +28,8 @@
   --text-3: #8790a0;
   --invert: #161b26;
   --on-invert: #ffffff;
-  /* The note of „Einplanen" (.plan-toast): dark in both themes — inverted on the light page, on the
-     dark one raised a little over the panels, never a bright bar across the screen. */
+  /* A note that waits for interaction (.wait-note): dark in both themes — inverted on the light
+     page, on the dark one raised a little over the panels, never a bright bar across the screen. */
   --toast: var(--invert); --on-toast: var(--on-invert); --toast-warn: #f5c26b;
   --toast-ring: none;
   --bark: #ffffff;
@@ -317,7 +317,7 @@ table { border-collapse: collapse; width: 100%; }
 /* Where the rail and the title are hidden (phone), the start page carries the brand itself. */
 .brand-phone { display: none; }
 .nav { width: 40px; display: grid; justify-items: center; color: var(--text-3); font-size: 0; text-decoration: none; }
-.nav .ind { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; transition: background .15s, color .15s; }
+.nav .ind { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; }
 .nav .icon { width: 20px; height: 20px; }
 .nav:hover { text-decoration: none; }
 /* Where a pointer hovers. A finger leaves its hover on the tab it tapped until it taps something
@@ -326,6 +326,10 @@ table { border-collapse: collapse; width: 100%; }
 @media (hover: hover) {
   .nav:hover { color: var(--text); }
   .nav:hover .ind { background: var(--line); }
+  /* Only a hover fades in. The current tab's mark changes in the frame of the tap or click
+     (pending.rs) without a fade either way: a fade waits for the thread, which builds the page
+     then, and the mark seemed to stand still on the tab before (owner, 2026-10-18). */
+  .nav:hover:not([aria-current="page"]) .ind { transition: background .15s, color .15s; }
 }
 .nav[aria-current="page"] { color: var(--text); }
 .nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); }
@@ -3103,28 +3107,50 @@ html:not(.js) .plan-toggle { display: none; }
 /* The line under „Einplanen" among a sidebar's actions (its semester, the placeholder, the other
    semesters) ends in „…" where it is longer than the sidebar is wide; it never widens the list. */
 .actions > .plan-toggle { min-width: 0; }
-/* The note of „Einplanen" (.plan-toast, folia/crates/widgets/src/plannote.rs; owner, 2026-10-18,
-   concept E of folia/design/einplanen/oberflaeche.html): a check, the module, ‹ the semester ›
-   with its Fachsemester and the warning under it, „Rückgängig"; once the module was moved, the
-   switch „Weitere Module auch nach …". The semester and its arrows are one control: a tap on its
-   left half is ‹, on its right half ›, a finger swiped over it moves the module, and its words
-   follow the finger and come in from the side the semester came from (owner, the same day: „müssen
-   die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch swiping
-   unterstützt werden"). Nothing of the page moves under it as a finger swipes it (`touch-action`).
-   On a wide screen one bar across the page right of the rail, as wide as the panels, one line high
-   (the same day: „bei der pc Version kann die notification ruhig über die ganze Breite rechts von
-   der sidebar gehen und dann vllt etwas weniger hoch sein"): the switch comes in at the right
-   before „Rückgängig", so nothing under the pointer moves; × at the end. On a phone a card as wide
-   as the bottom bar and over it, but under it in the order of what lies on what and flat, so it
-   casts nothing on the bar and comes up from behind it (the same day: „keinen schatten auf die
-   navbar werfen"); over a module's sheet at the bottom of the screen. Its switch is a row over the
-   semester, which stays under the finger, and a finger swipes it down and away. Dark in both themes
-   (`--toast`); nothing in it changes its size as the arrows move the module (the semester's column
-   keeps a width, and what it says is cut, the warning last). */
-.plan-toast { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: plan-toast-in .26s var(--ease); }
-@keyframes plan-toast-in { from { opacity: 0; transform: translateY(10px); } }
-.plan-toast[data-drag] { transition: none; }
-.plan-toast.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
+/* A note that waits for interaction (.wait-note, folia/crates/design/src/waitnote.rs; owner,
+   2026-10-18: „Bau diese notification mal bitte als wait for interaction notification. Vielleicht
+   brauchen wir das später nochmal"): over the page at the bottom, what was just done and what
+   follows from it (its first child), × at the end; it stands until the student does something else.
+   On a wide screen one bar across the content (the same day: „bei der pc Version kann die
+   notification ruhig über die ganze Breite rechts von der sidebar gehen und dann vllt etwas weniger
+   hoch sein"): right of the sidebar where the page has one — the catalog's filters, the sidebar of
+   the frame, as wide as they are and as their handle makes them (the same day: „Bei der pc Version
+   soll die notification nicht über die sidebar (z.b. filter) gehen, sondern nur über den content")
+   —, else right of the rail. On a phone a card as wide as the bottom bar and over it, but under it
+   in the order of what lies on what and flat, so it casts nothing on the bar and comes up from
+   behind it (the same day: „keinen schatten auf die navbar werfen"); over a module's sheet at the
+   bottom of the screen; no ×, a finger swipes it down and away. Nothing of the page moves under it
+   as a finger swipes it (`touch-action`). Dark in both themes (`--toast`). */
+.wait-note { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: flex; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: wait-note-in .26s var(--ease); }
+@keyframes wait-note-in { from { opacity: 0; transform: translateY(10px); } }
+.wait-note > :first-child { flex: 1 1 auto; min-width: 0; }
+@media (min-width: 901px) { :root:has(.work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--filters) + var(--gap)); } }
+.wait-note[data-drag] { transition: none; }
+.wait-note.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
+.wait-note-close { flex: none; display: grid; place-items: center; width: 34px; height: 40px; margin-right: 6px; border: 0; border-radius: 9px; background: none; color: var(--on-toast); opacity: .72; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.wait-note-close > .icon { width: 16px; height: 16px; }
+@media (hover: hover) { .wait-note-close:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); opacity: 1; } }
+.wait-note-close:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
+.wait-note :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 900px) {
+  /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
+  .wait-note { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); border-radius: 14px; box-shadow: var(--toast-ring); animation-name: wait-note-rise; }
+  @keyframes wait-note-rise { from { transform: translateY(calc(100% + 24px)); } }
+  :root:has(.detail.is-module) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .wait-note-close { display: none; }
+}
+/* The note of „Einplanen" (.plan-toast in a .wait-note, folia/crates/widgets/src/plannote.rs;
+   owner, 2026-10-18, concept E of folia/design/einplanen/oberflaeche.html): a check, the module,
+   ‹ the semester › with its Fachsemester and the warning under it, „Rückgängig"; once the module
+   was moved, the switch „Weitere Module auch nach …". The semester and its arrows are one control:
+   a tap on its left half is ‹, on its right half ›, a finger swiped over it moves the module, and
+   its words follow the finger and come in from the side the semester came from (owner, the same
+   day: „müssen die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss
+   auch swiping unterstützt werden"). On a wide screen one line: the switch comes in at the right
+   before „Rückgängig", so nothing under the pointer moves. On a phone the switch is a row over the
+   semester, which stays under the finger. Nothing in it changes its size as the arrows move the
+   module (the semester's column keeps a width, and what it says is cut, the warning last). */
+.plan-toast { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; }
 .plan-toast-main { grid-area: main; display: flex; align-items: center; gap: 2px; min-width: 0; padding: 4px 0 4px 14px; }
 .plan-toast-end { grid-area: end; display: flex; align-items: center; padding: 4px 6px 4px 0; }
 .plan-toast-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
@@ -3133,15 +3159,13 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-mark.out > .icon { stroke-width: 2.25; }
 .plan-toast-title { min-width: 0; max-width: 300px; margin-right: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
 .plan-toast-stepper { flex: 0 1 auto; display: flex; align-items: center; min-width: 0; border-radius: 9px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.plan-toast-step, .plan-toast-undo, .plan-toast-close { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan-toast-step, .plan-toast-undo { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .plan-toast-step { display: grid; place-items: center; width: 34px; height: 40px; }
 .plan-toast-step > .icon { width: 18px; height: 18px; }
 .plan-toast-step[disabled] { opacity: .3; cursor: default; }
 .plan-toast-undo { min-height: 40px; padding: 0 12px; font-weight: 650; }
-.plan-toast-close { display: grid; place-items: center; width: 34px; height: 40px; margin-left: 2px; opacity: .72; }
-.plan-toast-close > .icon { width: 16px; height: 16px; }
-@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover, .plan-toast-close:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); opacity: 1; } }
-.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active, .plan-toast-close:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
+@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); } }
+.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
 /* As wide whatever it says (12. FS and „kein Angebot" with „verschoben" fit): the arrows never move
    under the pointer as the module moves. */
 .plan-toast-at { flex: none; display: flex; justify-content: center; width: 200px; overflow: hidden; }
@@ -3165,15 +3189,11 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-toast); transition: transform .18s var(--ease); }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch { background: var(--accent); }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch::after { transform: translateX(14px); }
-.plan-toast :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 900px) {
-  /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
-  .plan-toast { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; border-radius: 14px; box-shadow: var(--toast-ring); animation-name: plan-toast-rise; }
-  @keyframes plan-toast-rise { from { transform: translateY(calc(100% + 24px)); } }
-  :root:has(.detail.is-module) .plan-toast { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .plan-toast { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; }
   .plan-toast-main { min-height: 56px; padding: 0 0 0 4px; }
   .plan-toast-end { padding: 6px 6px 6px 0; }
-  .plan-toast-mark:not(.out), .plan-toast-title, .plan-toast-close { display: none; }
+  .plan-toast-mark:not(.out), .plan-toast-title { display: none; }
   .plan-toast-mark.out { margin-left: 8px; }
   .plan-toast-stepper { flex: 1 1 auto; align-self: stretch; }
   .plan-toast-at { flex: 1 1 auto; width: auto; min-width: 0; }
@@ -3264,31 +3284,31 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 .takeover-picture { position: absolute; top: 0; left: 0; right: 0; z-index: 2147483000; pointer-events: none; }
 /* The start of the installed app on a phone or a tablet (owner, 2026-10-15: concept A of
    design/launch/konzepte.html): the page's first picture is the system's splash screen again, and
-   then the icon flies to the page's own (.logo) while the background clears. The head script makes
-   it (folia_app::HEAD_SCRIPT), above everything, the takeover picture too; enhance.js plays it, and
-   without enhance.js it goes by itself (launch-gone, which reduced motion leaves alone).
-   Android draws its splash in the window under the status bar: the icon 128px, its middle 16px
-   above the window's (24px on a tablet), cut round by the launcher's mask, its leaf as large as on
-   the icon of 128px; the name under it fades with Chrome's splash. iOS shows the picture the
-   server draws (launch.rs), which the screen's geometry places here (--mid, --name, written by the
-   head script): the icon in the middle of the screen, rounded, on a soft shadow in the light, and
-   the name at the bottom, with its baseline at --name. */
-.launch { position: fixed; inset: 0; z-index: 2147483647; background: var(--bg); animation: launch-gone .3s 4s both; }
+   then the icon flies to the page's own (.logo) and the wordmark to the page's while the
+   background clears. The head script makes it (folia_app::HEAD_SCRIPT), above everything, the
+   takeover picture too, and places it where the system had its own (--mid, --size, --leaf,
+   --leaf-at, --name); enhance.js plays it, and without enhance.js it goes by itself (launch-gone,
+   which reduced motion leaves alone). The icon is round, as Android cuts its own: Chromium's
+   splash of 128 px with the leaf at .873 (Brave), or Android's of 240 px with the launcher's
+   icon, ink and paper in either theme (.sys, Chrome). iOS shows the picture the server draws
+   (launch.rs): the icon rounded, on a soft shadow in the light. At the bottom the wordmark as the
+   start page has it (owner, 2026-10-18), its baseline at --name. */
+.launch { position: fixed; inset: 0; z-index: 2147483647; background: var(--bg); -webkit-font-smoothing: antialiased; animation: launch-gone .3s 4s both; }
 @keyframes launch-gone { to { opacity: 0; visibility: hidden; } }
-.launch-icon { position: absolute; left: calc(50% - 64px); top: calc(50% - 80px); width: 128px; height: 128px; }
-@media (min-width: 600px) and (min-height: 600px) { .launch-icon { top: calc(50% - 88px); } }
+.launch-icon { position: absolute; left: calc(50% - var(--size, 128px) / 2); top: calc(var(--mid, 50% - 16px) - var(--size, 128px) / 2); width: var(--size, 128px); height: var(--size, 128px); }
 .launch-icon b { position: absolute; inset: 0; border-radius: 50%; background: var(--logo-tile); }
-.launch-icon i { position: absolute; left: 0; top: 0; width: 96px; height: 96px; transform-origin: 0 0; transform: scale(1.33333) translateY(6.5px); background: var(--logo-leaf); clip-path: path("M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"); }
-.launch.ios .launch-icon { top: calc(var(--mid) - 64px); }
+.launch-icon i { position: absolute; left: 0; top: 0; width: 96px; height: 96px; transform-origin: 0 0; transform: translate(var(--leaf-at, 0px), var(--leaf-at, 0px)) scale(var(--leaf, 1.33333)) translateY(6.5px); background: var(--logo-leaf); clip-path: path("M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"); }
+.launch.sys .launch-icon b { background: #10151f; }
+.launch.sys .launch-icon i { background: #f4f5f7; }
 .launch.ios .launch-icon b { border-radius: 21.875%; box-shadow: 0 6.4px 17.92px -8.3px rgba(15, 23, 42, .2); }
 :root[data-theme="dark"] .launch.ios .launch-icon b { box-shadow: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .launch.ios .launch-icon b { box-shadow: none; } }
-/* Its baseline is 13.82px under its top: Inter at 16px on a line of 16px. */
-.launch-name { position: absolute; left: 0; right: 0; top: calc(var(--name) - 13.82px); font: 500 16px/1 var(--font); letter-spacing: -.16px; text-align: center; white-space: pre; color: var(--text-2); -webkit-font-smoothing: antialiased; }
-.launch-name::before { content: "Betula"; font-weight: 600; color: var(--text); }
-.launch-name i { font-style: normal; }
-.launch-name i::before { content: " · "; color: var(--text-3); }
-.launch-name i::after { content: "Modulkatalog"; }
+/* While the icon and the wordmark fly, the page's own are not there yet: they come where these land
+   (owner, 2026-10-18: „das Icon soll erst existieren wenn es hin geflogen ist"); the ground's
+   wordmark, which nothing flies to, stays. */
+html.launch-logo .logo, html.launch-mark .wordmark:not(.launch .wordmark, .ground .wordmark) { visibility: hidden; }
+/* Its baseline is 19px under its top: Inter at 22px on a line of 22px (.8633em). */
+.launch-name { position: absolute; left: 0; right: 0; top: calc(var(--name, 100% - 70px) - 19px); font: 800 22px/1 var(--font); text-align: center; white-space: nowrap; }
 /* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the
    page will be; without JavaScript the <noscript> beside it says what the view needs instead. */
 .app-standin { display: contents; }
@@ -3298,8 +3318,9 @@ html:not(.js) .app-standin { display: none; }
 html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .pending-page { position: absolute; inset: 0; z-index: 30; background: var(--bg); }
 .pending-page > .work { height: 100%; }
-/* The page before, held in front of the new one while its answers are on their way (pending.rs,
-   `hold`): a picture, which takes no input; what is under it is the new page. */
+/* The page before, or the skeleton where one stood, held in front of the new one while its answers
+   are on their way (pending.rs, `hold`): a picture, which takes no input; what is under it is the
+   new page. */
 .pending-page.held, .pending-page.held * { pointer-events: none !important; }
 /* Another view of the same page: its column waits, the sidebar stays as it is and takes clicks. */
 .pending-page.columns { background: none; pointer-events: none; }
@@ -3740,8 +3761,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      close (--near of its tab, 0–1). Once the tab is the current one its own mark takes over, in one
      frame without its fade ("settle"). */
   .bottomnav { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; }
-  /* A finger held on a tab is the tab's own (enhance.js „a tab held"): no preview of the link. */
-  .bottomnav > .nav { -webkit-touch-callout: none; }
+  /* A finger held on a tab is the tab's own (enhance.js „a tab held"): no preview of the link. And
+     no highlight of the browser over a tab tapped: its mark answers the tap, in the same frame
+     (design/tabbar/swipe.html). */
+  .bottomnav > .nav { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   .bottomnav > .nav { will-change: transform; }
   .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) { overflow: hidden; overflow: clip; }
   .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before, .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: 8px; pointer-events: none; }

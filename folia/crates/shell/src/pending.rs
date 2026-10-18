@@ -554,8 +554,9 @@ impl Pending {
         }
         #[cfg(feature = "csr")]
         let started = browser::now();
-        // The page as it is now stays in front of the one the router builds until that one's
-        // answers are in (`hold`); a quiet step had its answer worked out ahead.
+        // What is in front now, the page or its skeleton, stays in front of the one the router
+        // builds until that one's answers are in (`hold`); a quiet step had its answer worked out
+        // ahead.
         #[cfg(feature = "csr")]
         if let Some(data) = inner.with_value(|inner| inner.data.clone()).filter(|_| !self.quiet_step()) {
             browser::hold(data);
@@ -799,14 +800,52 @@ mod browser {
     /// longer lets the new page show its regions filling in.
     const HOLD_MS: f64 = 400.0;
 
-    /// The page as it is (`main`'s children, with their scroll positions, without ids) as a
-    /// picture in front of what the router builds now, until no answer is on its way any more in
-    /// two looks a frame apart (or `HOLD_MS`): the new page shows when its data is there, and
-    /// never empty for the moment the data worker takes.
+    /// What stands in front of the page as it is now, as a picture in front of what the router
+    /// builds now, until no answer is on its way any more in two looks a frame apart (or
+    /// `HOLD_MS`): the new page shows when its data is there, and never empty for the moment the
+    /// data worker takes. Where the skeleton of a page or a column stands (`PendingPage`), the
+    /// picture is the skeleton's, so that the page before does not come back between the skeleton
+    /// and the new page (owner, 2026-10-18: „dann flickert der bildshirm, weil erst Skeltons
+    /// geladen werden, bevor der content kommt"); else it is the page's.
     pub(super) fn hold(data: folia_data::DataClient) {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
         let Some(main) = document.get_element_by_id("content") else { return };
-        let Ok(picture) = document.create_element("div") else { return };
+        let children = main.children();
+        let skeleton = (0..children.length()).filter_map(|i| children.item(i)).find(|child| child.class_list().contains("pending-page") && !child.class_list().contains("held"));
+        let picture = match skeleton {
+            Some(skeleton) => skeleton_picture(&main, &skeleton),
+            None => page_picture(&document, &main),
+        };
+        let Some(picture) = picture else { return };
+        let started = now();
+        let quiet = std::rc::Rc::new(std::cell::Cell::new(0u8));
+        fn look(picture: web_sys::Element, data: folia_data::DataClient, started: f64, quiet: std::rc::Rc<std::cell::Cell<u8>>) {
+            request_animation_frame(move || {
+                quiet.set(if untrack(|| data.waiting()) == 0 { quiet.get() + 1 } else { 0 });
+                if quiet.get() >= 2 || now() - started > HOLD_MS {
+                    picture.remove();
+                } else {
+                    look(picture, data, started, quiet);
+                }
+            });
+        }
+        look(picture, data, started, quiet);
+    }
+
+    /// The skeleton that stands over the page, copied in front of it: the same frame, and its
+    /// sweeps go on where they are.
+    fn skeleton_picture(main: &web_sys::Element, skeleton: &web_sys::Element) -> Option<web_sys::Element> {
+        let picture = skeleton.clone_node_with_deep(true).ok()?.dyn_into::<web_sys::Element>().ok()?;
+        let _ = picture.class_list().add_1("held");
+        main.append_child(&picture).ok()?;
+        in_step(skeleton, &picture);
+        Some(picture)
+    }
+
+    /// The page as it is (`main`'s children, with their scroll positions, without ids), in front
+    /// of it.
+    fn page_picture(document: &web_sys::Document, main: &web_sys::Element) -> Option<web_sys::Element> {
+        let picture = document.create_element("div").ok()?;
         picture.set_class_name("pending-page held");
         let _ = picture.set_attribute("aria-hidden", "true");
         let scrolled: Vec<(i32, i32)> = main.query_selector_all("*").map(|all| (0..all.length()).filter_map(|i| all.item(i)?.dyn_into::<web_sys::Element>().ok()).map(|el| (el.scroll_top(), el.scroll_left())).collect()).unwrap_or_default();
@@ -825,9 +864,7 @@ mod browser {
                 }
             }
         }
-        if main.append_child(&picture).is_err() {
-            return;
-        }
+        main.append_child(&picture).ok()?;
         if let Ok(copies) = picture.query_selector_all("*") {
             for (i, (top, left)) in scrolled.into_iter().enumerate() {
                 if top != 0 || left != 0 {
@@ -846,19 +883,31 @@ mod browser {
         if down > 0.0 {
             picture.set_scroll_top(down.round() as i32);
         }
-        let started = now();
-        let quiet = std::rc::Rc::new(std::cell::Cell::new(0u8));
-        fn look(picture: web_sys::Element, data: folia_data::DataClient, started: f64, quiet: std::rc::Rc<std::cell::Cell<u8>>) {
-            request_animation_frame(move || {
-                quiet.set(if untrack(|| data.waiting()) == 0 { quiet.get() + 1 } else { 0 });
-                if quiet.get() >= 2 || now() - started > HOLD_MS {
-                    picture.remove();
-                } else {
-                    look(picture, data, started, quiet);
-                }
-            });
+        Some(picture)
+    }
+
+    /// The animations of `copy` at the times of those of `of`, one by one in the same order: a
+    /// copy starts its CSS animations anew, and the sweep of a skeleton would jump back to its
+    /// start. Through `getAnimations`, which every browser the app runs in has; without it the
+    /// copy's sweeps start anew.
+    fn in_step(of: &web_sys::Element, copy: &web_sys::Element) {
+        use leptos::web_sys::js_sys::{Array, Function, Object, Reflect};
+        let animations = |el: &web_sys::Element| -> Option<Array> {
+            let get = Reflect::get(el, &JsValue::from_str("getAnimations")).ok()?.dyn_into::<Function>().ok()?;
+            let options = Object::new();
+            Reflect::set(&options, &JsValue::from_str("subtree"), &JsValue::TRUE).ok()?;
+            get.call1(el, &options).ok()?.dyn_into::<Array>().ok()
+        };
+        let (Some(from), Some(to)) = (animations(of), animations(copy)) else { return };
+        if from.length() != to.length() {
+            return;
         }
-        look(picture, data, started, quiet);
+        let time = JsValue::from_str("currentTime");
+        for i in 0..from.length() {
+            if let Ok(at) = Reflect::get(&from.get(i), &time) {
+                let _ = Reflect::set(&to.get(i), &time, &at);
+            }
+        }
     }
 
     /// A new entry of the history for `to` (an address of the app), as the router writes one.

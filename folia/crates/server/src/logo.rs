@@ -31,15 +31,37 @@ pub fn app_icon(svg: &mut String, x: f32, y: f32, size: f32, dark: bool) {
     ));
 }
 
-/// Where the letters of BᴇTUʟᴀ stand, in em of the wordmark's size: (offset, letter, capital).
-const LETTERS: [(f32, &str, bool); 6] = [(0.0, "B", true), (0.63871, "E", false), (0.83563, "T", true), (1.47239, "U", true), (2.14984, "L", false), (2.57135, "A", false)];
-/// The small capitals, in em of the wordmark's size.
-const SMALL: f32 = 0.72;
+/// A cut of the wordmark (`.wordmark` in app.css), in em of its size: where the letters of BᴇTUʟᴀ
+/// stand (offset, letter, capital), how large and heavy the small capitals are, and how wide its
+/// box is, as a page centres it.
+pub struct Cut {
+    letters: [(f32, &'static str, bool); 6],
+    small: f32,
+    weight: u16,
+    pub width: f32,
+}
 
-/// The wordmark with its baseline at `baseline`, from `left`, capitals `size` high in em.
-pub fn wordmark(svg: &mut String, left: f32, baseline: f32, size: f32, fill: &str) {
-    for (offset, letter, capital) in LETTERS {
-        let (font_size, weight) = if capital { (size, 800) } else { (size * SMALL, 400) };
+/// The display cut, for sizes from 28 px on: the cards.
+pub const DISPLAY: Cut = Cut {
+    letters: [(0.0, "B", true), (0.63871, "E", false), (0.83563, "T", true), (1.47239, "U", true), (2.14984, "L", false), (2.57135, "A", false)],
+    small: 0.72,
+    weight: 400,
+    width: 3.08375,
+};
+
+/// The small cut (`.wordmark.small`), for sizes under 28 px: the start page's at 22 px, and the
+/// launch screens of iOS. Measured as Chromium sets it at 22 px.
+pub const SMALL: Cut = Cut {
+    letters: [(0.0, "B", true), (0.66832, "E", false), (0.87571, "T", true), (1.51278, "U", true), (2.21023, "L", false), (2.60795, "A", false)],
+    small: 0.68,
+    weight: 500,
+    width: 3.10369,
+};
+
+/// The wordmark in `cut` with its baseline at `baseline`, from `left`, capitals `size` high in em.
+pub fn wordmark(svg: &mut String, cut: &Cut, left: f32, baseline: f32, size: f32, fill: &str) {
+    for (offset, letter, capital) in cut.letters {
+        let (font_size, weight) = if capital { (size, 800) } else { (size * cut.small, cut.weight) };
         svg.push_str(&format!("<text x=\"{}\" y=\"{baseline}\" font-size=\"{font_size}\" font-weight=\"{weight}\" fill=\"{fill}\">{letter}</text>", left + offset * size));
     }
 }

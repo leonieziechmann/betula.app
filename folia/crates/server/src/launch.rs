@@ -1,10 +1,10 @@
 //! The launch screens of the installed app on iPhones and iPads (`folia_shell::launch`), drawn in this
 //! process like the link-preview cards: Betula's icon in the middle of the page's background, 128
-//! px as Android draws it on its splash screen, turned over in the dark scheme; at the bottom
-//! „Betula · Modulkatalog“, the name Android writes under its icon (owner, 2026-10-15: „Betula dot
-//! Modulkatalog. Das sieht classy aus“). The same picture as Android's splash screen, which shows
-//! the maskable icon on the manifest's background; and what iOS shows when the icon on the home
-//! screen opens into the app. The installed app takes it over from there (`folia_shell::launch`).
+//! px as Chromium draws it on its splash screen, turned over in the dark scheme; at the bottom the
+//! wordmark as the start page sets it (owner, 2026-10-18: „unten gerne den BeTUla Schriftzug mit
+//! dem Styling wie im Start Screen“). What iOS shows when the icon on the home screen opens into
+//! the app; the installed app takes it over from there (`folia_shell::document::HEAD_SCRIPT`, which
+//! lays the same picture over the page).
 //!
 //! iOS fetches the picture of its screen when the app is added to the home screen and keeps it.
 //! So a picture is drawn on its first request, one at a time (a large one takes a moment of a
@@ -20,10 +20,11 @@ use tokio::sync::Semaphore;
 
 use crate::{cards, logo};
 
-/// The page's background and its text, as in `folia/assets/app.css` (`--bg`, `--text`, `--text-2`,
-/// `--text-3`).
-const LIGHT: (&str, &str, &str, &str) = ("#f1f2f4", "#10151f", "#4b5565", "#8790a0");
-const DARK: (&str, &str, &str, &str) = ("#0a0c11", "#eceff5", "#a4adc0", "#6a748a");
+/// The page's background and its text, as in `folia/assets/app.css` (`--bg`, `--text`).
+const LIGHT: (&str, &str) = ("#f1f2f4", "#10151f");
+const DARK: (&str, &str) = ("#0a0c11", "#eceff5");
+/// How large the wordmark is set, as on the start page (`.wordmark.small`).
+const WORDMARK: f32 = 22.0;
 /// How large the icon is drawn: as Android draws it on its splash screen (128 dp).
 pub const ICON: f32 = 128.0;
 
@@ -67,7 +68,7 @@ impl Launch {
 fn svg(picture: &Picture) -> String {
     let (width, height) = picture.points();
     let (w, h) = (width as f32, height as f32);
-    let (background, text, second, quiet) = if picture.dark { DARK } else { LIGHT };
+    let (background, text) = if picture.dark { DARK } else { LIGHT };
     let mut svg = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\" font-family=\"Inter\"><rect width=\"{w}\" height=\"{h}\" fill=\"{background}\"/>"
     );
@@ -88,13 +89,10 @@ fn svg(picture: &Picture) -> String {
         ));
     }
     logo::app_icon(&mut svg, x, y, size, picture.dark);
-    // At the bottom, clear of the home indicator: the name, as the cards set it.
+    // At the bottom, clear of the home indicator: the wordmark, centred as the page centres it.
     let last = h - (0.075 * h).max(44.0);
-    svg.push_str(&format!(
-        "<text x=\"{}\" y=\"{last}\" text-anchor=\"middle\" font-size=\"16\" letter-spacing=\"-.16\"><tspan font-weight=\"600\" fill=\"{text}\">Betula</tspan>\
-         <tspan font-weight=\"500\" fill=\"{quiet}\"> · </tspan><tspan font-weight=\"500\" fill=\"{second}\">Modulkatalog</tspan></text></svg>",
-        w / 2.0
-    ));
+    logo::wordmark(&mut svg, &logo::SMALL, (w - logo::SMALL.width * WORDMARK) / 2.0, last, WORDMARK, text);
+    svg.push_str("</svg>");
     svg
 }
 
