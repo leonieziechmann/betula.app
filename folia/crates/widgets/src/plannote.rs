@@ -68,7 +68,7 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
     };
     match first.kind {
         NoteKind::Removed { .. } => view! {
-            <WaitNote on_gone=gone changed>
+            <WaitNote on_gone=gone changed class="planning-note">
                 <div class="plan-toast out">
                     <div class="plan-toast-main">
                         <span class="plan-toast-mark out" aria-hidden="true"><Icon name="calendar-minus"/></span>
@@ -143,7 +143,7 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
             };
             let title = what.title.clone();
             view! {
-                <WaitNote on_gone=gone changed on_key sideways=Some(sideways)>
+                <WaitNote on_gone=gone changed on_key sideways=Some(sideways) class="planning-note">
                     <div class="plan-toast">
                         <div class="plan-toast-main">
                             <span class="plan-toast-mark" aria-hidden="true"><Icon name="check"/></span>
