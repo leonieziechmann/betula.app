@@ -746,8 +746,8 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         ("/assets/icon-192.png", "image/png", &b"\x89PNG"[..]),
         ("/assets/icon-512.png", "image/png", &b"\x89PNG"[..]),
         ("/assets/icon-maskable-334.png", "image/png", &b"\x89PNG"[..]),
-        ("/assets/icon-maskable-512.png", "image/png", &b"\x89PNG"[..]),
-        ("/assets/icon-maskable-dark-512.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-splash-512.png", "image/png", &b"\x89PNG"[..]),
+        ("/assets/icon-splash-dark-512.png", "image/png", &b"\x89PNG"[..]),
         ("/favicon.ico", "image/x-icon", &[0, 0, 1, 0][..]),
     ] {
         let (status, headers, body) = request(&router, path, &[]).await;

@@ -3181,31 +3181,27 @@ body.gate { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-
 .takeover-picture { position: absolute; top: 0; left: 0; right: 0; z-index: 2147483000; pointer-events: none; }
 /* The start of the installed app on a phone or a tablet (owner, 2026-10-15: concept A of
    design/launch/konzepte.html): the page's first picture is the system's splash screen again, and
-   then the icon flies to the page's own (.logo) while the background clears. The head script makes
-   it (folia_app::HEAD_SCRIPT), above everything, the takeover picture too; enhance.js plays it, and
-   without enhance.js it goes by itself (launch-gone, which reduced motion leaves alone).
-   Android draws its splash in the window under the status bar: the icon 128px, its middle 16px
-   above the window's (24px on a tablet), cut round by the launcher's mask, its leaf as large as on
-   the icon of 128px; the name under it fades with Chrome's splash. iOS shows the picture the
-   server draws (launch.rs), which the screen's geometry places here (--mid, --name, written by the
-   head script): the icon in the middle of the screen, rounded, on a soft shadow in the light, and
-   the name at the bottom, with its baseline at --name. */
-.launch { position: fixed; inset: 0; z-index: 2147483647; background: var(--bg); animation: launch-gone .3s 4s both; }
+   then the icon flies to the page's own (.logo) and the wordmark to the page's while the
+   background clears. The head script makes it (folia_app::HEAD_SCRIPT), above everything, the
+   takeover picture too, and places it where the system had its own (--mid, --size, --leaf,
+   --leaf-at, --name); enhance.js plays it, and without enhance.js it goes by itself (launch-gone,
+   which reduced motion leaves alone). The icon is round, as Android cuts its own: Chromium's
+   splash of 128 px with the leaf at .873 (Brave), or Android's of 240 px with the launcher's
+   icon, ink and paper in either theme (.sys, Chrome). iOS shows the picture the server draws
+   (launch.rs): the icon rounded, on a soft shadow in the light. At the bottom the wordmark as the
+   start page has it (owner, 2026-10-18), its baseline at --name. */
+.launch { position: fixed; inset: 0; z-index: 2147483647; background: var(--bg); -webkit-font-smoothing: antialiased; animation: launch-gone .3s 4s both; }
 @keyframes launch-gone { to { opacity: 0; visibility: hidden; } }
-.launch-icon { position: absolute; left: calc(50% - 64px); top: calc(50% - 80px); width: 128px; height: 128px; }
-@media (min-width: 600px) and (min-height: 600px) { .launch-icon { top: calc(50% - 88px); } }
+.launch-icon { position: absolute; left: calc(50% - var(--size, 128px) / 2); top: calc(var(--mid, 50% - 16px) - var(--size, 128px) / 2); width: var(--size, 128px); height: var(--size, 128px); }
 .launch-icon b { position: absolute; inset: 0; border-radius: 50%; background: var(--logo-tile); }
-.launch-icon i { position: absolute; left: 0; top: 0; width: 96px; height: 96px; transform-origin: 0 0; transform: scale(1.33333) translateY(6.5px); background: var(--logo-leaf); clip-path: path("M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"); }
-.launch.ios .launch-icon { top: calc(var(--mid) - 64px); }
+.launch-icon i { position: absolute; left: 0; top: 0; width: 96px; height: 96px; transform-origin: 0 0; transform: translate(var(--leaf-at, 0px), var(--leaf-at, 0px)) scale(var(--leaf, 1.33333)) translateY(6.5px); background: var(--logo-leaf); clip-path: path("M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"); }
+.launch.sys .launch-icon b { background: #10151f; }
+.launch.sys .launch-icon i { background: #f4f5f7; }
 .launch.ios .launch-icon b { border-radius: 21.875%; box-shadow: 0 6.4px 17.92px -8.3px rgba(15, 23, 42, .2); }
 :root[data-theme="dark"] .launch.ios .launch-icon b { box-shadow: none; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .launch.ios .launch-icon b { box-shadow: none; } }
-/* Its baseline is 13.82px under its top: Inter at 16px on a line of 16px. */
-.launch-name { position: absolute; left: 0; right: 0; top: calc(var(--name) - 13.82px); font: 500 16px/1 var(--font); letter-spacing: -.16px; text-align: center; white-space: pre; color: var(--text-2); -webkit-font-smoothing: antialiased; }
-.launch-name::before { content: "Betula"; font-weight: 600; color: var(--text); }
-.launch-name i { font-style: normal; }
-.launch-name i::before { content: " · "; color: var(--text-3); }
-.launch-name i::after { content: "Modulkatalog"; }
+/* Its baseline is 19px under its top: Inter at 22px on a line of 22px (.8633em). */
+.launch-name { position: absolute; left: 0; right: 0; top: calc(var(--name, 100% - 70px) - 19px); font: 800 22px/1 var(--font); text-align: center; white-space: nowrap; }
 /* A route of the app before the app runs (`skeleton::AppStandin`): the page's skeleton where the
    page will be; without JavaScript the <noscript> beside it says what the view needs instead. */
 .app-standin { display: contents; }
