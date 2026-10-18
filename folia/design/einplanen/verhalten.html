@@ -382,7 +382,7 @@ p { margin: 0; }
     <p class="lead"><b>Stand 18.10.:</b> entschieden ist der Dialog von E (<span class="mono">oberflaeche.html</span>): ohne Studium öffnet „Einplanen“ „Dein Studium“ mit dem Semester des Moduls, und „Einrichten und einplanen“ macht beides. Ohne Filter nimmt Betula keinen Studiengang an; die des Moduls stehen offen da (höchstens drei, Pflicht zuerst), darunter die Suche. Steht der Studiengang fest, füllt Betula aus dem Regelstudienplan Fachsemester und Semester so, dass sie zusammenpassen, aber nur, was man nicht selbst gesetzt hat. Liegt der Platz im Plan hinter einem, kommt das Modul ins nächste Semester, das es anbietet, mit Hinweis; früher geht auch, mit Warnung. Was folgt, war der Stand davor.</p>
     <div class="sources">
       <div class="src"><h3>Woher der Studiengang kommt</h3><ol><li><b>Der Filter des Katalogs</b> in dieser Sitzung (<span class="mono">program=</span>).</li><li><b>Der Studiengang des Stundenplans</b> in dieser Sitzung.</li><li><b>Der zuletzt geöffnete Studiengang</b> unter „Studium“.</li><li>Sonst <b>die Studiengänge des Moduls</b> zum Antippen: höchstens drei, Pflicht zuerst, darunter „Anderer Studiengang …“ (owner, 18.10.).</li></ol></div>
-      <div class="src"><h3>Woher das Fachsemester kommt</h3><ol><li><b>Die Semesterwahl des Katalogs</b> (<span class="mono">semester=3</span>: Module des 3. Semesters im Regelstudienplan).</li><li><b>Das Semester, das man im Regelstudienplan</b> des Studiengangs zuletzt aufgeklappt hat.</li><li>Sonst als Zahlen zum Antippen, vorgemerkt das vermutete: das Semester, in das der Plan des gewählten Studiengangs das Modul legt, weniger die Semester bis zu dem, in das es geplant wurde.</li></ol></div>
+      <div class="src"><h3>Woher das Fachsemester kommt</h3><ol><li><b>Die Semesterwahl des Katalogs</b> (<span class="mono">semester=3</span>: Module des 3. Semesters im Regelstudienplan), <b>nach der Zeit gedeutet</b>: Man wählt das Semester, das man plant, nicht unbedingt das, in dem man ist (owner, 18.10.). Es fällt in die Jahreszeit seines Studienbeginns (Beginn im Winter: 1, 3, 5 … im Winter), jetzt oder im nächsten Semester; ist der Beginn nicht bekannt, ins Planungssemester der Sitzung. Im Juni heißt „3. Semester“ also: jetzt im 2.</li><li><b>Das Semester, das man im Regelstudienplan</b> des Studiengangs zuletzt aufgeklappt hat, ebenso gedeutet.</li><li>Sonst als Zahlen zum Antippen, vorgemerkt das vermutete: das Semester, in das der Plan des gewählten Studiengangs das Modul legt, weniger die Semester bis zu dem, in das es geplant wurde.</li></ol></div>
     </div>
     <div class="cases">
       <div class="case"><p class="kicker">Beides bekannt</p><h3>Ein Tipp</h3><p>„Dein Studium: Informatik B.Sc. · 1. Fachsemester? · aus deinem Filter“, dazu „Stimmt“, „Ändern“ und „Später“.</p></div>
@@ -492,7 +492,7 @@ const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${
 
 // ---------- the student, the programs and the modules (examples) ----------
 const PROGRAMS = [
-  { id: "inf", name: "Informatik", deg: "B.Sc.", po: "PO 2008" },
+  { id: "inf", name: "Informatik", deg: "B.Sc.", po: "PO 2008", intake: "winter" },
   { id: "wi", name: "Wirtschaftsinformatik", deg: "Bachelor", po: "PO 2024" },
   { id: "ma", name: "Mathematik", deg: "B.Sc.", po: "PO 2023" },
 ];
@@ -504,6 +504,14 @@ const MODULES = [
 ];
 const modOf = (key) => MODULES.find((m) => m.key === key);
 const progOf = (id) => PROGRAMS.find((p) => p.id === id);
+// The Fachsemester a filter of the catalog speaks for (owner, 18.10.: „wenn man semester 3 auswählt
+// im filter ist man probably erst im zweiten. Das muss also auch Kontextanhängig von der zeit
+// inferred werden"). Its semester is one of the plan, the one being looked at: with the program's
+// intake known (a winter intake puts 1, 3, 5 … into winters), the one of the running semester and
+// the next whose season fits; without, the semester the session plans for (P1). The Fachsemester now
+// is the filter's, less the semesters until then.
+const filterAt = (f, now) => { const l = running(now), intake = progOf(f.program).intake; return intake ? (winter(l) === ((f.sem % 2 === 1) === (intake === "winter")) ? l : l + 1) : planningOf(now).p; };
+const filterFs = (f, now) => Math.max(1, f.sem - (filterAt(f, now) - running(now)));
 
 // ---------- the situations ----------
 // date: the day; module: the one open; setup: the study as set up (program, the semester of its first
@@ -526,8 +534,8 @@ const STORIES = [
     text: "Lena sucht im Katalog mit „Passt in meinen Stundenplan“ für ihren Sommer-Stundenplan, obwohl Oktober ist.", does: "Plant nach SoSe 27, wie der Stundenplan, nach dem sie sucht.", clicks: "1" },
   { n: 8, short: "Über Mitternacht", title: "Die Grenze kommt während der Sitzung", who: "Jonas, Informatik, 5. Fachsemester", date: new Date(2026, 10, 15, 23, 50), module: "db", setup: { program: "inf", start: 4049 }, later: true,
     text: "Jonas plant am 15. November kurz vor Mitternacht. Spule eine Stunde vor: es ist der 16., aber seine Sitzung plant weiter nach WiSe 26/27. Erst eine neue Sitzung plant nach SoSe 27.", does: "Bleibt in der Sitzung bei WiSe 26/27.", clicks: "1" },
-  { n: 9, short: "Ohne Studium, Filter", title: "Erstsemester mit Filter im Katalog", who: "Anna, neu, noch nichts eingerichtet", date: new Date(2026, 9, 13, 12, 0), module: "db", setup: null, filter: { program: "inf", fs: 1 },
-    text: "Anna hat den Katalog auf Informatik B.Sc. und „1. Semester“ gestellt und plant ihr erstes Modul.", does: "Plant nach WiSe 26/27 und fragt im Hinweis: „Informatik B.Sc. · 1. Fachsemester?“", clicks: "1, dann 1 auf „Stimmt“" },
+  { n: 9, short: "Ohne Studium, Filter", title: "Erstsemester mit Filter im Katalog", who: "Anna, 1. Fachsemester, noch nichts eingerichtet", date: new Date(2027, 1, 16, 12, 0), module: "db", setup: null, filter: { program: "inf", sem: 2 },
+    text: "Anna ist im ersten Semester. In der Prüfungszeit stellt sie den Katalog auf Informatik B.Sc. und „2. Semester“, denn sie plant den Sommer.", does: "Plant nach SoSe 27 und fragt: „Informatik B.Sc. · 1. Fachsemester?“ Das 2. Semester des Filters ist ihr nächstes, nicht ihr jetziges.", clicks: "1, dann 1 auf „Stimmt“" },
   { n: 10, short: "Ohne Studium, ohne Filter", title: "Einfach mal planen", who: "Ben, Nebenfach, noch nichts eingerichtet", date: new Date(2026, 10, 3, 15, 0), module: "bs", setup: null,
     text: "Ben sucht über die Suche ein Modul und plant es, ohne Filter.", does: "Plant nach WiSe 26/27 und bietet im Hinweis „Einrichten“ und „Später“ an.", clicks: "1, Einrichten optional" },
 ];
@@ -570,7 +578,7 @@ const listRows = () => MODULES.map((m) => {
 });
 const filterTags = () => {
   const tags = [];
-  if (STORY.filter) tags.push(`<span class="tag">${esc(progOf(STORY.filter.program).name)} ${progOf(STORY.filter.program).deg}</span>`, `<span class="tag">${STORY.filter.fs}. Semester</span>`);
+  if (STORY.filter) tags.push(`<span class="tag">${esc(progOf(STORY.filter.program).name)} ${progOf(STORY.filter.program).deg}</span>`, `<span class="tag">${STORY.filter.sem}. Semester</span>`);
   if (STORY.hint) tags.push(`<span class="tag">Passt in meinen Stundenplan · ${sem(STORY.hint)}</span>`);
   return tags.join("");
 };
@@ -609,9 +617,10 @@ const toastOf = () => {
 const askOf = () => {
   if (PLAY.setup || PLAY.asked || PLAY.toast?.kind === "removed") return "";
   const f = STORY.filter;
-  if (f?.program && f?.fs) {
-    const p = progOf(f.program);
-    return `<div class="more"><p>Dein Studium: <b>${esc(p.name)} ${p.deg} · ${f.fs}. Fachsemester?</b></p><small>aus deinem Filter im Katalog. Dann steht beim Planen dein Fachsemester dabei.</small><div class="btns"><button class="t go" type="button" data-act="confirm">Stimmt</button><button class="t" type="button" data-act="edit">Ändern</button><button class="t" type="button" data-act="later">Später</button></div></div>`;
+  if (f?.program && f?.sem) {
+    const p = progOf(f.program), fs = filterFs(f, PLAY.now), at = filterAt(f, PLAY.now);
+    const why = at === running(PLAY.now) ? "aus deinem Filter im Katalog" : `aus deinem Filter: das ${f.sem}. Semester ist bei dir ${sem(at)}`;
+    return `<div class="more"><p>Dein Studium: <b>${esc(p.name)} ${p.deg} · ${fs}. Fachsemester?</b></p><small>${esc(why)}. Dann steht beim Planen dein Fachsemester dabei.</small><div class="btns"><button class="t go" type="button" data-act="confirm">Stimmt</button><button class="t" type="button" data-act="edit">Ändern</button><button class="t" type="button" data-act="later">Später</button></div></div>`;
   }
   if (f?.program) {
     const p = progOf(f.program);
@@ -656,10 +665,10 @@ const actOn = (el) => {
       break;
     case "choose": PLAY.chosen = i; PLAY.toast = { ...PLAY.toast, kind: "planned" }; break;
     case "unchoose": PLAY.chosen = null; break;
-    case "confirm": PLAY.setup = { program: STORY.filter.program, start: running(PLAY.now) - STORY.filter.fs + 1 }; PLAY.asked = true; break;
+    case "confirm": PLAY.setup = { program: STORY.filter.program, start: running(PLAY.now) - filterFs(STORY.filter, PLAY.now) + 1 }; PLAY.asked = true; break;
     case "fs": PLAY.setup = { program: STORY.filter.program, start: running(PLAY.now) - Number(el.dataset.n) + 1 }; PLAY.asked = true; break;
     case "later": PLAY.asked = true; break;
-    case "edit": PLAY.card = { program: STORY.filter?.program ?? null, fs: STORY.filter?.fs ?? 1 }; break;
+    case "edit": PLAY.card = { program: STORY.filter?.program ?? null, fs: STORY.filter?.sem ? filterFs(STORY.filter, PLAY.now) : 1 }; break;
     case "cprog": PLAY.card.program = el.dataset.p; break;
     case "cfs": PLAY.card.fs = Math.max(1, Math.min(12, PLAY.card.fs + Number(el.dataset.d))); break;
     case "cclose": PLAY.card = null; break;
