@@ -1159,9 +1159,15 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the overview, under the finger, in a fling or a glide (owner, 2026-10-06: „Der zurück wird
     aktuell erst eingeblendet, wenn man dann aufhört zu swipen. Aber der sollte eigentlich sofort
     eingeblendet werden, wenn man weg swiped, von der main page"; measured: with the first move of
-    the finger, 2–5 px from the overview), the search making room, and out again once the row is
-    at the overview. Pressed while the address still says the overview (the row on its way from
-    it), it brings the row back at once, as the tab of „Studium" tapped again does from anywhere
+    the finger, 2–5 px from the overview), the search making room, and out again as soon, with the
+    row's first move back into the overview from the page next to it (a few px, a finger's tremble
+    aside), under the finger, in a fling or the snap, and with the first frame of a glide of the
+    app's to it (owner, 2026-10-18: „ich finde das einblenden und ausblenden sollte gleich schnell
+    gehen … verschwindet aber bei der home page, erst wenn ich aufgehört habe zu swipen und der
+    screen still steht"; before, it went once the row rested at the overview); a row that turns out
+    again before it is there brings it back (`pager::way_back_shows`). Pressed while the address
+    still says the overview (the row on its way from it), it brings the row back at once, as the
+    tab of „Studium" tapped again does from anywhere
     (`tabs::TabAgain`; at the overview the window goes up to its top). The dots stand over the tab
     bar, a dot for each page of the row, the overview's a little square between the semesters that
     are over and the current one, there on the overview too; they stay while the page scrolls
