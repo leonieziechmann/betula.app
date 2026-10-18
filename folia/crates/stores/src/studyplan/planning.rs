@@ -51,6 +51,9 @@ pub struct Pressed {
     /// The snapshot's current semester: what lies before it is behind the student.
     pub current: SemesterKey,
     pub offer: Offer,
+    /// The semester of the module's newest events: where a click aims without a semester chosen
+    /// for the next modules (`target_semester`), which the dialog goes back to when that is cleared.
+    pub newest: Option<SemesterKey>,
     /// The page's hint: a page that means a semester (the finder's, a placeholder's).
     pub hint: Option<PlanHint>,
 }

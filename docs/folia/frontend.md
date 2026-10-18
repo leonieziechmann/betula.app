@@ -469,48 +469,75 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     browser app's alone (R9): where a session plans depends on the day.
   - **The note** (`PlanNote`, app.css „The note of „Einplanen"", `.plan-toast`) after a click, P or
     a row swiped. On a wide screen one bar across the page right of the rail, one line high, the
-    module named in it and the switch beside the arrows (owner, 2026-10-18: „bei der pc Version kann
-    die notification ruhig über die ganze Breite rechts von der sidebar gehen und dann vllt etwas
-    weniger hoch sein"); on a phone a card over the bottom bar (over a module's sheet at the bottom
-    of the screen), the switch a row over the arrows, so that what is under the finger stays where
-    it was. Dark in both themes (owner, the same day: „dark modus muss natürlich auch dafür
-    funktionieren"): inverted on the light page, a raised dark surface with a fine edge on the dark
-    one (`--toast`, `--on-toast`). In it a check, the semester between ‹ and › with what happened
-    under it („eingeplant · 3. FS", „verschoben", „kein Angebot" where the turnus leaves it out,
-    „liegt zurück" in a semester behind the student, in the warning's colour), and „Rückgängig". The
-    arrows move the module at once, a semester at a time, into the past as well (owner, 2026-10-18:
-    „Betula sollte bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first Fachsemester (six
-    back where the Studienbeginn is not known); ← and → do the same while the note stands, where the
-    keys mean nothing else (a field, a picker, a menu, a slider, a panel's handle, a dialog). Once
-    it was moved, a second row „Weitere Module auch nach SoSe 27" with a switch makes that semester
-    the session's for the next modules (P3, `betula.plan.chosen`), a past one too; while it is on it
+    module named in it and the switch beside the semester, × at the end (owner, 2026-10-18: „bei der
+    pc Version kann die notification ruhig über die ganze Breite rechts von der sidebar gehen und
+    dann vllt etwas weniger hoch sein"); on a phone a card as wide as the bottom bar and over it
+    (over a module's sheet at the bottom of the screen), under the bar in the order of what lies on
+    what and flat, so it casts nothing on the bar and comes up from behind it (the same day: „keinen
+    schatten auf die navbar werfen"); its switch a row over the semester, so that what is under the
+    finger stays where it was. Dark in both themes (the same day: „dark modus muss natürlich auch
+    dafür funktionieren"): inverted on the light page, a raised dark surface with a fine edge on the
+    dark one (`--toast`, `--on-toast`). In it a check, the semester between ‹ and › with a line
+    under it — its Fachsemester and the warning („kein Angebot" where the turnus leaves it out,
+    „liegt zurück" in a semester behind the student, in the warning's colour), and what happened
+    („eingeplant", „verschoben") where there is room: on a phone only where nothing else is said
+    (the same day: „Wichtig finde ich, dass das eingeplante Semester (also fs. 12) und die Warnung
+    da steht. Der Rest kann optional ausgeblendet werden") — and „Rückgängig". The semester and its
+    arrows are one control, as wide whatever it says, so the arrows never move (the same day:
+    „müssen die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch
+    swiping unterstützt werden"): a tap on its left half is ‹, on its right half ›, and a finger
+    swiped sideways over it moves the module a semester the way a page turns (to the left the next
+    one), the words following the finger and coming in from the side the semester came from. It
+    moves the module at once, a semester at a time, into the past as well (the same day: „Betula
+    sollte bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first Fachsemester (six back
+    where the Studienbeginn is not known); ← and → do the same while the note stands, where the keys
+    mean nothing else (a field, a picker, a menu, a slider, a panel's handle, a dialog). Once it was
+    moved, a second row „Weitere Module auch nach SoSe 27" with a switch makes that semester the
+    session's for the next modules (P3, `betula.plan.chosen`), a past one too; while it is on it
     stands in every note, to be switched off where it is seen. A module taken out says „Datenbanken
     entfernt", with „Rückgängig". „Rückgängig" puts back the plan as it was before the click while
     the plan is still what the note made of it, else undoes what the note did alone. The note stands
     4.5 s, 7 s once moved, and as long as the pointer or the focus is on it; a newer one takes its
-    place, and another profile takes it away.
+    place, and another profile takes it away. It goes as soon as the student moves on (the same day:
+    „sobald erkannt wurde, dass damit nicht interagiert wurde und der Nutzer weiter macht soll es
+    ausgeblendet werden. Aber wir müssen aufpassen, dass versehentliche Interaktionen, wie ein klein
+    wenig scrollen kein Problem sind"): another page or tab, another module opened or its panel or
+    sheet closed, other filters or another search (the address but its `page`, which the list writes
+    as it scrolls), a scroll of anything further than a fifth of the window (140 to 260 px) — not a
+    little one, and nothing within 0.4 s of the press, which is the page answering it. A finger
+    swipes it down and away (the same day: „Auf dem Handy soll es die Geste geben die notification
+    nach unten weg zu wischen"); × and Esc put it away on a wide screen.
   - **Where no study is set up** (no Studienbeginn stored, and the session has not answered with
     „Ohne Studium einplanen"), „Einplanen" — its switch, P, a row swiped — opens one dialog instead
     (owner, 2026-10-18: „so dass man im best case nur auf ok drücken muss, dann das Studium
     eingerichtet ist und dass Modul im richtigen Semester geplant ist"; `widgets/src/plansetup.rs`,
-    `studyplan/fit.rs`): „Dein Studium" as the card of „Mein Studium" has it (a sentence, the program,
-    the Fachsemester with − and +) and under it the semester the module goes into, with ‹ ›.
-    „Einrichten und einplanen" stores the program and the Studienbeginn in „Mein Studiengang" and
+    `studyplan/fit.rs`): „Dein Studium" as the card of „Mein Studium" has it (a sentence, the
+    program, the Fachsemester with − and +) and under it the semester the module goes into, with ‹
+    ›. „Einrichten und einplanen" stores the program and the Studienbeginn in „Mein Studiengang" and
     plans the module, „Ohne Studium einplanen" plans it alone and the session asks no more
     (`betula.plan.asked`), „Abbrechen", × and Esc leave everything as it was. The program comes from
     the catalog's filter, else the Stundenplan's of the session, else „Mein Studiengang"; without
     any, none is assumed (owner: „Weil der assumed Studiengang wahrscheinlich falsch ist"): the
     module's programs stand open — three at most, each program once by its newest regulation,
     compulsory before elective, those whose plan places the module first — with the search for any
-    other right under them, and „Einrichten und einplanen" waits for one. Once a program is known,
-    its Regelstudienplan fills in what the student has not set (owner: „Aber nur, wenn der User noch
+    other right under them, the app's picker as it is, as wide and as tall as the programs over it
+    and so when it opens, its list under it as wide (the same day: „Erstmal ist es zu weit links,
+    dann wird es breiter wenn man rein klickt und die combox ist nicht so styled, wie alle anderen
+    in der App"); „Einrichten und einplanen" waits for one. A program known is a row as in „Mein
+    Studium", its picker the way to another, the module's programs first in it („Studiengänge mit
+    diesem Modul"; the same day: „was ist das für ein clusterfuck, wenn man schon ein Studiengangs
+    ausgewählt hat und den doch nochmal ändern möchte"). Once a program is known, its
+    Regelstudienplan fills in what the student has not set (owner: „Aber nur, wenn der User noch
     nichts an den werten geändert hat"): without a Fachsemester, the one that puts the module into
     its semester of the plan; with one, the semester that does. A Bachelor's odd Fachsemester are
     winters unless its plan says otherwise (`intake_season`), a Master's are not assumed (owner:
-    „Master hingegen haben diese "Einschränkung" nicht"). The filter's semester is the semester being
-    looked at, read by the time and that season (owner: „wenn man semester 3 auswählt im filter ist
-    man probably erst im zweiten"). A place of the plan behind the student puts the module where
-    „Einplanen" aimed and says why; a semester behind the student is allowed, with a warning.
+    „Master hingegen haben diese "Einschränkung" nicht"). The filter's semester is the semester
+    being looked at, read by the time and that season (owner: „wenn man semester 3 auswählt im
+    filter ist man probably erst im zweiten"). A place of the plan behind the student puts the
+    module where „Einplanen" aimed and says why; a semester behind the student is allowed, with a
+    warning. Where „Weitere Module auch nach …" aimed the click, the module's row says so („für
+    weitere Module gewählt") with „Aufheben", which clears the choice for the session and aims as
+    without it (a dialog stood at „SoSe 2034 · 16. FS" without a word why).
   - **A row swiped to the right** on a phone (`swipe.rs`) does what the switch does, the note or
     the dialog after it; its ground says „Einplanen" with the semester, and keeps saying it where
     the dialog comes next.
@@ -2781,9 +2808,9 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   module preview and, on a module's own page, goes back to where the visitor came from; `F` opens
   the previewed module full screen; ↑/↓ move through the list (rows are links, so this is just
   focus) and Enter opens the selected row; Ctrl+K or `/` jumps to the search; in the app `M` marks
-  and `P` plans the module one is at, and ← and → move it while the note of what it planned stands
-  („„Einplanen" plans at once, and a note says where"). Every
-  view is a real history entry, so the browser's back always works too.
+  and `P` plans the module one is at, ← and → move it while the note of what it planned stands, and
+  Esc puts the note away („„Einplanen" plans at once, and a note says where"). Every view is a real
+  history entry, so the browser's back always works too.
   The tabs of the navigation are a digit away (owner, 2026-10-16: „wenn man ctrl/alt drückt sollen
   dann die shortcuts bei den nav items angezeigt werden. Wichtig ist, dass … so übliche shortcuts,
   wie ctrl+c/s/p usw. weiter funktionieren"): 1 the start page, 2 the modules, 3 „Studium",
@@ -3777,21 +3804,30 @@ Datenstrukturen (11112, a winter module of the 1st semester of Informatik B.Sc.'
 in three programs) and Analysis I (11103, a summer one). On a wide screen, without a study: the
 session's semester kept in the tab, the switch saying where it plans; a click opens the dialog, „Was
 studierst du?", three compulsory programs open with Informatik first („Pflicht · 1. Sem.") and the
-search under them, „Einrichten und einplanen" waiting and nothing planned; Informatik picked, „im 1.
-Fachsemester" and the module „wie im Regelstudienplan (1. Semester)"; the 3rd Fachsemester set, the
-warning of the plan's place behind; ‹ into the past, the warning of the past; „Einrichten und
-einplanen" stores the program and a Studienbeginn and plans the module, and the note says the
-semester and „eingeplant · 1. FS", no switch yet. › moves it at once („verschoben · 2. FS") and
-brings „Weitere Module auch nach …"; the note is one bar right of the rail, one line high with the
-switch in it and the module named, dark with light text in the dark theme and the light one; ← and →
-move it back and forth; the switch on keeps the semester for the session; „Rückgängig" takes the
-module out. Analysis I then plans into the semester chosen (P), its note shows the switch on, which
-turns off there; ‹ stops at the first Fachsemester; P on the module planned takes it out („Analysis
-I entfernt") and „Rückgängig" puts it back; the note goes by itself. On a phone a row swiped to the
-right opens the dialog as a sheet from below, nothing planned; „Ohne Studium einplanen" plans and
-puts the question aside for the session, the note stands over the bottom bar without the module's
-name, › brings the switch as a row over the arrows and leaves the arrow under the finger, and the
-next row swiped plans at once.
+search under them, as wide and as tall as they are and so when it opens, Esc in it leaving the
+dialog open; „Einrichten und einplanen" waiting and nothing planned; Informatik picked, „im 1.
+Fachsemester" and the module „wie im Regelstudienplan (1. Semester)", its row's picker with
+„Studiengänge mit diesem Modul" first; the 3rd Fachsemester set, the warning of the plan's place
+behind; ‹ into the past, the warning of the past; „Einrichten und einplanen" stores the program and
+a Studienbeginn and plans the module, and the note says the semester and „eingeplant · 1. FS", no
+switch yet, × at its end. A click on the semester's right half moves it at once („verschoben · 2.
+FS") and brings „Weitere Module auch nach …"; the note is one bar right of the rail, one line high
+with the switch in it and the module named, dark with light text in the dark theme and the light
+one; the left half moves it back without the arrows moving, ← and → move it back and forth; the
+switch on keeps the semester for the session; „Rückgängig" takes the module out. Analysis I then
+plans into the semester chosen (P), its note shows the switch on, which turns off there; ‹ stops at
+the first Fachsemester, and so does the left half; P on the module planned takes it out („Analysis I
+entfernt") and „Rückgängig" puts it back; the note goes by itself. ×, Esc, another module opened and
+a long scroll put it away, a little scroll does not. With SoSe 2034 chosen for the next modules, the
+dialog says „für weitere Module gewählt" and „Aufheben" aims as without it. On a phone a row swiped
+to the right opens the dialog as a sheet from below, nothing planned, the search not growing as it
+opens; „Ohne Studium einplanen" plans and puts the question aside for the session; the note stands
+over the bottom bar without the module's name or ×, as wide as the bar, under it and without a
+shadow; a tap on the semester's right half moves the module, brings the switch as a row over the
+semester and leaves the semester under the finger, between the arrows the warning alone („kein
+Angebot"); a finger swiped over it to the left moves it on, to the right back, a short one not at
+all; swiped down the note goes and the plan stays. The next row swiped plans at once; a little
+scroll leaves its note, a long one puts it away, and so does a module opened.
 
 The other checks that plan (`module.mjs`, `swipe.mjs`, `snappy.mjs`) put the question aside for the
 session first (`betula.plan.asked`), as a student who answered „Ohne Studium einplanen".

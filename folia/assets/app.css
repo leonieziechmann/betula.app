@@ -3105,16 +3105,26 @@ html:not(.js) .plan-toggle { display: none; }
 .actions > .plan-toggle { min-width: 0; }
 /* The note of „Einplanen" (.plan-toast, folia/crates/widgets/src/plannote.rs; owner, 2026-10-18,
    concept E of folia/design/einplanen/oberflaeche.html): a check, the module, ‹ the semester ›
-   with what happened under it, „Rückgängig"; once the module was moved, the switch „Weitere Module
-   auch nach …". On a wide screen one bar across the page right of the rail, as wide as the panels,
-   one line high (owner, 2026-10-18: „bei der pc Version kann die notification ruhig über die ganze
-   Breite rechts von der sidebar gehen und dann vllt etwas weniger hoch sein"): the switch comes
-   in at the right before „Rückgängig", so nothing under the pointer moves. On a phone a card over
-   the bottom bar (over a module's sheet at the bottom of the screen), the switch a row over the
-   arrows, which stay under the finger. Dark in both themes (`--toast`); nothing in it changes its
-   size as the arrows move the module (the semester's column keeps a width). */
-.plan-toast { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; animation: plan-toast-in .26s var(--ease); }
+   with its Fachsemester and the warning under it, „Rückgängig"; once the module was moved, the
+   switch „Weitere Module auch nach …". The semester and its arrows are one control: a tap on its
+   left half is ‹, on its right half ›, a finger swiped over it moves the module, and its words
+   follow the finger and come in from the side the semester came from (owner, the same day: „müssen
+   die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch swiping
+   unterstützt werden"). Nothing of the page moves under it as a finger swipes it (`touch-action`).
+   On a wide screen one bar across the page right of the rail, as wide as the panels, one line high
+   (the same day: „bei der pc Version kann die notification ruhig über die ganze Breite rechts von
+   der sidebar gehen und dann vllt etwas weniger hoch sein"): the switch comes in at the right
+   before „Rückgängig", so nothing under the pointer moves; × at the end. On a phone a card as wide
+   as the bottom bar and over it, but under it in the order of what lies on what and flat, so it
+   casts nothing on the bar and comes up from behind it (the same day: „keinen schatten auf die
+   navbar werfen"); over a module's sheet at the bottom of the screen. Its switch is a row over the
+   semester, which stays under the finger, and a finger swipes it down and away. Dark in both themes
+   (`--toast`); nothing in it changes its size as the arrows move the module (the semester's column
+   keeps a width, and what it says is cut, the warning last). */
+.plan-toast { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: plan-toast-in .26s var(--ease); }
 @keyframes plan-toast-in { from { opacity: 0; transform: translateY(10px); } }
+.plan-toast[data-drag] { transition: none; }
+.plan-toast.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
 .plan-toast-main { grid-area: main; display: flex; align-items: center; gap: 2px; min-width: 0; padding: 4px 0 4px 14px; }
 .plan-toast-end { grid-area: end; display: flex; align-items: center; padding: 4px 6px 4px 0; }
 .plan-toast-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
@@ -3122,18 +3132,28 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-mark.out { background: color-mix(in oklab, var(--on-toast) 18%, transparent); color: var(--on-toast); }
 .plan-toast-mark.out > .icon { stroke-width: 2.25; }
 .plan-toast-title { min-width: 0; max-width: 300px; margin-right: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
-.plan-toast-step, .plan-toast-undo { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan-toast-stepper { flex: 0 1 auto; display: flex; align-items: center; min-width: 0; border-radius: 9px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.plan-toast-step, .plan-toast-undo, .plan-toast-close { flex: none; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .plan-toast-step { display: grid; place-items: center; width: 34px; height: 40px; }
 .plan-toast-step > .icon { width: 18px; height: 18px; }
 .plan-toast-step[disabled] { opacity: .3; cursor: default; }
 .plan-toast-undo { min-height: 40px; padding: 0 12px; font-weight: 650; }
-@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); } }
-.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
-.plan-toast-at { display: flex; flex-direction: column; align-items: center; min-width: 128px; padding: 0 2px; line-height: 1.25; text-align: center; }
-.plan-toast-at > b { color: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.plan-toast-at > small { font-size: 11.5px; opacity: .75; white-space: nowrap; }
-.plan-toast-at > small .past { font-style: normal; font-weight: 650; color: var(--toast-warn); }
-.plan-toast-at:has(.past) > small { opacity: 1; }
+.plan-toast-close { display: grid; place-items: center; width: 34px; height: 40px; margin-left: 2px; opacity: .72; }
+.plan-toast-close > .icon { width: 16px; height: 16px; }
+@media (hover: hover) { .plan-toast-step:hover:not([disabled]), .plan-toast-undo:hover, .plan-toast-keep:hover, .plan-toast-close:hover { background: color-mix(in oklab, var(--on-toast) 10%, transparent); opacity: 1; } }
+.plan-toast-step:active:not([disabled]), .plan-toast-undo:active, .plan-toast-keep:active, .plan-toast-close:active { background: color-mix(in oklab, var(--on-toast) 16%, transparent); }
+/* As wide whatever it says (12. FS and „kein Angebot" with „verschoben" fit): the arrows never move
+   under the pointer as the module moves. */
+.plan-toast-at { flex: none; display: flex; justify-content: center; width: 200px; overflow: hidden; }
+.plan-toast-now { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; padding: 0 2px; line-height: 1.25; text-align: center; }
+.plan-toast-now[data-from="right"] { animation: plan-toast-from-right .2s var(--ease); }
+.plan-toast-now[data-from="left"] { animation: plan-toast-from-left .2s var(--ease); }
+@keyframes plan-toast-from-right { from { opacity: 0; transform: translateX(16px); } }
+@keyframes plan-toast-from-left { from { opacity: 0; transform: translateX(-16px); } }
+.plan-toast-now > b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: inherit; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-toast-now > small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 11.5px; white-space: nowrap; }
+.plan-toast-now > small > span:not(.plan-toast-warn) { opacity: .75; }
+.plan-toast-warn { font-weight: 650; color: var(--toast-warn); }
 .plan-toast-sep { flex: none; width: 1px; height: 26px; margin: 0 6px; background: color-mix(in oklab, var(--on-toast) 22%, transparent); }
 .plan-toast-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .plan-toast-keep { grid-area: keep; display: flex; align-items: center; gap: 10px; min-height: 40px; margin-right: 2px; padding: 0 10px 0 12px; border: 0; border-radius: 9px; background: none; color: var(--on-toast); font: inherit; font-size: 13px; text-align: left; cursor: pointer; animation: plan-toast-keep-in .2s var(--ease); -webkit-tap-highlight-color: transparent; }
@@ -3147,14 +3167,21 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch::after { transform: translateX(14px); }
 .plan-toast :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 @media (max-width: 900px) {
-  .plan-toast { left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; border-radius: 14px; }
-  :root:has(.detail.is-module) .plan-toast { bottom: calc(10px + env(safe-area-inset-bottom)); }
-  .plan-toast-main { min-height: 52px; padding: 6px 0 6px 12px; }
+  /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
+  .plan-toast { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "keep keep" "main end"; min-height: 0; border-radius: 14px; box-shadow: var(--toast-ring); animation-name: plan-toast-rise; }
+  @keyframes plan-toast-rise { from { transform: translateY(calc(100% + 24px)); } }
+  :root:has(.detail.is-module) .plan-toast { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .plan-toast-main { min-height: 56px; padding: 0 0 0 4px; }
   .plan-toast-end { padding: 6px 6px 6px 0; }
-  .plan-toast-title { display: none; }
-  .plan-toast-at { flex: 1 1 auto; min-width: 0; }
-  .plan-toast-step { width: 40px; height: 44px; }
+  .plan-toast-mark:not(.out), .plan-toast-title, .plan-toast-close { display: none; }
+  .plan-toast-mark.out { margin-left: 8px; }
+  .plan-toast-stepper { flex: 1 1 auto; align-self: stretch; }
+  .plan-toast-at { flex: 1 1 auto; width: auto; min-width: 0; }
+  .plan-toast-step { width: 44px; height: 56px; }
   .plan-toast-said { flex: 1 1 auto; }
+  /* Between the arrows the semester, its Fachsemester and the warning; what happened only where
+     nothing else is said (owner: „Der Rest kann optional ausgeblendet werden"). */
+  .plan-toast-what:not(:last-child), .plan-toast-what:not(:last-child) + .plan-toast-dot { display: none; }
   .plan-toast-keep { min-height: 48px; margin: 0; padding: 0 12px 0 14px; border-radius: 0; border-bottom: 1px solid color-mix(in oklab, var(--on-toast) 14%, transparent); font-size: 14px; animation: plan-toast-unfold .22s var(--ease); }
   @keyframes plan-toast-unfold { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 60px; } }
 }
@@ -3169,23 +3196,16 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-setup .st-study-say em { font-style: normal; color: var(--accent-ink); }
 .plan-setup-body { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
 .plan-setup-body > .st-study { flex: none; }
-.plan-setup-program.open { display: block; padding-top: 12px; padding-bottom: 12px; }
-.st-srow.plan-setup-program:not(.open) { grid-template-rows: 40px 18px auto; }
-.plan-setup-change { grid-row: 1; grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: calc(100% + 10px); min-height: 40px; margin-left: -10px; padding: 0 10px; border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 650; text-align: left; cursor: pointer; }
-.plan-setup-change > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan-setup-change > .icon { flex: none; width: 16px; height: 16px; color: var(--text-3); transition: transform .15s; }
-.plan-setup-change[aria-expanded="true"] > .icon { transform: rotate(180deg); }
-.plan-setup-change:hover, .plan-setup-change[aria-expanded="true"] { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.plan-setup-list { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; margin: 6px -4px 2px; animation: fade-in .16s; }
-.plan-setup-program.open > .plan-setup-list { margin: 0 -4px; }
-.plan-setup-offers { display: flex; flex-direction: column; gap: 4px; }
+/* While no program is known, the module's programs and the search under them, as wide as the
+   card's rows are inside; once one is, a row as in „Mein Studium" (its picker reads as the value). */
+.plan-setup-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 12px 12px 16px; animation: fade-in .16s; }
+.plan-setup-offers { display: flex; flex-direction: column; gap: 6px; }
 .plan-setup-offers > button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 40px; padding: 6px 10px 6px 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .plan-setup-offers > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; }
 .plan-setup-offers > button > small { flex: none; font-size: 12px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
 .plan-setup-offers > button > small.req { color: var(--accent-ink); }
 .plan-setup-offers > button[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
 @media (hover: hover) { .plan-setup-offers > button:hover { box-shadow: inset 0 0 0 1px var(--text-3); } .plan-setup-offers > button[aria-checked="true"]:hover { box-shadow: inset 0 0 0 2px var(--accent); } }
-.plan-setup-list > .combo .combo-trigger { min-height: 40px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-weight: 550; }
 .st-fs-value.unset { color: var(--text-3); }
 .st-srow-note .warn { color: var(--warn); }
 .st-srow-note .good { color: var(--accent-ink); }
@@ -3203,6 +3223,10 @@ html:not(.js) .plan-toggle { display: none; }
   .plan-setup-foot .plan-setup-without { margin: 4px auto 0; }
   .plan-setup-offers > button { min-height: 46px; }
   .plan-setup-offers > button > span { font-size: 15px; }
+  .plan-setup-list { padding: 12px 14px; }
+  /* The search spans its line already, as wide as the programs over it: open, it stays so and its
+     list opens under it as wide (owner, 2026-10-18: „dann wird es breiter wenn man rein klickt"). */
+  .plan-setup-list .combo[data-open] { --ml: 0px; --mr: 0px; }
 }
 
 /* ---------- closed testing: the login page ----------

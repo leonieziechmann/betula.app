@@ -52,9 +52,15 @@
 /// menu of the semesters gone; 1.24.0 with that note one bar across the page right of the rail on a
 /// wide screen, one line high with the module named, on a phone its switch a row over the arrows,
 /// dark in the dark theme as well, and the catalog's hint of a program's plan no longer taking its
-/// look; 1.24.1 with the start of the installed app where the system left its splash, round, and
-/// the wordmark at the bottom. The version of the app's crates, the same as the server's; Radix's
-/// is in the snapshot (`Meta::radix_version`).
+/// look; 1.24.1 with the note's semester one control on a phone (a tap on its half, a finger
+/// swiped over it), the note swiped down and away and gone as the student moves on (another page,
+/// module or search, a longer scroll; × and Esc on a wide screen), on a phone under the bottom bar
+/// and flat, and in the dialog for a study the search for a program the app's picker as wide as the
+/// programs, a program known a row with its picker, and „Aufheben" for a semester chosen for the
+/// next modules; 1.24.2 with the start of the installed app where the system left its splash,
+/// round, the wordmark at the bottom, and the page's logo and wordmark coming where they land. The
+/// version of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

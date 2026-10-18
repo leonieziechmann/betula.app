@@ -356,7 +356,7 @@ pub fn PlanButton(
     let said = RwSignal::new(None::<bool>);
     let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| aim.with(|aim| aim.pressed)));
     let toggle = {
-        let what = Pressed { id: id.clone(), title, current, offer, hint: None };
+        let what = Pressed { id: id.clone(), title, current, offer, newest, hint: None };
         move |_: leptos::ev::MouseEvent| {
             let (Some(plan), Some(planning)) = (plan, planning) else { return };
             let was = pressed.get_untracked();
