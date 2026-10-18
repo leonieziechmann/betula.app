@@ -767,9 +767,13 @@
     requestAnimationFrame((at) => { if (g.begun == null) g.begun = at; });
     tickSheet(g);
   };
-  // Away it goes, then the close link of the sheet that is there then is followed.
+  // Away it goes, then the close link of the sheet that is there then is followed. A note that
+  // waits for interaction over it goes down with it at once (`sheet-away`, folia_design::waitnote;
+  // owner, 2026-10-18: „wenn man da die Modul Ansicht schließt sollte die notification auch mit eher
+  // Animation nach unten raus geschlossen werden").
   const closeModule = (sheet, y = sheetY(sheet), v = 0) => {
     if (!sheet.querySelector('[data-action="close-detail"]') || sheet.classList.contains("is-gone")) return;
+    document.dispatchEvent(new Event("sheet-away"));
     glideSheet(sheet, y, v, "gone", () => {
       const link = liveSheet()?.querySelector('[data-action="close-detail"]');
       if (!link) return;

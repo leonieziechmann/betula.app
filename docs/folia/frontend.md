@@ -542,21 +542,26 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   or another search (the address but its `page`, which the catalog's list writes as it scrolls); a
   scroll of anything further than a fifth of the window (140 to 260 px), not a little one. Nothing
   within 0.4 s of its coming or of a change of it by the student's hand (`changed`) counts, which is
-  the page answering what was done. × and Esc put it away, and a finger swiping it down (the same
-  day: „Auf dem Handy soll es die Geste geben die notification nach unten weg zu wischen"); a part
-  of it may take a finger swiped sideways (`Sideways`), and a swipe is never a tap as well. On a
-  wide screen one bar across the content: right of the sidebar where the page has one, the catalog's
-  filters or the sidebar of the frame, as wide as its handle makes it (the same day: „Bei der pc
-  Version soll die notification nicht über die sidebar (z.b. filter) gehen, sondern nur über den
-  content"), else right of the rail; on a phone a card as wide as the bottom bar and over it (over a
-  module's sheet at the bottom of the screen), under the bar in the order of what lies on what and
-  flat, so it casts nothing on the bar and comes up from behind it (the same day: „keinen schatten
-  auf die navbar werfen"), without ×. Dark in both themes (the same day: „dark modus muss natürlich
-  auch dafür funktionieren"): inverted on the light page, a raised dark surface with a fine edge on
-  the dark one (`--toast`, `--on-toast`). The host shows it while it has something to say, gives it
-  what it says as one element, and lets go of it on `on_gone` — of this note alone, a newer one that
-  took its place staying (a key that makes the next note). The note of „Einplanen" is the first that
-  uses it.
+  the page answering what was done. It goes down out of sight, from where it stands, and then the
+  host lets go of it (the same day: „wenn man da die Modul Ansicht schließt sollte die notification
+  auch mit eher Animation nach unten raus geschlossen werden. Aktuell ist das ziemlich unangenehm
+  anzusehen"): its place is kept from its coming, so what changes around it — a module's sheet that
+  closes on a phone, a page without a sidebar — never moves it on its way out, and a module's sheet
+  sliding away takes it along at once (enhance.js `sheet-away` on the document). × and Esc put it
+  away, and a finger swiping it down (the same day: „Auf dem Handy soll es die Geste geben die
+  notification nach unten weg zu wischen"); a part of it may take a finger swiped sideways
+  (`Sideways`), and a swipe is never a tap as well. On a wide screen one bar across the content:
+  right of the sidebar where the page has one, the catalog's filters or the sidebar of the frame, as
+  wide as its handle makes it (the same day: „Bei der pc Version soll die notification nicht über
+  die sidebar (z.b. filter) gehen, sondern nur über den content"), else right of the rail; on a
+  phone a card as wide as the bottom bar and over it (over a module's sheet at the bottom of the
+  screen), under the bar in the order of what lies on what and flat, so it casts nothing on the bar
+  and comes up from behind it (the same day: „keinen schatten auf die navbar werfen"), without ×.
+  Dark in both themes (the same day: „dark modus muss natürlich auch dafür funktionieren"): inverted
+  on the light page, a raised dark surface with a fine edge on the dark one (`--toast`,
+  `--on-toast`). The host shows it while it has something to say, gives it what it says as one
+  element, and lets go of it on `on_gone` — of this note alone, a newer one that took its place
+  staying (a key that makes the next note). The note of „Einplanen" is the first that uses it.
 - **A tab held gives what it holds besides its page** (owner, 2026-10-06: „wenn man die buttons in
   der nav bar lange gedrückt hält, dass dann eine special aktion kommt. Bei mein Studium währe das
   dann eine auswahl von Regelstudienplan, Wahlpflicht, Alle Studiengänge. Das sollte natürlich auch
@@ -3812,7 +3817,8 @@ over the semester and leaves the semester under the finger, between the arrows t
 („kein Angebot"); a finger swiped over it to the left moves it on, to the right back, a short one
 not at all; swiped down the note goes and the plan stays. The next row swiped plans at once; a
 little scroll leaves its note, a long one puts it away, and so do a tap elsewhere and a module
-opened.
+opened; planned from a module's sheet, the note goes down with the sheet as it closes, never up
+first.
 
 The other checks that plan (`module.mjs`, `swipe.mjs`, `snappy.mjs`) put the question aside for the
 session first (`betula.plan.asked`), as a student who answered „Ohne Studium einplanen".
