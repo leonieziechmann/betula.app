@@ -382,7 +382,7 @@ p { margin: 0; }
     <p class="lead"><b>Stand 18.10.:</b> entschieden ist der Dialog von E (<span class="mono">oberflaeche.html</span>): ohne Studium öffnet „Einplanen“ „Dein Studium“ mit dem Semester des Moduls, und „Einrichten und einplanen“ macht beides. Ohne Filter nimmt Betula keinen Studiengang an; die des Moduls stehen offen da (höchstens drei, Pflicht zuerst), darunter die Suche. Steht der Studiengang fest, füllt Betula aus dem Regelstudienplan Fachsemester und Semester so, dass sie zusammenpassen, aber nur, was man nicht selbst gesetzt hat. Liegt der Platz im Plan hinter einem, kommt das Modul ins nächste Semester, das es anbietet, mit Hinweis; früher geht auch, mit Warnung. Was folgt, war der Stand davor.</p>
     <div class="sources">
       <div class="src"><h3>Woher der Studiengang kommt</h3><ol><li><b>Der Filter des Katalogs</b> in dieser Sitzung (<span class="mono">program=</span>).</li><li><b>Der Studiengang des Stundenplans</b> in dieser Sitzung.</li><li><b>Der zuletzt geöffnete Studiengang</b> unter „Studium“.</li><li>Sonst <b>die Studiengänge des Moduls</b> zum Antippen: höchstens drei, Pflicht zuerst, darunter „Anderer Studiengang …“ (owner, 18.10.).</li></ol></div>
-      <div class="src"><h3>Woher das Fachsemester kommt</h3><ol><li><b>Die Semesterwahl des Katalogs</b> (<span class="mono">semester=3</span>: Module des 3. Semesters im Regelstudienplan), <b>nach der Zeit gedeutet</b>: Man wählt das Semester, das man plant, nicht unbedingt das, in dem man ist (owner, 18.10.). Es fällt in die Jahreszeit seines Studienbeginns (Beginn im Winter: 1, 3, 5 … im Winter), jetzt oder im nächsten Semester; ist der Beginn nicht bekannt, ins Planungssemester der Sitzung. Im Juni heißt „3. Semester“ also: jetzt im 2.</li><li><b>Das Semester, das man im Regelstudienplan</b> des Studiengangs zuletzt aufgeklappt hat, ebenso gedeutet.</li><li>Sonst als Zahlen zum Antippen, vorgemerkt das vermutete: das Semester, in das der Plan des gewählten Studiengangs das Modul legt, weniger die Semester bis zu dem, in das es geplant wurde.</li></ol></div>
+      <div class="src"><h3>Woher das Fachsemester kommt</h3><ol><li><b>Die Semesterwahl des Katalogs</b> (<span class="mono">semester=3</span>: Module des 3. Semesters im Regelstudienplan), <b>nach der Zeit gedeutet</b>: Man wählt das Semester, das man plant, nicht unbedingt das, in dem man ist (owner, 18.10.). Es fällt in die Jahreszeit seines Studienbeginns, jetzt oder im nächsten Semester. <b>Ein Bachelor beginnt im Winter</b> (1, 3, 5 … im Winter, 2, 4, 6 … im Sommer), außer sein Regelstudienplan sagt anderes (ein Beginn im Sommer im Titel oder im Turnus seiner Module); <b>ein Master</b> kann in beiden beginnen, dort zählt das Planungssemester der Sitzung. Im Juni heißt „3. Semester“ im Bachelor also: jetzt im 2.</li><li><b>Das Semester, das man im Regelstudienplan</b> des Studiengangs zuletzt aufgeklappt hat, ebenso gedeutet.</li><li>Sonst als Zahlen zum Antippen, vorgemerkt das vermutete: das Semester, in das der Plan des gewählten Studiengangs das Modul legt, weniger die Semester bis zu dem, in das es geplant wurde; im Bachelor so, dass ungerade Fachsemester im Winter liegen.</li></ol></div>
     </div>
     <div class="cases">
       <div class="case"><p class="kicker">Beides bekannt</p><h3>Ein Tipp</h3><p>„Dein Studium: Informatik B.Sc. · 1. Fachsemester? · aus deinem Filter“, dazu „Stimmt“, „Ändern“ und „Später“.</p></div>
@@ -492,7 +492,7 @@ const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${
 
 // ---------- the student, the programs and the modules (examples) ----------
 const PROGRAMS = [
-  { id: "inf", name: "Informatik", deg: "B.Sc.", po: "PO 2008", intake: "winter" },
+  { id: "inf", name: "Informatik", deg: "B.Sc.", po: "PO 2008" },
   { id: "wi", name: "Wirtschaftsinformatik", deg: "Bachelor", po: "PO 2024" },
   { id: "ma", name: "Mathematik", deg: "B.Sc.", po: "PO 2023" },
 ];
@@ -504,13 +504,18 @@ const MODULES = [
 ];
 const modOf = (key) => MODULES.find((m) => m.key === key);
 const progOf = (id) => PROGRAMS.find((p) => p.id === id);
+// The season a program begins in: a Bachelor's in the winter (odd Fachsemester are winters), unless
+// its Regelstudienplan says otherwise (`stated`: a start named in its caption or the turnus of its
+// modules); a Master's in either, so none is assumed (owner, 18.10.: „bei bachelor Studiengängen man
+// ziemlich sicher sagen, dass ungerade zahlen im Winter sind und gerade im Sommer … Master hingegen
+// haben diese "Einschränkung" nicht").
+const intakeOf = (p) => p.stated ?? (/^(B\.|Bachelor)/.test(p.deg) ? "winter" : null);
 // The Fachsemester a filter of the catalog speaks for (owner, 18.10.: „wenn man semester 3 auswählt
 // im filter ist man probably erst im zweiten. Das muss also auch Kontextanhängig von der zeit
-// inferred werden"). Its semester is one of the plan, the one being looked at: with the program's
-// intake known (a winter intake puts 1, 3, 5 … into winters), the one of the running semester and
-// the next whose season fits; without, the semester the session plans for (P1). The Fachsemester now
-// is the filter's, less the semesters until then.
-const filterAt = (f, now) => { const l = running(now), intake = progOf(f.program).intake; return intake ? (winter(l) === ((f.sem % 2 === 1) === (intake === "winter")) ? l : l + 1) : planningOf(now).p; };
+// inferred werden"). Its semester is one of the plan, the one being looked at: where its season is
+// known, the one of the running semester and the next that has it; else the semester the session
+// plans for (P1). The Fachsemester now is the filter's, less the semesters until then.
+const filterAt = (f, now) => { const l = running(now), intake = intakeOf(progOf(f.program)); return intake ? (winter(l) === ((f.sem % 2 === 1) === (intake === "winter")) ? l : l + 1) : planningOf(now).p; };
 const filterFs = (f, now) => Math.max(1, f.sem - (filterAt(f, now) - running(now)));
 
 // ---------- the situations ----------
