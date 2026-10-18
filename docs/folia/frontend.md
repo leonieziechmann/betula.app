@@ -69,6 +69,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
 
 ### Look and interaction (since 2026-09-19, owner-approved direction)
 
+- **Betula does not say no** (owner, 2026-10-18; the whole principle is in `CLAUDE.md`, „Design"):
+  what a student asks for and is easy to do is allowed, with a note or a warning where it is
+  unusual, rather than a disabled control. A limit needs a reason that holds (what cannot be),
+  not the usual case; defaults follow the usual case. The first to follow it: planning a module
+  into a semester behind the student, with „liegt zurück" or a warning
+  (`folia/design/einplanen/oberflaeche.html`).
 - **Name and logo** (owner decision 2026-09-20, domain `betula.app`): the product is **Betula**
   (the birch; B-T-U stands in the name). Running text says „Betula", only the wordmark stresses
   the three letters: BᴇTUʟᴀ in Inter 800 with E, L and A as small capitals and the E under the bar

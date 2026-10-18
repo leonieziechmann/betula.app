@@ -19,6 +19,25 @@ deploys an hour; `deploy/README.md` section 12).
   environment variable `CANARY_PW` (owner, 2026-10-17), and it never goes into the repository,
   which is public.
 
+## Design
+
+Betula does not say no (owner, 2026-10-18: „Betula soll nie sagen. Nein, das geht nicht wenn es
+nicht ein absolut triftigen Grund dafür gibt. Weil in der Regel hat der Nutzer einen Plan was er
+machen möchte und irgendeine abitreere Regel die wir uns ausgedacht haben könnte sein use case
+kaputt machen, obwohl der total valid ist."):
+
+- What a student asks for and is easy to do is allowed, even where it looks odd: a module planned
+  into a semester behind them or into one that does not offer it, a value outside what is usual.
+  Instead of a disabled control or a refusal, Betula does it and says what is unusual next to the
+  value (a note, a warning), so the choice is an informed one.
+- A no needs a reason that holds: what cannot be (data that does not exist, a semester before the
+  study began, what would break what the student keeps), not a rule made up for the usual case.
+  Defaults and suggestions follow the usual case; limits do not.
+- It does not mean building for every case (owner, same day: „Das heißt aber nicht, dass wir für
+  jeden anwendungsfall entwickeln müssen. Aber wenn das einfach möglich umzusetzen ist, sollte es
+  erlaubt sein."): what takes real work for a rare case may wait; what only a limit stands in the
+  way of is allowed.
+
 ## Versions
 
 Folia, Radix and Cortex each have a version by SemVer, and every change raises the version of
