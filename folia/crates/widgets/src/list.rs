@@ -67,7 +67,8 @@ pub fn Row(
         Memo::new(move |_| finder.view.with(|view| view.note_of(&id, !has_events)))
     });
     let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
-    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.turnus_season.as_ref().and_then(|turnus| turnus.known()), finder.map(|finder| finder.hint), phone));
+    let offer = folia_plans::study::Offer::of(&row);
+    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.title.clone(), offer, finder.map(|finder| finder.hint), phone));
     let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
     let link = view! {
         <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>

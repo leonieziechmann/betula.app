@@ -1,0 +1,1131 @@
+<title>Einplanen-Oberflächen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Three ways to show and change what „Einplanen" did, for the behaviour of verhalten.html (owner,
+     2026-10-18: „D funktioniert auch am besten mit den gesten. Da musst du aber noch ein paar ui
+     Konzepte machen, weil das was du da präsentiert hast war schon clunky."). The click and the swipe
+     plan at once into the semester of the session (verhalten.html); what differs is how that is
+     answered, changed, taken back, and how the study is asked for where none is set up: E a slim
+     note with a stepper, F a longer swipe and arrows at the switch, G the result as a pill that
+     opens the semesters. Each on a desktop and on a phone whose rows a finger really swipes. The
+     student, the modules and the day (Tuesday, 20 October 2026: the session plans for WiSe 26/27)
+     are examples. The owner chose E the same day („Also ich liebe Option E, das ist mit Abstand die
+     eleganteste und das würde ich auch nicht ändern wollen wenn man das Studium schon eingerichtet
+     hat. Aber das Studium einrichten muss definitiv ausführlicher sein. Also so, dass man ein modal
+     bekommt und dann da zwar schon die defaults drin sind. Aber man trotzdem alles änderen kann. Aber
+     das einplanen von Modul soll dann auch mit in dem modal sein, so dass man im best case nur auf ok
+     drücken muss"): without a study, E's „Einplanen" opens „Dein Studium" with the module's semester
+     in one dialog, everything filled in. Then (owner, 18.10.: „Betula sollte bei sowas nicht nein sagen …
+     Deswegen möchte ich das gleich expandiert haben, wo man einen Studiengang auswählen kann aus
+     maximal 3, und darunter gleich eine combobox … nachdem der Studiengang gewählt wurde können wir
+     im regelstudienplan gucken, in welchem Semester das Modul steht und dann das aktuelle fs und das
+     fs in das das modul so wählen, dass das logisch zusammenpasst. Aber nur, wenn der User noch
+     nichts an den werten geändert hat."): without a filter no program is assumed, the module's
+     open with a search under them; the Regelstudienplan fills what the student has not set; the
+     past is allowed, with a warning. Tokens are Betula's (folia/assets/app.css), the swipe's looks those of 1.16. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the brief and what the three share, a bar with the study set up or not, one panel per
+   concept (a desktop and a phone that work, what to try, how it goes, its strengths and
+   weaknesses), the comparison and the recommendation. Tokens: Betula's own (light, then dark). */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --remove: #c2410c; --on-remove: #ffffff;
+  --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel)); --warn-inv: #f5c26b;
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130; --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --remove: #e5664a; --on-remove: #0d1017;
+    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --warn-inv: #8f5a0a;
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --remove: #e5664a; --on-remove: #0d1017;
+  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --warn-inv: #8f5a0a;
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ul { margin: 12px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-2); }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The setting: a bar that stays at the top, under the phone's status bar. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.bar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-panel); }
+.bar .group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.bar .jump { margin-left: auto; display: flex; gap: 4px; }
+.bar .jump a { padding: 6px 10px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.bar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A concept. */
+.concept { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; scroll-margin-top: 80px; }
+.c-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px 18px; align-items: start; padding: 22px 24px 18px; }
+.c-tag { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--invert); color: var(--on-invert); font-size: 17px; font-weight: 760; }
+.c-head h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.c-head h2 small { margin-left: 8px; font-size: 12px; font-weight: 650; color: var(--accent-ink); letter-spacing: .02em; }
+.c-head p { margin-top: 4px; max-width: 78ch; color: var(--text-2); text-wrap: pretty; }
+.c-reset { align-self: center; height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.c-reset:hover { background: var(--panel-3); color: var(--text); }
+.try { margin: 0 24px 16px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 10px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 13.5px; font-weight: 550; }
+.try b { font-weight: 700; }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 26px 24px; background: var(--wood); }
+.c-notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 28px; padding: 18px 24px 22px; }
+.c-notes h3 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.c-notes ul { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--text-2); }
+.c-notes li + li { margin-top: 4px; }
+.c-notes li b { color: var(--text); font-weight: 620; }
+
+/* The devices: a window and a phone, scaled to fit (--s). */
+.device { margin: 0; min-width: 0; }
+.device figcaption { margin-top: 10px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; }
+.desk .fit { --w: 780; --h: 540; }
+.desk .frame { border-radius: 12px; background: var(--device); padding: 0 6px 6px; box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.desk .chrome { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; }
+.desk .chrome i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
+.desk .chrome span { min-width: 0; margin-left: 12px; padding: 2px 10px; border-radius: 5px; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .62); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk .screen { border-radius: 6px; }
+.phone { width: 300px; }
+.phone .fit { --w: 390; --h: 800; }
+.phone .frame { padding: 9px; border-radius: 44px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.phone .screen { border-radius: 36px; }
+
+/* ---------- Betula inside the devices ---------- */
+.app { position: relative; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; -webkit-user-select: none; user-select: none; }
+.app .panel { border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.app .label { font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.app svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.app kbd { padding: 1px 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px var(--mono); }
+.app button { border: 0; background: none; cursor: pointer; }
+.search { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); }
+.mono { font-family: var(--mono); font-size: 11.5px; }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11.5px; font-weight: 600; color: var(--text); }
+/* Where a module is planned, at its row and at its switch. */
+.pl { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px 1px 5px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); font: 600 11px/1.45 var(--font); white-space: nowrap; }
+.pl svg.i { width: 12px; height: 12px; }
+.pl .q { display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 9.5px; font-weight: 800; }
+button.pl { cursor: pointer; }
+.pop { animation: pop .42s var(--spring); }
+@keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { opacity: 1; } }
+.undo-link { padding: 0 2px !important; color: var(--accent-ink) !important; font: 650 11.5px var(--font) !important; text-decoration: underline; text-underline-offset: 2px; }
+.gone { color: var(--text-3); font-size: 11.5px; }
+/* The desktop: the search, the list, the module beside it. */
+.d-app { position: absolute; inset: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr); gap: 8px; padding: 8px; }
+.d-app > .search { grid-column: 1 / -1; }
+.list { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.list-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 14px 8px; font-size: 13px; color: var(--text-2); }
+.list-head > b { font-size: 17px; color: var(--text); }
+.drow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; margin: 0 6px; padding: 9px 10px; border-radius: var(--r-row); cursor: pointer; }
+.drow:hover { background: var(--row-hover); }
+.drow + .drow { margin-top: 1px; }
+.drow.cur { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
+.drow b { font-size: 13px; font-weight: 640; }
+.m { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); font-size: 11.5px; }
+.lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 700; font-size: 13px; }
+.lp small { font-weight: 500; color: var(--text-3); }
+.detail { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.hero { padding: 12px 16px 14px 18px; border-bottom: 1px solid var(--line); }
+.hero-top { display: flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 12.5px; }
+.hero-top .mono { margin-right: auto; padding: 3px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.hero-top span:not(.mono) { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; }
+.hero h3 { margin-top: 8px; font-size: 21px; line-height: 1.16; letter-spacing: -.025em; font-weight: 720; }
+.hero .en { color: var(--text-2); font-size: 13px; }
+.hero-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; margin-right: auto; }
+.b { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; font-weight: 560; color: var(--text-2); }
+.b.strong { background: var(--invert); color: var(--on-invert); box-shadow: none; font-weight: 700; }
+.b.warn { background: var(--warn-soft); color: var(--warn); box-shadow: none; }
+.pair { display: flex; flex-wrap: nowrap; gap: 6px; }
+.sw { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 10px !important; border-radius: var(--r-ctl); background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; transition: background .16s, color .16s; }
+.sw:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.sw small { font-size: 12px; font-weight: 520; color: var(--text-3); }
+.sw.on { background: var(--invert) !important; color: var(--on-invert); box-shadow: none; }
+.sw.on small { color: color-mix(in srgb, var(--on-invert) 72%, transparent); }
+.sw.on kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
+.body { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.body p { color: var(--text-2); font-size: 12.5px; }
+.body i { display: block; height: 40px; border-radius: 8px; background: var(--panel-2); }
+.under { margin-top: 8px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); }
+/* The phone: the list a finger swipes, the bar of the tabs, the module's sheet when a row is tapped. */
+.p-app { position: absolute; inset: 0; }
+.p-status { position: absolute; left: 30px; right: 30px; top: 16px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 650; }
+.p-top { position: absolute; left: 12px; right: 12px; top: 52px; display: flex; gap: 8px; }
+.p-top .search { flex: 1; height: 46px; }
+.p-top i { width: 46px; height: 46px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); }
+.p-head { position: absolute; left: 12px; right: 12px; top: 108px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.p-head > b { font-size: 18px; color: var(--text); margin-right: 2px; }
+.p-list { position: absolute; left: 12px; right: 12px; top: 150px; display: flex; flex-direction: column; gap: 8px; }
+.rw { position: relative; border-radius: 12px; box-shadow: var(--shadow-panel); overflow: hidden; touch-action: pan-y; }
+.card { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; padding: 12px 14px; border-radius: 12px; background: var(--panel); cursor: pointer; }
+.rw[data-swipe="glide"] .card { transition: transform .32s var(--ease); }
+.card b { font-size: 15px; font-weight: 650; }
+.card .m { font-size: 12px; }
+.card .lp { font-size: 15px; }
+.card .lp small { font-size: 11px; }
+.card.cur::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.ground { position: absolute; inset: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--panel-3); color: var(--text-2); transition: background .16s, color .16s; }
+.ground .i { width: 20px !important; height: 20px !important; }
+.ground .gw { display: grid; line-height: 1.25; min-width: 0; }
+.ground .gw b { font-size: 15px; font-weight: 650; white-space: nowrap; }
+.ground .gw small { font-size: 12.5px; font-weight: 520; opacity: .85; white-space: nowrap; }
+.ground .dots { display: flex; gap: 5px; margin-left: 4px; }
+.ground .dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .3; transition: opacity .12s, transform .12s; }
+.ground .dots i.on { opacity: 1; transform: scale(1.35); }
+.rw[data-armed] .ground { background: var(--accent); color: var(--on-accent); }
+.rw[data-armed][data-planned] .ground { background: var(--remove); color: var(--on-remove); }
+.rw[data-planned]:not([data-armed]) .ground { background: var(--accent); color: var(--on-accent); }
+.p-nav { position: absolute; left: 10px; right: 10px; bottom: 12px; height: 60px; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; justify-items: center; border-radius: 16px; background: color-mix(in srgb, var(--panel) 92%, transparent); box-shadow: var(--shadow-pop); }
+.p-nav span { position: relative; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); }
+.p-nav span.on { background: var(--invert); }
+.p-nav span em { position: absolute; top: -6px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font: 700 10px/16px var(--font); font-style: normal; text-align: center; box-shadow: 0 0 0 2px var(--panel); }
+.p-shade { position: absolute; inset: 0; z-index: 3; background: rgba(15, 23, 42, .3); }
+.p-sheet { position: absolute; z-index: 4; left: 0; right: 0; top: 300px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: sheet-in .3s var(--ease); }
+@keyframes sheet-in { from { transform: translateY(40%); opacity: .4; } }
+.p-sheet::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+.p-sheet .hero { padding: 20px 16px 16px; }
+.p-sheet .hero-top .x { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 50%; background: var(--panel-3); color: var(--text); cursor: pointer; }
+.p-sheet .hero h3 { font-size: 23px; }
+.p-sheet .badges { margin-right: 0; }
+.p-sheet .switches { display: flex; gap: 8px; width: 100%; }
+.p-sheet .switches > * { flex: 1 1 0; min-width: 0; }
+.p-sheet .sw { justify-content: center; min-height: 46px; font-size: 15px; padding: 0 12px !important; }
+.p-sheet kbd { display: none; }
+.p-sheet .body p { font-size: 13.5px; }
+
+/* ---------- E: a slim note with a stepper ---------- */
+.snack-wrap { position: absolute; z-index: 6; left: 50%; bottom: 18px; translate: -50% 0; width: max-content; max-width: calc(100% - 24px); display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.p-app .snack-wrap { bottom: 84px; width: calc(100% - 24px); }
+.p-app.sheet-open .snack-wrap { bottom: 20px; }
+.snack { display: flex; flex-direction: column; border-radius: 14px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); overflow: hidden; animation: rise .26s var(--ease); }
+.snack-row { display: flex; align-items: center; gap: 2px; min-height: 52px; padding: 4px 6px 4px 12px; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+.snack .ok { display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.snack .ok .i { width: 13px !important; height: 13px !important; stroke-width: 3 !important; }
+.snack .ok.no { background: color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.snack .arr { display: grid; place-items: center; width: 34px; height: 40px; border-radius: 9px; color: var(--on-invert); }
+.snack .arr:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
+.snack .arr[disabled] { opacity: .25; cursor: default; }
+.snack .sv { display: grid; justify-items: center; min-width: 108px; line-height: 1.2; }
+.snack .sv b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.snack .sv small { font-size: 11px; opacity: .7; }
+.snack .sv small .past { font-style: normal; font-weight: 650; color: var(--warn-inv); }
+.snack .sv:has(.past) small { opacity: 1; }
+.snack .sv.flip b { animation: flip .22s var(--ease); }
+@keyframes flip { from { opacity: 0; transform: translateY(6px); } }
+.snack .sep { width: 1px; height: 26px; margin: 0 6px; background: color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.snack .tx { height: 40px; padding: 0 10px !important; border-radius: 9px; color: var(--on-invert); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.snack .tx:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
+.snack .said { flex: 1; font-size: 13.5px; padding-right: 8px; }
+/* „Weitere Module auch nach SoSe 27" (owner, 2026-10-18: „die Option mit, die nächsten Module auch
+   in das Semester planen ist genial. Aber das Design von der Box muss … angepasst werden die sieht
+   aktuell etwas unaufgeräumt aus"): the note's second row, not a box of its own; its icon under the
+   check, its words where the semester's line starts, a switch at the end. It comes in when a module
+   was moved, and stays in every note while the session plans there, switched on, where it is
+   switched off again. */
+.snack-keep { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px 11px !important; border-top: 1px solid color-mix(in srgb, var(--on-invert) 14%, transparent) !important; color: var(--on-invert); font-size: 13px; font-weight: 520; text-align: left; animation: unfold .26s var(--ease); }
+.snack-keep:hover { background: color-mix(in srgb, var(--on-invert) 6%, transparent) !important; }
+.snack-keep .ico { display: grid; place-items: center; width: 22px; opacity: .65; }
+.snack-keep .ico .i { width: 15px !important; height: 15px !important; }
+.snack-keep > span:nth-child(2) { flex: 1; min-width: 0; }
+.snack-keep b { font-weight: 700; }
+.snack-keep[aria-checked="true"] .ico { opacity: 1; color: var(--accent); }
+.switch { position: relative; flex: none; width: 34px; height: 20px; border-radius: 10px; background: color-mix(in srgb, var(--on-invert) 24%, transparent); transition: background .18s; }
+.switch::after { content: ""; position: absolute; left: 2px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-invert); transition: transform .22s var(--spring); }
+.snack-keep[aria-checked="true"] .switch { background: var(--accent); }
+.snack-keep[aria-checked="true"] .switch::after { transform: translateX(14px); background: #fff; }
+@keyframes unfold { from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; } to { opacity: 1; max-height: 60px; } }
+.ask-card { display: flex; flex-direction: column; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
+.d-app .ask-card { width: 380px; }
+.ask-card > div { flex: 1; min-width: 0; line-height: 1.3; }
+.ask-card b { display: block; font-size: 13px; font-weight: 700; }
+.ask-card span { font-size: 12.5px; color: var(--text-2); }
+.yes { height: 34px; padding: 0 14px !important; border-radius: 9px; background: var(--accent) !important; color: var(--on-accent); font-size: 13px; font-weight: 650; }
+.nope { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; color: var(--text-3); }
+.nope:hover { background: var(--panel-3); color: var(--text); }
+
+/* ---------- F: a longer swipe, arrows at the switch, the session's semester in the list's head ---------- */
+.aim { display: inline-flex; align-items: center; gap: 6px; height: 28px; margin-left: auto; padding: 0 8px 0 10px !important; border-radius: 8px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.aim b { color: var(--text); font-weight: 700; }
+.aim.chosen { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-ink); }
+.aim.chosen b { color: var(--accent-ink); }
+.aim .i { width: 13px !important; height: 13px !important; }
+.aim-wrap { position: relative; margin-left: auto; }
+.aim-menu { position: absolute; z-index: 7; right: 0; top: 34px; width: 210px; padding: 6px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .18s var(--ease); }
+.aim-menu p { padding: 4px 8px 6px; font-size: 11.5px; color: var(--text-3); font-weight: 600; line-height: 1.35; }
+.aim-menu button { display: flex; justify-content: space-between; width: 100%; padding: 8px 10px !important; border-radius: 8px; font-size: 13px; font-weight: 600; text-align: left; }
+.aim-menu button:hover { background: var(--row-hover); }
+.aim-menu button[aria-checked="true"] { color: var(--accent-ink); }
+.aim-menu button small { color: var(--text-3); font-weight: 500; }
+.stepper { display: inline-flex; align-items: stretch; border-radius: var(--r-ctl); background: var(--invert); color: var(--on-invert); overflow: hidden; }
+.stepper > button { display: grid; place-items: center; min-height: 32px; color: var(--on-invert); }
+.stepper .a { width: 30px; }
+.stepper .a:hover, .stepper .c:hover { background: color-mix(in srgb, var(--on-invert) 10%, transparent); }
+.stepper .a[disabled] { opacity: .25; cursor: default; }
+.stepper .c { display: inline-flex !important; align-items: center; gap: 7px; padding: 0 6px !important; font-size: 13px; font-weight: 650; white-space: nowrap; box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 18%, transparent), inset -1px 0 0 color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.stepper .c small { font-weight: 520; opacity: .72; font-size: 12px; }
+.stepper .c.flip span { animation: flip .22s var(--ease); display: inline-block; }
+.p-sheet .stepper > button { min-height: 46px; }
+.p-sheet .stepper .a { flex: none; width: 34px; }
+.p-sheet .stepper .c { flex: 1 1 auto; min-width: 0; justify-content: center; gap: 5px; font-size: 14.5px; }
+.p-sheet .stepper .c > span:first-child { display: none; }
+.banner { display: flex; flex-direction: column; gap: 10px; padding: 10px 8px 10px 12px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); animation: rise .26s var(--ease); }
+.p-banner .banner { background: var(--panel); box-shadow: var(--shadow-pop); }
+.banner > div { flex: 1; min-width: 0; line-height: 1.3; }
+.banner b { display: block; font-size: 12.5px; font-weight: 700; color: var(--accent-ink); }
+.banner span { font-size: 12.5px; color: var(--text); font-weight: 600; }
+.hero .banner { margin-top: 10px; }
+.p-banner { position: absolute; left: 12px; right: 12px; z-index: 2; }
+
+/* ---------- G: the result as a pill that opens the semesters ---------- */
+.pillsw { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 10px !important; border-radius: 999px; background: var(--invert) !important; color: var(--on-invert); font-size: 13px; font-weight: 650; white-space: nowrap; }
+.pillsw small { font-weight: 520; opacity: .72; font-size: 12px; }
+.pillsw .q { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 10px; font-weight: 800; }
+.pillsw[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--accent-line); }
+.p-sheet .pillsw { justify-content: center; min-height: 46px; font-size: 15px; }
+.strip { margin-top: 10px; padding: 8px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); animation: rise .2s var(--ease); }
+.strip-ask { margin: -2px -2px 8px; padding: 8px 6px 8px 10px; border-radius: 9px; background: var(--accent-soft); }
+.strip-ask div { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.3; color: var(--text); }
+.strip-ask div b { display: block; color: var(--accent-ink); font-size: 12px; }
+.sems { display: flex; gap: 4px; }
+.sems button { flex: 1 1 0; min-width: 0; display: grid; justify-items: center; padding: 6px 4px !important; border-radius: 8px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); line-height: 1.2; }
+.sems button b { font-size: 12.5px; font-weight: 700; }
+.sems button small { font-size: 10.5px; color: var(--text-3); }
+.sems button.off small { color: var(--warn); }
+.sems button[aria-pressed="true"] { background: var(--accent) !important; box-shadow: none; color: var(--on-accent); }
+.sems button[aria-pressed="true"] small { color: color-mix(in srgb, var(--on-accent) 80%, transparent); }
+.sems .trash { flex: 0 0 38px; color: var(--remove); place-items: center; }
+.strip-foot { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.strip-foot .box { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--on-accent); }
+.strip-foot[aria-checked="true"] .box { background: var(--accent); box-shadow: none; }
+.strip-foot .box .i { width: 11px !important; height: 11px !important; stroke-width: 3.2 !important; }
+.sems button b, .sems button small { white-space: nowrap; }
+.p-sheet .sems button { padding: 9px 2px !important; }
+.p-sheet .sems button b { font-size: 12.5px; }
+.p-sheet .sems button small { font-size: 10px; }
+
+/* The question for the study without a filter (owner, 2026-10-18: „ich liebe die Idee, das man aus
+   den vom Modul zugeordneten Studiengänge eine liste zum Anklicken erstellt. Aber … zeige da
+   maximal 3, und bevorzugt die wo das ein Pflichtmodul ist und darunter die Option anderer
+   Studiengang"): the programs of the module the student planned, three at most, compulsory first,
+   then „Anderer Studiengang"; picked, the Fachsemester as a row of numbers, the likely one marked. */
+.askbox { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.askbox .ah { display: flex; align-items: flex-start; gap: 8px; }
+.askbox .ah > div { flex: 1; min-width: 0; line-height: 1.3; }
+.askbox .ah b { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+.askbox .ah small { font-size: 12px; color: var(--text-2); }
+.progs { display: flex; flex-direction: column; gap: 4px; }
+.progs button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 38px; padding: 6px 10px 6px 12px !important; border-radius: 9px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); text-align: left; }
+.progs button:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.progs button span { font-size: 13px; font-weight: 650; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progs button small { flex: none; font-size: 11.5px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.progs button small.req { color: var(--accent-ink); }
+.progs button.other { background: none !important; box-shadow: inset 0 0 0 1px var(--line); }
+.progs button.other span { color: var(--text-2); font-weight: 600; }
+.progs .scroll { display: flex; flex-direction: column; gap: 4px; max-height: 168px; overflow-y: auto; }
+.askq { width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 13px var(--font); -webkit-user-select: text; user-select: text; }
+.fsrow { display: flex; flex-wrap: wrap; gap: 4px; }
+.fsrow button { flex: 1 0 34px; height: 36px; border-radius: 8px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fsrow button.guess { background: var(--accent) !important; color: var(--on-accent); box-shadow: none; }
+.askback { align-self: flex-start; padding: 2px 0 !important; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.ask-card.wide, .banner.wide { align-items: stretch; }
+.p-app .p-banner { bottom: 84px; }
+.p-sheet .progs button { min-height: 44px; }
+.p-sheet .progs button span { font-size: 14.5px; }
+.p-sheet .fsrow button { height: 42px; font-size: 15px; }
+
+/* E without a study: one dialog, „Dein Studium" as the app's card (planner/src/study/card.rs: a
+   sentence, a row a value with what it comes from under it) and the module's semester under it;
+   everything filled in, „Einrichten und einplanen" takes it as it is. A sheet from below on a phone. */
+.m-shade { position: absolute; inset: 0; z-index: 8; background: rgba(10, 12, 17, .45); animation: fade .2s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+.m-dlg { position: absolute; z-index: 9; left: 50%; top: 50%; translate: -50% -50%; width: 520px; max-height: calc(100% - 24px); display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: dlg-in .3s var(--spring); }
+@keyframes dlg-in { from { opacity: 0; transform: scale(.96); } }
+.p-app .m-dlg { left: 0; right: 0; top: auto; bottom: 0; translate: none; width: auto; max-height: 92%; border-radius: 18px 18px 0 0; animation: sheet-in .32s var(--ease); }
+.p-app .m-dlg::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+.m-head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 12px 10px 20px; }
+.p-app .m-head { padding-top: 22px; }
+.m-head > div { flex: 1; min-width: 0; }
+.m-head h4 { font-size: 17px; font-weight: 700; letter-spacing: -.015em; }
+.m-head p { margin-top: 3px; color: var(--text-2); font-size: 13px; line-height: 1.45; }
+.m-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+.study { border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.study .say { padding: 12px 14px 11px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 650; letter-spacing: -.01em; line-height: 1.35; }
+.study .say em { font-style: normal; color: var(--accent-ink); }
+.srow { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 2px 10px; align-items: center; padding: 8px 10px 8px 14px; }
+.srow + .srow { border-top: 1px solid var(--line); }
+.srow .label { grid-row: 1; }
+.srow .val { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; min-width: 0; }
+.srow .val > b { font-size: 14.5px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .val > button.change { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: calc(100% + 8px); min-height: 36px; margin-left: -8px; padding: 0 8px !important; border-radius: 8px; font-size: 14.5px; font-weight: 650; text-align: left; }
+.srow .val > button.change:hover, .srow .val > button.change[aria-expanded="true"] { background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.srow .val > button.change span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .val > button.change .i { color: var(--text-3); }
+.srow .note { grid-column: 2; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .note.warn { color: var(--warn); }
+.srow .note.wrap { white-space: normal; line-height: 1.4; }
+.srow .note b { color: var(--accent-ink); font-weight: 650; }
+.srow .pick { grid-column: 1 / -1; margin: 6px -2px 2px; }
+.srow.first { display: block; padding-top: 10px; }
+.srow.first .pick { margin: 0 -2px 2px; }
+.pm { display: inline-flex; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); flex: none; }
+.pm button { display: grid; place-items: center; width: 34px; height: 32px; color: var(--text-2); font-size: 16px; font-weight: 600; }
+.pm button:hover { color: var(--text); background: var(--panel-3) !important; }
+.pm button[disabled] { opacity: .3; cursor: default; background: none !important; }
+.pm button + button { box-shadow: inset 1px 0 0 var(--line); }
+.m-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px 14px 20px; border-top: 1px solid var(--line); }
+.m-foot .plain { margin-right: auto; padding: 0 !important; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.m-foot .ok { min-height: 40px; padding: 0 16px !important; border-radius: var(--r-ctl); background: var(--accent) !important; color: var(--on-accent); font-size: 14px; font-weight: 650; }
+.m-foot .cancel { min-height: 40px; padding: 0 14px !important; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 14px; font-weight: 620; }
+.p-app .m-foot { flex-direction: column-reverse; align-items: stretch; padding: 12px 16px 22px; }
+.p-app .m-foot .ok { min-height: 48px; font-size: 15px; }
+.p-app .m-foot .cancel { display: none; }
+.p-app .m-foot .plain { margin: 4px auto 0; }
+.p-app .m-body { padding: 4px 16px 12px; }
+.p-app .srow { grid-template-columns: 92px minmax(0, 1fr); }
+.p-app .study .say { font-size: 15.5px; }
+/* Without a program yet: the three open at once, the search right under them; the warning where the
+   module's semester lies behind the student. */
+.srow .val > .unset { font-size: 14.5px; font-weight: 600; color: var(--text-3); }
+.srow .note.good { color: var(--accent-ink); }
+.progs button[aria-checked="true"] { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 2px var(--accent); }
+.combo { margin-top: 6px; }
+.combo .cq { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); cursor: text; }
+.combo .cq:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.combo .cq input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--text); font: 13px var(--font); outline: none; -webkit-user-select: text; user-select: text; }
+.combo .cq input::placeholder { color: var(--text-3); }
+.combo-list { display: flex; flex-direction: column; margin-top: 4px; padding: 4px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-pop); }
+.combo-list button { display: flex; align-items: center; min-height: 36px; padding: 0 10px !important; border-radius: 6px; text-align: left; font-size: 13px; font-weight: 600; }
+.combo-list button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-list button:hover, .combo-list button:focus-visible { background: var(--panel-3) !important; outline: none; }
+.combo-list mark { background: none; color: var(--accent-ink); font-weight: 760; }
+.combo-list .none { padding: 7px 10px; font-size: 12px; color: var(--text-3); }
+.m-warn { display: flex; align-items: flex-start; gap: 8px; margin: 0 10px 10px 14px; padding: 8px 10px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; line-height: 1.45; animation: fade .2s ease-out; }
+.app .m-warn svg.i { width: 15px; height: 15px; margin-top: 1px; }
+.m-warn b { font-weight: 650; }
+.m-foot .ok[disabled] { opacity: .4; cursor: default; }
+.p-app .combo .cq { height: 44px; }
+.p-app .combo .cq input { font-size: 15px; }
+.p-app .combo-list button { min-height: 44px; font-size: 14.5px; }
+.p-app .m-warn { font-size: 13px; }
+
+/* The comparison and the recommendation. */
+.cmp, .reco { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 80px; }
+.cmp h2, .reco h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.cmp .scroll { margin-top: 14px; overflow-x: auto; }
+.cmp table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; }
+.cmp th, .cmp td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.cmp thead th { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.cmp tbody th { font-weight: 600; color: var(--text); width: 24%; }
+.cmp td { color: var(--text-2); }
+.cmp td b { color: var(--text); }
+.reco p { margin-top: 10px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.reco p b { color: var(--text); font-weight: 640; }
+.reco ul { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); max-width: 80ch; }
+.reco li + li { margin-top: 6px; }
+.reco li b { color: var(--text); font-weight: 640; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pop, .snack, .snack-keep, .ask-card, .banner, .strip, .aim-menu, .p-sheet, .snack .sv.flip b, .stepper .c.flip span { animation: none; }
+  .rw[data-swipe="glide"] .card { transition: none; }
+}
+@media (max-width: 960px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 22px 16px; }
+  .stage .desk { width: 100%; }
+  .stage .phone { order: -1; }
+  .c-notes { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 20px; }
+  .c-head { grid-template-columns: auto minmax(0, 1fr); padding: 18px 16px 14px; }
+  .c-reset { grid-column: 1 / -1; justify-self: start; }
+  .try { margin: 0 16px 14px; }
+  .cmp, .reco { padding: 18px 16px; }
+  .bar .jump { display: none; }
+}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Einplanen · 18.10.2026</p>
+      <h1>Sofort eingeplant, und dann?</h1>
+      <p class="lead">Drei Oberflächen für Konzept D. Ein Tipp auf „Einplanen“ oder ein Wisch nach rechts plant sofort ins Semester der Sitzung, wie im Verhaltensblatt. Hier geht es darum, wie Betula das zeigt, wie man das Semester ändert, wie man es zurücknimmt und wie es nach dem Studium fragt. Auf dem Handy-Prototyp lässt sich wirklich wischen.</p>
+      <p class="quote">„D funktioniert auch am besten mit den <b>Gesten</b>. Da musst du aber noch ein paar <b>UI-Konzepte</b> machen, weil das was du da präsentiert hast war schon <b>clunky</b>.“</p>
+    </div>
+    <aside class="rules" aria-labelledby="share-title">
+      <p class="kicker" id="share-title">Was alle drei gemeinsam haben</p>
+      <ul>
+        <li><b>Ein Tipp oder ein Wisch plant sofort,</b> nichts geht dazwischen auf.</li>
+        <li><b>Der Knopf sagt vorher leise, wohin:</b> „Einplanen · WiSe 26/27“.</li>
+        <li><b>Das Ergebnis steht an der Zeile</b> und am Knopf, mit Fachsemester, wo es eins gibt.</li>
+        <li><b>Höchstens eine Zeile Text,</b> keine Gitter, keine Erklärsätze in der App.</li>
+        <li><b>Ohne Studium</b> fragt Betula einmal: mit Filter ein Tipp auf „Ja“ (das Fachsemester nach der Zeit gedeutet: „2. Semester“ im Oktober heißt bei Studienbeginn im Winter: jetzt im 1.), ohne Filter die Studiengänge des Moduls (höchstens drei, Pflicht zuerst) und das vermutete Fachsemester, zwei Tipps.</li>
+      </ul>
+    </aside>
+  </header>
+
+  <nav class="bar" aria-label="Einstellungen">
+    <div class="group"><span class="kicker">Studium</span>
+      <div class="seg" role="group" aria-label="Studium"><button type="button" data-setup="set" aria-pressed="true">eingerichtet, 3. FS</button><button type="button" data-setup="filter" aria-pressed="false">noch nicht, mit Filter</button><button type="button" data-setup="none" aria-pressed="false">noch nicht, ohne Filter</button></div>
+    </div>
+    <div class="jump"><a href="#e">E</a><a href="#f">F</a><a href="#g">G</a><a href="#vergleich">Vergleich</a></div>
+  </nav>
+
+  <section class="concept" id="e" aria-labelledby="e-title">
+    <header class="c-head">
+      <span class="c-tag">E</span>
+      <div><h2 id="e-title">Hinweis mit Stepper <small>Gewählt</small></h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt in derselben Leiste eine zweite Zeile „Weitere Module auch nach SoSe 27“ mit einem Schalter; eingeschaltet steht sie in jeder weiteren Leiste, bis man ihn ausschaltet. Fehlt das Studium, öffnet „Einplanen“ einen Dialog: „Dein Studium“ und das Semester des Moduls, alles änderbar. Ohne Filter wählt man zuerst den Studiengang; Fachsemester und Semester füllt Betula dann nach dem Regelstudienplan. Im besten Fall genügt „Einrichten und einplanen“.</p></div>
+      <button class="c-reset" type="button" data-reset="e">Zurücksetzen</button>
+    </header>
+    <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · oben „noch nicht, ohne Filter“ wählen, einplanen, einen Studiengang wählen oder suchen · danach das Fachsemester auf 5: Datenbanken liegt laut Plan hinter dir</p>
+    <div class="stage" data-concept="e"></div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später, auch in ein vergangenes (dann steht „liegt zurück“ dabei).</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li><li>Nach dem Verschieben: Schalter „Weitere Module auch nach …“ in der zweiten Zeile.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Man sieht immer, was passiert ist,</b> auch beim Wischen in der Liste.</li><li>Ein anderes Semester ist <b>ein Tipp</b> auf ›.</li><li>Am Rechner wie am Handy dieselbe Leiste.</li></ul></div>
+      <div><h3>Ohne Studium</h3><ul><li><b>Ein Dialog statt der Leiste:</b> Studiengang, Fachsemester und das Semester des Moduls. Mit Filter ist alles vorausgefüllt, <b>ein Druck auf „Einrichten und einplanen“</b>.</li><li><b>Ohne Filter</b> nimmt Betula keinen Studiengang an: die des Moduls stehen offen da (höchstens drei, Pflicht zuerst), darunter gleich die Suche nach jedem anderen.</li><li><b>Danach der Regelstudienplan:</b> wo er das Modul hinlegt, daraus Fachsemester und Semester, die zusammenpassen; nur, was du nicht selbst gesetzt hast. Im Bachelor liegen ungerade Fachsemester im Winter, wenn der Plan nichts anderes sagt: ein Modul des 4. Semesters (Mathematik B.Sc.) kommt so ins SoSe 27, und du bist jetzt im 3. Im Master nimmt Betula keinen Beginn an. Liegt das hinter dir, kommt es ins nächste Semester, mit Hinweis; ‹ geht auch in die Vergangenheit, mit Warnung.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="f" aria-labelledby="f-title">
+    <header class="c-head">
+      <span class="c-tag">F</span>
+      <div><h2 id="f-title">Weiterwischen <small>Empfehlung</small></h2><p>Der Wisch ist das Werkzeug: kurz gewischt plant er ins Semester der Sitzung, weiter gewischt springt er Semester für Semester weiter, Punkte zeigen wohin. Kein Hinweis legt sich über die Seite; das Ergebnis erscheint an der Zeile, mit „Rückgängig“ daneben. Im Modul wird „Eingeplant“ zu ‹ Semester ›. Oben an der Liste steht, wohin die Sitzung plant, zum Ändern.</p></div>
+      <button class="c-reset" type="button" data-reset="f">Zurücksetzen</button>
+    </header>
+    <p class="try"><b>Probier:</b> eine Zeile kurz nach rechts wischen, eine andere weit · oben „Einplanen nach …“ antippen · im Modul die Pfeile</p>
+    <div class="stage" data-concept="f"></div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Kurz wischen: Semester der Sitzung. Weiter wischen: die nächsten, ein Punkt je Semester.</li><li>Im Modul: „Einplanen“, danach ‹ › am Knopf, die Mitte nimmt es heraus.</li><li>„Einplanen nach …“ an der Liste: für alle weiteren in dieser Sitzung.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Jedes Semester in einer Bewegung,</b> ohne einen Tipp mehr.</li><li><b>Nichts legt sich über die Seite;</b> das Ergebnis steht, wo man hingeschaut hat.</li><li>Das Semester der Sitzung ist <b>immer sichtbar</b> und nur dort zu ändern.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Weiterwischen muss man einmal entdecken (die Punkte helfen).</li><li>„Rückgängig“ an der Zeile ist klein und geht nach ein paar Sekunden.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="g" aria-labelledby="g-title">
+    <header class="c-head">
+      <span class="c-tag">G</span>
+      <div><h2 id="g-title">Pille</h2><p>Das Ergebnis ist der Schalter: nach dem Tipp springt „Einplanen“ zu einer Pille „✓ WiSe 26/27 · 3. FS ▾“, an der Zeile ebenso. Die Pille antippen klappt darunter die Semester auf, mit Papierkorb. Fehlt das Studium, trägt die Pille ein kleines „?“ statt des Fachsemesters, und oben im Aufgeklappten steht die Frage.</p></div>
+      <button class="c-reset" type="button" data-reset="g">Zurücksetzen</button>
+    </header>
+    <p class="try"><b>Probier:</b> eine Zeile nach rechts wischen und danach ihre Pille antippen · im Modul „Einplanen“, dann die Pille</p>
+    <div class="stage" data-concept="g"></div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, die Pille springt herein.</li><li>Pille antippen: die Semester darunter, eins antippen verschiebt.</li><li>Papierkorb in der Pille: wieder raus.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Am ruhigsten:</b> keine Leiste, kein Hinweis, nur das Ergebnis.</li><li>Die Frage nach dem Studium hängt <b>am „?“</b>, ohne zu drängeln.</li><li>Dasselbe an der Zeile und im Modul.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Ein anderes Semester sind <b>zwei Tipps</b>.</li><li>Das „?“ übersieht man leicht; dann bleibt das Studium uneingerichtet.</li><li>Kein „Rückgängig“; zurück geht es über den Papierkorb.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="cmp" id="vergleich" aria-labelledby="cmp-title">
+    <h2 id="cmp-title">Vergleich</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th scope="col"></th><th scope="col">E Hinweis mit Stepper</th><th scope="col">F Weiterwischen</th><th scope="col">G Pille</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Einplanen</th><td>1 Tipp oder Wisch</td><td>1 Tipp oder Wisch</td><td>1 Tipp oder Wisch</td></tr>
+          <tr><th scope="row">In ein anderes Semester</th><td>+1 Tipp je Semester</td><td><b>dieselbe Bewegung</b>, weiter gewischt; im Modul +1 Tipp je Semester</td><td>+2 Tipps</td></tr>
+          <tr><th scope="row">Zurücknehmen</th><td>„Rückgängig“ in der Leiste</td><td>„Rückgängig“ an der Zeile, oder wieder wischen</td><td>Papierkorb, oder wieder wischen</td></tr>
+          <tr><th scope="row">Was über der Seite liegt</th><td>eine Leiste, ein paar Sekunden</td><td><b>nichts</b></td><td><b>nichts</b></td></tr>
+          <tr><th scope="row">Semester der Sitzung ändern</th><td>Kästchen nach dem Verschieben</td><td><b>Schalter an der Liste,</b> immer sichtbar</td><td>Kästchen im Aufgeklappten</td></tr>
+          <tr><th scope="row">Frage nach dem Studium</th><td>helle Karte über der Leiste</td><td>Zeile im Modul oder über der Liste</td><td>„?“ an der Pille</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="reco" aria-labelledby="reco-title">
+    <h2 id="reco-title">Entscheidung: E</h2>
+    <p><b>E, mit dem Dialog für ein Studium, das noch nicht eingerichtet ist</b> (owner, 18.10.: „mit Abstand die eleganteste … so dass man im best case nur auf ok drücken muss, dann das Studium eingerichtet ist und dass Modul im richtigen Semester geplant ist“). Was folgt, war die Empfehlung davor:</p>
+    <p><b>F, weil der Wisch alles kann und nichts dazwischenkommt.</b> Kurz gewischt ist es der schnelle Weg, weiter gewischt jedes andere Semester. Das Ergebnis steht dort, wo man gerade hinschaut. Im Modul werden aus „Eingeplant“ Pfeile, und das Semester der Sitzung steht offen an der Liste statt in einem Hinweis, der wieder verschwindet.</p>
+    <ul>
+      <li><b>Von G übernehmen:</b> die Pille an der Zeile springt beim Einplanen herein; das ist die Bestätigung, ohne Leiste.</li>
+      <li><b>Von E als Rückfall:</b> wenn „Rückgängig“ an der Zeile zu klein ist, kommt die schmale Leiste von E nur für „Entfernt · Rückgängig“.</li>
+      <li><b>Am Rechner</b> gibt es keinen Wisch; dort tragen „Einplanen“, die Pfeile am Knopf und der Schalter an der Liste alles.</li>
+      <li><b>Ohne Studium und ohne Filter</b> bietet die Frage die Studiengänge des Moduls an: höchstens drei, Pflicht zuerst, jeder mit dem Semester, in das sein Plan das Modul legt, darunter „Anderer Studiengang …“. Danach die Fachsemester als Zahlen, das vermutete hervorgehoben (das Semester im Plan, weniger die Semester bis zum eingeplanten). Zwei Tipps.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+"use strict";
+// ---------- the day, the semesters, the modules (examples) ----------
+// Tuesday, 20 October 2026: the session plans for WiSe 26/27 (verhalten.html, P1).
+const SESSION = 4053; // WiSe 2026/27, as Betula numbers semesters: year * 2 + 1 for a winter
+const sem = (i) => { const y = Math.floor(i / 2); return i % 2 ? `WiSe ${y % 100}/${(y + 1) % 100}` : `SoSe ${y % 100}`; };
+const winter = (i) => i % 2 === 1;
+const MODS = [
+  { k: "db", id: "12330", t: "Datenbanken", en: "Databases", lp: 6, turnus: "jedes Semester", offered: () => true, times: "Vorlesung Di 9:15–10:45 · Übung Do 13:45–15:15" },
+  { k: "ana", id: "11103", t: "Analysis I", en: "Analysis I", lp: 8, turnus: "nur SoSe", offered: (i) => !winter(i), times: "Laut Modulbeschreibung im Sommersemester." },
+  { k: "bs", id: "12101", t: "Betriebssysteme I", en: "Operating Systems I", lp: 6, turnus: "jedes Semester", offered: () => true, times: "Vorlesung Mo 11:30–13:00 · Übung Mi 9:15–10:45" },
+  { k: "dt", id: "11205", t: "Digitaltechnik", en: "Digital Engineering", lp: 6, turnus: "nur WiSe", offered: (i) => winter(i), times: "Vorlesung Fr 9:15–10:45" },
+  { k: "pm", id: "41320", t: "Projektmanagement", en: "Project Management", lp: 4, turnus: "jedes Semester", offered: () => true, times: "Blockseminar 8.–10. Januar 2027" },
+];
+// The programs whose curricula the module belongs to (`ProgramLink`: compulsory or elective, the
+// semester its plan places it in; the latest PO of each). Examples.
+const PROGS = { inf: "Informatik B.Sc.", wi: "Wirtschaftsinformatik Bachelor", ki: "Künstliche Intelligenz B.Sc.", mi: "Medizininformatik B.Sc.", ma: "Mathematik B.Sc.", wm: "Wirtschaftsmathematik B.Sc.", et: "Elektrotechnik B.Sc.", wing: "Wirtschaftsingenieurwesen B.Sc.", bwl: "Betriebswirtschaftslehre B.Sc.", cs: "Cyber Security M.Sc.", phy: "Physik B.Sc.", umw: "Umweltingenieurwesen B.Sc." };
+const CURRICULA = {
+  db: [["inf", "Wahlpflicht", 5], ["wi", "Pflicht", 3], ["inf", "Pflicht", 3], ["mi", "Wahlpflicht", 5], ["ki", "Pflicht", 3], ["ma", "Wahlpflicht", 4]],
+  ana: [["et", "Wahlpflicht", 4], ["ma", "Pflicht", 2], ["wm", "Pflicht", 2], ["phy", "Pflicht", 2]],
+  bs: [["inf", "Pflicht", 3], ["cs", "Wahlpflicht", 1], ["ki", "Pflicht", 3]],
+  dt: [["wing", "Wahlpflicht", 3], ["inf", "Pflicht", 1], ["et", "Pflicht", 1]],
+  pm: [["wing", "Wahlpflicht", 5], ["bwl", "Wahlpflicht", 4]],
+};
+const SHOWN = 3;
+// What the question offers: each program once (its compulsory place first), compulsory before
+// elective, in the order the catalog has them, three at most; and how many more there are.
+const offerOf = (k) => {
+  const seen = new Set(), all = [];
+  for (const kind of ["Pflicht", "Wahlpflicht"]) for (const [p, kd, n] of CURRICULA[k] || []) if (kd === kind && !seen.has(p)) { seen.add(p); all.push({ p, kind: kd, n }); }
+  return { shown: all.slice(0, SHOWN), more: Object.keys(PROGS).length - Math.min(SHOWN, all.length) };
+};
+const modOf = (k) => MODS.find((m) => m.k === k);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const ICON = {
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  plus: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>',
+  done: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18m-12 6 2 2 4-4"/>',
+  minus: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M10 16h4"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  mark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  left: '<path d="m15 6-6 6 6 6"/>',
+  right: '<path d="m9 6 6 6-6 6"/>',
+  down: '<path d="m7 10 5 5 5-5"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  stack: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+  full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+  alert: '<path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+
+// ---------- one student per screen ----------
+let SETUP = "set"; // the study set up; or not, with the catalog's filter; or not, without one
+const STATES = {};
+const fresh = (dev) => ({
+  planned: { bs: SESSION + 1 }, // one module planned already, in the summer
+  open: dev === "d" ? "db" : null, // the module beside the list, or the phone's sheet
+  start: SETUP === "set" ? SESSION - 2 : null, // the semester of the first Fachsemester (Lena: WiSe 24/25 → 3. FS)
+  asked: false, // the question answered or put aside
+  ask: false, // the question is waiting
+  askK: null, askStep: "pick", askProg: null, askGuess: 1, // for which module, and how far
+  modal: null, // E without a study: { k, prog, src, place, fs, fsSrc, fsFiltered, fsTouched, sem, semTouched, pick, q }
+  chosen: null, // the session's semester, changed by the student (P3)
+  snack: null, // E: { k, kind, from, stepped }
+  undo: null, // F, G: { k, kind, from }
+  strip: false, // G: the semesters open at the pill
+  aimMenu: false, // F
+  flash: null, // the module whose pill just came in
+  flip: false,
+});
+const fsOf = (st, i) => (st.start == null ? null : i - st.start + 1);
+const withFs = (st, i) => (fsOf(st, i) ? `${sem(i)} · ${fsOf(st, i)}. FS` : sem(i));
+const aimOf = (st) => st.chosen ?? SESSION;
+// Where a click plans a module: the session's semester, or the next one that offers it.
+const targetOf = (st, m) => { let i = aimOf(st); while (!m.offered(i)) i++; return i; };
+const count = (st) => Object.keys(st.planned).length;
+// How far back E's ‹ goes: to the first Fachsemester, or six semesters while the study is not known.
+// Betula does not say no to the past (owner, 18.10.); only before the study there is no semester.
+const floorAt = (st) => st.start ?? SESSION - 6;
+// The question for the study: with the filter of the catalog (Informatik B.Sc., 2. Semester) one tap;
+// without it, the programs of the module first planned.
+// The season a program begins in: a Bachelor's in the winter, so its odd Fachsemester are winters and
+// its even ones summers, unless its Regelstudienplan says otherwise (`intake_season`: a start named
+// in its caption, or the turnus of its modules); a Master's can begin in either, so none is assumed
+// (owner, 18.10.: „bei bachelor Studiengängen man ziemlich sicher sagen, dass ungerade zahlen im
+// Winter sind und gerade im Sommer. Das kann man mit dem regelstudienplan auch nochmal bestätigen …
+// Master hingegen haben diese "Einschränkung" nicht").
+const STATED = {}; // programs whose plan names another start; none among the examples
+const bachelor = (p) => /B\.Sc\.|B\.A\.|B\.Eng\.|Bachelor/.test(PROGS[p]);
+const intakeOf = (p) => STATED[p] ?? (bachelor(p) ? "winter" : null);
+// Whether the n-th Fachsemester of a program is a winter; null where that is not known.
+const fsWinter = (p, n) => { const i = intakeOf(p); return i == null ? null : (n % 2 === 1) === (i === "winter"); };
+// The filter's semester is one of the plan: the one the student looks at, not always the one they
+// are in (owner, 18.10.: „wenn man semester 3 auswählt im filter ist man probably erst im zweiten.
+// Das muss also auch Kontextanhängig von der zeit inferred werden"). Where its season is known, it is
+// the one of the running semester and the next that has it; else the semester the session plans
+// for. The Fachsemester now is the filter's, less the semesters until then. Here: „2. Semester" of a
+// Bachelor on 20 October is SoSe 27, so the student is in the 1st now.
+const FILTER = { prog: "inf", sem: 2 };
+const RUNNING = SESSION; // on 20 October the session plans for the running semester (P1)
+const filterAt = () => { const w = fsWinter(FILTER.prog, FILTER.sem); return w == null ? SESSION : winter(RUNNING) === w ? RUNNING : RUNNING + 1; };
+const ASK = { program: "Informatik B.Sc.", fs: Math.max(1, FILTER.sem - (filterAt() - RUNNING)) };
+const planIt = (st, k, i) => {
+  st.planned[k] = i; st.flash = k;
+  if (st.start == null && !st.asked && !st.ask) { st.ask = true; st.askK = k; st.askStep = SETUP === "filter" ? "confirm" : "pick"; }
+};
+// The question's content, the same in every concept's place for it.
+const askHtml = (st) => {
+  if (!st.ask) return "";
+  const close = `<button class="nope" type="button" data-act="no" aria-label="Später">${icon("x")}</button>`;
+  if (st.askStep === "confirm") return `<div class="askbox"><div class="ah"><div><b>Ist das dein Studium?</b><small>${ASK.program} · ${ASK.fs}. Fachsemester</small></div><button class="yes" type="button" data-act="yes">Ja</button>${close}</div></div>`;
+  const m = modOf(st.askK);
+  if (st.askStep === "fs") return `<div class="askbox"><div class="ah"><div><b>${esc(PROGS[st.askProg])}</b><small>In welchem Fachsemester bist du jetzt?</small></div>${close}</div><div class="fsrow">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<button type="button" class="${n === st.askGuess ? "guess" : ""}" data-act="askfs" data-n="${n}">${n}</button>`).join("")}</div><button class="askback" type="button" data-act="askback">‹ anderer Studiengang</button></div>`;
+  if (st.askStep === "more") {
+    const all = Object.entries(PROGS).sort((a, b) => a[1].localeCompare(b[1], "de"));
+    return `<div class="askbox"><div class="ah"><div><b>Welcher Studiengang?</b></div>${close}</div><input class="askq" type="search" placeholder="Studiengang suchen" aria-label="Studiengang suchen"><div class="progs"><div class="scroll">${all.map(([p, name]) => `<button type="button" data-act="askprog" data-p="${p}" data-n="0"><span>${esc(name)}</span></button>`).join("")}</div></div><button class="askback" type="button" data-act="askback">‹ zurück</button></div>`;
+  }
+  const { shown, more } = offerOf(st.askK);
+  const list = shown.map(({ p, kind, n }) => `<button type="button" data-act="askprog" data-p="${p}" data-n="${n}"><span>${esc(PROGS[p])}</span><small class="${kind === "Pflicht" ? "req" : ""}">${kind} · ${n}. Sem.</small></button>`).join("");
+  return `<div class="askbox"><div class="ah"><div><b>Was studierst du?</b><small>Dann steht beim Planen dein Fachsemester dabei.</small></div>${close}</div><div class="progs">${list}<button class="other" type="button" data-act="askmore"><span>Anderer Studiengang …</span><small>${more} weitere</small></button></div></div>`;
+};
+
+// ---------- the parts every screen shares ----------
+const rowPill = (st, c, m) => {
+  const i = st.planned[m.k];
+  if (i == null) return "";
+  const pop = st.flash === m.k ? " pop" : "";
+  const fs = fsOf(st, i);
+  if (c === "g") return `<button class="pl${pop}" type="button" data-act="pill" data-k="${m.k}">${icon("check")}${esc(sem(i))}${fs ? ` · ${fs}. FS` : ' · <span class="q">?</span>'}${icon("down")}</button>`;
+  return `<span class="pl${pop}">${icon("cal")}${esc(fs ? `${fs}. FS · ${sem(i)}` : sem(i))}</span>`;
+};
+const rowUndo = (st, c, m) => {
+  if (c !== "f" || st.undo?.k !== m.k) return "";
+  return st.undo.kind === "removed" ? `<span class="gone">aus ${esc(sem(st.undo.from))} genommen</span><button class="undo-link" type="button" data-act="undo">Rückgängig</button>` : `<button class="undo-link" type="button" data-act="undo">Rückgängig</button>`;
+};
+const meta = (st, c, m) => `<span class="m"><span class="mono">${m.id}</span>${rowPill(st, c, m) || esc(m.turnus)}${rowUndo(st, c, m)}</span>`;
+const badges = (m) => `<div class="badges"><span class="b strong">${m.lp} LP</span><span class="b${m.turnus.startsWith("nur") ? " warn" : ""}">${esc(m.turnus)}</span><span class="b">DE</span></div>`;
+const markSw = () => `<button class="sw" type="button" data-act="none">${icon("mark")}<span>Merken</span><kbd>M</kbd></button>`;
+// „Einplanen" before the click: where it plans, said quietly in the switch.
+const planSw = (st, m) => `<button class="sw" type="button" data-act="plan" data-k="${m.k}">${icon("plus")}<span>Einplanen</span><small>${esc(sem(targetOf(st, m)))}</small><kbd>P</kbd></button>`;
+const switchOf = (st, c, m, phone) => {
+  const i = st.planned[m.k];
+  if (i == null) return planSw(st, m);
+  if (c === "e") return `<button class="sw on" type="button" data-act="plan" data-k="${m.k}">${icon("done")}<span>Geplant</span><small>${esc(withFs(st, i))}</small><kbd>P</kbd></button>`;
+  if (c === "f") return `<div class="stepper"><button class="a" type="button" data-act="step" data-d="-1" data-k="${m.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><button class="c${st.flip ? " flip" : ""}" type="button" data-act="plan" data-k="${m.k}" title="Aus dem Plan nehmen"><span>${icon("done")}</span><span>${esc(sem(i))}</span>${fsOf(st, i) ? `<small>${fsOf(st, i)}. FS</small>` : ""}</button><button class="a" type="button" data-act="step" data-d="1" data-k="${m.k}" aria-label="Ein Semester später">${icon("right")}</button></div>`;
+  const fs = fsOf(st, i);
+  return `<button class="pillsw${st.flash === m.k ? " pop" : ""}" type="button" data-act="pill" data-k="${m.k}" aria-expanded="${st.strip}">${icon("check")}<span>${esc(sem(i))}</span>${fs ? `<small>${fs}. FS</small>` : '<span class="q">?</span>'}${icon("down")}</button>`;
+};
+// G: the semesters under the pill.
+const stripOf = (st, m) => {
+  if (!st.strip || st.planned[m.k] == null) return "";
+  const i = st.planned[m.k];
+  const ask = st.ask ? `<div class="strip-ask">${askHtml(st)}</div>` : "";
+  const sems = [0, 1, 2, 3].map((n) => SESSION + n).map((s) => `<button type="button" class="${m.offered(s) ? "" : "off"}" aria-pressed="${s === i}" data-act="move" data-i="${s}" data-k="${m.k}"><b>${sem(s)}</b><small>${m.offered(s) ? (fsOf(st, s) ? `${fsOf(st, s)}. FS` : "&nbsp;") : "kein Angebot"}</small></button>`).join("");
+  const keep = i !== aimOf(st) || st.chosen != null ? `<div class="strip-foot" role="checkbox" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="box">${st.chosen === i ? icon("check") : ""}</span>Weitere auch nach ${esc(sem(i))}</div>` : "";
+  return `<div class="strip">${ask}<div class="sems">${sems}<button class="trash" type="button" data-act="remove" data-k="${m.k}" aria-label="Aus dem Plan nehmen">${icon("trash")}</button></div>${keep}</div>`;
+};
+// F: the question as a line in the module, or over the list.
+const bannerOf = (st) => st.ask ? `<div class="banner wide">${askHtml(st)}</div>` : "";
+// F: where the session plans, at the head of the list.
+const aimOf_ = (st) => `<div class="aim-wrap"><button class="aim${st.chosen != null ? " chosen" : ""}" type="button" data-act="aimmenu">${icon("cal")}nach <b>${esc(sem(aimOf(st)))}</b>${icon("down")}</button>${st.aimMenu ? `<div class="aim-menu" role="menu"><p>Wohin „Einplanen“ in dieser Sitzung plant</p>${[0, 1, 2, 3].map((n) => SESSION + n).map((s) => `<button type="button" role="menuitemradio" aria-checked="${aimOf(st) === s}" data-act="aim" data-i="${s}">${sem(s)}<small>${s === SESSION ? "jetzt" : fsOf(st, s) ? `${fsOf(st, s)}. FS` : ""}</small></button>`).join("")}</div>` : ""}</div>`;
+// E: the note with the stepper, and what stands over it.
+const snackOf = (st) => {
+  const s = st.snack;
+  const ask = st.ask ? `<div class="ask-card wide">${askHtml(st)}</div>` : "";
+  if (!s) return ask ? `<div class="snack-wrap">${ask}</div>` : "";
+  let bar;
+  if (s.kind === "removed") bar = `<div class="snack"><div class="snack-row"><span class="ok no">${icon("minus")}</span><span class="said">${esc(modOf(s.k).t)} entfernt</span><button class="tx" type="button" data-act="undo">Rückgängig</button></div></div>`;
+  else {
+    const i = st.planned[s.k];
+    const fs = fsOf(st, i);
+    // The switch for the next modules: once a module was moved, and while the session plans
+    // somewhere chosen (then on, to switch it off where it is seen).
+    const keep = s.stepped || st.chosen != null
+      ? `<button class="snack-keep" type="button" role="switch" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="ico">${icon("stack")}</span><span>Weitere Module auch nach <b>${esc(sem(i))}</b></span><span class="switch" aria-hidden="true"></span></button>`
+      : "";
+    bar = `<div class="snack"><div class="snack-row"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= floorAt(st) ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${i < SESSION ? '<em class="past">liegt zurück</em>' : s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${i >= SESSION && !modOf(s.k).offered(i) ? " · kein Angebot" : ""}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>${keep}</div>`;
+  }
+  return `<div class="snack-wrap">${ask}${bar}</div>`;
+};
+const heroOf = (st, c, phone) => {
+  const m = modOf(st.open);
+  const line = phone ? `<div class="hero-line">${badges(m)}<div class="switches">${switchOf(st, c, m, true)}${markSw()}</div></div>` : `<div class="hero-line">${badges(m)}<div class="pair">${switchOf(st, c, m, false)}${markSw()}</div></div>`;
+  const extra = c === "g" ? stripOf(st, m) : c === "f" ? `${st.undo?.k === m.k && st.undo.kind === "removed" ? `<p class="under">aus ${esc(sem(st.undo.from))} genommen <button class="undo-link" type="button" data-act="undo">Rückgängig</button></p>` : ""}${bannerOf(st)}` : "";
+  const top = phone ? `<div class="hero-top"><span class="mono">${m.id}</span><span class="x" data-act="close">${icon("x")}</span></div>` : `<div class="hero-top"><span class="mono">${m.id}</span><span>${icon("full")}Vollbild <kbd>F</kbd></span><span>${icon("x")}Schließen <kbd>Esc</kbd></span></div>`;
+  return `<header class="hero">${top}<h3>${esc(m.t)}</h3><p class="en">${esc(m.en)}</p>${line}${extra}</header><div class="body"><span class="label">Termine</span><p>${esc(m.times)}</p><i></i><i></i></div>`;
+};
+const headOf = (st, c) => `${SETUP === "filter" ? `<span class="tag">Informatik B.Sc.</span><span class="tag">${FILTER.sem}. Semester</span>` : ""}${c === "f" ? aimOf_(st) : ""}`;
+const deskOf = (st, c) => {
+  const rows = MODS.map((m) => `<div class="drow${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
+  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b> Module ${headOf(st, c)}</div>${rows}</section><section class="panel detail">${heroOf(st, c, false)}${c === "e" ? snackOf(st) : ""}</section>${c === "e" ? modalOf(st) : ""}</div>`;
+};
+const phoneOf = (st, c) => {
+  const rows = MODS.map((m) => `<div class="rw" data-k="${m.k}"${st.planned[m.k] != null ? " data-planned" : ""}><div class="ground"></div><div class="card${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div></div>`).join("");
+  const sheet = st.open ? `<div class="p-shade" data-act="close"></div><section class="p-sheet">${heroOf(st, c, true)}</section>` : "";
+  const banner = c === "f" && st.ask && !st.open ? `<div class="p-banner">${bannerOf(st)}</div>` : "";
+  return `<div class="app p-app${st.open ? " sheet-open" : ""}"><div class="p-status"><span>10:24</span><span>Di, 20. Okt.</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b>Module ${headOf(st, c)}</div><div class="p-list">${rows}</div>${banner}<nav class="p-nav"><span></span><span class="on"></span><span></span><span></span><span>${count(st) ? `<em>${count(st)}</em>` : ""}</span></nav>${sheet}${c === "e" ? snackOf(st) + modalOf(st) : ""}</div>`;
+};
+
+// ---------- E without a study: the dialog ----------
+// The program: the catalog's filter; without one none is assumed (owner, 18.10.: „Weil der assumed
+// Studiengang wahrscheinlich falsch ist"): the module's programs are open at once, three at most,
+// compulsory first, and a search for any other right under them. Once the program is known, Betula
+// looks up where its Regelstudienplan places the module and fills in only what the student has not
+// set: without a Fachsemester, the one that puts the module there in the semester it goes into;
+// with one, the semester that does. A place behind the student is not refused: the module goes into
+// the next semester that offers it, and says why; ‹ goes into the past too, with a warning (owner,
+// 18.10.: „Betula sollte bei sowas nicht nein sagen").
+const placeOf = (k, p) => { const c = CURRICULA[k] || []; const hit = c.find(([q, kind]) => q === p && kind === "Pflicht") || c.find(([q]) => q === p); return hit ? { kind: hit[1], n: hit[2] } : null; };
+const fitPlan = (st, d) => {
+  const m = modOf(d.k), aim = targetOf(st, m);
+  d.place = d.prog ? placeOf(d.k, d.prog) : null;
+  if (!d.prog) return;
+  if (!d.place) { if (d.fs == null) { d.fs = 1; d.fsSrc = "angenommen"; } return; }
+  const n = d.place.n;
+  const w = fsWinter(d.prog, n);
+  if (!d.fsTouched && !d.fsFiltered && w != null) {
+    // The season is known: the module's Fachsemester n is a semester of its season, the next one
+    // from where „Einplanen" aims (one the student chose: the nearer, the earlier one at a tie),
+    // or one before where that would make the Fachsemester now less than the first.
+    let at = d.semTouched ? (winter(d.sem) === w ? d.sem : d.sem - 1) : aim;
+    while (winter(at) !== w) at++;
+    while (n - (at - SESSION) < 1) at -= 2;
+    d.fs = n - (at - SESSION);
+    if (!d.semTouched) { let s = Math.max(at, aim); while (!m.offered(s)) s++; d.sem = s; }
+    d.fsSrc = "passend zum Plan";
+  } else if (!d.fsTouched && !d.fsFiltered) {
+    if (!d.semTouched) d.sem = aim;
+    d.fs = Math.max(1, n - (d.sem - SESSION));
+    d.fsSrc = "passend zum Plan";
+  } else if (!d.semTouched) {
+    let s = SESSION + (n - d.fs);
+    if (s < SESSION) s = aim; else while (!m.offered(s)) s++;
+    d.sem = s;
+  }
+};
+const openModal = (st, k) => {
+  const d = { k, sem: targetOf(st, modOf(k)), semTouched: false, fsTouched: false, q: "" };
+  if (SETUP === "filter") Object.assign(d, { prog: "inf", src: "filter", fs: ASK.fs, fsSrc: `aus deinem Filter: das ${FILTER.sem}. Semester ist bei dir ${sem(filterAt())}`, fsFiltered: true, pick: false });
+  else Object.assign(d, { prog: null, src: "", fs: null, fsSrc: "", fsFiltered: false, pick: true });
+  fitPlan(st, d);
+  st.modal = d;
+};
+// The earliest semester ‹ reaches: the first Fachsemester, or six back while that is not known.
+const floorOf = (d) => (d.fs != null ? SESSION - d.fs + 1 : SESSION - 6);
+// The search under the three: what matches as it is typed, five at most.
+const comboHits = (q) => {
+  const s = q.trim().toLowerCase();
+  if (!s) return "";
+  const hits = Object.entries(PROGS).filter(([, n]) => n.toLowerCase().includes(s)).sort((a, b) => a[1].localeCompare(b[1], "de"));
+  if (!hits.length) return `<p class="none">Kein Studiengang gefunden</p>`;
+  return hits.slice(0, 5).map(([p, n]) => { const i = n.toLowerCase().indexOf(s); return `<button type="button" role="option" data-act="mpick" data-p="${p}"><span>${esc(n.slice(0, i))}<mark>${esc(n.slice(i, i + s.length))}</mark>${esc(n.slice(i + s.length))}</span></button>`; }).join("") + (hits.length > 5 ? `<p class="none">${hits.length - 5} weitere, tippe weiter</p>` : "");
+};
+const modalOf = (st) => {
+  const d = st.modal;
+  if (!d) return "";
+  const m = modOf(d.k), progName = d.prog ? PROGS[d.prog] : null;
+  const since = d.fs != null ? SESSION - d.fs + 1 : null;
+  const fsAt = d.fs != null ? d.fs + (d.sem - SESSION) : null; // the Fachsemester of the semester it goes into
+  const offered = m.offered(d.sem), past = d.sem < SESSION;
+  const planSem = d.place && since != null ? since + d.place.n - 1 : null; // where the plan puts it, for this student
+  const pick = d.pick ? (() => {
+    const opts = offerOf(d.k).shown.map(({ p, kind, n }) => `<button type="button" role="radio" aria-checked="${d.prog === p}" data-act="mpick" data-p="${p}"><span>${esc(PROGS[p])}</span><small class="${kind === "Pflicht" ? "req" : ""}">${kind} · ${n}. Sem.</small></button>`).join("");
+    const hits = comboHits(d.q);
+    return `<div class="pick"><div class="progs" role="radiogroup" aria-label="Studiengänge von ${esc(m.t)}">${opts}</div><div class="combo"><label class="cq">${icon("search")}<input class="comboq" type="text" role="combobox" aria-autocomplete="list" aria-expanded="${!!hits}" autocomplete="off" spellcheck="false" placeholder="Anderen Studiengang suchen" value="${esc(d.q)}"></label><div class="combo-list" role="listbox" aria-label="Studiengänge"${hits ? "" : " hidden"}>${hits}</div></div></div>`;
+  })() : "";
+  const progVal = `<button class="change" type="button" data-act="mprog" aria-expanded="${d.pick}"><span>${esc(progName)}</span>${icon("down")}</button>`;
+  const progNote = !d.prog ? "" : d.src === "filter" ? "aus deinem Filter im Katalog" : d.place ? `${d.place.kind}modul im ${d.place.n}. Semester` : "Modul nicht in seinem Regelstudienplan";
+  const fsVal = d.fs != null ? `<b>${d.fs}. Fachsemester</b>` : `<span class="unset">–</span>`;
+  const fsNote = d.fs == null ? "folgt aus dem Regelstudienplan" : `seit ${sem(since)}${d.fsTouched ? "" : ` · <b>${esc(d.fsSrc)}</b>`}`;
+  const fsWrap = d.fsFiltered && !d.fsTouched ? " wrap" : "";
+  const head = `<div class="m-head"><div><h4>${esc(m.t)} einplanen</h4><p>${SETUP === "filter" ? "Richte dabei dein Studium ein, dann stehen Fachsemester dabei. Alles ist vorausgefüllt; ändere, was nicht stimmt." : "Richte dabei dein Studium ein, dann stehen Fachsemester dabei."}</p></div><button class="nope" type="button" data-act="mcancel" aria-label="Schließen">${icon("x")}</button></div>`;
+  const say = progName ? `Du studierst <em>${esc(progName)}</em> im <em>${d.fs}. Fachsemester</em>.` : "Was studierst du?";
+  const study = `<section class="study" aria-label="Dein Studium"><p class="say">${say}</p>
+    ${progName ? `<div class="srow"><span class="label">Studiengang</span><div class="val">${progVal}</div><span class="note">${esc(progNote)}</span>${pick}</div>` : `<div class="srow first">${pick}</div>`}
+    <div class="srow"><span class="label">Fachsemester</span><div class="val">${fsVal}<span class="pm"><button type="button" data-act="mfs" data-d="-1" aria-label="weniger" ${d.fs == null || d.fs <= 1 ? "disabled" : ""}>−</button><button type="button" data-act="mfs" data-d="1" aria-label="mehr">+</button></span></div><span class="note${fsWrap}">${fsNote}</span></div></section>`;
+  // Under the module: what the semester means, and a warning where it lies behind the student.
+  let note = "", cls = "";
+  if (past) { note = "liegt in der Vergangenheit"; cls = " warn"; }
+  else if (!offered) { note = "in diesem Semester nicht angeboten"; cls = " warn"; }
+  else if (d.place && fsAt === d.place.n) { note = `wie im Regelstudienplan (${d.place.n}. Semester)`; cls = " good"; }
+  else if (d.place && fsAt != null) note = `im Regelstudienplan im ${d.place.n}. Semester`;
+  else note = d.sem === SESSION ? "dieses Semester" : d.sem === targetOf(st, m) ? `${m.turnus} angeboten` : "";
+  const warn = past
+    ? `<p class="m-warn">${icon("alert")}<span><b>${esc(sem(d.sem))} liegt hinter dir.</b> Betula plant es trotzdem dort ein, etwa wenn du es schon belegt hast.</span></p>`
+    : planSem != null && planSem < SESSION && !d.semTouched
+      ? `<p class="m-warn">${icon("alert")}<span><b>Laut Regelstudienplan gehört es ins ${d.place.n}. Fachsemester, bei dir ${esc(sem(planSem))}.</b> Das liegt hinter dir, darum steht es im ${esc(sem(d.sem))}; mit ‹ geht es auch dorthin.</span></p>`
+      : "";
+  const at = fsAt == null ? "" : ` · ${fsAt >= 1 ? `${fsAt}. FS` : "vor Studienbeginn"}`;
+  const plan = `<section class="study" aria-label="Einplanen"><div class="srow"><span class="label">${esc(m.t)}</span><div class="val"><b>${esc(sem(d.sem))}${at}</b><span class="pm"><button type="button" data-act="msem" data-d="-1" aria-label="ein Semester früher" ${d.sem <= floorOf(d) ? "disabled" : ""}>‹</button><button type="button" data-act="msem" data-d="1" aria-label="ein Semester später">›</button></span></div>${note ? `<span class="note${cls}">${esc(note)}</span>` : ""}</div>${warn}</section>`;
+  const foot = `<div class="m-foot"><button class="plain" type="button" data-act="mplain">Ohne Studium einplanen</button><button class="cancel" type="button" data-act="mcancel">Abbrechen</button><button class="ok" type="button" data-act="mok" ${d.prog ? "" : 'disabled title="Wähle zuerst deinen Studiengang"'}>Einrichten und einplanen</button></div>`;
+  return `<div class="m-shade" data-act="mcancel"></div><div class="m-dlg" role="dialog" aria-label="${esc(m.t)} einplanen">${head}<div class="m-body">${study}${plan}</div>${foot}</div>`;
+};
+
+// ---------- what the taps and the swipes do ----------
+const timers = {};
+const later = (key, what, ms, f) => { const id = `${key}:${what}`; clearTimeout(timers[id]); timers[id] = setTimeout(() => { f(); draw(key); }, ms); };
+// A plan or a removal, by the switch or by a swipe (`to`: the semester a long swipe chose).
+const press = (c, key, st, k, to) => {
+  const was = st.planned[k];
+  if (was != null) {
+    delete st.planned[k];
+    st.strip = false;
+    if (c === "e") st.snack = { k, kind: "removed", from: was };
+    else st.undo = { k, kind: "removed", from: was };
+  } else if (c === "e" && st.start == null && !st.asked) {
+    openModal(st, k);
+    return;
+  } else {
+    planIt(st, k, to ?? targetOf(st, modOf(k)));
+    if (c === "e") st.snack = { k, kind: "planned", stepped: false };
+    if (c === "f") st.undo = { k, kind: "planned" };
+  }
+  settle(c, key, st);
+};
+// What goes by itself: E's note, F's „Rückgängig", the pill's spring.
+const settle = (c, key, st) => {
+  if (c === "e" && st.snack) later(key, "snack", st.snack.stepped ? 7000 : 4500, () => { st.snack = null; });
+  if (st.undo) later(key, "undo", 5000, () => { st.undo = null; });
+  if (st.flash) later(key, "flash", 700, () => { st.flash = null; });
+};
+const act = (c, key, st, el) => {
+  const k = el.dataset.k, i = el.dataset.i != null ? Number(el.dataset.i) : null;
+  st.flip = false;
+  switch (el.dataset.act) {
+    case "open": st.open = k; st.strip = false; st.aimMenu = false; break;
+    case "close": if (key.endsWith("-p")) st.open = null; st.strip = false; break;
+    case "plan": press(c, key, st, k); break;
+    case "step": {
+      const was = st.planned[k], to = Math.max(Math.min(floorAt(st), was), was + Number(el.dataset.d));
+      if (to !== was) { st.planned[k] = to; st.flip = true; }
+      if (c === "e") { st.snack = { ...st.snack, k, kind: "planned", stepped: true }; settle(c, key, st); }
+      break;
+    }
+    case "undo":
+      if (c === "e" && st.snack) { const s = st.snack; if (s.kind === "removed") st.planned[s.k] = s.from; else delete st.planned[s.k]; st.snack = null; }
+      else if (st.undo) { const u = st.undo; if (u.kind === "removed") st.planned[u.k] = u.from; else delete st.planned[u.k]; st.undo = null; }
+      break;
+    case "keep": st.chosen = st.chosen === i ? null : i; if (c === "e") settle(c, key, st); break;
+    case "aimmenu": st.aimMenu = !st.aimMenu; break;
+    case "aim": st.chosen = i === SESSION ? null : i; st.aimMenu = false; break;
+    case "pill": if (st.open !== k) { st.open = k; st.strip = true; } else st.strip = !st.strip; break;
+    case "move": st.planned[k] = i; st.flash = k; settle(c, key, st); break;
+    case "remove": press(c, key, st, k); break;
+    case "yes": st.start = SESSION - ASK.fs + 1; st.ask = false; st.asked = true; break;
+    case "askprog": {
+      // The Fachsemester it likely is: the semester the plan places the module in, less the
+      // semesters until the one it was planned into.
+      const n = Number(el.dataset.n), planned = st.planned[st.askK] ?? SESSION;
+      st.askProg = el.dataset.p; st.askGuess = n ? Math.max(1, n - (planned - SESSION)) : 1; st.askStep = "fs";
+      break;
+    }
+    case "askmore": st.askStep = "more"; break;
+    case "mprog": if (st.modal.prog) st.modal.pick = !st.modal.pick; break;
+    case "mpick": {
+      const d = st.modal;
+      d.prog = el.dataset.p; d.src = d.fsFiltered && d.prog === "inf" ? "filter" : "pick"; d.pick = false; d.q = "";
+      fitPlan(st, d);
+      break;
+    }
+    case "mfs": {
+      const d = st.modal;
+      d.fs = d.fs == null ? 1 : Math.max(1, Math.min(14, d.fs + Number(el.dataset.d)));
+      d.fsTouched = true;
+      if (d.sem < floorOf(d)) d.sem = floorOf(d);
+      fitPlan(st, d);
+      break;
+    }
+    case "msem": { const d = st.modal; d.sem = Math.max(floorOf(d), d.sem + Number(el.dataset.d)); d.semTouched = true; break; }
+    case "mcancel": st.modal = null; break;
+    case "mok": case "mplain": {
+      const d = st.modal;
+      if (el.dataset.act === "mok") { if (!d.prog) break; st.start = SESSION - d.fs + 1; }
+      st.asked = true; st.ask = false; st.modal = null;
+      st.planned[d.k] = d.sem; st.flash = d.k;
+      st.snack = { k: d.k, kind: "planned", stepped: false };
+      settle(c, key, st);
+      break;
+    }
+    case "askback": st.askStep = "pick"; break;
+    case "askfs": st.start = SESSION - Number(el.dataset.n) + 1; st.ask = false; st.asked = true; break;
+    case "no": st.ask = false; st.asked = true; break;
+    default: return;
+  }
+  draw(key);
+};
+
+// ---------- the swipe: a finger on a row of the phone's list ----------
+// As the app's (1.16): armed a third of the way, the ground from quiet to the accent, and red where
+// the module is planned. F goes on: every SWIPE_STEP further is the next semester, a dot each.
+const SWIPE_ARM = 96, SWIPE_STEP = 58, SWIPE_SLOP = 10;
+let drag = null, swallow = false;
+const scaleOf = (el) => parseFloat(getComputedStyle(el.closest(".fit")).getPropertyValue("--s")) || 1;
+const groundOf = (d) => {
+  const st = STATES[d.key], m = modOf(d.k), c = d.key[0], planned = st.planned[m.k];
+  const armed = d.dx >= SWIPE_ARM;
+  d.wrap.toggleAttribute("data-armed", armed);
+  if (planned != null) { d.to = null; return `${icon("minus")}<span class="gw"><b>Entfernen</b><small>aus ${esc(sem(planned))}</small></span>`; }
+  const base = targetOf(st, m);
+  const step = c === "f" && armed ? Math.min(3, Math.floor((d.dx - SWIPE_ARM) / SWIPE_STEP)) : 0;
+  d.to = base + step;
+  const note = m.offered(d.to) ? withFs(st, d.to) : `${sem(d.to)} · kein Angebot`;
+  const dots = c === "f" ? `<span class="dots">${[0, 1, 2, 3].map((n) => `<i class="${armed && n === step ? "on" : ""}"></i>`).join("")}</span>` : "";
+  return `${icon("plus")}<span class="gw"><b>Einplanen</b><small>${esc(note)}</small></span>${dots}`;
+};
+document.addEventListener("pointerdown", (e) => {
+  const card = e.target.closest(".p-app .card");
+  if (!card || e.target.closest("button")) return;
+  const scr = card.closest(".screen");
+  drag = { card, wrap: card.parentElement, ground: card.previousElementSibling, key: scr.dataset.screen, k: card.dataset.k, x0: e.clientX, y0: e.clientY, s: scaleOf(scr), dx: 0, on: false, id: e.pointerId };
+});
+document.addEventListener("pointermove", (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const dx = (e.clientX - drag.x0) / drag.s, dy = (e.clientY - drag.y0) / drag.s;
+  if (!drag.on) {
+    if (Math.abs(dy) > SWIPE_SLOP && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }
+    if (dx < SWIPE_SLOP) return;
+    drag.on = true;
+    try { drag.card.setPointerCapture(drag.id); } catch {}
+    drag.wrap.dataset.swipe = "drag";
+  }
+  e.preventDefault();
+  drag.dx = Math.max(0, dx - SWIPE_SLOP);
+  const room = 300, shown = drag.dx <= room ? drag.dx : room + (drag.dx - room) * .25;
+  drag.card.style.transform = `translateX(${shown}px)`;
+  const was = drag.step, html = groundOf(drag);
+  if (html !== drag.html) { drag.ground.innerHTML = html; drag.html = html; }
+  if (drag.to !== was) { drag.step = drag.to; if (drag.dx >= SWIPE_ARM) navigator.vibrate?.(6); }
+}, { passive: false });
+const endDrag = (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag;
+  drag = null;
+  if (!d.on) return;
+  swallow = true;
+  setTimeout(() => { swallow = false; }, 350);
+  const armed = d.dx >= SWIPE_ARM;
+  d.wrap.dataset.swipe = "glide";
+  if (armed) d.ground.querySelector("b").textContent = STATES[d.key].planned[d.k] != null ? "Entfernt" : "Eingeplant";
+  d.card.style.transform = "";
+  setTimeout(() => {
+    const st = STATES[d.key];
+    if (armed) press(d.key[0], d.key, st, d.k, d.to ?? undefined);
+    draw(d.key);
+  }, armed ? 360 : 320);
+};
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
+
+// ---------- the page around the screens ----------
+const draw = (key) => {
+  const el = document.querySelector(`[data-screen="${key}"]`);
+  if (!el) return;
+  const [c, dev] = key.split("-");
+  const st = STATES[key] || (STATES[key] = fresh(dev));
+  el.innerHTML = dev === "d" ? deskOf(st, c) : phoneOf(st, c);
+  // A semester stepped flips once, not at every drawing after.
+  st.flip = false;
+};
+const reset = (c) => { ["d", "p"].forEach((dev) => { STATES[`${c}-${dev}`] = fresh(dev); draw(`${c}-${dev}`); }); };
+document.querySelectorAll(".stage").forEach((stage) => {
+  const c = stage.dataset.concept;
+  stage.innerHTML = `<figure class="device desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span>betula.app/catalog?open=…</span></div><div class="fit"><div class="screen" data-screen="${c}-d"></div></div></div><figcaption>Am Rechner: Tipp auf „Einplanen“</figcaption></figure><figure class="device phone"><div class="frame"><div class="fit"><div class="screen" data-screen="${c}-p"></div></div></div><figcaption>Am Handy: Zeilen nach rechts wischen</figcaption></figure>`;
+});
+document.addEventListener("click", (e) => {
+  const set = e.target.closest("[data-setup]");
+  if (set) {
+    SETUP = set.dataset.setup;
+    set.parentElement.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === set)));
+    ["e", "f", "g"].forEach(reset);
+    return;
+  }
+  const r = e.target.closest("[data-reset]");
+  if (r) { reset(r.dataset.reset); return; }
+  if (swallow) return;
+  const target = e.target.closest("[data-act]");
+  const scr = e.target.closest("[data-screen]");
+  if (!target || !scr) return;
+  const key = scr.dataset.screen;
+  act(key[0], key, STATES[key], target);
+});
+// „Anderer Studiengang": the search narrows the list as it is typed, without drawing the screen anew.
+document.addEventListener("input", (e) => {
+  if (e.target.matches?.(".comboq")) {
+    const scr = e.target.closest("[data-screen]"), d = STATES[scr.dataset.screen].modal;
+    d.q = e.target.value;
+    const list = e.target.closest(".combo").querySelector(".combo-list"), hits = comboHits(d.q);
+    list.innerHTML = hits; list.hidden = !hits; e.target.setAttribute("aria-expanded", String(!!hits));
+    return;
+  }
+  if (!e.target.matches?.(".askq")) return;
+  const q = e.target.value.trim().toLowerCase();
+  e.target.closest(".askbox").querySelectorAll(".progs button").forEach((b) => { b.hidden = q && !b.textContent.toLowerCase().includes(q); });
+});
+// The combobox by keys: Enter takes the first hit, the arrows walk the hits.
+document.addEventListener("keydown", (e) => {
+  const combo = e.target.closest?.(".combo");
+  if (!combo) return;
+  const hits = [...combo.querySelectorAll(".combo-list button")], at = hits.indexOf(e.target);
+  if (e.key === "Enter" && at < 0 && hits[0]) { e.preventDefault(); hits[0].click(); }
+  else if (e.key === "ArrowDown" && hits.length) { e.preventDefault(); hits[Math.min(hits.length - 1, at + 1)].focus(); }
+  else if (e.key === "ArrowUp" && at >= 0) { e.preventDefault(); (at === 0 ? combo.querySelector(".comboq") : hits[at - 1]).focus(); }
+});
+const fit = () => document.querySelectorAll(".fit").forEach((f) => {
+  const w = Number(getComputedStyle(f).getPropertyValue("--w"));
+  f.style.setProperty("--s", Math.min(1, f.clientWidth / w).toFixed(4));
+});
+new ResizeObserver(fit).observe(document.body);
+["e", "f", "g"].forEach(reset);
+fit();
+</script>

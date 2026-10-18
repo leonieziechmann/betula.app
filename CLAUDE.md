@@ -19,17 +19,41 @@ deploys an hour; `deploy/README.md` section 12).
   environment variable `CANARY_PW` (owner, 2026-10-17), and it never goes into the repository,
   which is public.
 
+## Design
+
+Betula does not say no (owner, 2026-10-18: „Betula soll nie sagen. Nein, das geht nicht wenn es
+nicht ein absolut triftigen Grund dafür gibt. Weil in der Regel hat der Nutzer einen Plan was er
+machen möchte und irgendeine abitreere Regel die wir uns ausgedacht haben könnte sein use case
+kaputt machen, obwohl der total valid ist."):
+
+- What a student asks for and is easy to do is allowed, even where it looks odd: a module planned
+  into a semester behind them or into one that does not offer it, a value outside what is usual.
+  Instead of a disabled control or a refusal, Betula does it and says what is unusual next to the
+  value (a note, a warning), so the choice is an informed one.
+- A no needs a reason that holds: what cannot be (data that does not exist, a semester before the
+  study began, what would break what the student keeps), not a rule made up for the usual case.
+  Defaults and suggestions follow the usual case; limits do not.
+- It does not mean building for every case (owner, same day: „Das heißt aber nicht, dass wir für
+  jeden anwendungsfall entwickeln müssen. Aber wenn das einfach möglich umzusetzen ist, sollte es
+  erlaubt sein."): what takes real work for a rare case may wait; what only a limit stands in the
+  way of is allowed.
+
 ## Versions
 
 Folia, Radix and Cortex each have a version by SemVer, and every change raises the version of
 each of them whose shipped sources it changes, without being asked (owner, 2026-10-15: „immer wenn
 wir changes machen update die version number based on sem ver"):
 
+- PATCH for a fix and for a small change of behaviour, even one that is seen (an animation, a
+  timing, a gesture, a text, a look tuned); MINOR only for a larger change or a new feature, not
+  for every change one notices (owner, 2026-10-18: „dass die minor versions nicht ganz so
+  inflationär verwendet werden sollen. Gerade so kleine behavior changes können immer einfach nur
+  die letzte nummer sein. In der mitte ist dann für größere changes/neue features da").
 - MAJOR for what breaks those who use it (Radix: a snapshot Folia cannot read, its flags or its
   environment; Cortex: its client's API; Folia: addresses that go away, what a browser keeps that
-  it cannot read any more), MINOR for something new or visibly different, PATCH for a fix that
-  changes nothing else. Docs, `design/`, `research/` and the checks alone raise nothing. A version
-  the owner names wins.
+  it cannot read any more), and never alone: a change that would raise it is talked over with the
+  owner first („die major version besprechen wir zusammen").
+- Docs, `design/`, `research/` and the checks alone raise nothing. A version the owner names wins.
 - The bump is a commit of the branch on top of `develop` as it is when the branch is merged: a
   branch that `develop` overtook raises the newer version again, so `develop` always says what is
   in it, and `master` takes the versions with the release.

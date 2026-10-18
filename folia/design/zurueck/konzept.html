@@ -1,0 +1,1514 @@
+<title>Betula Zurück-Konzept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- How Back behaves in Betula, on a phone and on a computer, what belongs into the address, and an
+     architecture that serves both (owner, 2026-10-18: „wir müssen unbedingt an der browser
+     history/backgraphen überarbeiten … kann man modale Dialoge wieder mit zurück öffnen, was halt
+     keine andere App so macht. Aber schließen sollte man die mit back können … was wirklich in die
+     url mit rein soll … wenn man da eine selection macht und zurück geht, dann landet man auf der
+     mein Studium main page aber die Bar unten ist noch offen … wenn man mehrfach seitlich swiped …
+     und dann zurück geht, dann sollte man gleich auf der mein Studium main page landen … am handy
+     ist das ja eher wie eine App … der back graph beim handy ist halt eher so dass man zurück zum
+     main screen kommt und nicht die Seiten rückwärts abzuspielen. Erstelle als erstes ein Konzept"; then:
+     „Also die Lösung muss auch für Safari Nutzer funktionieren davon haben wir 30% mit ca. der Nutzer am
+     phone 40%"). On a phone one way for every browser, the iPhone's (all of them Safari underneath) included.
+     The owner's answers to the open questions, the same day, are rules now (see „Entschieden").
+     What is wrong today comes from reading the code of 2026-10-18 (Folia 1.22.0): tabs.rs, chrome.rs,
+     frame.rs, pending.rs, enhance.js, study/pager.rs, phone.rs, focus.rs, dialog.rs, studyplan/aside.rs.
+     The devices play the proposed rules with a simulated history; the modules and numbers are
+     examples. Tokens are Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the decision and its six rules at the top, the devices with the history under each, what is
+   wrong today, the address, the rules to look up, the architecture, the steps, what is open.
+   Tokens: Betula's own (light, then dark), the wood under the devices. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58; --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel)); --no: #c2410c;
+  --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --area-1: oklch(.6 .09 250); --area-2: oklch(.66 .1 75); --area-3: oklch(.6 .09 320);
+  --backdrop: rgba(10, 12, 17, .42);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130; --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --no: #ff8f85;
+    --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --area-1: oklch(.7 .09 250); --area-2: oklch(.76 .1 75); --area-3: oklch(.7 .09 320);
+    --backdrop: rgba(0, 0, 0, .55);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --no: #ff8f85;
+  --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --area-1: oklch(.7 .09 250); --area-2: oklch(.76 .1 75); --area-3: oklch(.7 .09 320);
+  --backdrop: rgba(0, 0, 0, .55);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .86em; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 82ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead + .lead { margin-top: 10px; }
+
+/* The brief: the decision, and the six rules everything else follows from. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules .who { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; font-size: 13px; color: var(--text-2); }
+.rules .who b { display: block; color: var(--text); font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+
+/* The situations: a list to pick from, the one picked told, the devices playing it. */
+.stories { margin-top: 16px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.st { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; cursor: pointer; min-width: 0; }
+.st:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.st small { font-size: 11.5px; color: var(--text-3); font-weight: 600; }
+.st b { font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.st[aria-pressed="true"] { background: var(--invert); box-shadow: none; }
+.st[aria-pressed="true"] b, .st[aria-pressed="true"] small { color: var(--on-invert); }
+.story { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px 28px; padding: 16px 18px; border-radius: 12px; background: var(--panel-2); }
+.story h3 { font-size: 17px; font-weight: 700; }
+.story p { margin-top: 8px; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.story .today { align-self: start; margin-top: 0; padding: 10px 12px; border-radius: 10px; background: var(--no-soft); color: var(--text-2); font-size: 14px; }
+.story .today b { color: var(--no); font-weight: 700; margin-right: 4px; }
+.story .try { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 14px; color: var(--text); }
+.story .try b { color: var(--accent-ink); font-weight: 700; margin-right: 4px; }
+.stage { margin: 16px -24px 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; padding: 26px 24px; background: var(--wood); }
+.stage-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+.c-reset { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.c-reset:hover { background: var(--panel-3); color: var(--text); }
+
+/* The devices: a window and a phone, scaled to fit (--s). */
+.device { margin: 0; min-width: 0; }
+.device > figcaption { margin-bottom: 10px; font-size: 12.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; }
+.desk .fit { --w: 800; --h: 540; }
+.desk .frame { border-radius: 12px; background: var(--device); padding: 0 6px 6px; box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.desk .chrome { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 4px; }
+.desk .chrome button { width: 30px; height: 26px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .85); font-size: 15px; cursor: pointer; display: grid; place-items: center; }
+.desk .chrome button:hover { background: rgba(255, 255, 255, .16); }
+.desk .chrome button:disabled { opacity: .35; cursor: default; }
+.desk .chrome .url { flex: 1; min-width: 0; margin: 0 6px; padding: 3px 10px; border-radius: 6px; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .7); font: 500 11.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk .chrome .esc { width: auto; padding: 0 9px; font: 600 11px var(--mono); }
+.desk .screen { border-radius: 6px; }
+.phone .fit { --w: 390; --h: 800; }
+.phone .frame { padding: 9px; border-radius: 44px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.phone .screen { border-radius: 36px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 12px; }
+.ctl button { height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 650; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.ctl button:hover { background: var(--panel-3); }
+.ctl button.sys { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.ctl button.sys:hover { opacity: .9; }
+.ctl button:disabled { opacity: .45; cursor: default; }
+.ctl svg.i { width: 14px; height: 14px; }
+.ctl-note { margin-top: 6px; text-align: center; color: var(--text-3); font-size: 12px; }
+.ios { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ios > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.ios h3 { font-size: 15px; font-weight: 700; }
+.ios p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+
+/* Under each device: what is open, the history as Betula writes it, and what the next Back does. */
+.trace { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 13px; }
+.trace h4 { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.trace h4 + * { margin-top: 6px; }
+.trace .grp + .grp { margin-top: 12px; }
+.opened { display: flex; flex-wrap: wrap; gap: 6px; }
+.opened span { padding: 3px 9px; border-radius: 7px; background: var(--warn-soft); color: var(--warn); font-weight: 650; font-size: 12.5px; }
+.opened em { color: var(--text-3); font-style: normal; }
+.hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.hist li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; padding: 6px 8px; border-radius: 8px; }
+.hist li.cur { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.hist li.fwd { opacity: .45; }
+.hist li.ext b { color: var(--text-3); font-weight: 600; }
+.hist li.lay b { color: var(--warn); }
+.hist li.stale b { text-decoration: line-through; }
+.hist .k { color: var(--text-3); font: 600 11px var(--mono); padding-top: 3px; }
+.hist b { font-weight: 620; }
+.hist .tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 5px; background: var(--panel-3); color: var(--text-2); font-size: 11px; font-weight: 600; vertical-align: 1px; }
+.hist code { display: block; color: var(--text-3); font: 500 11px/1.45 var(--mono); overflow-wrap: anywhere; }
+.next { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: baseline; }
+.next dt { font-weight: 700; white-space: nowrap; }
+.next dd { margin: 0; color: var(--text-2); }
+.note { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+
+/* ---------- Betula inside the devices ---------- */
+.app { position: relative; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; -webkit-user-select: none; user-select: none; }
+.app svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.app kbd { padding: 1px 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px var(--mono); }
+.app button { border: 0; cursor: pointer; text-align: left; }
+.search { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); white-space: nowrap; overflow: hidden; }
+.b { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; font-weight: 560; color: var(--text-2); }
+.b.strong { background: var(--invert); color: var(--on-invert); box-shadow: none; font-weight: 700; }
+.facts { display: flex; flex-wrap: wrap; gap: 5px; }
+.sub { color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.lines { color: var(--text-2); }
+.link-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.link-row b { color: var(--text); }
+.muted { opacity: .55; cursor: default !important; }
+
+/* The phone: the bar at the head, the page, the tab bar or the bar of the selection, the sheets. */
+.p-app { position: absolute; inset: 0; overflow: hidden; }
+.p-status { position: absolute; left: 30px; right: 30px; top: 15px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 650; }
+.p-top { position: absolute; left: 12px; right: 12px; top: 48px; height: 46px; display: flex; gap: 8px; }
+.p-top .box { width: 46px; height: 46px; flex: none; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); display: grid; place-items: center; color: var(--text); }
+.p-top .box.back { animation: box-in .18s var(--ease); }
+@keyframes box-in { from { opacity: 0; translate: -8px 0; } }
+.p-top .search { flex: 1; height: 46px; min-width: 0; }
+.p-body { position: absolute; left: 0; right: 0; top: 104px; bottom: 84px; padding: 0 12px; overflow: hidden; display: flex; flex-direction: column; gap: 8px; touch-action: pan-y; }
+.p-body.pager { bottom: 104px; }
+.p-nav, .p-selbar { position: absolute; left: 10px; right: 10px; bottom: 12px; height: 62px; border-radius: 16px; box-shadow: var(--shadow-pop); }
+.p-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: var(--panel); }
+.p-nav button { background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10.5px; font-weight: 620; color: var(--text-3); text-align: center; }
+.p-nav .ind { width: 44px; height: 26px; border-radius: 13px; display: grid; place-items: center; }
+.p-nav button.on { color: var(--text); }
+.p-nav button.on .ind { background: var(--accent-soft); color: var(--accent-ink); }
+.p-selbar { display: flex; align-items: center; gap: 6px; padding: 0 8px 0 16px; background: var(--invert); color: var(--on-invert); animation: bar-in .2s var(--ease); }
+@keyframes bar-in { from { opacity: 0; translate: 0 8px; } }
+.p-selbar span { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.p-selbar small { opacity: .7; font-size: 11.5px; }
+.p-selbar button { height: 40px; padding: 0 10px; border-radius: 10px; background: color-mix(in srgb, var(--on-invert) 12%, transparent); color: var(--on-invert); font-size: 12.5px; font-weight: 650; }
+.p-selbar button.x { width: 40px; padding: 0; display: grid; place-items: center; }
+.p-dots { position: absolute; left: 0; right: 0; bottom: 84px; height: 20px; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.p-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line-strong); transition: background .15s; }
+.p-dots i.ov { border-radius: 2px; }
+.p-dots i.on { background: var(--text); }
+.p-shade { position: absolute; inset: 0; background: var(--backdrop); animation: fade .2s ease; }
+@keyframes fade { from { opacity: 0; } }
+.p-sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 330px; display: flex; flex-direction: column; gap: 10px; padding: 24px 16px 22px; border-radius: 18px 18px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: sheet-in .22s var(--ease); touch-action: none; }
+.p-sheet.m { top: 200px; }
+.p-sheet.l { top: 120px; }
+@keyframes sheet-in { from { translate: 0 60px; opacity: .4; } }
+.p-sheet .grab { position: absolute; left: 50%; top: 8px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+.p-sheet .s-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.p-sheet .s-top b { font-size: 17px; font-weight: 700; }
+.p-sheet .x { width: 36px; height: 36px; border-radius: 50%; background: var(--panel-3); display: grid; place-items: center; color: var(--text); }
+.p-sheet h3 { font-size: 22px; line-height: 1.15; letter-spacing: -.02em; font-weight: 720; }
+.p-sheet .foot { margin-top: auto; display: flex; gap: 8px; }
+.p-sheet .foot .btn { flex: 1; }
+.btn { min-height: 44px; padding: 0 14px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 640; text-align: center !important; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.ghost { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); }
+.tog { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; font-weight: 600; }
+.tog i { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px var(--line-strong); display: grid; place-items: center; color: var(--on-accent); }
+.tog.on i { background: var(--accent); box-shadow: none; }
+.tog.on { box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.p-title { display: flex; flex-direction: column; padding: 2px 4px 2px; }
+.p-title b { font-size: 21px; letter-spacing: -.02em; font-weight: 740; }
+.p-title small { color: var(--text-3); font-size: 12.5px; }
+.card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; width: 100%; padding: 12px 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
+.card b { font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card small { grid-column: 1; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 700; font-size: 15px; color: var(--text-2); }
+.card.cb { grid-template-columns: 22px minmax(0, 1fr) auto; }
+.card.cb > i { grid-row: 1 / span 2; width: 22px; height: 22px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--line-strong); display: grid; place-items: center; color: var(--on-accent); }
+.card.cb.on > i { background: var(--accent); box-shadow: none; }
+.card.cb.on { box-shadow: var(--shadow-panel), inset 0 0 0 1.5px var(--accent-line); }
+.card.cb small, .card.cb b { grid-column: 2; }
+.card.cb .lp { grid-column: 3; }
+.card.big b { font-size: 16px; }
+.card.add { background: none; box-shadow: inset 0 0 0 1.5px var(--line-strong); border-style: dashed; color: var(--text-3); font-weight: 600; display: flex; justify-content: center; }
+.p-count { display: flex; align-items: center; gap: 8px; padding: 0 2px; color: var(--text-2); font-size: 13px; }
+.p-count b { font-size: 18px; color: var(--text); }
+.p-count .tags { display: flex; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+.p-count .tag { height: 22px; padding: 0 7px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11.5px; font-weight: 600; color: var(--text); display: inline-flex; align-items: center; white-space: nowrap; }
+.p-count .fbtn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 11px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); font-weight: 640; font-size: 13px; }
+.st-box { display: flex; flex-direction: column; gap: 9px; width: 100%; padding: 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.st-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.st-h b { font-size: 15px; font-weight: 700; }
+.st-h span { color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.bar { display: flex; height: 10px; border-radius: 5px; background: var(--panel-3); overflow: hidden; }
+.bar i { display: block; height: 100%; }
+.bar i.p1 { background: var(--area-1); } .bar i.p2 { background: var(--area-2); } .bar i.p3 { background: var(--area-3); }
+.bar i.pl { background: color-mix(in srgb, var(--area-1) 35%, var(--panel)); }
+.leg { display: flex; gap: 12px; color: var(--text-2); font-size: 12px; }
+.leg i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; background: var(--panel-3); }
+.leg i.p { background: var(--area-1); } .leg i.pl { background: color-mix(in srgb, var(--area-1) 35%, var(--panel)); }
+.st-link { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 12px 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.st-link span { display: flex; flex-direction: column; min-width: 0; }
+.st-link b { font-size: 15px; font-weight: 650; }
+.st-link small { color: var(--text-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-plan { padding: 14px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.cols { margin-top: 10px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: end; height: 92px; }
+.cols button { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; background: none; border-radius: 8px; padding: 4px 0; text-align: center; }
+.cols i { display: block; width: 26px; border-radius: 5px 5px 2px 2px; background: color-mix(in srgb, var(--area-1) 55%, var(--panel)); }
+.cols button.now i { background: var(--accent); }
+.cols small { color: var(--text-3); font-size: 11px; font-weight: 650; }
+.cols button.now small { color: var(--accent-ink); }
+.sem-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
+.sem-head b { font-size: 19px; font-weight: 740; letter-spacing: -.015em; }
+.sem-head .now { margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); font-size: 11.5px; font-weight: 700; vertical-align: 3px; }
+.sem-head small { display: block; color: var(--text-3); font-size: 12.5px; }
+.sem-nav { display: flex; gap: 6px; }
+.sem-nav button { width: 38px; height: 38px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); display: grid; place-items: center; text-align: center; font-size: 18px; color: var(--text-2); }
+.hint { margin-top: 2px; color: var(--text-3); font-size: 12px; text-align: center; }
+.empty { padding: 26px 0; color: var(--text-3); text-align: center; font-weight: 600; }
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 11px; background: var(--panel-3); }
+.seg button { height: 34px; border-radius: 8px; background: none; text-align: center; font-weight: 640; font-size: 13px; color: var(--text-2); }
+.seg button.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow-panel); }
+.fsrow { display: flex; justify-content: space-between; padding: 8px 4px 0; color: var(--text-2); font-size: 12.5px; font-weight: 650; }
+.fsrow span { color: var(--ok); }
+.week { display: grid; grid-template-columns: 30px repeat(5, minmax(0, 1fr)); grid-auto-rows: 44px; gap: 4px; padding: 10px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 11px; color: var(--text-3); }
+.week .slot { padding: 4px 6px; border-radius: 6px; background: color-mix(in srgb, var(--area-1) 18%, var(--panel)); color: var(--text); font-size: 11px; font-weight: 650; line-height: 1.2; overflow: hidden; text-align: left; }
+.week .slot.s2 { background: color-mix(in srgb, var(--area-2) 22%, var(--panel)); }
+.week .slot.s3 { background: color-mix(in srgb, var(--area-3) 20%, var(--panel)); }
+.p-out, .d-out { position: absolute; inset: 0; display: grid; place-items: center; padding: 30px; background: var(--panel-2); text-align: center; color: var(--text-2); }
+.p-out b, .d-out b { display: block; font-size: 22px; color: var(--text); margin-bottom: 8px; }
+.p-mod { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px; }
+.p-mod h3 { font-size: 24px; line-height: 1.15; letter-spacing: -.02em; font-weight: 740; }
+
+/* The window: the rail, the bar of the search, the page, what stands beside it, a dialog. */
+.d-app { position: absolute; inset: 0; display: grid; grid-template-columns: 62px minmax(0, 1fr); grid-template-rows: 44px minmax(0, 1fr); gap: 8px; padding: 8px; }
+.d-rail { grid-row: 1 / -1; display: flex; flex-direction: column; gap: 4px; padding: 8px 4px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.d-rail button { background: none; border-radius: 8px; padding: 7px 2px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 640; color: var(--text-3); text-align: center; }
+.d-rail button.on { background: var(--accent-soft); color: var(--accent-ink); }
+.d-top .search { height: 44px; }
+.d-main { position: relative; min-height: 0; display: grid; gap: 8px; }
+.d-main.two { grid-template-columns: 196px minmax(0, 1fr); }
+.d-panel { min-height: 0; overflow: hidden; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.d-panel .lbl { margin-top: 8px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.d-panel .lbl:first-child { margin-top: 0; }
+.d-panel .tog { min-height: 34px; font-size: 13px; }
+.d-panel .nav { padding: 7px 10px; border-radius: 8px; background: none; font-weight: 600; font-size: 13px; color: var(--text-2); }
+.d-panel .nav.on { background: var(--row-hover); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+.mine { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.mine b { font-size: 14px; } .mine small { color: var(--text-3); font-size: 12px; }
+.list-head { display: flex; align-items: baseline; gap: 6px; padding: 2px 4px 6px; color: var(--text-2); font-size: 13px; }
+.list-head b { font-size: 17px; color: var(--text); }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; align-items: center; width: 100%; padding: 8px 10px; border-radius: var(--r-row); background: none; color: var(--text); }
+.row:hover { background: var(--row-hover); }
+.row.cur { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
+.row b { font-size: 13px; font-weight: 640; }
+.row small { grid-column: 1; color: var(--text-3); font-size: 11.5px; }
+.row .lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 700; font-size: 13px; color: var(--text-2); }
+.d-preview { position: absolute; z-index: 3; right: 0; top: 0; bottom: 0; width: 300px; display: flex; flex-direction: column; gap: 9px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-pop); animation: pv-in .18s var(--ease); }
+@keyframes pv-in { from { opacity: 0; translate: 16px 0; } }
+.pv-top { display: flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 12px; }
+.pv-top .mono { margin-right: auto; padding: 2px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.pv-top b { margin-right: auto; color: var(--text); font-size: 14px; }
+.pv-top button { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border-radius: 7px; background: none; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.pv-top button:hover { background: var(--row-hover); color: var(--text); }
+.d-preview h3, .d-page h3 { font-size: 20px; line-height: 1.16; letter-spacing: -.02em; font-weight: 720; }
+.backlink { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 6px 9px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 640; }
+.backlink:hover { color: var(--text); }
+.d-page { min-height: 0; padding: 16px 18px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); display: flex; flex-direction: column; gap: 10px; }
+.d-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.d-col { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 8px; }
+.d-bar { display: flex; flex-direction: column; gap: 8px; width: 100%; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.strip button { display: flex; flex-direction: column; padding: 7px 9px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 12.5px; }
+.strip button small { color: var(--text-3); font-size: 11px; }
+.strip button.on { box-shadow: var(--shadow-panel), inset 0 0 0 1.5px var(--accent); }
+.tbl { flex: 1; min-height: 0; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.thead { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 8px; border-radius: 8px; }
+.thead b { font-size: 15px; font-weight: 700; margin-right: auto; }
+.thead .arr { width: 30px; height: 30px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: grid; place-items: center; text-align: center; color: var(--text-2); }
+.thead.sel { background: var(--invert); color: var(--on-invert); }
+.thead.sel button { padding: 6px 9px; border-radius: 7px; background: color-mix(in srgb, var(--on-invert) 12%, transparent); color: var(--on-invert); font-size: 12px; font-weight: 640; }
+.trow { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 2px 8px 2px 4px; border-radius: 8px; }
+.trow:hover { background: var(--row-hover); }
+.trow.sel { background: var(--accent-soft); }
+.trow .cbx { width: 22px; height: 22px; margin: 0 auto; border-radius: 6px; background: none; box-shadow: inset 0 0 0 1.5px var(--line-strong); display: grid; place-items: center; color: var(--on-accent); }
+.trow .cbx.on { background: var(--accent); box-shadow: none; }
+.trow .tn { display: flex; flex-direction: column; padding: 7px 4px; background: none; }
+.trow .tn b { font-size: 13px; font-weight: 640; } .trow .tn small { color: var(--text-3); font-size: 11.5px; }
+.trow .lp { font-weight: 700; color: var(--text-2); font-size: 13px; }
+.d-shade { position: absolute; z-index: 5; inset: 0; background: var(--backdrop); animation: fade .18s ease; }
+.d-dialog { position: absolute; z-index: 6; left: 50%; top: 50%; translate: -50% -50%; width: 440px; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: fade .18s ease; }
+.d-dialog .foot { display: flex; justify-content: flex-end; gap: 8px; }
+.d-dialog .btn { min-height: 38px; font-size: 13px; }
+.sentence { font-size: 15px; color: var(--text-2); }
+.sentence b { color: var(--text); }
+.kv { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); font-weight: 600; }
+.kv small { display: block; color: var(--text-3); font-weight: 500; font-size: 12px; }
+.kv .step { display: inline-flex; align-items: center; gap: 2px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); }
+.kv .step i { width: 30px; height: 30px; display: grid; place-items: center; font-style: normal; color: var(--text-2); }
+.arow { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); font-weight: 600; }
+.arow i { width: 10px; height: 10px; border-radius: 3px; background: var(--area-1); }
+.arow i.a2 { background: var(--area-2); } .arow i.a3 { background: var(--area-3); }
+.arow span { color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* What is wrong today: a card a fault, what happens, where it comes from, what changes it. */
+.faults { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fault { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.fault .kicker { color: var(--no); }
+.fault h3 { font-size: 15.5px; font-weight: 700; }
+.fault p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.fault .why { padding-top: 8px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-3); }
+.fault .why code { color: var(--text-2); }
+.fault .fix { font-size: 13.5px; color: var(--text); }
+.fault .fix b { color: var(--accent-ink); }
+.fault.own { box-shadow: inset 0 0 0 1.5px var(--line-strong); background: var(--panel); }
+
+/* The address: the three kinds of state, then every parameter. */
+.kinds { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.kind { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-strong); min-width: 0; }
+.kind .kicker { color: var(--accent-ink); }
+.kind h3 { font-size: 16px; font-weight: 720; }
+.kind p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.kind .ex { margin-top: auto; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); font: 500 12px/1.5 var(--mono); color: var(--text-2); overflow-wrap: anywhere; }
+
+/* Tables to look things up. */
+.table { margin-top: 14px; overflow-x: auto; }
+.table table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.table thead th { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.table tbody th { font-weight: 650; color: var(--text); }
+.table td { color: var(--text-2); }
+.table td b { color: var(--text); font-weight: 620; }
+.table code { color: var(--text); }
+.table .same { color: var(--text-3); }
+.table .chg { color: var(--accent-ink); font-weight: 600; }
+
+/* The back graph: each tab's stack, up to its start, Start, outside. */
+.graph { margin-top: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.tabcol { display: flex; flex-direction: column-reverse; gap: 6px; padding: 12px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.tabcol .nd { padding: 7px 9px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 13px; font-weight: 600; }
+.tabcol .nd small { display: block; color: var(--text-3); font-size: 11.5px; font-weight: 500; }
+.tabcol .nd.root { box-shadow: var(--shadow-panel), inset 3px 0 0 var(--accent); }
+.tabcol .nd.lay { background: var(--warn-soft); box-shadow: none; color: var(--warn); }
+.tabcol .up { align-self: center; color: var(--text-3); font-size: 12px; line-height: 1; }
+.tabcol h4 { order: 99; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.graph-note { margin-top: 10px; color: var(--text-3); font-size: 13px; }
+
+/* The architecture: inputs, the navigator with its parts, the router; what each part takes over. */
+.arch { margin-top: 18px; display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+.band { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); }
+.band h3 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); font-weight: 700; }
+.band p { margin-top: 4px; color: var(--text-2); font-size: 14px; }
+.band.nav { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.band.nav h3 { color: var(--accent-ink); }
+.flow { align-self: center; padding: 6px 0; color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.flow::before { content: "↓ "; }
+.parts { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.part { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); min-width: 0; }
+.part b { font-size: 14.5px; }
+.part small { color: var(--text-3); font: 500 11.5px var(--mono); }
+.part p { color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.part .rep { padding-top: 6px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 12.5px; }
+.cards2 { margin-top: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cards2 > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.cards2 h3 { font-size: 15px; font-weight: 700; }
+.cards2 p, .cards2 li { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.cards2 p + p { margin-top: 6px; }
+.cards2 ul { margin: 6px 0 0; padding-left: 18px; }
+.cards2 li + li { margin-top: 4px; }
+pre.code { margin: 14px 0 0; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: 500 12.5px/1.6 var(--mono); overflow-x: auto; }
+pre.code .c { opacity: .55; }
+.rule-box { margin-top: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.rule-box div { padding: 14px 16px; border-radius: 12px; background: var(--accent-soft); }
+.rule-box b { display: block; color: var(--accent-ink); font-size: 15px; }
+.rule-box p { margin-top: 4px; color: var(--text-2); font-size: 14px; }
+
+/* The steps, what is deliberately not done, what is open. */
+.steps { margin: 14px 0 0; padding: 0; list-style: none; counter-reset: step; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.steps li { counter-increment: step; position: relative; padding: 14px 16px 14px 52px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.steps li::before { content: counter(step); position: absolute; left: 16px; top: 14px; width: 24px; height: 24px; border-radius: 7px; background: var(--invert); color: var(--on-invert); display: grid; place-items: center; font-size: 12.5px; font-weight: 700; }
+.steps h3 { font-size: 15px; font-weight: 700; }
+.steps p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.steps .v { margin-top: 6px; color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.check { margin: 8px 0 0; padding-left: 20px; color: var(--text-2); font-size: 14px; }
+.check li + li { margin-top: 3px; }
+.not { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.not div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); }
+.not h3 { font-size: 14px; font-weight: 700; }
+.not p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.open { margin: 12px 0 0; padding-left: 20px; color: var(--text-2); max-width: 86ch; }
+.open li + li { margin-top: 8px; }
+.open li b { color: var(--text); font-weight: 640; }
+.src { margin-top: 14px; color: var(--text-3); font-size: 13px; }
+.src a { color: var(--text-2); }
+
+@media (max-width: 1000px) {
+  .intro, .story { grid-template-columns: minmax(0, 1fr); }
+  .stories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; margin: 16px -16px 0; padding: 22px 16px; }
+  .stage .desk { width: 100%; }
+  .stage .phone { order: -1; width: min(300px, 100%); }
+  .block { padding: 18px 16px; }
+  .faults, .kinds, .parts, .cards2, .steps, .not, .rule-box, .ios { grid-template-columns: minmax(0, 1fr); }
+  .graph { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .graph { grid-template-columns: minmax(0, 1fr); }
+  .rules .who { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Zurück · 18.10.2026</p>
+      <h1>Am Handy führt Zurück nach oben, am Rechner durch den Verlauf</h1>
+      <p class="lead">Am Handy ist Betula eine App: Zurück und der Pfeil oben links sind ein und dieselbe Taste, auf Android die Zurück-Taste oder -Geste, auf dem iPhone das Wischen vom linken Rand, in Safari wie in der installierten App. Sie schließt zuerst, was offen ist, und geht dann Stufe für Stufe hinauf bis zur Startseite des Tabs, nie rückwärts durch alles, was du gesehen hast. Am Rechner bleibt Zurück der Verlauf des Browsers. Dieses Blatt legt das Verhalten fest, sagt, was in die Adresse gehört, und schlägt eine Architektur vor, die beides aus einem System bedient.</p>
+      <p class="quote">„Zum Beispiel kann man <b>modale Dialoge wieder mit zurück öffnen</b>, was halt keine andere App so macht. Aber <b>schließen sollte man die mit back können</b> … was wirklich in die url mit rein soll … beim pc ist back ja in der history zurück gehen. Aber am handy ist das ja eher wie eine App und da muss zum Beispiel wenn oben links ein back pfeil ist <b>das immer gleich sein, wie die handy back option</b> … dass man <b>zurück zum main screen</b> kommt und nicht die Seiten rückwärts abzuspielen.“</p>
+      <p class="quote">„Also die Lösung <b>muss auch für Safari Nutzer funktionieren</b> davon haben wir 30% mit ca. der Nutzer am phone 40%“</p>
+      <nav class="toc" aria-label="Inhalt"><a href="#spielen">Ausprobieren</a><a href="#heute">Was heute schiefgeht</a><a href="#adresse">Die Adresse</a><a href="#regeln">Regeln</a><a href="#iphone">iPhone</a><a href="#architektur">Architektur</a><a href="#schritte">Schritte</a><a href="#offen">Entschieden</a></nav>
+    </div>
+    <aside class="rules" aria-labelledby="core-title">
+      <p class="kicker" id="core-title">Das Verhalten in sechs Sätzen</p>
+      <ol>
+        <li><span><b>Am Handy sind Zurück und der Pfeil oben links eine Taste.</b> Was die eine tut, tut die andere, auf jeder Seite.</span></li>
+        <li><span><b>Zurück schließt zuerst, was offen ist:</b> ein Menü, einen Dialog, die Auswahl, das Semester im Wischer. Nichts Geschlossenes kommt wieder, weder mit Zurück noch mit Vorwärts.</span></li>
+        <li><span><b>Dann führt Zurück eine Stufe hinauf:</b> vom Modul zur Liste, vom Bereich zum Studiengang, von der Startseite eines Tabs zum Start, vom Start aus Betula hinaus.</span></li>
+        <li><span><b>Jeder Tab hat seinen eigenen Stapel.</b> Ein Tab kommt so wieder, wie du ihn verlassen hast, und Zurück bleibt in ihm. Ein Link in einen anderen Bereich wechselt den Tab.</span></li>
+        <li><span><b>Am Rechner ist Zurück der Verlauf des Browsers.</b> Jede Seite, Ansicht und Vorschau ist ein Schritt, Filter einer je Pause. Dialoge und Menüs sind keiner, Esc schließt sie; was du schließt, bringt ← nicht wieder.</span></li>
+        <li><span><b>Die Adresse sagt, wo du bist, nicht was offen ist.</b> Sie zeigt auf jedem Gerät dasselbe, und ein Dialog steht nie darin.</span></li>
+      </ol>
+      <div class="who"><div><b>Handy</b>wo die Handy-Ansicht gezeigt wird (heute bis 900 px Breite), Android und iPhone gleich: ein Stapel je Tab</div><div><b>Rechner</b>wo die Ansicht für den Rechner gezeigt wird: der Verlauf des Browsers, wie man ihn von jeder Website kennt</div></div>
+    </aside>
+  </header>
+
+  <section class="block" id="spielen" aria-labelledby="play-title">
+    <h2 id="play-title">Zum Ausprobieren</h2>
+    <p class="lead">Wähle eine Situation oder tippe selbst. Unter jedem Gerät steht, was gerade offen ist, der Verlauf des Browsers so, wie Betula ihn schreibt (oben das Neueste; gelb die Einträge der Ebenen, blass, was vorwärts liegt), und was das nächste Zurück tut. Am Handy ist ◁ das Zurück: die Taste oder Geste von Android, auf dem iPhone das Wischen vom linken Rand. Lang drücken wählt eine Zeile aus, zur Seite ziehen wischt, ein Sheet lässt sich nach unten ziehen. Am Rechner sind ← und → die des Browsers.</p>
+    <div class="stories" id="stories" role="group" aria-label="Situation"></div>
+    <div class="story" id="story" aria-live="polite"></div>
+    <div class="stage">
+      <figure class="device desk">
+        <figcaption>Am Rechner</figcaption>
+        <div class="frame"><div class="chrome" id="deskChrome"></div><div class="fit"><div class="screen" id="deskScreen"></div></div></div>
+        <div class="trace" id="deskTrace"></div>
+      </figure>
+      <figure class="device phone">
+        <figcaption>Am Handy</figcaption>
+        <div class="frame"><div class="fit"><div class="screen" id="phoneScreen"></div></div></div>
+        <div class="ctl"><button class="sys" type="button" id="phoneBack"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5 7 12l9 7z" fill="currentColor" stroke="none"/></svg>Zurück</button><button type="button" id="phoneFwd">Vorwärts</button></div>
+        <p class="ctl-note">Android: Taste oder Geste · iPhone: vom linken Rand wischen</p>
+        <div class="trace" id="phoneTrace"></div>
+      </figure>
+    </div>
+    <div class="stage-foot"><button class="c-reset" type="button" id="replay">Situation neu starten</button></div>
+  </section>
+
+  <section class="block" id="heute" aria-labelledby="today-title">
+    <h2 id="today-title">Was heute schiefgeht, und warum</h2>
+    <p class="lead">Betula führt heute keinen eigenen Stapel. Jede Taste, die zurückführt, kennt nur ihr Ziel nach oben und rät, ob es der Schritt davor ist. Geraten wird aus der zuletzt besuchten Adresse (<code>Tabs::before</code>): Sie kennt die Richtung nicht, Zurück und Vorwärts sehen gleich aus, und nach einem Neuladen ist sie leer. Liegt das Raten falsch, schreibt die Taste ihr Ziel als neuen Schritt, und das Zurück des Handys führt danach wieder hinein. Die drei Fehler, die du gesehen hast, und drei, die dahinterstecken:</p>
+    <div class="faults">
+      <article class="fault own">
+        <p class="kicker">Von dir gesehen</p>
+        <h3>Zurück öffnet ein Modul wieder</h3>
+        <p>Ein Modul aus der Liste ist offen, du folgst darin einem Link, kommst mit Zurück zum Modul und schließt es mit dem Finger. Das Schließen schreibt die Liste als neuen Schritt, und das nächste Zurück öffnet das Modul wieder. Genauso nach einem Neuladen, nach Vorwärts, bei einem geteilten Link, mit Esc, am Rechner mit ×, und am Handy bei Bereichen und Zeilen eines Studiengangs.</p>
+        <p class="why">Wo <code>Tabs::before</code> (tabs.rs:294) falsch rät, folgt <code>closeModule</code> dem Link statt zurückzugehen (enhance.js:777); Esc folgt ihm immer (enhance.js:1913).</p>
+        <p class="fix"><b>Künftig:</b> Schließen nimmt immer den eigenen Eintrag zurück. Betula weiß, was davor steht, statt zu raten.</p>
+      </article>
+      <article class="fault own">
+        <p class="kicker">Von dir gesehen</p>
+        <h3>Die Leiste der Auswahl bleibt nach Zurück liegen</h3>
+        <p>Die Auswahl lebt nur im Speicher der Seite. Zurück nimmt den Eintrag des Semesters (<code>/study?plan=1</code>), die Reihe gleitet zur Übersicht, das Semester bleibt im Fokus, und die Leiste liegt wieder über den Tabs, nur bedienen lässt sie sich nicht mehr. Seitlich wischen geht dann auch nicht.</p>
+        <p class="why">Der lange Druck setzt die Auswahl ohne Schritt (focus.rs:648); gelöscht wird sie nur, wenn ein anderes Semester in den Fokus kommt (pager.rs:477, 539).</p>
+        <p class="fix"><b>Künftig:</b> Die Auswahl ist eine Ebene. Zurück beendet sie, das Semester bleibt.</p>
+      </article>
+      <article class="fault own">
+        <p class="kicker">Von dir gesehen</p>
+        <h3>Nach dem Wischen führt Zurück nicht zur Übersicht</h3>
+        <p>Für alle Semester schreibt der Code nur einen Eintrag, aber erst, wenn die Reihe nach dem Wischen ruht. Für den Browser ist Wischen kein Tippen. Chrome, Safari und Firefox überspringen mit ihrer Zurück-Taste und dem Wischen vom Rand Einträge, die ohne Tippen entstanden sind, damit keine Seite jemanden festhält; nach einem Zurück zählt auch ein früheres Tippen nicht mehr. Der Pfeil oben ruft <code>history.back()</code> selbst auf und wird nicht übersprungen: Deshalb tut er, was die Taste nicht tut.</p>
+        <p class="why">Der Eintrag entsteht in <code>settle()</code> nach dem Scrollen (pager.rs:496); wer zur Übersicht zurückwischt, geht selbst zurück (pager.rs:491) und verbraucht so das letzte Tippen.</p>
+        <p class="fix"><b>Künftig:</b> Wischen schreibt nie einen Eintrag. Der Eintrag fürs Semester liegt schon bereit, angelegt beim Tippen auf „Studium“; Wischen geht nur hinein und wieder heraus. Auf Android wie am iPhone.</p>
+      </article>
+      <article class="fault">
+        <p class="kicker">Dahinter</p>
+        <h3>Pfeil und Zurück führen auseinander</h3>
+        <p>Wo das Raten falsch liegt, schreibt der Pfeil die Stufe darüber als neuen Schritt, und Zurück führt danach wieder hinein. Das passiert nach einem Neuladen, wenn ein Tab eine Seite wiederherstellt, nach einem Wechsel der Ansicht, nach Vorwärts, auf einer Modulseite, die von einer anderen kam, und wenn du auf einem Semester den Studium-Tab tippst.</p>
+        <p class="why">Der Pfeil geht nur zurück, wenn <code>Tabs::before(now) == href</code> (chrome.rs:704); der Studium-Tab führt immer zu <code>/study</code> als neuem Schritt (tabs.rs:246).</p>
+        <p class="fix"><b>Künftig:</b> Der Pfeil ist Zurück. Er steht nur, wo es eine Stufe darüber gibt.</p>
+      </article>
+      <article class="fault">
+        <p class="kicker">Dahinter</p>
+        <h3>Ein Dialog bleibt stehen, während die Seite dahinter wechselt</h3>
+        <p>Die Dialoge von „Mein Studium“ sind echte <code>&lt;dialog&gt;</code>. Android schließt sie mit Zurück schon jetzt von selbst. Am iPhone und am Rechner wechselt Zurück auf einem Semester oder bei offenem Modul nur die Seite dahinter, und der Dialog bleibt offen; Menüs bleiben ebenso liegen.</p>
+        <p class="why">Der Dialog hängt an einem Signal der Seite und hört nicht auf den Ort (dialog.rs:36–44).</p>
+        <p class="fix"><b>Künftig:</b> Ebenen gehören zu ihrer Seite und haben am Handy ihren Eintrag, auch am iPhone. Wechselt der Ort, gehen sie mit.</p>
+      </article>
+      <article class="fault">
+        <p class="kicker">Dahinter</p>
+        <h3>Zurück tut manchmal nichts, oder zu viel</h3>
+        <p>Ein Modul im Stundenplan entfernt: Die Seite steht zweimal hintereinander im Verlauf. Den Katalog über die Tasten verlassen, während die Filter offen sind: Ihr Platzhalter bleibt liegen. Wer oben sucht, ersetzt die Seite, auf der er tippt, und Zurück überspringt sie. Und ein Esc, das ein Menü schließt, schließt nebenbei die Vorschau dahinter.</p>
+        <p class="why">Ersetzen statt zurücknehmen (aside.rs:500, modules.rs:422); der Platzhalter der Filter (enhance.js:102); die Suche ersetzt bei jeder Taste (chrome.rs:803); die Esc-Kette in enhance.js:1909.</p>
+        <p class="fix"><b>Künftig:</b> Ein Eintrag nur für einen Ort, ein Esc für genau eine Ebene.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="block" id="adresse" aria-labelledby="addr-title">
+    <h2 id="addr-title">Was in die Adresse gehört</h2>
+    <p class="lead">Dialoge stehen schon heute nicht in der Adresse, und das bleibt so. Was am Handy wieder aufgeht, sind Module (<code>open=</code>) und Bereiche oder Zeilen eines Studiengangs (<code>area=</code>, <code>req=</code>). Sie gehören in die Adresse, denn ein geteilter Link soll genau sie zeigen. Falsch ist nur, wie ihr Schließen den Verlauf schreibt. Eine Sache geht hinaus: <code>plan=1</code>, das Semester im Wischer.</p>
+    <div class="kinds">
+      <div class="kind"><p class="kicker">Ort · in der Adresse</p><h3>Was man teilen und neu laden kann</h3><p>Die Seite, ihre Filter und Ansicht, das Modul neben der Liste. Eine Adresse zeigt auf jedem Gerät dasselbe: das Handy als Sheet von unten, der Rechner daneben.</p><p class="ex">/catalog?program=informatik&amp;open=13221</p></div>
+      <div class="kind"><p class="kicker">Schritt · Eintrag ohne Adresse</p><h3>Wie eine Seite gerade aussieht</h3><p>Welches Semester der Wischer am Handy zeigt. Für „ein Semester“ gibt es einen Eintrag ohne neue Adresse, der bereitliegt, bevor du wischst; welches, merkt sich Betula daneben. Neuladen und Tabwechsel bringen dasselbe Semester wieder.</p><p class="ex">/study + { semester }</p></div>
+      <div class="kind"><p class="kicker">Ebene · nie in der Adresse</p><h3>Was über einer Seite liegt</h3><p>Dialog, Menü, Auswahl, der Entwurf der Filter. Am Handy bekommt eine Ebene einen Eintrag ohne neue Adresse, damit Zurück sie schließt, auch das Wischen am iPhone. Am Rechner bekommt sie keinen, dort schließt Esc.</p><p class="ex">/study + { ebene: „Studiengang wechseln“ }</p></div>
+    </div>
+    <div class="table">
+      <table>
+        <thead><tr><th scope="col">Was</th><th scope="col">Heute</th><th scope="col">Künftig</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Seite, Filter, Suche, Ordnung <code>q</code>, <code>program</code>, … <code>sort</code></th><td>Adresse; am Rechner jeder Klick ein Schritt</td><td class="chg">Adresse. Am Handy ist jedes Übernehmen der Filter ein Schritt, Suche und Ordnung ersetzen den Eintrag; am Rechner ein Schritt je Pause.</td></tr>
+          <tr><th scope="row">Seite der Liste <code>page</code></th><td>Adresse, ersetzt beim Scrollen</td><td class="same">wie heute</td></tr>
+          <tr><th scope="row">Ansicht, Studienrichtung <code>view</code>, <code>variant</code>, im Stundenplan <code>sem</code></th><td>Adresse, jeder Wechsel ein Schritt</td><td class="same">Adresse. Am Handy ersetzt ein Wechsel den Eintrag.</td></tr>
+          <tr><th scope="row">Modul neben der Liste oder als Sheet <code>open</code>, im Stundenplan mit <code>row</code></th><td>Adresse; Schließen schreibt manchmal einen neuen Schritt</td><td class="chg">Adresse. Schließen nimmt den Eintrag immer zurück.</td></tr>
+          <tr><th scope="row">Modul im Vollbild <code>full=1</code></th><td>Adresse</td><td class="same">wie heute</td></tr>
+          <tr><th scope="row">Bereich, Zeile eines Studiengangs <code>area</code>, <code>req</code></th><td>Adresse; am Handy eine Seite</td><td class="same">Adresse; am Handy eine Stufe</td></tr>
+          <tr><th scope="row">Semester im Wischer am Handy <code>plan=1</code></th><td>Adresse, aber welches Semester steht nirgends</td><td class="chg">ein Eintrag ohne Adresse, der bereitliegt; welches Semester, merkt sich Betula. <code>plan=1</code> wird noch gelesen, nicht mehr geschrieben.</td></tr>
+          <tr><th scope="row">Auftrag fürs Einplanen <code>fill</code>, <code>plan</code> auf der Modulseite</th><td>Adresse</td><td class="same">wie heute: er reist mit dem Link</td></tr>
+          <tr><th scope="row">Mitgebrachtes <code>share</code>, <code>#m=</code>, <code>import</code></th><td>Adresse, nach der Antwort ersetzt</td><td class="same">wie heute</td></tr>
+          <tr><th scope="row">Dialoge, Menüs, Tab- und Profilmenü, Auswahl, Filterentwurf</th><td>nirgends; der Filterentwurf mit einem Platzhalter-Eintrag</td><td class="chg">nie in der Adresse. Am Handy je ein Eintrag ohne Adresse, den das Schließen zurücknimmt; am Rechner keiner.</td></tr>
+          <tr><th scope="row">Semester im Fokus, Gesamtplan am Rechner</th><td>Speicher, <code>localStorage</code></td><td class="same">wie heute</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="regeln" aria-labelledby="rules-title">
+    <h2 id="rules-title">Die Regeln zum Nachschlagen</h2>
+    <p class="lead">Jeder Link und jede Taste wird zu einer von sieben Absichten; die Politik des Geräts macht daraus Schritte im Verlauf. Am Handy schreiben nur „Öffnen“, „Tab“ und „Ebene“ einen neuen Eintrag, und nur auf ein Tippen hin.</p>
+    <div class="table">
+      <table>
+        <thead><tr><th scope="col">Absicht</th><th scope="col">Zum Beispiel</th><th scope="col">Handy</th><th scope="col">Rechner</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Öffnen</th><td>ein Modul, ein Studiengang, eine Ansicht als Seite, ein Bereich</td><td><b>neuer Eintrag</b> im Stapel des Tabs (<code>pushState</code>); aus einer Ebene heraus nimmt er deren Eintrag ein; eine Seite eines anderen Bereichs ist ein Tabwechsel</td><td><b>neuer Eintrag</b></td></tr>
+          <tr><th scope="row">Daneben</th><td>Filter, Suche, Ordnung, Ansicht eines Studiengangs, Semester im Stundenplan</td><td><b>ersetzt</b> den Eintrag (<code>replaceState</code>); das Filter-Sheet schreibt bei jedem Übernehmen <b>einen Schritt</b></td><td><b>ein Schritt je Pause</b>: Klicks dicht hintereinander (unter einer Sekunde) sind einer; die Suche ersetzt ab dem zweiten Zeichen</td></tr>
+          <tr><th scope="row">Wischen</th><td>die Semester in „Mein Studium“</td><td>geht in den <b>bereitliegenden Eintrag</b> und wieder heraus (<code>history.forward()</code>, <code>back()</code>); schreibt nie</td><td>kein Wischer: das Semester im Fokus, im Speicher</td></tr>
+          <tr><th scope="row">Hinauf</th><td>Pfeil, „Zurück (Esc)“, × eines Moduls, ein Sheet nach unten</td><td><code>history.back()</code>: der Schritt davor ist immer die Stufe darüber</td><td><code>history.back()</code>, wo der Schritt davor die Stufe darüber ist; sonst ein neuer Eintrag, und wo × etwas daneben schließt, ersetzt es den Eintrag</td></tr>
+          <tr><th scope="row">Tab</th><td>die Leiste, ein Link auf eine Seite eines anderen Bereichs</td><td>schreibt den Verlauf auf <b>Start und den Stapel des Tabs</b> um: erst anlegen, was fehlt, dann ersetzen. Unter der Startseite eines Tabs liegt immer Start; eine Seite aus einem Link bekommt darunter, was darüber steht</td><td>neuer Eintrag des Orts, an dem der Tab verlassen wurde</td></tr>
+          <tr><th scope="row">Tab noch einmal</th><td>der Tab, in dem du bist</td><td><code>history.go(−n)</code> zur Startseite des Tabs, das Semester zurück auf die Übersicht</td><td>neuer Eintrag der Startseite, oder zurück, wo sie der Schritt davor ist</td></tr>
+          <tr><th scope="row">Ebene</th><td>Dialog, Menü, Auswahl, Filter, das Semester im Wischer</td><td><b>Eintrag ohne neue Adresse</b>, auf den Tipp hin (beim langen Druck beim Loslassen); Schließen nimmt ihn zurück</td><td><b>kein Eintrag</b>; Esc schließt die oberste</td></tr>
+          <tr><th scope="row">Zurück des Systems</th><td>Taste und Geste von Android, das Wischen vom Rand am iPhone</td><td>wie der Pfeil: erst die oberste Ebene, dann eine Stufe hinauf</td><td>der Verlauf des Browsers; offene Ebenen gehen mit der Seite</td></tr>
+          <tr><th scope="row">Vorwärts</th><td>Menü des Browsers, Geste</td><td>bringt den Ort zurück, den Zurück verlassen hat, auch ein Modul (Betula sagt nicht nein); an Einträgen von Ebenen und an Resten eines anderen Tabs prallt es ab</td><td>der Verlauf des Browsers; nie eine Ebene</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3 style="margin-top:22px;font-size:16px;font-weight:700">Der Rückweg am Handy</h3>
+    <p class="lead" style="margin-top:4px;max-width:82ch;color:var(--text-2)">Jeder Tab ist ein Stapel, unten seine Startseite. Zurück nimmt das Oberste: erst die Ebenen (gelb), dann die Seiten. Die Startseite jedes Tabs führt zum Start, der Start aus Betula hinaus.</p>
+    <div class="graph" aria-label="Rückweg je Tab">
+      <div class="tabcol"><h4>Start</h4><div class="nd root">Start<small>dann aus Betula hinaus</small></div><span class="up">↑</span><div class="nd lay">Karte des Campus</div></div>
+      <div class="tabcol"><h4>Module</h4><div class="nd root">Liste<small>mit Filter und Suche</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet</small></div><span class="up">↑</span><div class="nd">eine Modulseite<small>eine Voraussetzung, die das Modul nennt</small></div><span class="up">↑</span><div class="nd lay">Filter · „Einplanen“-Menü</div></div>
+      <div class="tabcol"><h4>Studium</h4><div class="nd root">Mein Studium<small>Übersicht</small></div><span class="up">↑</span><div class="nd lay">Semester im Wischer</div><span class="up">↑</span><div class="nd">Regelstudienplan, Alle Studiengänge<small>dann Studiengang, Bereich</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet</small></div><span class="up">↑</span><div class="nd lay">Auswahl · Menü · Dialog</div></div>
+      <div class="tabcol"><h4>Merkliste</h4><div class="nd root">Merkliste</div><span class="up">↑</span><div class="nd">Modul<small>Sheet, dann Vollbild</small></div></div>
+      <div class="tabcol"><h4>Stundenplan</h4><div class="nd root">Woche<small>Semester und Ansicht ersetzen</small></div><span class="up">↑</span><div class="nd">Modul<small>Sheet, dann „Modul ansehen“</small></div><span class="up">↑</span><div class="nd lay">„Anpassen“</div></div>
+    </div>
+    <p class="graph-note">Ein Link in einen anderen Bereich, etwa vom Modul zum Studiengang, wechselt in dessen Tab. Dort liegt darunter, was darüber steht (Mein Studium, Alle Studiengänge), und Zurück führt dort hinauf. Der Tab, aus dem du kamst, bleibt, wie er war: Ein Tipp auf ihn bringt dich zum Modul zurück.</p>
+  </section>
+
+  <section class="block" id="iphone" aria-labelledby="ios-title">
+    <h2 id="ios-title">Am iPhone genauso</h2>
+    <p class="lead">Rund 40 % der Handys sind iPhones, und dort laufen alle Browser mit Safaris Technik. Ein iPhone hat keine Zurück-Taste: Zurück ist das Wischen vom linken Rand, in Safari wie in der installierten App. Es folgt dem Verlauf, und keine Seite kann es abfangen. Darum steht am Handy alles, was Zurück schließen soll, im Verlauf, für alle Browser auf dieselbe Weise. Das Verhalten oben gilt am iPhone Satz für Satz.</p>
+    <div class="ios">
+      <div><h3>Wischen vom Rand ist Zurück</h3><p>Es tut, was der Pfeil oben links tut: schließt erst die Ebene, das Modul, die Auswahl, das Semester, dann eine Stufe hinauf. Weil jede Ebene einen Eintrag hat, braucht es dafür kein <code>CloseWatcher</code>, das Safari nicht kennt.</p></div>
+      <div><h3>Einträge nur auf ein Tippen</h3><p>Safari überspringt Einträge, die ohne Tippen entstanden sind, wie Chrome. Deshalb liegt der Eintrag fürs Semester bereit, bevor du wischst, und ein geteilter Link bekommt den Stapel darunter beim ersten Tippen.</p></div>
+      <div><h3>Das Bild beim Wischen</h3><p>Safari zeigt beim Wischen ein Bild der Seite, zu der es geht, auch innerhalb einer Seite. Betula legt den Eintrag einer Ebene an, bevor es sie zeichnet, damit das Bild darunter stimmt, und animiert nicht noch einmal, wo Safari schon animiert hat (<code>hasUAVisualTransition</code>, ab Safari 26.2; davor nach Zurück gar nicht).</p></div>
+      <div><h3>Der linke Rand im Wischer</h3><p>Am iPhone ist Wischen vom linken Bildschirmrand immer Zurück. In „Mein Studium“ liegen die vergangenen Semester links: Um sie zu sehen, wischst du nach rechts. Beginnt diese Bewegung ganz am Rand, nimmt Safari sie als Zurück und führt zum Start; aus der Mitte heraus wischt der Wischer. Abschalten lässt sich das nicht; es steht auf der Prüfliste.</p></div>
+      <div><h3>Nach einem Tabwechsel</h3><p>Der Verlauf wird an Ort und Stelle umgeschrieben. Unter der Startseite eines Tabs liegt danach Start, also stimmt Safaris Bild beim Wischen zum Start. Eine Stufe innerhalb des Tabs kann beim ersten Wischen noch ein altes Bild zeigen; nach dem Loslassen stimmt die Seite.</p></div>
+      <div><h3>Geprüft wird von Hand</h3><p>Kein Testwerkzeug wischt wie ein Finger am Rand. Gebaut wird zuerst für Chrome und auf Android geprüft; danach geht jemand mit einem iPhone die Prüfliste in Schritt 7 durch, in Safari und als installierte App. Was dort hakt, wird nachgezogen.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="architektur" aria-labelledby="arch-title">
+    <h2 id="arch-title">Die Architektur</h2>
+    <p class="lead">Ein System für beide Geräte: Seiten sagen nur, was sie wollen; ein Navigator entscheidet, was das im Verlauf heißt. Am Rechner ist das fast, was heute schon geschieht; am Handy wird daraus der Stapel einer App. Der Router bleibt, wie er ist. Zwei Regeln der Browser bestimmen den Bau:</p>
+    <div class="rule-box">
+      <div><b>Ein neuer Eintrag nur auf ein Tippen hin</b><p>Chrome, Safari und Firefox überspringen mit ihrer Zurück-Taste Einträge, die ohne Tippen, Klicken oder Taste entstanden sind; nach einem Zurück zählt erst das nächste Tippen wieder. Nichts, was ein Wischen, ein Zeitgeber, das Scrollen oder <code>popstate</code> auslöst, darf <code>pushState</code> rufen. Ersetzen und Zurückgehen dürfen sie.</p></div>
+      <div><b>Was Zurück schließen soll, braucht einen Eintrag</b><p>Das iPhone hat keine Zurück-Taste, nur das Wischen vom Rand, und Safari kennt kein <code>CloseWatcher</code>: Zurück kann dort nur, was im Verlauf steht. Darum bekommt am Handy jede Ebene einen Eintrag ohne neue Adresse, auf Android genauso. Was man ohne Tippen braucht, das Semester im Wischer, liegt schon bereit.</p></div>
+    </div>
+    <div class="arch">
+      <div class="band"><h3>Eingaben</h3><p>Tippen auf einen Link · die Tableiste · der Pfeil oben links · Esc · Wischen · ein Sheet nach unten · das Zurück des Systems (<code>popstate</code>, Schließ-Anfrage)</p></div>
+      <div class="flow">eine Absicht: Öffnen, Daneben, Hinauf, Tab, Tab noch einmal, Ebene</div>
+      <div class="band nav">
+        <h3>Navigator · folia-shell/src/nav, neu</h3>
+        <p>Liest jeden Linkklick, statt ihn wie heute als neuen Schritt durchzureichen, fragt den Rückweg, wie Ziel und Ort zueinander stehen, und lässt die Politik des Geräts entscheiden (Handy oder Rechner). Links bleiben Links: Sie gehen ohne JavaScript, der Navigator liest sie nur.</p>
+        <div class="parts">
+          <div class="part"><b>Rückweg</b><small>folia-routes, rein</small><p>Zu jedem Ort sein Tab, ob er die Startseite eines Tabs ist, seine Stufe darüber, und wie zwei Orte zueinander stehen: darunter, daneben, darüber, anderer Tab. Mit Tests für jede Route, wie <code>url.rs</code> sie heute hat.</p><p class="rep">ersetzt <code>Area::back_root</code>, <code>chrome::Up</code>, <code>back_at_head</code>, <code>local::back_href</code>, das <code>back_to</code> der Modulseite</p></div>
+          <div class="part"><b>Verlauf</b><small>nav, einziger Schreiber</small><p>Schreibt als Einziges in den Verlauf: Orte über den Router (push oder replace), Ebenen und das Semester als Einträge ohne neue Adresse, sonst <code>back()</code>, <code>forward()</code> und <code>go()</code>. Jeder Eintrag trägt Nummer, Tab, Art und ob er die Startseite eines Stapels ist; ein Spiegel kennt die Einträge davor, auch nach einem Neuladen. Hört <code>popstate</code> vor dem Router und entscheidet: zeichnen, über liegengebliebene Einträge hinweggehen, abprallen. Beim Tabwechsel schreibt er den Verlauf um; unter einen geteilten Link legt er beim ersten Benutzen, was darüber steht.</p><p class="rep">ersetzt <code>Tabs::before</code>, <code>data-back</code>, <code>from_overview</code>, <code>view_back</code>, <code>pager::follow</code>, das <code>pushState</code> in enhance.js</p></div>
+          <div class="part"><b>Ebenen</b><small>nav, ein Stapel</small><p>Alles, was über einer Seite liegt: Dialoge, Menüs, die Auswahl, die Filter am Handy. Gibt jeder am Handy ihren Eintrag und nimmt ihn beim Schließen zurück, schließt sie, wenn der Ort wechselt, und lässt ein Esc genau eine schließen. Ein <code>&lt;dialog&gt;</code>, den Android selbst schließt, nimmt seinen Eintrag mit (<code>close</code>).</p><p class="rep">ersetzt die Esc-Kette in enhance.js, <code>betulaSheet</code>, die eigenen Esc-Handler der Menüs</p></div>
+        </div>
+      </div>
+      <div class="flow">ein Ort</div>
+      <div class="band"><h3>Router und Pending</h3><p>leptos_router zeichnet den Ort, <code>Pending</code> hält ihn einen Frame für die Skelette zurück, wie heute. Nur der Klick-Listener in <code>pending.rs</code>, der heute jeden Link als neuen Schritt schreibt, gibt seine Arbeit an den Navigator ab.</p></div>
+    </div>
+    <div class="cards2">
+      <div>
+        <h3>Was jeder Eintrag trägt</h3>
+        <p>In <code>history.state</code>, neben dem des Routers: <code>n</code> (fortlaufend), <code>tab</code>, <code>kind</code> (Seite, Sheet, Ebene, Semester) und <code>root</code> (Startseite eines Stapels). Welches Semester der Eintrag „Semester“ zeigt, merkt sich Betula daneben, damit Wischen nichts schreiben muss. Der Spiegel in <code>sessionStorage</code> (<code>betula.nav</code>, je Profil) kennt die Einträge davor; wo es die Navigation API gibt (seit Januar 2026 in allen großen Browsern), liefert <code>navigation.entries()</code> dasselbe.</p>
+        <p>Dazu die Stapel der Tabs am Handy, statt nur des letzten Orts. Die heutige <code>betula.tabs</code> wird gelesen, also verliert kein Browser, was er behalten hat.</p>
+      </div>
+      <div>
+        <h3>Ein Weg für alle Handys</h3>
+        <ul>
+          <li><b>Ebenen:</b> ein Eintrag ohne neue Adresse, angelegt beim Tippen, das sie öffnet, die Auswahl beim Loslassen nach dem langen Druck. Schließen nimmt ihn zurück (<code>history.back()</code>), Zurück, Geste und Wischen nehmen ihn mit, Vorwärts prallt an ihm ab.</li>
+          <li><b>Das Semester im Wischer:</b> Sein Eintrag entsteht beim Tippen auf „Studium“ (anlegen, gleich wieder zurück) und liegt vorwärts bereit. Der erste Wisch geht hinein (<code>history.forward()</code>), der Wisch zurück zur Übersicht wieder heraus. Kommst du von einer anderen Seite zur Übersicht zurück, wird deren Eintrag dafür genommen (vor, ersetzen, zurück); das braucht kein Tippen.</li>
+          <li><b>Tabs:</b> erst anlegen, was fehlt, solange das Tippen frisch ist, dann die Einträge an Ort und Stelle ersetzen und zum Ziel gehen. Die Seite zeigt den Tab sofort, der Verlauf folgt in den Frames danach.</li>
+          <li><b>Kein CloseWatcher:</b> Er wäre auf Android bequemer, aber Safari kennt ihn nicht; ein Weg für alle Handys lässt sich einmal bauen und einmal prüfen.</li>
+          <li><b>Rechner:</b> Ebenen ohne Eintrag, Esc schließt die oberste. Zurück bleibt der Verlauf.</li>
+        </ul>
+      </div>
+    </div>
+<div class="band" style="margin-top:12px"><h3>Handy oder Rechner</h3><p>Das Verhalten folgt der Ansicht: Wo die Handy-Ansicht gezeigt wird, gilt das Handy-Verhalten. Beide fragen dieselbe Bedingung (<code>nav::is_phone</code> und das Stylesheet), heute die Breite bis 900 px. Besser wäre später die Frage nach Maus und Trackpad: Geräte nur mit Touch, also Handys und Tablets (<code>(hover: none) and (pointer: coarse)</code>), bekommen die Handy-Ansicht in jeder Breite; mit Maus oder Trackpad (<code>hover: hover</code>), etwa ein Tablet-PC mit Tastatur, die des Rechners, sobald Platz ist. Steckt man die Tastatur an oder ab, wechseln Ansicht und Verhalten zusammen; jeder Eintrag sagt, wie er entstand, also bleibt der Verlauf lesbar.</p></div>
+<pre class="code"><span class="c">// folia-routes: der Rückweg, rein, mit Tests für jede Route</span>
+pub enum Tab { Start, Module, Studium, Merkliste, Stundenplan }
+pub enum Relation { Same, Beside, Below, Above(u8), OtherTab(Tab) }
+pub fn tab_of(place: &amp;str) -&gt; Tab;
+pub fn is_tab_root(place: &amp;str) -&gt; bool;
+pub fn parent(place: &amp;str, memory: &amp;Memory) -&gt; Option&lt;String&gt;;
+pub fn relation(from: &amp;str, to: &amp;str) -&gt; Relation;
+
+<span class="c">// folia-shell::nav: was Seiten sagen</span>
+pub enum Intent { Open(String), Beside(String), Up, Tab(Tab), TabAgain }
+impl Nav {
+    pub fn go(&amp;self, intent: Intent);
+    pub fn layer(&amp;self, kind: LayerKind, close: Callback&lt;()&gt;) -&gt; Layer;  <span class="c">// fällt Layer weg, ist die Ebene zu</span>
+    pub fn show(&amp;self, state: PageState);                              <span class="c">// das Semester im Wischer: schreibt nichts</span>
+    pub fn way_back(&amp;self) -&gt; Signal&lt;bool&gt;;                           <span class="c">// ob der Pfeil oben links steht</span>
+}
+
+<span class="c">// die Politik: eine reine Funktion je Gerät, mit Tests für jede Situation dieser Seite</span>
+enum Kind { Page, Sheet, Layer(LayerId), Semester }
+struct Entry { n: u32, tab: Tab, kind: Kind, root: bool }
+enum Op { Push(String, Entry), Replace(String, Entry), Go(i32), Close(LayerId) }
+<span class="c">// Push nur im Tippen und vor jedem Go; was danach kommt, ist Replace oder Go</span>
+fn plan(policy: Policy, stack: &amp;[Entry], open: &amp;[LayerId], intent: &amp;Intent) -&gt; Vec&lt;Op&gt;;</pre>
+    <div class="table">
+      <table>
+        <thead><tr><th scope="col">Was die Handys können (Oktober 2026)</th><th scope="col">Android: Chrome, Samsung Internet, Firefox</th><th scope="col">iPhone: Safari und alle Browser dort</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Zurück des Systems</th><td>Taste oder Geste</td><td>Wischen vom linken Rand, im Browser wie installiert; nicht abschaltbar</td></tr>
+          <tr><th scope="row">Einträge ohne Tippen</th><td>werden beim Zurück übersprungen</td><td>werden beim Zurück übersprungen</td></tr>
+          <tr><th scope="row">Zurück schließt Ebenen ohne Eintrag (<code>CloseWatcher</code>)</th><td>ja, auch <code>&lt;dialog&gt;</code> von selbst</td><td>nein, nur in der Technology Preview: darum der Eintrag</td></tr>
+          <tr><th scope="row">Bild der Zielseite beim Zurück</th><td>mit der Vorschau-Geste neuerer Android-Versionen</td><td>ja, auch innerhalb einer Seite</td></tr>
+          <tr><th scope="row">Browser hat schon animiert (<code>hasUAVisualTransition</code>)</th><td>Chrome ab 118</td><td>ab 26.2</td></tr>
+          <tr><th scope="row">Navigation API (<code>navigation.entries()</code>)</th><td>Chrome; Firefox ab 147</td><td>ab 26.2</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cards2">
+      <div>
+        <h3>Prüfen</h3>
+        <p><code>e2e/back.mjs</code> spielt die Situationen dieser Seite auf einem Handy und in einem breiten Fenster. Playwrights <code>goBack</code> springt auf einen bestimmten Eintrag und überspringt nichts; deshalb prüft der Test außerdem, dass jedes <code>pushState</code> in einem Tippen geschieht (<code>navigator.userActivation.isActive</code>), und spielt das Zurück mit <code>history.back()</code>. Was nur ein echtes iPhone zeigt (das Wischen vom Rand, Safaris Bild dabei), prüft die Prüfseite aus Schritt 1 von Hand.</p>
+        <p>Rückweg und Politik bekommen reine Tests, wie <code>pending.rs</code> heute: jede Route mit ihrer Stufe darüber, jede Situation mit dem Verlauf, den sie ergibt.</p>
+      </div>
+      <div>
+        <h3>Was sich für die Seiten ändert</h3>
+        <p>Weniger: Kein <code>data-back</code>, kein <code>TopBack::follow</code> mit eigenem Urteil, kein <code>history.back()</code> in Seiten. Eine Seite mit einer Stufe darüber bekommt den Pfeil vom Navigator; ein Dialog oder Menü meldet sich mit <code>nav.layer(…)</code> an und ist zu, wenn er wegfällt; „Mein Studium“ sagt mit <code>nav.show(…)</code>, welches Semester es zeigt.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="schritte" aria-labelledby="steps-title">
+    <h2 id="steps-title">In sieben Schritten</h2>
+    <p class="lead">Zuerst für Chrome gebaut und auf Android geprüft; zuletzt geht jemand mit einem iPhone die Prüfliste durch. Jeder Schritt geht für sich auf canary und behebt etwas, das du sehen kannst. Keiner braucht eine MAJOR: Keine Adresse geht weg (<code>plan=1</code> wird weiter gelesen), und was ein Browser behält (<code>betula.tabs</code>), wird übernommen.</p>
+    <ol class="steps">
+      <li><h3>Ebenen</h3><p>Ein Stapel für Dialoge, Menüs, Auswahl und Filter, am Handy jede mit ihrem Eintrag ohne neue Adresse. Zurück, das Wischen vom Rand und Esc schließen die oberste; ein neuer Ort schließt die alten. Behebt: die Leiste der Auswahl nach Zurück, offene Menüs und Dialoge vor wechselnden Seiten, ein Esc, das zwei Dinge tut, den liegengebliebenen Eintrag der Filter.</p><p class="v">Folia MINOR</p></li>
+      <li><h3>Verlauf</h3><p>Einträge mit Nummer und Art, der Spiegel, ein einziger Schreiber. Schließen nimmt den eigenen Eintrag zurück; der Pfeil ist Zurück; „Entfernen“ im Stundenplan nimmt zurück statt zu ersetzen; die Suche schreibt beim ersten Zeichen einen Schritt und ersetzt danach; Filter am Rechner ein Schritt je Pause, am Handy je Übernehmen. Behebt: Module und Bereiche, die Zurück wieder öffnet, Pfeil und Zurück, die auseinanderführen, Zurück, das nichts tut.</p><p class="v">Folia MINOR</p></li>
+      <li><h3>Wischer</h3><p>Der Eintrag fürs Semester liegt bereit, Wischen geht nur hinein und heraus und schreibt nichts; der Studium-Tab führt auf einem Semester zurück zur Übersicht. Behebt: Zurück nach dem Wischen.</p><p class="v">Folia PATCH</p></li>
+      <li><h3>Stapel je Tab</h3><p>Ein Tabwechsel schreibt den Verlauf auf Start und den Stapel des Tabs um, Zurück von der Startseite eines Tabs führt zum Start, und ein Link in einen anderen Bereich wechselt den Tab, mit dem, was darüber steht, darunter.</p><p class="v">Folia MINOR</p></li>
+      <li><h3>Geteilte Links</h3><p>Solange ein Link von außen nur gelesen wird, führt Zurück zurück, woher er kam. Beim ersten Benutzen legt Betula darunter, was darüber steht: Modulseite, Liste, Start.</p><p class="v">Folia PATCH</p></li>
+      <li><h3>Prüfen und beschreiben</h3><p><code>e2e/back.mjs</code> auf einem Handy und in einem breiten Fenster, die Tests für Rückweg und Politik, und ein Abschnitt „Zurück“ in <code>docs/folia/frontend.md</code> statt der verstreuten Sätze von heute.</p><p class="v">mit jedem Schritt der Teil, der zu ihm gehört</p></li>
+      <li><h3>Am iPhone prüfen</h3><p>Mit einem Kommilitonen, in Safari und als installierte App, jeweils vom linken Rand gewischt:</p><ol class="check"><li>Ein Dialog geht zu, die Seite bleibt.</li><li>Eine Auswahl (lang drücken) geht, das Semester bleibt.</li><li>Nach dreimal seitlich Wischen in „Mein Studium“: die Übersicht.</li><li>Ein geschlossenes Modul kommt nicht wieder.</li><li>Nach einem Tabwechsel: erst die Startseite des Tabs, dann Start.</li><li>Auf der Übersicht ganz am linken Rand nach rechts: Das führt zum Start. Stört das?</li><li>Das Bild beim Wischen zeigt die Seite, auf der du landest.</li></ol><p class="v">was hakt, als PATCH danach</p></li>
+    </ol>
+  </section>
+
+  <section class="block" id="nicht" aria-labelledby="not-title">
+    <h2 id="not-title">Bewusst nicht</h2>
+    <div class="not">
+      <div><h3>Kein zweiter Verlauf</h3><p>Betula schreibt den Verlauf des Browsers so, dass er der Stapel ist. Einen eigenen daneben, der davon abweicht, gibt es nicht.</p></div>
+      <div><h3>Kein Eintrag ohne Tippen</h3><p>Was ein Wischen, ein Zeitgeber oder das Scrollen auslöst, schreibt keinen neuen Eintrag. Die Browser würden ihn beim Zurück überspringen.</p></div>
+      <div><h3>Keine Dialoge in der Adresse</h3><p>Ein geteilter Link öffnet nie einen Dialog, ein Menü oder eine Auswahl, sondern den Ort darunter.</p></div>
+      <div><h3>Am Rechner kein App-Stapel</h3><p>Zurück bleibt der Verlauf, über Tabs hinweg, wie auf jeder Website. Nur „Zurück (Esc)“ in der Seite geht hinauf.</p></div>
+      <div><h3>Kein Sonderweg fürs iPhone</h3><p>Android und iPhone nutzen denselben Weg. <code>CloseWatcher</code>, das Safari nicht kennt, braucht es dafür nicht.</p></div>
+      <div><h3>Kein Festhalten</h3><p>Zurück schließt höchstens, was offen ist. Betula fragt nie „Wirklich verlassen?“.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="offen" aria-labelledby="open-title">
+    <h2 id="open-title">Entschieden</h2>
+    <p class="lead">Deine Antworten vom 18.10.2026, jetzt Regeln dieses Blatts:</p>
+    <ul class="open">
+      <li><b>Zurück von der Startseite eines Tabs:</b> erst zum Start, dann aus Betula hinaus.</li>
+      <li><b>Ein geteilter Link am Handy:</b> Solange du ihn nur liest, führt Zurück zurück in den Messenger. Sobald du Betula benutzt (etwas öffnest, den Pfeil tippst, den Tab wechselst), legt Betula darunter, was darüber steht, und Zurück führt über Liste und Start hinaus. Der Pfeil zählt als Benutzen: Nur beim allerersten Druck führen er und Zurück darum verschieden.</li>
+      <li><b>Ein Link in einen anderen Bereich:</b> wechselt den Tab („das wird sonst giga irritierend“).</li>
+      <li><b>Filter:</b> am Rechner ein Schritt je Pause, am Handy ein Schritt je „Module anzeigen“.</li>
+      <li><b>Safari:</b> Gebaut wird zuerst für Chrome; dann geht ein Kommilitone mit iPhone die Prüfliste in Schritt 7 durch.</li>
+      <li><b>Handy oder Rechner:</b> vorerst 900 px Breite, und das Verhalten folgt der Ansicht. Später besser nach Maus und Tastatur statt nach der Breite (Architektur, „Handy oder Rechner“).</li>
+    </ul>
+    <h3 style="margin-top:20px;font-size:16px;font-weight:700">Noch offen</h3>
+    <ul class="open">
+      <li><b>Die Pause am Rechner:</b> eine Sekunde (vorgeschlagen), oder länger?</li>
+      <li><b>Zurück im Filter-Sheet:</b> Es übernimmt die Wahl wie heute, als Schritt wie „Module anzeigen“ (vorgeschlagen). Oder soll Zurück die Wahl verwerfen?</li>
+    </ul>
+    <p class="src">Quellen zu den Browsern: <a href="https://chromium.googlesource.com/chromium/src/+/127.0.6533.99/docs/history_manipulation_intervention.md">Chromium, History manipulation intervention</a> · <a href="https://bugs.webkit.org/show_bug.cgi?id=248303">WebKit, Bug 248303</a> · <a href="https://developer.mozilla.org/docs/Web/API/CloseWatcher">MDN, CloseWatcher</a> · <a href="https://caniuse.com/mdn-api_closewatcher_close">caniuse, CloseWatcher</a> · <a href="https://caniuse.com/wf-navigation">caniuse, Navigation API</a> · <a href="https://developer.mozilla.org/docs/Web/API/NavigateEvent/hasUAVisualTransition">MDN, hasUAVisualTransition</a> · <a href="https://lists.w3.org/Archives/Public/public-css-archive/2023Jan/0578.html">Safaris Bild beim Wischen innerhalb einer Seite</a></p>
+  </section>
+</div>
+
+<script>
+"use strict";
+// ---------- the model: a browser's history and Betula's two ways of going back ----------
+// One way for every phone, Android and iPhone alike. The iPhone has no Back key, only the swipe from the
+// left edge, and Safari has no CloseWatcher: Back can only do what is in the history. So on a phone
+// everything Back closes has an entry: a place a new address, a layer (dialog, sheet, menu, the
+// selection, the filters) one without. Entries are written only on a tap; the semester of the row lies
+// ready above the overview, written on the tap that brought one there, and a swipe only moves into it
+// and out (forward, back). A change of tabs rewrites the history in place, so that Start always lies
+// right under a tab's start. The desktop keeps the browser's history of places; its layers have no
+// entries. Pure: the page below only draws what it says.
+// The owner's decisions (2026-10-18): from a tab's start to Start, then out; a shared link leads back out
+// while nothing was used in it, and lays its stack under it with the first use; a page of another area
+// is a change of tabs; filters a step each time the phone's sheet applies them, on a desktop each pause.
+const TABS = ["home", "catalog", "study", "bookmarks", "plan"];
+const TAB_ROOT = { home: "/", catalog: "/catalog", study: "/study", bookmarks: "/bookmarks", plan: "/studyplan" };
+const TAB_NAME = { home: "Start", catalog: "Module", study: "Studium", bookmarks: "Merkliste", plan: "Stundenplan" };
+const TAB_ICON = { home: "house", catalog: "list", study: "cap", bookmarks: "mark", plan: "cal" };
+const LAYER_NAME = { change: "„Studiengang wechseln“", areas: "„Bereiche“", filters: "die Filter", selection: "die Auswahl" };
+const MODS = {
+  "11101": { name: "Mathematik I", lp: 8, area: "Mathematik", turnus: "WiSe", times: "Vorlesung Mo 9:15 · Übung Mi 11:30" },
+  "12204": { name: "Programmierung", lp: 6, area: "Informatik", turnus: "WiSe", times: "Vorlesung Di 9:15 · Übung Do 13:45" },
+  "13221": { name: "Compilerbau", lp: 6, area: "Praktische Informatik", turnus: "SoSe", times: "Vorlesung Mi 9:15 · Übung Fr 11:30" },
+  "13802": { name: "Datenbanksysteme", lp: 6, area: "Praktische Informatik", turnus: "WiSe", times: "Vorlesung Do 9:15 · Übung Do 15:30" },
+  "14310": { name: "Rechnernetze", lp: 6, area: "Technische Informatik", turnus: "SoSe", times: "Vorlesung Di 13:45 · Übung Mi 15:30" },
+};
+const SEMS = {
+  "-2": { name: "WiSe 25/26", fs: 1, rows: ["11101", "12204"] },
+  "-1": { name: "SoSe 26", fs: 2, rows: ["14310"] },
+  "1": { name: "WiSe 26/27", fs: 3, now: true, rows: ["13802", "11101", "12204"] },
+  "2": { name: "SoSe 27", fs: 4, rows: ["13221"] },
+  "3": { name: "WiSe 27/28", fs: 5, rows: [] },
+};
+const SEM_ORDER = [-2, -1, 0, 1, 2, 3];
+const SEM_MIN = -2, SEM_MAX = 3;
+const PAUSE_MS = 1000; // on a desktop a filter's clicks closer together than this are one step
+
+function parse(url) {
+  const k = url.indexOf("?");
+  return { path: k < 0 ? url : url.slice(0, k), q: new URLSearchParams(k < 0 ? "" : url.slice(k + 1)) };
+}
+function build(path, q) { const s = q.toString(); return s ? `${path}?${s}` : path; }
+function without(url, key) { const { path, q } = parse(url); q.delete(key); return build(path, q); }
+function withParam(url, key, value) { const { path, q } = parse(url); q.set(key, value); return build(path, q); }
+function toggled(url, key, value) { const { q } = parse(url); return q.get(key) === value ? without(url, key) : withParam(url, key, value); }
+
+function areaOf(url) {
+  const { path } = parse(url);
+  if (path.startsWith("/catalog")) return "catalog";
+  if (path === "/study" || path.startsWith("/programs")) return "study";
+  if (path === "/bookmarks") return "bookmarks";
+  if (path === "/studyplan") return "plan";
+  return "home";
+}
+// A tab's own page, however its list is filtered: a link there is a change of tabs.
+function isTabRoot(url) {
+  const { path, q } = parse(url);
+  if (q.has("open") || q.has("view") || q.has("area")) return false;
+  return Object.values(TAB_ROOT).includes(path);
+}
+// The way up from a place: a shared link gets its stack from it, the desktop's „Zurück (Esc)" its target.
+function parentOf(url, mem = {}) {
+  const { path, q } = parse(url);
+  if (q.has("open")) return without(url, "open");
+  if (path.startsWith("/catalog/module/")) return mem.catalog || "/catalog";
+  if (path === "/study" && q.has("view")) return "/study";
+  if (path === "/programs") return "/study";
+  if (path.startsWith("/programs/") && q.has("area")) return without(url, "area");
+  if (path.startsWith("/programs/")) return mem.programs || "/programs";
+  return null;
+}
+// What a phone's entry shows under its layers: a page, a module's sheet over one, or a semester of the row.
+const viewOf = (s) => (s.kind === "layer" ? { url: s.url, kind: s.under, step: s.step, root: s.uroot } : { url: s.url, kind: s.kind, step: s.step, root: !!s.root });
+function labelOf(s, ahead) {
+  if (!s) return "";
+  if (s.ext) return s.label;
+  if (s.kind === "layer") return `${labelOf({ ...s, kind: s.under })} + ${LAYER_NAME[s.layer]}`;
+  if (s.kind === "step") return ahead ? "Semester · liegt bereit" : `Mein Studium · ${SEMS[s.step].name}`;
+  const { path, q } = parse(s.url);
+  const open = q.get("open");
+  const mod = open ? `${MODS[open].name} über ` : "";
+  if (path === "/") return "Start";
+  if (path === "/catalog") return mod + (q.has("program") ? `Module · Informatik${q.has("turnus") ? " · WiSe" : ""}` : q.has("turnus") ? "Module · WiSe" : "Module");
+  if (path.startsWith("/catalog/module/")) return `Modulseite ${MODS[path.slice(16)].name}`;
+  if (path === "/study") {
+    if (q.get("view") === "plan") return "Regelstudienplan";
+    return mod + (s.step ? `Mein Studium · ${SEMS[s.step].name}` : "Mein Studium");
+  }
+  if (path === "/programs") return "Alle Studiengänge";
+  if (path.startsWith("/programs/")) {
+    if (q.has("area")) return mod + "Bereich Praktische Informatik";
+    return q.get("view") === "areas" ? "Informatik B.Sc. · Bereiche" : "Informatik B.Sc.";
+  }
+  if (path === "/bookmarks") return mod + "Merkliste";
+  if (path === "/studyplan") return mod + "Stundenplan";
+  return path;
+}
+
+class History {
+  constructor() { this.list = []; this.i = -1; }
+  get cur() { return this.list[this.i]; }
+  get prev() { return this.list[this.i - 1]; }
+  push(s) { this.list.splice(this.i + 1); this.list.push(s); this.i += 1; }
+  replace(s) { this.list[this.i] = s; }
+  go(d) { const j = this.i + d; if (j < 0 || j >= this.list.length) return false; this.i = j; return true; }
+}
+
+class Device {
+  constructor() { this.reset(); }
+  reset() { this.h = new History(); this.layers = []; this.sel = new Set(); this.draft = null; this.n = 0; this.focus = 1; this.mem = {}; this.note = ""; this.stacks = {}; this.fresh = false; this.last = 0; }
+  get cur() { return this.h.cur; }
+  get s() { return this.h.cur.state; }
+  st(url, extra = {}) { return { n: ++this.n, url, kind: parse(url).q.has("open") ? "sheet" : "screen", ...extra }; }
+  start(url, from = "Messenger") { this.reset(); this.h.push({ url: "extern", state: { ext: true, label: from } }); this.land(url); }
+  out() { return !!this.s.ext; }
+  closed(id) { if (id === "selection") this.sel.clear(); }
+  toggleDraft(key, value) { this.draft = toggled(this.draft ?? this.s.url, key, value); }
+  hold(row) { this.openLayer("selection"); this.sel.add(row); }
+  pick(row) {
+    if (this.layers.includes("selection")) {
+      if (this.sel.has(row)) this.sel.delete(row); else this.sel.add(row);
+      if (!this.sel.size) this.close("selection");
+      return;
+    }
+    this.open(withParam("/study", "open", row));
+  }
+  check(row) { if (this.layers.includes("selection")) this.pick(row); else this.hold(row); }
+}
+
+class Phone extends Device {
+  constructor() { super(); this.mode = "phone"; }
+  get base() { return this.h.list.findIndex((e) => !e.state.ext); }
+  tab() { return this.out() ? "home" : this.s.tab; }
+  get rootAt() {
+    const t = this.tab();
+    for (let k = this.h.i; k >= 0; k--) { const s = this.h.list[k].state; if (s.kind !== "layer" && s.root && s.tab === t) return k; }
+    return this.base;
+  }
+  entry(url, tab, extra = {}) { return { url, state: this.st(url, { tab, ...extra }) }; }
+  isOverview() { return !this.out() && this.s.kind === "screen" && this.s.url === "/study"; }
+  isSem() { return !this.out() && this.s.kind === "step"; }
+  // A link from outside. While nothing in it is used, Back leads back out (to the messenger); the first use
+  // (a tap that opens something, the arrow, a tab) lays under it what lies above it, up to Start.
+  land(url) {
+    if (url === "/") { this.h.push(this.entry("/", "home", { root: true })); return; }
+    this.h.push(this.entry(url, areaOf(url), { root: isTabRoot(url) }));
+    this.fresh = true;
+  }
+  seed() {
+    if (!this.fresh) return;
+    this.fresh = false;
+    const url = this.cur.url, tab = areaOf(url);
+    const chain = this.chainOf(url, tab);
+    this.h.replace(this.entry("/", "home", { root: true }));
+    chain.forEach((u, k) => this.h.push(this.entry(u, tab, k === 0 ? { root: true } : {})));
+    this.arm(true);
+  }
+  // What lies above a page in its tab, its tab's start first.
+  chainOf(url, t) {
+    const chain = [];
+    for (let u = url; u && areaOf(u) === t; u = parentOf(u)) chain.unshift(u);
+    if (!chain.length || !isTabRoot(chain[0])) chain.unshift(TAB_ROOT[t]);
+    return chain;
+  }
+  // The entry of a semester, ready above the overview. Written on a tap (push, then back); else the entry
+  // ahead is taken for it (forward, replace, back), which needs no tap.
+  arm(tap) {
+    if (!this.isOverview()) return;
+    const next = this.h.list[this.h.i + 1];
+    if (next && next.state.kind === "step") { next.state.stale = false; return; }
+    const e = { url: "/study", state: { n: ++this.n, url: "/study", tab: "study", kind: "step", step: 1 } };
+    if (!next && tap) { this.h.push(e); this.h.go(-1); }
+    else if (next) this.h.list[this.h.i + 1] = e;
+    else { this.h.push(e); this.h.go(-1); this.note = "Ohne Tippen angelegt: Der Browser überspränge diesen Eintrag beim Zurück."; }
+  }
+  // A tab's own page is a change of tabs; anything else goes onto this tab's stack. From a layer, the place
+  // takes the layer's entry: no new entry after a step back.
+  open(url) {
+    this.seed();
+    if (areaOf(url) !== this.tab()) return this.tabTo(areaOf(url), url);
+    const v = viewOf(this.s);
+    const sheet = parse(url).q.has("open");
+    const e = this.entry(url, this.tab(), sheet && v.kind === "step" ? { step: v.step } : {});
+    if (this.s.kind === "layer") {
+      const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null;
+      this.h.replace(e);
+    } else this.h.push(e);
+    if (url === "/study") this.arm(true);
+  }
+  // Beside: another filter, another view of the same page. It takes the place entry's place.
+  change(url, fromLayer) {
+    this.seed();
+    if (!fromLayer) { while (this.s.kind === "layer") this.h.go(-1); const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null; }
+    this.h.replace({ url, state: { ...this.s, url } });
+  }
+  openLayer(id) {
+    if (this.layers.includes(id)) return;
+    this.seed();
+    const v = viewOf(this.s);
+    this.layers.push(id);
+    this.h.push({ url: this.cur.url, state: { n: ++this.n, url: v.url, tab: this.tab(), kind: "layer", layer: id, under: v.kind, step: v.step, uroot: v.root } });
+  }
+  // Closed by its ×, a tap beside it, dragged down or by a button: its entry is taken back.
+  close(id) {
+    if (!this.layers.includes(id)) return;
+    if (this.applies(id)) return this.apply();
+    if (this.s.kind === "layer" && this.s.layer === id) this.h.go(-1);
+    this.layers = this.layers.filter((l) => l !== id);
+    this.closed(id);
+    if (id === "filters") this.draft = null;
+    this.passStale(-1);
+  }
+  // The filters' sheet with a changed draft: closing it (its button, a tap beside, down, Back) applies the
+  // draft as a step of its own: the sheet's entry becomes the filtered list. No push: on Back the browser
+  // has already gone back, and Betula goes forward into the sheet's entry and replaces it.
+  applies(id) { return id === "filters" && this.draft && this.draft !== viewOf(this.s).url && this.s.kind === "layer" && this.s.layer === id; }
+  apply() {
+    const to = this.draft; this.draft = null;
+    this.layers = this.layers.filter((l) => l !== "filters");
+    this.h.replace(this.entry(to, this.tab()));
+  }
+  passStale(d) { while (this.s.kind === "layer" && !this.layers.includes(this.s.layer)) if (!this.h.go(d)) break; }
+  // Back, its gesture, the swipe from the left edge and the arrow at the head: one and the same.
+  back() {
+    if (this.out()) return false;
+    if (this.applies("filters")) { this.apply(); return "applied"; }
+    const from = this.s;
+    if (!this.h.go(-1)) return false;
+    if (from.kind === "layer") { this.layers = this.layers.filter((l) => l !== from.layer); this.closed(from.layer); if (from.layer === "filters") this.draft = null; }
+    else { this.layers = []; this.sel.clear(); this.draft = null; }
+    this.passStale(-1);
+    return true;
+  }
+  // The arrow at the head: Back. On a shared link not used yet it is the first use as well.
+  arrowBack() { this.seed(); return this.back(); }
+  // Forward brings back a place Back left; at a layer's entry and at what a change of tabs left over it bounces off.
+  forward() {
+    const next = this.h.list[this.h.i + 1];
+    if (!next) return false;
+    const st = next.state;
+    if (!this.out() && (st.kind === "layer" || st.stale)) { this.note = st.kind === "layer" ? "Vorwärts öffnet keinen Dialog wieder." : "Vorwärts führt nicht in den Rest eines anderen Tabs."; return false; }
+    this.h.go(1);
+    return true;
+  }
+  saveStack() {
+    if (this.out()) return;
+    this.stacks[this.tab()] = this.h.list.slice(this.rootAt, this.h.i + 1).filter((e) => e.state.kind !== "layer").map((e) => ({ url: e.url, state: { ...e.state } }));
+  }
+  // A tab of the bar: the history becomes Start and the tab's stack as it was left. First what is missing is
+  // written (on the tap), then the entries in place are rewritten (back, replace, forward).
+  tabTo(t, url) {
+    this.seed();
+    if (!url && t === this.tab() && !this.out()) return this.again();
+    this.saveStack();
+    this.layers = []; this.sel.clear(); this.draft = null;
+    const base = this.base;
+    const stack = t === "home" ? [] : url ? this.chainOf(url, t).map((u, k) => this.entry(u, t, k === 0 ? { root: true } : {})) : (this.stacks[t] || [this.entry(TAB_ROOT[t], t, { root: true })]);
+    const all = stack.map((e) => ({ url: e.url, state: { ...e.state, n: ++this.n, stale: false } }));
+    const top = all[all.length - 1];
+    if (top && top.url === "/study" && top.state.kind === "screen") all.push({ url: "/study", state: { n: ++this.n, url: "/study", tab: "study", kind: "step", step: 1 } });
+    if (base + all.length > this.h.i) this.h.list.splice(this.h.i + 1);
+    all.forEach((e, k) => { this.h.list[base + 1 + k] = e; });
+    this.h.i = base + stack.length;
+    for (let k = this.h.i + 1; k < this.h.list.length; k++) if (this.h.list[k].state.tab !== t || this.h.list[k].state.kind === "layer") this.h.list[k].state.stale = true;
+  }
+  again() {
+    this.seed();
+    const root = this.rootAt;
+    if (this.h.i === root && !this.layers.length) { this.note = "Schon am Anfang des Tabs: die Seite geht nach oben."; return; }
+    this.layers = []; this.sel.clear(); this.draft = null;
+    this.h.go(root - this.h.i);
+    this.arm(true);
+  }
+  // The row of „Mein Studium": a swipe moves into the entry that lies ready and out of it. It writes nothing:
+  // which semester shows, Betula keeps itself.
+  swipe(d) {
+    if (this.layers.length) { if (this.layers.includes("selection")) this.note = "Mit einer Auswahl wischt der Finger nicht zur Seite."; return; }
+    if (this.isOverview()) {
+      if (d < SEM_MIN || d > SEM_MAX) return;
+      this.arm(false); this.h.go(1); this.s.step = d;
+      return;
+    }
+    if (!this.isSem()) return;
+    const to = this.s.step + d;
+    if (to === 0) { this.h.go(-1); return; }
+    if (to >= SEM_MIN && to <= SEM_MAX) this.s.step = to;
+  }
+  arrowSem(d) { // ‹ ›: past the overview; turning lets the selection go
+    if (this.layers.includes("selection")) this.close("selection");
+    if (!this.isSem()) return;
+    let to = this.s.step + d; if (to === 0) to += d;
+    if (to >= SEM_MIN && to <= SEM_MAX) this.s.step = to;
+  }
+  toSem(k) { if (!this.isOverview() || this.layers.length) return; this.seed(); this.arm(true); this.h.go(1); this.s.step = k; }
+  watchers() { return [...this.layers].reverse().map((id) => LAYER_NAME[id]); }
+  nextBack() {
+    const s = this.s;
+    if (s.ext) return "nichts mehr in Betula";
+    if (s.kind === "layer") return `schließt ${LAYER_NAME[s.layer]}`;
+    if (s.kind === "step") return "führt zur Übersicht von „Mein Studium“";
+    if (s.kind === "sheet") return "schließt das Modul";
+    let k = this.h.i - 1;
+    while (k >= 0 && this.h.list[k].state.kind === "layer" && !this.layers.includes(this.h.list[k].state.layer)) k--;
+    const prev = this.h.list[k]?.state;
+    if (!prev || prev.ext) return "verlässt Betula";
+    return `führt zu ${labelOf(prev)}`;
+  }
+  arrow() { const s = this.s; if (s.ext) return false; const v = viewOf(s); return v.kind === "step" || v.kind === "sheet" || !v.root; }
+  nextArrow() {
+    if (!this.arrow()) return null;
+    if (!this.fresh) return "dasselbe";
+    return `führt zu ${labelOf({ url: parentOf(this.cur.url) || TAB_ROOT[this.tab()] })}: das erste Benutzen legt darunter, was darüber steht`;
+  }
+  dismiss() { if (this.layers.length) this.close(this.layers[this.layers.length - 1]); else if (this.s.kind === "sheet") { this.seed(); this.back(); } }
+}
+
+class Desk extends Device {
+  constructor() { super(); this.mode = "desk"; }
+  land(url) { this.h.push({ url, state: this.st(url) }); }
+  remember() {
+    if (this.out()) return;
+    const u = this.s.url, a = areaOf(u);
+    if (a === "catalog" && !u.startsWith("/catalog/module/")) this.mem.catalog = u;
+    if (u === "/study" || u === "/programs") this.mem.programs = u;
+    this.mem[a] = u;
+  }
+  closeAll() { const was = this.layers; this.layers = []; was.forEach((id) => id !== "filters" && this.closed(id)); this.draft = null; this.sel.clear(); }
+  open(url) { this.remember(); this.closeAll(); this.h.push({ url, state: this.st(url) }); }
+  // Beside the page (a filter, a view): one step for every pause, clicks close together are one.
+  change(url, now = Date.now()) {
+    if (this.s.beside && now - this.last < PAUSE_MS) this.h.replace({ url, state: { ...this.st(url), beside: true } });
+    else { this.open(url); this.s.beside = true; }
+    this.last = now;
+  }
+  openLayer(id) { if (!this.layers.includes(id)) this.layers.push(id); }
+  close(id) { if (!this.layers.includes(id)) return; this.layers = this.layers.filter((l) => l !== id); this.closed(id); }
+  back() { if (!this.h.go(-1)) return false; this.closeAll(); return true; }
+  forward() { if (!this.h.go(1)) return false; this.closeAll(); return true; }
+  parent() { return this.out() ? null : parentOf(this.s.url, { catalog: this.mem.catalog, programs: this.mem.programs }); }
+  // „Zurück (Esc)" and a × beside the page: up, through the history where that is the step before.
+  up() {
+    const p = this.parent();
+    if (!p) return false;
+    if (this.h.prev?.state.url === p) return this.back();
+    // Closing what stands beside the page (a preview, an area): no step of its own, so ← does not bring it back.
+    if (parse(p).path === parse(this.s.url).path) { this.closeAll(); this.h.replace({ url: p, state: this.st(p) }); return true; }
+    this.open(p);
+    return true;
+  }
+  esc() { if (this.layers.length) return this.close(this.layers[this.layers.length - 1]); this.up(); }
+  tabTo(t) {
+    this.remember();
+    const to = this.mem[t] && areaOf(this.s.url) !== t ? this.mem[t] : TAB_ROOT[t];
+    if (to !== this.s.url) this.open(to);
+  }
+  toSem(k) { this.focus = k; this.close("selection"); }
+  swipe(d) { let to = this.focus + d; if (to === 0) to += d; if (to >= SEM_MIN && to <= SEM_MAX) this.toSem(to); }
+  arrowSem(d) { this.swipe(d); }
+  watchers() { return [...this.layers].reverse().map((id) => LAYER_NAME[id]); }
+  nextBack() {
+    const prev = this.h.prev?.state;
+    if (this.out()) return "nichts mehr in Betula";
+    if (!prev) return "nichts";
+    if (prev.ext) return "verlässt Betula";
+    return `führt zu ${labelOf(prev)}${this.layers.length ? `; ${LAYER_NAME[this.layers[this.layers.length - 1]]} geht mit` : ""}`;
+  }
+  nextUp() {
+    if (this.layers.length) return `schließt ${LAYER_NAME[this.layers[this.layers.length - 1]]}`;
+    const p = this.parent();
+    if (!p) return "nichts: keine Seite darüber";
+    return `führt zu ${labelOf({ url: p })}${this.h.prev?.state.url === p ? ", durch den Verlauf" : parse(p).path === parse(this.s.url).path ? ", ohne neuen Schritt" : ", als neuer Schritt"}`;
+  }
+}
+
+
+
+// ---------- drawing ----------
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const ICON = {
+  house: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  cap: '<path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c3 2.5 9 2.5 12 0v-5"/>',
+  mark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  chev: '<path d="m9 18 6-6-6-6"/>',
+  sliders: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
+  full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+const facts = (id) => { const m = MODS[id]; return `<div class="facts"><span class="b strong">${m.lp} LP</span><span class="b">${m.turnus}</span><span class="b">${esc(m.area)}</span></div>`; };
+const COUNT = (u) => { const { q } = parse(u); const a = q.has("program"), b = q.has("turnus"); return a && b ? "38" : a ? "64" : b ? "610" : "1.200"; };
+const LISTED = (u) => { const { q } = parse(u); return Object.keys(MODS).filter((id) => (!q.has("turnus") || MODS[id].turnus === "WiSe") && (!q.has("program") || id !== "11101")); };
+const selLp = (d) => [...d.sel].reduce((sum, id) => sum + MODS[id].lp, 0);
+const AREAS = `<div class="arow"><i></i>Informatik<span>44/66</span></div><div class="arow"><i class="a2"></i>Mathematik<span>26/30</span></div><div class="arow"><i class="a3"></i>Praktische Informatik<span>12/24</span></div><div class="arow"><i></i>Technische Informatik<span>6/18</span></div><div class="arow"><i class="a2"></i>FÜS<span>6/6</span></div>`;
+const CHANGE = `<p class="sentence">Du studierst <b>Informatik B.Sc.</b> im <b>3. Fachsemester</b>.</p><div class="kv"><span>Informatik B.Sc.<small>PO 2008 · Regelstudienplan: 6 Semester, 180 LP</small></span></div><div class="kv"><span>3. Fachsemester<small>seit WiSe 2025/26</small></span><span class="step"><i>−</i><i>+</i></span></div>`;
+
+// The phone.
+function pPage(p) {
+  const s = viewOf(p.s);
+  const url = s.kind === "sheet" ? without(s.url, "open") : s.url;
+  const { path, q } = parse(url);
+  if (path === "/") return `<div class="p-title"><b>Hallo!</b><small>Betula · Modulkatalog · inoffiziell</small></div>
+    <button class="card big" data-act="open" data-url="/study"><b>Mein Studium</b><small>3. Fachsemester · 46 von 180 LP</small><span class="lp">${icon("chev")}</span></button>
+    <button class="card big" data-act="open" data-url="/catalog"><b>Module durchsuchen</b><small>1.200 Module der BTU</small><span class="lp">${icon("chev")}</span></button>
+    <button class="card big" data-act="open" data-url="/bookmarks"><b>Merkliste</b><small>3 Module gemerkt</small><span class="lp">${icon("chev")}</span></button>`;
+  if (path === "/catalog") {
+    const tags = [q.has("program") ? '<span class="tag">Informatik B.Sc.</span>' : "", q.has("turnus") ? '<span class="tag">WiSe</span>' : ""].join("");
+    return `<div class="p-count"><b>${COUNT(url)}</b> Module<span class="tags">${tags}</span><button class="fbtn" data-act="layer" data-id="filters">${icon("sliders")}Filter</button></div>` +
+      LISTED(url).map((id) => `<button class="card" data-act="open" data-url="${esc(withParam(url, "open", id))}"><b>${esc(MODS[id].name)}</b><small>${id} · ${esc(MODS[id].area)} · ${MODS[id].turnus}</small><span class="lp">${MODS[id].lp}</span></button>`).join("");
+  }
+  if (path.startsWith("/catalog/module/")) { const id = path.slice(16); return `<div class="p-mod"><span class="b" style="align-self:flex-start">${id}</span><h3>${esc(MODS[id].name)}</h3>${facts(id)}<p class="sub">Termine im WiSe 26/27</p><p class="lines">${esc(MODS[id].times)}</p><button class="link-row" data-act="open" data-url="/programs/informatik/plan"><span>Gehört zu <b>Informatik B.Sc.</b></span>${icon("chev")}</button></div>`; }
+  if (path === "/study") {
+    if (q.get("view") === "plan") return `<div class="p-title"><b>Regelstudienplan</b><small>Informatik B.Sc. · Soll und Ist</small></div><div class="fsrow">1. FS · WiSe 25/26<span>30 von 30 LP</span></div>${rowCard("11101")}${rowCard("12204")}<div class="fsrow">2. FS · SoSe 26<span>22 von 30 LP</span></div>${rowCard("14310")}<div class="fsrow">3. FS · WiSe 26/27 · jetzt<span>geplant</span></div>${rowCard("13802")}`;
+    if (s.step) return pSemester(p, s.step);
+    return `<button class="st-box" data-act="layer" data-id="areas"><span class="st-h"><b>46 von 180 LP bestanden</b><span>Bereiche ›</span></span><span class="bar"><i class="p1" style="width:15%"></i><i class="p2" style="width:7%"></i><i class="p3" style="width:4%"></i><i class="pl" style="width:18%"></i></span><span class="leg"><span><i class="p"></i>46 bestanden</span><span><i class="pl"></i>32 geplant</span><span><i></i>102 offen</span></span></button>
+      <button class="st-link" data-act="layer" data-id="change"><span><b>Informatik B.Sc.</b><small>PO 2008 · 3. Fachsemester · seit WiSe 25/26</small></span>${icon("chev")}</button>
+      <button class="st-link" data-act="open" data-url="/study?view=plan"><span><b>Regelstudienplan</b><small>Soll und Ist · 1. und 2. FS: 52 von 60 LP</small></span>${icon("chev")}</button>
+      <div class="st-plan"><div class="st-h"><b>Studium planen</b><span>Jetzt WiSe 26/27 · 18 von 30 LP</span></div><div class="cols">${[-2, -1, 1, 2, 3].map((k) => `<button class="${SEMS[k].now ? "now" : ""}" data-act="sem" data-k="${k}" aria-label="${SEMS[k].name}"><i style="height:${[62, 50, 40, 22, 6][[-2, -1, 1, 2, 3].indexOf(k)]}px"></i><small>${SEMS[k].fs}. FS</small></button>`).join("")}</div></div>
+      <button class="st-link" data-act="open" data-url="/programs"><span><b>Alle Studiengänge</b><small>Nach Fakultät, deiner obenauf</small></span>${icon("chev")}</button>`;
+  }
+  if (path === "/programs") return `<div class="p-title"><b>Alle Studiengänge</b><small>Fakultät 1 · deiner obenauf</small></div><button class="card" data-act="open" data-url="/programs/informatik/plan"><b>Informatik B.Sc.</b><small>PO 2008 · 6 Semester</small><span class="lp">${icon("chev")}</span></button><div class="card muted"><b>Informatik M.Sc.</b><small>PO 2016 · 4 Semester</small></div><div class="card muted"><b>Wirtschaftsinformatik B.Sc.</b><small>PO 2021 · 6 Semester</small></div>`;
+  if (path.startsWith("/programs/")) {
+    if (q.has("area")) return `<div class="p-title"><b>Praktische Informatik</b><small>Informatik B.Sc. · Wahlpflicht · 24 LP</small></div>` + ["13221", "13802"].map((id) => `<button class="card" data-act="open" data-url="${esc(withParam(url, "open", id))}"><b>${esc(MODS[id].name)}</b><small>${id} · ${MODS[id].turnus}</small><span class="lp">${MODS[id].lp}</span></button>`).join("");
+    const areas = q.get("view") === "areas";
+    return `<div class="p-title"><b>Informatik B.Sc.</b><small>PO 2008 · 6 Semester · 180 LP</small></div><div class="seg"><button class="${areas ? "" : "on"}" data-act="change" data-url="/programs/informatik/plan">Regelstudienplan</button><button class="${areas ? "on" : ""}" data-act="change" data-url="/programs/informatik/plan?view=areas">Wahlpflicht &amp; Bereiche</button></div>` +
+      (areas ? `<button class="card" data-act="open" data-url="/programs/informatik/plan?view=areas&amp;area=pi"><b>Praktische Informatik</b><small>Wahlpflicht · 24 LP</small><span class="lp">${icon("chev")}</span></button><div class="card muted"><b>Technische Informatik</b><small>Wahlpflicht · 18 LP</small></div><div class="card muted"><b>Anwendungsfach</b><small>Wahl · 24 LP</small></div>`
+        : `<div class="fsrow">1. FS<span>30 LP</span></div>${rowCard("11101")}${rowCard("12204")}<div class="fsrow">2. FS<span>30 LP</span></div>${rowCard("14310")}`);
+  }
+  if (path === "/bookmarks") return `<div class="p-title"><b>Merkliste</b><small>3 Module</small></div>` + ["13221", "13802", "14310"].map((id) => `<button class="card" data-act="open" data-url="/bookmarks?open=${id}"><b>${esc(MODS[id].name)}</b><small>${id} · ${MODS[id].turnus}</small><span class="lp">${MODS[id].lp}</span></button>`).join("");
+  if (path === "/studyplan") return `<div class="p-title"><b>Stundenplan</b><small>WiSe 26/27 · Woche</small></div><div class="week"><span></span><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>9:15</span><button class="slot" data-act="open" data-url="/studyplan?open=11101">Mathe I</button><button class="slot s2" data-act="open" data-url="/studyplan?open=12204">Prog.</button><span></span><button class="slot s3" data-act="open" data-url="/studyplan?open=13802">Daten­banken</button><span></span><span>11:30</span><span></span><span></span><button class="slot" data-act="open" data-url="/studyplan?open=11101">Mathe I</button><span></span><span></span><span>13:45</span><span></span><span></span><span></span><button class="slot s2" data-act="open" data-url="/studyplan?open=12204">Prog.</button><span></span></div>`;
+  return "";
+}
+const rowCard = (id) => `<div class="card"><b>${esc(MODS[id].name)}</b><small>${id} · ${esc(MODS[id].area)}</small><span class="lp">${MODS[id].lp}</span></div>`;
+function pSemester(p, k) {
+  const S = SEMS[k], selecting = p.layers.includes("selection");
+  const lp = S.rows.reduce((sum, id) => sum + MODS[id].lp, 0);
+  const rows = S.rows.map((id) => {
+    const on = p.sel.has(id);
+    return `<button class="card${selecting ? " cb" : ""}${on ? " on" : ""}" data-act="pick" data-row="${id}">${selecting ? `<i>${on ? icon("check") : ""}</i>` : ""}<b>${esc(MODS[id].name)}</b><small>${id} · ${esc(MODS[id].area)}</small><span class="lp">${MODS[id].lp}</span></button>`;
+  }).join("");
+  return `<div class="sem-head"><div><b>${S.name}</b>${S.now ? '<span class="now">jetzt</span>' : ""}<small>${S.fs}. Fachsemester · ${lp} LP</small></div><div class="sem-nav"><button data-act="arrowsem" data-d="-1" aria-label="Semester davor">‹</button><button data-act="arrowsem" data-d="1" aria-label="Semester danach">›</button></div></div>${rows}${S.rows.length ? "" : '<div class="empty">Noch keine Module</div>'}<div class="card add">+ Module hinzufügen</div><p class="hint">Lang drücken wählt aus · zur Seite ziehen wischt</p>`;
+}
+function pSheetHTML(id) {
+  const m = MODS[id];
+  return `<div class="p-shade" data-act="dismiss"></div><section class="p-sheet" data-drag><div class="grab"></div><div class="s-top"><span class="b">${id}</span><button class="x" data-act="dismiss" aria-label="Schließen">${icon("x")}</button></div><h3>${esc(m.name)}</h3>${facts(id)}<p class="sub">Termine im WiSe 26/27</p><p class="lines">${esc(m.times)}</p><button class="link-row" data-act="open" data-url="/programs/informatik/plan"><span>Gehört zu <b>Informatik B.Sc.</b></span>${icon("chev")}</button></section>`;
+}
+function pLayerHTML(p, id) {
+  const head = (title) => `<div class="grab"></div><div class="s-top"><b>${title}</b><button class="x" data-act="close" data-id="${id}" aria-label="Schließen">${icon("x")}</button></div>`;
+  if (id === "filters") {
+    const d = p.draft ?? p.s.url, { q } = parse(d);
+    return `<div class="p-shade" data-act="close" data-id="filters"></div><section class="p-sheet m" data-drag>${head("Filter")}<p class="sub">Studiengang</p><button class="tog${q.has("program") ? " on" : ""}" data-act="draft" data-key="program" data-val="informatik"><i>${q.has("program") ? icon("check") : ""}</i>Informatik B.Sc.</button><p class="sub">Turnus</p><button class="tog${q.has("turnus") ? " on" : ""}" data-act="draft" data-key="turnus" data-val="wise"><i>${q.has("turnus") ? icon("check") : ""}</i>Nur im WiSe angeboten</button><div class="foot"><button class="btn primary" data-act="close" data-id="filters">${COUNT(d)} Module anzeigen</button></div></section>`;
+  }
+  if (id === "areas") return `<div class="p-shade" data-act="close" data-id="areas"></div><section class="p-sheet m" data-drag>${head("Bereiche")}${AREAS}</section>`;
+  if (id === "change") return `<div class="p-shade" data-act="close" data-id="change"></div><section class="p-sheet m" data-drag>${head("Studiengang wechseln")}${CHANGE}<div class="foot"><button class="btn ghost" data-act="close" data-id="change">Abbrechen</button><button class="btn primary" data-act="close" data-id="change">Übernehmen</button></div></section>`;
+  return "";
+}
+function phoneHTML(p) {
+  if (p.out()) return `<div class="app p-app"><div class="p-out"><div><b>${esc(p.s.label)}</b><p>Außerhalb von Betula. Mit Vorwärts kommst du zurück.</p></div></div></div>`;
+  const s = viewOf(p.s), selecting = p.layers.includes("selection");
+  const arrow = p.arrow();
+  const row = s.url === "/study" && (s.kind === "screen" || !!s.step);
+  const at = s.step || 0;
+  let over = s.kind === "sheet" ? pSheetHTML(parse(s.url).q.get("open")) : "";
+  for (const id of p.layers) over += pLayerHTML(p, id);
+  const bottom = selecting
+    ? `<div class="p-selbar"><span><b>${p.sel.size} ausgewählt</b><small>${selLp(p)} LP</small></span><button data-act="close" data-id="selection">Verschieben</button><button data-act="close" data-id="selection">Entfernen</button><button class="x" data-act="close" data-id="selection" aria-label="Auswahl aufheben">${icon("x")}</button></div>`
+    : `<nav class="p-nav">${TABS.map((t) => `<button class="${p.tab() === t ? "on" : ""}" data-act="tab" data-tab="${t}"><span class="ind">${icon(TAB_ICON[t])}</span>${TAB_NAME[t]}</button>`).join("")}</nav>`;
+  return `<div class="app p-app"><div class="p-status"><span>14:32</span><span>●●● 82 %</span></div>
+    <div class="p-top">${arrow ? `<button class="box back" data-act="arrow" aria-label="Zurück">${icon("back")}</button>` : ""}<div class="search">${icon("search")}<span>Modul, Nummer, Thema …</span></div>${arrow ? "" : `<span class="box">${icon("user")}</span>`}</div>
+    <div class="p-body${row ? " pager" : ""}" data-row-body="${row && (s.kind === "screen" || s.kind === "step") && parse(s.url).q.get("view") !== "plan" ? 1 : 0}">${pPage(p)}</div>
+    ${row && parse(s.url).q.get("view") !== "plan" ? `<div class="p-dots">${SEM_ORDER.map((k) => `<i class="${k === 0 ? "ov" : ""}${k === at ? " on" : ""}"></i>`).join("")}</div>` : ""}
+    ${bottom}${over}</div>`;
+}
+
+// The window.
+function dPreview(id, full) {
+  const m = MODS[id];
+  return `<section class="d-preview"><div class="pv-top"><span class="mono">${id}</span>${full ? `<button data-act="open" data-url="/catalog/module/${id}">${icon("full")}Vollbild</button>` : ""}<button data-act="up">${icon("x")}Schließen <kbd>Esc</kbd></button></div><h3>${esc(m.name)}</h3>${facts(id)}<p class="sub">Termine im WiSe 26/27</p><p class="lines">${esc(m.times)}</p><button class="link-row" data-act="open" data-url="/programs/informatik/plan"><span>Gehört zu <b>Informatik B.Sc.</b></span>${icon("chev")}</button></section>`;
+}
+function deskMain(d) {
+  const url = d.s.url, { path, q } = parse(url), open = q.get("open");
+  if (path === "/") return ["", `<div class="d-page"><h3>Betula</h3><p class="lines">Der inoffizielle Modulkatalog der BTU Cottbus-Senftenberg</p><div class="d-cards"><button class="card" data-act="open" data-url="/study"><b>Mein Studium</b><small>3. FS · 46 von 180 LP</small></button><button class="card" data-act="open" data-url="/catalog"><b>Module</b><small>1.200 Module</small></button><button class="card" data-act="open" data-url="/bookmarks"><b>Merkliste</b><small>3 gemerkt</small></button></div></div>`];
+  if (path === "/catalog") {
+    const list = without(url, "open");
+    return ["two", `<aside class="d-panel"><b class="lbl">Studiengang</b><button class="tog${q.has("program") ? " on" : ""}" data-act="change" data-url="${esc(toggled(list, "program", "informatik"))}"><i>${q.has("program") ? icon("check") : ""}</i>Informatik B.Sc.</button><b class="lbl">Turnus</b><button class="tog${q.has("turnus") ? " on" : ""}" data-act="change" data-url="${esc(toggled(list, "turnus", "wise"))}"><i>${q.has("turnus") ? icon("check") : ""}</i>Nur im WiSe</button></aside><section class="d-panel"><div class="list-head"><b>${COUNT(url)}</b> Module</div>${LISTED(url).map((id) => `<button class="row${open === id ? " cur" : ""}" data-act="open" data-url="${esc(withParam(list, "open", id))}"><b>${esc(MODS[id].name)}</b><small>${id} · ${esc(MODS[id].area)} · ${MODS[id].turnus}</small><span class="lp">${MODS[id].lp} LP</span></button>`).join("")}</section>${open ? dPreview(open, true) : ""}`];
+  }
+  if (path.startsWith("/catalog/module/")) { const id = path.slice(16); return ["", `<div class="d-page"><button class="backlink" data-act="up">${icon("back")}Zurück <kbd>Esc</kbd></button><span class="b" style="align-self:flex-start">${id}</span><h3>${esc(MODS[id].name)}</h3>${facts(id)}<p class="sub">Termine im WiSe 26/27</p><p class="lines">${esc(MODS[id].times)}</p><button class="link-row" data-act="open" data-url="/programs/informatik/plan" style="max-width:360px"><span>Gehört zu <b>Informatik B.Sc.</b></span>${icon("chev")}</button></div>`]; }
+  if (path === "/study") {
+    const plan = q.get("view") === "plan";
+    const side = `<aside class="d-panel"><button class="mine" data-act="layer" data-id="change"><b>Informatik B.Sc.</b><small>PO 2008</small><small>3. Fachsemester · seit WiSe 25/26</small></button><b class="lbl">Ansichten</b><button class="nav${plan ? "" : " on"}" data-act="change" data-url="/study">Semester</button><button class="nav${plan ? " on" : ""}" data-act="change" data-url="/study?view=plan">Regelstudienplan</button><b class="lbl">Studiengang</b><button class="nav" data-act="open" data-url="/programs">Alle Studiengänge</button></aside>`;
+    const bar = `<button class="d-bar" data-act="layer" data-id="areas"><span class="st-h"><b>46 von 180 LP bestanden</b><span>Bereiche ›</span></span><span class="bar"><i class="p1" style="width:15%"></i><i class="p2" style="width:7%"></i><i class="p3" style="width:4%"></i><i class="pl" style="width:18%"></i></span></button>`;
+    let col;
+    if (plan) col = `${bar}<div class="tbl"><div class="thead"><b>Regelstudienplan</b></div>${["11101", "12204", "14310", "13802"].map((id) => `<div class="trow"><span></span><span class="tn"><b>${esc(MODS[id].name)}</b><small>${id} · ${esc(MODS[id].area)}</small></span><span class="lp">${MODS[id].lp} LP</span></div>`).join("")}</div>`;
+    else {
+      const S = SEMS[d.focus], selecting = d.layers.includes("selection");
+      const head = selecting
+        ? `<div class="thead sel"><b>${d.sel.size} ausgewählt · ${selLp(d)} LP</b><button data-act="close" data-id="selection">Verschieben</button><button data-act="close" data-id="selection">Entfernen</button><button data-act="close" data-id="selection" aria-label="Auswahl aufheben">×</button></div>`
+        : `<div class="thead"><b>${S.name}${S.now ? " · jetzt" : ""}</b><button class="arr" data-act="arrowsem" data-d="-1" aria-label="Semester davor">‹</button><button class="arr" data-act="arrowsem" data-d="1" aria-label="Semester danach">›</button></div>`;
+      col = `${bar}<div class="strip">${[-2, -1, 1, 2, 3].map((k) => `<button class="${d.focus === k ? "on" : ""}" data-act="sem" data-k="${k}"><b>${SEMS[k].name}</b><small>${SEMS[k].fs}. FS${SEMS[k].now ? " · jetzt" : ""}</small></button>`).join("")}</div><div class="tbl">${head}${S.rows.map((id) => { const on = d.sel.has(id); return `<div class="trow${on ? " sel" : ""}"><button class="cbx${on ? " on" : ""}" data-act="check" data-row="${id}" aria-label="Auswählen">${on ? icon("check") : ""}</button><button class="tn" data-act="pick" data-row="${id}"><b>${esc(MODS[id].name)}</b><small>${id} · ${esc(MODS[id].area)}</small></button><span class="lp">${MODS[id].lp} LP</span></div>`; }).join("")}${S.rows.length ? "" : '<div class="empty">Noch keine Module</div>'}</div>`;
+    }
+    return ["two", `${side}<section class="d-col">${col}</section>${open ? dPreview(open) : ""}`];
+  }
+  if (path === "/programs") return ["", `<section class="d-panel"><div class="list-head"><b>Alle Studiengänge</b> Fakultät 1</div><button class="row" data-act="open" data-url="/programs/informatik/plan"><b>Informatik B.Sc.</b><small>PO 2008 · 6 Semester</small><span class="lp">›</span></button><div class="row muted"><b>Informatik M.Sc.</b><small>PO 2016 · 4 Semester</small></div><div class="row muted"><b>Wirtschaftsinformatik B.Sc.</b><small>PO 2021 · 6 Semester</small></div></section>`];
+  if (path.startsWith("/programs/")) {
+    const areas = q.get("view") === "areas";
+    const page = without(without(url, "area"), "open");
+    const side = `<aside class="d-panel"><button class="backlink" data-act="up">${icon("back")}Zurück <kbd>Esc</kbd></button><b class="lbl">Ansichten</b><button class="nav${areas ? "" : " on"}" data-act="change" data-url="/programs/informatik/plan">Regelstudienplan</button><button class="nav${areas ? " on" : ""}" data-act="change" data-url="/programs/informatik/plan?view=areas">Wahlpflicht &amp; Bereiche</button></aside>`;
+    const main = areas
+      ? `<button class="row${q.has("area") ? " cur" : ""}" data-act="open" data-url="${esc(withParam(page, "area", "pi"))}"><b>Praktische Informatik</b><small>Wahlpflicht · 24 LP</small><span class="lp">›</span></button><div class="row muted"><b>Technische Informatik</b><small>Wahlpflicht · 18 LP</small></div><div class="row muted"><b>Anwendungsfach</b><small>Wahl · 24 LP</small></div>`
+      : ["11101", "12204", "14310"].map((id) => `<div class="row"><b>${esc(MODS[id].name)}</b><small>${id}</small><span class="lp">${MODS[id].lp} LP</span></div>`).join("");
+    const beside = open ? dPreview(open) : q.has("area") ? `<section class="d-preview"><div class="pv-top"><b>Praktische Informatik</b><button data-act="up">${icon("x")}Schließen <kbd>Esc</kbd></button></div>${["13221", "13802"].map((id) => `<button class="row" data-act="open" data-url="${esc(withParam(url, "open", id))}"><b>${esc(MODS[id].name)}</b><small>${id} · ${MODS[id].turnus}</small><span class="lp">${MODS[id].lp} LP</span></button>`).join("")}</section>` : "";
+    return ["two", `${side}<section class="d-panel"><div class="list-head"><b>Informatik B.Sc.</b> PO 2008 · 180 LP</div>${main}</section>${beside}`];
+  }
+  if (path === "/bookmarks") return ["", `<section class="d-panel"><div class="list-head"><b>3</b> gemerkt</div>${["13221", "13802", "14310"].map((id) => `<button class="row${open === id ? " cur" : ""}" data-act="open" data-url="/bookmarks?open=${id}"><b>${esc(MODS[id].name)}</b><small>${id} · ${MODS[id].turnus}</small><span class="lp">${MODS[id].lp} LP</span></button>`).join("")}</section>${open ? dPreview(open) : ""}`];
+  if (path === "/studyplan") return ["", `<section class="d-panel"><div class="list-head"><b>Stundenplan</b> WiSe 26/27</div><div class="week" style="box-shadow:none;padding:0"><span></span><span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>9:15</span><button class="slot" data-act="open" data-url="/studyplan?open=11101">Mathematik I</button><button class="slot s2" data-act="open" data-url="/studyplan?open=12204">Programmierung</button><span></span><button class="slot s3" data-act="open" data-url="/studyplan?open=13802">Datenbanksysteme</button><span></span></div></section>${open ? dPreview(open) : ""}`];
+  return ["", ""];
+}
+function deskHTML(d) {
+  if (d.out()) return `<div class="app"><div class="d-out"><div><b>${esc(d.s.label)}</b><p>Außerhalb von Betula. → bringt dich zurück.</p></div></div></div>`;
+  const [cls, main] = deskMain(d);
+  const area = areaOf(d.s.url);
+  let over = "";
+  for (const id of d.layers) {
+    if (id === "change") over += `<div class="d-shade" data-act="close" data-id="change"></div><section class="d-dialog" role="dialog" aria-label="Studiengang wechseln"><div class="pv-top"><b>Studiengang wechseln</b><button data-act="close" data-id="change">${icon("x")}Schließen <kbd>Esc</kbd></button></div>${CHANGE}<div class="foot"><button class="btn ghost" data-act="close" data-id="change">Abbrechen</button><button class="btn primary" data-act="close" data-id="change">Übernehmen</button></div></section>`;
+    if (id === "areas") over += `<div class="d-shade" data-act="close" data-id="areas"></div><section class="d-dialog" role="dialog" aria-label="Bereiche"><div class="pv-top"><b>Bereiche</b><button data-act="close" data-id="areas">${icon("x")}Schließen <kbd>Esc</kbd></button></div>${AREAS}</section>`;
+  }
+  return `<div class="app d-app"><nav class="d-rail">${TABS.map((t) => `<button class="${area === t ? "on" : ""}" data-act="tab" data-tab="${t}">${icon(TAB_ICON[t])}${TAB_NAME[t]}</button>`).join("")}</nav><div class="d-top"><div class="search">${icon("search")}<span>Modul, Nummer oder Thema suchen</span></div></div><div class="d-main ${cls}">${main}</div>${over}</div>`;
+}
+
+// Under the devices.
+function traceHTML(dev) {
+  const items = dev.h.list.map((e, k) => {
+    const s = e.state, ahead = k > dev.h.i;
+    const cls = [k === dev.h.i ? "cur" : "", ahead ? "fwd" : "", s.ext ? "ext" : "", s.kind === "layer" ? "lay" : "", s.stale ? "stale" : ""].join(" ");
+    const what = s.kind === "layer" ? "Ebene" : s.kind === "step" ? (ahead ? "liegt bereit" : "Semester") : s.root ? "Anfang" : "";
+    const tag = dev.mode === "phone" && !s.ext ? `<span class="tag">${TAB_NAME[s.tab]}${what ? ` · ${what}` : ""}${s.stale ? " · Rest" : ""}</span>` : "";
+    const extra = s.kind === "layer" ? ` + { ebene }` : s.kind === "step" ? ` + { semester }` : "";
+    const where = s.ext ? "" : `<code>${esc(e.url)}${extra}</code>`;
+    return `<li class="${cls}"><span class="k">${k}</span><span><b>${esc(s.ext ? `außerhalb: ${s.label}` : labelOf(s, ahead))}</b>${tag}${where}</span></li>`;
+  }).reverse().join("");
+  const w = dev.watchers();
+  if (dev.mode === "phone" && dev.isSem()) w.push(`das Semester ${SEMS[dev.s.step].name}`);
+  const open = w.length ? w.map((t) => `<span>${esc(t)}</span>`).join("") : "<em>nichts</em>";
+  const next = dev.mode === "phone"
+    ? `<dt>Zurück</dt><dd>${esc(dev.nextBack())}</dd><dt>Pfeil oben</dt><dd>${dev.out() ? "–" : dev.arrow() ? esc(dev.nextArrow()) : "steht hier nicht: Anfang des Tabs. Zurück tut trotzdem, was links steht."}</dd>`
+    : `<dt>← des Browsers</dt><dd>${esc(dev.nextBack())}</dd><dt>Zurück (Esc)</dt><dd>${esc(dev.nextUp())}</dd>`;
+  const note = dev.note ? `<p class="note">${esc(dev.note)}</p>` : "";
+  dev.note = "";
+  return `<div class="grp"><h4>${dev.mode === "phone" ? "Offen · Zurück schließt es zuerst" : "Offen · Esc schließt es"}</h4><div class="opened">${open}</div></div><div class="grp"><h4>Verlauf des Browsers · oben das Neueste</h4><ol class="hist">${items}</ol></div><div class="grp"><h4>Als Nächstes</h4><dl class="next">${next}</dl>${note}</div>`;
+}
+
+// ---------- the situations ----------
+const STORIES = [
+  { k: "Dialog", t: "Ein Dialog geht mit Zurück zu",
+    text: "„Studiengang wechseln“ ist offen. Am Handy schließt Zurück den Dialog und sonst nichts: Er hat einen eigenen Eintrag ohne neue Adresse (gelb im Verlauf), den Zurück mitnimmt; Vorwärts prallt daran ab. Am iPhone tut das Wischen vom Rand dasselbe. Am Rechner schließt ihn Esc; Zurück verlässt die Seite, und der Dialog geht mit.",
+    today: "Android schließt diese Dialoge schon jetzt mit Zurück. Am iPhone und am Rechner wechselt Zurück auf einem Semester oder bei einem offenen Modul nur die Seite dahinter, und der Dialog bleibt stehen.",
+    try: "Drück am Handy Zurück, dann Vorwärts. Am Rechner Esc oder ←.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.openLayer("change"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.openLayer("change"); } },
+  { k: "Modul", t: "Was du geschlossen hast, bleibt zu",
+    text: "Im Katalog war Compilerbau offen. Darin bist du zu „Informatik B.Sc.“ gegangen, was in den Tab Studium wechselt, und mit dem Tab „Module“ wieder beim Modul. Schließ es jetzt mit × oder zieh es nach unten: Das nimmt seinen Eintrag zurück. Das nächste Zurück führt zum Start, nie wieder ins Modul; nur Vorwärts bringt es zurück, wenn du das willst.",
+    today: "Kommst du über den Verlauf zu einem Modul zurück und schließt es dann, rät Betula falsch, was davor war: Das Schließen schreibt die Liste als neuen Schritt, und das nächste Zurück öffnet das Modul wieder.",
+    try: "Am Handy × oder nach unten ziehen, dann Zurück. Am Rechner „Schließen“, dann ←.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("catalog"); p.open("/catalog?open=13221"); p.open("/programs/informatik/plan"); p.tabTo("catalog"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("catalog"); d.open("/catalog?open=13221"); d.open("/programs/informatik/plan"); d.tabTo("catalog"); } },
+  { k: "Auswahl", t: "Erst die Auswahl, dann die Übersicht",
+    text: "Zwei Zeilen im WiSe 26/27 sind ausgewählt, die Leiste liegt über den Tabs. Zurück beendet zuerst die Auswahl: Die Leiste geht, die Tabs kommen wieder, das Semester bleibt. Erst das nächste Zurück führt zur Übersicht.",
+    today: "Zurück führt gleich zur Übersicht. Die Leiste bleibt über den Tabs liegen und lässt sich nicht mehr bedienen.",
+    try: "Drück Zurück, dann noch einmal. Oder halte eine Zeile lang gedrückt.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.toSem(1); p.hold("13802"); p.pick("11101"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.hold("13802"); d.pick("11101"); } },
+  { k: "Wischen", t: "Dreimal gewischt, einmal zurück",
+    text: "Von der Übersicht dreimal nach links gewischt, bis WiSe 27/28. Der Eintrag fürs Semester lag schon bereit, seit du „Studium“ getippt hast; der erste Wisch ging nur hinein, die anderen haben nichts geschrieben. Ein Zurück führt zur Übersicht, genau wie der Pfeil, am iPhone auch das Wischen vom Rand.",
+    today: "Der Eintrag fürs Semester entsteht erst nach dem Wischen, ohne Tippen. Chrome und Safari überspringen ihn beim Zurück der Taste oder Geste, sobald du vorher einmal zurück warst; der Pfeil oben nicht.",
+    try: "Wisch weiter oder zurück über die Übersicht, dann drück Zurück.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.swipe(1); p.swipe(1); p.swipe(1); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.swipe(1); d.swipe(1); } },
+  { k: "Stufen", t: "Pfeil und Zurück gehen Stufe für Stufe",
+    text: "Mein Studium, Alle Studiengänge, Informatik B.Sc., die Ansicht „Wahlpflicht & Bereiche“, Praktische Informatik. Jedes Zurück und jeder Pfeil geht eine Stufe hinauf; der Wechsel der Ansicht war keine Stufe. Am Rechner geht ← durch jeden Schritt, auch die Ansicht.",
+    today: "Der Pfeil geht durch den Verlauf, wenn er richtig rät; sonst schreibt er die Stufe darüber neu, und Zurück führt danach wieder hinein, etwa nach einem Wechsel der Ansicht.",
+    try: "Drück abwechselnd den Pfeil oben links und Zurück.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.open("/programs"); p.open("/programs/informatik/plan"); p.change("/programs/informatik/plan?view=areas"); p.open("/programs/informatik/plan?view=areas&area=pi"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.open("/programs"); d.open("/programs/informatik/plan"); d.change("/programs/informatik/plan?view=areas"); d.open("/programs/informatik/plan?view=areas&area=pi"); } },
+  { k: "Filter", t: "Ein Schritt je „Module anzeigen“",
+    text: "Die Filter sind offen, Informatik und WiSe sind gewählt. „38 Module anzeigen“ übernimmt beides als einen Schritt; Zurück, nach unten ziehen oder daneben tippen tun dasselbe. Das nächste Zurück führt zum Katalog ohne Filter, dann zum Start. Am Rechner ist jede Pause beim Klicken ein Schritt: Die beiden Filter, dicht hintereinander geklickt, sind einer.",
+    today: "Am Handy schon fast so, nur bleibt der Eintrag des Sheets liegen, wenn du den Katalog über die Tasten verlässt, und Zurück tut danach einmal nichts. Am Rechner ist heute jeder Klick ein Schritt.",
+    try: "Tippe „38 Module anzeigen“, dann zweimal Zurück. Am Rechner zwei Filter schnell nacheinander, dann ←.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("catalog"); p.openLayer("filters"); p.toggleDraft("program", "informatik"); p.toggleDraft("turnus", "wise"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("catalog"); const t0 = Date.now(); d.change("/catalog?program=informatik", t0); d.change("/catalog?program=informatik&turnus=wise", t0 + 300); } },
+  { k: "Tabs", t: "Ein Tab kommt wieder, wie er war",
+    text: "In „Studium“ zu „Alle Studiengänge“, dann in „Module“ ein Modul geöffnet, dann zurück zu „Studium“. Das Handy zeigt „Alle Studiengänge“ wieder, und Zurück bleibt im Tab: Mein Studium, Start, hinaus, nie zurück in die Module. Dafür wird der Verlauf umgeschrieben: Unter dem Tab liegt immer Start, was übrig bleibt, ist durchgestrichen. Am Rechner geht ← durch alles, was du gesehen hast.",
+    today: "Auch am Handy spielt Zurück alles rückwärts ab: das Modul, die Module, dann wieder „Studium“.",
+    try: "Drück am Handy dreimal Zurück. Wechsle die Tabs und schau, wie der Verlauf wächst.",
+    phone: (p) => { p.start("/", "Neuer Tab"); p.tabTo("study"); p.open("/programs"); p.tabTo("catalog"); p.open("/catalog?open=13221"); p.tabTo("study"); },
+    desk: (d) => { d.start("/", "Neuer Tab"); d.tabTo("study"); d.open("/programs"); d.tabTo("catalog"); d.open("/catalog?open=13221"); d.tabTo("study"); } },
+  { k: "Geteilter Link", t: "Ein Link aus dem Messenger",
+    text: "Jemand hat dir die Modulseite von Compilerbau geschickt. Liest du nur und drückst Zurück, bist du wieder im Messenger. Benutzt du Betula, tippst etwa den Pfeil oben links oder „Gehört zu Informatik B.Sc.“, legt Betula darunter, was darüber steht: Module und Start; dann führt Zurück über sie hinaus. Am Rechner verlässt ← Betula sofort; „Zurück (Esc)“ führt zur Liste.",
+    today: "Zurück verlässt Betula sofort. Der Pfeil oben schreibt die Liste als neuen Schritt, und Zurück führt danach wieder zur Modulseite.",
+    try: "Drück Zurück: Messenger. Dann „Situation neu starten“, den Pfeil oben links tippen und Zurück drücken.",
+    phone: (p) => { p.start("/catalog/module/13221"); },
+    desk: (d) => { d.start("/catalog/module/13221"); } },
+];
+
+const phone = new Phone(), desk = new Desk();
+let story = 0;
+const storiesEl = document.getElementById("stories"), storyEl = document.getElementById("story");
+const phoneScreen = document.getElementById("phoneScreen"), deskScreen = document.getElementById("deskScreen");
+const phoneTrace = document.getElementById("phoneTrace"), deskTrace = document.getElementById("deskTrace"), deskChrome = document.getElementById("deskChrome");
+
+function play(k) {
+  story = k;
+  STORIES[k].phone(phone); STORIES[k].desk(desk);
+  phone.note = ""; desk.note = "";
+  storiesEl.querySelectorAll(".st").forEach((b, j) => b.setAttribute("aria-pressed", String(j === k)));
+  const s = STORIES[k];
+  storyEl.innerHTML = `<div><h3>${k + 1}. ${esc(s.t)}</h3><p>${esc(s.text)}</p><p class="try"><b>Probier:</b>${esc(s.try)}</p></div><p class="today"><b>Heute:</b>${esc(s.today)}</p>`;
+  render();
+}
+function render() {
+  phoneScreen.innerHTML = phoneHTML(phone);
+  deskScreen.innerHTML = deskHTML(desk);
+  deskChrome.innerHTML = `<button type="button" data-act="b-back" aria-label="Zurück im Browser"${desk.h.i > 0 ? "" : " disabled"}>←</button><button type="button" data-act="b-fwd" aria-label="Vorwärts im Browser"${desk.h.i < desk.h.list.length - 1 ? "" : " disabled"}>→</button><span class="url">${desk.out() ? "neuer Tab" : `betula.app${esc(desk.s.url)}`}</span><button type="button" class="esc" data-act="esc">Esc</button>`;
+  phoneTrace.innerHTML = traceHTML(phone);
+  deskTrace.innerHTML = traceHTML(desk);
+  document.getElementById("phoneBack").disabled = phone.out();
+  document.getElementById("phoneFwd").disabled = phone.h.i >= phone.h.list.length - 1;
+}
+
+storiesEl.innerHTML = STORIES.map((s, k) => `<button class="st" type="button" data-story="${k}" aria-pressed="false"><small>${k + 1} · ${esc(s.k)}</small><b>${esc(s.t)}</b></button>`).join("");
+storiesEl.addEventListener("click", (e) => { const b = e.target.closest("[data-story]"); if (b) play(+b.dataset.story); });
+document.getElementById("replay").addEventListener("click", () => play(story));
+document.getElementById("phoneBack").addEventListener("click", () => { phone.back(); render(); });
+document.getElementById("phoneFwd").addEventListener("click", () => { phone.forward(); render(); });
+
+function act(dev, el) {
+  const a = el.dataset.act, v = el.dataset;
+  if (a === "open") dev.open(v.url);
+  else if (a === "change") dev.change(v.url);
+  else if (a === "tab") dev.tabTo(v.tab);
+  else if (a === "layer") dev.openLayer(v.id);
+  else if (a === "close") dev.close(v.id);
+  else if (a === "dismiss") dev.dismiss();
+  else if (a === "arrow") dev.arrowBack();
+  else if (a === "back" || a === "b-back") dev.back();
+  else if (a === "b-fwd") dev.forward();
+  else if (a === "esc") dev.esc();
+  else if (a === "up") dev.up();
+  else if (a === "sem") dev.toSem(+v.k);
+  else if (a === "arrowsem") dev.arrowSem(+v.d);
+  else if (a === "pick") dev.pick(v.row);
+  else if (a === "check") dev.check(v.row);
+  else if (a === "draft") dev.toggleDraft(v.key, v.val);
+  else return;
+  render();
+}
+deskScreen.addEventListener("click", (e) => { const el = e.target.closest("[data-act]"); if (el) act(desk, el); });
+deskChrome.addEventListener("click", (e) => { const el = e.target.closest("[data-act]"); if (el) act(desk, el); });
+
+// The phone takes a finger: a long press selects, a move to the side swipes, a sheet goes down.
+// The click that follows a gesture's own pointerup is the gesture's, not a tap.
+let touch = null, eat = false;
+phoneScreen.addEventListener("pointerdown", (e) => {
+  const row = e.target.closest("[data-row]"), body = e.target.closest('[data-row-body="1"]'), sheet = e.target.closest("[data-drag]");
+  touch = { x: e.clientX, y: e.clientY, body: !!body, sheet: !!sheet, moved: false, used: false, timer: 0 };
+  if (row && phone.isSem()) {
+    const t = touch;
+    t.timer = setTimeout(() => { if (touch === t && !t.moved) { t.used = true; phone.hold(row.dataset.row); render(); } }, 450);
+  }
+});
+phoneScreen.addEventListener("pointermove", (e) => {
+  if (!touch) return;
+  if (Math.abs(e.clientX - touch.x) > 8 || Math.abs(e.clientY - touch.y) > 8) { touch.moved = true; clearTimeout(touch.timer); }
+});
+const endTouch = (e) => {
+  if (!touch) return;
+  clearTimeout(touch.timer);
+  const dx = e.clientX - touch.x, dy = e.clientY - touch.y;
+  if (touch.body && Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.2) { touch.used = true; phone.swipe(dx < 0 ? 1 : -1); render(); }
+  else if (touch.sheet && dy > 50 && Math.abs(dy) > Math.abs(dx)) { touch.used = true; phone.dismiss(); render(); }
+  if (touch.used || touch.moved) { eat = true; setTimeout(() => { eat = false; }, 0); }
+  touch = null;
+};
+phoneScreen.addEventListener("pointerup", endTouch);
+phoneScreen.addEventListener("pointercancel", () => { if (touch) clearTimeout(touch.timer); touch = null; });
+phoneScreen.addEventListener("click", (e) => {
+  if (eat) { eat = false; return; }
+  const el = e.target.closest("[data-act]");
+  if (el) act(phone, el);
+});
+phoneScreen.addEventListener("contextmenu", (e) => e.preventDefault());
+
+// Scaled to fit their place.
+const fit = () => document.querySelectorAll(".fit").forEach((f) => {
+  const w = Number(getComputedStyle(f).getPropertyValue("--w"));
+  f.style.setProperty("--s", Math.min(1, f.clientWidth / w).toFixed(4));
+});
+new ResizeObserver(fit).observe(document.body);
+fit();
+play(0);
+</script>
