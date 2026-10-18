@@ -3038,6 +3038,10 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `program_area`, because no view has the nodes that hold no module („Komplex Nebenfach") with
   their `parent_id`; a view `v_program_area` needs a Radix migration and a new export (owed).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
+  One exception: a kind no source states is left out, not „Art nicht angegeben" — students
+  trying Betula asked what that meant, while a module without a kind reads as not assigned
+  without being told (owner, 2026-10-18); `KindBadge` draws nothing, the program's tables leave
+  the cell empty as they do for LP and Turnus. Never a default kind either.
   A code without a label is shown as it is (`labels::Code`), and the label test flags it. What
   Radix infers is said where it is shown: a kind whose `kind_basis` is `inferred` reads
   „Wahlpflicht · abgeleitet", its title saying from what (`folia_design::ui::KindBadge`, in the

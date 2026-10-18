@@ -1556,12 +1556,12 @@ fn section_groups(entries: &[PlanEntry], t: &Texts) -> Vec<RowGroup> {
 
 // ---------- areas and modules: one table ----------
 
-/// „Pflicht", „Wahlpflicht" … as a table cell; „–" where no source states the kind (the full
-/// wording stays in the title, so nothing is invented and nothing is claimed).
+/// „Pflicht", „Wahlpflicht" … as a table cell; empty where no source states the kind, as the
+/// cells of LP and Turnus are (`folia_design::ui::KindBadge`).
 fn kind_cell(kind: Option<Code<ModuleKind>>, t: &Texts) -> AnyView {
     match kind {
         Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
-        None => view! { <span class="unknown" title=t.ui.kind_unknown>"–"</span> }.into_any(),
+        None => ().into_any(),
     }
 }
 
