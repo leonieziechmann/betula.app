@@ -8,7 +8,13 @@
      note with a stepper, F a longer swipe and arrows at the switch, G the result as a pill that
      opens the semesters. Each on a desktop and on a phone whose rows a finger really swipes. The
      student, the modules and the day (Tuesday, 20 October 2026: the session plans for WiSe 26/27)
-     are examples. Tokens are Betula's (folia/assets/app.css), the swipe's looks those of 1.16. -->
+     are examples. The owner chose E the same day („Also ich liebe Option E, das ist mit Abstand die
+     eleganteste und das würde ich auch nicht ändern wollen wenn man das Studium schon eingerichtet
+     hat. Aber das Studium einrichten muss definitiv ausführlicher sein. Also so, dass man ein modal
+     bekommt und dann da zwar schon die defaults drin sind. Aber man trotzdem alles änderen kann. Aber
+     das einplanen von Modul soll dann auch mit in dem modal sein, so dass man im best case nur auf ok
+     drücken muss"): without a study, E's „Einplanen" opens „Dein Studium" with the module's semester
+     in one dialog, everything filled in. Tokens are Betula's (folia/assets/app.css), the swipe's looks those of 1.16. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -374,6 +380,54 @@ button.pl { cursor: pointer; }
 .p-sheet .progs button span { font-size: 14.5px; }
 .p-sheet .fsrow button { height: 42px; font-size: 15px; }
 
+/* E without a study: one dialog, „Dein Studium" as the app's card (planner/src/study/card.rs: a
+   sentence, a row a value with what it comes from under it) and the module's semester under it;
+   everything filled in, „Einrichten und einplanen" takes it as it is. A sheet from below on a phone. */
+.m-shade { position: absolute; inset: 0; z-index: 8; background: rgba(10, 12, 17, .45); animation: fade .2s ease-out; }
+@keyframes fade { from { opacity: 0; } }
+.m-dlg { position: absolute; z-index: 9; left: 50%; top: 50%; translate: -50% -50%; width: 520px; max-height: calc(100% - 24px); display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: dlg-in .3s var(--spring); }
+@keyframes dlg-in { from { opacity: 0; transform: scale(.96); } }
+.p-app .m-dlg { left: 0; right: 0; top: auto; bottom: 0; translate: none; width: auto; max-height: 92%; border-radius: 18px 18px 0 0; animation: sheet-in .32s var(--ease); }
+.p-app .m-dlg::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+.m-head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 12px 10px 20px; }
+.p-app .m-head { padding-top: 22px; }
+.m-head > div { flex: 1; min-width: 0; }
+.m-head h4 { font-size: 17px; font-weight: 700; letter-spacing: -.015em; }
+.m-head p { margin-top: 3px; color: var(--text-2); font-size: 13px; line-height: 1.45; }
+.m-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+.study { border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.study .say { padding: 12px 14px 11px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 650; letter-spacing: -.01em; line-height: 1.35; }
+.study .say em { font-style: normal; color: var(--accent-ink); }
+.srow { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 2px 10px; align-items: center; padding: 8px 10px 8px 14px; }
+.srow + .srow { border-top: 1px solid var(--line); }
+.srow .label { grid-row: 1; }
+.srow .val { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; min-width: 0; }
+.srow .val > b { font-size: 14.5px; font-weight: 650; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .val > button.change { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: calc(100% + 8px); min-height: 36px; margin-left: -8px; padding: 0 8px !important; border-radius: 8px; font-size: 14.5px; font-weight: 650; text-align: left; }
+.srow .val > button.change:hover, .srow .val > button.change[aria-expanded="true"] { background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.srow .val > button.change span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.srow .val > button.change .i { color: var(--text-3); }
+.srow .note { grid-column: 2; font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .note.warn { color: var(--warn); }
+.srow .note b { color: var(--accent-ink); font-weight: 650; }
+.srow .pick { grid-column: 1 / -1; margin: 6px -2px 2px; }
+.pm { display: inline-flex; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); flex: none; }
+.pm button { display: grid; place-items: center; width: 34px; height: 32px; color: var(--text-2); font-size: 16px; font-weight: 600; }
+.pm button:hover { color: var(--text); background: var(--panel-3) !important; }
+.pm button[disabled] { opacity: .3; cursor: default; background: none !important; }
+.pm button + button { box-shadow: inset 1px 0 0 var(--line); }
+.m-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 16px 14px 20px; border-top: 1px solid var(--line); }
+.m-foot .plain { margin-right: auto; padding: 0 !important; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.m-foot .ok { min-height: 40px; padding: 0 16px !important; border-radius: var(--r-ctl); background: var(--accent) !important; color: var(--on-accent); font-size: 14px; font-weight: 650; }
+.m-foot .cancel { min-height: 40px; padding: 0 14px !important; border-radius: var(--r-ctl); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 14px; font-weight: 620; }
+.p-app .m-foot { flex-direction: column-reverse; align-items: stretch; padding: 12px 16px 22px; }
+.p-app .m-foot .ok { min-height: 48px; font-size: 15px; }
+.p-app .m-foot .cancel { display: none; }
+.p-app .m-foot .plain { margin: 4px auto 0; }
+.p-app .m-body { padding: 4px 16px 12px; }
+.p-app .srow { grid-template-columns: 92px minmax(0, 1fr); }
+.p-app .study .say { font-size: 15.5px; }
+
 /* The comparison and the recommendation. */
 .cmp, .reco { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 80px; }
 .cmp h2, .reco h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
@@ -438,15 +492,15 @@ button.pl { cursor: pointer; }
   <section class="concept" id="e" aria-labelledby="e-title">
     <header class="c-head">
       <span class="c-tag">E</span>
-      <div><h2 id="e-title">Hinweis mit Stepper</h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt darüber ein kleines Kästchen „Weitere auch nach SoSe 27“. Fehlt das Studium, steht darüber eine helle Karte „Ist das dein Studium?“.</p></div>
+      <div><h2 id="e-title">Hinweis mit Stepper <small>Gewählt</small></h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt darüber ein kleines Kästchen „Weitere auch nach SoSe 27“. Fehlt das Studium, öffnet „Einplanen“ einen Dialog: „Dein Studium“ und das Semester des Moduls, alles vorausgefüllt und änderbar. Im besten Fall genügt „Einrichten und einplanen“.</p></div>
       <button class="c-reset" type="button" data-reset="e">Zurücksetzen</button>
     </header>
-    <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · eine Zeile antippen und im Modul „Einplanen“</p>
+    <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · oben „noch nicht“ wählen und dann einplanen: der Dialog</p>
     <div class="stage" data-concept="e"></div>
     <div class="c-notes">
       <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später.</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li></ul></div>
       <div><h3>Gut</h3><ul><li><b>Man sieht immer, was passiert ist,</b> auch beim Wischen in der Liste.</li><li>Ein anderes Semester ist <b>ein Tipp</b> auf ›.</li><li>Am Rechner wie am Handy dieselbe Leiste.</li></ul></div>
-      <div><h3>Schwächer</h3><ul><li>Eine Leiste mehr über der Seite, für ein paar Sekunden.</li><li>Fehlt das Studium, stehen zwei Dinge übereinander.</li></ul></div>
+      <div><h3>Ohne Studium</h3><ul><li><b>Ein Dialog statt der Leiste:</b> Studiengang, Fachsemester und das Semester des Moduls, vorausgefüllt.</li><li>Studiengang aus dem Filter, sonst der erste der Studiengänge des Moduls (Pflicht zuerst); antippen zeigt höchstens drei und „Anderer Studiengang …“.</li><li>Fachsemester aus dem Filter, sonst vermutet; das Semester wie immer. <b>Ein Druck auf „Einrichten und einplanen“</b>, danach die Leiste.</li></ul></div>
     </div>
   </section>
 
@@ -498,7 +552,8 @@ button.pl { cursor: pointer; }
   </section>
 
   <section class="reco" aria-labelledby="reco-title">
-    <h2 id="reco-title">Empfehlung</h2>
+    <h2 id="reco-title">Entscheidung: E</h2>
+    <p><b>E, mit dem Dialog für ein Studium, das noch nicht eingerichtet ist</b> (owner, 18.10.: „mit Abstand die eleganteste … so dass man im best case nur auf ok drücken muss, dann das Studium eingerichtet ist und dass Modul im richtigen Semester geplant ist“). Was folgt, war die Empfehlung davor:</p>
     <p><b>F, weil der Wisch alles kann und nichts dazwischenkommt.</b> Kurz gewischt ist es der schnelle Weg, weiter gewischt jedes andere Semester. Das Ergebnis steht dort, wo man gerade hinschaut. Im Modul werden aus „Eingeplant“ Pfeile, und das Semester der Sitzung steht offen an der Liste statt in einem Hinweis, der wieder verschwindet.</p>
     <ul>
       <li><b>Von G übernehmen:</b> die Pille an der Zeile springt beim Einplanen herein; das ist die Bestätigung, ohne Leiste.</li>
@@ -571,6 +626,7 @@ const fresh = (dev) => ({
   asked: false, // the question answered or put aside
   ask: false, // the question is waiting
   askK: null, askStep: "pick", askProg: null, askGuess: 1, // for which module, and how far
+  modal: null, // E without a study: { k, prog, src, fs, fsTouched, sem, pick, more }
   chosen: null, // the session's semester, changed by the student (P3)
   snack: null, // E: { k, kind, from, stepped }
   undo: null, // F, G: { k, kind, from }
@@ -672,13 +728,49 @@ const heroOf = (st, c, phone) => {
 const headOf = (st, c) => `${SETUP === "filter" ? `<span class="tag">Informatik B.Sc.</span><span class="tag">1. Semester</span>` : ""}${c === "f" ? aimOf_(st) : ""}`;
 const deskOf = (st, c) => {
   const rows = MODS.map((m) => `<div class="drow${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
-  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b> Module ${headOf(st, c)}</div>${rows}</section><section class="panel detail">${heroOf(st, c, false)}${c === "e" ? snackOf(st) : ""}</section></div>`;
+  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b> Module ${headOf(st, c)}</div>${rows}</section><section class="panel detail">${heroOf(st, c, false)}${c === "e" ? snackOf(st) : ""}</section>${c === "e" ? modalOf(st) : ""}</div>`;
 };
 const phoneOf = (st, c) => {
   const rows = MODS.map((m) => `<div class="rw" data-k="${m.k}"${st.planned[m.k] != null ? " data-planned" : ""}><div class="ground"></div><div class="card${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div></div>`).join("");
   const sheet = st.open ? `<div class="p-shade" data-act="close"></div><section class="p-sheet">${heroOf(st, c, true)}</section>` : "";
   const banner = c === "f" && st.ask && !st.open ? `<div class="p-banner">${bannerOf(st)}</div>` : "";
-  return `<div class="app p-app${st.open ? " sheet-open" : ""}"><div class="p-status"><span>10:24</span><span>Di, 20. Okt.</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b>Module ${headOf(st, c)}</div><div class="p-list">${rows}</div>${banner}<nav class="p-nav"><span></span><span class="on"></span><span></span><span></span><span>${count(st) ? `<em>${count(st)}</em>` : ""}</span></nav>${sheet}${c === "e" ? snackOf(st) : ""}</div>`;
+  return `<div class="app p-app${st.open ? " sheet-open" : ""}"><div class="p-status"><span>10:24</span><span>Di, 20. Okt.</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b>Module ${headOf(st, c)}</div><div class="p-list">${rows}</div>${banner}<nav class="p-nav"><span></span><span class="on"></span><span></span><span></span><span>${count(st) ? `<em>${count(st)}</em>` : ""}</span></nav>${sheet}${c === "e" ? snackOf(st) + modalOf(st) : ""}</div>`;
+};
+
+// ---------- E without a study: the dialog ----------
+// What it starts with: the catalog's filter, else the module's first program (compulsory first);
+// the Fachsemester from the filter, else where that program's plan places the module, less the
+// semesters until the one it goes into; the semester as „Einplanen" aims.
+const guessFs = (k, prog, sem) => { const hit = (CURRICULA[k] || []).find(([p, kind]) => p === prog && kind === "Pflicht") || (CURRICULA[k] || []).find(([p]) => p === prog); return hit ? Math.max(1, hit[2] - (sem - SESSION)) : 1; };
+const openModal = (st, k) => {
+  const sem = targetOf(st, modOf(k));
+  if (SETUP === "filter") { st.modal = { k, prog: "inf", src: "aus deinem Filter im Katalog", fs: ASK.fs, fsSrc: "aus deinem Filter im Katalog", fsTouched: false, sem, pick: false, more: false }; return; }
+  const first = offerOf(k).shown[0];
+  const prog = first?.p ?? "inf";
+  st.modal = { k, prog, src: first ? `${modOf(k).t}: ${first.kind} im ${first.n}. Semester des Plans` : "", fs: guessFs(k, prog, sem), fsSrc: "vermutet", fsTouched: false, sem, pick: false, more: false };
+};
+const modalOf = (st) => {
+  const d = st.modal;
+  if (!d) return "";
+  const m = modOf(d.k), progName = PROGS[d.prog];
+  const fsAt = d.fs + (d.sem - SESSION); // the Fachsemester of the semester it goes into
+  const since = SESSION - d.fs + 1;
+  const offered = m.offered(d.sem);
+  const pick = d.pick ? (() => {
+    if (d.more) {
+      const all = Object.entries(PROGS).sort((a, b) => a[1].localeCompare(b[1], "de"));
+      return `<div class="pick askbox"><input class="askq" type="search" placeholder="Studiengang suchen" aria-label="Studiengang suchen"><div class="progs"><div class="scroll">${all.map(([p, name]) => `<button type="button" data-act="mpick" data-p="${p}"><span>${esc(name)}</span></button>`).join("")}</div></div></div>`;
+    }
+    const { shown, more } = offerOf(d.k);
+    return `<div class="pick askbox"><div class="progs">${shown.map(({ p, kind, n }) => `<button type="button" data-act="mpick" data-p="${p}"><span>${esc(PROGS[p])}</span><small class="${kind === "Pflicht" ? "req" : ""}">${kind} · ${n}. Sem.</small></button>`).join("")}<button class="other" type="button" data-act="mmore"><span>Anderer Studiengang …</span><small>${more} weitere</small></button></div></div>`;
+  })() : "";
+  const head = `<div class="m-head"><div><h4>${esc(m.t)} einplanen</h4><p>Richte dabei dein Studium ein, dann stehen Fachsemester dabei. Alles ist vorausgefüllt; ändere, was nicht stimmt.</p></div><button class="nope" type="button" data-act="mcancel" aria-label="Schließen">${icon("x")}</button></div>`;
+  const study = `<section class="study" aria-label="Dein Studium"><p class="say">Du studierst <em>${esc(progName)}</em> im <em>${d.fs}. Fachsemester</em>.</p>
+    <div class="srow"><span class="label">Studiengang</span><div class="val"><button class="change" type="button" data-act="mprog" aria-expanded="${d.pick}"><span>${esc(progName)}</span>${icon("down")}</button></div><span class="note">${esc(d.src)}</span>${pick}</div>
+    <div class="srow"><span class="label">Fachsemester</span><div class="val"><b>${d.fs}. Fachsemester</b><span class="pm"><button type="button" data-act="mfs" data-d="-1" aria-label="weniger" ${d.fs <= 1 ? "disabled" : ""}>−</button><button type="button" data-act="mfs" data-d="1" aria-label="mehr">+</button></span></div><span class="note">seit ${sem(since)}${d.fsTouched ? "" : ` · <b>${esc(d.fsSrc)}</b>`}</span></div></section>`;
+  const plan = `<section class="study" aria-label="Einplanen"><div class="srow"><span class="label">${esc(m.t)}</span><div class="val"><b>${esc(sem(d.sem))} · ${fsAt}. FS</b><span class="pm"><button type="button" data-act="msem" data-d="-1" aria-label="ein Semester früher" ${d.sem <= SESSION ? "disabled" : ""}>‹</button><button type="button" data-act="msem" data-d="1" aria-label="ein Semester später">›</button></span></div><span class="note${offered ? "" : " warn"}">${offered ? (d.sem === SESSION ? "dieses Semester" : d.sem === targetOf(st, m) ? `${esc(m.turnus)} angeboten` : "") : "in diesem Semester nicht angeboten"}</span></div></section>`;
+  const foot = `<div class="m-foot"><button class="plain" type="button" data-act="mplain">Ohne Studium einplanen</button><button class="cancel" type="button" data-act="mcancel">Abbrechen</button><button class="ok" type="button" data-act="mok">Einrichten und einplanen</button></div>`;
+  return `<div class="m-shade" data-act="mcancel"></div><div class="m-dlg" role="dialog" aria-label="${esc(m.t)} einplanen">${head}<div class="m-body">${study}${plan}</div>${foot}</div>`;
 };
 
 // ---------- what the taps and the swipes do ----------
@@ -692,6 +784,10 @@ const press = (c, key, st, k, to) => {
     st.strip = false;
     if (c === "e") st.snack = { k, kind: "removed", from: was };
     else st.undo = { k, kind: "removed", from: was };
+  } else if (c === "e" && st.start == null && !st.asked) {
+    openModal(st, k);
+    if (to != null) st.modal.sem = to;
+    return;
   } else {
     planIt(st, k, to ?? targetOf(st, modOf(k)));
     if (c === "e") st.snack = { k, kind: "planned", stepped: false };
@@ -737,6 +833,26 @@ const act = (c, key, st, el) => {
       break;
     }
     case "askmore": st.askStep = "more"; break;
+    case "mprog": st.modal.pick = !st.modal.pick; st.modal.more = false; break;
+    case "mmore": st.modal.more = true; break;
+    case "mpick": {
+      const d = st.modal;
+      d.prog = el.dataset.p; d.pick = false; d.more = false; d.src = "von dir gewählt";
+      if (!d.fsTouched && SETUP !== "filter") { d.fs = guessFs(d.k, d.prog, d.sem); d.fsSrc = "vermutet"; }
+      break;
+    }
+    case "mfs": st.modal.fs = Math.max(1, Math.min(14, st.modal.fs + Number(el.dataset.d))); st.modal.fsTouched = true; break;
+    case "msem": st.modal.sem = Math.max(SESSION, st.modal.sem + Number(el.dataset.d)); break;
+    case "mcancel": st.modal = null; break;
+    case "mok": case "mplain": {
+      const d = st.modal;
+      if (el.dataset.act === "mok") st.start = SESSION - d.fs + 1;
+      st.asked = true; st.ask = false; st.modal = null;
+      st.planned[d.k] = d.sem; st.flash = d.k;
+      st.snack = { k: d.k, kind: "planned", stepped: false };
+      settle(c, key, st);
+      break;
+    }
     case "askback": st.askStep = "pick"; break;
     case "askfs": st.start = SESSION - Number(el.dataset.n) + 1; st.ask = false; st.asked = true; break;
     case "no": st.ask = false; st.asked = true; break;
