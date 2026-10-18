@@ -11,8 +11,12 @@
 //! taken out says so, with „Rückgängig".
 //!
 //! It stands 4.5 s, 7 s once moved, and as long as the pointer or the keyboard is on it; a newer
-//! one takes its place. On a phone above the bottom bar, across the screen (app.css „The note of
-//! „Einplanen"").
+//! one takes its place. On a wide screen one bar across the page right of the rail, one line high,
+//! the module named in it (owner, 2026-10-18: „bei der pc Version kann die notification ruhig über
+//! die ganze Breite rechts von der sidebar gehen und dann vllt etwas weniger hoch sein"); on a phone
+//! a card above the bottom bar, the switch a row over the arrows, so that what is under the finger
+//! stays. Dark in both themes (owner, the same day: „dark modus muss natürlich auch dafür
+//! funktionieren"; app.css „The note of „Einplanen"", `.plan-toast`).
 
 use std::time::Duration;
 
@@ -104,14 +108,21 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>, held: 
         held.set(false);
         planning.undo(plan);
     };
+    // „Rückgängig" at the end, after a line.
+    let end = view! {
+        <div class="plan-toast-end">
+            <span class="plan-toast-sep" aria-hidden="true"></span>
+            <button class="plan-toast-undo" type="button" on:click=undo>{t.common.undo}</button>
+        </div>
+    };
     let (body, removed) = match first.kind {
         NoteKind::Removed { .. } => (
             view! {
-                <div class="plan-note-row">
-                    <span class="plan-note-mark out" aria-hidden="true"><Icon name="calendar-minus"/></span>
-                    <span class="plan-note-said">{(t.planner.note_removed)(&first.what.title)}</span>
-                    <button class="plan-note-undo" type="button" on:click=undo>{t.common.undo}</button>
+                <div class="plan-toast-main">
+                    <span class="plan-toast-mark out" aria-hidden="true"><Icon name="calendar-minus"/></span>
+                    <span class="plan-toast-said">{(t.planner.note_removed)(&first.what.title)}</span>
                 </div>
+                {end}
             }
             .into_any(),
             true,
@@ -138,28 +149,30 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>, held: 
                 let (at, stepped) = now.get();
                 let on = chosen.get() == Some(at);
                 (stepped || chosen.get().is_some()).then(|| view! {
-                    <button class="plan-note-keep" type="button" role="switch" aria-checked=if on { "true" } else { "false" } title=t.planner.keep_hint on:click=move |_| planning.keep(at)>
+                    <button class="plan-toast-keep" type="button" role="switch" aria-checked=if on { "true" } else { "false" } title=t.planner.keep_hint on:click=move |_| planning.keep(at)>
                         <Icon name="layers"/>
                         <span>{t.planner.keep_for}" "<b>{at.short(t.locale)}</b></span>
-                        <span class="plan-note-switch" aria-hidden="true"></span>
+                        <span class="plan-toast-switch" aria-hidden="true"></span>
                     </button>
                 })
             };
+            let title = what.title.clone();
             (
                 view! {
-                    <div class="plan-note-row">
-                        <span class="plan-note-mark" aria-hidden="true"><Icon name="check"/></span>
-                        <button class="plan-note-step" type="button" aria-label=t.planner.earlier title=format!("{} (←)", t.planner.earlier) disabled=move || now.get().0 <= floor on:click=move |_| planning.step(plan, -1)>
+                    <div class="plan-toast-main">
+                        <span class="plan-toast-mark" aria-hidden="true"><Icon name="check"/></span>
+                        // The module, where the bar has room for it (a wide screen).
+                        <span class="plan-toast-title">{title}</span>
+                        <button class="plan-toast-step" type="button" aria-label=t.planner.earlier title=format!("{} (←)", t.planner.earlier) disabled=move || now.get().0 <= floor on:click=move |_| planning.step(plan, -1)>
                             <Icon name="chevron-left"/>
                         </button>
-                        <span class="plan-note-at"><b>{label}</b><small>{line}</small></span>
-                        <button class="plan-note-step" type="button" aria-label=t.planner.later title=format!("{} (→)", t.planner.later) on:click=move |_| planning.step(plan, 1)>
+                        <span class="plan-toast-at"><b>{label}</b><small>{line}</small></span>
+                        <button class="plan-toast-step" type="button" aria-label=t.planner.later title=format!("{} (→)", t.planner.later) on:click=move |_| planning.step(plan, 1)>
                             <Icon name="chevron-right"/>
                         </button>
-                        <span class="plan-note-sep" aria-hidden="true"></span>
-                        <button class="plan-note-undo" type="button" on:click=undo>{t.common.undo}</button>
                     </div>
                     {keep}
+                    {end}
                 }
                 .into_any(),
                 false,
@@ -168,7 +181,7 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>, held: 
     };
     view! {
         <div
-            class="plan-note"
+            class="plan-toast"
             class:out=removed
             role="status"
             on:pointerenter=move |_| hold()
