@@ -10,12 +10,14 @@
 // moving the module at once (back into the past as well, to the first Fachsemester, „liegt
 // zurück"), „Weitere Module auch nach …" once moved, which the next module's switch then plans into,
 // ← and → as the arrows, „Rückgängig"; a module taken out says so, and „Rückgängig" puts it back. It
-// goes with ×, Esc, another module opened, a long scroll — not a little one. A semester chosen for
+// waits for interaction: it stands while nothing is done, and goes with a click elsewhere, ×, Esc, a
+// key not its own, another module opened, a long scroll — not a little one. A semester chosen for
 // the next modules says so in the dialog, which clears it. On a phone: a row swiped to the right
 // opens the dialog as a sheet, „Ohne Studium einplanen" plans and the session asks no more; the note
 // stands over the bottom bar, as wide, under it and flat; a tap on the semester's half and a finger
 // swiped over it move the module, the semester under the finger stays as the switch comes over it,
-// a finger swipes the note down and away, and a long scroll or a module opened puts it away.
+// a finger swipes the note down and away, and a long scroll, a tap elsewhere or a module opened puts
+// it away.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node plannote.mjs   (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Needs the synthetic catalog (docs/folia/frontend.md §4): Algorithmen und Datenstrukturen (11112,
 // winter, in the 1st semester of Informatik B.Sc.'s plan) and Analysis I (11103, summer); its
@@ -48,7 +50,9 @@ const waitPlanned = (page, id, list, what) => page.waitForFunction(([key, id, wa
 const note = (page) => page.evaluate(() => {
   const el = document.querySelector(".plan-toast");
   if (!el) return null;
-  const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+  // The note that waits for interaction around it (folia_design::waitnote).
+  const frame = el.closest(".wait-note");
+  const r = frame.getBoundingClientRect(), cs = getComputedStyle(frame);
   const words = el.querySelector(".plan-toast-now")?.getBoundingClientRect();
   return {
     at: el.querySelector(".plan-toast-now > b")?.textContent || null,
@@ -60,7 +64,7 @@ const note = (page) => page.evaluate(() => {
     keep: el.querySelector(".plan-toast-keep")?.getAttribute("aria-checked") ?? null,
     keepText: el.querySelector(".plan-toast-keep")?.textContent || null,
     title: el.querySelector(".plan-toast-title")?.checkVisibility() ? el.querySelector(".plan-toast-title").textContent : null,
-    close: Boolean(el.querySelector(".plan-toast-close")?.checkVisibility()),
+    close: Boolean(frame.querySelector(".wait-note-close")?.checkVisibility()),
     box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height },
     main: el.querySelector(".plan-toast-main")?.getBoundingClientRect().toJSON(),
     keepBox: el.querySelector(".plan-toast-keep")?.getBoundingClientRect().toJSON() ?? null,
@@ -209,7 +213,7 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
     await page.waitForTimeout(50);
     const look = await page.evaluate(() => {
       const lum = (s) => { const [r, g, b] = s.match(/[\d.]+/g).map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
-      const bar = getComputedStyle(document.querySelector(".plan-toast"));
+      const bar = getComputedStyle(document.querySelector(".wait-note"));
       return { bar: lum(bar.backgroundColor), text: lum(bar.color), page: lum(getComputedStyle(document.body).backgroundColor) };
     });
     check(look.bar < 0.2 && look.text > 0.85 && Math.abs(look.bar - look.page) > 0.05, `${scheme}: the bar is not dark with light text, off the page (${JSON.stringify(look)})`);
@@ -282,26 +286,37 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
     await page.click(".plan-toast .plan-toast-undo");
     await waitPlanned(page, "11103", where, "out, undone");
   }
-  // The note goes by itself.
-  await page.mouse.move(10, 10);
-  await noteGone(page, "its while", 9000);
 
   // Moving on puts it away (owner, 2026-10-18: „sobald erkannt wurde, dass damit nicht interagiert
-  // wurde und der Nutzer weiter macht soll es ausgeblendet werden"): ×, Esc, another module opened,
-  // a long scroll; a little scroll does not (the same day: „ein klein wenig scrollen kein Problem").
+  // wurde und der Nutzer weiter macht soll es ausgeblendet werden"): ×, Esc, a key that is not its
+  // own, another module opened, a long scroll; a little scroll does not (the same day: „ein klein
+  // wenig scrollen kein Problem").
   const planOne = async (id) => {
     await open(page, id);
     await page.keyboard.press("p");
     await noteThere(page, `${id}: P`);
     await page.waitForTimeout(600);
   };
+  // It waits for interaction (owner, 2026-10-18: „Bau diese notification mal bitte als wait for
+  // interaction notification"): it stands as long as nothing is done, and a click elsewhere puts
+  // it away.
+  await planOne("20210");
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(6000);
+  check(Boolean(await note(page)), "it waits: the note went by itself");
+  await page.click("#rows-top .count");
+  await noteGone(page, "a click elsewhere");
   await planOne("20643");
-  await page.click(".plan-toast .plan-toast-close");
+  await page.click(".wait-note .wait-note-close");
   await noteGone(page, "×");
   await planOne("20809");
   await page.mouse.move(700, 400);
   await page.keyboard.press("Escape");
   await noteGone(page, "Esc");
+  await planOne("20590");
+  await page.mouse.move(700, 400);
+  await page.keyboard.press("ArrowDown");
+  await noteGone(page, "a key elsewhere");
   await planOne("20850");
   await page.click('.row[data-id="20613"]');
   await noteGone(page, "another module");
@@ -433,9 +448,14 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   check(Boolean(await note(page)), "phone: a little scroll put the note away");
   await drag({ x: 200, y: 500 }, 0, -300, 12);
   await noteGone(page, "phone, a long scroll");
-  // A module opened puts it away.
+  // A tap elsewhere puts it away; so does a module opened.
   await page.evaluate(() => scrollTo(0, 0));
   await page.waitForTimeout(400);
+  await swipe(4);
+  await noteThere(page, "phone, the fifth row");
+  await page.waitForTimeout(500);
+  await page.tap("#rows-top .count");
+  await noteGone(page, "phone, a tap elsewhere");
   await swipe(2);
   await noteThere(page, "phone, the third row");
   await page.waitForTimeout(500);
