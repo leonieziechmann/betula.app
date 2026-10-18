@@ -45,19 +45,6 @@ pub fn NavItems() -> impl IntoView {
         let path = pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get());
         (path != url::PROFILE && Area::of(&path) == area).then_some("page")
     };
-    // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
-    // goes back to where it starts (`TabAgain`).
-    let again = TabAgain::expect();
-    let tap = move |area: Area| {
-        move |ev: leptos::ev::MouseEvent| {
-            let plain = ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key());
-            if plain && !ev.default_prevented() && untrack(|| current(area)).is_some() {
-                if let Some(again) = again {
-                    again.tapped(area);
-                }
-            }
-        }
-    };
     // The catalog's first entry of a session is the catalog of „Mein Studiengang", while its PO is
     // in the snapshot (A.10); nothing is known of it on the server, whose tab is the plain link (R9).
     let mine = MineResolved::expect();
@@ -66,16 +53,42 @@ pub fn NavItems() -> impl IntoView {
     let catalog_list = move || {
         APP.then(|| t.path(&tabs.and_then(Tabs::catalog_list).unwrap_or_else(|| mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href))))
     };
-    let href = move |area: Area| {
+    // Where a tab leads, as the app's path.
+    let target = move |area: Area| {
         let path = location.pathname.get();
-        t.path(&match (tabs, area) {
+        match (tabs, area) {
             // „Studium" is „Mein Studium" in the app; without it (the server's page, no JavaScript)
             // there is nothing to plan, and the tab is the overview of the programs.
             (_, Area::Programs) if !APP => url::PROGRAMS.to_string(),
             (Some(tabs), Area::Catalog) => tabs.href_with_root(area, &path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
             (Some(tabs), _) => tabs.href(area, &path),
             (None, _) => area.root().to_string(),
-        })
+        }
+    };
+    let href = move |area: Area| t.path(&target(area));
+    // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
+    // goes back to where it starts (`TabAgain`). On a phone the tab is a stack of its own: the
+    // history becomes Start and the tab's stack as it was left, and in its own tab back to its
+    // first page (`nav::tab`).
+    let again = TabAgain::expect();
+    let tap = move |area: Area| {
+        move |ev: leptos::ev::MouseEvent| {
+            let plain = ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key());
+            if !plain || ev.default_prevented() {
+                return;
+            }
+            let here = untrack(|| current(area)).is_some();
+            if let Some(pending) = pending.filter(|_| APP) {
+                if crate::nav::tab(pending, area, &untrack(|| target(area))) {
+                    ev.prevent_default();
+                }
+            }
+            if here {
+                if let Some(again) = again {
+                    again.tapped(area);
+                }
+            }
+        }
     };
     // The Stundenplan is the timetable of the current semester: its tab counts what that semester
     // holds, not what „Mein Studium" places into later ones; every module planned until the
@@ -170,7 +183,7 @@ pub fn TabMenu() -> impl IntoView {
             held.set(Some(Held { area, bar, top: rect.top(), right: rect.right(), middle: rect.left() + rect.width() / 2.0 }));
         });
         let keys = window_event_listener(leptos::ev::keydown, move |ev| {
-            if ev.key() == "Escape" && held.with_untracked(Option::is_some) {
+            if ev.key() == "Escape" && held.with_untracked(Option::is_some) && !crate::nav::watched() {
                 ev.prevent_default();
                 held.set(None);
             }
@@ -180,6 +193,8 @@ pub fn TabMenu() -> impl IntoView {
             keys.remove();
         });
     });
+    // What lies over the page: on Android Back closes it (`nav`).
+    crate::nav::layer_while(move || held.with(Option::is_some), move || held.set(None), crate::nav::Kind::Over);
     // Another page: the menu goes.
     let location = use_location();
     Effect::new(move |before: Option<()>| {
@@ -476,7 +491,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
         });
         let keys = window_event_listener(leptos::ev::keydown, move |ev| {
             let Some(at) = menu.at.get_untracked() else { return };
-            if ev.key() == "Escape" {
+            if ev.key() == "Escape" && !crate::nav::watched() {
                 ev.prevent_default();
                 focus_way(at.rail);
                 menu.close();
@@ -487,6 +502,10 @@ pub fn ProfileSwitcher() -> impl IntoView {
             keys.remove();
         });
     });
+    // What lies over the page: on Android Back closes it (`nav`).
+    if let Some(menu) = menu {
+        crate::nav::layer_while(move || menu.at.with(|at| at.is_some_and(|at| !at.hover)), move || menu.close(), crate::nav::Kind::Over);
+    }
     // Another page: the menu goes.
     let location = use_location();
     Effect::new(move |before: Option<()>| {
@@ -715,17 +734,22 @@ fn TopBackBox(shown: Memo<Option<Back>>) -> impl IntoView {
     let back = TopBack::expect();
     let last = Memo::new(move |before: Option<&Option<Back>>| shown.get().or_else(|| before.cloned().flatten()));
     let on = move || shown.with(Option::is_some);
+    // The arrow is Back (owner, 2026-10-18: „wenn oben links ein back pfeil ist das immer gleich
+    // sein, wie die handy back option"): what lies over the page first, else back through the
+    // history where the step before is where it leads, as the browser says it at the moment of
+    // the press (`nav::came_from`); else its link leads up.
     let click = move |ev: leptos::ev::MouseEvent| {
         if let Some(back) = back {
             back.pressed.update(|presses| *presses = presses.wrapping_add(1));
         }
-        let history = shown.with_untracked(|back| back.as_ref().is_some_and(|back| back.history));
-        if history && ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key()) {
+        if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
+            return;
+        }
+        let Some((href, guess)) = shown.with_untracked(|back| back.as_ref().map(|back| (back.href.clone(), back.history))) else { return };
+        // The first use of a page come to from outside lays what lies above it under it.
+        crate::nav::seed();
+        if crate::nav::arrow(crate::nav::came_from(&href, || guess)) {
             ev.prevent_default();
-            #[cfg(feature = "csr")]
-            if let Some(history) = leptos::web_sys::window().and_then(|window| window.history().ok()) {
-                let _ = history.back();
-            }
         }
     };
     view! {
@@ -799,8 +823,13 @@ pub fn TopBar() -> impl IntoView {
                 next.query.descending = false;
                 next.path()
             };
+            // The first key on a page is a step of its own, so that Back leads to the page as it
+            // was before the search; the keys after it take its place. On a phone the search of the
+            // page it is on takes its place from the first key (folia/design/zurueck/konzept.html).
+            let typed_before = url::parse_pairs(&search).iter().any(|(key, value)| key == "q" && !value.trim().is_empty());
+            let replace = target.split('?').next() == Some(path.as_str()) && (typed_before || crate::nav::phone());
             if let Some(going) = going {
-                going.go_quietly(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
+                going.go_quietly(&target, NavigateOptions { replace, scroll: false, ..Default::default() });
             }
         };
         pending.set_value(set_timeout_with_handle(run, std::time::Duration::from_millis(140)).ok());

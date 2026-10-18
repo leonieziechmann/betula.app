@@ -54,6 +54,11 @@ pub const REPLAY: &str = "betulaReplay";
 /// comes first.
 pub const TYPING_MS: u64 = 400;
 
+/// On a wide screen a step beside the page (another filter, order or view) closer to the one
+/// before than this is the same step of the history, the newer in the place of the older (owner,
+/// 2026-10-18: „Auf dem pc schritt pro Pause"; „die 1s am rechner passt").
+pub const PAUSE_MS: f64 = 1000.0;
+
 /// The page whose frame a skeleton shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Shape {
@@ -152,6 +157,8 @@ struct Inner {
     quiet: bool,
     /// When `typing` goes back to false: a moment after the last key.
     typing_ends: Option<TimeoutHandle>,
+    /// The address the last step beside the page wrote, and when (`in_place`).
+    beside: Option<(String, f64)>,
     /// Where the pages' answers come from: a step waits for those of the page it leads to while
     /// they are on their way (`hold`).
     #[cfg_attr(not(feature = "csr"), allow(dead_code))]
@@ -199,6 +206,7 @@ impl Pending {
                     ahead: false,
                     quiet: false,
                     typing_ends: None,
+                    beside: None,
                     data: use_context::<folia_data::DataClient>().filter(folia_data::DataClient::is_remote),
                 })
             }),
@@ -329,10 +337,68 @@ impl Pending {
         }
     }
 
+    /// A step beside the page the app starts itself (a picker or the slider of the catalog's filter
+    /// panel): in place of the current entry where a step beside the page takes its place
+    /// (`in_place`), else a step of its own.
+    pub fn go_beside(&self, to: &str) {
+        let replace = match (self.change_to(to), self.here()) {
+            (Some(change), Some((path, search))) => self.in_place(change, &path, &search, to),
+            _ => false,
+        };
+        self.go_with(to, NavigateOptions { replace, scroll: false, ..Default::default() }, false);
+    }
+
+    /// Where the router is: path and query.
+    fn here(&self) -> Option<(String, String)> {
+        self.inner?.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))
+    }
+
+    /// Whether a step from where the router is (`path`, `search`) to `to`, which changes `change`,
+    /// takes the place of the current entry because it is a step beside the page: another filter,
+    /// order or search of a list (`Change::List`), another view or order of a page
+    /// (`Change::Column`). On a phone it does (folia/design/zurueck/konzept.html: Back leads up, not
+    /// through every filter), except a view of „Mein Studium" opened from its overview, a level of
+    /// its own; the filters' sheet applies its draft as a step of its own (`go`). On a wide screen a
+    /// pause makes a step (`PAUSE_MS`): one closer to the step beside the page before it, while that
+    /// is the current entry, takes its place.
+    fn in_place(&self, change: Change, path: &str, search: &str, to: &str) -> bool {
+        let beside = matches!(change, Change::List | Change::Column(_));
+        let Some(inner) = self.inner else { return false };
+        if crate::nav::phone() {
+            inner.update_value(|inner| inner.beside = None);
+            return match change {
+                Change::List => true,
+                Change::Column(Shape::Study) => path != url::STUDY || StudyUrl::parse(search).view != url::StudyView::Semesters,
+                Change::Column(_) => true,
+                _ => false,
+            };
+        }
+        if !beside {
+            inner.update_value(|inner| inner.beside = None);
+            return false;
+        }
+        #[cfg(feature = "csr")]
+        let now = browser::now();
+        #[cfg(not(feature = "csr"))]
+        let now = 0.0;
+        let here = crate::tabs::location_of(path, search);
+        inner
+            .try_update_value(|inner| {
+                let quick = inner.beside.as_ref().is_some_and(|(wrote, at)| *wrote == here && now - at < PAUSE_MS);
+                inner.beside = Some((to.split('#').next().unwrap_or(to).to_string(), now));
+                quick
+            })
+            .unwrap_or(false)
+    }
+
     fn go_with(&self, to: &str, options: NavigateOptions, quiet: bool) {
         let via = Via::Link { replace: options.replace, scroll: options.scroll };
         match self.change_to(to) {
             Some(change) => self.start(to.to_string(), via, change, quiet),
+            None if crate::nav::rewriting() => {
+                let (pending, to) = (*self, to.to_string());
+                crate::nav::after_rewrite(move || pending.go_with(&to, options, quiet));
+            }
             None => {
                 if let Some(navigate) = self.inner.and_then(|inner| inner.with_value(|inner| inner.navigate.clone())) {
                     navigate(to, options);
@@ -349,6 +415,13 @@ impl Pending {
 
     fn start(&self, to: String, via: Via, change: Change, quiet: bool) {
         let Some(inner) = self.inner else { return };
+        // While a change of tabs writes the history (`nav`), the router waits: what comes meanwhile
+        // goes after it.
+        if crate::nav::rewriting() {
+            let pending = *self;
+            crate::nav::after_rewrite(move || pending.start(to, via, change, quiet));
+            return;
+        }
         // A step back or forward that has not reached the router yet goes first, so that its
         // idea of the history stays right. Not when this is another such step: the router reads
         // where the browser is when it hears of it, and handing it the first one from inside the
@@ -389,6 +462,63 @@ impl Pending {
                 }
             }),
         }
+    }
+
+    /// A change of tabs on a phone (`nav::tab_to`) writes the history before the router may take
+    /// the address it ends at: what the step changes shows at once (the tab, a skeleton where such a
+    /// page was slow), and the router takes it when the history is written (`release`).
+    pub(crate) fn hold(&self, to: String, change: Change) -> Option<u64> {
+        let inner = self.inner?;
+        let slow = inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
+        self.to.set(Some(to));
+        self.change.set(Some(change));
+        self.slow.set(slow);
+        let turn = inner.with_value(|inner| inner.turn).wrapping_add(1);
+        inner.update_value(|inner| {
+            inner.via = Via::History;
+            inner.turn = turn;
+            inner.due = true;
+            inner.ahead = false;
+            inner.quiet = false;
+        });
+        Some(turn)
+    }
+
+    /// The history is written (`hold`): the router takes where the browser is now, after the next
+    /// frame, as `start` lets it, so that what the step changes is seen first; then `then`. Nothing
+    /// where a newer navigation took the step's place.
+    pub(crate) fn release(&self, turn: u64, then: impl FnOnce() + 'static) {
+        let Some(inner) = self.inner else { return };
+        let pending = *self;
+        folia_design::nav::after_paint(move || {
+            if inner.try_with_value(|inner| inner.due && inner.turn == turn).unwrap_or(false) {
+                pending.commit();
+                then();
+            }
+        });
+    }
+
+    /// Back to `to`, the step before: closing what stands beside a page where the page without it
+    /// is the step before (`nav::came_from`), so that Back does not bring it again. What the step
+    /// changes shows at once, as a link's does; the router takes it when the browser has gone back
+    /// (its `popstate`). A second press before the browser has moved is the same step.
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    fn back_to(&self, to: String, change: Change) {
+        let Some(inner) = self.inner else { return };
+        if inner.with_value(|inner| inner.due && inner.via == Via::History) {
+            return;
+        }
+        let Some(turn) = self.hold(to, change) else { return };
+        crate::nav::back();
+        // Where no `popstate` comes, the router takes where the browser is.
+        let pending = *self;
+        set_timeout(move || pending.release(turn, || {}), std::time::Duration::from_millis(1000));
+    }
+
+    /// Where the router is: path and query.
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    pub(crate) fn router_at(&self) -> Option<(String, String)> {
+        self.here()
     }
 
     /// Whether the step that is due is a quiet one.
@@ -771,11 +901,37 @@ mod browser {
             let Some(change) = super::change(&from_path, &from_search, to_path, &target.search(), folia_design::nav::is_phone()) else { return };
             ev.prevent_default();
             let scroll = !link.has_attribute("noscroll") && !link.has_attribute("data-noscroll");
-            pending.start(to, Via::Link { replace: false, scroll }, change, false);
+            // On a phone a page of another tab is a change of tabs, and the first use of a page come
+            // to from outside lays under it what lies above it (`nav::steer`).
+            if crate::nav::steer(pending, &from_path, &from_search, &to) {
+                return;
+            }
+            let action = link.get_attribute("data-action").unwrap_or_default();
+            // Closing what stands beside a page where the page without it is the step before (the
+            // browser says it; else the app's guess, `data-back`): back there, the same entry as
+            // before, so that Back does not bring it again and Forward does.
+            if action == "close-detail" && crate::nav::came_from(to.split('#').next().unwrap_or(&to), || link.get_attribute("data-back").as_deref() == Some("history")) {
+                pending.back_to(to, change);
+                return;
+            }
+            // Closing what stands beside a page where the page without it is not the step before,
+            // and „Zurück" to the same page: in place of the current entry, so that Back does not
+            // bring it again.
+            let closing = action == "close-detail" || (action == "back" && to_path == from_path);
+            // A step beside the page: on a phone in place of the current entry, on a wide screen
+            // one step for every pause (`Pending::in_place`).
+            let beside = pending.in_place(change, &from_path, &from_search, &to);
+            pending.start(to, Via::Link { replace: closing || beside, scroll }, change, false);
         });
         // Back and Forward: the browser has moved already, the router hears of it a frame later.
         let step = window_event_listener(leptos::ev::popstate, move |ev: web_sys::PopStateEvent| {
             if is_replay(&ev) {
+                return;
+            }
+            // A step of a change of tabs writing the history, or Forward into what one left over:
+            // the router does not hear of it (`nav`).
+            if crate::nav::on_popstate() {
+                ev.stop_immediate_propagation();
                 return;
             }
             let Some(location) = web_sys::window().map(|w| w.location()) else { return };

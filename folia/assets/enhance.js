@@ -83,23 +83,29 @@
 
   // The sheet of the phone layout: the catalog's filter panel, or a page's sidebar of filters.
   // Open, the page behind it is dimmed and stands still (html.sheet-open), and a tap on it closes
-  // the sheet. However it goes (its buttons, a swipe down, a tap beside it, Esc, Back), the page
-  // hears `betula:sheet-closed`: the catalog's list follows what was picked in the sheet only
-  // then. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog in
-  // the browser app) is a step of its own in the history, as a sheet is in an app, so that Back
-  // closes it instead of leaving the page; where Back does leave the page with a sheet open, the
-  // page hears `betula:sheet-left`.
+  // the sheet. A sheet whose page takes what is picked there as a draft (`data-draft`: the catalog
+  // in the browser app) applies it only with its button („Module anzeigen", `sheet-apply`): the
+  // page hears `betula:sheet-applied`, and the list follows as one step of the history. Any other
+  // way it goes (its ×, a swipe down, a tap beside it, Esc, Back) throws the draft away (owner,
+  // 2026-10-18: „Die Filter sollen bei der Mobile Version verworfen werden, wenn man das Fenster
+  // schließt"): the page hears `betula:sheet-closed`, or `betula:sheet-left` where Back left the
+  // page with the sheet open. The sheet has no entry in the history: where the browser has
+  // `CloseWatcher` (Android), Back closes it as it closes what else lies over a page
+  // (folia/crates/shell/src/nav.rs); without it (an iPhone) Back leaves the page, and the sheet
+  // goes with it.
   const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
-  let step = false; // the current history entry is the open sheet's own step
-  let afterStep = null; // what follows once the browser has gone back past that step
+  let sheetWatch = null; // the open sheet's CloseWatcher
+  const dropWatch = () => { const w = sheetWatch; sheetWatch = null; try { w?.destroy(); } catch {} };
   const openSheet = () => {
     const sheet = filters();
     if (!sheet) return;
     sheet.classList.add("open");
     root.classList.add("sheet-open");
-    if (!step && phone() && sheet.hasAttribute("data-draft")) {
-      history.pushState({ betulaSheet: true }, "");
-      step = true;
+    if (!sheetWatch && phone() && typeof window.CloseWatcher === "function") {
+      try {
+        sheetWatch = new CloseWatcher();
+        sheetWatch.onclose = () => { sheetWatch = null; closeSheet(); };
+      } catch { sheetWatch = null; }
     }
   };
   const closeSheet = (how = "closed") => {
@@ -107,23 +113,34 @@
     const was = sheet?.classList.contains("open");
     sheet?.classList.remove("open");
     root.classList.remove("sheet-open");
-    if (!was) return;
-    const tell = () => sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
-    // The sheet's step goes before the list follows: the list's own entry takes its place.
-    const own = step && history.state?.betulaSheet === true;
-    step = false;
-    if (own) { afterStep = tell; history.back(); } else tell();
+    dropWatch();
+    if (was) sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
   };
   // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
-  const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) root.classList.remove("sheet-open"); };
+  const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) { root.classList.remove("sheet-open"); dropWatch(); } };
   addEventListener("popstate", (e) => {
     // The browser app hands a step of the history to its router a frame later, so that the page
     // can answer first (folia/crates/shell/src/pending.rs): that is the same step again, not another one.
     if (e.betulaReplay) return;
-    if (afterStep) { const then = afterStep; afterStep = null; then(); } // the sheet's own step, taken back above
-    else if (step) { step = false; closeSheet(); } // Back closes the sheet
-    else closeSheet("left");
+    closeSheet("left");
   });
+
+  // The step before in the history is where `link` leads: Back goes there instead of a new step,
+  // the same entry as before, and the history does not grow. The browser says it where it has the
+  // Navigation API (Chrome, Safari from 26.2, Firefox from 147); else the app's guess
+  // (`data-back`), and the classic site's, which can only ask the referrer.
+  const samePage = (a, b) => {
+    const norm = (u) => u.origin + u.pathname.replace(/^((?:\/[a-z]{2})?\/programs\/[^/]+)\/?$/, "$1/plan") + u.search;
+    try { return norm(new URL(a, location.href)) === norm(new URL(b, location.href)); } catch { return false; }
+  };
+  const cameFrom = (link) => {
+    const nav = window.navigation;
+    if (appRuns() && nav?.currentEntry && typeof nav.entries === "function") {
+      const before = nav.entries()[nav.currentEntry.index - 1];
+      return !!before && samePage(before.url, link.href);
+    }
+    return appRuns() ? link.dataset.back === "history" : document.referrer.startsWith(location.origin);
+  };
 
   // ---- classic mode: scroll positions of the panels survive a page load ----
   const listKey = () => location.search.replace(/([?&])(page|open)=[^&]*/g, "$1");
@@ -773,7 +790,7 @@
     glideSheet(sheet, y, v, "gone", () => {
       const link = liveSheet()?.querySelector('[data-action="close-detail"]');
       if (!link) return;
-      if (link.dataset.back === "history") history.back(); else link.click();
+      if (cameFrom(link)) history.back(); else link.click();
     });
   };
   // The content going on after the finger let go (px per ms, the finger's way), slower and slower
@@ -1248,12 +1265,15 @@
         e.preventDefault();
         closeSheet();
         break;
+      case "sheet-apply":
+        e.preventDefault();
+        closeSheet("applied");
+        break;
       case "back": {
         // The link leads to the list of the area. If that list is where the visitor came from,
         // go back through the history instead: the same entry as before, and no new one. The app
         // knows and says so (`data-back`); the classic site can only ask the referrer.
-        const cameFromIt = appRuns() ? target.dataset.back === "history" : document.referrer.startsWith(location.origin);
-        if (cameFromIt && history.length > 1) { e.preventDefault(); history.back(); }
+        if (cameFrom(target) && history.length > 1) { e.preventDefault(); history.back(); }
         break;
       }
       case "jump": {
@@ -1796,8 +1816,12 @@
     }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
     if (plain && e.key === "Escape") {
-      if (filters()?.classList.contains("open")) { closeSheet(); return; }
+      // One Esc, one thing: nothing it closes here goes on as a close request to a watcher.
+      if (filters()?.classList.contains("open")) { e.preventDefault(); closeSheet(); return; }
       if (typing(document.activeElement)) { document.activeElement.blur(); return; }
+      // What lies over the page (a menu, the selection, a dialog: folia/crates/shell/src/nav.rs)
+      // takes this Esc itself; the module beside the page waits for the next one.
+      if (root.hasAttribute("data-layers") || root.hasAttribute("data-state") || modalOpen()) return;
       // The preview first; on a module's own page Esc goes back to where the visitor came from.
       (document.querySelector('[data-action="close-detail"]') || document.querySelector('[data-action="back"]'))?.click();
     } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement)) {

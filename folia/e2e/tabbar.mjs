@@ -2,8 +2,9 @@
 // the next day: „die ganze Leiste zu bewegen und den selector stehen zu lassen und erst wenn man los
 // lässt geht das dann wieder zur original Location zurück"), with real touches
 // (`Input.dispatchTouchEvent`, as phone.mjs): a swipe to the left goes one tab to the right, one to
-// the right one tab to the left, from wherever on the bar it starts, each one step of the history
-// and no page load; on the way the row of tabs follows the finger inside the bar and the mark of the
+// the right one tab to the left, from wherever on the bar it starts, each a change of tabs as a tap
+// is (the history written in place, Start under every tab: folia/crates/shell/src/nav.rs) and no
+// page load; on the way the row of tabs follows the finger inside the bar and the mark of the
 // current tab stays where it is (the bar's lens, over the tab's, in the same colour, with a copy of
 // the row inside that lies over the row) while the page stands still; let go, the row and the lens
 // glide as Web Animations, and the tab's own mark takes over once the tab is current; a long pull
@@ -102,6 +103,7 @@ const barState = () => {
     left: [bar, ...tabs].filter((el) => el.getAttribute("style")).map((el) => `${el.dataset.area || "bar"}: "${el.getAttribute("style")}"`),
     path: location.pathname,
     history: history.length,
+    at: window.navigation?.currentEntry?.index ?? null,
     content: Math.round(document.getElementById("content").getBoundingClientRect().left),
     loaded: window.__marker === 1,
   };
@@ -183,12 +185,14 @@ now = await settled("swipe left", "catalog");
 check(now.path.startsWith("/catalog"), `swipe left: the page is ${now.path}`);
 check(now.own === colour, `swipe left: the tab's own mark is ${now.own}, not ${colour}`);
 
-// ---- one tab to the left, from anywhere on the bar; a step of the history, as a tap is
+// ---- one tab to the left, from anywhere on the bar; the history as a tap writes it: Start is the
+// entry under every tab, so the way to it is back to the first entry, and the history does not grow
 const length = now.history;
+check(now.at === 1, `swipe left: the catalog is not right above Start (entry ${now.at})`);
 await swipe(now.mids[4], y, 110, 2);
 now = await settled("swipe right", "home");
 check(now.path === "/", `swipe right: the page is ${now.path}`);
-check(now.history === length + 1, `swipe right: the history grew by ${now.history - length}`);
+check(now.history === length && now.at === 0, `swipe right: Start is not the first entry again (entry ${now.at}, the history grew by ${now.history - length})`);
 
 // ---- at the left end nothing lies further: the row is held back, and the tab stays
 await swipe(middle, y, 120, 0, { hold: true });

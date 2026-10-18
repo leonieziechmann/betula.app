@@ -799,19 +799,19 @@ fn plan(policy: Policy, stack: &amp;[Entry], open: &amp;[LayerId], intent: &amp;
 
   <section class="block" id="offen" aria-labelledby="open-title">
     <h2 id="open-title">Entschieden</h2>
-    <p class="lead">Deine Antworten vom 18.10.2026, jetzt Regeln dieses Blatts:</p>
+    <p class="lead">Deine Antworten vom 18.10.2026, jetzt Regeln dieses Blatts. Umgesetzt in Folia 1.25.0 (<code>folia/crates/shell/src/nav.rs</code>, geprüft von <code>folia/e2e/back.mjs</code>).</p>
     <ul class="open">
       <li><b>Zurück von der Startseite eines Tabs:</b> erst zum Start, dann aus Betula hinaus.</li>
       <li><b>Ein geteilter Link am Handy:</b> Solange du ihn nur liest, führt Zurück zurück in den Messenger. Sobald du Betula benutzt (etwas öffnest, den Pfeil tippst, den Tab wechselst), legt Betula darunter, was darüber steht, und Zurück führt über Liste und Start hinaus. Der Pfeil zählt als Benutzen: Nur beim allerersten Druck führen er und Zurück darum verschieden.</li>
       <li><b>Ein Link in einen anderen Bereich:</b> wechselt den Tab („das wird sonst giga irritierend“).</li>
       <li><b>Filter:</b> am Rechner ein Schritt je Pause, am Handy ein Schritt je „Module anzeigen“. Schließt du das Filter-Sheet anders, mit Zurück, ×, daneben tippen oder nach unten ziehen, verwirft es die Wahl („Die Filter sollen bei der Mobile Version verworfen werden, wenn man das Fenster schließt“).</li>
       <li><b>Android geht vor:</b> Was Safari nicht kann, macht Android nicht schlechter („auf gar keinen Fall darf Android darunter leiden“). Ebenen und das Semester bekommen keine Einträge; auf Android schließt Zurück sie über <code>CloseWatcher</code>, am iPhone geht das Wischen vom Rand durch die Orte, und den Rest schließt der Pfeil.</li>
-      <li><b>Safari:</b> Gebaut wird zuerst für Chrome; dann geht ein Kommilitone mit iPhone die Prüfliste in Schritt 7 durch.</li>
+      <li><b>Die Pause am Rechner:</b> eine Sekunde („die 1s am rechner passt“).</li>
+      <li><b>Safari:</b> Gebaut wird zuerst für Chrome. Das iPhone ist noch nicht geprüft und bleibt vorerst, wie es ist („wenn es nicht passt kümmert ich mich später darum dass passt erstmal so“); die Prüfliste in Schritt 7 bleibt dafür.</li>
       <li><b>Handy oder Rechner:</b> vorerst 900 px Breite, und das Verhalten folgt der Ansicht. Später besser nach Maus und Tastatur statt nach der Breite (Architektur, „Handy oder Rechner“).</li>
     </ul>
     <h3 style="margin-top:20px;font-size:16px;font-weight:700">Noch offen</h3>
     <ul class="open">
-      <li><b>Die Pause am Rechner:</b> eine Sekunde (vorgeschlagen), oder länger?</li>
       <li><b>Nach der Prüfung am iPhone:</b> Reicht es so, oder bekommt das iPhone einen eigenen Weg? Einträge für Ebenen und das Semester nur dort berührten Android nicht, wären aber ein zweiter Weg im Navigator, eigens zu bauen und zu prüfen. Vorschlag: erst prüfen, dann entscheiden.</li>
     </ul>
     <p class="src">Quellen zu den Browsern: <a href="https://chromium.googlesource.com/chromium/src/+/127.0.6533.99/docs/history_manipulation_intervention.md">Chromium, History manipulation intervention</a> · <a href="https://bugs.webkit.org/show_bug.cgi?id=248303">WebKit, Bug 248303</a> · <a href="https://developer.mozilla.org/docs/Web/API/CloseWatcher">MDN, CloseWatcher</a> · <a href="https://caniuse.com/mdn-api_closewatcher_close">caniuse, CloseWatcher</a> · <a href="https://caniuse.com/wf-navigation">caniuse, Navigation API</a> · <a href="https://developer.mozilla.org/docs/Web/API/NavigateEvent/hasUAVisualTransition">MDN, hasUAVisualTransition</a> · <a href="https://lists.w3.org/Archives/Public/public-css-archive/2023Jan/0578.html">Safaris Bild beim Wischen innerhalb einer Seite</a></p>
