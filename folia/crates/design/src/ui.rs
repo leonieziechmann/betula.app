@@ -77,13 +77,22 @@ pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String, #[pro
 /// (`basis`: inferred) says so next to it, „Wahlpflicht · abgeleitet", and its title says from
 /// what (`source`): what Betula derives, it says (owner, 2026-10-18, the Anwendungsfach of
 /// Informatik B.Sc.).
+///
+/// A module in the program's minor (`area`, `in_minor`) that no source makes Pflicht reads
+/// „Nebenfach", not „Wahlpflicht" (owner, 2026-10-18: the Anwendungsfach of Informatik „als
+/// Anwendung oder minor"): that it lies there the module tree states, so nothing is inferred;
+/// its kind stays what it is for the filters and the planner.
 #[component]
 pub fn KindBadge(
     kind: Option<Code<ModuleKind>>,
     #[prop(optional_no_strip)] basis: Option<Code<KindBasis>>,
     #[prop(optional_no_strip)] source: Option<Code<KindSource>>,
+    #[prop(optional_no_strip)] area: Option<String>,
 ) -> impl IntoView {
     let t = i18n::t();
+    if shows_minor(kind.as_ref(), area.as_deref()) {
+        return view! { <span class="kind k-minor" title=t.ui.kind_minor_title><i></i>{t.ui.kind_minor}</span> }.into_any();
+    }
     let inferred = basis.is_some_and(|basis| basis.is(KindBasis::Inferred));
     match kind {
         Some(kind) if inferred => {
@@ -98,6 +107,22 @@ pub fn KindBadge(
         Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
         None => ().into_any(),
     }
+}
+
+/// Whether an area of a program's module tree lies in the program's minor: a part of its path
+/// („Grundstudium / Komplex Nebenfach / Maschinenbau / Elektrotechnik") is „Nebenfach",
+/// „Komplex Nebenfach", „Künstlerisches Nebenfach (KLS)", „Anwendungsfach" or „Minor Subject".
+pub fn in_minor(area: &str) -> bool {
+    area.split(" / ").any(|part| {
+        let part = part.to_lowercase();
+        part.contains("nebenfach") || part.contains("anwendungsfach") || part.starts_with("minor")
+    })
+}
+
+/// Whether the kind of a module of a program reads „Nebenfach": it lies in the minor and is
+/// Wahlpflicht there, or no source states its kind (`KindBadge`).
+pub fn shows_minor(kind: Option<&Code<ModuleKind>>, area: Option<&str>) -> bool {
+    area.is_some_and(in_minor) && kind.is_none_or(|kind| kind.is(ModuleKind::Elective))
 }
 
 /// Only what deviates from "is offered" gets a badge.
@@ -317,6 +342,34 @@ pub fn Icon(name: &'static str, #[prop(optional)] class: &'static str) -> impl I
     let markup = crate::icons::markup(name).map(|_| format!("<use href=\"{}#{name}\"/>", crate::asset(crate::icons::SPRITE))).unwrap_or_default();
     let class = if class.is_empty() { "icon".to_string() } else { format!("icon {class}") };
     view! { <svg class=class viewBox="0 0 24 24" aria-hidden="true" inner_html=markup></svg> }
+}
+
+#[cfg(test)]
+mod minor_tests {
+    use super::*;
+
+    /// The minors as the module trees of the snapshot name them read „Nebenfach"; a Pflicht module
+    /// in one stays Pflicht, and an area that only mentions a word like it is no minor.
+    #[test]
+    fn a_module_in_the_minor_reads_nebenfach() {
+        let elective = Some(Code::Known(ModuleKind::Elective));
+        let compulsory = Some(Code::Known(ModuleKind::Compulsory));
+        for area in [
+            "Grundstudium / Komplex Nebenfach / Maschinenbau / Elektrotechnik",
+            "Komplex Nebenfach / Anwendungen / Maschinenbau / Elektrotechnik",
+            "Wahlpflichtmodule / Nebenfach",
+            "Specialization Phase / Minor Subject / Chemistry",
+            "Künstlerisches Nebenfach (KLS)",
+        ] {
+            assert!(shows_minor(elective.as_ref(), Some(area)), "{area}");
+            assert!(shows_minor(None, Some(area)), "{area}");
+            assert!(!shows_minor(compulsory.as_ref(), Some(area)), "{area}");
+        }
+        for area in ["Grundstudium / Elektrotechnik", "Fachspezifisches Studium / Robotik und Automatisierung", "Anwendungen der Mathematik"] {
+            assert!(!shows_minor(elective.as_ref(), Some(area)), "{area}");
+        }
+        assert!(!shows_minor(elective.as_ref(), None));
+    }
 }
 
 // Rendering to HTML needs the server's build (`ssr`), as in `cargo test -p folia-app -p folia-server`.

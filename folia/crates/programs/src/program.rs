@@ -53,7 +53,7 @@ use folia_shell::seo::{self, Seo};
 use folia_shell::skeleton::DetailSkeleton;
 use folia_shell::tabs::Area;
 use folia_shell::frame::{BackLink, ErrorState, Frame, Plain};
-use folia_design::ui::{EmptyState, Icon, NotFound, OfferBadge, Shortcut};
+use folia_design::ui::{shows_minor, EmptyState, Icon, NotFound, OfferBadge, Shortcut};
 
 /// The browser app (`csr`), or the server rendering the page for crawlers and for browsers
 /// without JavaScript.
@@ -1296,7 +1296,7 @@ fn PlanMatrix(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<Stri
                             view! {
                                 <tr class:open=move || is_open(&row_id, open) || req.get() == Some(row)>
                                     <th scope="row" class="c-name">{plan_module(&entry, row, links, open, t)}</th>
-                                    <td class="c-kind">{kind_cell(entry.kind.clone(), t)}</td>
+                                    <td class="c-kind">{kind_cell(entry.kind.clone(), None, t)}</td>
                                     {columns.iter().filter_map(|n| match span {
                                         Some((from, to)) if *n == from => {
                                             let class = if to > from { "lp num spans" } else { "lp num" };
@@ -1407,7 +1407,7 @@ fn PlanList(plan: PlanVariant, links: Memo<ProgramUrl>, open: Memo<Option<String
                                 view! {
                                     <tr class:open=move || is_open(&row_id, open) || req.get() == Some(row)>
                                         <th scope="row" class="c-name">{plan_module(&entry, row, links, open, t)}</th>
-                                        <td class="c-kind">{kind_cell(entry.kind.clone(), t)}</td>
+                                        <td class="c-kind">{kind_cell(entry.kind.clone(), None, t)}</td>
                                         {with_area.then(|| view! { <td class="c-area">{entry.study_section.clone().or(entry.subject_area.clone())}</td> })}
                                         <td class="c-lp num" class:differs=entry.credits_differ_from_catalog>
                                             {plan_credits(&entry, t.locale)}
@@ -1557,8 +1557,12 @@ fn section_groups(entries: &[PlanEntry], t: &Texts) -> Vec<RowGroup> {
 // ---------- areas and modules: one table ----------
 
 /// „Pflicht", „Wahlpflicht" … as a table cell; empty where no source states the kind, as the
-/// cells of LP and Turnus are (`folia_design::ui::KindBadge`).
-fn kind_cell(kind: Option<Code<ModuleKind>>, t: &Texts) -> AnyView {
+/// cells of LP and Turnus are, and „Nebenfach" in the minor where `area` is known
+/// (`folia_design::ui::KindBadge`). The plan's table has none: the slot's name says it there.
+fn kind_cell(kind: Option<Code<ModuleKind>>, area: Option<&str>, t: &Texts) -> AnyView {
+    if shows_minor(kind.as_ref(), area) {
+        return view! { <span class="kind k-minor" title=t.ui.kind_minor_title><i></i>{t.ui.kind_minor}</span> }.into_any();
+    }
     match kind {
         Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
         None => ().into_any(),
@@ -1570,6 +1574,8 @@ struct ModuleRow {
     id: String,
     title: String,
     kind: Option<Code<ModuleKind>>,
+    /// The path of the area the row stands in, for „Nebenfach".
+    area: Option<String>,
     credits: Option<f64>,
     turnus: Option<Code<TurnusSeason>>,
     semester: Option<i64>,
@@ -1601,7 +1607,7 @@ fn module_row(row: ModuleRow, links: Memo<ProgramUrl>, open: Memo<Option<String>
                 {module_link(&row.id, &row.title, links, open, t)}
                 <OfferBadge status=row.offer/>
             </th>
-            <td class="c-kind">{kind_cell(row.kind, t)}</td>
+            <td class="c-kind">{kind_cell(row.kind, row.area.as_deref(), t)}</td>
             <td class="c-lp num">{row.credits.map(|value| format::number(value, t.locale))}</td>
             <td class="c-turnus">{row.turnus.as_ref().map(|season| format::turnus(Some(season), None, t.locale))}</td>
             <td class="c-sem num" class:unknown=row.semester.is_none()>
@@ -1746,6 +1752,7 @@ fn AreasTab(
                                     let catalog = known.get(&placement.module_id);
                                     module_row(ModuleRow {
                                         kind: placement.kind.clone().or_else(|| catalog.and_then(|m| m.kind.clone())),
+                                        area: Some(group.path.clone()),
                                         credits: placement.module_credits,
                                         turnus: catalog.and_then(|m| m.turnus_season.clone()),
                                         semester: catalog.and_then(|m| m.plan_semester),
