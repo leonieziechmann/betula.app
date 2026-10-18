@@ -1,0 +1,1508 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Betula Tabwechsel</title>
+<!-- Prototype: a change of tab on a phone as a change of cards (owner, 2026-10-18: „Es soll sich wie so
+     ein Spielkartenwechsel anfühlen. Der content soll so nach hinten gehen und dann der neue Tab
+     davor geschoben werden. Das soll natürlich auch mit dem swiping auf der tab bar funktionieren").
+     Every tab's page stays built here, as konzept.html proposes for the app, so a change of tab is
+     a change of cards: the page that was goes back, the new tab's comes in front of it. Six ways to
+     compare, by a tap and by a swipe along the bar, where the cards can follow the finger. Each
+     value of each card is a damped spring that starts where the card is and as fast as it goes, so
+     a tap or a finger in the middle of a change takes the cards on from there, without a jump; the
+     springs are worked out ahead and played as Web Animations, which the compositor runs. The bar
+     is the one of design/tabbar/swipe.html, as the app has it (enhance.js). „Wie heute“ plays the
+     pages as the app builds them now, as filmed on canary on 2026-10-18. The pages are examples:
+     the first rows of canary's catalog that day, a study of Informatik B.Sc. (PO 2008) in its third
+     Fachsemester. Open it at a phone's width, or on a phone. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
+<style>
+/* Layout: on a phone the prototype is the app itself, full screen, its settings behind the field at
+   the top; on a wider screen a phone stands beside the notes and the settings. The tokens are
+   Betula's own (folia/assets/app.css), autumn's crown; the prototype adds the table the cards lie on
+   while they move, the shade that falls on a card going back, and the device. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --logo-tile: #10151f;
+  --logo-leaf: #f4f5f7;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 30%, transparent);
+  --crown: oklch(.765 .105 80);
+  --ground: linear-gradient(180deg, oklch(.9 .026 84), oklch(.8 .036 74));
+  --ground-text: oklch(.27 .02 60);
+  --ground-muted: oklch(.39 .022 62);
+  --wood: color-mix(in oklab, var(--text) 8%, var(--bg));
+  --table: color-mix(in oklab, var(--text) 20%, var(--bg));
+  --shade: #05070c;
+  --sk: rgba(15, 23, 42, .07);
+  --sk-shine: rgba(255, 255, 255, .6);
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --t-ice: oklch(.55 .09 240); --t-sun: oklch(.64 .12 75); --t-violet: oklch(.53 .1 300); --t-teal: oklch(.56 .08 190); --t-coral: oklch(.6 .12 35); --t-green: oklch(.56 .1 150);
+  --fac-1: oklch(.5 .12 262); --fac-2: oklch(.52 .09 158); --fac-3: oklch(.56 .11 62); --fac-4: oklch(.5 .11 330); --fac-5: oklch(.52 .08 212); --fac-6: oklch(.52 .12 30);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --shadow-card: 0 0 0 1px var(--line), 0 26px 70px -20px rgba(15, 23, 42, .5);
+  --shadow-device: 0 40px 90px -40px rgba(15, 23, 42, .6);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11;
+    --panel: #12151c;
+    --panel-2: #171b24;
+    --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07);
+    --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5;
+    --text-2: #a4adc0;
+    --text-3: #6a748a;
+    --invert: #e9edf5;
+    --on-invert: #0d1017;
+    --logo-tile: #e9edf5;
+    --logo-leaf: #10151f;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --crown: oklch(.44 .08 75);
+    --ground: linear-gradient(180deg, oklch(.215 .014 262), oklch(.075 .008 265));
+    --ground-text: oklch(.93 .006 262);
+    --ground-muted: oklch(.72 .014 262);
+    --wood: color-mix(in oklab, var(--text) 6.5%, var(--bg));
+    --table: #000000;
+    --shade: #000000;
+    --sk: rgba(255, 255, 255, .065);
+    --sk-shine: rgba(255, 255, 255, .045);
+    --device-ring: rgba(255, 255, 255, .12);
+    --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-coral: oklch(.8 .09 35); --t-green: oklch(.8 .09 150);
+    --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --shadow-card: 0 0 0 1px var(--line-strong), 0 26px 70px -20px rgba(0, 0, 0, .9);
+    --shadow-device: 0 40px 90px -40px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11;
+  --panel: #12151c;
+  --panel-2: #171b24;
+  --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07);
+  --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5;
+  --text-2: #a4adc0;
+  --text-3: #6a748a;
+  --invert: #e9edf5;
+  --on-invert: #0d1017;
+  --logo-tile: #e9edf5;
+  --logo-leaf: #10151f;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --crown: oklch(.44 .08 75);
+  --ground: linear-gradient(180deg, oklch(.215 .014 262), oklch(.075 .008 265));
+  --ground-text: oklch(.93 .006 262);
+  --ground-muted: oklch(.72 .014 262);
+  --wood: color-mix(in oklab, var(--text) 6.5%, var(--bg));
+  --table: #000000;
+  --shade: #000000;
+  --sk: rgba(255, 255, 255, .065);
+  --sk-shine: rgba(255, 255, 255, .045);
+  --device-ring: rgba(255, 255, 255, .12);
+  --t-ice: oklch(.78 .08 240); --t-sun: oklch(.82 .1 80); --t-violet: oklch(.78 .09 300); --t-teal: oklch(.8 .07 190); --t-coral: oklch(.8 .09 35); --t-green: oklch(.8 .09 150);
+  --fac-1: oklch(.76 .1 262); --fac-2: oklch(.77 .09 158); --fac-3: oklch(.79 .1 70); --fac-4: oklch(.76 .1 330); --fac-5: oklch(.77 .08 212); --fac-6: oklch(.75 .1 30);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --shadow-card: 0 0 0 1px var(--line-strong), 0 26px 70px -20px rgba(0, 0, 0, .9);
+  --shadow-device: 0 40px 90px -40px rgba(0, 0, 0, .9);
+}
+
+/* ---------- base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { height: 100%; }
+body {
+  margin: 0; min-height: 100%; background: var(--wood); color: var(--text);
+  font: 450 14px/1.45 var(--font); letter-spacing: -.006em;
+  -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: 100%;
+}
+[hidden] { display: none !important; }
+h1, h2, h3, p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+button { font: inherit; color: inherit; letter-spacing: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+a { color: inherit; text-decoration: none; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-s); }
+.icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ---------- the stage: notes beside a phone ---------- */
+.stage { min-height: 100%; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 40px 64px; padding-block: 32px; padding-inline: 24px; }
+.notes { flex: 1 1 340px; max-width: 460px; min-width: 0; display: grid; gap: 20px; }
+.eyebrow { font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.notes h1 { font-size: 30px; line-height: 1.12; font-weight: 760; letter-spacing: -.024em; text-wrap: balance; }
+.notes h2 { font-size: 13px; font-weight: 680; color: var(--text); }
+.lead { font-size: 15.5px; line-height: 1.55; color: var(--text-2); }
+.facts-block { display: grid; gap: 8px; }
+.facts { display: grid; gap: 7px; font-size: 13.5px; color: var(--text-2); }
+.facts li { position: relative; padding-left: 16px; }
+.facts li::before { content: ""; position: absolute; left: 2px; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
+.facts b { color: var(--text); font-weight: 620; }
+.notes a.more { color: var(--accent-ink); font-weight: 620; text-decoration: underline; text-underline-offset: 3px; }
+/* Today, as filmed: one frame after another. */
+.film { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.film li { display: grid; gap: 4px; justify-items: center; font-size: 11.5px; color: var(--text-3); text-align: center; }
+.film i { width: 100%; aspect-ratio: 9 / 16; border-radius: 6px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong); display: grid; align-content: start; gap: 4px; padding: 8px 6px; }
+.film i b { display: block; height: 5px; border-radius: 3px; background: var(--text-3); opacity: .55; }
+.film i b:nth-child(2) { width: 70%; }
+.film i b:nth-child(3) { width: 85%; }
+.film .sk-f b { background: var(--sk); opacity: 1; height: 14px; border-radius: 4px; }
+.film .new b { background: var(--accent); opacity: .6; }
+.film .bad i { box-shadow: 0 0 0 2px var(--t-coral); }
+
+/* The settings of the prototype: beside the phone, or on a phone in a sheet. */
+.proto { display: grid; gap: 16px; padding: 16px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.opt { display: grid; gap: 6px; min-width: 0; }
+.opt-label { font-size: 12px; font-weight: 620; color: var(--text-3); }
+.opt-note { font-size: 12.5px; line-height: 1.45; color: var(--text-2); min-height: 2.9em; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; border-radius: var(--r-ctl); background: var(--panel-3); }
+.seg.grid { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.seg-item { position: relative; display: flex; min-width: 0; }
+.seg-item input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.seg-item span { flex: 1; min-width: 0; min-height: 34px; padding: 0 6px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 580; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.seg-item input:checked + span { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.seg-item input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: hover) { .seg-item span:hover { color: var(--text); } }
+.check { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 13.5px; font-weight: 560; color: var(--text); cursor: pointer; }
+.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.check small { color: var(--text-3); font-weight: 450; }
+.log { display: flex; gap: 8px; align-items: baseline; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.log b { flex: none; font-weight: 620; color: var(--text-3); }
+
+/* ---------- the phone ---------- */
+.device {
+  --safe-t: 44px; --safe-b: 22px;
+  position: relative; flex: none; isolation: isolate; width: 390px; height: 844px; height: min(844px, calc(100dvh - 64px)); min-height: 600px;
+  border-radius: 48px; background: var(--bg); overflow: hidden; overflow: clip;
+  box-shadow: 0 0 0 11px var(--device), 0 0 0 12px var(--device-ring), var(--shadow-device);
+}
+.status { position: absolute; z-index: 32; top: 0; left: 0; right: 0; height: var(--safe-t); padding: 4px 34px 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; pointer-events: none; }
+.status i { width: 24px; height: 11px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--text); position: relative; }
+.status i::after { content: ""; position: absolute; inset: 3px 6px 3px 3px; border-radius: 1px; background: var(--text); }
+.home-ind { position: absolute; z-index: 32; left: 50%; bottom: 8px; width: 128px; height: 5px; margin-left: -64px; border-radius: 3px; background: var(--text); opacity: .85; pointer-events: none; }
+/* Beside the notes the phone stays in view while they are read. */
+@media (min-width: 561px) { .stage { align-items: flex-start; } .device { position: sticky; top: 32px; } }
+
+/* The bar at the top, as on a phone (app.css, `.crown` and the top bar under 900 px): the crown is
+   its frosted ground, the leaves hang from its top, the field and the button stand under them. */
+.crown { position: absolute; z-index: 20; top: 0; left: 0; right: 0; height: calc(var(--safe-t) + 78px); background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); pointer-events: none; }
+.leaves { position: absolute; left: 0; right: 0; top: var(--safe-t); height: 64px; background: var(--crown); -webkit-mask-repeat: repeat-x; mask-repeat: repeat-x; -webkit-mask-position: left top; mask-position: left top; -webkit-mask-size: auto 64px; mask-size: auto 64px; visibility: hidden; }
+.leaves.drawn { visibility: visible; }
+.topbar { position: absolute; z-index: 21; left: 10px; right: 10px; top: calc(var(--safe-t) + 20px); height: 48px; display: flex; gap: 8px; }
+.tb-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 15px; text-align: left; -webkit-tap-highlight-color: transparent; }
+.tb-field .k { flex: none; color: var(--text-3); }
+.tb-field b { flex: 1; min-width: 0; color: var(--text); font-weight: 620; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb-field .icon { color: var(--text-3); }
+.tb-btn { flex: none; width: 48px; display: grid; place-items: center; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); -webkit-tap-highlight-color: transparent; }
+.tb-btn[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); }
+
+/* ---------- the deck: a card per tab ----------
+   Each tab's page is a card as large as the screen, with a scroll area of its own: it keeps where it
+   was scrolled to while it lies away. One card is shown at rest; the others are not drawn
+   (content-visibility: hidden keeps what the browser has laid out, so showing one again is quick).
+   While cards move they lie on the table, round at their corners, each on a layer of its own, and a
+   card going back darkens (.card-shade). Everything that moves moves by its transform and opacity
+   alone. */
+.deck { position: absolute; inset: 0; z-index: 0; background: var(--table); overflow: hidden; }
+.deck.plain { background: var(--bg); }
+.deck.plain .card.moving { border-radius: 0; box-shadow: none; }
+.card { position: absolute; inset: 0; z-index: 1; background: var(--bg); overflow: hidden; visibility: hidden; content-visibility: hidden; transform-origin: 50% 40%; }
+.card.shown { visibility: visible; content-visibility: visible; }
+.card.moving { border-radius: 22px; box-shadow: var(--shadow-card); will-change: transform, opacity; }
+.card-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: calc(var(--safe-t) + 86px); scrollbar-width: none; }
+.card-scroll::-webkit-scrollbar { display: none; }
+.card-shade { position: absolute; inset: 0; z-index: 3; background: var(--shade); opacity: 0; pointer-events: none; }
+.card.moving .card-shade { will-change: opacity; }
+/* A page built anew, as today: its skeleton until it is there (`skeleton.rs`). */
+.card-skel { position: absolute; inset: 0; z-index: 2; padding-top: calc(var(--safe-t) + 86px); background: var(--bg); overflow: hidden; display: none; }
+.card.building .card-skel { display: block; }
+
+/* ---------- the pages (examples, from canary's look on a phone) ---------- */
+.page { display: grid; gap: 8px; padding: 0 10px 12px; }
+.panel { min-width: 0; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.pad { padding: 16px; }
+.btn { min-height: 46px; padding: 0 16px; display: flex; align-items: center; justify-content: center; gap: 10px; border-radius: var(--r-ctl); font-size: 15px; font-weight: 620; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.secondary { background: var(--panel); color: var(--text); box-shadow: 0 0 0 1px var(--line-strong); }
+.btn.small { min-height: 44px; padding: 0 14px; font-size: 14px; box-shadow: var(--shadow-panel); background: var(--panel); }
+.brand { display: flex; align-items: center; gap: 10px; }
+.mark { width: 30px; height: 30px; flex: none; }
+.mark rect { fill: var(--logo-tile); }
+.mark path { fill: var(--logo-leaf); }
+.wordmark { display: inline-block; font: 800 21px/1 var(--font); letter-spacing: -.01em; white-space: nowrap; color: var(--text); }
+.wordmark .sc { font-size: .72em; font-weight: 400; letter-spacing: .02em; }
+.wordmark .e { margin: 0 -.347em 0 -.022em; }
+.wordmark .u { margin-left: -.03em; }
+.wordmark .la { margin-left: -.055em; }
+.brand small { color: var(--text-3); font-size: 12.5px; }
+.chip { justify-self: start; display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 11px; border-radius: 13px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font-size: 12.5px; font-weight: 600; }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.hero { display: grid; gap: 14px; padding: 18px 16px 16px; }
+.hero h1 { font-size: 26px; line-height: 1.13; font-weight: 760; letter-spacing: -.024em; text-wrap: balance; }
+.hero p { font-size: 15px; line-height: 1.55; color: var(--text-2); }
+.hero .btns { display: grid; gap: 8px; padding-top: 4px; }
+.sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.sec-head h2 { font-size: 16.5px; font-weight: 700; letter-spacing: -.01em; }
+.sec-head a { display: inline-flex; align-items: center; gap: 5px; font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.muted { color: var(--text-2); font-size: 14px; line-height: 1.5; }
+.steps { display: grid; gap: 2px; margin-top: 12px; }
+.steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.steps .n { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 700; }
+.steps b { display: block; font-size: 15px; font-weight: 640; }
+.steps span { color: var(--text-2); font-size: 13.5px; }
+.facs { display: grid; gap: 0; margin-top: 8px; }
+.facs li { display: flex; align-items: center; gap: 12px; min-height: 48px; border-top: 1px solid var(--line); font-size: 14px; font-weight: 560; }
+.facs li i { width: 10px; height: 10px; flex: none; border-radius: 3px; background: var(--c); }
+.facs li span { flex: 1; min-width: 0; }
+.facs li .icon { color: var(--text-3); }
+/* The catalog's head and rows (catalog.rs on a phone: a card a row). */
+.list-head { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 2px 0 4px; }
+.list-head .count { font-size: 22px; font-weight: 760; letter-spacing: -.02em; }
+.list-head .what { flex: 1; min-width: 0; color: var(--text-2); font-size: 14px; }
+.rows { display: grid; gap: 8px; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.mrow-main { display: grid; gap: 3px; min-width: 0; }
+.mrow-t { font-size: 15px; line-height: 1.3; font-weight: 620; letter-spacing: -.01em; }
+.mrow-m { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--text-3); font-size: 12.5px; }
+.mrow-m .code { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+.tag { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: var(--r-s); background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 600; }
+.kind { display: inline-flex; align-items: center; gap: 5px; color: var(--text); font-weight: 600; }
+.kind::before { content: ""; width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+.kind.must::before { background: currentColor; }
+.lp { font-size: 15px; font-weight: 760; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lp small { margin-left: 2px; font-size: 10px; font-weight: 600; color: var(--text-3); }
+.mrow > .icon { color: var(--text-3); }
+.mrow > .icon.on { color: var(--text); fill: currentColor; }
+.more-rows { padding: 14px 4px 4px; color: var(--text-3); font-size: 13px; text-align: center; }
+/* „Mein Studium“ (study.rs on a phone): what is passed, the program, the plan by semester. */
+.sum h2 { font-size: 20px; font-weight: 740; letter-spacing: -.018em; }
+.sum h2 small { font-size: inherit; font-weight: 450; color: var(--text-2); }
+.bar { display: flex; gap: 3px; height: 10px; margin: 14px 0 10px; }
+.bar i { border-radius: 3px; background: var(--panel-3); }
+.bar .done { background: var(--text); }
+.bar .planned { background: color-mix(in srgb, var(--text) 32%, var(--panel)); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--text-2); font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 9px; height: 9px; border-radius: 2px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.legend .done { background: var(--text); box-shadow: none; }
+.legend .planned { background: color-mix(in srgb, var(--text) 32%, var(--panel)); box-shadow: none; }
+.legend b { color: var(--text); font-weight: 680; }
+.prog { display: grid; gap: 2px; margin: 10px 10px 0; padding: 14px; border-radius: var(--r-panel); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.prog-t { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 720; }
+.prog-t small { flex: 1; font-size: inherit; font-weight: 450; color: var(--text-2); }
+.prog-t .icon { color: var(--text-3); }
+.prog p { color: var(--text-2); font-size: 13.5px; }
+.links li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; padding: 13px 16px 13px 18px; }
+.links li + li { border-top: 1px solid var(--line); }
+.links .icon { margin-top: 2px; color: var(--text-2); }
+.links b { display: block; font-size: 15px; font-weight: 640; }
+.links span { color: var(--text-3); font-size: 12.5px; }
+.sems { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.sem { display: grid; justify-items: center; gap: 8px; padding: 10px 0 8px; border-radius: 8px; font-size: 13px; font-weight: 620; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.sem.now { background: var(--accent-soft); color: var(--accent-ink); }
+.sem .col { position: relative; width: 16px; height: 60px; border-radius: 4px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.sem .col i { position: absolute; left: 0; right: 0; bottom: 0; height: var(--h); background: var(--text); }
+.sem .col i.planned { background: color-mix(in srgb, var(--text) 32%, var(--panel)); bottom: var(--b, 0px); }
+.note { display: flex; gap: 10px; align-items: flex-start; padding: 6px 6px 2px; color: var(--text-3); font-size: 13px; line-height: 1.45; }
+.note .icon { width: 16px; height: 16px; margin-top: 1px; }
+.note.boxed { padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+/* The Stundenplan: its head, the week, its modules. */
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 14px 14px 16px; }
+.plan-head h1 { font-size: 20px; font-weight: 740; letter-spacing: -.018em; }
+.plan-head h1 small { font-size: inherit; font-weight: 450; color: var(--text-3); }
+.week { display: grid; grid-template-columns: 34px repeat(5, minmax(0, 1fr)); grid-template-rows: auto repeat(6, 50px); gap: 3px; padding: 10px 10px 12px 6px; font-size: 11px; }
+.week .d { padding-bottom: 4px; text-align: center; font-weight: 650; color: var(--text-3); }
+.week .t { padding-top: 2px; text-align: right; padding-right: 4px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.slot { min-width: 0; padding: 4px 5px; border-radius: 6px; border-left: 3px solid var(--c); background: color-mix(in srgb, var(--c) 16%, var(--panel)); font-size: 10.5px; font-weight: 640; line-height: 1.2; overflow: hidden; }
+.slot small { display: block; font-weight: 500; color: var(--text-2); }
+.sec-label { padding: 12px 6px 2px; font-size: 12px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--c); }
+.prow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.prow .mrow-main { flex: 1; }
+.add { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 14px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-strong); border: 1px dashed transparent; color: var(--text-2); font-size: 14px; font-weight: 560; }
+/* The ground at the end of every page (ground.rs on a phone). */
+.ground { position: relative; margin-top: 4px; padding: 22px 18px calc(108px + var(--safe-b)); border-radius: 18px 18px 0 0; background: var(--ground); color: var(--ground-text); display: grid; gap: 12px; }
+.ground .wordmark { color: var(--ground-text); font-size: 19px; }
+.ground small { color: var(--ground-muted); font-size: 12.5px; }
+.ground p { color: var(--ground-muted); font-size: 12.5px; line-height: 1.5; }
+.ground-legal { display: flex; gap: 6px; }
+.ground-legal span { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: color-mix(in srgb, var(--ground-text) 7%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ground-text) 10%, transparent); font-size: 13px; font-weight: 560; }
+
+/* ---------- skeletons (skeleton.rs): the page's frame with grey bars ---------- */
+.sk { display: block; height: 10px; width: 60%; border-radius: 5px; background: var(--sk); }
+.sk.t { height: 14px; } .sk.big { height: 24px; border-radius: 7px; }
+.sk.w1 { width: 36px; } .sk.w2 { width: 24%; } .sk.w3 { width: 38%; } .sk.w4 { width: 56%; } .sk.w5 { width: 74%; } .sk.w6 { width: 92%; }
+.sk.btn { width: auto; height: 46px; border-radius: var(--r-ctl); }
+.sk-panel { position: relative; overflow: hidden; display: grid; gap: 12px; padding: 18px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.sk-row { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 30px; align-items: center; gap: 12px; min-height: 66px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.sk-row div { display: grid; gap: 8px; }
+.sk-panel::after, .sk-row::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 25%, var(--sk-shine) 50%, transparent 75%); transform: translateX(-100%); animation: sk-sweep 1.5s ease-in-out .35s infinite; pointer-events: none; }
+@keyframes sk-sweep { to { transform: translateX(100%); } }
+
+/* ---------- the bar at the bottom (as `.bottomnav` in app.css, and design/tabbar/swipe.html) ----------
+   .dock holds the bar and the lens. While a finger is down (data-swipe="drag") and while all finds its
+   place again ("glide"), the lens stands in for the current tab's mark: the mark in its colour with a
+   copy of the row inside, light, moved so that it lies exactly over the row below. */
+.dock { position: absolute; z-index: 30; left: 10px; right: 10px; bottom: calc(10px + var(--safe-b)); height: 62px; touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.navbar { position: absolute; inset: 0; border-radius: 16px; background: color-mix(in srgb, var(--panel) 90%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); box-shadow: var(--shadow-pop); }
+.clip { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 7px), transparent); mask-image: linear-gradient(90deg, transparent, #000 7px, #000 calc(100% - 7px), transparent); }
+.track, .lens-track { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.track { position: absolute; inset: 5px; will-change: transform; }
+.nav { position: relative; min-width: 0; display: grid; justify-items: center; align-content: center; color: var(--text-3); font-size: 11px; font-weight: 560; -webkit-tap-highlight-color: transparent; }
+.nav .ind { position: relative; width: 52px; height: 30px; border-radius: var(--r-ctl); display: grid; place-items: center; transition: background .15s, color .15s; }
+.nav .icon { width: 20px; height: 20px; }
+.nav .label { max-width: 100%; white-space: nowrap; }
+.nav[aria-current="page"] { color: var(--text); }
+.nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); }
+@media (hover: hover) { .track .nav:hover { color: var(--text); } .track .nav:hover .ind { background: var(--line); } .track .nav[aria-current="page"]:hover .ind { background: var(--invert); } }
+.nav-count { position: absolute; top: -1px; right: 9px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--panel); font-size: 10px; font-weight: 700; line-height: 1; letter-spacing: 0; }
+.nav[aria-current="page"] .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
+.lens { position: absolute; z-index: 2; left: 0; top: var(--lens-y, 0px); width: var(--lens-w, 52px); height: var(--lens-h, 30px); border-radius: var(--r-ctl); background: var(--invert); pointer-events: none; overflow: hidden; visibility: hidden; will-change: transform; }
+@supports (clip-path: inset(-3px 0 0 0 round 9px)) { .lens { overflow: visible; clip-path: inset(-3px 0 0 0 round var(--r-ctl)); } }
+.lens-track { position: absolute; left: 0; top: var(--lt-y, 0px); width: var(--lt-w, 0px); height: var(--lt-h, 0px); will-change: transform; }
+.lens-track .nav { color: transparent; }
+.lens-track .ind { background: none; color: var(--on-invert); transition: none; }
+.lens-track .nav-count { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 1px var(--invert); }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .lens { visibility: visible; }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .track .nav { color: color-mix(in srgb, var(--text) calc(var(--near, 0) * 100%), var(--text-3)); }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .track .ind { background: none; color: var(--text-3); transition: none; }
+.dock:is([data-swipe="drag"], [data-swipe="glide"]) .track .nav-count { background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--panel); }
+.dock[data-swipe="settle"] .ind { transition: none; }
+
+/* ---------- the settings on a phone: a sheet from below ---------- */
+.sheet { position: absolute; z-index: 40; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.sheet-scrim { position: absolute; inset: 0; background: rgba(5, 8, 14, .38); animation: fade .2s ease-out; }
+.sheet-panel { position: relative; max-height: calc(100% - var(--safe-t) - 24px); overflow-y: auto; overscroll-behavior: contain; padding: 8px 12px calc(12px + var(--safe-b)); border-radius: 18px 18px 0 0; background: var(--bg); box-shadow: var(--shadow-pop); animation: rise .32s cubic-bezier(.2, .8, .2, 1); }
+.sheet-panel::before { content: ""; display: block; width: 40px; height: 4px; margin: 0 auto 8px; border-radius: 2px; background: var(--line-strong); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 4px 10px; }
+.sheet-head h2 { font-size: 17px; font-weight: 720; }
+.sheet-head button { min-height: 36px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--invert); color: var(--on-invert); font-size: 14px; font-weight: 620; }
+.sheet .proto { box-shadow: var(--shadow-panel); }
+.sheet .more-link { display: block; padding: 14px 6px 4px; color: var(--accent-ink); font-size: 13.5px; font-weight: 620; text-decoration: underline; text-underline-offset: 3px; }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .sheet-scrim, .sheet-panel { animation: none; } .sk-panel::after, .sk-row::after { animation: none; } }
+
+/* On a phone the prototype is the app: the phone's own screen, no frame. */
+@media (max-width: 560px), (pointer: coarse) and (max-height: 500px) {
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); }
+  .stage { height: 100%; min-height: 0; display: block; padding: 0; }
+  .notes { display: none; }
+  .device { --safe-t: 0px; --safe-b: 0px; width: 100%; height: 100%; min-height: 0; border-radius: 0; box-shadow: none; }
+  .status, .home-ind { display: none; }
+}
+</style>
+
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <symbol id="house" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="layout-list" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7"/><path d="M14 9h7"/><path d="M14 15h7"/><path d="M14 20h7"/></symbol>
+  <symbol id="graduation-cap" viewBox="0 0 24 24"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></symbol>
+  <symbol id="bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="calendar-range" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M17 14h-6"/><path d="M13 18H7"/><path d="M7 14h.01"/><path d="M17 18h.01"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="chevrons-up-down" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></symbol>
+  <symbol id="sliders" viewBox="0 0 24 24"><path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/></symbol>
+  <symbol id="snail" viewBox="0 0 24 24"><path d="M2 13a6 6 0 1 0 12 0 4 4 0 1 0-8 0 2 2 0 0 0 4 0"/><circle cx="10" cy="13" r="8"/><path d="M2 21h12c4.4 0 8-3.6 8-8V7a2 2 0 1 0-4 0v6"/><path d="M18 3 19.1 5.2"/><path d="M22 3 20.9 5.2"/></symbol>
+  <symbol id="pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="list-checks" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/></symbol>
+  <symbol id="shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="arrow-up-down" viewBox="0 0 24 24"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></symbol>
+</svg>
+
+<div class="stage">
+  <section class="notes" aria-labelledby="notes-title">
+    <p class="eyebrow">Betula · Handy-Ansicht · Prototyp</p>
+    <h1 id="notes-title">Ein Tab wie eine Karte</h1>
+    <p class="lead">Jede Seite eines Tabs bleibt stehen, wenn du gehst. Kommst du zurück, liegt sie schon da, so weit gescrollt, wie du sie verlassen hast. Ein Tabwechsel ist dann nur noch ein Tausch der Karten: Die Seite geht nach hinten, die neue kommt davor.</p>
+    <div id="proto-home">
+      <section class="proto" id="proto" aria-label="Einstellungen des Prototyps">
+        <div class="opt" role="radiogroup" aria-labelledby="anim-label" aria-describedby="anim-note">
+          <span class="opt-label" id="anim-label">Animation</span>
+          <div class="seg grid">
+            <label class="seg-item"><input type="radio" name="anim" value="stapel" id="anim-stapel"><span>Stapel</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="hinten" id="anim-hinten"><span>Nach hinten</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="mischen" id="anim-mischen"><span>Mischen</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="kippen" id="anim-kippen"><span>Kippen</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="ruhig" id="anim-ruhig"><span>Ruhig</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="sofort" id="anim-sofort"><span>Sofort</span></label>
+          </div>
+          <p class="opt-note" id="anim-note"></p>
+        </div>
+        <div class="opt" role="radiogroup" aria-labelledby="follow-label">
+          <span class="opt-label" id="follow-label">Wischen auf der Leiste</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="follow" value="finger" id="follow-finger"><span>Karte folgt dem Finger</span></label>
+            <label class="seg-item"><input type="radio" name="follow" value="release" id="follow-release"><span>Erst beim Loslassen</span></label>
+          </div>
+        </div>
+        <div class="opt" role="radiogroup" aria-labelledby="pages-label" aria-describedby="pages-note">
+          <span class="opt-label" id="pages-label">Seiten</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="pages" value="kept" id="pages-kept"><span>Bleiben stehen</span></label>
+            <label class="seg-item"><input type="radio" name="pages" value="today" id="pages-today"><span>Wie heute</span></label>
+          </div>
+          <p class="opt-note" id="pages-note"></p>
+        </div>
+        <label class="check"><input type="checkbox" id="slow"> Zeitlupe <small>fünfmal langsamer</small></label>
+        <p class="log" aria-live="polite"><b>Zuletzt</b><span id="log">Noch nicht gewechselt.</span></p>
+      </section>
+    </div>
+    <div class="facts-block">
+      <h2>Zum Ausprobieren</h2>
+      <ul class="facts">
+        <li>Tippe auf die Tabs, auch schnell hintereinander: Ein Tipp mitten im Wechsel nimmt die Karten von dort mit, wo sie gerade sind.</li>
+        <li>Wische auf der Leiste nach links oder rechts. Mit „Karte folgt dem Finger“ kommt die neue Seite schon mit, während du wischst; halte mitten im Weg an oder zieh zurück.</li>
+        <li>Scroll in „Module“ ein Stück hinunter, wechsle und komm zurück: Die Seite steht noch da, wo sie war. Tippst du den Tab, in dem du bist, geht seine Seite nach oben.</li>
+        <li>Am Rechner gehen auch ← und →.</li>
+      </ul>
+    </div>
+    <div class="facts-block">
+      <h2>Wie es heute ist</h2>
+      <ol class="film" aria-label="Ein Tabwechsel heute, Bild für Bild">
+        <li><i aria-hidden="true"><b></b><b></b><b></b></i>alte Seite</li>
+        <li><i class="sk-f" aria-hidden="true"><b></b><b></b><b></b></i>Skelett</li>
+        <li class="bad"><i aria-hidden="true"><b></b><b></b><b></b></i>alte Seite</li>
+        <li class="new"><i aria-hidden="true"><b></b><b></b><b></b></i>neue Seite</li>
+      </ol>
+      <p class="muted">Gefilmt auf canary am 18.10. (Chromium, Handy-Profil, Prozessor vierfach gedrosselt): Erst kommt das Skelett, dann für einen Moment noch einmal die alte Seite, dann die neue. Bis zu ihr vergehen 0,2 bis 4 Sekunden, je nach Tab. „Wie heute“ spielt das nach.</p>
+    </div>
+    <p class="muted">Wie die Seiten stehen bleiben können und wie das zum neuen Zurück passt: <a class="more" href="konzept.html">das Konzept</a>.</p>
+  </section>
+
+  <div class="device" id="device">
+    <div class="status" aria-hidden="true"><span>9:41</span><i></i></div>
+    <div class="deck" id="deck"></div>
+    <div class="crown" aria-hidden="true"><i class="leaves" id="leaves"></i></div>
+    <div class="topbar">
+      <button class="tb-field" type="button" id="open-settings" aria-haspopup="dialog">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#sliders"/></svg>
+        <span class="k">Animation</span><b id="anim-name">Stapel</b>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#chevron-down"/></svg>
+      </button>
+      <button class="tb-btn" type="button" id="slow-btn" aria-pressed="false" title="Zeitlupe">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#snail"/></svg>
+      </button>
+    </div>
+    <div class="dock" id="dock">
+      <nav class="navbar" aria-label="Navigation">
+        <div class="clip"><div class="track" id="track"></div></div>
+      </nav>
+      <div class="lens" id="lens" aria-hidden="true"><div class="lens-track" id="lens-track"></div></div>
+    </div>
+    <div class="home-ind" aria-hidden="true"></div>
+    <div class="sheet" id="sheet" hidden>
+      <div class="sheet-scrim" data-close></div>
+      <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+        <div class="sheet-head"><h2 id="sheet-title">Prototyp Tabwechsel</h2><button type="button" data-close>Fertig</button></div>
+        <div id="proto-phone"></div>
+        <a class="more-link" href="konzept.html">Zum Konzept: Seiten, die stehen bleiben</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const deckEl = $("deck"), dock = $("dock"), track = $("track"), lens = $("lens"), copy = $("lens-track");
+  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const icon = (name, cls = "") => `<svg class="icon${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true"><use href="#${name}"/></svg>`;
+
+  // ---- the tabs, as in folia/crates/shell/src/chrome.rs (NavItems); the counts are the examples' ----
+  const TABS = [
+    { area: "home", label: "Start", icon: "house" },
+    { area: "catalog", label: "Module", icon: "layout-list" },
+    { area: "programs", label: "Studium", icon: "graduation-cap" },
+    { area: "bookmarks", label: "Merkliste", icon: "bookmark", count: 3, counted: "3 gemerkt" },
+    { area: "studyplan", label: "Stundenplan", icon: "calendar-range", count: 4, counted: "4 eingeplant" },
+  ];
+  const tabHTML = (t, tag) => `<${tag} class="nav" data-area="${t.area}"${tag === "button" ? ` type="button" title="${t.label}"` : ""}><span class="ind">${icon(t.icon)}${t.count ? `<span class="nav-count"${tag === "button" ? ` aria-label="${t.counted}"` : ""}>${t.count}</span>` : ""}</span><span class="label">${t.label}</span></${tag}>`;
+  track.innerHTML = TABS.map((t) => tabHTML(t, "button")).join("");
+  copy.innerHTML = TABS.map((t) => tabHTML(t, "span")).join("");
+  const tabs = [...track.children];
+
+  // ---- the pages: examples in the app's look on a phone ----
+  // The first rows of canary's catalog on 2026-10-18 (all modules, by title).
+  const MODULES = [
+    ['"Achtung, wir drehen!" Film in der Kulturellen Bildung', "13743", "DE · noch keine Termine", 8],
+    ["(Cyber-)Mobbing - Aufgeklärt!", "13749", "DE · 1 Termin", 9],
+    ["(Cyber-)Mobbing - Aufgeklärt!", "14808", "DE · noch keine Termine", 12],
+    ["A Soft Systems Approach to Wicked Environmental Problems", "14910", "EN · noch keine Termine", 6],
+    ["Abwassertechnik", "11595", "DE · 1 Termin", 6],
+    ["Academic Research and Methods", "12243", "EN · 1 Termin", 6],
+    ["Academic Work and Research Methodology", "11457", "EN · 1 Termin", 6],
+    ["Active Structures", "13724", "EN · noch keine Termine", 6],
+    ["Advanced Database Models", "13839", "EN · noch keine Termine", 6, "begrenzte Plätze"],
+    ["Advanced Geophysical Methods in Natural Resource Investigation (ANRI)", "14506", "EN · 2 Termine", 6, "begrenzte Plätze"],
+    ["Advanced Laboratory Techniques and Metrology", "13753", "EN · noch keine Termine", 6],
+    ["Advanced Laboratory Techniques and Metrology", "14490", "EN · noch keine Termine", 6, "begrenzte Plätze"],
+    ["Advanced Methods in Process, Energy and Systems Engineering", "13515", "EN · 2 Termine", 6],
+    ["Advanced Micro Systems, Focus on Microsensors", "13752", "EN · noch keine Termine", 6],
+    ["Advanced Micro- and Nanoelectronic Devices", "14033", "EN · 2 Termine", 6],
+    ["Advanced Organic and Polymer Chemistry", "14995", "EN · 1 Termin", 6],
+    ["Advanced Organic and Polymer Synthesis", "14777", "EN · noch keine Termine", 6, "begrenzte Plätze"],
+    ["Advanced Seminar", "12721", "EN · noch keine Termine", 12],
+    ["Advanced Seminar Electrical Engineering / Information Technology", "12883", "EN · noch keine Termine", 6, "begrenzte Plätze"],
+    ["Advanced Seminar Experimental Physics", "13012", "EN · 3 Termine", 6, "begrenzte Plätze"],
+  ];
+  const MARKED = ["12243", "13839", "11595"];
+  const row = ([title, code, meta, lp, tag]) => `<li class="mrow"><div class="mrow-main"><b class="mrow-t">${esc(title)}</b><span class="mrow-m"><span class="code">${code}</span>${tag ? `<span class="tag">${tag}</span>` : ""}<span>${meta}</span></span></div><span class="lp">${lp}<small>LP</small></span>${icon("bookmark", MARKED.includes(code) ? "on" : "")}</li>`;
+  const MARK = `<svg class="mark" viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" rx="21"/><path transform="translate(0 6.5)" d="M48 14.7C49.21 21.44 55.42 30.77 61.7 40.2H50.4V44.9H64.82C65.77 46.34 66.7 47.78 67.6 49.2C69.82 52.5 70.78 55.51 70.57 58H42.7V62.7H68.13C67.96 62.84 67.78 62.97 67.6 63.1C61.7 65.9 53.9 67 48 68.2C42.1 67 34.3 65.9 28.4 63.1C25.53 61.11 24.66 57.83 26.04 53.8H38.8V49.1H28.46C31.18 44.8 34.22 40.35 37.08 36H48.9V31.3H40.12C44.03 25.09 47.17 19.3 48 14.7Z"/></svg>`;
+  const wordmark = `<span class="wordmark" role="img" aria-label="Betula"><span aria-hidden="true"><span>B</span><span class="sc e">E</span><span>T</span><span class="u">U</span><span class="sc la">LA</span></span></span>`;
+  const GROUND = `<footer class="ground"><div class="brand">${wordmark}<small>inoffiziell</small></div><p>Module, Studiengänge und Stundenpläne der BTU Cottbus–Senftenberg, aus ihren öffentlichen Seiten. Nicht von der BTU.</p><div class="ground-legal"><span>Impressum</span><span>Datenschutz</span></div><p>Folia 1.22.0 · Beispielseite des Prototyps</p></footer>`;
+  const FACULTIES = [
+    ["Mathematik, Informatik, Physik, Elektro- und Informationstechnik", "--fac-1"],
+    ["Umwelt und Naturwissenschaften", "--fac-2"],
+    ["Maschinenbau, Elektro- und Energiesysteme", "--fac-3"],
+    ["Soziale Arbeit, Gesundheit und Musik", "--fac-4"],
+    ["Wirtschaft, Recht und Gesellschaft", "--fac-5"],
+    ["Architektur, Bauingenieurwesen und Stadtplanung", "--fac-6"],
+  ];
+  // The Stundenplan: four modules of the rows above that have Termine, in BTU's slots.
+  const PLANNED = [
+    { code: "11595", title: "Abwassertechnik", meta: "DE · 1 Termin", c: "--t-teal" },
+    { code: "12243", title: "Academic Research and Methods", meta: "EN · 1 Termin", c: "--t-violet" },
+    { code: "13515", title: "Advanced Methods in Process, Energy and Systems Engineering", meta: "EN · 2 Termine", c: "--t-sun" },
+    { code: "14033", title: "Advanced Micro- and Nanoelectronic Devices", meta: "EN · 2 Termine", c: "--t-ice" },
+  ];
+  const TIMES = ["7:30", "9:15", "11:15", "13:45", "15:45", "17:30"];
+  const SLOTS = [
+    { day: 2, at: 2, name: "Abwasser", kind: "VL", c: "--t-teal" },
+    { day: 3, at: 4, name: "Research", kind: "Seminar", c: "--t-violet" },
+    { day: 1, at: 3, name: "Process", kind: "VL", c: "--t-sun" },
+    { day: 4, at: 2, name: "Process", kind: "Übung", c: "--t-sun" },
+    { day: 3, at: 2, name: "Nano", kind: "VL", c: "--t-ice" },
+    { day: 5, at: 3, name: "Nano", kind: "Übung", c: "--t-ice" },
+  ];
+  // „Mein Studium“: Informatik B.Sc. (PO 2008), begun in WiSe 2025/26, now in its third Fachsemester.
+  const SEMS = [
+    { n: 1, done: 30, planned: 0 }, { n: 2, done: 24, planned: 0 }, { n: 3, done: 0, planned: 26, now: true },
+    { n: 4, done: 0, planned: 0 }, { n: 5, done: 0, planned: 0 }, { n: 6, done: 0, planned: 0 },
+  ];
+  const PAGES = {
+    home: () => `
+      <section class="panel hero">
+        <div class="brand">${MARK}${wordmark}<small>Modulkatalog · inoffiziell</small></div>
+        <span class="chip">Inoffiziell · für die BTU Cottbus-Senftenberg</span>
+        <h1>Alle Module und Studiengänge der BTU Cottbus-Senftenberg, an einem Ort.</h1>
+        <p>Module mit Inhalten, Voraussetzungen, Prüfung und Terminen, Studiengänge mit dem Regelstudienplan aus ihrer Prüfungsordnung, dazu dein eigener Stundenplan: durchsuchbar und filterbar, statt Modulhandbücher zu wälzen.</p>
+        <div class="btns">
+          <span class="btn primary">${icon("layout-list")}Module durchsuchen</span>
+          <span class="btn secondary">${icon("graduation-cap")}Studiengang wählen ${icon("chevrons-up-down")}</span>
+        </div>
+      </section>
+      <section class="panel pad">
+        <div class="sec-head"><h2>So legst du los</h2><a>${icon("search")}Direkt suchen</a></div>
+        <p class="muted" style="margin-top: 6px">Drei Schritte, jeder ein Klick. Wer nur ein bestimmtes Modul sucht, tippt Titel oder Nummer oben in die Suche.</p>
+        <ol class="steps">
+          <li><span class="n">1</span><div><b>Studiengang wählen</b><span>Betula zeigt dir seinen Regelstudienplan und seine Module.</span></div></li>
+          <li><span class="n">2</span><div><b>Module merken</b><span>Das Lesezeichen an einem Modul setzt es auf deine Merkliste.</span></div></li>
+          <li><span class="n">3</span><div><b>Einplanen</b><span>Was du einplanst, steht mit seinen Terminen im Stundenplan.</span></div></li>
+        </ol>
+      </section>
+      <section class="panel pad">
+        <div class="sec-head"><h2>Studiengänge nach Fakultät</h2></div>
+        <ul class="facs">${FACULTIES.map(([name, c]) => `<li><i style="--c: var(${c})"></i><span>${name}</span>${icon("chevron-right")}</li>`).join("")}</ul>
+      </section>
+      <section class="panel pad">
+        <div class="sec-head"><h2>Zuletzt angesehen</h2></div>
+        <ul class="rows" style="margin-top: 10px">${[MODULES[8], MODULES[4], MODULES[5]].map(row).join("")}</ul>
+      </section>`,
+    catalog: () => `
+      <div class="list-head"><span class="count num">3.232</span><span class="what">Module</span><span class="btn small">${icon("sliders")}Filter</span></div>
+      <ul class="rows">${MODULES.map(row).join("")}</ul>
+      <p class="more-rows">… und 3.212 weitere Module</p>`,
+    programs: () => {
+      const total = 180, done = SEMS.reduce((s, x) => s + x.done, 0), planned = SEMS.reduce((s, x) => s + x.planned, 0);
+      return `
+      <section class="panel pad sum">
+        <div class="sec-head"><h2><span class="num">${done}</span> <small>von</small> <span class="num">${total}</span> <small>LP bestanden</small></h2><a style="color: var(--accent-ink)">Bereiche ${icon("chevron-right")}</a></div>
+        <div class="bar" aria-hidden="true"><i class="done" style="flex: ${done}"></i><i class="planned" style="flex: ${planned}"></i><i style="flex: ${total - done - planned}"></i></div>
+        <div class="legend"><span><i class="done"></i><b class="num">${done}</b> bestanden</span><span><i class="planned"></i><b class="num">${planned}</b> geplant</span><span><i></i><b class="num">${total - done - planned}</b> offen</span></div>
+      </section>
+      <section class="panel" style="padding-bottom: 2px">
+        <div class="prog">
+          <div class="prog-t">Informatik <small>B.Sc.</small>${icon("pencil")}</div>
+          <p>PO 2008</p>
+          <p>3. Fachsemester · seit WiSe 25/26</p>
+        </div>
+        <ul class="links">
+          <li>${icon("file-text")}<div><b>Regelstudienplan</b><span>Soll und Ist, Zeile für Zeile</span></div></li>
+          <li>${icon("list-checks")}<div><b>Wahlpflicht</b><span>Noch 36 LP zu wählen · Praktische Informatik, Nebenfach</span></div></li>
+        </ul>
+      </section>
+      <section class="panel pad">
+        <div class="sec-head"><h2>Studium planen</h2>${icon("chevron-right")}</div>
+        <p class="muted" style="margin-top: 4px">Jetzt WiSe 2026/27 · 26 von 30 LP</p>
+        <div class="sems" aria-hidden="true">${SEMS.map((s) => `<div class="sem${s.now ? " now" : ""}"><span class="col"><i style="--h: ${(s.done / 30) * 100}%"></i><i class="planned" style="--h: ${(s.planned / 30) * 100}%; --b: ${(s.done / 30) * 100}%"></i></span>${s.n}</div>`).join("")}</div>
+      </section>
+      <section class="panel">
+        <ul class="links"><li>${icon("graduation-cap")}<div><b>Alle Studiengänge</b><span>Nach Fakultät, deiner obenauf</span></div></li></ul>
+      </section>
+      <p class="note">${icon("shield-check")}Was du planst und als bestanden markierst, bleibt in diesem Browser.</p>`;
+    },
+    bookmarks: () => `
+      <div class="list-head"><span class="count num">3</span><span class="what">gemerkte Module</span><span class="btn small">${icon("arrow-up-down")}Titel</span></div>
+      <ul class="rows">${MODULES.filter((m) => MARKED.includes(m[1])).map(row).join("")}</ul>
+      <p class="note boxed" style="margin-top: 4px">${icon("shield-check")}Die Merkliste liegt nur in diesem Browser: kein Konto, und nichts davon erreicht den Server. Ein anderes Gerät hat seine eigene; der Link zum Übertragen bringt sie dorthin.</p>`,
+    studyplan: () => `
+      <section class="panel">
+        <div class="plan-head"><h1>Stundenplan <small>WiSe 2026/27</small></h1><span class="btn small">${icon("sliders")}Anpassen</span></div>
+        <div class="week" role="img" aria-label="Die Woche mit vier eingeplanten Modulen">
+          <span></span>${["Mo", "Di", "Mi", "Do", "Fr"].map((d) => `<span class="d">${d}</span>`).join("")}
+          ${TIMES.map((h, i) => `<span class="t" style="grid-row: ${i + 2}; grid-column: 1">${h}</span>`).join("")}
+          ${SLOTS.map((s) => `<span class="slot" style="grid-row: ${s.at + 1}; grid-column: ${s.day + 1}; --c: var(${s.c})">${s.name}<small>${s.kind}</small></span>`).join("")}
+        </div>
+      </section>
+      <p class="sec-label">Module</p>
+      <ul class="rows">${PLANNED.map((m) => `<li class="prow"><i class="dot" style="--c: var(${m.c})"></i><div class="mrow-main"><b class="mrow-t">${esc(m.title)}</b><span class="mrow-m"><span class="code">${m.code}</span><span>${m.meta}</span></span></div>${icon("chevron-right")}</li>`).join("")}</ul>
+      <p class="add">${icon("plus")}Modul hinzufügen</p>`,
+  };
+  // The skeleton that stands in for a page while it is built (skeleton.rs, `frame`).
+  const skRows = (n) => Array.from({ length: n }, () => `<div class="sk-row"><div><i class="sk w5 t"></i><i class="sk w3"></i></div><i class="sk w1"></i></div>`).join("");
+  const skPanel = (bars) => `<div class="sk-panel">${bars.map((b) => `<i class="sk ${b}"></i>`).join("")}</div>`;
+  const SKELETONS = {
+    home: () => `<div class="page">${skPanel(["w4 t", "w3", "w6 big", "w5 big", "w6", "w6", "w4", "btn", "btn"])}${skPanel(["w3 t", "w6", "w5"])}</div>`,
+    catalog: () => `<div class="page"><div class="list-head"><i class="sk w2 big"></i></div>${skRows(10)}</div>`,
+    programs: () => `<div class="page">${skPanel(["w4 big", "w6", "w5"])}${skPanel(["w3 t", "w2", "w4", "w5 t", "w5 t"])}${skPanel(["w3 t", "w4", "w6 big"])}</div>`,
+    bookmarks: () => `<div class="page"><div class="list-head"><i class="sk w2 big"></i></div>${skRows(3)}</div>`,
+    studyplan: () => `<div class="page">${skPanel(["w4 big", "w6 big", "w6 big", "w6 big", "w6 big"])}${skRows(4)}</div>`,
+  };
+
+  // ---- settings ----
+  const KEY = "betula-tabwechsel-proto-v1";
+  const settings = { anim: "stapel", follow: "finger", pages: "kept", slow: false };
+  const CHOICES = { anim: ["stapel", "hinten", "mischen", "kippen", "ruhig", "sofort"], follow: ["finger", "release"], pages: ["kept", "today"] };
+  try {
+    const kept = JSON.parse(localStorage.getItem(KEY) || "{}");
+    for (const k in CHOICES) if (CHOICES[k].includes(kept[k])) settings[k] = kept[k];
+    settings.slow = kept.slow === true;
+  } catch {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch {} };
+  const PAGES_NOTES = {
+    kept: "Jede Seite bleibt gebaut, auch wenn ihr Tab nicht vorn ist: Ein Wechsel zeigt sie sofort, so weit gescrollt, wie du sie verlassen hast.",
+    today: "Wie die App heute: Die Seite wird bei jedem Wechsel neu gebaut. Erst steht ihr Skelett da, dann kommt ohne Animation noch einmal die alte Seite, bis die neue ihre Daten hat; gescrollt ist sie wieder oben. Die Zeiten sind die Hälfte dessen, was canary gedrosselt zeigte.",
+  };
+  const rate = () => (settings.slow ? 0.2 : 1);
+
+  // ---- motion: springs, worked out ahead ----
+  // Every value of a card (where it is, how large, how turned, how dark) is a damped spring towards
+  // where it is to go, from where it is and as fast as it goes, as the marks of the app slide
+  // (enhance.js, `springTo`): how long a swing takes (s) and how much of it is damped (1: nothing
+  // goes past its place). The springs are worked out ahead, step by step, so that a target can
+  // change on the way (the new card waits, the shuffled one goes under), and played as keyframes
+  // every DT s; a tap or a finger on the way reads where everything stands just then, and how fast
+  // it goes, and goes on from there.
+  const DT = 1 / 120;
+  const SUB = 2;
+  const KEYS = ["x", "y", "s", "ry", "rz", "tz", "o", "sh"];
+  const NEAR = { x: 0.2, y: 0.2, s: 0.0006, ry: 0.05, rz: 0.05, tz: 0.2, o: 0.004, sh: 0.004 };
+  const REST = Object.freeze({ x: 0, y: 0, s: 1, ry: 0, rz: 0, tz: 0, o: 1, sh: 0 });
+  const pose = (p = {}) => ({ ...REST, ...p });
+  const still = () => Object.fromEntries(KEYS.map((k) => [k, 0]));
+  const mix = (a, b, t) => Object.fromEntries(KEYS.map((k) => [k, a[k] + (b[k] - a[k]) * t]));
+  const transformOf = (p) => `perspective(1100px) translate3d(${p.x.toFixed(2)}px, ${p.y.toFixed(2)}px, ${p.tz.toFixed(2)}px) rotateY(${p.ry.toFixed(3)}deg) rotateZ(${p.rz.toFixed(3)}deg) scale(${p.s.toFixed(5)})`;
+
+  // The ways to change cards. `enter`: where the new tab's card comes from, `back`: where the card
+  // before goes, both for a new tab to the right (`dir` +1) or the left (-1) of the deck's width.
+  // `plan`: the targets a tap gives the new card („in“) and the others („out“), one after another,
+  // each after `wait` s, the next once `until` holds; `z` puts a card over or under the others.
+  // `drag`: where the cards stand along the way of a finger on the bar, 0 to 1 of the way to the tab
+  // beside. `reverse`: a card that lay under the top one and comes forward again („up“), and what
+  // lay over it („down“).
+  const VARIANTS = {
+    stapel: {
+      label: "Stapel",
+      note: "Die Seite sinkt nach hinten und wird dunkler, die neue schiebt sich von der Seite ihres Tabs davor. Beides zugleich, auf einer Feder.",
+      spring: { response: 0.42, damping: 0.9 },
+      enter: (dir, w) => pose({ x: dir * w }),
+      back: (dir, w) => pose({ x: -dir * w * 0.06, s: 0.92, sh: 0.32 }),
+      plan: { in: [{ to: "rest" }], out: [{ to: "back" }] },
+      drag: { in: [[0, "enter"], [1, "rest"]], out: [[0, "take"], [1, "back"]] },
+    },
+    hinten: {
+      label: "Nach hinten",
+      note: "Erst geht die Seite nach hinten, dann wird die neue davorgeschoben: zwei Bewegungen nacheinander, die zweite einen Augenblick später.",
+      spring: { response: 0.46, damping: 0.92 },
+      enter: (dir, w) => pose({ x: dir * w }),
+      back: () => pose({ s: 0.86, y: 18, sh: 0.45 }),
+      plan: { out: [{ to: "back", spring: { response: 0.36, damping: 1 } }], in: [{ to: "rest", wait: 0.14 }] },
+      drag: { out: [[0, "take"], [0.55, "back"], [1, "back"]], in: [[0, "enter"], [0.3, "enter"], [1, "rest"]] },
+    },
+    mischen: {
+      label: "Mischen",
+      note: "Wie beim Mischen: Die Seite wird zur Seite herausgezogen und hinten untergeschoben, die neue lag darunter und kommt nach vorn.",
+      spring: { response: 0.44, damping: 0.9 },
+      under: true,
+      enter: () => pose({ s: 0.92, sh: 0.32 }),
+      side: (dir, w) => pose({ x: -dir * w * 1.3, y: 10, rz: -dir * 4, s: 0.96 }),
+      back: () => pose({ s: 0.92, sh: 0.32 }),
+      plan: {
+        out: [{ to: "side", spring: { response: 0.34, damping: 0.96 }, until: (p, w) => Math.abs(p.x) > w * 0.98 }, { to: "back", z: "under" }],
+        in: [{ to: "rest", wait: 0.05 }],
+      },
+      drag: { out: [[0, "take"], [0.5, "side"], [1, "back"]], in: [[0, "enter"], [0.2, "enter"], [1, "rest"]], swap: 0.5 },
+      reverse: {
+        up: [{ to: "side", spring: { response: 0.34, damping: 0.96 }, until: (p, w) => Math.abs(p.x) > w * 0.98 }, { to: "rest", z: "over" }],
+        down: [{ to: "enter", wait: 0.08 }],
+      },
+    },
+    kippen: {
+      label: "Kippen",
+      note: "Die Seite kippt nach hinten weg in den Raum, die neue schwenkt von ihrer Seite herein und richtet sich auf.",
+      spring: { response: 0.5, damping: 0.88 },
+      enter: (dir, w) => pose({ x: dir * w * 0.92, ry: dir * 30, tz: -60 }),
+      back: (dir, w) => pose({ x: -dir * w * 0.16, ry: -dir * 18, tz: -240, sh: 0.4 }),
+      plan: { in: [{ to: "rest" }], out: [{ to: "back" }] },
+      drag: { in: [[0, "enter"], [1, "rest"]], out: [[0, "take"], [1, "back"]] },
+    },
+    ruhig: {
+      label: "Ruhig",
+      note: "Ohne Karten: Die Seite blendet schnell aus, dann blendet die neue ein und wächst das letzte Stück in ihre Größe. Zum Vergleich, falls Karten zu viel Bewegung sind.",
+      spring: { response: 0.36, damping: 1 },
+      plain: true,
+      enter: () => pose({ s: 0.96, o: 0 }),
+      back: () => pose({ s: 0.99, o: 0 }),
+      plan: { out: [{ to: "back", spring: { response: 0.16, damping: 1 } }], in: [{ to: "rest", wait: 0.07 }] },
+      drag: { out: [[0, "take"], [0.4, "back"], [1, "back"]], in: [[0, "enter"], [0.3, "enter"], [1, "rest"]] },
+    },
+    sofort: {
+      label: "Sofort",
+      note: "Keine Animation: Die Seite des Tabs ist im nächsten Bild da. So fühlt sich an, dass die Seiten stehen bleiben, ohne Bewegung darüber.",
+      instant: true,
+    },
+  };
+  // Without motion (prefers-reduced-motion): every way a short fade, out and in, nothing moving.
+  const CALM = {
+    label: "Überblenden",
+    spring: { response: 0.2, damping: 1 },
+    plain: true,
+    enter: () => pose({ o: 0 }),
+    back: () => pose({ o: 0 }),
+    plan: { out: [{ to: "back", spring: { response: 0.12, damping: 1 } }], in: [{ to: "rest", wait: 0.05 }] },
+    drag: { out: [[0, "take"], [0.4, "back"], [1, "back"]], in: [[0, "enter"], [0.3, "enter"], [1, "rest"]] },
+  };
+  const variant = () => {
+    const v = VARIANTS[settings.anim];
+    return !v.instant && reduced() ? CALM : v;
+  };
+  const poseOf = (v, name, dir, w) => {
+    if (typeof name === "object") return name;
+    if (name === "rest") return pose();
+    return (v[name] || v.back)(dir, w);
+  };
+
+  // ---- the deck ----
+  const cards = TABS.map((t, i) => {
+    const el = document.createElement("section");
+    el.className = "card";
+    el.dataset.area = t.area;
+    el.setAttribute("aria-label", t.label);
+    el.innerHTML = `<div class="card-scroll"><div class="page">${PAGES[t.area]()}</div>${GROUND}</div><div class="card-skel" aria-hidden="true">${SKELETONS[t.area]()}</div><i class="card-shade" aria-hidden="true"></i>`;
+    deckEl.append(el);
+    return { i, el, scroll: el.children[0], skel: el.children[1], shade: el.children[2], shown: false, dir: 1, pos: pose(), vel: still(), top: 0, built: 0 };
+  });
+  let current = 1; // Module: a tab on either side
+  let order = []; // the cards shown, from the bottom up
+  let motion = null; // the cards on their way
+  let grip = null; // a finger on the bar that the cards follow
+  const width = () => deckEl.clientWidth || 390;
+  const restack = () => order.forEach((i, k) => { cards[i].el.style.zIndex = String(k + 1); });
+  const put = (c, p) => {
+    c.pos = p;
+    c.el.style.transform = transformOf(p);
+    c.el.style.opacity = String(p.o);
+    c.shade.style.opacity = String(p.sh);
+  };
+  const clear = (c) => {
+    c.pos = pose();
+    c.vel = still();
+    c.el.style.transform = c.el.style.opacity = c.shade.style.opacity = "";
+    c.el.classList.remove("moving");
+  };
+  const show = (c) => {
+    if (c.shown) return;
+    c.shown = true;
+    c.el.classList.add("shown");
+    c.scroll.scrollTop = c.top; // where it was left
+  };
+  const hide = (c) => {
+    if (!c.shown) return;
+    c.top = c.scroll.scrollTop;
+    c.shown = false;
+    c.el.classList.remove("shown");
+    clear(c);
+    order = order.filter((i) => i !== c.i);
+  };
+  // Only the current card takes taps and is read out.
+  const own = () => cards.forEach((c) => { c.el.inert = c.i !== current; c.el.setAttribute("aria-hidden", c.i === current ? "false" : "true"); });
+  const raise = (i, z) => {
+    order = order.filter((k) => k !== i);
+    if (z === "under") order.unshift(i);
+    else order.push(i);
+    restack();
+  };
+
+  // Where each card of a motion stands `k` keyframes in, and how fast it goes.
+  const sampleTrack = (tr, k) => {
+    const at = Math.max(0, Math.min(k, tr.P.length - 1)), i = Math.floor(at), j = Math.min(i + 1, tr.P.length - 1), f = at - i;
+    return { pos: mix(tr.P[i], tr.P[j], f), vel: mix(tr.V[i], tr.V[j], f) };
+  };
+  // The cards stop where they are just then, with how fast they went.
+  const halt = () => {
+    const m = motion;
+    if (!m) return;
+    motion = null;
+    clearTimeout(m.timer);
+    for (const t of m.zTimers) clearTimeout(t);
+    const ms = m.anims[0]?.currentTime ?? 0, k = ms / 1000 / DT;
+    for (const e of m.zEvents) if (!e.done && e.at <= k * DT) { e.done = true; raise(e.c.i, e.z); }
+    for (const tr of m.tracks) {
+      const { pos, vel } = sampleTrack(tr, k);
+      tr.c.vel = vel;
+      put(tr.c, pos);
+    }
+    for (const a of m.anims) a.cancel();
+  };
+  // At rest: the current card alone, flat again; the others are put away.
+  const finish = () => {
+    const m = motion;
+    motion = null;
+    if (m) { clearTimeout(m.timer); for (const t of m.zTimers) clearTimeout(t); for (const a of m.anims) a.cancel(); }
+    for (const c of cards) if (c.i !== current) hide(c);
+    show(cards[current]);
+    clear(cards[current]);
+    order = [current];
+    restack();
+    if (m?.said) say(`${m.said}, Karte ruht nach ${(m.seconds / rate()).toFixed(2).replace(".", ",")} s`);
+  };
+  // Every card in `plans` towards its targets from where it is and as fast as it goes; then played.
+  const run = (plans, v, said) => {
+    const w = width(), h = DT / SUB, tracks = [], zEvents = [];
+    // A fade lies on the page's own ground, not on the table.
+    deckEl.classList.toggle("plain", !!v.plain);
+    for (const [i, steps] of plans) {
+      const c = cards[i];
+      c.el.classList.add("moving");
+      tracks.push({ c, steps, k: 0, since: 0, on: false, target: c.pos, spring: v.spring, x: { ...c.pos }, v: { ...c.vel }, P: [], V: [] });
+    }
+    let t = 0;
+    for (let f = 0; f < 480; f++) {
+      let calm = f > 0;
+      for (const tr of tracks) {
+        tr.P.push({ ...tr.x });
+        tr.V.push({ ...tr.v });
+        const last = tr.k === tr.steps.length - 1;
+        if (!(last && tr.on && KEYS.every((key) => Math.abs(tr.x[key] - tr.target[key]) < NEAR[key] && Math.abs(tr.v[key]) < NEAR[key] * 25))) calm = false;
+      }
+      if (calm) break;
+      for (let s = 0; s < SUB; s++) {
+        for (const tr of tracks) {
+          const st = tr.steps[tr.k];
+          if (!tr.on && t - tr.since >= (st.wait || 0) - 1e-9) {
+            tr.on = true;
+            tr.target = st.pose;
+            tr.spring = st.spring || v.spring;
+            if (st.z) zEvents.push({ at: t, c: tr.c, z: st.z, done: false });
+          }
+          if (!tr.on) continue;
+          const w0 = (2 * Math.PI) / tr.spring.response, k = w0 * w0, d = 2 * tr.spring.damping * w0;
+          for (const key of KEYS) {
+            tr.v[key] += (-k * (tr.x[key] - tr.target[key]) - d * tr.v[key]) * h;
+            tr.x[key] += tr.v[key] * h;
+          }
+          if (st.until && tr.k < tr.steps.length - 1 && st.until(tr.x, w)) {
+            tr.k++;
+            tr.on = false;
+            tr.since = t;
+          }
+        }
+        t += h;
+      }
+    }
+    for (const tr of tracks) { tr.P.push({ ...tr.target }); tr.V.push(still()); }
+    const n = tracks[0].P.length, duration = (n - 1) * DT * 1000, r = rate();
+    const timing = { duration, easing: "linear", fill: "forwards" };
+    const anims = [];
+    for (const tr of tracks) {
+      anims.push(tr.c.el.animate(tr.P.map((p) => ({ transform: transformOf(p), opacity: p.o })), timing));
+      anims.push(tr.c.shade.animate(tr.P.map((p) => ({ opacity: p.sh })), timing));
+    }
+    for (const a of anims) a.playbackRate = r;
+    const m = { tracks, anims, zEvents, said, seconds: duration / 1000, timer: 0, zTimers: [] };
+    m.zTimers = zEvents.map((e) => setTimeout(() => { if (motion === m && !e.done) { e.done = true; raise(e.c.i, e.z); } }, (e.at * 1000) / r));
+    m.timer = setTimeout(() => { if (motion === m) finish(); }, duration / r + 40);
+    motion = m;
+  };
+  // The deck goes to the card of tab `t`: a tap, or a finger let go (`drag`: where it left the cards).
+  const go = (t, said, drag = null) => {
+    const v = variant(), w = width(), c = cards[t];
+    if (!drag) halt();
+    const top = order[order.length - 1];
+    const plans = new Map();
+    const steps = (list, dir) => list.map((st) => ({ ...st, pose: poseOf(v, st.to, dir, w), wait: drag ? 0 : st.wait }));
+    if (!c.shown || drag?.fresh) {
+      // A card that comes: in front, or for a shuffle under the others. The card that was in front
+      // goes its way; what lay behind it already stays behind.
+      const dir = drag?.fresh ? c.dir : Math.sign(t - (top ?? current)) || 1;
+      const leaving = drag?.fresh ? drag.leaving : top;
+      if (!c.shown) {
+        c.dir = dir;
+        show(c);
+        c.vel = still();
+        put(c, v.enter(dir, w));
+        raise(t, v.under ? "under" : "over");
+      }
+      plans.set(t, steps(v.plan.in, dir));
+      for (const i of order) {
+        if (i === t) continue;
+        if (i === leaving) {
+          cards[i].exit = dir;
+          plans.set(i, steps(v.plan.out.slice(drag?.skip || 0), dir));
+        } else plans.set(i, [{ pose: v.back(dir, w) }]);
+      }
+    } else if (top !== t) {
+      // It lies under the top card (a change on its way): it comes forward, what lies over it goes
+      // back where it came from.
+      const R = v.reverse || { up: [{ to: "rest" }], down: [{ to: "enter" }] };
+      const above = order.slice(order.indexOf(t) + 1);
+      plans.set(t, steps(R.up, c.exit ?? c.dir));
+      for (const i of above) plans.set(i, steps(R.down, cards[i].dir));
+      for (const i of order) if (!plans.has(i)) plans.set(i, [{ pose: { ...cards[i].pos } }]);
+    } else {
+      // It is the top card already: it settles, the others go behind it.
+      plans.set(t, [{ pose: pose() }]);
+      for (const i of order) if (i !== t) plans.set(i, [{ pose: v.back(cards[t].dir, w) }]);
+    }
+    current = t;
+    own();
+    run(plans, v, said);
+  };
+  // At once, without a motion.
+  const jump = (t) => {
+    halt();
+    grip = null;
+    current = t;
+    for (const c of cards) if (c.i !== t) hide(c);
+    show(cards[t]);
+    clear(cards[t]);
+    order = [t];
+    restack();
+    own();
+  };
+
+  // A finger on the bar that the cards follow: they stop where they are, and every move puts them
+  // where that much of the way leads; let go, they go on from there as fast as the finger went.
+  const grab = () => {
+    halt();
+    const v = variant();
+    if (v.instant) { grip = null; return; }
+    deckEl.classList.toggle("plain", !!v.plain);
+    grip = { cur: current, order: order.slice(), take: new Map(order.map((i) => [i, { ...cards[i].pos }])), dir: 0, roles: null, brought: null, fresh: false, u: 0, q: 0 };
+    for (const i of order) cards[i].el.classList.add("moving");
+  };
+  const along = (path, u) => {
+    if (u <= path[0][0]) return path[0][1];
+    for (let k = 1; k < path.length; k++) {
+      const [u1, p1] = path[k], [u0, p0] = path[k - 1];
+      if (u <= u1) return mix(p0, p1, (u - u0) / (u1 - u0 || 1));
+    }
+    return path[path.length - 1][1];
+  };
+  // Where each card goes, as the finger takes the bar towards tab `t` (`dir` the way).
+  const rolesFor = (v, t, dir, w) => {
+    const g = grip, roles = new Map(), c = cards[t];
+    if (c.shown && order[order.length - 1] !== t) {
+      // A change caught on its way, back towards a card that still lies under: it comes up again,
+      // what lies over it goes back where it came from. A shuffled card has to come out from under
+      // first: it waits for the finger to let go.
+      g.fresh = false;
+      if (v.under) return roles;
+      for (const i of order.slice(order.indexOf(t) + 1)) roles.set(i, [[0, g.take.get(i)], [1, v.enter(cards[i].dir, w)]]);
+      roles.set(t, [[0, g.take.get(t)], [1, pose()]]);
+      return roles;
+    }
+    if (!c.shown) {
+      c.dir = dir;
+      show(c);
+      c.vel = still();
+      put(c, v.enter(dir, w));
+      raise(t, v.under ? "under" : "over");
+      c.el.classList.add("moving");
+      g.brought = t;
+    }
+    const resolve = (path, i) => path.map(([u, name]) => [u, name === "take" ? g.take.get(i) || pose() : poseOf(v, name, dir, w)]);
+    roles.set(t, resolve(v.drag.in, t).map(([u, p], k) => [u, k === 0 && g.take.has(t) ? g.take.get(t) : p]));
+    for (const i of order) if (i !== t) roles.set(i, resolve(v.drag.out, i));
+    g.fresh = true;
+    return roles;
+  };
+  // `q`: how far the lens stands from the current tab, in tabs (+: to the right).
+  const drag = (q) => {
+    const g = grip;
+    if (!g) return;
+    const v = variant(), w = width(), want = Math.sign(q), t = g.cur + want;
+    const dir = want && t >= 0 && t < cards.length ? want : 0;
+    if (dir !== g.dir) {
+      // The other way: what was brought in for the first goes, everything stands where it was taken.
+      if (g.brought !== null) { hide(cards[g.brought]); g.brought = null; }
+      order = g.order.slice();
+      restack();
+      for (const [i, p] of g.take) put(cards[i], p);
+      g.dir = dir;
+      g.roles = dir ? rolesFor(v, t, dir, w) : null;
+    }
+    g.q = q;
+    g.u = Math.min(1, Math.abs(q));
+    if (!dir) {
+      // No tab that way: the card gives a little, as the bar does.
+      const c = cards[g.cur], p = g.take.get(g.cur) || pose();
+      if (c.shown) put(c, { ...p, x: p.x - Math.sign(q) * Math.min(1, Math.abs(q)) * w * 0.14 });
+      return;
+    }
+    for (const [i, path] of g.roles) put(cards[i], along(path, g.u));
+    if (v.drag.swap !== undefined && g.fresh) {
+      const over = g.u >= v.drag.swap, top = order[order.length - 1] === t;
+      if (over !== top) raise(t, over ? "over" : "under");
+    }
+  };
+  // The finger goes, and `to` is the tab: the cards go on at `dqdt` (tabs per s along the bar).
+  const release = (to, dqdt, said) => {
+    const g = grip;
+    grip = null;
+    if (!g) { if (to !== current) toTab(to, said); return; }
+    const v = variant();
+    const dudt = Math.max(-4, Math.min(4, Math.sign(g.q) * dqdt));
+    for (const i of order) cards[i].vel = still();
+    if (g.roles) {
+      for (const [i, path] of g.roles) {
+        const a = Math.max(0, Math.min(g.u, 0.98)), b = a + 0.02, pa = along(path, a), pb = along(path, b);
+        cards[i].vel = Object.fromEntries(KEYS.map((k) => [k, ((pb[k] - pa[k]) / 0.02) * dudt]));
+      }
+    }
+    const aim = g.dir ? g.cur + g.dir : null;
+    if (to === aim && g.fresh) go(to, said, { fresh: true, leaving: g.cur, skip: v.drag.swap !== undefined && g.u >= v.drag.swap ? 1 : 0 });
+    else if (to !== g.cur || order.length > 1 || g.u > 0) go(to, said, { fresh: false });
+    else finish();
+  };
+
+  // ---- „Wie heute“: the page built anew at each change ----
+  // How long each tab's skeleton stood (ms), and then the page before in front of the new one while
+  // its answers came (pending.rs, `hold`): half of what canary showed on 2026-10-18 in a phone's
+  // window with the processor four times slower (konzept.html), as a quicker phone would.
+  const BUILD_MS = [250, 600, 900, 120, 120];
+  const HOLD_MS = [170, 300, 200, 50, 80];
+  let building = 0;
+  const rebuild = (t, from, instant) => {
+    const c = cards[t], r = rate(), token = ++building;
+    c.el.classList.add("building");
+    c.top = 0;
+    c.scroll.scrollTop = 0;
+    clearTimeout(c.built);
+    const arrive = () => {
+      c.el.classList.remove("building");
+      if (instant) mark(t);
+    };
+    c.built = setTimeout(() => {
+      if (token !== building || !instant || from === t) { arrive(); return; }
+      // The page before comes back for a moment: a picture of it in front of the one just built.
+      const before = cards[from];
+      show(before);
+      clear(before);
+      raise(from, "over");
+      mark(t);
+      setTimeout(() => {
+        if (current === t) { hide(before); order = [t]; restack(); }
+        arrive();
+      }, HOLD_MS[t] / r);
+    }, BUILD_MS[t] / r);
+  };
+
+  // ---- a change of tab ----
+  const toTab = (t, said) => {
+    const from = current, today = settings.pages === "today", v = variant();
+    if (v.instant) {
+      jump(t);
+      say(said, false);
+    } else {
+      go(t, said);
+    }
+    if (today) rebuild(t, from, v.instant);
+  };
+
+  // ---- the bar along the bottom (design/tabbar/swipe.html, as enhance.js has it) ----
+  // The tab `i` is current: its mark in the bar. „Wie heute“ with no animation moves the mark only
+  // when the page is there, as the main thread has it then.
+  let barCurrent = current;
+  const mark = (i) => {
+    tabs.forEach((tab, k) => { if (k === i) tab.setAttribute("aria-current", "page"); else tab.removeAttribute("aria-current"); });
+  };
+  const select = (i, how) => {
+    if (i === barCurrent) return;
+    barCurrent = i;
+    if (!(settings.pages === "today" && variant().instant)) mark(i);
+    if (how !== "finger") toTab(i, sayNow);
+  };
+  let sayNow = "";
+  const log = $("log");
+  const say = (text) => { if (text) log.textContent = text; };
+
+  const SPRING = { response: 0.3, damping: 0.75 };
+  const CALMBAR = { response: 0.2, damping: 0.99 };
+  const BAR_DT = 1 / 120;
+  const spring = (x0, v0, x1, { response, damping: z }) => {
+    const w0 = (2 * Math.PI) / response, wd = w0 * Math.sqrt(1 - z * z), a = x0 - x1, b = (v0 + z * w0 * a) / wd;
+    const out = [], far = Math.hypot(a, b);
+    for (let t = 0; t < 1.5; t += BAR_DT) {
+      const fade = Math.exp(-z * w0 * t);
+      out.push(x1 + fade * (a * Math.cos(wd * t) + b * Math.sin(wd * t)));
+      if (far * fade < 0.1) break;
+    }
+    out.push(x1);
+    return out;
+  };
+  const sample = (values, k) => {
+    const at = k > 0 ? Math.min(k, values.length - 1) : 0, i = Math.floor(at), j = Math.min(i + 1, values.length - 1);
+    return values[i] + (values[j] - values[i]) * (at - i);
+  };
+  const SLOP = 8, ROOM = 14, FLICK = 0.45, FLICK_MS = 100;
+  const unit = (v) => Math.min(1, Math.max(0, v));
+  const band = (over, room) => (room > 0 ? room * (1 - 1 / (1 + over / (3 * room))) : 0);
+  const snap = (v) => { const dot = 1 / (devicePixelRatio || 1); return Math.round(v / dot) * dot; };
+  let geo = null, pos = null, finger = null, glide = null, pending = null, swiped = 0;
+  const near = [];
+  const measure = () => {
+    const box = dock.getBoundingClientRect(), r = track.getBoundingClientRect();
+    const marks = tabs.map((tab) => tab.querySelector(".ind").getBoundingClientRect());
+    geo = {
+      lefts: marks.map((m) => m.left - box.left),
+      mids: marks.map((m) => m.left + m.width / 2 - box.left),
+      w: marks[0].width,
+      step: (marks[marks.length - 1].left - marks[0].left) / (marks.length - 1),
+      row: r.left - box.left,
+    };
+    const sizes = { "--lens-y": marks[0].top - box.top, "--lens-w": marks[0].width, "--lens-h": marks[0].height, "--lt-y": r.top - marks[0].top, "--lt-w": r.width, "--lt-h": r.height };
+    for (const [prop, px] of Object.entries(sizes)) if (dock.style.getPropertyValue(prop) !== px + "px") dock.style.setProperty(prop, px + "px");
+  };
+  const colour = (T, X) => {
+    const middle = X + geo.w / 2;
+    tabs.forEach((tab, i) => {
+      const v = unit(1 - Math.abs(geo.mids[i] + T - middle) / geo.step).toFixed(2);
+      if (near[i] !== v) { near[i] = v; tab.style.setProperty("--near", v); }
+    });
+  };
+  const paint = (T, X) => {
+    pos = { T, X };
+    const t = snap(T), x = snap(X);
+    track.style.transform = `translateX(${t}px)`;
+    lens.style.transform = `translateX(${x}px)`;
+    copy.style.transform = `translateX(${geo.row + t - x}px)`;
+    colour(T, X);
+  };
+  const reach = (from, dir) => Math.min(1, dir > 0 ? tabs.length - 1 - from : from);
+  const lensAt = (d, q) => {
+    const lo = Math.min(-reach(d.from, -1) * geo.step, d.p0), hi = Math.max(reach(d.from, 1) * geo.step, d.p0);
+    return q > hi ? hi + band(q - hi, ROOM) : q < lo ? lo - band(lo - q, ROOM) : q;
+  };
+  const take = (d) => {
+    let caught = null;
+    if (glide) caught = catchGlide();
+    flushSelect();
+    if (caught) {
+      for (const el of [track, lens, copy]) el.style.transform = "";
+      measure();
+      paint(caught.T, caught.X);
+    } else {
+      measure();
+      paint(0, geo.lefts[barCurrent]);
+    }
+    d.from = barCurrent;
+    d.base = pos;
+    d.p0 = d.p = pos.X + geo.w / 2 - pos.T - geo.mids[barCurrent];
+    d.trail = [{ t: d.at, T: pos.T }];
+    dock.dataset.swipe = "drag";
+    if (settings.follow === "finger") grab();
+    try { dock.setPointerCapture(d.id); } catch {}
+  };
+  const follow = (d, x, at) => {
+    const dx = x - d.x, pull = dx > SLOP ? dx - SLOP : dx < -SLOP ? dx + SLOP : 0;
+    if (pull !== d.pull) {
+      if (at > d.at) d.speed = 0.7 * ((pull - d.pull) / (at - d.at)) + 0.3 * d.speed;
+      d.pull = pull;
+      d.at = at;
+      d.p = lensAt(d, d.p0 - pull);
+      paint(d.base.X + geo.w / 2 - geo.mids[d.from] - d.p, d.base.X);
+      if (grip) drag(d.p / geo.step);
+    }
+    d.trail.push({ t: at, T: pos.T });
+    while (d.trail.length > 2 && at - d.trail[0].t > 100) d.trail.shift();
+  };
+  const decide = (d, at) => {
+    const way = Math.sign(d.p - d.p0), v = -d.speed;
+    const flicked = way !== 0 && at - d.at < FLICK_MS && Math.sign(v) === way && Math.abs(v) > FLICK;
+    const s = d.p / geo.step, s0 = d.p0 / geo.step, lead = flicked ? 5 / 6 : 2 / 3;
+    let n = way > 0 ? Math.floor(s + lead) : way < 0 ? Math.ceil(s - lead) : Math.round(s);
+    if (flicked && Math.abs(d.p - d.p0) >= 12) n = way > 0 ? Math.max(n, Math.floor(s0) + 1) : Math.min(n, Math.ceil(s0) - 1);
+    return d.from + Math.max(-reach(d.from, -1), Math.min(reach(d.from, 1), n));
+  };
+  const rowSpeed = (trail, at) => {
+    const recent = trail.filter((s) => at - s.t <= 80), a = recent[0], b = recent[recent.length - 1];
+    return recent.length > 1 && b.t - a.t > 4 ? Math.max(-1, Math.min(1, (b.T - a.T) / (b.t - a.t))) : 0;
+  };
+  const glideTo = (to, v) => {
+    const { T, X } = pos, end = geo.lefts[to], s = reduced() ? CALMBAR : SPRING;
+    const Ts = spring(T, reduced() ? 0 : v * 1000, 0, s), Xs = spring(X, 0, end, s);
+    const n = Math.max(Ts.length, Xs.length);
+    while (Ts.length < n) Ts.push(Ts[Ts.length - 1]);
+    while (Xs.length < n) Xs.push(Xs[Xs.length - 1]);
+    const t = Ts.map(snap), x = Xs.map(snap);
+    const frames = (values) => values.map((value) => ({ transform: `translateX(${value}px)` }));
+    const timing = { duration: (n - 1) * BAR_DT * 1000, easing: "linear", fill: "forwards" };
+    dock.dataset.swipe = "glide";
+    const anims = [track.animate(frames(t), timing), lens.animate(frames(x), timing), copy.animate(frames(t.map((value, k) => geo.row + value - x[k])), timing)];
+    glide = { to, Ts, Xs, anims, frame: 0, timer: setTimeout(() => settle(), timing.duration + 250) };
+    selectSoon(to);
+    const tick = () => {
+      if (!glide) return;
+      const ms = glide.anims[0].currentTime ?? 0, k = ms / 1000 / BAR_DT;
+      pos = { T: sample(glide.Ts, k), X: sample(glide.Xs, k) };
+      colour(pos.T, pos.X);
+      if (k >= n - 1) settle();
+      else glide.frame = requestAnimationFrame(tick);
+    };
+    glide.frame = requestAnimationFrame(tick);
+  };
+  const catchGlide = () => {
+    const g = glide, k = (g.anims[0].currentTime ?? 0) / 1000 / BAR_DT;
+    cancelAnimationFrame(g.frame);
+    clearTimeout(g.timer);
+    g.anims.forEach((a) => a.cancel());
+    glide = null;
+    return { T: sample(g.Ts, k), X: sample(g.Xs, k) };
+  };
+  const settle = () => {
+    if (glide) {
+      cancelAnimationFrame(glide.frame);
+      clearTimeout(glide.timer);
+      glide.anims.forEach((a) => a.cancel());
+      glide = null;
+    }
+    flushSelect();
+    pos = null;
+    dock.dataset.swipe = "settle";
+    for (const el of [track, lens, copy]) el.style.transform = "";
+    tabs.forEach((tab, i) => { tab.style.removeProperty("--near"); near[i] = undefined; });
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (dock.dataset.swipe === "settle") delete dock.dataset.swipe; }));
+  };
+  // The tab the lens goes to is current a frame after letting go, so that its change cannot hold
+  // that frame back; the cards that follow a finger have gone on already.
+  const selectSoon = (to) => {
+    flushSelect();
+    const p = { to, frame: 0, timer: 0 };
+    p.frame = requestAnimationFrame(() => { p.timer = setTimeout(flushSelect, 0); });
+    pending = p;
+  };
+  const flushSelect = () => {
+    const p = pending;
+    if (!p) return;
+    pending = null;
+    cancelAnimationFrame(p.frame);
+    clearTimeout(p.timer);
+    select(p.to, p.how || "swipe");
+  };
+  const report = (d, to) => {
+    const from = TABS[d.from].label;
+    if (!d.pull) return `Zurückgezogen, ${from} bleibt`;
+    const side = d.pull < 0 ? "Nach links gewischt" : "Nach rechts gewischt";
+    if (to !== d.from) return `${side}: ${from} → ${TABS[to].label}`;
+    if (!reach(d.from, d.pull < 0 ? 1 : -1)) return `${side}: dort kommt kein Tab mehr`;
+    return `${side}: zu kurz, ${from} bleibt`;
+  };
+  const letGo = (x, at) => {
+    const d = finger;
+    finger = null;
+    if (!d?.taken) return;
+    swiped = performance.now() + 400;
+    try { dock.releasePointerCapture(d.id); } catch {}
+    let to = d.from, v = 0;
+    if (x !== null) {
+      follow(d, x, at);
+      to = decide(d, at);
+      v = rowSpeed(d.trail, at);
+    }
+    const said = report(d, to);
+    say(said);
+    if (grip) {
+      const followed = grip;
+      release(to, (-d.speed * 1000) / geo.step, said);
+      glideTo(to, v);
+      if (pending) pending.how = "finger";
+      if (followed && to !== d.from && settings.pages === "today") rebuild(to, d.from, false);
+    } else {
+      sayNow = said;
+      glideTo(to, v);
+    }
+  };
+
+  document.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) return;
+    letGo(null);
+    swiped = 0;
+    if (e.button !== 0 || !dock.contains(e.target)) return;
+    finger = { id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp, speed: 0, pull: 0, taken: false };
+  });
+  document.addEventListener("pointermove", (e) => {
+    const d = finger;
+    if (!d || e.pointerId !== d.id) return;
+    if (!(e.buttons & 1)) { letGo(null); return; }
+    if (!d.taken) {
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+      if (Math.abs(dx) <= Math.abs(dy)) { finger = null; return; }
+      d.taken = true;
+      take(d);
+    }
+    follow(d, e.clientX, e.timeStamp);
+  });
+  document.addEventListener("pointerup", (e) => { if (e.pointerId === finger?.id) letGo(e.clientX, e.timeStamp); });
+  document.addEventListener("pointercancel", (e) => { if (e.pointerId === finger?.id) letGo(null); });
+  document.addEventListener("touchmove", (e) => { if (finger?.taken && e.cancelable) e.preventDefault(); }, { passive: false });
+  dock.addEventListener("click", (e) => { if (performance.now() < swiped) { e.preventDefault(); e.stopPropagation(); } }, true);
+  dock.addEventListener("dragstart", (e) => e.preventDefault());
+  // A tap on a tab: its card comes; on the tab one is in, its page goes back to its top (the app's
+  // „Tab noch einmal“).
+  track.addEventListener("click", (e) => {
+    const tab = e.target.closest(".nav");
+    if (!tab) return;
+    if (glide) settle();
+    const i = tabs.indexOf(tab);
+    if (i === barCurrent) {
+      cards[i].scroll.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
+      say(`Getippt: ${TABS[i].label}, schon da, nach oben`);
+      return;
+    }
+    sayNow = `Getippt: ${TABS[barCurrent].label} → ${TABS[i].label}`;
+    say(sayNow);
+    select(i, "tap");
+  });
+  // On a computer the arrows as well.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || !$("sheet").hidden) return;
+    if (e.target.closest?.("input, textarea, select, .seg")) return;
+    const way = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0, i = barCurrent + way;
+    if (!way || i < 0 || i >= tabs.length) return;
+    e.preventDefault();
+    if (glide) settle();
+    sayNow = `Pfeiltaste: ${TABS[barCurrent].label} → ${TABS[i].label}`;
+    say(sayNow);
+    select(i, "key");
+  });
+
+  // ---- the settings, beside the phone or in a sheet on one ----
+  const showSettings = () => {
+    for (const input of document.querySelectorAll("#proto input[type=radio]")) input.checked = settings[input.name] === input.value;
+    $("slow").checked = settings.slow;
+    $("slow-btn").setAttribute("aria-pressed", String(settings.slow));
+    const v = VARIANTS[settings.anim];
+    $("anim-note").textContent = reduced() && !v.instant ? `${v.note} Dein System möchte weniger Bewegung: Statt Karten blendet die Seite kurz über.` : v.note;
+    $("anim-name").textContent = v.label;
+    $("pages-note").textContent = PAGES_NOTES[settings.pages];
+  };
+  $("proto").addEventListener("change", (e) => {
+    const { name, value } = e.target;
+    if (e.target.id === "slow") settings.slow = e.target.checked;
+    else if (name in CHOICES && CHOICES[name].includes(value)) settings[name] = value;
+    else return;
+    if (finger?.taken) letGo(null);
+    jump(current);
+    save();
+    showSettings();
+  });
+  $("slow-btn").addEventListener("click", () => {
+    settings.slow = !settings.slow;
+    save();
+    showSettings();
+  });
+  const sheet = $("sheet");
+  const openSheet = () => {
+    if (!narrow.matches) { $("proto").scrollIntoView({ behavior: reduced() ? "auto" : "smooth", block: "center" }); $("proto").querySelector("input:checked")?.focus({ preventScroll: true }); return; }
+    sheet.hidden = false;
+    sheet.querySelector(".sheet-head button").focus({ preventScroll: true });
+  };
+  const closeSheet = () => { sheet.hidden = true; $("open-settings").focus({ preventScroll: true }); };
+  $("open-settings").addEventListener("click", openSheet);
+  sheet.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) closeSheet(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.hidden) closeSheet(); });
+  const narrow = matchMedia("(max-width: 560px), (pointer: coarse) and (max-height: 500px)");
+  const placeSettings = () => {
+    (narrow.matches ? $("proto-phone") : $("proto-home")).append($("proto"));
+    if (!narrow.matches) sheet.hidden = true;
+  };
+  narrow.addEventListener?.("change", placeSettings);
+  placeSettings();
+  showSettings();
+
+  // ---- the crown's leaves: the app's own drawing where this page lies in the repository ----
+  const leaves = $("leaves");
+  const tryLeaves = (urls) => {
+    if (!urls.length) return;
+    const img = new Image();
+    img.onload = () => {
+      const value = `url("${urls[0]}")`;
+      leaves.style.webkitMaskImage = value;
+      leaves.style.maskImage = value;
+      leaves.classList.add("drawn");
+    };
+    img.onerror = () => tryLeaves(urls.slice(1));
+    img.src = urls[0];
+  };
+  tryLeaves(["../../assets/birch/autumn-crown.svg", "assets/birch/autumn-crown.svg"]);
+
+  jump(current);
+  mark(current);
+
+  // For the checks: where the cards are and which is current.
+  window.__tabwechsel = { cards: () => cards.map((c) => ({ shown: c.shown, z: c.el.style.zIndex, transform: c.el.style.transform })), current: () => current, moving: () => !!motion, go: (i) => select(i, "tap") };
+})();
+</script>

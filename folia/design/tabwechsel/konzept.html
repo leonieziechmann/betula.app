@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Betula Tabwechsel-Konzept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- A change of tab that feels immediate: every tab's page stays built, and a change only swaps which
+     one lies in front; on a phone the swap is a change of cards (owner, 2026-10-18: „mich stört, dass
+     Betula bei Interaktion relativ slow ist. Wenn man zum Beispiel Tabs switched, dann flickert der
+     bildshirm, weil erst Skeltons geladen werden, bevor der content kommt … so dass die Seiten/tabs im
+     Hintergrund geladen bleiben und nur getauscht werden müssen … Es soll sich wie so ein
+     Spielkartenwechsel anfühlen … Aktuell wird noch an einem neuen history/back system gearbeitet.
+     Deswegen würde ich das aktuell noch nicht implementiert"). A concept, not built: what happens
+     today (filmed and measured on canary, Folia 1.22.0, 2026-10-18, Chromium 141 in a phone's window
+     with the processor four times slower), how the pages can stay (measured with canary's own pages),
+     what the pages have to learn for it (read in the code of that day), the change of cards
+     (prototyp.html), and how it fits the concept for Back (../zurueck/konzept.html). Tokens are
+     Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the decision and its five sentences at the top, then today, the stages, what the pages learn,
+   the change of cards, Back, the steps, what is not done and what is open, one block each.
+   Tokens: Betula's own (light, then dark); the frames of the film and the stages are drawn in them. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --no: #c2410c; --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --sk: rgba(15, 23, 42, .09);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --r-panel: 9px; --r-ctl: 9px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --sk: rgba(255, 255, 255, .08);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --sk: rgba(255, 255, 255, .08);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+}
+
+* { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure, blockquote { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: var(--mono); font-size: .84em; padding: 1px 4px; border-radius: 4px; background: var(--panel-3); overflow-wrap: anywhere; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+.num { font-variant-numeric: tabular-nums; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 24px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.block > * + h3 { margin-top: 22px; }
+.block h3 { font-size: 15.5px; font-weight: 700; }
+.muted { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(27px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin-top: 18px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-weight: 650; text-decoration: none; }
+.btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cta small { color: var(--text-3); font-size: 13px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules h2 { font-size: 15px; font-weight: 700; }
+.rules ol, ol.rules-list { margin-top: 12px; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li, ol.rules-list li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li::before, ol.rules-list li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b, ol.rules-list li b { color: var(--text); font-weight: 620; }
+ol.rules-list { margin-top: 16px; max-width: 86ch; }
+
+/* Today: four frames of the film. */
+.film { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 720px; }
+.film li { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.shot { position: relative; aspect-ratio: 9 / 15; border-radius: 12px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong); overflow: hidden; padding: 12% 8% 0; display: grid; align-content: start; gap: 6%; }
+.shot i { display: block; height: 0; padding-bottom: 22%; border-radius: 6px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); }
+.shot.old i:nth-child(1) { padding-bottom: 40%; }
+.shot.sk i { background: var(--sk); box-shadow: none; }
+.shot.new i { background: var(--panel); box-shadow: 0 0 0 1px var(--line), inset 3px 0 0 var(--accent); }
+.shot .bar { position: absolute; left: 6%; right: 6%; bottom: 4%; height: 9%; border-radius: 8px; background: var(--panel); box-shadow: 0 0 0 1px var(--line-strong); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; justify-items: center; }
+.shot .bar span { width: 56%; height: 44%; border-radius: 5px; }
+.shot .bar .on { background: var(--invert); }
+.film .back .shot { box-shadow: 0 0 0 2px var(--no); }
+.film b { font-size: 13.5px; font-weight: 680; }
+.film small { display: block; color: var(--text-2); font-size: 12.5px; line-height: 1.4; }
+.why { margin-top: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.why li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.why li b { display: block; margin-bottom: 4px; color: var(--text); font-weight: 680; }
+.tablewrap { margin-top: 16px; overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 9px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+caption { padding: 10px 14px 0; text-align: left; color: var(--text-3); font-size: 12.5px; }
+th { font-size: 12px; font-weight: 650; letter-spacing: .03em; color: var(--text-3); background: var(--panel-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 620; white-space: nowrap; }
+td.num { white-space: nowrap; }
+td .no { color: var(--no); font-weight: 650; }
+.note { margin-top: 10px; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+
+/* The stages: the router's address, the one in front, the others behind. */
+.stages { margin-top: 18px; display: grid; gap: 10px; }
+.router { justify-self: start; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; background: var(--invert); color: var(--on-invert); font-size: 13px; }
+.router code { background: transparent; color: inherit; padding: 0; }
+.row5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.stage { position: relative; display: grid; gap: 4px; align-content: start; min-height: 96px; padding: 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); min-width: 0; }
+.stage b { color: var(--text-2); font-size: 14px; font-weight: 680; }
+.stage code { justify-self: start; font-size: 11.5px; background: var(--panel-3); }
+.stage small { font-size: 12px; }
+.stage.front { background: var(--panel); box-shadow: 0 0 0 2px var(--accent), var(--shadow-panel); color: var(--text-2); }
+.stage.front b { color: var(--text); }
+.stage.front::before { content: "vorn"; position: absolute; top: -9px; right: 10px; padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; }
+.stage.other { min-height: 0; }
+.measure { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.measure div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.measure .big { display: block; font-size: 28px; font-weight: 760; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.measure .big small { font-size: 15px; font-weight: 600; color: var(--text-2); }
+.measure p { margin-top: 2px; color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.measure .good { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.measure .bad .big { color: var(--no); }
+
+/* The change of cards: the ways of the prototype. */
+.ways { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ways li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.ways li b { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; color: var(--text); font-size: 15px; font-weight: 700; }
+.ways li.pick { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.ways .chip { padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; }
+
+/* The steps, each with what it raises. */
+.steps { margin-top: 16px; display: grid; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 14px; align-items: start; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.steps .n { grid-row: span 2; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); font-weight: 700; }
+.steps b { font-size: 15px; font-weight: 700; }
+.steps p { grid-column: 2 / 4; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.steps .ver { justify-self: end; padding: 2px 8px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.steps li.now { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.steps li.now .n { background: var(--accent); color: var(--on-accent); }
+.not { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.not li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.not li b { display: block; margin-bottom: 4px; color: var(--text); font-weight: 680; }
+.open { margin-top: 14px; display: grid; gap: 8px; }
+.open li { position: relative; padding: 12px 16px 12px 40px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.open li::before { content: "?"; position: absolute; left: 12px; top: 12px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 800; }
+.open li b { color: var(--text); font-weight: 650; }
+
+@media (max-width: 900px) {
+  .intro, .why, .measure, .ways, .not { grid-template-columns: minmax(0, 1fr); }
+  .row5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .block { padding: 18px 16px; }
+}
+@media (max-width: 560px) {
+  th, td { padding: 8px 5px; font-size: 12.5px; }
+  th:first-child, td:first-child { padding-left: 12px; }
+  caption { padding-left: 12px; }
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; }
+  table.stack tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  table.stack tr:last-child { border-bottom: 0; }
+  table.stack td { padding: 2px 0; border: 0; white-space: normal; font-size: 13.5px; }
+  table.stack td:first-child { font-size: 14.5px; padding-bottom: 4px; }
+  table.stack td + td::before { content: attr(data-label) ": "; color: var(--text-3); font-weight: 600; }
+  .film { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps li { grid-template-columns: 34px minmax(0, 1fr); }
+  .steps .ver { grid-column: 2; justify-self: start; }
+  .steps p { grid-column: 1 / 3; }
+}
+</style>
+
+<main class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Tabwechsel · 18.10.2026</p>
+      <h1>Tabs, die stehen bleiben, und ein Wechsel wie zwischen Karten</h1>
+      <p class="lead">Heute baut Betula bei jedem Tabwechsel die ganze Seite neu, und am Handy sieht man das. Künftig bleibt die Seite jedes Tabs gebaut, und ein Wechsel tauscht nur, welche vorn liegt. Am Handy wird daraus ein Kartenwechsel. Dieses Blatt sagt, warum es heute flackert, wie die Seiten stehen bleiben können, was sich dafür an ihnen ändert und wie es zum neuen Zurück passt. Gebaut wird es nach dem Zurück, nicht vorher.</p>
+      <blockquote class="quote">„Wenn man zum Beispiel Tabs switched, dann flickert der bildshirm, weil erst Skeltons geladen werden, bevor der content kommt … so dass die Seiten/tabs im Hintergrund geladen bleiben und nur getauscht werden müssen. … Es soll sich wie so ein Spielkartenwechsel anfühlen. Der content soll so nach hinten gehen und dann der neue Tab davor geschoben werden.“</blockquote>
+      <div class="cta">
+        <a class="btn" href="prototyp.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>Prototyp ausprobieren</a>
+        <small>Am besten am Handy: sechs Kartenwechsel, mit Tippen und Wischen auf der Leiste.</small>
+      </div>
+      <nav class="toc" aria-label="Inhalt"><a href="#heute">Was heute passiert</a><a href="#buehnen">Tabs, die stehen bleiben</a><a href="#seiten">Was die Seiten lernen</a><a href="#karten">Kartenwechsel</a><a href="#zurueck">Zurück</a><a href="#schritte">Schritte</a><a href="#offen">Offen</a></nav>
+    </div>
+    <aside class="rules" aria-labelledby="short-title">
+      <h2 id="short-title">In fünf Sätzen</h2>
+      <ol>
+        <li><span><b>Heute baut jeder Tabwechsel die Seite neu.</b> Gedrosselt wie ein Handy dauert das 0,2 bis 4 Sekunden: Erst steht ein Skelett da, dann noch einmal die alte Seite, dann die neue. Das ist das Flackern.</span></li>
+        <li><span><b>Künftig bleibt jede Seite gebaut.</b> Liegt ihr Tab hinten, zeichnet der Browser sie nur nicht. Ein Wechsel tauscht, welche vorn liegt: mit den echten Seiten von canary 14 ms bis zum Bild, ebenso gedrosselt.</span></li>
+        <li><span><b>Am Handy wird der Tausch ein Kartenwechsel.</b> Die Seite geht nach hinten, die neue kommt davor; wischst du auf der Leiste, folgt sie dem Finger. Der Prototyp hat sechs Varianten.</span></li>
+        <li><span><b>Gebaut wird es auf dem neuen Zurück.</b> Die Bühne eines Tabs zeigt das Oberste seines Stapels, wie Schritt 4 des Zurück-Konzepts ihn anlegt. Adressen und Verlauf bleiben, wie sie dort festgelegt sind.</span></li>
+        <li><span><b>Zwei kleine Dinge gehen schon vorher:</b> Die alte Seite kommt nach dem Skelett nicht mehr zurück, und die Markierung in der Leiste springt sofort. Das kommt dem Umbau des Zurück nicht in die Quere.</span></li>
+      </ol>
+    </aside>
+  </header>
+
+  <section class="block" id="heute" aria-labelledby="today-title">
+    <h2 id="today-title">Was heute passiert</h2>
+    <p class="lead">Ein Tipp auf „Module“, wie canary ihn am 18.10. zeigte: Folia 1.22.0 in Chromium, im Fenster eines Handys (412 × 915), der Prozessor viermal langsamer, so wie die Entwicklerwerkzeuge ein Mittelklasse-Handy nachstellen. Bild für Bild gefilmt:</p>
+    <ol class="film" aria-label="Ein Tabwechsel heute, Bild für Bild">
+      <li><div class="shot old" aria-hidden="true"><i></i><i></i><i></i><span class="bar"><span class="on"></span><span></span><span></span><span></span><span></span></span></div><b>Tipp</b><small>Die Startseite, der Finger auf „Module“.</small></li>
+      <li><div class="shot sk" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="bar"><span class="on"></span><span></span><span></span><span></span><span></span></span></div><b>Skelett</b><small>Der Rahmen der neuen Seite. Die Markierung steht noch auf Start.</small></li>
+      <li class="back"><div class="shot old" aria-hidden="true"><i></i><i></i><i></i><span class="bar"><span></span><span class="on"></span><span></span><span></span><span></span></span></div><b>Die alte Seite</b><small>Noch einmal da, für 50 ms bis 1,5 s.</small></li>
+      <li><div class="shot new" aria-hidden="true"><i></i><i></i><i></i><i></i><span class="bar"><span></span><span class="on"></span><span></span><span></span><span></span></span></div><b>Neue Seite</b><small>Nach 0,7 bis 4 s.</small></li>
+    </ol>
+    <ul class="why">
+      <li><b>Der Router kennt eine Seite.</b> Wechselt der Tab, baut er die alte ab und die neue von vorn auf, mit allen Elementen: Auf der Startseite hat das Dokument dann rund 2.600, auf „Module“ rund 1.060. Die Antworten der Daten hat die App für den Besuch schon gemerkt; teuer ist das Bauen, dazu Stil und Layout, alles auf dem einen Thread, auf dem auch die Finger laufen.</li>
+      <li><b>Das Skelett kommt, weil das Bauen dauert.</b> <code>Pending</code> zeigt es im Bild nach dem Tipp, wenn ein Wechsel dieser Art beim letzten Mal 50 ms oder länger brauchte, am Handy fast immer. Die Markierung soll im selben Bild wechseln; ihr Farbübergang kann aber nicht laufen, solange der Thread baut, und so steht sie scheinbar still.</li>
+      <li><b>Danach kommt die alte Seite zurück.</b> Sobald der Router baut, legt <code>hold</code> ein Bild der Seite, die gerade da ist, vor die neue, bis deren Antworten da sind: Die neue Seite soll nie leer dastehen, solange der Daten-Worker antwortet. Das Bild ist aber das der alten Seite, nicht das des Skeletts, und so steht sie noch einmal da.</li>
+    </ul>
+    <div class="tablewrap">
+      <table>
+        <caption>Sekunden ab dem Tipp, bis das jeweils zu sehen ist</caption>
+        <thead><tr><th scope="col">Tab</th><th scope="col">Skelett</th><th scope="col">alte Seite</th><th scope="col">neue Seite</th></tr></thead>
+        <tbody>
+          <tr><td>Start</td><td class="num">0,06–0,12</td><td class="num"><span class="no">0,35–0,72</span></td><td class="num">0,66–1,14</td></tr>
+          <tr><td>Module</td><td class="num">0,11–0,94</td><td class="num"><span class="no">0,46–3,47</span></td><td class="num">0,70–4,01</td></tr>
+          <tr><td>Studium</td><td class="num">1,11–1,49</td><td class="num"><span class="no">3,02–3,34</span></td><td class="num">3,43–3,70</td></tr>
+          <tr><td>Merkliste</td><td class="num">0,08–0,09</td><td class="num"><span class="no">0,20–0,30</span></td><td class="num">0,31–0,39</td></tr>
+          <tr><td>Stundenplan</td><td class="num">0,06–0,07</td><td class="num"><span class="no">0,18–0,19</span></td><td class="num">0,22–0,48</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Gemessen ab dem Tipp, zwei bis vier Wechsel je Tab, jeweils der zweite Besuch eines Tabs oder später, die Daten im Browser. Ohne Drosselung auf derselben Maschine kam die neue Seite nach 0,09 bis 0,6 s, mit demselben Ablauf. Notiert war die Idee schon am 2.10. (<code>docs/folia/frontend.md</code>, „A phone that froze“): „Areas that stay built: a tab left could be kept, hidden and not drawn, instead of being built again … The router and the pages assume one page at a time.“ Dieses Blatt sagt, wie.</p>
+  </section>
+
+  <section class="block" id="buehnen" aria-labelledby="stages-title">
+    <h2 id="stages-title">Tabs, die stehen bleiben</h2>
+    <p class="lead">Jeder Tab bekommt eine Bühne: einen Platz in <code>main</code>, auf dem seine Seite steht, solange Betula offen ist. Vorn liegt die Bühne des Tabs, in dem du bist. Die anderen stehen dahinter, gebaut und nicht gezeichnet.</p>
+    <figure class="stages" aria-label="Die fünf Bühnen und die Adresse des Routers">
+      <p class="router">Router <code>/catalog?program=informatik&amp;open=11595</code> → Tab Module</p>
+      <div class="row5">
+        <div class="stage"><b>Start</b><code>/</code><small>gebaut, nicht gezeichnet</small></div>
+        <div class="stage front"><b>Module</b><code>/catalog?program=informatik&amp;open=11595</code><small>die Adresse des Routers</small></div>
+        <div class="stage"><b>Studium</b><code>/study</code><small>wo du ihn verlassen hast</small></div>
+        <div class="stage"><b>Merkliste</b><code>/bookmarks?sort=title</code><small>wo du ihn verlassen hast</small></div>
+        <div class="stage"><b>Stundenplan</b><code>/studyplan</code><small>noch nicht besucht: leer</small></div>
+      </div>
+      <div class="stage other"><b>Ohne Tab</b><small>Profil, Impressum, Datenschutz, eine Seite, die es nicht gibt: eine sechste Bühne, die wie heute jedes Mal gebaut wird.</small></div>
+    </figure>
+    <ol class="rules-list">
+      <li><span><b>Ein Ort je Bühne.</b> Vorn ist es die Adresse des Routers, dahinter die, bei der du den Tab verlassen hast: das Oberste seines Stapels. Ändert sich die Adresse innerhalb des Tabs (ein Filter, ein Modul daneben), ändert sich die Seite auf ihrer Bühne so, wie sie es heute tut.</span></li>
+      <li><span><b>Die Seiten lesen ihren Ort, nicht den des Routers.</b> Alle 25 Stellen, an denen die App fragt, wo sie ist, gehen schon durch eine Naht (<code>folia_design::i18n::use_location</code>); in einer Bühne gibt sie deren Ort zurück. Die zwei Seiten mit Pfad-Parametern, das Modul und der Studiengang, lesen sie aus diesem Ort statt aus dem Router.</span></li>
+      <li><span><b>Hinten heißt gebaut, nicht gezeichnet.</b> Eine Bühne hinten ist <code>content-visibility: hidden</code> und <code>inert</code>: Der Browser behält, was er ausgerechnet hat, zeichnet nichts davon, und nichts darin lässt sich antippen oder vorlesen. Sie nimmt keinen Platz ein. Wo ein Browser <code>content-visibility</code> nicht kennt (Safari vor 18), steht sie mit <code>display: none</code> dahinter: langsamer, aber richtig.</span></li>
+      <li><span><b>Ein Wechsel tauscht nur.</b> Führt ein Tipp in einen Tab, dessen Bühne den Ort schon zeigt, gibt es kein Skelett, kein <code>hold</code> und keinen Frame Verzug: Der Router nimmt die Adresse im Tipp selbst, und die Bühne kommt im selben Bild nach vorn.</span></li>
+      <li><span><b>Die Scrollposition bleibt.</b> Am Handy scrollt das Fenster: Betula merkt sich die Position je Tab und setzt sie im selben Bild, in dem die Bühne nach vorn kommt. Am Rechner behalten die Panels ihre eigene.</span></li>
+      <li><span><b>Der erste Besuch baut.</b> Ist eine Bühne leer, steht ihr Skelett darin, bis die Antworten da sind; die alte Seite kommt nie zurück. Später kann Betula leere Bühnen bauen, während das Handy nichts zu tun hat (Schritt 3).</span></li>
+      <li><span><b>Der Server bleibt, wie er ist.</b> Er rendert mit <code>&lt;Routes&gt;</code> eine Seite je Adresse. Im Browser treten die Bühnen an dessen Stelle, mit derselben Tabelle der Seiten: <code>leptos_router</code> lässt sich keine zweite Adresse unterschieben, also wählt jede Bühne ihre Seite selbst, aus ihrem Ort.</span></li>
+    </ol>
+    <div class="measure">
+      <div class="good"><span class="big num">14 <small>ms</small></span><p>Median eines Wechsels bis zum Bild, die fünf Seiten nebeneinander, vier davon <code>content-visibility: hidden</code>. Höchstens 24 ms bei 20 Wechseln; in einem ersten Lauf ein Ausreißer von 0,8 s.</p></div>
+      <div><span class="big num">69 <small>ms</small></span><p>Dasselbe mit <code>display: none</code>: Der Browser vergisst, was er ausgerechnet hat, und rechnet bei jedem Wechsel neu; Ausreißer bis 1,4 s.</p></div>
+      <div class="bad"><span class="big num">0,2–4 <small>s</small></span><p>Heute, gleich gedrosselt, mit Skelett und der alten Seite dazwischen.</p></div>
+    </div>
+    <p class="note">Gemessen am 18.10. auf canary wie oben: Die fünf Seiten, so wie die App sie gezeichnet hatte, standen als Abzug nebeneinander in <code>main</code>, 3.610 Elemente. Was eine Seite beim Wechsel selbst tut, kommt in der App dazu; wenig, solange sie hinten nichts tut (nächster Abschnitt). Die Seiten hinten bleiben lebendig: Merkst du ein Modul, hat die Merkliste es schon, wenn du hinkommst. Kommt ein neuer Schnappschuss, fragen alle gebauten Seiten neu; wird das am Handy spürbar, warten die Fragen einer Bühne hinten, bis sie nach vorn kommt. Der Speicher: rund 3.600 Elemente für alle fünf Seiten zusammen; heute hat das Dokument auf der Startseite allein rund 2.600. Woher der eine Ausreißer kam, klärt die Messung beim Bau (<code>e2e/stages.mjs</code>).</p>
+  </section>
+
+  <section class="block" id="seiten" aria-labelledby="pages-title">
+    <h2 id="pages-title">Was die Seiten dafür lernen müssen</h2>
+    <p class="lead">Das ist die eigentliche Arbeit. Ein neues System ist es nicht: Jede Seite muss wissen, ob ihre Bühne vorn ist (<code>Stage::front()</code>, ein Signal), und was sie am ganzen Dokument tut, nur dann tun. Gelesen im Code vom 18.10.:</p>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col">Was</th><th scope="col">Heute</th><th scope="col">Mit Bühnen</th></tr></thead>
+        <tbody>
+          <tr><td data-label="Was">Wo bin ich?</td><td data-label="Heute">25 Stellen, alle über <code>i18n::use_location</code></td><td data-label="Mit Bühnen">unverändert: Die Naht gibt den Ort der Bühne zurück</td></tr>
+          <tr><td data-label="Was">Pfad-Parameter</td><td data-label="Heute"><code>use_params_map</code> in <code>module.rs</code> und <code>program.rs</code></td><td data-label="Mit Bühnen">aus dem Pfad ihres Orts</td></tr>
+          <tr><td data-label="Was">Titel, Beschreibung</td><td data-label="Heute"><code>&lt;Title&gt;</code> und <code>seo::Seo</code> in jeder Seite</td><td data-label="Mit Bühnen">nur die vordere Bühne schreibt sie</td></tr>
+          <tr><td data-label="Was">Ids</td><td data-label="Heute"><code>#preview</code> an sieben Stellen, dazu <code>#filters</code>, <code>#sidebar</code>, <code>#page-scroll</code></td><td data-label="Mit Bühnen">gibt es dann mehrmals: in der Bühne gesucht, nicht im Dokument</td></tr>
+          <tr><td data-label="Was">Listener am Fenster</td><td data-label="Heute">Katalog (Scrollen, das Sheet der Filter), Mein Studium (Tasten), Merkliste (<code>hashchange</code>), Profil (Theme), die Liste (Größe)</td><td data-label="Mit Bühnen">hören nur, solange ihre Bühne vorn ist</td></tr>
+          <tr><td data-label="Was">Selbst navigieren</td><td data-label="Heute">Katalog (<code>page</code> folgt dem Scrollen), Merkliste (ein geteilter Link), Mein Plan → Mein Studium</td><td data-label="Mit Bühnen">nur vorn: Die Liste hinten folgt nicht dem Scrollen eines anderen Tabs</td></tr>
+          <tr><td data-label="Was"><code>enhance.js</code></td><td data-label="Heute">67 Stellen, die im ganzen Dokument suchen</td><td data-label="Mit Bühnen">in der vorderen Bühne, über eine Hilfsfunktion</td></tr>
+          <tr><td data-label="Was">Skelett, <code>hold</code></td><td data-label="Heute">bei jedem Seitenwechsel</td><td data-label="Mit Bühnen">beim Tabwechsel nur noch beim ersten Besuch, ohne die alte Seite</td></tr>
+          <tr><td data-label="Was"><code>betula.tabs</code></td><td data-label="Heute">wo jeder Tab verlassen wurde</td><td data-label="Mit Bühnen">bleibt für das Neuladen; sonst ist es der Ort seiner Bühne</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="karten" aria-labelledby="cards-title">
+    <h2 id="cards-title">Der Kartenwechsel am Handy</h2>
+    <p class="lead">Wo die Handy-Ansicht gezeigt wird (heute bis 900 px), wird der Tausch sichtbar: Die Seite geht nach hinten, die neue kommt davor. Erst die stehenden Seiten machen das möglich, denn die Karte, die kommt, ist die fertige Seite und kein Skelett. Der <a href="prototyp.html">Prototyp</a> hat sechs Varianten:</p>
+    <ul class="ways">
+      <li class="pick"><b>Stapel <span class="chip">Vorschlag</span></b>Die Seite sinkt nach hinten und wird dunkler, die neue schiebt sich von der Seite ihres Tabs davor, beides auf einer Feder. Am ruhigsten unter den Karten, und die Richtung sagt, wo der Tab in der Leiste liegt.</li>
+      <li><b>Nach hinten</b>Erst geht die Seite nach hinten, dann wird die neue davorgeschoben. Trifft deine Beschreibung am genauesten und dauert dafür merklich länger.</li>
+      <li><b>Mischen</b>Die Seite wird zur Seite herausgezogen und hinten untergeschoben, die neue lag darunter und kommt nach vorn: der Kartenstapel beim Mischen.</li>
+      <li><b>Kippen</b>Die Seite kippt nach hinten weg in den Raum, die neue schwenkt herein und richtet sich auf. Am meisten Tiefe, am meisten Bewegung.</li>
+      <li><b>Ruhig</b>Ohne Karten: ausblenden, dann einblenden. Zum Vergleich, falls Karten zu viel Bewegung sind.</li>
+      <li><b>Sofort</b>Keine Animation, die Seite ist im nächsten Bild da. So fühlen sich die stehenden Seiten allein an.</li>
+    </ul>
+    <ol class="rules-list">
+      <li><span><b>Jeder Wert eine Feder.</b> Wo eine Karte steht, wie groß, wie gedreht, wie dunkel: jeder Wert eine gedämpfte Feder, wie das Sheet eines Moduls und die Leiste sie schon haben. Vorher ausgerechnet und als Web Animation gespielt, die der Compositor fährt; der Thread der Seite muss dafür nichts tun.</span></li>
+      <li><span><b>Mitten im Wechsel geht es weiter.</b> Ein Tipp während des Wechsels nimmt die Karten, wo sie gerade sind und so schnell, wie sie gerade gehen. Kein Sprung, auch nicht bei drei Tipps hintereinander.</span></li>
+      <li><span><b>Der Finger auf der Leiste führt.</b> Schiebt er die Leiste ein Stück zum nächsten Tab, kommt dessen Seite genauso weit herein: Ein Tab der Leiste ist der ganze Weg der Karte. Losgelassen entscheidet die Leiste wie heute (ein Drittel des Wegs, oder schnell gewischt), und die Karten gehen so schnell weiter, wie der Finger war. Ist die Seite daneben noch nicht gebaut, kommt ihr Skelett mit.</span></li>
+      <li><span><b>Am Handy scrollt das Fenster.</b> Für die Dauer des Wechsels werden beide Bühnen zu festen Ebenen, jede mit ihrer Scrollposition. Ruht die neue, geht sie zurück in den Fluss, und das Fenster bekommt ihre Position, im selben Bild. Die Leiste oben und die unten bleiben stehen, die Karten gleiten darunter. Der Grund am Ende einer Seite gehört dafür in die Bühne.</span></li>
+      <li><span><b>Wer was tut.</b> Rust sagt, welche Bühne vorn ist (eine Klasse und ein Ereignis); <code>enhance.js</code> bewegt die Karten, wie es das Sheet und die Leiste bewegt. Der Wisch auf der Leiste liegt schon dort und bekommt drei Stellen, an denen er die Karten mitnimmt: wenn der Finger die Leiste greift, wenn er sich bewegt, wenn er loslässt.</span></li>
+      <li><span><b>Ohne Animation:</b> am Rechner (die Seite ist im nächsten Bild da), mit „Bewegung reduzieren“ (ein kurzes Überblenden), und am iPhone, wenn vom Rand zurückgewischt wurde: Dann hat Safari schon animiert (<code>hasUAVisualTransition</code>), wie im Zurück-Konzept.</span></li>
+    </ol>
+  </section>
+
+  <section class="block" id="zurueck" aria-labelledby="back-title">
+    <h2 id="back-title">Wie es zum neuen Zurück passt</h2>
+    <p class="lead">Das <a href="../zurueck/konzept.html">Zurück-Konzept</a> gibt jedem Tab am Handy einen eigenen Stapel; ein Tab kommt so wieder, wie du ihn verlassen hast. Die Bühnen sind dieser Satz, zu sehen statt nur im Verlauf.</p>
+    <ol class="rules-list">
+      <li><span><b>Der Navigator schreibt, die Bühne folgt.</b> Der Navigator entscheidet, was im Verlauf steht und wohin ein Tab führt. Die Bühne zeigt, was der Router danach zeigt, und hält es fest, wenn ihr Tab nach hinten geht. Ein zweites Gedächtnis neben dem Stapel gibt es nicht.</span></li>
+      <li><span><b>Darum danach.</b> Bühnen und Navigator ändern dieselben Stellen: <code>pending.rs</code>, <code>tabs.rs</code>, <code>chrome.rs</code>. Parallel gebaut kämen sie sich in die Quere; nach Schritt 4 des Zurück-Konzepts setzen die Bühnen auf fertige Stapel auf.</span></li>
+      <li><span><b>Zurück im Tab.</b> „Tab noch einmal“ und Zurück auf einer Modulseite wechseln die Seite auf der Bühne, wie heute. Später kann eine Bühne die Seite darunter mithalten, die Liste unter einer Modulseite (Schritt 4 hier); dann ist auch das sofort da.</span></li>
+      <li><span><b>Zurück zum Start.</b> Von der Startseite eines Tabs führt Zurück zum Start, ein Tabwechsel. Vorschlag: rückwärts gespielt. Die Karte geht, woher sie kam, und Start kommt von hinten nach vorn, damit Zurück anders aussieht als ein Tipp auf „Start“.</span></li>
+    </ol>
+  </section>
+
+  <section class="block" id="schritte" aria-labelledby="steps-title">
+    <h2 id="steps-title">In fünf Schritten</h2>
+    <p class="lead">Jeder Schritt geht für sich auf canary. Keiner braucht eine MAJOR: Keine Adresse geht weg, und was ein Browser behält, bleibt lesbar.</p>
+    <ol class="steps">
+      <li class="now"><span class="n">0</span><b>Schon jetzt: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Nach einem Skelett hält <code>hold</code> das Skelett statt der alten Seite, und die Markierung der Leiste wechselt beim Tippen ohne Farbübergang. Zwei kleine Stellen in <code>pending.rs</code> und <code>app.css</code>, unabhängig vom Zurück. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
+      <li><span class="n">1</span><b>Bühnen</b><span class="ver">Folia MINOR</span><p>Nach Schritt 4 des Zurück-Konzepts. Die Seiten bleiben gebaut, ein Tabwechsel tauscht nur, die Scrollposition bleibt je Tab; Titel, Ids und Listener gehören der vorderen Bühne. Am Rechner wie am Handy.</p></li>
+      <li><span class="n">2</span><b>Kartenwechsel am Handy</b><span class="ver">Folia MINOR</span><p>Die Variante, die du wählst: getippt, auf der Leiste gewischt mit der Karte am Finger, ein Tipp und ein Finger mitten im Wechsel, rückwärts für Zurück.</p></li>
+      <li><span class="n">3</span><b>Vorwärmen, wenn es sich lohnt</b><span class="ver">Folia PATCH</span><p>Leere Bühnen bauen, während das Handy nichts zu tun hat, die günstigsten zuerst (Merkliste, Stundenplan, Studium), nie während ein Finger auf dem Bildschirm liegt. Erst messen: Ein Bau ist ein langer Task, und ein Tipp darin wartet auf ihn.</p></li>
+      <li><span class="n">4</span><b>Den Stapel mithalten</b><span class="ver">Folia PATCH</span><p>Die Seite unter dem Obersten bleibt auch gebaut, so ist Zurück innerhalb eines Tabs ebenso sofort da.</p></li>
+    </ol>
+    <p class="note">Geprüft wird mit einem neuen <code>e2e/stages.mjs</code>: Ein Wechsel in einen gebauten Tab zeigt kein Skelett und kein Bild der alten Seite, ist im nächsten Frame da und behält die Scrollposition; Titel und Ids sind die der vorderen Bühne; gedrosselt wie oben unter 50 ms. Die Karten wie die Leiste: nur Transform und Opacity, kein langer Task während des Wechsels. <code>snappy.mjs</code> und <code>tabbar.mjs</code> laufen weiter.</p>
+  </section>
+
+  <section class="block" id="nicht" aria-labelledby="not-title">
+    <h2 id="not-title">Bewusst nicht</h2>
+    <ul class="not">
+      <li><b>Kein Wischen über die Seite selbst</b>Zeilen wischen schon („Merken“, „Einplanen“), „Mein Studium“ wischt seine Semester, und am iPhone ist der linke Rand Zurück. Gewechselt wird auf der Leiste.</li>
+      <li><b>Keine View Transitions für den Tabwechsel</b>Sie zeigen während des Wechsels ein Bild der alten Seite statt der Seite selbst, folgen keinem Finger und lassen sich mitten drin nicht greifen. Für das Laden der Website bleibt <code>@view-transition</code>, wie es ist.</li>
+      <li><b>Nichts davon in der Adresse</b>Was hinten steht, lebt in diesem Browser. Die Adresse sagt weiter nur, wo du bist, wie das Zurück-Konzept es festlegt.</li>
+      <li><b>Kein Nein</b>Ist eine Bühne gerade leer, nach einem Neuladen etwa, geht der Wechsel trotzdem, eben mit Skelett. Die Karte kommt dann mit ihm.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="offen" aria-labelledby="open-title">
+    <h2 id="open-title">Offen</h2>
+    <p class="lead">Was du im Prototyp entscheiden kannst, und eine Frage dazu:</p>
+    <ul class="open">
+      <li><b>Welche Animation?</b> Vorgeschlagen: Stapel.</li>
+      <li><b>Folgt die Karte beim Wischen dem Finger, oder kommt sie erst beim Loslassen?</b> Vorgeschlagen: Sie folgt dem Finger.</li>
+      <li><b>Zurück zum Start:</b> rückwärts gespielt (vorgeschlagen), oder wie ein Tipp auf „Start“?</li>
+      <li><b>Schritt 0 schon jetzt?</b> Er nimmt das Flackern weg, bevor die Bühnen kommen, und berührt den Umbau des Zurück nicht.</li>
+    </ul>
+  </section>
+</main>
