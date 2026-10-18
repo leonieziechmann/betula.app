@@ -485,30 +485,31 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the switch beside the semester (the same day: „bei der pc Version kann die notification ruhig
     über die ganze Breite rechts von der sidebar gehen und dann vllt etwas weniger hoch sein"); the
     name never takes the switch's room, so the semester stays where it is as the switch comes. With
-    less, the switch comes as a row over „Rückgängig" and the note grows upwards; under 600 px no
-    name, the semester narrower, and what happened only where nothing else is said. On a phone its
-    switch is a row over the semester, so that what is under the finger stays where it was. In it a
-    check, the semester between ‹ and › with a line under it — its Fachsemester and the warning
-    („kein Angebot" where the turnus leaves it out, „liegt zurück" in a semester behind the student,
-    in the warning's colour), and what happened („eingeplant", „verschoben") where there is room: on
-    a phone only where nothing else is said (the same day: „Wichtig finde ich, dass das eingeplante
-    Semester (also fs. 12) und die Warnung da steht. Der Rest kann optional ausgeblendet werden") —
-    and „Rückgängig". The semester and its arrows are one control, as wide whatever it says, so the
-    arrows never move (the same day: „müssen die Links und rechts Buttons virtuell über den
-    komplette text da gehen … Dazu muss auch swiping unterstützt werden"): a tap on its left half is
-    ‹, on its right half ›, and a finger swiped sideways over it moves the module a semester the way
-    a page turns (to the left the next one; the note's `Sideways`), the words following the finger
-    and coming in from the side the semester came from. It moves the module at once, a semester at a
-    time, into the past as well (the same day: „Betula sollte bei sowas nicht nein sagen", CLAUDE.md
-    „Design"), to the first Fachsemester (six back where the Studienbeginn is not known); ← and → do
-    the same while the note stands, its own keys, where the keys mean nothing else (a field, a
-    picker, a menu, a slider, a panel's handle, a dialog). Once it was moved, a second row „Weitere
-    Module auch nach SoSe 27" with a switch makes that semester the session's for the next modules
-    (P3, `betula.plan.chosen`), a past one too; while it is on it stands in every note, to be
-    switched off where it is seen. A module taken out says „Datenbanken entfernt", with
-    „Rückgängig"; where the note is narrow the module's name gives way, „entfernt" never.
-    „Rückgängig" puts back the plan as it was before the click while the plan is still what the note
-    made of it, else undoes what the note did alone.
+    less, the switch comes as a row over „Rückgängig" and the note grows upwards (the same day,
+    asked whether one line without the module's name would be better there: „Nee, zwei zeilig passt.
+    Lass das so"); under 600 px no name, the semester narrower, and what happened only where nothing
+    else is said. On a phone its switch is a row over the semester, so that what is under the finger
+    stays where it was. In it a check, the semester between ‹ and › with a line under it — its
+    Fachsemester and the warning („kein Angebot" where the turnus leaves it out, „liegt zurück" in a
+    semester behind the student, in the warning's colour), and what happened („eingeplant",
+    „verschoben") where there is room: on a phone only where nothing else is said (the same day:
+    „Wichtig finde ich, dass das eingeplante Semester (also fs. 12) und die Warnung da steht. Der
+    Rest kann optional ausgeblendet werden") — and „Rückgängig". The semester and its arrows are one
+    control, as wide whatever it says, so the arrows never move (the same day: „müssen die Links und
+    rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch swiping unterstützt
+    werden"): a tap on its left half is ‹, on its right half ›, and a finger swiped sideways over it
+    moves the module a semester the way a page turns (to the left the next one; the note's
+    `Sideways`), the words following the finger and coming in from the side the semester came from.
+    It moves the module at once, a semester at a time, into the past as well (the same day: „Betula
+    sollte bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first Fachsemester (six back
+    where the Studienbeginn is not known); ← and → do the same while the note stands, its own keys,
+    where the keys mean nothing else (a field, a picker, a menu, a slider, a panel's handle, a
+    dialog). Once it was moved, a second row „Weitere Module auch nach SoSe 27" with a switch makes
+    that semester the session's for the next modules (P3, `betula.plan.chosen`), a past one too;
+    while it is on it stands in every note, to be switched off where it is seen. A module taken out
+    says „Datenbanken entfernt", with „Rückgängig"; where the note is narrow the module's name gives
+    way, „entfernt" never. „Rückgängig" puts back the plan as it was before the click while the plan
+    is still what the note made of it, else undoes what the note did alone.
   - **Where no study is set up** (no Studienbeginn stored, and the session has not answered with
     „Ohne Studium einplanen"), „Einplanen" — its switch, P, a row swiped — opens one dialog instead
     (owner, 2026-10-18: „so dass man im best case nur auf ok drücken muss, dann das Studium
