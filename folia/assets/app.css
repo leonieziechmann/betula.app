@@ -920,9 +920,7 @@ html:not(.js) .fit-chip { display: none; }
 .resp, .exam { color: var(--text-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kind { display: inline-flex; align-items: center; gap: 5px; font-weight: 560; color: var(--text-2); }
 .kind i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-2); }
-.kind.k-elective i, .kind.k-fues i { background: transparent; box-shadow: inset 0 0 0 2px var(--text-2); }
-.kind.k-none { color: var(--text-3); font-style: italic; font-weight: 450; }
-.kind.k-none i { background: transparent; box-shadow: inset 0 0 0 1px var(--text-3); }
+.kind.k-elective i, .kind.k-fues i, .kind.k-minor i { background: transparent; box-shadow: inset 0 0 0 2px var(--text-2); }
 .kind .kind-basis { font-weight: 450; color: var(--text-3); } /* „ · abgeleitet": a kind Betula infers */
 .flag { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); }
 .flag.neutral { background: var(--panel-3); color: var(--text-2); }
@@ -3152,24 +3150,24 @@ html:not(.js) .plan-toggle { display: none; }
   .wait-note-close { display: none; }
 }
 /* The note of „Einplanen" (.plan-toast in a .wait-note, folia/crates/widgets/src/plannote.rs;
-   owner, 2026-10-18, concept E of folia/design/einplanen/oberflaeche.html): a check, the module,
-   ‹ the semester › with its Fachsemester and the warning under it, „Rückgängig"; once the module
-   was moved, the switch „Weitere Module auch nach …". The semester and its arrows are one control:
-   a tap on its left half is ‹, on its right half ›, a finger swiped over it moves the module, and
-   its words follow the finger and come in from the side the semester came from (owner, the same
-   day: „müssen die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss
-   auch swiping unterstützt werden"). Nothing in it changes its size as the arrows move the module
-   (the semester's column keeps a width, and what it says is cut, the warning last).
-   On a wide screen it takes the room the note has, however wide the window and the sidebar are
-   (the same day: „Auf der pc Version bei sehr kleinen Bildschirmen, gibt es das problem, dass die
-   notification bar so alles übereinander zeichnet. Bau die mal so, dass das alles responsive je
-   nach verfügbaren platz ist"; @container wait-note): each part has a column of its own, as wide
-   as it needs, and nothing lies over anything else; the module's name has the room that is left
-   and gives way first. With room, one line: the switch comes in at the right before „Rückgängig",
-   and the name never takes the switch's room, so nothing under the pointer moves as it comes. With
-   less, the switch comes as a row over „Rückgängig" and the note grows upwards. With little, no
-   name, the semester narrower and what happened only where nothing else is said, as on a phone.
-   On a phone the switch is a row over the semester, which stays under the finger. */
+   owner, 2026-10-18, concept E of folia/design/einplanen/oberflaeche.html): a check, the module, ‹
+   the semester › with its Fachsemester and the warning under it, „Rückgängig"; once the module was
+   moved, the switch „Weitere Module auch nach …". The semester and its arrows are one control: a
+   tap on its left half is ‹, on its right half ›, a finger swiped over it moves the module, and its
+   words follow the finger and come in from the side the semester came from (owner, the same day:
+   „müssen die Links und rechts Buttons virtuell über den komplette text da gehen … Dazu muss auch
+   swiping unterstützt werden"). Nothing in it changes its size as the arrows move the module (the
+   semester's column keeps a width, and what it says is cut, the warning last). On a wide screen in
+   order, whatever the room (the same day: „Auf der pc Version bei sehr kleinen Bildschirmen, gibt
+   es das problem, dass die notification bar so alles übereinander zeichnet. Bau die mal so, dass
+   das alles responsive je nach verfügbaren platz ist"; „Du musst halt noch mal gucken wie du die
+   Elemente ein bisschen besser anordnest und das ist halt nicht so durcheinander aussieht"): one
+   grid for the whole note (.planning-note), the check and the module's name at the left, the
+   semester on a quiet ground of its own, „Rückgängig" and × at the right — each part a column of
+   its own, nothing over anything else, the name in the room that is left and gone where there is
+   too little (@container wait-note). The switch is a row over all of it, lined up with it, and the
+   note grows upwards as it comes (the same day: „Nee, zwei zeilig passt"), so nothing under the
+   pointer moves. On a phone the switch is a row over the semester, which stays under the finger. */
 .plan-toast { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "main . keep end"; align-items: center; min-height: 48px; }
 .plan-toast-main { grid-area: main; display: flex; align-items: center; gap: 2px; min-width: 0; padding: 4px 0 4px 14px; }
 .plan-toast-end { grid-area: end; display: flex; align-items: center; padding: 4px 6px 4px 0; }
@@ -3214,34 +3212,34 @@ html:not(.js) .plan-toggle { display: none; }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch { background: var(--accent); }
 .plan-toast-keep[aria-checked="true"] .plan-toast-switch::after { transform: translateX(14px); }
 @media (min-width: 901px) {
-  /* Its parts in the note's own columns (the main part opens up): the check, the module's name,
-     the semester, the room between, the switch, „Rückgängig". What has to stay keeps its width;
-     the name has what is left. */
-  .plan-toast { grid-template-columns: max-content minmax(0, max-content) max-content minmax(0, 1fr) auto max-content; grid-template-rows: minmax(48px, auto); grid-template-areas: "mark title stepper . keep end"; min-height: 0; }
-  .plan-toast-main { display: contents; }
-  .plan-toast-mark { grid-area: mark; margin: 0 10px 0 14px; }
-  /* As long as there is room beside all else, the switch's room included (the × 40, the check 46,
-     the semester 268, the switch at most 343, „Rückgängig" 120, and its own margin), so that it
-     stays as it is as the switch comes. */
-  .plan-toast-title { grid-area: title; max-width: clamp(0px, 100cqw - 842px, 300px); margin-right: 12px; }
-  .plan-toast-stepper { grid-area: stepper; }
-  .plan-toast-keep > span:first-of-type { max-width: 250px; }
-  .plan-toast.out { grid-template-columns: max-content minmax(0, 1fr) max-content; grid-template-rows: minmax(48px, auto); grid-template-areas: "mark said end"; }
-  .plan-toast-said { grid-area: said; margin-right: 12px; }
-  /* Too little room for the switch in the line: it comes as a row over „Rückgängig", and the note
-     grows upwards; the line stays as it is. */
-  @container wait-note (max-width: 989px) {
-    .plan-toast { grid-template-columns: max-content minmax(0, max-content) max-content minmax(0, 1fr) max-content; grid-template-rows: auto minmax(48px, auto); grid-template-areas: "keep keep keep keep keep" "mark title stepper . end"; }
-    .plan-toast-title { max-width: 300px; }
-    .plan-toast-keep { justify-self: end; margin: 4px 6px 0 0; animation-name: plan-toast-unfold; }
-    .plan-toast-keep > span:first-of-type { max-width: none; }
-  }
-  /* Little room: no name; the semester narrower, and what happened only where nothing else is
+  /* One grid for the whole note, its × included (the note's parts open up into it): under the
+     switch's row the check, the module's name, the semester, „Rückgängig" and ×. The name has the
+     room that is left; the semester and „Rückgängig" stand at the right, where they are whatever
+     the name is and whether the switch is there. The switch's row lies over all of it, its icon
+     over the check, its words over the name, its switch over the ×. Its measures: the check's
+     column from the left edge (--pn-start), the check (--pn-mark), the gap after it (--pn-gap),
+     the ×'s and the switch's right edge from the right edge (--pn-end). */
+  .wait-note.planning-note { --pn-start: 16px; --pn-mark: 22px; --pn-gap: 12px; --pn-end: 16px; display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content max-content max-content; grid-template-rows: auto 48px; grid-template-areas: "keep keep keep keep keep" "mark name stepper end close"; align-items: center; }
+  .planning-note .plan-toast, .planning-note .plan-toast-main { display: contents; }
+  /* The × as wide as before, its icon --pn-end from the edge. */
+  .planning-note .wait-note-close { grid-area: close; align-self: center; margin: 0 calc(var(--pn-end) - 9px) 0 2px; }
+  .planning-note .plan-toast-mark { grid-area: mark; margin: 0 var(--pn-gap) 0 var(--pn-start); }
+  .planning-note .plan-toast-title, .planning-note .plan-toast-said { grid-area: name; max-width: none; margin-right: 16px; }
+  /* The semester one control: its arrows close to it on a quiet ground of its own. */
+  .planning-note .plan-toast-stepper { grid-area: stepper; height: 40px; border-radius: 10px; background: color-mix(in oklab, var(--on-toast) 8%, transparent); }
+  .planning-note .plan-toast-step { width: 32px; height: 40px; border-radius: 10px; }
+  .planning-note .plan-toast-at { width: 150px; }
+  .planning-note .plan-toast-end { grid-area: end; padding: 0 0 0 8px; }
+  .planning-note .plan-toast-sep { display: none; }
+  /* Under the semester its Fachsemester and the warning; what happened only where nothing else is
      said, as on a phone. */
-  @container wait-note (max-width: 599px) {
-    .plan-toast-title { display: none; }
-    .plan-toast-at { width: clamp(120px, 100cqw - 280px, 200px); }
-    .plan-toast-what:not(:last-child), .plan-toast-what:not(:last-child) + .plan-toast-dot { display: none; }
+  .planning-note .plan-toast-what:not(:last-child), .planning-note .plan-toast-what:not(:last-child) + .plan-toast-dot { display: none; }
+  .planning-note .plan-toast-keep { grid-area: keep; min-height: 44px; margin: 0; padding: 0 var(--pn-end) 0 calc(var(--pn-start) + (var(--pn-mark) - 15px) / 2); gap: calc(var(--pn-gap) + (var(--pn-mark) - 15px) / 2); border-radius: 0; border-bottom: 1px solid color-mix(in oklab, var(--on-toast) 14%, transparent); animation: planning-note-keep-in .2s var(--ease); }
+  .planning-note .plan-toast-keep > span:first-of-type { margin-right: 12px; }
+  @keyframes planning-note-keep-in { from { opacity: 0; } }
+  /* Too little room for the name beside the rest: the check, then the semester. */
+  @container wait-note (max-width: 559px) {
+    .planning-note .plan-toast-title { display: none; }
   }
 }
 @media (max-width: 900px) {

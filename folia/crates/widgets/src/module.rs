@@ -48,7 +48,7 @@ use folia_stores::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
 use folia_shell::pending::same_page;
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::{BackLink, Frame};
-use folia_design::ui::{Fact, Icon, JsOnly, KindBadge, OfferBadge, Prose, Shortcut};
+use folia_design::ui::{shows_minor, Fact, Icon, JsOnly, KindBadge, OfferBadge, Prose, Shortcut};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
 
 /// The browser app (`csr`): only there is a plan to meet.
@@ -1426,7 +1426,9 @@ fn Programs(data: ModuleData) -> impl IntoView {
                                 {link.degree_display.clone().or(link.degree_raw.clone()).unwrap_or_default()}
                                 <span class="subtitle">"PO "{link.po_version.clone().unwrap_or_default()}{semesters.map(|semesters| format!(" · {semesters}"))}{link.area.clone().map(|area| format!(" · {area}"))}</span>
                             </b>
-                            <small><KindBadge kind=link.kind.clone() basis=link.kind_basis.clone() source=link.kind_source.clone()/></small>
+                            {(link.kind.is_some() || shows_minor(link.kind.as_ref(), link.area.as_deref())).then(|| view! {
+                                <small><KindBadge kind=link.kind.clone() basis=link.kind_basis.clone() source=link.kind_source.clone() area=link.area.clone()/></small>
+                            })}
                             <Icon name="chevron-right"/>
                         </a>
                     }
