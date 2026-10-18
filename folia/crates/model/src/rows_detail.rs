@@ -285,6 +285,9 @@ pub struct ProgramLink {
     pub kind: Option<Code<ModuleKind>>,
     pub kind_source: Option<Code<KindSource>>,
     pub area: Option<String>,
+    /// Whether a source states the kind or Betula infers it (schema 14).
+    #[serde(default)]
+    pub kind_basis: Option<Code<KindBasis>>,
 }
 
 impl FromRow for ProgramLink {
@@ -304,6 +307,7 @@ impl FromRow for ProgramLink {
             kind: Code::parse_opt(row.opt_text("kind")?),
             kind_source: Code::parse_opt(row.opt_text("kind_source")?),
             area: row.opt_text("area")?,
+            kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
         })
     }
 }

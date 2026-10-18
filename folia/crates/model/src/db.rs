@@ -13,8 +13,10 @@ use std::fmt;
 /// reports it when it serves one. A test holds it to the newest migration. 11: the modules'
 /// vectors of the semantic search (`v_module_vector`). 12: the names of the modules folded for the
 /// search of the catalog (`v_module_folded`). 13: the series of single dates
-/// (`v_module_schedule.series`, `series_weeks`).
-pub const SCHEMA_VERSION: i64 = 13;
+/// (`v_module_schedule.series`, `series_weeks`). 14: the kinds inferred from the plan's
+/// Wahlpflicht slots, and whether a kind is inferred where a module page lists its programs
+/// (`v_module_program_link.kind_basis`).
+pub const SCHEMA_VERSION: i64 = 14;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

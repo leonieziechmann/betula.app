@@ -1,7 +1,7 @@
 //! Small building blocks every page uses: classes from the stylesheet, no inline styles. The
 //! frame of a page (`Frame`, `Plain`, `BackLink`) is the shell's.
 
-use folia_model::labels::{Code, ModuleKind, OfferStatus};
+use folia_model::labels::{Code, KindBasis, KindSource, ModuleKind, OfferStatus};
 use folia_model::text::{self, Block, Inline, Item, List, ListKind};
 use leptos::prelude::*;
 use leptos_meta::Title;
@@ -71,11 +71,28 @@ pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String, #[pro
     }
 }
 
-/// „Pflicht", „Wahlpflicht" …, or „Art nicht angegeben": never a default.
+/// „Pflicht", „Wahlpflicht" …, or „Art nicht angegeben": never a default. A kind Betula infers
+/// (`basis`: inferred) says so next to it, „Wahlpflicht · abgeleitet", and its title says from
+/// what (`source`): what Betula derives, it says (owner, 2026-10-18, the Anwendungsfach of
+/// Informatik B.Sc.).
 #[component]
-pub fn KindBadge(kind: Option<Code<ModuleKind>>) -> impl IntoView {
+pub fn KindBadge(
+    kind: Option<Code<ModuleKind>>,
+    #[prop(optional_no_strip)] basis: Option<Code<KindBasis>>,
+    #[prop(optional_no_strip)] source: Option<Code<KindSource>>,
+) -> impl IntoView {
     let t = i18n::t();
+    let inferred = basis.is_some_and(|basis| basis.is(KindBasis::Inferred));
     match kind {
+        Some(kind) if inferred => {
+            let title = (t.ui.kind_inferred_title)(source.and_then(|source| source.known()));
+            view! {
+                <span class=format!("kind k-{} k-inferred", kind.code()) title=title>
+                    <i></i>{kind.label(t.locale).to_string()}<span class="kind-basis">{t.ui.kind_inferred}</span>
+                </span>
+            }
+            .into_any()
+        }
         Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
         None => view! { <span class="kind k-none"><i></i>{t.ui.kind_unknown}</span> }.into_any(),
     }
