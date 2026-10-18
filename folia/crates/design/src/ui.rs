@@ -71,7 +71,9 @@ pub fn EmptyState(#[prop(into)] title: String, #[prop(into)] hint: String, #[pro
     }
 }
 
-/// „Pflicht", „Wahlpflicht" …, or „Art nicht angegeben": never a default. A kind Betula infers
+/// „Pflicht", „Wahlpflicht" …, and nothing where no source states the kind: never a default, and
+/// no „Art nicht angegeben" either, which students read as a riddle where nothing reads as not
+/// assigned (owner, 2026-10-18, from fellow students trying Betula). A kind Betula infers
 /// (`basis`: inferred) says so next to it, „Wahlpflicht · abgeleitet", and its title says from
 /// what (`source`): what Betula derives, it says (owner, 2026-10-18, the Anwendungsfach of
 /// Informatik B.Sc.).
@@ -94,7 +96,7 @@ pub fn KindBadge(
             .into_any()
         }
         Some(kind) => view! { <span class=format!("kind k-{}", kind.code())><i></i>{kind.label(t.locale).to_string()}</span> }.into_any(),
-        None => view! { <span class="kind k-none"><i></i>{t.ui.kind_unknown}</span> }.into_any(),
+        None => ().into_any(),
     }
 }
 
