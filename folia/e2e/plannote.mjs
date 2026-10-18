@@ -17,9 +17,10 @@
 // stands over the bottom bar, as wide, under it and flat; a tap on the semester's half and a finger
 // swiped over it move the module, the semester under the finger stays as the switch comes over it,
 // a finger swipes the note down and away, and a long scroll, a tap elsewhere or a module opened puts
-// it away; planned from a module's sheet, the note goes down with the sheet as it closes. On a small
-// wide screen the note takes the room it has: nothing of it over anything else, the switch a row over
-// „Rückgängig" where the line has no room for it, the module named where there is room.
+// it away; planned from a module's sheet, the note goes down with the sheet as it closes. On a wide
+// screen the note is in order: the check and the name at the left, the semester, „Rückgängig" and ×
+// at the right, the switch a row over all of it lined up with them; on a small one nothing of it
+// over anything else, the module named where there is room.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node plannote.mjs   (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Needs the synthetic catalog (docs/folia/frontend.md §4): Algorithmen und Datenstrukturen (11112,
 // winter, in the 1st semester of Informatik B.Sc.'s plan) and Analysis I (11103, summer); its
@@ -72,6 +73,9 @@ const note = (page) => page.evaluate(() => {
     keepBox: el.querySelector(".plan-toast-keep")?.getBoundingClientRect().toJSON() ?? null,
     stepper: el.querySelector(".plan-toast-stepper")?.getBoundingClientRect().toJSON() ?? null,
     words: words ? { left: words.left, right: words.right, top: words.top, y: words.top + words.height / 2 } : null,
+    // Where the parts that line up are: the check and the switch's icon, the name and the switch's
+    // words, the × and the switch.
+    lines: Object.fromEntries([["mark", ".plan-toast-mark"], ["name", ".plan-toast-title"], ["undo", ".plan-toast-undo"], ["close", ".wait-note-close .icon"], ["keepIcon", ".plan-toast-keep > .icon"], ["keepWords", ".plan-toast-keep > span:first-of-type"], ["keepSwitch", ".plan-toast-switch"]].map(([key, sel]) => { const e = frame.querySelector(sel); return [key, e?.checkVisibility() ? e.getBoundingClientRect().toJSON() : null]; })),
     z: Number(cs.zIndex),
     shadow: cs.boxShadow,
   };
@@ -190,6 +194,9 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   check(n && n.line?.startsWith("eingeplant · 1. FS"), `set up: the note's line is ${n?.line}`);
   check(n && n.keep === null, "set up: „Weitere Module auch nach …“ before a move");
   check(n && n.close, "set up: no × on a wide screen");
+  // Where it stands once it has come in.
+  await page.waitForFunction(() => document.querySelector(".wait-note")?.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 2000 }).catch(() => problems.push("set up: the note never came to rest"));
+  const once = await note(page);
   await shot(page, "note");
 
   // A click on the right half of the semester (owner, 2026-10-18: „wenn man auf der rechten Seite
@@ -202,13 +209,20 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   check(later && later !== first, `the right half: still planned in ${later}`);
   check(n && n.line?.startsWith("verschoben · 2. FS"), `the right half: the line is ${n?.line}`);
   check(n && n.keep === "false" && n.keepText?.includes("Weitere Module auch nach"), `the right half: no switch for the next modules (${JSON.stringify(n)})`);
-  // A wide screen: one bar across the content, right of the filters, one line high with the switch
-  // in it, the module named (owner, 2026-10-18: „über die ganze Breite rechts von der sidebar …
-  // etwas weniger hoch"; „nicht über die sidebar (z.b. filter) gehen, sondern nur über den
-  // content").
+  // A wide screen: one bar across the content, right of the filters, one line high, the module
+  // named (owner, 2026-10-18: „über die ganze Breite rechts von der sidebar … etwas weniger hoch";
+  // „nicht über die sidebar (z.b. filter) gehen, sondern nur über den content"). In order (the same
+  // day: „Du musst halt noch mal gucken wie du die Elemente ein bisschen besser anordnest und das
+  // ist halt nicht so durcheinander aussieht"): the check and the name at the left, the semester,
+  // „Rückgängig" and × at the right; the switch a row over all of it, where the semester stays,
+  // its icon over the check, its words where the name begins, its switch over the ×.
   const content = await page.evaluate(() => ({ side: document.querySelector(".work > .filters").getBoundingClientRect().right, left: document.querySelector(".work > .list").getBoundingClientRect().left }));
-  check(n && near(n.box.left, content.left) && n.box.left >= content.side && near(n.box.right, 1432) && n.box.height <= 56, `the bar: not across the content right of the filters, one line high (${JSON.stringify([n?.box, content])})`);
-  check(n && n.keepBox && near(n.keepBox.top + n.keepBox.height / 2, n.stepper.top + n.stepper.height / 2, 2) && n.keepBox.left > n.stepper.right, `the bar: the switch is not in its line, right of the arrows (${JSON.stringify([n?.stepper, n?.keepBox])})`);
+  check(once && near(once.box.left, content.left) && once.box.left >= content.side && near(once.box.right, 1432) && once.box.height <= 56, `the bar: not across the content right of the filters, one line high (${JSON.stringify([once?.box, content])})`);
+  check(n && once && near(n.stepper.left, once.stepper.left) && near(n.stepper.top, once.stepper.top), `the bar: the semester moved as the switch came (${JSON.stringify([once?.stepper, n?.stepper])})`);
+  const l = n?.lines;
+  check(n && n.keepBox && n.keepBox.bottom <= n.stepper.top + 1 && near(n.keepBox.left, n.box.left) && near(n.keepBox.right, n.box.right), `the bar: the switch is not a row over all of it (${JSON.stringify([n?.box, n?.keepBox, n?.stepper])})`);
+  check(l && near(l.keepIcon.left + l.keepIcon.width / 2, l.mark.left + l.mark.width / 2, 1) && near(l.keepWords.left, l.name.left, 1) && near(l.keepSwitch.right, l.close.right, 1), `the bar: the switch's row does not line up with the line under it (${JSON.stringify(l)})`);
+  check(l && l.name.left - l.mark.right < 20 && n.box.right - l.close.right < 24 && l.undo.left > n.stepper.right && l.close.left > l.undo.right && n.stepper.left > l.name.left, `the bar: not the check and the name at the left, the semester, „Rückgängig“ and × at the right (${JSON.stringify([l, n?.stepper])})`);
   check(n && n.title === "Algorithmen und Datenstrukturen", `the bar: the module is not named (${n?.title})`);
   // Dark in both themes, light text on it, and off the dark page (owner, the same day: „dark modus
   // muss natürlich auch dafür funktionieren").
@@ -362,8 +376,8 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
 // 2026-10-18: „Auf der pc Version bei sehr kleinen Bildschirmen, gibt es das problem, dass die
 // notification bar so alles übereinander zeichnet. Bau die mal so, dass das alles responsive je
 // nach verfügbaren platz ist"): nothing of it over anything else or out of it; the semester where
-// it was as the switch comes, which stands in its line where there is room, else a row over
-// „Rückgängig"; the module named where there is room; „entfernt" whole.
+// it was as the switch comes, a row over the line; the module named where there is room;
+// „entfernt" whole.
 {
   // Its parts as they are seen (inside what clips them), what lies over what, and where they are.
   const layout = (page) => page.evaluate(() => {
@@ -399,8 +413,8 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
       removed: what ? { whole: what.scrollWidth <= what.clientWidth + 1 && seen(what).right >= what.getBoundingClientRect().right - 1, text: note.querySelector(".plan-toast-said").textContent } : null,
     };
   });
-  // The window, the sidebar, and what the note has room for: the switch in its line, the module's name.
-  for (const [width, side, inLine, named] of [[1024, 440, false, false], [1100, 272, false, true], [1366, 272, true, true]]) {
+  // The window, the sidebar, and whether the note has room for the module's name.
+  for (const [width, side, named] of [[1024, 440, false], [1100, 272, true], [1366, 272, true]]) {
     const at = `${width}/${side}`;
     const context = await browser.newContext({ viewport: { width, height: 760 } });
     await context.addInitScript((side) => { localStorage.setItem("betula.filters.width", String(side)); sessionStorage.setItem("betula.plan.asked", "1"); }, side);
@@ -418,7 +432,7 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
       check(l && !l.hits.length && !l.out.length, `${at} ${what}: parts of the note over each other or out of it (${JSON.stringify(l && { hits: l.hits, out: l.out, width: l.width })})`);
     }
     check(planned && moved && near(planned.stepper?.left, moved.stepper?.left) && near(planned.stepper?.top, moved.stepper?.top), `${at}: the semester moved as the switch came (${JSON.stringify([planned?.stepper, moved?.stepper])})`);
-    check(moved?.keep && (inLine ? near(moved.keep.top + moved.keep.height / 2, moved.stepper.top + moved.stepper.height / 2, 2) : moved.keep.bottom <= moved.stepper.top + 1), `${at}: the switch is not ${inLine ? "in the line" : "a row over it"} (${JSON.stringify([moved?.keep, moved?.stepper])})`);
+    check(moved?.keep && moved.keep.bottom <= moved.stepper.top + 1, `${at}: the switch is not a row over the line (${JSON.stringify([moved?.keep, moved?.stepper])})`);
     check(planned?.named === named, `${at}: the module ${named ? "not " : ""}named (a note ${Math.round(planned?.width)} px wide)`);
     await shot(page, `narrow-${width}-${side}`);
     // P on the module planned takes it out: „entfernt" whole.
