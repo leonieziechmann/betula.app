@@ -62,8 +62,10 @@
 /// click or a tap elsewhere, a key not its own, another page, a longer scroll; 1.24.3 with the note
 /// on a wide screen across the content alone, right of the sidebar where a page has one; 1.24.4
 /// with the note going down out of sight from where it stands, on a phone with a module's sheet as
-/// it closes. The version of the app's crates, the same as the server's; Radix's is in the
-/// snapshot (`Meta::radix_version`).
+/// it closes; 1.24.5 with the start of the installed app where the system left its splash, round,
+/// the wordmark at the bottom, and the page's logo and wordmark coming where they land. The version
+/// of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
@@ -90,13 +92,17 @@ pub const ICON_512: &str = "/assets/icon-512.png";
 /// The icon of Android's launchers, in both manifests: Chrome asks for 83 dp there and takes the
 /// icon of that size or the next larger one, so 334 px serve every phone up to a density of 4.02.
 pub const ICON_MASKABLE: &str = "/assets/icon-maskable-334.png";
-/// The icon of the splash screen of the installed app, which Chrome draws at 128 dp: from a density
-/// of 2.61 on it asks for more than 334 px and takes this one, never the launcher's. The dark
+/// The icon of the splash screen of the installed app, which Chromium draws at 128 dp: from a density
+/// of 2.61 on it asks for more than 334 px and takes this one, never the launcher's. The maskable
+/// one cut round (owner, 2026-10-18: „wenn das Icon schon am Anfang rund ist"): a browser that
+/// installs a shortcut (Brave) draws it as it is, and a mask of Android's shows only its middle,
+/// the full-bleed one's. Chrome's WebAPK shows Android's splash with the launcher's icon instead
+/// (`HEAD_SCRIPT`). The dark
 /// manifest names the turned-over one in its place, so that only the splash screen turns over in
 /// the dark: an icon of the launcher that changed with the theme would make Chrome ask the visitor
 /// about the app's new icon each time.
-pub const ICON_SPLASH: &str = "/assets/icon-maskable-512.png";
-pub const ICON_SPLASH_DARK: &str = "/assets/icon-maskable-dark-512.png";
+pub const ICON_SPLASH: &str = "/assets/icon-splash-512.png";
+pub const ICON_SPLASH_DARK: &str = "/assets/icon-splash-dark-512.png";
 pub const ICON_MONOCHROME: &str = "/assets/icon-monochrome-512.png";
 /// Name, colours and icons of the site for a home screen or an installed window.
 pub const MANIFEST: &str = "/manifest.webmanifest";
@@ -144,13 +150,30 @@ pub const SERVICE_WORKER: &str = "/sw.js";
 /// pointer), once a session (`betula.launched` in sessionStorage: a link or a reload in the app is
 /// no start), it lays the start of the app over the page before its first paint (`.launch`,
 /// app.css; owner, 2026-10-15: concept A of `design/launch/konzepte.html`): the picture of the
-/// system's splash screen, out of which enhance.js lets the icon fly to the page's own. It goes
-/// beside the body, not into it, where the app takes the page over. iOS's picture stands on the
-/// whole screen: the screen's geometry places it (`--mid`, the screen's middle, and `--name`, the
-/// baseline of the name, as `launch` draws them, less the status bar above the window). Not on the
-/// login page of closed testing, which names no manifest and runs no enhance.js. Public for that
-/// one document the server writes without the app.
-pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11';m=document.querySelector('link[rel=manifest]');if(m)m.href=m.getAttribute('href').replace('/manifest.webmanifest','/manifest-dark.webmanifest')}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');var p=/^active\\t([1-9][0-9]{0,2})$/m.exec(localStorage.getItem('betula.profiles.v1')||''),k=p&&p[1]!=='1'?'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1';if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem(k)||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})();(function(){try{if((navigator.standalone||matchMedia('(display-mode: standalone)').matches)&&matchMedia('(pointer: coarse)').matches&&!sessionStorage.getItem('betula.launched')){sessionStorage.setItem('betula.launched','1');if(document.querySelector('link[rel=manifest]')){var o=document.createElement('div'),i=navigator.standalone;o.className=i?'launch ios':'launch';o.setAttribute('aria-hidden','true');o.innerHTML='<div class=\"launch-icon\"><b></b><i></i></div>'+(i?'<div class=\"launch-name\"><i></i></div>':'');if(i){var s=screen,h=innerHeight,H=innerWidth>h?Math.min(s.width,s.height):Math.max(s.width,s.height),f=Math.max(H-h,0);o.style.cssText='--mid:'+(H/2-f)+'px;--name:'+(H-Math.max(.075*H,44)-f)+'px'}d.appendChild(o)}}}catch(e){}})()";
+/// system's splash screen, out of which enhance.js lets the icon fly to the page's own, and the
+/// wordmark at the bottom as the start page has it (owner, 2026-10-18: „unten gerne den BeTUla
+/// Schriftzug mit dem Styling wie im Start Screen"). It goes beside the body, not into it, where
+/// the app takes the page over. The icon stands where the system left its own, so that nothing
+/// jumps (owner, the same day: „springt der loading screen immer noch"; screen recordings of Brave
+/// and Chrome on a Pixel): `--mid` its middle, `--size`, `--leaf` how large the leaf is on the
+/// 96 grid and `--leaf-at` where it starts, `--name` the wordmark's baseline, all in the page.
+/// - iOS: the launch screen as `launch` draws it, on the whole screen, less the status bar above
+///   the window; its name is the wordmark.
+/// - Chrome (an app it installs on Android is a WebAPK): Android's own splash screen, from Android
+///   12 on the only one, `sys`: the launcher's icon, ink and paper whatever the theme, round,
+///   240 dp, in the middle of the whole screen; no name.
+/// - Brave and what else installs a shortcut: Chromium's (`SplashLayout`, `WebappSplashController`):
+///   the picture of the splash screen as it is (`ICON_SPLASH`, round, the leaf at .873), 128 dp,
+///   its middle 16 dp (24 on a tablet) above the middle of the whole screen up to Chromium 154,
+///   and from 155 on of the screen less its bars, the gesture area of 32 dp at the bottom
+///   counted; the name's baseline 54.5 dp (62.5) above that bottom.
+///
+/// Where the page begins under the status bar is what enhance.js measured at a tap of an earlier
+/// start (`betula.launch.top`, `p` or `l` for the way the screen is held), else the bars less a
+/// gesture bar of 24 dp under the page. Not on the login page of closed testing, which names no
+/// manifest and runs no enhance.js. Public for that one document the server writes without the
+/// app.
+pub const HEAD_SCRIPT: &str = "var d=document.documentElement;d.classList.add('js');var n=new Date().getMonth();d.dataset.season=n<2||n>10?'winter':n<5?'spring':n<8?'summer':'autumn';try{var t=localStorage.getItem('betula.theme');if(t==='dark'||t==='light')d.dataset.theme=t;else t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark'){var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0a0c11';m=document.querySelector('link[rel=manifest]');if(m)m.href=m.getAttribute('href').replace('/manifest.webmanifest','/manifest-dark.webmanifest')}var w=parseInt(localStorage.getItem('betula.preview.width'),10);if(w>=360&&w<=2400)d.style.setProperty('--preview-w',w+'px');var f=parseInt(localStorage.getItem('betula.filters.width'),10);if(f>=232&&f<=440)d.style.setProperty('--w-filters',f+'px');var p=/^active\\t([1-9][0-9]{0,2})$/m.exec(localStorage.getItem('betula.profiles.v1')||''),k=p&&p[1]!=='1'?'betula.p'+p[1]+'.myprogram.v1':'betula.myprogram.v1';if(/^program\\t[0-9A-Za-z]/m.test(localStorage.getItem(k)||''))d.classList.add('mine')}catch(e){}if('standalone'in navigator)(function(){var s=screen,r=Math.round(devicePixelRatio),a=Math.min(s.width,s.height)*r,b=Math.max(s.width,s.height)*r;(a<1400?[[a,b,'portrait']]:[[a,b,'portrait'],[b,a,'landscape']]).forEach(function(o){['light','dark'].forEach(function(c){var l=document.createElement('link');l.rel='apple-touch-startup-image';l.media='(orientation: '+o[2]+') and (prefers-color-scheme: '+c+')';l.href='/assets/launch/'+o[0]+'x'+o[1]+(c==='dark'?'-dark':'')+'.png';document.head.appendChild(l)})})})();(function(){try{if((navigator.standalone||matchMedia('(display-mode: standalone)').matches)&&matchMedia('(pointer: coarse)').matches&&!sessionStorage.getItem('betula.launched')){sessionStorage.setItem('betula.launched','1');if(document.querySelector('link[rel=manifest]')){var n=navigator,o=document.createElement('div'),i=n.standalone,s=screen,w=innerWidth,h=innerHeight,H=w>h?Math.min(s.width,s.height):Math.max(s.width,s.height),f=Math.max(H-h,0),q=Math.min(w,h)<600?16:24,L=q<20?54.5:62.5,z=128,k=1,c='launch',m,y,t=/^([lp])([0-9.]+)$/.exec(localStorage.getItem('betula.launch.top')||''),T=t&&t[1]==(w>h?'l':'p')&&t[2]<=f?+t[2]:Math.max(f-24,0),E=Math.max(f-T,32),v=/Chrome.([0-9]+)/.exec(n.userAgent);if(i){c+=' ios';m=H/2-f;y=H-Math.max(.075*H,44)-f}else if(!n.brave&&(n.userAgentData&&n.userAgentData.brands||[]).some(function(b){return b.brand=='Google Chrome'})){c+=' sys';z=240;m=H/2-T;y=H-Math.max(.075*H,44)-T}else{k=.873;if(v&&v[1]<155){m=H/2-q-T;y=H-L-T}else{m=(H-T-E)/2-q;y=H-E-L-T}}o.className=c;o.setAttribute('aria-hidden','true');o.style.cssText='--mid:'+m+'px;--name:'+y+'px;--size:'+z+'px;--leaf:'+z*k/96+';--leaf-at:'+z*(1-k)/2+'px';o.innerHTML='<div class=\"launch-icon\"><b></b><i></i></div><div class=\"launch-name\"><span class=\"wordmark small\"><span><span>B</span><span class=\"sc e\">E</span><span>T</span><span class=\"u\">U</span><span class=\"sc la\">LA</span></span></span></div>';d.appendChild(o)}}}catch(e){}})()";
 
 /// The opt-in to the fade between pages, in the head of every document the server writes (this
 /// shell and the login page of closed testing). Not in app.css: Chromium decides whether a new
