@@ -1,6 +1,6 @@
 [package]
 name = "folia-planner"
-version = "1.24.2"
+version = "1.24.4"
 edition = "2021"
 description = "Betula's Studienplan"
 
