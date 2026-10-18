@@ -82,6 +82,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
 button { font: inherit; color: inherit; }
@@ -274,7 +275,8 @@ button.pl { cursor: pointer; }
 .snack-sub .box { display: grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--on-accent); }
 .snack-sub[aria-checked="true"] .box { background: var(--accent); box-shadow: none; }
 .snack-sub .box .i { width: 11px !important; height: 11px !important; stroke-width: 3.2 !important; }
-.ask-card { display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
+.ask-card { display: flex; flex-direction: column; gap: 10px; padding: 10px 8px 10px 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .26s var(--ease); }
+.d-app .ask-card { width: 380px; }
 .ask-card > div { flex: 1; min-width: 0; line-height: 1.3; }
 .ask-card b { display: block; font-size: 13px; font-weight: 700; }
 .ask-card span { font-size: 12.5px; color: var(--text-2); }
@@ -304,9 +306,11 @@ button.pl { cursor: pointer; }
 .stepper .c small { font-weight: 520; opacity: .72; font-size: 12px; }
 .stepper .c.flip span { animation: flip .22s var(--ease); display: inline-block; }
 .p-sheet .stepper > button { min-height: 46px; }
-.p-sheet .stepper .a { width: 42px; }
-.p-sheet .stepper .c { flex: 1; justify-content: center; font-size: 15px; }
-.banner { display: flex; align-items: center; gap: 10px; padding: 9px 8px 9px 12px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); animation: rise .26s var(--ease); }
+.p-sheet .stepper .a { flex: none; width: 34px; }
+.p-sheet .stepper .c { flex: 1 1 auto; min-width: 0; justify-content: center; gap: 5px; font-size: 14.5px; }
+.p-sheet .stepper .c > span:first-child { display: none; }
+.banner { display: flex; flex-direction: column; gap: 10px; padding: 10px 8px 10px 12px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); animation: rise .26s var(--ease); }
+.p-banner .banner { background: var(--panel); box-shadow: var(--shadow-pop); }
 .banner > div { flex: 1; min-width: 0; line-height: 1.3; }
 .banner b { display: block; font-size: 12.5px; font-weight: 700; color: var(--accent-ink); }
 .banner span { font-size: 12.5px; color: var(--text); font-weight: 600; }
@@ -320,7 +324,7 @@ button.pl { cursor: pointer; }
 .pillsw[aria-expanded="true"] { box-shadow: 0 0 0 3px var(--accent-line); }
 .p-sheet .pillsw { justify-content: center; min-height: 46px; font-size: 15px; }
 .strip { margin-top: 10px; padding: 8px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); animation: rise .2s var(--ease); }
-.strip-ask { display: flex; align-items: center; gap: 8px; margin: -2px -2px 8px; padding: 8px 6px 8px 10px; border-radius: 9px; background: var(--accent-soft); }
+.strip-ask { margin: -2px -2px 8px; padding: 8px 6px 8px 10px; border-radius: 9px; background: var(--accent-soft); }
 .strip-ask div { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.3; color: var(--text); }
 .strip-ask div b { display: block; color: var(--accent-ink); font-size: 12px; }
 .sems { display: flex; gap: 4px; }
@@ -339,6 +343,36 @@ button.pl { cursor: pointer; }
 .p-sheet .sems button { padding: 9px 2px !important; }
 .p-sheet .sems button b { font-size: 12.5px; }
 .p-sheet .sems button small { font-size: 10px; }
+
+/* The question for the study without a filter (owner, 2026-10-18: „ich liebe die Idee, das man aus
+   den vom Modul zugeordneten Studiengänge eine liste zum Anklicken erstellt. Aber … zeige da
+   maximal 3, und bevorzugt die wo das ein Pflichtmodul ist und darunter die Option anderer
+   Studiengang"): the programs of the module the student planned, three at most, compulsory first,
+   then „Anderer Studiengang"; picked, the Fachsemester as a row of numbers, the likely one marked. */
+.askbox { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.askbox .ah { display: flex; align-items: flex-start; gap: 8px; }
+.askbox .ah > div { flex: 1; min-width: 0; line-height: 1.3; }
+.askbox .ah b { display: block; font-size: 13px; font-weight: 700; color: var(--text); }
+.askbox .ah small { font-size: 12px; color: var(--text-2); }
+.progs { display: flex; flex-direction: column; gap: 4px; }
+.progs button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 38px; padding: 6px 10px 6px 12px !important; border-radius: 9px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); text-align: left; }
+.progs button:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.progs button span { font-size: 13px; font-weight: 650; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progs button small { flex: none; font-size: 11.5px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.progs button small.req { color: var(--accent-ink); }
+.progs button.other { background: none !important; box-shadow: inset 0 0 0 1px var(--line); }
+.progs button.other span { color: var(--text-2); font-weight: 600; }
+.progs .scroll { display: flex; flex-direction: column; gap: 4px; max-height: 168px; overflow-y: auto; }
+.askq { width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 13px var(--font); -webkit-user-select: text; user-select: text; }
+.fsrow { display: flex; flex-wrap: wrap; gap: 4px; }
+.fsrow button { flex: 1 0 34px; height: 36px; border-radius: 8px; background: var(--panel) !important; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fsrow button.guess { background: var(--accent) !important; color: var(--on-accent); box-shadow: none; }
+.askback { align-self: flex-start; padding: 2px 0 !important; color: var(--text-2); font-size: 12px; font-weight: 600; }
+.ask-card.wide, .banner.wide { align-items: stretch; }
+.p-app .p-banner { bottom: 84px; }
+.p-sheet .progs button { min-height: 44px; }
+.p-sheet .progs button span { font-size: 14.5px; }
+.p-sheet .fsrow button { height: 42px; font-size: 15px; }
 
 /* The comparison and the recommendation. */
 .cmp, .reco { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 80px; }
@@ -389,14 +423,14 @@ button.pl { cursor: pointer; }
         <li><b>Der Knopf sagt vorher leise, wohin:</b> „Einplanen · WiSe 26/27“.</li>
         <li><b>Das Ergebnis steht an der Zeile</b> und am Knopf, mit Fachsemester, wo es eins gibt.</li>
         <li><b>Höchstens eine Zeile Text,</b> keine Gitter, keine Erklärsätze in der App.</li>
-        <li><b>Ohne Studium</b> fragt Betula einmal, vorausgefüllt aus dem Filter: ein Tipp auf „Ja“.</li>
+        <li><b>Ohne Studium</b> fragt Betula einmal: mit Filter ein Tipp auf „Ja“, ohne Filter die Studiengänge des Moduls (höchstens drei, Pflicht zuerst) und das vermutete Fachsemester, zwei Tipps.</li>
       </ul>
     </aside>
   </header>
 
   <nav class="bar" aria-label="Einstellungen">
     <div class="group"><span class="kicker">Studium</span>
-      <div class="seg" role="group" aria-label="Studium"><button type="button" data-setup="1" aria-pressed="true">eingerichtet, 3. FS</button><button type="button" data-setup="0" aria-pressed="false">noch nicht, Filter: Informatik · 1. Semester</button></div>
+      <div class="seg" role="group" aria-label="Studium"><button type="button" data-setup="set" aria-pressed="true">eingerichtet, 3. FS</button><button type="button" data-setup="filter" aria-pressed="false">noch nicht, mit Filter</button><button type="button" data-setup="none" aria-pressed="false">noch nicht, ohne Filter</button></div>
     </div>
     <div class="jump"><a href="#e">E</a><a href="#f">F</a><a href="#g">G</a><a href="#vergleich">Vergleich</a></div>
   </nav>
@@ -470,6 +504,7 @@ button.pl { cursor: pointer; }
       <li><b>Von G übernehmen:</b> die Pille an der Zeile springt beim Einplanen herein; das ist die Bestätigung, ohne Leiste.</li>
       <li><b>Von E als Rückfall:</b> wenn „Rückgängig“ an der Zeile zu klein ist, kommt die schmale Leiste von E nur für „Entfernt · Rückgängig“.</li>
       <li><b>Am Rechner</b> gibt es keinen Wisch; dort tragen „Einplanen“, die Pfeile am Knopf und der Schalter an der Liste alles.</li>
+      <li><b>Ohne Studium und ohne Filter</b> bietet die Frage die Studiengänge des Moduls an: höchstens drei, Pflicht zuerst, jeder mit dem Semester, in das sein Plan das Modul legt, darunter „Anderer Studiengang …“. Danach die Fachsemester als Zahlen, das vermutete hervorgehoben (das Semester im Plan, weniger die Semester bis zum eingeplanten). Zwei Tipps.</li>
     </ul>
   </section>
 </div>
@@ -488,6 +523,24 @@ const MODS = [
   { k: "dt", id: "11205", t: "Digitaltechnik", en: "Digital Engineering", lp: 6, turnus: "nur WiSe", offered: (i) => winter(i), times: "Vorlesung Fr 9:15–10:45" },
   { k: "pm", id: "41320", t: "Projektmanagement", en: "Project Management", lp: 4, turnus: "jedes Semester", offered: () => true, times: "Blockseminar 8.–10. Januar 2027" },
 ];
+// The programs whose curricula the module belongs to (`ProgramLink`: compulsory or elective, the
+// semester its plan places it in; the latest PO of each). Examples.
+const PROGS = { inf: "Informatik B.Sc.", wi: "Wirtschaftsinformatik Bachelor", ki: "Künstliche Intelligenz B.Sc.", mi: "Medizininformatik B.Sc.", ma: "Mathematik B.Sc.", wm: "Wirtschaftsmathematik B.Sc.", et: "Elektrotechnik B.Sc.", wing: "Wirtschaftsingenieurwesen B.Sc.", bwl: "Betriebswirtschaftslehre B.Sc.", cs: "Cyber Security M.Sc.", phy: "Physik B.Sc.", umw: "Umweltingenieurwesen B.Sc." };
+const CURRICULA = {
+  db: [["inf", "Wahlpflicht", 5], ["wi", "Pflicht", 3], ["inf", "Pflicht", 3], ["mi", "Wahlpflicht", 5], ["ki", "Pflicht", 3], ["ma", "Wahlpflicht", 4]],
+  ana: [["et", "Wahlpflicht", 4], ["ma", "Pflicht", 2], ["wm", "Pflicht", 2], ["phy", "Pflicht", 2]],
+  bs: [["inf", "Pflicht", 3], ["cs", "Wahlpflicht", 1], ["ki", "Pflicht", 3]],
+  dt: [["wing", "Wahlpflicht", 3], ["inf", "Pflicht", 1], ["et", "Pflicht", 1]],
+  pm: [["wing", "Wahlpflicht", 5], ["bwl", "Wahlpflicht", 4]],
+};
+const SHOWN = 3;
+// What the question offers: each program once (its compulsory place first), compulsory before
+// elective, in the order the catalog has them, three at most; and how many more there are.
+const offerOf = (k) => {
+  const seen = new Set(), all = [];
+  for (const kind of ["Pflicht", "Wahlpflicht"]) for (const [p, kd, n] of CURRICULA[k] || []) if (kd === kind && !seen.has(p)) { seen.add(p); all.push({ p, kind: kd, n }); }
+  return { shown: all.slice(0, SHOWN), more: Object.keys(PROGS).length - Math.min(SHOWN, all.length) };
+};
 const modOf = (k) => MODS.find((m) => m.k === k);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const ICON = {
@@ -509,14 +562,15 @@ const ICON = {
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
 // ---------- one student per screen ----------
-let SETUP = true;
+let SETUP = "set"; // the study set up; or not, with the catalog's filter; or not, without one
 const STATES = {};
 const fresh = (dev) => ({
   planned: { bs: SESSION + 1 }, // one module planned already, in the summer
   open: dev === "d" ? "db" : null, // the module beside the list, or the phone's sheet
-  start: SETUP ? SESSION - 2 : null, // the semester of the first Fachsemester (Lena: WiSe 24/25 → 3. FS)
+  start: SETUP === "set" ? SESSION - 2 : null, // the semester of the first Fachsemester (Lena: WiSe 24/25 → 3. FS)
   asked: false, // the question answered or put aside
   ask: false, // the question is waiting
+  askK: null, askStep: "pick", askProg: null, askGuess: 1, // for which module, and how far
   chosen: null, // the session's semester, changed by the student (P3)
   snack: null, // E: { k, kind, from, stepped }
   undo: null, // F, G: { k, kind, from }
@@ -531,9 +585,28 @@ const aimOf = (st) => st.chosen ?? SESSION;
 // Where a click plans a module: the session's semester, or the next one that offers it.
 const targetOf = (st, m) => { let i = aimOf(st); while (!m.offered(i)) i++; return i; };
 const count = (st) => Object.keys(st.planned).length;
-// The question for the study: the filter of the catalog says Informatik B.Sc., 1. Semester.
+// The question for the study: with the filter of the catalog (Informatik B.Sc., 1. Semester) one tap;
+// without it, the programs of the module first planned.
 const ASK = { program: "Informatik B.Sc.", fs: 1 };
-const planIt = (st, k, i) => { st.planned[k] = i; st.flash = k; if (st.start == null && !st.asked) st.ask = true; };
+const planIt = (st, k, i) => {
+  st.planned[k] = i; st.flash = k;
+  if (st.start == null && !st.asked && !st.ask) { st.ask = true; st.askK = k; st.askStep = SETUP === "filter" ? "confirm" : "pick"; }
+};
+// The question's content, the same in every concept's place for it.
+const askHtml = (st) => {
+  if (!st.ask) return "";
+  const close = `<button class="nope" type="button" data-act="no" aria-label="Später">${icon("x")}</button>`;
+  if (st.askStep === "confirm") return `<div class="askbox"><div class="ah"><div><b>Ist das dein Studium?</b><small>${ASK.program} · ${ASK.fs}. Fachsemester</small></div><button class="yes" type="button" data-act="yes">Ja</button>${close}</div></div>`;
+  const m = modOf(st.askK);
+  if (st.askStep === "fs") return `<div class="askbox"><div class="ah"><div><b>${esc(PROGS[st.askProg])}</b><small>In welchem Fachsemester bist du jetzt?</small></div>${close}</div><div class="fsrow">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `<button type="button" class="${n === st.askGuess ? "guess" : ""}" data-act="askfs" data-n="${n}">${n}</button>`).join("")}</div><button class="askback" type="button" data-act="askback">‹ anderer Studiengang</button></div>`;
+  if (st.askStep === "more") {
+    const all = Object.entries(PROGS).sort((a, b) => a[1].localeCompare(b[1], "de"));
+    return `<div class="askbox"><div class="ah"><div><b>Welcher Studiengang?</b></div>${close}</div><input class="askq" type="search" placeholder="Studiengang suchen" aria-label="Studiengang suchen"><div class="progs"><div class="scroll">${all.map(([p, name]) => `<button type="button" data-act="askprog" data-p="${p}" data-n="0"><span>${esc(name)}</span></button>`).join("")}</div></div><button class="askback" type="button" data-act="askback">‹ zurück</button></div>`;
+  }
+  const { shown, more } = offerOf(st.askK);
+  const list = shown.map(({ p, kind, n }) => `<button type="button" data-act="askprog" data-p="${p}" data-n="${n}"><span>${esc(PROGS[p])}</span><small class="${kind === "Pflicht" ? "req" : ""}">${kind} · ${n}. Sem.</small></button>`).join("");
+  return `<div class="askbox"><div class="ah"><div><b>Was studierst du?</b><small>Dann steht beim Planen dein Fachsemester dabei.</small></div>${close}</div><div class="progs">${list}<button class="other" type="button" data-act="askmore"><span>Anderer Studiengang …</span><small>${more} weitere</small></button></div></div>`;
+};
 
 // ---------- the parts every screen shares ----------
 const rowPill = (st, c, m) => {
@@ -565,19 +638,19 @@ const switchOf = (st, c, m, phone) => {
 const stripOf = (st, m) => {
   if (!st.strip || st.planned[m.k] == null) return "";
   const i = st.planned[m.k];
-  const ask = st.ask ? `<div class="strip-ask"><div><b>Ist das dein Studium?</b>${ASK.program} · ${ASK.fs}. Fachsemester</div><button class="yes" type="button" data-act="yes">Ja</button><button class="nope" type="button" data-act="no" aria-label="Nein">${icon("x")}</button></div>` : "";
+  const ask = st.ask ? `<div class="strip-ask">${askHtml(st)}</div>` : "";
   const sems = [0, 1, 2, 3].map((n) => SESSION + n).map((s) => `<button type="button" class="${m.offered(s) ? "" : "off"}" aria-pressed="${s === i}" data-act="move" data-i="${s}" data-k="${m.k}"><b>${sem(s)}</b><small>${m.offered(s) ? (fsOf(st, s) ? `${fsOf(st, s)}. FS` : "&nbsp;") : "kein Angebot"}</small></button>`).join("");
   const keep = i !== aimOf(st) || st.chosen != null ? `<div class="strip-foot" role="checkbox" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="box">${st.chosen === i ? icon("check") : ""}</span>Weitere auch nach ${esc(sem(i))}</div>` : "";
   return `<div class="strip">${ask}<div class="sems">${sems}<button class="trash" type="button" data-act="remove" data-k="${m.k}" aria-label="Aus dem Plan nehmen">${icon("trash")}</button></div>${keep}</div>`;
 };
 // F: the question as a line in the module, or over the list.
-const bannerOf = (st) => st.ask ? `<div class="banner"><div><b>Ist das dein Studium?</b><span>${ASK.program} · ${ASK.fs}. Fachsemester</span></div><button class="yes" type="button" data-act="yes">Ja</button><button class="nope" type="button" data-act="no" aria-label="Nein">${icon("x")}</button></div>` : "";
+const bannerOf = (st) => st.ask ? `<div class="banner wide">${askHtml(st)}</div>` : "";
 // F: where the session plans, at the head of the list.
 const aimOf_ = (st) => `<div class="aim-wrap"><button class="aim${st.chosen != null ? " chosen" : ""}" type="button" data-act="aimmenu">${icon("cal")}nach <b>${esc(sem(aimOf(st)))}</b>${icon("down")}</button>${st.aimMenu ? `<div class="aim-menu" role="menu"><p>Wohin „Einplanen“ in dieser Sitzung plant</p>${[0, 1, 2, 3].map((n) => SESSION + n).map((s) => `<button type="button" role="menuitemradio" aria-checked="${aimOf(st) === s}" data-act="aim" data-i="${s}">${sem(s)}<small>${s === SESSION ? "jetzt" : fsOf(st, s) ? `${fsOf(st, s)}. FS` : ""}</small></button>`).join("")}</div>` : ""}</div>`;
 // E: the note with the stepper, and what stands over it.
 const snackOf = (st) => {
   const s = st.snack;
-  const ask = st.ask ? `<div class="ask-card"><div><b>Ist das dein Studium?</b><span>${ASK.program} · ${ASK.fs}. Fachsemester</span></div><button class="yes" type="button" data-act="yes">Ja</button><button class="nope" type="button" data-act="no" aria-label="Nein">${icon("x")}</button></div>` : "";
+  const ask = st.ask ? `<div class="ask-card wide">${askHtml(st)}</div>` : "";
   if (!s) return ask ? `<div class="snack-wrap">${ask}</div>` : "";
   let bar;
   if (s.kind === "removed") bar = `<div class="snack"><span class="ok no">${icon("minus")}</span><span class="said">${esc(modOf(s.k).t)} entfernt</span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>`;
@@ -596,16 +669,16 @@ const heroOf = (st, c, phone) => {
   const top = phone ? `<div class="hero-top"><span class="mono">${m.id}</span><span class="x" data-act="close">${icon("x")}</span></div>` : `<div class="hero-top"><span class="mono">${m.id}</span><span>${icon("full")}Vollbild <kbd>F</kbd></span><span>${icon("x")}Schließen <kbd>Esc</kbd></span></div>`;
   return `<header class="hero">${top}<h3>${esc(m.t)}</h3><p class="en">${esc(m.en)}</p>${line}${extra}</header><div class="body"><span class="label">Termine</span><p>${esc(m.times)}</p><i></i><i></i></div>`;
 };
-const headOf = (st, c) => `${SETUP ? "" : `<span class="tag">Informatik B.Sc.</span><span class="tag">1. Semester</span>`}${c === "f" ? aimOf_(st) : ""}`;
+const headOf = (st, c) => `${SETUP === "filter" ? `<span class="tag">Informatik B.Sc.</span><span class="tag">1. Semester</span>` : ""}${c === "f" ? aimOf_(st) : ""}`;
 const deskOf = (st, c) => {
   const rows = MODS.map((m) => `<div class="drow${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
-  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${SETUP ? "1.200" : 64}</b> Module ${headOf(st, c)}</div>${rows}</section><section class="panel detail">${heroOf(st, c, false)}${c === "e" ? snackOf(st) : ""}</section></div>`;
+  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b> Module ${headOf(st, c)}</div>${rows}</section><section class="panel detail">${heroOf(st, c, false)}${c === "e" ? snackOf(st) : ""}</section></div>`;
 };
 const phoneOf = (st, c) => {
   const rows = MODS.map((m) => `<div class="rw" data-k="${m.k}"${st.planned[m.k] != null ? " data-planned" : ""}><div class="ground"></div><div class="card${st.open === m.k ? " cur" : ""}" data-act="open" data-k="${m.k}"><b>${esc(m.t)}</b>${meta(st, c, m)}<span class="lp">${m.lp}<small> LP</small></span></div></div>`).join("");
   const sheet = st.open ? `<div class="p-shade" data-act="close"></div><section class="p-sheet">${heroOf(st, c, true)}</section>` : "";
-  const banner = c === "f" && st.ask && !st.open ? `<div class="p-banner" style="top:520px">${bannerOf(st)}</div>` : "";
-  return `<div class="app p-app${st.open ? " sheet-open" : ""}"><div class="p-status"><span>10:24</span><span>Di, 20. Okt.</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-head"><b>${SETUP ? "1.200" : 64}</b>Module ${headOf(st, c)}</div><div class="p-list">${rows}</div>${banner}<nav class="p-nav"><span></span><span class="on"></span><span></span><span></span><span>${count(st) ? `<em>${count(st)}</em>` : ""}</span></nav>${sheet}${c === "e" ? snackOf(st) : ""}</div>`;
+  const banner = c === "f" && st.ask && !st.open ? `<div class="p-banner">${bannerOf(st)}</div>` : "";
+  return `<div class="app p-app${st.open ? " sheet-open" : ""}"><div class="p-status"><span>10:24</span><span>Di, 20. Okt.</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-head"><b>${SETUP === "filter" ? 64 : "1.200"}</b>Module ${headOf(st, c)}</div><div class="p-list">${rows}</div>${banner}<nav class="p-nav"><span></span><span class="on"></span><span></span><span></span><span>${count(st) ? `<em>${count(st)}</em>` : ""}</span></nav>${sheet}${c === "e" ? snackOf(st) : ""}</div>`;
 };
 
 // ---------- what the taps and the swipes do ----------
@@ -656,6 +729,16 @@ const act = (c, key, st, el) => {
     case "move": st.planned[k] = i; st.flash = k; settle(c, key, st); break;
     case "remove": press(c, key, st, k); break;
     case "yes": st.start = SESSION - ASK.fs + 1; st.ask = false; st.asked = true; break;
+    case "askprog": {
+      // The Fachsemester it likely is: the semester the plan places the module in, less the
+      // semesters until the one it was planned into.
+      const n = Number(el.dataset.n), planned = st.planned[st.askK] ?? SESSION;
+      st.askProg = el.dataset.p; st.askGuess = n ? Math.max(1, n - (planned - SESSION)) : 1; st.askStep = "fs";
+      break;
+    }
+    case "askmore": st.askStep = "more"; break;
+    case "askback": st.askStep = "pick"; break;
+    case "askfs": st.start = SESSION - Number(el.dataset.n) + 1; st.ask = false; st.asked = true; break;
     case "no": st.ask = false; st.asked = true; break;
     default: return;
   }
@@ -742,7 +825,7 @@ document.querySelectorAll(".stage").forEach((stage) => {
 document.addEventListener("click", (e) => {
   const set = e.target.closest("[data-setup]");
   if (set) {
-    SETUP = set.dataset.setup === "1";
+    SETUP = set.dataset.setup;
     set.parentElement.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === set)));
     ["e", "f", "g"].forEach(reset);
     return;
@@ -755,6 +838,12 @@ document.addEventListener("click", (e) => {
   if (!target || !scr) return;
   const key = scr.dataset.screen;
   act(key[0], key, STATES[key], target);
+});
+// „Anderer Studiengang": the search narrows the list as it is typed, without drawing the screen anew.
+document.addEventListener("input", (e) => {
+  if (!e.target.matches?.(".askq")) return;
+  const q = e.target.value.trim().toLowerCase();
+  e.target.closest(".askbox").querySelectorAll(".progs button").forEach((b) => { b.hidden = q && !b.textContent.toLowerCase().includes(q); });
 });
 const fit = () => document.querySelectorAll(".fit").forEach((f) => {
   const w = Number(getComputedStyle(f).getPropertyValue("--w"));
