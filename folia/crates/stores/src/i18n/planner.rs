@@ -67,6 +67,8 @@ pub struct Texts {
     pub search_program: &'static str,
     pub search_placeholder: &'static str,
     pub my_program: &'static str,
+    /// … in the picker of a program known, the heading over the module's programs …
+    pub with_module: &'static str,
     /// … where the program comes from …
     pub from_filter: &'static str,
     pub from_timetable: &'static str,
@@ -92,6 +94,10 @@ pub struct Texts {
     /// … the module's semester: its row, what its line says …
     pub module_row: &'static str,
     pub this_semester: &'static str,
+    /// „für weitere Module gewählt": the semester „Weitere Module auch nach …" chose for the session,
+    /// and „Aufheben", which clears that choice.
+    pub chosen_note: &'static str,
+    pub chosen_clear: &'static str,
     pub in_the_past: &'static str,
     pub not_offered_there: &'static str,
     pub as_in_plan: fn(i64) -> String,
@@ -148,6 +154,7 @@ pub const DE: Texts = Texts {
     search_program: "Anderen Studiengang suchen …",
     search_placeholder: "Studiengang suchen",
     my_program: "Mein Studiengang",
+    with_module: "Studiengänge mit diesem Modul",
     from_filter: "aus deinem Filter im Katalog",
     from_timetable: "aus deinem Stundenplan",
     from_mine: "aus „Mein Studium“",
@@ -167,6 +174,8 @@ pub const DE: Texts = Texts {
     fs_follows: "folgt aus dem Regelstudienplan",
     module_row: "Einplanen in",
     this_semester: "dieses Semester",
+    chosen_note: "für weitere Module gewählt",
+    chosen_clear: "Aufheben",
     in_the_past: "liegt in der Vergangenheit",
     not_offered_there: "in diesem Semester nicht angeboten",
     as_in_plan: |n| format!("wie im Regelstudienplan ({n}. Semester)"),
@@ -219,6 +228,7 @@ pub const EN: Texts = Texts {
     search_program: "Find another programme …",
     search_placeholder: "Search degree programmes",
     my_program: "My programme",
+    with_module: "Programmes with this module",
     from_filter: "from your filter in the catalogue",
     from_timetable: "from your timetable",
     from_mine: "from \u{201c}My studies\u{201d}",
@@ -238,6 +248,8 @@ pub const EN: Texts = Texts {
     fs_follows: "follows from the study plan",
     module_row: "Plan for",
     this_semester: "this semester",
+    chosen_note: "chosen for further modules",
+    chosen_clear: "Clear",
     in_the_past: "lies in the past",
     not_offered_there: "not offered in this semester",
     as_in_plan: |n| format!("as in the study plan (semester {n})"),
