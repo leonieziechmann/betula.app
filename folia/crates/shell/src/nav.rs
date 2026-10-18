@@ -82,9 +82,7 @@ pub fn chain_of(url: &str) -> Vec<String> {
     }
     if path.starts_with("/catalog/module/") {
         chain.insert(0, folia_routes::url::CATALOG.to_string());
-    } else if path == folia_routes::url::STUDY && has(&now, &["view"]) {
-        chain.insert(0, folia_routes::url::STUDY.to_string());
-    } else if path == folia_routes::url::PROGRAMS {
+    } else if (path == folia_routes::url::STUDY && has(&now, &["view"])) || path == folia_routes::url::PROGRAMS {
         chain.insert(0, folia_routes::url::STUDY.to_string());
     } else if path.starts_with("/programs/") {
         chain.insert(0, folia_routes::url::PROGRAMS.to_string());
