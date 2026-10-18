@@ -45,8 +45,12 @@
 /// catches its glide in the first frame, which stood still with the wrong icon in its lens and
 /// moved no more; 1.21.0 with the red of a row swiped out of the plan striped at 45°, for the
 /// red-green blind; 1.22.0 with the way back at the head of „Mein Studium" on a phone going with the
-/// row's first move back into the overview, as it comes with its first move off. The version of the
-/// app's crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// row's first move back into the overview, as it comes with its first move off; 1.23.0 with
+/// „Einplanen" planning at once into the semester the session plans for and a note at the bottom
+/// saying where, its ‹ › moving the module (into the past as well), „Weitere Module auch nach …" and
+/// „Rückgängig", where no study is set up one dialog that sets it up and plans the module, and the
+/// menu of the semesters gone. The version of the app's crates, the same as the server's; Radix's is
+/// in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
