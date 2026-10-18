@@ -15,7 +15,18 @@
      is the one of design/tabbar/swipe.html, as the app has it (enhance.js). „Wie heute“ plays the
      pages as the app builds them now, as filmed on canary on 2026-10-18. The pages are examples:
      the first rows of canary's catalog that day, a study of Informatik B.Sc. (PO 2008) in its third
-     Fachsemester. Open it at a phone's width, or on a phone. -->
+     Fachsemester. The second round (owner, the same day: „Es ist nice zu sehen, dass die Seiten gleich
+     da sind. Das muss auf jeden Fall rein. … ich die alle nicht so stimmig finde. Kannst du noch ein
+     paar klassischere einbauen, wie beim Handy Home Screen seitchen … so ein kippen in die andere
+     Richtung, bloß dass die Seiten aneinander bleiben … nach hinten und leicht nach links … daran
+     knüpft dann schon die nächste Page an, die auch weiter hinten ist, dann könnte das verschieben
+     und zum Schluss wieder einpassen wärend der noch ein wenig die Position zur Seite geht. Es muss
+     sich halt so anfühlen als würde man mit dem Finger die horizontale Bewegung steuern und das nach
+     hinten gehen/raus zoomen ist dafür da, damit man den Kontext besser versteht"): the pages side by
+     side as a strip, its place and its size each a spring („Übersicht“, „Gewölbt“, „Würfel“,
+     „Seiten“), two classic ways besides („Schieben“ as on an iPhone, „Achse“ as Android's Material
+     has it), and the page itself swiped as a home screen is. Open it at a phone's width, or on a
+     phone. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
@@ -189,6 +200,7 @@ a { color: inherit; text-decoration: none; }
 .opt { display: grid; gap: 6px; min-width: 0; }
 .opt-label { font-size: 12px; font-weight: 620; color: var(--text-3); }
 .opt-note { font-size: 12.5px; line-height: 1.45; color: var(--text-2); min-height: 2.9em; }
+.seg-sub { margin-top: 4px; font-size: 11.5px; font-weight: 600; color: var(--text-3); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 3px; border-radius: var(--r-ctl); background: var(--panel-3); }
 .seg.grid { grid-auto-flow: row; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .seg-item { position: relative; display: flex; min-width: 0; }
@@ -240,10 +252,14 @@ a { color: inherit; text-decoration: none; }
 .deck { position: absolute; inset: 0; z-index: 0; background: var(--table); overflow: hidden; }
 .deck.plain { background: var(--bg); }
 .deck.plain .card.moving { border-radius: 0; box-shadow: none; }
+/* The strip (the second round): the pages side by side, each turned about its own middle. */
+.deck.strip .card { transform-origin: 50% 50%; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+.deck.flat .card.moving, .deck.seamless .card.moving { border-radius: 0; }
+.deck.seamless .card.moving { box-shadow: none; }
 .card { position: absolute; inset: 0; z-index: 1; background: var(--bg); overflow: hidden; visibility: hidden; content-visibility: hidden; transform-origin: 50% 40%; }
 .card.shown { visibility: visible; content-visibility: visible; }
 .card.moving { border-radius: 22px; box-shadow: var(--shadow-card); will-change: transform, opacity; }
-.card-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: calc(var(--safe-t) + 86px); scrollbar-width: none; }
+.card-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: calc(var(--safe-t) + 86px); scrollbar-width: none; touch-action: pan-y pinch-zoom; }
 .card-scroll::-webkit-scrollbar { display: none; }
 .card-shade { position: absolute; inset: 0; z-index: 3; background: var(--shade); opacity: 0; pointer-events: none; }
 .card.moving .card-shade { will-change: opacity; }
@@ -450,13 +466,23 @@ a { color: inherit; text-decoration: none; }
 
 <div class="stage">
   <section class="notes" aria-labelledby="notes-title">
-    <p class="eyebrow">Betula · Handy-Ansicht · Prototyp</p>
-    <h1 id="notes-title">Ein Tab wie eine Karte</h1>
-    <p class="lead">Jede Seite eines Tabs bleibt stehen, wenn du gehst. Kommst du zurück, liegt sie schon da, so weit gescrollt, wie du sie verlassen hast. Ein Tabwechsel ist dann nur noch ein Tausch der Karten: Die Seite geht nach hinten, die neue kommt davor.</p>
+    <p class="eyebrow">Betula · Handy-Ansicht · Prototyp, zweite Runde</p>
+    <h1 id="notes-title">Tabs nebeneinander</h1>
+    <p class="lead">Jede Seite eines Tabs bleibt gebaut, auch wenn du gehst: Kommst du zurück, liegt sie schon da, so weit gescrollt, wie du sie verlassen hast. Die zweite Runde legt die Seiten nebeneinander wie die Seiten eines Startbildschirms. Der Wechsel ist eine Bewegung zur Seite, die du mit dem Finger steuerst; das Zurücktreten zeigt, wo du bist.</p>
     <div id="proto-home">
       <section class="proto" id="proto" aria-label="Einstellungen des Prototyps">
         <div class="opt" role="radiogroup" aria-labelledby="anim-label" aria-describedby="anim-note">
           <span class="opt-label" id="anim-label">Animation</span>
+          <span class="seg-sub">Zweite Runde: die Seiten nebeneinander</span>
+          <div class="seg grid">
+            <label class="seg-item"><input type="radio" name="anim" value="uebersicht" id="anim-uebersicht"><span>Übersicht</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="gewoelbt" id="anim-gewoelbt"><span>Gewölbt</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="wuerfel" id="anim-wuerfel"><span>Würfel</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="seiten" id="anim-seiten"><span>Seiten</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="schieben" id="anim-schieben"><span>Schieben</span></label>
+            <label class="seg-item"><input type="radio" name="anim" value="achse" id="anim-achse"><span>Achse</span></label>
+          </div>
+          <span class="seg-sub">Erste Runde</span>
           <div class="seg grid">
             <label class="seg-item"><input type="radio" name="anim" value="stapel" id="anim-stapel"><span>Stapel</span></label>
             <label class="seg-item"><input type="radio" name="anim" value="hinten" id="anim-hinten"><span>Nach hinten</span></label>
@@ -467,10 +493,18 @@ a { color: inherit; text-decoration: none; }
           </div>
           <p class="opt-note" id="anim-note"></p>
         </div>
+        <div class="opt" role="radiogroup" aria-labelledby="swipe-label" aria-describedby="swipe-note">
+          <span class="opt-label" id="swipe-label">Wischen auf der Seite</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="swipe" value="page" id="swipe-page"><span>An</span></label>
+            <label class="seg-item"><input type="radio" name="swipe" value="bar" id="swipe-bar"><span>Aus</span></label>
+          </div>
+          <p class="opt-note" id="swipe-note"></p>
+        </div>
         <div class="opt" role="radiogroup" aria-labelledby="follow-label">
           <span class="opt-label" id="follow-label">Wischen auf der Leiste</span>
           <div class="seg">
-            <label class="seg-item"><input type="radio" name="follow" value="finger" id="follow-finger"><span>Karte folgt dem Finger</span></label>
+            <label class="seg-item"><input type="radio" name="follow" value="finger" id="follow-finger"><span>Seite folgt dem Finger</span></label>
             <label class="seg-item"><input type="radio" name="follow" value="release" id="follow-release"><span>Erst beim Loslassen</span></label>
           </div>
         </div>
@@ -482,6 +516,22 @@ a { color: inherit; text-decoration: none; }
           </div>
           <p class="opt-note" id="pages-note"></p>
         </div>
+        <div class="opt" role="radiogroup" aria-labelledby="depth-label">
+          <span class="opt-label" id="depth-label">Zurücktreten, bei Übersicht, Gewölbt und Würfel</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="depth" value="wenig" id="depth-wenig"><span>wenig</span></label>
+            <label class="seg-item"><input type="radio" name="depth" value="mittel" id="depth-mittel"><span>mittel</span></label>
+            <label class="seg-item"><input type="radio" name="depth" value="viel" id="depth-viel"><span>viel</span></label>
+          </div>
+        </div>
+        <div class="opt" role="radiogroup" aria-labelledby="tempo-label">
+          <span class="opt-label" id="tempo-label">Tempo</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="tempo" value="zuegig" id="tempo-zuegig"><span>zügig</span></label>
+            <label class="seg-item"><input type="radio" name="tempo" value="mittel" id="tempo-mittel"><span>mittel</span></label>
+            <label class="seg-item"><input type="radio" name="tempo" value="ruhig" id="tempo-ruhig"><span>ruhig</span></label>
+          </div>
+        </div>
         <label class="check"><input type="checkbox" id="slow"> Zeitlupe <small>fünfmal langsamer</small></label>
         <p class="log" aria-live="polite"><b>Zuletzt</b><span id="log">Noch nicht gewechselt.</span></p>
       </section>
@@ -489,8 +539,9 @@ a { color: inherit; text-decoration: none; }
     <div class="facts-block">
       <h2>Zum Ausprobieren</h2>
       <ul class="facts">
-        <li>Tippe auf die Tabs, auch schnell hintereinander: Ein Tipp mitten im Wechsel nimmt die Karten von dort mit, wo sie gerade sind.</li>
-        <li>Wische auf der Leiste nach links oder rechts. Mit „Karte folgt dem Finger“ kommt die neue Seite schon mit, während du wischst; halte mitten im Weg an oder zieh zurück.</li>
+        <li>Wische auf der Seite selbst nach links oder rechts, wie auf dem Startbildschirm: Die Seiten folgen dem Finger, und solange du hältst, tritt alles ein Stück zurück. Halte mitten im Weg an oder zieh zurück.</li>
+        <li>Tippe auf die Tabs, auch von „Start“ gleich auf „Stundenplan“: In „Übersicht“ ziehen die Seiten dazwischen vorbei. Ein Tipp mitten im Wechsel nimmt alles von dort mit, wo es gerade ist.</li>
+        <li>Oder wische auf der Leiste: Ein Tab der Leiste ist der ganze Weg einer Seite.</li>
         <li>Scroll in „Module“ ein Stück hinunter, wechsle und komm zurück: Die Seite steht noch da, wo sie war. Tippst du den Tab, in dem du bist, geht seine Seite nach oben.</li>
         <li>Am Rechner gehen auch ← und →.</li>
       </ul>
@@ -711,9 +762,19 @@ a { color: inherit; text-decoration: none; }
   };
 
   // ---- settings ----
-  const KEY = "betula-tabwechsel-proto-v1";
-  const settings = { anim: "stapel", follow: "finger", pages: "kept", slow: false };
-  const CHOICES = { anim: ["stapel", "hinten", "mischen", "kippen", "ruhig", "sofort"], follow: ["finger", "release"], pages: ["kept", "today"] };
+  const KEY = "betula-tabwechsel-proto-v2";
+  const settings = { anim: "uebersicht", follow: "finger", pages: "kept", swipe: "page", depth: "mittel", tempo: "mittel", slow: false };
+  const CHOICES = {
+    anim: ["uebersicht", "gewoelbt", "wuerfel", "seiten", "schieben", "achse", "stapel", "hinten", "mischen", "kippen", "ruhig", "sofort"],
+    follow: ["finger", "release"], pages: ["kept", "today"], swipe: ["page", "bar"], depth: ["wenig", "mittel", "viel"], tempo: ["zuegig", "mittel", "ruhig"],
+  };
+  // How far a strip goes back (of what its way has), and how long every spring takes.
+  const DEPTHS = { wenig: 0.5, mittel: 1, viel: 1.6 };
+  const TEMPI = { zuegig: 0.8, mittel: 1, ruhig: 1.3 };
+  const SWIPE_NOTES = {
+    page: "Wie auf dem Startbildschirm: Waagrecht gewischt folgen die Seiten dem Finger, senkrecht scrollt die Seite. In der App wischen auch Zeilen („Merken“, „Einplanen“) und die Semester in „Mein Studium“; dort bräuchte es eine Regel, wem ein Wisch gehört.",
+    bar: "Gewechselt wird nur auf der Leiste unten, wie heute in der App.",
+  };
   try {
     const kept = JSON.parse(localStorage.getItem(KEY) || "{}");
     for (const k in CHOICES) if (CHOICES[k].includes(kept[k])) settings[k] = kept[k];
@@ -752,6 +813,57 @@ a { color: inherit; text-decoration: none; }
   // beside. `reverse`: a card that lay under the top one and comes forward again („up“), and what
   // lay over it („down“).
   const VARIANTS = {
+    // The second round: the pages side by side as a strip (`strip`), which a finger moves sideways
+    // and which goes back while it moves: `gap` px between two pages, `zoom` how large it is drawn
+    // on its way, `angle` degrees one page is turned against the next (on the inside of a drum,
+    // `curve` +1, or on the outside, -1), `dim` and `shade` how dark a page away from the middle
+    // gets; `slide` the spring of the way sideways, `zoomOut` and `zoomIn` those of the size, which
+    // fits the screen again once `inAt` of a page is left of the way.
+    uebersicht: {
+      label: "Übersicht",
+      note: "Deine Idee: Die Seiten liegen nebeneinander. Beim Wechsel tritt alles ein Stück zurück, die nächste Seite hängt schon daneben, der Streifen gleitet hinüber und passt sich wieder ein, während er das letzte Stück fährt. Du steuerst nur die Bewegung zur Seite; das Zurücktreten kommt von selbst.",
+      strip: true, gap: 16, zoom: 0.84, dim: 0.14,
+      slide: { response: 0.52, damping: 0.9 }, zoomOut: { response: 0.32, damping: 1 }, zoomIn: { response: 0.44, damping: 0.94 }, inAt: 0.38,
+    },
+    gewoelbt: {
+      label: "Gewölbt",
+      note: "Wie Übersicht, die Seiten aber auf der Innenseite einer Walze: Die Kante zwischen zwei Seiten liegt hinten, jede Seite neigt sich zur Mitte. Das Kippen andersherum als in der ersten Runde, und die Seiten bleiben aneinander.",
+      strip: true, gap: 10, zoom: 0.86, angle: 26, curve: 1, shade: 0.24, perspective: 1100,
+      slide: { response: 0.52, damping: 0.9 }, zoomOut: { response: 0.32, damping: 1 }, zoomIn: { response: 0.44, damping: 0.94 }, inAt: 0.38,
+    },
+    wuerfel: {
+      label: "Würfel",
+      note: "Wie der Würfel mancher Startbildschirme: Die Seiten sind Flächen eines Würfels, der sich dreht. Die Kante zwischen ihnen kommt nach vorn, die Seiten neigen sich nach hinten weg.",
+      strip: true, gap: 0, zoom: 0.8, angle: 90, curve: -1, shade: 0.5, perspective: 1000,
+      slide: { response: 0.56, damping: 0.92 }, zoomOut: { response: 0.32, damping: 1 }, zoomIn: { response: 0.44, damping: 0.94 }, inAt: 0.38,
+    },
+    seiten: {
+      label: "Seiten",
+      note: "Wie der Startbildschirm eines Handys: Die Seiten liegen Kante an Kante und gleiten als ein Streifen, ohne Zurücktreten.",
+      strip: true, gap: 0, zoom: 1, seamless: true,
+      slide: { response: 0.42, damping: 0.94 },
+    },
+    schieben: {
+      label: "Schieben",
+      note: "Wie die Apps des iPhones von Seite zu Seite gehen: Die neue Seite schiebt sich von der Seite ihres Tabs herein, die alte weicht ein Drittel des Wegs zurück und wird etwas dunkler.",
+      flat: true,
+      spring: { response: 0.42, damping: 0.96 },
+      enter: (dir, w) => pose({ x: dir * w }),
+      back: (dir, w) => pose({ x: -dir * w * 0.3, sh: 0.2 }),
+      plan: { in: [{ to: "rest" }], out: [{ to: "back" }] },
+      drag: { in: [[0, "enter"], [1, "rest"]], out: [[0, "take"], [1, "back"]] },
+    },
+    achse: {
+      label: "Achse",
+      note: "Wie Android es für Seiten nebeneinander vorsieht (Material, „Shared axis“): Die Seite gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der anderen Seite und blendet ein.",
+      plain: true,
+      spring: { response: 0.3, damping: 1 },
+      enter: (dir) => pose({ x: dir * 36, o: 0 }),
+      back: (dir) => pose({ x: -dir * 36, o: 0 }),
+      plan: { out: [{ to: "back", spring: { response: 0.13, damping: 1 } }], in: [{ to: "rest", wait: 0.09 }] },
+      drag: { out: [[0, "take"], [0.4, "back"], [1, "back"]], in: [[0, "enter"], [0.42, "enter"], [1, "rest"]] },
+    },
+    // The first round: cards, each moved on its own.
     stapel: {
       label: "Stapel",
       note: "Die Seite sinkt nach hinten und wird dunkler, die neue schiebt sich von der Seite ihres Tabs davor. Beides zugleich, auf einer Feder.",
@@ -823,10 +935,21 @@ a { color: inherit; text-decoration: none; }
     plan: { out: [{ to: "back", spring: { response: 0.12, damping: 1 } }], in: [{ to: "rest", wait: 0.05 }] },
     drag: { out: [[0, "take"], [0.4, "back"], [1, "back"]], in: [[0, "enter"], [0.3, "enter"], [1, "rest"]] },
   };
+  // The way chosen, tuned by „Zurücktreten“ and „Tempo“: worked out once for every change of them.
+  let tuned = null;
   const variant = () => {
+    if (tuned) return tuned;
     const v = VARIANTS[settings.anim];
-    return !v.instant && reduced() ? CALM : v;
+    if (v.instant) return (tuned = v);
+    if (reduced()) return (tuned = CALM);
+    const k = TEMPI[settings.tempo] || 1, deep = DEPTHS[settings.depth] || 1;
+    const sp = (x) => x && { ...x, response: x.response * k };
+    const steps = (plan) => plan && Object.fromEntries(Object.entries(plan).map(([role, list]) => [role, list.map((st) => ({ ...st, spring: sp(st.spring), wait: st.wait && st.wait * k }))]));
+    const t = { ...v, spring: sp(v.spring), slide: sp(v.slide), zoomOut: sp(v.zoomOut), zoomIn: sp(v.zoomIn), plan: steps(v.plan), reverse: steps(v.reverse) };
+    if (v.zoom !== undefined && v.zoom < 1) t.zoom = Math.max(0.6, 1 - (1 - v.zoom) * deep);
+    return (tuned = t);
   };
+  matchMedia("(prefers-reduced-motion: reduce)").addEventListener?.("change", () => { tuned = null; });
   const poseOf = (v, name, dir, w) => {
     if (typeof name === "object") return name;
     if (name === "rest") return pose();
@@ -897,6 +1020,13 @@ a { color: inherit; text-decoration: none; }
     clearTimeout(m.timer);
     for (const t of m.zTimers) clearTimeout(t);
     const ms = m.anims[0]?.currentTime ?? 0, k = ms / 1000 / DT;
+    if (m.strip) {
+      const at = Math.max(0, Math.min(k, m.frames.length - 1)), i = Math.floor(at), j = Math.min(i + 1, m.frames.length - 1), f = at - i;
+      for (const key of ["s", "z", "vs", "vz"]) STRIP[key] = m.frames[i][key] + (m.frames[j][key] - m.frames[i][key]) * f;
+      for (const a of m.anims) a.cancel();
+      paintStrip(m.v, STRIP.s, STRIP.z);
+      return;
+    }
     for (const e of m.zEvents) if (!e.done && e.at <= k * DT) { e.done = true; raise(e.c.i, e.z); }
     for (const tr of m.tracks) {
       const { pos, vel } = sampleTrack(tr, k);
@@ -915,13 +1045,13 @@ a { color: inherit; text-decoration: none; }
     clear(cards[current]);
     order = [current];
     restack();
-    if (m?.said) say(`${m.said}, Karte ruht nach ${(m.seconds / rate()).toFixed(2).replace(".", ",")} s`);
+    Object.assign(STRIP, { s: current, z: 1, vs: 0, vz: 0 });
+    if (m?.said) say(`${m.said}, steht nach ${(m.seconds / rate()).toFixed(2).replace(".", ",")} s`);
   };
   // Every card in `plans` towards its targets from where it is and as fast as it goes; then played.
   const run = (plans, v, said) => {
     const w = width(), h = DT / SUB, tracks = [], zEvents = [];
-    // A fade lies on the page's own ground, not on the table.
-    deckEl.classList.toggle("plain", !!v.plain);
+    dress(v);
     for (const [i, steps] of plans) {
       const c = cards[i];
       c.el.classList.add("moving");
@@ -978,6 +1108,7 @@ a { color: inherit; text-decoration: none; }
   // The deck goes to the card of tab `t`: a tap, or a finger let go (`drag`: where it left the cards).
   const go = (t, said, drag = null) => {
     const v = variant(), w = width(), c = cards[t];
+    if (v.strip) { goStrip(t, said); return; }
     if (!drag) halt();
     const top = order[order.length - 1];
     const plans = new Map();
@@ -1022,8 +1153,10 @@ a { color: inherit; text-decoration: none; }
   // At once, without a motion.
   const jump = (t) => {
     halt();
+    if (grip?.strip) cancelAnimationFrame(grip.raf);
     grip = null;
     current = t;
+    Object.assign(STRIP, { s: t, z: 1, vs: 0, vz: 0 });
     for (const c of cards) if (c.i !== t) hide(c);
     show(cards[t]);
     clear(cards[t]);
@@ -1032,13 +1165,146 @@ a { color: inherit; text-decoration: none; }
     own();
   };
 
+  // How the deck is dressed for a way: a fade on the page's own ground, the strip's pages turned
+  // about their middle, corners square where pages lie edge to edge.
+  const dress = (v) => {
+    deckEl.classList.toggle("plain", !!v.plain);
+    deckEl.classList.toggle("flat", !!v.flat);
+    deckEl.classList.toggle("strip", !!v.strip);
+    deckEl.classList.toggle("seamless", !!v.seamless);
+  };
+
+  // ---- the strip (the second round): the tabs' pages side by side, as a home screen's ----
+  // Where the strip stands: `s` the page in the middle (0 Start … 4 Stundenplan, between two on the
+  // way), `z` how large it is drawn (1 the screen, less drawn back from it), and how fast both go. A
+  // tap sends the strip to its tab's page: it goes back as it starts to move, the pages beside come
+  // into view, and it fits the screen again while it covers the last bit of the way. A finger moves
+  // `s` itself, and the strip goes back while the finger holds it.
+  const STRIP = { s: current, z: 1, vs: 0, vz: 0 };
+  const spring1 = (x, v, target, { response, damping }, h) => {
+    const w0 = (2 * Math.PI) / response;
+    v += (-w0 * w0 * (x - target) - 2 * damping * w0 * v) * h;
+    return [x + v * h, v];
+  };
+  // How page `i` looks with the strip at `s`, drawn at `z`: flat beside the next, or a face of a
+  // drum, inside (`curve` +1) or outside (-1), each face `angle` degrees turned against the next. The
+  // strip goes back by going away from the eye, so that its middle is drawn at `z` of its size.
+  const stripLook = (v, i, s, z, w) => {
+    const d = i - s, step = w + (v.gap || 0), P = v.perspective || 1200, D = P * (1 / z - 1);
+    let x = d * step, depth = 0, turn = 0, sh = (v.dim || 0) * Math.min(1, Math.abs(d));
+    if (v.angle) {
+      const a = (v.angle * Math.PI) / 180, phi = d * a, apo = step / 2 / Math.tan(a / 2);
+      x = apo * Math.sin(phi);
+      depth = v.curve * apo * (1 - Math.cos(phi));
+      turn = -v.curve * phi;
+      sh = (v.shade || 0) * Math.min(1, Math.abs(Math.sin(phi)));
+    }
+    return { transform: `perspective(${P}px) translate3d(${x.toFixed(2)}px, 0px, ${(depth - D).toFixed(2)}px) rotateY(${turn.toFixed(4)}rad)`, sh };
+  };
+  // How many pages from the middle one can still be seen.
+  const stripReach = (v) => (v.angle >= 60 ? 1.02 : 1.65);
+  // The strip where it stands now: the pages near the middle drawn, the others put away.
+  const paintStrip = (v, s, z) => {
+    const w = width(), reach = stripReach(v);
+    for (const c of cards) {
+      if (Math.abs(c.i - s) >= reach) { hide(c); continue; }
+      show(c);
+      c.el.classList.add("moving");
+      const look = stripLook(v, c.i, s, z, w);
+      c.el.style.transform = look.transform;
+      c.el.style.opacity = "1";
+      c.shade.style.opacity = String(look.sh);
+    }
+    order = cards.filter((c) => c.shown).map((c) => c.i);
+    restack();
+  };
+  // The strip from where it stands, as fast as it goes, to the page of tab `to`; then played.
+  const runStrip = (v, to, said) => {
+    dress(v);
+    const w = width(), h = DT / SUB;
+    let { s, vs, z, vz } = STRIP;
+    const far = Math.round(Math.abs(to - s));
+    const zooms = (v.zoom ?? 1) < 1, goal = zooms ? Math.max(0.7, v.zoom - 0.035 * Math.max(0, far - 1)) : 1;
+    let back = !zooms, spring = v.zoomOut || v.slide;
+    const frames = [];
+    for (let f = 0; f < 720; f++) {
+      frames.push({ s, z, vs, vz });
+      if (back && Math.abs(s - to) < 0.0006 && Math.abs(vs) < 0.015 && Math.abs(z - 1) < 0.0005 && Math.abs(vz) < 0.01) break;
+      for (let k = 0; k < SUB; k++) {
+        if (!back && Math.abs(to - s) <= (v.inAt ?? 0.35)) { back = true; spring = v.zoomIn || v.slide; }
+        [s, vs] = spring1(s, vs, to, v.slide, h);
+        [z, vz] = spring1(z, vz, back ? 1 : goal, spring, h);
+      }
+    }
+    frames.push({ s: to, z: 1, vs: 0, vz: 0 });
+    // The pages the strip passes are drawn all the way; the others are put away.
+    const reach = stripReach(v), lo = Math.min(...frames.map((f) => f.s)) - reach, hi = Math.max(...frames.map((f) => f.s)) + reach;
+    const passing = cards.filter((c) => c.i > lo && c.i < hi);
+    for (const c of cards) if (!passing.includes(c)) hide(c);
+    for (const c of passing) { show(c); c.el.classList.add("moving"); c.el.style.opacity = "1"; }
+    order = passing.map((c) => c.i);
+    restack();
+    const duration = (frames.length - 1) * DT * 1000, r = rate();
+    const timing = { duration, easing: "linear", fill: "forwards" };
+    const anims = [];
+    for (const c of passing) {
+      const looks = frames.map((f) => stripLook(v, c.i, f.s, f.z, w));
+      anims.push(c.el.animate(looks.map((l) => ({ transform: l.transform })), timing));
+      anims.push(c.shade.animate(looks.map((l) => ({ opacity: l.sh })), timing));
+    }
+    for (const a of anims) a.playbackRate = r;
+    const m = { strip: true, v, frames, tracks: [], anims, zEvents: [], zTimers: [], said, seconds: duration / 1000, timer: 0 };
+    m.timer = setTimeout(() => { if (motion === m) finish(); }, duration / r + 40);
+    motion = m;
+  };
+  const goStrip = (t, said) => {
+    const v = variant();
+    halt();
+    current = t;
+    own();
+    runStrip(v, t, said);
+  };
+  // A finger takes the strip: it stops where it is, goes back while the finger holds it (frame by
+  // frame, a spring of its own), and stands where the finger puts it, past an end less and less.
+  const grabStrip = (v) => {
+    dress(v);
+    grip = { strip: true, v, cur: current, s0: STRIP.s, s: STRIP.s, q0: null, q: 0, z: STRIP.z, vz: STRIP.vz, last: performance.now(), raf: 0 };
+    const tick = (now) => {
+      const g = grip;
+      if (!g?.strip) return;
+      const dt = Math.min(0.05, Math.max(0, (now - g.last) / 1000)) * rate(), n = Math.max(1, Math.ceil(dt / (DT / SUB)));
+      g.last = now;
+      for (let k = 0; k < n; k++) [g.z, g.vz] = spring1(g.z, g.vz, v.zoom ?? 1, v.zoomOut || v.slide, dt / n);
+      paintStrip(v, g.s, g.z);
+      g.raf = requestAnimationFrame(tick);
+    };
+    paintStrip(v, grip.s, grip.z);
+    grip.raf = requestAnimationFrame(tick);
+  };
+  const pastEnd = (over) => 0.2 * (1 - 1 / (1 + over / 0.6));
+  const dragStrip = (q) => {
+    const g = grip, last = cards.length - 1;
+    if (g.q0 === null) g.q0 = q;
+    g.q = q;
+    const s = g.s0 + (q - g.q0);
+    g.s = s < 0 ? -pastEnd(-s) : s > last ? last + pastEnd(s - last) : s;
+  };
+  const releaseStrip = (g, to, vs, said) => {
+    cancelAnimationFrame(g.raf);
+    Object.assign(STRIP, { s: g.s, vs: Math.max(-8, Math.min(8, vs)), z: g.z, vz: g.vz });
+    current = to;
+    own();
+    runStrip(g.v, to, said);
+  };
+
   // A finger on the bar that the cards follow: they stop where they are, and every move puts them
   // where that much of the way leads; let go, they go on from there as fast as the finger went.
   const grab = () => {
     halt();
     const v = variant();
     if (v.instant) { grip = null; return; }
-    deckEl.classList.toggle("plain", !!v.plain);
+    if (v.strip) { grabStrip(v); return; }
+    dress(v);
     grip = { cur: current, order: order.slice(), take: new Map(order.map((i) => [i, { ...cards[i].pos }])), dir: 0, roles: null, brought: null, fresh: false, u: 0, q: 0 };
     for (const i of order) cards[i].el.classList.add("moving");
   };
@@ -1082,6 +1348,7 @@ a { color: inherit; text-decoration: none; }
   const drag = (q) => {
     const g = grip;
     if (!g) return;
+    if (g.strip) { dragStrip(q); return; }
     const v = variant(), w = width(), want = Math.sign(q), t = g.cur + want;
     const dir = want && t >= 0 && t < cards.length ? want : 0;
     if (dir !== g.dir) {
@@ -1112,6 +1379,7 @@ a { color: inherit; text-decoration: none; }
     const g = grip;
     grip = null;
     if (!g) { if (to !== current) toTab(to, said); return; }
+    if (g.strip) { releaseStrip(g, to, dqdt, said); return; }
     const v = variant();
     const dudt = Math.max(-4, Math.min(4, Math.sign(g.q) * dqdt));
     for (const i of order) cards[i].vel = still();
@@ -1439,21 +1707,79 @@ a { color: inherit; text-decoration: none; }
     select(i, "key");
   });
 
+  // ---- a finger on the page itself, as on a phone's home screen („Wischen auf der Seite“) ----
+  // Sideways the pages follow it one to one; up or down the page scrolls, as ever. The first move
+  // past the slop decides, a little more readily for up and down. Let go past half a page, or
+  // flicked, and the tab beside is the current one: one a swipe, as on the bar.
+  const PAGE_SLOP = 10;
+  let pageFinger = null;
+  // The way of a finger in tabs: a page's width (on the strip as large as it is drawn just then).
+  const tabsFor = (dx) => {
+    const v = variant(), w = width();
+    return v.strip ? -dx / ((w + (v.gap || 0)) * (grip?.z || 1)) : -dx / w;
+  };
+  deckEl.addEventListener("pointerdown", (e) => {
+    if (settings.swipe !== "page" || !e.isPrimary || e.button !== 0 || finger) return;
+    pageFinger = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, taken: false, from: current, trail: [{ x: e.clientX, t: e.timeStamp }] };
+  });
+  document.addEventListener("pointermove", (e) => {
+    const f = pageFinger;
+    if (!f || e.pointerId !== f.id) return;
+    if (!f.taken) {
+      const dx = e.clientX - f.x, dy = e.clientY - f.y;
+      if (Math.abs(dx) < PAGE_SLOP && Math.abs(dy) < PAGE_SLOP) return;
+      if (Math.abs(dx) <= Math.abs(dy) * 1.2) { pageFinger = null; return; }
+      f.taken = true;
+      if (glide) settle();
+      flushSelect();
+      grab();
+      f.from = current;
+      f.x0 = e.clientX;
+      try { deckEl.setPointerCapture(f.id); } catch {}
+    }
+    f.trail.push({ x: e.clientX, t: e.timeStamp });
+    while (f.trail.length > 2 && e.timeStamp - f.trail[0].t > 100) f.trail.shift();
+    drag(tabsFor(e.clientX - f.x0));
+  });
+  const pageLetGo = (e, cancelled) => {
+    const f = pageFinger;
+    pageFinger = null;
+    if (!f?.taken) return;
+    try { deckEl.releasePointerCapture(f.id); } catch {}
+    const a = f.trail[0], b = f.trail[f.trail.length - 1];
+    const q = cancelled ? 0 : tabsFor(e.clientX - f.x0);
+    const vq = cancelled || b.t - a.t <= 4 ? 0 : tabsFor(b.x - a.x) / ((b.t - a.t) / 1000);
+    let to = f.from;
+    if (Math.abs(vq) > 1.4 && Math.sign(vq) === Math.sign(q || vq)) to = f.from + Math.sign(vq);
+    else if (Math.abs(q) > 0.5) to = f.from + Math.sign(q);
+    to = Math.max(0, Math.min(cards.length - 1, to));
+    const said = to !== f.from ? `Auf der Seite gewischt: ${TABS[f.from].label} → ${TABS[to].label}` : `Auf der Seite gewischt, ${TABS[f.from].label} bleibt`;
+    say(said);
+    release(to, vq, said);
+    if (to !== barCurrent) select(to, "finger");
+    if (to !== f.from && settings.pages === "today") rebuild(to, f.from, false);
+  };
+  document.addEventListener("pointerup", (e) => { if (e.pointerId === pageFinger?.id) pageLetGo(e, false); });
+  document.addEventListener("pointercancel", (e) => { if (e.pointerId === pageFinger?.id) pageLetGo(e, true); });
+  document.addEventListener("touchmove", (e) => { if (pageFinger?.taken && e.cancelable) e.preventDefault(); }, { passive: false });
+
   // ---- the settings, beside the phone or in a sheet on one ----
   const showSettings = () => {
     for (const input of document.querySelectorAll("#proto input[type=radio]")) input.checked = settings[input.name] === input.value;
     $("slow").checked = settings.slow;
     $("slow-btn").setAttribute("aria-pressed", String(settings.slow));
     const v = VARIANTS[settings.anim];
-    $("anim-note").textContent = reduced() && !v.instant ? `${v.note} Dein System möchte weniger Bewegung: Statt Karten blendet die Seite kurz über.` : v.note;
+    $("anim-note").textContent = reduced() && !v.instant ? `${v.note} Dein System möchte weniger Bewegung: Statt der Bewegung blendet die Seite kurz über.` : v.note;
     $("anim-name").textContent = v.label;
     $("pages-note").textContent = PAGES_NOTES[settings.pages];
+    $("swipe-note").textContent = SWIPE_NOTES[settings.swipe];
   };
   $("proto").addEventListener("change", (e) => {
     const { name, value } = e.target;
     if (e.target.id === "slow") settings.slow = e.target.checked;
     else if (name in CHOICES && CHOICES[name].includes(value)) settings[name] = value;
     else return;
+    tuned = null;
     if (finger?.taken) letGo(null);
     jump(current);
     save();
@@ -1503,6 +1829,6 @@ a { color: inherit; text-decoration: none; }
   mark(current);
 
   // For the checks: where the cards are and which is current.
-  window.__tabwechsel = { cards: () => cards.map((c) => ({ shown: c.shown, z: c.el.style.zIndex, transform: c.el.style.transform })), current: () => current, moving: () => !!motion, go: (i) => select(i, "tap") };
+  window.__tabwechsel = { cards: () => cards.map((c) => ({ shown: c.shown, z: c.el.style.zIndex, transform: c.el.style.transform })), current: () => current, moving: () => !!motion, strip: () => ({ ...STRIP }), go: (i) => select(i, "tap") };
 })();
 </script>
