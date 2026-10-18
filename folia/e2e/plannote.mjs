@@ -17,7 +17,9 @@
 // stands over the bottom bar, as wide, under it and flat; a tap on the semester's half and a finger
 // swiped over it move the module, the semester under the finger stays as the switch comes over it,
 // a finger swipes the note down and away, and a long scroll, a tap elsewhere or a module opened puts
-// it away; planned from a module's sheet, the note goes down with the sheet as it closes.
+// it away; planned from a module's sheet, the note goes down with the sheet as it closes. On a small
+// wide screen the note takes the room it has: nothing of it over anything else, the switch a row over
+// „Rückgängig" where the line has no room for it, the module named where there is room.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node plannote.mjs   (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Needs the synthetic catalog (docs/folia/frontend.md §4): Algorithmen und Datenstrukturen (11112,
 // winter, in the 1st semester of Informatik B.Sc.'s plan) and Analysis I (11103, summer); its
@@ -206,7 +208,7 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   // content").
   const content = await page.evaluate(() => ({ side: document.querySelector(".work > .filters").getBoundingClientRect().right, left: document.querySelector(".work > .list").getBoundingClientRect().left }));
   check(n && near(n.box.left, content.left) && n.box.left >= content.side && near(n.box.right, 1432) && n.box.height <= 56, `the bar: not across the content right of the filters, one line high (${JSON.stringify([n?.box, content])})`);
-  check(n && n.keepBox && near(n.keepBox.top + n.keepBox.height / 2, n.main.top + n.main.height / 2, 2) && n.keepBox.left > n.main.right, `the bar: the switch is not in its line, right of the arrows (${JSON.stringify([n?.main, n?.keepBox])})`);
+  check(n && n.keepBox && near(n.keepBox.top + n.keepBox.height / 2, n.stepper.top + n.stepper.height / 2, 2) && n.keepBox.left > n.stepper.right, `the bar: the switch is not in its line, right of the arrows (${JSON.stringify([n?.stepper, n?.keepBox])})`);
   check(n && n.title === "Algorithmen und Datenstrukturen", `the bar: the module is not named (${n?.title})`);
   // Dark in both themes, light text on it, and off the dark page (owner, the same day: „dark modus
   // muss natürlich auch dafür funktionieren").
@@ -353,6 +355,79 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   check(/^SoSe 20\d\d$/.test(row.value || "") && row.value !== "SoSe 2034" && !row.chosen, `chosen: „Aufheben“ did not aim as without it (${JSON.stringify(row)})`);
   await page.click("dialog.plan-setup .plan-setup-cancel");
   await context.close();
+}
+
+// ---------- a small wide screen ----------
+// The note takes the room it has, however narrow the window and wide the sidebar (owner,
+// 2026-10-18: „Auf der pc Version bei sehr kleinen Bildschirmen, gibt es das problem, dass die
+// notification bar so alles übereinander zeichnet. Bau die mal so, dass das alles responsive je
+// nach verfügbaren platz ist"): nothing of it over anything else or out of it; the semester where
+// it was as the switch comes, which stands in its line where there is room, else a row over
+// „Rückgängig"; the module named where there is room; „entfernt" whole.
+{
+  // Its parts as they are seen (inside what clips them), what lies over what, and where they are.
+  const layout = (page) => page.evaluate(() => {
+    const note = document.querySelector(".wait-note");
+    if (!note) return null;
+    const nb = note.getBoundingClientRect();
+    const seen = (el) => {
+      const b = el.getBoundingClientRect();
+      let r = { left: b.left, right: b.right, top: b.top, bottom: b.bottom };
+      for (let up = el.parentElement; up && up !== note; up = up.parentElement) {
+        if (getComputedStyle(up).overflowX === "visible") continue;
+        const c = up.getBoundingClientRect();
+        r = { left: Math.max(r.left, c.left), right: Math.min(r.right, c.right), top: Math.max(r.top, c.top), bottom: Math.min(r.bottom, c.bottom) };
+      }
+      return r;
+    };
+    const parts = [".plan-toast-mark", ".plan-toast-title", ".plan-toast-step", ".plan-toast-now > b", ".plan-toast-now > small", ".plan-toast-said-name", ".plan-toast-said-what", ".plan-toast-keep > .icon", ".plan-toast-keep > span:first-of-type", ".plan-toast-switch", ".plan-toast-sep", ".plan-toast-undo", ".wait-note-close"]
+      .flatMap((sel) => [...note.querySelectorAll(sel)].filter((el) => el.checkVisibility()).map((el, i) => ({ name: `${sel}${i ? "#" + i : ""}`, r: seen(el) })));
+    const hits = [];
+    for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+      const a = parts[i].r, b = parts[j].r;
+      if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1) hits.push(`${parts[i].name} × ${parts[j].name}`);
+    }
+    const box = (sel) => { const el = note.querySelector(sel); return el?.checkVisibility() ? el.getBoundingClientRect().toJSON() : null; };
+    const what = note.querySelector(".plan-toast-said-what");
+    return {
+      width: nb.width,
+      hits,
+      out: parts.filter((p) => p.r.left < nb.left - 1 || p.r.right > nb.right + 1 || p.r.top < nb.top - 1 || p.r.bottom > nb.bottom + 1).map((p) => p.name),
+      stepper: box(".plan-toast-stepper"),
+      keep: box(".plan-toast-keep"),
+      named: Boolean(box(".plan-toast-title")),
+      removed: what ? { whole: what.scrollWidth <= what.clientWidth + 1 && seen(what).right >= what.getBoundingClientRect().right - 1, text: note.querySelector(".plan-toast-said").textContent } : null,
+    };
+  });
+  // The window, the sidebar, and what the note has room for: the switch in its line, the module's name.
+  for (const [width, side, inLine, named] of [[1024, 440, false, false], [1100, 272, false, true], [1366, 272, true, true]]) {
+    const at = `${width}/${side}`;
+    const context = await browser.newContext({ viewport: { width, height: 760 } });
+    await context.addInitScript((side) => { localStorage.setItem("betula.filters.width", String(side)); sessionStorage.setItem("betula.plan.asked", "1"); }, side);
+    const page = await context.newPage();
+    watch(page);
+    await open(page, "11112");
+    await page.keyboard.press("p");
+    await noteThere(page, `${at}: P`);
+    await page.waitForTimeout(400);
+    const planned = await layout(page);
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(400);
+    const moved = await layout(page);
+    for (const [what, l] of [["planned", planned], ["moved", moved]]) {
+      check(l && !l.hits.length && !l.out.length, `${at} ${what}: parts of the note over each other or out of it (${JSON.stringify(l && { hits: l.hits, out: l.out, width: l.width })})`);
+    }
+    check(planned && moved && near(planned.stepper?.left, moved.stepper?.left) && near(planned.stepper?.top, moved.stepper?.top), `${at}: the semester moved as the switch came (${JSON.stringify([planned?.stepper, moved?.stepper])})`);
+    check(moved?.keep && (inLine ? near(moved.keep.top + moved.keep.height / 2, moved.stepper.top + moved.stepper.height / 2, 2) : moved.keep.bottom <= moved.stepper.top + 1), `${at}: the switch is not ${inLine ? "in the line" : "a row over it"} (${JSON.stringify([moved?.keep, moved?.stepper])})`);
+    check(planned?.named === named, `${at}: the module ${named ? "not " : ""}named (a note ${Math.round(planned?.width)} px wide)`);
+    await shot(page, `narrow-${width}-${side}`);
+    // P on the module planned takes it out: „entfernt" whole.
+    await page.keyboard.press("p");
+    await page.waitForTimeout(500);
+    const removed = await layout(page);
+    check(removed?.removed?.whole && removed.removed.text.endsWith("entfernt") && !removed.hits.length && !removed.out.length, `${at}: „entfernt" not whole (${JSON.stringify(removed && { removed: removed.removed, hits: removed.hits, out: removed.out })})`);
+    await context.close();
+  }
 }
 
 // ---------- a phone ----------

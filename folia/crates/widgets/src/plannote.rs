@@ -72,7 +72,11 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
                 <div class="plan-toast out">
                     <div class="plan-toast-main">
                         <span class="plan-toast-mark out" aria-hidden="true"><Icon name="calendar-minus"/></span>
-                        <span class="plan-toast-said">{(t.planner.note_removed)(&first.what.title)}</span>
+                        // The module's name gives way where the note is narrow, „entfernt" stays.
+                        <span class="plan-toast-said">
+                            <span class="plan-toast-said-name">{first.what.title.clone()}</span>
+                            <span class="plan-toast-said-what">" "{t.planner.note_removed}</span>
+                        </span>
                     </div>
                     {end}
                 </div>
