@@ -200,10 +200,12 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   check(later && later !== first, `the right half: still planned in ${later}`);
   check(n && n.line?.startsWith("verschoben · 2. FS"), `the right half: the line is ${n?.line}`);
   check(n && n.keep === "false" && n.keepText?.includes("Weitere Module auch nach"), `the right half: no switch for the next modules (${JSON.stringify(n)})`);
-  // A wide screen: one bar right of the rail as wide as the panels, one line high with the switch in
-  // it, the module named (owner, 2026-10-18: „über die ganze Breite rechts von der sidebar … etwas
-  // weniger hoch").
-  check(n && near(n.box.left, 52) && near(n.box.right, 1432) && n.box.height <= 56, `the bar: not across the page right of the rail, one line high (${JSON.stringify(n?.box)})`);
+  // A wide screen: one bar across the content, right of the filters, one line high with the switch
+  // in it, the module named (owner, 2026-10-18: „über die ganze Breite rechts von der sidebar …
+  // etwas weniger hoch"; „nicht über die sidebar (z.b. filter) gehen, sondern nur über den
+  // content").
+  const content = await page.evaluate(() => ({ side: document.querySelector(".work > .filters").getBoundingClientRect().right, left: document.querySelector(".work > .list").getBoundingClientRect().left }));
+  check(n && near(n.box.left, content.left) && n.box.left >= content.side && near(n.box.right, 1432) && n.box.height <= 56, `the bar: not across the content right of the filters, one line high (${JSON.stringify([n?.box, content])})`);
   check(n && n.keepBox && near(n.keepBox.top + n.keepBox.height / 2, n.main.top + n.main.height / 2, 2) && n.keepBox.left > n.main.right, `the bar: the switch is not in its line, right of the arrows (${JSON.stringify([n?.main, n?.keepBox])})`);
   check(n && n.title === "Algorithmen und Datenstrukturen", `the bar: the module is not named (${n?.title})`);
   // Dark in both themes, light text on it, and off the dark page (owner, the same day: „dark modus
