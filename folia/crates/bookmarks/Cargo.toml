@@ -1,6 +1,6 @@
 [package]
 name = "folia-bookmarks"
-version = "1.25.1"
+version = "1.25.2"
 edition = "2021"
 description = "Betula's list of marked modules"
 

@@ -3038,7 +3038,11 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   `program_area`, because no view has the nodes that hold no module („Komplex Nebenfach") with
   their `parent_id`; a view `v_program_area` needs a Radix migration and a new export (owed).
 - **R12. Unknown stays unknown:** `Option` in the row structs, „nicht angegeben" on the page.
-  A code without a label is shown as it is (`labels::Code`), and the label test flags it.
+  A code without a label is shown as it is (`labels::Code`), and the label test flags it. What
+  Radix infers is said where it is shown: a kind whose `kind_basis` is `inferred` reads
+  „Wahlpflicht · abgeleitet", its title saying from what (`folia_design::ui::KindBadge`, in the
+  catalog's list of a program and on the module page; schema 14, docs/radix/schema-v2.md, „Kinds
+  from the plan's slots").
 - **R20. What a visitor keeps stays with the visitor** (owner decision 2026-09-20: no data of a
   visitor on the server). Marked modules, and whatever follows them (passed modules, the own
   program), live in `localStorage` under a versioned key (`betula.<what>.v<n>`), behind one

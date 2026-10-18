@@ -1,5 +1,7 @@
 //! Texts of the small building blocks of every page (`ui.rs`): states, badges, facts, the frame.
 
+use folia_model::labels::KindSource;
+
 pub struct Texts {
     pub unavailable_title: &'static str,
     pub unavailable_hint: &'static str,
@@ -11,6 +13,10 @@ pub struct Texts {
     pub reload_page: &'static str,
     /// „Art nicht angegeben": no source states the kind of a module in a program.
     pub kind_unknown: &'static str,
+    /// „ · abgeleitet" after a kind no source states and Betula infers.
+    pub kind_inferred: &'static str,
+    /// The title of such a kind: from what it is inferred.
+    pub kind_inferred_title: fn(Option<KindSource>) -> &'static str,
     pub resize_sidebar: &'static str,
     pub resize_preview: &'static str,
     /// „Zurück (Esc)".
@@ -27,6 +33,12 @@ pub const DE: Texts = Texts {
     crashed: "Etwas ist schiefgelaufen.",
     reload_page: "Seite neu laden",
     kind_unknown: "Art nicht angegeben",
+    kind_inferred: " · abgeleitet",
+    kind_inferred_title: |source| match source {
+        Some(KindSource::PdfPlan) => "Abgeleitet: Der Regelstudienplan sieht einen Wahlpflichtplatz vor, der aus diesem Bereich des Modulbaums belegt wird. Ausdrücklich nennt keine Quelle die Art.",
+        Some(KindSource::QisTree) => "Abgeleitet aus dem Modulbaum und dem Titel des Moduls. Ausdrücklich nennt keine Quelle die Art.",
+        _ => "Abgeleitet. Ausdrücklich nennt keine Quelle die Art.",
+    },
     resize_sidebar: "Breite der Seitenleiste ändern (Pfeiltasten, Doppelklick setzt zurück)",
     resize_preview: "Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)",
     back_title: "Zurück (Esc)",
@@ -42,6 +54,12 @@ pub const EN: Texts = Texts {
     crashed: "Something went wrong.",
     reload_page: "Reload the page",
     kind_unknown: "Kind not stated",
+    kind_inferred: " · inferred",
+    kind_inferred_title: |source| match source {
+        Some(KindSource::PdfPlan) => "Inferred: the study plan has a compulsory elective slot that is filled from this area of the module tree. No source states the kind itself.",
+        Some(KindSource::QisTree) => "Inferred from the module tree and the module's title. No source states the kind itself.",
+        _ => "Inferred. No source states the kind itself.",
+    },
     resize_sidebar: "Change the width of the sidebar (arrow keys; a double click resets it)",
     resize_preview: "Change the width of the preview (arrow keys; a double click resets it)",
     back_title: "Back (Esc)",

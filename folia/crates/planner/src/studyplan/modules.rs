@@ -586,6 +586,8 @@ mod tests {
             exam_form: None,
             responsible: None,
             kind: None,
+            kind_source: None,
+            kind_basis: None,
             plan_semester: None,
             area: None,
         }

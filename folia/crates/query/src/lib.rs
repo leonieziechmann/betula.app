@@ -197,9 +197,9 @@ pub fn catalog_page(
 /// (`pm`, which `CatalogQuery::to_sql` joins).
 fn catalog_columns(query: &CatalogQuery) -> String {
     let program_columns = if query.program.is_some() {
-        "pm.kind AS kind, pm.plan_semester AS plan_semester, pm.area AS area"
+        "pm.kind AS kind, pm.kind_source AS kind_source, pm.kind_basis AS kind_basis, pm.plan_semester AS plan_semester, pm.area AS area"
     } else {
-        "NULL AS kind, NULL AS plan_semester, NULL AS area"
+        "NULL AS kind, NULL AS kind_source, NULL AS kind_basis, NULL AS plan_semester, NULL AS area"
     };
     format!(
         "f.module_id, m.title, m.title_de, m.title_en, f.credits, f.turnus_season, f.turnus_parity, \
@@ -428,7 +428,7 @@ pub fn module_program_links(db: &dyn Database, module_id: &str) -> Result<Vec<Pr
         db,
         "module_program_links",
         "SELECT degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, \
-         po_version, is_latest_po, relation, kind, kind_source, area \
+         po_version, is_latest_po, relation, kind, kind_source, area, kind_basis \
          FROM v_module_program_link WHERE module_id = ? \
          ORDER BY program_slug IS NULL, relation, program_name COLLATE NOCASE, po_version DESC, ord",
         &[Value::from(module_id)],
