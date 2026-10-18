@@ -76,7 +76,7 @@ pub fn Row(
                 <b>{row.title.clone()}</b>
                 <small>
                     <span class="mono">{row.id.clone()}</span>
-                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone() basis=row.kind_basis.clone() source=row.kind_source.clone()/> })}
+                    {with_program.then(|| view! { <KindBadge kind=row.kind.clone() basis=row.kind_basis.clone() source=row.kind_source.clone() area=row.area.clone()/> })}
                     // Inside a program the study plan's semester stands at the row (the
                     // list is in plan order, without headings between the semesters).
                     {with_program.then(|| row.plan_semester.map(|n| view! { <span class="plan-sem">{(t.format.semesters)(&(t.format.semester_one)(n))}</span> }))}

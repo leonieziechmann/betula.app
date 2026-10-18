@@ -910,7 +910,7 @@ html:not(.js) .fit-chip { display: none; }
 .resp, .exam { color: var(--text-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kind { display: inline-flex; align-items: center; gap: 5px; font-weight: 560; color: var(--text-2); }
 .kind i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-2); }
-.kind.k-elective i, .kind.k-fues i { background: transparent; box-shadow: inset 0 0 0 2px var(--text-2); }
+.kind.k-elective i, .kind.k-fues i, .kind.k-minor i { background: transparent; box-shadow: inset 0 0 0 2px var(--text-2); }
 .kind .kind-basis { font-weight: 450; color: var(--text-3); } /* „ · abgeleitet": a kind Betula infers */
 .flag { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); }
 .flag.neutral { background: var(--panel-3); color: var(--text-2); }
