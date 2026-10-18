@@ -1,0 +1,29 @@
+# Which areas a row of a plan names (docs/radix/schema-v2.md, „Kinds from the plan's slots“): Radix infers
+# the kinds of the plan's Wahlpflicht slots with the rule Folia lists a slot's modules by
+# (catalogbuild.areasForRow, plans::plan::areas_for_row). The lines hold both ports to the same
+# words of a name (distinctive) and the same scores of two names (fit). ∅ is an empty result.
+# words<TAB>name<TAB>expected words, space-separated
+# fit<TAB>row<TAB>name<TAB>score
+words	Komplex Praktische Informatik	praktisch informatik
+words	Modul aus dem Bereich Praktische Mathematik	praktisch mathematik
+words	Wahlpflichtmodule Praktische Mathematik	praktisch mathematik
+words	Anwendungsfach	nebenfach
+words	Komplex Nebenfach	nebenfach
+words	5 Berufspraktische Vorbereitung (Wahl eines Modules aus Anlage 2a)	berufspraktisch vorbereitung
+words	Wirtschaftswissenschaften2	wirtschaftswissenschaft
+words	Schwerpunktmodul II	schwerpunktmodul 2
+words	Grundlagen der Statistik	grundlag statistik
+words	- Wahlpflicht Rechtswissenschaften (gemäß Anlage 2)	rechtswissenschaft
+words	Informatik¹	informatik¹
+words	Nebenfach (Mathematik, Chemie, Informatik)	nebenfach mathematik chemie informatik
+words	12	∅
+words	Wahlpflichtmodule	∅
+fit	Anwendungsfach	Komplex Nebenfach	100
+fit	Komplex Praktische Informatik	Praktische Informatik	100
+fit	Modul aus dem Bereich Praktische Mathematik	Wahlpflichtmodule Praktische Mathematik	100
+fit	Wahlpflichtmodul aus der Informatik	Praktische Informatik	65
+fit	- Wahlpflicht Rechtswissenschaften (gemäß Anlage 2)	Rechtswissenschaftlicher Bereich	10
+fit	Physics of Modern Devices	Technology and Devices	0
+fit	Schwerpunkt 1	Konstruktiver Ingenieurbau - 1	0
+fit	Studienrichtung	Studienrichtungsspezifische Vertiefungsmodule	10
+fit	Informatik¹	Informatik	10

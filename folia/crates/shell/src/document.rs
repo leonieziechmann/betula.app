@@ -73,9 +73,10 @@
 /// change of tabs writing the history in place, a link from outside laying its way up under it on
 /// its first use; the arrow at the head Back) and on a desktop one step of the history per pause of
 /// a second; 1.25.1 with the note of „Einplanen" on a wide screen laid out for the room it has —
-/// one line, the switch a row over „Rückgängig", no name —, nothing of it over anything else. The
-/// version of the app's crates, the same as the server's; Radix's is in the snapshot
-/// (`Meta::radix_version`).
+/// one line, the switch a row over „Rückgängig", no name —, nothing of it over anything else;
+/// 1.25.2 saying „abgeleitet" beside a kind Radix infers, „Wahlpflicht · abgeleitet", in a
+/// program's list and on the module page (schema 14). The version of the app's crates, the same as
+/// the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
