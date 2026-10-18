@@ -14,7 +14,14 @@
      bekommt und dann da zwar schon die defaults drin sind. Aber man trotzdem alles änderen kann. Aber
      das einplanen von Modul soll dann auch mit in dem modal sein, so dass man im best case nur auf ok
      drücken muss"): without a study, E's „Einplanen" opens „Dein Studium" with the module's semester
-     in one dialog, everything filled in. Tokens are Betula's (folia/assets/app.css), the swipe's looks those of 1.16. -->
+     in one dialog, everything filled in. Then (owner, 18.10.: „Betula sollte bei sowas nicht nein sagen …
+     Deswegen möchte ich das gleich expandiert haben, wo man einen Studiengang auswählen kann aus
+     maximal 3, und darunter gleich eine combobox … nachdem der Studiengang gewählt wurde können wir
+     im regelstudienplan gucken, in welchem Semester das Modul steht und dann das aktuelle fs und das
+     fs in das das modul so wählen, dass das logisch zusammenpasst. Aber nur, wenn der User noch
+     nichts an den werten geändert hat."): without a filter no program is assumed, the module's
+     open with a search under them; the Regelstudienplan fills what the student has not set; the
+     past is allowed, with a warning. Tokens are Betula's (folia/assets/app.css), the swipe's looks those of 1.16. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -426,6 +433,8 @@ button.pl { cursor: pointer; }
 .srow .note.warn { color: var(--warn); }
 .srow .note b { color: var(--accent-ink); font-weight: 650; }
 .srow .pick { grid-column: 1 / -1; margin: 6px -2px 2px; }
+.srow.first { display: block; padding-top: 10px; }
+.srow.first .pick { margin: 0 -2px 2px; }
 .pm { display: inline-flex; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); flex: none; }
 .pm button { display: grid; place-items: center; width: 34px; height: 32px; color: var(--text-2); font-size: 16px; font-weight: 600; }
 .pm button:hover { color: var(--text); background: var(--panel-3) !important; }
@@ -442,6 +451,30 @@ button.pl { cursor: pointer; }
 .p-app .m-body { padding: 4px 16px 12px; }
 .p-app .srow { grid-template-columns: 92px minmax(0, 1fr); }
 .p-app .study .say { font-size: 15.5px; }
+/* Without a program yet: the three open at once, the search right under them; the warning where the
+   module's semester lies behind the student. */
+.srow .val > .unset { font-size: 14.5px; font-weight: 600; color: var(--text-3); }
+.srow .note.good { color: var(--accent-ink); }
+.progs button[aria-checked="true"] { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 2px var(--accent); }
+.combo { margin-top: 6px; }
+.combo .cq { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); cursor: text; }
+.combo .cq:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.combo .cq input { flex: 1; min-width: 0; height: 100%; border: 0; background: none; color: var(--text); font: 13px var(--font); outline: none; -webkit-user-select: text; user-select: text; }
+.combo .cq input::placeholder { color: var(--text-3); }
+.combo-list { display: flex; flex-direction: column; margin-top: 4px; padding: 4px; border-radius: 9px; background: var(--panel); box-shadow: var(--shadow-pop); }
+.combo-list button { display: flex; align-items: center; min-height: 36px; padding: 0 10px !important; border-radius: 6px; text-align: left; font-size: 13px; font-weight: 600; }
+.combo-list button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-list button:hover, .combo-list button:focus-visible { background: var(--panel-3) !important; outline: none; }
+.combo-list mark { background: none; color: var(--accent-ink); font-weight: 760; }
+.combo-list .none { padding: 7px 10px; font-size: 12px; color: var(--text-3); }
+.m-warn { display: flex; align-items: flex-start; gap: 8px; margin: 0 10px 10px 14px; padding: 8px 10px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; line-height: 1.45; animation: fade .2s ease-out; }
+.app .m-warn svg.i { width: 15px; height: 15px; margin-top: 1px; }
+.m-warn b { font-weight: 650; }
+.m-foot .ok[disabled] { opacity: .4; cursor: default; }
+.p-app .combo .cq { height: 44px; }
+.p-app .combo .cq input { font-size: 15px; }
+.p-app .combo-list button { min-height: 44px; font-size: 14.5px; }
+.p-app .m-warn { font-size: 13px; }
 
 /* The comparison and the recommendation. */
 .cmp, .reco { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 80px; }
@@ -507,15 +540,15 @@ button.pl { cursor: pointer; }
   <section class="concept" id="e" aria-labelledby="e-title">
     <header class="c-head">
       <span class="c-tag">E</span>
-      <div><h2 id="e-title">Hinweis mit Stepper <small>Gewählt</small></h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt in derselben Leiste eine zweite Zeile „Weitere Module auch nach SoSe 27“ mit einem Schalter; eingeschaltet steht sie in jeder weiteren Leiste, bis man ihn ausschaltet. Fehlt das Studium, öffnet „Einplanen“ einen Dialog: „Dein Studium“ und das Semester des Moduls, alles vorausgefüllt und änderbar. Im besten Fall genügt „Einrichten und einplanen“.</p></div>
+      <div><h2 id="e-title">Hinweis mit Stepper <small>Gewählt</small></h2><p>Nach dem Tipp oder Wisch kommt unten eine schmale Leiste: ein Haken, das Semester zwischen ‹ und ›, „Rückgängig“. Die Pfeile verschieben sofort. Wer verschoben hat, bekommt in derselben Leiste eine zweite Zeile „Weitere Module auch nach SoSe 27“ mit einem Schalter; eingeschaltet steht sie in jeder weiteren Leiste, bis man ihn ausschaltet. Fehlt das Studium, öffnet „Einplanen“ einen Dialog: „Dein Studium“ und das Semester des Moduls, alles änderbar. Ohne Filter wählt man zuerst den Studiengang; Fachsemester und Semester füllt Betula dann nach dem Regelstudienplan. Im besten Fall genügt „Einrichten und einplanen“.</p></div>
       <button class="c-reset" type="button" data-reset="e">Zurücksetzen</button>
     </header>
-    <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · oben „noch nicht“ wählen und dann einplanen: der Dialog</p>
+    <p class="try"><b>Probier:</b> am Handy eine Zeile nach rechts wischen · in der Leiste › tippen · oben „noch nicht, ohne Filter“ wählen, einplanen, einen Studiengang wählen oder suchen · danach das Fachsemester auf 5: Datenbanken liegt laut Plan hinter dir</p>
     <div class="stage" data-concept="e"></div>
     <div class="c-notes">
       <div><h3>So geht es</h3><ul><li>Tipp oder Wisch: geplant, unten die Leiste.</li><li>‹ › in der Leiste: ein Semester früher oder später.</li><li>„Rückgängig“, oder noch einmal wischen: wieder raus.</li><li>Nach dem Verschieben: Schalter „Weitere Module auch nach …“ in der zweiten Zeile.</li></ul></div>
       <div><h3>Gut</h3><ul><li><b>Man sieht immer, was passiert ist,</b> auch beim Wischen in der Liste.</li><li>Ein anderes Semester ist <b>ein Tipp</b> auf ›.</li><li>Am Rechner wie am Handy dieselbe Leiste.</li></ul></div>
-      <div><h3>Ohne Studium</h3><ul><li><b>Ein Dialog statt der Leiste:</b> Studiengang, Fachsemester und das Semester des Moduls, vorausgefüllt.</li><li>Studiengang aus dem Filter, sonst der erste der Studiengänge des Moduls (Pflicht zuerst); antippen zeigt höchstens drei und „Anderer Studiengang …“.</li><li>Fachsemester aus dem Filter, sonst vermutet; das Semester wie immer. <b>Ein Druck auf „Einrichten und einplanen“</b>, danach die Leiste.</li></ul></div>
+      <div><h3>Ohne Studium</h3><ul><li><b>Ein Dialog statt der Leiste:</b> Studiengang, Fachsemester und das Semester des Moduls. Mit Filter ist alles vorausgefüllt, <b>ein Druck auf „Einrichten und einplanen“</b>.</li><li><b>Ohne Filter</b> nimmt Betula keinen Studiengang an: die des Moduls stehen offen da (höchstens drei, Pflicht zuerst), darunter gleich die Suche nach jedem anderen.</li><li><b>Danach der Regelstudienplan:</b> wo er das Modul hinlegt, daraus Fachsemester und Semester, die zusammenpassen; nur, was du nicht selbst gesetzt hast. Liegt das hinter dir, kommt es ins nächste Semester, mit Hinweis; ‹ geht auch in die Vergangenheit, mit Warnung.</li></ul></div>
     </div>
   </section>
 
@@ -629,6 +662,7 @@ const ICON = {
   trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   stack: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
   full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+  alert: '<path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
 };
 const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
@@ -642,7 +676,7 @@ const fresh = (dev) => ({
   asked: false, // the question answered or put aside
   ask: false, // the question is waiting
   askK: null, askStep: "pick", askProg: null, askGuess: 1, // for which module, and how far
-  modal: null, // E without a study: { k, prog, src, fs, fsTouched, sem, pick, more }
+  modal: null, // E without a study: { k, prog, src, place, fs, fsSrc, fsFiltered, fsTouched, sem, semTouched, pick, q }
   chosen: null, // the session's semester, changed by the student (P3)
   snack: null, // E: { k, kind, from, stepped }
   undo: null, // F, G: { k, kind, from }
@@ -731,10 +765,10 @@ const snackOf = (st) => {
     const fs = fsOf(st, i);
     // The switch for the next modules: once a module was moved, and while the session plans
     // somewhere chosen (then on, to switch it off where it is seen).
-    const keep = s.stepped || st.chosen != null
+    const keep = (s.stepped || st.chosen != null) && i >= SESSION
       ? `<button class="snack-keep" type="button" role="switch" aria-checked="${st.chosen === i}" data-act="keep" data-i="${i}"><span class="ico">${icon("stack")}</span><span>Weitere Module auch nach <b>${esc(sem(i))}</b></span><span class="switch" aria-hidden="true"></span></button>`
       : "";
-    bar = `<div class="snack"><div class="snack-row"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${modOf(s.k).offered(i) ? "" : " · kein Angebot"}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>${keep}</div>`;
+    bar = `<div class="snack"><div class="snack-row"><span class="ok">${icon("check")}</span><button class="arr" type="button" data-act="step" data-d="-1" data-k="${s.k}" aria-label="Ein Semester früher" ${i <= SESSION ? "disabled" : ""}>${icon("left")}</button><span class="sv${st.flip ? " flip" : ""}"><b>${esc(sem(i))}</b><small>${i < SESSION ? "liegt zurück" : s.stepped ? "verschoben" : "eingeplant"}${fs ? ` · ${fs}. FS` : ""}${i >= SESSION && !modOf(s.k).offered(i) ? " · kein Angebot" : ""}</small></span><button class="arr" type="button" data-act="step" data-d="1" data-k="${s.k}" aria-label="Ein Semester später">${icon("right")}</button><span class="sep"></span><button class="tx" type="button" data-act="undo">Rückgängig</button></div>${keep}</div>`;
   }
   return `<div class="snack-wrap">${ask}${bar}</div>`;
 };
@@ -758,38 +792,85 @@ const phoneOf = (st, c) => {
 };
 
 // ---------- E without a study: the dialog ----------
-// What it starts with: the catalog's filter, else the module's first program (compulsory first);
-// the Fachsemester from the filter, else where that program's plan places the module, less the
-// semesters until the one it goes into; the semester as „Einplanen" aims.
-const guessFs = (k, prog, sem) => { const hit = (CURRICULA[k] || []).find(([p, kind]) => p === prog && kind === "Pflicht") || (CURRICULA[k] || []).find(([p]) => p === prog); return hit ? Math.max(1, hit[2] - (sem - SESSION)) : 1; };
+// The program: the catalog's filter; without one none is assumed (owner, 18.10.: „Weil der assumed
+// Studiengang wahrscheinlich falsch ist"): the module's programs are open at once, three at most,
+// compulsory first, and a search for any other right under them. Once the program is known, Betula
+// looks up where its Regelstudienplan places the module and fills in only what the student has not
+// set: without a Fachsemester, the one that puts the module there in the semester it goes into;
+// with one, the semester that does. A place behind the student is not refused: the module goes into
+// the next semester that offers it, and says why; ‹ goes into the past too, with a warning (owner,
+// 18.10.: „Betula sollte bei sowas nicht nein sagen").
+const placeOf = (k, p) => { const c = CURRICULA[k] || []; const hit = c.find(([q, kind]) => q === p && kind === "Pflicht") || c.find(([q]) => q === p); return hit ? { kind: hit[1], n: hit[2] } : null; };
+const fitPlan = (st, d) => {
+  const m = modOf(d.k), aim = targetOf(st, m);
+  d.place = d.prog ? placeOf(d.k, d.prog) : null;
+  if (!d.prog) return;
+  if (!d.place) { if (d.fs == null) { d.fs = 1; d.fsSrc = "angenommen"; } return; }
+  const n = d.place.n;
+  if (!d.fsTouched && !d.fsFiltered) {
+    if (!d.semTouched) d.sem = aim;
+    d.fs = Math.max(1, n - (d.sem - SESSION));
+    d.fsSrc = "passend zum Plan";
+  } else if (!d.semTouched) {
+    let s = SESSION + (n - d.fs);
+    if (s < SESSION) s = aim; else while (!m.offered(s)) s++;
+    d.sem = s;
+  }
+};
 const openModal = (st, k) => {
-  const sem = targetOf(st, modOf(k));
-  if (SETUP === "filter") { st.modal = { k, prog: "inf", src: "aus deinem Filter im Katalog", fs: ASK.fs, fsSrc: "aus deinem Filter im Katalog", fsTouched: false, sem, pick: false, more: false }; return; }
-  const first = offerOf(k).shown[0];
-  const prog = first?.p ?? "inf";
-  st.modal = { k, prog, src: first ? `${modOf(k).t}: ${first.kind} im ${first.n}. Semester des Plans` : "", fs: guessFs(k, prog, sem), fsSrc: "vermutet", fsTouched: false, sem, pick: false, more: false };
+  const d = { k, sem: targetOf(st, modOf(k)), semTouched: false, fsTouched: false, q: "" };
+  if (SETUP === "filter") Object.assign(d, { prog: "inf", src: "filter", fs: ASK.fs, fsSrc: "aus deinem Filter", fsFiltered: true, pick: false });
+  else Object.assign(d, { prog: null, src: "", fs: null, fsSrc: "", fsFiltered: false, pick: true });
+  fitPlan(st, d);
+  st.modal = d;
+};
+// The earliest semester ‹ reaches: the first Fachsemester, or six back while that is not known.
+const floorOf = (d) => (d.fs != null ? SESSION - d.fs + 1 : SESSION - 6);
+// The search under the three: what matches as it is typed, five at most.
+const comboHits = (q) => {
+  const s = q.trim().toLowerCase();
+  if (!s) return "";
+  const hits = Object.entries(PROGS).filter(([, n]) => n.toLowerCase().includes(s)).sort((a, b) => a[1].localeCompare(b[1], "de"));
+  if (!hits.length) return `<p class="none">Kein Studiengang gefunden</p>`;
+  return hits.slice(0, 5).map(([p, n]) => { const i = n.toLowerCase().indexOf(s); return `<button type="button" role="option" data-act="mpick" data-p="${p}"><span>${esc(n.slice(0, i))}<mark>${esc(n.slice(i, i + s.length))}</mark>${esc(n.slice(i + s.length))}</span></button>`; }).join("") + (hits.length > 5 ? `<p class="none">${hits.length - 5} weitere, tippe weiter</p>` : "");
 };
 const modalOf = (st) => {
   const d = st.modal;
   if (!d) return "";
-  const m = modOf(d.k), progName = PROGS[d.prog];
-  const fsAt = d.fs + (d.sem - SESSION); // the Fachsemester of the semester it goes into
-  const since = SESSION - d.fs + 1;
-  const offered = m.offered(d.sem);
+  const m = modOf(d.k), progName = d.prog ? PROGS[d.prog] : null;
+  const since = d.fs != null ? SESSION - d.fs + 1 : null;
+  const fsAt = d.fs != null ? d.fs + (d.sem - SESSION) : null; // the Fachsemester of the semester it goes into
+  const offered = m.offered(d.sem), past = d.sem < SESSION;
+  const planSem = d.place && since != null ? since + d.place.n - 1 : null; // where the plan puts it, for this student
   const pick = d.pick ? (() => {
-    if (d.more) {
-      const all = Object.entries(PROGS).sort((a, b) => a[1].localeCompare(b[1], "de"));
-      return `<div class="pick askbox"><input class="askq" type="search" placeholder="Studiengang suchen" aria-label="Studiengang suchen"><div class="progs"><div class="scroll">${all.map(([p, name]) => `<button type="button" data-act="mpick" data-p="${p}"><span>${esc(name)}</span></button>`).join("")}</div></div></div>`;
-    }
-    const { shown, more } = offerOf(d.k);
-    return `<div class="pick askbox"><div class="progs">${shown.map(({ p, kind, n }) => `<button type="button" data-act="mpick" data-p="${p}"><span>${esc(PROGS[p])}</span><small class="${kind === "Pflicht" ? "req" : ""}">${kind} · ${n}. Sem.</small></button>`).join("")}<button class="other" type="button" data-act="mmore"><span>Anderer Studiengang …</span><small>${more} weitere</small></button></div></div>`;
+    const opts = offerOf(d.k).shown.map(({ p, kind, n }) => `<button type="button" role="radio" aria-checked="${d.prog === p}" data-act="mpick" data-p="${p}"><span>${esc(PROGS[p])}</span><small class="${kind === "Pflicht" ? "req" : ""}">${kind} · ${n}. Sem.</small></button>`).join("");
+    const hits = comboHits(d.q);
+    return `<div class="pick"><div class="progs" role="radiogroup" aria-label="Studiengänge von ${esc(m.t)}">${opts}</div><div class="combo"><label class="cq">${icon("search")}<input class="comboq" type="text" role="combobox" aria-autocomplete="list" aria-expanded="${!!hits}" autocomplete="off" spellcheck="false" placeholder="Anderen Studiengang suchen" value="${esc(d.q)}"></label><div class="combo-list" role="listbox" aria-label="Studiengänge"${hits ? "" : " hidden"}>${hits}</div></div></div>`;
   })() : "";
-  const head = `<div class="m-head"><div><h4>${esc(m.t)} einplanen</h4><p>Richte dabei dein Studium ein, dann stehen Fachsemester dabei. Alles ist vorausgefüllt; ändere, was nicht stimmt.</p></div><button class="nope" type="button" data-act="mcancel" aria-label="Schließen">${icon("x")}</button></div>`;
-  const study = `<section class="study" aria-label="Dein Studium"><p class="say">Du studierst <em>${esc(progName)}</em> im <em>${d.fs}. Fachsemester</em>.</p>
-    <div class="srow"><span class="label">Studiengang</span><div class="val"><button class="change" type="button" data-act="mprog" aria-expanded="${d.pick}"><span>${esc(progName)}</span>${icon("down")}</button></div><span class="note">${esc(d.src)}</span>${pick}</div>
-    <div class="srow"><span class="label">Fachsemester</span><div class="val"><b>${d.fs}. Fachsemester</b><span class="pm"><button type="button" data-act="mfs" data-d="-1" aria-label="weniger" ${d.fs <= 1 ? "disabled" : ""}>−</button><button type="button" data-act="mfs" data-d="1" aria-label="mehr">+</button></span></div><span class="note">seit ${sem(since)}${d.fsTouched ? "" : ` · <b>${esc(d.fsSrc)}</b>`}</span></div></section>`;
-  const plan = `<section class="study" aria-label="Einplanen"><div class="srow"><span class="label">${esc(m.t)}</span><div class="val"><b>${esc(sem(d.sem))} · ${fsAt}. FS</b><span class="pm"><button type="button" data-act="msem" data-d="-1" aria-label="ein Semester früher" ${d.sem <= SESSION ? "disabled" : ""}>‹</button><button type="button" data-act="msem" data-d="1" aria-label="ein Semester später">›</button></span></div><span class="note${offered ? "" : " warn"}">${offered ? (d.sem === SESSION ? "dieses Semester" : d.sem === targetOf(st, m) ? `${esc(m.turnus)} angeboten` : "") : "in diesem Semester nicht angeboten"}</span></div></section>`;
-  const foot = `<div class="m-foot"><button class="plain" type="button" data-act="mplain">Ohne Studium einplanen</button><button class="cancel" type="button" data-act="mcancel">Abbrechen</button><button class="ok" type="button" data-act="mok">Einrichten und einplanen</button></div>`;
+  const progVal = `<button class="change" type="button" data-act="mprog" aria-expanded="${d.pick}"><span>${esc(progName)}</span>${icon("down")}</button>`;
+  const progNote = !d.prog ? "" : d.src === "filter" ? "aus deinem Filter im Katalog" : d.place ? `${d.place.kind}modul im ${d.place.n}. Semester` : "Modul nicht in seinem Regelstudienplan";
+  const fsVal = d.fs != null ? `<b>${d.fs}. Fachsemester</b>` : `<span class="unset">–</span>`;
+  const fsNote = d.fs == null ? "folgt aus dem Regelstudienplan" : `seit ${sem(since)}${d.fsTouched ? "" : ` · <b>${esc(d.fsSrc)}</b>`}`;
+  const head = `<div class="m-head"><div><h4>${esc(m.t)} einplanen</h4><p>${SETUP === "filter" ? "Richte dabei dein Studium ein, dann stehen Fachsemester dabei. Alles ist vorausgefüllt; ändere, was nicht stimmt." : "Richte dabei dein Studium ein, dann stehen Fachsemester dabei."}</p></div><button class="nope" type="button" data-act="mcancel" aria-label="Schließen">${icon("x")}</button></div>`;
+  const say = progName ? `Du studierst <em>${esc(progName)}</em> im <em>${d.fs}. Fachsemester</em>.` : "Was studierst du?";
+  const study = `<section class="study" aria-label="Dein Studium"><p class="say">${say}</p>
+    ${progName ? `<div class="srow"><span class="label">Studiengang</span><div class="val">${progVal}</div><span class="note">${esc(progNote)}</span>${pick}</div>` : `<div class="srow first">${pick}</div>`}
+    <div class="srow"><span class="label">Fachsemester</span><div class="val">${fsVal}<span class="pm"><button type="button" data-act="mfs" data-d="-1" aria-label="weniger" ${d.fs == null || d.fs <= 1 ? "disabled" : ""}>−</button><button type="button" data-act="mfs" data-d="1" aria-label="mehr">+</button></span></div><span class="note">${fsNote}</span></div></section>`;
+  // Under the module: what the semester means, and a warning where it lies behind the student.
+  let note = "", cls = "";
+  if (past) { note = "liegt in der Vergangenheit"; cls = " warn"; }
+  else if (!offered) { note = "in diesem Semester nicht angeboten"; cls = " warn"; }
+  else if (d.place && fsAt === d.place.n) { note = `wie im Regelstudienplan (${d.place.n}. Semester)`; cls = " good"; }
+  else if (d.place && fsAt != null) note = `im Regelstudienplan im ${d.place.n}. Semester`;
+  else note = d.sem === SESSION ? "dieses Semester" : d.sem === targetOf(st, m) ? `${m.turnus} angeboten` : "";
+  const warn = past
+    ? `<p class="m-warn">${icon("alert")}<span><b>${esc(sem(d.sem))} liegt hinter dir.</b> Betula plant es trotzdem dort ein, etwa wenn du es schon belegt hast.</span></p>`
+    : planSem != null && planSem < SESSION && !d.semTouched
+      ? `<p class="m-warn">${icon("alert")}<span><b>Laut Regelstudienplan gehört es ins ${d.place.n}. Fachsemester, bei dir ${esc(sem(planSem))}.</b> Das liegt hinter dir, darum steht es im ${esc(sem(d.sem))}; mit ‹ geht es auch dorthin.</span></p>`
+      : "";
+  const at = fsAt == null ? "" : ` · ${fsAt >= 1 ? `${fsAt}. FS` : "vor Studienbeginn"}`;
+  const plan = `<section class="study" aria-label="Einplanen"><div class="srow"><span class="label">${esc(m.t)}</span><div class="val"><b>${esc(sem(d.sem))}${at}</b><span class="pm"><button type="button" data-act="msem" data-d="-1" aria-label="ein Semester früher" ${d.sem <= floorOf(d) ? "disabled" : ""}>‹</button><button type="button" data-act="msem" data-d="1" aria-label="ein Semester später">›</button></span></div>${note ? `<span class="note${cls}">${esc(note)}</span>` : ""}</div>${warn}</section>`;
+  const foot = `<div class="m-foot"><button class="plain" type="button" data-act="mplain">Ohne Studium einplanen</button><button class="cancel" type="button" data-act="mcancel">Abbrechen</button><button class="ok" type="button" data-act="mok" ${d.prog ? "" : 'disabled title="Wähle zuerst deinen Studiengang"'}>Einrichten und einplanen</button></div>`;
   return `<div class="m-shade" data-act="mcancel"></div><div class="m-dlg" role="dialog" aria-label="${esc(m.t)} einplanen">${head}<div class="m-body">${study}${plan}</div>${foot}</div>`;
 };
 
@@ -806,7 +887,6 @@ const press = (c, key, st, k, to) => {
     else st.undo = { k, kind: "removed", from: was };
   } else if (c === "e" && st.start == null && !st.asked) {
     openModal(st, k);
-    if (to != null) st.modal.sem = to;
     return;
   } else {
     planIt(st, k, to ?? targetOf(st, modOf(k)));
@@ -829,7 +909,7 @@ const act = (c, key, st, el) => {
     case "close": if (key.endsWith("-p")) st.open = null; st.strip = false; break;
     case "plan": press(c, key, st, k); break;
     case "step": {
-      const was = st.planned[k], to = Math.max(SESSION, was + Number(el.dataset.d));
+      const was = st.planned[k], to = Math.max(Math.min(SESSION, was), was + Number(el.dataset.d));
       if (to !== was) { st.planned[k] = to; st.flip = true; }
       if (c === "e") { st.snack = { ...st.snack, k, kind: "planned", stepped: true }; settle(c, key, st); }
       break;
@@ -853,20 +933,26 @@ const act = (c, key, st, el) => {
       break;
     }
     case "askmore": st.askStep = "more"; break;
-    case "mprog": st.modal.pick = !st.modal.pick; st.modal.more = false; break;
-    case "mmore": st.modal.more = true; break;
+    case "mprog": if (st.modal.prog) st.modal.pick = !st.modal.pick; break;
     case "mpick": {
       const d = st.modal;
-      d.prog = el.dataset.p; d.pick = false; d.more = false; d.src = "von dir gewählt";
-      if (!d.fsTouched && SETUP !== "filter") { d.fs = guessFs(d.k, d.prog, d.sem); d.fsSrc = "vermutet"; }
+      d.prog = el.dataset.p; d.src = d.fsFiltered && d.prog === "inf" ? "filter" : "pick"; d.pick = false; d.q = "";
+      fitPlan(st, d);
       break;
     }
-    case "mfs": st.modal.fs = Math.max(1, Math.min(14, st.modal.fs + Number(el.dataset.d))); st.modal.fsTouched = true; break;
-    case "msem": st.modal.sem = Math.max(SESSION, st.modal.sem + Number(el.dataset.d)); break;
+    case "mfs": {
+      const d = st.modal;
+      d.fs = d.fs == null ? 1 : Math.max(1, Math.min(14, d.fs + Number(el.dataset.d)));
+      d.fsTouched = true;
+      if (d.sem < floorOf(d)) d.sem = floorOf(d);
+      fitPlan(st, d);
+      break;
+    }
+    case "msem": { const d = st.modal; d.sem = Math.max(floorOf(d), d.sem + Number(el.dataset.d)); d.semTouched = true; break; }
     case "mcancel": st.modal = null; break;
     case "mok": case "mplain": {
       const d = st.modal;
-      if (el.dataset.act === "mok") st.start = SESSION - d.fs + 1;
+      if (el.dataset.act === "mok") { if (!d.prog) break; st.start = SESSION - d.fs + 1; }
       st.asked = true; st.ask = false; st.modal = null;
       st.planned[d.k] = d.sem; st.flash = d.k;
       st.snack = { k: d.k, kind: "planned", stepped: false };
@@ -977,9 +1063,25 @@ document.addEventListener("click", (e) => {
 });
 // „Anderer Studiengang": the search narrows the list as it is typed, without drawing the screen anew.
 document.addEventListener("input", (e) => {
+  if (e.target.matches?.(".comboq")) {
+    const scr = e.target.closest("[data-screen]"), d = STATES[scr.dataset.screen].modal;
+    d.q = e.target.value;
+    const list = e.target.closest(".combo").querySelector(".combo-list"), hits = comboHits(d.q);
+    list.innerHTML = hits; list.hidden = !hits; e.target.setAttribute("aria-expanded", String(!!hits));
+    return;
+  }
   if (!e.target.matches?.(".askq")) return;
   const q = e.target.value.trim().toLowerCase();
   e.target.closest(".askbox").querySelectorAll(".progs button").forEach((b) => { b.hidden = q && !b.textContent.toLowerCase().includes(q); });
+});
+// The combobox by keys: Enter takes the first hit, the arrows walk the hits.
+document.addEventListener("keydown", (e) => {
+  const combo = e.target.closest?.(".combo");
+  if (!combo) return;
+  const hits = [...combo.querySelectorAll(".combo-list button")], at = hits.indexOf(e.target);
+  if (e.key === "Enter" && at < 0 && hits[0]) { e.preventDefault(); hits[0].click(); }
+  else if (e.key === "ArrowDown" && hits.length) { e.preventDefault(); hits[Math.min(hits.length - 1, at + 1)].focus(); }
+  else if (e.key === "ArrowUp" && at >= 0) { e.preventDefault(); (at === 0 ? combo.querySelector(".comboq") : hits[at - 1]).focus(); }
 });
 const fit = () => document.querySelectorAll(".fit").forEach((f) => {
   const w = Number(getComputedStyle(f).getPropertyValue("--w"));
