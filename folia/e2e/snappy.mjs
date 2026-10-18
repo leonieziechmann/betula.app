@@ -92,6 +92,9 @@ for (const slow of [1, 4]) {
   const tag = slow > 1 ? ` (CPU ${slow}× slower)` : "";
   // ---- desktop
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+  // „Einplanen" plans at once: the question for a study not set up is put aside for the session
+  // (plannote.mjs checks the question).
+  await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   const page = await open(context, "/catalog");
   if (slow > 1) await (await context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: slow });
   const winter = '#filters a.chip:has-text("Winter")';
@@ -186,6 +189,9 @@ for (const slow of [1, 4]) {
 
   // ---- phone
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  // „Einplanen" plans at once: the question for a study not set up is put aside for the session
+  // (plannote.mjs checks the question).
+  await phone.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   const small = await open(phone, "/catalog");
   if (slow > 1) await (await phone.newCDPSession(small)).send("Emulation.setCPUThrottlingRate", { rate: slow });
   await watch(small, "phone: the bottom bar" + tag, tap(small, '.bottomnav a.nav[data-area="programs"]'), {

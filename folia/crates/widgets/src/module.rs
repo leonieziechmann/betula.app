@@ -1725,7 +1725,8 @@ mod tests {
         let aim = |schedule: &[EventDate]| {
             let (current, newest) = semesters_of(&semesters, schedule);
             let current = current.unwrap();
-            folia_stores::studyplan::target_semester(current, newest, Some(TurnusSeason::Summer), None, &PlanDoc::default())
+            let offer = folia_plans::study::Offer { season: Some(TurnusSeason::Summer), parity: None };
+            folia_stores::studyplan::target_semester(current, newest, offer, None, &PlanDoc::default())
         };
         // Analysis II (11104), taught in summer: no teaching rows, its only row of WiSe 2026/27 an
         // exam (a retake). The exam is no reason to plan it into the winter: the next summer.

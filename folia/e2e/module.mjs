@@ -26,6 +26,9 @@ const check = (ok, message) => { if (!ok) problems.push(message); };
 
 const open = async (options, path) => {
   const context = await browser.newContext(options);
+  // „Einplanen" plans at once: the question for a study not set up is put aside for the session
+  // (plannote.mjs checks the question).
+  await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   const page = await context.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text().slice(0, 300)); });
   page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
@@ -188,6 +191,9 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   // it, and the heading keeps the server's height.
   const planned = async (options, path) => {
     const context = await browser.newContext(options);
+    // „Einplanen" plans at once: the question for a study not set up is put aside for the session
+    // (plannote.mjs checks the question).
+    await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
     await context.addInitScript((plan) => localStorage.setItem("betula.studyplan.v1", plan), PLAN);
     const page = await context.newPage();
     page.on("pageerror", (e) => problems.push("pageerror: " + String(e).slice(0, 300)));
@@ -197,6 +203,9 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   };
   const server = async (options, path) => {
     const context = await browser.newContext(options);
+    // „Einplanen" plans at once: the question for a study not set up is put aside for the session
+    // (plannote.mjs checks the question).
+    await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
     await context.route("**/pkg/**", (route) => route.abort());
     const page = await context.newPage();
     await page.goto(base + path, { waitUntil: "load" });
@@ -223,7 +232,9 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
     expect(`the module's page with a plan (${where})`, seen, where === "phone");
     const side = await page.evaluate(() => document.querySelector(".sidebar .plan-toggle small")?.textContent);
     check(side === "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027", `the module's page with a plan (${where}): the sidebar says ${side}`);
-    check(where === "phone" ? seen.below && seen.note?.startsWith("für „Fach") : seen.note === null, `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);
+    // The switch's small line, on a phone its second line: where it plans first (the semester the
+    // page means), then the placeholder.
+    check(where === "phone" ? seen.below && seen.note?.startsWith("WiSe 26/27 · für „Fach") : seen.note === null, `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);
     const hero = await page.evaluate(() => document.querySelector(".module-page > .hero").getBoundingClientRect().height);
     const before = await server(options, path);
     check(Math.abs(hero - before) < 0.5, `the module's page with a plan (${where}): the heading is ${before}px before the takeover and ${hero}px after`);
@@ -288,6 +299,9 @@ const order = (page, root) => page.evaluate((selector) => [...document.querySele
   const devices = { desktop: { viewport: { width: 1440, height: 900 } }, phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } };
   for (const [device, options] of id ? Object.entries(devices) : []) {
     const context = await browser.newContext(options);
+    // „Einplanen" plans at once: the question for a study not set up is put aside for the session
+    // (plannote.mjs checks the question).
+    await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
     const page = await context.newPage();
     page.on("console", (m) => { if (m.type() === "error") problems.push(`far down, ${device}: console: ${m.text().slice(0, 300)}`); });
     page.on("pageerror", (e) => problems.push(`far down, ${device}: pageerror: ${String(e).slice(0, 300)}`));
