@@ -38,21 +38,25 @@ const waitPlanned = (page, id, list, what) => page.waitForFunction(([key, id, wa
 }, [STORE, id, list], { timeout: 4000 }).catch(async () => problems.push(`${what}: planned in ${JSON.stringify(await plannedIn(page, id))}, not ${JSON.stringify(list)}`));
 // What the note says: its semester, its line, whether it can go back, its second row.
 const note = (page) => page.evaluate(() => {
-  const el = document.querySelector(".plan-note");
+  const el = document.querySelector(".plan-toast");
   if (!el) return null;
   const r = el.getBoundingClientRect();
   return {
-    at: el.querySelector(".plan-note-at > b")?.textContent || null,
-    line: el.querySelector(".plan-note-at > small")?.textContent || null,
-    past: Boolean(el.querySelector(".plan-note-at .past")),
-    said: el.querySelector(".plan-note-said")?.textContent || null,
-    back: el.querySelector(".plan-note-step")?.disabled ?? null,
-    keep: el.querySelector(".plan-note-keep")?.getAttribute("aria-checked") ?? null,
-    keepText: el.querySelector(".plan-note-keep")?.textContent || null,
-    box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom },
+    at: el.querySelector(".plan-toast-at > b")?.textContent || null,
+    line: el.querySelector(".plan-toast-at > small")?.textContent || null,
+    past: Boolean(el.querySelector(".plan-toast-at .past")),
+    said: el.querySelector(".plan-toast-said")?.textContent || null,
+    back: el.querySelector(".plan-toast-step")?.disabled ?? null,
+    keep: el.querySelector(".plan-toast-keep")?.getAttribute("aria-checked") ?? null,
+    keepText: el.querySelector(".plan-toast-keep")?.textContent || null,
+    title: el.querySelector(".plan-toast-title")?.checkVisibility() ? el.querySelector(".plan-toast-title").textContent : null,
+    box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom, height: r.height },
+    main: el.querySelector(".plan-toast-main")?.getBoundingClientRect().toJSON(),
+    keepBox: el.querySelector(".plan-toast-keep")?.getBoundingClientRect().toJSON() ?? null,
+    colours: (() => { const cs = getComputedStyle(el); return { bg: cs.backgroundColor, fg: cs.color }; })(),
   };
 });
-const noteGone = (page, what, timeout = 2000) => page.waitForFunction(() => !document.querySelector(".plan-note"), null, { timeout }).catch(() => problems.push(`${what}: the note stayed`));
+const noteGone = (page, what, timeout = 2000) => page.waitForFunction(() => !document.querySelector(".plan-toast"), null, { timeout }).catch(() => problems.push(`${what}: the note stayed`));
 const dialog = (page) => page.evaluate(() => {
   const el = document.querySelector("dialog.plan-setup[open]");
   if (!el) return null;
@@ -129,7 +133,7 @@ const switchSays = (page) => page.evaluate((sel) => { const el = document.queryS
   await page.waitForFunction(() => !document.querySelector("dialog.plan-setup[open]"), null, { timeout: 2000 }).catch(() => problems.push("set up: the dialog stayed"));
   const mine = await page.evaluate((key) => localStorage.getItem(key) || "", MINE);
   check(/^program\t079-82-2008$/m.test(mine) && /^start\t20\d\d[WS]$/m.test(mine), `set up: „Mein Studiengang“ is ${JSON.stringify(mine)}`);
-  await page.waitForSelector(".plan-note", { timeout: 2000 }).catch(() => problems.push("set up: no note"));
+  await page.waitForSelector(".plan-toast", { timeout: 2000 }).catch(() => problems.push("set up: no note"));
   let n = await note(page);
   const first = (await plannedIn(page, "11112"))[0];
   check(Boolean(first), "set up: the module was not planned");
@@ -139,26 +143,45 @@ const switchSays = (page) => page.evaluate((sel) => { const el = document.queryS
   await shot(page, "note");
 
   // ›: the module a semester later at once, „verschoben", the switch for the next modules.
-  await page.click(".plan-note .plan-note-step >> nth=1");
+  await page.click(".plan-toast .plan-toast-step >> nth=1");
   await page.waitForTimeout(250);
   n = await note(page);
   const later = (await plannedIn(page, "11112"))[0];
   check(later && later !== first, `›: still planned in ${later}`);
   check(n && n.line?.startsWith("verschoben · 2. FS"), `›: the line is ${n?.line}`);
   check(n && n.keep === "false" && n.keepText?.includes("Weitere Module auch nach"), `›: no switch for the next modules (${JSON.stringify(n)})`);
+  // A wide screen: one bar right of the rail as wide as the panels, one line high with the switch in
+  // it, the module named (owner, 2026-10-18: „über die ganze Breite rechts von der sidebar … etwas
+  // weniger hoch").
+  check(n && Math.abs(n.box.left - 52) <= 1 && Math.abs(n.box.right - 1432) <= 1 && n.box.height <= 56, `the bar: not across the page right of the rail, one line high (${JSON.stringify(n?.box)})`);
+  check(n && n.keepBox && Math.abs(n.keepBox.top + n.keepBox.height / 2 - (n.main.top + n.main.height / 2)) <= 2 && n.keepBox.left > n.main.right, `the bar: the switch is not in its line, right of the arrows (${JSON.stringify([n?.main, n?.keepBox])})`);
+  check(n && n.title === "Algorithmen und Datenstrukturen", `the bar: the module is not named (${n?.title})`);
+  // Dark in both themes, light text on it, and off the dark page (owner, the same day: „dark modus
+  // muss natürlich auch dafür funktionieren").
+  for (const scheme of ["dark", "light"]) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.waitForTimeout(50);
+    const look = await page.evaluate(() => {
+      const lum = (s) => { const [r, g, b] = s.match(/[\d.]+/g).map(Number); return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+      const bar = getComputedStyle(document.querySelector(".plan-toast"));
+      return { bar: lum(bar.backgroundColor), text: lum(bar.color), page: lum(getComputedStyle(document.body).backgroundColor) };
+    });
+    check(look.bar < 0.2 && look.text > 0.85 && Math.abs(look.bar - look.page) > 0.05, `${scheme}: the bar is not dark with light text, off the page (${JSON.stringify(look)})`);
+    if (scheme === "dark") await shot(page, "note-dark");
+  }
   // ← (the key) back where it was; → again.
   await page.keyboard.press("ArrowLeft");
   await waitPlanned(page, "11112", [first], "←");
   await page.keyboard.press("ArrowRight");
   await waitPlanned(page, "11112", [later], "→");
   // The switch on: the session plans the next modules there; the next module's switch says so.
-  await page.click(".plan-note .plan-note-keep");
+  await page.click(".plan-toast .plan-toast-keep");
   await page.waitForTimeout(200);
   check((await note(page))?.keep === "true", "keep: the switch did not turn on");
   check(await page.evaluate(() => sessionStorage.getItem("betula.plan.chosen")) === later, "keep: the session's semester is not kept");
   await shot(page, "note-keep");
   // The pointer on the note holds it; „Rückgängig" takes the module out again.
-  await page.click(".plan-note .plan-note-undo");
+  await page.click(".plan-toast .plan-toast-undo");
   await noteGone(page, "undo");
   await waitPlanned(page, "11112", [], "undo");
 
@@ -167,20 +190,20 @@ const switchSays = (page) => page.evaluate((sel) => { const el = document.queryS
   const chosen = await switchSays(page);
   check(chosen.line.length > 0, "chosen: the switch says nothing");
   await page.keyboard.press("p");
-  await page.waitForSelector(".plan-note", { timeout: 2000 }).catch(() => problems.push("P: no note"));
+  await page.waitForSelector(".plan-toast", { timeout: 2000 }).catch(() => problems.push("P: no note"));
   const analysis = await plannedIn(page, "11103");
   check(analysis.length === 1 && analysis[0] === later, `P: Analysis I planned in ${JSON.stringify(analysis)}, not the chosen ${later}`);
   n = await note(page);
   check(n && n.keep === "true", `P: the note does not show the chosen semester's switch on (${JSON.stringify(n)})`);
   // Off again, where it is seen.
-  await page.click(".plan-note .plan-note-keep");
+  await page.click(".plan-toast .plan-toast-keep");
   await page.waitForTimeout(200);
   check(await page.evaluate(() => sessionStorage.getItem("betula.plan.chosen")) === null, "keep off: the session still plans into the chosen semester");
   // Back to the first Fachsemester and no further: „liegt zurück" before the current semester.
   for (let i = 0; i < 6; i++) {
-    const back = await page.evaluate(() => document.querySelector(".plan-note .plan-note-step")?.disabled);
+    const back = await page.evaluate(() => document.querySelector(".plan-toast .plan-toast-step")?.disabled);
     if (back !== false) break;
-    await page.click(".plan-note .plan-note-step >> nth=0");
+    await page.click(".plan-toast .plan-toast-step >> nth=0");
     await page.waitForTimeout(150);
   }
   n = await note(page);
@@ -197,7 +220,7 @@ const switchSays = (page) => page.evaluate((sel) => { const el = document.queryS
     n = await note(page);
     check(n && n.said === "Analysis I entfernt", `out: the note says ${JSON.stringify(n)}`);
     await waitPlanned(page, "11103", [], "out");
-    await page.click(".plan-note .plan-note-undo");
+    await page.click(".plan-toast .plan-toast-undo");
     await waitPlanned(page, "11103", where, "out, undone");
   }
   // The note goes by itself.
@@ -238,9 +261,19 @@ const switchSays = (page) => page.evaluate((sel) => { const el = document.queryS
   check((await plannedIn(page, id0)).length === 1, "phone: „Ohne Studium einplanen“ planned nothing");
   check(await page.evaluate(() => sessionStorage.getItem("betula.plan.asked")) === "1", "phone: the session will ask again");
   const n = await note(page);
+  check(n && n.title === null, "phone: the module is named in the card");
   const bar = await page.evaluate(() => document.querySelector(".bottomnav")?.getBoundingClientRect().top);
   check(n && n.box.bottom <= bar && n.box.left >= 8 && n.box.right <= 382, `phone: the note is not over the bottom bar (${JSON.stringify([n?.box, bar])})`);
   await shot(page, "phone-note");
+  // ›: the switch comes as a row over the arrows, which stay under the finger.
+  const arrow = await page.evaluate(() => document.querySelectorAll(".plan-toast .plan-toast-step")[1]?.getBoundingClientRect().toJSON());
+  await page.tap(".plan-toast .plan-toast-step >> nth=1");
+  await page.waitForTimeout(350);
+  const moved = await note(page);
+  const arrowAfter = await page.evaluate(() => document.querySelectorAll(".plan-toast .plan-toast-step")[1]?.getBoundingClientRect().toJSON());
+  check(moved?.keepBox && moved.keepBox.bottom <= moved.main.top + 1, `phone: the switch is not a row over the arrows (${JSON.stringify([moved?.keepBox, moved?.main])})`);
+  check(arrow && arrowAfter && Math.abs(arrow.top - arrowAfter.top) <= 1, `phone: the arrow moved under the finger (${JSON.stringify([arrow, arrowAfter])})`);
+  await shot(page, "phone-note-keep");
   // The next row: planned at once, no dialog.
   const id1 = await page.evaluate(() => document.querySelectorAll(".row-wrap .row")[1].dataset.id);
   await swipe(1);

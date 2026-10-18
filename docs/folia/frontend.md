@@ -467,17 +467,23 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     there. A module planned only in semesters behind the student is planned anew (a retake), the
     small line names them. The sidebar of a module's page says the same under its action. The
     browser app's alone (R9): where a session plans depends on the day.
-  - **The note** (`PlanNote`, app.css „The note of „Einplanen"") at the bottom of the window, on a
-    phone over the bottom bar (over a module's sheet at the bottom of the screen), after a click, P
-    or a row swiped: a check, the semester between ‹ and › with what happened under it („eingeplant
-    · 3. FS", „verschoben", „kein Angebot" where the turnus leaves it out, „liegt zurück" in a
-    semester behind the student, in the warning's colour), and „Rückgängig". The arrows move the
-    module at once, a semester at a time, into the past as well (owner, 2026-10-18: „Betula sollte
-    bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first Fachsemester (six back where the
-    Studienbeginn is not known); ← and → do the same while the note stands, where the keys mean
-    nothing else (a field, a picker, a menu, a slider, a panel's handle, a dialog). Once it was
-    moved, a second row „Weitere Module auch nach SoSe 27" with a switch makes that semester the
-    session's for the next modules (P3, `betula.plan.chosen`), a past one too; while it is on it
+  - **The note** (`PlanNote`, app.css „The note of „Einplanen"", `.plan-toast`) after a click, P or
+    a row swiped. On a wide screen one bar across the page right of the rail, one line high, the
+    module named in it and the switch beside the arrows (owner, 2026-10-18: „bei der pc Version kann
+    die notification ruhig über die ganze Breite rechts von der sidebar gehen und dann vllt etwas
+    weniger hoch sein"); on a phone a card over the bottom bar (over a module's sheet at the bottom
+    of the screen), the switch a row over the arrows, so that what is under the finger stays where
+    it was. Dark in both themes (owner, the same day: „dark modus muss natürlich auch dafür
+    funktionieren"): inverted on the light page, a raised dark surface with a fine edge on the dark
+    one (`--toast`, `--on-toast`). In it a check, the semester between ‹ and › with what happened
+    under it („eingeplant · 3. FS", „verschoben", „kein Angebot" where the turnus leaves it out,
+    „liegt zurück" in a semester behind the student, in the warning's colour), and „Rückgängig". The
+    arrows move the module at once, a semester at a time, into the past as well (owner, 2026-10-18:
+    „Betula sollte bei sowas nicht nein sagen", CLAUDE.md „Design"), to the first Fachsemester (six
+    back where the Studienbeginn is not known); ← and → do the same while the note stands, where the
+    keys mean nothing else (a field, a picker, a menu, a slider, a panel's handle, a dialog). Once
+    it was moved, a second row „Weitere Module auch nach SoSe 27" with a switch makes that semester
+    the session's for the next modules (P3, `betula.plan.chosen`), a past one too; while it is on it
     stands in every note, to be switched off where it is seen. A module taken out says „Datenbanken
     entfernt", with „Rückgängig". „Rückgängig" puts back the plan as it was before the click while
     the plan is still what the note made of it, else undoes what the note did alone. The note stands
@@ -3743,13 +3749,16 @@ Fachsemester" and the module „wie im Regelstudienplan (1. Semester)"; the 3rd 
 warning of the plan's place behind; ‹ into the past, the warning of the past; „Einrichten und
 einplanen" stores the program and a Studienbeginn and plans the module, and the note says the
 semester and „eingeplant · 1. FS", no switch yet. › moves it at once („verschoben · 2. FS") and
-brings „Weitere Module auch nach …"; ← and → move it back and forth; the switch on keeps the
-semester for the session; „Rückgängig" takes the module out. Analysis I then plans into the semester
-chosen (P), its note shows the switch on, which turns off there; ‹ stops at the first Fachsemester;
-P on the module planned takes it out („Analysis I entfernt") and „Rückgängig" puts it back; the note
-goes by itself. On a phone a row swiped to the right opens the dialog as a sheet from below,
-nothing planned; „Ohne Studium einplanen" plans and puts the question aside for the session, the
-note stands over the bottom bar, and the next row swiped plans at once.
+brings „Weitere Module auch nach …"; the note is one bar right of the rail, one line high with the
+switch in it and the module named, dark with light text in the dark theme and the light one; ← and →
+move it back and forth; the switch on keeps the semester for the session; „Rückgängig" takes the
+module out. Analysis I then plans into the semester chosen (P), its note shows the switch on, which
+turns off there; ‹ stops at the first Fachsemester; P on the module planned takes it out („Analysis
+I entfernt") and „Rückgängig" puts it back; the note goes by itself. On a phone a row swiped to the
+right opens the dialog as a sheet from below, nothing planned; „Ohne Studium einplanen" plans and
+puts the question aside for the session, the note stands over the bottom bar without the module's
+name, › brings the switch as a row over the arrows and leaves the arrow under the finger, and the
+next row swiped plans at once.
 
 The other checks that plan (`module.mjs`, `swipe.mjs`, `snappy.mjs`) put the question aside for the
 session first (`betula.plan.asked`), as a student who answered „Ohne Studium einplanen".
