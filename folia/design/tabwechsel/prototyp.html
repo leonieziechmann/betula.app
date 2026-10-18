@@ -25,8 +25,11 @@
      hinten gehen/raus zoomen ist dafür da, damit man den Kontext besser versteht"): the pages side by
      side as a strip, its place and its size each a spring („Übersicht“, „Gewölbt“, „Würfel“,
      „Seiten“), two classic ways besides („Schieben“ as on an iPhone, „Achse“ as Android's Material
-     has it), and the page itself swiped as a home screen is. Open it at a phone's width, or on a
-     phone. -->
+     has it), and the page itself swiped as a home screen is. Chosen then (owner, the same day: „Ich
+     muss sagen ich finde achse fühlt sich am besten an. Quasi so, als währe es nicht da aber man
+     versteht trotzdem, wie das funktioniert“; „Swipen soll explizit nur über die navbar
+     funktionieren“): „Achse“ first and the default, the others kept to compare, and the page itself
+     no longer swiped. Open it at a phone's width, or on a phone. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap">
@@ -259,7 +262,7 @@ a { color: inherit; text-decoration: none; }
 .card { position: absolute; inset: 0; z-index: 1; background: var(--bg); overflow: hidden; visibility: hidden; content-visibility: hidden; transform-origin: 50% 40%; }
 .card.shown { visibility: visible; content-visibility: visible; }
 .card.moving { border-radius: 22px; box-shadow: var(--shadow-card); will-change: transform, opacity; }
-.card-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: calc(var(--safe-t) + 86px); scrollbar-width: none; touch-action: pan-y pinch-zoom; }
+.card-scroll { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; padding-top: calc(var(--safe-t) + 86px); scrollbar-width: none; }
 .card-scroll::-webkit-scrollbar { display: none; }
 .card-shade { position: absolute; inset: 0; z-index: 3; background: var(--shade); opacity: 0; pointer-events: none; }
 .card.moving .card-shade { will-change: opacity; }
@@ -466,13 +469,17 @@ a { color: inherit; text-decoration: none; }
 
 <div class="stage">
   <section class="notes" aria-labelledby="notes-title">
-    <p class="eyebrow">Betula · Handy-Ansicht · Prototyp, zweite Runde</p>
-    <h1 id="notes-title">Tabs nebeneinander</h1>
-    <p class="lead">Jede Seite eines Tabs bleibt gebaut, auch wenn du gehst: Kommst du zurück, liegt sie schon da, so weit gescrollt, wie du sie verlassen hast. Die zweite Runde legt die Seiten nebeneinander wie die Seiten eines Startbildschirms. Der Wechsel ist eine Bewegung zur Seite, die du mit dem Finger steuerst; das Zurücktreten zeigt, wo du bist.</p>
+    <p class="eyebrow">Betula · Handy-Ansicht · Prototyp, gewählt am 18.10.</p>
+    <h1 id="notes-title">Ein Wechsel, der kaum auffällt</h1>
+    <p class="lead">Jede Seite eines Tabs bleibt gebaut, auch wenn du gehst: Kommst du zurück, liegt sie schon da, so weit gescrollt, wie du sie verlassen hast. Gewählt ist „Achse“: Die Seite gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der Seite ihres Tabs und blendet ein. Man merkt den Wechsel kaum und sieht doch, wohin es geht. Gewischt wird nur auf der Leiste.</p>
     <div id="proto-home">
       <section class="proto" id="proto" aria-label="Einstellungen des Prototyps">
         <div class="opt" role="radiogroup" aria-labelledby="anim-label" aria-describedby="anim-note">
           <span class="opt-label" id="anim-label">Animation</span>
+          <span class="seg-sub">Gewählt</span>
+          <div class="seg">
+            <label class="seg-item"><input type="radio" name="anim" value="achse" id="anim-achse"><span>Achse</span></label>
+          </div>
           <span class="seg-sub">Zweite Runde: die Seiten nebeneinander</span>
           <div class="seg grid">
             <label class="seg-item"><input type="radio" name="anim" value="uebersicht" id="anim-uebersicht"><span>Übersicht</span></label>
@@ -480,7 +487,6 @@ a { color: inherit; text-decoration: none; }
             <label class="seg-item"><input type="radio" name="anim" value="wuerfel" id="anim-wuerfel"><span>Würfel</span></label>
             <label class="seg-item"><input type="radio" name="anim" value="seiten" id="anim-seiten"><span>Seiten</span></label>
             <label class="seg-item"><input type="radio" name="anim" value="schieben" id="anim-schieben"><span>Schieben</span></label>
-            <label class="seg-item"><input type="radio" name="anim" value="achse" id="anim-achse"><span>Achse</span></label>
           </div>
           <span class="seg-sub">Erste Runde</span>
           <div class="seg grid">
@@ -492,14 +498,6 @@ a { color: inherit; text-decoration: none; }
             <label class="seg-item"><input type="radio" name="anim" value="sofort" id="anim-sofort"><span>Sofort</span></label>
           </div>
           <p class="opt-note" id="anim-note"></p>
-        </div>
-        <div class="opt" role="radiogroup" aria-labelledby="swipe-label" aria-describedby="swipe-note">
-          <span class="opt-label" id="swipe-label">Wischen auf der Seite</span>
-          <div class="seg">
-            <label class="seg-item"><input type="radio" name="swipe" value="page" id="swipe-page"><span>An</span></label>
-            <label class="seg-item"><input type="radio" name="swipe" value="bar" id="swipe-bar"><span>Aus</span></label>
-          </div>
-          <p class="opt-note" id="swipe-note"></p>
         </div>
         <div class="opt" role="radiogroup" aria-labelledby="follow-label">
           <span class="opt-label" id="follow-label">Wischen auf der Leiste</span>
@@ -539,9 +537,8 @@ a { color: inherit; text-decoration: none; }
     <div class="facts-block">
       <h2>Zum Ausprobieren</h2>
       <ul class="facts">
-        <li>Wische auf der Seite selbst nach links oder rechts, wie auf dem Startbildschirm: Die Seiten folgen dem Finger, und solange du hältst, tritt alles ein Stück zurück. Halte mitten im Weg an oder zieh zurück.</li>
-        <li>Tippe auf die Tabs, auch von „Start“ gleich auf „Stundenplan“: In „Übersicht“ ziehen die Seiten dazwischen vorbei. Ein Tipp mitten im Wechsel nimmt alles von dort mit, wo es gerade ist.</li>
-        <li>Oder wische auf der Leiste: Ein Tab der Leiste ist der ganze Weg einer Seite.</li>
+        <li>Tippe auf die Tabs, auch von „Start“ gleich auf „Stundenplan“: Die neue Seite kommt von der Seite, auf der ihr Tab liegt. Ein Tipp mitten im Wechsel nimmt alles von dort mit, wo es gerade ist.</li>
+        <li>Oder wische auf der Leiste: Die Seite folgt dem Finger, ein Tab der Leiste ist der ganze Weg. Halte mitten im Weg an oder zieh zurück.</li>
         <li>Scroll in „Module“ ein Stück hinunter, wechsle und komm zurück: Die Seite steht noch da, wo sie war. Tippst du den Tab, in dem du bist, geht seine Seite nach oben.</li>
         <li>Am Rechner gehen auch ← und →.</li>
       </ul>
@@ -762,19 +759,15 @@ a { color: inherit; text-decoration: none; }
   };
 
   // ---- settings ----
-  const KEY = "betula-tabwechsel-proto-v2";
-  const settings = { anim: "uebersicht", follow: "finger", pages: "kept", swipe: "page", depth: "mittel", tempo: "mittel", slow: false };
+  const KEY = "betula-tabwechsel-proto-v3";
+  const settings = { anim: "achse", follow: "finger", pages: "kept", depth: "mittel", tempo: "mittel", slow: false };
   const CHOICES = {
-    anim: ["uebersicht", "gewoelbt", "wuerfel", "seiten", "schieben", "achse", "stapel", "hinten", "mischen", "kippen", "ruhig", "sofort"],
-    follow: ["finger", "release"], pages: ["kept", "today"], swipe: ["page", "bar"], depth: ["wenig", "mittel", "viel"], tempo: ["zuegig", "mittel", "ruhig"],
+    anim: ["achse", "uebersicht", "gewoelbt", "wuerfel", "seiten", "schieben", "stapel", "hinten", "mischen", "kippen", "ruhig", "sofort"],
+    follow: ["finger", "release"], pages: ["kept", "today"], depth: ["wenig", "mittel", "viel"], tempo: ["zuegig", "mittel", "ruhig"],
   };
   // How far a strip goes back (of what its way has), and how long every spring takes.
   const DEPTHS = { wenig: 0.5, mittel: 1, viel: 1.6 };
   const TEMPI = { zuegig: 0.8, mittel: 1, ruhig: 1.3 };
-  const SWIPE_NOTES = {
-    page: "Wie auf dem Startbildschirm: Waagrecht gewischt folgen die Seiten dem Finger, senkrecht scrollt die Seite. In der App wischen auch Zeilen („Merken“, „Einplanen“) und die Semester in „Mein Studium“; dort bräuchte es eine Regel, wem ein Wisch gehört.",
-    bar: "Gewechselt wird nur auf der Leiste unten, wie heute in der App.",
-  };
   try {
     const kept = JSON.parse(localStorage.getItem(KEY) || "{}");
     for (const k in CHOICES) if (CHOICES[k].includes(kept[k])) settings[k] = kept[k];
@@ -855,7 +848,7 @@ a { color: inherit; text-decoration: none; }
     },
     achse: {
       label: "Achse",
-      note: "Wie Android es für Seiten nebeneinander vorsieht (Material, „Shared axis“): Die Seite gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der anderen Seite und blendet ein.",
+      note: "Gewählt am 18.10. („Quasi so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert“): Die Seite gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der Seite ihres Tabs und blendet ein, wie Android es für Seiten nebeneinander vorsieht (Material, „Shared axis“).",
       plain: true,
       spring: { response: 0.3, damping: 1 },
       enter: (dir) => pose({ x: dir * 36, o: 0 }),
@@ -1707,62 +1700,6 @@ a { color: inherit; text-decoration: none; }
     select(i, "key");
   });
 
-  // ---- a finger on the page itself, as on a phone's home screen („Wischen auf der Seite“) ----
-  // Sideways the pages follow it one to one; up or down the page scrolls, as ever. The first move
-  // past the slop decides, a little more readily for up and down. Let go past half a page, or
-  // flicked, and the tab beside is the current one: one a swipe, as on the bar.
-  const PAGE_SLOP = 10;
-  let pageFinger = null;
-  // The way of a finger in tabs: a page's width (on the strip as large as it is drawn just then).
-  const tabsFor = (dx) => {
-    const v = variant(), w = width();
-    return v.strip ? -dx / ((w + (v.gap || 0)) * (grip?.z || 1)) : -dx / w;
-  };
-  deckEl.addEventListener("pointerdown", (e) => {
-    if (settings.swipe !== "page" || !e.isPrimary || e.button !== 0 || finger) return;
-    pageFinger = { id: e.pointerId, x: e.clientX, y: e.clientY, x0: e.clientX, taken: false, from: current, trail: [{ x: e.clientX, t: e.timeStamp }] };
-  });
-  document.addEventListener("pointermove", (e) => {
-    const f = pageFinger;
-    if (!f || e.pointerId !== f.id) return;
-    if (!f.taken) {
-      const dx = e.clientX - f.x, dy = e.clientY - f.y;
-      if (Math.abs(dx) < PAGE_SLOP && Math.abs(dy) < PAGE_SLOP) return;
-      if (Math.abs(dx) <= Math.abs(dy) * 1.2) { pageFinger = null; return; }
-      f.taken = true;
-      if (glide) settle();
-      flushSelect();
-      grab();
-      f.from = current;
-      f.x0 = e.clientX;
-      try { deckEl.setPointerCapture(f.id); } catch {}
-    }
-    f.trail.push({ x: e.clientX, t: e.timeStamp });
-    while (f.trail.length > 2 && e.timeStamp - f.trail[0].t > 100) f.trail.shift();
-    drag(tabsFor(e.clientX - f.x0));
-  });
-  const pageLetGo = (e, cancelled) => {
-    const f = pageFinger;
-    pageFinger = null;
-    if (!f?.taken) return;
-    try { deckEl.releasePointerCapture(f.id); } catch {}
-    const a = f.trail[0], b = f.trail[f.trail.length - 1];
-    const q = cancelled ? 0 : tabsFor(e.clientX - f.x0);
-    const vq = cancelled || b.t - a.t <= 4 ? 0 : tabsFor(b.x - a.x) / ((b.t - a.t) / 1000);
-    let to = f.from;
-    if (Math.abs(vq) > 1.4 && Math.sign(vq) === Math.sign(q || vq)) to = f.from + Math.sign(vq);
-    else if (Math.abs(q) > 0.5) to = f.from + Math.sign(q);
-    to = Math.max(0, Math.min(cards.length - 1, to));
-    const said = to !== f.from ? `Auf der Seite gewischt: ${TABS[f.from].label} → ${TABS[to].label}` : `Auf der Seite gewischt, ${TABS[f.from].label} bleibt`;
-    say(said);
-    release(to, vq, said);
-    if (to !== barCurrent) select(to, "finger");
-    if (to !== f.from && settings.pages === "today") rebuild(to, f.from, false);
-  };
-  document.addEventListener("pointerup", (e) => { if (e.pointerId === pageFinger?.id) pageLetGo(e, false); });
-  document.addEventListener("pointercancel", (e) => { if (e.pointerId === pageFinger?.id) pageLetGo(e, true); });
-  document.addEventListener("touchmove", (e) => { if (pageFinger?.taken && e.cancelable) e.preventDefault(); }, { passive: false });
-
   // ---- the settings, beside the phone or in a sheet on one ----
   const showSettings = () => {
     for (const input of document.querySelectorAll("#proto input[type=radio]")) input.checked = settings[input.name] === input.value;
@@ -1772,7 +1709,6 @@ a { color: inherit; text-decoration: none; }
     $("anim-note").textContent = reduced() && !v.instant ? `${v.note} Dein System möchte weniger Bewegung: Statt der Bewegung blendet die Seite kurz über.` : v.note;
     $("anim-name").textContent = v.label;
     $("pages-note").textContent = PAGES_NOTES[settings.pages];
-    $("swipe-note").textContent = SWIPE_NOTES[settings.swipe];
   };
   $("proto").addEventListener("change", (e) => {
     const { name, value } = e.target;

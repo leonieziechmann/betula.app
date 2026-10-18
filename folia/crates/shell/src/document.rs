@@ -63,9 +63,11 @@
 /// on a wide screen across the content alone, right of the sidebar where a page has one; 1.24.4
 /// with the note going down out of sight from where it stands, on a phone with a module's sheet as
 /// it closes; 1.24.5 with the start of the installed app where the system left its splash, round,
-/// the wordmark at the bottom, and the page's logo and wordmark coming where they land. The version
-/// of the app's crates, the same as the server's; Radix's is in the snapshot
-/// (`Meta::radix_version`).
+/// the wordmark at the bottom, and the page's logo and wordmark coming where they land; 1.24.6 with
+/// the skeleton staying until the new page comes, not the page before coming back after it (a
+/// change of tab, „Alle Studiengänge", a program's views), and a tab's mark changing in the frame of
+/// the tap, without its fade or the browser's highlight. The version of the app's crates, the same
+/// as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

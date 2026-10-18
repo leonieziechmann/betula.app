@@ -17,8 +17,10 @@
      die Seiten gleich da sind. Das muss auf jeden Fall rein … dass ich die alle nicht so stimmig
      finde. Kannst du noch ein paar klassischere einbauen, wie beim Handy Home Screen seitchen … Es
      muss sich halt so anfühlen aus würde man mit dem Finger die horizontale Bewegung steuern und das
-     nach hinten gehen/raus zoomen ist dafür da, damit man den Kontext besser versteht"). A concept,
-     not built: what happens
+     nach hinten gehen/raus zoomen ist dafür da, damit man den Kontext besser versteht"; and chosen:
+     „Ich muss sagen ich finde achse fühlt sich am besten an. Quasi so, als währe es nicht da aber man
+     versteht trotzdem, wie das funktioniert … Swipen soll explizit nur über die navbar
+     funktionieren"). A concept, not built: what happens
      today (filmed and measured on canary, Folia 1.22.0, 2026-10-18, Chromium 141 in a phone's window
      with the processor four times slower), how the pages can stay (measured with canary's own pages),
      what the pages have to learn for it (read in the code of that day), the movement on a phone
@@ -29,7 +31,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
 /* Layout: the decision and its five sentences at the top, then today, the stages, what the pages learn,
-   the movement on a phone, Back, the steps, what is not done and what is open, one block each.
+   the movement on a phone (Achse), Back, the steps, what is not done and what is open, one block each.
    Tokens: Betula's own (light, then dark); the frames of the film and the stages are drawn in them. */
 :root {
   color-scheme: light;
@@ -225,13 +227,13 @@ td .no { color: var(--no); font-weight: 650; }
   <header class="intro">
     <div>
       <p class="kicker">Betula · Tabwechsel · 18.10.2026</p>
-      <h1>Tabs, die stehen bleiben, und Seiten nebeneinander</h1>
-      <p class="lead">Heute baut Betula bei jedem Tabwechsel die ganze Seite neu, und am Handy sieht man das. Künftig bleibt die Seite jedes Tabs gebaut, und ein Wechsel tauscht nur, welche vorn liegt. Am Handy liegen die Seiten nebeneinander, und ein Wechsel ist eine Bewegung zur Seite, die der Finger führt. Dieses Blatt sagt, warum es heute flackert, wie die Seiten stehen bleiben können, was sich dafür an ihnen ändert und wie es zum neuen Zurück passt. Gebaut wird es nach dem Zurück, nicht vorher.</p>
+      <h1>Tabs, die stehen bleiben, und ein Wechsel, der kaum auffällt</h1>
+      <p class="lead">Heute baut Betula bei jedem Tabwechsel die ganze Seite neu, und am Handy sieht man das. Künftig bleibt die Seite jedes Tabs gebaut, und ein Wechsel tauscht nur, welche vorn liegt. Am Handy gleitet die Seite beim Wechsel ein kleines Stück zur Seite und blendet aus, und die neue kommt von der Seite ihres Tabs (Achse). Dieses Blatt sagt, warum es heute flackert, wie die Seiten stehen bleiben können, was sich dafür an ihnen ändert und wie es zum neuen Zurück passt. Gebaut wird es nach dem Zurück, nicht vorher.</p>
       <blockquote class="quote">„Wenn man zum Beispiel Tabs switched, dann flickert der bildshirm, weil erst Skeltons geladen werden, bevor der content kommt … so dass die Seiten/tabs im Hintergrund geladen bleiben und nur getauscht werden müssen. … Es soll sich wie so ein Spielkartenwechsel anfühlen. Der content soll so nach hinten gehen und dann der neue Tab davor geschoben werden.“</blockquote>
       <blockquote class="quote rule-quote"><b>Die Vorgabe, am selben Tag:</b> „Also das initiale öffnen kann ruhig etwas laden/kurz Skeltons zeigen. Aber wenn die App dann einmal läuft, dann muss es sich instant und einfach nur gut anfühlen.“</blockquote>
       <div class="cta">
         <a class="btn" href="prototyp.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>Prototyp ausprobieren</a>
-        <small>Am besten am Handy: die Seiten nebeneinander, getippt und gewischt, auf der Leiste und auf der Seite.</small>
+        <small>Am besten am Handy: Achse und die anderen Wege, getippt und auf der Leiste gewischt.</small>
       </div>
       <nav class="toc" aria-label="Inhalt"><a href="#heute">Was heute passiert</a><a href="#buehnen">Tabs, die stehen bleiben</a><a href="#seiten">Was die Seiten lernen</a><a href="#karten">Am Handy</a><a href="#sonst">Auch sonst sofort</a><a href="#zurueck">Zurück</a><a href="#schritte">Schritte</a><a href="#offen">Entschieden</a></nav>
     </div>
@@ -240,9 +242,9 @@ td .no { color: var(--no); font-weight: 650; }
       <ol>
         <li><span><b>Heute baut jeder Tabwechsel die Seite neu.</b> Gedrosselt wie ein Handy dauert das 0,2 bis 4 Sekunden: Erst steht ein Skelett da, dann noch einmal die alte Seite, dann die neue. Das ist das Flackern.</span></li>
         <li><span><b>Künftig bleibt jede Seite gebaut.</b> Gebaut werden alle beim Start, der laden darf; liegt ein Tab hinten, zeichnet der Browser seine Seite nur nicht. Ein Wechsel tauscht, welche vorn liegt: mit den echten Seiten von canary 14 ms bis zum Bild, ebenso gedrosselt.</span></li>
-        <li><span><b>Am Handy liegen die Seiten nebeneinander.</b> Ein Wechsel ist eine Bewegung zur Seite, die der Finger steuert; dabei tritt der Streifen ein Stück zurück, damit du siehst, wo du bist. Der Prototyp hat diese Übersicht, zwei gekippte Formen und die klassischen Wege.</span></li>
+        <li><span><b>Am Handy wechselt die Seite auf der Achse.</b> Sie gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der Seite ihres Tabs. Gewischt wird nur auf der Leiste, und die Seite folgt dem Finger. So hast du es im Prototyp gewählt.</span></li>
         <li><span><b>Gebaut wird es auf dem neuen Zurück.</b> Die Bühne eines Tabs zeigt das Oberste seines Stapels, wie Schritt 4 des Zurück-Konzepts ihn anlegt. Adressen und Verlauf bleiben, wie sie dort festgelegt sind.</span></li>
-        <li><span><b>Läuft die App, ist alles sofort da, nicht nur ein Tab.</b> Auch das Modul-Sheet und die Seiten in einem Tab zeigen heute Skelett und alte Seite. Das Zurückblitzen geht schon jetzt weg, ohne dem Umbau des Zurück in die Quere zu kommen.</span></li>
+        <li><span><b>Läuft die App, ist alles sofort da, nicht nur ein Tab.</b> Auch das Modul-Sheet und die Seiten in einem Tab zeigen heute Skelett und alte Seite. Das Zurückblitzen ist seit dem 18.10. weg, ohne dem Umbau des Zurück in die Quere zu kommen.</span></li>
       </ol>
     </aside>
   </header>
@@ -345,25 +347,26 @@ td .no { color: var(--no); font-weight: 650; }
   </section>
 
   <section class="block" id="karten" aria-labelledby="cards-title">
-    <h2 id="cards-title">Die Bewegung am Handy</h2>
-    <p class="lead">Wo die Handy-Ansicht gezeigt wird (heute bis 900 px), wird der Tausch sichtbar. Die erste Runde hat Karten gestapelt, gemischt und gekippt; sie passte nicht („dass ich die alle nicht so stimmig finde“). Die zweite legt die Seiten nebeneinander wie die Seiten eines Startbildschirms. Erst die stehenden Seiten machen das möglich: Was beim Wechsel ins Bild kommt, sind die fertigen Seiten, so weit gescrollt, wie du sie verlassen hast. Der erste der sechs Wege im <a href="prototyp.html">Prototyp</a> ist deine Beschreibung:</p>
-    <blockquote class="quote">„Also der erste Teil der Animation hat nach hinten und leicht nach links zu gehen, daran knüpft dann schon die nächste Page an, die auch weiter hinten ist, dann könnt das verschieben und zum Schluss wieder einpassen wärend der noch ein wenig die Position zur Seite geht. Es muss sich halt so anfühlen aus würde man mit dem Finger die horizontale Bewegung steuern und das nach hinten gehen/raus zoomen ist dafür da, damit man den Kontext besser versteht.“</blockquote>
+    <h2 id="cards-title">Die Bewegung am Handy: Achse</h2>
+    <p class="lead">Wo die Handy-Ansicht gezeigt wird (heute bis 900 px), wird der Tausch sichtbar. Zwei Runden lagen im <a href="prototyp.html">Prototyp</a>: erst Karten, gestapelt, gemischt und gekippt („dass ich die alle nicht so stimmig finde“), dann die Seiten nebeneinander wie auf einem Startbildschirm, dazu die klassischen Wege von iPhone und Android. Gewählt hast du die Achse:</p>
+    <blockquote class="quote rule-quote"><b>Entschieden am 18.10.:</b> „Ich muss sagen ich finde achse fühlt sich am besten an. Quasi so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert.“ Und: „Swipen soll explizit nur über die navbar funktionieren.“</blockquote>
     <ul class="ways">
-      <li class="pick"><b>Übersicht <span class="chip">Vorschlag</span></b>Der Streifen tritt zurück und gleitet zur Seite, die nächste Seite hängt schon daneben, und er passt sich wieder ein, während er das letzte Stück fährt. Wie weit zurück und wie schnell, stellst du im Prototyp ein.</li>
-      <li><b>Gewölbt</b>Die Übersicht auf der Innenseite einer Walze: Die Kante zwischen zwei Seiten liegt hinten, jede Seite neigt sich zur Mitte. Das Kippen andersherum als in der ersten Runde, die Seiten bleiben aneinander.</li>
-      <li><b>Würfel</b>Die Seiten als Flächen eines Würfels, der sich dreht, wie bei manchen Startbildschirmen. Die Kante kommt nach vorn.</li>
-      <li><b>Seiten</b>Der Startbildschirm, wie man ihn kennt: Kante an Kante, ein Streifen, ohne Zurücktreten.</li>
+      <li class="pick"><b>Achse <span class="chip">Gewählt</span></b>Wie Android es für Seiten nebeneinander vorsieht (Material, „Shared axis“): Die Seite gleitet ein kleines Stück zur Seite und blendet aus, die neue kommt von der Seite ihres Tabs und blendet ein.</li>
+      <li><b>Übersicht</b>Deine Beschreibung aus der zweiten Runde: Der Streifen tritt zurück und gleitet zur Seite, die nächste Seite hängt daneben, am Ende passt er sich wieder ein.</li>
+      <li><b>Gewölbt</b>Die Übersicht auf der Innenseite einer Walze, die Seiten bleiben aneinander.</li>
+      <li><b>Würfel</b>Die Seiten als Flächen eines Würfels, der sich dreht.</li>
+      <li><b>Seiten</b>Der Startbildschirm, wie man ihn kennt: Kante an Kante, ein Streifen.</li>
       <li><b>Schieben</b>Wie die Apps des iPhones: Die neue Seite schiebt sich herein, die alte weicht ein Drittel des Wegs zurück.</li>
-      <li><b>Achse</b>Wie Android es für Seiten nebeneinander vorsieht: ein kleines Stück zur Seite, aus- und eingeblendet.</li>
     </ul>
-    <p class="note">Die erste Runde (Stapel, Nach hinten, Mischen, Kippen, Ruhig) und „Sofort“ sind im Prototyp geblieben, zum Vergleich.</p>
+    <p class="note">Die anderen Wege und die erste Runde (Stapel, Nach hinten, Mischen, Kippen, Ruhig, Sofort) bleiben im Prototyp, zum Vergleich.</p>
     <ol class="rules-list">
-      <li><span><b>Ein Streifen, zwei Federn.</b> Wo der Streifen steht und wie groß er gezeichnet ist: zwei gedämpfte Federn, wie das Sheet eines Moduls und die Leiste sie schon haben. Vorher ausgerechnet und als Web Animation gespielt, die der Compositor fährt; der Thread der Seite muss dafür nichts tun. Das Zurücktreten beginnt mit der Bewegung, das Einpassen, wenn noch gut ein Drittel einer Seite fehlt.</span></li>
-      <li><span><b>Der Finger führt die Bewegung zur Seite.</b> Auf der Leiste ist ein Tab der ganze Weg einer Seite; auf der Seite selbst, wenn es das geben soll, folgt der Streifen dem Finger eins zu eins. Solange der Finger hält, tritt der Streifen zurück. Losgelassen geht er so schnell weiter, wie der Finger war, zu der Seite, die ein Drittel des Wegs (auf der Seite: die Hälfte) oder ein schneller Wisch bestimmt.</span></li>
-      <li><span><b>Ein weiter Sprung zeigt, was dazwischen liegt.</b> Tippst du von „Start“ auf „Stundenplan“, zieht der Streifen die drei Seiten dazwischen vorbei, ein Stück weiter zurückgetreten. Auch das geht nur, weil sie gebaut sind.</span></li>
-      <li><span><b>Mitten im Wechsel geht es weiter.</b> Ein Tipp oder ein Finger während des Wechsels nimmt den Streifen, wo er gerade steht und so schnell, wie er gerade geht. Kein Sprung, auch nicht bei drei Tipps hintereinander.</span></li>
-      <li><span><b>Am Handy scrollt das Fenster.</b> Für die Dauer des Wechsels werden die Bühnen, die ins Bild kommen, zu festen Ebenen, jede mit ihrer Scrollposition. Ruht die neue, geht sie zurück in den Fluss, und das Fenster bekommt ihre Position, im selben Bild. Die Leiste oben und die unten bleiben stehen, der Streifen gleitet darunter. Der Grund am Ende einer Seite gehört dafür in die Bühne.</span></li>
-      <li><span><b>Wer was tut.</b> Rust sagt, welche Bühne vorn ist (eine Klasse und ein Ereignis); <code>enhance.js</code> bewegt den Streifen, wie es das Sheet und die Leiste bewegt. Der Wisch auf der Leiste liegt schon dort und bekommt drei Stellen, an denen er den Streifen mitnimmt: wenn der Finger die Leiste greift, wenn er sich bewegt, wenn er loslässt.</span></li>
+      <li><span><b>Ein kleines Stück, auf Federn.</b> Die Seite, die geht, gleitet 36 px weg von der Seite des neuen Tabs und blendet aus; die neue kommt 36 px von der Seite ihres Tabs und blendet ein, einen Augenblick später. Ort und Deckkraft sind gedämpfte Federn, wie das Sheet eines Moduls und die Leiste sie haben, vorher ausgerechnet und als Web Animation gespielt, die der Compositor fährt; der Thread der Seite muss dafür nichts tun. Nach knapp einer halben Sekunde ruht alles.</span></li>
+      <li><span><b>Der Finger auf der Leiste führt.</b> Schiebt er die Leiste zum nächsten Tab, geht der Wechsel genauso weit mit: Bis vier Zehntel des Wegs gleitet die alte Seite weg, danach kommt die neue. Losgelassen entscheidet die Leiste wie heute (ein Drittel des Wegs, oder schnell gewischt), und die Seiten gehen so schnell weiter, wie der Finger war.</span></li>
+      <li><span><b>Gewischt wird nur auf der Leiste.</b> Auf der Seite selbst wischen schon Zeilen („Merken“, „Einplanen“) und die Semester in „Mein Studium“, und am iPhone ist der linke Rand Zurück.</span></li>
+      <li><span><b>Ein weiter Sprung ist ein Wechsel wie jeder.</b> Von „Start“ auf „Stundenplan“ kommt die neue Seite von rechts, wie von „Start“ auf „Module“: Die Richtung sagt, wo der Tab liegt, und was dazwischen liegt, bleibt hinten.</span></li>
+      <li><span><b>Mitten im Wechsel geht es weiter.</b> Ein Tipp oder ein Finger während des Wechsels nimmt die Seiten, wo sie gerade stehen und so schnell, wie sie gerade gehen. Kein Sprung, auch nicht bei drei Tipps hintereinander.</span></li>
+      <li><span><b>Am Handy scrollt das Fenster.</b> Für die Dauer des Wechsels werden die zwei Bühnen zu festen Ebenen, jede mit ihrer Scrollposition. Ruht die neue, geht sie zurück in den Fluss, und das Fenster bekommt ihre Position, im selben Bild. Die Leiste oben und die unten bleiben stehen, die Seiten wechseln darunter. Der Grund am Ende einer Seite gehört dafür in die Bühne.</span></li>
+      <li><span><b>Wer was tut.</b> Rust sagt, welche Bühne vorn ist (eine Klasse und ein Ereignis); <code>enhance.js</code> bewegt die Seiten, wie es das Sheet und die Leiste bewegt. Der Wisch auf der Leiste liegt schon dort und bekommt drei Stellen, an denen er die Seiten mitnimmt: wenn der Finger die Leiste greift, wenn er sich bewegt, wenn er loslässt.</span></li>
       <li><span><b>Ohne Animation:</b> am Rechner (die Seite ist im nächsten Bild da), mit „Bewegung reduzieren“ (ein kurzes Überblenden), und am iPhone, wenn vom Rand zurückgewischt wurde: Dann hat Safari schon animiert (<code>hasUAVisualTransition</code>), wie im Zurück-Konzept.</span></li>
     </ol>
   </section>
@@ -397,7 +400,7 @@ td .no { color: var(--no); font-weight: 650; }
       <li><span><b>Der Navigator schreibt, die Bühne folgt.</b> Der Navigator entscheidet, was im Verlauf steht und wohin ein Tab führt. Die Bühne zeigt, was der Router danach zeigt, und hält es fest, wenn ihr Tab nach hinten geht. Ein zweites Gedächtnis neben dem Stapel gibt es nicht.</span></li>
       <li><span><b>Darum danach.</b> Bühnen und Navigator ändern dieselben Stellen: <code>pending.rs</code>, <code>tabs.rs</code>, <code>chrome.rs</code>. Parallel gebaut kämen sie sich in die Quere; nach Schritt 4 des Zurück-Konzepts setzen die Bühnen auf fertige Stapel auf.</span></li>
       <li><span><b>Zurück im Tab.</b> „Tab noch einmal“ und Zurück auf einer Modulseite wechseln die Seite auf der Bühne, wie heute. Dazu hält eine Bühne die Seiten darunter mit, die Liste unter einer Modulseite (Schritt 5 hier); dann ist auch das sofort da.</span></li>
-      <li><span><b>Zurück zum Start.</b> Von der Startseite eines Tabs führt Zurück zum Start, ein Tabwechsel. Der Streifen fährt dafür nach links, bis Start dasteht, wie bei einem Tipp auf „Start“: Dort liegt Start, und die Bewegung sagt es. Bei den Karten der ersten Runde sollte Zurück rückwärts gespielt werden, damit es anders aussieht als ein Tipp; beim Streifen ist das dieselbe Bewegung.</span></li>
+      <li><span><b>Zurück zum Start.</b> Von der Startseite eines Tabs führt Zurück zum Start, ein Tabwechsel wie ein Tipp auf „Start“: Die Seite gleitet nach rechts weg, und Start kommt von links, wo sein Tab liegt.</span></li>
     </ol>
   </section>
 
@@ -405,20 +408,20 @@ td .no { color: var(--no); font-weight: 650; }
     <h2 id="steps-title">In sechs Schritten</h2>
     <p class="lead">Jeder Schritt geht für sich auf canary. Keiner braucht eine MAJOR: Keine Adresse geht weg, und was ein Browser behält, bleibt lesbar.</p>
     <ol class="steps">
-      <li class="now"><span class="n">0</span><b>Schon jetzt: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Nach einem Skelett hält <code>hold</code> das Skelett statt der alten Seite, bei Tabs, beim Modul-Sheet und bei jeder Seite; die Markierung der Leiste wechselt beim Tippen ohne Farbübergang. Zwei kleine Stellen in <code>pending.rs</code> und <code>app.css</code>, unabhängig vom Zurück. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
+      <li class="now"><span class="n">0</span><b>Gebaut am 18.10.: kein Zurückblitzen</b><span class="ver">Folia PATCH</span><p>Steht ein Skelett da, hält <code>hold</code> ein Bild des Skeletts vor die neue Seite statt eines Bilds der alten, bis ihre Antworten da sind; sein Schimmer läuft darin weiter. Das gilt für jeden Tab und jede Seite mit Skelett, auch „Alle Studiengänge“ und die Ansichten eines Studiengangs; beim Modul-Sheet blitzte nichts zurück. Die Markierung wechselt beim Tippen ohne Farbübergang und ohne das Tap-Highlight des Browsers. Gefilmt wie oben, lokal und gedrosselt: Skelett, Bild des Skeletts, neue Seite, die Markierung im ersten Bild. Das Bauen bleibt so langsam wie heute, aber es flackert nicht mehr.</p></li>
       <li><span class="n">1</span><b>Bühnen</b><span class="ver">Folia MINOR</span><p>Nach Schritt 4 des Zurück-Konzepts. Die Seiten bleiben gebaut, ein Tabwechsel tauscht nur, die Scrollposition bleibt je Tab; Titel, Ids und Listener gehören der vorderen Bühne. Am Rechner wie am Handy.</p></li>
       <li><span class="n">2</span><b>Alle Tabs beim Start</b><span class="ver">Folia PATCH</span><p>Nach der ersten Seite baut Betula die anderen Tabs vor, in Ruhe und einen nach dem anderen. Vorher wird Studium kleiner, damit kein Tipp in einen Task von Sekunden fällt.</p></li>
-      <li><span class="n">3</span><b>Die Bewegung am Handy</b><span class="ver">Folia MINOR</span><p>Die Variante, die du wählst: getippt, auf der Leiste gewischt mit dem Streifen am Finger, ein Tipp und ein Finger mitten im Wechsel, rückwärts für Zurück; auf der Seite gewischt, wenn es das geben soll.</p></li>
+      <li><span class="n">3</span><b>Achse am Handy</b><span class="ver">Folia MINOR</span><p>Getippt und auf der Leiste gewischt, die Seite am Finger; ein Tipp und ein Finger mitten im Wechsel; Zurück zum Start wie ein Tipp auf „Start“.</p></li>
       <li><span class="n">4</span><b>Das Modul-Sheet sofort</b><span class="ver">Folia PATCH</span><p>Es gleitet mit dem Kopf aus seiner Zeile hoch, gefragt wird beim Aufsetzen des Fingers, gebaut in zwei Teilen: der Kopf im ersten Bild, der Rest danach.</p></li>
       <li><span class="n">5</span><b>Der Stapel bleibt</b><span class="ver">Folia PATCH</span><p>Seiten innerhalb eines Tabs bleiben unter dem Obersten gebaut, ein erster Besuch beginnt beim Aufsetzen des Fingers, und Filter kommen ohne Skelettzeilen.</p></li>
     </ol>
-    <p class="note">Geprüft wird mit einem neuen <code>e2e/stages.mjs</code>: Ein Wechsel in einen gebauten Tab zeigt kein Skelett und kein Bild der alten Seite, ist im nächsten Frame da und behält die Scrollposition, und ist der Start vorbei, kommt kein Tab mehr mit Skelett; Titel und Ids sind die der vorderen Bühne; gedrosselt wie oben unter 50 ms. Der Streifen wie die Leiste: nur Transform und Opacity, kein langer Task während des Wechsels. <code>snappy.mjs</code> und <code>tabbar.mjs</code> laufen weiter.</p>
+    <p class="note">Geprüft wird mit einem neuen <code>e2e/stages.mjs</code>: Ein Wechsel in einen gebauten Tab zeigt kein Skelett und kein Bild der alten Seite, ist im nächsten Frame da und behält die Scrollposition, und ist der Start vorbei, kommt kein Tab mehr mit Skelett; Titel und Ids sind die der vorderen Bühne; gedrosselt wie oben unter 50 ms. Die Seiten wie die Leiste: nur Transform und Opacity, kein langer Task während des Wechsels. <code>snappy.mjs</code> und <code>tabbar.mjs</code> laufen weiter.</p>
   </section>
 
   <section class="block" id="nicht" aria-labelledby="not-title">
     <h2 id="not-title">Bewusst nicht</h2>
     <ul class="not">
-      <li><b>Kein Wischen über die Seite ohne Regel</b>Im Prototyp wischst du auch über die Seite selbst. In der App wischen aber schon Zeilen („Merken“, „Einplanen“), „Mein Studium“ seine Semester, und am iPhone ist der linke Rand Zurück: Über die Seite ginge es nur mit einer Regel, wem ein Wisch gehört (offen, unten).</li>
+      <li><b>Kein Wischen über die Seite</b>Gewechselt wird nur auf der Leiste („Swipen soll explizit nur über die navbar funktionieren“). Auf der Seite wischen schon Zeilen („Merken“, „Einplanen“) und die Semester in „Mein Studium“, und am iPhone ist der linke Rand Zurück.</li>
       <li><b>Keine View Transitions für den Tabwechsel</b>Sie zeigen während des Wechsels ein Bild der alten Seite statt der Seite selbst, folgen keinem Finger und lassen sich mitten drin nicht greifen. Für das Laden der Website bleibt <code>@view-transition</code>, wie es ist.</li>
       <li><b>Nichts davon in der Adresse</b>Was hinten steht, lebt in diesem Browser. Die Adresse sagt weiter nur, wo du bist, wie das Zurück-Konzept es festlegt.</li>
       <li><b>Kein Nein</b>Ist eine Bühne leer, weil Betula gerade erst startet, geht der Wechsel trotzdem, eben mit Skelett, und die Seite kommt mit ihm.</li>
@@ -427,12 +430,9 @@ td .no { color: var(--no); font-weight: 650; }
 
   <section class="block" id="offen" aria-labelledby="open-title">
     <h2 id="open-title">Entschieden und offen</h2>
-    <p class="lead"><b>Entschieden am 18.10.:</b> Die Seiten bleiben stehen („Das muss auf jeden Fall rein“). Der Start darf laden und kurz Skelette zeigen; läuft die App, ist alles sofort da: jeder Tab, das Modul-Sheet, die Seiten in einem Tab. Die Karten der ersten Runde passen nicht. Offen ist, was du im Prototyp entscheiden kannst, und eine Frage dazu:</p>
+    <p class="lead"><b>Entschieden am 18.10.:</b> Die Seiten bleiben stehen („Das muss auf jeden Fall rein“). Der Start darf laden und kurz Skelette zeigen; läuft die App, ist alles sofort da: jeder Tab, das Modul-Sheet, die Seiten in einem Tab. Am Handy wechselt die Seite auf der Achse, und gewischt wird nur auf der Leiste. Schritt 0 ist gebaut: Der Umbau des Zurück ist bisher Konzept, und in <code>pending.rs</code> ändert er nur den Klick-Listener, nicht <code>hold</code>. Offen ist noch:</p>
     <ul class="open">
-      <li><b>Welche Bewegung?</b> Vorgeschlagen: Übersicht, so wie du sie beschrieben hast; flach oder gewölbt, wie weit zurück und wie schnell, entscheidest du im Prototyp.</li>
-      <li><b>Wischen über die Seite?</b> Wenn ja, braucht es eine Regel, wem ein Wisch gehört: etwa nur dort, wo nichts anderes wischt (nicht über Zeilen und nicht über die Semester), oder nur vom rechten Rand aus, weil der linke am iPhone Zurück ist.</li>
-      <li><b>Folgt die Seite beim Wischen auf der Leiste dem Finger, oder kommt sie erst beim Loslassen?</b> Vorgeschlagen: Sie folgt dem Finger.</li>
-      <li><b>Schritt 0 schon jetzt?</b> Er nimmt das Flackern weg, bevor die Bühnen kommen, und berührt den Umbau des Zurück nicht.</li>
+      <li><b>Folgt die Seite beim Wischen auf der Leiste dem Finger, oder kommt sie erst beim Loslassen?</b> Vorgeschlagen, und so im Prototyp: Sie folgt dem Finger.</li>
     </ul>
   </section>
 </main>

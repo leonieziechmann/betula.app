@@ -317,7 +317,7 @@ table { border-collapse: collapse; width: 100%; }
 /* Where the rail and the title are hidden (phone), the start page carries the brand itself. */
 .brand-phone { display: none; }
 .nav { width: 40px; display: grid; justify-items: center; color: var(--text-3); font-size: 0; text-decoration: none; }
-.nav .ind { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; transition: background .15s, color .15s; }
+.nav .ind { width: 40px; height: 40px; border-radius: var(--r-ctl); display: grid; place-items: center; }
 .nav .icon { width: 20px; height: 20px; }
 .nav:hover { text-decoration: none; }
 /* Where a pointer hovers. A finger leaves its hover on the tab it tapped until it taps something
@@ -326,6 +326,10 @@ table { border-collapse: collapse; width: 100%; }
 @media (hover: hover) {
   .nav:hover { color: var(--text); }
   .nav:hover .ind { background: var(--line); }
+  /* Only a hover fades in. The current tab's mark changes in the frame of the tap or click
+     (pending.rs) without a fade either way: a fade waits for the thread, which builds the page
+     then, and the mark seemed to stand still on the tab before (owner, 2026-10-18). */
+  .nav:hover:not([aria-current="page"]) .ind { transition: background .15s, color .15s; }
 }
 .nav[aria-current="page"] { color: var(--text); }
 .nav[aria-current="page"] .ind { background: var(--invert); color: var(--on-invert); }
@@ -3314,8 +3318,9 @@ html:not(.js) .app-standin { display: none; }
 html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .pending-page { position: absolute; inset: 0; z-index: 30; background: var(--bg); }
 .pending-page > .work { height: 100%; }
-/* The page before, held in front of the new one while its answers are on their way (pending.rs,
-   `hold`): a picture, which takes no input; what is under it is the new page. */
+/* The page before, or the skeleton where one stood, held in front of the new one while its answers
+   are on their way (pending.rs, `hold`): a picture, which takes no input; what is under it is the
+   new page. */
 .pending-page.held, .pending-page.held * { pointer-events: none !important; }
 /* Another view of the same page: its column waits, the sidebar stays as it is and takes clicks. */
 .pending-page.columns { background: none; pointer-events: none; }
@@ -3756,8 +3761,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      close (--near of its tab, 0–1). Once the tab is the current one its own mark takes over, in one
      frame without its fade ("settle"). */
   .bottomnav { touch-action: pan-y; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; }
-  /* A finger held on a tab is the tab's own (enhance.js „a tab held"): no preview of the link. */
-  .bottomnav > .nav { -webkit-touch-callout: none; }
+  /* A finger held on a tab is the tab's own (enhance.js „a tab held"): no preview of the link. And
+     no highlight of the browser over a tab tapped: its mark answers the tap, in the same frame
+     (design/tabbar/swipe.html). */
+  .bottomnav > .nav { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   .bottomnav > .nav { will-change: transform; }
   .bottomnav:is([data-swipe="drag"], [data-swipe="glide"]) { overflow: hidden; overflow: clip; }
   .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::before, .bottomnav:is([data-swipe="drag"], [data-swipe="glide"])::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: 8px; pointer-events: none; }
