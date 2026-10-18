@@ -21,6 +21,13 @@
 //! sideways (`Sideways`: the semester of the note of „Einplanen", `folia_widgets::plannote`); a
 //! swipe is never a tap as well.
 //!
+//! It goes down out of sight, from where it stands, and then the host lets go of it (the same day:
+//! „wenn man da die Modul Ansicht schließt sollte die notification auch mit eher Animation nach
+//! unten raus geschlossen werden. Aktuell ist das ziemlich unangenehm anzusehen"). Its place is
+//! kept from its coming (`placed`): what changes around it — a module's sheet that closes on a
+//! phone, a page without a sidebar — never moves it on its way out. A module's sheet sliding away
+//! (enhance.js `sheet-away` on the document) takes it along at once.
+//!
 //! On a wide screen a bar across the page right of the rail; on a phone a card as wide as the bottom
 //! bar over it, under it in the order of what lies on what and flat, so it casts nothing on the bar
 //! and comes up from behind it (the same day: „keinen schatten auf die navbar werfen"); dark in both
@@ -131,6 +138,8 @@ pub fn WaitNote(
     let gone = move || {
         let _ = on_gone.try_run(());
     };
+    // Where it stands, as its coming put it: kept until it is gone.
+    let placed = RwSignal::new(None::<String>);
     // When it came or changed last.
     let came = StoredValue::new(clock());
     if let Some(changed) = changed {
@@ -141,16 +150,6 @@ pub fn WaitNote(
     }
     let fresh = move || clock() - came.try_get_value().unwrap_or(f64::NEG_INFINITY) < GRACE;
 
-    // Another page, module, filter or search.
-    let location = i18n::use_location();
-    let here = Memo::new(move |_| (location.pathname.get(), steps_of(&location.search.get())));
-    Effect::new(move |before: Option<(String, String)>| {
-        let now = here.get();
-        if before.is_some_and(|before| before != now) && !fresh() {
-            gone();
-        }
-        now
-    });
 
     // A finger: the part that takes it sideways follows (`Sideways::slide`), the note down
     // (`lowered`); while it is on the note nothing eases (`dragging`). Swiped away, the note goes
@@ -160,23 +159,51 @@ pub fn WaitNote(
     let dragging = RwSignal::new(false);
     let leaving = RwSignal::new(false);
     let swiped = StoredValue::new(f64::NEG_INFINITY);
-    let away = move || {
-        let height = root.get_untracked().map_or(80.0, |root| f64::from(root.offset_height()));
+    // It goes: down from where it is to out of sight, and then the host lets go of it.
+    let leave = move || {
+        if leaving.try_get_untracked().unwrap_or(true) {
+            return;
+        }
+        let down = lowered.get_untracked() + distance_out(root);
         dragging.set(false);
         leaving.set(true);
-        lowered.set(height + 120.0);
+        lowered.set(down);
         set_timeout(gone, LEAVING);
     };
 
+    // Another page, module, filter or search.
+    let location = i18n::use_location();
+    let here = Memo::new(move |_| (location.pathname.get(), steps_of(&location.search.get())));
+    Effect::new(move |before: Option<(String, String)>| {
+        let now = here.get();
+        if before.is_some_and(|before| before != now) && !fresh() {
+            leave();
+        }
+        now
+    });
+
     #[cfg(feature = "csr")]
     {
+        // Its place, once it is in the page; taken anew when the window changes its size.
+        root.on_load(move |element| {
+            request_animation_frame(move || placed.set(place_of(&element)));
+        });
+        let resized = window_event_listener(leptos::ev::resize, move |_| {
+            placed.set(None);
+            request_animation_frame(move || {
+                if let Some(element) = root.get_untracked() {
+                    placed.set(place_of(&element));
+                }
+            });
+        });
+        on_cleanup(move || resized.remove());
         let keys = window_event_listener(leptos::ev::keydown, move |ev| {
             if is_moving_on(&ev, root, on_key) && !fresh() {
-                gone();
+                leave();
             }
         });
         on_cleanup(move || keys.remove());
-        if let Some(watch) = watch(root, fresh, swiped, gone) {
+        if let Some(watch) = watch(root, fresh, swiped, leave) {
             on_cleanup(move || drop(watch));
         }
     }
@@ -249,7 +276,7 @@ pub fn WaitNote(
             (Way::Down, _) => {
                 let flicked = now.dy >= AWAY_AT / 2.0 && now.speed >= FLICK;
                 if now.dy >= AWAY_AT || flicked {
-                    away();
+                    leave();
                 } else {
                     lowered.set(0.0);
                 }
@@ -276,14 +303,21 @@ pub fn WaitNote(
             node_ref=root
             role="status"
             data-drag=move || dragging.get().then_some("")
-            style=move || (lowered.get() != 0.0).then(|| format!("transform:translateY({:.1}px)", lowered.get()))
+            style=move || {
+                let mut style = placed.get().unwrap_or_default();
+                let down = lowered.get();
+                if down != 0.0 {
+                    style.push_str(&format!("transform:translateY({down:.1}px);"));
+                }
+                (!style.is_empty()).then_some(style)
+            }
             on:pointerdown=down
             on:pointermove=moved
             on:pointerup=up
             on:pointercancel=cancel
         >
             {children()}
-            <button class="wait-note-close" type="button" aria-label=t.common.close title=format!("{} (Esc)", t.common.close) on:click=move |_| gone()>
+            <button class="wait-note-close" type="button" aria-label=t.common.close title=format!("{} (Esc)", t.common.close) on:click=move |_| leave()>
                 <Icon name="x"/>
             </button>
         </div>
@@ -312,6 +346,31 @@ fn within(ev: &PointerEvent, selector: &str) -> bool {
     ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()).and_then(|target| target.closest(selector).ok().flatten()).is_some()
 }
 
+/// How far down the note has to go to be out of sight: from its bottom to the window's, and its
+/// height.
+fn distance_out(root: NodeRef<leptos::html::Div>) -> f64 {
+    #[cfg(feature = "csr")]
+    {
+        let window_height = web_sys::window().and_then(|window| window.inner_height().ok()?.as_f64());
+        if let (Some(element), Some(window_height)) = (root.get_untracked(), window_height) {
+            let rect = element.get_bounding_client_rect();
+            return (window_height - rect.bottom()).max(0.0) + rect.height() + 24.0;
+        }
+    }
+    let _ = root;
+    120.0
+}
+
+/// Where the note stands, from what its styles make of it now (the side a page's sidebar leaves,
+/// over a phone's bottom bar or a module's sheet): kept in its own style, so that what changes
+/// around it does not move it.
+#[cfg(feature = "csr")]
+fn place_of(element: &web_sys::HtmlDivElement) -> Option<String> {
+    let style = web_sys::window()?.get_computed_style(element).ok()??;
+    let value = |name: &str| style.get_property_value(name).ok().filter(|value| !value.is_empty());
+    Some(format!("left:{};right:{};bottom:{};z-index:{};", value("left")?, value("right")?, value("bottom")?, value("z-index")?))
+}
+
 /// Whether a key is the student moving on: not taken by the note (`on_key`), not on the note itself
 /// (Enter or the space bar on its buttons), not a modifier, Tab, a function key or a key with a
 /// modifier. Esc puts the note away, also from the note.
@@ -334,12 +393,14 @@ fn is_moving_on(ev: &KeyboardEvent, root: NodeRef<leptos::html::Div>, on_key: Op
 /// What the note hears on the page, on its way down (capture): a click elsewhere, and a scroll of
 /// anything — each element's first position since the note came kept, one further than `far` from
 /// there moving on; within `GRACE` the positions are taken anew. A click on the note right after a
-/// swipe is the swipe's end and goes no further. Dropping it removes the listeners.
+/// swipe is the swipe's end and goes no further. A module's sheet sliding away (`sheet-away`,
+/// enhance.js) takes the note along. Dropping it removes the listeners.
 #[cfg(feature = "csr")]
 struct Watch {
     document: web_sys::Document,
     click: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
     scroll: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
+    sheet_away: wasm_bindgen::closure::Closure<dyn FnMut(web_sys::Event)>,
 }
 
 #[cfg(feature = "csr")]
@@ -348,11 +409,12 @@ impl Drop for Watch {
         use wasm_bindgen::JsCast;
         let _ = self.document.remove_event_listener_with_callback_and_bool("click", self.click.as_ref().unchecked_ref(), true);
         let _ = self.document.remove_event_listener_with_callback_and_bool("scroll", self.scroll.as_ref().unchecked_ref(), true);
+        let _ = self.document.remove_event_listener_with_callback("sheet-away", self.sheet_away.as_ref().unchecked_ref());
     }
 }
 
 #[cfg(feature = "csr")]
-fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'static, swiped: StoredValue<f64>, gone: impl Fn() + Copy + 'static) -> Option<send_wrapper::SendWrapper<Watch>> {
+fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'static, swiped: StoredValue<f64>, leave: impl Fn() + Copy + 'static) -> Option<send_wrapper::SendWrapper<Watch>> {
     use wasm_bindgen::JsCast;
     let document = web_sys::window()?.document()?;
     let on_note = move |target: Option<web_sys::EventTarget>| {
@@ -369,7 +431,7 @@ fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'st
                 ev.prevent_default();
             }
         } else if !fresh() {
-            gone();
+            leave();
         }
     });
     // The note they were seen for, and where each element stood first.
@@ -387,7 +449,7 @@ fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'st
             Some(first) if early => *first = (target, top, left),
             Some((_, top_first, left_first)) => {
                 if (top - *top_first).abs() > far || (left - *left_first).abs() > far {
-                    gone();
+                    leave();
                 }
             }
             None => seen.push((target, top, left)),
@@ -398,7 +460,9 @@ fn watch(root: NodeRef<leptos::html::Div>, fresh: impl Fn() -> bool + Copy + 'st
     options.set_passive(true);
     document.add_event_listener_with_callback_and_add_event_listener_options("scroll", scroll.as_ref().unchecked_ref(), &options).ok()?;
     document.add_event_listener_with_callback_and_bool("click", click.as_ref().unchecked_ref(), true).ok()?;
-    Some(send_wrapper::SendWrapper::new(Watch { document, click, scroll }))
+    let sheet_away = wasm_bindgen::closure::Closure::<dyn FnMut(web_sys::Event)>::new(move |_: web_sys::Event| leave());
+    document.add_event_listener_with_callback("sheet-away", sheet_away.as_ref().unchecked_ref()).ok()?;
+    Some(send_wrapper::SendWrapper::new(Watch { document, click, scroll, sheet_away }))
 }
 
 #[cfg(test)]

@@ -17,7 +17,7 @@
 // stands over the bottom bar, as wide, under it and flat; a tap on the semester's half and a finger
 // swiped over it move the module, the semester under the finger stays as the switch comes over it,
 // a finger swipes the note down and away, and a long scroll, a tap elsewhere or a module opened puts
-// it away.
+// it away; planned from a module's sheet, the note goes down with the sheet as it closes.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node plannote.mjs   (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Needs the synthetic catalog (docs/folia/frontend.md §4): Algorithmen und Datenstrukturen (11112,
 // winter, in the 1st semester of Informatik B.Sc.'s plan) and Analysis I (11103, summer); its
@@ -464,6 +464,21 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   const id3 = await page.evaluate(() => document.querySelectorAll(".row-wrap .row")[3].dataset.id);
   await page.tap(`.row-wrap .row[data-id="${id3}"]`);
   await noteGone(page, "phone, a module opened");
+  // Planned from the module's sheet, the note over the sheet; the sheet closed, the note goes down
+  // with it and out, never up first (owner, 2026-10-18: „wenn man da die Modul Ansicht schließt
+  // sollte die notification auch mit eher Animation nach unten raus geschlossen werden").
+  await page.waitForFunction(() => document.querySelector(".detail.is-module .hero .plan-toggle[data-action=plan]")?.checkVisibility(), null, { timeout: 10000 }).catch(() => problems.push("phone: no module's sheet"));
+  await page.waitForTimeout(800);
+  await page.tap(".detail.is-module .hero .plan-toggle[data-action=plan]");
+  await noteThere(page, "phone, planned from the sheet");
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { window.__tops = []; const tick = () => { const n = document.querySelector(".wait-note"); window.__tops.push(n ? n.getBoundingClientRect().top : null); if (window.__tops.length < 60) requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+  await page.tap(".detail.is-module [data-action=close-detail]");
+  await noteGone(page, "phone, the sheet closed");
+  await page.waitForTimeout(1100);
+  const tops = (await page.evaluate(() => window.__tops)).filter((top) => top !== null);
+  const up = tops.reduce((most, top, i) => (i ? Math.max(most, tops[i - 1] - top) : 0), 0);
+  check(tops.length > 2 && up <= 1 && tops[tops.length - 1] > tops[0], `phone: the note does not go down with the sheet (${JSON.stringify(tops.map(Math.round))})`);
   await context.close();
 }
 
