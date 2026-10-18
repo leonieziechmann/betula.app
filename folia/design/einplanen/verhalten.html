@@ -1,0 +1,714 @@
+<title>Einplanen-Verhalten</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- How „Einplanen" behaves, after the owner chose concept D of konzepte.html (2026-10-17: „Also ich
+     muss sagen, dass ich sofort einplanen in das Semester (Option D) sinnvoller finde. Weil man idr.
+     ja nicht alles vorausplant und das auch oft von terminen abhängig ist. Deswegen würde ich den
+     fast path fast lassen. Aber man sollte natürlich ein wenig smart sein was die default option ist.
+     Weil wenn man mitten im Semester plant, dann ist das wahrscheinlich für das nächste. Wichtig ist
+     aber, dass sich das nicht verändert in der aktuellen Session … Mach das mal basierend von user
+     Stories … ich möchte, dass wenn man keinen studium eingerichtet hat, dass man an der stelle
+     geprompted wird das zu machen. Hier kann man ja teils auch schon aus den Einstellungen
+     (semesterwahl) herleiten welches Studium und fs so dass man einfach nur bestätigen muss im best
+     case."). The semester a session plans for, the semester a module goes to, ten situations to
+     click through on a desktop and a phone, the question for a study that is not set up, the rules
+     and what is open. The students, the modules and the dates are examples; the dates of the BTU's
+     lectures are approximate. Tokens are Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the decision and its two rules at the top, the year with the semester a session plans for,
+   the situations with a desktop and a phone that play them, the question for a study not set up, the
+   rules to look up, what is open. Tokens: Betula's own (light, then dark), the wood under devices. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58; --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel)); --no: #c2410c;
+  --lecture: color-mix(in oklab, var(--text) 16%, var(--panel));
+  --backdrop: rgba(10, 12, 17, .42);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130; --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --no: #ff8f85;
+    --lecture: color-mix(in oklab, var(--text) 22%, var(--panel));
+    --backdrop: rgba(0, 0, 0, .55);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --no: #ff8f85;
+  --lecture: color-mix(in oklab, var(--text) 22%, var(--panel));
+  --backdrop: rgba(0, 0, 0, .55);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+
+/* The brief: the decision, and the two rules everything else follows from. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* The year: the lectures of WiSe and SoSe, the weeks a session still plans for the running semester,
+   a day to drag, and what it gives. */
+.year { margin-top: 18px; }
+.months { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size: 11.5px; color: var(--text-3); }
+.months span { padding: 0 0 4px 3px; border-left: 1px solid var(--line); }
+.track { position: relative; height: 64px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.seg-sem { position: absolute; top: 0; bottom: 0; display: flex; align-items: flex-start; padding: 6px 8px; font-size: 12px; font-weight: 650; color: var(--text-2); }
+.seg-sem.w { background: color-mix(in oklab, var(--accent) 7%, transparent); }
+.lect { position: absolute; bottom: 8px; height: 10px; border-radius: 5px; background: var(--lecture); }
+.cut { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--accent); }
+.cut i { position: absolute; top: 24px; left: 4px; font-style: normal; font-size: 11px; font-weight: 650; color: var(--accent-ink); white-space: nowrap; }
+.day { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; border-radius: 2px; background: var(--text); }
+.year input[type="range"] { width: 100%; margin: 10px 0 0; accent-color: var(--accent); }
+.verdict { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); }
+.verdict b { font-size: 18px; font-weight: 720; letter-spacing: -.01em; }
+.verdict span { color: var(--text-2); font-size: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--text-3); }
+.legend i { display: inline-block; width: 18px; height: 8px; margin-right: 6px; border-radius: 4px; vertical-align: middle; background: var(--lecture); }
+.legend i.c { width: 0; height: 12px; border-left: 2px dashed var(--accent); border-radius: 0; background: none; }
+
+/* The situations: a list to pick from, the one picked told, the devices playing it. */
+.stories { margin-top: 16px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.st { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 0; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; cursor: pointer; }
+.st:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.st small { font-size: 11.5px; color: var(--text-3); font-weight: 600; }
+.st b { font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.st[aria-pressed="true"] { background: var(--invert); box-shadow: none; }
+.st[aria-pressed="true"] b, .st[aria-pressed="true"] small { color: var(--on-invert); }
+.story { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px 28px; padding: 16px 18px; border-radius: 12px; background: var(--panel-2); }
+.story h3 { font-size: 17px; font-weight: 700; }
+.story .who { margin-top: 2px; color: var(--text-3); font-size: 13px; }
+.story p { margin-top: 8px; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.story dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 14px; }
+.story dt { color: var(--text-3); font-weight: 600; }
+.story dd { margin: 0; color: var(--text); }
+.story .acts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.story .acts:empty { display: none; }
+.story .acts button { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 600; cursor: pointer; }
+.story .acts button:hover { background: var(--panel-3); }
+.stage { margin: 16px -24px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 26px 24px; background: var(--wood); }
+.stage-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
+.c-reset { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.c-reset:hover { background: var(--panel-3); color: var(--text); }
+
+/* The devices: a window and a phone, scaled to fit (--s). */
+.device { margin: 0; min-width: 0; }
+.device figcaption { margin-top: 10px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; }
+.desk .fit { --w: 780; --h: 560; }
+.desk .frame { border-radius: 12px; background: var(--device); padding: 0 6px 6px; box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.desk .chrome { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; }
+.desk .chrome i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .22); }
+.desk .chrome span { min-width: 0; margin-left: 12px; padding: 2px 10px; border-radius: 5px; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .62); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk .chrome em { margin-left: auto; color: rgba(255, 255, 255, .62); font: 600 11px var(--font); font-style: normal; }
+.desk .screen { border-radius: 6px; }
+.phone { width: 290px; }
+.phone .fit { --w: 390; --h: 800; }
+.phone .frame { padding: 9px; border-radius: 44px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.phone .screen { border-radius: 36px; }
+
+/* ---------- Betula inside the devices ---------- */
+.app { position: relative; width: 100%; height: 100%; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; }
+.app .panel { border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.app .label { font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.app svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.app kbd { padding: 1px 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px var(--mono); }
+.search { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); }
+.mono { font-family: var(--mono); font-size: 11.5px; }
+.d-app { position: absolute; inset: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr); gap: 8px; padding: 8px; }
+.d-app > .search { grid-column: 1 / -1; }
+.list { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.list-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; padding: 12px 14px 8px; font-size: 13px; color: var(--text-2); }
+.list-head b { font-size: 17px; color: var(--text); }
+.tag { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 11.5px; font-weight: 600; color: var(--text); }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; width: calc(100% - 12px); margin: 0 6px; padding: 9px 10px; border: 0; border-radius: var(--r-row); background: none; text-align: left; cursor: pointer; }
+.row:hover { background: var(--row-hover); }
+.row + .row { margin-top: 1px; }
+.row.cur { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
+.row b { font-size: 13px; font-weight: 640; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .m { grid-column: 1; display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--text-3); font-size: 11.5px; }
+.row .lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 700; font-size: 13px; }
+.row .lp small { font-weight: 500; color: var(--text-3); }
+.pl { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px 1px 5px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); font: 600 11px var(--font); white-space: nowrap; }
+.pl svg.i { width: 12px; height: 12px; }
+.detail { position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.hero { padding: 12px 16px 14px 18px; border-bottom: 1px solid var(--line); }
+.hero-top { display: flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 12.5px; }
+.hero-top .mono { margin-right: auto; padding: 3px 7px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.hero-top span:not(.mono) { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; }
+.hero h3 { margin-top: 8px; font-size: 21px; line-height: 1.16; letter-spacing: -.025em; font-weight: 720; }
+.hero .en { color: var(--text-2); font-size: 13px; }
+.hero-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; margin-right: auto; }
+.b { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; font-weight: 560; color: var(--text-2); }
+.b.strong { background: var(--invert); color: var(--on-invert); box-shadow: none; font-weight: 700; }
+.b.warn { background: var(--warn-soft); color: var(--warn); box-shadow: none; }
+.pair { display: flex; flex-wrap: nowrap; gap: 6px; }
+.sw { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 10px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.sw:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.sw.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.sw.on kbd { background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
+.sw small { font-size: 12px; font-weight: 520; opacity: .8; }
+.why { margin-top: 8px; display: flex; align-items: flex-start; gap: 6px; color: var(--text-3); font-size: 12px; }
+.why svg.i { width: 13px; height: 13px; margin-top: 2px; color: var(--accent-ink); }
+.why b { color: var(--text-2); font-weight: 600; }
+.why button { margin-left: 4px; padding: 0; border: 0; background: none; color: var(--accent-ink); font-size: 12px; font-weight: 650; cursor: pointer; }
+.body { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+.body p { color: var(--text-2); font-size: 12.5px; }
+.body i { display: block; height: 40px; border-radius: 8px; background: var(--panel-2); }
+.p-app { position: absolute; inset: 0; }
+.p-status { position: absolute; left: 30px; right: 30px; top: 16px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 650; color: var(--text); }
+.p-top { position: absolute; left: 12px; right: 12px; top: 52px; display: flex; gap: 8px; }
+.p-top .search { flex: 1; height: 46px; }
+.p-top i { width: 46px; height: 46px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); }
+.p-list { position: absolute; left: 12px; right: 12px; top: 112px; display: flex; flex-direction: column; gap: 8px; }
+.p-list .tagline { display: flex; flex-wrap: wrap; gap: 6px; }
+.card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; width: 100%; padding: 12px 14px; border: 0; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); text-align: left; cursor: pointer; }
+.card b { font-size: 15px; font-weight: 650; }
+.card .m { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; }
+.card .lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 700; font-size: 15px; }
+.card .lp small { font-weight: 500; color: var(--text-3); font-size: 11px; }
+.card.cur { box-shadow: var(--shadow-panel), inset 3px 0 0 var(--accent); }
+.p-shade { position: absolute; inset: 0; background: rgba(15, 23, 42, .3); }
+.p-sheet { position: absolute; left: 0; right: 0; top: 318px; bottom: 0; border-radius: 18px 18px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; }
+.p-sheet::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--line-strong); }
+.p-sheet .hero { padding: 20px 16px 16px; }
+.p-sheet .hero-top .x { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 50%; background: var(--panel-3); color: var(--text); }
+.p-sheet .hero h3 { font-size: 23px; }
+.p-sheet .badges { margin-right: 0; }
+.p-sheet .switches { display: flex; gap: 8px; width: 100%; }
+.p-sheet .switches > .sw { flex: 1 1 0; min-width: 0; justify-content: center; min-height: 44px; font-size: 15px; padding: 0 14px; }
+.p-sheet kbd { display: none; }
+.p-sheet .body p { font-size: 13.5px; }
+.p-sheet .why { font-size: 13px; }
+
+/* The note after planning: what happened, what can be undone, the other semesters, and the question
+   for the study where none is set up. */
+.toast { position: absolute; z-index: 6; left: 50%; bottom: 16px; translate: -50% 0; width: min(450px, calc(100% - 24px)); padding: 10px 10px 10px 14px; border-radius: 12px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 13px; animation: toast-in .22s var(--ease); }
+@keyframes toast-in { from { opacity: 0; translate: -50% 10px; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+.toast-row { display: flex; align-items: center; gap: 8px; }
+.toast-row > span { flex: 1; min-width: 0; }
+.toast-row b { font-weight: 700; }
+.toast button.t { padding: 6px 9px; border: 0; border-radius: 7px; background: color-mix(in srgb, var(--on-invert) 12%, transparent); color: var(--on-invert); font-size: 12.5px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.toast button.t:hover { background: color-mix(in srgb, var(--on-invert) 20%, transparent); }
+.toast button.t.go { background: var(--accent); color: var(--on-accent); }
+.toast .tchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.toast .tchips button { padding: 6px 10px; border: 0; border-radius: 8px; background: color-mix(in srgb, var(--on-invert) 10%, transparent); color: var(--on-invert); font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: left; line-height: 1.25; }
+.toast .tchips button small { display: block; font-weight: 500; opacity: .75; font-size: 11px; }
+.toast .tchips button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.toast .tchips button.off { opacity: .55; }
+.toast .more { margin-top: 10px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--on-invert) 16%, transparent); }
+.toast .more p { font-size: 13px; }
+.toast .more p b { font-weight: 700; }
+.toast .more small { display: block; margin-top: 1px; font-size: 11.5px; opacity: .72; }
+.toast .more .btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.toast .danger { color: #ffb4a8; }
+.p-app .toast { bottom: 26px; width: calc(100% - 24px); font-size: 14px; }
+/* The card of the study, where the question's „Ändern" or „Einrichten" leads. */
+.card-shade { position: absolute; inset: 0; z-index: 7; background: var(--backdrop); }
+.studium { position: absolute; z-index: 8; left: 50%; top: 50%; translate: -50% -50%; width: 380px; padding: 16px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); }
+.p-app .studium { top: auto; bottom: 0; translate: -50% 0; width: 100%; border-radius: 18px 18px 0 0; padding: 18px 16px 28px; }
+.studium h4 { font-size: 17px; font-weight: 700; }
+.studium > p { margin-top: 2px; color: var(--text-2); font-size: 12.5px; }
+.progs { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.progs button { display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 0; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.progs button small { color: var(--text-3); font-weight: 500; }
+.progs button[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.fsrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); }
+.fsrow b { font-size: 14.5px; }
+.fsrow small { display: block; color: var(--text-2); font-size: 12px; }
+.step { display: inline-flex; align-items: center; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); }
+.step button { width: 34px; height: 32px; border: 0; background: none; font-size: 17px; color: var(--text-2); cursor: pointer; }
+.step span { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.btn { min-height: 40px; padding: 0 14px; border: 0; border-radius: var(--r-ctl); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 13.5px; font-weight: 620; cursor: pointer; white-space: nowrap; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.primary[disabled] { opacity: .5; cursor: default; }
+.btn.ghost { background: none; color: var(--text-2); }
+
+/* The question for a study not set up: where Betula reads the program and the Fachsemester from. */
+.sources { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.src { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); }
+.src h3 { font-size: 14px; font-weight: 700; }
+.src ol { margin: 8px 0 0; padding-left: 20px; color: var(--text-2); font-size: 14px; }
+.src li + li { margin-top: 4px; }
+.src li b { color: var(--text); font-weight: 620; }
+.cases { margin-top: 12px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.case { padding: 14px 16px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.case .kicker { color: var(--accent-ink); }
+.case h3 { margin-top: 4px; font-size: 15px; font-weight: 700; }
+.case p { margin-top: 6px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+
+/* The rules to look up, and what is open. */
+.table { margin-top: 14px; overflow-x: auto; }
+.table table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.table thead th { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.table tbody th { width: 34px; color: var(--text-3); font-weight: 700; font-variant-numeric: tabular-nums; }
+.table td { color: var(--text-2); }
+.table td b { color: var(--text); font-weight: 620; }
+.not { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.not div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); }
+.not h3 { font-size: 14px; font-weight: 700; }
+.not p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.open { margin: 12px 0 0; padding-left: 20px; color: var(--text-2); max-width: 82ch; }
+.open li + li { margin-top: 8px; }
+.open li b { color: var(--text); font-weight: 640; }
+
+@media (max-width: 960px) {
+  .intro, .story { grid-template-columns: minmax(0, 1fr); }
+  .stories { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage { grid-template-columns: minmax(0, 1fr); justify-items: center; margin: 16px -16px 0; padding: 22px 16px; }
+  .stage .desk { width: 100%; }
+  .block { padding: 18px 16px; }
+  .sources, .cases, .not { grid-template-columns: minmax(0, 1fr); }
+  .months span:nth-child(even) { color: transparent; }
+  .desk .chrome em { display: none; }
+}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Einplanen · 18.10.2026</p>
+      <h1>Sofort einplanen, aber ins richtige Semester</h1>
+      <p class="lead">Ein Klick auf „Einplanen“ plant sofort, wie in Konzept D. Dieses Blatt legt fest, in welches Semester, warum, und dass sich das in einer Sitzung nicht von selbst ändert. Zehn Situationen zum Durchklicken zeigen, wie es sich anfühlt. Dazu kommt die Frage nach dem Studium, wenn noch keins eingerichtet ist.</p>
+      <p class="quote">„Weil man idR. ja <b>nicht alles vorausplant</b> und das auch oft von Terminen abhängig ist … <b>wenn man mitten im Semester plant, dann ist das wahrscheinlich für das nächste</b>. Wichtig ist aber, dass sich das <b>nicht verändert in der aktuellen Session</b> … wenn man keinen Studium eingerichtet hat, dass man an der Stelle geprompted wird … so dass man <b>einfach nur bestätigen</b> muss im best case.“</p>
+    </div>
+    <aside class="rules" aria-labelledby="core-title">
+      <p class="kicker" id="core-title">Das Verhalten in fünf Sätzen</p>
+      <ol>
+        <li><span><b>Ein Klick plant sofort.</b> Ein Hinweis sagt, wohin, mit „Anderes Semester“ und „Rückgängig“.</span></li>
+        <li><span><b>Jede Sitzung hat ein Planungssemester:</b> in den ersten Wochen des Semesters das laufende, danach das nächste.</span></li>
+        <li><span><b>Es ändert sich nicht von selbst,</b> solange die Sitzung (der Tab) offen ist, auch nicht über Mitternacht. Nur du änderst es, sichtbar.</span></li>
+        <li><span><b>Ein Modul geht ins Planungssemester</b>, außer die Seite sagt ein anderes (Stundenplan, „Mein Studium“) oder das Modul wird dann nicht angeboten: dann ins nächste, das es anbietet.</span></li>
+        <li><span><b>Ohne Studium</b> fragt der Hinweis gleich mit, vorausgefüllt aus deinen Filtern: im besten Fall ein Tipp auf „Stimmt“.</span></li>
+      </ol>
+    </aside>
+  </header>
+
+  <section class="block" id="jahr" aria-labelledby="jahr-title">
+    <h2 id="jahr-title">Das Planungssemester</h2>
+    <p class="lead">In den ersten Wochen eines Semesters stellen Studierende ihren Stundenplan zusammen; danach steht er, und wer dann plant, plant fürs nächste Semester. Die Grenze liegt bei etwa sechs Wochen nach Semesterbeginn, also in der vierten Vorlesungswoche: am 15. November und am 15. Mai. Zieh den Tag über das Jahr.</p>
+    <div class="year">
+      <div class="months" aria-hidden="true"><span>Okt</span><span>Nov</span><span>Dez</span><span>Jan</span><span>Feb</span><span>Mär</span><span>Apr</span><span>Mai</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span></div>
+      <div class="track" id="track"></div>
+      <label class="kicker" for="dayRange" style="display:block;margin-top:10px">Heute</label>
+      <input id="dayRange" type="range" min="0" max="364" value="11" step="1">
+      <div class="verdict" id="verdict" aria-live="polite"></div>
+      <div class="legend"><span><i></i>Vorlesungen (ungefähr)</span><span><i class="c"></i>ab hier plant eine neue Sitzung fürs nächste Semester</span></div>
+    </div>
+  </section>
+
+  <section class="block" id="situationen" aria-labelledby="sit-title">
+    <h2 id="sit-title">Zehn Situationen</h2>
+    <p class="lead">Wähle eine Situation; Rechner und Handy spielen sie mit dem Datum und den Einstellungen der Studentin oder des Studenten. Die Module links lassen sich öffnen, so lässt sich auch mehrmals hintereinander planen.</p>
+    <div class="stories" id="stories" role="group" aria-label="Situation"></div>
+    <div class="story" id="story" aria-live="polite"></div>
+    <div class="stage" id="stage"></div>
+    <div class="stage-foot"><button class="c-reset" type="button" id="replay">Situation neu starten</button></div>
+  </section>
+
+  <section class="block" id="studium" aria-labelledby="stu-title">
+    <h2 id="stu-title">Wenn noch kein Studium eingerichtet ist</h2>
+    <p class="lead">Geplant wird trotzdem sofort, nach Kalendersemestern: der schnelle Weg bleibt schnell. Die Frage steht im selben Hinweis darunter und bleibt, bis man antwortet. „Stimmt“ richtet das Studium ein, und der Hinweis nennt gleich das Fachsemester. „Später“ fragt in dieser Sitzung nicht mehr. Situationen 9 und 10 oben spielen es.</p>
+    <div class="sources">
+      <div class="src"><h3>Woher der Studiengang kommt</h3><ol><li><b>Der Filter des Katalogs</b> in dieser Sitzung (<span class="mono">program=</span>).</li><li><b>Der Studiengang des Stundenplans</b> in dieser Sitzung.</li><li><b>Der zuletzt geöffnete Studiengang</b> unter „Studium“.</li><li>Sonst wählt man ihn in der Karte „Dein Studium“.</li></ol></div>
+      <div class="src"><h3>Woher das Fachsemester kommt</h3><ol><li><b>Die Semesterwahl des Katalogs</b> (<span class="mono">semester=3</span>: Module des 3. Semesters im Regelstudienplan).</li><li><b>Das Semester, das man im Regelstudienplan</b> des Studiengangs zuletzt aufgeklappt hat.</li><li>Sonst stellt man es in der Karte mit − und + ein.</li></ol></div>
+    </div>
+    <div class="cases">
+      <div class="case"><p class="kicker">Beides bekannt</p><h3>Ein Tipp</h3><p>„Dein Studium: Informatik B.Sc. · 1. Fachsemester? · aus deinem Filter“, dazu „Stimmt“, „Ändern“ und „Später“.</p></div>
+      <div class="case"><p class="kicker">Nur der Studiengang</p><h3>Zwei Tipps</h3><p>„Informatik B.Sc. · in welchem Fachsemester bist du?“ mit 1 bis 6 als Knöpfe, dahinter „Später“.</p></div>
+      <div class="case"><p class="kicker">Nichts bekannt</p><h3>Die Karte</h3><p>„Richte dein Studium ein, dann stehen Fachsemester dabei“, dazu „Einrichten“ (die Karte aus „Mein Studium“) und „Später“.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="regeln" aria-labelledby="reg-title">
+    <h2 id="reg-title">Die Regeln zum Nachschlagen</h2>
+    <p class="lead">Wohin ein Klick ein Modul plant: das Erste, was zutrifft. Was ein Modul einmal als Ziel gezeigt hat, behält es für die Sitzung, auch wenn ein neuer Katalog-Stand kommt.</p>
+    <div class="table">
+      <table>
+        <thead><tr><th scope="col">#</th><th scope="col">Wenn</th><th scope="col">Dann plant der Klick nach</th><th scope="col">Der Hinweis sagt</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">1</th><td>die Seite ein Semester meint: „Passt in meinen Stundenplan“, ein Semester von „Mein Studium“, ein Platzhalter</td><td><b>dieses Semester</b></td><td>„In SoSe 27 eingeplant, wie dein Stundenplan“</td></tr>
+          <tr><th scope="row">2</th><td>das Modul ab dem Planungssemester schon geplant ist</td><td>nichts, der Knopf zeigt „Geplant · SoSe 27“ und öffnet den Hinweis</td><td>„Geplant in SoSe 27“, mit „Anderes Semester“ und „Entfernen“</td></tr>
+          <tr><th scope="row">3</th><td>das Modul im Planungssemester angeboten wird (Turnus; was nicht angegeben ist, gilt als angeboten)</td><td><b>das Planungssemester</b></td><td>„In WiSe 26/27 eingeplant (3. FS)“</td></tr>
+          <tr><th scope="row">4</th><td>es dort nicht angeboten wird, aber später</td><td><b>das nächste Semester, das es anbietet</b></td><td>„… in SoSe 27, nur im Sommer angeboten“</td></tr>
+          <tr><th scope="row">5</th><td>ein Turnus „unregelmäßig“ und Termine erst in einem späteren Semester</td><td><b>das Semester der Termine</b></td><td>„… in SoSe 27, dort stehen die Termine“</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table">
+      <table>
+        <thead><tr><th scope="col">#</th><th scope="col">Das Planungssemester der Sitzung</th><th scope="col"></th></tr></thead>
+        <tbody>
+          <tr><th scope="row">P1</th><td>Beim ersten Mal, wenn eine Sitzung es braucht: <b>bis 15. November</b> (WiSe) bzw. <b>bis 15. Mai</b> (SoSe) das laufende Semester, danach das nächste.</td><td>gespeichert im Tab (<span class="mono">sessionStorage</span>), wie der Studiengang des Stundenplans</td></tr>
+          <tr><th scope="row">P2</th><td>Es <b>bleibt</b>, bis der Tab schließt: über Mitternacht, über einen neuen Katalog-Stand, über das, was man plant.</td><td>ein neuer Tab ist eine neue Sitzung</td></tr>
+          <tr><th scope="row">P3</th><td>Wer ein Modul in ein anderes Semester legt, bekommt im Hinweis <b>„Weitere auch nach SoSe 27“</b>. Ein Tipp darauf macht SoSe 27 zum Planungssemester der Sitzung; der Knopf sagt es dann dazu, mit „Zurücksetzen“.</td><td>nie ohne diesen Tipp</td></tr>
+          <tr><th scope="row">P4</th><td>Der Wisch nach rechts in der Liste plant mit derselben Regel und zeigt das Semester schon beim Wischen.</td><td>wie heute</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="not">
+      <div><h3>Bewusst nicht: das Fachsemester des Regelstudienplans</h3><p>Ein Modul aus dem 5. Semester des Plans geht nicht automatisch ins 5. Fachsemester. Geplant wird meist kurzfristig und nach Terminen; „Mein Studium“ legt Module aus dem Regelstudienplan ohnehin in ihr Semester.</p></div>
+      <div><h3>Bewusst nicht: dem letzten Semester stillschweigend folgen</h3><p>Ein Klick in „Anderes Semester“ ändert nur dieses Modul. Das Ziel der nächsten ändert sich nur über „Weitere auch nach …“.</p></div>
+      <div><h3>Bewusst nicht: erst fragen, dann planen</h3><p>Ohne Studium wird nicht vor dem Planen gefragt. Die Frage hält den schnellen Weg nicht auf; sie steht im Hinweis und wartet.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="offen" aria-labelledby="open-title">
+    <h2 id="open-title">Was du noch entscheiden solltest</h2>
+    <ul class="open">
+      <li><b>Die Grenze:</b> 15. November und 15. Mai, ungefähr die vierte Vorlesungswoche. Früher (Ende Oktober) passt zu einer frühen Modulanmeldung, später (Anfang Dezember) zu Nachzüglern.</li>
+      <li><b>„Später“:</b> fragt der Hinweis in der nächsten Sitzung wieder (vorgeschlagen), oder erst, wenn man „Mein Studium“ öffnet?</li>
+      <li><b>„Weitere auch nach …“:</b> nur für die Sitzung (vorgeschlagen), oder bis man es zurücksetzt?</li>
+      <li><b>Das Halte-Menü von 1.18/1.19</b> fällt weg; „Anderes Semester“ im Hinweis ersetzt es. Shift+P könnte den Hinweis mit den Semestern direkt öffnen.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+"use strict";
+// ---------- the calendar: semesters as Betula numbers them (year * 2 + 1 a winter, year * 2 a summer) ----------
+const sem = (i) => { const y = Math.floor(i / 2); return i % 2 ? `WiSe ${y % 100}/${(y + 1) % 100}` : `SoSe ${y % 100}`; };
+const semLong = (i) => { const y = Math.floor(i / 2); return i % 2 ? `WiSe ${y}/${String((y + 1) % 100).padStart(2, "0")}` : `SoSe ${y}`; };
+const winter = (i) => i % 2 === 1;
+// The semester running on a day, when it began, and the day a new session stops planning for it.
+const running = (d) => { const y = d.getFullYear(), m = d.getMonth() + 1; return m >= 10 ? y * 2 + 1 : m <= 3 ? (y - 1) * 2 + 1 : y * 2; };
+const beginOf = (i) => (winter(i) ? new Date(Math.floor(i / 2), 9, 1) : new Date(i / 2, 3, 1));
+const cutOf = (i) => (winter(i) ? new Date(Math.floor(i / 2), 10, 15, 23, 59) : new Date(i / 2, 4, 15, 23, 59));
+// P1: the semester a session plans for, from the day it begins.
+const planningOf = (d) => { const l = running(d); return d <= cutOf(l) ? { p: l, l, early: true } : { p: l + 1, l, early: false }; };
+const fmtDay = (d) => d.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
+const fmtTime = (d) => d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+const ICON = {
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  plus: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>',
+  done: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18m-12 6 2 2 4-4"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  mark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  full: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+};
+const icon = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
+
+// ---------- the year ----------
+(() => {
+  const track = document.getElementById("track"), range = document.getElementById("dayRange"), out = document.getElementById("verdict");
+  const from = new Date(2026, 9, 1), to = new Date(2027, 9, 1), span = to - from;
+  const at = (d) => `${(((d - from) / span) * 100).toFixed(2)}%`;
+  const parts = [
+    `<div class="seg-sem w" style="left:0;width:${at(new Date(2027, 3, 1))}">WiSe 26/27</div>`,
+    `<div class="seg-sem" style="left:${at(new Date(2027, 3, 1))};right:0">SoSe 27</div>`,
+    // The lectures, roughly as the BTU holds them.
+    `<div class="lect" style="left:${at(new Date(2026, 9, 12))};width:calc(${at(new Date(2027, 1, 6))} - ${at(new Date(2026, 9, 12))})"></div>`,
+    `<div class="lect" style="left:${at(new Date(2027, 3, 12))};width:calc(${at(new Date(2027, 6, 24))} - ${at(new Date(2027, 3, 12))})"></div>`,
+    `<div class="cut" style="left:${at(cutOf(4053))}"><i>15. Nov</i></div>`,
+    `<div class="cut" style="left:${at(cutOf(4054))}"><i>15. Mai</i></div>`,
+    `<div class="day" id="day"></div>`,
+  ];
+  track.innerHTML = parts.join("");
+  const day = document.getElementById("day");
+  const show = () => {
+    const d = new Date(from.getTime() + Number(range.value) * 864e5);
+    const { p, l, early } = planningOf(d);
+    day.style.left = at(d);
+    out.innerHTML = `<b>${semLong(p)}</b><span>${fmtDay(d)}: ${early ? `das laufende Semester (bis ${cutOf(l).toLocaleDateString("de-DE", { day: "numeric", month: "long" })})` : `das nächste, ${semLong(l)} ist schon weit`}</span>`;
+  };
+  range.addEventListener("input", show);
+  show();
+})();
+
+// ---------- the student, the programs and the modules (examples) ----------
+const PROGRAMS = [
+  { id: "inf", name: "Informatik", deg: "B.Sc.", po: "PO 2008" },
+  { id: "wi", name: "Wirtschaftsinformatik", deg: "Bachelor", po: "PO 2024" },
+  { id: "ma", name: "Mathematik", deg: "B.Sc.", po: "PO 2023" },
+];
+const MODULES = [
+  { key: "db", id: "12330", title: "Datenbanken", en: "Databases", lp: 6, turnus: "jedes Semester", offered: () => true, times: "Vorlesung Di 9:15–10:45 · Übung Do 13:45–15:15" },
+  { key: "ana", id: "11103", title: "Analysis I", en: "Analysis I", lp: 8, turnus: "nur SoSe", offered: (i) => !winter(i), times: "Noch keine Termine. Laut Modulbeschreibung im Sommersemester." },
+  { key: "bs", id: "12101", title: "Betriebssysteme I", en: "Operating Systems I", lp: 6, turnus: "jedes Semester", offered: () => true, times: "Vorlesung Mo 11:30–13:00 · Übung Mi 9:15–10:45" },
+  { key: "pm", id: "41320", title: "Projektmanagement (Block)", en: "Project Management", lp: 4, turnus: "jedes Semester", offered: () => true, times: "Blockseminar 8.–10. Januar 2027" },
+];
+const modOf = (key) => MODULES.find((m) => m.key === key);
+const progOf = (id) => PROGRAMS.find((p) => p.id === id);
+
+// ---------- the situations ----------
+// date: the day; module: the one open; setup: the study as set up (program, the semester of its first
+// FS) or null; filter: what the catalog is narrowed to this session; hint: a semester the page means.
+const STORIES = [
+  { n: 1, short: "Semesterstart", title: "Den Stundenplan für dieses Semester bauen", who: "Lena, Informatik, 3. Fachsemester", date: new Date(2026, 9, 12, 10, 5), module: "db", setup: { program: "inf", start: 4051 },
+    text: "Erste Vorlesungswoche. Lena geht die Module durch, die sie dieses Semester belegen will, und plant eins nach dem anderen.",
+    does: "Plant nach WiSe 26/27: das Semester hat gerade begonnen.", clicks: "1 je Modul" },
+  { n: 2, short: "Ende November", title: "Wahlpflicht fürs nächste Semester ansehen", who: "Jonas, Informatik, 5. Fachsemester", date: new Date(2026, 10, 24, 20, 30), module: "db", setup: { program: "inf", start: 4049 },
+    text: "Sein Stundenplan für dieses Semester steht. Abends schaut er, was er im Sommer wählen könnte.", does: "Plant nach SoSe 27: das laufende Semester ist schon weit.", clicks: "1" },
+  { n: 3, short: "Prüfungszeit", title: "Im Februar das Sommersemester planen", who: "Mia, Wirtschaftsinformatik, 1. Fachsemester", date: new Date(2027, 1, 9, 14, 0), module: "bs", setup: { program: "wi", start: 4053 },
+    text: "Die Vorlesungen sind vorbei, die Prüfungen laufen. Mia plant schon ihr zweites Semester.", does: "Plant nach SoSe 27 (2. FS).", clicks: "1" },
+  { n: 4, short: "Nur im Sommer", title: "Ein Modul, das es jetzt nicht gibt", who: "Tim, Mathematik, 1. Fachsemester", date: new Date(2026, 9, 14, 9, 0), module: "ana", setup: { program: "ma", start: 4053 },
+    text: "Tim plant im Oktober Analysis I, das nur im Sommersemester angeboten wird.", does: "Plant nach SoSe 27 und sagt, warum: nur im Sommer angeboten.", clicks: "1" },
+  { n: 5, short: "Doch noch jetzt", title: "Ein Blockseminar fürs laufende Semester", who: "Sara, Informatik, 5. Fachsemester", date: new Date(2026, 10, 26, 18, 0), module: "pm", setup: { program: "inf", start: 4049 },
+    text: "Ende November findet Sara ein Blockseminar im Januar, das sie noch in diesem Semester machen will.", does: "Plant nach SoSe 27; im Hinweis „Anderes Semester“ und WiSe 26/27.", clicks: "3 (selten)" },
+  { n: 6, short: "Mehrere am Stück", title: "Im Oktober schon den Sommer planen", who: "Paul, Informatik, 3. Fachsemester", date: new Date(2026, 9, 20, 16, 0), module: "db", setup: { program: "inf", start: 4051 },
+    text: "Paul plant im Oktober vier Module für den Sommer. Das erste legt er in SoSe 27 und nimmt „Weitere auch nach SoSe 27“. Öffne danach links ein anderes Modul.", does: "Das erste: 3 Klicks. Jedes weitere: 1 Klick nach SoSe 27, der Knopf sagt es dazu.", clicks: "3, dann 1 je Modul" },
+  { n: 7, short: "Aus dem Stundenplan", title: "„Passt in meinen Stundenplan“ für SoSe 27", who: "Lena, Informatik, 3. Fachsemester", date: new Date(2026, 9, 21, 11, 0), module: "db", setup: { program: "inf", start: 4051 }, hint: 4054,
+    text: "Lena sucht im Katalog mit „Passt in meinen Stundenplan“ für ihren Sommer-Stundenplan, obwohl Oktober ist.", does: "Plant nach SoSe 27, wie der Stundenplan, nach dem sie sucht.", clicks: "1" },
+  { n: 8, short: "Über Mitternacht", title: "Die Grenze kommt während der Sitzung", who: "Jonas, Informatik, 5. Fachsemester", date: new Date(2026, 10, 15, 23, 50), module: "db", setup: { program: "inf", start: 4049 }, later: true,
+    text: "Jonas plant am 15. November kurz vor Mitternacht. Spule eine Stunde vor: es ist der 16., aber seine Sitzung plant weiter nach WiSe 26/27. Erst eine neue Sitzung plant nach SoSe 27.", does: "Bleibt in der Sitzung bei WiSe 26/27.", clicks: "1" },
+  { n: 9, short: "Ohne Studium, Filter", title: "Erstsemester mit Filter im Katalog", who: "Anna, neu, noch nichts eingerichtet", date: new Date(2026, 9, 13, 12, 0), module: "db", setup: null, filter: { program: "inf", fs: 1 },
+    text: "Anna hat den Katalog auf Informatik B.Sc. und „1. Semester“ gestellt und plant ihr erstes Modul.", does: "Plant nach WiSe 26/27 und fragt im Hinweis: „Informatik B.Sc. · 1. Fachsemester?“", clicks: "1, dann 1 auf „Stimmt“" },
+  { n: 10, short: "Ohne Studium, ohne Filter", title: "Einfach mal planen", who: "Ben, Nebenfach, noch nichts eingerichtet", date: new Date(2026, 10, 3, 15, 0), module: "bs", setup: null,
+    text: "Ben sucht über die Suche ein Modul und plant es, ohne Filter.", does: "Plant nach WiSe 26/27 und bietet im Hinweis „Einrichten“ und „Später“ an.", clicks: "1, Einrichten optional" },
+];
+
+// ---------- one play of a situation, shared by the two devices ----------
+let STORY = STORIES[0];
+let PLAY;
+const freshPlay = (s) => ({
+  now: new Date(s.date),
+  session: planningOf(s.date).p, // P1, once
+  chosen: null, // P3: the semester the student made the session's
+  open: s.module,
+  planned: {}, // module key -> semester
+  setup: s.setup ? { ...s.setup } : null,
+  asked: false, // „Später" or answered: no question this session
+  toast: null, // { key, kind, from, wide, offer }
+  card: null, // { program, fs }
+  fsPick: null,
+});
+const planningSemester = () => PLAY.chosen ?? PLAY.session;
+const fsOf = (i) => (PLAY.setup ? i - PLAY.setup.start + 1 : null);
+const name = (i) => (fsOf(i) ? `${sem(i)} (${fsOf(i)}. FS)` : sem(i));
+// Where a click plans a module, and why (rules 1–5).
+const targetOf = (m) => {
+  if (STORY.hint) return { to: STORY.hint, why: "wie der Stundenplan, nach dem du suchst" };
+  const p = planningSemester();
+  if (m.offered(p)) {
+    const why = PLAY.chosen ? "du planst gerade für dieses Semester" : planningOf(STORY.date).early ? "das laufende Semester" : "das nächste Semester, das laufende ist schon weit";
+    return { to: p, why };
+  }
+  let i = p + 1;
+  while (!m.offered(i)) i++;
+  return { to: i, why: m.turnus === "nur SoSe" ? "nur im Sommer angeboten" : "dann wird es angeboten" };
+};
+
+// ---------- the screens ----------
+const listRows = () => MODULES.map((m) => {
+  const pl = PLAY.planned[m.key];
+  return { m, cur: m.key === PLAY.open, pill: pl != null ? `<span class="pl">${icon("cal")}${esc(fsOf(pl) ? `${fsOf(pl)}. FS · ${sem(pl)}` : sem(pl))}</span>` : "" };
+});
+const filterTags = () => {
+  const tags = [];
+  if (STORY.filter) tags.push(`<span class="tag">${esc(progOf(STORY.filter.program).name)} ${progOf(STORY.filter.program).deg}</span>`, `<span class="tag">${STORY.filter.fs}. Semester</span>`);
+  if (STORY.hint) tags.push(`<span class="tag">Passt in meinen Stundenplan · ${sem(STORY.hint)}</span>`);
+  return tags.join("");
+};
+const heroOf = (phone) => {
+  const m = modOf(PLAY.open), pl = PLAY.planned[m.key], t = targetOf(m);
+  const on = pl != null;
+  const btn = `<button class="sw${on ? " on" : ""}" type="button" data-act="plan">${icon(on ? "done" : "plus")}<span>${on ? "Geplant" : "Einplanen"}</span>${on ? `<small>${esc(sem(pl))}</small>` : ""}<kbd>P</kbd></button>`;
+  const mark = `<button class="sw" type="button" data-act="none">${icon("mark")}<span>Merken</span><kbd>M</kbd></button>`;
+  const badges = `<div class="badges"><span class="b strong">${m.lp} LP</span><span class="b${m.turnus === "nur SoSe" ? " warn" : ""}">${esc(m.turnus)}</span><span class="b">DE</span></div>`;
+  const line = phone ? `<div class="hero-line">${badges}<div class="switches">${btn}${mark}</div></div>` : `<div class="hero-line">${badges}<div class="pair">${btn}${mark}</div></div>`;
+  // The line under the switches: where a click plans, and why; or that the session plans for a chosen one.
+  const why = on ? "" : `<p class="why">${icon("arrow")}<span>Plant nach <b>${esc(name(t.to))}</b> · ${esc(t.why)}${PLAY.chosen && !STORY.hint ? ` <button type="button" data-act="unchoose">Zurücksetzen</button>` : ""}</span></p>`;
+  const top = phone ? `<div class="hero-top"><span class="mono">${m.id}</span><span class="x">${icon("x")}</span></div>` : `<div class="hero-top"><span class="mono">${m.id}</span><span>${icon("full")}Vollbild <kbd>F</kbd></span><span>${icon("x")}Schließen <kbd>Esc</kbd></span></div>`;
+  return `<header class="hero">${top}<h3>${esc(m.title)}</h3><p class="en">${esc(m.en)}</p>${line}${why}</header><div class="body"><span class="label">Termine</span><p>${esc(m.times)}</p><i></i><i></i></div>`;
+};
+const toastOf = () => {
+  const t = PLAY.toast;
+  if (!t) return "";
+  const m = modOf(t.key), pl = PLAY.planned[t.key];
+  let said;
+  if (t.kind === "removed") said = `${esc(m.title)} aus <b>${esc(sem(t.from))}</b> genommen`;
+  else if (t.kind === "moved") said = `Nach <b>${esc(name(pl))}</b> verschoben`;
+  else if (t.kind === "again") said = `Geplant in <b>${esc(name(pl))}</b>`;
+  else said = `In <b>${esc(name(pl))}</b> eingeplant`;
+  const acts = t.kind === "removed"
+    ? `<button class="t" type="button" data-act="undo">Rückgängig</button>`
+    : `${t.wide ? "" : '<button class="t" type="button" data-act="wide">Anderes Semester</button>'}${t.kind === "again" ? '<button class="t danger" type="button" data-act="remove">Entfernen</button>' : '<button class="t" type="button" data-act="undo">Rückgängig</button>'}`;
+  // From the running semester on: back into it, too (situation 5).
+  const from = running(PLAY.now);
+  const chips = t.wide && t.kind !== "removed" ? `<div class="tchips">${[0, 1, 2, 3].map((n) => from + n).map((i) => `<button type="button" class="${m.offered(i) ? "" : "off"}" aria-pressed="${pl === i}" data-act="move" data-i="${i}">${sem(i)}<small>${fsOf(i) ? `${fsOf(i)}. FS` : "&nbsp;"}${m.offered(i) ? "" : " · kein Angebot"}</small></button>`).join("")}</div>` : "";
+  // P3: after a move into a semester that is not the session's, make it the session's.
+  const offer = t.kind === "moved" && pl !== planningSemester() && !STORY.hint ? `<div class="more"><p>Weitere Module auch nach <b>${esc(sem(pl))}</b>?</p><small>Nur für diese Sitzung. Der Knopf sagt es dann dazu.</small><div class="btns"><button class="t go" type="button" data-act="choose" data-i="${pl}">Ja, weitere auch nach ${esc(sem(pl))}</button></div></div>` : "";
+  return `<div class="toast" role="status"><div class="toast-row"><span>${said}</span>${acts}</div>${chips}${offer}${askOf()}</div>`;
+};
+// The question for a study not set up, in the note itself.
+const askOf = () => {
+  if (PLAY.setup || PLAY.asked || PLAY.toast?.kind === "removed") return "";
+  const f = STORY.filter;
+  if (f?.program && f?.fs) {
+    const p = progOf(f.program);
+    return `<div class="more"><p>Dein Studium: <b>${esc(p.name)} ${p.deg} · ${f.fs}. Fachsemester?</b></p><small>aus deinem Filter im Katalog. Dann steht beim Planen dein Fachsemester dabei.</small><div class="btns"><button class="t go" type="button" data-act="confirm">Stimmt</button><button class="t" type="button" data-act="edit">Ändern</button><button class="t" type="button" data-act="later">Später</button></div></div>`;
+  }
+  if (f?.program) {
+    const p = progOf(f.program);
+    return `<div class="more"><p><b>${esc(p.name)} ${p.deg}</b>: in welchem Fachsemester bist du?</p><div class="btns">${[1, 2, 3, 4, 5, 6].map((n) => `<button class="t" type="button" data-act="fs" data-n="${n}">${n}.</button>`).join("")}<button class="t" type="button" data-act="later">Später</button></div></div>`;
+  }
+  return `<div class="more"><p><b>Richte dein Studium ein,</b> dann stehen Fachsemester dabei und Betula weiß, wofür Module zählen.</p><div class="btns"><button class="t go" type="button" data-act="edit">Einrichten</button><button class="t" type="button" data-act="later">Später</button></div></div>`;
+};
+const cardOf = (phone) => {
+  if (!PLAY.card) return "";
+  const c = PLAY.card, running_ = running(PLAY.now);
+  const progs = PROGRAMS.map((p) => `<button type="button" role="radio" aria-checked="${c.program === p.id}" data-act="cprog" data-p="${p.id}">${esc(p.name)} ${p.deg}<small>${p.po}</small></button>`).join("");
+  return `<div class="card-shade" data-act="cclose"></div><div class="studium" role="dialog" aria-label="Dein Studium"><h4>Dein Studium</h4><p>Wie in „Mein Studium“; ändern kannst du es dort jederzeit.</p><div class="progs" role="radiogroup">${progs}</div><div class="fsrow"><div><b>${c.fs}. Fachsemester</b><small>seit ${semLong(running_ - c.fs + 1)}</small></div><span class="step"><button type="button" data-act="cfs" data-d="-1" aria-label="weniger">−</button><span>${c.fs}</span><button type="button" data-act="cfs" data-d="1" aria-label="mehr">+</button></span></div><div class="foot"><button class="btn ghost" type="button" data-act="cclose">Abbrechen</button><button class="btn primary" type="button" data-act="csave" ${c.program ? "" : "disabled"}>Speichern</button></div></div>`;
+};
+const deskScreen = () => {
+  const rows = listRows().map(({ m, cur, pill }) => `<button class="row${cur ? " cur" : ""}" type="button" data-act="open" data-k="${m.key}"><b>${esc(m.title)}</b><span class="m"><span class="mono">${m.id}</span>${pill || esc(m.turnus)}</span><span class="lp">${m.lp}<small> LP</small></span></button>`).join("");
+  return `<div class="app d-app"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><section class="panel list"><div class="list-head"><b>${STORY.filter ? 64 : "1.200"}</b> Module ${filterTags()}</div>${rows}</section><section class="panel detail">${heroOf(false)}${toastOf()}</section>${cardOf(false)}</div>`;
+};
+const phoneScreen = () => {
+  const rows = listRows().slice(0, 3).map(({ m, cur, pill }) => `<button class="card${cur ? " cur" : ""}" type="button" data-act="open" data-k="${m.key}"><b>${esc(m.title)}</b><span class="m"><span class="mono">${m.id}</span>${pill || esc(m.turnus)}</span><span class="lp">${m.lp}<small> LP</small></span></button>`).join("");
+  const tags = filterTags();
+  return `<div class="app p-app"><div class="p-status"><span>${fmtTime(PLAY.now)}</span><span>${PLAY.now.toLocaleDateString("de-DE", { day: "numeric", month: "short" })}</span></div><div class="p-top"><div class="search">${icon("search")}Modul, Nummer …</div><i></i></div><div class="p-list">${tags ? `<div class="tagline">${tags}</div>` : ""}${rows}</div><div class="p-shade"></div><section class="p-sheet">${heroOf(true)}</section>${toastOf()}${cardOf(true)}</div>`;
+};
+
+// ---------- what the clicks do ----------
+let toastTimer = 0;
+const keepToast = () => { const t = PLAY.toast; return t && (t.wide || (t.kind === "moved" && !STORY.hint) || (!PLAY.setup && !PLAY.asked && t.kind !== "removed")); };
+const actOn = (el) => {
+  const m = modOf(PLAY.open);
+  const i = el.dataset.i != null ? Number(el.dataset.i) : null;
+  switch (el.dataset.act) {
+    case "open": PLAY.open = el.dataset.k; PLAY.toast = null; break;
+    case "plan":
+      if (PLAY.planned[m.key] != null) PLAY.toast = { key: m.key, kind: "again", wide: true };
+      else { PLAY.planned[m.key] = targetOf(m).to; PLAY.toast = { key: m.key, kind: "planned", wide: false }; }
+      break;
+    case "wide": PLAY.toast = { ...PLAY.toast, wide: true }; break;
+    case "move": PLAY.planned[PLAY.toast.key] = i; PLAY.toast = { ...PLAY.toast, kind: "moved", wide: false }; break;
+    case "remove": PLAY.toast = { key: PLAY.toast.key, kind: "removed", from: PLAY.planned[PLAY.toast.key] }; delete PLAY.planned[PLAY.toast.key]; break;
+    case "undo":
+      if (PLAY.toast.kind === "removed") { PLAY.planned[PLAY.toast.key] = PLAY.toast.from; PLAY.toast = null; }
+      else { delete PLAY.planned[PLAY.toast.key]; PLAY.toast = null; }
+      break;
+    case "choose": PLAY.chosen = i; PLAY.toast = { ...PLAY.toast, kind: "planned" }; break;
+    case "unchoose": PLAY.chosen = null; break;
+    case "confirm": PLAY.setup = { program: STORY.filter.program, start: running(PLAY.now) - STORY.filter.fs + 1 }; PLAY.asked = true; break;
+    case "fs": PLAY.setup = { program: STORY.filter.program, start: running(PLAY.now) - Number(el.dataset.n) + 1 }; PLAY.asked = true; break;
+    case "later": PLAY.asked = true; break;
+    case "edit": PLAY.card = { program: STORY.filter?.program ?? null, fs: STORY.filter?.fs ?? 1 }; break;
+    case "cprog": PLAY.card.program = el.dataset.p; break;
+    case "cfs": PLAY.card.fs = Math.max(1, Math.min(12, PLAY.card.fs + Number(el.dataset.d))); break;
+    case "cclose": PLAY.card = null; break;
+    case "csave": PLAY.setup = { program: PLAY.card.program, start: running(PLAY.now) - PLAY.card.fs + 1 }; PLAY.asked = true; PLAY.card = null; break;
+    default: return;
+  }
+  clearTimeout(toastTimer);
+  if (PLAY.toast && !keepToast()) toastTimer = setTimeout(() => { PLAY.toast = null; drawPlay(); }, 6000);
+  drawPlay();
+};
+
+// ---------- the page around the play ----------
+const stage = document.getElementById("stage");
+stage.innerHTML = `<figure class="device desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span>betula.app/catalog?open=…</span><em id="deskDay"></em></div><div class="fit"><div class="screen" id="deskScreen"></div></div></div><figcaption>Am Rechner</figcaption></figure><figure class="device phone"><div class="frame"><div class="fit"><div class="screen" id="phoneScreen"></div></div></div><figcaption>Am Handy</figcaption></figure>`;
+const drawPlay = () => {
+  document.getElementById("deskScreen").innerHTML = deskScreen();
+  document.getElementById("phoneScreen").innerHTML = phoneScreen();
+  document.getElementById("deskDay").textContent = `${fmtDay(PLAY.now)}, ${fmtTime(PLAY.now)}`;
+};
+const drawStory = () => {
+  const s = STORY, p = planningOf(s.date).p;
+  document.getElementById("story").innerHTML = `<div><h3>${s.n}. ${esc(s.title)}</h3><p class="who">${esc(s.who)} · ${fmtDay(s.date)}, ${fmtTime(s.date)}</p><p>${esc(s.text)}</p></div><dl><dt>Sitzung</dt><dd>plant für ${semLong(p)}</dd><dt>Ein Klick</dt><dd>${esc(s.does)}</dd><dt>Klicks</dt><dd>${esc(s.clicks)}</dd></dl><div class="acts">${s.later ? '<button type="button" data-story="later">Eine Stunde vorspulen</button><button type="button" data-story="new">Neue Sitzung beginnen</button>' : ""}</div>`;
+};
+const playStory = (s) => {
+  STORY = s;
+  PLAY = freshPlay(s);
+  document.querySelectorAll("#stories .st").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.n) === s.n)));
+  drawStory();
+  drawPlay();
+};
+document.getElementById("stories").innerHTML = STORIES.map((s) => `<button class="st" type="button" data-n="${s.n}" aria-pressed="false"><small>${s.n} · ${fmtDay(s.date).replace(/^\w+\.,? /, "")}</small><b>${esc(s.short)}</b></button>`).join("");
+document.addEventListener("click", (e) => {
+  const st = e.target.closest("#stories .st");
+  if (st) { playStory(STORIES[Number(st.dataset.n) - 1]); return; }
+  const story = e.target.closest("[data-story]");
+  if (story) {
+    if (story.dataset.story === "later") { PLAY.now = new Date(PLAY.now.getTime() + 36e5); drawPlay(); story.textContent = "Noch eine Stunde vorspulen"; }
+    else { const now = PLAY.now; STORY = { ...STORY, date: now }; PLAY = freshPlay(STORY); PLAY.now = now; drawStory(); drawPlay(); }
+    return;
+  }
+  if (e.target.closest("#replay")) { playStory(STORIES[STORY.n - 1]); return; }
+  const target = e.target.closest("[data-act]");
+  if (target && e.target.closest(".screen")) actOn(target);
+});
+// Scaled to fit their place.
+const fit = () => document.querySelectorAll(".fit").forEach((f) => {
+  const w = Number(getComputedStyle(f).getPropertyValue("--w"));
+  f.style.setProperty("--s", Math.min(1, f.clientWidth / w).toFixed(4));
+});
+new ResizeObserver(fit).observe(document.body);
+playStory(STORIES[0]);
+fit();
+</script>
