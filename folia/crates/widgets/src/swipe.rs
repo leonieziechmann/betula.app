@@ -151,9 +151,9 @@ struct Ground {
     mark: Option<Act>,
     plan: Option<Act>,
     /// The module was marked, and „Einplanen" aimed so, when the finger started; the snapshot's
-    /// current semester, which it aimed from.
+    /// current semester, which it aimed from, and the semester of the module's newest events.
     marked: bool,
-    aim: Option<(Aim, folia_calendar::semester::SemesterKey)>,
+    aim: Option<(Aim, folia_calendar::semester::SemesterKey, Option<folia_calendar::semester::SemesterKey>)>,
 }
 
 /// The finger on the row, from where it came down.
@@ -402,7 +402,7 @@ impl RowSwipe {
             self.ground.get().map(|ground| {
                 // What the module was when the finger started: the ground starts in its look.
                 let marked = ground.marked.then_some("");
-                let planned = ground.aim.as_ref().is_some_and(|(aim, _)| aim.pressed()).then_some("");
+                let planned = ground.aim.as_ref().is_some_and(|(aim, ..)| aim.pressed()).then_some("");
                 view! {
                     <div class="swipe-ground" aria-hidden="true" data-marked=marked data-planned=planned>
                         {side(ground.plan, Side::Plan)}
@@ -454,12 +454,12 @@ impl RowSwipe {
             let (current, newest) = source.peek(&ModuleSemestersAsk { id: id.clone() })?.map(|(semesters, schedule)| semesters_of(&semesters, &schedule)).ok()?;
             let hint = self.hint.and_then(|hint| hint.get_untracked());
             let current = current.or(newest)?;
-            Some((studyplan::aim_now(plan, self.planning, &id, current, newest, self.offer, hint.as_ref()), current))
+            Some((studyplan::aim_now(plan, self.planning, &id, current, newest, self.offer, hint.as_ref()), current, newest))
         });
         let asks = self.planning.is_some_and(Planning::asks_first);
         (marked.is_some() || aim.is_some()).then(|| Ground {
             mark: marked.map(|marked| Act::mark(marked, t)),
-            plan: aim.as_ref().map(|(aim, _)| Act::plan(aim, asks, t)),
+            plan: aim.as_ref().map(|(aim, ..)| Act::plan(aim, asks, t)),
             marked: marked.unwrap_or(false),
             aim,
         })
@@ -546,9 +546,9 @@ impl RowSwipe {
                 });
             }
             Side::Plan => {
-                if let (Some(plan), Some(planning), Some((aim, current))) = (self.plan, self.planning, ground.aim) {
+                if let (Some(plan), Some(planning), Some((aim, current, newest))) = (self.plan, self.planning, ground.aim) {
                     // After the next frame, as a click's: the row has answered by then (R21).
-                    let what = Pressed { id, title: self.title.get_value(), current, offer: self.offer, hint: self.hint.and_then(|hint| hint.get_untracked()) };
+                    let what = Pressed { id, title: self.title.get_value(), current, offer: self.offer, newest, hint: self.hint.and_then(|hint| hint.get_untracked()) };
                     let source = self.source.get_value();
                     nav::after_paint(move || {
                         planning.press(plan, source, what, aim, || {});
