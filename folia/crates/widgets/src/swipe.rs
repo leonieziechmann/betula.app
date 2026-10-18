@@ -42,7 +42,7 @@
 
 use std::time::Duration;
 
-use folia_model::labels::TurnusSeason;
+use folia_plans::study::Offer;
 use folia_pages::ask::ModuleSemestersAsk;
 use leptos::ev::{DragEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
@@ -53,7 +53,7 @@ use folia_data::{use_data, DataClient};
 use crate::i18n::{self, Texts};
 use folia_design::nav;
 use crate::module::semesters_of;
-use folia_stores::studyplan::{self, Aim, PlanHint, Studyplan};
+use folia_stores::studyplan::{self, Aim, PlanHint, Planning, Pressed, Studyplan};
 use folia_design::ui::Icon;
 
 /// How far a finger moves, in px, before it is a swipe or a scroll: a little further than along the
@@ -129,11 +129,15 @@ impl Act {
         }
     }
 
-    /// „Einplanen" into the semester the switch aims at, else „Entfernen" out of it.
-    fn plan(aim: &Aim, t: &'static Texts) -> Self {
+    /// „Einplanen" into the semester the switch aims at, else „Entfernen" out of it. Where the
+    /// study is asked for first (`asks`), letting go opens the dialog: the ground keeps saying
+    /// „Einplanen" then.
+    fn plan(aim: &Aim, asks: bool, t: &'static Texts) -> Self {
         let (word, line, done) = studyplan::swipe_words(aim, folia_stores::i18n::texts(t.locale));
         if aim.pressed() {
             Act { icon: "calendar-minus", word, line: Some(line), done_icon: "calendar-minus", done, fills: false }
+        } else if asks {
+            Act { icon: "calendar-plus", word, line: Some(line), done_icon: "calendar-plus", done: word, fills: false }
         } else {
             Act { icon: "calendar-plus", word, line: Some(line), done_icon: "calendar-check-2", done, fills: false }
         }
@@ -146,9 +150,10 @@ impl Act {
 struct Ground {
     mark: Option<Act>,
     plan: Option<Act>,
-    /// The module was marked, and „Einplanen" aimed so, when the finger started.
+    /// The module was marked, and „Einplanen" aimed so, when the finger started; the snapshot's
+    /// current semester, which it aimed from.
     marked: bool,
-    aim: Option<Aim>,
+    aim: Option<(Aim, folia_calendar::semester::SemesterKey)>,
 }
 
 /// The finger on the row, from where it came down.
@@ -194,13 +199,15 @@ struct Card {
 pub struct RowSwipe {
     t: &'static Texts,
     id: StoredValue<String>,
-    turnus: Option<TurnusSeason>,
+    title: StoredValue<String>,
+    offer: Offer,
     hint: Option<Memo<Option<PlanHint>>>,
     phone: RwSignal<bool>,
     wrap: NodeRef<leptos::html::Div>,
     source: StoredValue<Option<DataClient>>,
     bookmarks: Option<Bookmarks>,
     plan: Option<Studyplan>,
+    planning: Option<Planning>,
     finger: StoredValue<Option<Finger>>,
     /// Until when a click on the row is the end of a swipe (ms, the events' clock).
     swiped: StoredValue<f64>,
@@ -216,19 +223,22 @@ pub struct RowSwipe {
 }
 
 impl RowSwipe {
-    /// For the row of module `id`: its turnus and the hint of the list („Passt in meinen
+    /// For the row of module `id` (its title, for the note): its turnus and the hint of the list
+    /// („Passt in meinen
     /// Stundenplan") aim „Einplanen" as on the module's page; `phone` says whether a swipe is one.
-    pub fn new(id: String, turnus: Option<TurnusSeason>, hint: Option<Memo<Option<PlanHint>>>, phone: RwSignal<bool>) -> Self {
+    pub fn new(id: String, title: String, offer: Offer, hint: Option<Memo<Option<PlanHint>>>, phone: RwSignal<bool>) -> Self {
         Self {
             t: i18n::t(),
             id: StoredValue::new(id),
-            turnus,
+            title: StoredValue::new(title),
+            offer,
             hint,
             phone,
             wrap: NodeRef::new(),
             source: StoredValue::new(use_data().ok()),
             bookmarks: Bookmarks::expect(),
             plan: Studyplan::expect(),
+            planning: Planning::expect(),
             finger: StoredValue::new(None),
             swiped: StoredValue::new(f64::NEG_INFINITY),
             phase: RwSignal::new(Phase::Rest),
@@ -392,7 +402,7 @@ impl RowSwipe {
             self.ground.get().map(|ground| {
                 // What the module was when the finger started: the ground starts in its look.
                 let marked = ground.marked.then_some("");
-                let planned = ground.aim.as_ref().is_some_and(Aim::pressed).then_some("");
+                let planned = ground.aim.as_ref().is_some_and(|(aim, _)| aim.pressed()).then_some("");
                 view! {
                     <div class="swipe-ground" aria-hidden="true" data-marked=marked data-planned=planned>
                         {side(ground.plan, Side::Plan)}
@@ -443,11 +453,13 @@ impl RowSwipe {
             let source = self.source.get_value()?;
             let (current, newest) = source.peek(&ModuleSemestersAsk { id: id.clone() })?.map(|(semesters, schedule)| semesters_of(&semesters, &schedule)).ok()?;
             let hint = self.hint.and_then(|hint| hint.get_untracked());
-            Some(studyplan::aim_now(plan, &id, current.or(newest)?, newest, self.turnus, hint.as_ref()))
+            let current = current.or(newest)?;
+            Some((studyplan::aim_now(plan, self.planning, &id, current, newest, self.offer, hint.as_ref()), current))
         });
+        let asks = self.planning.is_some_and(Planning::asks_first);
         (marked.is_some() || aim.is_some()).then(|| Ground {
             mark: marked.map(|marked| Act::mark(marked, t)),
-            plan: aim.as_ref().map(|aim| Act::plan(aim, t)),
+            plan: aim.as_ref().map(|(aim, _)| Act::plan(aim, asks, t)),
             marked: marked.unwrap_or(false),
             aim,
         })
@@ -534,9 +546,13 @@ impl RowSwipe {
                 });
             }
             Side::Plan => {
-                if let (Some(plan), Some(aim)) = (self.plan, ground.aim) {
-                    let was = aim.pressed();
-                    studyplan::press(plan, self.source.get_value(), id, aim, was, || {});
+                if let (Some(plan), Some(planning), Some((aim, current))) = (self.plan, self.planning, ground.aim) {
+                    // After the next frame, as a click's: the row has answered by then (R21).
+                    let what = Pressed { id, title: self.title.get_value(), current, offer: self.offer, hint: self.hint.and_then(|hint| hint.get_untracked()) };
+                    let source = self.source.get_value();
+                    nav::after_paint(move || {
+                        planning.press(plan, source, what, aim, || {});
+                    });
                 }
             }
         }

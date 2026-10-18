@@ -101,6 +101,9 @@ const colours = () => {
 };
 
 const context = await browser.newContext(phone);
+// „Einplanen" plans at once: the question for a study not set up is put aside for the session
+// (plannote.mjs checks the question).
+await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
 const { page, swipe, lift } = await open(context, "/catalog");
 await page.waitForSelector(".vrow .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("the catalog's rows cannot be swiped"));
 const state = (i = 1) => page.evaluate(rowState, { i });
@@ -251,6 +254,9 @@ await context.close();
 // bookmark takes the mark away; while it is swiped its card is whole (the ground would show through
 // it), and swiped to the left once more it is marked again; to the right it is planned
 const saved = await browser.newContext(phone);
+// „Einplanen" plans at once: the question for a study not set up is put aside for the session
+// (plannote.mjs checks the question).
+await saved.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
 {
   const { page, swipe, lift } = await open(saved, "/catalog");
   const ids = await page.evaluate(() => [...document.querySelectorAll(".vrow .row-wrap .row")].slice(0, 2).map((row) => row.dataset.id));
@@ -303,6 +309,9 @@ await saved.close();
 
 // ---- a mouse in a narrow window drags the card the same way; the drag is no click
 const narrow = await browser.newContext({ viewport: { width: 700, height: 900 } });
+// „Einplanen" plans at once: the question for a study not set up is put aside for the session
+// (plannote.mjs checks the question).
+await narrow.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
 {
   const page = await narrow.newPage();
   page.on("console", (m) => { if (m.type() === "error") problems.push("narrow console: " + m.text().slice(0, 600)); });
@@ -323,6 +332,9 @@ await narrow.close();
 
 // ---- the layout of a wide screen has no swipe: a drag is none
 const wide = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+// „Einplanen" plans at once: the question for a study not set up is put aside for the session
+// (plannote.mjs checks the question).
+await wide.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
 {
   const page = await wide.newPage();
   await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });

@@ -81,6 +81,16 @@ impl MyProgram {
         self.0.with(|doc| doc.start)
     }
 
+    /// The same without subscribing: for what a click decides.
+    pub fn start_untracked(self) -> Option<SemesterKey> {
+        self.0.with_untracked(|doc| doc.start)
+    }
+
+    /// The semesters of leave, which count as no Fachsemester. Tracked.
+    pub fn leave(self) -> std::collections::BTreeSet<SemesterKey> {
+        self.0.with(|doc| doc.leave.clone())
+    }
+
     /// The program (its id, never the slug), its display name as it reads now (said once the id
     /// is gone from the snapshot), the caption of the chosen plan (`""`: the only or the unnamed
     /// one) and the page that fills a core plan's direction row. An id that cannot be one is not
