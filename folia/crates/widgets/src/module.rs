@@ -453,6 +453,7 @@ pub fn ModulePanel(
         }
     };
     let close_href = t.path(&close_href);
+    let abbrev = abbrev_view(data.clone(), program.clone());
     view! {
         <section class="panel detail is-module" class:aside=docked id="preview" aria-label=t.module.preview>
             <div class="scroll" data-keep-scroll="detail">
@@ -460,7 +461,7 @@ pub fn ModulePanel(
                     <div class="hero-top">
                         // Closing it leaves the page where it is (on a phone the window is what scrolls).
                         <a class="icon-btn back" href=close_href.clone() data-noscroll="" aria-label=t.module.close_preview><Icon name="arrow-left"/></a>
-                        <span class="mono">{id.clone()}</span>
+                        <ModuleIds id=id.clone() abbrev/>
                         // Not on a phone, where the panel is a sheet that goes all up (app.css).
                         <a class="ghost full-view" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="F"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" data-back=back data-noscroll="" title=t.module.close_preview_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
@@ -547,6 +548,7 @@ pub fn ModuleFull(
 ) -> impl IntoView {
     let t = i18n::t();
     let derived = derive(&data, t);
+    let abbrev = abbrev_view(data.clone(), program.clone());
     view! {
         // The name first (what people search for), then number and university.
         <Title text=(t.module.title)(&data.module.title, &data.module.id)/>
@@ -567,7 +569,7 @@ pub fn ModuleFull(
                     <header class="panel hero">
                         <div class="hero-top">
                             <BackLink area=back_area to=back_to/>
-                            <span class="mono">{data.module.id.clone()}</span>
+                            <ModuleIds id=data.module.id.clone() abbrev/>
                         </div>
                         <Heading data=data.clone() hint/>
                     </header>
@@ -599,6 +601,41 @@ fn plan_button(data: &ModuleData, hint: Signal<Option<PlanHint>>, look: PlanLook
     let m = &data.module;
     current.or(newest).map(|current| {
         view! { <PlanButton id=m.id.clone() title=m.title.clone() turnus=m.turnus_season.clone() parity=m.turnus_parity.clone() current newest hint look/> }
+    })
+}
+
+/// A module's number at the head of its page, of its preview and of its panel beside the
+/// Stundenplan, and beside it what it is called for short (owner, 2026-10-19: „neben die Modul
+/// Nummer auch die Abkürzung"; not in a list's rows, „das wäre tmi"): a chip each, the
+/// abbreviation's named for screen readers and in its tooltip.
+#[component]
+pub fn ModuleIds(#[prop(into)] id: Signal<String>, #[prop(into)] abbrev: Signal<Option<String>>) -> impl IntoView {
+    let t = i18n::t();
+    view! {
+        <span class="ids">
+            <span class="mono">{id}</span>
+            {move || abbrev.get().map(|form| view! {
+                <span class="mono abbr" title=t.module.abbrev><span class="visually-hidden">{format!("{} ", t.module.abbrev)}</span>{form}</span>
+            })}
+        </span>
+    }
+}
+
+/// Which abbreviation the head shows: as the Stundenplan names the module, in the program the
+/// page stands for (`program`, a slug, found among the programs), else in Mein Studiengang, which
+/// only the browser app knows (R9); the page's program is the visitor's own where it is of the
+/// family of Mein Studiengang, as for the courses (`CourseView::of`). Without either, and on the
+/// server where the page names no program, the module's own form (`ModuleData::abbrev_in`).
+fn abbrev_view(data: ModuleData, program: Option<String>) -> Memo<Option<String>> {
+    let mine = MineResolved::expect();
+    let source = use_data().ok();
+    Memo::new(move |_| {
+        let page = program.as_ref().and_then(|slug| source.as_ref()?.now(&ProgramsAsk {}).ok()?.into_iter().find(|p| p.slug == *slug));
+        let program = match (page, mine.and_then(MineResolved::exact)) {
+            (Some(page), Some(mine)) if page.family_key == mine.family_key => Some(mine),
+            (page, mine) => page.or(mine),
+        };
+        data.abbrev_in(program.as_ref().map(|program| program.id.as_str())).map(str::to_string)
     })
 }
 
@@ -2604,6 +2641,7 @@ mod tests {
             at_zentralcampus: Some(true),
             at_sachsendorf: None,
             at_senftenberg: None,
+            abbrev: Some("An1".into()),
         };
         let informatik = ProgramLink {
             degree_raw: Some("Bachelor (universitär)".into()),
@@ -2654,6 +2692,7 @@ mod tests {
             programs: vec![informatik],
             plan_places: vec![folia_model::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
             semesters: vec![semester("2026S", "SoSe 2026", "2026-04-01", "2026-09-30"), semester("2026W", "WiSe 2026/27", "2026-10-01", "2027-03-31")],
+            program_abbrevs: Vec::new(),
         }
     }
 

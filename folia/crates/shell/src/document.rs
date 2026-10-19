@@ -109,8 +109,11 @@
 /// choice's options dashed in the week („1 von 3", „✓ Diese nehmen"), in the panel with „passt",
 /// taken by a tap or preselected for the plan's program, weighed as alternatives in overlaps and
 /// in „Passt in meinen Stundenplan", in the calendar once chosen; the extras lighter, behind the
-/// chip „Zusatz". The version of the app's crates, the same as the server's; Radix's is in the
-/// snapshot (`Meta::radix_version`).
+/// chip „Zusatz"; 1.33.1 with a module's abbreviation beside its number at the head of its page,
+/// of its preview and of its panel beside the Stundenplan, as the Stundenplan names it (the
+/// program the page stands for, else Mein Studiengang, else the module's own form). The version
+/// of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
