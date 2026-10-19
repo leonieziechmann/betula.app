@@ -2013,7 +2013,7 @@ is in front in the first frame after the click, 13–16 ms after it on a wide sc
 the tap in a phone's window (412 × 915); before, the same change built its page again behind a
 skeleton for 100 to 600 ms.
 
-**Every tab built at the start** (step 2, Folia 1.26.1, `stage::prebuild`; owner, 2026-10-18: „Am
+**Every tab built at the start** (step 2, Folia 1.27.2, `stage::prebuild`; owner, 2026-10-18: „Am
 anfang darf die App ruhig etwas laden/kurz Skeltons zeigen"): once the app has taken the page over
 and its first page's answers are in, Betula builds the other tabs' pages behind it, one after the
 other, the cheapest first (Merkliste, Stundenplan, Start, Module, Studium), each in a task of its
