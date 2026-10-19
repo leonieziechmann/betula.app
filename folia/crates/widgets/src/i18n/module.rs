@@ -157,9 +157,11 @@ pub struct Texts {
     // ---- the courses of a module held at two campuses (`crate::courses`) ----
     /// What joins the last two of a list: „ und ".
     pub courses_and: &'static str,
-    /// „An zwei Standorten angeboten: Zentralcampus Cottbus und Cottbus-Sachsendorf. Du besuchst
-    /// eines der Angebote.": how many, and the campuses as `courses_and` joins them.
-    pub courses_all: fn(usize, &str) -> String,
+    /// „An zwei Standorten angeboten:" — the campuses follow, each with the dot of its colour, as
+    /// `courses_and` joins them, and a full stop —
+    pub courses_all: fn(usize) -> String,
+    /// … „Du besuchst eines der Angebote."
+    pub courses_one_of: &'static str,
     /// „In „Mein Studium“ mit deinem Studiengang zeigt Betula nur sein Angebot.": after
     /// `courses_all` where the page stands for no program.
     pub courses_setup: &'static str,
@@ -294,15 +296,16 @@ pub const DE: Texts = Texts {
     dates_list: "Termine als Liste",
 
     courses_and: " und ",
-    courses_all: |n, places| {
+    courses_all: |n| {
         let n = match n {
             2 => "zwei".to_string(),
             3 => "drei".to_string(),
             4 => "vier".to_string(),
             n => n.to_string(),
         };
-        format!("An {n} Standorten angeboten: {places}. Du besuchst eines der Angebote.")
+        format!("An {n} Standorten angeboten:")
     },
+    courses_one_of: "Du besuchst eines der Angebote.",
     courses_setup: "Mit deinem Studiengang in „Mein Studium“ zeigt Betula nur sein Angebot.",
     courses_undecided: |program| format!("Für {program} nennt QIS keines der Angebote."),
     courses_every: |program| format!("QIS nennt {program} bei jedem Angebot."),
@@ -416,15 +419,16 @@ pub const EN: Texts = Texts {
     dates_list: "Dates as a list",
 
     courses_and: " and ",
-    courses_all: |n, places| {
+    courses_all: |n| {
         let n = match n {
             2 => "two".to_string(),
             3 => "three".to_string(),
             4 => "four".to_string(),
             n => n.to_string(),
         };
-        format!("Offered at {n} campuses: {places}. You attend one of them.")
+        format!("Offered at {n} campuses:")
     },
+    courses_one_of: "You attend one of them.",
     courses_setup: "With your degree programme set up in “My studies”, Betula shows only its dates.",
     courses_undecided: |program| format!("QIS names none of them for {program}."),
     courses_every: |program| format!("QIS names {program} at each of them."),

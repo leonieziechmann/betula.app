@@ -1293,8 +1293,30 @@ fn course_note(courses: &Courses, view: &CourseView, reveal: RwSignal<bool>, t: 
                 Some(Undecided::None(program)) => (words.courses_undecided)(program),
                 Some(Undecided::Every(program)) => (words.courses_every)(program),
             };
-            let text = format!("{} {more}", (words.courses_all)(courses.campuses.len(), &campuses_text(&courses.campuses, t)));
-            view! { <p class="note courses"><Icon name="map-pin"/><span>{text}</span></p> }.into_any()
+            // Each campus with the dot of its colour: the key to the stripes of the week while the
+            // list with its headings is folded away.
+            let last = courses.campuses.len().saturating_sub(1);
+            let keys: Vec<AnyView> = courses
+                .campuses
+                .iter()
+                .enumerate()
+                .map(|(at, campus)| {
+                    let before = match at {
+                        0 => "",
+                        at if at == last => words.courses_and,
+                        _ => ", ",
+                    };
+                    let class = format!("course-key {}", courses::mark(courses, *campus).unwrap_or_default());
+                    view! { {before}<span class=class>{campus.label(t.locale)}</span> }.into_any()
+                })
+                .collect();
+            view! {
+                <p class="note courses">
+                    <Icon name="map-pin"/>
+                    <span>{(words.courses_all)(courses.campuses.len())}" "{keys}". "{words.courses_one_of}" "{more}</span>
+                </p>
+            }
+            .into_any()
         }
         CourseView::Mine { program, own, qis } => {
             let text = format!("{} {}", (words.courses_mine)(program, &campuses_text(&listed(own), t)), (words.courses_also)(&campuses_text(&others(own), t)));

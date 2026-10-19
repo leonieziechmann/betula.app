@@ -1345,18 +1345,22 @@ a.slot { text-decoration: none; }
 /* The courses of a module held at two campuses or more (module.rs, courses.rs; owner, 2026-10-19:
    „mit klarer Erkennbarkeit, dass die einen in Cottbus sind und die anderen in Senftenberg"):
    where its page shows every course, each has its colour — a stripe on its slots, a dot before its
-   heading in the list. Another course than the one taken is faint. */
+   campus in the line over the week and before its heading in the list. Another course than the one
+   taken is faint. */
 .course-1 { --course: var(--t-ice); } .course-2 { --course: var(--t-coral); } .course-3 { --course: var(--t-green); } .course-4 { --course: var(--t-violet); }
 .slot[class*=" course-"]:not(.clash) { box-shadow: inset 3px 0 0 var(--course); }
 .slot.once[class*=" course-"]:not(.clash) { box-shadow: inset 3px 0 0 var(--course), inset 0 0 0 1px var(--line-strong); }
 #termine .slot.faint { background: var(--panel-2); color: var(--text-3); box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 #termine .slot.faint.clash { outline-color: var(--no); }
 .ev.faint { opacity: .55; }
-.course-head { display: flex; align-items: center; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 620; color: var(--text-2); }
+.course-head { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 620; color: var(--text-2); }
 .course-head:first-child { margin-top: 2px; }
-.course-head[class*=" course-"]::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--course); }
+/* The dot in the middle of the heading's first line, where a heading of many programs takes three. */
+.course-head[class*=" course-"]::before { content: ""; flex: none; width: 9px; height: 9px; margin-top: calc((1.45em - 9px) / 2); border-radius: 50%; background: var(--course); }
 .note.courses { background: var(--panel-2); color: var(--text-2); margin: 6px 0 10px; }
 .note.courses .icon { color: var(--text-3); }
+.course-key { white-space: nowrap; }
+.course-key[class*=" course-"]::before { content: ""; display: inline-block; width: 8px; height: 8px; margin: 0 5px 1px 1px; border-radius: 50%; background: var(--course); vertical-align: middle; }
 .courses-toggle { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 620; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .courses-toggle:hover { color: var(--text); }
 .evlist { display: grid; gap: 4px; margin-top: 10px; }
