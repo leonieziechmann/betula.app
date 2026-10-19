@@ -15,9 +15,12 @@
 // on 2026-10-19, whom QIS lists an event for, and the courses of a module held at two campuses with
 // the programs that take each (schema 15; docs/radix/schema-v2.md, „Tracks"); 0.9.1 the same day,
 // no courses where QIS lists the same programs at each, and where a program is taught by where QIS
-// lists its events before its compulsory modules (schema 16, „Better criteria"). Folia's lives in
+// lists its events before its compulsory modules (schema 16, „Better criteria"); 0.10.0 the same
+// day, the choices among a module's events — one event more than once for other programs, in
+// groups, or contents to choose from — and its extras, read from the SWS, the forms, the titles and
+// whom QIS lists each event for (schema 17; docs/radix/schema-v2.md, „Choices"). Folia's lives in
 // folia/crates/shell/src/document.rs (VERSION).
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.9.1"
+const Radix = "0.10.0"

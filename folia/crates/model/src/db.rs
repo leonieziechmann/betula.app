@@ -19,8 +19,10 @@ use std::fmt;
 /// (`v_module_schedule.track`, `v_module_track_program`) and whom QIS states an event is for
 /// (`v_event_program`; docs/radix/schema-v2.md, „Tracks"). 16: where QIS lists a program's events,
 /// which decides where it is taught before its compulsory modules (`v_program_campus.sws`), and no
-/// courses where QIS lists the same programs at each.
-pub const SCHEMA_VERSION: i64 = 16;
+/// courses where QIS lists the same programs at each. 17: the choices among a module's events and its
+/// extras (`v_module_schedule.choice`, `option`, `extra`, `v_module_choice`, `v_module_choice_family`;
+/// docs/radix/schema-v2.md, „Choices").
+pub const SCHEMA_VERSION: i64 = 17;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

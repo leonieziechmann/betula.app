@@ -97,7 +97,11 @@
 /// status (planned, under way, passed, not passed) where the catalog has the bookmark and the button
 /// of its menu, the whole box opening the module, rows selected without boxes, highlighted and
 /// hatched; on a desktop the semester at the top of its box, without the strip of the semesters
-/// and the switch of the views, its name the list of every semester. The version of the app's
+/// and the switch of the views, its name the list of every semester; 1.32.0 with the choices among
+/// a module's events and its extras (schema 17, design/wahlangebote/konzept.html): on its page a
+/// line per choice, its options dashed in the week and listed under „Eine der 3 Übungen", Mein
+/// Studiengang's exercise taken with „Auch zeigen", the extras dotted under „Zusätzlich,
+/// freiwillig", and in a list's row „14 Projekte zur Wahl". The version of the app's
 /// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

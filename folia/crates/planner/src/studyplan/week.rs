@@ -1826,6 +1826,9 @@ mod tests {
                 room_short: None,
                 series: None,
                 track: None,
+                choice: None,
+                option: None,
+                extra: false,
             },
         }
     }

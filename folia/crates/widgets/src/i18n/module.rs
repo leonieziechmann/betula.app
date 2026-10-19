@@ -1,6 +1,33 @@
 //! Texts of a module's page and its preview (`pages/module.rs`), and of a module shown in place
 //! of a page (`local.rs`).
 
+use folia_calendar::kind::EventKind;
+
+/// What the options of a choice are called (`crate::options`): what their events are where they
+/// are all one kind, groups a title names, the offers of a topic, or events.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NounOf {
+    Kind(EventKind),
+    Group,
+    Offer,
+    Event,
+}
+
+/// A noun, one and many, and in German its gender, which the words around it follow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Noun {
+    pub one: &'static str,
+    pub many: &'static str,
+    pub gender: Gender,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Gender {
+    Feminine,
+    Neuter,
+    Masculine,
+}
+
 pub struct Texts {
     // ---- what search engines and link previews read ----
     /// The page's title, the name first: „Analysis I (11101) · Modul der BTU Cottbus-Senftenberg";
@@ -193,6 +220,64 @@ pub struct Texts {
     /// … and of the Termine in no course: „Für alle Angebote".
     pub courses_shared: &'static str,
 
+    // ---- the choices among a module's events, and its extras (`crate::options`) ----
+    /// What the options are called.
+    pub noun: fn(NounOf) -> Noun,
+    /// The headings of the list: what everyone attends …
+    pub choice_must: &'static str,
+    /// … a choice: „Eine der 3 Übungen", „Zwei der 4 Übungen" (how many one takes, of how many) …
+    pub choice_of: fn(u32, usize, Noun) -> String,
+    /// … of options of differing sizes: „Übungen für 6 SWS" (the SWS written already) …
+    pub choice_for_sws: fn(&str, Noun) -> String,
+    /// … the options QIS lists other programs at, „Für andere Studiengänge" …
+    pub choice_others: &'static str,
+    /// … and the extras: „Zusätzlich, freiwillig".
+    pub choice_extras: &'static str,
+    /// „9 weitere anzeigen": the options of a long choice after its first.
+    pub choice_more: fn(usize) -> String,
+    /// „für Bauingenieurwesen, Maschinenbau": whom QIS lists an option for, in its line and slot.
+    pub choice_for: fn(&str) -> String,
+    /// An option without a time of the week, where the line over the week names its times.
+    pub choice_no_time: &'static str,
+    /// The line over the week. One event more than once, each for other programs: „Die Übung gibt
+    /// es dreimal, je für andere Studiengänge. Du besuchst eine." (how many, the noun) …
+    pub choice_program: fn(usize, Noun) -> String,
+    /// … where the page stands for no program …
+    pub choice_setup: &'static str,
+    /// … for a program QIS lists at none of the options, and at each …
+    pub choice_none: fn(&str) -> String,
+    pub choice_every: fn(&str) -> String,
+    /// … for Mein Studiengang: „Die Übung für Bauingenieurwesen · B.Sc.: Di 07:30." (the noun, the
+    /// program, the option's times) …
+    pub choice_mine: fn(Noun, &str, &str) -> String,
+    /// … where QIS lists it at several: „Für Umweltingenieurwesen · Bachelor nennt QIS zwei der 3
+    /// Übungen (Mi 13:45 und Do 11:30); du besuchst eine." (the program, how many it is listed at,
+    /// of how many, how many one takes, the noun, their times) …
+    pub choice_mine_some: fn(&str, usize, usize, u32, Noun, &str) -> String,
+    /// … „Auch angeboten, für andere Studiengänge: Mi 13:45 und Do 11:30." …
+    pub choice_also: fn(&str) -> String,
+    /// … for another program: „Hervorgehoben: die Übung für Bauingenieurwesen · B.Sc. (Di 07:30)."
+    /// and „Hervorgehoben: zwei der 3 Übungen, die QIS für … nennt (…); du besuchst eine." …
+    pub choice_highlight: fn(Noun, &str, &str) -> String,
+    pub choice_highlight_some: fn(&str, usize, usize, u32, Noun, &str) -> String,
+    /// … „Blass: die für andere Studiengänge."
+    pub choice_faint: &'static str,
+    /// Groups a title names: „Kontrapunkt/Tonsatz I und Gehörbildung I gibt es in 3 Gruppen. Du
+    /// besuchst eine, beide in derselben Gruppe." (what, how many groups, how many events each) …
+    pub choice_groups: fn(&str, usize, usize) -> String,
+    /// … one event more than once: „Das Seminar gibt es zweimal. Du besuchst eines." …
+    pub choice_twice: fn(usize, Noun) -> String,
+    /// A topic to choose: „Wahlangebot: Du belegst eines der 14 Projekte (je 4 SWS)." (how many one
+    /// takes, of how many, the noun, the SWS of each where they are the same, written already) …
+    pub choice_topic: fn(u32, usize, Noun, Option<&str>) -> String,
+    /// … of options of differing sizes: „Wahlangebot: Du belegst Übungen für 6 SWS." …
+    pub choice_topic_sws: fn(Noun, &str) -> String,
+    /// … and where QIS lists the program at some: „QIS nennt Soziale Arbeit · Bachelor bei 7
+    /// davon, sie stehen zuerst."
+    pub choice_named: fn(&str, usize) -> String,
+    /// „Zusätzlich, freiwillig: Aufbaukurs Höhere Mathematik - T3." (the extras, joined already)
+    pub choice_extra_note: fn(&str) -> String,
+
     // ---- „Studiengänge" ----
     /// „12 Curricula", beside the heading.
     pub curricula: fn(usize) -> String,
@@ -322,6 +407,58 @@ pub const DE: Texts = Texts {
     courses_more: |programs, n| if n == 1 { format!("{programs} und einen weiteren") } else { format!("{programs} und {n} weitere") },
     courses_shared: "Für alle Angebote",
 
+    noun: |of| {
+        let (one, many, gender) = match of {
+            NounOf::Kind(EventKind::Lecture) => ("Vorlesung", "Vorlesungen", Gender::Feminine),
+            NounOf::Kind(EventKind::Exercise) => ("Übung", "Übungen", Gender::Feminine),
+            NounOf::Kind(EventKind::Seminar) => ("Seminar", "Seminare", Gender::Neuter),
+            NounOf::Kind(EventKind::Practical) => ("Praktikum", "Praktika", Gender::Neuter),
+            NounOf::Kind(EventKind::Project) => ("Projekt", "Projekte", Gender::Neuter),
+            NounOf::Kind(EventKind::Tutorial) => ("Tutorium", "Tutorien", Gender::Neuter),
+            NounOf::Kind(EventKind::Consultation) => ("Konsultation", "Konsultationen", Gender::Feminine),
+            NounOf::Kind(EventKind::Excursion) => ("Exkursion", "Exkursionen", Gender::Feminine),
+            NounOf::Group => ("Gruppe", "Gruppen", Gender::Feminine),
+            NounOf::Offer => ("Angebot", "Angebote", Gender::Neuter),
+            NounOf::Kind(_) | NounOf::Event => ("Veranstaltung", "Veranstaltungen", Gender::Feminine),
+        };
+        Noun { one, many, gender }
+    },
+    choice_must: "Pflicht",
+    choice_of: |pick, n, noun| format!("{} der {n} {}", capital(&de_pick(pick, noun.gender)), noun.many),
+    choice_for_sws: |sws, noun| format!("{} für {sws} SWS", noun.many),
+    choice_others: "Für andere Studiengänge",
+    choice_extras: "Zusätzlich, freiwillig",
+    choice_more: |n| format!("{n} weitere anzeigen"),
+    choice_for: |programs| format!("für {programs}"),
+    choice_no_time: "ohne Termin",
+    choice_program: |n, noun| format!("{} {} gibt es {}, je für andere Studiengänge. Du besuchst {}.", capital(de_the(noun.gender)), noun.one, de_times(n), de_pick(1, noun.gender)),
+    choice_setup: "Mit deinem Studiengang in „Mein Studium“ zeigt Betula nur, was QIS für ihn nennt.",
+    choice_none: |program| format!("Für {program} nennt QIS keinen dieser Termine."),
+    choice_every: |program| format!("QIS nennt {program} bei jedem dieser Termine."),
+    choice_mine: |noun, program, times| format!("{} {} für {program}: {times}.", capital(de_the(noun.gender)), noun.one),
+    choice_mine_some: |program, own, n, pick, noun, times| {
+        format!("Für {program} nennt QIS {} der {n} {} ({times}); du besuchst {}.", de_number(own), noun.many, de_pick(pick, noun.gender))
+    },
+    choice_also: |times| format!("Auch angeboten, für andere Studiengänge: {times}."),
+    choice_highlight: |noun, program, times| format!("Hervorgehoben: {} {} für {program} ({times}).", de_the(noun.gender), noun.one),
+    choice_highlight_some: |program, own, n, pick, noun, times| {
+        format!("Hervorgehoben: {} der {n} {}, die QIS für {program} nennt ({times}); du besuchst {}.", de_number(own), noun.many, de_pick(pick, noun.gender))
+    },
+    choice_faint: "Blass: die für andere Studiengänge.",
+    choice_groups: |what, n, each| match each {
+        0 | 1 => format!("{what} gibt es in {n} Gruppen. Du besuchst eine."),
+        2 => format!("{what} gibt es in {n} Gruppen. Du besuchst eine, beide in derselben Gruppe."),
+        _ => format!("{what} gibt es in {n} Gruppen. Du besuchst eine, alle in derselben Gruppe."),
+    },
+    choice_twice: |n, noun| format!("{} {} gibt es {}. Du besuchst {}.", capital(de_the(noun.gender)), noun.one, de_times(n), de_pick(1, noun.gender)),
+    choice_topic: |pick, n, noun, each| {
+        let each = each.map(|sws| format!(" (je {sws} SWS)")).unwrap_or_default();
+        format!("Wahlangebot: Du belegst {} der {n} {}{each}.", de_pick(pick, noun.gender), noun.many)
+    },
+    choice_topic_sws: |noun, sws| format!("Wahlangebot: Du belegst {} für {sws} SWS.", noun.many),
+    choice_named: |program, n| format!("QIS nennt {program} bei {n} davon, sie stehen zuerst."),
+    choice_extra_note: |extras| format!("Zusätzlich, freiwillig: {extras}."),
+
     curricula: |n| format!("{n} Curricula"),
     no_curriculum: "Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog.",
     fues: |n| format!("Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in {n} Studiengängen."),
@@ -445,6 +582,58 @@ pub const EN: Texts = Texts {
     courses_more: |programs, n| format!("{programs} and {n} more"),
     courses_shared: "For every course",
 
+    noun: |of| {
+        let (one, many) = match of {
+            NounOf::Kind(EventKind::Lecture) => ("lecture", "lectures"),
+            NounOf::Kind(EventKind::Exercise) => ("exercise class", "exercise classes"),
+            NounOf::Kind(EventKind::Seminar) => ("seminar", "seminars"),
+            NounOf::Kind(EventKind::Practical) => ("practical", "practicals"),
+            NounOf::Kind(EventKind::Project) => ("project", "projects"),
+            NounOf::Kind(EventKind::Tutorial) => ("tutorial", "tutorials"),
+            NounOf::Kind(EventKind::Consultation) => ("consultation", "consultations"),
+            NounOf::Kind(EventKind::Excursion) => ("excursion", "excursions"),
+            NounOf::Group => ("group", "groups"),
+            NounOf::Offer => ("option", "options"),
+            NounOf::Kind(_) | NounOf::Event => ("class", "classes"),
+        };
+        Noun { one, many, gender: Gender::Neuter }
+    },
+    choice_must: "Compulsory",
+    choice_of: |pick, n, noun| format!("{} of the {n} {}", capital(&en_number(pick as usize)), noun.many),
+    choice_for_sws: |sws, noun| format!("{} for {sws} SWS", capital(noun.many)),
+    choice_others: "For other programmes",
+    choice_extras: "Additional, optional",
+    choice_more: |n| format!("Show {n} more"),
+    choice_for: |programs| format!("for {programs}"),
+    choice_no_time: "no date",
+    choice_program: |n, noun| format!("The {} is held {}, each for other programmes. You attend one.", noun.one, en_times(n)),
+    choice_setup: "With your degree programme set up in “My studies”, Betula shows only what QIS names for it.",
+    choice_none: |program| format!("QIS names {program} at none of them."),
+    choice_every: |program| format!("QIS names {program} at each of them."),
+    choice_mine: |noun, program, times| format!("The {} for {program}: {times}.", noun.one),
+    choice_mine_some: |program, own, n, pick, noun, times| {
+        format!("For {program}, QIS names {} of the {n} {} ({times}); you attend {}.", en_number(own), noun.many, en_number(pick as usize))
+    },
+    choice_also: |times| format!("Also offered, for other programmes: {times}."),
+    choice_highlight: |noun, program, times| format!("Highlighted: the {} for {program} ({times}).", noun.one),
+    choice_highlight_some: |program, own, n, pick, noun, times| {
+        format!("Highlighted: {} of the {n} {}, which QIS names for {program} ({times}); you attend {}.", en_number(own), noun.many, en_number(pick as usize))
+    },
+    choice_faint: "Faint: those for other programmes.",
+    choice_groups: |what, n, each| match each {
+        0 | 1 => format!("{what} is held in {n} groups. You attend one."),
+        2 => format!("{what} are held in {n} groups. You attend one, both in the same group."),
+        _ => format!("{what} are held in {n} groups. You attend one, all in the same group."),
+    },
+    choice_twice: |n, noun| format!("The {} is held {}. You attend one.", noun.one, en_times(n)),
+    choice_topic: |pick, n, noun, each| {
+        let each = each.map(|sws| format!(" ({sws} SWS each)")).unwrap_or_default();
+        format!("Elective: you take {} of the {n} {}{each}.", en_number(pick as usize), noun.many)
+    },
+    choice_topic_sws: |noun, sws| format!("Elective: you take {} for {sws} SWS.", noun.many),
+    choice_named: |program, n| format!("QIS names {program} at {n} of them, which come first."),
+    choice_extra_note: |extras| format!("Additional, optional: {extras}."),
+
     curricula: |n| if n == 1 { "1 curriculum".to_string() } else { format!("{n} curricula") },
     no_curriculum: "The module is in no curriculum of a degree programme in the catalogue.",
     fues: |n| {
@@ -463,3 +652,60 @@ pub const EN: Texts = Texts {
     },
     programs_all: |n| format!("Show all {n}"),
 };
+
+/// A text with its first letter a capital.
+fn capital(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// „zwei" … „zwölf", else the digits.
+fn de_number(n: usize) -> String {
+    const WORDS: [&str; 13] = ["null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun", "zehn", "elf", "zwölf"];
+    WORDS.get(n).filter(|_| n >= 2).map(|word| word.to_string()).unwrap_or_else(|| n.to_string())
+}
+
+/// How many one takes, as the object of a sentence: „eine" (Übung), „eines" (Projekt), „einen"
+/// (Kurs), „zwei".
+fn de_pick(pick: u32, gender: Gender) -> String {
+    match (pick, gender) {
+        (1, Gender::Feminine) => "eine".to_string(),
+        (1, Gender::Neuter) => "eines".to_string(),
+        (1, Gender::Masculine) => "einen".to_string(),
+        (n, _) => de_number(n as usize),
+    }
+}
+
+/// The definite article of a noun: „die", „das", „der".
+fn de_the(gender: Gender) -> &'static str {
+    match gender {
+        Gender::Feminine => "die",
+        Gender::Neuter => "das",
+        Gender::Masculine => "der",
+    }
+}
+
+/// „zweimal" … „zwölfmal", else „13-mal".
+fn de_times(n: usize) -> String {
+    match n {
+        2..=12 => format!("{}mal", de_number(n)),
+        n => format!("{n}-mal"),
+    }
+}
+
+/// „one" … „twelve", else the digits.
+fn en_number(n: usize) -> String {
+    const WORDS: [&str; 13] = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+    WORDS.get(n).map(|word| word.to_string()).unwrap_or_else(|| n.to_string())
+}
+
+/// „twice", „three times", …
+fn en_times(n: usize) -> String {
+    match n {
+        2 => "twice".to_string(),
+        n => format!("{} times", en_number(n)),
+    }
+}

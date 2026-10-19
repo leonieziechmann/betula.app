@@ -50,7 +50,9 @@ use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::{BackLink, Frame};
 use folia_design::ui::{shows_minor, Fact, Icon, JsOnly, KindBadge, OfferBadge, Prose, Shortcut};
 use crate::courses::{self, campuses_text, course_heading, CourseView, Undecided};
+use crate::options::{self, OptState, OptionView, Sight, FOLD_OPTIONS, LISTED_OPTIONS, WEEK_OPTIONS};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
+use folia_timetable::choices::{Choice, Choices};
 use folia_timetable::courses::Courses;
 
 /// The browser app (`csr`): only there is a plan to meet.
@@ -766,7 +768,8 @@ fn DataClient(data: ModuleData) -> impl IntoView {
 
 /// Teaching events of the newest semester that has any, as a week grid plus a list; exams below. A
 /// module held as courses at two campuses or more shows them as `crate::courses` says, for
-/// `program` (the slug of the program the page stands for) or Mein Studiengang.
+/// `program` (the slug of the program the page stands for) or Mein Studiengang; the choices among
+/// its events and its extras as `crate::options` says.
 #[component]
 fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     let t = i18n::t();
@@ -798,24 +801,36 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     // which of them the page shows (owner, 2026-10-19); „Auch zeigen" shows Mein Studiengang the
     // others, faint.
     let courses = newest_key.as_deref().and_then(|key| Courses::of(&teaching, &data.tracks, key));
-    let view_of = course_view(courses.clone(), program);
+    let view_of = course_view(courses.clone(), program.clone());
     let reveal = RwSignal::new(false);
+    // The choices among its events in that semester and which options the page shows (owner,
+    // 2026-10-19: „Passt so, nimm deine Vorschläge und bau es"); „Auch zeigen" shows Mein
+    // Studiengang the options of other programs, faint.
+    let choices = newest_key.as_deref().and_then(|key| Choices::of(&data.choices, &data.choice_families, key));
+    let views_of = option_views(choices.clone(), program);
+    let reveal_options = RwSignal::new(false);
 
     // The Studienplan beside the week (A.9): nothing on the server, so its HTML is the module's
     // alone; in the app the other modules planned into the semester of these Termine.
     let overlay = plan_overlay(&m.id, newest_key.as_deref().and_then(SemesterKey::parse), current.and_then(|c| SemesterKey::parse(&c.key)));
     let own = own_groups(&teaching, t);
-    // Under a week the list is folded (owner, 2026-10-17: „die Termine können ruhig ausklappbar
-    // sein, so dass nicht so viel vertical space verschwendet wird"): a slot unfolds it and marks
-    // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open.
-    let folded = !own.is_empty();
-    let slots = {
-        let courses = courses.clone();
+    let shown = {
+        let (courses, choices, teaching) = (courses.clone(), choices.clone(), teaching.clone());
         Memo::new(move |_| {
-            let shown = view_of.with(|view| shown_slots(&own, courses.as_ref(), view, reveal.get()));
-            overlay.with(|overlay| with_overlay(&shown, overlay, t))
+            view_of.with(|view| {
+                views_of.with(|views| {
+                    let sight = Sight { choices: choices.as_ref(), views, reveal: reveal_options.get() };
+                    shown_slots(&own, courses.as_ref(), view, reveal.get(), &sight, &teaching, t)
+                })
+            })
         })
     };
+    // Under a week the list is folded (owner, 2026-10-17: „die Termine können ruhig ausklappbar
+    // sein, so dass nicht so viel vertical space verschwendet wird"): a slot unfolds it and marks
+    // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open: a
+    // module whose events are all options of a long choice has none.
+    let folded = shown.with_untracked(|shown| !shown.is_empty());
+    let slots = Memo::new(move |_| shown.with(|shown| overlay.with(|overlay| with_overlay(shown, overlay, t))));
     // The Termine list, grouped by course where the module has courses (`list_groups`).
     let lines: Vec<(String, Vec<EventDate>, Option<Campus>)> = termine(&teaching)
         .into_iter()
@@ -826,13 +841,41 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
         })
         .collect();
     let groups = {
-        let courses = courses.clone();
-        Memo::new(move |_| view_of.with(|view| list_groups(&lines, courses.as_ref(), view, reveal.get(), t)))
+        let (courses, choices, teaching) = (courses.clone(), choices.clone(), teaching.clone());
+        Memo::new(move |_| {
+            view_of.with(|view| {
+                views_of.with(|views| {
+                    let sight = Sight { choices: choices.as_ref(), views, reveal: reveal_options.get() };
+                    list_groups(&lines, courses.as_ref(), view, reveal.get(), &sight, &teaching, t)
+                })
+            })
+        })
     };
     let note = {
         let courses = courses.clone();
         move || courses.as_ref().map(|courses| view_of.with(|view| course_note(courses, view, reveal, t)))
     };
+    // A line per choice of a course the page shows, and one for the extras. Where the line of the
+    // courses invites to set up Mein Studiengang, theirs does not again.
+    let choice_notes = {
+        let (choices, teaching, has_courses) = (choices.clone(), teaching.clone(), courses.is_some());
+        move || {
+            let Some(choices) = choices.as_ref() else { return Vec::new() };
+            view_of.with(|course| {
+                let invite = !(has_courses && matches!(course, CourseView::All { about: None }));
+                views_of.with(|views| {
+                    choices
+                        .list
+                        .iter()
+                        .zip(views)
+                        .filter(|(choice, _)| course_shown(course, choice))
+                        .map(|(choice, view)| choice_note(choice, view, &teaching, invite, reveal_options, t))
+                        .collect::<Vec<AnyView>>()
+                })
+            })
+        }
+    };
+    let extras_note = options::extras_text(&teaching, &m.title, t);
     let week_line = move || {
         overlay.with(|overlay| overlay.line.clone()).map(|(warn, text)| match warn {
             true => view! { <p class="note"><Icon name="triangle-alert"/><span>{text}</span></p> }.into_any(),
@@ -869,9 +912,14 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     let event_list = move |dates: Vec<ListLine>| {
         dates
             .into_iter()
-            .filter_map(|(id, rows, reading, faint)| {
+            .filter_map(|ListLine { id, rows, reading, faint, audience, gap }| {
                 let d = rows.first()?.clone();
                 let mut text = termin_text(&rows, t)?;
+                // Whom QIS lists an option for, after its type.
+                if let Some(audience) = audience {
+                    let at = usize::from(d.event_type.as_deref().is_some_and(|kind| !kind.trim().is_empty())).min(text.head.len());
+                    text.head.insert(at, audience);
+                }
                 let (mut open, mut stated, mut marker) = (words.time_open, None, None);
                 if let Some(r) = reading.as_ref() {
                     let slot = &r.shown;
@@ -898,8 +946,8 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
                 Some(match d.source_url.clone() {
-                    Some(href) => view! { <a class="ev" class:faint=faint id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
-                    None => view! { <div class="ev" class:faint=faint id=id title=listed>{body}</div> }.into_any(),
+                    Some(href) => view! { <a class="ev" class:faint=faint class:gap=gap id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
+                    None => view! { <div class="ev" class:faint=faint class:gap=gap id=id title=listed>{body}</div> }.into_any(),
                 })
             })
             .collect_view()
@@ -909,19 +957,29 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
         <div class="section" id="termine">
             <h3 class="label">{words.dates}{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</h3>
             {note}
+            {choice_notes}
+            {extras_note.map(|text| view! { <p class="note choices"><Icon name="plus"/><span>{text}</span></p> })}
             <WeekGrid slots/>
             {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
             {(!teaching.is_empty()).then(|| {
-                let count = move || groups.with(|groups| groups.iter().map(|group| group.lines.len()).sum::<usize>());
+                let count = move || groups.with(|groups| groups.iter().map(|group| group.lines.len() + group.more.as_ref().map_or(0, |(_, more)| more.len())).sum::<usize>());
                 let list = move || {
                     let groups = groups.get();
                     view! {
                         <div class="evlist">
                             {groups.into_iter().map(|group| view! {
-                                {group.heading.map(|(heading, mark)| view! { <p class=format!("course-head {}", mark.unwrap_or_default())>{heading}</p> })}
-                                {event_list(group.lines.into_iter().map(|(id, rows, faint)| (Some(id), rows, None, faint)).collect())}
+                                {group.heading.map(|(heading, class)| view! { <p class=class>{heading}</p> })}
+                                {event_list(group.lines.into_iter().map(ListLine::of).collect())}
+                                // The options of a long choice after its first, folded; a slot of
+                                // the week leads to none of them (`WEEK_OPTIONS`).
+                                {group.more.map(|(n, more)| view! {
+                                    <details class="evmore">
+                                        <summary>{(words.choice_more)(n)}</summary>
+                                        <div class="evlist">{event_list(more.into_iter().map(ListLine::of).collect())}</div>
+                                    </details>
+                                })}
                             }).collect_view()}
                         </div>
                     }
@@ -942,7 +1000,7 @@ fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
         {exam_semester.map(|(_, label)| view! {
             <div class="section" id="pruefungstermine">
                 <h3 class="label">{words.exam_dates}<span>{label}</span></h3>
-                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| (None, vec![d], reading, false)).collect())}</div>
+                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| ListLine { id: None, rows: vec![d], reading, faint: false, audience: None, gap: false }).collect())}</div>
                 {exam_line}
                 {exam_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             </div>
@@ -1154,13 +1212,26 @@ fn joined<'a>(values: impl Iterator<Item = Option<&'a str>>, by: &str) -> Option
 /// time is a single date.
 #[cfg(test)]
 fn own_slots(teaching: &[EventDate], t: &'static Texts) -> Vec<GridSlot> {
-    own_groups(teaching, t).into_iter().map(|(slot, ..)| slot).collect()
+    own_groups(teaching, t).into_iter().map(|own| own.slot).collect()
 }
 
-/// `own_slots`, each with the keys of the rows it stands for (`RowKey`): what the Studienplan
-/// names when one of them clashes with it; and the course its event is (`EventDate::track`). Each
-/// slot leads to the lines of the Termine list its rows stand on (`GridSlot::lines`, `termin_id`).
-fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>, Option<Campus>)> {
+/// A slot of the module's own (`own_groups`).
+#[derive(Clone, Debug, PartialEq)]
+struct Own {
+    slot: GridSlot,
+    /// The keys of the rows it stands for (`RowKey`): what the Studienplan names when one of them
+    /// clashes with it.
+    rows: Vec<RowKey>,
+    /// The course its event is (`EventDate::track`).
+    course: Option<Campus>,
+    /// The choice and the option its event is one of (`EventDate::choice`, `option`).
+    option: Option<(u32, u32)>,
+}
+
+/// `own_slots`, each with what `Own` knows of it. Each slot leads to the lines of the Termine list
+/// its rows stand on (`GridSlot::lines`, `termin_id`). An extra is dotted, „+" before its kind
+/// (app.css `.slot.extra`).
+fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<Own> {
     /// Once, the series, weekday, from, to, event, group.
     type Key<'a> = (bool, Option<Series>, u8, u16, u16, &'a str, Option<&'a str>);
     /// A slot's key, its first row, the days of its single dates, the keys of its rows, and the
@@ -1193,9 +1264,13 @@ fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<R
         .map(|((once, series, day, from, to, ..), date, dates, rows, on)| {
             // A date of a series alone at its time is the single date it is.
             let once = once || (series.is_some() && dates.len() == 1);
-            let slot = own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t);
+            let mut slot = own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t);
+            if date.extra {
+                slot = GridSlot { class: "extra", label: format!("+ {}", slot.label), title: format!("{} · {}", slot.title, t.module.choice_extras), ..slot };
+            }
             let course = date.track.as_ref().and_then(|track| track.known());
-            (GridSlot { lines: on.into_iter().map(termin_id).collect(), ..slot }, rows, course)
+            let option = date.choice.zip(date.option);
+            Own { slot: GridSlot { lines: on.into_iter().map(termin_id).collect(), ..slot }, rows, course, option }
         })
         .collect()
 }
@@ -1214,45 +1289,163 @@ fn course_view(courses: Option<Courses>, program: Option<String>) -> Memo<Course
     })
 }
 
+/// Which options of each choice the page shows (`OptionView`), in the order of the choices: for
+/// the program the page stands for and Mein Studiengang, as `course_view`; every option open on
+/// the server and without either.
+fn option_views(choices: Option<Choices>, program: Option<String>) -> Memo<Vec<OptionView>> {
+    let mine = MineResolved::expect();
+    let source = use_data().ok();
+    Memo::new(move |_| {
+        let Some(choices) = choices.as_ref() else { return Vec::new() };
+        let page = program.as_ref().and_then(|slug| source.as_ref()?.now(&ProgramsAsk {}).ok()?.into_iter().find(|p| p.slug == *slug));
+        let mine = mine.and_then(MineResolved::exact);
+        choices.list.iter().map(|choice| OptionView::of(choice, page.as_ref(), mine.as_ref())).collect()
+    })
+}
+
+/// Whether the line over the week speaks of `choice`: one in no course, or in a course the page
+/// shows as it is (every course, or one taken).
+fn course_shown(view: &CourseView, choice: &Choice) -> bool {
+    match (view.own(), choice.course) {
+        (Some(own), Some(course)) => own.contains(&course),
+        _ => true,
+    }
+}
+
+/// The line over the week of one choice (`options::note_text`), with „Auch zeigen" where Mein
+/// Studiengang's options stand alone.
+fn choice_note(choice: &Choice, view: &OptionView, teaching: &[EventDate], invite: bool, reveal: RwSignal<bool>, t: &'static Texts) -> AnyView {
+    let words = &t.module;
+    let text = options::note_text(choice, view, teaching, invite, t);
+    let toggle = matches!(view, OptionView::Mine { .. }).then(|| {
+        view! {
+            " "
+            <button type="button" class="courses-toggle" aria-pressed=move || if reveal.get() { "true" } else { "false" } on:click=move |_| reveal.update(|on| *on = !*on)>
+                {move || if reveal.get() { words.courses_hide } else { words.courses_show }}
+            </button>
+        }
+    });
+    view! { <p class="note choices"><Icon name="list-checks"/><span>{text}{toggle}</span></p> }.into_any()
+}
+
 /// The module's own slots as its courses are shown (`CourseView`): each course in its colour where
 /// all are shown; another course than the one taken left out on Mein Studiengang's page (until
-/// „Auch zeigen") and faint on another program's. A slot in no course stays as it is.
-fn shown_slots(own: &[(GridSlot, Vec<RowKey>, Option<Campus>)], courses: Option<&Courses>, view: &CourseView, reveal: bool) -> Vec<(GridSlot, Vec<RowKey>)> {
+/// „Auch zeigen") and faint on another program's. A slot in no course stays as it is. Then as the
+/// options of its choices are shown (`Sight`): an option taken as it is, one to choose dashed
+/// (`alt`) and faint where another program's or one QIS does not list the program at, with its
+/// group or whom it is for in its third line and its choice in its tooltip; another program's
+/// left out until „Auch zeigen", and the options of a choice of more than `WEEK_OPTIONS` too.
+fn shown_slots(own: &[Own], courses: Option<&Courses>, view: &CourseView, reveal: bool, sight: &Sight<'_>, dates: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>)> {
     own.iter()
-        .filter_map(|(slot, rows, course)| {
-            let course = course.filter(|course| courses.is_some_and(|courses| courses.campuses.contains(course)));
-            let (Some(courses), Some(course)) = (courses, course) else {
-                return Some((slot.clone(), rows.clone()));
+        .filter_map(|own| {
+            let slot = course_slot(own, courses, view, reveal)?;
+            let Some((_, choice, option, choice_view, state)) = own.option.and_then(|(choice, option)| sight.of(choice, option)) else {
+                return Some((slot, own.rows.clone()));
             };
-            match view {
-                CourseView::All { .. } => Some((GridSlot { mark: courses::mark(courses, course), ..slot.clone() }, rows.clone())),
-                _ if view.own().is_some_and(|own| own.contains(&course)) => Some((slot.clone(), rows.clone())),
-                CourseView::Mine { .. } if !reveal => None,
-                _ => Some((GridSlot { class: "faint", ..slot.clone() }, rows.clone())),
-            }
+            let many = choice.options.len() > WEEK_OPTIONS;
+            let slot = match state {
+                OptState::Taken => return Some((slot, own.rows.clone())),
+                OptState::Hidden => return None,
+                OptState::Open | OptState::Faint if many => return None,
+                OptState::Open => GridSlot { alt: true, ..slot },
+                OptState::Faint => GridSlot { class: "faint", ..slot },
+            };
+            let place = option.label.clone().or_else(|| options::audience(choice, option, t)).unwrap_or_default();
+            let title = format!("{} · {}", slot.title, options::view_heading(choice, choice_view, dates, t));
+            Some((GridSlot { place, title, ..slot }, own.rows.clone()))
         })
         .collect()
 }
 
-/// A line of a list of Termine: its id (what a slot of the week leads to), its rows, how an exam
-/// date reads (`exam_reading`), and whether it is faint (another course than the one taken).
-type ListLine = (Option<String>, Vec<EventDate>, Option<ExamReading>, bool);
+/// A slot as its course is shown (`shown_slots`); `None` where it is left out.
+fn course_slot(own: &Own, courses: Option<&Courses>, view: &CourseView, reveal: bool) -> Option<GridSlot> {
+    let course = own.course.filter(|course| courses.is_some_and(|courses| courses.campuses.contains(course)));
+    let (Some(courses), Some(course)) = (courses, course) else {
+        return Some(own.slot.clone());
+    };
+    match view {
+        CourseView::All { .. } => Some(GridSlot { mark: courses::mark(courses, course), ..own.slot.clone() }),
+        _ if view.own().is_some_and(|taken| taken.contains(&course)) => Some(own.slot.clone()),
+        CourseView::Mine { .. } if !reveal => None,
+        _ => Some(GridSlot { class: "faint", ..own.slot.clone() }),
+    }
+}
 
-/// A group of the Termine list: a course's heading with its mark (in its colour where every course
-/// is shown), and its lines, each with its id and whether it is faint.
+/// A line of a list of Termine: its id (what a slot of the week leads to), its rows, how an exam
+/// date reads (`exam_reading`), whether it is faint (another course than the one taken, an option
+/// of another program), whom QIS lists its option for, and whether it begins an option of several
+/// lines (a gap before it).
+struct ListLine {
+    id: Option<String>,
+    rows: Vec<EventDate>,
+    reading: Option<ExamReading>,
+    faint: bool,
+    audience: Option<String>,
+    gap: bool,
+}
+
+impl ListLine {
+    fn of(item: ListItem) -> ListLine {
+        ListLine { id: Some(item.id), rows: item.rows, reading: None, faint: item.faint, audience: item.audience, gap: item.gap }
+    }
+}
+
+/// A group of the Termine list: its heading with its class (a course's, `course-head` with its
+/// mark in its colour where every course is shown; a choice's or the extras', `choice-head`), its
+/// lines, and the lines of the options of a long choice after its first, folded, with how many
+/// options they are.
 #[derive(Clone, Debug, PartialEq)]
 struct ListGroup {
-    heading: Option<(String, Option<&'static str>)>,
-    lines: Vec<(String, Vec<EventDate>, bool)>,
+    heading: Option<(String, String)>,
+    lines: Vec<ListItem>,
+    more: Option<(usize, Vec<ListItem>)>,
+}
+
+/// A line of the Termine list: its id, its rows, and as `ListLine` says.
+#[derive(Clone, Debug, PartialEq)]
+struct ListItem {
+    id: String,
+    rows: Vec<EventDate>,
+    faint: bool,
+    audience: Option<String>,
+    gap: bool,
+}
+
+impl ListItem {
+    fn plain((id, rows, faint): (String, Vec<EventDate>, bool)) -> ListItem {
+        ListItem { id, rows, faint, audience: None, gap: false }
+    }
 }
 
 /// The lines of the Termine list as the courses are shown (`CourseView`): without courses one group
 /// of every line; with them one group per course, the courses taken first, then the others (faint
 /// on another program's page, left out on Mein Studiengang's until „Auch zeigen"), then the
-/// Termine in no course, each under its heading.
-fn list_groups(lines: &[(String, Vec<EventDate>, Option<Campus>)], courses: Option<&Courses>, view: &CourseView, reveal: bool, t: &'static Texts) -> Vec<ListGroup> {
+/// Termine in no course, each under its heading. Where some of a group's lines are options of a
+/// choice or extras, the group falls into parts under their headings (`role_groups`).
+fn list_groups(lines: &[(String, Vec<EventDate>, Option<Campus>)], courses: Option<&Courses>, view: &CourseView, reveal: bool, sight: &Sight<'_>, dates: &[EventDate], t: &'static Texts) -> Vec<ListGroup> {
+    let mut groups = Vec::new();
+    for (heading, held) in course_parts(lines, courses, view, reveal, t) {
+        match role_groups(&held, sight, dates, t) {
+            None => groups.push(ListGroup { heading, lines: held.into_iter().map(ListItem::plain).collect(), more: None }),
+            Some(parts) => {
+                if heading.is_some() {
+                    groups.push(ListGroup { heading, lines: Vec::new(), more: None });
+                }
+                groups.extend(parts);
+            }
+        }
+    }
+    groups
+}
+
+/// A group of lines as `list_groups` takes them: its heading with its class, and its lines, each
+/// with its id and whether it is faint.
+type CoursePart = (Option<(String, String)>, Vec<(String, Vec<EventDate>, bool)>);
+
+/// The lines per course (`list_groups`).
+fn course_parts(lines: &[(String, Vec<EventDate>, Option<Campus>)], courses: Option<&Courses>, view: &CourseView, reveal: bool, t: &'static Texts) -> Vec<CoursePart> {
     let Some(courses) = courses else {
-        return vec![ListGroup { heading: None, lines: lines.iter().map(|(id, rows, _)| (id.clone(), rows.clone(), false)).collect() }];
+        return vec![(None, lines.iter().map(|(id, rows, _)| (id.clone(), rows.clone(), false)).collect())];
     };
     let own = view.own();
     let mut order: Vec<Campus> = courses.campuses.clone();
@@ -1268,14 +1461,111 @@ fn list_groups(lines: &[(String, Vec<EventDate>, Option<Campus>)], courses: Opti
             continue;
         }
         let mark = matches!(view, CourseView::All { .. }).then(|| courses::mark(courses, campus)).flatten();
-        groups.push(ListGroup { heading: Some((course_heading(courses, campus, t), mark)), lines: held });
+        groups.push((Some((course_heading(courses, campus, t), format!("course-head {}", mark.unwrap_or_default()).trim_end().to_string())), held));
     }
     let shared: Vec<(String, Vec<EventDate>, bool)> =
         lines.iter().filter(|(_, _, course)| course.is_none_or(|course| !courses.campuses.contains(&course))).map(|(id, rows, _)| (id.clone(), rows.clone(), false)).collect();
     if !shared.is_empty() {
-        groups.push(ListGroup { heading: Some((t.module.courses_shared.to_string(), None)), lines: shared });
+        groups.push((Some((t.module.courses_shared.to_string(), "course-head".to_string())), shared));
     }
     groups
+}
+
+/// The parts of a group of lines where some are options of a choice or extras (`None` where none
+/// is): „Pflicht", what everyone attends and the options taken; per choice its options to choose
+/// among under its heading („Eine der 3 Übungen"), by their first time, those without one and the
+/// fainter ones last, a long choice's after its first folded away (`FOLD_OPTIONS`); the options of
+/// other programs („Für andere Studiengänge", faint); the extras („Zusätzlich, freiwillig").
+fn role_groups(held: &[(String, Vec<EventDate>, bool)], sight: &Sight<'_>, dates: &[EventDate], t: &'static Texts) -> Option<Vec<ListGroup>> {
+    /// A choice's options in the list: its place among the choices, the choice, its view, and per
+    /// option its number, whether it is fainter, and its lines.
+    type Offered<'a> = (usize, &'a Choice, &'a OptionView, Vec<(u32, bool, Vec<ListItem>)>);
+    let option_of = |rows: &[EventDate]| rows.first().and_then(|row| row.choice.zip(row.option)).and_then(|(choice, option)| sight.of(choice, option));
+    let extra = |rows: &[EventDate]| rows.first().is_some_and(|row| row.extra);
+    if held.iter().all(|(_, rows, _)| !extra(rows) && option_of(rows).is_none()) {
+        return None;
+    }
+    let (mut must, mut extras, mut others) = (Vec::new(), Vec::new(), Vec::new());
+    let mut offered: Vec<Offered<'_>> = Vec::new();
+    for (id, rows, faint) in held {
+        let item = |audience: Option<String>, fainter: bool| ListItem { id: id.clone(), rows: rows.clone(), faint: *faint || fainter, audience, gap: false };
+        if extra(rows) {
+            extras.push(item(None, false));
+            continue;
+        }
+        let Some((at, choice, option, view, state)) = option_of(rows) else {
+            must.push(item(None, false));
+            continue;
+        };
+        let audience = options::audience(choice, option, t);
+        match state {
+            OptState::Hidden => {}
+            OptState::Taken => must.push(item(audience, false)),
+            OptState::Faint if !matches!(view, OptionView::Named { .. }) => others.push(item(audience, true)),
+            OptState::Open | OptState::Faint => {
+                let fainter = state == OptState::Faint;
+                let index = match offered.iter().position(|(known, ..)| *known == at) {
+                    Some(index) => index,
+                    None => {
+                        offered.push((at, choice, view, Vec::new()));
+                        offered.len() - 1
+                    }
+                };
+                let Some((.., opts)) = offered.get_mut(index) else { continue };
+                match opts.iter_mut().find(|(number, ..)| *number == option.number) {
+                    Some((.., items)) => {
+                        items.push(item(audience, fainter));
+                        // The lines of an option in the order of the week (Kontrapunkt at 10:30,
+                        // then Gehörbildung at 12:00), those without a time last.
+                        items.sort_by_key(|item| {
+                            let first = item.rows.first();
+                            let at = first.and_then(|row| row.weekday.zip(row.start_time.clone()));
+                            (at.is_none(), at)
+                        });
+                    }
+                    None => opts.push((option.number, fainter, vec![item(audience, fainter)])),
+                }
+            }
+        }
+    }
+    let parts = !offered.is_empty() || !others.is_empty() || !extras.is_empty();
+    let mut groups = Vec::new();
+    if !must.is_empty() {
+        groups.push(ListGroup { heading: parts.then(|| (t.module.choice_must.to_string(), "choice-head".to_string())), lines: must, more: None });
+    }
+    offered.sort_by_key(|(at, ..)| *at);
+    for (_, choice, view, mut opts) in offered {
+        let start = |number: u32| choice.options.iter().find(|option| option.number == number).and_then(|option| options::option_start(option, dates));
+        opts.sort_by_key(|(number, fainter, _)| (*fainter, start(*number).is_none(), start(*number), *number));
+        // A gap before each option of a choice where an option has several lines.
+        let gaps = opts.iter().any(|(.., items)| items.len() > 1);
+        let flat = |opts: Vec<(u32, bool, Vec<ListItem>)>| -> Vec<ListItem> {
+            opts.into_iter()
+                .enumerate()
+                .flat_map(|(n, (.., items))| items.into_iter().enumerate().map(move |(i, item)| ListItem { gap: gaps && n > 0 && i == 0, ..item }))
+                .collect()
+        };
+        let (shown, more) = match opts.len() > FOLD_OPTIONS {
+            true => {
+                let more = opts.split_off(LISTED_OPTIONS);
+                (opts, more)
+            }
+            false => (opts, Vec::new()),
+        };
+        let folded = more.len();
+        groups.push(ListGroup {
+            heading: Some((options::view_heading(choice, view, dates, t), "choice-head".to_string())),
+            lines: flat(shown),
+            more: (folded > 0).then(|| (folded, flat(more))),
+        });
+    }
+    if !others.is_empty() {
+        groups.push(ListGroup { heading: Some((t.module.choice_others.to_string(), "choice-head".to_string())), lines: others, more: None });
+    }
+    if !extras.is_empty() {
+        groups.push(ListGroup { heading: Some((t.module.choice_extras.to_string(), "choice-head extra".to_string())), lines: extras, more: None });
+    }
+    Some(groups)
 }
 
 /// The line over the week of a module with courses: where it is offered and which Termine the page
@@ -1667,6 +1957,9 @@ mod tests {
             room_short: None,
             series: None,
             track: None,
+            choice: None,
+            option: None,
+            extra: false,
         }
     }
 
@@ -1685,8 +1978,8 @@ mod tests {
     }
 
     /// `own_groups` without the courses, as `with_overlay` takes them.
-    fn pairs(own: Vec<(GridSlot, Vec<RowKey>, Option<Campus>)>) -> Vec<(GridSlot, Vec<RowKey>)> {
-        own.into_iter().map(|(slot, rows, _)| (slot, rows)).collect()
+    fn pairs(own: Vec<Own>) -> Vec<(GridSlot, Vec<RowKey>)> {
+        own.into_iter().map(|own| (own.slot, own.rows)).collect()
     }
 
     /// The Programmierpraktikum of 2026W, held at the Zentralcampus and in Sachsendorf (owner,
@@ -1727,7 +2020,7 @@ mod tests {
         // The week: every course in its colour; Mein Studiengang's alone, the others faint once
         // asked for; another program's highlighted, the others faint. The tutorial is in no course.
         let looks = |view: &CourseView, reveal: bool| -> Vec<(String, &'static str, Option<&'static str>)> {
-            shown_slots(&own, Some(&courses), view, reveal).into_iter().map(|(slot, _)| (slot.lines.join(" "), slot.class, slot.mark)).collect()
+            shown_slots(&own, Some(&courses), view, reveal, &Sight::none(), &rows, &DE).into_iter().map(|(slot, _)| (slot.lines.join(" "), slot.class, slot.mark)).collect()
         };
         assert_eq!(
             looks(&all, false),
@@ -1746,7 +2039,10 @@ mod tests {
         // The list: a heading per course, the courses taken first, the Termine in no course last.
         type Group = (Option<String>, Vec<(String, bool)>);
         let groups = |view: &CourseView, reveal: bool| -> Vec<Group> {
-            list_groups(&lines, Some(&courses), view, reveal, &DE).into_iter().map(|group| (group.heading.map(|(heading, _)| heading), group.lines.into_iter().map(|(id, _, faint)| (id, faint)).collect())).collect()
+            list_groups(&lines, Some(&courses), view, reveal, &Sight::none(), &rows, &DE)
+                .into_iter()
+                .map(|group| (group.heading.map(|(heading, _)| heading), group.lines.into_iter().map(|item| (item.id, item.faint)).collect()))
+                .collect()
         };
         let line = |id: &str, faint: bool| (id.to_string(), faint);
         let (zentral, sachsendorf, shared) = (
@@ -1765,9 +2061,133 @@ mod tests {
         assert_eq!(groups(&mine, false), [(sachsendorf.clone(), vec![line("termin-3", false), line("termin-4", false)]), (shared.clone(), vec![line("termin-5", false)])]);
         assert_eq!(groups(&mine, true)[1], (zentral.clone(), vec![line("termin-1", true), line("termin-2", true)]));
         assert_eq!(groups(&other, false)[1], (sachsendorf, vec![line("termin-3", true), line("termin-4", true)]));
-        assert_eq!(list_groups(&lines, Some(&courses), &all, false, &DE)[0].heading.as_ref().and_then(|(_, mark)| *mark), Some("course-1"));
+        assert_eq!(list_groups(&lines, Some(&courses), &all, false, &Sight::none(), &rows, &DE)[0].heading.as_ref().map(|(_, class)| class.as_str()), Some("course-head course-1"));
         // Without courses, one group of every line, as before.
-        assert_eq!(list_groups(&lines, None, &all, false, &DE).len(), 1);
+        assert_eq!(list_groups(&lines, None, &all, false, &Sight::none(), &rows, &DE).len(), 1);
+    }
+
+    /// The choices among a module's events and its extras (owner, 2026-10-19; Höhere Mathematik T3
+    /// at the Zentralcampus): three exercises, each for other programs, an Aufbaukurs beside them;
+    /// and a catalogue of seven projects, which the week leaves to the list.
+    #[test]
+    fn the_choices_among_a_module_s_events() {
+        use folia_model::labels::Code;
+        use folia_model::rows_detail::{ChoiceFamily, ChoiceOption};
+        let of = |date: EventDate, option: u32| EventDate { choice: Some(1), option: Some(option), event_title: "Höhere Mathematik - T3".into(), ..date };
+        let rows = vec![
+            EventDate { event_title: "Höhere Mathematik - T3".into(), ..teaching("148060", "Vorlesung", "[unbenannt]", 1, ("15:30", "17:00"), "weekly", "2026-10-05", "2027-01-25") },
+            EventDate { extra: true, event_title: "Aufbaukurs Höhere Mathematik - T3".into(), ..teaching("150190", "Übung", "[unbenannt]", 1, ("09:15", "10:45"), "weekly", "2026-10-05", "2027-01-25") },
+            of(teaching("148245", "Übung", "[unbenannt]", 4, ("11:30", "13:00"), "weekly", "2026-10-08", "2027-01-28"), 1),
+            of(teaching("148246", "Übung", "[unbenannt]", 2, ("07:30", "09:00"), "weekly", "2026-10-06", "2027-01-26"), 2),
+            of(teaching("148932", "Übung", "[unbenannt]", 3, ("13:45", "15:15"), "weekly", "2026-10-07", "2027-01-27"), 3),
+        ];
+        let option = |option: u32, event: &str| ChoiceOption {
+            module_id: "11206".into(),
+            semester_key: "2026W".into(),
+            choice: 1,
+            course: None,
+            kind: Code::parse("program"),
+            basis: Code::parse("form"),
+            sws: Some(2.0),
+            pick: 1,
+            option,
+            event_id: event.into(),
+            label: None,
+            event_sws: Some(2.0),
+        };
+        let family = |option: u32, family: &str, name: &str| ChoiceFamily {
+            module_id: "11206".into(),
+            semester_key: "2026W".into(),
+            choice: 1,
+            option,
+            family_key: family.into(),
+            program_name: name.into(),
+            is_latest_po: true,
+        };
+        let choices = Choices::of(
+            &[option(1, "148245"), option(2, "148246"), option(3, "148932")],
+            &[family(1, "048-82", "Elektrotechnik"), family(2, "017-82", "Bauingenieurwesen"), family(3, "104-82", "Maschinenbau")],
+            "2026W",
+        )
+        .unwrap();
+        let open = [OptionView::Open { about: None }];
+        let mine = [OptionView::Mine { program: "Bauingenieurwesen · B.Sc.".into(), own: BTreeSet::from([2]) }];
+        fn seen<'a>(choices: &'a Choices, views: &'a [OptionView], reveal: bool) -> Sight<'a> {
+            Sight { choices: Some(choices), views, reveal }
+        }
+        let all = CourseView::All { about: None };
+        let own = own_groups(&rows, &DE);
+        let looks = |sight: &Sight<'_>| -> Vec<(String, &'static str, bool, String)> {
+            shown_slots(&own, None, &all, false, sight, &rows, &DE).into_iter().map(|(slot, _)| (slot.label, slot.class, slot.alt, slot.place)).collect()
+        };
+
+        // The week: the lecture as before, the Aufbaukurs dotted with its „+", the exercises dashed,
+        // each with whom QIS lists it for; Mein Studiengang's exercise drawn as taken, the others
+        // left out until „Auch zeigen" and faint then.
+        let look = |label: &str, class: &'static str, alt: bool, place: &str| (label.to_string(), class, alt, place.to_string());
+        assert_eq!(
+            looks(&seen(&choices, &open, false)),
+            [
+                look("VL", "", false, ""),
+                look("+ Ü", "extra", false, ""),
+                look("Ü", "other", true, "für Elektrotechnik"),
+                look("Ü", "other", true, "für Bauingenieurwesen"),
+                look("Ü", "other", true, "für Maschinenbau"),
+            ]
+        );
+        assert_eq!(looks(&seen(&choices, &mine, false)), [look("VL", "", false, ""), look("+ Ü", "extra", false, ""), look("Ü", "other", false, "")]);
+        assert_eq!(looks(&seen(&choices, &mine, true)).iter().filter(|(_, class, ..)| *class == "faint").count(), 2);
+        let title = &shown_slots(&own, None, &all, false, &seen(&choices, &open, false), &rows, &DE)[3].0.title;
+        assert!(title.ends_with(" · Eine der 3 Übungen"), "{title}");
+
+        // The list: „Pflicht", the choice under its heading by the time of its options, the
+        // extras; Mein Studiengang's exercise among what everyone attends, the others under
+        // „Für andere Studiengänge" once asked for.
+        let lines: Vec<(String, Vec<EventDate>, Option<Campus>)> =
+            termine(&rows).into_iter().enumerate().map(|(n, rows)| (termin_id(n), rows.iter().map(|row| (*row).clone()).collect(), None)).collect();
+        type Shown = (Option<String>, Vec<(String, bool, Option<String>)>);
+        let groups = |sight: &Sight<'_>| -> Vec<Shown> {
+            list_groups(&lines, None, &all, false, sight, &rows, &DE)
+                .into_iter()
+                .map(|group| (group.heading.map(|(heading, _)| heading), group.lines.into_iter().map(|item| (item.id, item.faint, item.audience)).collect()))
+                .collect()
+        };
+        let line = |id: &str, faint: bool, audience: Option<&str>| (id.to_string(), faint, audience.map(str::to_string));
+        assert_eq!(
+            groups(&seen(&choices, &open, false)),
+            [
+                (Some("Pflicht".to_string()), vec![line("termin-1", false, None)]),
+                (
+                    Some("Eine der 3 Übungen".to_string()),
+                    vec![line("termin-4", false, Some("für Bauingenieurwesen")), line("termin-5", false, Some("für Maschinenbau")), line("termin-3", false, Some("für Elektrotechnik"))]
+                ),
+                (Some("Zusätzlich, freiwillig".to_string()), vec![line("termin-2", false, None)]),
+            ]
+        );
+        assert_eq!(groups(&seen(&choices, &mine, false))[0], (Some("Pflicht".to_string()), vec![line("termin-1", false, None), line("termin-4", false, Some("für Bauingenieurwesen"))]));
+        assert_eq!(groups(&seen(&choices, &mine, false)).len(), 2);
+        assert_eq!(groups(&seen(&choices, &mine, true))[1], (Some("Für andere Studiengänge".to_string()), vec![line("termin-3", true, Some("für Elektrotechnik")), line("termin-5", true, Some("für Maschinenbau"))]));
+        // Without choices and extras the list is as before: one group of every line.
+        let plain: Vec<EventDate> = rows.iter().map(|row| EventDate { choice: None, option: None, extra: false, ..row.clone() }).collect();
+        let plain_lines: Vec<(String, Vec<EventDate>, Option<Campus>)> =
+            termine(&plain).into_iter().enumerate().map(|(n, rows)| (termin_id(n), rows.iter().map(|row| (*row).clone()).collect(), None)).collect();
+        let groups = list_groups(&plain_lines, None, &all, false, &seen(&choices, &open, false), &plain, &DE);
+        assert_eq!((groups.len(), groups[0].heading.clone(), groups[0].lines.len()), (1, None, 5));
+
+        // A catalogue of seven projects: none in the week, five in the list, two folded away.
+        let projects: Vec<EventDate> = (1..=7_u32)
+            .map(|n| EventDate { choice: Some(1), option: Some(n), ..teaching(&format!("p{n}"), "Projekt", "[unbenannt]", i64::from(n % 5) + 1, ("11:00", "12:30"), "weekly", "2026-10-05", "2027-01-25") })
+            .collect();
+        let topic = |n: u32| ChoiceOption { kind: Code::parse("topic"), basis: Code::parse("module"), sws: Some(4.0), event_sws: Some(4.0), ..option(n, &format!("p{n}")) };
+        let catalogue = Choices::of(&(1..=7).map(topic).collect::<Vec<_>>(), &[], "2026W").unwrap();
+        let sight = seen(&catalogue, &open, false);
+        assert!(shown_slots(&own_groups(&projects, &DE), None, &all, false, &sight, &projects, &DE).is_empty());
+        let lines: Vec<(String, Vec<EventDate>, Option<Campus>)> =
+            termine(&projects).into_iter().enumerate().map(|(n, rows)| (termin_id(n), rows.iter().map(|row| (*row).clone()).collect(), None)).collect();
+        let groups = list_groups(&lines, None, &all, false, &sight, &projects, &DE);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].heading.as_ref().map(|(heading, _)| heading.as_str()), Some("Eines der 7 Projekte"));
+        assert_eq!((groups[0].lines.len(), groups[0].more.as_ref().map(|(n, more)| (*n, more.len()))), (5, Some((2, 2))));
     }
 
     /// A series of single dates is one Termin on the page (owner, 2026-10-13: „sehr
@@ -2229,6 +2649,8 @@ mod tests {
             schedule,
             exams,
             tracks: Vec::new(),
+            choices: Vec::new(),
+            choice_families: Vec::new(),
             programs: vec![informatik],
             plan_places: vec![folia_model::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
             semesters: vec![semester("2026S", "SoSe 2026", "2026-04-01", "2026-09-30"), semester("2026W", "WiSe 2026/27", "2026-10-01", "2027-03-31")],
