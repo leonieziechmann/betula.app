@@ -88,16 +88,20 @@ const film = (page) => page.evaluate(() => { window.__frames = []; window.__film
 const cut = (page) => page.evaluate(() => { window.__filming = false; return window.__frames; });
 const atRest = (page) => page.waitForFunction(() => !document.querySelector("#content > .page-stage.moving"), null, { timeout: 3000 }).then(() => true, () => false);
 const rest = (page) => page.evaluate(() => ({ moving: document.querySelectorAll("#content > .page-stage.moving").length, room: document.getElementById("content").style.minHeight, cls: document.documentElement.classList.contains("stages-moving"), y: Math.round(scrollY), front: document.querySelector("#content > .page-stage.front")?.dataset.stage }));
-// The largest change of a stage's pose from one frame to the next; sideways only where it can be
-// seen (a page not yet come or gone already goes to the side of its tab unseen).
+// A jump: a stage's pose changing from one frame to the next further than its springs move it in
+// the time between them (the pages move on the compositor; a frame of the page's thread late shows
+// them that much further on), and further than a frame's worth at least: 900 px and 25 times its
+// clearness a second, 12 px and a third of its clearness a frame. Sideways only where it can be seen
+// (a page not yet come or gone already goes to the side of its tab unseen).
 const jumps = (frames) => {
   let x = 0, o = 0;
   for (let i = 1; i < frames.length; i++) {
+    const dt = Math.max(1 / 60, (frames[i].t - frames[i - 1].t) / 1000);
     for (const [name, pose] of Object.entries(frames[i].moving)) {
       const was = frames[i - 1].moving[name];
       if (!was) continue;
-      if (Math.max(pose.o, was.o) > 0.02) x = Math.max(x, Math.abs(pose.x - was.x));
-      o = Math.max(o, Math.abs(pose.o - was.o));
+      if (Math.max(pose.o, was.o) > 0.02) x = Math.max(x, Math.abs(pose.x - was.x) - Math.max(12, 900 * dt) + 12);
+      o = Math.max(o, Math.abs(pose.o - was.o) - Math.max(0.35, 25 * dt) + 0.35);
     }
   }
   return { x, o };
@@ -108,10 +112,10 @@ const lasted = (frames) => {
   const moving = frames.filter((f) => Object.keys(f.moving).length);
   return moving.length ? Math.round(moving[moving.length - 1].t - moving[0].t) : 0;
 };
-// Every frame smooth: a page moves at most 12 px and 0.35 of its clearness from one frame to the next.
+// Every frame smooth: no jump (`jumps`).
 const smooth = (frames) => {
   const j = jumps(frames);
-  check(j.x <= 12 && j.o <= 0.35, `${during}: a jump between two frames (${j.x.toFixed(1)} px, ${j.o.toFixed(2)})`);
+  check(j.x <= 12 && j.o <= 0.35, `${during}: a jump between two frames (${j.x.toFixed(1)} px, ${j.o.toFixed(2)} beyond what the springs move)`);
 };
 
 // ---- a phone ----
