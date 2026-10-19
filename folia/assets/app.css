@@ -493,8 +493,11 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
     --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
     height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)) -1px 0; padding: 1px var(--pad-r) 1px 0;
-    overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; scroll-timeline: --page block;
+    overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
   }
+  /* The page in front alone names the timeline the wood rises on: a name two pages give is no
+     timeline at all, and every tab's page stays built behind it (folia/crates/shell/src/stage.rs). */
+  #content > .page-stage.front > .work.flowing { scroll-timeline: --page block; }
   /* A page without a frame (ui::Plain, the start page) takes the whole width. */
   .work.flowing.solo { grid-template-columns: minmax(0, 1fr); }
   /* A list's box keeps its round corners at the top: the area lets the page behind them show. A
