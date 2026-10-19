@@ -87,8 +87,10 @@
 /// 15): on its page Mein Studiengang's course alone with „Auch zeigen", another program's
 /// highlighted and the others faint, without either every course in its colour; in the Stundenplan
 /// the course the plan's program takes; 1.29.1 with schema 16, the tooltip of a course the
-/// program's campus decides naming QIS before the compulsory modules. The version of the app's
-/// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// program's campus decides naming QIS before the compulsory modules; 1.29.2 with a change of tab on
+/// a phone starting at once, never empty, and seen when swiped (design/tabwechsel/konzept.html,
+/// „Schnell hintereinander"). The version of the app's crates, the same as the server's; Radix's is
+/// in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
