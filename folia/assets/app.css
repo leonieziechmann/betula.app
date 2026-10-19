@@ -3562,6 +3562,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .rows.scroll:not(.virtual) > .plan-note { margin-bottom: 2px; }
   .app .keys { display: none; }
   .sem { top: var(--bar); background: var(--bg); padding: 12px 4px 4px; }
+  /* „Ähnliche Module" are cards as the list's, as far apart: its own block, the gap of the list's
+     grid (or the virtual list's rows) does not reach into it. */
+  .similar { display: grid; gap: 8px; }
   .rows .row-wrap { contain-intrinsic-size: auto 84px; }
   .row { grid-template-columns: minmax(0, 1fr) auto; min-height: 72px; padding: 12px 52px 12px 18px; background: var(--panel); box-shadow: var(--shadow-panel); border-radius: var(--r-panel); }
   .row .t b { font-size: 15.5px; }
