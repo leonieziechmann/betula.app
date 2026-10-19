@@ -57,9 +57,9 @@ for (const hint of ["F", "Esc"]) {
 // The number at the head of a module, and beside it its abbreviation (owner, 2026-10-19), here
 // the one of the program the list is filtered by: a chip each, the second named „Kürzel" for
 // screen readers.
-const ids = (where) => page.evaluate((where) => [...allOnPage(`${where} .hero-top .ids > .mono`)].map((chip) => chip.lastChild?.textContent ?? ""), where);
-const named = (chips) => chips.length === 2 && /^\d{5}$/.test(chips[0]) && /^\S{2,10}$/.test(chips[1]);
-if (!named(await ids(".detail"))) problems.push(`the preview's head names no number and abbreviation: ${JSON.stringify(await ids(".detail"))}`);
+const headChips = (where) => page.evaluate((where) => [...allOnPage(`${where} .hero-top .ids > .mono`)].map((chip) => chip.lastChild?.textContent ?? ""), where);
+const numberAndAbbrev = (chips) => chips.length === 2 && /^\d{5}$/.test(chips[0]) && /^\S{2,10}$/.test(chips[1]);
+if (!numberAndAbbrev(await headChips(".detail"))) problems.push(`the preview's head names no number and abbreviation: ${JSON.stringify(await headChips(".detail"))}`);
 
 // Drag the left edge 150 px to the left: wider, remembered in localStorage, not in the URL.
 const startWidth = await previewWidth();
@@ -83,7 +83,7 @@ await step("open preview again", () => page.click("a.row >> visible=true >> nth=
 if ((await previewWidth()) !== dragged) problems.push(`the preview forgot its width: ${await previewWidth()}px instead of ${dragged}px`);
 await step("F opens the full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && onPage(".module-page"));
 if (!(await page.evaluate(() => [...allOnPage(".module-page .hero-top kbd")].some((k) => k.textContent === "Esc")))) problems.push("the module page does not show the shortcut Esc");
-if (!named(await ids(".module-page"))) problems.push(`the module page's head names no number and abbreviation: ${JSON.stringify(await ids(".module-page"))}`);
+if (!numberAndAbbrev(await headChips(".module-page"))) problems.push(`the module page's head names no number and abbreviation: ${JSON.stringify(await headChips(".module-page"))}`);
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/catalog" && location.search.includes("open=") && onPage(".rows"));
 // Back through the history, where the list was the step before: the address goes first, the page a
 // frame later (folia/crates/shell/src/pending.rs, `back_to`; `main` is busy until then), and the
