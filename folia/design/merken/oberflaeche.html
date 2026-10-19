@@ -10,14 +10,27 @@
      wie Gruppen"; „zwei Gruppen gleichen Namens soll nicht erlaubt sein … Leere Gruppen sind aber gut";
      „Also 256 Module sind auch genug. Dann gibt es einfach ein Limit, und man bekommt ne Meldung"; „Dem
      rest würde ich ein OK geben und bitte erarbeite jetzt UI/UX patterns"). Six rules against dumping, a
-     prototype on a phone and a desktop (the note after „Merken" in its two candidate forms, the one menu
-     for a mark's groups and note, the list with groups, search and selection, a module), and the patterns
-     one by one. Built from Betula's parts as Folia 1.31.0 has them, read again in 1.32.1: the catalog's row
-     (folia_widgets::list; the note under it as wide as the row, as the line of a search since 1.32.1, and
-     the groups never counted as „3 Gruppen", which the row says of an exercise's groups since 1.32.0),
-     the selection and menus of „Mein Studium" (planner/src/study/focus.rs, menu.rs), the note of
-     „Einplanen" (widgets/src/plannote.rs, design/src/waitnote.rs). Tokens are Betula's (folia/assets/app.css);
-     the modules are the catalog's of 2026-10-19, the groups and notes examples. -->
+     prototype on a phone and a desktop (the note after „Merken", the one menu for a mark's collections
+     and note, the list with collections, search, order and selection, a module), and the patterns one by
+     one. Second version, the same day, after the owner's answers („Also ich finde die option mit dem Feld
+     auch mit abstand am besten … Man sollte in dem Modal was da kommt einstellen können, dass das der
+     default ist. Wenn man bei dem Modal auf fertig klickt, dann ist der Prozess done und die Notification
+     kann auch weg (Gilt nur fürs handy) … mach einfach gleich den Fokus in das Suchfeld … der Fertig
+     button oben rechts weg und unten in die Mitte mit voller Breite. Wenn man das fenster so zu macht,
+     dann werden die changes nicht gespeichert. Beim Textfeld muss das natürlich hochgeschoben werden für
+     die Tastatur … die Sortierung bei der PC version etwas komisch"; „Mach mal notizen mit md support";
+     „hier reichen ein paar, die wirklich relevant sind"; „finde eine bessere formulierung für den Katalog
+     und die Merkliste, so dass betulas Gruppen mechanic nicht mit der von der uni verwechselt wird"):
+     Betula's groups are „Sammlungen", a default for new marks in the menu instead of the note's second
+     row, no digits in the menu and its field focused, on a phone a sheet that is a draft until „Fertig"
+     at its foot (which ends the note too) and goes as every sheet goes with the screen's keyboard, notes
+     in Markdown, the order at the columns' heads, four more filters. Built from Betula's parts as Folia
+     1.31.0 has them, read again in 1.32.1 and 1.33.2: the catalog's row (folia_widgets::list; the note
+     under it as wide as the row, as the line of a search since 1.32.1), the columns' heads of the catalog
+     (catalog/src/catalog.rs), the selection and menus of „Mein Studium" (planner/src/study/focus.rs,
+     menu.rs), the note of „Einplanen" (widgets/src/plannote.rs, design/src/waitnote.rs), the screen's
+     keyboard (design/src/keyboard.rs). Tokens are Betula's (folia/assets/app.css); the modules are the
+     catalog's of 2026-10-19, the collections and notes examples. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -48,6 +61,7 @@
   --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
   --shade: rgba(10, 12, 17, .5);
   --r-panel: 9px; --r-ctl: 9px; --r-row: 7px;
+  --kb-bg: #d2d5dc; --kb-key: #ffffff; --kb-key-2: #aeb4be;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -70,6 +84,7 @@
     --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
     --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
     --shade: rgba(0, 0, 0, .6);
+    --kb-bg: #26282e; --kb-key: #4b4e56; --kb-key-2: #34363c;
   }
 }
 :root[data-theme="dark"] {
@@ -92,6 +107,7 @@
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
   --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
   --shade: rgba(0, 0, 0, .6);
+  --kb-bg: #26282e; --kb-key: #4b4e56; --kb-key-2: #34363c;
 }
 
 * { box-sizing: border-box; }
@@ -206,6 +222,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-2); padding: 2px 6px; border
 .mocks { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 18px; min-width: 0; }
 .mocks .dev { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .mocks .dev.phone { flex: 0 1 360px; }
+/* A note keeps its one line: where the page is narrower than the device it shows, the figure scrolls. */
+.mocks .dev { overflow-x: auto; padding-bottom: 2px; }
+.mocks .dev > .mk-note { flex: none; min-width: max-content; }
+.mocks .dev.phone > .mk-note { min-width: 340px; }
 
 /* Tables. */
 .tablewrap { margin-top: 16px; overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
@@ -229,6 +249,9 @@ td .bad { color: var(--no); font-weight: 650; }
 .ask p { margin-top: 6px; color: var(--text-2); font-size: 14px; max-width: 92ch; text-wrap: pretty; }
 .ask .rec { display: flex; gap: 10px; align-items: baseline; margin-top: 8px; padding: 9px 12px; border-radius: 9px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text); font-size: 14px; text-wrap: pretty; }
 .ask .rec::before { content: "Empfehlung"; flex: none; color: var(--accent-ink); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.ask.done .rec::before { content: "Entschieden"; }
+.ask .said { font-style: italic; }
+.ask .said::before { content: "Du: "; font-style: normal; font-weight: 650; color: var(--text-3); }
 .src { margin-top: 18px; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
 
 /* ======== the mock kit: Betula's parts, in its tokens and sizes ======== */
@@ -253,6 +276,14 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-count-label i { font-style: normal; color: var(--text-3); font-weight: 450; }
 .mk-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
 .mk-keys { display: flex; gap: 6px; align-items: center; color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+.mk-sort { display: inline-flex; align-items: center; gap: 3px; min-height: 30px; padding: 0; border-radius: 4px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; white-space: nowrap; }
+.mk-sort:hover { color: var(--text); }
+.mk-sort.on { color: var(--text-2); font-weight: 760; }
+.mk-sort .arr { letter-spacing: 0; font-size: 11.5px; }
+.mk-sort.r { justify-self: end; }
+/* „Gemerkt" stands over the bookmarks and reaches left into the room the head of „Termine" leaves. */
+.mk-cols-end { display: flex; justify-content: flex-end; min-width: 0; }
+.mk-cols-end .mk-sort { flex: none; }
 .mk-select { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px 0 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
 .mk-select .ic { width: 14px; height: 14px; color: var(--text-3); }
 .mk-ftags { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 0 8px; }
@@ -290,7 +321,8 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-glyph.passed::before { content: ""; width: 5px; height: 2.5px; margin-top: -1.5px; border-left: 1.5px solid var(--panel); border-bottom: 1.5px solid var(--panel); transform: rotate(-45deg); }
 .mk-noteline { display: flex; align-items: baseline; gap: 5px; margin-top: 3px; font-size: 12px; color: var(--text-2); min-width: 0; }
 .mk-noteline .ic { width: 11px; height: 11px; color: var(--text-3); transform: translateY(1px); }
-.mk-noteline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mk-noteline > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mk-noteline .md b { font-weight: 650; color: var(--text); }
 /* On a desktop the note is a row of the row's grid, as wide as the row beside the bookmark, as the
    line of a search since Folia 1.32.1 (owner, 2026-10-19: „über die ganze Länge"); on a phone it
    stands under the title, the credits centred beside both. */
@@ -448,7 +480,24 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-swchev { display: grid; place-items: center; width: 42px; flex: none; border-radius: 0 10px 10px 0; background: var(--invert); color: var(--on-invert); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 22%, transparent); }
 .mk-swchev:hover { background: color-mix(in srgb, var(--invert) 86%, var(--on-invert)); }
 .mk-modnote { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 9px 11px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--text); text-wrap: pretty; }
-.mk-modnote .ic { width: 14px; height: 14px; margin-top: 2px; color: var(--text-3); }
+.mk-modnote .ic { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--text-3); }
+.mk-modnote { cursor: pointer; }
+/* A note's Markdown, drawn (owner, 2026-10-19: „Mach mal notizen mit md support"). */
+.md b { font-weight: 650; }
+.md code { padding: 0 4px; border-radius: 4px; background: var(--panel-3); font: 500 .9em var(--mono); }
+.md a, .md .md-a { color: var(--accent-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.mk-modnote .md { flex: 1; min-width: 0; }
+.mk-modnote .md :is(p, ul, ol, blockquote) { margin: 0; }
+.mk-modnote .md > * + * { margin-top: 4px; }
+.mk-modnote .md :is(ul, ol) { padding-left: 18px; }
+.mk-modnote .md ul { list-style: disc; }
+.mk-modnote .md ol { list-style: decimal; }
+.mk-modnote .md li::marker { color: var(--text-3); }
+.mk-modnote .md li + li { margin-top: 1px; }
+.mk-modnote .md .md-h { font-weight: 700; }
+.mk-modnote .md blockquote { padding-left: 9px; border-left: 2px solid var(--line-strong); color: var(--text-2); }
+.md-box { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--line-strong); vertical-align: -1px; }
+.md-box.on { background: var(--accent); box-shadow: none; }
 .mk-modnote:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
 .mk-msec { margin-top: 6px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .mk-skel { height: 11px; border-radius: 6px; background: var(--panel-3); }
@@ -488,9 +537,6 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-note-x { flex: none; display: grid; place-items: center; width: 34px; height: 40px; border-radius: 9px; color: var(--on-toast); opacity: .75; }
 .mk-phone .mk-note-x, .mk-note.ph .mk-note-x { display: none; }
 .mk-note-act { flex: none; height: 34px; padding: 0 10px; margin-left: 4px; border-radius: 8px; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--on-toast) 32%, transparent); font-weight: 620; white-space: nowrap; color: var(--on-toast); }
-.mk-note-second { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 4px 12px; border-bottom: 1px solid color-mix(in oklab, var(--on-toast) 14%, transparent); font-size: 13px; }
-.mk-note-second .ic { width: 15px; height: 15px; opacity: .78; }
-.mk-note-second span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-switch { position: relative; flex: none; width: 36px; height: 22px; border-radius: 11px; background: color-mix(in oklab, var(--on-toast) 34%, transparent); transition: background .15s; }
 .mk-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-toast); transition: transform .15s; }
 .mk-switch.on { background: var(--accent); }
@@ -520,6 +566,7 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 13.5px; }
 .mk-field input::placeholder { color: var(--text-3); }
 .mk-field .typed { flex: 1; color: var(--text); }
+.mk-field > span:not(.typed) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mk-field .typed::after { content: ""; display: inline-block; width: 1.5px; height: 15px; margin-left: 1px; background: var(--accent); vertical-align: -2px; }
 .mk-items { display: flex; flex-direction: column; max-height: 230px; overflow-y: auto; }
 .mk-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 0 8px; border-radius: 8px; color: var(--text); }
@@ -538,7 +585,9 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-msep { height: 1px; margin: 6px 4px; background: var(--line); }
 .mk-mlabel { padding: 2px 8px 4px; color: var(--text-3); font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 .mk-notearea { display: block; width: calc(100% - 4px); min-height: 38px; margin: 0 2px 2px; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); resize: none; outline: 0; font-size: 13.5px; line-height: 1.4; field-sizing: content; max-height: 120px; }
-.mk-notearea:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mk-notearea:focus, .mk-notearea.focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+div.mk-notearea { white-space: pre-wrap; }
+.mk-notearea .caret { display: inline-block; width: 1.5px; height: 15px; margin-left: 1px; background: var(--accent); vertical-align: -2px; }
 .mk-notearea::placeholder { color: var(--text-3); }
 .mk-menu-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; font-size: 13px; color: var(--text-2); }
 .mk-menu-row .mk-switch { margin-left: auto; }
@@ -561,6 +610,47 @@ td .bad { color: var(--no); font-weight: 650; }
 .mk-sheet-scroll { overflow-y: auto; min-height: 0; flex: 1; }
 .mk-sheet .mk-seg { margin: 0 2px 6px; }
 .mk-sheet .mk-seg button { min-height: 34px; font-size: 13.5px; }
+/* A sheet's foot: „Fertig" as wide as the sheet (owner, 2026-10-19: „unten in die Mitte mit voller
+   Breite"), as the catalog's sheet of filters has its buttons. */
+.mk-sheet-foot { flex: none; margin: 8px -10px -16px; padding: 10px 12px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+.mk-wide { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 50px; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 650; }
+.mk-wide:active { transform: scale(.98); }
+/* The default for new marks: a row with its switch under the collections. */
+.mk-defrow { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 2px 8px; }
+.mk-defrow .lbl { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mk-defrow b { font-size: 13.5px; font-weight: 600; }
+.mk-defrow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; }
+.mk-sheet .mk-defrow { min-height: 52px; }
+.mk-sheet .mk-defrow b { font-size: 15px; }
+/* A phone's keyboard, drawn while a field of a sheet has the focus (a phone of glass shows its own). The
+   sheet over it takes the rest, from edge to edge, and its foot waits for the keyboard to go. */
+.mk-kb { position: absolute; z-index: 50; left: 0; right: 0; bottom: 0; height: 262px; display: flex; flex-direction: column; background: var(--kb-bg); visibility: hidden; transform: translateY(100%); }
+.mk-phone.kb .mk-kb, .mk-kb.static { visibility: visible; transform: none; }
+.mk-kb.static { position: relative; z-index: 0; height: 236px; }
+.mk-kb .bar { flex: none; display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--line); }
+.mk-kb .arrows { display: flex; gap: 16px; color: var(--text-3); }
+.mk-kb .arrows .ic { width: 18px; height: 18px; }
+.mk-kb .bar button { height: 32px; padding: 0 10px; border-radius: 8px; font-size: 15px; font-weight: 650; color: var(--accent-ink); }
+.mk-kb .keys { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 4px 3px 16px; }
+.mk-kb .row { display: flex; justify-content: center; gap: 5px; }
+.mk-kb .row span { flex: 1 1 0; max-width: 30px; height: 38px; display: grid; place-items: center; border-radius: 5px; background: var(--kb-key); box-shadow: 0 1px 0 rgba(0, 0, 0, .28); color: var(--text); font-size: 15px; }
+.mk-kb .row span.wide { flex: 1.5 1 0; max-width: 44px; background: var(--kb-key-2); font-size: 11.5px; }
+.mk-kb .row.fourth span.wide:nth-child(2) { flex: 6 1 0; max-width: none; background: var(--kb-key); }
+.mk-phone.kb .mk-sheet:not(.static), .mk-sheet.kbup { top: 0; bottom: 262px; max-height: none; border-radius: 0; padding-top: 16px; }
+.mk-sheet.static.kbup { position: relative; top: auto; bottom: auto; height: 330px; box-shadow: none; }
+.mk-phone.kb .mk-sheet .mk-grab, .mk-sheet.kbup .mk-grab, .mk-phone.kb .mk-sheet-foot, .mk-sheet.kbup .mk-sheet-foot { display: none; }
+.mk-phone.kb .mk-sheet-scroll::after { content: ""; display: block; height: 420px; }
+.mk-phone.kb :is(.mk-tabbar, .mk-note) { visibility: hidden; }
+@media (pointer: coarse) {
+  .mk-kb:not(.static) { display: none; }
+  .mk-phone.kb .mk-sheet:not(.static) { bottom: 0; }
+}
+/* „Weitere Filter": a few of the catalog's, folded. */
+.mk-more { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+.mk-range { display: flex; align-items: center; gap: 6px; margin: 0 2px; }
+.mk-num-in { flex: 1; display: flex; align-items: center; height: 32px; padding: 0 10px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); font-size: 12.5px; }
+.mk-range .dash { color: var(--text-3); }
+.mk-sheet .mk-more .mk-flabel { margin-left: 8px; }
 
 /* The bar of the rows selected: in the columns' heads' place, on a phone over the tabs. */
 .mk-selbar { display: flex; align-items: center; gap: 2px; min-height: 32px; margin: 0; padding: 0 3px 0 12px; border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line); background: var(--accent-soft); }
@@ -670,25 +760,26 @@ td .bad { color: var(--no); font-weight: 650; }
 <main class="page">
   <header class="intro">
     <div>
-      <p class="kicker">Betula · Merkliste · Oberfläche · 19.10.2026</p>
+      <p class="kicker">Betula · Merkliste · Oberfläche · 19.10.2026 · zweite Fassung</p>
       <h1>Viel auf einen Blick, alles an seinem Platz</h1>
-      <p class="lead">Die zweite Runde zur Merkliste: wie sie aussieht und wie man sie bedient. Sie bleibt dicht und ein Werkzeug für Leute, die viel damit machen, ohne Angaben abzuladen. Dafür gelten sechs Regeln, und gebaut wird aus dem, was Betula schon hat: der Zeile des Katalogs, der Auswahl und den Menüs aus „Mein Studium“, dem Hinweis vom Einplanen. Neu ist nur ein Menü für Gruppe und Notiz eines Moduls, überall dasselbe. Der Hinweis nach dem Merken übernimmt das Gerüst vom Einplanen, aber nicht den Stepper: Gruppen sind keine Reihe, durch die man blättert.</p>
+      <p class="lead">Die zweite Runde zur Merkliste: wie sie aussieht und wie man sie bedient. Sie bleibt dicht und ein Werkzeug für Leute, die viel damit machen, ohne Angaben abzuladen. Dafür gelten sechs Regeln, und gebaut wird aus dem, was Betula schon hat: der Zeile des Katalogs, der Auswahl und den Menüs aus „Mein Studium“, dem Hinweis vom Einplanen. Neu ist nur ein Menü für Sammlung und Notiz eines Moduls, überall dasselbe, und darin der Standard für neue Merker. Der Hinweis nach dem Merken übernimmt das Gerüst vom Einplanen, aber nicht den Stepper: Sammlungen sind keine Reihe, durch die man blättert. Diese Fassung nimmt deine Antworten vom 19.10. auf: Sammlungen statt Gruppen, der Standard im Menü, am Handy „Fertig“ unten und die Tastatur, Notizen in Markdown, die Ordnung an den Spaltenköpfen.</p>
       <blockquote class="quote">„Achte bei der Umsetzung aber darauf, <b>das UI nicht zu überladen</b>. Betula hat aktuell noch sehr stark das problem, dass man ein <b>inkonsistent information dumped</b> wird. Ich möchte aber <b>die hohe Informationsdichte behalten und ein tool für Poweruser bleiben</b>.“</blockquote>
       <blockquote class="quote">„Der Ansatz mit der Wait Note ist gut. Aber überleg dir gut, wie man das richtig macht. Weil das was <b>für das eindimensionale semester auswählen gut funktioniert muss nicht gut sein für komplexere Sachen, wie Gruppen</b>.“</blockquote>
       <div class="cta">
         <a class="btn" href="#probieren"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>Prototyp ausprobieren</a>
-        <small>Am Handy und am Rechner; der Hinweis in beiden Formen.</small>
+        <small>Am Handy (mit Tastatur) und am Rechner; der Hinweis in beiden Formen.</small>
       </div>
-      <nav class="toc" aria-label="Inhalt"><a href="#regeln">Regeln</a><a href="#probieren">Ausprobieren</a><a href="#hinweis">Der Hinweis</a><a href="#menue">Gruppe und Notiz</a><a href="#seite">Die Seite</a><a href="#zeile">Die Zeile</a><a href="#finden">Suchen und ordnen</a><a href="#auswahl">Auswahl</a><a href="#verwalten">Gruppen verwalten</a><a href="#modul">Am Modul</a><a href="#teilen">Weitergeben</a><a href="#grenze">256</a><a href="#anderswo">Anderswo</a><a href="#tasten">Tasten</a><a href="#nicht">Bewusst nicht</a><a href="#offen">Zu entscheiden</a></nav>
+      <nav class="toc" aria-label="Inhalt"><a href="#regeln">Regeln</a><a href="#probieren">Ausprobieren</a><a href="#hinweis">Der Hinweis</a><a href="#menue">Sammlung und Notiz</a><a href="#seite">Die Seite</a><a href="#zeile">Die Zeile</a><a href="#finden">Suchen und ordnen</a><a href="#auswahl">Auswahl</a><a href="#verwalten">Sammlungen verwalten</a><a href="#modul">Am Modul</a><a href="#teilen">Weitergeben</a><a href="#grenze">256</a><a href="#anderswo">Anderswo</a><a href="#tasten">Tasten</a><a href="#nicht">Bewusst nicht</a><a href="#offen">Entschieden</a></nav>
     </div>
     <aside class="decided" aria-labelledby="decided-title">
       <p class="kicker" id="decided-title">Entschieden am 19.10.</p>
       <ul>
-        <li><b>Ein Modul in mehreren Gruppen.</b> Namen sind eindeutig: Zwei Gruppen gleichen Namens gibt es nicht. Leere Gruppen gibt es.</li>
-        <li><b>Höchstens 256 Module.</b> Wer mehr merken will, bekommt eine Meldung; was schon da ist, bleibt.</li>
-        <li><b>Nach jedem Merken ein Hinweis.</b> Weitergeben hinter dem #, ohne Vorschau im Messenger; Notizen zu Freunden nur, wenn man es wählt.</li>
-        <li><b>Ein Extra im Stundenplan</b> ist ein geplantes Modul „nur besuchen“, gebaut mit dem Stundenplan.</li>
-        <li><b>„Gruppen“</b>, und die fünf Schritte des Konzepts, Wiederfinden zuerst.</li>
+        <li><b>„Sammlungen“ statt „Gruppen“</b>, damit sie nicht mit den Gruppen der Uni verwechselt werden. Ein Modul in mehreren; Namen eindeutig; leere gibt es.</li>
+        <li><b>Nach jedem Merken der Hinweis mit dem Feld.</b> Im Menü dahinter der Standard für neue Merker.</li>
+        <li><b>Am Handy „Fertig“ unten</b>, über die ganze Breite: Es behält und beendet den Hinweis. Weggewischt gilt nichts davon.</li>
+        <li><b>Notizen in Markdown</b>, ohne Editor; in der Zeile ihre erste Zeile, mit „…“.</li>
+        <li><b>Chips am Handy, der Stand in der Zeile, die Tasten S und N, wenige Filter.</b></li>
+        <li><b>Höchstens 256 Module</b>, mit einer Meldung; was schon da ist, bleibt.</li>
         <li><b>Die Oberfläche bleibt dicht</b>, ein Werkzeug für Poweruser, und lädt nichts ab.</li>
       </ul>
     </aside>
@@ -698,22 +789,22 @@ td .bad { color: var(--no); font-weight: 650; }
     <h2 id="rules-title">Sechs Regeln gegen das Abladen</h2>
     <p class="lead">Abladen heißt: dieselbe Angabe zweimal, in zwei Formen, dazu Sätze, die immer dastehen. Dicht heißt: viel auf einmal, aber jede Angabe an einem festen Platz und in einer festen Form. Die Merkliste von heute hat von beidem etwas; jede Regel nennt ein Beispiel von dort.</p>
     <div class="rules6">
-      <article class="rule"><h3><span>1</span>Eine Angabe, ein Platz</h3><p class="today">„46 gemerkte Module · 281 LP“ steht über der Liste und noch einmal als „Übersicht“ in der Seitenleiste. Die Reihenfolge steht in den Spaltenköpfen und noch einmal als Liste „Reihenfolge“.</p><p class="then">Die Zahl steht im Kopf der Liste, die Ordnung in einer Auswahl daneben. Die Spaltenköpfe ordnen wie im Katalog und stellen nur diese Auswahl um.</p></article>
-      <article class="rule"><h3><span>2</span>Drei Arten, drei Formen</h3><p class="today">Ein geplantes Modul ist in der Vorschau ein dunkler Knopf „Eingeplant WiSe 26/27 · 3…“, in „Mein Studium“ ein Ring an der Zeile, und in der Merkliste sieht man es gar nicht.</p><p class="then">Was der Katalog sagt: Spalten und Flaggen. Was Betula über dich weiß: das Zeichen aus „Mein Studium“. Was du festhältst: umrandet (Gruppe) oder als ruhige Zeile unter dem Titel (Notiz).</p></article>
+      <article class="rule"><h3><span>1</span>Eine Angabe, ein Platz</h3><p class="today">„46 gemerkte Module · 281 LP“ steht über der Liste und noch einmal als „Übersicht“ in der Seitenleiste. Die Reihenfolge steht in den Spaltenköpfen und noch einmal als Liste „Reihenfolge“.</p><p class="then">Die Zahl steht im Kopf der Liste. Geordnet wird an den Spaltenköpfen, wie im Katalog, und nur dort: „Turnus“ ordnet nach dem Angebot, „Gemerkt“ über den Lesezeichen nach der Zeit.</p></article>
+      <article class="rule"><h3><span>2</span>Drei Arten, drei Formen</h3><p class="today">Ein geplantes Modul ist in der Vorschau ein dunkler Knopf „Eingeplant WiSe 26/27 · 3…“, in „Mein Studium“ ein Ring an der Zeile, und in der Merkliste sieht man es gar nicht.</p><p class="then">Was der Katalog sagt: Spalten und Flaggen. Was Betula über dich weiß: das Zeichen aus „Mein Studium“. Was du festhältst: umrandet (Sammlung) oder als ruhige Zeile unter dem Titel (Notiz).</p></article>
       <article class="rule"><h3><span>3</span>Dichte durch Spalten, nicht durch Sätze</h3><p class="today">In der Seitenleiste stehen Sätze: „Link kopieren und dort öffnen“, der Absatz darüber, wo die Merkliste liegt.</p><p class="then">Zahlen in Spalten, Wörter in der Zeile unter dem Titel. Ganze Sätze nur, wo sonst nichts steht: im leeren Zustand. Eine Zeile ist so hoch wie im Katalog.</p></article>
-      <article class="rule"><h3><span>4</span>Nur, was es gibt</h3><p class="today">„Angeboten im“ zeigt Winter und Sommer auch dann, wenn alle gemerkten im Winter sind.</p><p class="then">Ein Filter erscheint, wenn er etwas trennt, „Ohne Gruppe“ mit der ersten Gruppe, eine Notiz-Zeile nur bei einer Notiz. Kein „keine Notiz“, kein leeres Feld.</p></article>
-      <article class="rule"><h3><span>5</span>Das Werkzeug liegt am Gegenstand</h3><p class="today">„Aktionen“ sammelt Kopieren, Übertragen und Leeren in einer Schublade unter allem anderen.</p><p class="then">Was eine Gruppe betrifft, steht in ihrem Menü, Teilen eingeschlossen. Was mehrere betrifft, in der Leiste der Auswahl. Was ein Modul betrifft, am Modul.</p></article>
-      <article class="rule"><h3><span>6</span>Ein Weg, den man sieht, darunter die schnellen</h3><p class="today">M merkt; für alles andere gibt es nur den langen Weg.</p><p class="then">Jede Aktion hat einen sichtbaren Weg (Knopf, Menüpunkt) und schnelle für die, die sie kennen: G, N, Rechtsklick, Ziehen über Zeilen, langes Drücken. Die schnellen bekommen keine eigenen Knöpfe; ihre Taste steht im Menü neben dem Eintrag (R10).</p></article>
+      <article class="rule"><h3><span>4</span>Nur, was es gibt</h3><p class="today">„Angeboten im“ zeigt Winter und Sommer auch dann, wenn alle gemerkten im Winter sind.</p><p class="then">Ein Filter erscheint, wenn er etwas trennt, „Ohne Sammlung“ mit der ersten Sammlung, eine Notiz-Zeile nur bei einer Notiz. Kein „keine Notiz“, kein leeres Feld.</p></article>
+      <article class="rule"><h3><span>5</span>Das Werkzeug liegt am Gegenstand</h3><p class="today">„Aktionen“ sammelt Kopieren, Übertragen und Leeren in einer Schublade unter allem anderen.</p><p class="then">Was eine Sammlung betrifft, steht in ihrem Menü, Teilen eingeschlossen. Was mehrere betrifft, in der Leiste der Auswahl. Was ein Modul betrifft, am Modul.</p></article>
+      <article class="rule"><h3><span>6</span>Ein Weg, den man sieht, darunter die schnellen</h3><p class="today">M merkt; für alles andere gibt es nur den langen Weg.</p><p class="then">Jede Aktion hat einen sichtbaren Weg (Knopf, Menüpunkt) und schnelle für die, die sie kennen: S, N, Rechtsklick, Ziehen über Zeilen, langes Drücken. Die schnellen bekommen keine eigenen Knöpfe; ihre Taste steht im Menü neben dem Eintrag (R10).</p></article>
     </div>
   </section>
 
   <section class="block" id="probieren" aria-labelledby="play-title">
     <h2 id="play-title">Zum Ausprobieren</h2>
-    <p class="lead">Ein Prototyp mit Modulen aus dem Katalog vom 19.10., am Handy und am Rechner: der Hinweis nach dem Merken in den zwei Formen, die in Frage kommen, das Menü für Gruppe und Notiz, die Merkliste mit Gruppen, Suche und Auswahl, ein geöffnetes Modul. Von den Tabs sind nur Module und Merkliste darin.</p>
+    <p class="lead">Ein Prototyp mit Modulen aus dem Katalog vom 19.10., am Handy und am Rechner: der Hinweis nach dem Merken (das Feld, zum Vergleich die Kurzwahl), das Menü für Sammlung und Notiz mit dem Standard, am Handy als Sheet mit Tastatur, die Merkliste mit Sammlungen, Suche, Ordnung und Auswahl, ein geöffnetes Modul. Von den Tabs sind nur Module und Merkliste darin.</p>
     <div class="proto-bar">
       <div><span class="lbl">Gerät</span><span class="pseg" role="group" aria-label="Gerät"><button type="button" id="dev-phone" data-dev="phone">Handy</button><button type="button" id="dev-desk" data-dev="desk">Rechner</button></span></div>
-      <div><span class="lbl">Hinweis</span><span class="pseg" role="group" aria-label="Form des Hinweises"><button type="button" id="var-feld" data-var="feld">Feld (Empfehlung)</button><button type="button" id="var-kurz" data-var="kurz">Kurzwahl</button></span></div>
-      <div><span class="lbl">Start</span><span class="pseg" role="group" aria-label="Ausgangslage"><button type="button" id="sc-groups" data-sc="groups">Drei Gruppen</button><button type="button" id="sc-empty" data-sc="empty">Leer</button><button type="button" id="sc-full" data-sc="full">Voll</button></span></div>
+      <div><span class="lbl">Hinweis</span><span class="pseg" role="group" aria-label="Form des Hinweises"><button type="button" id="var-feld" data-var="feld">Feld</button><button type="button" id="var-kurz" data-var="kurz">Kurzwahl</button></span></div>
+      <div><span class="lbl">Start</span><span class="pseg" role="group" aria-label="Ausgangslage"><button type="button" id="sc-groups" data-sc="groups">Drei Sammlungen</button><button type="button" id="sc-empty" data-sc="empty">Leer</button><button type="button" id="sc-full" data-sc="full">Voll</button></span></div>
       <button class="preset" type="button" id="proto-reset">Zurücksetzen</button>
     </div>
     <div class="proto-grid">
@@ -722,59 +813,60 @@ td .bad { color: var(--no); font-weight: 650; }
         <h3 id="try-title">Probier</h3>
         <ol>
           <li><span>Im Tab Module ein Lesezeichen tippen; am Handy geht auch eine Karte nach links wischen.</span></li>
-          <li><span>Im Hinweis „Ohne Gruppe“ tippen (am Rechner G), eine Gruppe wählen, oder „Mathe“ tippen und Enter.</span></li>
-          <li><span>Danach „Weitere Module auch in …“ einschalten und zwei weitere merken.</span></li>
-          <li><span>Im Tab Merkliste die Gruppen wechseln und oben „lena“ suchen: Das findet Gruppe und Notiz.</span></li>
-          <li><span>Eine Karte lange drücken (am Rechner Strg und Klick), weitere antippen, dann „Gruppe“ in der Leiste.</span></li>
-          <li><span>Ein Modul öffnen und am Schalter „Gemerkt“ den Pfeil.</span></li>
+          <li><span>Im Hinweis „Ohne Sammlung“ tippen (am Rechner S), eine Sammlung wählen, oder „Mathe“ tippen und Enter.</span></li>
+          <li><span>Im selben Menü „Standard für neue Merker“ einschalten und zwei weitere merken: Sie landen dort, das Feld trägt eine Nadel.</span></li>
+          <li><span>Am Handy eine Notiz tippen: Die Tastatur kommt, das Sheet nimmt den Rest. Dann wegwischen (oder daneben tippen): Nichts davon bleibt. Noch einmal, mit „Fertig“: Es bleibt, und der Hinweis geht mit.</span></li>
+          <li><span>Im Tab Merkliste die Sammlungen wechseln, oben „lena“ suchen, am Rechner „Turnus“ und „Gemerkt“ in den Spaltenköpfen klicken.</span></li>
+          <li><span>Eine Karte lange drücken (am Rechner Strg und Klick), weitere antippen, dann „Sammlung“ in der Leiste.</span></li>
+          <li><span>Ein Modul öffnen: die Notiz in Markdown, am Schalter „Gemerkt“ der Pfeil.</span></li>
         </ol>
-        <p>Am Rechner gelten die Tasten, sobald der Prototyp den Fokus hat: G, N und M am offenen Modul, Esc, und im Menü ↑ ↓, Enter und 1–9.</p>
+        <p>Am Rechner gelten die Tasten, sobald der Prototyp den Fokus hat: S, N und M am offenen Modul, Esc, und im Menü ↑ ↓ und Enter; der Fokus steht beim Öffnen im Feld.</p>
       </aside>
     </div>
   </section>
 
   <section class="block" id="hinweis" aria-labelledby="note-title">
     <h2 id="note-title">Merken und der Hinweis danach</h2>
-    <p class="lead">Der Hinweis vom Einplanen trägt, weil das Semester eine Reihe ist: ‹ und › gehen durch sie, und Betula hat immer eine gute erste Wahl. Gruppen sind anders.</p>
+    <p class="lead">Der Hinweis vom Einplanen trägt, weil das Semester eine Reihe ist: ‹ und › gehen durch sie, und Betula hat immer eine gute erste Wahl. Sammlungen sind anders.</p>
     <h3>Warum der Stepper hier nicht passt</h3>
     <ul class="points">
-      <li><b>Keine Reihe.</b> Semester haben ein Davor und ein Danach, Gruppen nicht. Was käme nach „Für Lena“?</li>
-      <li><b>Mehrere zugleich.</b> Ein Modul liegt in einem Semester, aber in beliebig vielen Gruppen.</li>
-      <li><b>Nichts zu raten.</b> Fürs Semester gibt es eine gute erste Wahl. Für Gruppen ist „ohne“ die richtige, und sie braucht keine Bestätigung.</li>
-      <li><b>Neue Namen.</b> Eine neue Gruppe will getippt werden; ein Stepper legt nichts an.</li>
-      <li><b>Offen viele.</b> Mit zehn Gruppen blättert man zu lange, und ein Tipp zu viel landet in der falschen.</li>
+      <li><b>Keine Reihe.</b> Semester haben ein Davor und ein Danach, Sammlungen nicht. Was käme nach „Für Lena“?</li>
+      <li><b>Mehrere zugleich.</b> Ein Modul liegt in einem Semester, aber in beliebig vielen Sammlungen.</li>
+      <li><b>Nichts zu raten.</b> Fürs Semester gibt es eine gute erste Wahl. Für Sammlungen ist „ohne“ die richtige, und sie braucht keine Bestätigung.</li>
+      <li><b>Neue Namen.</b> Eine neue Sammlung will getippt werden; ein Stepper legt nichts an.</li>
+      <li><b>Offen viele.</b> Mit zehn Sammlungen blättert man zu lange, und ein Tipp zu viel landet in der falschen.</li>
     </ul>
     <h3>Was vom Einplanen bleibt</h3>
     <ul class="points">
       <li><b>Dasselbe Gerüst:</b> links der Haken, dann was geschehen ist (am Rechner mit dem Namen des Moduls), dann wohin, rechts nach einem Strich „Rückgängig“.</li>
       <li><b>Derselbe Platz und dasselbe Gehen:</b> unten über dem Inhalt, am Handy über der Tab-Leiste; weg, sobald man weitermacht.</li>
-      <li><b>Dieselbe zweite Zeile:</b> „Weitere Module auch in ‚Für Lena‘“ wie „Weitere Module auch nach SoSe 27“, für die Sitzung.</li>
-      <li><b>Eigene Tasten, solange er steht:</b> G, wie dort ← und →.</li>
+      <li><b>Keine zweite Zeile:</b> Was dort „Weitere Module auch nach SoSe 27“ tut, tut hier der Standard für neue Merker im Menü, und er gilt, bis man ihn ausschaltet. Der Hinweis bleibt eine Zeile.</li>
+      <li><b>Eigene Tasten, solange er steht:</b> S, wie dort ← und →.</li>
     </ul>
     <h3>Drei Formen</h3>
     <div class="variants">
       <article class="variant reco">
-        <div class="head"><h3>Feld</h3><span class="tag">Empfehlung</span></div>
+        <div class="head"><h3>Feld</h3><span class="tag">Entschieden</span></div>
         <div class="desc">
-          <p><b>So geht es:</b> Der Hinweis sagt, wohin das Modul gekommen ist: „Ohne Gruppe“. Das ist ein Feld; ein Tipp darauf (oder G) öffnet das Menü für Gruppe und Notiz, am Rechner über dem Hinweis, am Handy als Sheet. Was man dort wählt, gilt sofort, und das Feld sagt es danach: „Für Lena“. Wer im Hinweis eine Gruppe gewählt hat, bekommt darüber die Zeile „Weitere Module auch in ‚Für Lena‘“.</p>
-          <p><b>Gut:</b> Wer nichts will, sieht einen Haken und ein Wort mehr als heute. Gewählt wird im selben Menü wie überall, also eine Form für dieselbe Sache. Nichts verschiebt sich. Viele hintereinander in dieselbe Gruppe kosten mit der zweiten Zeile je einen Tipp.</p>
-          <p><b>Schwächer:</b> Eine einzelne Gruppe für ein einzelnes Modul sind zwei Tipps statt einem.</p>
+          <p><b>So geht es:</b> Der Hinweis sagt, wohin das Modul gekommen ist: „Ohne Sammlung“. Das ist ein Feld; ein Tipp darauf (oder S) öffnet das Menü für Sammlung und Notiz, am Rechner über dem Hinweis, am Handy als Sheet. Am Rechner gilt jede Wahl sofort, am Handy mit „Fertig“, das auch den Hinweis beendet. Das Feld sagt danach, was gilt: „Für Lena“. Wer viele in dieselbe Sammlung sammelt, schaltet im Menü „Standard für neue Merker“ ein: Jedes neue Modul landet gleich dort, und das Feld trägt eine Nadel statt des Etiketts.</p>
+          <p><b>Gut:</b> Wer nichts will, sieht einen Haken und ein Wort mehr als heute. Gewählt wird im selben Menü wie überall, also eine Form für dieselbe Sache. Nichts verschiebt sich. Viele hintereinander in dieselbe Sammlung kosten mit dem Standard je einen Tipp.</p>
+          <p><b>Schwächer:</b> Eine einzelne Sammlung für ein einzelnes Modul sind zwei Tipps statt einem.</p>
         </div>
         <div class="mocks" data-fig="note-feld"></div>
       </article>
       <article class="variant">
         <div class="head"><h3>Kurzwahl</h3><span class="tag no">zum Vergleich</span></div>
         <div class="desc">
-          <p><b>So geht es:</b> Im Hinweis stehen die zuletzt benutzten Gruppen als Chips, am Rechner drei, am Handy zwei; ein Tipp tut das Modul hinein. Der Pfeil daneben öffnet das Menü für den Rest.</p>
-          <p><b>Gut:</b> Eine der letzten Gruppen ist ein Tipp.</p>
-          <p><b>Schwächer:</b> Die Chips wechseln ihre Plätze, je nachdem, was zuletzt benutzt wurde; man trifft daneben. Es sind zwei Formen für dieselbe Wahl, Chips hier und Haken im Menü. Der Hinweis wird breit, am Handy reicht es für zwei, und für „Weitere Module auch in …“ bleibt kein Platz.</p>
+          <p><b>So geht es:</b> Im Hinweis stehen die zuletzt benutzten Sammlungen als Chips, am Rechner drei, am Handy zwei; ein Tipp tut das Modul hinein. Der Pfeil daneben öffnet das Menü für den Rest.</p>
+          <p><b>Gut:</b> Eine der letzten Sammlungen ist ein Tipp.</p>
+          <p><b>Schwächer:</b> Die Chips wechseln ihre Plätze, je nachdem, was zuletzt benutzt wurde; man trifft daneben. Es sind zwei Formen für dieselbe Wahl, Chips hier und Haken im Menü. Der Hinweis wird breit, und am Handy reicht es für zwei.</p>
         </div>
         <div class="mocks" data-fig="note-kurz"></div>
       </article>
       <article class="variant">
         <div class="head"><h3>Aufklappen</h3><span class="tag no">verworfen</span></div>
         <div class="desc">
-          <p><b>So geht es:</b> Ein Tipp auf „Gruppe“ lässt den Hinweis selbst nach oben aufgehen, die Gruppen und ein Feld darin.</p>
+          <p><b>So geht es:</b> Ein Tipp auf „Sammlung“ lässt den Hinweis selbst nach oben aufgehen, die Sammlungen und ein Feld darin.</p>
           <p><b>Schwächer:</b> Der Hinweis geht, sobald man scrollt oder daneben tippt; mitten in einer Wahl wäre sie weg. Er ist dunkel, ein Menü in Betula ist hell: eine zweite Form für Menüs. Am Handy schiebt die Tastatur ihn über die halbe Seite.</p>
         </div>
         <div class="mocks" data-fig="note-auf"></div>
@@ -784,23 +876,23 @@ td .bad { color: var(--no); font-weight: 650; }
       <table class="stack">
         <thead><tr><th scope="col"></th><th scope="col">Feld</th><th scope="col">Kurzwahl</th><th scope="col">Aufklappen</th></tr></thead>
         <tbody>
-          <tr><td>Ohne Gruppe merken</td><td data-label="Feld">1 Tipp</td><td data-label="Kurzwahl">1 Tipp</td><td data-label="Aufklappen">1 Tipp</td></tr>
-          <tr><td>In eine Gruppe</td><td data-label="Feld">+2 Tipps</td><td data-label="Kurzwahl"><span class="good">+1</span> für die letzten, sonst +2</td><td data-label="Aufklappen">+2 Tipps</td></tr>
-          <tr><td>Zehn hintereinander in eine</td><td data-label="Feld"><span class="good">je 1 Tipp</span>, mit „Weitere Module auch in …“</td><td data-label="Kurzwahl">je 2 Tipps</td><td data-label="Aufklappen">je 3 Tipps</td></tr>
-          <tr><td>Eine neue Gruppe</td><td data-label="Feld">im Menü</td><td data-label="Kurzwahl">im Menü</td><td data-label="Aufklappen">im Hinweis</td></tr>
+          <tr><td>Ohne Sammlung merken</td><td data-label="Feld">1 Tipp</td><td data-label="Kurzwahl">1 Tipp</td><td data-label="Aufklappen">1 Tipp</td></tr>
+          <tr><td>In eine Sammlung</td><td data-label="Feld">+2 Tipps</td><td data-label="Kurzwahl"><span class="good">+1</span> für die letzten, sonst +2</td><td data-label="Aufklappen">+2 Tipps</td></tr>
+          <tr><td>Zehn hintereinander in eine</td><td data-label="Feld"><span class="good">je 1 Tipp</span>, mit dem Standard</td><td data-label="Kurzwahl">je 2 Tipps</td><td data-label="Aufklappen">je 3 Tipps</td></tr>
+          <tr><td>Eine neue Sammlung</td><td data-label="Feld">im Menü</td><td data-label="Kurzwahl">im Menü</td><td data-label="Aufklappen">im Hinweis</td></tr>
           <tr><td>Was sich bewegt</td><td data-label="Feld"><span class="good">nichts</span></td><td data-label="Kurzwahl"><span class="bad">die Chips tauschen Plätze</span></td><td data-label="Aufklappen"><span class="bad">der Hinweis wächst</span></td></tr>
           <tr><td>Form wie anderswo</td><td data-label="Feld"><span class="good">dasselbe Menü</span> wie am Modul und in der Auswahl</td><td data-label="Kurzwahl">eine zweite</td><td data-label="Aufklappen">eine zweite, dunkel</td></tr>
-          <tr><td>Am Rechner</td><td data-label="Feld">G, dann tippen oder 1–9</td><td data-label="Kurzwahl">G, dann 1–3</td><td data-label="Aufklappen">G, dann tippen</td></tr>
+          <tr><td>Am Rechner</td><td data-label="Feld">S, dann tippen</td><td data-label="Kurzwahl">S, dann 1–3</td><td data-label="Aufklappen">S, dann tippen</td></tr>
         </tbody>
       </table>
     </div>
     <h3>Die Regeln des Felds</h3>
     <ul class="points">
-      <li><b>Das Feld sagt das Ergebnis:</b> „Ohne Gruppe“, „Für Lena“, „Wahlpflicht, Für Lena“, ab drei „Wahlpflicht, Für Lena +1“ wie die Zeile; „3 Gruppen“ nie, weil der Katalog so die Gruppen einer Übung zählt (Frage 7). Gibt es noch keine Gruppe, heißt es „Gruppe“ mit einem Plus und legt die erste an.</li>
-      <li><b>Das Menü steht vor dem Hinweis</b>, der dahinter wartet; was man wählt, gilt sofort. Ist das Menü zu, sagt das Feld, was gilt, und der Hinweis geht erst, wenn man weitermacht.</li>
-      <li><b>„Weitere Module auch in ‚Für Lena‘“</b> erscheint, sobald im Hinweis eine Gruppe gewählt wurde. Eingeschaltet kommen die nächsten gemerkten in dieselbe Gruppe, für die Sitzung (wie P3 beim Einplanen), und die Zeile steht in jedem Hinweis, um sie dort auszuschalten. Der Schalter am Modul sagt vorher „Merken · in Für Lena“, der Grund beim Wischen ebenso.</li>
-      <li><b>„Rückgängig“</b> nimmt den Merker weg, mit seiner Gruppe und seiner Notiz.</li>
-      <li><b>Andere Hinweise</b> haben dasselbe Gerüst: „Entfernt“ mit „Rückgängig“, das Gruppen und Notiz zurückbringt; „Merkliste voll“; eine gelöschte Gruppe; ein kopierter Link.</li>
+      <li><b>Das Feld sagt das Ergebnis:</b> „Ohne Sammlung“, „Für Lena“, „Wahlpflicht, Für Lena“, ab drei „Wahlpflicht, Für Lena +1“ wie die Zeile. Kam das Modul über den Standard hinein, steht vor dem Namen eine Nadel statt des Etiketts. Gibt es noch keine Sammlung, heißt es „Sammlung“ mit einem Plus und legt die erste an.</li>
+      <li><b>Das Menü steht vor dem Hinweis</b>, der dahinter wartet. Am Rechner gilt jede Wahl sofort, und der Hinweis geht erst, wenn man weitermacht. Am Handy beendet „Fertig“ beides, Sheet und Hinweis („dann ist der Prozess done und die Notification kann auch weg“).</li>
+      <li><b>Der Standard für neue Merker</b> steht im Menü unter den Sammlungen, sobald das Modul in einer ist, und gilt, bis man ihn ausschaltet. Er ersetzt die zweite Zeile „Weitere Module auch in …“ der ersten Fassung („Man sollte in dem Modal was da kommt einstellen können, dass das der default ist“). Der Schalter am Modul sagt vorher „Merken · in Für Lena“, der Grund beim Wischen ebenso.</li>
+      <li><b>„Rückgängig“</b> nimmt den Merker weg, mit seiner Sammlung und seiner Notiz.</li>
+      <li><b>Andere Hinweise</b> haben dasselbe Gerüst: „Entfernt“ mit „Rückgängig“, das Sammlungen und Notiz zurückbringt; „Merkliste voll“; eine gelöschte Sammlung; ein kopierter Link.</li>
     </ul>
     <div class="figs">
       <div class="fig"><div class="mocks" data-fig="notes-other"></div><p class="cap">Zuletzt zum Vergleich der Hinweis vom Einplanen, wie er heute ist: dasselbe Gerüst, dort mit dem Stepper.</p></div>
@@ -808,37 +900,48 @@ td .bad { color: var(--no); font-weight: 650; }
   </section>
 
   <section class="block" id="menue" aria-labelledby="menu-title">
-    <h2 id="menu-title">Ein Menü für Gruppe und Notiz</h2>
-    <p class="lead">Was du zu einem gemerkten Modul festhältst, bearbeitest du überall im selben Menü: aus dem Hinweis, am Schalter des Moduls, in der Leiste einer Auswahl, mit G oder N. Am Rechner steht es wie jedes Menü in „Mein Studium“ an dem, was es öffnet; am Handy kommt es als Sheet von unten.</p>
+    <h2 id="menu-title">Ein Menü für Sammlung und Notiz</h2>
+    <p class="lead">Was du zu einem gemerkten Modul festhältst, bearbeitest du überall im selben Menü: aus dem Hinweis, am Schalter des Moduls, in der Leiste einer Auswahl, mit S oder N. Am Rechner steht es wie jedes Menü in „Mein Studium“ an dem, was es öffnet, und jede Wahl gilt sofort. Am Handy kommt es als Sheet von unten und ist ein Entwurf, bis „Fertig“ ihn behält.</p>
     <div class="figs three">
-      <div class="fig"><div data-fig="menu-one"></div><p class="cap"><b>Ein Modul.</b> Oben das Feld, darunter die Gruppen mit Haken, Zahl und Ziffer, dann die Notiz.</p></div>
-      <div class="fig"><div data-fig="menu-typed"></div><p class="cap"><b>Getippt, nichts passt.</b> „mathe“ gibt es noch nicht: Dort steht „‚mathe‘ anlegen“, Enter legt an und tut das Modul hinein. Ziffern gibt es jetzt keine; sie gehören dem Namen.</p></div>
-      <div class="fig"><div data-fig="menu-many"></div><p class="cap"><b>Drei ausgewählte.</b> Ein Haken, wo alle drin sind, ein Strich, wo einige; ein Tipp auf den Strich nimmt alle hinein. Keine Notiz.</p></div>
+      <div class="fig"><div data-fig="menu-one"></div><p class="cap"><b>Ein Modul.</b> Oben das Feld, das beim Öffnen den Fokus hat; darunter die Sammlungen mit Haken und Zahl, der Standard für neue Merker, die Notiz in Markdown.</p></div>
+      <div class="fig"><div data-fig="menu-typed"></div><p class="cap"><b>Getippt, nichts passt.</b> „mathe“ gibt es noch nicht: Dort steht „‚mathe‘ anlegen“, Enter legt an und tut das Modul hinein.</p></div>
+      <div class="fig"><div data-fig="menu-many"></div><p class="cap"><b>Drei ausgewählte.</b> Ein Haken, wo alle drin sind, ein Strich, wo einige; ein Tipp auf den Strich nimmt alle hinein. Keine Notiz, kein Standard.</p></div>
     </div>
     <div class="figs three">
       <div class="fig"><div data-fig="menu-partial"></div><p class="cap"><b>Getippt, eine passt.</b> „lena“ findet „Für Lena“ und schaltet sie mit Enter. „‚lena‘ anlegen“ steht dahinter, einen Pfeil nach unten entfernt.</p></div>
       <div class="fig"><div data-fig="menu-exists"></div><p class="cap"><b>Ein Name, den es gibt.</b> „für lena“ ist „Für Lena“; ein zweites „anlegen“ gibt es nicht. Groß und klein und Leerzeichen am Rand zählen nicht.</p></div>
-      <div class="fig"><div data-fig="menu-sheet"></div><p class="cap"><b>Am Handy</b> ein Sheet mit „Fertig“. Das Feld bekommt den Fokus erst beim Antippen, damit die Tastatur die Gruppen nicht verdeckt.</p></div>
+      <div class="fig"><div data-fig="menu-default"></div><p class="cap"><b>Ein anderer Standard.</b> „bisher Für Lena“ sagt, was der Schalter ersetzt. Eingeschaltet folgt der Standard dem, was in diesem Menü gewählt wird.</p></div>
     </div>
     <ul class="points">
-      <li><b>Oben das Feld.</b> Tippen filtert die Gruppen, Enter schaltet die erste. Heißt keine genau so, steht „‚lena‘ anlegen“ hinter den gefundenen; passt gar keine, steht es allein da, und Enter legt an.</li>
-      <li><b>Namen sind eindeutig.</b> Wer einen Namen tippt, den es gibt, bekommt die Gruppe angeboten, nicht ein zweites „anlegen“; beim Umbenennen ebenso („Gibt es schon“).</li>
-      <li><b>Ein Haken, kein Kästchen.</b> Vor einer Gruppe steht ein Haken oder nichts, dahinter ihre Zahl, am Rechner ihre Ziffer.</li>
-      <li><b>Ziffern, solange das Feld leer ist.</b> 1 bis 9 schalten die ersten neun Gruppen; sobald getippt wird, gehören die Ziffern dem Namen („Mathe 2“).</li>
-      <li><b>Darunter die Notiz</b> eines Moduls: ein Feld, das mitwächst und beim Tippen speichert.</li>
-      <li><b>Zu geht es</b> mit Esc, einem Klick daneben, am Handy mit „Fertig“ oder nach unten gewischt. Gespeichert ist schon alles.</li>
+      <li><b>Oben das Feld.</b> Am Rechner hat es den Fokus, sobald das Menü aufgeht: tippen filtert, ↑ ↓ gehen durch die Zeilen, Enter schaltet. Heißt keine Sammlung genau so, steht „‚lena‘ anlegen“ hinter den gefundenen; passt gar keine, steht es allein da, und Enter legt an.</li>
+      <li><b>Keine Ziffern.</b> Die Ziffer neben der Zahl war eine Zahl hinter einer Zahl („Da ist einfach eine Zahl hinter einer anderen zahl das kann eigentlich Sowiso weg“); das Feld mit dem Fokus ist der schnelle Weg.</li>
+      <li><b>Namen sind eindeutig.</b> Wer einen Namen tippt, den es gibt, bekommt die Sammlung angeboten, nicht ein zweites „anlegen“; beim Umbenennen ebenso („Gibt es schon“).</li>
+      <li><b>Ein Haken, kein Kästchen.</b> Vor einer Sammlung steht ein Haken oder nichts, dahinter ihre Zahl.</li>
+      <li><b>Der Standard für neue Merker</b> erscheint, sobald das Modul in einer Sammlung ist: Eingeschaltet kommt jedes Modul, das von jetzt an gemerkt wird, in dieselben Sammlungen, bis man ihn ausschaltet, auch über einen Neustart hinaus (Frage 2). Ist das Modul in keiner Sammlung und gibt es einen Standard, sagt die Zeile, welcher es ist, mit „Aufheben“.</li>
+      <li><b>Darunter die Notiz</b> eines Moduls, in Markdown: **fett**, *kursiv*, `Code`, Listen, Links. Ein Feld, das mitwächst, kein Editor mit Knöpfen.</li>
+      <li><b>Zu geht es</b> am Rechner mit Esc oder einem Klick daneben; gespeichert ist schon alles.</li>
+    </ul>
+    <h3>Am Handy</h3>
+    <div class="figs two">
+      <div class="fig"><div data-fig="menu-sheet"></div><p class="cap"><b>Das Sheet.</b> Oben nur der Name des Moduls; „Fertig“ unten über die ganze Breite, wie die Knöpfe im Sheet der Filter des Katalogs.</p></div>
+      <div class="fig"><div data-fig="menu-sheet-kb"></div><p class="cap"><b>Mit der Tastatur.</b> Das Sheet nimmt den Teil über der Tastatur, das Feld rückt an seinen Anfang, der Fuß wartet, bis die Tastatur geht; alles gleitet. So hält es jedes Sheet von Betula seit dem 17.10. („das modal kann ruhig full screen werden, wenn man das Keyboard öffnet“).</p></div>
+    </div>
+    <ul class="points">
+      <li><b>„Fertig“ behält</b>, was gewählt und geschrieben ist, schließt das Sheet und beendet den Hinweis, aus dem es kam.</li>
+      <li><b>Weggewischt, daneben getippt oder Zurück: nichts davon bleibt</b> („Wenn man das fenster so zu macht, dann werden die changes nicht gespeichert“). Auch eine neu angelegte Sammlung und der Standard gehen mit. Der Hinweis steht dann noch, und sein Feld sagt, was gilt.</li>
+      <li><b>Das Feld bekommt den Fokus erst beim Antippen</b>, damit die Tastatur die Sammlungen nicht gleich verdeckt. Mit der Tastatur oben nimmt ihr eigenes „Fertig“ (oder Zurück) sie weg; danach steht der Fuß wieder da.</li>
     </ul>
   </section>
 
   <section class="block" id="seite" aria-labelledby="page-title">
     <h2 id="page-title">Die Seite</h2>
-    <p class="lead">Am Rechner wird die Seitenleiste zur Navigation der Gruppen und zu den Filtern, die trennen. Am Handy stehen die Gruppen als Chips über der Liste und alles andere im Sheet „Filter“, wie im Katalog. Unter der Liste steht nichts mehr außer dem Boden.</p>
+    <p class="lead">Am Rechner wird die Seitenleiste zur Navigation der Sammlungen und zu den Filtern, die trennen. Am Handy stehen die Sammlungen als Chips über der Liste und alles andere im Sheet „Filter“, wie im Katalog. Unter der Liste steht nichts mehr außer dem Boden.</p>
     <div class="figs">
       <div class="fig"><p class="kicker">Am Rechner</p><div class="scroll"><div data-fig="page-desk"></div></div>
         <ol class="legend">
-          <li><i>1</i><span><b>Gruppen:</b> „Alle“, „Ohne Gruppe“ ab der ersten Gruppe, jede Gruppe mit ihrer Zahl, „+ Neue Gruppe“. Die gewählte ist dunkel, wie die gewählte Ansicht in „Mein Studium“.</span></li>
-          <li><i>2</i><span><b>Filter, die trennen:</b> „Angeboten im“, „Stand“ (sobald etwas eingeplant oder bestanden ist), „Mein Studium“ (zählt, passt; mit Studiengang und Stundenplan). „Weitere Filter“ eingeklappt, mit allem aus dem Katalog.</span></li>
-          <li><i>3</i><span><b>Kopf:</b> was die Liste zeigt und ihre LP, die Ordnung, die Tasten.</span></li>
+          <li><i>1</i><span><b>Sammlungen:</b> „Alle“, „Ohne Sammlung“ ab der ersten Sammlung, jede Sammlung mit ihrer Zahl, „+ Neue Sammlung“. Die gewählte ist dunkel, wie die gewählte Ansicht in „Mein Studium“.</span></li>
+          <li><i>2</i><span><b>Filter, die trennen:</b> „Angeboten im“, „Stand“ (sobald etwas eingeplant oder bestanden ist), „Mein Studium“ (zählt, passt; mit Studiengang und Stundenplan). „Weitere Filter“ eingeklappt, mit vier aus dem Katalog.</span></li>
+          <li><i>3</i><span><b>Kopf:</b> was die Liste zeigt und ihre LP, die Tasten. Darunter die Spaltenköpfe, an denen geordnet wird; zuerst „Gemerkt“.</span></li>
           <li><i>4</i><span><b>Abschnitte</b> nach der Ordnung: Heute, Letzte Woche, Oktober.</span></li>
         </ol>
       </div>
@@ -848,15 +951,15 @@ td .bad { color: var(--no); font-weight: 650; }
       <div class="fig">
         <ol class="legend">
           <li><i>1</i><span><b>Die Suche</b> sucht auf diesem Tab in der Merkliste.</span></li>
-          <li><i>2</i><span><b>Gruppen als Chips</b>, ab der ersten Gruppe; „+“ legt eine an, lange gedrückt kommt das Menü einer Gruppe.</span></li>
-          <li><i>3</i><span><b>Der Kopf</b> mit Zahl und „Filter“ wie im Katalog; in einer Gruppe dazu „⋯“, ihr Menü.</span></li>
+          <li><i>2</i><span><b>Sammlungen als Chips</b>, ab der ersten Sammlung; „+“ legt eine an, lange gedrückt kommt das Menü einer Sammlung.</span></li>
+          <li><i>3</i><span><b>Der Kopf</b> mit Zahl und „Filter“ wie im Katalog; in einer Sammlung dazu „⋯“, ihr Menü.</span></li>
           <li><i>4</i><span><b>Die Karten</b> des Katalogs; nach links gewischt entfernt, nach rechts eingeplant.</span></li>
         </ol>
         <h3 style="margin-top: 18px; font-size: 15px">Was wegfällt</h3>
         <ul class="points">
-          <li><b>„Übersicht“:</b> Die Zahlen stehen im Kopf und bei den Gruppen.</li>
-          <li><b>„Reihenfolge“ als Liste:</b> eine Auswahl im Kopf.</li>
-          <li><b>„Aktionen“:</b> Teilen und Kopieren im Menü von „Alle“ und jeder Gruppe, Leeren im Menü von „Alle“.</li>
+          <li><b>„Übersicht“:</b> Die Zahlen stehen im Kopf und bei den Sammlungen.</li>
+          <li><b>„Reihenfolge“ als Liste:</b> die Spaltenköpfe, wie im Katalog.</li>
+          <li><b>„Aktionen“:</b> Teilen und Kopieren im Menü von „Alle“ und jeder Sammlung, Leeren im Menü von „Alle“.</li>
           <li><b>Der Absatz über den Speicher:</b> ein Satz im leeren Zustand; ganz in der Datenschutzerklärung und im Profil.</li>
           <li><b>Am Handy alles unter der Liste:</b> heute 4.495 px tief.</li>
         </ul>
@@ -876,8 +979,8 @@ td .bad { color: var(--no); font-weight: 650; }
     <ol class="legend">
       <li><i>1</i><span><b>Was der Katalog sagt:</b> Nummer und Flaggen (Auslaufmodul, begrenzte Plätze, FÜS), die Spalten.</span></li>
       <li><i>2</i><span><b>Was Betula über dich weiß:</b> das Zeichen aus „Mein Studium“ mit dem Semester; Ring eingeplant, halber Ring läuft, Haken bestanden.</span></li>
-      <li><i>3</i><span><b>Was du festhältst:</b> deine Gruppen, umrandet, höchstens zwei, dann „+1“; die Gruppe, die die Liste gerade zeigt, nicht.</span></li>
-      <li><i>4</i><span><b>Deine Notiz:</b> ihre erste Zeile, nur wenn es eine gibt. Die Zeile wächst nur um sie; am Rechner geht sie unter den Spalten durch bis ans Lesezeichen.</span></li>
+      <li><i>3</i><span><b>Was du festhältst:</b> deine Sammlungen, umrandet, höchstens zwei, dann „+1“; die Sammlung, die die Liste gerade zeigt, nicht.</span></li>
+      <li><i>4</i><span><b>Deine Notiz:</b> ihre erste Zeile, nur wenn es eine gibt, ihr Markdown dargestellt und abgeschnitten mit „…“. Die Zeile wächst nur um sie; am Rechner geht sie unter den Spalten durch bis ans Lesezeichen.</span></li>
     </ol>
       </div>
     </div>
@@ -886,25 +989,34 @@ td .bad { color: var(--no); font-weight: 650; }
     </div>
     <ul class="points">
       <li><b>Die Reihenfolge in der Zeile ist fest:</b> Katalog, Betula, du. So steht jede Art immer an derselben Stelle.</li>
-      <li><b>Das Lesezeichen bleibt das Lesezeichen:</b> Es merkt und entfernt, überall gleich, auch in einer Gruppe. Aus einer Gruppe nimmt das Menü für Gruppe und Notiz.</li>
-      <li><b>Keine Farbe für Gruppen.</b> Farben bedeuten in Betula schon etwas: die Bereiche in „Mein Studium“, „jetzt“, Warnungen.</li>
+      <li><b>Das Lesezeichen bleibt das Lesezeichen:</b> Es merkt und entfernt, überall gleich, auch in einer Sammlung. Aus einer Sammlung nimmt das Menü für Sammlung und Notiz.</li>
+      <li><b>Keine Farbe für Sammlungen.</b> Farben bedeuten in Betula schon etwas: die Bereiche in „Mein Studium“, „jetzt“, Warnungen.</li>
     </ul>
   </section>
 
   <section class="block" id="finden" aria-labelledby="find-title">
     <h2 id="find-title">Suchen, ordnen, filtern</h2>
-    <p class="lead">Die Suche oben gehört der Seite, auf der sie steht: auf der Merkliste sucht sie in der Merkliste. Die Ordnung ist eine Auswahl im Kopf; am Handy steht sie mit den Filtern im Sheet.</p>
+    <p class="lead">Die Suche oben gehört der Seite, auf der sie steht: auf der Merkliste sucht sie in der Merkliste. Geordnet wird am Rechner an den Spaltenköpfen, wie im Katalog, und nirgends sonst; am Handy steht die Ordnung mit den Filtern im Sheet.</p>
     <div class="figs">
-      <div class="fig"><p class="kicker">Die Ordnung am Rechner</p><div class="scroll"><div data-fig="order-desk"></div></div></div>
+      <div class="fig"><p class="kicker">Die Ordnung am Rechner</p><div class="scroll"><div data-fig="order-desk"></div></div><p class="cap">Die erste Fassung hatte dafür eine Auswahl rechts im Kopf, und die Spaltenköpfe stellten sie um: zwei Stellen für eine Sache, weit auseinander („Das könnte noch eleganter umgesetzt werden“). Jetzt sind die Köpfe die Ordnung.</p></div>
     </div>
     <div class="figs two">
       <div class="fig"><p class="kicker">Gesucht am Handy</p><div data-fig="search-phone"></div></div>
       <div class="fig">
         <ul class="points" style="margin-top: 0">
-          <li><b>Das Suchfeld heißt „In der Merkliste suchen“</b> und filtert beim Tippen. Gefunden wird nach den Regeln der Katalogsuche, dazu in Gruppen und Notizen; was gefunden wurde, ist markiert.</li>
+          <li><b>Das Suchfeld heißt „In der Merkliste suchen“</b> und filtert beim Tippen. Gefunden wird nach den Regeln der Katalogsuche, dazu in Sammlungen und im Text der Notizen; was gefunden wurde, ist markiert.</li>
           <li><b>Der Kopf sagt „2 von 9“.</b> Unter den Treffern steht „‚lena‘ im ganzen Katalog“; findet die Merkliste nichts, steht diese Zeile allein da.</li>
-          <li><b>Die Ordnung:</b> Zuletzt gemerkt, Nach Studium, Nach Angebot teilen in Abschnitte mit ihrer Zahl; Titel, Leistungspunkte und Termine ordnen ohne. Die Spaltenköpfe stellen dieselbe Auswahl um.</li>
-          <li><b>Am Handy</b> stehen Ordnung und Filter im Sheet „Filter“, wie im Katalog; aktive Filter als Tags unter dem Kopf.</li>
+          <li><b>Die Spaltenköpfe:</b> „Gemerkt“ über den Lesezeichen (zuerst, das Neueste oben, Abschnitte nach der Zeit), „Modul“ (mit „Mein Studiengang“ nach dem Studium, Abschnitte nach dem Bereich, wie im Katalog nach dem Regelstudienplan; sonst nach dem Titel), „LP“, „Turnus“ (Abschnitte nach dem Angebot), „Termine“. Der aktive trägt den Pfeil, ein zweiter Klick dreht ihn um. Gesucht bleibt die Ordnung, ohne Abschnitte.</li>
+          <li><b>Am Handy</b> stehen Ordnung und Filter im Sheet „Filter“, wie im Katalog, mit „9 Module anzeigen“ unten; aktive Filter als Tags unter dem Kopf.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">„Weitere Filter“, aufgeklappt</p><div data-fig="filters-desk"></div></div>
+      <div class="fig">
+        <ul class="points" style="margin-top: 0">
+          <li><b>Vier aus dem Katalog,</b> die zwischen gemerkten Modulen entscheiden: Sprache, Leistungspunkte, Standort, benotet. Der Rest bleibt im Katalog („hier reichen ein paar, die wirklich relevant sind“).</li>
+          <li><b>Eingeklappt</b>, ob auf oder zu, merkt sich der Browser (R13). Wie jeder Filter hier erscheint einer nur, wenn er etwas trennt: „Sprache“ erst, wenn deutsche und englische gemerkt sind.</li>
         </ul>
       </div>
     </div>
@@ -922,7 +1034,7 @@ td .bad { color: var(--no); font-weight: 650; }
     <ul class="points" style="margin-top: 0">
       <li><b>Am Rechner:</b> Strg oder ⌘ und Klick, Shift und Klick, über Zeilen ziehen, „Auswählen“ im Menü der Zeile (Rechtsklick). <b>Am Handy:</b> lange drücken, mit dem Finger weiterziehen. Danach wählt ein Tipp an und ab.</li>
       <li><b>Neu, für beide Listen:</b> Shift und ↑ ↓ erweitert die Auswahl, Strg A nimmt alle sichtbaren, Esc hebt sie auf.</li>
-      <li><b>Die Leiste:</b> „3 ausgewählt · 14 LP“, Gruppe, Einplanen, Teilen, Entfernen, ×. „Gruppe“ öffnet das Menü für mehrere, „Einplanen“ die Semester wie „Verschieben nach“ in „Mein Studium“.</li>
+      <li><b>Die Leiste:</b> „3 ausgewählt · 14 LP“, Sammlung, Einplanen, Teilen, Entfernen, ×. „Sammlung“ öffnet das Menü für mehrere, „Einplanen“ die Semester wie „Verschieben nach“ in „Mein Studium“.</li>
       <li><b>Wischen bleibt</b>, nach links merken oder entfernen, nach rechts einplanen. Lange drücken ist kein Wischen: Der Finger hält erst still.</li>
     </ul>
       </div>
@@ -930,39 +1042,39 @@ td .bad { color: var(--no); font-weight: 650; }
   </section>
 
   <section class="block" id="verwalten" aria-labelledby="manage-title">
-    <h2 id="manage-title">Gruppen verwalten</h2>
-    <p class="lead">Eine Gruppe hat ein Menü, und das steht an ihr: in der Seitenleiste am Rechner, am Chip am Handy.</p>
+    <h2 id="manage-title">Sammlungen verwalten</h2>
+    <p class="lead">Eine Sammlung hat ein Menü, und das steht an ihr: in der Seitenleiste am Rechner, am Chip am Handy.</p>
     <div class="figs three">
       <div class="fig"><div data-fig="manage-desk"></div><p class="cap"><b>Am Rechner:</b> „⋯“ beim Zeigen, oder Rechtsklick. Umbenennen (F2), Teilen, Nach oben, Nach unten, Löschen.</p></div>
-      <div class="fig"><div data-fig="manage-new"></div><p class="cap"><b>Neu anlegen:</b> „+ Neue Gruppe“ wird ein Feld, Enter legt an. Gibt es den Namen, sagt das Feld „Gibt es schon“, und Enter öffnet die Gruppe.</p></div>
-      <div class="fig"><div data-fig="manage-phone"></div><p class="cap"><b>Am Handy</b> den Chip lange drücken; in einer Gruppe auch „⋯“ im Kopf. Das Menü kommt als Sheet.</p></div>
+      <div class="fig"><div data-fig="manage-new"></div><p class="cap"><b>Neu anlegen:</b> „+ Neue Sammlung“ wird ein Feld, Enter legt an. Gibt es den Namen, sagt das Feld „Gibt es schon“, und Enter öffnet die Sammlung.</p></div>
+      <div class="fig"><div data-fig="manage-phone"></div><p class="cap"><b>Am Handy</b> den Chip lange drücken; in einer Sammlung auch „⋯“ im Kopf. Das Menü kommt als Sheet.</p></div>
     </div>
     <ul class="points">
       <li><b>Löschen fragt nicht:</b> Die Module bleiben gemerkt. Der Hinweis danach sagt „‚Für Lena‘ gelöscht · 3 bleiben gemerkt“, mit „Rückgängig“, und wo Module nur dort standen, mit „Auch 2 entfernen“.</li>
-      <li><b>„Alle“ hat ein Menü wie eine Gruppe:</b> Link für ein anderes Gerät, Als Text kopieren, Merkliste leeren (fragt, wie heute).</li>
-      <li><b>Kein Ziehen auf eine Gruppe</b>, wie in „Mein Studium“ seit 1.31.0 kein Ziehen auf ein Semester.</li>
+      <li><b>„Alle“ hat ein Menü wie eine Sammlung:</b> Link für ein anderes Gerät, Als Text kopieren, Merkliste leeren (fragt, wie heute).</li>
+      <li><b>Kein Ziehen auf eine Sammlung</b>, wie in „Mein Studium“ seit 1.31.0 kein Ziehen auf ein Semester.</li>
     </ul>
   </section>
 
   <section class="block" id="modul" aria-labelledby="mod-title">
     <h2 id="mod-title">Am Modul</h2>
-    <p class="lead">Der Schalter bleibt „Merken“ und „Gemerkt“ mit M. Gemerkt trägt er klein die Gruppen, wie „Einplanen“ sein Semester trägt, und rechts einen Pfeil zum Menü für Gruppe und Notiz.</p>
+    <p class="lead">Der Schalter bleibt „Merken“ und „Gemerkt“ mit M. Gemerkt trägt er klein die Sammlungen, wie „Einplanen“ sein Semester trägt, und rechts einen Pfeil zum Menü für Sammlung und Notiz.</p>
     <div class="figs two">
       <div class="fig"><p class="kicker">Vorschau am Rechner</p><div data-fig="mod-desk"></div></div>
       <div class="fig"><p class="kicker">Sheet am Handy</p><div data-fig="mod-phone"></div></div>
     </div>
     <ul class="points">
       <li><b>Der Pfeil</b> ist ein eigener Teil des Schalters; am Handy 42 px breit, damit der Daumen ihn trifft. Ungemerkt gibt es ihn nicht.</li>
-      <li><b>Die Notiz</b> steht unter den Schaltern, ganz; ein Klick bearbeitet sie (auch N). Ohne Notiz steht dort nichts.</li>
-      <li><b>Mit „Weitere Module auch in ‚Für Lena‘“</b> sagt der Schalter vorher „Merken · in Für Lena“.</li>
+      <li><b>Die Notiz</b> steht unter den Schaltern, ganz, ihr Markdown dargestellt: Listen, Hervorhebungen, Links, die sich in einem neuen Tab öffnen. Ein Bild erscheint nur als Link und wird nie geladen; HTML bleibt Text. Ein Klick neben einen Link bearbeitet sie (auch N). Ohne Notiz steht dort nichts.</li>
+      <li><b>Mit einem Standard für neue Merker</b> sagt der Schalter vorher „Merken · in Für Lena“.</li>
     </ul>
   </section>
 
   <section class="block" id="teilen" aria-labelledby="share-title">
     <h2 id="share-title">Weitergeben und Ankommen</h2>
-    <p class="lead">Teilen steht im Menü einer Gruppe, im Menü von „Alle“ und in der Leiste der Auswahl, als ein Menü mit drei Zeilen.</p>
+    <p class="lead">Teilen steht im Menü einer Sammlung, im Menü von „Alle“ und in der Leiste der Auswahl, als ein Menü mit drei Zeilen.</p>
     <div class="figs two">
-      <div class="fig"><div data-fig="share-menu"></div><p class="cap"><b>Teilen:</b> „Link kopieren“, darunter „Notizen mitnehmen“ (aus), „Als Text kopieren“ mit Nummer, Titel, LP und dem Link jedes Moduls. Für „Alle“ heißt der erste „Link für ein anderes Gerät“ und nimmt Gruppen und Notizen mit. Danach der Hinweis „Link kopiert“.</p></div>
+      <div class="fig"><div data-fig="share-menu"></div><p class="cap"><b>Teilen:</b> „Link kopieren“, darunter „Notizen mitnehmen“ (aus), „Als Text kopieren“ mit Nummer, Titel, LP und dem Link jedes Moduls. Für „Alle“ heißt der erste „Link für ein anderes Gerät“ und nimmt Sammlungen und Notizen mit. Danach der Hinweis „Link kopiert“.</p></div>
       <div class="fig"><div class="stack stretch" data-fig="offers"></div><p class="cap"><b>Ankommen</b> über der Liste wie heute. Gibt es den Namen schon, heißt der erste Knopf „Zu ‚Für Lena‘ hinzufügen“, und „Anderer Name …“ fragt nach einem, den es nicht gibt.</p></div>
     </div>
   </section>
@@ -981,32 +1093,31 @@ td .bad { color: var(--no); font-weight: 650; }
 
   <section class="block" id="anderswo" aria-labelledby="else-title">
     <h2 id="else-title">Die Merkliste anderswo</h2>
-    <p class="lead">Wo Betula nach einem Modul fragt, sind die gemerkten eine Quelle mit denselben Gruppen; überall dieselben Chips, dieselben Zeilen, dieselben Hinweise auf das, was ungewöhnlich ist.</p>
+    <p class="lead">Wo Betula nach einem Modul fragt, sind die gemerkten eine Quelle mit denselben Sammlungen; überall dieselben Chips, dieselben Zeilen, dieselben Hinweise auf das, was ungewöhnlich ist.</p>
     <div class="figs two">
-      <div class="fig"><p class="kicker">„Mein Studium“ · Module hinzufügen</p><div data-fig="else-study"></div><p class="cap">Eine dritte Quelle zwischen Regelstudienplan und Katalog. Mit drei Reitern werden ihre Namen kurz, damit sie auch am Handy nebeneinander passen: Regelstudienplan, Merkliste, Katalog. Die Gruppen als Chips, darunter die Zeilen des Dialogs mit dem, was ein Modul hier heißt; abgelehnt wird nichts.</p></div>
+      <div class="fig"><p class="kicker">„Mein Studium“ · Module hinzufügen</p><div data-fig="else-study"></div><p class="cap">Eine dritte Quelle zwischen Regelstudienplan und Katalog. Mit drei Reitern werden ihre Namen kurz, damit sie auch am Handy nebeneinander passen: Regelstudienplan, Merkliste, Katalog. Die Sammlungen als Chips, darunter die Zeilen des Dialogs mit dem, was ein Modul hier heißt; abgelehnt wird nichts.</p></div>
       <div class="fig"><p class="kicker">Stundenplan · Aus der Merkliste</p><div data-fig="else-plan"></div><p class="cap">Was das Semester anbietet zuerst, mit „passt“ oder der Überschneidung; was es nicht anbietet, eingeklappt darunter.</p></div>
     </div>
     <div class="figs two">
-      <div class="fig"><p class="kicker">Katalog · Filter „Gemerkt“</p><div data-fig="else-catalog"></div><p class="cap">Der Chip „Gemerkt“ öffnet unter sich die Gruppen, wie „Passt in meinen Stundenplan“ seine Lehrformen; die Adresse nennt die Gruppe bei ihrer Nummer.</p></div>
-      <div class="fig"><p class="kicker">Der Tab, lange gedrückt</p><div data-fig="else-tab"></div><p class="cap">Wie bei „Studium“: ein Menü am Tab, hier mit den Gruppen. Am Rechner mit der rechten Maustaste.</p></div>
+      <div class="fig"><p class="kicker">Katalog · Filter „Gemerkt“</p><div data-fig="else-catalog"></div><p class="cap">Der Chip „Gemerkt“ öffnet unter sich die Sammlungen, wie „Passt in meinen Stundenplan“ seine Lehrformen; die Adresse nennt die Sammlung bei ihrer Nummer.</p></div>
+      <div class="fig"><p class="kicker">Der Tab, lange gedrückt</p><div data-fig="else-tab"></div><p class="cap">Wie bei „Studium“: ein Menü am Tab, hier mit den Sammlungen. Am Rechner mit der rechten Maustaste.</p></div>
     </div>
   </section>
 
   <section class="block" id="tasten" aria-labelledby="keys-title">
     <h2 id="keys-title">Tasten</h2>
-    <p class="lead">Für Leute, die viel damit machen. Die Tasten stehen neben ihrem Eintrag im Menü und im Kopf der Liste (R10); die neuen sind G und N.</p>
+    <p class="lead">Für Leute, die viel damit machen. Die Tasten stehen neben ihrem Eintrag im Menü und im Kopf der Liste (R10); die neuen sind S (Sammlung) und N (Notiz).</p>
     <div class="tablewrap">
       <table class="stack">
         <thead><tr><th scope="col">Taste</th><th scope="col">Wo</th><th scope="col">Was</th></tr></thead>
         <tbody>
           <tr><td><kbd>M</kbd></td><td data-label="Wo">Zeile, offenes Modul</td><td data-label="Was">merken und entfernen, wie heute</td></tr>
-          <tr><td><kbd>G</kbd></td><td data-label="Wo">Zeile, offenes Modul, Hinweis, Auswahl</td><td data-label="Was">das Menü für Gruppe und Notiz, der Fokus im Feld</td></tr>
+          <tr><td><kbd>S</kbd></td><td data-label="Wo">Zeile, offenes Modul, Hinweis, Auswahl</td><td data-label="Was">das Menü für Sammlung und Notiz, der Fokus im Feld</td></tr>
           <tr><td><kbd>N</kbd></td><td data-label="Wo">Zeile, offenes Modul</td><td data-label="Was">dasselbe Menü, der Fokus in der Notiz</td></tr>
-          <tr><td><kbd>1</kbd> … <kbd>9</kbd></td><td data-label="Wo">im Menü, solange das Feld leer ist</td><td data-label="Was">die erste bis neunte Gruppe an und aus</td></tr>
           <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd></td><td data-label="Wo">Liste, Menü</td><td data-label="Was">wählen und öffnen, wie heute; im Menü schalten oder anlegen</td></tr>
           <tr><td><kbd>/</kbd> <kbd>Strg K</kbd></td><td data-label="Wo">überall</td><td data-label="Was">die Suche; auf der Merkliste in der Merkliste</td></tr>
           <tr><td><kbd>Shift ↑ ↓</kbd> <kbd>Strg A</kbd></td><td data-label="Wo">Liste</td><td data-label="Was">die Auswahl erweitern, alle sichtbaren auswählen; neu, auch in „Mein Studium“</td></tr>
-          <tr><td><kbd>F2</kbd></td><td data-label="Wo">Gruppe in der Seitenleiste</td><td data-label="Was">umbenennen</td></tr>
+          <tr><td><kbd>F2</kbd></td><td data-label="Wo">Sammlung in der Seitenleiste</td><td data-label="Was">umbenennen</td></tr>
           <tr><td><kbd>Esc</kbd></td><td data-label="Wo">Menü, Auswahl, Hinweis, Vorschau</td><td data-label="Was">das Oberste schließen</td></tr>
         </tbody>
       </table>
@@ -1016,28 +1127,35 @@ td .bad { color: var(--no); font-weight: 650; }
   <section class="block" id="nicht" aria-labelledby="not-title">
     <h2 id="not-title">Bewusst nicht</h2>
     <div class="not">
-      <div><h3>Keine Farben für Gruppen</h3><p>Farbe bedeutet in Betula schon etwas: Bereiche, „jetzt“, Warnungen. Gruppen sind Wörter.</p></div>
+      <div><h3>Keine Farben für Sammlungen</h3><p>Farbe bedeutet in Betula schon etwas: Bereiche, „jetzt“, Warnungen. Sammlungen sind Wörter.</p></div>
       <div><h3>Kein Menüknopf an jeder Zeile</h3><p>Das Menü einer Zeile kommt mit der rechten Maustaste; sichtbar ist der Weg über das Modul.</p></div>
       <div><h3>Keine Kästchen</h3><p>Ausgewählt wird wie in „Mein Studium“, hervorgehoben und schraffiert. Ein Haken nur in Menüs.</p></div>
-      <div><h3>Kein Ziehen auf Gruppen</h3><p>Wie bei den Semestern in „Mein Studium“: Das Menü tut es, für eine Zeile wie für viele.</p></div>
+      <div><h3>Kein Ziehen auf Sammlungen</h3><p>Wie bei den Semestern in „Mein Studium“: Das Menü tut es, für eine Zeile wie für viele.</p></div>
       <div><h3>Keine Zahl zweimal</h3><p>Keine Übersicht neben dem Kopf, keine Summe neben der Summe.</p></div>
       <div><h3>Kein Satz, der immer dasteht</h3><p>Erklärt wird im leeren Zustand und im Tooltip, einmal.</p></div>
     </div>
   </section>
 
   <section class="block" id="offen" aria-labelledby="open-title">
-    <h2 id="open-title">Zu entscheiden</h2>
-    <p class="lead">Sieben Fragen, jeweils mit meiner Empfehlung. Danach baue ich Schritt 1, Wiederfinden: die Suche oben, Abschnitte, Ordnung und Filter, und die Seite am Handy ohne Werkzeuge unter der Liste.</p>
-    <ol class="ask">
-      <li><h3>1 · Der Hinweis: Feld oder Kurzwahl?</h3><p>Im Prototyp lassen sich beide ausprobieren.</p><p class="rec">Feld, mit „Weitere Module auch in …“.</p></li>
-      <li><h3>2 · Gruppen am Handy: Chips oder eine Auswahl?</h3><p>Chips über der Liste sind ein Tipp und zeigen die Zahlen. Die Alternative wäre der Name der Gruppe als Knopf mit einer Liste darunter, wie das Semester in „Mein Studium“: ruhiger, aber zwei Tipps.</p><p class="rec">Chips; ab etwa acht Gruppen scrollen sie seitlich.</p></li>
-      <li><h3>3 · Die Notiz in der Zeile?</h3><p>Ihre erste Zeile, oder nur ein Zeichen ✎, und die Notiz erst am Modul.</p><p class="rec">Die erste Zeile: Sie ist oft der Grund, warum das Modul da steht.</p></li>
-      <li><h3>4 · Der Stand in der Zeile?</h3><p>Eingeplant, läuft, bestanden, mit dem Zeichen aus „Mein Studium“ und dem Semester.</p><p class="rec">Ja, dort, wo es einen gibt.</p></li>
-      <li><h3>5 · Die Tasten G und N?</h3><p>Beide sind in Betula noch frei.</p><p class="rec">Ja.</p></li>
-      <li><h3>6 · „Weitere Filter“ in der Seitenleiste?</h3><p>Alle Filter des Katalogs für die gemerkten, oder nur die vier der Merkliste.</p><p class="rec">Eingeklappt darunter; ob auf oder zu, merkt sich der Browser (R13).</p></li>
-      <li><h3>7 · „3 Gruppen“ in der Zeile des Katalogs?</h3><p>Seit 1.32.0 sagt eine Zeile „3 Gruppen“, wenn eine Übung in Gruppen läuft. Auf der Merkliste stünde das neben deinen Gruppen und läse sich wie „in 3 deiner Gruppen“. Die Merkliste zählt ihre Gruppen darum nirgends so; sie nennt zwei und dann „+1“.</p><p class="rec">Im Katalog die Art davor, wo Betula sie kennt: „Übung in 3 Gruppen“, wie schon „Übung je Studiengang“.</p></li>
+    <h2 id="open-title">Entschieden, und drei Fragen</h2>
+    <p class="lead">Die sieben Fragen der ersten Fassung hast du am 19.10. beantwortet; jede Antwort ist jetzt Regel dieses Blatts. Aus den Antworten sind drei kleine Fragen entstanden.</p>
+    <blockquote class="quote">„Also ich finde die option mit dem Feld auch mit abstand am besten. Aber ich habe noch ein paar Anmerkungen dazu. <b>Man sollte in dem Modal was da kommt einstellen können, dass das der default ist.</b> Wenn man bei dem Modal auf fertig klickt, dann ist der Prozess done und die Notification kann auch weg (Gilt nur fürs handy). Bei dem PC sind die shortcuts etwas irritierend. Da ist einfach eine Zahl hinter einer anderen zahl das kann eigentlich Sowiso weg mach einfach gleich den Fokus in das Suchfeld. … Als erstes muss <b>der Fertig button oben rechts weg und unten in die Mitte mit voller Breite</b>. Wenn man das fenster so zu macht, dann werden die changes nicht gespeichert. Beim Textfeld muss das natürlich hochgeschoben werden für die Tastatur. … Ansonsten finde ich <b>die Sortierung bei der PC version etwas komisch</b>.“</blockquote>
+    <ol class="ask done">
+      <li><h3>1 · Der Hinweis: Feld oder Kurzwahl?</h3><p class="said">„Ja mach Feld“</p><p class="rec">Das Feld, mit dem Standard im Menü statt der zweiten Zeile; am Handy beendet „Fertig“ auch den Hinweis.</p></li>
+      <li><h3>2 · Sammlungen am Handy: Chips oder eine Auswahl?</h3><p class="said">„Ja gruppen als chips ist gut“</p><p class="rec">Chips über der Liste; ab etwa acht scrollen sie seitlich.</p></li>
+      <li><h3>3 · Die Notiz in der Zeile?</h3><p class="said">„Ja erste Zeile overflow bekommt ... (Mach mal notizen mit md support, du brauchst kein visuellen editor)“</p><p class="rec">Die erste Zeile mit „…“. Notizen in Markdown, geschrieben als Text, dargestellt in der Zeile und am Modul; Bilder nie geladen, HTML nie ausgeführt.</p></li>
+      <li><h3>4 · Der Stand in der Zeile?</h3><p class="said">„Ja mein studium“</p><p class="rec">Das Zeichen aus „Mein Studium“ mit dem Semester, wo es einen Stand gibt.</p></li>
+      <li><h3>5 · Tasten für Sammlung und Notiz?</h3><p class="said">„Ja Notiz und gruppe shortcut ist gut“</p><p class="rec">N für die Notiz; für die Sammlung S statt G, seit sie Sammlungen heißen (Frage A).</p></li>
+      <li><h3>6 · „Weitere Filter“?</h3><p class="said">„Ja alle filter eingeklappt lassen. TBH es ist eigentlich auch ok, wenn da nicht alle filter sind weil man ja auch im Katalog suchen. Ich würde sagen hier reichen ein paar, die wirklich relevant sind.“</p><p class="rec">Eingeklappt, mit vier: Sprache, Leistungspunkte, Standort, benotet.</p></li>
+      <li><h3>7 · „3 Gruppen“ im Katalog neben Betulas Gruppen?</h3><p class="said">„finde eine bessere formulierung für den Katalog und die Merkliste, so dass betulas Gruppen mechanic nicht mit der von der uni verwechselt wird.“</p><p class="rec">Betulas heißen „Sammlungen“; „Gruppe“ bleibt das Wort der Uni. Im Katalog wird aus „3 Gruppen“ „3 Gruppen zur Wahl“, wie schon „14 Projekte zur Wahl“: ab Folia 1.33.3 auf canary.</p></li>
     </ol>
-    <p class="src">Gebaut aus Folia 1.31.0 und nachgesehen in 1.32.1 (develop, 19.10.2026): <code>folia/crates/widgets/src/list.rs</code> (die Zeile, mit der Zeile einer Suche und „3 Gruppen“ aus 1.32), <code>folia/crates/planner/src/study/focus.rs</code> und <code>menu.rs</code> (Auswahl und Menüs), <code>folia/crates/widgets/src/plannote.rs</code> und <code>folia/crates/design/src/waitnote.rs</code> (der Hinweis), <code>folia/assets/app.css</code> (Maße und Farben); die Merkliste von heute auf canary. Das Konzept der Funktionen: <code>folia/design/merken/konzept.html</code>.</p>
+    <h3>Drei Fragen</h3>
+    <ol class="ask">
+      <li><h3>A · „Sammlungen“ und die Taste S?</h3><p>Wie bei Instagram, wo gespeicherte Beiträge in Sammlungen liegen, auch in mehreren zugleich. „Listen“ verwechselt man mit der Merkliste, „Ordner“ verspricht einen einzigen Ort, „Labels“ ist Englisch. Mit dem Namen wandert die Taste von G zu S; beide sind frei.</p><p class="rec">„Sammlungen“, englisch „collections“, mit S.</p></li>
+      <li><h3>B · Wie lange gilt der Standard?</h3><p>Bis man ihn ausschaltet, über einen Neustart hinaus; oder nur für diese Sitzung, wie „Weitere Module auch nach …“ beim Einplanen. Ein Standard, der still weitergilt, könnte Wochen später ein witziges Modul zu „Für Lena“ tun; dagegen steht die Nadel in jedem Hinweis und „Merken · in Für Lena“ am Schalter.</p><p class="rec">Bis man ihn ausschaltet, gespeichert mit den Sammlungen des Profils.</p></li>
+      <li><h3>C · Titel als Ordnung am Rechner?</h3><p>Mit „Mein Studiengang“ ordnet „Modul“ nach dem Studium, wie im Katalog nach dem Regelstudienplan. Nach dem Titel geht es dann nicht mehr; in 256 Modulen findet man einen Namen ohnehin schneller mit der Suche.</p><p class="rec">Wie im Katalog: der Titel nur ohne Studiengang.</p></li>
+    </ol>
+    <p class="src">Gebaut aus Folia 1.31.0 und nachgesehen in 1.33.2 (develop, 19.10.2026): <code>folia/crates/widgets/src/list.rs</code> (die Zeile, mit der Zeile einer Suche aus 1.32.1), <code>folia/crates/catalog/src/catalog.rs</code> (die Spaltenköpfe des Katalogs), <code>folia/crates/planner/src/study/focus.rs</code> und <code>menu.rs</code> (Auswahl und Menüs), <code>folia/crates/widgets/src/plannote.rs</code> und <code>folia/crates/design/src/waitnote.rs</code> (der Hinweis), <code>folia/crates/design/src/keyboard.rs</code> (die Tastatur am Handy), <code>folia/assets/app.css</code> (Maße und Farben, das Sheet der Filter); die Merkliste von heute auf canary. Das Konzept der Funktionen: <code>folia/design/merken/konzept.html</code>.</p>
   </section>
 </main>
 
@@ -1056,6 +1174,7 @@ const P = {
   minus: '<path d="M5 12h14"/>',
   more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
   tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5"/>',
+  pinned: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
   cal: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
   calplus: '<path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/>',
   share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/>',
@@ -1083,6 +1202,76 @@ function hi(text, q) {
   if (at < 0) return esc(text);
   return esc(text.slice(0, at)) + `<mark>${esc(text.slice(at, at + f.length))}</mark>` + esc(text.slice(at + f.length));
 }
+/** The first place `q` is found in the text of drawn HTML marked, never inside a tag. */
+function hiHtml(html, q) {
+  const f = fold(q);
+  if (!f) return html;
+  let done = false;
+  return html.replace(/(^|>)([^<]+)/g, (all, gt, text) => {
+    if (done) return all;
+    const plain = text.replace(/&(amp|lt|gt|quot);/g, (m, e) => ({ amp: "&", lt: "<", gt: ">", quot: '"' })[e]);
+    const at = fold(plain).indexOf(f);
+    if (at < 0) return all;
+    done = true;
+    return gt + esc(plain.slice(0, at)) + `<mark>${esc(plain.slice(at, at + f.length))}</mark>` + esc(plain.slice(at + f.length));
+  });
+}
+// ---- A note's Markdown (owner, 2026-10-19: „Mach mal notizen mit md support, du brauchst kein visuellen
+// editor"): written as text, drawn as it means. Escaped first, so no HTML gets through; a link only to
+// http(s) or mail, never followed by the row it stands in; an image drawn as its link, never loaded (a note
+// from a link could otherwise call a server). ----
+const MD_URL = /^(https?:\/\/|mailto:)[^\s"<>]+$/;
+/** One line's inline Markdown: **strong**, *em*, `code`, [text](url), ![alt](url). `links`: real anchors. */
+function mdInline(line, links) {
+  const codes = [];
+  let h = esc(line).replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+  const link = (text, url) => {
+    const raw = url.replace(/&amp;/g, "&");
+    if (!MD_URL.test(raw)) return text;
+    return links ? `<a class="md-a" href="${esc(raw)}" target="_blank" rel="noopener noreferrer nofollow">${text}</a>` : `<span class="md-a">${text}</span>`;
+  };
+  h = h.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (m, alt, url) => link(alt || "Bild", url));
+  h = h.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, text, url) => link(text, url));
+  h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/(^|[^*\w])\*([^*\s](?:[^*]*[^*\s])?)\*/g, "$1<i>$2</i>");
+  return h.replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${codes[i]}</code>`);
+}
+/** A line without its block's mark: a heading's #, a quote's >, a list's - or 1., a task's [ ]. */
+const mdBare = (line) => line.replace(/^\s*(#{1,6}\s+|>\s?|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)/, "");
+/** The note as plain text, for the search. */
+const mdPlain = (note) => String(note ?? "").split("\n").map(mdBare).join(" ").replace(/[*`]|!?\[([^\]]*)\]\([^)]*\)/g, (m, t) => t ?? "");
+/** The row's line: the note's first line that says something, inline only, no links to follow. */
+const mdFirst = (note) => mdInline(mdBare(String(note ?? "").split("\n").find((l) => mdBare(l).trim()) ?? ""), false);
+/** The whole note at the module: paragraphs (a line break stays one), lists, small headings, quotes. */
+function mdBlock(note) {
+  const out = [];
+  let list = null;
+  let para = [];
+  const flush = () => {
+    if (para.length) { out.push(`<p>${para.join("<br>")}</p>`); para = []; }
+    if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${i}</li>`).join("")}</${list.tag}>`); list = null; }
+  };
+  for (const raw of String(note ?? "").split("\n")) {
+    const line = raw.trimEnd();
+    const item = line.match(/^\s*([-*+]|\d+[.)])\s+(?:\[([ xX])\]\s+)?(.*)$/);
+    if (!line.trim()) { flush(); continue; }
+    if (item) {
+      const tag = /\d/.test(item[1]) ? "ol" : "ul";
+      if (para.length || (list && list.tag !== tag)) flush();
+      list ??= { tag, items: [] };
+      const box = item[2] ? `<span class="md-box${item[2] !== " " ? " on" : ""}"></span>` : "";
+      list.items.push(box + mdInline(item[3], true));
+      continue;
+    }
+    if (list) flush();
+    const head = line.match(/^\s*#{1,6}\s+(.*)$/);
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (head) { flush(); out.push(`<p class="md-h">${mdInline(head[1], true)}</p>`); continue; }
+    if (quote) { flush(); out.push(`<blockquote>${mdInline(quote[1], true)}</blockquote>`); continue; }
+    para.push(mdInline(line, true));
+  }
+  flush();
+  return out.join("");
+}
 
 // ======== the catalog of 19.10.2026, as canary shows it ========
 const W = "Winter", S_ = "Sommer", E = "jedes Sem.", U = "unregelm.";
@@ -1105,6 +1294,10 @@ const MODS = {
 };
 // What Betula knows from „Mein Studium" (an example): planned, and passed.
 const STATUS = { "11787": ["planned", "WiSe 26/27"], "12190": ["passed", "SoSe 26"] };
+// Where a module counts in „Mein Studiengang" (an example: Informatik B.Sc.), in the order of the study.
+const AREAS = ["Pflicht", "Wahlpflicht · Informatik", "Wahlpflicht · Mathematik", "FÜS", "Gehört nicht zu deinem Studiengang"];
+const AREA = { "11787": 0, "14642": 1, "13566": 1, "14380": 2, "14169": 3, "12177": 3, "41112": 3, "13674": 3, "13738": 3 };
+const areaOf = (id) => AREAS[AREA[id] ?? 4];
 // The prototype's tab Module: a page of the catalog.
 const CATALOG = ["14896", "14169", "14034", "13674", "12177", "13738", "41112", "13379", "12183", "14642"];
 const DAY = 86400;
@@ -1116,15 +1309,15 @@ const LIMIT = 256;
 function scenario(name, device, variant) {
   const st = {
     device, variant, tab: "catalog", groups: [], marks: new Map(), removed: new Map(), dim: new Set(), extra: 0,
-    view: "all", q: "", qCat: "", sel: new Set(), anchorSel: null, open: null, note: null, editor: null, sticky: null,
-    recent: [], season: "all", order: "time", sheet: null, ctx: null, adding: null, nextG: 1,
+    view: "all", q: "", qCat: "", sel: new Set(), anchorSel: null, open: null, note: null, editor: null, def: null,
+    recent: [], season: "all", order: "time", flip: false, sheet: null, ctx: null, adding: null, nextG: 1, moreFilters: false, kb: false,
   };
   if (name !== "empty") {
     st.groups = [{ id: "g1", name: "Wahlpflicht" }, { id: "g2", name: "Für Lena" }, { id: "g3", name: "Witzig" }];
     st.nextG = 4;
     const add = (id, days, groups, note = "") => st.marks.set(id, { at: NOW - days * DAY, groups: new Set(groups), note });
-    add("14896", 0, ["g2"], "früh anmelden, Plätze sind begrenzt");
-    add("14642", 0, ["g1"], "lieber als das Praktikum?");
+    add("14896", 0, ["g2"], "**früh anmelden**, Plätze sind begrenzt\n- Lena fragen, ob sie mitkommt\n- [Modulbeschreibung](https://www.b-tu.de/)");
+    add("14642", 0, ["g1"], "lieber als das *Praktikum*?");
     add("13566", 2, ["g1"]);
     add("14169", 3, ["g3", "g2"]);
     add("11787", 5, []);
@@ -1147,12 +1340,12 @@ function counts(st) {
   st.marks.forEach((m) => { if (!m.groups.size) c.none++; m.groups.forEach((g) => { c[g] = (c[g] || 0) + 1; }); });
   return c;
 }
-const viewName = (st) => st.view === "all" ? "Alle" : st.view === "none" ? "Ohne Gruppe" : groupById(st, st.view)?.name || "Alle";
+const viewName = (st) => st.view === "all" ? "Alle" : st.view === "none" ? "Ohne Sammlung" : groupById(st, st.view)?.name || "Alle";
 const offeredIn = (id, season) => season === "all" || MODS[id].tu === season || MODS[id].tu === E;
 function found(st, id, q) {
   const f = fold(q);
   const mark = markOf(st, id);
-  return fold(MODS[id].t).includes(f) || id.includes(f) || fold(mark?.note).includes(f) || namesIn(st, mark?.groups || new Set()).some((n) => fold(n).includes(f));
+  return fold(MODS[id].t).includes(f) || id.includes(f) || fold(mdPlain(mark?.note)).includes(f) || namesIn(st, mark?.groups || new Set()).some((n) => fold(n).includes(f));
 }
 /** The modules the list shows: the view's (and those taken off it here, dimmed), its half of the year, the search. */
 function listed(st) {
@@ -1172,18 +1365,27 @@ const SECTION_OF = {
 };
 const TIME_ORDER = ["Heute", "Letzte Woche", "Oktober", "September", "Früher"];
 const OFFER = { [W]: "Winter", [S_]: "Sommer", [E]: "Jedes Semester", [U]: "Unregelmäßig" };
-/** The list in its order: sections where the order has them. */
+/**
+ * The list in its order: sections where the order has them (the time marked, the study, the offer), and
+ * the order's way round (`st.flip`: the other way than its first). A search keeps its hits newest first.
+ */
 function arranged(st, ids) {
   const at = (id) => markOf(st, id).at;
   const newest = [...ids].sort((a, b) => at(b) - at(a));
   if (fold(st.q)) return [{ items: newest }];
-  if (st.order === "title") return [{ items: [...ids].sort((a, b) => MODS[a].t.localeCompare(MODS[b].t, "de")) }];
-  if (st.order === "lp") return [{ items: newest.sort((a, b) => MODS[b].lp - MODS[a].lp) }];
-  if (st.order === "offer") return Object.values(OFFER).map((label) => ({ label, items: newest.filter((id) => OFFER[MODS[id].tu] === label) })).filter((s) => s.items.length);
-  return TIME_ORDER.map((label) => ({ label, items: newest.filter((id) => SECTION_OF.time(at(id)) === label) })).filter((s) => s.items.length);
+  const turn = (list) => (st.flip ? [...list].reverse() : list);
+  const events = (id) => Number.parseInt(MODS[id].ev, 10) || 0;
+  if (st.order === "title") return [{ items: turn([...ids].sort((a, b) => MODS[a].t.localeCompare(MODS[b].t, "de"))) }];
+  if (st.order === "lp") return [{ items: turn([...newest].sort((a, b) => MODS[a].lp - MODS[b].lp)) }];
+  if (st.order === "events") return [{ items: turn([...newest].sort((a, b) => events(a) - events(b))) }];
+  const sections = (labels, of) => turn(labels).map((label) => ({ label, items: newest.filter((id) => of(id) === label) })).filter((x) => x.items.length);
+  if (st.order === "offer") return sections(Object.values(OFFER), (id) => OFFER[MODS[id].tu]);
+  if (st.order === "study") return sections(AREAS, areaOf);
+  const time = sections(TIME_ORDER, (id) => SECTION_OF.time(at(id)));
+  return st.flip ? time.map((x) => ({ ...x, items: [...x.items].reverse() })) : time;
 }
+/** The orders, as the phone's sheet lists them; on a desktop they are the columns' heads. */
 const ORDERS = [["time", "Zuletzt gemerkt"], ["study", "Nach Studium"], ["offer", "Nach Angebot"], ["title", "Titel"], ["lp", "Leistungspunkte"], ["events", "Termine"]];
-const orderName = (o) => ORDERS.find(([k]) => k === o)?.[1] || "Zuletzt gemerkt";
 /** What a row of the list says beyond the catalog, from the state. */
 function rowOpts(st, id, index) {
   const m = markOf(st, id);
@@ -1208,7 +1410,8 @@ function meta(id, o) {
   if (tags.length) h += pinOf(o, 3);
   return h;
 }
-const noteLine = (o) => o.note ? `<small class="mk-noteline">${ic("pencil")}<span>${hi(o.note, o.q)}</span>${pinOf(o, 4)}</small>` : "";
+const noteLine = (o) => o.note ? `<small class="mk-noteline">${ic("pencil")}<span class="md">${hiHtml(mdFirst(o.note), o.q)}</span>${pinOf(o, 4)}</small>` : "";
+const sameSet = (a, b) => !!a && !!b && a.size === b.size && [...a].every((x) => b.has(x));
 const bm = (id, on) => `<button class="mk-bm${on ? " on" : ""}" type="button" data-act="bm" data-id="${id}" aria-pressed="${on}" aria-label="${esc(MODS[id].t)} merken">${ic("bookmark", on ? "fill" : "")}</button>`;
 function deskRow(id, o = {}) {
   const m = MODS[id];
@@ -1224,13 +1427,28 @@ function phoneCard(id, o = {}) {
     + `<div class="${cls}" data-card="${id}"><div class="mk-t"><b>${hi(m.t, o.q)}</b><small class="mk-meta">${meta(id, o)}</small><small class="mk-meta">${m.la} · ${esc(events)}</small>${noteLine(o)}</div>`
     + `<span class="mk-cardlp"><b>${m.lp}</b> LP</span>${bm(id, o.marked)}</div></div>`;
 }
-const cols = (sorted) => `<div class="mk-cols"><span>${sorted === "title" ? "<b>Modul ↑</b>" : "Modul"}</span><span class="r">${sorted === "lp" ? "<b>LP ↓</b>" : "LP"}</span><span>Turnus</span><span>Spr.</span><span>Termine</span><span></span></div>`;
+/**
+ * The heads of the columns. On the Merkliste they are its order, as the catalog's heads are the catalog's
+ * (owner, 2026-10-19: „die Sortierung bei der PC version etwas komisch. Das könnte noch eleganter umgesetzt
+ * werden"): „Modul" by the study with „Mein Studiengang" (else by the title), „LP", „Turnus" by the offer,
+ * „Termine", and „Gemerkt" over the bookmarks by the time, the first order. A second click turns it round.
+ */
+const FIRST_DOWN = new Set(["time"]);
+function cols(st, list) {
+  if (!list) return `<div class="mk-cols"><span>Modul</span><span class="r">LP</span><span>Turnus</span><span>Spr.</span><span>Termine</span><span></span></div>`;
+  const head = (key, label, cls = "") => {
+    const on = st.order === key;
+    const down = FIRST_DOWN.has(key) !== (on && st.flip);
+    return `<button class="mk-sort${on ? " on" : ""}${cls}" type="button" data-act="sort" data-o="${key}" aria-pressed="${on}">${label}${on ? `<span class="arr">${down ? "↓" : "↑"}</span>` : ""}</button>`;
+  };
+  return `<div class="mk-cols">${head(st.program === false ? "title" : "study", "Modul")}${head("lp", "LP", " r")}${head("offer", "Turnus")}<span>Spr.</span>${head("events", "Termine")}<span class="mk-cols-end">${head("time", "Gemerkt")}</span></div>`;
+}
 
 /** The label of the note's field: where the module went. */
-function fieldLabel(names, anyGroup) {
-  if (!anyGroup) return { text: "Gruppe", empty: true, icon: "plus" };
-  if (!names.length) return { text: "Ohne Gruppe", empty: true, icon: "tag" };
-  return { text: names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", "), empty: false, icon: "tag" };
+function fieldLabel(names, anyGroup, byDefault = false) {
+  if (!anyGroup) return { text: "Sammlung", empty: true, icon: "plus" };
+  if (!names.length) return { text: "Ohne Sammlung", empty: true, icon: "tag" };
+  return { text: names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", "), empty: false, icon: byDefault ? "pinned" : "tag", byDefault };
 }
 /**
  * The note that waits for interaction, in the frame of „Einplanen"'s: kind mark (feld or kurz), unmark,
@@ -1240,17 +1458,16 @@ function noteHtml(n) {
   const phone = n.phone;
   const end = (undo = true) => `${undo ? `<span class="mk-note-sep"></span><button class="mk-note-undo" type="button" data-act="note-undo">Rückgängig</button>` : ""}<button class="mk-note-x" type="button" data-act="note-close" aria-label="Schließen">${ic("x")}</button>`;
   const title = !phone && n.title ? `<span class="mk-note-title">${esc(n.title)}</span>` : "";
-  let second = "";
   let line = "";
   if (n.kind === "mark") {
-    if (n.second) second = `<div class="mk-note-second">${ic("tag")}<span>Weitere Module auch in ‚${esc(n.second.name)}‘</span><button class="mk-switch${n.second.on ? " on" : ""}" type="button" data-act="note-sticky" role="switch" aria-checked="${!!n.second.on}" aria-label="Weitere Module auch in ${esc(n.second.name)}"></button></div>`;
     let pick;
     if (n.variant === "kurz" && n.chips?.length) {
       pick = n.chips.map((c) => `<button class="mk-note-chip${c.on ? " on" : ""}" type="button" data-act="note-chip" data-g="${c.id}">${c.on ? ic("check") : ""}${esc(c.name)}</button>`).join("")
-        + `<button class="mk-note-chip more" type="button" data-act="note-field" aria-label="Weitere Gruppen">${ic("down")}</button>`;
+        + `<button class="mk-note-chip more" type="button" data-act="note-field" aria-label="Weitere Sammlungen">${ic("down")}</button>`;
     } else {
       const f = n.field;
-      pick = `<button class="mk-note-field${f.empty ? " empty" : ""}" type="button" data-act="note-field" aria-haspopup="menu">${ic(f.icon)}<span>${esc(f.text)}</span>${ic("down")}</button>`;
+      const label = f.byDefault ? `Sammlung: ${f.text}, über den Standard für neue Merker` : `Sammlung: ${f.text}`;
+      pick = `<button class="mk-note-field${f.empty ? " empty" : ""}${f.byDefault ? " def" : ""}" type="button" data-act="note-field" aria-haspopup="dialog" aria-label="${esc(label)}">${ic(f.icon)}<span>${esc(f.text)}</span>${ic("down")}</button>`;
     }
     line = `<span class="mk-note-mark">${ic("check")}</span>${title}${phone ? "" : '<span class="mk-note-gap"></span>'}${pick}${phone ? '<span class="mk-note-gap"></span>' : ""}${end()}`;
   } else if (n.kind === "plan") {
@@ -1265,41 +1482,60 @@ function noteHtml(n) {
   } else if (n.kind === "copied") {
     line = `<span class="mk-note-mark">${ic("link")}</span><span class="mk-note-say"><b>Link kopiert</b> <i>· ${esc(n.what)}</i></span><span class="mk-note-gap"></span>${end(false)}`;
   }
-  return `<div class="mk-note${n.static ? " static" : ""}${phone ? " ph" : ""}" role="status" data-keep${n.sn ? ` data-k="n${n.sn}"` : ""}>${second}<div class="mk-note-line">${line}</div></div>`;
+  return `<div class="mk-note${n.static ? " static" : ""}${phone ? " ph" : ""}" role="status" data-keep${n.sn ? ` data-k="n${n.sn}"` : ""}><div class="mk-note-line">${line}</div></div>`;
 }
 /** The note grown into a list of groups: the form that was set aside, drawn to show why. */
 function unfoldHtml() {
-  return `<div class="mk-note static unfold"><div class="mk-note-list"><div class="f">${ic("search")}Gruppe suchen oder anlegen</div><div class="on"><span class="c">${ic("check")}</span>Für Lena</div><div><span class="c"></span>Wahlpflicht</div><div><span class="c"></span>Witzig</div></div>`
+  return `<div class="mk-note static unfold"><div class="mk-note-list"><div class="f">${ic("search")}Sammlung suchen oder anlegen</div><div class="on"><span class="c">${ic("check")}</span>Für Lena</div><div><span class="c"></span>Wahlpflicht</div><div><span class="c"></span>Witzig</div></div>`
     + `<div class="mk-note-line"><span class="mk-note-mark">${ic("check")}</span><span class="mk-note-title">Music and Artificial Intelligence</span><span class="mk-note-gap"></span><span class="mk-note-sep"></span><button class="mk-note-undo" type="button">Rückgängig</button></div></div>`;
 }
 /**
- * The one menu of a mark's groups and note. `e`: title, q (what is typed), items [{id, name, count,
- * state: on|off|part}] (the groups that hold what is typed), create (what is typed, where no group has
- * that name: its row comes after the groups found, and first where none is found), note (a string: one
- * module; null: several), active (the row the keys are on, the create row after the groups), phone (a
- * sheet), static (a figure), typed (a figure's text).
+ * The one menu of a mark's collections and note. `e`: title, q (what is typed), items [{id, name, count,
+ * state: on|off|part}] (the collections that hold what is typed), create (what is typed, where no
+ * collection has that name: its row comes after those found, and first where none is found), def (one
+ * module: the default for new marks, {mode: switch, on, before} or {mode: clear, name}), note (a string:
+ * one module; null: several), active (the row the keys are on, the create row after the collections),
+ * phone (a sheet: a draft until „Fertig"), kb (a phone's keyboard up), static (a figure), typed (a
+ * figure's text), noteFocus (a figure's note being written).
+ *
+ * No digits at the rows (owner, 2026-10-19: „Da ist einfach eine Zahl hinter einer anderen zahl das kann
+ * eigentlich Sowiso weg mach einfach gleich den Fokus in das Suchfeld"): on a desktop the field has the
+ * focus as the menu opens, ↑ ↓ and Enter go through the rows.
  */
 function editorHtml(e) {
-  const keys = !e.phone && !fold(e.q);
   const items = e.items.map((it, i) => {
     const mark = it.state === "on" ? ic("check") : it.state === "part" ? ic("minus") : "";
     const checked = it.state === "on" ? "true" : it.state === "part" ? "mixed" : "false";
-    return `<button class="mk-item ${it.state}${i === e.active ? " act" : ""}" type="button" role="menuitemcheckbox" aria-checked="${checked}" data-act="ed-item" data-g="${it.id}"><span class="chk">${mark}</span><span class="nm">${hi(it.name, e.q)}</span><span class="n">${it.count}</span>${keys && i < 9 ? `<span class="mk-kbd">${i + 1}</span>` : ""}</button>`;
+    return `<button class="mk-item ${it.state}${i === e.active && !e.phone ? " act" : ""}" type="button" role="menuitemcheckbox" aria-checked="${checked}" data-act="ed-item" data-g="${it.id}"><span class="chk">${mark}</span><span class="nm">${hi(it.name, e.q)}</span><span class="n">${it.count}</span></button>`;
   }).join("");
-  const createAct = e.active === e.items.length;
+  const createAct = e.active === e.items.length && !e.phone;
   const create = e.create ? `<button class="mk-item create${createAct ? " act" : ""}" type="button" data-act="ed-create"><span class="chk">${ic("plus")}</span><span class="nm">‚${esc(e.create)}‘ anlegen</span><span></span>${e.phone || !createAct ? "" : '<span class="mk-kbd">Enter</span>'}</button>` : "";
   const field = e.static
-    ? `<div class="mk-field${e.typed ? " focus" : ""}">${ic("search")}${e.typed ? `<span class="typed">${esc(e.typed)}</span>` : "<span>Gruppe suchen oder anlegen</span>"}</div>`
-    : `<label class="mk-field">${ic("search")}<input data-focus="ed-q" data-ed="q" value="${esc(e.q)}" placeholder="Gruppe suchen oder anlegen" autocomplete="off" aria-label="Gruppe suchen oder anlegen"></label>`;
-  const empty = !e.items.length && !e.create ? `<p class="mk-menu-row">Noch keine Gruppe. Tippe einen Namen.</p>` : "";
-  const note = typeof e.note === "string"
-    ? `<div class="mk-msep"></div><p class="mk-mlabel">Notiz</p>${e.static ? `<div class="mk-notearea">${esc(e.note) || '<span style="color: var(--text-3)">Notiz</span>'}</div>` : `<textarea class="mk-notearea" data-focus="ed-note" data-ed="note" rows="1" placeholder="Notiz" aria-label="Notiz">${esc(e.note)}</textarea>`}`
-    : "";
-  const body = `${field}<div class="mk-items" role="menu" data-ed-items>${items}${create}${empty}</div>${note}`;
-  if (e.phone) {
-    return `${e.static ? "" : `<div class="mk-shade" data-act="ed-done" data-keep data-k="es${e.sn}"></div>`}<div class="mk-sheet${e.static ? " static" : ""}" data-keep${e.sn ? ` data-k="e${e.sn}"` : ""}><div class="mk-grab"></div><div class="mk-sheet-head"><b>${esc(e.title)}</b><button class="mk-done" type="button" data-act="ed-done">Fertig</button></div><div class="mk-sheet-scroll">${body}</div></div>`;
+    ? `<div class="mk-field${e.typed ? " focus" : ""}">${ic("search")}${e.typed ? `<span class="typed">${esc(e.typed)}</span>` : "<span>Sammlung suchen oder anlegen</span>"}</div>`
+    : `<label class="mk-field">${ic("search")}<input data-focus="ed-q" data-ed="q" value="${esc(e.q)}" placeholder="Sammlung suchen oder anlegen" autocomplete="off" enterkeyhint="done" aria-label="Sammlung suchen oder anlegen"></label>`;
+  const empty = !e.items.length && !e.create ? `<p class="mk-menu-row">Noch keine Sammlung. Tippe einen Namen.</p>` : "";
+  // The default for new marks (owner, 2026-10-19: „Man sollte in dem Modal was da kommt einstellen
+  // können, dass das der default ist"): what this module is in, for every module marked from now on.
+  let def = "";
+  if (e.def?.mode === "switch") {
+    def = `<div class="mk-defrow"><span class="lbl"><b>Standard für neue Merker</b>${e.def.before ? `<small>bisher ${esc(e.def.before)}</small>` : ""}</span><button class="mk-switch light${e.def.on ? " on" : ""}" type="button" data-act="ed-default" role="switch" aria-checked="${!!e.def.on}" aria-label="Standard für neue Merker"></button></div>`;
+  } else if (e.def?.mode === "clear") {
+    def = `<div class="mk-defrow"><span class="lbl"><b>Standard für neue Merker</b><small>${esc(e.def.name)}</small></span><button class="mk-mini" type="button" data-act="ed-default">Aufheben</button></div>`;
   }
-  return `<div class="mk-menu${e.static ? " static" : ""}" data-keep${e.sn ? ` data-k="e${e.sn}"` : ""}><p class="mk-menu-head">${esc(e.title)}</p>${body}</div>`;
+  const noteText = e.note ?? "";
+  const note = typeof e.note === "string"
+    ? `<div class="mk-msep"></div><p class="mk-mlabel">Notiz</p>${e.static ? `<div class="mk-notearea${e.noteFocus ? " focus" : ""}">${noteText ? esc(noteText) : '<span style="color: var(--text-3)">Notiz, gern mit Markdown</span>'}</div>` : `<textarea class="mk-notearea" data-focus="ed-note" data-ed="note" rows="2" placeholder="Notiz, gern mit Markdown" aria-label="Notiz (Markdown)">${esc(noteText)}</textarea>`}`
+    : "";
+  const body = `${field}<div class="mk-items" role="menu" data-ed-items>${items}${create}${empty}</div>${def ? `<div class="mk-msep"></div>${def}` : ""}${note}`;
+  if (e.phone) {
+    // A sheet from below with „Fertig" at its foot, as wide as the sheet (owner, 2026-10-19: „der Fertig
+    // button oben rechts weg und unten in die Mitte mit voller Breite"). What is chosen is a draft: „Fertig"
+    // keeps it and ends the note too; swiped down, tapped beside or Esc lets it go („Wenn man das fenster
+    // so zu macht, dann werden die changes nicht gespeichert"). With the keyboard up the sheet takes what
+    // the keyboard leaves and its foot waits, as every sheet of Betula's since 2026-10-17.
+    return `${e.static ? "" : `<div class="mk-shade" data-act="ed-cancel" data-keep data-k="es${e.sn}"></div>`}<div class="mk-sheet${e.static ? " static" : ""}${e.kb ? " kbup" : ""}" data-keep data-sheet="ed"${e.sn ? ` data-k="e${e.sn}"` : ""} role="dialog" aria-label="${esc(e.title)}"><div class="mk-grab" data-drag></div><div class="mk-sheet-head" data-drag><b>${esc(e.title)}</b></div><div class="mk-sheet-scroll" data-scroll="ed">${body}</div><div class="mk-sheet-foot"><button class="mk-wide" type="button" data-act="ed-done">Fertig</button></div></div>`;
+  }
+  return `<div class="mk-menu${e.static ? " static" : ""}" data-keep${e.sn ? ` data-k="e${e.sn}"` : ""} role="dialog" aria-label="${esc(e.title)}"><p class="mk-menu-head">${esc(e.title)}</p>${body}</div>`;
 }
 /** The pair of switches at a module: „Einplanen" and „Merken", the latter split once marked. */
 function pairHtml(p) {
@@ -1307,9 +1543,9 @@ function pairHtml(p) {
   let mark;
   if (p.marked) {
     const small = p.groups.length ? `<small>${esc(p.groups.join(", "))}</small>` : "";
-    mark = `<span class="mk-swsplit"><button class="mk-sw on" type="button" data-act="sw-mark">${ic("bookmark", "fill")}<span class="lbl"><b>Gemerkt</b>${small}</span>${p.phone ? "" : '<span class="mk-kbd">M</span>'}</button><button class="mk-swchev" type="button" data-act="sw-chev" aria-label="Gruppe und Notiz" aria-haspopup="menu">${ic("down")}</button></span>`;
+    mark = `<span class="mk-swsplit"><button class="mk-sw on" type="button" data-act="sw-mark">${ic("bookmark", "fill")}<span class="lbl"><b>Gemerkt</b>${small}</span>${p.phone ? "" : '<span class="mk-kbd">M</span>'}</button><button class="mk-swchev" type="button" data-act="sw-chev" aria-label="Sammlung und Notiz" aria-haspopup="menu">${ic("down")}</button></span>`;
   } else {
-    const small = p.sticky?.length ? `<small>in ${esc(p.sticky.join(", "))}</small>` : "";
+    const small = p.def?.length ? `<small>in ${esc(p.def.join(", "))}</small>` : "";
     mark = `<button class="mk-sw" type="button" data-act="sw-mark">${ic("bookmark")}<span class="lbl"><b>Merken</b>${small}</span>${p.phone ? "" : '<span class="mk-kbd">M</span>'}</button>`;
   }
   return `<div class="mk-swpair${p.phone ? "" : " stack"}">${plan}${mark}</div>`;
@@ -1317,16 +1553,16 @@ function pairHtml(p) {
 /** A module as its preview, its page or its sheet shows it: head, badges, the switches, the note, the rest (`p.short` leaves the rest out). */
 function moduleHtml(id, p) {
   const m = MODS[id];
-  const note = p.marked && p.note ? `<button class="mk-modnote" type="button" data-act="sw-note">${ic("pencil")}<span>${esc(p.note)}</span></button>` : "";
+  const note = p.marked && p.note ? `<div class="mk-modnote" data-act="sw-note" title="Notiz bearbeiten (N)">${ic("pencil")}<div class="md">${mdBlock(p.note)}</div></div>` : "";
   const flagBadges = (m.fl || []).map(([t, k]) => `<span class="mk-badge${k === "w" ? " warn" : ""}">${esc(t)}</span>`).join("");
   const rest = p.short ? "" : `<p class="mk-msec">Termine</p><div class="mk-skel" style="width: 80%"></div><div class="mk-skel" style="width: 55%"></div><p class="mk-msec">Auf einen Blick</p><div class="mk-pair"><div class="mk-skelbox"></div><div class="mk-skelbox"></div><div class="mk-skelbox"></div><div class="mk-skelbox"></div></div>`;
   return `<div class="mk-mod"><span class="mk-mod-id">${id}</span><h4>${esc(m.t)}</h4><div class="mk-badges"><span class="mk-badge lp">${m.lp} LP</span><span class="mk-badge">${esc(m.tu)}</span><span class="mk-badge">${m.la}</span>${flagBadges}</div>${pairHtml(p)}${note}${rest}</div>`;
 }
 function deskSelbar(n, lp) {
-  return `<div class="mk-selbar" data-keep><span class="cnt">${n} ausgewählt <i>· ${lp} LP</i></span><button class="mk-act" type="button" data-act="sel-group">${ic("tag")}Gruppe${ic("down", "dn")}</button><button class="mk-act" type="button">${ic("calplus")}Einplanen${ic("down", "dn")}</button><button class="mk-act" type="button" data-act="sel-share">${ic("share")}Teilen</button><button class="mk-act danger" type="button" data-act="sel-remove">${ic("trash")}Entfernen</button><button class="mk-act x" type="button" data-act="sel-clear" aria-label="Auswahl aufheben">${ic("x")}</button></div>`;
+  return `<div class="mk-selbar" data-keep><span class="cnt">${n} ausgewählt <i>· ${lp} LP</i></span><button class="mk-act" type="button" data-act="sel-group">${ic("tag")}Sammlung${ic("down", "dn")}</button><button class="mk-act" type="button">${ic("calplus")}Einplanen${ic("down", "dn")}</button><button class="mk-act" type="button" data-act="sel-share">${ic("share")}Teilen</button><button class="mk-act danger" type="button" data-act="sel-remove">${ic("trash")}Entfernen</button><button class="mk-act x" type="button" data-act="sel-clear" aria-label="Auswahl aufheben">${ic("x")}</button></div>`;
 }
 function phoneSelbar(n, isStatic, sn) {
-  return `<div class="mk-pselbar${isStatic ? " static" : ""}" data-keep${sn ? ` data-k="b${sn}"` : ""}><span class="cnt">${n}</span><button class="mk-act" type="button" data-act="sel-group">${ic("tag")}Gruppe</button><button class="mk-act" type="button">${ic("calplus")}Einplanen</button><button class="mk-act" type="button" data-act="sel-share">${ic("share")}Teilen</button><button class="mk-act danger" type="button" data-act="sel-remove">${ic("trash")}Entfernen</button><button class="mk-act x" type="button" data-act="sel-clear" aria-label="Auswahl aufheben">${ic("x")}</button></div>`;
+  return `<div class="mk-pselbar${isStatic ? " static" : ""}" data-keep${sn ? ` data-k="b${sn}"` : ""}><span class="cnt">${n}</span><button class="mk-act" type="button" data-act="sel-group">${ic("tag")}Sammlung</button><button class="mk-act" type="button">${ic("calplus")}Einplanen</button><button class="mk-act" type="button" data-act="sel-share">${ic("share")}Teilen</button><button class="mk-act danger" type="button" data-act="sel-remove">${ic("trash")}Entfernen</button><button class="mk-act x" type="button" data-act="sel-clear" aria-label="Auswahl aufheben">${ic("x")}</button></div>`;
 }
 function tabsHtml(st, phone) {
   const c = total(st);
@@ -1350,7 +1586,7 @@ function headWords(st, shown) {
   const t = total(st);
   const near = st.view === "all" && t >= 240;
   if (st.view === "all") return { n: near ? `${t} / ${LIMIT}` : t, warn: t >= 250, label: t === 1 ? "gemerktes Modul" : "gemerkte Module", lp: st.extra ? null : lp };
-  if (st.view === "none") return { n, label: "ohne Gruppe", lp };
+  if (st.view === "none") return { n, label: "ohne Sammlung", lp };
   return { n, label: `in ${viewName(st)}`, lp };
 }
 function listedNoQuery(st) { return listed({ ...st, q: "" }); }
@@ -1358,7 +1594,7 @@ function sectionsHtml(st, phone, pin = "") {
   const shown = listed(st);
   if (!total(st)) return `<div class="mk-empty"><span class="ico">${ic("bookmark")}</span><b>Noch nichts gemerkt</b><span>Das Lesezeichen an einem Modul oder M merkt es. Die Merkliste bleibt in diesem Browser.</span></div>`;
   if (!shown.length && fold(st.q)) return `<div class="mk-empty"><b>Nichts Gemerktes zu ‚${esc(st.q)}‘</b></div>${catLink(st)}`;
-  if (!shown.length && st.view.startsWith("g")) return `<div class="mk-empty"><b>‚${esc(viewName(st))}‘ ist leer</b><span>Module kommen über „Gruppe“ im Hinweis, am Modul oder für mehrere ausgewählte hierher.</span></div>`;
+  if (!shown.length && st.view.startsWith("g")) return `<div class="mk-empty"><b>‚${esc(viewName(st))}‘ ist leer</b><span>Module kommen über „Sammlung“ im Hinweis, am Modul oder für mehrere ausgewählte hierher.</span></div>`;
   if (!shown.length) return `<div class="mk-empty"><b>Nichts davon im ${st.season === W ? "Winter" : "Sommer"}</b></div>`;
   let i = 0;
   const parts = arranged(st, shown).map((s, k) => (s.label ? `<div class="mk-sem">${s.label} <small>${s.items.length}</small>${!phone && k === 0 ? pin : ""}</div>` : "")
@@ -1382,47 +1618,62 @@ function chipsHtml(st, pin = "") {
   const c = counts(st);
   const chip = (v, name, n, cls = "") => `<button class="mk-gchip${st.view === v ? " cur" : ""} ${cls}" type="button" data-act="view" data-v="${v}">${esc(name)}<span class="n">${n}</span></button>`;
   const adding = st.adding !== null
-    ? `<span class="mk-gchip input${st.adding.taken ? " taken" : ""}"><input data-focus="new-g" data-new value="${esc(st.adding.text)}" placeholder="Name" aria-label="Name der neuen Gruppe"></span>`
-    : `<button class="mk-gchip add" type="button" data-act="new-group" aria-label="Neue Gruppe">${ic("plus")}</button>`;
-  return `<div class="mk-gchips">${chip("all", "Alle", c.all)}${chip("none", "Ohne Gruppe", c.none, "derived")}${st.groups.map((g) => chip(g.id, g.name, c[g.id])).join("")}${adding}${pin}</div>${st.adding?.taken ? '<span class="mk-taken">Gibt es schon · Enter öffnet sie</span>' : ""}`;
+    ? `<span class="mk-gchip input${st.adding.taken ? " taken" : ""}"><input data-focus="new-g" data-new value="${esc(st.adding.text)}" placeholder="Name" aria-label="Name der neuen Sammlung"></span>`
+    : `<button class="mk-gchip add" type="button" data-act="new-group" aria-label="Neue Sammlung">${ic("plus")}</button>`;
+  return `<div class="mk-gchips">${chip("all", "Alle", c.all)}${chip("none", "Ohne Sammlung", c.none, "derived")}${st.groups.map((g) => chip(g.id, g.name, c[g.id])).join("")}${adding}${pin}</div>${st.adding?.taken ? '<span class="mk-taken">Gibt es schon · Enter öffnet sie</span>' : ""}`;
 }
-/** The desktop's sidebar of the Merkliste: its groups, and the filters that separate something (`onlyGroups`: the groups alone). */
+/**
+ * „Weitere Filter": a few of the catalog's that decide between marked modules (owner, 2026-10-19: „es ist
+ * eigentlich auch ok, wenn da nicht alle filter sind weil man ja auch im Katalog suchen. Ich würde sagen
+ * hier reichen ein paar, die wirklich relevant sind"): the language, the credits, the campus, graded.
+ */
+function moreFiltersHtml(st) {
+  const all = [...st.marks.keys()];
+  const de = all.filter((id) => MODS[id].la === "DE").length;
+  const en = all.length - de;
+  return `<div class="mk-more"><p class="mk-flabel">Sprache</p><div class="mk-seg"><span class="on">Alle</span><span>Deutsch<span class="n">${de}</span></span><span>Englisch<span class="n">${en}</span></span></div>`
+    + `<p class="mk-flabel" style="margin-top: 12px">Leistungspunkte</p><div class="mk-range"><span class="mk-num-in">von</span><span class="dash">–</span><span class="mk-num-in">bis</span></div>`
+    + `<p class="mk-flabel" style="margin-top: 12px">Standort</p><span class="mk-chipf"><i class="box"></i>Cottbus</span><span class="mk-chipf"><i class="box"></i>Senftenberg</span>`
+    + `<p class="mk-flabel" style="margin-top: 12px">Prüfung</p><span class="mk-chipf"><i class="box"></i>Benotet</span></div>`;
+}
+/** The desktop's sidebar of the Merkliste: its collections, and the filters that separate something (`onlyGroups`: the collections alone). */
 function sideHtml(st, pins, onlyGroups = false) {
   const c = counts(st);
   const pin = (n) => (pins ? `<i class="pin">${n}</i>` : "");
   const navi = (v, name, n, cls = "") => `<button class="mk-navi${st.view === v ? " cur" : ""} ${cls}" type="button" data-act="view" data-v="${v}"><span class="nm">${esc(name)}</span><span class="n">${n}</span>${v.startsWith("g") ? `<span class="more">${ic("more")}</span>` : ""}</button>${st.menuOn === v && st.menuHtml ? st.menuHtml : ""}`;
   let nav = navi("all", "Alle", c.all);
-  if (st.groups.length) nav += navi("none", "Ohne Gruppe", c.none, "derived") + st.groups.map((g) => navi(g.id, g.name, c[g.id], st.menuOn === g.id ? "menu" : st.hoverOn === g.id ? "hover" : "")).join("");
+  if (st.groups.length) nav += navi("none", "Ohne Sammlung", c.none, "derived") + st.groups.map((g) => navi(g.id, g.name, c[g.id], st.menuOn === g.id ? "menu" : st.hoverOn === g.id ? "hover" : "")).join("");
   nav += st.adding !== null
-    ? `<span class="mk-navi input${st.adding.taken ? " taken" : ""}"><input data-focus="new-g" data-new value="${esc(st.adding.text)}" placeholder="Name der Gruppe" aria-label="Name der neuen Gruppe"></span>${st.adding.taken ? '<span class="mk-taken" style="margin: 4px 6px 0">Gibt es schon · Enter öffnet sie</span>' : ""}`
-    : `<button class="mk-navi add" type="button" data-act="new-group">${ic("plus")}<span class="nm">Neue Gruppe</span></button>`;
+    ? `<span class="mk-navi input${st.adding.taken ? " taken" : ""}"><input data-focus="new-g" data-new value="${esc(st.adding.text)}" placeholder="Name der Sammlung" aria-label="Name der neuen Sammlung"></span>${st.adding.taken ? '<span class="mk-taken" style="margin: 4px 6px 0">Gibt es schon · Enter öffnet sie</span>' : ""}`
+    : `<button class="mk-navi add" type="button" data-act="new-group">${ic("plus")}<span class="nm">Neue Sammlung</span></button>`;
   const all = [...st.marks.keys()];
   const winter = all.filter((id) => offeredIn(id, W)).length;
   const summer = all.filter((id) => offeredIn(id, S_)).length;
   const seg = (v, label, n) => `<button class="${st.season === v ? "on" : ""}" type="button" data-act="season" data-s="${v}">${label}${n !== null ? `<span class="n">${n}</span>` : ""}</button>`;
   const stand = all.some((id) => STATUS[id]) ? `<p class="mk-flabel" style="margin-top: 12px">Stand</p><div class="mk-seg"><span class="on">Alle</span><span>Offen</span><span>Geplant</span><span>Best.</span></div>` : "";
-  return `<aside class="mk-side"><div class="mk-fg"><p class="mk-flabel">Gruppen${pin(1)}</p><div class="mk-nav">${nav}</div></div>`
-    + (all.length && !onlyGroups ? `<div class="mk-fg"><p class="mk-flabel">Angeboten im${pin(2)}</p><div class="mk-seg">${seg("all", "Alle", null)}${seg(W, "Winter", winter)}${seg(S_, "Sommer", summer)}</div>${stand}<p class="mk-flabel" style="margin-top: 12px">Mein Studium</p><span class="mk-chipf"><i class="box"></i>Zählt in meinem Studium</span><span class="mk-chipf"><i class="box"></i>Passt in meinen Stundenplan${ic("right")}</span><button class="mk-fold" type="button">${ic("right")}Weitere Filter</button></div>` : "")
+  const more = `<button class="mk-fold" type="button" data-act="more-filters" aria-expanded="${!!st.moreFilters}">${ic(st.moreFilters ? "down" : "right")}Weitere Filter</button>${st.moreFilters ? moreFiltersHtml(st) : ""}`;
+  return `<aside class="mk-side"><div class="mk-fg"><p class="mk-flabel">Sammlungen${pin(1)}</p><div class="mk-nav">${nav}</div></div>`
+    + (all.length && !onlyGroups ? `<div class="mk-fg"><p class="mk-flabel">Angeboten im${pin(2)}</p><div class="mk-seg">${seg("all", "Alle", null)}${seg(W, "Winter", winter)}${seg(S_, "Sommer", summer)}</div>${stand}<p class="mk-flabel" style="margin-top: 12px">Mein Studium</p><span class="mk-chipf"><i class="box"></i>Zählt in meinem Studium</span><span class="mk-chipf"><i class="box"></i>Passt in meinen Stundenplan${ic("right")}</span>${more}</div>` : "")
     + `</aside>`;
 }
-/** The desktop's list of the Merkliste: head, columns' heads (or the bar of the selection), rows. */
+/** The desktop's list of the Merkliste: head, columns' heads (its order; or the bar of the selection), rows. */
 function deskListHtml(st, pins) {
   const shown = listed(st);
   const w = headWords(st, shown);
   const pin = (n) => (pins ? `<i class="pin">${n}</i>` : "");
   const tags = st.season !== "all" ? `<div class="mk-ftags"><span class="mk-ftag"><em>Turnus</em> ${st.season}<button type="button" data-act="season" data-s="all" aria-label="Filter entfernen">${ic("x")}</button></span></div>` : "";
-  const head = `<div class="mk-lhead"><div class="mk-count-row"><span class="mk-count${w.warn ? " warn" : ""}">${w.n}</span><span class="mk-count-label">${esc(w.label)}${w.lp !== null && w.lp !== undefined ? ` <i>· ${w.lp} LP</i>` : ""}</span>${pin(3)}<div class="mk-tools"><button class="mk-select" type="button" data-act="order-open">${esc(orderName(st.order))}${ic("down")}</button><span class="mk-keys"><span class="mk-kbd">M</span>merken<span class="mk-kbd">G</span>Gruppe</span></div></div>${tags}</div>`;
-  const bar = st.sel.size ? deskSelbar(st.sel.size, sumLp([...st.sel])) : cols(st.order);
-  return `<section class="mk-list">${head}${bar}<div class="mk-rows" data-scroll="rows">${sectionsHtml(st, false, pins ? '<i class="pin">4</i>' : "")}</div></section>`;
+  const head = `<div class="mk-lhead"><div class="mk-count-row"><span class="mk-count${w.warn ? " warn" : ""}">${w.n}</span><span class="mk-count-label">${esc(w.label)}${w.lp !== null && w.lp !== undefined ? ` <i>· ${w.lp} LP</i>` : ""}</span>${pin(3)}<div class="mk-tools"><span class="mk-keys"><span class="mk-kbd">↑</span><span class="mk-kbd">↓</span>wählen<span class="mk-kbd">M</span>merken<span class="mk-kbd">S</span>Sammlung</span></div></div>${tags}</div>`;
+  const bar = st.sel.size ? deskSelbar(st.sel.size, sumLp([...st.sel])) : cols(st, true);
+  return `<section class="mk-list ml">${head}${bar}<div class="mk-rows" data-scroll="rows">${sectionsHtml(st, false, pins ? '<i class="pin">4</i>' : "")}</div></section>`;
 }
 function deskCatalogHtml(st) {
   const { n, rows } = catalogRows(st, false);
-  return `<section class="mk-list"><div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">${n}</span><span class="mk-count-label">Module</span><div class="mk-tools"><span class="mk-keys"><span class="mk-kbd">↑</span><span class="mk-kbd">↓</span>wählen<span class="mk-kbd">M</span>merken</span></div></div></div>${cols("")}<div class="mk-rows" data-scroll="cat">${rows}</div></section>`;
+  return `<section class="mk-list"><div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">${n}</span><span class="mk-count-label">Module</span><div class="mk-tools"><span class="mk-keys"><span class="mk-kbd">↑</span><span class="mk-kbd">↓</span>wählen<span class="mk-kbd">M</span>merken</span></div></div></div>${cols(st, false)}<div class="mk-rows" data-scroll="cat">${rows}</div></section>`;
 }
 function deskCatalogSide() {
   return `<aside class="mk-side"><div class="mk-fg"><p class="mk-flabel">Angeboten im</p><span class="mk-chipf"><i class="box"></i>Winter</span><span class="mk-chipf"><i class="box"></i>Sommer</span></div><div class="mk-fg"><p class="mk-flabel">Eigenschaften</p><span class="mk-chipf"><i class="box"></i>Gemerkt${ic("right")}</span><span class="mk-chipf"><i class="box"></i>FÜS</span><span class="mk-chipf"><i class="box"></i>Ohne Klausur</span></div><p class="mk-hint">Die Filter des Katalogs, wie heute.</p></aside>`;
 }
-/** The editor's spec from the state: which modules, what is typed, what each group holds of them. */
+/** The editor's spec from the state: which modules, what is typed, what each collection holds of them, the default. */
 function editorSpec(st) {
   const ed = st.editor;
   const marks = ed.ids.map((id) => markOf(st, id)).filter(Boolean);
@@ -1435,7 +1686,20 @@ function editorSpec(st) {
   const exact = st.groups.some((g) => fold(g.name) === f);
   const create = f && !exact ? ed.q.trim() : null;
   const title = ed.ids.length === 1 ? MODS[ed.ids[0]].t : `${ed.ids.length} Module`;
-  return { title, q: ed.q, items, create, note: ed.ids.length === 1 ? marks[0]?.note || "" : null, active: ed.active ?? 0, phone: st.device === "phone", sn: ed.sn };
+  // The default: one module's choice, offered once it is in a collection; with none, a default there is can go.
+  let def = null;
+  if (ed.ids.length === 1 && st.groups.length && marks[0]) {
+    const set = marks[0].groups;
+    const defNames = st.def ? namesIn(st, st.def).join(", ") : "";
+    if (set.size) def = { mode: "switch", on: sameSet(st.def, set), before: st.def && !sameSet(st.def, set) ? defNames : "" };
+    else if (st.def) def = { mode: "clear", name: defNames };
+  }
+  return { title, q: ed.q, items, create, def, note: ed.ids.length === 1 ? marks[0]?.note || "" : null, active: ed.active ?? 0, phone: st.device === "phone", kb: st.kb, sn: ed.sn };
+}
+/** A phone's keyboard, drawn while a field of a sheet has the focus; „Fertig" puts it away. */
+function keyboardHtml(isStatic) {
+  const row = (keys, cls = "") => `<div class="row ${cls}">${keys.split(" ").map((k) => `<span class="${k.length > 1 ? "wide" : ""}">${k}</span>`).join("")}</div>`;
+  return `<div class="mk-kb${isStatic ? " static" : ""}" data-keep><div class="bar"><span class="arrows">${ic("left")}${ic("right")}</span><button type="button" data-act="kb-done">Fertig</button></div><div class="keys" aria-hidden="true">${row("q w e r t z u i o p ü")}${row("a s d f g h j k l ö ä")}${row("⇧ y x c v b n m ⌫", "third")}${row("123 Leerzeichen Return", "fourth")}</div></div>`;
 }
 function phoneScreen(st) {
   let main;
@@ -1443,7 +1707,7 @@ function phoneScreen(st) {
   if (list) {
     const shown = listed(st);
     const w = headWords(st, shown);
-    const more = st.view.startsWith("g") ? `<button class="mk-iconbtn" type="button" aria-label="Menü der Gruppe">${ic("more")}</button>` : "";
+    const more = st.view.startsWith("g") ? `<button class="mk-iconbtn" type="button" aria-label="Menü der Sammlung">${ic("more")}</button>` : "";
     const filters = (st.season !== "all" ? 1 : 0) + (st.order !== "time" ? 1 : 0);
     const tags = st.season !== "all" ? `<div class="mk-ftags"><span class="mk-ftag"><em>Turnus</em> ${st.season}<button type="button" data-act="season" data-s="all" aria-label="Filter entfernen">${ic("x")}</button></span></div>` : "";
     main = `${chipsHtml(st)}<div class="mk-phead"><span class="mk-count${w.warn ? " warn" : ""}">${w.n}</span><span class="mk-count-label">${esc(w.label)}${w.lp ? ` <i>· ${w.lp} LP</i>` : ""}</span><span style="flex: 1"></span>${more}${total(st) ? `<button class="mk-btn" type="button" data-act="filter-open">${ic("sliders")}Filter${filters ? `<span class="badge">${filters}</span>` : ""}</button>` : ""}</div>${tags}${sectionsHtml(st, true)}`;
@@ -1456,19 +1720,21 @@ function phoneScreen(st) {
   let over = "";
   if (st.open) {
     const m = markOf(st, st.open);
-    over += `<div class="mk-shade" data-act="close-open" data-keep data-k="os${st.openSn}" style="z-index: 24"></div><div class="mk-msheet" data-keep data-k="o${st.openSn}"><div class="mk-grab"></div><button class="mk-xbtn" type="button" data-act="close-open" aria-label="Schließen">${ic("x")}</button>${moduleHtml(st.open, { phone: true, marked: st.marks.has(st.open), groups: m ? namesIn(st, m.groups) : [], note: m?.note, sticky: st.sticky ? namesIn(st, st.sticky) : null })}</div>`;
+    over += `<div class="mk-shade" data-act="close-open" data-keep data-k="os${st.openSn}" style="z-index: 24"></div><div class="mk-msheet" data-keep data-k="o${st.openSn}"><div class="mk-grab"></div><button class="mk-xbtn" type="button" data-act="close-open" aria-label="Schließen">${ic("x")}</button>${moduleHtml(st.open, { phone: true, marked: st.marks.has(st.open), groups: m ? namesIn(st, m.groups) : [], note: m?.note, def: st.def ? namesIn(st, st.def) : null })}</div>`;
   }
   const bottom = st.sel.size && list ? phoneSelbar(st.sel.size, false, st.selSn) : tabsHtml(st, true);
   if (st.note) over += noteHtml(noteSpec(st));
   if (st.sheet === "filter") over += filterSheet(st);
   if (st.editor) over += editorHtml(editorSpec(st));
-  return `<div class="mk-phone" data-frame>${top}<div class="mk-pscroll" data-scroll="${list ? "list" : "cat"}">${main}</div>${bottom}${over}</div>`;
+  return `<div class="mk-phone${st.kb ? " kb" : ""}" data-frame>${top}<div class="mk-pscroll" data-scroll="${list ? "list" : "cat"}">${main}</div>${bottom}${over}${keyboardHtml(false)}</div>`;
 }
+/** A phone's filters: a draft as the catalog's sheet is, kept by its foot, let go beside it. */
 function filterSheet(st) {
   const all = [...st.marks.keys()];
   const seg = (v, label, n) => `<button class="${st.season === v ? "on" : ""}" type="button" data-act="season" data-s="${v}">${label}${n !== null ? `<span class="n">${n}</span>` : ""}</button>`;
-  const order = ORDERS.filter(([k]) => ["time", "offer", "title", "lp"].includes(k)).map(([k, name]) => `<button class="mk-item plain" type="button" data-act="order" data-o="${k}"><span class="chk">${st.order === k ? ic("check") : ""}</span><span class="nm">${name}</span><span></span></button>`).join("");
-  return `<div class="mk-shade" data-act="sheet-close" data-keep data-k="ss${st.sheetSn}"></div><div class="mk-sheet" data-keep data-k="s${st.sheetSn}"><div class="mk-grab"></div><div class="mk-sheet-head"><b>Filter</b><button class="mk-done" type="button" data-act="sheet-close">Fertig</button></div><div class="mk-sheet-scroll"><p class="mk-mlabel">Ordnung</p>${order}<p class="mk-mlabel" style="margin-top: 10px">Angeboten im</p><div class="mk-seg">${seg("all", "Alle", null)}${seg(W, "Winter", all.filter((id) => offeredIn(id, W)).length)}${seg(S_, "Sommer", all.filter((id) => offeredIn(id, S_)).length)}</div><p class="mk-mlabel" style="margin-top: 10px">Mein Studium</p><span class="mk-chipf"><i class="box"></i>Zählt in meinem Studium</span><span class="mk-chipf"><i class="box"></i>Passt in meinen Stundenplan${ic("right")}</span></div></div>`;
+  const order = ORDERS.filter(([k]) => k !== "title").map(([k, name]) => `<button class="mk-item plain" type="button" data-act="order" data-o="${k}"><span class="chk">${st.order === k ? ic("check") : ""}</span><span class="nm">${name}</span><span></span></button>`).join("");
+  const n = listed(st).length;
+  return `<div class="mk-shade" data-act="sheet-cancel" data-keep data-k="ss${st.sheetSn}"></div><div class="mk-sheet" data-keep data-sheet="filter" data-k="s${st.sheetSn}" role="dialog" aria-label="Filter"><div class="mk-grab" data-drag></div><div class="mk-sheet-head" data-drag><b>Filter</b></div><div class="mk-sheet-scroll"><p class="mk-mlabel">Ordnung</p>${order}<p class="mk-mlabel" style="margin-top: 10px">Angeboten im</p><div class="mk-seg">${seg("all", "Alle", null)}${seg(W, "Winter", all.filter((id) => offeredIn(id, W)).length)}${seg(S_, "Sommer", all.filter((id) => offeredIn(id, S_)).length)}</div><p class="mk-mlabel" style="margin-top: 10px">Mein Studium</p><span class="mk-chipf"><i class="box"></i>Zählt in meinem Studium</span><span class="mk-chipf"><i class="box"></i>Passt in meinen Stundenplan${ic("right")}</span><button class="mk-fold" type="button" data-act="more-filters" aria-expanded="${!!st.moreFilters}">${ic(st.moreFilters ? "down" : "right")}Weitere Filter</button>${st.moreFilters ? moreFiltersHtml(st) : ""}</div><div class="mk-sheet-foot"><button class="mk-wide" type="button" data-act="sheet-apply">${n} Module anzeigen</button></div></div>`;
 }
 function deskScreen(st) {
   const list = st.tab === "list";
@@ -1478,24 +1744,19 @@ function deskScreen(st) {
   let over = "";
   if (st.open) {
     const m = markOf(st, st.open);
-    over += `<aside class="mk-preview" data-keep data-k="o${st.openSn}"><div class="mk-preview-head"><span class="mk-kbd">Vorschau</span><button class="mk-close" type="button" data-act="close-open">${ic("x")}Schließen <span class="mk-kbd">Esc</span></button></div>${moduleHtml(st.open, { phone: false, marked: st.marks.has(st.open), groups: m ? namesIn(st, m.groups) : [], note: m?.note, sticky: st.sticky ? namesIn(st, st.sticky) : null })}</aside>`;
+    over += `<aside class="mk-preview" data-keep data-k="o${st.openSn}"><div class="mk-preview-head"><span class="mk-kbd">Vorschau</span><button class="mk-close" type="button" data-act="close-open">${ic("x")}Schließen <span class="mk-kbd">Esc</span></button></div>${moduleHtml(st.open, { phone: false, marked: st.marks.has(st.open), groups: m ? namesIn(st, m.groups) : [], note: m?.note, def: st.def ? namesIn(st, st.def) : null })}</aside>`;
   }
   if (st.note) over += noteHtml(noteSpec(st));
   if (st.ctx) over += ctxHtml(st);
-  if (st.sheet === "order") over += orderMenu(st);
   if (st.editor) over += editorHtml(editorSpec(st));
   return `<div class="mk-desk" data-frame>${tabsHtml(st, false)}<div class="mk-dmain">${top}<div class="mk-dbody">${body}</div></div>${over}</div>`;
 }
 function ctxHtml(st) {
   const marked = st.marks.has(st.ctx.id);
   return `<div class="mk-menu narrow" data-keep data-k="c${st.ctx.sn}" style="left: ${st.ctx.x}px; top: ${st.ctx.y}px"><p class="mk-menu-head">${esc(MODS[st.ctx.id].t)}</p>`
-    + (marked ? `<button class="mk-item plain" type="button" data-act="ctx-group">${ic("tag")}<span class="nm">Gruppe und Notiz …</span><span class="mk-kbd">G</span></button>` : "")
+    + (marked ? `<button class="mk-item plain" type="button" data-act="ctx-group">${ic("tag")}<span class="nm">Sammlung und Notiz …</span><span class="mk-kbd">S</span></button>` : "")
     + `<button class="mk-item plain" type="button" data-act="ctx-select">${ic("select")}<span class="nm">Auswählen</span><span class="mk-kbd">Strg Klick</span></button><button class="mk-item plain" type="button">${ic("calplus")}<span class="nm">Einplanen</span><span class="mk-kbd">P</span></button><div class="mk-msep"></div>`
     + `<button class="mk-item plain${marked ? " danger" : ""}" type="button" data-act="ctx-mark">${ic("bookmark")}<span class="nm">${marked ? "Von der Merkliste entfernen" : "Merken"}</span><span class="mk-kbd">M</span></button></div>`;
-}
-function orderMenu(st) {
-  const items = ORDERS.map(([k, name], i) => `${i === 3 ? '<div class="mk-msep"></div>' : ""}<button class="mk-item plain" type="button" data-act="order" data-o="${k}"${["study", "events"].includes(k) ? ' disabled style="opacity: .5" title="im Prototyp nicht dabei"' : ""}><span class="chk">${st.order === k ? ic("check") : ""}</span><span class="nm">${name}</span><span></span></button>`).join("");
-  return `<div class="mk-menu narrow" data-keep data-k="s${st.sheetSn}" style="right: 24px; top: 104px">${items}</div>`;
 }
 /** The note's spec from the state. */
 function noteSpec(st) {
@@ -1507,12 +1768,11 @@ function noteSpec(st) {
   if (!m) return base;
   const names = namesIn(st, m.groups);
   base.variant = st.variant;
-  base.field = fieldLabel(names, st.groups.length > 0);
+  base.field = fieldLabel(names, st.groups.length > 0, sameSet(st.def, m.groups));
   if (st.variant === "kurz") {
     const order = [...st.recent, ...st.groups.map((g) => g.id)].filter((g, i, all) => all.indexOf(g) === i && groupById(st, g));
     base.chips = order.slice(0, phone ? 2 : 3).map((gid) => ({ id: gid, name: groupById(st, gid).name, on: m.groups.has(gid) }));
   }
-  if ((n.chose || st.sticky) && names.length) base.second = { name: names.join(", "), on: !!st.sticky };
   return base;
 }
 
@@ -1529,7 +1789,12 @@ function start() {
   render();
 }
 /** Draws the frame anew, keeping the focus, the caret and the scroll of what was there. */
+let drawing = false;
 function render() {
+  drawing = true;
+  try { draw(); } finally { drawing = false; }
+}
+function draw() {
   const active = document.activeElement;
   const hadFocus = stage.contains(active);
   const focusKey = hadFocus ? active.dataset.focus : null;
@@ -1554,12 +1819,16 @@ function render() {
   }
   // What had the focus is drawn anew or gone (a menu closed): the frame keeps it, so its keys go on working.
   if (hadFocus && !stage.contains(document.activeElement)) stage.focus({ preventScroll: true });
+  // A field of a phone's sheet given the focus by the drawing (the note at the module): the keyboard comes.
+  const kbNow = inSheetField(document.activeElement);
+  if (kbNow !== S.kb) { S.kb = kbNow; stage.querySelector("[data-frame]")?.classList.toggle("kb", kbNow); }
+  if (kbNow && want) revealField(document.activeElement);
   document.querySelector(".proto-grid").classList.toggle("desk", S.device === "desk");
   document.querySelectorAll("[data-dev]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.dev === S.device)));
   document.querySelectorAll("[data-var]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.var === S.variant)));
   document.querySelectorAll("[data-sc]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sc === SC)));
 }
-/** A desktop's menu of a mark stands at what opened it: over the note (which grows upwards with its second row), under the module's arrow or the bar's „Gruppe", where the row's menu was. */
+/** A desktop's menu of a mark stands at what opened it: over the note (which grows upwards with its second row), under the module's arrow or the bar's „Sammlung", where the row's menu was. */
 function placeMenu() {
   const ed = S.editor;
   const menu = stage.querySelector('.mk-menu[data-k^="e"]');
@@ -1597,8 +1866,8 @@ function toggleMark(id) {
   const back = S.dim.has(id) ? S.removed.get(id) : null;
   S.dim.delete(id);
   S.removed.delete(id);
-  S.marks.set(id, back || { at: NOW, groups: new Set(S.sticky || []), note: "" });
-  setNote({ kind: "mark", id, chose: false });
+  S.marks.set(id, back || { at: NOW, groups: new Set(S.def || []), note: "" });
+  setNote({ kind: "mark", id });
 }
 function undo() {
   const n = S.note;
@@ -1608,11 +1877,18 @@ function undo() {
   if (n.kind === "removed") { n.ids.forEach((id) => { if (S.removed.has(id)) { S.marks.set(id, S.removed.get(id)); S.removed.delete(id); S.dim.delete(id); } }); }
   S.note = null;
 }
-/** Opens the menu of a mark's groups and note for `ids`, at `opener` (a desktop's menu stands at it). */
+/**
+ * Opens the menu of a mark's collections and note for `ids`, at `opener` (a desktop's menu stands at it).
+ * On a phone it is a draft: what it held is kept aside, to come back when the sheet is let go.
+ */
 function openEditor(ids, opener, from, focus = "ed-q") {
   ids = ids.filter((id) => S.marks.has(id));
   if (!ids.length) return;
-  S.editor = { ids, from, q: "", active: 0, sn: ++SN };
+  const snap = S.device === "phone" ? {
+    groups: S.groups.map((g) => ({ ...g })), nextG: S.nextG, def: S.def && new Set(S.def), recent: [...S.recent],
+    marks: ids.map((id) => [id, new Set(S.marks.get(id).groups), S.marks.get(id).note]),
+  } : null;
+  S.editor = { ids, from, q: "", active: 0, sn: ++SN, snap, defLive: false };
   S.ctx = null;
   S.focusNext = S.device === "desk" || focus === "ed-note" ? focus : null;
 }
@@ -1622,8 +1898,21 @@ function editorToggle(gid) {
   const all = marks.every((m) => m.groups.has(gid));
   marks.forEach((m) => (all ? m.groups.delete(gid) : m.groups.add(gid)));
   if (!all) touchRecent(gid);
-  if (ed.from === "note" && !all) S.note.chose = true;
-  if (S.sticky && ed.from === "note") S.sticky = new Set(S.marks.get(ed.ids[0])?.groups || []);
+  // A default switched on in this menu follows what is chosen here; one it found leaves it alone.
+  if (ed.defLive && ed.ids.length === 1) {
+    const set = S.marks.get(ed.ids[0])?.groups || new Set();
+    S.def = set.size ? new Set(set) : null;
+    if (!set.size) ed.defLive = false;
+  }
+}
+/** The default for new marks: this module's collections, or none. */
+function editorDefault() {
+  const ed = S.editor;
+  const set = S.marks.get(ed.ids[0])?.groups;
+  if (!set) return;
+  if (!set.size || sameSet(S.def, set)) { S.def = null; ed.defLive = false; return; }
+  S.def = new Set(set);
+  ed.defLive = true;
 }
 function editorCreate() {
   const name = S.editor.q.trim();
@@ -1635,8 +1924,32 @@ function editorCreate() {
   const marks = S.editor.ids.map((id) => S.marks.get(id)).filter(Boolean);
   if (!marks.every((m) => m.groups.has(g.id))) editorToggle(g.id);
 }
-function closeEditor() {
+/** Closes the menu. `keep`: what was chosen stays (a desktop's always: each choice counted at once). */
+function closeEditor(keep = true) {
+  const ed = S.editor;
+  if (ed?.snap && !keep) {
+    S.groups = ed.snap.groups;
+    S.nextG = ed.snap.nextG;
+    S.def = ed.snap.def;
+    S.recent = ed.snap.recent;
+    ed.snap.marks.forEach(([id, groups, note]) => { const m = S.marks.get(id); if (m) { m.groups = groups; m.note = note; } });
+  }
   S.editor = null;
+  S.kb = false;
+}
+/** A phone's „Fertig": what was chosen stays, and the note of the marking it finished goes with the sheet. */
+function editorDone() {
+  const ids = S.editor?.ids || [];
+  closeEditor(true);
+  if (S.device === "phone" && S.note?.id && ids.includes(S.note.id)) S.note = null;
+}
+/** The phone's sheet of filters is a draft too. */
+function openFilters() { S.sheet = "filter"; S.sheetSn = ++SN; S.sheetSnap = { season: S.season, order: S.order, flip: S.flip, moreFilters: S.moreFilters }; }
+function closeFilters(keep) {
+  if (!keep && S.sheetSnap) Object.assign(S, S.sheetSnap);
+  S.sheet = null;
+  S.sheetSnap = null;
+  S.kb = false;
 }
 function leaveList() { S.sel.clear(); S.dim.forEach((id) => S.removed.delete(id)); S.dim.clear(); S.adding = null; }
 function visibleOrder() { return [...stage.querySelectorAll("[data-row], [data-card]")].map((el) => el.dataset.row || el.dataset.card); }
@@ -1647,10 +1960,11 @@ function visibleOrder() { return [...stage.querySelectorAll("[data-row], [data-c
 let suppressClick = false;
 stage.addEventListener("click", (ev) => {
   if (suppressClick) { suppressClick = false; ev.preventDefault(); return; }
+  // A note's link is followed at the module, never in the prototype.
+  if (ev.target.closest(".md a")) { ev.preventDefault(); return; }
   if (!ev.target.closest("[data-keep]")) {
     S.ctx = null;
-    if (S.sheet === "order" && !ev.target.closest('[data-act="order-open"]')) S.sheet = null;
-    if (S.editor) S.editor = null; else S.note = null;
+    if (S.editor) closeEditor(true); else S.note = null;
   }
   const t = ev.target.closest("[data-act]");
   const row = ev.target.closest("[data-row], [data-card]");
@@ -1667,13 +1981,15 @@ stage.addEventListener("click", (ev) => {
       if (m) { if (m.groups.has(t.dataset.g)) m.groups.delete(t.dataset.g); else { m.groups.add(t.dataset.g); touchRecent(t.dataset.g); } }
       break;
     }
-    case "note-sticky": S.sticky = S.sticky ? null : new Set(S.marks.get(S.note.id)?.groups || []); if (S.sticky && !S.sticky.size) S.sticky = null; break;
     case "note-undo": undo(); break;
     case "note-close": S.note = null; break;
     case "to-list": leaveList(); S.tab = "list"; S.note = null; S.open = null; break;
     case "ed-item": editorToggle(t.dataset.g); S.editor.active = [...t.parentElement.querySelectorAll('[data-act="ed-item"]')].indexOf(t); break;
     case "ed-create": editorCreate(); break;
-    case "ed-done": closeEditor(); break;
+    case "ed-done": editorDone(); break;
+    case "ed-cancel": closeEditor(false); break;
+    case "ed-default": editorDefault(); break;
+    case "kb-done": if (inSheetField(document.activeElement)) document.activeElement.blur(); break;
     case "view": S.view = t.dataset.v; S.sel.clear(); break;
     case "new-group": S.adding = { text: "", taken: false }; S.focusNext = "new-g"; break;
     case "sel-clear": S.sel.clear(); break;
@@ -1691,10 +2007,12 @@ stage.addEventListener("click", (ev) => {
     case "sw-chev": openEditor([S.open], t, "module"); break;
     case "sw-note": openEditor([S.open], t, "module", "ed-note"); break;
     case "close-open": S.open = null; break;
-    case "filter-open": S.sheet = "filter"; S.sheetSn = ++SN; break;
-    case "sheet-close": S.sheet = null; break;
-    case "order-open": S.sheet = S.sheet === "order" ? null : "order"; S.sheetSn = ++SN; break;
-    case "order": S.order = t.dataset.o; if (S.device === "desk") S.sheet = null; break;
+    case "filter-open": openFilters(); break;
+    case "sheet-apply": closeFilters(true); break;
+    case "sheet-cancel": closeFilters(false); break;
+    case "more-filters": S.moreFilters = !S.moreFilters; break;
+    case "order": S.order = t.dataset.o; S.flip = false; break;
+    case "sort": if (S.order === t.dataset.o) S.flip = !S.flip; else { S.order = t.dataset.o; S.flip = false; } break;
     case "season": S.season = t.dataset.s; break;
     case "ctx-group": { const xy = { x: S.ctx.x, y: S.ctx.y }; openEditor([S.ctx.id], null, "menu"); if (S.editor) S.editor.xy = xy; break; }
     case "ctx-select": S.sel.add(S.ctx.id); S.ctx = null; break;
@@ -1748,7 +2066,7 @@ stage.addEventListener("input", (ev) => {
 stage.addEventListener("keydown", (ev) => {
   const typing = ev.target.matches("input, textarea");
   if (ev.key === "Escape") {
-    if (S.editor) closeEditor(); else if (S.ctx) S.ctx = null; else if (S.sheet) S.sheet = null; else if (S.adding) S.adding = null; else if (S.open) S.open = null; else if (S.sel.size) S.sel.clear(); else if (S.note) S.note = null; else return;
+    if (S.editor) closeEditor(S.device !== "phone"); else if (S.ctx) S.ctx = null; else if (S.sheet) closeFilters(false); else if (S.adding) S.adding = null; else if (S.open) S.open = null; else if (S.sel.size) S.sel.clear(); else if (S.note) S.note = null; else return;
     ev.preventDefault();
     render();
     return;
@@ -1777,19 +2095,81 @@ stage.addEventListener("keydown", (ev) => {
       render();
       return;
     }
-    if (/^[1-9]$/.test(ev.key) && !fold(S.editor.q) && S.device === "desk") {
-      const it = spec.items[Number(ev.key) - 1];
-      if (it) { editorToggle(it.id); ev.preventDefault(); render(); }
-      return;
-    }
   }
   if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const key = ev.key.toLowerCase();
-  if (key === "g" && S.note?.kind === "mark" && S.marks.has(S.note.id)) { openEditor([S.note.id], stage.querySelector('[data-act="note-field"]'), "note"); ev.preventDefault(); render(); return; }
-  if (key === "g" && S.open && S.marks.has(S.open)) { openEditor([S.open], stage.querySelector('[data-act="sw-chev"]'), "module"); ev.preventDefault(); render(); return; }
+  if (key === "s" && S.note?.kind === "mark" && S.marks.has(S.note.id)) { openEditor([S.note.id], stage.querySelector('[data-act="note-field"]'), "note"); ev.preventDefault(); render(); return; }
+  if (key === "s" && S.open && S.marks.has(S.open)) { openEditor([S.open], stage.querySelector('[data-act="sw-chev"]'), "module"); ev.preventDefault(); render(); return; }
   if (key === "n" && S.open && S.marks.has(S.open)) { openEditor([S.open], stage.querySelector('[data-act="sw-chev"]'), "module", "ed-note"); ev.preventDefault(); render(); return; }
   if (key === "m" && S.open) { toggleMark(S.open); ev.preventDefault(); render(); }
 });
+// ---- A phone's keyboard (folia_design::keyboard; owner, 2026-10-17: „das modal kann ruhig full screen
+// werden, wenn man das Keyboard öffnet"): while a field of a sheet has the focus, the sheet takes the part
+// the keyboard leaves, from edge to edge, glides there and back, and what is typed in goes to the top of
+// what scrolls it; the sheet's foot waits for the keyboard to go. ----
+function inSheetField(el) {
+  return S?.device === "phone" && !!el?.matches?.("input, textarea") && !!el.closest(".mk-sheet:not(.static)");
+}
+function revealField(el) {
+  const scroller = el.closest(".mk-sheet-scroll");
+  if (!scroller) return;
+  const top = scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 8;
+  scroller.scrollTo({ top, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+}
+/** The keyboard up or down: the sheet glides by its top and height, the keyboard rises or sinks. */
+function glideKeyboard(up) {
+  const frame = stage.querySelector("[data-frame]");
+  if (!frame) return;
+  const sheet = frame.querySelector(".mk-sheet:not(.static)");
+  const board = frame.querySelector(".mk-kb");
+  const f = frame.getBoundingClientRect();
+  const before = sheet?.getBoundingClientRect();
+  frame.classList.toggle("kb", up);
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (sheet && before) {
+    const after = sheet.getBoundingClientRect();
+    sheet.animate([{ top: `${before.top - f.top}px`, height: `${before.height}px`, bottom: "auto", borderRadius: up ? "16px 16px 0 0" : "0" }, { top: `${after.top - f.top}px`, height: `${after.height}px`, bottom: "auto", borderRadius: up ? "0" : "16px 16px 0 0" }], { duration: 280, easing: "cubic-bezier(.2, .7, .2, 1)" });
+  }
+  board?.animate([{ transform: up ? "translateY(100%)" : "none", visibility: "visible" }, { transform: up ? "none" : "translateY(100%)", visibility: "visible" }], { duration: 280, easing: "cubic-bezier(.2, .7, .2, 1)" });
+}
+stage.addEventListener("focusin", (ev) => {
+  if (drawing || !inSheetField(ev.target)) return;
+  if (!S.kb) { S.kb = true; glideKeyboard(true); }
+  revealField(ev.target);
+});
+stage.addEventListener("focusout", (ev) => {
+  if (drawing || !S.kb || inSheetField(ev.relatedTarget)) return;
+  S.kb = false;
+  glideKeyboard(false);
+});
+// ---- A phone's sheet swiped down by its head: let go, as a tap beside it. ----
+let drag = null;
+stage.addEventListener("pointerdown", (ev) => {
+  const handle = ev.target.closest("[data-drag]");
+  const sheet = handle?.closest(".mk-sheet:not(.static)");
+  if (!sheet || S.device !== "phone") return;
+  drag = { sheet, y: ev.clientY, dy: 0, pointer: ev.pointerId };
+  try { handle.setPointerCapture(ev.pointerId); } catch { /* the pointer is gone */ }
+});
+stage.addEventListener("pointermove", (ev) => {
+  if (!drag) return;
+  drag.dy = Math.max(0, ev.clientY - drag.y);
+  drag.sheet.style.transform = `translateY(${drag.dy}px)`;
+});
+function endDrag() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (d.dy > 70) {
+    if (d.sheet.dataset.sheet === "ed") closeEditor(false); else closeFilters(false);
+    render();
+    return;
+  }
+  d.sheet.animate([{ transform: `translateY(${d.dy}px)` }, { transform: "none" }], { duration: 180, easing: "ease-out" });
+  d.sheet.style.transform = "";
+}
+stage.addEventListener("pointerup", endDrag);
+stage.addEventListener("pointercancel", endDrag);
 // A phone's card: swiped to the side (to the left „Merken"/„Entfernen", to the right „Einplanen"), held to select.
 let press = null;
 stage.addEventListener("pointerdown", (ev) => {
@@ -1815,7 +2195,7 @@ stage.addEventListener("pointermove", (ev) => {
       clearTimeout(press.timer);
       press.ground = press.card.previousElementSibling;
       const marked = S.marks.has(press.id);
-      press.ground.querySelector(".r").innerHTML = `<span>${marked ? "Entfernen" : "Merken"}<small>${marked ? "von der Merkliste" : S.sticky ? `in ${esc(namesIn(S, S.sticky).join(", "))}` : "auf die Merkliste"}</small></span>${ic("bookmark", marked ? "" : "fill")}`;
+      press.ground.querySelector(".r").innerHTML = `<span>${marked ? "Entfernen" : "Merken"}<small>${marked ? "von der Merkliste" : S.def ? `in ${esc(namesIn(S, S.def).join(", "))}` : "auf die Merkliste"}</small></span>${ic("bookmark", marked ? "" : "fill")}`;
       press.ground.classList.add("show");
       try { press.card.setPointerCapture(press.pointer); } catch { /* the pointer is gone */ }
     } else if (Math.abs(dy) > 10) { clearTimeout(press.timer); press = null; return; }
@@ -1861,10 +2241,10 @@ document.getElementById("proto-reset").addEventListener("click", start);
 // ======== the figures: the same parts, at rest ========
 const fixture = (name = "groups", device = "desk") => scenario(name, device, "feld");
 const FIG = {
-  "note-feld": () => `<div class="dev"><p class="kicker">Am Rechner: gemerkt, dann eine Gruppe gewählt</p>${noteHtml({ static: true, kind: "mark", title: "Music and Artificial Intelligence", field: fieldLabel([], true) })}`
-    + `${noteHtml({ static: true, kind: "mark", title: "Music and Artificial Intelligence", field: fieldLabel(["Für Lena"], true), second: { name: "Für Lena", on: false } })}</div>`
-    + `<div class="dev phone"><p class="kicker">Am Handy: das nächste, in dieselbe Gruppe</p>${noteHtml({ static: true, phone: true, kind: "mark", field: fieldLabel([], true) })}`
-    + `${noteHtml({ static: true, phone: true, kind: "mark", field: fieldLabel(["Für Lena"], true), second: { name: "Für Lena", on: true } })}</div>`,
+  "note-feld": () => `<div class="dev"><p class="kicker">Am Rechner: gemerkt, dann eine Sammlung gewählt</p>${noteHtml({ static: true, kind: "mark", title: "Music and Artificial Intelligence", field: fieldLabel([], true) })}`
+    + `${noteHtml({ static: true, kind: "mark", title: "Music and Artificial Intelligence", field: fieldLabel(["Für Lena"], true) })}</div>`
+    + `<div class="dev phone"><p class="kicker">Am Handy: gemerkt, und mit dem Standard „Für Lena“</p>${noteHtml({ static: true, phone: true, kind: "mark", field: fieldLabel([], true) })}`
+    + `${noteHtml({ static: true, phone: true, kind: "mark", field: fieldLabel(["Für Lena"], true, true) })}</div>`,
   "note-kurz": () => `<div class="dev"><p class="kicker">Am Rechner</p>${noteHtml({ static: true, kind: "mark", variant: "kurz", title: "Music and Artificial Intelligence", chips: [{ id: "g2", name: "Für Lena", on: true }, { id: "g1", name: "Wahlpflicht" }, { id: "g3", name: "Witzig" }] })}</div>`
     + `<div class="dev phone"><p class="kicker">Am Handy, nachdem „Witzig“ benutzt wurde</p>${noteHtml({ static: true, phone: true, kind: "mark", variant: "kurz", chips: [{ id: "g3", name: "Witzig" }, { id: "g2", name: "Für Lena" }] })}</div>`,
   "note-auf": () => `<div class="dev">${unfoldHtml()}</div>`,
@@ -1879,11 +2259,15 @@ const FIG = {
     noteHtml({ static: true, phone: true, kind: "full" }),
     noteHtml({ static: true, phone: true, kind: "removed", count: 3 }),
   ].join("")}</div>`,
-  "menu-one": () => editorHtml({ static: true, title: "Music and Artificial Intelligence", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "off" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], note: "früh anmelden, Plätze sind begrenzt", active: 1 }),
+  "menu-one": () => editorHtml({ static: true, title: "Music and Artificial Intelligence", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "off" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], def: { mode: "switch", on: false }, note: "**früh anmelden**, Plätze sind begrenzt\n- Lena fragen, ob sie mitkommt\n- [Modulbeschreibung](https://www.b-tu.de/)", active: 1 }),
+  "menu-default": () => editorHtml({ static: true, title: "Machine Learning for Engineers", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "on" }, { id: "g2", name: "Für Lena", count: 2, state: "off" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], def: { mode: "switch", on: false, before: "Für Lena" }, note: "lieber als das *Praktikum*?", active: 0 }),
   "menu-typed": () => editorHtml({ static: true, title: "Theoretische Informatik", q: "mathe", typed: "mathe", items: [], create: "mathe", note: "", active: 0 }),
   "menu-partial": () => editorHtml({ static: true, title: "Projektmanagement im Sport", q: "lena", typed: "lena", items: [{ id: "g2", name: "Für Lena", count: 2, state: "off" }], create: "lena", note: "", active: 0 }),
   "menu-many": () => editorHtml({ static: true, title: "3 Module", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "part" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], note: null, active: 0 }),
-  "menu-sheet": () => `<div class="mk-phone short" style="height: auto; padding-top: 10px; background: var(--shade)">${editorHtml({ static: true, phone: true, title: "Music and Artificial Intelligence", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "off" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], note: "früh anmelden, Plätze sind begrenzt" })}</div>`,
+  "menu-sheet": () => `<div class="mk-phone short" style="height: auto; padding-top: 10px; background: var(--shade)">${editorHtml({ static: true, phone: true, title: "Music and Artificial Intelligence", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "off" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], def: { mode: "switch", on: true }, note: "**früh anmelden**, Plätze sind begrenzt" })}</div>`,
+  "menu-sheet-kb": () => `<div class="mk-phone short" style="height: auto">`
+    + `<div class="mk-sheet static kbup"><div class="mk-sheet-head"><b>Music and Artificial Intelligence</b></div><div class="mk-sheet-scroll"><p class="mk-mlabel">Notiz</p><div class="mk-notearea focus">**früh anmelden**, Plätze sind begrenzt\n- Lena fragen, ob sie mitkommt<span class="caret"></span></div></div></div>`
+    + `${keyboardHtml(true)}</div>`,
   "menu-exists": () => editorHtml({ static: true, title: "Projektmanagement im Sport", q: "für lena", typed: "für lena", items: [{ id: "g2", name: "Für Lena", count: 2, state: "off" }], note: "", active: 0 }),
   "page-desk": () => {
     const st = fixture("groups", "desk");
@@ -1896,9 +2280,9 @@ const FIG = {
     const w = headWords(st, listed(st));
     return `<div class="mk-phone" style="height: 640px"><div class="mk-ptop"><span class="mk-psearch">${ic("search")}<span>In der Merkliste suchen</span></span><i class="pin" style="align-self: center">1</i></div><div class="mk-pscroll" style="overflow: hidden">${chipsHtml(st, '<i class="pin" style="align-self: center">2</i>')}<div class="mk-phead"><span class="mk-count">${w.n}</span><span class="mk-count-label">${esc(w.label)} <i>· ${w.lp} LP</i></span><span style="flex: 1"></span><i class="pin">3</i><span class="mk-btn">${ic("sliders")}Filter</span></div>${sectionsHtml(st, true, '<i class="pin" style="position: absolute; z-index: 3; left: -6px; top: 34px">4</i>')}</div>${tabsHtml(st, true)}</div>`;
   },
-  "row-desk": () => `<div class="mk-list" style="min-width: 700px"><div class="mk-rows" style="padding: 6px">${deskRow("14896", { marked: true, groups: ["Für Lena"], note: "früh anmelden, Plätze sind begrenzt", pins: [1, 3, 4] })}${deskRow("11787", { marked: true, status: STATUS["11787"], shade: true, pins: [2] })}${deskRow("14169", { marked: true, groups: ["Witzig", "Für Lena", "FÜS-Ideen"] })}</div></div>`,
-  "row-phone": () => `<div class="mk-cards" style="max-width: 340px">${phoneCard("14896", { marked: true, groups: ["Für Lena"], note: "früh anmelden, Plätze sind begrenzt", pins: [1, 3, 4] })}${phoneCard("11787", { marked: true, status: STATUS["11787"], pins: [2] })}</div>`,
-  "row-states": () => `<div class="mk-list" style="min-width: 700px"><div class="mk-rows" style="padding: 6px">${deskRow("14642", { marked: true, groups: ["Wahlpflicht"], note: "lieber als das Praktikum?", open: true })}${deskRow("13566", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("14380", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("13428", { marked: false, dim: true, shade: true })}${deskRow("12177", { marked: true, note: "mal in die Vorlesung", q: "phil" })}</div></div>`,
+  "row-desk": () => `<div class="mk-list ml" style="min-width: 700px"><div class="mk-rows" style="padding: 6px">${deskRow("14896", { marked: true, groups: ["Für Lena"], note: "**früh anmelden**, Plätze sind begrenzt\n- Lena fragen, ob sie mitkommt\n- [Modulbeschreibung](https://www.b-tu.de/)", pins: [1, 3, 4] })}${deskRow("11787", { marked: true, status: STATUS["11787"], shade: true, pins: [2] })}${deskRow("14169", { marked: true, groups: ["Witzig", "Für Lena", "FÜS-Ideen"] })}</div></div>`,
+  "row-phone": () => `<div class="mk-cards" style="max-width: 340px">${phoneCard("14896", { marked: true, groups: ["Für Lena"], note: "**früh anmelden**, Plätze sind begrenzt\n- Lena fragen, ob sie mitkommt\n- [Modulbeschreibung](https://www.b-tu.de/)", pins: [1, 3, 4] })}${phoneCard("11787", { marked: true, status: STATUS["11787"], pins: [2] })}</div>`,
+  "row-states": () => `<div class="mk-list ml" style="min-width: 700px"><div class="mk-rows" style="padding: 6px">${deskRow("14642", { marked: true, groups: ["Wahlpflicht"], note: "lieber als das *Praktikum*?", open: true })}${deskRow("13566", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("14380", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("13428", { marked: false, dim: true, shade: true })}${deskRow("12177", { marked: true, note: "mal in die Vorlesung", q: "phil" })}</div></div>`,
   "search-phone": () => {
     const st = fixture("groups", "phone");
     st.tab = "list";
@@ -1908,11 +2292,11 @@ const FIG = {
   "order-desk": () => {
     const st = fixture("groups", "desk");
     st.tab = "list";
-    const head = `<div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">9</span><span class="mk-count-label">gemerkte Module <i>· 54 LP</i></span><div class="mk-tools"><span class="mk-select">Zuletzt gemerkt${ic("down")}</span></div></div></div>`;
-    const menu = `<div class="mk-menu static narrow" style="margin: -6px 12px 8px auto">${ORDERS.map(([k, name], i) => `${i === 3 ? '<div class="mk-msep"></div>' : ""}<span class="mk-item plain"><span class="chk">${k === "time" ? ic("check") : ""}</span><span class="nm">${name}</span><span class="n">${i < 3 ? "Abschnitte" : ""}</span></span>`).join("")}</div>`;
-    return `<div class="mk-list" style="min-width: 640px; overflow: visible">${head}${menu}${cols("")}<div class="mk-rows" style="padding: 4px 6px">${sectionsHtml({ ...st, marks: new Map([...st.marks].slice(0, 3)) }, false)}</div></div>`;
+    const three = { ...st, marks: new Map([...st.marks].slice(0, 4)) };
+    const list = (o, flip) => `<div class="mk-list ml" style="min-width: 640px">${cols({ ...three, order: o, flip }, true)}<div class="mk-rows" style="padding: 4px 6px">${sectionsHtml({ ...three, order: o, flip }, false)}</div></div>`;
+    return `<p class="kicker" style="margin: 0 0 6px">Zuerst: nach dem Merken, Abschnitte nach der Zeit</p>${list("time", false)}<p class="kicker" style="margin: 14px 0 6px">„Turnus“ geklickt: nach dem Angebot</p>${list("offer", false)}`;
   },
-  "sel-desk": () => `<div class="mk-list" style="min-width: 680px">${deskSelbar(3, 18)}<div class="mk-rows" style="padding: 4px 6px">${deskRow("14642", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("13566", { marked: true, groups: ["Wahlpflicht"], sel: true, shade: true })}${deskRow("11787", { marked: true, status: STATUS["11787"] })}${deskRow("14380", { marked: true, groups: ["Wahlpflicht"], sel: true, shade: true })}</div></div>`,
+  "sel-desk": () => `<div class="mk-list ml" style="min-width: 680px">${deskSelbar(3, 18)}<div class="mk-rows" style="padding: 4px 6px">${deskRow("14642", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("13566", { marked: true, groups: ["Wahlpflicht"], sel: true, shade: true })}${deskRow("11787", { marked: true, status: STATUS["11787"] })}${deskRow("14380", { marked: true, groups: ["Wahlpflicht"], sel: true, shade: true })}</div></div>`,
   "sel-phone": () => `<div class="mk-phone short" style="padding: 12px; gap: 8px"><div class="mk-cards">${phoneCard("14642", { marked: true, groups: ["Wahlpflicht"], sel: true })}${phoneCard("13566", { marked: true, groups: ["Wahlpflicht"], sel: true })}${phoneCard("11787", { marked: true, status: STATUS["11787"] })}</div>${phoneSelbar(2, true)}</div>`,
   "manage-desk": () => {
     const st = fixture("groups", "desk");
@@ -1930,12 +2314,17 @@ const FIG = {
     st.view = "g2";
     return `<div class="mk-phone short" style="padding: 12px 12px 0; background: var(--bg)">${chipsHtml(st)}<div class="mk-sheet static" style="margin: 6px -12px 0; border-radius: 16px 16px 0 0"><div class="mk-grab"></div><div class="mk-sheet-head"><b>Für Lena · 2 Module</b></div><span class="mk-item plain">${ic("pencil")}<span class="nm">Umbenennen</span><span></span></span><span class="mk-item plain">${ic("share")}<span class="nm">Teilen</span><span></span></span><span class="mk-item plain">${ic("updown")}<span class="nm">Nach vorn</span><span></span></span><span class="mk-item plain danger">${ic("trash")}<span class="nm">Löschen</span><span></span></span></div></div>`;
   },
-  "mod-desk": () => `<div class="mk-panel" style="max-width: 360px">${moduleHtml("14896", { marked: true, groups: ["Für Lena"], note: "früh anmelden, Plätze sind begrenzt" })}</div>`,
+  "mod-desk": () => `<div class="mk-panel" style="max-width: 360px">${moduleHtml("14896", { marked: true, groups: ["Für Lena"], note: "**früh anmelden**, Plätze sind begrenzt\n- Lena fragen, ob sie mitkommt\n- [Modulbeschreibung](https://www.b-tu.de/)" })}</div>`,
+  "filters-desk": () => {
+    const st = fixture("groups", "desk");
+    st.moreFilters = true;
+    return `<div style="width: 250px">${sideHtml(st, false).replace(/<div class="mk-fg"><p class="mk-flabel">Sammlungen[\s\S]*?<\/div><\/div>/, "")}</div>`;
+  },
   "mod-phone": () => `<div class="mk-phone short" style="padding: 14px">${moduleHtml("14169", { phone: true, marked: true, groups: ["Witzig", "Für Lena"], note: "", short: true })}</div>`,
   "share-menu": () => `<div class="mk-menu static" style="width: 280px"><p class="mk-menu-head">Für Lena · 3 Module</p><button class="mk-menu-btn" type="button">${ic("link")}Link kopieren</button><div class="mk-menu-row">Notizen mitnehmen<span class="mk-switch light"></span></div><div class="mk-msep"></div><span class="mk-item plain">${ic("copy")}<span class="nm">Als Text kopieren</span><span></span></span></div>`,
-  "offers": () => `<div class="mk-offer">${ic("bookmark")}<p><b>Für Lena · 3 Module aus einem Link,</b> 1 davon schon gemerkt.</p><span class="btns"><button class="mk-mini primary" type="button">Als Gruppe merken</button><button class="mk-mini" type="button">Nur merken</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`
-    + `<div class="mk-offer">${ic("bookmark")}<p><b>Für Lena · 3 Module aus einem Link.</b> Die Gruppe gibt es schon.</p><span class="btns"><button class="mk-mini primary" type="button">Zu ‚Für Lena‘ hinzufügen</button><button class="mk-mini" type="button">Anderer Name …</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`
-    + `<div class="mk-offer">${ic("bookmark")}<p><b>46 Module in 4 Gruppen aus einem Link,</b> 12 davon neu.</p><span class="btns"><button class="mk-mini primary" type="button">Hinzufügen</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`,
+  "offers": () => `<div class="mk-offer">${ic("bookmark")}<p><b>Für Lena · 3 Module aus einem Link,</b> 1 davon schon gemerkt.</p><span class="btns"><button class="mk-mini primary" type="button">Als Sammlung merken</button><button class="mk-mini" type="button">Nur merken</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`
+    + `<div class="mk-offer">${ic("bookmark")}<p><b>Für Lena · 3 Module aus einem Link.</b> Die Sammlung gibt es schon.</p><span class="btns"><button class="mk-mini primary" type="button">Zu ‚Für Lena‘ hinzufügen</button><button class="mk-mini" type="button">Anderer Name …</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`
+    + `<div class="mk-offer">${ic("bookmark")}<p><b>46 Module in 4 Sammlungen aus einem Link,</b> 12 davon neu.</p><span class="btns"><button class="mk-mini primary" type="button">Hinzufügen</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`,
   "limit-note": () => `<div class="dev"><p class="kicker">Am Rechner</p>${noteHtml({ static: true, kind: "full" })}</div><div class="dev phone"><p class="kicker">Am Handy</p>${noteHtml({ static: true, phone: true, kind: "full" })}</div>`,
   "limit-head": () => `<div class="mk-list" style="min-width: 300px"><div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">248 / 256</span><span class="mk-count-label">gemerkte Module</span></div></div><div class="mk-lhead" style="border-top: 1px solid var(--line)"><div class="mk-count-row"><span class="mk-count warn">253 / 256</span><span class="mk-count-label">gemerkte Module</span></div></div></div>`,
   "limit-offer": () => `<div class="mk-offer">${ic("bookmark")}<p><b>30 Module aus einem Link.</b> Auf die Merkliste passen noch 8.</p><span class="btns"><button class="mk-mini primary" type="button">Die ersten 8 merken</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`,
@@ -1953,11 +2342,11 @@ const FIG = {
     + `<div class="mk-prow"><span><b>Praktikum Maschinelles Lernen</b><span class="mk-fit warn">${ic("alert")}überschneidet sich mit Theoretische Informatik · Di 9:15</span></span><button class="mk-mini" type="button">Einplanen</button></div>`
     + `<div class="mk-prow"><span><b>Praktische Philosophie</b><span class="mk-fit ok">${ic("check")}passt</span></span><button class="mk-mini" type="button">Einplanen</button></div>`
     + `<div class="mk-foldrow">${ic("right")}Im WiSe 26/27 nicht angeboten · 2</div></div>`,
-  "else-catalog": () => `<div class="mk-side" style="max-width: 300px"><div class="mk-fg"><p class="mk-flabel">Eigenschaften</p><span class="mk-chipf on"><i class="box"></i>Gemerkt${ic("right")}</span><div class="mk-subseg"><span class="on">Alle <span class="n">9</span></span><span>Ohne Gruppe <span class="n">2</span></span><span>Wahlpflicht <span class="n">3</span></span><span>Für Lena <span class="n">2</span></span><span>Witzig <span class="n">1</span></span></div><span class="mk-chipf"><i class="box"></i>FÜS</span><span class="mk-chipf"><i class="box"></i>Ohne Klausur</span></div></div>`,
+  "else-catalog": () => `<div class="mk-side" style="max-width: 300px"><div class="mk-fg"><p class="mk-flabel">Eigenschaften</p><span class="mk-chipf on"><i class="box"></i>Gemerkt${ic("right")}</span><div class="mk-subseg"><span class="on">Alle <span class="n">9</span></span><span>Ohne Sammlung <span class="n">2</span></span><span>Wahlpflicht <span class="n">3</span></span><span>Für Lena <span class="n">2</span></span><span>Witzig <span class="n">1</span></span></div><span class="mk-chipf"><i class="box"></i>FÜS</span><span class="mk-chipf"><i class="box"></i>Ohne Klausur</span></div></div>`,
   "else-tab": () => {
     const st = fixture("groups", "phone");
     st.tab = "list";
-    const menu = `<div class="mk-menu static narrow" style="margin: 0 10px 8px auto"><span class="mk-item plain">${ic("bookmark")}<span class="nm">Alle gemerkten</span><span class="n">9</span></span><span class="mk-item plain"><span></span><span class="nm">Ohne Gruppe</span><span class="n">2</span></span><div class="mk-msep"></div><span class="mk-item plain">${ic("tag")}<span class="nm">Wahlpflicht</span><span class="n">3</span></span><span class="mk-item plain">${ic("tag")}<span class="nm">Für Lena</span><span class="n">2</span></span><span class="mk-item plain">${ic("tag")}<span class="nm">Witzig</span><span class="n">1</span></span></div>`;
+    const menu = `<div class="mk-menu static narrow" style="margin: 0 10px 8px auto"><span class="mk-item plain">${ic("bookmark")}<span class="nm">Alle gemerkten</span><span class="n">9</span></span><span class="mk-item plain"><span></span><span class="nm">Ohne Sammlung</span><span class="n">2</span></span><div class="mk-msep"></div><span class="mk-item plain">${ic("tag")}<span class="nm">Wahlpflicht</span><span class="n">3</span></span><span class="mk-item plain">${ic("tag")}<span class="nm">Für Lena</span><span class="n">2</span></span><span class="mk-item plain">${ic("tag")}<span class="nm">Witzig</span><span class="n">1</span></span></div>`;
     return `<div class="mk-phone short" style="padding-top: 16px; padding-bottom: 80px; background: var(--shade)">${menu}${tabsHtml(st, true)}</div>`;
   },
 };
