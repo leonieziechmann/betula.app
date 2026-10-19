@@ -3,7 +3,7 @@
 
 
 use folia_model::labels::TurnusSeason;
-use folia_model::rows::CatalogRow;
+use folia_model::rows::{CatalogRow, MarkedText};
 use leptos::prelude::*;
 
 use folia_stores::bookmarks::{Bookmarks, MarkButton, MarkLook};
@@ -51,6 +51,16 @@ pub fn Row(
     };
     let events = (t.catalog.events)(row.teaching_events);
     let has_events = row.teaching_events > 0;
+    // In the list of a search: the letters it found, and a line under the title with what it was
+    // found by where that is not the title one sees (folia/design/suche/konzept.html, „Die Zeile
+    // zeigt den Grund").
+    let marks = row.marks.clone().unwrap_or_default();
+    let found_by = |label: &'static str, found: &MarkedText| view! { <small class="found-by"><i>{label}</i>" "{marked(&found.text, &found.spans)}</small> };
+    let other = marks.other.as_ref().map(|other| {
+        let english = row.title_en.as_deref() == Some(other.text.as_str());
+        found_by(if english { t.catalog.row_title_en } else { t.catalog.row_title_de }, other)
+    });
+    let lecturer = marks.lecturer.as_ref().map(|name| found_by(if marks.teaching { t.catalog.row_teaches } else { t.catalog.row_responsible }, name));
     let finder = use_context::<Finder>();
     // The preview next to the list, on a phone a sheet over it (owner, 2026-10-06). `preview` is a
     // path of the app; the link carries the language's prefix.
@@ -73,9 +83,10 @@ pub fn Row(
     let link = view! {
         <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
             <div class="t">
-                <b>{row.title.clone()}</b>
+                <b>{marked(&row.title, &marks.title)}</b>
                 <small>
-                    <span class="mono">{row.id.clone()}</span>
+                    <span class="mono">{marked(&row.id, &marks.id)}</span>
+                    {marks.abbrev.as_ref().map(|abbrev| view! { <span class="flag neutral">{(t.catalog.row_abbrev)(abbrev)}</span> })}
                     {with_program.then(|| view! { <KindBadge kind=row.kind.clone() basis=row.kind_basis.clone() source=row.kind_source.clone() area=row.area.clone()/> })}
                     // Inside a program the study plan's semester stands at the row (the
                     // list is in plan order, without headings between the semesters).
@@ -86,6 +97,8 @@ pub fn Row(
                     {fit_note}
                     <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
                 </small>
+                {other}
+                {lecturer}
             </div>
             <span class="resp">{row.responsible.clone()}</span>
             <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
@@ -137,6 +150,34 @@ pub fn Row(
         }
         .into_any(),
     }
+}
+
+/// `text` with the letters a search found in it marked (`<mark>`): `spans` are byte ranges of it,
+/// those that overlap or touch made one; one that is no range of the text is left out.
+fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
+    let mut ranges: Vec<(usize, usize)> = spans.iter().map(|&(a, b)| (a as usize, b as usize)).filter(|(a, b)| a < b).collect();
+    ranges.sort_unstable();
+    let mut joined: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
+    for (a, b) in ranges {
+        match joined.last_mut() {
+            Some(last) if a <= last.1 => last.1 = last.1.max(b),
+            _ => joined.push((a, b)),
+        }
+    }
+    let mut parts = Vec::with_capacity(joined.len() * 2 + 1);
+    let mut at = 0;
+    for (a, b) in joined {
+        let (Some(before), Some(found)) = (text.get(at..a), text.get(a..b)) else { continue };
+        if !before.is_empty() {
+            parts.push(before.to_string().into_any());
+        }
+        parts.push(view! { <mark>{found.to_string()}</mark> }.into_any());
+        at = b;
+    }
+    if let Some(rest) = text.get(at..).filter(|rest| !rest.is_empty()) {
+        parts.push(rest.to_string().into_any());
+    }
+    parts
 }
 
 /// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,

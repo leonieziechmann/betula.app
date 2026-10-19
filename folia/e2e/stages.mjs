@@ -41,28 +41,32 @@ const open = async (options, path) => {
   return { context, page };
 };
 
-// The frames after the next tap or click, or from now on (`now`): which stage is in front in each,
-// and whether a skeleton or a picture held in front of the page is there. The frames from the click
-// on, which changes the tab (a finger's tap is clicked a moment after it lifted, and a frame may come
-// between), each timed from the finger's or the button's release. Nothing after 3 s without one: no
-// frames. And the marker a page load takes.
+// The frames after the next tap or click (from the finger's or the button's release), or from now on
+// (`now`): which stage is in front in each, which page the eye sees (`seen`: on a phone, while the
+// pages move on an axis, the one on top that shows, enhance.js the Achse, else the one in front),
+// and whether a skeleton or a picture held in front of the page is there. On a phone a tap moves
+// the pages at once and the app swaps the stages behind them once they move: the page tapped is
+// seen before it is in front. Nothing after 3 s without one: no frames. And the marker a page
+// load takes.
 const film = (page) => page.evaluate(() => {
     window.__marker = 1;
     window.__film = (now) => new Promise((done) => {
       const frames = [];
-      let at = now ? performance.now() : null, clicked = Boolean(now);
-      const start = (e) => { if (at === null) at = e.timeStamp; };
-      if (!now) {
-        addEventListener("pointerup", start, { capture: true, once: true });
-        addEventListener("click", (e) => { start(e); clicked = true; }, { capture: true, once: true });
-      }
+      let at = now ? performance.now() : null;
+      if (!now) addEventListener("pointerup", (e) => { if (at === null) at = e.timeStamp; }, { capture: true, once: true });
       const until = performance.now() + 3000;
       const look = (now) => {
-        if (!clicked && now > until) return done(frames);
-        if (clicked) {
+        if (at === null && now > until) return done(frames);
+        if (at !== null) {
+          const front = document.querySelector("#content > .page-stage.front")?.dataset.stage ?? null;
+          const top = [...document.querySelectorAll("#content > .page-stage.moving")]
+            .map((el) => { const cs = getComputedStyle(el); return { name: el.dataset.stage, z: Number(cs.zIndex) || 0, o: Number(cs.opacity) }; })
+            .filter((layer) => layer.o > 0.05)
+            .sort((a, b) => b.z - a.z)[0];
           frames.push({
             ms: Math.round(now - at),
-            front: document.querySelector("#content > .page-stage.front")?.dataset.stage ?? null,
+            front,
+            seen: top ? top.name : front,
             skeleton: Boolean(document.querySelector("#content > .pending-page:not(.held)")),
             held: Boolean(document.querySelector("#content > .pending-page.held")),
             y: Math.round(scrollY),
@@ -130,13 +134,15 @@ const tab = async (page, area, phone) => {
   else await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   return page.evaluate(() => window.__filming);
 };
-// A tab seen before: there in the first frame, nothing in front of it, and it stays.
+// A tab seen before: its page seen within 80 ms of the finger's or the button's release (in the frame
+// after the tap; a frame may come before it, while the browser clicks), nothing in front of it, and
+// it stays.
 const swapped = (frames, name) => {
-  const first = frames[0];
+  const k = frames.findIndex((frame) => frame.seen === name), first = frames[k];
   timings[during] = first?.ms;
-  check(first && first.front === name, `${during}: the first frame after the tap (${first?.ms} ms) shows ${first?.front}, not ${name}`);
-  check(first && first.ms <= 80, `${during}: the first frame came after ${first?.ms} ms`);
-  check(frames.every((frame) => frame.front === name), `${during}: ${name} left the front again (${frames.map((f) => f.front).join(" ")})`);
+  check(first, `${during}: ${name} never seen (${frames.map((f) => f.seen).join(" ")})`);
+  check(first && first.ms <= 80, `${during}: ${name} seen ${first?.ms} ms after the tap`);
+  check(k >= 0 && frames.slice(k).every((frame) => frame.seen === name), `${during}: ${name} left the front again (${frames.map((f) => f.seen).join(" ")})`);
   const covered = frames.filter((frame) => frame.skeleton || frame.held);
   check(covered.length === 0, `${during}: a skeleton or a held picture in ${covered.length} frames`);
 };
@@ -275,9 +281,10 @@ for (const slow of [1, 4]) {
     homeAt ??= await page.evaluate(() => Math.round(scrollY));
     if (name !== "home") check(await remember(page, name, `__${name}`), `${during}: no page on its stage`);
     const frames = await tab(page, name, phone);
+    const k = frames.findIndex((frame) => frame.seen === name);
     if (slow === 1) swapped(frames, name);
-    else check(frames[0]?.front === name && frames.every((frame) => !frame.skeleton && !frame.held), `${during}: ${JSON.stringify(frames.slice(0, 3))}`);
-    timings[during] = frames[0]?.ms;
+    else check(k >= 0 && frames.slice(k).every((frame) => frame.seen === name) && frames.every((frame) => !frame.skeleton && !frame.held), `${during}: ${JSON.stringify(frames.slice(0, 4))}`);
+    timings[during] = frames[k]?.ms;
     // Start was left scrolled; the others open at their top, although the page before was scrolled.
     const y = await page.evaluate(() => Math.round(scrollY));
     if (name === "home") check(Math.abs(y - homeAt) <= 2, `${during}: scrolled to ${y}, left at ${homeAt}`);

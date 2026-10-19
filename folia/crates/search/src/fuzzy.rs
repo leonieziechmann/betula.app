@@ -153,7 +153,7 @@ pub(crate) fn typos_at_start(query: &[char], word: &[char]) -> Option<usize> {
 }
 
 /// Edits that turn `a` into `b`: insert, delete, replace, or swap two neighbours.
-fn edit_distance(a: &[char], b: &[char]) -> usize {
+pub(crate) fn edit_distance(a: &[char], b: &[char]) -> usize {
     let width = b.len() + 1;
     let mut before: Vec<usize> = vec![0; width];
     let mut previous: Vec<usize> = (0..width).collect();

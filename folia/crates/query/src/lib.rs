@@ -2,8 +2,8 @@
 //! (`folia_search`); the catalog's filter as SQL is `sql`.
 //!
 //! Rules (docs/history/frontend-rewrite.md §4): read only `v_*` views and `program_coverage`;
-//! filter and sort on view columns; free text only against `v_module_folded` (the search,
-//! `folia_search::Plan`); every list comes with an exact total.
+//! filter and sort on view columns; free text only through the search (`folia_search::Plan`: what
+//! it found, in its order, read by `json_each(?)`); every list comes with an exact total.
 //! `every_query_runs_against_the_snapshot` (folia-pages' tests) fails for a `pub fn` of this
 //! crate that the tests never ran. The Studienplan's lists of module ids go in as one parameter
 //! read by `json_each(?)`: a function over the parameter, which reads no table.
@@ -154,9 +154,16 @@ pub fn program_plan_semesters(db: &dyn Database, program_id: &str) -> Result<Vec
     }).collect())
 }
 
+/// The plan of a query's search text, as its resolution has it searched and its program orders
+/// it (`folia_search::rank`); `None` without a text. Every statement of a query with a text joins it.
+fn search_plan(db: &dyn Database, query: &CatalogQuery) -> Result<Option<SearchPlan>, DbError> {
+    SearchPlan::new(db, &query.text, query.text_resolution.as_ref(), query.rank_program.as_deref())
+}
+
 /// The exact number of modules a catalog query matches.
 pub fn catalog_count(db: &dyn Database, query: &CatalogQuery) -> Result<u64, DbError> {
-    let sql = query.to_sql();
+    let plan = search_plan(db, query)?;
+    let sql = query.to_sql(plan.as_ref());
     fetch_count(
         db,
         "catalog_count",
@@ -174,12 +181,13 @@ pub fn catalog_page(
 ) -> Result<CatalogPage, DbError> {
     let total = catalog_count(db, query)?;
 
-    let sql = query.to_sql();
+    let plan = search_plan(db, query)?;
+    let sql = query.to_sql(plan.as_ref());
     let mut params = sql.params.clone();
     params.push(Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
     params.push(Value::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
 
-    let rows: Vec<CatalogRow> = fetch(
+    let mut rows: Vec<CatalogRow> = fetch(
         db,
         "catalog_page",
         &format!(
@@ -191,6 +199,14 @@ pub fn catalog_page(
         ),
         &params,
     )?;
+    // What the search found in each row, for its marks.
+    if plan.as_ref().is_some_and(|plan| !plan.is_empty()) {
+        let ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
+        let mut marks = folia_search::marks(db, &query.text, query.text_resolution.as_ref(), &ids)?;
+        for row in &mut rows {
+            row.marks = marks.remove(&row.id);
+        }
+    }
     Ok(CatalogPage { total, offset, rows })
 }
 
@@ -212,7 +228,8 @@ fn catalog_columns(query: &CatalogQuery) -> String {
 /// Where a module stands in the list a query orders (0-based), or `None` if it is not in it: the
 /// list scrolls to the row the visitor comes back to without loading every page before it.
 pub fn catalog_position(db: &dyn Database, query: &CatalogQuery, id: &str) -> Result<Option<u64>, DbError> {
-    let sql = query.to_sql();
+    let plan = search_plan(db, query)?;
+    let sql = query.to_sql(plan.as_ref());
     let mut params = sql.params.clone();
     params.push(Value::from(id));
     let rows = db.query(
@@ -262,9 +279,9 @@ pub fn module_prerequisites(db: &dyn Database, module_id: &str) -> Result<Vec<Pr
 /// (as the query's resolution has it searched) that the list does not hold, offered and no longer
 /// offered. Nothing without a search.
 pub fn search_elsewhere(db: &dyn Database, query: &CatalogQuery) -> Result<SearchElsewhere, DbError> {
-    let Some(plan) = SearchPlan::new(&query.text, query.text_resolution.as_ref()) else { return Ok(SearchElsewhere::default()) };
+    let Some(plan) = search_plan(db, query)? else { return Ok(SearchElsewhere::default()) };
     let Some((table, mut params)) = plan.table() else { return Ok(SearchElsewhere::default()) };
-    let listed = query.to_sql();
+    let listed = query.to_sql(Some(&plan));
     params.extend(listed.params.iter().cloned());
     Ok(fetch_optional(
         db,
@@ -295,7 +312,7 @@ pub fn search_elsewhere(db: &dyn Database, query: &CatalogQuery) -> Result<Searc
 /// abbreviation of its own („14851", „AGAB") finds that one alone, and the others would be the
 /// closest of all the semantic search finds: the module found, a second time, under the results.
 pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> Result<Vec<CatalogRow>, DbError> {
-    let Some(plan) = SearchPlan::new(&query.text, query.text_resolution.as_ref()) else { return Ok(Vec::new()) };
+    let Some(plan) = search_plan(db, query)? else { return Ok(Vec::new()) };
     // Within what the list is restricted to besides („Gemerkt").
     let ids: Vec<String> = match &query.only_ids {
         Some(only) => {
@@ -308,13 +325,13 @@ pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> 
         return Ok(Vec::new());
     }
     let besides = CatalogQuery { text: String::new(), text_resolution: None, only_ids: Some(ids), ..query.clone() };
-    let mut sql = besides.to_sql();
+    let mut sql = besides.to_sql(None);
     if let Some((table, params)) = plan.table() {
         sql.conditions.push(format!("f.module_id NOT IN (SELECT sr.module_id FROM {table} sr WHERE {})", plan.condition("sr")));
         sql.params.extend(params);
     }
     // The titles of the list's own rows (its search and its filters, as `catalog_page` reads them).
-    let mut listed = query.to_sql();
+    let mut listed = query.to_sql(Some(&plan));
     listed.conditions.push("m.title IS NOT NULL".to_string());
     sql.conditions.push(format!("m.title NOT IN (SELECT m.title FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{})", listed.joins, listed.where_clause()));
     sql.params.extend(listed.params);

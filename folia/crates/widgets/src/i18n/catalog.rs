@@ -187,6 +187,14 @@ pub struct Texts {
     /// The same in the column, where there are none.
     pub events_none: &'static str,
     pub limited_places: &'static str,
+    /// Under a title, where a search found the module by it: the title in the other language
+    /// („engl. Time-discrete Systems…"), a lecturer responsible for it or one who teaches it.
+    pub row_title_en: &'static str,
+    pub row_title_de: &'static str,
+    pub row_responsible: &'static str,
+    pub row_teaches: &'static str,
+    /// „Kürzel ThI": the abbreviation a search found the module by.
+    pub row_abbrev: fn(&str) -> String,
 
     // ---- the filter panel ----
     /// The heading of „Mein Studiengang" at the top of the program picker.
@@ -415,6 +423,11 @@ pub const DE: Texts = Texts {
     },
     events_none: "noch keine",
     limited_places: "begrenzte Plätze",
+    row_title_en: "engl.",
+    row_title_de: "dt.",
+    row_responsible: "verantwortlich",
+    row_teaches: "lehrt",
+    row_abbrev: |abbrev| format!("Kürzel {abbrev}"),
 
     my_program: "Mein Studiengang",
     program: "Studiengang",
@@ -627,6 +640,11 @@ pub const EN: Texts = Texts {
     },
     events_none: "none yet",
     limited_places: "limited places",
+    row_title_en: "Eng.",
+    row_title_de: "Ger.",
+    row_responsible: "responsible",
+    row_teaches: "teaches",
+    row_abbrev: |abbrev| format!("abbr. {abbrev}"),
 
     my_program: "My programme",
     program: "Degree programme",
