@@ -156,6 +156,31 @@ fn a_search_finds_the_same_for_everyone_and_orders_by_the_program() {
 }
 
 #[test]
+fn a_module_found_by_its_abbreviation_is_marked_in_its_title_too() {
+    let db = open();
+    // „An" is the abbreviation of parts of Analysis („An2") and the start of their titles: the row
+    // marks „An" in the title beside the abbreviation (owner, 2026-10-19: „Also hier könnte ruhig
+    // [An]alysis stehen"), and in the abbreviation what „An" names of it.
+    let ids: Vec<String> = found(&db, "An", None).into_iter().map(|(id, _)| id).collect();
+    let marks = folia_search::marks(&db, "An", None, &ids).unwrap();
+    let titled = folia_search::search_modules(&db).unwrap();
+    let by_abbrev: Vec<&String> = ids
+        .iter()
+        .filter(|id| marks.get(*id).is_some_and(|m| m.abbrev.is_some()))
+        .filter(|id| titled.iter().any(|m| &m.id == *id && folia_search::fold(&m.title).starts_with("an")))
+        .collect();
+    assert!(!by_abbrev.is_empty() || !offers(&db, &|t| t.starts_with("Analysis")));
+    for id in by_abbrev {
+        assert!(marks.get(id).is_some_and(|m| m.title.contains(&(0, 2))), "{id}: {:?}", marks.get(id));
+        let abbrev = marks.get(id).and_then(|m| m.abbrev.clone()).unwrap();
+        assert!(!abbrev.spans.is_empty(), "{id}: {abbrev:?}");
+        for &(a, b) in &abbrev.spans {
+            assert!(abbrev.text.get(a as usize..b as usize).is_some_and(|named| folia_search::fold(named) == "an"), "{id}: {abbrev:?}");
+        }
+    }
+}
+
+#[test]
 fn the_index_is_made_ahead_of_the_first_search() {
     let db = open();
     folia_search::prepare(&db).unwrap();

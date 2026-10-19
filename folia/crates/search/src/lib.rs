@@ -412,7 +412,7 @@ pub fn marks(db: &dyn Database, text: &str, resolution: Option<&Resolution>, ids
     for id in ids {
         let Some(i) = index.position(id) else { continue };
         let Some(answer) = index.answer_of(i, &words).filter(|answer| answer.found > 0) else { continue };
-        if let Some(found) = index.marks(i, &answer) {
+        if let Some(found) = index.marks(i, &answer, &index.shown_finds(i, &words)) {
             marks.insert(id.clone(), found);
         }
     }

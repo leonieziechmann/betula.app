@@ -2314,9 +2314,22 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   suche teilen kann“).
 - **The row says why** (`widgets::list::Row`, `CatalogRow::marks`, filled by `catalog_page` from
   `search::marks`): the letters found are marked (`<mark>`, `--hit`) in the title, in the number
-  and in a line under the title that says what else the module was found by — the title in the
+  and in a line under the row that says what else the module was found by — the title in the
   other language („engl. Time-discrete Systems and Regulators“) or a lecturer („verantwortlich
-  Hofstedt, Petra“, „lehrt …“) — and an abbreviation stands as a tag („Kürzel ThI“).
+  Hofstedt, Petra“, „lehrt …“) — and an abbreviation stands as a tag („Kürzel ThI“). Since Folia
+  1.31.1 (owner, 2026-10-19):
+  - the line is a row of the row's grid of its own, as wide as the row, the columns staying beside
+    the title and the bookmark beside them („Mach mal die line mit der Übersetzung über die ganze
+    Länge (oder zumindest 75%) von der Zeile“); on a phone it is as wide as the title, the credits
+    centred beside both; in 1.30.0 it wrapped inside the title's column;
+  - the title one sees is marked where it has a word of the query even when something else found
+    the module, an abbreviation, the number, a lecturer, the other title („selbst wenn das kürzel
+    gematcht wird, dann markier mal trotzdem … Also hier könnte ruhig [An]alysis stehen“:
+    `rank::Index::shown_finds`; the order does not depend on it);
+  - in the abbreviation's tag the letters the query names are marked as in the title („Kürzel
+    **An**2“; „ein einheitliches zeichen für die suche“, „vlt mach das mal nur so in den badges,
+    dass da der Matching text makiert wird“: `rank::named_parts`), the tag itself gray as the
+    others.
 - **What the words as typed do not find** (`search::resolve`, run by `pages::catalog_scope`, so
   that the page and the filter panel agree): where no module has all of them, the words no module
   has are corrected to the word of a title they are within one typo of (two from eight letters on,

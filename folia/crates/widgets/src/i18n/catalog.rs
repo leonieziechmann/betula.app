@@ -193,8 +193,8 @@ pub struct Texts {
     pub row_title_de: &'static str,
     pub row_responsible: &'static str,
     pub row_teaches: &'static str,
-    /// „Kürzel ThI": the abbreviation a search found the module by.
-    pub row_abbrev: fn(&str) -> String,
+    /// „Kürzel ThI": before the abbreviation a search found the module by.
+    pub row_abbrev: &'static str,
 
     // ---- the filter panel ----
     /// The heading of „Mein Studiengang" at the top of the program picker.
@@ -427,7 +427,7 @@ pub const DE: Texts = Texts {
     row_title_de: "dt.",
     row_responsible: "verantwortlich",
     row_teaches: "lehrt",
-    row_abbrev: |abbrev| format!("Kürzel {abbrev}"),
+    row_abbrev: "Kürzel",
 
     my_program: "Mein Studiengang",
     program: "Studiengang",
@@ -644,7 +644,7 @@ pub const EN: Texts = Texts {
     row_title_de: "Ger.",
     row_responsible: "responsible",
     row_teaches: "teaches",
-    row_abbrev: |abbrev| format!("abbr. {abbrev}"),
+    row_abbrev: "abbr.",
 
     my_program: "My programme",
     program: "Degree programme",

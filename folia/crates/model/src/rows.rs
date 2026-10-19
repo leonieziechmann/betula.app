@@ -246,8 +246,9 @@ pub struct SearchMarks {
     pub teaching: bool,
     /// Byte ranges of `CatalogRow::id`: the number, or its start, as typed.
     pub id: Vec<(u32, u32)>,
-    /// The abbreviations found („ThI", „BS1, BS2").
-    pub abbrev: Option<String>,
+    /// The abbreviations found („ThI", „BS1, BS2"), with the byte ranges of what the query names
+    /// („BS").
+    pub abbrev: Option<MarkedText>,
 }
 
 /// A text with byte ranges of it to mark.
