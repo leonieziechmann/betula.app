@@ -450,7 +450,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
      background, over the page and under the search. The ground follows the page, full width, the
      bottom bar floating over its lower part; under a page shorter than the window it lies just
-     past the window's lower edge all the same (the body's column, „phone and tablet"). */
+     past the window's lower edge all the same (the body's column, „phone and tablet"). Not under
+     the row of pages of „Mein Studium" (`.st-pager`, below). */
   .crown { z-index: 20; height: var(--bar); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
      no size, which draws nothing, as `none` would). */
@@ -4723,7 +4724,16 @@ a.st-rsp-name:hover { text-decoration: underline; }
      selected the row does not move sideways. */
   .page:has(> .page-inner.study) { overflow-x: clip; }
   :root:has(#content > .page-stage.front .st-pager) { overflow-anchor: none; overscroll-behavior-x: none; }
-  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 26px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  /* No ground under the row, on none of its pages, the overview's included (owner, 2026-10-19:
+     „wenn man nach unten scrolled zum footer und dann weiter swiped dann gibt es ganz komisches
+     behavior. Ich würde den footer bei den semester ansichten einfach raus nehmen. Der hat da eh
+     keinen Mehrwert"): a page that came in from the ground showed from its top in the strip above
+     it, cut off at the row's end, while the ground stood still under it, and at rest the window
+     jumped up. The row is the end of the page: its last page ends where the dots' frosted ground
+     begins (`.st-dock`: 26 + 6 + 84 px and the safe area), so that nothing of it stays under them.
+     Every other page keeps the ground. */
+  body:has(> .main > .content > .page-stage.front .st-pager) > .ground { display: none; }
+  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 calc(116px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .st-pager::-webkit-scrollbar { display: none; }
   .st-pager::before, .st-pager::after { content: ""; flex: none; width: 6px; }
   .st-pager.is-selecting { touch-action: pan-y; }
@@ -4800,7 +4810,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
      bar"), in no box: the page's ground, frosted over what passes under it as the bar at the top
      is, from the screen's lower edge, the tab bar floating over it, to a little above the dots,
      where it fades into the page (the same day: „einfach nur den grauen Hintergrund mit blur zum
-     content"); under the ground, which comes over it at the end of the page. */
+     content"); the row's end stands above it (no ground under the row, above). */
   .st-dock { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; padding: 26px 0 calc(84px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(transparent, #000 18px); mask-image: linear-gradient(transparent, #000 18px); }
   .st-bar { height: 12px; margin-top: 22px; gap: 2px; }
   .st-bar .st-seg, .st-bar .st-seg > span:first-child, .st-bar .st-seg > span:last-of-type { border-radius: 4px; }

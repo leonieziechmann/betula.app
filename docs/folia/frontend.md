@@ -52,7 +52,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
-| `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times). The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
+| `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times), on a phone all but the row of pages of „Mein Studium", which has no ground (owner, 2026-10-19): there they are a tab further, at the end of any other page. The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
 
 The catalog parameters are tolerant (repeated or comma-joined values, empty inputs of a plain
 HTML form, nonsense ignored) and have one canonical spelling, which is also the cache key. A
@@ -1269,7 +1269,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     weg und die Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund mit blur zum
     content"): on the page's grey, frosted over what passes under it as the bar at the top is, from
     the screen's foot and edges (the tab bar floating over it) to a little above the dots, where it
-    fades into the page. The ground at the end of the page comes over them. The dialogs („Bereiche",
+    fades into the page. No ground comes over them: the row has none under it, on none of its
+    pages (owner, 2026-10-19: „wenn man nach unten scrolled zum footer und dann weiter swiped dann
+    gibt es ganz komisches behavior. Ich würde den footer bei den semester ansichten einfach raus
+    nehmen. Der hat da eh keinen Mehrwert"), and its end stands above the dots. The dialogs („Bereiche",
     „Studiengang wechseln", „Module hinzufügen") are sheets from below that a finger drags down to
     close them, as the catalog's filters (owner, the same day: „Das muss auch unbedingt dazu, dass
     man die einfach wieder runter sliden kann"; `dialog[data-sheet]`, `enhance.js`): the sheet
@@ -1342,7 +1345,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (the others are inert) and is the semester in focus. The row is as tall as that page (the
     others count for nothing) and at least as tall as the screen under the bar, so that a page
     coming in shows as far as the screen does; it changes at rest, never under a finger, and a page
-    shows from its top as it comes in (`dom::lift`). The row comes with the page it opens at and its
+    shows from its top as it comes in (`dom::lift`). It is the end of the page, with no ground after
+    it (2026-10-19): one came in from down in the ground only in the strip above it, cut off, the
+    ground standing still under it, and at rest the window jumped up. The row comes with the page it opens at and its
     neighbours drawn, the rest once it is there, two a step, and the neighbours of a page it comes to
     rest at at once, never while a finger is on the row or it moves (with the CPU four times slower,
     no long task while it moves: what a page's coming to rest asks, 50–100 ms there, comes after,
@@ -1435,7 +1440,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap
     and a column; the way back a square box left of the search, as the search is; the
     semesters without a box, their head under the search, their rows the catalog's cards with
-    number, area and LP; the ground past the window's edge, the pages 12 px from the screen's edges
+    number, area and LP; no ground under the row and its end above the dots, the pages 12 px from the screen's edges
     and from each other, the dots fixed over the tab bar on the frosted grey, without a box or a
     legend, an empty semester and the plan's rows with their „+", ‹ › gliding and past the overview,
     the glides of a tap quick (the box, ‹ past the overview, the way back: at most 280–360 ms from
@@ -2504,7 +2509,7 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   the ground once the window stood still, the page gliding to its end above it again); two steps
   that the owner found „unfassbar janky", so they are gone. Every panel ends 8 px above the ground,
   as above the window's edge. On a phone the ground follows the page (the app's own ground after
-  the view, in the body's second row), full width, the bottom bar floating over its lower part, and
+  the view, in the body's second row; none under the row of pages of „Mein Studium", 2026-10-19), full width, the bottom bar floating over its lower part, and
   the crown carries the frosted background of the bar at the top. A page shorter than the window
   does not leave the ground floating halfway up the screen (owner, 2026-09-26: „mindestens unten
   bündig"), and the ground does not show before it is scrolled to (owner, 2026-10-05: „der footer
