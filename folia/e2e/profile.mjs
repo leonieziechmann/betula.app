@@ -5,15 +5,17 @@
 // plain one; a switch in the sidebar brings a profile's marks back (the rail counts them),
 // renaming, „Profil leeren" and deleting with „Rückgängig"; another tab of the same browser follows
 // a switch, and the Merkliste open there shows the other profile's list; the menu of the profiles
-// at the rail's way (a mouse resting on it: the profiles, the way to the page and to the other
-// language, a profile chosen; a right click: the focus on the active profile, a choice with the
-// keyboard, Esc); light, dark or the system's (with the switch of the rail); a profile kept as a
+// at the rail's way (a mouse resting on it: the profiles, „Neues Profil“, the way to the page and
+// to the other language, a profile chosen; a right click: the focus on the active profile, a choice
+// with the keyboard, Esc; „Neues Profil“'s field holds the menu, Esc leaves the field first); light, dark or the system's (with the switch of the rail); a profile kept as a
 // file and made again of it, and a file that is none; „Mein Studiengang" of the active profile read
 // by the script in <head>. Privacy: no request carries a profile's name or a mark, and none leaves
 // the site. Phone: the way to the page a box at the right of the search, as high as it, and none on
 // the start page's brand line; a finger held on it opens the menu (the release goes nowhere), a
-// profile tapped there is the active one, a tap on the box leads to the page; the profiles before
-// the page, no sideways scrolling. English. Without the app: the page explains itself, is
+// profile tapped there is the active one; a tap on the box opens the menu too, without a step, and
+// „Neues Profil“ there makes the active profile; the menu's way leads to the page, on top of the
+// list it was opened from, the profiles before the page, no sideways scrolling, and the arrow at
+// the head back to the list as it was left, scrolled as far. English. Without the app: the page explains itself, is
 // `noindex`, offers the other language, and the rail's way to it shows.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { readFile, writeFile, mkdtemp } from "node:fs/promises";
@@ -141,13 +143,13 @@ const mark = async (page, id) => {
   // links hovert, kann man die profile direkt auswählen"): a mouse resting on the rail's way.
   const menu = () => page.evaluate(() => {
     const at = document.querySelector(".profile-menu");
-    return at && { items: [...at.querySelectorAll(".pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...at.querySelectorAll(".tab-menu-way")].map((way) => way.getAttribute("href")), scrim: Boolean(document.querySelector(".tab-scrim")), focus: document.activeElement?.closest(".pm-item")?.querySelector("b")?.textContent ?? null };
+    return at && { items: [...at.querySelectorAll(".pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), add: at.querySelector(".pm-new-way")?.textContent ?? null, ways: [...at.querySelectorAll("a.tab-menu-way")].map((way) => way.getAttribute("href")), scrim: Boolean(document.querySelector(".tab-scrim")), focus: document.activeElement?.closest(".pm-item")?.querySelector("b")?.textContent ?? null };
   });
   await page.mouse.move(700, 450);
   await page.hover(".rail .profile-btn");
   await page.waitForSelector(".profile-menu", { timeout: 3000 }).catch(() => problems.push("the menu of the profiles does not open where a mouse rests on the rail's way"));
   let offered = await menu();
-  check(JSON.stringify(offered) === JSON.stringify({ items: ["Informatik false", `${NAME} true`], ways: ["/profile", "/en/profile"], scrim: false, focus: null }), `the menu of the profiles: ${JSON.stringify(offered)}`);
+  check(JSON.stringify(offered) === JSON.stringify({ items: ["Informatik false", `${NAME} true`], add: "Neues Profil", ways: ["/profile", "/en/profile"], scrim: false, focus: null }), `the menu of the profiles: ${JSON.stringify(offered)}`);
   await step("a profile chosen in the menu", () => page.click('.profile-menu .pm-item:has(b:text-is("Informatik"))'), () => !document.querySelector(".profile-menu") && document.querySelector(".pf-head h2")?.textContent === "Informatik" && document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent === "2");
   // A right click: the menu stays where the mouse goes, the active profile has the focus, and the
   // keyboard chooses another; Esc closes it, the focus back on the way.
@@ -162,6 +164,21 @@ const mark = async (page, id) => {
   await page.waitForSelector(".profile-menu", { timeout: 3000 }).catch(() => problems.push("a right click on the rail's way opens no menu"));
   await page.keyboard.press("Escape");
   check(await page.evaluate(() => !document.querySelector(".profile-menu") && document.activeElement?.matches(".rail .profile-btn")), "Esc does not close the menu of the profiles, or the focus is lost");
+  // „Neues Profil“ in the menu (owner, 2026-10-19): its field holds a menu a mouse opened, which no
+  // longer goes with the mouse; Esc leaves the field first, then the menu.
+  await page.mouse.move(700, 450);
+  await page.hover(".rail .profile-btn");
+  await page.waitForSelector(".profile-menu .pm-new-way", { timeout: 3000 }).catch(() => problems.push("the menu of the profiles offers no „Neues Profil“"));
+  await page.click(".profile-menu .pm-new-way");
+  await page.mouse.move(700, 450);
+  await page.waitForTimeout(500);
+  const naming = await page.evaluate(() => ({ menu: Boolean(document.querySelector(".profile-menu")), scrim: Boolean(document.querySelector(".tab-scrim")), focus: document.activeElement?.id ?? null, placeholder: document.getElementById("pm-new-name")?.placeholder ?? null }));
+  check(JSON.stringify(naming) === JSON.stringify({ menu: true, scrim: true, focus: "pm-new-name", placeholder: "Profil 3" }), `„Neues Profil“ in the menu: ${JSON.stringify(naming)}`);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  check(await page.evaluate(() => Boolean(document.querySelector(".profile-menu")) && !document.getElementById("pm-new-name") && document.activeElement?.id === "pm-new"), "Esc in the menu's field does not leave the field alone, or closes the menu");
+  await page.keyboard.press("Escape");
+  check(await page.evaluate(() => !document.querySelector(".profile-menu")), "the second Esc does not close the menu of the profiles");
 
   // Light, dark, the system's; and the switch of the rail.
   const theme = () => page.evaluate(() => ({ data: document.documentElement.dataset.theme ?? null, stored: localStorage.getItem("betula.theme"), checked: document.querySelector('.pf-seg [aria-checked="true"][data-theme-value]')?.dataset.themeValue }));
@@ -252,15 +269,38 @@ const mark = async (page, id) => {
   const at = await page.evaluate(() => { const box = document.querySelector(".topbar .top-profile").getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
   await page.waitForTimeout(650);
-  const held = await page.evaluate(() => ({ items: [...document.querySelectorAll(".profile-menu .pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...document.querySelectorAll(".profile-menu .tab-menu-way")].map((way) => way.getAttribute("href")) }));
+  const held = await page.evaluate(() => ({ items: [...document.querySelectorAll(".profile-menu .pm-item")].map((item) => `${item.querySelector("b").textContent} ${item.getAttribute("aria-checked")}`), ways: [...document.querySelectorAll(".profile-menu a.tab-menu-way")].map((way) => way.getAttribute("href")) }));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await page.waitForTimeout(500);
   check(JSON.stringify(held) === JSON.stringify({ items: ["Profil 1 true", `${NAME} false`], ways: ["/profile", "/en"] }), `phone: a finger held on the way: ${JSON.stringify(held)}`);
   check(await page.evaluate(() => location.pathname === "/" && Boolean(document.querySelector(".profile-menu"))), "phone: the release of the finger went somewhere, or the menu went");
   await step("phone: a profile tapped in the menu", () => page.tap(`.profile-menu .pm-item:has(b:text-is("${NAME}"))`), (name) => !document.querySelector(".profile-menu") && document.querySelector(".topbar .top-profile")?.getAttribute("aria-label") === `Profil: ${name}` && document.querySelector(".topbar .top-profile .avatar")?.textContent === "Z", NAME);
-  await step("phone: the box leads to the profile page", () => page.tap(".topbar .top-profile"), (name) => location.pathname === "/profile" && document.querySelector(".pf-head h2")?.textContent === name && document.querySelector(".topbar .top-profile")?.getAttribute("aria-current") === "page", NAME);
-  const layout = await page.evaluate(() => { const [side, head] = [document.getElementById("sidebar"), document.querySelector(".pf-head")].map((el) => el.getBoundingClientRect()); return { first: side.bottom <= head.top + 1, overflow: document.documentElement.scrollWidth > innerWidth, theme: Boolean(document.querySelector('[data-theme-value="dark"]')?.getClientRects().length) }; });
-  check(layout.first && !layout.overflow && layout.theme, `phone: the profiles before the page, no sideways scrolling, the theme to choose: ${JSON.stringify(layout)}`);
+  // A tap on the box is the menu as well (owner, 2026-10-19: „die häufigste Aktion wird sein, dass
+  // man das nur das Profil wechseln will"), and no step: the page stays where it is.
+  await step("phone: „Module“", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelectorAll(".rows a.row").length > 5);
+  await page.evaluate(() => window.scrollTo(0, 900));
+  await page.waitForTimeout(300);
+  const left = await page.evaluate(() => ({ here: location.pathname + location.search, y: Math.round(scrollY), at: navigation.currentEntry.index }));
+  await step("phone: a tap on the box opens the menu", () => page.tap(".topbar .top-profile"), () => Boolean(document.querySelector(".profile-menu .pm-new-way")) && document.querySelector(".topbar .top-profile")?.getAttribute("aria-expanded") === "true");
+  const tapped = await page.evaluate(() => ({ here: location.pathname + location.search, at: navigation.currentEntry.index, scrim: Boolean(document.querySelector(".tab-scrim")), ways: [...document.querySelectorAll(".profile-menu a.tab-menu-way")].map((way) => way.getAttribute("href")) }));
+  check(tapped.here === left.here && tapped.at === left.at && tapped.scrim && JSON.stringify(tapped.ways) === JSON.stringify(["/profile", "/en/catalog"]), `phone: the tap on the box: ${JSON.stringify(tapped)}`);
+  // „Neues Profil“ in it: a name, and the new profile, empty, is the active one; the page stays.
+  await step("phone: „Neues Profil“ asks for a name", () => page.tap(".profile-menu .pm-new-way"), () => document.activeElement?.id === "pm-new-name" && document.activeElement.placeholder === "Profil 3");
+  await page.fill("#pm-new-name", "Mobil");
+  await step("phone: the new profile is the active one", () => page.press("#pm-new-name", "Enter"), () => !document.querySelector(".profile-menu") && document.querySelector(".topbar .top-profile")?.getAttribute("aria-label") === "Profil: Mobil" && document.querySelector(".topbar .top-profile .avatar")?.textContent === "M");
+  check(/^active\t3$/m.test(await kept(page, LIST)) && /^profile\t3\t\d{10}\tMobil$/m.test(await kept(page, LIST)), `phone: the profile made in the menu: ${JSON.stringify(await kept(page, LIST))}`);
+  check((await page.evaluate(() => location.pathname + location.search)) === left.here, "phone: a profile made in the menu led somewhere");
+  // The page is a page of a while (owner, 2026-10-19: „dass die Profile page, als temporäre seite
+  // getreated werden soll wo man dann oben den zurück pfeil hat und genau wieder da landet, wo man
+  // davor war"): the menu's way leads there, the arrow at the head back to the list as it was left.
+  await page.evaluate((y) => window.scrollTo(0, y), left.y);
+  await step("phone: the box, then the menu's way to the page", async () => { await page.tap(".topbar .top-profile"); await page.waitForSelector('.profile-menu a[href="/profile"]', { timeout: 3000 }); await page.tap('.profile-menu a[href="/profile"]'); }, () => location.pathname === "/profile" && document.querySelector(".pf-head h2")?.textContent === "Mobil" && Boolean(document.querySelector(".top-back.on")));
+  const layout = await page.evaluate(() => { const [side, head] = [document.getElementById("sidebar"), document.querySelector(".pf-head")].map((el) => el.getBoundingClientRect()); return { first: side.bottom <= head.top + 1, overflow: document.documentElement.scrollWidth > innerWidth, theme: Boolean(document.querySelector('[data-theme-value="dark"]')?.getClientRects().length), away: document.querySelector(".topbar .top-profile")?.inert ?? null, at: navigation.currentEntry.index }; });
+  check(layout.first && !layout.overflow && layout.theme && layout.away === true && layout.at === left.at + 1, `phone: the profile page (the profiles first, no sideways scrolling, the theme to choose, the arrow in the box's place, one step on top): ${JSON.stringify(layout)}`);
+  await step("phone: the arrow leads back to where the visitor was", () => page.tap(".top-back.on"), (here) => location.pathname + location.search === here && document.querySelectorAll(".rows a.row").length > 5, left.here);
+  await page.waitForTimeout(300);
+  const back = await page.evaluate(() => ({ y: Math.round(scrollY), at: navigation.currentEntry.index, forward: navigation.canGoForward }));
+  check(Math.abs(back.y - left.y) < 4 && back.at === left.at && back.forward, `phone: the arrow did not go back to the list as it was left (scrolled ${left.y}, at ${left.at}): ${JSON.stringify(back)}`);
   await context.close();
 }
 
