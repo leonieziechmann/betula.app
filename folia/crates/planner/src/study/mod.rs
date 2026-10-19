@@ -6,9 +6,10 @@
 //! (`folia_stores::studyplan`, the same lines the Stundenplan shows: one plan).
 //!
 //! The page (owner, mockup of 2026-10-04): an overview first, what is passed, planned and open in
-//! all and by area (`overview.rs`), then the semesters. On a desktop one semester stands in focus
-//! under a strip of all of them, with what fits it beside it (`focus.rs`, the view „Semester"), or
-//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"). A phone has one row of pages the
+//! all and by area (`overview.rs`), then the semesters. On a desktop one semester stands in focus,
+//! its name the way to any other, with what fits it beside it (`focus.rs`, the view „Semester"), or
+//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"), which the sidebar switches
+//! between (`side.rs`). A phone has one row of pages the
 //! browser scrolls under a finger or by ‹ › (`pager.rs`): the semesters that are over, the overview
 //! with the program and its ways (`phone.rs`), the current semester and the ones to come. The
 //! semesters begin empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of
@@ -248,7 +249,8 @@ pub(super) struct StudyCtx {
     /// The menu open, if any (`menu.rs`).
     pub menu: RwSignal<Option<menu::Menu>>,
     pub selection: RwSignal<Selection>,
-    /// The rows being dragged to another semester: their semester and `Item::key`s.
+    /// The entries of the Gesamtplan being dragged to another semester: their semester and
+    /// `Item::key`s.
     pub drag: RwSignal<Option<(SemesterKey, Vec<String>)>>,
     /// The note of the last change that „Rückgängig" takes back, and the plan before it.
     pub undo: RwSignal<Option<(String, PlanDoc)>>,
@@ -694,29 +696,6 @@ fn StudyBody(ctx: StudyCtx) -> impl IntoView {
 fn Semesters(ctx: StudyCtx) -> impl IntoView {
     let grid = Memo::new(move |_| ctx.view.get() == View::Grid);
     move || if grid.get() { view! { <grid::Grid ctx/> }.into_any() } else { view! { <focus::Focus ctx/> }.into_any() }
-}
-
-/// „Semester | Gesamtplan": the view of the semesters on a desktop.
-#[component]
-fn ViewSwitch(ctx: StudyCtx) -> impl IntoView {
-    let t = i18n::t();
-    let s = &t.study;
-    let button = move |view: View, label: &'static str, icon: &'static str| {
-        view! {
-            <button type="button" aria-pressed=move || if ctx.view.get() == view { "true" } else { "false" } on:click=move |_| {
-                ctx.selection.set(Selection::default());
-                ctx.view.set(view);
-            }>
-                <Icon name=icon/>{label}
-            </button>
-        }
-    };
-    view! {
-        <div class="st-views" role="group" aria-label=s.view_label>
-            {button(View::Semester, s.view_semester, "layout-list")}
-            {button(View::Grid, s.view_grid, "layout-grid")}
-        </div>
-    }
 }
 
 /// The note of the last change with „Rückgängig", at the bottom of the window until the next one
