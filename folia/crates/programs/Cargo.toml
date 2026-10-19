@@ -1,6 +1,6 @@
 [package]
 name = "folia-programs"
-version = "1.31.0"
+version = "1.31.1"
 edition = "2021"
 description = "The programs of Betula: the overview and a program's page"
 
