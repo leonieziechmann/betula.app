@@ -17,7 +17,7 @@ mod quotes;
 use leptos::prelude::*;
 use leptos_meta::{provide_meta_context, MetaTags, Title};
 use leptos_router::components::{Route, Router, Routes};
-use leptos_router::{path, SsrMode};
+use leptos_router::path;
 
 use folia_bookmarks::bookmarks::BookmarksPage;
 use folia_catalog::catalog::CatalogPage;
@@ -34,6 +34,7 @@ use folia_shell::ground::{Crown, Ground, Wood};
 use folia_shell::pending::Pending;
 use folia_shell::tabs::{TabAgain, Tabs};
 use folia_shell::{languages, pending, seo, skeleton};
+use folia_shell::stage::Page;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{MineResolved, MyProgram};
 use folia_stores::profiles::Profiles;
@@ -97,6 +98,65 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     }
 }
 
+/// The pages. In the browser app every tab's page stays built on a stage of its own
+/// (`folia_shell::stage`), each stage choosing its page by its place (`page`); the router's own
+/// routes are one that draws nothing, so that the router hears when a step is done (its scroll, its
+/// entry in the history). The server renders the page of its address with the routes, on a stage
+/// in front, as the browser app's page then stands.
+#[cfg(feature = "csr")]
+fn pages() -> impl IntoView {
+    view! {
+        <Routes fallback=|| ()>
+            <Route path=path!("/*any") view=|| ()/>
+        </Routes>
+        <folia_shell::stage::Stages pages=page/>
+    }
+}
+
+#[cfg(not(feature = "csr"))]
+fn pages() -> impl IntoView {
+    use leptos_router::SsrMode;
+    let t = i18n::t();
+    view! {
+        <div class="page-stage front">
+            <Routes fallback=move || view! { <Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></Plain> }>
+                <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
+                <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
+                <Route path=path!("/catalog/module/:id") view=ModulePage ssr=SsrMode::Async/>
+                <Route path=path!("/programs") view=ProgramsPage ssr=SsrMode::Async/>
+                <Route path=path!("/programs/:slug") view=ProgramPage ssr=SsrMode::Async/>
+                <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
+                <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
+                <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
+                <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
+                <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
+                <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
+                <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
+            </Routes>
+        </div>
+    }
+}
+
+/// The page of a route on a stage of the browser app: the same table as the server's routes.
+#[cfg_attr(not(feature = "csr"), allow(dead_code))]
+fn page(page: Page) -> AnyView {
+    let t = i18n::t();
+    match page {
+        Page::Home => view! { <HomePage/> }.into_any(),
+        Page::Catalog => view! { <CatalogPage/> }.into_any(),
+        Page::Module => view! { <ModulePage/> }.into_any(),
+        Page::Programs => view! { <ProgramsPage/> }.into_any(),
+        Page::Program | Page::ProgramTab => view! { <ProgramPage/> }.into_any(),
+        Page::Bookmarks => view! { <BookmarksPage/> }.into_any(),
+        Page::Studyplan => view! { <StudyplanPage/> }.into_any(),
+        Page::Study => view! { <StudyPage/> }.into_any(),
+        Page::Profile => view! { <ProfilePage/> }.into_any(),
+        Page::Imprint => view! { <ImprintPage/> }.into_any(),
+        Page::Privacy => view! { <PrivacyPage/> }.into_any(),
+        Page::NotFound => view! { <Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></Plain> }.into_any(),
+    }
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     // The language of the address, for the whole life of the app: another language is another
@@ -147,20 +207,7 @@ pub fn App() -> impl IntoView {
             <div class="main">
                 <TopBar/>
                 <main class="content" id="content" aria-busy=move || pending.busy().then_some("true")>
-                    <Routes fallback=move || view! { <Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></Plain> }>
-                        <Route path=path!("/") view=HomePage ssr=SsrMode::Async/>
-                        <Route path=path!("/catalog") view=CatalogPage ssr=SsrMode::Async/>
-                        <Route path=path!("/catalog/module/:id") view=ModulePage ssr=SsrMode::Async/>
-                        <Route path=path!("/programs") view=ProgramsPage ssr=SsrMode::Async/>
-                        <Route path=path!("/programs/:slug") view=ProgramPage ssr=SsrMode::Async/>
-                        <Route path=path!("/programs/:slug/:tab") view=ProgramPage ssr=SsrMode::Async/>
-                        <Route path=path!("/bookmarks") view=BookmarksPage ssr=SsrMode::Async/>
-                        <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
-                        <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
-                        <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
-                        <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
-                        <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
-                    </Routes>
+                    {pages()}
                     <skeleton::PendingPage/>
                     <ui::ToTop/>
                 </main>

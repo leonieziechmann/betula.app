@@ -385,6 +385,16 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    `.work`, because „Nach oben" stands beside it too and is no part of `.work`. Its 100 % is the
    width of what uses it: `.work`, or the view for the button, and the two are as wide. */
 .content { position: relative; min-height: 0; min-width: 0; --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px)); }
+/* The stages (folia/crates/shell/src/stage.rs): every tab's page stays built on a stage of its own.
+   The one in front is drawn; the others are built and not drawn, take no room and no input
+   (`inert`), and keep what the browser worked out for them, so that one comes back in the frame it
+   is asked for. On a wide screen each fills the content area, as the page did; on a phone the one in
+   front flows in the window, which scrolls. A browser without `content-visibility` (Safari before 18)
+   leaves the ones behind out altogether: slower to come back, but right. */
+.page-stage { min-width: 0; min-height: 0; }
+.page-stage:not(.front) { content-visibility: hidden; }
+@supports not (content-visibility: hidden) { .page-stage:not(.front) { display: none; } }
+@media (min-width: 901px) { .page-stage { position: absolute; inset: 0; } }
 /* A page ends where the panels beside it end: the same 8 px above the window's edge or the ground
    (1 px keeps the ring of the panels in it). */
 .page { height: 100%; overflow-y: auto; padding: 1px; scrollbar-width: thin; }
@@ -478,7 +488,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   body { timeline-scope: --page; }
   /* Asked of each body's own page: the takeover's picture is a second body (boot.js), and the
      app's first frame under it may not have its page yet. */
-  body:has(> .main > .content > .work.flowing) > .ground { display: none; }
+  body:has(> .main > .content > .page-stage.front > .work.flowing) > .ground { display: none; }
   .work.flowing {
     display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
     --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
@@ -574,7 +584,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      and the gap above it. */
   @keyframes wood-rise { to { transform: translateY(-208px); } }
   @supports (animation-timeline: scroll()) and (timeline-scope: --page) {
-    body:has(> .main > .content > .work.flowing) > .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
+    body:has(> .main > .content > .page-stage.front > .work.flowing) > .wood { animation: wood-rise linear both; animation-timeline: --page; animation-range: calc(100% - 208px) 100%; }
   }
   /* „Nach oben" stays above the ground once the page stands still (enhance.js). */
   .to-top { translate: 0 calc(-1 * var(--lift, 0px)); }
@@ -603,7 +613,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    takes the focus there, and a frame around all of it would say nothing. */
 .content:focus { outline: none; }
 @media (min-width: 901px) {
-  .content:has(> .work > .detail) > .to-top { right: calc(var(--preview) + 16px); }
+  .content:has(> .page-stage.front > .work > .detail) > .to-top { right: calc(var(--preview) + 16px); }
 }
 @media (max-width: 900px) {
   /* 12 px above the bottom bar (10 px from the edge, 62 px high), at its right edge. */
@@ -1756,7 +1766,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   .wood { display: block; position: fixed; z-index: -1; left: var(--rail); right: 0; bottom: 0; height: 1600px; pointer-events: none; will-change: transform; }
   /* Under the wood, as it goes up with the ground, its front colour goes on down to the window's
      edge: a shadow only draws outside the box. */
-  body:has(> .main > .content > .work.flowing) > .wood { box-shadow: 0 208px 0 var(--wood-front); }
+  body:has(> .main > .content > .page-stage.front > .work.flowing) > .wood { box-shadow: 0 208px 0 var(--wood-front); }
   .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; }
   .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
   :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
@@ -1907,8 +1917,8 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .link-key { width: 18px; height: 2px; border-radius: 1px; background: var(--text); opacity: .5; }
 /* While the map is open the page behind it stands still (a wheel over the dim backdrop would
    scroll it); its scrollbar keeps its room, so nothing behind moves sideways either. */
-:root:has(.map-dialog[open]) { overflow: hidden; }
-:root:has(.map-dialog[open]) .page { overflow: hidden; scrollbar-gutter: stable; }
+:root:has(#content > .page-stage.front .map-dialog[open]) { overflow: hidden; }
+:root:has(#content > .page-stage.front .map-dialog[open]) .page { overflow: hidden; scrollbar-gutter: stable; }
 
 /* The map of the programs. The server lays it out (catalog::graph); here it is only drawn, below
    its legend, which lies on the paper in the upper left corner. */
@@ -3124,7 +3134,7 @@ html:not(.js) .plan-toggle { display: none; }
 .wait-note { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: flex; align-items: center; min-height: 48px; overflow: hidden; container: wait-note / inline-size; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: wait-note-in .26s var(--ease); }
 @keyframes wait-note-in { from { opacity: 0; transform: translateY(10px); } }
 .wait-note > :first-child { flex: 1 1 auto; min-width: 0; }
-@media (min-width: 901px) { :root:has(.work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--filters) + var(--gap)); } }
+@media (min-width: 901px) { :root:has(#content > .page-stage.front .work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--filters) + var(--gap)); } }
 .wait-note[data-drag] { transition: none; }
 .wait-note.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
 .wait-note-close { flex: none; align-self: flex-end; display: grid; place-items: center; width: 34px; height: 40px; margin: 0 6px 4px 0; border: 0; border-radius: 9px; background: none; color: var(--on-toast); opacity: .72; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -3136,7 +3146,7 @@ html:not(.js) .plan-toggle { display: none; }
   /* Under the bottom bar (z-index 30), flat: what it draws never lies on the bar. */
   .wait-note { z-index: 29; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); border-radius: 14px; box-shadow: var(--toast-ring); animation-name: wait-note-rise; }
   @keyframes wait-note-rise { from { transform: translateY(calc(100% + 24px)); } }
-  :root:has(.detail.is-module) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
+  :root:has(#content > .page-stage.front .detail.is-module, #content > .pending-page .detail.is-module) .wait-note { z-index: 62; bottom: calc(10px + env(safe-area-inset-bottom)); }
   .wait-note-close { display: none; }
 }
 /* The note of „Einplanen" (.plan-toast in a .wait-note, folia/crates/widgets/src/plannote.rs;
@@ -3774,9 +3784,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
      page it stays, and so does the Stundenplan's „Modul ansehen", which leads to what its panel
      does not show. */
   :root.app .detail.is-module .full-view { display: none; }
-  html.app:has(.detail.is-module) { overflow: hidden; overscroll-behavior: none; }
+  html.app:has(#content > .page-stage.front .detail.is-module, #content > .pending-page .detail.is-module) { overflow: hidden; overscroll-behavior: none; }
   /* Drawn down from half up, the page behind is less and less dimmed (`--sheet-shade`, enhance.js). */
-  html.app:has(.detail.is-module)::after { content: ""; position: fixed; inset: 0; z-index: 44; background: rgba(15, 23, 42, .34); opacity: var(--sheet-shade, 1); animation: fade-in .24s; }
+  html.app:has(#content > .page-stage.front .detail.is-module, #content > .pending-page .detail.is-module)::after { content: ""; position: fixed; inset: 0; z-index: 44; background: rgba(15, 23, 42, .34); opacity: var(--sheet-shade, 1); animation: fade-in .24s; }
   .pending-page, .pending-page.columns { position: fixed; z-index: 19; padding: var(--bar) 0 92px; overflow: hidden; background: var(--bg); pointer-events: auto; }
   .pending-page .sidebar, .app-standin .sidebar, .sk-standin { display: none; }
   .sk-home { grid-template-columns: minmax(0, 1fr); }
@@ -4250,7 +4260,7 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-dialog[open] { display: flex; flex-direction: column; animation: dialog-in .3s var(--spring); }
 .st-dialog::backdrop { background: rgba(10, 12, 17, .5); }
 .st-dialog[open]::backdrop { animation: fade-in .2s ease-out; }
-:root:has(.st-dialog[open]) { overflow: hidden; }
+:root:has(#content > .page-stage.front .st-dialog[open]) { overflow: hidden; }
 .st-dlg { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 /* Head, bar and foot as tall as what they hold; the body takes the rest of the frame and scrolls. */
 .st-dlg-head, .st-dlg-bar, .st-dlg-foot { flex: none; }
@@ -4694,7 +4704,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
      its own, which a browser could take for a swipe back through the history. While rows are
      selected the row does not move sideways. */
   .page:has(> .page-inner.study) { overflow-x: clip; }
-  :root:has(.st-pager) { overflow-anchor: none; overscroll-behavior-x: none; }
+  :root:has(#content > .page-stage.front .st-pager) { overflow-anchor: none; overscroll-behavior-x: none; }
   .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 26px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .st-pager::-webkit-scrollbar { display: none; }
   .st-pager::before, .st-pager::after { content: ""; flex: none; width: 6px; }

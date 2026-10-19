@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, a link from outside), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -1935,6 +1935,74 @@ screen kommt und nicht die Seiten rückwärts abzuspielen". The concept with its
   standard has it; measured in Chromium).
 
 `node folia/e2e/back.mjs` checks it (§4).
+
+### Tabs that stay built (`folia/crates/shell/src/stage.rs`, 2026-10-18)
+
+Owner, 2026-10-18, after a phone's tab change built the whole page anew each time: „Am anfang
+darf die App ruhig etwas laden/kurz Skeltons zeigen. Aber wenn die App dann einmal läuft, dann muss
+es sich instant und einfach nur gut anfühlen"; and on the prototypes: „Es ist nice zu sehen, dass
+die Seiten gleich da sind. Das muss auf jeden Fall rein". The concept with its steps and what was
+measured is `folia/design/tabwechsel/konzept.html`; step 0 (the skeleton held instead of the page
+before, the tab's mark at once) is Folia 1.24.6, this is step 1 (Folia 1.26.0):
+
+- **A stage for each tab** (`stage::Stages`, in `main`): Start, Module, Studium, Merkliste,
+  Stundenplan, and one for the pages of no tab (the profile, the legal pages, a page that does not
+  exist; the one visited last stays). Each holds the page of its place and keeps it built while
+  Betula is open. A change of tab swaps which stage is in front, in the frame of the tap, without a
+  skeleton and without a picture held in front of it, and the page comes back as it was left: the
+  same elements, a module beside the list, a filter, scrolled as far. A module's own page opened from
+  a tab that shows its modules in place stays on that tab's stage (`Key::of`, as `nav::tab_of_page`).
+- **Where a page is** (`Place`): the router shows one place, the stage it is on follows it, and a
+  stage behind stays where it was left (the top of its tab's stack, `nav`). The pages read their
+  stage's place, `folia_design::i18n::use_location` and `use_params_map` (never leptos_router's
+  hooks): the router's while the router shows the stage. A stage builds its page anew when another
+  page comes to it, not when the query changes, as the router's routes did. The router keeps one
+  route that draws nothing (`/*any`), so that it still ends each step as before (its scroll, its
+  entry in the history).
+- **A step to where a stage stands already** (`Pending::stands`): the stage comes to the front at
+  once (`Pending::to`) and the router follows in the same task (Back and Forward right after their
+  listener: replayed from inside it, the listener would be called again while it runs); nothing is
+  held in front of it, the window is not taken to the top, and its time is no measure for a
+  skeleton. A step anywhere else goes as before: a skeleton where such a step was slow, then the
+  picture of the stage in front held over the new page until its answers are in.
+- **Behind** is built and not drawn: `content-visibility: hidden` and `inert` (app.css), no room on a
+  phone, under the one in front in the content area on a wide screen. The window's scroll on a phone
+  is kept for each stage as it scrolls and given back as a stage comes to the front where it was
+  left; one at a new place is where the router puts it, at the top if it never scrolled. On a wide
+  screen each page scrolls in its own areas, which keep their place.
+- **What a page does to the whole document it does in front alone** (`folia_design::stage::front`):
+  its tags for search engines (`seo::Seo`, one description and one canonical address in the
+  document), the listeners of the window (Esc of „Mein Studium", the catalog's list following the
+  window, the fragment of the Merkliste), the layers of `nav`. Its title is kept on its stage
+  (`stage::Title`, a stack for each stage as `leptos_meta` keeps one), and the stages give the
+  document the title of the stage in front. A page that goes behind is left as a new address leaves
+  it: what lies over it closes (`nav::layer_while`; a `<dialog>` open on it, such as the map of the
+  start page, as the stages swap), the filters' sheet throws its draft away (`enhance.js`,
+  `betula:stage`), the semester of „Mein Studium" stays, without its watcher.
+- **Parts of the same name**: several stages have a `#filters`, a `#preview`, a `#page-scroll`.
+  The browser app looks for a page's parts on the stage of the page that asks
+  (`folia_design::stage::by_id`, `select`, `select_all`: an effect has its page's owner), else on the
+  stage in front (a listener has no owner, and only the stage in front takes input), and finds what
+  is around the pages outside every stage. `enhance.js` looks on the stage in front (`find`,
+  `findAll`, `byId`) and hears `betula:stage` when another one comes to the front; app.css's rules
+  that ask for a page (`:has(…)`) ask for the stage in front, `#content > .page-stage.front …`; the
+  checks do the same.
+- **The server** knows nothing of the stages: it renders the page of its address with its routes, on
+  a stage in front (`<div class="page-stage front">`), so that the app's page stands where the
+  server's stood at the takeover.
+- **Leptos 0.8 on the way**: a component has no reactive owner of its own, so the six stages give
+  their context through `Provider` (side by side every page got the last one); a `leptos_meta`
+  title or tag cannot be taken away and put back by a closure (it holds no place in the page, so
+  `tachys` has nowhere to put it back), hence the stack of titles and the empty view after the tags
+  of `Seo`; and the class `stage` was the landing page's showcase's already.
+
+Measured with the dev bundle on the laptop of §3 (Chromium, the real catalog): a tab seen before
+is in front in the first frame after the click, 13–16 ms after it on a wide screen and 20–40 ms after
+the tap in a phone's window (412 × 915); before, the same change built its page again behind a
+skeleton for 100 to 600 ms. A tab's first visit is as before; building every tab at the start, in
+idle time, is the next step of the concept.
+
+`node folia/e2e/stages.mjs` checks it (§4).
 
 ### The search of the catalog (`folia/crates/search/src/lib.rs`, 2026-09-30)
 
@@ -3956,6 +4024,19 @@ page it leaves. A wide screen: filters closer than a second one step, after a pa
 module beside the list closed by its × going back where the list was the step before, and the
 list's tab as well; after two steps back at once a module opened is a step of its own with its
 address; after a reload the × still goes back, without loading the page anew.
+
+```bash
+cd e2e && node stages.mjs
+```
+
+drives the tabs that stay built as § „Tabs that stay built" has them, on a phone (the bottom bar,
+taps) and on a wide screen (the rail, clicks): a tab seen before is in front in the first frame
+after the tap, without a skeleton and without a picture held in front of it, with the same page
+(the very elements), scrolled as far (the window on a phone, the list's area on a wide screen) and
+with the module beside the list still there; one stage in front, the others not drawn, inert and
+on a phone without room; the title, one canonical address and one description of the page in front;
+a filter and a row of a page that came back; the filters' sheet left open going as its tab changes,
+nothing dimmed; Back on a phone up to Start, which comes as it was left.
 
 ```bash
 cd e2e && node swipe.mjs

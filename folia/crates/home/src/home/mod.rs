@@ -67,7 +67,7 @@ use folia_routes::CatalogQuery;
 use folia_routes::filter::{ExamPart, Language, TurnusFilter};
 use folia_routes::url::{self, CatalogUrl, ProgramTab};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use folia_design::combobox::ClosePopups;
 use folia_data::{use_ask, PageStatus, ProgramMapHandle};

@@ -137,6 +137,9 @@ type Navigate = Rc<dyn Fn(&str, NavigateOptions)>;
 /// `None` where it has nothing to do for it, else what ends once the page will find it done.
 pub type Prepare = Rc<dyn Fn(&str) -> Option<Later<()>>>;
 
+/// Whether an address stands on a stage already, another than the router's (`stage::Stages`).
+pub type Standing = Rc<dyn Fn(&str) -> bool>;
+
 struct Inner {
     via: Via,
     /// Set by `Bind` inside the router: its navigation and where it is.
@@ -159,6 +162,11 @@ struct Inner {
     typing_ends: Option<TimeoutHandle>,
     /// The address the last step beside the page wrote, and when (`in_place`).
     beside: Option<(String, f64)>,
+    /// Whether an address stands on a stage already, not the router's (`stage::Stages`): a step
+    /// there only swaps the stages.
+    stages: Option<Standing>,
+    /// The step that is due goes where a stage stands already (`stands`).
+    standing: bool,
     /// Where the pages' answers come from: a step waits for those of the page it leads to while
     /// they are on their way (`hold`).
     #[cfg_attr(not(feature = "csr"), allow(dead_code))]
@@ -207,6 +215,8 @@ impl Pending {
                     quiet: false,
                     typing_ends: None,
                     beside: None,
+                    stages: None,
+                    standing: false,
                     data: use_context::<folia_data::DataClient>().filter(folia_data::DataClient::is_remote),
                 })
             }),
@@ -407,6 +417,20 @@ impl Pending {
         }
     }
 
+    /// The stages say which addresses stand on a stage already (`stage::Stages`).
+    pub(crate) fn bind_stages(&self, standing: Standing) {
+        if let Some(inner) = self.inner {
+            inner.update_value(|inner| inner.stages = Some(standing));
+        }
+    }
+
+    /// Whether `to` stands on a stage already, another than the router's: a step there only swaps
+    /// the stages, at once, without a skeleton and without holding a picture in front of it.
+    pub(crate) fn stands(&self, to: &str) -> bool {
+        let Some(standing) = self.inner.and_then(|inner| inner.with_value(|inner| inner.stages.clone())) else { return false };
+        standing(to)
+    }
+
     /// What going from where the router is to `to` changes; `None` without the router.
     fn change_to(&self, to: &str) -> Option<Change> {
         let from = self.inner?.with_value(|inner| inner.location.as_ref().map(|location| (location.pathname.get_untracked(), location.search.get_untracked())))?;
@@ -429,7 +453,14 @@ impl Pending {
         if via != Via::History && inner.with_value(|inner| inner.due && inner.via == Via::History) {
             self.commit();
         }
-        let slow = !quiet && inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
+        // A step to a page that stands on its stage already is taken at once: the stage comes to the
+        // front in the frame of the tap, scrolled where it was left (`stage`).
+        let standing = !quiet && self.stands(&to);
+        let via = match via {
+            Via::Link { replace, .. } if standing => Via::Link { replace, scroll: false },
+            via => via,
+        };
+        let slow = !quiet && !standing && inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
         // What the page works out ahead for a quiet step (the list of a search, in the catalog's
         // worker): the step waits for it, and the page then finds it done. So the page's thread
         // never waits for the queries of what the visitor is typing, only for its rows being built.
@@ -445,10 +476,25 @@ impl Pending {
             inner.due = true;
             inner.ahead = ahead.is_some();
             inner.quiet = quiet;
+            inner.standing = standing;
         });
         // A newer navigation takes the place of this one: it runs only while it is still due.
         let pending = *self;
         let due = move || inner.try_with_value(|inner| inner.due && inner.turn == turn).unwrap_or(false);
+        if standing && ahead.is_none() {
+            // Back or Forward goes to the router once the listener that heard it has run: handed
+            // over from inside (`replay_popstate`), it would call that listener again while it runs.
+            if via == Via::History {
+                queue_microtask(move || {
+                    if due() {
+                        pending.commit();
+                    }
+                });
+            } else {
+                self.commit();
+            }
+            return;
+        }
         match ahead {
             Some(ahead) => leptos::task::spawn_local(async move {
                 ahead.await;
@@ -469,7 +515,9 @@ impl Pending {
     /// page was slow), and the router takes it when the history is written (`release`).
     pub(crate) fn hold(&self, to: String, change: Change) -> Option<u64> {
         let inner = self.inner?;
-        let slow = inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
+        // Where a stage shows it already, it comes to the front at once (`stage`), and nothing waits.
+        let standing = self.stands(&to);
+        let slow = !standing && inner.with_value(|inner| inner.took.get(&change).is_none_or(|took| *took >= SLOW_MS));
         self.to.set(Some(to));
         self.change.set(Some(change));
         self.slow.set(slow);
@@ -480,6 +528,7 @@ impl Pending {
             inner.due = true;
             inner.ahead = false;
             inner.quiet = false;
+            inner.standing = standing;
         });
         Some(turn)
     }
@@ -538,11 +587,12 @@ impl Pending {
     /// The router takes the address now; the skeleton goes in the same frame as the page comes.
     fn commit(&self) {
         let (Some(to), Some(inner)) = (self.to.get_untracked(), self.inner) else { return };
-        let (via, navigate) = inner.with_value(|inner| (inner.via, inner.navigate.clone()));
+        let (via, navigate, standing) = inner.with_value(|inner| (inner.via, inner.navigate.clone(), inner.standing));
         let change = self.change.get_untracked();
         inner.update_value(|inner| {
             inner.due = false;
             inner.ahead = false;
+            inner.standing = false;
         });
         // What replaces a skeleton comes as it is: without the entrance of a panel that opens.
         #[cfg(feature = "csr")]
@@ -554,8 +604,9 @@ impl Pending {
         // What is in front now, the page or its skeleton, stays in front of the one the router
         // builds until that one's answers are in (`hold`); a quiet step had its answer worked out
         // ahead.
+        // Not where the page stands on its stage already: it is in front as it is.
         #[cfg(feature = "csr")]
-        if let Some(data) = inner.with_value(|inner| inner.data.clone()).filter(|_| !self.quiet_step()) {
+        if let Some(data) = inner.with_value(|inner| inner.data.clone()).filter(|_| !self.quiet_step() && !standing) {
             browser::hold(data);
         }
         match via {
@@ -580,9 +631,10 @@ impl Pending {
         self.to.set(None);
         self.change.set(None);
         self.slow.set(false);
-        // How long it took: until everything the router set off has run.
+        // How long it took: until everything the router set off has run. A swap of the stages is
+        // no measure of how long such a page takes to be built.
         #[cfg(feature = "csr")]
-        if let Some(change) = change {
+        if let Some(change) = change.filter(|_| !standing) {
             set_timeout(
                 move || {
                     let took = browser::now() - started;
@@ -595,7 +647,7 @@ impl Pending {
             );
         }
         #[cfg(not(feature = "csr"))]
-        let _ = change;
+        let _ = (change, standing);
     }
 }
 
@@ -839,19 +891,31 @@ mod browser {
         Some(picture)
     }
 
-    /// The page as it is (`main`'s children, with their scroll positions, without ids), in front
-    /// of it.
+    /// The page as it is (with its scroll positions, without ids), in front of it: the stage in
+    /// front where the pages stand on stages (`stage`; the others are not seen), else `main`'s
+    /// children.
     fn page_picture(document: &web_sys::Document, main: &web_sys::Element) -> Option<web_sys::Element> {
         let picture = document.create_element("div").ok()?;
         picture.set_class_name("pending-page held");
         let _ = picture.set_attribute("aria-hidden", "true");
-        let scrolled: Vec<(i32, i32)> = main.query_selector_all("*").map(|all| (0..all.length()).filter_map(|i| all.item(i)?.dyn_into::<web_sys::Element>().ok()).map(|el| (el.scroll_top(), el.scroll_left())).collect()).unwrap_or_default();
         let children = main.children();
-        for i in 0..children.length() {
-            if let Some(child) = children.item(i).filter(|child| !child.class_list().contains("pending-page")) {
-                if let Ok(copy) = child.clone_node_with_deep(true) {
-                    let _ = picture.append_child(&copy);
-                }
+        let children: Vec<web_sys::Element> = (0..children.length()).filter_map(|i| children.item(i)).collect();
+        let front = children.iter().find(|child| child.class_list().contains("page-stage") && child.class_list().contains("front")).cloned();
+        let parts: Vec<web_sys::Element> = match front {
+            Some(stage) => vec![stage],
+            None => children.into_iter().filter(|child| !child.class_list().contains("pending-page")).collect(),
+        };
+        // Each part and what is in it, in the order the copies will have.
+        let mut scrolled: Vec<(i32, i32)> = Vec::new();
+        for part in &parts {
+            scrolled.push((part.scroll_top(), part.scroll_left()));
+            if let Ok(all) = part.query_selector_all("*") {
+                scrolled.extend((0..all.length()).filter_map(|i| all.item(i)?.dyn_into::<web_sys::Element>().ok()).map(|el| (el.scroll_top(), el.scroll_left())));
+            }
+        }
+        for part in &parts {
+            if let Ok(copy) = part.clone_node_with_deep(true) {
+                let _ = picture.append_child(&copy);
             }
         }
         if let Ok(named) = picture.query_selector_all("[id]") {

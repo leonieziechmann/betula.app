@@ -287,9 +287,9 @@ mod browser {
         // shrinks; where it stands now is where it glides from (a glide under way stops there).
         let moves = crate::nav::is_phone() && (up != state.up || (up && (viewport.height() - state.placed_for).abs() > 1.0));
         let glides: Vec<(Element, Spot)> = if moves {
-            let found = document.query_selector_all(SURFACES).ok();
-            (0..found.as_ref().map_or(0, web_sys::NodeList::length))
-                .filter_map(|index| found.as_ref()?.item(index)?.dyn_into::<Element>().ok())
+            // The open surfaces of the stage in front, and those around the stages.
+            crate::stage::select_all(SURFACES)
+                .into_iter()
                 .map(|surface| {
                     let spot = Spot::of(&window, &surface);
                     stop_glide(&surface);

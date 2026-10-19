@@ -19,6 +19,23 @@
   ];
   const language = () => LANGUAGES.find((l) => l.prefix && (location.pathname === l.prefix || location.pathname.startsWith(l.prefix + "/"))) || LANGUAGES[0];
   const appRuns = () => window.__betulaApp === true;
+  // The pages stand on stages, one for each tab, one of them in front (folia/crates/shell/src/stage.rs;
+  // the server's page is on one as well): what belongs to the page is looked for on the stage in
+  // front, the rest (the bars, the dialogs around the pages) outside every stage. A page behind has
+  // parts of the same name (every list a `#preview`), which are not the visitor's.
+  const stage = () => document.querySelector("#content > .page-stage.front");
+  const offStage = (el) => !el.closest("#content > .page-stage");
+  const find = (selector) => {
+    const front = stage();
+    if (!front) return document.querySelector(selector);
+    return front.querySelector(selector) || [...document.querySelectorAll(selector)].find(offStage) || null;
+  };
+  const findAll = (selector) => {
+    const front = stage();
+    if (!front) return [...document.querySelectorAll(selector)];
+    return [...front.querySelectorAll(selector), ...[...document.querySelectorAll(selector)].filter(offStage)];
+  };
+  const byId = (id) => find(`[id="${CSS.escape(id)}"]`);
   const narrow = matchMedia("(max-width: 900px)");
   const phone = () => narrow.matches;
   // Text-like controls only: a focused filter chip (checkbox) must not swallow Esc or "/".
@@ -150,7 +167,7 @@
   // `CloseWatcher` (Android), Back closes it as it closes what else lies over a page
   // (folia/crates/shell/src/nav.rs); without it (an iPhone) Back leaves the page, and the sheet
   // goes with it.
-  const filters = () => document.getElementById("filters") || document.querySelector(".sidebar.sheet");
+  const filters = () => byId("filters") || find(".sidebar.sheet");
   let sheetWatch = null; // the open sheet's CloseWatcher
   const dropWatch = () => { const w = sheetWatch; sheetWatch = null; try { w?.destroy(); } catch {} };
   const openSheet = () => {
@@ -174,7 +191,7 @@
     if (was) sheet.dispatchEvent(new Event("betula:sheet-" + how, { bubbles: true }));
   };
   // The app may replace the page under an open sheet (Back, a tab): nothing may stay dimmed.
-  const tidySheet = () => { if (root.classList.contains("sheet-open") && !document.querySelector(".filters.open, .sidebar.sheet.open")) { root.classList.remove("sheet-open"); dropWatch(); } };
+  const tidySheet = () => { if (root.classList.contains("sheet-open") && !find(".filters.open, .sidebar.sheet.open")) { root.classList.remove("sheet-open"); dropWatch(); } };
   addEventListener("popstate", (e) => {
     // The browser app hands a step of the history to its router a frame later, so that the page
     // can answer first (folia/crates/shell/src/pending.rs): that is the same step again, not another one.
@@ -205,7 +222,7 @@
   const listKey = () => location.search.replace(/([?&])(page|open)=[^&]*/g, "$1");
   function saveScroll() {
     try {
-      document.querySelectorAll("[data-keep-scroll]").forEach((el) => {
+      findAll("[data-keep-scroll]").forEach((el) => {
         const name = el.dataset.keepScroll;
         sessionStorage.setItem("betula.scroll." + name, JSON.stringify({ top: el.scrollTop, key: name === "rows" ? listKey() : "" }));
       });
@@ -213,7 +230,7 @@
   }
   function restoreScroll() {
     try {
-      document.querySelectorAll("[data-keep-scroll]").forEach((el) => {
+      findAll("[data-keep-scroll]").forEach((el) => {
         const name = el.dataset.keepScroll;
         if (name === "detail") return;
         const saved = JSON.parse(sessionStorage.getItem("betula.scroll." + name) || "null");
@@ -333,7 +350,7 @@
       dialog.classList.remove("dropped");
     }, 200);
   };
-  const openSheetNow = () => (phone() ? document.querySelector(".filters.open, .sidebar.sheet.open, dialog[data-sheet][open]:not(.dropped)") : null);
+  const openSheetNow = () => (phone() ? find(".filters.open, .sidebar.sheet.open, dialog[data-sheet][open]:not(.dropped)") : null);
   // What scrolls between the finger and the sheet: its body, or a picker's list in it.
   const scrollerIn = (el, sheet) => {
     for (let node = el; node && node !== sheet; node = node.parentElement) {
@@ -753,11 +770,12 @@
   const SHEET_FRICTION = 0.0025; // px per ms²: how fast a sheet thrown would slow down, to choose its stop
   const SHEET_FLICK = 0.45; // px per ms: a let-go this fast goes at least to the next stop its way (the bar's swipe: 0.45)
   const SHEET_PAST = 150; // px past the bottom the spring of a sheet that goes away aims, so that it leaves at speed
-  // The module's sheet in the page; not its copy in the picture of the page held in front of the
-  // next one (`.pending-page.held`, which app.css does not show).
+  // The module's sheet in the page in front; not its copy in the picture of the page held in front
+  // of the next one (`.pending-page.held`, which app.css does not show), nor one open on a page kept
+  // behind (folia/crates/shell/src/stage.rs).
   const modules = document.getElementsByClassName("is-module");
   const liveSheet = () => {
-    for (const el of modules) if (el.classList.contains("detail") && !el.closest(".pending-page")) return el;
+    for (const el of modules) if (el.classList.contains("detail") && !el.closest(".pending-page") && !el.closest("#content > .page-stage:not(.front)")) return el;
     return null;
   };
   const moduleSheet = () => (phone() && appRuns() ? liveSheet() : null);
@@ -1210,14 +1228,14 @@
   const onCatalogList = () => location.pathname === (language().prefix || "") + "/catalog";
   // The catalog's list with its filters: here at once, else once the tab's list is there.
   const catalogFilters = (tab) => {
-    if (onCatalogList() && document.getElementById("filters")) { openSheet(); return; }
+    if (onCatalogList() && byId("filters")) { openSheet(); return; }
     const a = Object.assign(document.createElement("a"), { href: tab.dataset.list || tab.href, hidden: true });
     document.body.append(a);
     a.click();
     a.remove();
     const until = performance.now() + 6000;
     const wait = () => {
-      if (onCatalogList() && document.getElementById("filters") && !document.querySelector(".pending-page")) openSheet();
+      if (onCatalogList() && byId("filters") && !document.querySelector(".pending-page")) openSheet();
       else if (performance.now() < until) requestAnimationFrame(wait);
     };
     requestAnimationFrame(wait);
@@ -1341,7 +1359,7 @@
       }
       case "jump": {
         // To a section of the page, without a history entry (Esc and „Zurück" still leave the page).
-        const section = document.getElementById(target.getAttribute("href").slice(1));
+        const section = byId(target.getAttribute("href").slice(1));
         if (!section) break;
         e.preventDefault();
         // A section that folds (a faculty of the program overview) opens on the way there.
@@ -1425,18 +1443,18 @@
   // panel itself, above its neighbour, and the page is laid out once when the handle is let go.
   // Pages have to be cheap to lay out for this to stay live; `e2e/resize-perf.mjs` measures it.
   // `data-resize-budget` on <html> sets the budget in ms (the tests use it to force the fallback).
-  const sideWidth = () => (document.getElementById("filters") || document.getElementById("sidebar"))?.getBoundingClientRect().width ?? 272;
+  const sideWidth = () => (byId("filters") || byId("sidebar"))?.getBoundingClientRect().width ?? 272;
   const RESIZE = {
     "resize-filters": {
       key: "betula.filters.width", prop: "--w-filters", grows: 1,
       min: () => 232, max: () => Math.max(232, Math.min(440, innerWidth * 0.42)),
-      panel: () => document.getElementById("filters") || document.getElementById("sidebar"),
+      panel: () => byId("filters") || byId("sidebar"),
       place: (handle, width) => { if (width === null) handle.style.removeProperty("--at"); else handle.style.setProperty("--at", width + "px"); },
     },
     "resize-preview": {
       key: "betula.preview.width", prop: "--preview-w", grows: -1,
-      min: () => 360, max: () => { const work = document.querySelector(".work"); return work ? Math.max(360, work.clientWidth - sideWidth() - 128) : 2400; },
-      panel: () => document.querySelector(".work > .detail"),
+      min: () => 360, max: () => { const work = find(".work"); return work ? Math.max(360, work.clientWidth - sideWidth() - 128) : 2400; },
+      panel: () => find(".work > .detail"),
       place: (handle, width) => { if (width === null) handle.style.removeProperty("--at"); else handle.style.setProperty("--at", width + "px"); },
     },
   };
@@ -1508,7 +1526,7 @@
   // ---- the list by keyboard: arrows move through the rows, Enter opens the focused one ----
   // Rows are links, so moving the focus is all it takes: Enter then follows the link natively.
   function moveInList(step) {
-    const rows = [...document.querySelectorAll(".rows a.row")];
+    const rows = findAll(".rows a.row");
     if (!rows.length) return false;
     const active = document.activeElement;
     let index = rows.indexOf(active);
@@ -1526,14 +1544,14 @@
   let spyFrame = 0;
   const spy = () => {
     spyFrame = 0;
-    const nav = document.querySelector("nav[data-spy]");
-    const scroller = document.getElementById("page-scroll");
+    const nav = find("nav[data-spy]");
+    const scroller = byId("page-scroll");
     if (!nav || !scroller) return;
     const links = [...nav.querySelectorAll('a[href^="#"]')];
     const line = scroller.getBoundingClientRect().top + 96;
     let current = links[0];
     for (const link of links) {
-      const section = document.getElementById(link.getAttribute("href").slice(1));
+      const section = byId(link.getAttribute("href").slice(1));
       if (section && section.getBoundingClientRect().top <= line) current = link;
     }
     if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) current = links[links.length - 1];
@@ -1549,7 +1567,7 @@
   // with the ground as its end: the browser scrolls page and ground as one (owner, 2026-09-29: the
   // two steps before — first the page, then the window for the ground — felt „unfassbar janky").
   // A phone scrolls page and ground with the window. What is left to do is below.
-  const flowing = () => document.querySelector("#content > .work.flowing");
+  const flowing = () => document.querySelector("#content > .page-stage.front > .work.flowing");
   const glide = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth");
 
   // ---- one scroll area (`.work.flowing`; app.css „one scroll area") ----
@@ -1697,7 +1715,7 @@
   // Not so the takeover: the app's page stands where the server's stood, as far down (boot.js), and
   // its button shows as the server's did, at once (it went at the takeover, until the page was
   // scrolled again).
-  new MutationObserver(() => {
+  const newPage = () => {
     const page = pageScroller(), button = document.getElementById("to-top");
     if (page === topPage && button === topButton) return;
     const shown = starting() && Boolean(topButton?.hasAttribute("data-shown"));
@@ -1708,7 +1726,22 @@
       button.setAttribute("data-shown", "");
       requestAnimationFrame(() => requestAnimationFrame(() => button.style.removeProperty("transition")));
     } else if (button?.hasAttribute("data-shown") && !topFrame) button.removeAttribute("data-shown");
-  }).observe(document.body, { childList: true, subtree: true });
+  };
+  new MutationObserver(newPage).observe(document.body, { childList: true, subtree: true });
+  // Another stage came to the front (folia/crates/shell/src/stage.rs): its page, its scroll area,
+  // as far as it was scrolled; no sheet of the page behind stays open over it.
+  addEventListener("betula:stage", () => {
+    // A sheet left open on the page that went behind goes, as when Back leaves a page with it.
+    for (const sheet of document.querySelectorAll("#content > .page-stage:not(.front) :is(.filters.open, .sidebar.sheet.open)")) {
+      sheet.classList.remove("open");
+      sheet.dispatchEvent(new Event("betula:sheet-left", { bubbles: true }));
+    }
+    dropWatch();
+    tidySheet();
+    areaSoon();
+    newPage();
+    showTopSoon();
+  });
   // A page that loads further down (a reload) or comes back from the browser's memory.
   addEventListener("load", showTopSoon);
   addEventListener("pageshow", (e) => { if (e.persisted) showTopSoon(); });
@@ -1886,16 +1919,16 @@
       // takes this Esc itself; the module beside the page waits for the next one.
       if (root.hasAttribute("data-layers") || root.hasAttribute("data-state") || modalOpen()) return;
       // The preview first; on a module's own page Esc goes back to where the visitor came from.
-      (document.querySelector('[data-action="close-detail"]') || document.querySelector('[data-action="back"]'))?.click();
+      (find('[data-action="close-detail"]') || find('[data-action="back"]'))?.click();
     } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement)) {
       // Where its button is shown: a phone's sheet has none (app.css).
-      const full = document.querySelector('[data-action="fullscreen"]');
+      const full = find('[data-action="fullscreen"]');
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); }
     } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
       // „Merken" for what the visitor is at: the row the keyboard is on, else the module that is
       // open (its preview, or its page). The buttons belong to the browser app.
       const row = document.activeElement?.closest?.(".row-wrap");
-      const mark = row ? row.querySelector('[data-action="mark"]') : document.querySelector('.hero [data-action="mark"]');
+      const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
     } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
@@ -1903,7 +1936,7 @@
       // it ambiguous which module is meant, so P waits there. What it planned the note at the
       // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs).
       const row = document.activeElement?.closest?.(".row-wrap");
-      const plan = row && !row.querySelector('[aria-current="true"]') ? null : document.querySelector('.hero [data-action="plan"]');
+      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
       if (plan) { e.preventDefault(); plan.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();

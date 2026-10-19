@@ -63,7 +63,7 @@ const compare = (what, before, after) => {
 };
 // Down to `y` step by step, a frame apart, so that what is drawn only near the screen is drawn on the way.
 const scrollDown = (page, y, device) => page.evaluate(async ([y, phone]) => {
-  const scroller = phone ? document.scrollingElement : document.querySelector("#content > .work.flowing");
+  const scroller = phone ? document.scrollingElement : document.querySelector("#content > .page-stage.front > .work.flowing");
   for (let at = 0; at <= y; at += 300) {
     scroller.scrollTop = Math.min(at, y);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
