@@ -2987,10 +2987,10 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   the page's „Neues Profil“ does, the menu gone at once; a menu a mouse opened stays while the name
   is typed, and Esc leaves the field before it closes the menu. With eight profiles it says that
   there can be no other, as the page does. Then „Profil & Einstellungen“ (the page) and the other
-  language (`languages::LanguageWays`: this page in it, a page load). A mouse resting on the rail's way for 160 ms opens it beside the way, growing up
-  from its foot, without moving the focus; it goes 280 ms after the mouse has left the way and
-  the menu (the gap between them is crossed in that time), and a mouse passing over the way opens
-  nothing. A right click or the menu key on the way opens it as a tab's menu is opened
+  language (`languages::LanguageWays`: this page in it, a page load). A mouse resting on the rail's
+  way for 160 ms opens it beside the way, growing up from its foot, without moving the focus; it
+  goes 280 ms after the mouse has left the way and the menu (the gap between them is crossed in that
+  time), and a mouse passing over the way opens nothing. A right click or the menu key on the way opens it as a tab's menu is opened
   (`TabMenu`): over a dimmed page, the focus on the active profile, until a choice, a click beside
   it or Esc (the focus back on the way). On a phone a tap on the box opens it below the box, over a
   dimmed page, and closes it again (owner, 2026-10-19: „die häufigste Aktion wird sein, dass man
