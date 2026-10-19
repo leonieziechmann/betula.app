@@ -1246,6 +1246,11 @@ fn VirtualRows(
     // A list on a stage behind (`folia_design::stage`) neither follows the window's scroll, which
     // is the page's in front, nor writes its page into the address: it stays where it was left.
     let in_front = folia_design::stage::front();
+    // Nor while the router is elsewhere or on its way there (`pending`): after Back, or a tab
+    // tapped, the entry the browser is at is another page's, and the list's page would take its
+    // place (Back from a list still settling at a shared module's row came back to the list).
+    let router = folia_design::i18n::router_location();
+    let stepping = Pending::expect();
     let alive_follow = alive.clone();
     let follow = move || {
         if total == 0 || !alive_follow.load(Ordering::Relaxed) || !in_front.get_untracked() {
@@ -1282,7 +1287,8 @@ fn VirtualRows(
         // rows in place as the skeleton of the next list comes and goes above them) took the
         // address back to its own filter: the click was undone.
         let ours = base.with_value(|base| CatalogUrl::parse(&location.search.get_untracked()).query == base.query);
-        if seen != page.get_untracked() && ours {
+        let at_list = router.pathname.with_untracked(|path| path == url::CATALOG) && !stepping.is_some_and(|stepping| untrack(|| stepping.busy()));
+        if seen != page.get_untracked() && ours && at_list {
             let target = base.get_value().with_page(seen).with_open(open.get_untracked().as_deref()).path();
             navigate(&target, NavigateOptions { replace: true, scroll: false, ..Default::default() });
         }

@@ -486,6 +486,26 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
     }
 }
 
+/// Where a tap on the tab of `area` takes the app, whose link leads to `href`: on a phone the top of
+/// the tab's stack as it was left (`tab`), Start's tab Start; elsewhere, and where nothing is kept
+/// of the tab, `href`. The tabs built at the start are built there (`stage`), so that the tap only
+/// swaps.
+pub fn tab_top(area: Area, href: &str) -> String {
+    let href = href.split('#').next().unwrap_or(href);
+    #[cfg(feature = "csr")]
+    if phone() {
+        if area == Area::Home {
+            return "/".to_string();
+        }
+        if let Some(top) = browser::saved(area).and_then(|stack| stack.last().map(|entry| entry.url.clone())) {
+            return top;
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = area;
+    href.to_string()
+}
+
 /// A new address closes what lies over the old one, but not the page's own state: on a phone any
 /// new address (Back on an iPhone leaves the page, and what is open goes with it), on a wide screen
 /// another page (the rows selected stay while a module opens beside them). Lives inside the router.

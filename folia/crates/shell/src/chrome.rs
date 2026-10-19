@@ -31,6 +31,20 @@ pub fn FollowTabs() -> impl IntoView {
     }
 }
 
+/// Where the tab of `area` leads, seen from `path` (the app's path): where its area was left, else
+/// where it starts (`Tabs`); the catalog's first entry of a session is the catalog of „Mein
+/// Studiengang" (`mine`). „Studium" is „Mein Studium" in the app; without it (the server's page, no
+/// JavaScript) there is nothing to plan, and the tab is the overview of the programs. Tracked: the
+/// tab's link follows it, and the tabs built at the start are built there (`stage`).
+pub fn tab_target(tabs: Option<Tabs>, mine: Option<MineResolved>, area: Area, path: &str) -> String {
+    match (tabs, area) {
+        (_, Area::Programs) if !APP => url::PROGRAMS.to_string(),
+        (Some(tabs), Area::Catalog) => tabs.href_with_root(area, path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
+        (Some(tabs), _) => tabs.href(area, path),
+        (None, _) => area.root().to_string(),
+    }
+}
+
 /// The main navigation. Its items are tabs: each leads to where its area was left (`tabs`), and is
 /// a digit away on a keyboard (`Area::key`, `NavKey`).
 #[component]
@@ -54,17 +68,7 @@ pub fn NavItems() -> impl IntoView {
         APP.then(|| t.path(&tabs.and_then(Tabs::catalog_list).unwrap_or_else(|| mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href))))
     };
     // Where a tab leads, as the app's path.
-    let target = move |area: Area| {
-        let path = location.pathname.get();
-        match (tabs, area) {
-            // „Studium" is „Mein Studium" in the app; without it (the server's page, no JavaScript)
-            // there is nothing to plan, and the tab is the overview of the programs.
-            (_, Area::Programs) if !APP => url::PROGRAMS.to_string(),
-            (Some(tabs), Area::Catalog) => tabs.href_with_root(area, &path, &mine.map_or_else(|| url::CATALOG.to_string(), MineResolved::catalog_href)),
-            (Some(tabs), _) => tabs.href(area, &path),
-            (None, _) => area.root().to_string(),
-        }
-    };
+    let target = move |area: Area| tab_target(tabs, mine, area, &location.pathname.get());
     let href = move |area: Area| t.path(&target(area));
     // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
     // goes back to where it starts (`TabAgain`). On a phone the tab is a stack of its own: the

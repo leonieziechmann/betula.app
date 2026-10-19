@@ -21,6 +21,9 @@
 //! - **Which stage** (`Key::of`): its tab's; a module's own page opened from a tab that shows its
 //!   modules in place stays on that tab's stage (`nav::tab_of_page`, `Tabs`), and the pages of no
 //!   tab (the profile, the legal pages, a page that does not exist) have a stage of their own.
+//! - **Built at the start** (`prebuild`): after the first page, the other tabs' pages are built
+//!   behind it while nothing happens, each where its tab leads; a stage stands once its answers are
+//!   in (`ready`), and from then on its first visit only swaps as well.
 //!
 //! The server knows nothing of this: it renders the page of its address with `<Routes>`, in a
 //! stage in front, so that the browser app's page stands as the server's does at the takeover.
@@ -182,6 +185,32 @@ impl Place {
         Place { path: pathname.get(), search: search.get(), query: query.get(), hash: hash.get() }
     }
 
+    /// The place of the address `to` (path, query and fragment as a link writes them), its query's
+    /// pairs read as the router reads them (`UrlSearchParams`).
+    #[cfg(feature = "csr")]
+    fn parse(to: &str) -> Self {
+        use leptos::wasm_bindgen::JsCast;
+        let (without_fragment, hash) = match to.split_once('#') {
+            Some((address, fragment)) => (address, format!("#{fragment}")),
+            None => (to, String::new()),
+        };
+        let (path, search) = without_fragment.split_once('?').unwrap_or((without_fragment, ""));
+        let query = leptos::web_sys::UrlSearchParams::new_with_str(search)
+            .ok()
+            .and_then(|params| leptos::web_sys::js_sys::try_iter(&params).ok().flatten())
+            .map(|pairs| {
+                pairs
+                    .flatten()
+                    .filter_map(|pair| {
+                        let pair = pair.dyn_into::<leptos::web_sys::js_sys::Array>().ok()?;
+                        Some((pair.get(0).as_string()?, pair.get(1).as_string()?))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Place { path: path.to_string(), search: search.to_string(), query, hash }
+    }
+
     /// Whether this is the place of the address `to` (path, query and fragment as a link writes
     /// them): the same path and query.
     fn is(&self, to: &str) -> bool {
@@ -206,6 +235,10 @@ pub fn Stages(pages: Pages) -> impl IntoView {
     let shown = Memo::new(move |before: Option<&Key>| Key::of(&pathname.get(), before.copied().unwrap_or(Key::Home)));
     let places: [RwSignal<Option<Place>>; 6] = std::array::from_fn(|_| RwSignal::new(None));
     let place = move |key: Key| places.get(key.index()).copied();
+    // Whether a stage's page has its answers: one built at the start counts as standing only once
+    // they are in (`prebuild`); the router's stage waits for its own with `Pending`.
+    let ready: [RwSignal<bool>; 6] = std::array::from_fn(|_| RwSignal::new(true));
+    let is_ready = move |key: Key| ready.get(key.index()).is_some_and(|ready| ready.get_untracked());
     // The page the app starts with is there with the first frame.
     if let Some(first) = place(shown.get_untracked()) {
         first.set(Some(here.get_untracked()));
@@ -218,13 +251,17 @@ pub fn Stages(pages: Pages) -> impl IntoView {
                 slot.set(Some(now));
             }
         }
+        if let Some(ready) = ready.get(key.index()).filter(|ready| !ready.get_untracked()) {
+            ready.set(true);
+        }
     });
-    // Another stage than the router's that shows `to` already: where a change only swaps.
+    // Another stage than the router's that shows `to` already, with its answers: where a change
+    // only swaps.
     let standing = move |to: &str| -> Option<Key> {
         let path = to.split(['?', '#']).next().unwrap_or(to);
         let from = shown.get_untracked();
         let key = Key::of(path, from);
-        (key != from && place(key).is_some_and(|slot| slot.with_untracked(|place| place.as_ref().is_some_and(|place| place.is(to))))).then_some(key)
+        (key != from && is_ready(key) && place(key).is_some_and(|slot| slot.with_untracked(|place| place.as_ref().is_some_and(|place| place.is(to))))).then_some(key)
     };
     if let Some(pending) = pending {
         pending.bind_stages(Rc::new(move |to: &str| standing(to).is_some()));
@@ -233,7 +270,8 @@ pub fn Stages(pages: Pages) -> impl IntoView {
     let front = Memo::new(move |_| {
         let shown = shown.get();
         let going = pending.and_then(|pending| pending.to());
-        // Tracked: a place the app is going to may come to stand on its stage meanwhile.
+        // Tracked: a place the app is going to may come to stand on its stage meanwhile. Not its
+        // answers: a tab tapped while it is built takes its step as before (`prebuild`).
         for key in Key::ALL {
             if let Some(slot) = place(key) {
                 slot.track();
@@ -268,6 +306,24 @@ pub fn Stages(pages: Pages) -> impl IntoView {
     // Where each stage was when it went behind: one that comes back there is scrolled as it was
     // left (at the top if it never scrolled); one at a new place is where the router puts it.
     let left = StoredValue::new(std::array::from_fn::<Option<Place>, 6, _>(|_| None));
+    // The other tabs, built at the start while nothing happens (`prebuild`).
+    #[cfg(feature = "csr")]
+    prebuild::Builder {
+        places,
+        ready,
+        left,
+        scrolled,
+        shown,
+        router_path: pathname,
+        pending,
+        tabs: crate::tabs::Tabs::expect(),
+        mine: folia_stores::myprogram::MineResolved::expect(),
+        data: StoredValue::new_local(use_context::<folia_data::DataClient>()),
+        down: StoredValue::new(0),
+        last: StoredValue::new(0.0),
+        turn: StoredValue::new(0),
+    }
+    .start();
     Effect::new(move |before: Option<Key>| {
         let now = front.get();
         let before = before.unwrap_or(first);
@@ -315,7 +371,8 @@ pub fn Stages(pages: Pages) -> impl IntoView {
             let which = Memo::new(move |_| slot.with(|place| place.as_ref().map(|place| Page::of(&place.path))));
             let in_front = Memo::new(move |_| front.get() == key);
             let stage = Stage { location, params, front: in_front.into(), node, titles };
-            Some(view! { <OneStage key stage which pages front=key == first/> })
+            let answered = ready.get(key.index()).copied()?;
+            Some(view! { <OneStage key stage which pages front=key == first answered/> })
         })
         .collect_view();
     view! {
@@ -329,14 +386,227 @@ pub fn Stages(pages: Pages) -> impl IntoView {
 /// stage in an owner of its own (`Provider`): a component has none, and six stages given beside
 /// each other would leave every page the last one.
 #[component]
-fn OneStage(key: Key, stage: Stage, which: Memo<Option<Page>>, pages: Pages, front: bool) -> impl IntoView {
+fn OneStage(key: Key, stage: Stage, which: Memo<Option<Page>>, pages: Pages, front: bool, answered: RwSignal<bool>) -> impl IntoView {
     let node = stage.node;
     view! {
         <Provider value=stage>
-            <div class=if front { "page-stage front" } else { "page-stage" } data-stage=key.name() inert=(!front).then_some("") node_ref=node>
+            // Busy while a page built at the start waits for its answers (`prebuild`).
+            <div class=if front { "page-stage front" } else { "page-stage" } data-stage=key.name() inert=(!front).then_some("") aria-busy=move || (!answered.get()).then_some("true") node_ref=node>
                 {move || which.get().map(|page| untrack(|| pages(page)))}
             </div>
         </Provider>
+    }
+}
+
+/// The tabs built at the start (the concept, step 2; owner, 2026-10-18: „Am anfang darf die App
+/// ruhig etwas laden/kurz Skeltons zeigen. Aber wenn die App dann einmal läuft, dann muss es sich
+/// instant und einfach nur gut anfühlen"): once the app has taken the page over and its first
+/// page's answers are in, Betula builds the other tabs' pages behind it, one after the other, the
+/// cheapest first, each in a task of its own and only while nothing happens (no finger on the
+/// screen, no key, wheel or scroll for a moment, no step on its way, no question of a page). Each at
+/// the place its tab leads to (`chrome::tab_target`, `nav::tab_top`): its first visit only swaps,
+/// as every later one does, and opens at its top. A stage counts as standing once its answers are
+/// in (`ready`); a tab tapped before that comes as before, with a skeleton, and its page is the one
+/// being built.
+#[cfg(feature = "csr")]
+mod prebuild {
+    use std::time::Duration;
+
+    use folia_data::DataClient;
+    use folia_stores::myprogram::MineResolved;
+    use leptos::prelude::*;
+    use leptos::wasm_bindgen::closure::Closure;
+    use leptos::wasm_bindgen::{JsCast, JsValue};
+    use leptos::web_sys;
+
+    use super::{Key, Place};
+    use crate::pending::Pending;
+    use crate::tabs::Tabs;
+
+    /// The cheapest first: the Merkliste and the Stundenplan take a few tenths of a second of a
+    /// phone's thread, Start more, Module and Studium the most (the concept, „Was das Vorbauen
+    /// kostet").
+    const ORDER: [Key; 5] = [Key::Bookmarks, Key::Studyplan, Key::Home, Key::Catalog, Key::Programs];
+    /// How long nothing has to happen before a tab is built, in ms: no finger, key, wheel or scroll.
+    const CALM_MS: f64 = 600.0;
+    /// How long the browser may keep a tab waiting for an idle moment, in ms (one that is never
+    /// idle, an animation running, still builds it then).
+    const IDLE_MS: u64 = 2000;
+    /// How long a tab's answers may take, in ms, before it counts as standing anyway.
+    const ANSWERS_MS: f64 = 8000.0;
+    /// How long a press may last, in ms, without anything heard of it, before it counts as over.
+    const STALE_MS: f64 = 10000.0;
+
+    #[derive(Clone, Copy)]
+    pub(super) struct Builder {
+        pub places: [RwSignal<Option<Place>>; 6],
+        pub ready: [RwSignal<bool>; 6],
+        pub left: StoredValue<[Option<Place>; 6]>,
+        pub scrolled: StoredValue<[Option<f64>; 6]>,
+        pub shown: Memo<Key>,
+        pub router_path: Memo<String>,
+        pub pending: Option<Pending>,
+        pub tabs: Option<Tabs>,
+        pub mine: Option<MineResolved>,
+        pub data: StoredValue<Option<DataClient>, LocalStorage>,
+        /// Fingers (and buttons) down, and when anything last happened (`performance.now()`).
+        pub down: StoredValue<u32>,
+        pub last: StoredValue<f64>,
+        /// The tab whose idle moment is awaited: the idle callback and its timeout build it once.
+        pub turn: StoredValue<usize>,
+    }
+
+    #[derive(Clone, Copy)]
+    enum Phase {
+        /// Until the app has taken the page over.
+        Start,
+        /// The tab `ORDER[i]`, once nothing happens.
+        Calm(usize),
+        /// The tab `ORDER[i]` built: until its answers are in (since when, quiet looks in a row).
+        Answers(usize, f64, u8),
+    }
+
+    impl Builder {
+        pub(super) fn start(self) {
+            self.listen();
+            self.later(Phase::Start, 300);
+        }
+
+        /// Hears what happens anywhere (capturing, so a scroll of a page's own area as well).
+        fn listen(self) {
+            let Some(window) = web_sys::window() else { return };
+            let options = web_sys::AddEventListenerOptions::new();
+            options.set_capture(true);
+            options.set_passive(true);
+            for (kind, finger) in [("pointerdown", Some(true)), ("pointerup", Some(false)), ("pointercancel", Some(false)), ("keydown", None), ("wheel", None), ("scroll", None)] {
+                let listener = Closure::<dyn Fn()>::new(move || {
+                    match finger {
+                        Some(true) => {
+                            let _ = self.down.try_update_value(|down| *down += 1);
+                        }
+                        Some(false) => {
+                            let _ = self.down.try_set_value(0);
+                        }
+                        None => {}
+                    }
+                    let _ = self.last.try_set_value(now());
+                });
+                let _ = window.add_event_listener_with_callback_and_add_event_listener_options(kind, listener.as_ref().unchecked_ref(), &options);
+                // As long as the app: the stages are never taken down.
+                listener.forget();
+            }
+        }
+
+        fn later(self, phase: Phase, ms: u64) {
+            set_timeout(move || self.step(phase), Duration::from_millis(ms));
+        }
+
+        fn step(self, phase: Phase) {
+            // The stages are gone (never while the app runs).
+            if self.shown.try_get_untracked().is_none() {
+                return;
+            }
+            match phase {
+                Phase::Start => self.later(if app_runs() { Phase::Calm(0) } else { Phase::Start }, 200),
+                Phase::Calm(i) => {
+                    let Some(key) = ORDER.get(i).copied() else { return };
+                    if !self.wanted(key) {
+                        return self.later(Phase::Calm(i + 1), 0);
+                    }
+                    if !self.calm() {
+                        return self.later(Phase::Calm(i), 250);
+                    }
+                    // In an idle moment where the browser tells one (Safari does not: a moment
+                    // later then), at the latest after `IDLE_MS`; once either way.
+                    let _ = self.turn.try_set_value(i + 1);
+                    let build = move || {
+                        if self.turn.try_get_value() == Some(i + 1) {
+                            let _ = self.turn.try_set_value(0);
+                            self.build(i);
+                        }
+                    };
+                    let idle = request_idle_callback_with_handle(build).is_ok();
+                    set_timeout(build, Duration::from_millis(if idle { IDLE_MS } else { 50 }));
+                }
+                Phase::Answers(i, since, quiet) => {
+                    let quiet = if self.waiting() == 0 { quiet.saturating_add(1) } else { 0 };
+                    if quiet >= 3 || now() - since > ANSWERS_MS {
+                        if let Some(ready) = ORDER.get(i).and_then(|key| self.ready.get(key.index())) {
+                            ready.set(true);
+                        }
+                        self.later(Phase::Calm(i + 1), 0);
+                    } else {
+                        self.later(Phase::Answers(i, since, quiet), 50);
+                    }
+                }
+            }
+        }
+
+        /// Builds the tab `ORDER[i]` at the place its tab leads to, unless something happened
+        /// meanwhile; then waits for its answers.
+        fn build(self, i: usize) {
+            let Some(key) = ORDER.get(i).copied() else { return };
+            if !self.wanted(key) {
+                return self.later(Phase::Calm(i + 1), 0);
+            }
+            if !self.calm() {
+                return self.later(Phase::Calm(i), 250);
+            }
+            let Some(area) = key.area() else { return self.later(Phase::Calm(i + 1), 0) };
+            let from = self.router_path.get_untracked();
+            let top = untrack(|| crate::nav::tab_top(area, &crate::chrome::tab_target(self.tabs, self.mine, area, &from)));
+            let place = Place::parse(&top);
+            if Key::of(&place.path, key) != key {
+                return self.later(Phase::Calm(i + 1), 0);
+            }
+            // As if it was left there at its top: its first visit opens it there (`Stages`).
+            self.left.update_value(|left| {
+                if let Some(entry) = left.get_mut(key.index()) {
+                    *entry = Some(place.clone());
+                }
+            });
+            self.scrolled.update_value(|scrolled| {
+                if let Some(down) = scrolled.get_mut(key.index()) {
+                    *down = None;
+                }
+            });
+            if let Some(ready) = self.ready.get(key.index()) {
+                ready.set(false);
+            }
+            if let Some(slot) = self.places.get(key.index()) {
+                slot.set(Some(place));
+            }
+            self.later(Phase::Answers(i, now(), 0), 50);
+        }
+
+        /// Whether `key` is still to be built: not the router's stage, and nothing on it yet.
+        fn wanted(self, key: Key) -> bool {
+            key != self.shown.get_untracked() && self.places.get(key.index()).is_some_and(|slot| slot.with_untracked(Option::is_none))
+        }
+
+        /// Whether nothing happens: no finger on the screen, nothing for a moment, no step on its
+        /// way, no question of a page. A press nothing was heard of for `STALE_MS` is over (a
+        /// button let go outside the window sends no `pointerup`).
+        fn calm(self) -> bool {
+            let since = now() - self.last.try_get_value().unwrap_or(0.0);
+            let still = (self.down.try_get_value() == Some(0) || since > STALE_MS) && since > CALM_MS;
+            let stepping = self.pending.is_some_and(|pending| untrack(|| pending.busy())) || crate::nav::rewriting();
+            still && !stepping && self.waiting() == 0
+        }
+
+        /// How many questions of the pages are on their way.
+        fn waiting(self) -> usize {
+            self.data.try_with_value(|data| data.as_ref().map_or(0, |data| untrack(|| data.waiting()))).unwrap_or(0)
+        }
+    }
+
+    /// The app has taken the page over (`boot.js`, `__betulaApp`): its first page's answers are in.
+    fn app_runs() -> bool {
+        web_sys::window().and_then(|window| web_sys::js_sys::Reflect::get(&window, &JsValue::from_str("__betulaApp")).ok()).is_some_and(|runs| runs.as_bool() == Some(true))
+    }
+
+    fn now() -> f64 {
+        web_sys::window().and_then(|window| window.performance()).map_or(0.0, |performance| performance.now())
     }
 }
 
