@@ -26,7 +26,7 @@ use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{BookmarkSort, CatalogUrl, PlanView, Season};
 use folia_timetable::clash::{self, Overlap, Weeks, When};
 use folia_timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
-use folia_timetable::model::{Attendance, Basis, Event, Row, ShownBy, Timetable};
+use folia_timetable::model::{Across, Attendance, Basis, Event, Row, ShownBy, TakenBy, Timetable};
 use folia_timetable::views::short_title;
 use leptos::prelude::*;
 
@@ -472,6 +472,43 @@ pub(super) fn blocked_line(event: &Event, title: &str, locale: Locale) -> String
     (i18n::texts(locale).studyplan_head.blocked)(event.visible_options().len(), &kind_word(event, locale), title.trim())
 }
 
+/// An option of a choice among a module's events in a line: the type of its first event and the
+/// weekday and start of each of its Termine („Übung Di 07:30", „Projekt Mo 11:00, Mi 13:30").
+pub(super) fn option_text(table: &Timetable, across: &Across, option: usize, locale: Locale) -> Option<String> {
+    let events: Vec<&Event> = across.options.get(option)?.iter().filter_map(|event| table.events.get(*event)).collect();
+    let kind = kind_word(events.first()?, locale);
+    let mut times: Vec<(u8, u16)> = events.iter().flat_map(|event| &event.rows).filter_map(|row| Some((row.slot_day()?, row.from?))).collect();
+    times.sort_unstable();
+    times.dedup();
+    let when: Vec<String> = times.iter().map(|(day, from)| format!("{} {}", weekday_name(*day, locale), clock(*from))).collect();
+    Some(match when.is_empty() {
+        true => kind,
+        false => format!("{kind} {}", when.join(", ")),
+    })
+}
+
+/// The open choices among a module's events and their lines in the summary: „1 von 3 wählen: Übung
+/// · Höhere Mathematik - T3", and the blocked ones („0 von 3 Terminen frei: …", of a choice that
+/// asks for more „Zu wenige Termine frei für 2 von 5: …"), each leading to the first Termin of its
+/// first option still to choose.
+fn across_lines(table: &Timetable, about: &About, t: &i18n::Texts) -> Vec<Note> {
+    let h = &t.studyplan_head;
+    let mut lines = Vec::new();
+    for (index, across) in table.choices.iter().enumerate() {
+        let choosable = across.choosable(&table.events);
+        let Some(first) = choosable.first().and_then(|option| across.options.get(*option)?.first()).and_then(|event| table.events.get(*event)) else { continue };
+        let row = first.rows.iter().find(|row| row.hidden.is_none()).and_then(|row| row.key);
+        let (kind, title) = (kind_word(first, t.locale), about.title(&across.module, t));
+        let (module, take) = (Some(across.module.clone()), across.take(&table.events));
+        lines.push(match (table.blocked_choices.contains(&index), take) {
+            (true, 1) => Note::warn((h.blocked)(choosable.len(), &kind, title.trim()), module, row),
+            (true, _) => Note::warn((h.blocked_of)(take, choosable.len(), &kind, title.trim()), module, row),
+            (false, _) => Note::quiet((h.choose)(take, choosable.len(), &kind, &title), module, row),
+        });
+    }
+    lines
+}
+
 /// The first row of the first option still shown of a choice: where its line points.
 fn first_option_row(event: &Event) -> Option<RowKey> {
     let option = event.visible_options().into_iter().next()?;
@@ -661,9 +698,14 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
             continue;
         }
         open += 1;
-        let text = (h.choose_one)(event.visible_options().len(), &kind_word(event, t.locale), &about.title_of(event, t));
+        let text = (h.choose)(1, event.visible_options().len(), &kind_word(event, t.locale), &about.title_of(event, t));
         lines.push(Note::quiet(text, event.modules.first().cloned(), first_option_row(event)));
     }
+    // The choices among a module's events, blocked ones first.
+    let mut across = across_lines(table, about, t);
+    across.sort_by_key(|note| !note.warn);
+    open += across.len();
+    lines.extend(across);
     if open > 0 {
         parts.push((false, (h.choices_open)(open)));
     }
@@ -881,8 +923,10 @@ fn overlap_item(ctx: PlanCtx, note: Note, t: &'static i18n::Texts) -> impl IntoV
 /// The one line that says what the page derived rather than read (R12), with only the parts that
 /// apply: „Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01.,
 /// Übungsgruppen, Standort Cottbus."
-pub(super) fn derived_line(table: &Timetable, t: &i18n::Texts) -> Option<String> {
+pub(super) fn derived_line(table: &Timetable, titles: &BTreeMap<String, String>, t: &i18n::Texts) -> Option<String> {
     let (h, locale) = (&t.studyplan_head, t.locale);
+    // A module by its title, or by the title of its first event where the catalog has none.
+    let title = |module: &String| titles.get(module).cloned().or_else(|| table.events.iter().find(|event| event.modules.first() == Some(module)).map(|event| event.title.clone()));
     let mut parts = Vec::new();
     if let Some((first, last)) = table.facts.lecture {
         parts.push((h.lecture_period)(&first.date(locale), &last.date(locale)));
@@ -905,17 +949,24 @@ pub(super) fn derived_line(table: &Timetable, t: &i18n::Texts) -> Option<String>
         parts.push((h.town_derived)(town.label()));
     }
     // The courses the program takes (owner, 2026-10-19): „Programmierpraktikum in
-    // Cottbus-Sachsendorf laut Studiengang", each module by the title of its first event.
-    let courses: Vec<String> = table
+    // Cottbus-Sachsendorf laut Studiengang"; and the options of a choice among a module's events
+    // it takes: „Höhere Mathematik - T3: Übung Di 07:30".
+    let mut courses: Vec<String> = table
         .shown
         .iter()
         .filter(|(_, shown)| shown.by == ShownBy::Program)
         .filter_map(|(module, shown)| {
-            let title = table.events.iter().find(|event| event.modules.first() == Some(module))?.title.clone();
             let campuses: Vec<&str> = shown.campuses.iter().map(|campus| campus.label(locale)).collect();
-            Some((h.course_in)(&title, &campuses.join(", ")))
+            Some((h.course_in)(&title(module)?, &campuses.join(", ")))
         })
         .collect();
+    for across in table.choices.iter().filter(|across| across.by == Some(TakenBy::Program)) {
+        let Some(title) = title(&across.module) else { continue };
+        let options: Vec<String> = across.taken.iter().filter_map(|option| option_text(table, across, *option, locale)).collect();
+        if !options.is_empty() {
+            courses.push((h.option_of)(&title, &options.join(", ")));
+        }
+    }
     if !courses.is_empty() {
         parts.push((h.courses_derived)(&courses.join(", ")));
     }
@@ -926,7 +977,8 @@ pub(super) fn derived_line(table: &Timetable, t: &i18n::Texts) -> Option<String>
 #[component]
 pub(super) fn DerivedLine(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
-    let line = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(|table| derived_line(table, t))));
+    let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(StudyplanData::titles).unwrap_or_default()));
+    let line = Memo::new(move |_| titles.with(|titles| ctx.table.with(|table| table.as_ref().and_then(|table| derived_line(table, titles, t)))));
     move || line.get().map(|text| view! { <p class="hint sp-derived">{text}</p> })
 }
 
@@ -936,7 +988,7 @@ mod tests {
     use folia_calendar::kind::EventKind;
     use folia_calendar::kind::{kinds_of, Class};
     use folia_calendar::select::Town;
-    use folia_model::labels::Campus;
+    use folia_model::labels::{Campus, ChoiceKind};
     use folia_model::rows_detail::{EventDate, Series};
     use folia_timetable::model::Shown;
     use folia_plans::studyplan::Placeholder;
@@ -1011,6 +1063,8 @@ mod tests {
             course: None,
             tone: 1,
             attendance,
+            across: None,
+            extra: false,
             chosen: None,
             rows,
             hidden: None,
@@ -1058,6 +1112,8 @@ mod tests {
             town_derived: true,
             clashes: vec![Clash { a: (0, 0), b: (3, 0), first: day("2026-10-06"), days: 8 }],
             blocked: vec![1],
+            blocked_choices: Vec::new(),
+            choices: Vec::new(),
             exam_warnings: vec![
                 ExamWarning {
                     kind: WarningKind::Overlap,
@@ -1342,17 +1398,18 @@ mod tests {
     #[test]
     fn the_derived_line_names_only_what_applies() {
         let (mut table, _) = first_semester();
+        let mut titles = BTreeMap::new();
         // The town is derived in every plan, but decides something only with a module of both towns.
-        assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen."));
+        assert_eq!(derived_line(&table, &titles, &DE).as_deref(), Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen."));
         table.tracks = ["12104".to_string()].into_iter().collect();
         let derived = Shown { campuses: BTreeSet::new(), towns: BTreeSet::from([Town::Cottbus]), by: ShownBy::Derived };
         table.shown = [("12104".to_string(), derived)].into_iter().collect();
         assert_eq!(
-            derived_line(&table, &DE).as_deref(),
+            derived_line(&table, &titles, &DE).as_deref(),
             Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen, Standort Cottbus.")
         );
         assert_eq!(
-            derived_line(&table, &EN).as_deref(),
+            derived_line(&table, &titles, &EN).as_deref(),
             Some("Derived: lecture period 5 Oct 2026–31 Jan 2027, lecture break 21 Dec–3 Jan, exercise groups, location Cottbus.")
         );
         // Groups QIS names are not derived.
@@ -1363,15 +1420,46 @@ mod tests {
         }
         table.facts.breaks.clear();
         table.facts.lecture = None;
-        assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus."));
+        assert_eq!(derived_line(&table, &titles, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus."));
         // The course a program takes is named with its module (owner, 2026-10-19).
         let taken = Shown { campuses: BTreeSet::from([Campus::Sachsendorf]), towns: BTreeSet::from([Town::Cottbus]), by: ShownBy::Program };
         table.shown.insert("12102".to_string(), taken);
-        assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus, Veranstaltung 149408 in Cottbus-Sachsendorf laut Studiengang."));
-        assert_eq!(derived_line(&table, &EN).as_deref(), Some("Derived: location Cottbus, Veranstaltung 149408 in Cottbus-Sachsendorf by your program."));
+        assert_eq!(derived_line(&table, &titles, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus, Veranstaltung 149408 in Cottbus-Sachsendorf laut Studiengang."));
+        assert_eq!(derived_line(&table, &titles, &EN).as_deref(), Some("Derived: location Cottbus, Veranstaltung 149408 in Cottbus-Sachsendorf by your program."));
+        // By the module's title where the catalog has one, not by its first event's: that can be
+        // an extra („Aufbaukurs …").
+        titles.insert("12102".to_string(), "Programmierpraktikum".to_string());
+        assert_eq!(derived_line(&table, &titles, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus, Programmierpraktikum in Cottbus-Sachsendorf laut Studiengang."));
+        // The option of a choice among a module's events the program takes.
+        let option = |id: &str, on: &str| {
+            let mut held = row(id, 30, i64::from(day(on).weekday()), ("09:15", "10:45"), "weekly", None);
+            held.occ.days = vec![day(on)];
+            event(id, "Übung", "12102", vec![held], Attendance::All)
+        };
+        table.events.extend([option("149500", "2026-10-19"), option("149501", "2026-10-21")]);
+        let across = Across {
+            module: "12102".into(),
+            number: 1,
+            kind: ChoiceKind::Program,
+            pick: 1,
+            options: vec![vec![4], vec![5]],
+            numbers: vec![1, 2],
+            taken: BTreeSet::from([0]),
+            by: Some(TakenBy::Program),
+            narrowed: None,
+        };
+        table.choices = vec![across.clone()];
+        assert_eq!(
+            derived_line(&table, &titles, &DE).as_deref(),
+            Some("Abgeleitet: Standort Cottbus, Programmierpraktikum in Cottbus-Sachsendorf, Programmierpraktikum: Übung Mo 09:15 laut Studiengang.")
+        );
+        // What the visitor chose is not derived.
+        table.choices = vec![Across { by: Some(TakenBy::Chosen), ..across }];
+        assert_eq!(derived_line(&table, &titles, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus, Programmierpraktikum in Cottbus-Sachsendorf laut Studiengang."));
+        table.choices.clear();
         table.tracks.clear();
         table.shown.clear();
-        assert_eq!(derived_line(&table, &DE), None);
+        assert_eq!(derived_line(&table, &titles, &DE), None);
     }
 
     #[test]

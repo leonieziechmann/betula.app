@@ -149,6 +149,19 @@ fn every_query_runs_against_the_snapshot() {
         }
         _ => assert!(offers.iter().all(|offer| offer.module_id != id || offer.choice.is_none()), "{offers:?}"),
     }
+    // The Stundenplan's: the choices of planned modules in a semester, the options a program is
+    // listed at, and every module's for the finder.
+    let semester = choices.first().map_or_else(|| "2026W".to_string(), |first| first.semester_key.clone());
+    let planned = queries::modules_choices(&db, std::slice::from_ref(&id), &semester).unwrap();
+    assert_eq!(planned.len(), choices.iter().filter(|row| row.semester_key == semester).count(), "{planned:?}");
+    let all = queries::semester_choices(&db, &semester).unwrap();
+    assert!(planned.iter().all(|row| all.contains(row)), "{all:?}");
+    let program = column(&db.inner, &format!("SELECT p.id FROM v_module_choice_family f JOIN v_program p ON p.family_key = f.family_key WHERE f.module_id = '{id}' LIMIT 1"))
+        .pop()
+        .unwrap_or_else(|| "079-82-2008".to_string());
+    let listed = queries::modules_choice_listed(&db, std::slice::from_ref(&id), &semester, &program).unwrap();
+    assert!(listed.iter().all(|row| row.module_id == id && planned.iter().any(|c| (c.choice, c.option) == (row.choice, row.option))), "{listed:?}");
+    assert_eq!(listed.is_empty(), families.iter().all(|row| row.semester_key != semester), "{listed:?}");
     let id = pick("SELECT module_id FROM v_module_program_link WHERE program_slug IS NOT NULL LIMIT 1");
     assert!(queries::module_program_links(&db, &id).unwrap().iter().any(|l| l.program_slug.is_some() && l.program_id.is_some()));
     let id = pick("SELECT module_id FROM v_program_plan_entry WHERE module_id IS NOT NULL LIMIT 1");

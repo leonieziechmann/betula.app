@@ -1373,7 +1373,8 @@ a.slot { text-decoration: none; }
    the extras), a gap before each option of several lines, and the options of a long choice after
    its first folded away. */
 #termine .slot.alt:not(.faint) { color: var(--text-2); outline-color: var(--text-3); }
-#termine .slot.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
+#termine .slot.extra, .sp-body .slot.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
+.sp-body .slot.extra { outline-color: color-mix(in oklch, var(--tint) 70%, var(--text-3)); }
 #termine .slot.extra.clash { outline-color: var(--no); }
 .choice-head { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 620; color: var(--text-2); }
 .choice-head:first-child { margin-top: 2px; }
@@ -3039,6 +3040,8 @@ a.slot:hover { filter: brightness(.96); }
 /* The text gives way (and breaks a long word with a hyphen) rather than run under the buttons. */
 .sp-daylist a > span:not(.t) { min-width: 0; }
 .sp-daylist a.alt { background: transparent; box-shadow: inset 3px 0 0 var(--tint, var(--text-3)), inset 0 0 0 1px var(--line-strong); }
+/* An extra beside a module's compulsory part (week.rs, `Event::extra`): lighter, its edge dotted. */
+.sp-daylist a.extra { background: transparent; color: var(--text-2); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
 .sp-daylist a.clash { background: var(--no-soft); box-shadow: inset 3px 0 0 var(--no); }
 .sp-daylist a[aria-current="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .sp-daylist a.faint { background: transparent; box-shadow: inset 3px 0 0 color-mix(in oklch, var(--tint, var(--text-3)) 45%, transparent), inset 0 0 0 1px var(--line); color: var(--text-2); }
@@ -3147,6 +3150,10 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 /* An event hidden for any reason (the eye, a kind, the Standort) steps back as its Termine do. */
 .sp-event[data-hidden] > h3 { color: var(--text-3); }
 .sp-rowline .clash { color: var(--no); font-weight: 600; }
+/* An option of an open choice among a module's events: whether it fits the plan. */
+.sp-rowline .fit { align-self: center; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 650; white-space: nowrap; }
+.sp-rowline .fit.ok { background: var(--accent-soft); color: var(--accent-ink); }
+.sp-rowline .fit.no { background: var(--no-soft, var(--panel-2)); color: var(--no); }
 /* The eye: hide or show an event, a Termin, a sitting (aria-pressed: hidden). */
 .eye { --hit: 3px; flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: var(--r-s); color: var(--text-3); transition: background .12s, color .12s; }
 .eye:hover { background: var(--panel-3); color: var(--text); }

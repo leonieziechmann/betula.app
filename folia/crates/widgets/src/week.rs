@@ -75,6 +75,8 @@ pub struct GridSlot {
     /// An option of a choice not yet made (dashed), and a slot in a hard clash.
     pub alt: bool,
     pub clash: bool,
+    /// An extra beside a module's compulsory part (dotted and lighter, app.css `.slot.extra`).
+    pub extra: bool,
     /// Where a click leads: `Some` draws a link that keeps the page's scroll, `None` a plain box.
     pub href: Option<String>,
     /// The lines of the list under the grid that the slot stands for, by their ids (a module's
@@ -137,7 +139,15 @@ impl GridSlot {
     pub fn classes(&self) -> String {
         let mut classes = String::from("slot");
         let brief = self.to.saturating_sub(self.from) < 60;
-        let parts = [self.class, self.hue.unwrap_or_default(), self.mark.unwrap_or_default(), if self.alt { "alt" } else { "" }, if self.clash { "clash" } else { "" }, if brief { "brief" } else { "" }];
+        let parts = [
+            self.class,
+            self.hue.unwrap_or_default(),
+            self.mark.unwrap_or_default(),
+            if self.alt { "alt" } else { "" },
+            if self.clash { "clash" } else { "" },
+            if self.extra { "extra" } else { "" },
+            if brief { "brief" } else { "" },
+        ];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
             classes.push_str(part);

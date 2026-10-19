@@ -9,6 +9,11 @@
 use std::collections::BTreeSet;
 
 use folia_model::labels::{Campus, ChoiceBasis, ChoiceKind};
+
+/// The most options of a choice among a module's events a week shows while it is open; a choice
+/// of more stands in the list alone (owner, 2026-10-19, the concept's proposal: „bis zu vier
+/// gestrichelt in der Woche, mehr nur in der Liste").
+pub const WEEK_OPTIONS: usize = 4;
 use folia_model::rows_detail::{ChoiceFamily, ChoiceOption};
 
 /// The choices of a module in one semester, in their order.

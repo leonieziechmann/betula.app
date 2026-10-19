@@ -655,6 +655,8 @@ mod tests {
             abbrevs: [("12104", "EvS"), ("12107", "MIT"), ("11112", "MIT")].iter().map(|(id, abbrev)| (id.to_string(), abbrev.to_string())).collect(),
             program: Some("079-82-2008".into()),
             taken: Vec::new(),
+            choices: Vec::new(),
+            listed: Vec::new(),
         }
     }
 

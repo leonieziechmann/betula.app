@@ -12,6 +12,12 @@
 //   brings them back faint under „Für andere Studiengänge".
 // - The groups, and the catalogue of projects: no week, five in the list and the rest folded away.
 // - The catalog's row: „14 Projekte zur Wahl".
+// - The Stundenplan with 11206 planned, nobody's: the three exercises dashed „1 von 3", the
+//   Aufbaukurs lighter and behind the chip „Zusatz", „1 Wahl offen" over the week, the panel's „1 von
+//   3 wählen" with „passt"; „✓" on one takes it and leaves the others out, „Wahl aufheben" opens the
+//   choice again.
+// - The Stundenplan of Bauingenieurwesen: its exercise taken („Höhere Mathematik - T3: Übung Di
+//   07:30 laut Studiengang"), and a tap on another in the panel takes that one instead.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
@@ -122,6 +128,78 @@ const alt = (slots) => slots.filter(([c]) => c.split(" ").includes("alt")).lengt
   const { page, context } = await open("/catalog?q=Berufspraktische%20Profilierung");
   await until(page, "the row's choice", () => [...document.querySelectorAll(".row .row-offer")].some((offer) => offer.textContent.trim() === "14 Projekte zur Wahl"));
   if (shots) await page.screenshot({ path: `${shots}/choices-catalog.png` });
+  await context.close();
+}
+
+// ---------- the Stundenplan ----------
+// Plans 11206 from its page, then opens the Stundenplan of 2026W (with the module beside it).
+const planned = async (mine, beside) => {
+  const { page, context } = await open("/catalog/module/11206", mine);
+  await until(page, "„Einplanen\"", () => Boolean(onPage(".hero-line .plan-toggle")));
+  await page.click(".hero-line .plan-toggle >> visible=true");
+  // The plan is written after the next frame: the button pressed and no longer busy.
+  await until(page, "the module planned", () => {
+    const button = onPage(".hero-line .plan-toggle");
+    return button?.getAttribute("aria-pressed") === "true" && !button.hasAttribute("aria-busy");
+  });
+  await page.goto(base + "/studyplan?sem=2026W" + (beside ? "&open=11206" : ""), { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the Stundenplan: the browser app never took over"));
+  await until(page, "the week", () => document.querySelectorAll(".sp-body .week .slot").length > 0);
+  return { page, context };
+};
+// The slots of the week (their look, tooltip and text), the line over it, what is derived, and the
+// panel beside it: the lines of its choices and its options' „passt".
+const plan = (page) => page.evaluate(() => ({
+  slots: [...document.querySelectorAll(".sp-body .week .slot")].map((slot) => ({ c: slot.className, title: slot.getAttribute("title") ?? "", text: slot.textContent.trim() })),
+  sum: document.querySelector(".sp-overlaps > summary")?.textContent.trim() ?? "",
+  derived: document.querySelector(".sp-derived")?.textContent.trim() ?? "",
+  choices: [...document.querySelectorAll(".sp-event .sp-choice")].map((line) => line.textContent.trim()),
+  fits: [...document.querySelectorAll(".sp-rowline .fit")].map((fit) => fit.textContent.trim()),
+}));
+const dashed = (p) => p.slots.filter((slot) => slot.c.split(" ").includes("alt"));
+// The button `label` of the slot of `time`: the slot's buttons stand beside it, not in it.
+const act = (page, time, label) => page.locator(".sp-body .week .slot", { hasText: time }).first().locator("xpath=following-sibling::*[1]").locator(`.slot-act[aria-label="${label}"]`);
+const exercise = (p, time) => p.slots.find((slot) => slot.text.includes(time) && slot.text.includes("HG/0."));
+{
+  const { page, context } = await planned(null, true);
+  await until(page, "the open choice", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 3);
+  let p = await plan(page);
+  check(dashed(p).length === 3 && dashed(p).every((slot) => slot.title.includes("1 von 3")), `three exercises dashed, „1 von 3": ${JSON.stringify(p.slots)}`);
+  check(p.slots.filter((slot) => slot.c.split(" ").includes("extra")).length === 1, `the Aufbaukurs lighter: ${JSON.stringify(p.slots)}`);
+  check(p.sum.includes("1 Wahl offen"), `the line over the week: „${p.sum}"`);
+  check(p.choices.includes("1 von 3 wählen") && p.fits.filter((fit) => fit === "passt").length === 3, `the panel: ${JSON.stringify(p.choices)} ${JSON.stringify(p.fits)}`);
+  if (shots) await page.screenshot({ path: `${shots}/choices-plan-open.png` });
+  // „Zusatz" hides the Aufbaukurs, and shows it again.
+  const chip = page.locator("button.chip", { hasText: "Zusatz" }).first();
+  await chip.click();
+  await until(page, "„Zusatz\" off", () => document.querySelectorAll(".sp-body .week .slot.extra").length === 0);
+  await chip.click();
+  await until(page, "„Zusatz\" on", () => document.querySelectorAll(".sp-body .week .slot.extra").length === 1);
+  // ✓ on Mi 13:45: it is taken, the others are left out.
+  const count = p.slots.length;
+  await act(page, "13:45", "Diese nehmen").click();
+  await until(page, "the choice made", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 0);
+  p = await plan(page);
+  check(p.slots.length === count - 2 && exercise(p, "13:45") && !exercise(p, "07:30") && !exercise(p, "11:30"), `Mi 13:45 alone: ${JSON.stringify(p.slots)}`);
+  check(!p.sum.includes("Wahl offen"), `nothing open: „${p.sum}"`);
+  if (shots) await page.screenshot({ path: `${shots}/choices-plan-chosen.png` });
+  // „Wahl aufheben": the three open again.
+  await act(page, "13:45", "Wahl aufheben").click();
+  await until(page, "the choice open again", () => document.querySelectorAll(".sp-body .week .slot.alt").length === 3);
+  await context.close();
+}
+{
+  const { page, context } = await planned(BAU, true);
+  await until(page, "the program's exercise", () => (document.querySelector(".sp-derived")?.textContent ?? "").includes("Höhere Mathematik - T3: Übung Di 07:30 laut Studiengang"));
+  let p = await plan(page);
+  check(dashed(p).length === 0 && exercise(p, "07:30") && !exercise(p, "13:45"), `Di 07:30 alone: ${JSON.stringify(p.slots)}`);
+  check(!p.sum.includes("Wahl offen") && p.choices.some((line) => line.startsWith("Laut Studiengang")), `taken by the program: „${p.sum}" ${JSON.stringify(p.choices)}`);
+  if (shots) await page.screenshot({ path: `${shots}/choices-plan-program.png` });
+  // A tap on Mi 13:45 in the panel takes it instead.
+  await page.locator(".sp-rowline > .pick", { hasText: "Mi 13:45" }).click();
+  await until(page, "Mi 13:45 taken", () => [...document.querySelectorAll(".sp-body .week .slot")].some((slot) => slot.textContent.includes("13:45")));
+  p = await plan(page);
+  check(exercise(p, "13:45") && !exercise(p, "07:30") && !p.derived.includes("Übung Di 07:30"), `Mi 13:45 instead: ${JSON.stringify(p.slots)} „${p.derived}"`);
   await context.close();
 }
 

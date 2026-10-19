@@ -479,6 +479,11 @@ enum Unit {
 /// out (its times say nothing a calendar can place), unless it is a block without times, whose
 /// dates are whole days.
 fn teaching(t: &Timetable, event: &Event, names: &Names, locale: Locale) -> Vec<Entry> {
+    // An option of a choice among its module's events comes in once it is taken (owner,
+    // 2026-10-19, the concept's proposal: „Eine offene Wahl kommt erst hinein, wenn gewählt ist").
+    if event.across.is_some_and(|alt| alt.open) {
+        return Vec::new();
+    }
     let texts = crate::i18n::texts(locale);
     // As its slot in the week: „VL EvS".
     let label = slot_text(&kind_short(event, locale), &names.short_of(&event.modules, &event.title));
@@ -1084,7 +1089,7 @@ mod tests {
     ) -> Timetable {
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
-        let input = Input { key: facts.key, semester: None, facts, modules: &modules, schedule: &schedule, exams, sws, taken: &[] };
+        let input = Input { key: facts.key, semester: None, facts, modules: &modules, schedule: &schedule, exams, sws, taken: &[], choices: &[], listed: &[] };
         let built = Timetable::build(&input, selection);
         invariants(&built);
         built
@@ -1272,6 +1277,26 @@ mod tests {
             .windows(2)
             .all(|pair| (start(&pair[0].when), &pair[0].uid) < (start(&pair[1].when), &pair[1].uid)));
         assert!(c.entries.iter().all(|entry| entry.uid.ends_with("@betula.app")));
+    }
+
+    /// An option of a choice among a module's events comes into the calendar once it is taken
+    /// (owner, 2026-10-19, the concept: „Eine offene Wahl kommt erst hinein, wenn gewählt ist").
+    #[test]
+    fn an_open_choice_among_events_waits_for_its_pick() {
+        use crate::model::tests::{choice_row, choosing};
+        let rows = [
+            teaching(A, "60", 1, "Vorlesung", 1, "15:30", "17:00"),
+            teaching(A, "61", 1, "Übung", 2, "07:30", "09:00").option(1),
+            teaching(A, "62", 1, "Übung", 3, "13:45", "15:15").option(2),
+        ];
+        let choices = [choice_row(A, "group", 1, 1, "61"), choice_row(A, "group", 1, 2, "62")];
+        let open = calendar(&choosing(&rows, &[A], &choices, &[], &Selection::default()));
+        assert!(!of_event(&open, "60").is_empty());
+        assert!(of_event(&open, "61").is_empty() && of_event(&open, "62").is_empty());
+        let chosen = Selection { chosen_rows: [rows[2].key()].into(), ..Selection::default() };
+        let decided = calendar(&choosing(&rows, &[A], &choices, &[], &chosen));
+        assert!(of_event(&decided, "61").is_empty() && !of_event(&decided, "62").is_empty());
+        assert!(of_event(&decided, "62").iter().all(|entry| !entry.tentative));
     }
 
     #[test]

@@ -28,10 +28,8 @@ use crate::courses::{program_name, Undecided};
 use crate::i18n::module::{Noun, NounOf};
 use crate::i18n::Texts;
 
-/// The most options of a choice the week shows; a choice of more stands in the list alone
-/// (owner, 2026-10-19, the concept's proposal: „bis zu vier gestrichelt in der Woche, mehr nur in
-/// der Liste").
-pub(crate) const WEEK_OPTIONS: usize = 4;
+/// The most options of a choice the week shows; a choice of more stands in the list alone.
+pub(crate) use folia_timetable::choices::WEEK_OPTIONS;
 
 /// A choice of more than `FOLD_OPTIONS` options lists its first `LISTED_OPTIONS` and folds the
 /// others away („9 weitere anzeigen").
