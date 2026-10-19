@@ -414,42 +414,70 @@
   // ---- a change of tab on a phone: the pages on an axis (Achse) ----
   // (owner, 2026-10-18, of the ways of the prototype: „Ich muss sagen ich finde achse fühlt sich am
   // besten an. Quasi so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert", and
-  // of its page following a finger on the bar: „das verhalten im Prototypen passt für mich";
-  // folia/design/tabwechsel/konzept.html, „Die Bewegung am Handy: Achse"). Where a phone's view is
-  // shown, a change of tab between two pages that stand (stage.rs, `betula:stage-going` and
-  // `betula:stage` with `step`) moves them as Material's shared axis does: the page that goes slides 36 px away to the side of its tab
-  // and fades out, the page that comes slides in from the side of its tab and fades in, a moment
-  // later; a far jump the same way, the tabs between staying behind. Where a page stands and how
-  // clear it is are damped springs, worked out ahead and played as Web Animations, which the
-  // compositor runs while the app takes its step; every spring starts where its page is and as fast
-  // as it goes, so a tap or a finger on the bar on the way takes the pages there, without a jump,
-  // however many taps come. A finger along the bar takes the pages with it (the swipe below): up to
-  // four tenths of its way the page goes, from a little after that the page of the tab beside comes;
-  // let go, they go on from there as fast as the finger went, to where the bar goes. For as long as
-  // they move, the pages are layers over the window, each as far down as it was scrolled (app.css
-  // `.page-stage.moving`), the one in front following the window's scroll; at rest it is in the
-  // window again. Not on a wide screen (the page is there in the next frame), not where a sheet or a
-  // dialog lies over one of the pages, not after the browser animated the step already (Safari's
-  // swipe back from the edge, `hasUAVisualTransition`); with less motion a short fade. A finger on
-  // the page (a wheel, a key) puts the pages at rest at once.
+  // of its page following a finger on the bar: „das verhalten im Prototypen passt für mich"; the next
+  // day, of it on a phone: „Wenn man einfach normal auf die Knöpfe drückt, dann ist das von der
+  // Animation her super. Aber ich habe das Gefühl, dass die Aktion mit einem kleinen delay
+  // ausgeführt wird … Es wäre wirklich perfekt, wenn es sich so anfühlt als würde es sofort los
+  // gehen", of a quick swipe „dann sieht die Animation echt ganz schön laggy aus. Das darf auf keinen
+  // fall passieren", of one at its usual speed „dann sehe ich die Animation gar nicht. Da sollte es
+  // vielleicht ein max speed geben. Aber trotzdem so, dass man dann noch weiter machen kann also
+  // nichts blockiert", and of quick taps „dann flackert die seite … Es muss ein Konzept für schnelle
+  // aufeinander folgende aktionen geben, so dass es sich flüssig und natürlich anfühlt";
+  // folia/design/tabwechsel/konzept.html, „Die Bewegung am Handy: Achse" and „Schnell
+  // hintereinander"). Where a phone's view is shown, a change of tab between two pages that stand
+  // (stage.rs, `betula:stage-going` and `betula:stage` with `step`) moves them on an axis: the page
+  // that comes slides in 36 px from the side of its tab and gets clear over the page that goes,
+  // which slides 36 px away to the side of its own tab under it; a far jump the same way, the tabs
+  // between staying behind.
+  //
+  // The pages on their way are layers over the window (app.css `.page-stage.moving`), each as far
+  // down as it was scrolled and each as opaque as the window's ground, one over the other with the
+  // page they go to on top: what lies under a page shows only as far as that page is not clear yet.
+  // So the screen is never empty, and the page that comes is there from the first frame (a fifth of
+  // it, half after 45 ms). Every change starts where the pages stand and as fast as they go:
+  // another tap, Back or a finger on the bar on their way puts the page it goes to on top, each page
+  // still seen as much as it was (`onTop`); however many come, nothing jumps, flickers or waits.
+  // Where a page stands and how clear the page on top is are damped springs, worked out ahead and
+  // played as Web Animations, which the compositor runs while the app takes its step.
+  //
+  // A finger along the bar (the swipe below) says where the pages should be: as far along the way
+  // to the tab beside as the bar's lens is. The pages follow it on a spring, a whole way in a
+  // quarter second at most, so that a quick swipe is seen as a motion and a slow one goes with the
+  // finger; let go, they go on from where they are and as fast as they went, to the tab the bar
+  // goes to. A finger that comes again on their way takes them where they are, and until it has
+  // turned them, what was on its way goes on.
+  //
+  // Little is left for the moment of a change: a finger on a tab makes the page in front and the
+  // tab's page layers while it is down (`axisPrepare`), and the app gets the click of a tap or of a
+  // swipe a frame after the pages started (`later`), so that its work does not hold up their first
+  // frames; a finger, a key or a click that comes before has the app take it at once.
+  //
+  // Not on a wide screen (the page is there in the next frame), not where a sheet or a dialog lies
+  // over one of the pages, not after the browser animated the step already (Safari's swipe back from
+  // the edge, `hasUAVisualTransition`); with less motion a short dissolve, nothing slides. A finger
+  // on the page (a wheel, a key) puts the pages at rest at once.
   const AXIS = {
     px: 36, // how far a page slides
-    come: { response: 0.3, damping: 1 }, // the spring of the page that comes: s a swing takes, how much of it is damped
+    come: { response: 0.3, damping: 1 }, // the spring of the way of the page that comes: s a swing takes, how much of it is damped
     go: { response: 0.13, damping: 1 }, // of the page that goes
-    wait: 0.09, // s the page that comes waits for the one that goes
-    out: 0.4, // of the way along the bar: where the page that goes is gone
-    in: 0.42, // and where the page of the tab beside starts to come
+    clear: 0.06, // s: how fast the page on top gets clear after a tap, at its full pace from the start (1/e of the rest left)
+    let: 0.09, // s: and after a finger on the bar let go, from as fast as it came, no faster
+    follow: { response: 0.12, damping: 1 }, // the spring the pages follow a finger on the bar on
+    most: 4, // ways a second the pages go at most after a finger: a whole way in a quarter second
   };
-  const AXIS_CALM = { ...AXIS, px: 0, come: { response: 0.2, damping: 1 }, go: { response: 0.12, damping: 1 }, wait: 0.05 };
+  const AXIS_CALM = { ...AXIS, px: 0, come: { response: 0.2, damping: 1 }, go: { response: 0.12, damping: 1 }, clear: 0.05, let: 0.07 };
   const AXIS_DT = 1 / 120; // s from one keyframe to the next
   const axisWay = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? AXIS_CALM : AXIS);
   const REST = Object.freeze({ x: 0, o: 1 });
-  // Where a page goes, and comes from: out to `side` (+1 the right), faded.
-  const gone = (v, side) => ({ x: side * v.px, o: 0 });
+  // Where a page is gone to: out to `side` (+1 the right).
+  const away = (v, side) => side * v.px;
+  const clear01 = (o) => Math.min(1, Math.max(0, o));
   // The pages on their way: each stage's card (its pose, `x` px and `o` how clear, and how fast both
-  // go), the one that comes to rest (`goal`), what plays (`run`), a finger on the bar (`grip`), the
-  // top of the pages in the window (`top`), until when the browser has animated a step (`ua`).
-  const axis = { cards: new Map(), goal: null, run: null, grip: null, top: 0, ua: 0 };
+  // go), how they lie one over the other (`order`, the top last), the one they go to (`goal`), what
+  // plays (`run`), a finger on the bar (`grip`), the top of the pages in the window (`top`), until
+  // when the browser has animated a step (`ua`), and the layers made for a tap that did not come
+  // (`idle`).
+  const axis = { cards: new Map(), order: [], goal: null, run: null, grip: null, top: 0, ua: 0, idle: 0 };
   const tabOf = (name) => [...document.querySelectorAll(".bottomnav > .nav")].findIndex((tab) => tab.dataset.area === name);
   // The side the tab of `name` lies on, seen from the tab of `of`.
   const side = (name, of) => Math.sign(tabOf(name) - tabOf(of)) || 1;
@@ -460,7 +488,40 @@
   const pose = (card, p) => {
     card.pos = p;
     card.el.style.transform = `translate3d(${p.x.toFixed(2)}px, 0, 0)`;
-    card.el.style.opacity = String(Math.min(1, Math.max(0, p.o)));
+    card.el.style.opacity = String(clear01(p.o));
+  };
+  const restack = () => axis.order.forEach((name, i) => { const card = axis.cards.get(name); if (card) card.el.style.zIndex = String(2 + i); });
+  // How much of each page the eye sees: as clear as it is, of what the pages over it leave.
+  const seen = () => {
+    const out = new Map();
+    let left = 1;
+    for (let i = axis.order.length - 1; i >= 0; i--) {
+      const card = axis.cards.get(axis.order[i]);
+      if (!card) continue;
+      const o = clear01(card.pos.o);
+      out.set(card.name, o * left);
+      left *= 1 - o;
+    }
+    return out;
+  };
+  // `card` on top, each page seen as much as it was: on top it is as clear as it was seen, and every
+  // page under it as clear as what is left over it lets it be seen as much again. Nothing changes
+  // on the screen; what goes on from here is that page getting clear.
+  const onTop = (card) => {
+    const order = axis.order;
+    if (order[order.length - 1] === card.name) return;
+    const w = seen(), rest = order.filter((name) => name !== card.name);
+    let left = 1 - (w.get(card.name) ?? 0);
+    pose(card, { x: card.pos.x, o: w.get(card.name) ?? 0 });
+    for (let i = rest.length - 1; i >= 0; i--) {
+      const under = axis.cards.get(rest[i]), wi = w.get(rest[i]) ?? 0;
+      if (!under) continue;
+      pose(under, { x: under.pos.x, o: left > 1e-6 ? Math.min(1, wi / left) : under.pos.o });
+      under.vel = { x: under.vel.x, o: 0 };
+      left -= wi;
+    }
+    axis.order = [...rest, card.name];
+    restack();
   };
   // The first page that moves: the window keeps room for the farthest any page was scrolled, so that
   // it stays where the page in front is, and the ground under the pages goes with them.
@@ -472,8 +533,9 @@
     content.style.minHeight = `${Math.ceil(Math.max(0, ...highs) + innerHeight)}px`;
     root.classList.add("stages-moving");
   };
-  // A stage as a layer of its own: the page in front as it is in the window, one behind as far down
-  // and as high as it was when it went (stage.rs, `data-scroll`, `data-height`).
+  // A stage as a layer of its own, on top of the others: the page in front as it is in the window,
+  // one behind as far down and as high as it was when it went (stage.rs, `data-scroll`,
+  // `data-height`).
   const lift = (name, at) => {
     const known = axis.cards.get(name);
     if (known) return known;
@@ -494,11 +556,13 @@
     const card = { name, el, page, ground, pos: REST, vel: { x: 0, o: 0 } };
     pose(card, at);
     axis.cards.set(name, card);
+    axis.order.push(name);
+    restack();
     return card;
   };
   const unlift = (card) => {
     card.el.classList.remove("moving");
-    for (const prop of ["transform", "opacity"]) card.el.style.removeProperty(prop);
+    for (const prop of ["transform", "opacity", "z-index"]) card.el.style.removeProperty(prop);
     card.page.style.removeProperty("padding-top");
     card.ground?.style.removeProperty("top");
     for (const part of card.page.children) part.style.removeProperty("flex-shrink");
@@ -507,41 +571,55 @@
     const card = axis.cards.get(name);
     if (!card) return;
     axis.cards.delete(name);
+    axis.order = axis.order.filter((n) => n !== name);
     unlift(card);
+    restack();
   };
-  // Every card in `plans` from where it is and as fast as it goes to its `to` (after `wait` s, on its
-  // `spring`), worked out every AXIS_DT s until all rest, and played; then `axisSettle`.
+  // Every card in `plans` from where it is and as fast as it goes: its way to `x` on its `spring`,
+  // and clear (`o` 1, where it is not null) on a spring of `clear` s, which after a tap starts at its
+  // full pace (`kick`; faster where the page already came faster), after a finger as fast as the
+  // page came. Worked out every AXIS_DT s until all rest, and played; then `axisSettle`.
   const axisPlay = (plans) => {
-    const h = AXIS_DT / 2, tracks = [...plans].map(([card, step]) => ({ card, step, x: { ...card.pos }, v: { ...card.vel }, at: [], speed: [] }));
-    let t = 0;
+    const h = AXIS_DT / 2;
+    const tracks = [...plans].map(([card, plan]) => {
+      const x = { ...card.pos }, v = { x: card.vel.x, o: 0 };
+      if (plan.o !== null) v.o = plan.kick ? Math.max(card.vel.o, (plan.o - x.o) / plan.clear) : card.vel.o;
+      return { card, plan, x, v, at: [], speed: [] };
+    });
     for (let f = 0; f < 360; f++) {
       let calm = f > 0;
       for (const tr of tracks) {
         tr.at.push({ ...tr.x });
         tr.speed.push({ ...tr.v });
-        const { to, wait } = tr.step;
-        if (t < wait || Math.abs(tr.x.x - to.x) > 0.2 || Math.abs(tr.x.o - to.o) > 0.004 || Math.abs(tr.v.x) > 5 || Math.abs(tr.v.o) > 0.1) calm = false;
+        const { plan } = tr;
+        if (Math.abs(tr.x.x - plan.x) > 0.2 || Math.abs(tr.v.x) > 5 || (plan.o !== null && (Math.abs(tr.x.o - plan.o) > 0.004 || Math.abs(tr.v.o) > 0.1))) calm = false;
       }
       if (calm) break;
-      for (let s = 0; s < 2; s++, t += h) {
+      for (let s = 0; s < 2; s++) {
         for (const tr of tracks) {
-          if (t < tr.step.wait) continue;
-          const w0 = (2 * Math.PI) / tr.step.spring.response, k = w0 * w0, d = 2 * tr.step.spring.damping * w0;
-          for (const key of ["x", "o"]) {
-            tr.v[key] += (-k * (tr.x[key] - tr.step.to[key]) - d * tr.v[key]) * h;
-            tr.x[key] += tr.v[key] * h;
-          }
+          const { plan } = tr, w0 = (2 * Math.PI) / plan.spring.response, k = w0 * w0, d = 2 * plan.spring.damping * w0;
+          tr.v.x += (-k * (tr.x.x - plan.x) - d * tr.v.x) * h;
+          tr.x.x += tr.v.x * h;
+          if (plan.o === null) continue;
+          const c = 1 / plan.clear;
+          tr.v.o += (-c * c * (tr.x.o - plan.o) - 2 * c * tr.v.o) * h;
+          tr.x.o += tr.v.o * h;
+          // Clear is as clear as it gets: what would go past it stays there.
+          if (tr.x.o >= 1) { tr.x.o = 1; tr.v.o = Math.min(0, tr.v.o); }
         }
       }
     }
     for (const tr of tracks) {
-      tr.at.push({ ...tr.step.to });
+      tr.at.push({ x: tr.plan.x, o: tr.plan.o ?? tr.x.o });
       tr.speed.push({ x: 0, o: 0 });
     }
     const n = tracks[0]?.at.length ?? 0;
     if (n < 2) { axisSettle(); return; }
     const timing = { duration: (n - 1) * AXIS_DT * 1000, easing: "linear", fill: "forwards" };
-    const anims = tracks.map((tr) => tr.card.el.animate(tr.at.map((p) => ({ transform: `translate3d(${p.x.toFixed(2)}px, 0, 0)`, opacity: Math.min(1, Math.max(0, p.o)) })), timing));
+    const anims = tracks.map((tr) => tr.card.el.animate(tr.at.map((p) => ({ transform: `translate3d(${p.x.toFixed(2)}px, 0, 0)`, opacity: clear01(p.o) })), timing));
+    // A frame in at its first frame: the frame before showed where it starts (the pages at rest,
+    // where a finger or the motion before had them), so the first one shows them on their way.
+    for (const anim of anims) anim.currentTime = Math.min(1000 / 60, timing.duration);
     const run = { tracks, anims, n, timer: 0 };
     run.timer = setTimeout(() => { if (axis.run === run) axisSettle(); }, timing.duration + 40);
     axis.run = run;
@@ -561,12 +639,19 @@
     }
     for (const anim of run.anims) anim.cancel();
   };
+  const stopFollow = () => {
+    if (axis.grip?.frame) cancelAnimationFrame(axis.grip.frame);
+    if (axis.grip) axis.grip.frame = 0;
+  };
   // At rest at once: the page in front in the window, as far down as it showed, the others behind.
   const axisFinish = () => {
     axisHalt();
+    stopFollow();
     axis.grip = null;
+    clearTimeout(axis.idle);
     for (const card of axis.cards.values()) unlift(card);
     axis.cards.clear();
+    axis.order = [];
     axis.goal = null;
     document.getElementById("content")?.style.removeProperty("min-height");
     root.classList.remove("stages-moving");
@@ -579,22 +664,26 @@
     if (front && front !== axis.goal && axis.cards.has(front) && !axis.grip) aim(front);
     else axisFinish();
   };
-  // The pages go to `goal`: it comes to rest, from where it is or new from the side of its tab
-  // (`fresh`, the page a finger brought counts as new); the page that came before it goes, quickly
-  // where the goal is new, and every other page goes away to the side of its own tab.
-  const aim = (goal, { drag = false, fresh } = {}) => {
+  // The pages go to `goal`: it comes on top, from where it is or new from the side of its tab, and
+  // gets clear; the page that was the goal goes, quickly, and every other page goes on to the side
+  // of its own tab, under it. After a finger on the bar (`drag`) on from as fast as they went.
+  const aim = (goal, { drag = false } = {}) => {
     const v = axisWay(), before = axis.goal ?? goal;
     axisHalt();
-    const isNew = fresh ?? !axis.cards.has(goal);
-    const card = lift(goal, gone(v, side(goal, before)));
+    clearTimeout(axis.idle);
+    const card = lift(goal, { x: away(v, side(goal, before)), o: 0 });
     if (!card) { axisFinish(); return; }
-    const plans = new Map([[card, { to: REST, spring: v.come, wait: isNew && !drag ? v.wait : 0 }]]);
+    onTop(card);
+    // A page all under the pages over it is not seen: it goes behind at once, one layer less for
+    // the screen to draw (quick taps would pile them up). Not the app's page in front.
+    const w = seen(), front = stage()?.dataset.stage;
+    for (const name of [...axis.order]) if (name !== goal && name !== front && (w.get(name) ?? 0) < 0.004) drop(name);
+    const clear = drag ? v.let : v.clear, kick = !drag;
+    const plans = new Map([[card, { x: 0, spring: v.come, o: 1, clear, kick }]]);
+    // The pages under it go to the side of their tab; one that was still coming gets clear all the
+    // same, under it, so that what lies under that one is covered and can go behind.
     for (const other of axis.cards.values()) {
-      if (other === card) continue;
-      // A page on the other side of its way (one that was coming, overtaken by a tab beyond it)
-      // fades where it is rather than crossing the middle.
-      const to = gone(v, side(other.name, goal)), across = Math.sign(other.pos.x) === -Math.sign(to.x) && Math.abs(other.pos.x) > 0.5;
-      plans.set(other, { to: across ? { x: other.pos.x, o: 0 } : to, spring: isNew && other.name === before ? v.go : v.come, wait: 0 });
+      if (other !== card) plans.set(other, { x: away(v, side(other.name, goal)), spring: other.name === before && before !== goal ? v.go : v.come, o: other.pos.o > 0.001 ? 1 : null, clear, kick });
     }
     axis.goal = goal;
     axisPlay(plans);
@@ -605,7 +694,8 @@
   const moves = (d) => axisOn() && d.step === true && performance.now() >= axis.ua && !axis.grip?.take && tabOf(d.from) >= 0 && tabOf(d.to) >= 0 && !overlaid(axisStage(d.from)) && !overlaid(axisStage(d.to));
   // Before the app swaps the stages: the page that goes becomes a layer of its own while it is
   // still drawn (hidden and drawn again in the same task, every element of it would work out its
-  // style anew), as it is in the window.
+  // style anew), as it is in the window. Where a tap or a finger started the pages already, there
+  // is nothing left to do.
   addEventListener("betula:stage-going", (e) => {
     const d = e.detail || {};
     if (!moves(d)) { axisFinish(); return; }
@@ -618,7 +708,6 @@
     // The page in front follows the window, which the app scrolled to where the page was left.
     const front = axis.cards.get(d.to);
     if (front) front.page.scrollTop = scrollY;
-    // Not where a finger on the bar let the pages go there already.
     if (axis.goal !== d.to) aim(d.to);
   });
   addEventListener("scroll", () => {
@@ -633,16 +722,96 @@
   const animatedStep = (e) => { if (e.hasUAVisualTransition) axis.ua = performance.now() + 300; };
   addEventListener("popstate", animatedStep, true);
   window.navigation?.addEventListener?.("navigate", animatedStep);
-  // A finger along the bar (the swipe below) takes the pages where they stand once it has the bar
-  // (`axisGrab`, `p0` where it took the lens, px from the current tab's middle); each move puts them
-  // where that much of the way leads (`axisDrag`, `q` the lens's way from the current tab in tabs, +
-  // to the right); let go, they go on to the tab the bar goes to (`axisRelease`, `dqdt` tabs per s).
+
+  // The app's click of a change the pages have started (a tap's, a swipe's): once they are on their
+  // way (their animations started, the compositor running them), so that the app's work does not
+  // hold up their first frames; at once when a finger, a key or another click comes first, in the
+  // order they came. A page whose frames have stopped (hidden) has it after 150 ms all the same.
+  let later = null;
+  const flushLater = () => {
+    const job = later;
+    if (!job) return;
+    later = null;
+    cancelAnimationFrame(job.frame);
+    clearTimeout(job.timer);
+    clearTimeout(job.slow);
+    job.link.click();
+    // A mark set ahead of the app (`markTab`) goes back to where the app is, where it went nowhere.
+    if (job.marked) setTimeout(() => { const front = stage()?.dataset.stage; if (front && front !== job.link.dataset.area && tabOf(front) >= 0) markTab(front); }, 400);
+  };
+  const sendLater = (link, marked = false) => {
+    flushLater();
+    const job = { link, marked, frame: 0, timer: 0, slow: 0 };
+    const send = () => { if (later === job) flushLater(); };
+    const started = axis.run?.anims[0]?.ready;
+    if (started) started.then(() => { if (later === job) job.timer = setTimeout(send); }, send);
+    else job.frame = requestAnimationFrame(() => { job.timer = setTimeout(send); });
+    job.slow = setTimeout(send, 150);
+    later = job;
+  };
+  addEventListener("pointerdown", flushLater, true);
+  addEventListener("keydown", flushLater, true);
+
+  // The tab of `name` current on the bars at once, as the app has it once it has the click (the
+  // start does the same before the app, above): its mark answers the tap in the frame the pages
+  // start in (design/tabbar/swipe.html).
+  const markTab = (name) => {
+    for (const nav of document.querySelectorAll(".bottomnav > .nav, .rail .nav")) {
+      if (nav.dataset.area === name) nav.setAttribute("aria-current", "page"); else nav.removeAttribute("aria-current");
+    }
+  };
+  // Whether a tap on the tab of `name` moves the pages, the page in front being that of `cur`.
+  const axisTo = (name, cur) => Boolean(name && cur && name !== cur && axisOn() && !axis.grip?.take && tabOf(cur) >= 0 && tabOf(name) >= 0 && performance.now() >= axis.ua && !overlaid(axisStage(cur)) && !overlaid(axisStage(name)) && window.__betulaStands?.(name) === true);
+  // A finger on a tab of the bar: the page in front and the pages it may bring become layers while
+  // it is down, as a change would make them (`lift`, most of its work before its first frame): on
+  // another tab that tab's page (a tap), on the current one the pages of the tabs beside it (a
+  // swipe along the bar starts there). Nothing of it is seen: the page in front stands where it
+  // stood, the others are not clear yet. Undone when no change came of it.
+  const axisPrepare = (tab) => {
+    const name = tab?.dataset.area, cur = stage()?.dataset.stage;
+    if (!name || !cur || axis.grip) return;
+    const tabs = [...document.querySelectorAll(".bottomnav > .nav")], at = tabs.findIndex((t) => t.dataset.area === cur);
+    const bring = name !== cur ? [name] : [tabs[at - 1]?.dataset.area, tabs[at + 1]?.dataset.area];
+    const ready = bring.filter((n) => axisTo(n, cur));
+    if (!ready.length || (!axis.cards.size && !lift(cur, REST))) return;
+    for (const n of ready) if (!axis.cards.has(n)) lift(n, { x: away(axisWay(), side(n, axis.goal ?? cur)), o: 0 });
+    clearTimeout(axis.idle);
+    axis.idle = setTimeout(() => { if (!axis.run && !axis.grip && !later && axis.cards.size) axisFinish(); }, 700);
+  };
+  // A tap (a click, a key) on a tab of the bar whose page stands: the pages start now, and the app
+  // gets the click a frame later (`later`). Not the click that ends a swipe (the bar's own, below).
+  addEventListener("click", (e) => {
+    if (!e.isTrusted || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const tab = e.target.closest?.(".bottomnav > .nav[data-area]");
+    if (!tab || performance.now() < tabSwiped) return;
+    flushLater();
+    const name = tab.dataset.area, cur = stage()?.dataset.stage;
+    // The current tab tapped again (its page goes back to where it starts, chrome.rs `TabAgain`):
+    // the pages made ready for nothing go first, the page back in the window.
+    if (name === cur && axis.cards.size && !axis.run && !axis.grip) axisFinish();
+    if (!axisTo(name, cur)) return;
+    if (!axis.cards.size && !lift(cur, REST)) return;
+    axis.goal ??= cur;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (tabSwipe?.glide) settleTabs();
+    aim(name);
+    markTab(name);
+    sendLater(tab, true);
+  }, true);
+
+  // A finger along the bar (the swipe below) takes the pages once it has the bar (`axisGrab`, `p0`
+  // where it took the lens, px from the current tab's middle); each move says where it wants them
+  // (`axisDrag`, `q` the lens's way from the current tab in tabs, + to the right), and they follow
+  // frame by frame (`axisFollow`); let go, they go on to the tab the bar goes to (`axisRelease`).
   const axisGrab = (g, p0) => {
+    stopFollow();
     axis.grip = null;
     const cur = g.tabs[g.current]?.dataset.area, front = stage();
     if (!axisOn() || !cur || front?.dataset.stage !== cur || overlaid(front)) return;
-    axisHalt();
-    axis.grip = { g, cur, q0: p0 / g.step, take: null, way: 0, roles: null, brought: null, fresh: false, u: 0, q: 0 };
+    clearTimeout(axis.idle);
+    const q0 = p0 / g.step;
+    axis.grip = { g, cur, q0, q: q0, s: Math.max(-1, Math.min(1, q0)), vs: 0, last: 0, frame: 0, take: null, order: null, way: 0, from: 0, roles: null, brought: null };
   };
   const along = (path, u) => {
     if (u <= path[0][0]) return path[0][1];
@@ -655,80 +824,110 @@
     }
     return path[path.length - 1][1];
   };
-  // Where each page goes as the finger takes the bar towards the tab of `name`, `way` (+1 right).
-  // Taken on its way (the lens between two tabs), a page starts from where it stood, as far along.
-  const rolesFor = (name, way) => {
+  // Where each page goes as the finger takes the bar towards the tab of `name`, `way` (+1 right),
+  // from `from` of the way on (taken on its way, the lens between two tabs, a page starts from where
+  // it stood, as far along): that page on top, from where it is or new from the side of its tab, to
+  // rest and clear; the others to the side of their own tab, under it, as clear as they are.
+  const rolesFor = (name, way, from) => {
     const grip = axis.grip, v = axisWay(), roles = new Map();
-    const from = Math.sign(grip.q0) === way ? Math.min(1, Math.abs(grip.q0)) : 0;
-    const taken = (n) => grip.take.get(n) ?? REST;
-    if (axis.cards.has(name) && name !== axis.goal) {
-      // A change caught on its way, back towards a page that is still there: it comes again, the
-      // others go back to their side.
-      grip.fresh = false;
-      for (const n of axis.cards.keys()) roles.set(n, [[from, taken(n)], [1, n === name ? REST : gone(v, side(n, name))]]);
-      return roles;
+    let card = axis.cards.get(name);
+    if (!card) {
+      card = lift(name, { x: away(v, way), o: 0 });
+      if (!card) return null;
+      grip.brought = name;
     }
-    if (!lift(name, gone(v, way))) return null;
-    grip.brought = name;
-    grip.fresh = true;
-    for (const n of axis.cards.keys()) {
-      roles.set(n, n === name
-        ? [[from, gone(v, way)], [Math.max(from, v.in), gone(v, way)], [1, REST]]
-        : [[from, taken(n)], [Math.max(from, v.out), gone(v, side(n, name))], [1, gone(v, side(n, name))]]);
+    onTop(card);
+    for (const [n, c] of axis.cards) {
+      const p = { ...c.pos };
+      roles.set(n, n === name ? [[from, p], [1, REST]] : [[from, p], [1, { x: away(v, side(n, name)), o: p.o }]]);
     }
     return roles;
+  };
+  // The pages where the follower `s` (the way they follow the finger on, in tabs) puts them.
+  const showGrip = (grip) => {
+    const v = axisWay(), want = Math.abs(grip.s) < 1e-4 ? 0 : Math.sign(grip.s), at = grip.g.current + want;
+    const name = want && at >= 0 && at < grip.g.tabs.length ? grip.g.tabs[at].dataset.area : null;
+    // Only a page that stands comes along (stage.rs, chrome.rs `__betulaStands`).
+    const way = name && (axis.cards.has(name) || window.__betulaStands?.(name) === true) ? want : 0;
+    const from = want && Math.sign(grip.q0) === want ? Math.min(1, Math.abs(grip.q0)) : 0, u = Math.min(1, Math.abs(grip.s));
+    if (!grip.take) {
+      // Not yet past where the finger took them: what was on its way goes on.
+      if (!want || u <= from + 1e-3) return;
+      axisHalt();
+      if (!axis.cards.size && !lift(grip.cur, REST)) { stopFollow(); axis.grip = null; return; }
+      axis.goal ??= grip.cur;
+      grip.take = new Map([...axis.cards].map(([n, card]) => [n, { ...card.pos }]));
+      grip.order = [...axis.order];
+    }
+    if (way !== grip.way || (way && from !== grip.from)) {
+      // The other way: what was brought for the first goes, every page stands where it was taken,
+      // as they lay.
+      if (grip.brought) drop(grip.brought);
+      grip.brought = null;
+      axis.order = grip.order.filter((n) => axis.cards.has(n));
+      restack();
+      for (const [n, p] of grip.take) { const card = axis.cards.get(n); if (card) pose(card, p); }
+      grip.way = way;
+      grip.from = from;
+      grip.roles = way ? rolesFor(name, way, from) : null;
+    }
+    if (grip.roles) {
+      for (const [n, path] of grip.roles) { const card = axis.cards.get(n); if (card) pose(card, along(path, u)); }
+    } else if (want && !name) {
+      // No tab that way: the page gives a little, as the bar does.
+      const card = axis.cards.get(grip.cur), p = grip.take.get(grip.cur) ?? REST;
+      if (card) pose(card, { x: p.x - (v.px ? want * u * innerWidth * 0.14 : 0), o: p.o });
+    }
+  };
+  // Frame by frame the pages after the finger: a damped spring towards where it wants them, never
+  // faster than `most` ways a second.
+  const axisFollow = (now) => {
+    const grip = axis.grip;
+    if (!grip) return;
+    grip.frame = 0;
+    const v = axisWay(), dt = grip.last ? Math.min(0.05, Math.max(0, (now - grip.last) / 1000)) : 1 / 60;
+    grip.last = now;
+    const target = Math.max(-1, Math.min(1, grip.q)), w0 = (2 * Math.PI) / v.follow.response, k = w0 * w0, d = 2 * v.follow.damping * w0;
+    const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n;
+    for (let i = 0; i < n; i++) {
+      grip.vs = Math.max(-v.most, Math.min(v.most, grip.vs + (-k * (grip.s - target) - d * grip.vs) * h));
+      grip.s += grip.vs * h;
+    }
+    showGrip(grip);
+    if (axis.grip === grip && (Math.abs(grip.s - target) > 1e-3 || Math.abs(grip.vs) > 1e-3)) grip.frame = requestAnimationFrame(axisFollow);
   };
   const axisDrag = (q) => {
     const grip = axis.grip;
     if (!grip) return;
-    const v = axisWay(), want = Math.sign(q), at = grip.g.current + want;
-    const name = want && at >= 0 && at < grip.g.tabs.length ? grip.g.tabs[at].dataset.area : null;
-    if (!grip.take) {
-      if (!want) return;
-      // The first move: the page in front a layer of its own, every page taken where it stands.
-      if (!lift(grip.cur, REST)) { axis.grip = null; return; }
-      axis.goal ??= grip.cur;
-      grip.take = new Map([...axis.cards].map(([n, card]) => [n, { ...card.pos }]));
-    }
-    // Only a page that stands comes along (stage.rs, chrome.rs `__betulaStands`).
-    const way = name && (axis.cards.has(name) || window.__betulaStands?.(name) === true) ? want : 0;
-    if (way !== grip.way) {
-      // The other way: what was brought for the first goes, every page stands where it was taken.
-      if (grip.brought) drop(grip.brought);
-      grip.brought = null;
-      for (const [n, p] of grip.take) { const card = axis.cards.get(n); if (card) pose(card, p); }
-      grip.way = way;
-      grip.roles = way ? rolesFor(name, way) : null;
-    }
     grip.q = q;
-    grip.u = Math.min(1, Math.abs(q));
-    if (grip.roles) {
-      for (const [n, path] of grip.roles) { const card = axis.cards.get(n); if (card) pose(card, along(path, grip.u)); }
-    } else if (want && !name) {
-      // No tab that way: the page gives a little, as the bar does.
-      const card = axis.cards.get(grip.cur), p = grip.take.get(grip.cur) ?? REST;
-      if (card) pose(card, { x: p.x - (v.px ? want * grip.u * innerWidth * 0.14 : 0), o: p.o });
+    if (!grip.frame) {
+      grip.last = 0;
+      grip.frame = requestAnimationFrame(axisFollow);
     }
   };
-  const axisRelease = (to, dqdt) => {
+  // Let go: the pages go on from where they are and as fast as they followed the finger (at most
+  // `most` ways a second), to the page the bar goes to (`to`, a tab's index) where it came along,
+  // else back.
+  const axisRelease = (to) => {
     const grip = axis.grip;
+    stopFollow();
     axis.grip = null;
-    if (!grip?.take) {
-      // Taken and never moved: what was on its way goes on.
-      if (grip && axis.cards.size && !axis.run) aim(axis.goal ?? grip.cur);
+    if (!grip) return;
+    if (!grip.take) {
+      // Never taken: what was on its way goes on; layers made for nothing go.
+      if (axis.cards.size && !axis.run) aim(axis.goal ?? grip.cur);
       return;
     }
-    const speed = Math.max(-4, Math.min(4, Math.sign(grip.q) * dqdt));
+    const want = Math.sign(grip.s), u = Math.min(1, Math.abs(grip.s)), dudt = want * grip.vs;
     for (const card of axis.cards.values()) card.vel = { x: 0, o: 0 };
     for (const [n, path] of grip.roles ?? []) {
-      const card = axis.cards.get(n), a = Math.max(0, Math.min(grip.u, 0.98)), pa = along(path, a), pb = along(path, a + 0.02);
-      if (card) card.vel = { x: ((pb.x - pa.x) / 0.02) * speed, o: ((pb.o - pa.o) / 0.02) * speed };
+      const card = axis.cards.get(n), a = Math.max(path[0][0], Math.min(u, 0.98)), pa = along(path, a), pb = along(path, a + 0.02);
+      if (card) card.vel = { x: ((pb.x - pa.x) / 0.02) * dudt, o: ((pb.o - pa.o) / 0.02) * dudt };
     }
     // To the page the finger brought or back to where it was; a tab whose page did not come takes
     // its step as a tap does.
     const name = grip.g.tabs[to]?.dataset.area;
-    if (name && axis.cards.has(name)) aim(name, { drag: true, fresh: name === grip.brought });
-    else aim(grip.cur, { drag: true });
+    aim(name && axis.cards.has(name) ? name : grip.cur, { drag: true });
   };
 
   // ---- the bottom bar of a phone: a swipe along it goes to the tab beside the current one ----
@@ -948,12 +1147,14 @@
   // Let go: the row springs back to its place from where it is and as fast as it went, the lens to
   // the tab `to` from a standstill, and the copy with both; keyframes every TAB_DT for the
   // compositor, the names follow frame by frame. The tab's own link is clicked as the glide begins,
-  // as a tap clicks it: the app takes it (R21: the tab is current at once, its page comes a frame
-  // later, `Pending`), before the app the browser loads its page. Not a frame later: a tap right
-  // after the swipe, on the tab it left, would then reach the app while the router is still there,
-  // change nothing, and be undone by the swipe's page. Once the glide is over and that tab the
-  // current one (before the app with the next page, which takes as long as it takes: a few seconds
-  // at most, then the lens gives up), the tab's own mark takes over.
+  // as a tap clicks it, a frame after it began (`later`, the Achse above), so that the pages and the
+  // lens have their first frames before the app's work: the app takes it (R21: the tab is current
+  // at once, its page comes a frame later, `Pending`), before the app the browser loads its page. A
+  // finger, a key or a click that comes before that frame has the click go to the app at once,
+  // first: a tap right after the swipe, on the tab it left, would else reach the app while the
+  // router is still there, change nothing, and be undone by the swipe's page. Once the glide is
+  // over and that tab the current one (before the app with the next page, which takes as long as it
+  // takes: a few seconds at most, then the lens gives up), the tab's own mark takes over.
   const glideTabs = (s, to, v) => {
     const { g } = s, calm = matchMedia("(prefers-reduced-motion: reduce)").matches, spring = calm ? TAB_CALM : TAB_SPRING;
     const Ts = springTo(s.T, calm ? 0 : v * 1000, 0, spring), Xs = springTo(s.X, 0, g.lefts[to], spring);
@@ -965,7 +1166,7 @@
     s.target = g.tabs[to];
     const anims = [...g.tabs.map((tab) => tab.animate(row, timing)), s.lens.animate(frames(x), timing), s.copy.animate(frames(t.map((value, k) => g.row.x + value - x[k])), timing)];
     const glide = s.glide = { Ts, Xs, anims, began: performance.now(), frame: 0, timer: 0 };
-    if (to !== g.current) s.target.click();
+    if (to !== g.current) sendLater(s.target);
     // At rest once that tab is the current one, or another (tapped meanwhile), or the bar is gone.
     const over = () => {
       if (tabSwipe !== s || s.glide !== glide) return;
@@ -995,7 +1196,7 @@
     tabSwiped = performance.now() + 400;
     try { d.bar.releasePointerCapture(d.id); } catch {}
     if (tabSwipe !== d.s || !d.bar.isConnected) {
-      axisRelease(d.s.g.current, 0);
+      axisRelease(d.s.g.current);
       if (tabSwipe === d.s) settleTabs();
       return;
     }
@@ -1006,7 +1207,7 @@
       v = rowSpeed(d.trail, at);
     }
     // The pages go on first, then the tab's link is clicked: its stages swap behind them.
-    axisRelease(to, x !== null ? (-d.speed * 1000) / d.s.g.step : 0);
+    axisRelease(to);
     glideTabs(d.s, to, v);
   };
   document.addEventListener("pointerdown", (e) => {
@@ -1020,6 +1221,8 @@
     const s = tabSwipe;
     if (s?.glide && s.bar === bar && bar.isConnected && !appRuns() && currentTab(bar) !== s.target) return;
     tabDrag = { bar, id: e.pointerId, x: e.clientX, y: e.clientY, at: e.timeStamp, speed: 0, pull: 0, s: null };
+    // A finger on a tab: its page and the page in front made ready to move, while it is down.
+    axisPrepare(e.target.closest?.(".bottomnav > .nav[data-area]"));
   });
   document.addEventListener("pointermove", (e) => {
     const d = tabDrag;

@@ -2059,30 +2059,59 @@ canary's build of 1.26.0 with the CPU four times slower a tab's first build is a
 0.19 s („Mein Studium" with a study; the concept measured 1.8 s on 1.22.0), so „Studium" is built as
 it is.
 
-**The pages on an axis on a phone** (step 3, Folia 1.28.0, `enhance.js` „the Achse"; owner,
-2026-10-18, of the prototype's ways: „Ich muss sagen ich finde achse fühlt sich am besten an. Quasi
-so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert", „Swipen soll explizit
-nur über die navbar funktionieren", and of the page following the finger: „das verhalten im
-Prototypen passt für mich"): where a phone's view is shown, a change of tab between two pages that
-stand moves them as Material's shared axis does.
+**The pages on an axis on a phone** (step 3, Folia 1.28.0, as it is since 1.28.1; `enhance.js` „the
+Achse"; owner, 2026-10-18, of the prototype's ways: „Ich muss sagen ich finde achse fühlt sich am
+besten an. Quasi so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert",
+„Swipen soll explizit nur über die navbar funktionieren", and of the page following the finger: „das
+verhalten im Prototypen passt für mich"; the next day, of 1.28.0 on a phone: „Es wäre wirklich
+perfekt, wenn es sich so anfühlt als würde es sofort los gehen", of a quick swipe „sieht die
+Animation echt ganz schön laggy aus", of one at its usual speed „dann sehe ich die Animation gar
+nicht. Da sollte es vielleicht ein max speed geben. Aber trotzdem so, dass man dann noch weiter
+machen kann also nichts blockiert", of quick taps „dann flackert die seite … Es muss ein Konzept für
+schnelle aufeinander folgende aktionen geben"; folia/design/tabwechsel/konzept.html, „Schnell
+hintereinander"): where a phone's view is shown, a change of tab between two pages that stand moves
+them on an axis.
 
-- **A tap, Back, a link to another tab**: the page that goes slides 36 px away to the side of its
-  tab and fades out, quickly (a damped spring of 0.13 s, nothing past its place); the page that
-  comes slides in 36 px from the side of its tab and fades in, 90 ms later, on a spring of 0.3 s; at
-  rest after about half a second. A far jump is the same (Start to Stundenplan comes from the right
-  as Start to Module does), and Back from a tab's root to Start comes as a tap on „Start". Where a
-  page stands and how clear it is are springs worked out ahead, every 1/120 s, and played as Web
-  Animations, which the compositor runs while the app takes its step.
-- **On the way**: a tap takes the pages where they stand and as fast as they go, and goes on from
-  there, without a jump, however many taps come; the page it goes back to comes back from where it
-  is, a page overtaken while it came fades where it is rather than crossing the middle. A finger on
+- **A tap, Back, a link to another tab**: the page that comes slides in 36 px from the side of its
+  tab and gets clear over the page that goes, from the first frame: a spring of 0.06 s that starts
+  at its full pace, a fifth of the page in the first frame, half after 45 ms; its way on a spring of
+  0.3 s. The page that goes slides 36 px away to the side of its own tab under it (a damped spring
+  of 0.13 s, nothing past its place). At rest after about half a second. A far jump is the same
+  (Start to Stundenplan comes from the right as Start to Module does), and Back from a tab's root to
+  Start comes as a tap on „Start". Where a page stands and how clear it is are springs worked out
+  ahead, every 1/120 s, and played as Web Animations, which the compositor runs while the app takes
+  its step; each starts a frame in, since the frame before showed where it starts.
+- **Never empty**: the pages on their way are opaque (the window's ground, `--bg`) and lie one over
+  the other, the page they go to on top (their `z-index`, from enhance.js): what lies under a page
+  shows only as far as that page is not clear yet. 1.28.0 faded the page that goes out before the
+  one that comes faded in, as Material has it; half there 250 ms after a tap, the screen mostly
+  empty for 170 ms between, which read as loading, and quick taps made it flicker.
+- **On the way**: a tap, Back or a finger takes the pages where they stand and as fast as they go,
+  and the page it goes to goes on top, every page still seen as much as it was (`onTop`: on top it
+  is as clear as it was seen, each page under it as clear as what is left over it lets it be seen
+  as much again), so nothing jumps however many come. A page under it that was still coming gets
+  clear under it, and a page all covered goes behind at once (one layer less to draw). A finger on
   the page, a wheel or a key puts the pages at rest at once.
-- **A finger along the bar** takes the pages with it, as far as it takes the bar's row (`axisGrab`,
-  `axisDrag`, `axisRelease` in the swipe): up to four tenths of the way the page goes, from a little
-  after that the page of the tab beside comes; let go, they go on from there as fast as the finger
-  went, to the tab the bar goes to (a third of the way, or flicked), and its link is clicked behind
-  them. Only a page that stands comes along (`chrome.rs`, `window.__betulaStands(area)`); where no
-  tab lies that way the page gives a little, as the bar does.
+- **Before the change**: a finger on a tab makes the page in front and the pages it may bring layers
+  while it is down (`axisPrepare`; on another tab that tab's page, on the current one the two beside
+  it, where a swipe starts), undone 0.7 s after if nothing came of it. A tap on a tab whose page
+  stands starts the pages itself (a click listener before the app's), marks its tab at once
+  (`aria-current`, as the start does before the app: the mark answers in the frame the pages start
+  in) and gives the app the click once the pages' animations have started (`later`: the `ready` of
+  the first, 150 ms at most), so that the app's work (the stages swapped, the title, the scroll)
+  does not hold up their first frames; a finger, a key or another click before that has the app
+  take it at once, in the order they came. The swipe's click comes the same way.
+- **A finger along the bar** says where the pages should be (`axisGrab`, `axisDrag`, `axisRelease` in
+  the swipe): as far along the way to the tab beside as the bar's lens is. They follow it frame by
+  frame on a damped spring of 0.12 s, never faster than four ways a second (`axisFollow`), so a slow
+  swipe goes with the finger and a quick one is seen as a motion: the page of the tab beside comes on
+  top, clearer as the way goes on, the page in front slides away under it. Let go, they go on from
+  where they are and as fast as they went, not faster (the page on top gets clear on a spring of
+  0.09 s from its own pace), to the tab the bar goes to (a third of the way, or flicked), and its link
+  is clicked behind them. A finger that comes again on their way takes them where they are, and
+  until it has turned them what was on its way goes on. Only a page that stands comes along
+  (`chrome.rs`, `window.__betulaStands(area)`); where no tab lies that way the page gives a little,
+  as the bar does.
 - **Layers**: the window scrolls one page only, so for as long as they move the pages are layers of
   their own (`.page-stage.moving`, app.css): the stage fixed and as large as the screen, which is
   what moves (so that what of a page stands fixed, the dots of „Mein Studium" or a sheet put away,
@@ -2090,20 +2119,21 @@ stand moves them as Material's shared axis does.
   was scrolled, its own ground at its end where the window's lies at rest. The window keeps room
   for the farthest any page was scrolled, the page in front follows its scroll, and at rest that
   page is in the window again in the same frame. The stages tell enhance.js before they swap
-  (`betula:stage-going`: the page that goes becomes a layer while it is still drawn) and after
-  (`betula:stage`, with `from`, `to` and `step`, whether both pages stand); a stage that goes
-  behind keeps how far it was scrolled and how high it was (`data-scroll`, `data-height`) for a
-  finger that brings it back.
+  (`betula:stage-going`: the page that goes becomes a layer while it is still drawn, where nothing
+  made it one before) and after (`betula:stage`, with `from`, `to` and `step`, whether both pages
+  stand); a stage that goes behind keeps how far it was scrolled and how high it was
+  (`data-scroll`, `data-height`) for a finger that brings it back.
 - **The cost**: what a layer sets is never inherited and never reaches into the page beyond the
   parts it names (no `pointer-events`, no custom property on the stage, no rule for all of its
   children): any of it had the browser work out the style of the stage's every element, about a
-  thousand. So a tap costs 5 to 10 ms more than without the motion (20 to 40 ms with the CPU four
-  times slower, the dev bundle in a phone's window); the page that goes starts moving in the first
-  frame.
+  thousand. Measured with the bundle that ships in a phone's window, a finger's touches sent as a
+  phone sends them: the page that comes half there 50 to 80 ms after a tap (76 ms with the CPU four
+  times slower; 1.28.0: 250 and 440 ms), no frame with the window showing between the pages, the
+  app's work (about 50 ms slowed down four times) after the pages started.
 - **Not**: on a wide screen (the page is there in the next frame), where a sheet or a dialog lies
   over one of the pages, after the browser animated a step already (Safari's swipe back from the
   edge, `hasUAVisualTransition`), on a tab whose page does not stand yet (it comes as before); with
-  less motion a short fade, nothing slides.
+  less motion a short dissolve, nothing slides.
 
 `node folia/e2e/stages.mjs` and `node folia/e2e/achse.mjs` check it (§4).
 
@@ -4169,15 +4199,19 @@ cd e2e && node achse.mjs
 ```
 
 films the pages on an axis as § „The pages on an axis on a phone" has them, every frame, on a phone
-with a study set up and every tab built: a tap from Start scrolled down to Module, the page that goes
-leaving to the left and the one that comes from the right only once the first has faded, no frame
-jumping (12 px and a third of its clearness at most where it can be seen), at rest within 0.8 s with
-nothing of the layers left and the window where the page was left; Back from Module to Start coming
-from the left, scrolled as left; a tap back on the way; three taps in a row; a finger along the bar
-from the Merkliste to the Stundenplan (at a third of the way the Merkliste going, at the end the
-Stundenplan coming) and let go, and one let go short (nothing changes); in the first frame of a change
-the ground of a page scrolled to its end and the dots of „Mein Studium" where they stood; less motion
-a fade; a tab tapped before its page stands not moving; a wide screen not moving.
+with a study set up and every tab built, and what the eye sees of each (how clear it is, of what the
+pages over it leave): a tap from Start scrolled down to Module, Module coming from the right on top
+and half seen within 120 ms of the change's first frame, the tab's mark on „Module" in that frame,
+Start going to the left under it; no frame jumping (12 px and a third of what is seen of a page at
+most) and none with the window showing between the pages; at rest within 0.8 s with nothing of the
+layers left and the window where the page was left; Back from Module to Start coming from the left,
+scrolled as left; a tap back on the way; three taps in a row, and four quick ones back and forth; a
+finger along the bar from the Merkliste to the Stundenplan (at a third of the way the Merkliste going
+and the Stundenplan on top, partly seen, at the end the Stundenplan most of the way there) and let go,
+a quick swipe (a finger's moves every 8 ms, sent as a phone sends them) taking 0.15 s at least from
+a tenth of the page seen to nine tenths, and one let go short (nothing changes); in the first frame
+of a change the ground of a page scrolled to its end and the dots of „Mein Studium" where they stood;
+less motion a fade; a tab tapped before its page stands not moving; a wide screen not moving.
 
 ```bash
 cd e2e && node swipe.mjs

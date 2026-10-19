@@ -1,19 +1,23 @@
-// A change of tab on a phone moves the two pages on an axis (folia/design/tabwechsel/konzept.html,
-// „Die Bewegung am Handy: Achse"; enhance.js, the Achse): the page that goes slides away to the side
-// of its tab and fades out, the one that comes slides in from the side of its tab and fades in a
-// moment later. On a phone with a study set up and everything built:
-// 1 a tap: Start (scrolled down) → Module. The page that goes leaves to the left, the one that comes
-//   from the right, and only once the first has faded; no frame jumps; at rest within 0.8 s, nothing
-//   left of the layers, the window where the page in front was left. In the first frame of the
-//   change the page that goes stands where it stood in the window, in the last the page that comes
-//   where it stands at rest;
+// A change of tab on a phone moves the pages on an axis (folia/design/tabwechsel/konzept.html,
+// „Die Bewegung am Handy: Achse" and „Schnell hintereinander"; enhance.js, the Achse): the page that
+// comes slides in from the side of its tab and gets clear over the page that goes, which slides away
+// to the side of its own tab under it. What the eye sees of each page is how clear it is, of what
+// the pages over it leave (each layer is opaque); every frame shows a whole screen of pages, never
+// the empty window. On a phone with a study set up and everything built:
+// 1 a tap: Start (scrolled down) → Module. Module comes from the right, on top, seen from the first
+//   frames of the change (half of it within 120 ms of the tap), the tab's mark on „Module" in the
+//   frame the pages start; Start goes to the left under it; no frame jumps and none is empty; at rest
+//   within 0.8 s, nothing left of the layers, the window where the page in front was left. In the
+//   first frame of the change the page that goes stands where it stood in the window, in the last
+//   the page that comes where it stands at rest;
 // 2 Back from a tab's root to Start comes as a tap on „Start" does: from the left, scrolled as left;
 // 3 a tap during the change back to the page that goes: it comes back from where it is, the other
 //   goes back to its side, no jump;
-// 4 three taps in a row: no jump, the last tab in front at rest;
-// 5 a finger along the bar takes the pages with it: up to four tenths of its way the page goes,
-//   after that the one of the tab beside comes; let go past a third, it comes to rest in front;
-//   let go short, the page comes back and nothing changes;
+// 4 three taps in a row, and four quick ones: no jump, no empty frame, the last tab in front at rest;
+// 5 a finger along the bar takes the pages with it: the page of the tab beside comes over the one
+//   in front as the finger goes; let go past a third, it comes to rest in front; let go short, the
+//   page comes back and nothing changes. A quick swipe (a finger's moves every 8 ms) is seen as a
+//   motion: the page that comes takes 0.15 s at least from a tenth of it seen to nine tenths;
 // 6 the ground at the end of a page and the dots of „Mein Studium" move with their page, where
 //   they stood;
 // 7 with less motion a fade, nothing slides; on a wide screen nothing moves; a tab whose page does
@@ -44,8 +48,8 @@ const open = async (options, { built = true } = {}) => {
       localStorage.setItem("betula.studyplan.v1", plan);
       localStorage.setItem("betula.bookmarks.v1", kept);
     }
-    // Each frame: the pose of every stage on its way (x px, how clear), which is in front, the
-    // window's scroll.
+    // Each frame: the pose of every stage on its way (x px, how clear, how high it lies), which is
+    // in front, the bar's current tab, the window's scroll.
     window.__frames = [];
     window.__filming = false;
     const look = (now) => {
@@ -53,9 +57,10 @@ const open = async (options, { built = true } = {}) => {
         const moving = {};
         for (const el of document.querySelectorAll("#content > .page-stage.moving")) {
           const cs = getComputedStyle(el), m = new DOMMatrix(cs.transform === "none" ? undefined : cs.transform);
-          moving[el.dataset.stage] = { x: m.m41, o: Number(cs.opacity) };
+          moving[el.dataset.stage] = { x: m.m41, o: Number(cs.opacity), z: Number(cs.zIndex) || 0 };
         }
-        window.__frames.push({ t: now, front: document.querySelector("#content > .page-stage.front")?.dataset.stage, y: scrollY, moving });
+        const tab = document.querySelector('.bottomnav > .nav[aria-current="page"]')?.dataset.area;
+        window.__frames.push({ t: now, front: document.querySelector("#content > .page-stage.front")?.dataset.stage, tab, y: scrollY, moving });
       }
       requestAnimationFrame(look);
     };
@@ -88,34 +93,64 @@ const film = (page) => page.evaluate(() => { window.__frames = []; window.__film
 const cut = (page) => page.evaluate(() => { window.__filming = false; return window.__frames; });
 const atRest = (page) => page.waitForFunction(() => !document.querySelector("#content > .page-stage.moving"), null, { timeout: 3000 }).then(() => true, () => false);
 const rest = (page) => page.evaluate(() => ({ moving: document.querySelectorAll("#content > .page-stage.moving").length, room: document.getElementById("content").style.minHeight, cls: document.documentElement.classList.contains("stages-moving"), y: Math.round(scrollY), front: document.querySelector("#content > .page-stage.front")?.dataset.stage }));
+// What the eye sees of each page on its way: as clear as it is, of what the pages over it leave
+// (`seen`), and how much of the screen the pages cover (`covered`; each is opaque, so 1 where one
+// of them is all clear).
+const weights = (frame) => {
+  const list = Object.entries(frame.moving).sort((a, b) => b[1].z - a[1].z), seen = {};
+  let left = 1;
+  for (const [name, pose] of list) { seen[name] = pose.o * left; left *= 1 - pose.o; }
+  return { seen, covered: list.length ? 1 - left : 1 };
+};
 // A jump: a stage's pose changing from one frame to the next further than its springs move it in
 // the time between them (the pages move on the compositor; a frame of the page's thread late shows
 // them that much further on), and further than a frame's worth at least: 900 px and 25 times its
-// clearness a second, 12 px and a third of its clearness a frame. Sideways only where it can be seen
-// (a page not yet come or gone already goes to the side of its tab unseen).
+// clearness a second, 12 px and a third of its clearness a frame. How much of it is seen, which
+// changes nowhere a page goes on top (its clearness does); sideways only where it can be seen (a
+// page not yet come or gone already goes to the side of its tab unseen).
 const jumps = (frames) => {
   let x = 0, o = 0;
   for (let i = 1; i < frames.length; i++) {
-    const dt = Math.max(1 / 60, (frames[i].t - frames[i - 1].t) / 1000);
+    const dt = Math.max(1 / 60, (frames[i].t - frames[i - 1].t) / 1000), now = weights(frames[i]).seen, was = weights(frames[i - 1]).seen;
     for (const [name, pose] of Object.entries(frames[i].moving)) {
-      const was = frames[i - 1].moving[name];
-      if (!was) continue;
-      if (Math.max(pose.o, was.o) > 0.02) x = Math.max(x, Math.abs(pose.x - was.x) - Math.max(12, 900 * dt) + 12);
-      o = Math.max(o, Math.abs(pose.o - was.o) - Math.max(0.35, 25 * dt) + 0.35);
+      const before = frames[i - 1].moving[name];
+      if (!before) continue;
+      if (Math.max(now[name], was[name]) > 0.02) x = Math.max(x, Math.abs(pose.x - before.x) - Math.max(12, 900 * dt) + 12);
+      o = Math.max(o, Math.abs(now[name] - was[name]) - Math.max(0.35, 25 * dt) + 0.35);
     }
   }
   return { x, o };
 };
-const poses = (frames, name) => frames.map((f) => f.moving[name]).filter(Boolean);
+// A stage's pose in each frame it moves, with how much of it is seen (`w`).
+const poses = (frames, name) => frames.filter((f) => f.moving[name]).map((f) => ({ ...f.moving[name], w: weights(f).seen[name], t: f.t }));
 // The time from the first frame of a change until it is at rest (ms).
 const lasted = (frames) => {
   const moving = frames.filter((f) => Object.keys(f.moving).length);
   return moving.length ? Math.round(moving[moving.length - 1].t - moving[0].t) : 0;
 };
-// Every frame smooth: no jump (`jumps`).
+// Every frame smooth: no jump (`jumps`), and none empty: the pages on their way cover the screen.
 const smooth = (frames) => {
   const j = jumps(frames);
   check(j.x <= 12 && j.o <= 0.35, `${during}: a jump between two frames (${j.x.toFixed(1)} px, ${j.o.toFixed(2)} beyond what the springs move)`);
+  const empty = frames.filter((f) => Object.keys(f.moving).length && weights(f).covered < 0.98);
+  check(empty.length === 0, `${during}: ${empty.length} frames with the window showing between the pages (${empty.slice(0, 3).map((f) => weights(f).covered.toFixed(2)).join(", ")})`);
+};
+// A finger's touches on the bar, sent on time as a phone sends them (not each after the page took
+// the one before): along it from the middle of the tab of `area`, `dx` px in `ms`, a move every 8 ms.
+const swipe = async (page, area, dx, ms) => {
+  const cdp = await page.context().newCDPSession(page), p = await point(page, area);
+  const touch = (type, x) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y: p.y, id: 1, radiusX: 6, radiusY: 6, force: 1 }] });
+  await touch("touchStart", p.x);
+  const sent = [], t0 = Date.now(), n = Math.max(2, Math.round(ms / 8));
+  for (let k = 1; k <= n; k++) {
+    const wait = t0 + (k * ms) / n - Date.now();
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    const f = k / n;
+    sent.push(touch("touchMove", p.x + dx * (f < 0.5 ? 2 * f * f : 1 - 2 * (1 - f) * (1 - f))));
+  }
+  sent.push(touch("touchEnd", p.x + dx));
+  await Promise.all(sent);
+  await cdp.detach();
 };
 
 // ---- a phone ----
@@ -132,11 +167,17 @@ const smooth = (frames) => {
   smooth(frames);
   const home = poses(frames, "home"), catalog = poses(frames, "catalog");
   check(home.length > 3 && catalog.length > 3, `${during}: the pages did not move (${home.length}, ${catalog.length} frames)`);
-  check(Math.min(...home.map((p) => p.x)) <= -30 && home[home.length - 1].o < 0.05, `${during}: Start did not go to the left and fade`);
-  check(catalog[0].x >= 30 && catalog[0].o < 0.05 && Math.abs(catalog[catalog.length - 1].x) < 2, `${during}: Module did not come from the right`);
-  // Module comes once Start has faded: while Start is still clear, Module is not.
+  check(Math.min(...home.map((p) => p.x)) <= -30 && home[home.length - 1].w < 0.02, `${during}: Start did not go to the left under Module`);
+  check(catalog[0].x >= 30 && catalog[0].w < 0.35 && Math.abs(catalog[catalog.length - 1].x) < 2 && catalog[catalog.length - 1].w > 0.99, `${during}: Module did not come from the right`);
+  // Module on top from the start, and seen at once: half of it within 120 ms of the tap.
   const both = frames.filter((f) => f.moving.home && f.moving.catalog);
-  check(both.every((f) => f.moving.home.o < 0.5 || f.moving.catalog.o < 0.1), `${during}: Module came before Start was gone`);
+  check(both.every((f) => f.moving.catalog.z > f.moving.home.z), `${during}: Module not over Start`);
+  const begun = catalog.find((p) => p.w > 0.02 || Math.abs(p.x - 36) > 0.5), half = catalog.find((p) => p.w >= 0.5);
+  timings[`${during}: half of Module seen after the first frame of the change (ms)`] = begun && half ? Math.round(half.t - begun.t) : null;
+  check(begun && half && half.t - begun.t <= 120, `${during}: half of Module seen ${begun && half ? Math.round(half.t - begun.t) : "never"} ms after the change began`);
+  // The tab's mark on „Module" in the frame the pages start, not after the app has the click.
+  const start = frames.find((f) => f.moving.catalog && (weights(f).seen.catalog > 0.02 || f.moving.home.x < -0.5));
+  check(start?.tab === "catalog", `${during}: the mark on ${start?.tab} as the pages start`);
   timings[`${during}: until at rest (ms)`] = lasted(frames);
   check(lasted(frames) < 800, `${during}: ${lasted(frames)} ms until at rest`);
   let now = await rest(page);
@@ -150,7 +191,7 @@ const smooth = (frames) => {
   frames = await cut(page);
   smooth(frames);
   const back = poses(frames, "home");
-  check(back.length > 3 && back[0].x <= -30 && back[0].o < 0.05, `${during}: Start did not come from the left as a tap on it does`);
+  check(back.length > 3 && back[0].x <= -30 && back[0].w < 0.35, `${during}: Start did not come from the left as a tap on it does`);
   now = await rest(page);
   check(now.front === "home" && now.y === 1200, `${during}: Start is not where it was left: ${JSON.stringify(now)}`);
 
@@ -165,7 +206,7 @@ const smooth = (frames) => {
   now = await rest(page);
   check(now.front === "home" && now.y === 1200 && now.moving === 0, `${during}: Start is not back where it was: ${JSON.stringify(now)}`);
   const turned = poses(frames, "home");
-  check(turned.some((p) => p.o < 0.9) && turned[turned.length - 1].o > 0.99, `${during}: Start did not go and come back`);
+  check(turned.some((p) => p.w < 0.9) && turned[turned.length - 1].w > 0.99, `${during}: Start did not go and come back`);
 
   during = "phone: three taps in a row";
   await film(page);
@@ -176,17 +217,30 @@ const smooth = (frames) => {
   now = await rest(page);
   check(now.front === "bookmarks" && now.moving === 0 && !now.room, `${during}: not at rest on the Merkliste: ${JSON.stringify(now)}`);
 
+  during = "phone: four quick taps, back and forth";
+  await film(page);
+  for (const area of ["studyplan", "bookmarks", "studyplan", "programs"]) { await tap(page, area); await page.waitForTimeout(40); }
+  check(await atRest(page), `${during}: the pages did not come to rest`);
+  frames = await cut(page);
+  smooth(frames);
+  now = await rest(page);
+  check(now.front === "programs" && now.moving === 0 && !now.room, `${during}: not at rest on „Mein Studium": ${JSON.stringify(now)}`);
+  await tap(page, "bookmarks");
+  await atRest(page);
+
   during = "phone: a finger along the bar, Merkliste → Stundenplan";
   const from = await point(page, "bookmarks"), to = await point(page, "studyplan"), step = to.x - from.x;
-  const along = async (share) => { await page.mouse.move(from.x - step * share, from.y); await page.waitForTimeout(40); return page.evaluate(() => Object.fromEntries([...document.querySelectorAll("#content > .page-stage.moving")].map((el) => { const cs = getComputedStyle(el), m = new DOMMatrix(cs.transform === "none" ? undefined : cs.transform); return [el.dataset.stage, { x: m.m41, o: Number(cs.opacity) }]; }))); };
+  const along = async (share) => { await page.mouse.move(from.x - step * share, from.y); await page.waitForTimeout(40); return page.evaluate(() => Object.fromEntries([...document.querySelectorAll("#content > .page-stage.moving")].map((el) => { const cs = getComputedStyle(el), m = new DOMMatrix(cs.transform === "none" ? undefined : cs.transform); return [el.dataset.stage, { x: m.m41, o: Number(cs.opacity), z: Number(cs.zIndex) || 0 }]; }))); };
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   for (const share of [0.1, 0.2]) await along(share);
+  await page.waitForTimeout(120);
   const third = await along(0.35);
-  check(third.bookmarks && third.bookmarks.x < -10 && third.bookmarks.o < 0.75 && (!third.studyplan || third.studyplan.o < 0.05), `${during}: a third of the way: ${JSON.stringify(third)}`);
+  check(third.bookmarks && third.bookmarks.x < -5 && third.studyplan && third.studyplan.o > 0.1 && third.studyplan.o < 0.6 && third.studyplan.x > 15 && third.studyplan.z > third.bookmarks.z, `${during}: a third of the way: ${JSON.stringify(third)}`);
   for (const share of [0.5, 0.65, 0.8]) await along(share);
+  await page.waitForTimeout(200);
   const most = await along(0.95);
-  check(most.studyplan && most.studyplan.o > 0.5 && most.studyplan.x > 0 && most.studyplan.x < 25 && most.bookmarks?.o < 0.05, `${during}: most of the way: ${JSON.stringify(most)}`);
+  check(most.studyplan && most.studyplan.o > 0.6 && most.studyplan.x >= 0 && most.studyplan.x < 25 && most.studyplan.z > (most.bookmarks?.z ?? 0), `${during}: most of the way: ${JSON.stringify(most)}`);
   await film(page);
   await page.mouse.up();
   check(await atRest(page), `${during}: the pages did not come to rest`);
@@ -194,6 +248,20 @@ const smooth = (frames) => {
   smooth(frames);
   now = await rest(page);
   check(now.front === "studyplan" && now.moving === 0, `${during}: Stundenplan is not in front at rest: ${JSON.stringify(now)}`);
+
+  during = "phone: a quick swipe along the bar, Stundenplan → Merkliste";
+  await film(page);
+  await swipe(page, "studyplan", 150, 70);
+  check(await atRest(page), `${during}: the pages did not come to rest`);
+  frames = await cut(page);
+  smooth(frames);
+  now = await rest(page);
+  check(now.front === "bookmarks" && now.moving === 0, `${during}: the Merkliste is not in front at rest: ${JSON.stringify(now)}`);
+  const came = poses(frames, "bookmarks"), tenth = came.find((p) => p.w >= 0.1), nine = came.find((p) => p.w >= 0.9);
+  timings[`${during}: a tenth to nine tenths of the page seen (ms)`] = tenth && nine ? Math.round(nine.t - tenth.t) : null;
+  check(tenth && nine && nine.t - tenth.t >= 150, `${during}: the page came in ${tenth && nine ? Math.round(nine.t - tenth.t) : "no"} ms, too quick to be seen as a motion`);
+  await swipe(page, "bookmarks", -150, 70);
+  await atRest(page);
 
   during = "phone: a finger along the bar let go short";
   const here = await point(page, "studyplan"), left = await point(page, "bookmarks"), way = here.x - left.x;
