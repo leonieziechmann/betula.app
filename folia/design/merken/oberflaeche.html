@@ -1,0 +1,1969 @@
+<title>Betula Merkliste-Oberfläche</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- How the Merkliste looks and is used: the second round, after the concept of its functions
+     (konzept.html; owner, 2026-10-19, on it: „Also ich finde das Konzept echt sehr gelungen und
+     durchdacht. Achte bei der Umsetzung aber darauf, das UI nicht zu überladen. Betula hat aktuell noch
+     sehr stark das problem, dass man ein inkonsistent information dumped wird. Ich möchte aber die hohe
+     Informationsdichte behalten und ein tool für Poweruser bleiben. Beachte das bei den UI/UX Konzepten";
+     „Der Ansatz mit der Wait Note ist gut. Aber überleg dir gut, wie man das richtig macht. Weil das was
+     für das eindimensionale semester auswählen gut funktioniert muss nicht gut sein für komplexere Sachen,
+     wie Gruppen"; „zwei Gruppen gleichen Namens soll nicht erlaubt sein … Leere Gruppen sind aber gut";
+     „Also 256 Module sind auch genug. Dann gibt es einfach ein Limit, und man bekommt ne Meldung"; „Dem
+     rest würde ich ein OK geben und bitte erarbeite jetzt UI/UX patterns"). Six rules against dumping, a
+     prototype on a phone and a desktop (the note after „Merken" in its two candidate forms, the one menu
+     for a mark's groups and note, the list with groups, search and selection, a module), and the patterns
+     one by one. Built from Betula's parts as Folia 1.31.0 has them, read again in 1.32.1: the catalog's row
+     (folia_widgets::list; the note under it as wide as the row, as the line of a search since 1.32.1, and
+     the groups never counted as „3 Gruppen", which the row says of an exercise's groups since 1.32.0),
+     the selection and menus of „Mein Studium" (planner/src/study/focus.rs, menu.rs), the note of
+     „Einplanen" (widgets/src/plannote.rs, design/src/waitnote.rs). Tokens are Betula's (folia/assets/app.css);
+     the modules are the catalog's of 2026-10-19, the groups and notes examples. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the thesis with what was decided, the six rules, the prototype, then one block per pattern; the
+   keys, what is left out on purpose and the questions at the end. The mocks are drawn with the mock kit
+   below (.mk-*), Betula's parts in Betula's tokens, at their real sizes. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 34%, transparent);
+  --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e; --no-soft: color-mix(in srgb, #b3261e 9%, var(--panel));
+  --ok: #0b7f58;
+  --toast: var(--invert); --on-toast: var(--on-invert); --toast-ring: 0 0 0 0 transparent;
+  --row-shade: color-mix(in oklab, var(--text) 2.6%, var(--panel));
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --hit: color-mix(in srgb, #f2c94c 46%, transparent);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --shade: rgba(10, 12, 17, .5);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 48%, transparent);
+    --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --ok: #5fd3a3;
+    --toast: #232938; --on-toast: #eceff5; --toast-ring: inset 0 0 0 1px rgba(255, 255, 255, .1);
+    --row-shade: color-mix(in oklab, var(--text) 3.4%, var(--panel));
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --hit: color-mix(in srgb, #f2c94c 32%, transparent);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --shade: rgba(0, 0, 0, .6);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 48%, transparent);
+  --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --ok: #5fd3a3;
+  --toast: #232938; --on-toast: #eceff5; --toast-ring: inset 0 0 0 1px rgba(255, 255, 255, .1);
+  --row-shade: color-mix(in oklab, var(--text) 3.4%, var(--panel));
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --hit: color-mix(in srgb, #f2c94c 32%, transparent);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --shade: rgba(0, 0, 0, .6);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure, blockquote, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: var(--mono); font-size: .84em; padding: 1px 4px; border-radius: 4px; background: var(--panel-3); overflow-wrap: anywhere; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+b { font-weight: 650; }
+kbd { font: 500 11px var(--mono); color: var(--text-2); padding: 2px 6px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 24px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 82ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead b { color: var(--text); }
+.block > * + h3 { margin-top: 26px; }
+.block h3 { font-size: 15.5px; font-weight: 700; }
+.muted { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.note { margin-top: 12px; max-width: 88ch; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+.note b { color: var(--text-2); }
+
+/* The thesis. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(27px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin-top: 14px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 18px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--r-ctl); background: var(--accent); color: var(--on-accent); font-weight: 650; text-decoration: none; }
+.btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cta small { color: var(--text-3); font-size: 13px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.decided { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.decided ul { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+.decided li { position: relative; padding-left: 24px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.decided li::before { content: ""; position: absolute; left: 2px; top: .3em; width: 14px; height: 14px; border-radius: 50%; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.decided li::after { content: ""; position: absolute; left: 6px; top: calc(.3em + 4px); width: 6px; height: 3px; border-left: 1.75px solid var(--accent-ink); border-bottom: 1.75px solid var(--accent-ink); transform: rotate(-45deg); }
+.decided li b { color: var(--text); }
+
+/* Lists with a bold lead. */
+.points { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 90ch; }
+.points li { position: relative; padding-left: 18px; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.points li::before { content: ""; position: absolute; left: 3px; top: .62em; width: 6px; height: 6px; border-radius: 2px; background: var(--line-strong); }
+.points li b { color: var(--text); }
+
+/* The six rules. */
+.rules6 { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rule { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.rule h3 { display: flex; gap: 10px; align-items: baseline; font-size: 15px; }
+.rule h3 span { flex: none; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 700; transform: translateY(-1px); }
+.rule p { color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.rule p.today { padding: 8px 10px; border-radius: 8px; background: var(--no-soft); color: var(--text-2); }
+.rule p.today::before { content: "Heute "; color: var(--no); font-weight: 700; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.rule p.then::before { content: "Künftig "; color: var(--accent-ink); font-weight: 700; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+
+/* The prototype. */
+.proto-bar { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.proto-bar .lbl { color: var(--text-3); font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; margin-right: 6px; }
+.pseg { display: inline-flex; padding: 3px; border-radius: 9px; background: var(--panel-3); }
+.pseg button { min-height: 30px; padding: 0 11px; border: 0; border-radius: 7px; background: none; color: var(--text-2); font: 600 13px var(--font); cursor: pointer; white-space: nowrap; }
+.pseg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.preset { min-height: 36px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 600 13px var(--font); cursor: pointer; }
+.proto-grid { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 20px; align-items: start; }
+/* The desktop's frame wants the whole width: the steps go under it. */
+.proto-grid.desk { grid-template-columns: minmax(0, 1fr); }
+.proto-grid.desk .tryit ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; }
+/* Centred by its margins, so a frame wider than the stage scrolls from its left edge instead of losing it. */
+.proto-stage { display: flex; overflow-x: auto; padding: 4px 2px 8px; outline: none; min-width: 0; }
+.proto-stage > * { margin-inline: auto; }
+.tryit { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--text-2); }
+.tryit h3 { font-size: 14px; margin-bottom: 8px; }
+.tryit ol { counter-reset: t; display: flex; flex-direction: column; gap: 8px; }
+.tryit li { counter-increment: t; display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; text-wrap: pretty; }
+.tryit li::before { content: counter(t); display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: var(--panel-3); color: var(--text); font-size: 11px; font-weight: 700; }
+.tryit p { margin-top: 10px; color: var(--text-3); font-size: 12.5px; }
+
+/* Figures: mocks with what they show. */
+.figs { margin-top: 16px; display: grid; gap: 14px; }
+.figs.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.figs.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fig { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.fig > .cap { color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.fig > .cap b { color: var(--text); }
+.fig > .kicker { margin-bottom: -2px; }
+.fig .scroll { overflow-x: auto; padding-bottom: 2px; }
+.fig .stack { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.fig .stack.stretch { align-items: stretch; }
+.legend { display: grid; gap: 6px; font-size: 13px; color: var(--text-2); }
+.legend li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; text-wrap: pretty; }
+.legend li b { color: var(--text); }
+.pin, .legend li > i { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font: 700 10.5px var(--font); font-style: normal; flex: none; vertical-align: middle; }
+.pin { margin: 0 2px; box-shadow: 0 0 0 2px var(--panel); }
+
+/* Variants of the note. */
+.variants { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
+.variant { display: flex; flex-direction: column; gap: 14px; padding: 16px; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.variant.reco { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.variant .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.variant .head h3 { font-size: 17px; }
+.variant .tag { padding: 2px 8px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 11.5px; font-weight: 700; }
+.variant .tag.no { background: var(--panel-3); color: var(--text-2); }
+.variant .desc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 22px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.variant .desc b { color: var(--text); }
+/* Mocks of one thing on two devices: the desktop's as wide as there is room, the phone's as wide as a phone. */
+.mocks { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 18px; min-width: 0; }
+.mocks .dev { flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.mocks .dev.phone { flex: 0 1 360px; }
+
+/* Tables. */
+.tablewrap { margin-top: 16px; overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); text-wrap: pretty; }
+th { font-size: 12px; font-weight: 650; letter-spacing: .03em; color: var(--text-3); background: var(--panel-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 620; color: var(--text); }
+td { color: var(--text-2); }
+td .good { color: var(--ok); font-weight: 650; }
+td .bad { color: var(--no); font-weight: 650; }
+
+/* Left out, and the questions. */
+.not { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.not div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.not h3 { font-size: 14px; font-weight: 700; }
+.not p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.ask { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.ask li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.ask h3 { font-size: 15px; }
+.ask p { margin-top: 6px; color: var(--text-2); font-size: 14px; max-width: 92ch; text-wrap: pretty; }
+.ask .rec { display: flex; gap: 10px; align-items: baseline; margin-top: 8px; padding: 9px 12px; border-radius: 9px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text); font-size: 14px; text-wrap: pretty; }
+.ask .rec::before { content: "Empfehlung"; flex: none; color: var(--accent-ink); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.src { margin-top: 18px; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+
+/* ======== the mock kit: Betula's parts, in its tokens and sizes ======== */
+.mk { font: 14px/1.4 var(--font); color: var(--text); text-align: left; letter-spacing: 0; }
+/* The resets weigh nothing (:where), so that every part's own rule wins over them. */
+:where(.mk *, .mk *::before, .mk *::after) { box-sizing: border-box; }
+:where(.mk button) { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: inherit; -webkit-tap-highlight-color: transparent; }
+:where(.mk input, .mk textarea) { font: inherit; color: var(--text); margin: 0; }
+:where(.mk p) { margin: 0; }
+.ic { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ic.fill { fill: currentColor; }
+.mk mark { background: var(--hit); color: inherit; border-radius: 3px; padding: 0 1px; }
+.mk-kbd { font: 500 10.5px var(--mono); color: var(--text-3); padding: 2px 5px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; }
+
+/* The catalog's list: head, the columns' heads, rows, sections. */
+.mk-list { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); border-radius: var(--r-panel); box-shadow: var(--shadow-panel); overflow: hidden; }
+.mk-lhead { padding: 6px 12px 0 14px; }
+.mk-count-row { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.mk-count { font-size: 21px; font-weight: 700; letter-spacing: -.035em; line-height: 1; font-variant-numeric: tabular-nums; }
+.mk-count.warn { color: var(--warn); }
+.mk-count-label { color: var(--text-2); font-weight: 520; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mk-count-label i { font-style: normal; color: var(--text-3); font-weight: 450; }
+.mk-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+.mk-keys { display: flex; gap: 6px; align-items: center; color: var(--text-3); font-size: 11.5px; white-space: nowrap; }
+.mk-select { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px 0 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); background: var(--panel); font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.mk-select .ic { width: 14px; height: 14px; color: var(--text-3); }
+.mk-ftags { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 0 8px; }
+.mk-ftag { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 5px 0 9px; border-radius: 7px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; color: var(--text); }
+.mk-ftag em { font-style: normal; color: var(--text-3); }
+.mk-ftag .ic { width: 13px; height: 13px; color: var(--text-3); }
+.mk-cols, .mk-row { display: grid; grid-template-columns: minmax(0, 1fr) 46px 90px 36px 88px 32px; align-items: center; column-gap: 12px; }
+.mk-cols { min-height: 32px; padding: 0 8px 0 15px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--panel-2); font-size: 10.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.mk-cols .r { text-align: right; }
+.mk-cols b { color: var(--text-2); font-weight: 700; }
+.mk-rows { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 6px 10px; }
+.mk-row { position: relative; min-height: 54px; padding: 7px 2px 7px 9px; border-radius: var(--r-row); }
+.mk-row.shade { background: var(--row-shade); }
+.mk-row:hover { background: var(--row-hover); }
+.mk-row.open { background: var(--row-hover); box-shadow: inset 3px 0 0 var(--accent); }
+.mk-row.sel, .mk-row.sel:hover, .mk-card.sel {
+  background-color: color-mix(in srgb, var(--accent) 11%, var(--panel));
+  background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 1.5px, transparent 1.5px 7px);
+  box-shadow: inset 0 0 0 1.5px var(--accent-line);
+}
+.mk-row.dim > :not(.mk-bm), .mk-card.dim > :not(.mk-bm) { opacity: .42; }
+.mk-t { min-width: 0; }
+.mk-t > b { font-size: 14px; font-weight: 600; line-height: 1.3; letter-spacing: -.012em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mk-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 3px; font-size: 12px; color: var(--text-3); }
+.mk-num { font-family: var(--mono); font-size: 11.5px; }
+.mk-flag { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 5px; line-height: 18px; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
+.mk-flag.neutral { background: var(--panel-3); color: var(--text-2); }
+.mk-gt { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; box-shadow: inset 0 0 0 1.25px color-mix(in srgb, var(--text) 58%, transparent); color: var(--text); font-size: 11px; font-weight: 620; white-space: nowrap; }
+.mk-st { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-weight: 560; white-space: nowrap; }
+.mk-glyph { position: relative; display: inline-grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px currentColor; flex: none; }
+.mk-glyph.planned { color: var(--text-3); }
+.mk-glyph.running { color: var(--accent-ink); }
+.mk-glyph.running::before { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: conic-gradient(currentColor 0 50%, transparent 0); }
+.mk-glyph.passed { color: var(--ok); background: currentColor; box-shadow: none; }
+.mk-glyph.passed::before { content: ""; width: 5px; height: 2.5px; margin-top: -1.5px; border-left: 1.5px solid var(--panel); border-bottom: 1.5px solid var(--panel); transform: rotate(-45deg); }
+.mk-noteline { display: flex; align-items: baseline; gap: 5px; margin-top: 3px; font-size: 12px; color: var(--text-2); min-width: 0; }
+.mk-noteline .ic { width: 11px; height: 11px; color: var(--text-3); transform: translateY(1px); }
+.mk-noteline span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* On a desktop the note is a row of the row's grid, as wide as the row beside the bookmark, as the
+   line of a search since Folia 1.32.1 (owner, 2026-10-19: „über die ganze Länge"); on a phone it
+   stands under the title, the credits centred beside both. */
+.mk-row > .mk-noteline { grid-column: 1 / -2; margin-top: 2px; }
+.mk-c { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-c.lp { text-align: right; color: var(--text-3); }
+.mk-c.lp b { color: var(--text); font-size: 15px; font-weight: 700; }
+.mk-lang { display: inline-block; padding: 0 5px; border-radius: 5px; background: var(--panel-3); font-size: 11px; font-weight: 650; color: var(--text-2); line-height: 18px; }
+.mk-bm { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; color: var(--text-3); }
+.mk-row .mk-bm:not(.on) { color: var(--line-strong); }
+.mk-row:hover .mk-bm:not(.on), .mk-row .mk-bm:not(.on):focus-visible { color: var(--text-3); }
+.mk-bm:hover { background: var(--line); color: var(--text); }
+.mk-bm.on { color: var(--text); }
+.mk-sem { display: flex; align-items: center; gap: 8px; padding: 12px 8px 4px 9px; font-size: 12.5px; font-weight: 650; color: var(--text); }
+.mk-sem small { color: var(--text-3); font-weight: 500; font-size: 12px; }
+.mk-sem::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.mk-catlink { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-top: 6px; padding: 0 10px 0 12px; border-radius: var(--r-row); box-shadow: inset 0 0 0 1px dashed var(--line-strong); color: var(--accent-ink); font-size: 13.5px; font-weight: 600; }
+.mk-catlink { box-shadow: none; border: 1px dashed var(--line-strong); }
+.mk-catlink .ic:last-child { margin-left: auto; }
+.mk-catlink small { color: var(--text-3); font-weight: 500; }
+.mk-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 30px 16px; text-align: center; color: var(--text-2); font-size: 13.5px; }
+.mk-empty b { color: var(--text); font-size: 15px; }
+.mk-empty .ico { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); }
+.mk-empty .ico .ic { width: 20px; height: 20px; }
+
+/* A phone's card, its ground when swiped. */
+.mk-cards { display: grid; gap: 8px; }
+.mk-cw { position: relative; }
+.mk-ground { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; border-radius: var(--r-panel); background: var(--panel-3); color: var(--text-2); font-size: 13px; font-weight: 650; opacity: 0; }
+.mk-ground.show { opacity: 1; }
+.mk-ground.armed-mark { background: var(--invert); color: var(--on-invert); }
+.mk-ground.armed-plan { background: var(--accent); color: var(--on-accent); }
+.mk-ground span { display: inline-flex; align-items: center; gap: 7px; }
+.mk-ground small { display: block; font-weight: 500; opacity: .8; }
+.mk-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 68px; padding: 11px 48px 11px 15px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mk-card.anim { transition: transform .2s cubic-bezier(.2, .8, .2, 1); }
+.mk-card .mk-t > b { font-size: 15px; }
+.mk-cardlp { color: var(--text-3); font-size: 12px; white-space: nowrap; }
+.mk-cardlp b { color: var(--text); font-size: 16px; font-weight: 700; }
+.mk-card .mk-bm { position: absolute; right: 6px; top: 50%; width: 38px; height: 38px; margin-top: -19px; }
+
+/* A phone: the search at the head, the page, the bar of the tabs. */
+.mk-phone { position: relative; width: 360px; max-width: 100%; height: 700px; flex: none; display: flex; flex-direction: column; border-radius: 30px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-lift); overflow: hidden; }
+.mk-phone.short { height: auto; }
+.mk-ptop { display: flex; gap: 8px; padding: 12px 12px 6px; flex: none; }
+.mk-psearch { flex: 1; display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 12px; min-width: 0; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); }
+.mk-psearch input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 15px; }
+.mk-psearch input::placeholder { color: var(--text-3); }
+.mk-pbox { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); }
+.mk-pscroll { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 160px; overscroll-behavior: contain; }
+.mk-phone.short .mk-pscroll { padding-bottom: 14px; }
+.mk-tabbar { position: absolute; z-index: 6; left: 10px; right: 10px; bottom: 10px; height: 60px; padding: 5px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-pop); }
+.mk-tab { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 13px; font-size: 10.5px; font-weight: 560; color: var(--text-3); min-width: 0; }
+.mk-tab.cur { background: var(--invert); color: var(--on-invert); }
+.mk-tab.idle { cursor: default; }
+.mk-tab .ic { width: 19px; height: 19px; }
+.mk-tab .cnt, .mk-rail-i .cnt { position: absolute; top: 1px; left: 50%; margin-left: 3px; min-width: 18px; height: 16px; padding: 0 4px; display: grid; place-items: center; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 10px; font-weight: 700; box-shadow: 0 0 0 2px var(--panel); font-variant-numeric: tabular-nums; }
+.mk-tab.cur .cnt { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 2px var(--invert); }
+.mk-phead { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 2px 2px 4px; }
+.mk-phead .mk-count { font-size: 25px; }
+.mk-phead .mk-count-label { font-size: 15px; }
+.mk-btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 12px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; flex: none; }
+.mk-btn .badge { min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 10px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; }
+.mk-iconbtn { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
+.mk-gchips { display: flex; gap: 6px; overflow-x: auto; margin: 0 -12px; padding: 2px 12px 6px; scrollbar-width: none; }
+.mk-gchips::-webkit-scrollbar { display: none; }
+.mk-gchip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 600; color: var(--text-2); white-space: nowrap; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.mk-gchip .n { color: var(--text-3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.mk-gchip.cur { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.mk-gchip.cur .n { color: color-mix(in srgb, var(--on-invert) 68%, transparent); }
+.mk-gchip.derived:not(.cur) { color: var(--text-3); }
+.mk-gchip.add { padding: 0 9px; color: var(--accent-ink); }
+.mk-gchip.input { padding: 0 4px 0 10px; box-shadow: inset 0 0 0 1.5px var(--accent); background: var(--panel); }
+.mk-gchip.input input { width: 130px; height: 30px; border: 0; outline: 0; background: transparent; font-weight: 600; font-size: 13px; }
+.mk-gchip.input.taken { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.mk-taken { display: block; margin: -2px 2px 6px; color: var(--warn); font-size: 12px; font-weight: 600; }
+
+/* A desktop: the rail, the head with the search, the sidebar, the list, the preview. */
+.mk-desk { position: relative; width: 980px; height: 620px; flex: none; display: grid; grid-template-columns: 52px minmax(0, 1fr); border-radius: 14px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-lift); overflow: hidden; }
+.mk-desk.short { height: 430px; }
+.mk-rail { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; }
+.mk-rail .logo { width: 34px; height: 34px; margin-bottom: 10px; border-radius: 9px; background: var(--invert); }
+.mk-rail-i { position: relative; display: grid; place-items: center; width: 38px; height: 34px; border-radius: 9px; color: var(--text-2); }
+.mk-rail-i.cur { background: var(--invert); color: var(--on-invert); }
+.mk-rail-i.idle { cursor: default; }
+.mk-rail-i .cnt { top: -3px; left: auto; right: -4px; margin: 0; }
+.mk-rail-i.cur .cnt { background: var(--on-invert); color: var(--invert); box-shadow: 0 0 0 2px var(--invert); }
+.mk-dmain { display: grid; grid-template-rows: 52px minmax(0, 1fr); min-width: 0; min-height: 0; }
+.mk-dtop { display: grid; grid-template-columns: 232px minmax(0, 1fr); align-items: center; gap: 8px; padding: 0 8px 0 4px; }
+.mk-dtop h3 { margin: 0 0 0 8px; font-size: 17px; font-weight: 720; letter-spacing: -.01em; }
+.mk-dsearch { display: flex; align-items: center; gap: 8px; max-width: 520px; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); }
+.mk-dsearch input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 14px; }
+.mk-dsearch input::placeholder { color: var(--text-3); }
+.mk-dbody { display: grid; grid-template-columns: 232px minmax(0, 1fr); gap: 8px; padding: 0 8px 8px 4px; min-height: 0; }
+.mk-side { padding: 12px 10px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); overflow-y: auto; min-height: 0; }
+.mk-flabel { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 6px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.mk-fg + .mk-fg { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.mk-nav { display: flex; flex-direction: column; gap: 1px; }
+.mk-navi { position: relative; display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 6px 0 10px; border-radius: 8px; font-size: 13.5px; font-weight: 560; color: var(--text); }
+.mk-navi:hover { background: var(--row-hover); }
+.mk-navi.cur { background: var(--invert); color: var(--on-invert); }
+.mk-navi .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-navi .n { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mk-navi.cur .n { color: color-mix(in srgb, var(--on-invert) 68%, transparent); }
+.mk-navi.derived:not(.cur) .nm { color: var(--text-2); }
+.mk-navi .more { display: none; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: inherit; }
+.mk-navi.hover .n, .mk-navi.menu .n { display: none; }
+.mk-navi.hover .more, .mk-navi.menu .more { display: grid; }
+.mk-navi.menu:not(.cur) { background: var(--row-hover); }
+.mk-navi.add { color: var(--accent-ink); font-weight: 600; }
+.mk-navi.add .ic { width: 15px; height: 15px; }
+.mk-navi.input { padding: 0 4px 0 6px; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mk-navi.input.taken { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.mk-navi.input input { flex: 1; min-width: 0; height: 28px; border: 0; outline: 0; background: transparent; font-size: 13.5px; font-weight: 560; }
+.mk-seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding: 3px; border-radius: 9px; background: var(--panel-3); }
+.mk-seg button, .mk-seg span { display: flex; align-items: center; justify-content: center; min-height: 28px; padding: 0 2px; border-radius: 7px; font-size: 12.5px; font-weight: 580; color: var(--text-2); white-space: nowrap; overflow: hidden; }
+.mk-seg .on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.mk-seg .n { color: var(--text-3); font-weight: 500; margin-left: 4px; }
+.mk-chipf { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; margin-top: 6px; padding: 0 10px 0 8px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12.5px; font-weight: 550; color: var(--text-2); }
+.mk-chipf .box { width: 14px; height: 14px; flex: none; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.mk-chipf .ic { width: 14px; height: 14px; color: var(--text-3); margin-left: auto; }
+.mk-chipf.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.mk-chipf.on .box { background: var(--on-invert); box-shadow: none; }
+.mk-chipf.on .ic { color: inherit; transform: rotate(90deg); }
+.mk-fold { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 12px; padding: 0 4px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.mk-fold .ic { width: 14px; height: 14px; }
+.mk-hint { margin: 10px 4px 0; color: var(--text-3); font-size: 12px; }
+.mk-desk .mk-list { min-height: 0; }
+.mk-preview { position: absolute; z-index: 20; top: 52px; right: 8px; bottom: 8px; width: 344px; padding: 14px 16px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); overflow-y: auto; }
+.mk-preview.enter { animation: mk-left .2s cubic-bezier(.2, .8, .2, 1); }
+.mk-preview-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mk-close { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 7px; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.mk-close:hover { background: var(--row-hover); }
+
+/* A module: its head, the pair of switches, the note. */
+.mk-mod { display: flex; flex-direction: column; gap: 10px; }
+.mk-mod-id { align-self: flex-start; padding: 2px 8px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line-strong); font: 500 12px var(--mono); color: var(--text-2); }
+.mk-mod h4 { margin: 0; font-size: 19px; line-height: 1.2; letter-spacing: -.02em; font-weight: 720; text-wrap: balance; }
+.mk-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mk-badge { display: inline-flex; align-items: center; height: 28px; padding: 0 9px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.mk-badge.lp { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.mk-badge.warn { background: var(--warn-soft); color: var(--warn); box-shadow: none; }
+.mk-pair, .mk-swpair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.mk-swpair.stack { grid-template-columns: minmax(0, 1fr); }
+.mk-swpair > * { width: 100%; }
+.mk-sw { position: relative; display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 48px; padding: 6px 12px; border-radius: 10px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); }
+.mk-sw.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.mk-sw .lbl { display: flex; flex-direction: column; min-width: 0; line-height: 1.22; }
+.mk-sw .lbl b { font-size: 14px; font-weight: 650; }
+.mk-sw .lbl small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; opacity: .74; }
+.mk-sw .mk-kbd { margin-left: auto; }
+.mk-sw.on .mk-kbd { background: color-mix(in srgb, var(--on-invert) 14%, transparent); color: inherit; box-shadow: none; }
+.mk-swsplit { display: flex; min-width: 0; }
+.mk-swsplit > .mk-sw { flex: 1; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.mk-swchev { display: grid; place-items: center; width: 42px; flex: none; border-radius: 0 10px 10px 0; background: var(--invert); color: var(--on-invert); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 22%, transparent); }
+.mk-swchev:hover { background: color-mix(in srgb, var(--invert) 86%, var(--on-invert)); }
+.mk-modnote { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 9px 11px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--text); text-wrap: pretty; }
+.mk-modnote .ic { width: 14px; height: 14px; margin-top: 2px; color: var(--text-3); }
+.mk-modnote:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.mk-msec { margin-top: 6px; font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.mk-skel { height: 11px; border-radius: 6px; background: var(--panel-3); }
+.mk-skelbox { height: 54px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.mk-msheet { position: absolute; z-index: 25; left: 0; right: 0; bottom: 0; top: 64px; padding: 6px 16px 120px; border-radius: 18px 18px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); overflow-y: auto; }
+.mk-msheet.enter { animation: mk-up .24s cubic-bezier(.2, .8, .2, 1); }
+.mk-msheet .mk-xbtn { position: absolute; right: 12px; top: 14px; }
+.mk-xbtn { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--panel-3); color: var(--text-2); }
+
+/* The note that waits for interaction. */
+.mk-note { position: absolute; z-index: 30; display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; -webkit-user-select: none; user-select: none; }
+.mk-note.enter { animation: mk-rise .24s cubic-bezier(.2, .8, .2, 1); }
+.mk-note.static { position: relative; z-index: 0; width: 100%; }
+.mk-phone .mk-note { left: 10px; right: 10px; bottom: 78px; border-radius: 14px; }
+.mk-desk .mk-note { left: 296px; right: 8px; bottom: 8px; }
+.mk-note-line { display: flex; align-items: center; gap: 4px; min-height: 48px; padding: 4px 4px 4px 12px; }
+.mk-note-mark { flex: none; display: grid; place-items: center; width: 22px; height: 22px; margin-right: 6px; border-radius: 50%; background: var(--accent); color: var(--on-accent); }
+.mk-note-mark.out { background: color-mix(in oklab, var(--on-toast) 18%, transparent); color: var(--on-toast); }
+.mk-note-mark.warn { background: #d99b2b; color: #1b1203; }
+.mk-note-mark .ic { width: 13px; height: 13px; stroke-width: 3; }
+.mk-note-title { flex: 0 1 auto; min-width: 0; max-width: 300px; margin-right: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; }
+.mk-note-say { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 6px; }
+.mk-note-say i { font-style: normal; opacity: .72; }
+.mk-note-gap { flex: 1 1 0; min-width: 0; }
+.mk-note-field { flex: none; display: inline-flex; align-items: center; gap: 7px; max-width: 250px; height: 38px; padding: 0 9px 0 10px; border-radius: 9px; background: color-mix(in oklab, var(--on-toast) 11%, transparent); color: var(--on-toast); font-weight: 620; white-space: nowrap; }
+.mk-note-field span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mk-note-field.empty span { opacity: .75; }
+.mk-note-field .ic { width: 15px; height: 15px; }
+.mk-note-field .ic:last-child { opacity: .7; }
+.mk-note-field:hover { background: color-mix(in oklab, var(--on-toast) 17%, transparent); }
+.mk-note-chip { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--on-toast) 32%, transparent); font-weight: 600; white-space: nowrap; color: var(--on-toast); flex: none; }
+.mk-note-chip.on { background: var(--on-toast); color: var(--toast); box-shadow: none; }
+.mk-note-chip.more { width: 34px; padding: 0; justify-content: center; }
+.mk-note-sep { flex: none; width: 1px; height: 26px; margin: 0 2px 0 4px; background: color-mix(in oklab, var(--on-toast) 22%, transparent); }
+.mk-note-undo { flex: none; min-height: 40px; padding: 0 11px; border-radius: 9px; font-weight: 650; white-space: nowrap; color: var(--on-toast); }
+.mk-note-undo:hover, .mk-note-x:hover, .mk-note-act:hover { background: color-mix(in oklab, var(--on-toast) 14%, transparent); }
+.mk-note-x { flex: none; display: grid; place-items: center; width: 34px; height: 40px; border-radius: 9px; color: var(--on-toast); opacity: .75; }
+.mk-phone .mk-note-x, .mk-note.ph .mk-note-x { display: none; }
+.mk-note-act { flex: none; height: 34px; padding: 0 10px; margin-left: 4px; border-radius: 8px; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--on-toast) 32%, transparent); font-weight: 620; white-space: nowrap; color: var(--on-toast); }
+.mk-note-second { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 4px 12px; border-bottom: 1px solid color-mix(in oklab, var(--on-toast) 14%, transparent); font-size: 13px; }
+.mk-note-second .ic { width: 15px; height: 15px; opacity: .78; }
+.mk-note-second span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-switch { position: relative; flex: none; width: 36px; height: 22px; border-radius: 11px; background: color-mix(in oklab, var(--on-toast) 34%, transparent); transition: background .15s; }
+.mk-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--on-toast); transition: transform .15s; }
+.mk-switch.on { background: var(--accent); }
+.mk-switch.on::after { transform: translateX(14px); }
+.mk-switch.light { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.mk-switch.light::after { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .3); }
+.mk-switch.light.on { background: var(--accent); box-shadow: none; }
+.mk-stepper { display: inline-flex; align-items: center; gap: 2px; padding: 0 2px; border-radius: 9px; background: color-mix(in oklab, var(--on-toast) 9%, transparent); }
+.mk-stepper .ic { width: 16px; height: 16px; margin: 0 6px; opacity: .85; }
+.mk-stepper b { display: flex; flex-direction: column; align-items: center; min-width: 96px; line-height: 1.15; font-size: 13.5px; }
+.mk-stepper b small { font-weight: 500; opacity: .7; font-size: 11px; }
+.mk-note.unfold { border-radius: 14px; }
+.mk-note-list { display: flex; flex-direction: column; padding: 6px; border-bottom: 1px solid color-mix(in oklab, var(--on-toast) 14%, transparent); }
+.mk-note-list div { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 8px; border-radius: 8px; }
+.mk-note-list div .c { width: 16px; }
+.mk-note-list div.on { font-weight: 650; }
+.mk-note-list .f { margin-bottom: 4px; box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--on-toast) 28%, transparent); opacity: .75; }
+
+/* A menu (on a desktop at what opened it) and a sheet (a phone's, from below). */
+.mk-menu { position: absolute; z-index: 40; width: 300px; padding: 6px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); font-size: 13.5px; }
+.mk-menu.enter { animation: mk-pop .14s ease-out; }
+.mk-menu.static { position: relative; z-index: 0; }
+.mk-menu.narrow { width: 236px; }
+.mk-menu-head { padding: 6px 8px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-3); font-size: 12px; font-weight: 600; }
+.mk-field { display: flex; align-items: center; gap: 8px; height: 36px; margin: 0 2px 4px; padding: 0 10px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); }
+.mk-field:focus-within, .mk-field.focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mk-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 13.5px; }
+.mk-field input::placeholder { color: var(--text-3); }
+.mk-field .typed { flex: 1; color: var(--text); }
+.mk-field .typed::after { content: ""; display: inline-block; width: 1.5px; height: 15px; margin-left: 1px; background: var(--accent); vertical-align: -2px; }
+.mk-items { display: flex; flex-direction: column; max-height: 230px; overflow-y: auto; }
+.mk-item { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; width: 100%; min-height: 34px; padding: 0 8px; border-radius: 8px; color: var(--text); }
+.mk-item:hover, .mk-item.act { background: var(--row-hover); }
+.mk-item .chk { display: grid; place-items: center; width: 18px; height: 18px; color: var(--accent-ink); }
+.mk-item .chk .ic { width: 16px; height: 16px; stroke-width: 2.6; }
+.mk-item .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 560; }
+.mk-item.on .nm { font-weight: 650; }
+.mk-item .n { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mk-item.create { color: var(--accent-ink); font-weight: 620; }
+.mk-item.create .nm { font-weight: 620; }
+.mk-item.danger { color: var(--no); }
+.mk-item.plain { grid-template-columns: 20px minmax(0, 1fr) auto; }
+.mk-item.plain .ic { width: 16px; height: 16px; color: var(--text-2); }
+.mk-item.danger .ic { color: var(--no); }
+.mk-msep { height: 1px; margin: 6px 4px; background: var(--line); }
+.mk-mlabel { padding: 2px 8px 4px; color: var(--text-3); font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.mk-notearea { display: block; width: calc(100% - 4px); min-height: 38px; margin: 0 2px 2px; padding: 8px 10px; border: 0; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); resize: none; outline: 0; font-size: 13.5px; line-height: 1.4; field-sizing: content; max-height: 120px; }
+.mk-notearea:focus { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.mk-notearea::placeholder { color: var(--text-3); }
+.mk-menu-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; font-size: 13px; color: var(--text-2); }
+.mk-menu-row .mk-switch { margin-left: auto; }
+.mk-menu-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% - 4px); height: 38px; margin: 2px; border-radius: 9px; background: var(--invert); color: var(--on-invert); font-weight: 650; }
+.mk-menu-btn .ic { width: 16px; height: 16px; }
+.mk-shade { position: absolute; inset: 0; z-index: 38; background: var(--shade); }
+.mk-shade.enter { animation: mk-fade .2s ease-out; }
+.mk-sheet { position: absolute; z-index: 40; left: 0; right: 0; bottom: 0; max-height: 84%; display: flex; flex-direction: column; padding: 6px 10px 16px; border-radius: 16px 16px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); }
+.mk-sheet.enter { animation: mk-up .22s cubic-bezier(.2, .8, .2, 1); }
+.mk-sheet.static { position: relative; z-index: 0; border-radius: 16px; box-shadow: var(--shadow-panel); }
+.mk-grab { flex: none; width: 36px; height: 4px; margin: 4px auto 10px; border-radius: 2px; background: var(--line-strong); }
+.mk-sheet-head { display: flex; align-items: center; gap: 8px; padding: 0 4px 10px; }
+.mk-sheet-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
+.mk-done { flex: none; height: 34px; padding: 0 13px; border-radius: 9px; background: var(--invert); color: var(--on-invert); font-size: 13.5px; font-weight: 650; }
+.mk-sheet .mk-items { max-height: none; flex: 1 1 auto; min-height: 0; }
+.mk-sheet .mk-item { min-height: 46px; font-size: 15px; }
+.mk-sheet .mk-field { height: 44px; }
+.mk-sheet .mk-field input { font-size: 15px; }
+.mk-sheet .mk-mlabel { margin-top: 6px; }
+.mk-sheet-scroll { overflow-y: auto; min-height: 0; flex: 1; }
+.mk-sheet .mk-seg { margin: 0 2px 6px; }
+.mk-sheet .mk-seg button { min-height: 34px; font-size: 13.5px; }
+
+/* The bar of the rows selected: in the columns' heads' place, on a phone over the tabs. */
+.mk-selbar { display: flex; align-items: center; gap: 2px; min-height: 32px; margin: 0; padding: 0 3px 0 12px; border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line); background: var(--accent-soft); }
+.mk-selbar .cnt { margin-right: 8px; font-size: 13px; font-weight: 650; white-space: nowrap; }
+.mk-selbar .cnt i { font-style: normal; color: var(--text-2); font-weight: 500; }
+.mk-act { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: 7px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--text); }
+.mk-act:hover { background: color-mix(in oklab, var(--accent) 14%, var(--panel)); }
+.mk-act .ic { width: 15px; height: 15px; }
+.mk-act .ic.dn { width: 13px; height: 13px; color: var(--text-2); }
+.mk-act.danger { color: var(--no); }
+.mk-act.x { margin-left: auto; width: 28px; padding: 0; justify-content: center; }
+.mk-pselbar { position: absolute; z-index: 35; left: 10px; right: 10px; bottom: 10px; height: 60px; display: flex; align-items: center; gap: 0; padding: 5px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); }
+.mk-pselbar.enter { animation: mk-rise .2s cubic-bezier(.2, .8, .2, 1); }
+.mk-pselbar.static { position: relative; left: auto; right: auto; bottom: auto; }
+.mk-pselbar .cnt { flex: none; display: grid; place-items: center; min-width: 34px; height: 34px; margin: 0 4px 0 2px; padding: 0 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 14px; font-weight: 750; }
+.mk-pselbar .mk-act { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 2px; border-radius: 10px; font-size: 10.5px; }
+.mk-pselbar .mk-act .ic { width: 18px; height: 18px; }
+.mk-pselbar .mk-act.x { flex: none; width: 40px; margin-left: 0; }
+
+/* What a link brings, a dialog of „Mein Studium", the Stundenplan's list, a filter's chip. */
+.mk-offer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 13.5px; }
+.mk-offer > .ic { color: var(--accent-ink); }
+.mk-offer p { flex: 1 1 200px; color: var(--text-2); text-wrap: pretty; }
+.mk-offer p b { color: var(--text); }
+.mk-offer .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk-mini { height: 30px; padding: 0 11px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text); }
+.mk-mini.primary { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.mk-dialog { width: 560px; max-width: 100%; overflow: hidden; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); }
+.mk-dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; }
+.mk-dlg-head b { font-size: 16px; }
+.mk-dlg-head small { color: var(--text-3); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.mk-dlg-body { display: flex; flex-direction: column; gap: 10px; padding: 0 16px 12px; }
+.mk-dlg-foot { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); color: var(--text-2); font-size: 13px; }
+.mk-dlg-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 9px; background: var(--panel-3); }
+.mk-dlg-tabs span { flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 30px; padding: 0 8px; border-radius: 7px; font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mk-dlg-tabs span.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line); }
+.mk-chiprow { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk-chiprow .mk-gchip { height: 28px; font-size: 12.5px; padding: 0 10px; }
+.mk-pick { display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 10px; padding: 8px 10px; border-radius: 8px; }
+.mk-pick:nth-child(even) { background: var(--row-shade); }
+.mk-pick .tick { display: grid; place-items: center; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; box-shadow: inset 0 0 0 1.6px var(--line-strong); color: var(--on-accent); }
+.mk-pick.on .tick { background: var(--accent); box-shadow: none; }
+.mk-pick .tick .ic { width: 11px; height: 11px; stroke-width: 3.2; }
+.mk-pick .what { min-width: 0; }
+.mk-pick .line { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.mk-pick .line > b { min-width: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.mk-pick .sub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin-top: 2px; font-size: 12px; color: var(--text-3); }
+.mk-pick .sub .warn { color: var(--warn); font-weight: 560; }
+.mk-pick .lp { flex: none; font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.mk-pick .lp b { color: var(--text); font-size: 14px; }
+.mk-area { display: inline-flex; align-items: center; gap: 5px; color: var(--text-2); font-weight: 560; }
+.mk-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.mk-panel { padding: 12px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.mk-panel-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13.5px; font-weight: 650; }
+.mk-panel-h .n { color: var(--text-3); font-weight: 500; }
+.mk-panel-h .ic:last-child { margin-left: auto; color: var(--text-3); }
+.mk-prow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; border-radius: 8px; }
+.mk-prow:nth-child(odd) { background: var(--row-shade); }
+.mk-prow b { display: block; font-size: 13.5px; font-weight: 600; }
+.mk-fit { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 560; }
+.mk-fit.ok { color: var(--ok); }
+.mk-fit.warn { color: var(--warn); }
+.mk-fit .ic { width: 13px; height: 13px; }
+.mk-foldrow { display: flex; align-items: center; gap: 8px; padding: 8px 10px 2px; color: var(--text-2); font-size: 13px; font-weight: 600; }
+.mk-foldrow .ic { width: 14px; height: 14px; }
+.mk-subseg { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px 22px; }
+.mk-subseg span { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 12px; font-weight: 600; color: var(--text-2); }
+.mk-subseg span.on { background: var(--panel-3); color: var(--text); box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.mk-subseg .n { color: var(--text-3); font-weight: 500; }
+
+@keyframes mk-rise { from { transform: translateY(14px); opacity: 0; } }
+@keyframes mk-up { from { transform: translateY(30%); opacity: .3; } }
+@keyframes mk-left { from { transform: translateX(18px); opacity: .3; } }
+@keyframes mk-fade { from { opacity: 0; } }
+@keyframes mk-pop { from { transform: translateY(4px) scale(.98); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .enter { animation: none !important; }
+  .mk-card.anim { transition: none; }
+}
+
+@media (max-width: 1060px) {
+  .proto-grid { grid-template-columns: minmax(0, 1fr); }
+  .rules6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .figs.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .variant .desc { grid-template-columns: minmax(0, 1fr); }
+  .figs.two, .figs.three { grid-template-columns: minmax(0, 1fr); }
+  .not { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .block { padding: 18px 16px; }
+  .rules6, .not { grid-template-columns: minmax(0, 1fr); }
+  .fig { padding: 10px; }
+  th, td { padding: 8px 10px; font-size: 13.5px; }
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; }
+  table.stack tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  table.stack tr:last-child { border-bottom: 0; }
+  table.stack td { padding: 3px 0; border: 0; }
+  table.stack td:first-child { font-size: 14.5px; padding-bottom: 4px; }
+  table.stack td + td::before { content: attr(data-label) ": "; color: var(--text-3); font-weight: 600; }
+}
+</style>
+
+<main class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Merkliste · Oberfläche · 19.10.2026</p>
+      <h1>Viel auf einen Blick, alles an seinem Platz</h1>
+      <p class="lead">Die zweite Runde zur Merkliste: wie sie aussieht und wie man sie bedient. Sie bleibt dicht und ein Werkzeug für Leute, die viel damit machen, ohne Angaben abzuladen. Dafür gelten sechs Regeln, und gebaut wird aus dem, was Betula schon hat: der Zeile des Katalogs, der Auswahl und den Menüs aus „Mein Studium“, dem Hinweis vom Einplanen. Neu ist nur ein Menü für Gruppe und Notiz eines Moduls, überall dasselbe. Der Hinweis nach dem Merken übernimmt das Gerüst vom Einplanen, aber nicht den Stepper: Gruppen sind keine Reihe, durch die man blättert.</p>
+      <blockquote class="quote">„Achte bei der Umsetzung aber darauf, <b>das UI nicht zu überladen</b>. Betula hat aktuell noch sehr stark das problem, dass man ein <b>inkonsistent information dumped</b> wird. Ich möchte aber <b>die hohe Informationsdichte behalten und ein tool für Poweruser bleiben</b>.“</blockquote>
+      <blockquote class="quote">„Der Ansatz mit der Wait Note ist gut. Aber überleg dir gut, wie man das richtig macht. Weil das was <b>für das eindimensionale semester auswählen gut funktioniert muss nicht gut sein für komplexere Sachen, wie Gruppen</b>.“</blockquote>
+      <div class="cta">
+        <a class="btn" href="#probieren"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg>Prototyp ausprobieren</a>
+        <small>Am Handy und am Rechner; der Hinweis in beiden Formen.</small>
+      </div>
+      <nav class="toc" aria-label="Inhalt"><a href="#regeln">Regeln</a><a href="#probieren">Ausprobieren</a><a href="#hinweis">Der Hinweis</a><a href="#menue">Gruppe und Notiz</a><a href="#seite">Die Seite</a><a href="#zeile">Die Zeile</a><a href="#finden">Suchen und ordnen</a><a href="#auswahl">Auswahl</a><a href="#verwalten">Gruppen verwalten</a><a href="#modul">Am Modul</a><a href="#teilen">Weitergeben</a><a href="#grenze">256</a><a href="#anderswo">Anderswo</a><a href="#tasten">Tasten</a><a href="#nicht">Bewusst nicht</a><a href="#offen">Zu entscheiden</a></nav>
+    </div>
+    <aside class="decided" aria-labelledby="decided-title">
+      <p class="kicker" id="decided-title">Entschieden am 19.10.</p>
+      <ul>
+        <li><b>Ein Modul in mehreren Gruppen.</b> Namen sind eindeutig: Zwei Gruppen gleichen Namens gibt es nicht. Leere Gruppen gibt es.</li>
+        <li><b>Höchstens 256 Module.</b> Wer mehr merken will, bekommt eine Meldung; was schon da ist, bleibt.</li>
+        <li><b>Nach jedem Merken ein Hinweis.</b> Weitergeben hinter dem #, ohne Vorschau im Messenger; Notizen zu Freunden nur, wenn man es wählt.</li>
+        <li><b>Ein Extra im Stundenplan</b> ist ein geplantes Modul „nur besuchen“, gebaut mit dem Stundenplan.</li>
+        <li><b>„Gruppen“</b>, und die fünf Schritte des Konzepts, Wiederfinden zuerst.</li>
+        <li><b>Die Oberfläche bleibt dicht</b>, ein Werkzeug für Poweruser, und lädt nichts ab.</li>
+      </ul>
+    </aside>
+  </header>
+
+  <section class="block" id="regeln" aria-labelledby="rules-title">
+    <h2 id="rules-title">Sechs Regeln gegen das Abladen</h2>
+    <p class="lead">Abladen heißt: dieselbe Angabe zweimal, in zwei Formen, dazu Sätze, die immer dastehen. Dicht heißt: viel auf einmal, aber jede Angabe an einem festen Platz und in einer festen Form. Die Merkliste von heute hat von beidem etwas; jede Regel nennt ein Beispiel von dort.</p>
+    <div class="rules6">
+      <article class="rule"><h3><span>1</span>Eine Angabe, ein Platz</h3><p class="today">„46 gemerkte Module · 281 LP“ steht über der Liste und noch einmal als „Übersicht“ in der Seitenleiste. Die Reihenfolge steht in den Spaltenköpfen und noch einmal als Liste „Reihenfolge“.</p><p class="then">Die Zahl steht im Kopf der Liste, die Ordnung in einer Auswahl daneben. Die Spaltenköpfe ordnen wie im Katalog und stellen nur diese Auswahl um.</p></article>
+      <article class="rule"><h3><span>2</span>Drei Arten, drei Formen</h3><p class="today">Ein geplantes Modul ist in der Vorschau ein dunkler Knopf „Eingeplant WiSe 26/27 · 3…“, in „Mein Studium“ ein Ring an der Zeile, und in der Merkliste sieht man es gar nicht.</p><p class="then">Was der Katalog sagt: Spalten und Flaggen. Was Betula über dich weiß: das Zeichen aus „Mein Studium“. Was du festhältst: umrandet (Gruppe) oder als ruhige Zeile unter dem Titel (Notiz).</p></article>
+      <article class="rule"><h3><span>3</span>Dichte durch Spalten, nicht durch Sätze</h3><p class="today">In der Seitenleiste stehen Sätze: „Link kopieren und dort öffnen“, der Absatz darüber, wo die Merkliste liegt.</p><p class="then">Zahlen in Spalten, Wörter in der Zeile unter dem Titel. Ganze Sätze nur, wo sonst nichts steht: im leeren Zustand. Eine Zeile ist so hoch wie im Katalog.</p></article>
+      <article class="rule"><h3><span>4</span>Nur, was es gibt</h3><p class="today">„Angeboten im“ zeigt Winter und Sommer auch dann, wenn alle gemerkten im Winter sind.</p><p class="then">Ein Filter erscheint, wenn er etwas trennt, „Ohne Gruppe“ mit der ersten Gruppe, eine Notiz-Zeile nur bei einer Notiz. Kein „keine Notiz“, kein leeres Feld.</p></article>
+      <article class="rule"><h3><span>5</span>Das Werkzeug liegt am Gegenstand</h3><p class="today">„Aktionen“ sammelt Kopieren, Übertragen und Leeren in einer Schublade unter allem anderen.</p><p class="then">Was eine Gruppe betrifft, steht in ihrem Menü, Teilen eingeschlossen. Was mehrere betrifft, in der Leiste der Auswahl. Was ein Modul betrifft, am Modul.</p></article>
+      <article class="rule"><h3><span>6</span>Ein Weg, den man sieht, darunter die schnellen</h3><p class="today">M merkt; für alles andere gibt es nur den langen Weg.</p><p class="then">Jede Aktion hat einen sichtbaren Weg (Knopf, Menüpunkt) und schnelle für die, die sie kennen: G, N, Rechtsklick, Ziehen über Zeilen, langes Drücken. Die schnellen bekommen keine eigenen Knöpfe; ihre Taste steht im Menü neben dem Eintrag (R10).</p></article>
+    </div>
+  </section>
+
+  <section class="block" id="probieren" aria-labelledby="play-title">
+    <h2 id="play-title">Zum Ausprobieren</h2>
+    <p class="lead">Ein Prototyp mit Modulen aus dem Katalog vom 19.10., am Handy und am Rechner: der Hinweis nach dem Merken in den zwei Formen, die in Frage kommen, das Menü für Gruppe und Notiz, die Merkliste mit Gruppen, Suche und Auswahl, ein geöffnetes Modul. Von den Tabs sind nur Module und Merkliste darin.</p>
+    <div class="proto-bar">
+      <div><span class="lbl">Gerät</span><span class="pseg" role="group" aria-label="Gerät"><button type="button" id="dev-phone" data-dev="phone">Handy</button><button type="button" id="dev-desk" data-dev="desk">Rechner</button></span></div>
+      <div><span class="lbl">Hinweis</span><span class="pseg" role="group" aria-label="Form des Hinweises"><button type="button" id="var-feld" data-var="feld">Feld (Empfehlung)</button><button type="button" id="var-kurz" data-var="kurz">Kurzwahl</button></span></div>
+      <div><span class="lbl">Start</span><span class="pseg" role="group" aria-label="Ausgangslage"><button type="button" id="sc-groups" data-sc="groups">Drei Gruppen</button><button type="button" id="sc-empty" data-sc="empty">Leer</button><button type="button" id="sc-full" data-sc="full">Voll</button></span></div>
+      <button class="preset" type="button" id="proto-reset">Zurücksetzen</button>
+    </div>
+    <div class="proto-grid">
+      <div class="proto-stage mk" id="stage" tabindex="-1" aria-label="Prototyp der Merkliste"></div>
+      <aside class="tryit" aria-labelledby="try-title">
+        <h3 id="try-title">Probier</h3>
+        <ol>
+          <li><span>Im Tab Module ein Lesezeichen tippen; am Handy geht auch eine Karte nach links wischen.</span></li>
+          <li><span>Im Hinweis „Ohne Gruppe“ tippen (am Rechner G), eine Gruppe wählen, oder „Mathe“ tippen und Enter.</span></li>
+          <li><span>Danach „Weitere Module auch in …“ einschalten und zwei weitere merken.</span></li>
+          <li><span>Im Tab Merkliste die Gruppen wechseln und oben „lena“ suchen: Das findet Gruppe und Notiz.</span></li>
+          <li><span>Eine Karte lange drücken (am Rechner Strg und Klick), weitere antippen, dann „Gruppe“ in der Leiste.</span></li>
+          <li><span>Ein Modul öffnen und am Schalter „Gemerkt“ den Pfeil.</span></li>
+        </ol>
+        <p>Am Rechner gelten die Tasten, sobald der Prototyp den Fokus hat: G, N und M am offenen Modul, Esc, und im Menü ↑ ↓, Enter und 1–9.</p>
+      </aside>
+    </div>
+  </section>
+
+  <section class="block" id="hinweis" aria-labelledby="note-title">
+    <h2 id="note-title">Merken und der Hinweis danach</h2>
+    <p class="lead">Der Hinweis vom Einplanen trägt, weil das Semester eine Reihe ist: ‹ und › gehen durch sie, und Betula hat immer eine gute erste Wahl. Gruppen sind anders.</p>
+    <h3>Warum der Stepper hier nicht passt</h3>
+    <ul class="points">
+      <li><b>Keine Reihe.</b> Semester haben ein Davor und ein Danach, Gruppen nicht. Was käme nach „Für Lena“?</li>
+      <li><b>Mehrere zugleich.</b> Ein Modul liegt in einem Semester, aber in beliebig vielen Gruppen.</li>
+      <li><b>Nichts zu raten.</b> Fürs Semester gibt es eine gute erste Wahl. Für Gruppen ist „ohne“ die richtige, und sie braucht keine Bestätigung.</li>
+      <li><b>Neue Namen.</b> Eine neue Gruppe will getippt werden; ein Stepper legt nichts an.</li>
+      <li><b>Offen viele.</b> Mit zehn Gruppen blättert man zu lange, und ein Tipp zu viel landet in der falschen.</li>
+    </ul>
+    <h3>Was vom Einplanen bleibt</h3>
+    <ul class="points">
+      <li><b>Dasselbe Gerüst:</b> links der Haken, dann was geschehen ist (am Rechner mit dem Namen des Moduls), dann wohin, rechts nach einem Strich „Rückgängig“.</li>
+      <li><b>Derselbe Platz und dasselbe Gehen:</b> unten über dem Inhalt, am Handy über der Tab-Leiste; weg, sobald man weitermacht.</li>
+      <li><b>Dieselbe zweite Zeile:</b> „Weitere Module auch in ‚Für Lena‘“ wie „Weitere Module auch nach SoSe 27“, für die Sitzung.</li>
+      <li><b>Eigene Tasten, solange er steht:</b> G, wie dort ← und →.</li>
+    </ul>
+    <h3>Drei Formen</h3>
+    <div class="variants">
+      <article class="variant reco">
+        <div class="head"><h3>Feld</h3><span class="tag">Empfehlung</span></div>
+        <div class="desc">
+          <p><b>So geht es:</b> Der Hinweis sagt, wohin das Modul gekommen ist: „Ohne Gruppe“. Das ist ein Feld; ein Tipp darauf (oder G) öffnet das Menü für Gruppe und Notiz, am Rechner über dem Hinweis, am Handy als Sheet. Was man dort wählt, gilt sofort, und das Feld sagt es danach: „Für Lena“. Wer im Hinweis eine Gruppe gewählt hat, bekommt darüber die Zeile „Weitere Module auch in ‚Für Lena‘“.</p>
+          <p><b>Gut:</b> Wer nichts will, sieht einen Haken und ein Wort mehr als heute. Gewählt wird im selben Menü wie überall, also eine Form für dieselbe Sache. Nichts verschiebt sich. Viele hintereinander in dieselbe Gruppe kosten mit der zweiten Zeile je einen Tipp.</p>
+          <p><b>Schwächer:</b> Eine einzelne Gruppe für ein einzelnes Modul sind zwei Tipps statt einem.</p>
+        </div>
+        <div class="mocks" data-fig="note-feld"></div>
+      </article>
+      <article class="variant">
+        <div class="head"><h3>Kurzwahl</h3><span class="tag no">zum Vergleich</span></div>
+        <div class="desc">
+          <p><b>So geht es:</b> Im Hinweis stehen die zuletzt benutzten Gruppen als Chips, am Rechner drei, am Handy zwei; ein Tipp tut das Modul hinein. Der Pfeil daneben öffnet das Menü für den Rest.</p>
+          <p><b>Gut:</b> Eine der letzten Gruppen ist ein Tipp.</p>
+          <p><b>Schwächer:</b> Die Chips wechseln ihre Plätze, je nachdem, was zuletzt benutzt wurde; man trifft daneben. Es sind zwei Formen für dieselbe Wahl, Chips hier und Haken im Menü. Der Hinweis wird breit, am Handy reicht es für zwei, und für „Weitere Module auch in …“ bleibt kein Platz.</p>
+        </div>
+        <div class="mocks" data-fig="note-kurz"></div>
+      </article>
+      <article class="variant">
+        <div class="head"><h3>Aufklappen</h3><span class="tag no">verworfen</span></div>
+        <div class="desc">
+          <p><b>So geht es:</b> Ein Tipp auf „Gruppe“ lässt den Hinweis selbst nach oben aufgehen, die Gruppen und ein Feld darin.</p>
+          <p><b>Schwächer:</b> Der Hinweis geht, sobald man scrollt oder daneben tippt; mitten in einer Wahl wäre sie weg. Er ist dunkel, ein Menü in Betula ist hell: eine zweite Form für Menüs. Am Handy schiebt die Tastatur ihn über die halbe Seite.</p>
+        </div>
+        <div class="mocks" data-fig="note-auf"></div>
+      </article>
+    </div>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col"></th><th scope="col">Feld</th><th scope="col">Kurzwahl</th><th scope="col">Aufklappen</th></tr></thead>
+        <tbody>
+          <tr><td>Ohne Gruppe merken</td><td data-label="Feld">1 Tipp</td><td data-label="Kurzwahl">1 Tipp</td><td data-label="Aufklappen">1 Tipp</td></tr>
+          <tr><td>In eine Gruppe</td><td data-label="Feld">+2 Tipps</td><td data-label="Kurzwahl"><span class="good">+1</span> für die letzten, sonst +2</td><td data-label="Aufklappen">+2 Tipps</td></tr>
+          <tr><td>Zehn hintereinander in eine</td><td data-label="Feld"><span class="good">je 1 Tipp</span>, mit „Weitere Module auch in …“</td><td data-label="Kurzwahl">je 2 Tipps</td><td data-label="Aufklappen">je 3 Tipps</td></tr>
+          <tr><td>Eine neue Gruppe</td><td data-label="Feld">im Menü</td><td data-label="Kurzwahl">im Menü</td><td data-label="Aufklappen">im Hinweis</td></tr>
+          <tr><td>Was sich bewegt</td><td data-label="Feld"><span class="good">nichts</span></td><td data-label="Kurzwahl"><span class="bad">die Chips tauschen Plätze</span></td><td data-label="Aufklappen"><span class="bad">der Hinweis wächst</span></td></tr>
+          <tr><td>Form wie anderswo</td><td data-label="Feld"><span class="good">dasselbe Menü</span> wie am Modul und in der Auswahl</td><td data-label="Kurzwahl">eine zweite</td><td data-label="Aufklappen">eine zweite, dunkel</td></tr>
+          <tr><td>Am Rechner</td><td data-label="Feld">G, dann tippen oder 1–9</td><td data-label="Kurzwahl">G, dann 1–3</td><td data-label="Aufklappen">G, dann tippen</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <h3>Die Regeln des Felds</h3>
+    <ul class="points">
+      <li><b>Das Feld sagt das Ergebnis:</b> „Ohne Gruppe“, „Für Lena“, „Wahlpflicht, Für Lena“, ab drei „Wahlpflicht, Für Lena +1“ wie die Zeile; „3 Gruppen“ nie, weil der Katalog so die Gruppen einer Übung zählt (Frage 7). Gibt es noch keine Gruppe, heißt es „Gruppe“ mit einem Plus und legt die erste an.</li>
+      <li><b>Das Menü steht vor dem Hinweis</b>, der dahinter wartet; was man wählt, gilt sofort. Ist das Menü zu, sagt das Feld, was gilt, und der Hinweis geht erst, wenn man weitermacht.</li>
+      <li><b>„Weitere Module auch in ‚Für Lena‘“</b> erscheint, sobald im Hinweis eine Gruppe gewählt wurde. Eingeschaltet kommen die nächsten gemerkten in dieselbe Gruppe, für die Sitzung (wie P3 beim Einplanen), und die Zeile steht in jedem Hinweis, um sie dort auszuschalten. Der Schalter am Modul sagt vorher „Merken · in Für Lena“, der Grund beim Wischen ebenso.</li>
+      <li><b>„Rückgängig“</b> nimmt den Merker weg, mit seiner Gruppe und seiner Notiz.</li>
+      <li><b>Andere Hinweise</b> haben dasselbe Gerüst: „Entfernt“ mit „Rückgängig“, das Gruppen und Notiz zurückbringt; „Merkliste voll“; eine gelöschte Gruppe; ein kopierter Link.</li>
+    </ul>
+    <div class="figs">
+      <div class="fig"><div class="mocks" data-fig="notes-other"></div><p class="cap">Zuletzt zum Vergleich der Hinweis vom Einplanen, wie er heute ist: dasselbe Gerüst, dort mit dem Stepper.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="menue" aria-labelledby="menu-title">
+    <h2 id="menu-title">Ein Menü für Gruppe und Notiz</h2>
+    <p class="lead">Was du zu einem gemerkten Modul festhältst, bearbeitest du überall im selben Menü: aus dem Hinweis, am Schalter des Moduls, in der Leiste einer Auswahl, mit G oder N. Am Rechner steht es wie jedes Menü in „Mein Studium“ an dem, was es öffnet; am Handy kommt es als Sheet von unten.</p>
+    <div class="figs three">
+      <div class="fig"><div data-fig="menu-one"></div><p class="cap"><b>Ein Modul.</b> Oben das Feld, darunter die Gruppen mit Haken, Zahl und Ziffer, dann die Notiz.</p></div>
+      <div class="fig"><div data-fig="menu-typed"></div><p class="cap"><b>Getippt, nichts passt.</b> „mathe“ gibt es noch nicht: Dort steht „‚mathe‘ anlegen“, Enter legt an und tut das Modul hinein. Ziffern gibt es jetzt keine; sie gehören dem Namen.</p></div>
+      <div class="fig"><div data-fig="menu-many"></div><p class="cap"><b>Drei ausgewählte.</b> Ein Haken, wo alle drin sind, ein Strich, wo einige; ein Tipp auf den Strich nimmt alle hinein. Keine Notiz.</p></div>
+    </div>
+    <div class="figs three">
+      <div class="fig"><div data-fig="menu-partial"></div><p class="cap"><b>Getippt, eine passt.</b> „lena“ findet „Für Lena“ und schaltet sie mit Enter. „‚lena‘ anlegen“ steht dahinter, einen Pfeil nach unten entfernt.</p></div>
+      <div class="fig"><div data-fig="menu-exists"></div><p class="cap"><b>Ein Name, den es gibt.</b> „für lena“ ist „Für Lena“; ein zweites „anlegen“ gibt es nicht. Groß und klein und Leerzeichen am Rand zählen nicht.</p></div>
+      <div class="fig"><div data-fig="menu-sheet"></div><p class="cap"><b>Am Handy</b> ein Sheet mit „Fertig“. Das Feld bekommt den Fokus erst beim Antippen, damit die Tastatur die Gruppen nicht verdeckt.</p></div>
+    </div>
+    <ul class="points">
+      <li><b>Oben das Feld.</b> Tippen filtert die Gruppen, Enter schaltet die erste. Heißt keine genau so, steht „‚lena‘ anlegen“ hinter den gefundenen; passt gar keine, steht es allein da, und Enter legt an.</li>
+      <li><b>Namen sind eindeutig.</b> Wer einen Namen tippt, den es gibt, bekommt die Gruppe angeboten, nicht ein zweites „anlegen“; beim Umbenennen ebenso („Gibt es schon“).</li>
+      <li><b>Ein Haken, kein Kästchen.</b> Vor einer Gruppe steht ein Haken oder nichts, dahinter ihre Zahl, am Rechner ihre Ziffer.</li>
+      <li><b>Ziffern, solange das Feld leer ist.</b> 1 bis 9 schalten die ersten neun Gruppen; sobald getippt wird, gehören die Ziffern dem Namen („Mathe 2“).</li>
+      <li><b>Darunter die Notiz</b> eines Moduls: ein Feld, das mitwächst und beim Tippen speichert.</li>
+      <li><b>Zu geht es</b> mit Esc, einem Klick daneben, am Handy mit „Fertig“ oder nach unten gewischt. Gespeichert ist schon alles.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="seite" aria-labelledby="page-title">
+    <h2 id="page-title">Die Seite</h2>
+    <p class="lead">Am Rechner wird die Seitenleiste zur Navigation der Gruppen und zu den Filtern, die trennen. Am Handy stehen die Gruppen als Chips über der Liste und alles andere im Sheet „Filter“, wie im Katalog. Unter der Liste steht nichts mehr außer dem Boden.</p>
+    <div class="figs">
+      <div class="fig"><p class="kicker">Am Rechner</p><div class="scroll"><div data-fig="page-desk"></div></div>
+        <ol class="legend">
+          <li><i>1</i><span><b>Gruppen:</b> „Alle“, „Ohne Gruppe“ ab der ersten Gruppe, jede Gruppe mit ihrer Zahl, „+ Neue Gruppe“. Die gewählte ist dunkel, wie die gewählte Ansicht in „Mein Studium“.</span></li>
+          <li><i>2</i><span><b>Filter, die trennen:</b> „Angeboten im“, „Stand“ (sobald etwas eingeplant oder bestanden ist), „Mein Studium“ (zählt, passt; mit Studiengang und Stundenplan). „Weitere Filter“ eingeklappt, mit allem aus dem Katalog.</span></li>
+          <li><i>3</i><span><b>Kopf:</b> was die Liste zeigt und ihre LP, die Ordnung, die Tasten.</span></li>
+          <li><i>4</i><span><b>Abschnitte</b> nach der Ordnung: Heute, Letzte Woche, Oktober.</span></li>
+        </ol>
+      </div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">Am Handy</p><div data-fig="page-phone"></div></div>
+      <div class="fig">
+        <ol class="legend">
+          <li><i>1</i><span><b>Die Suche</b> sucht auf diesem Tab in der Merkliste.</span></li>
+          <li><i>2</i><span><b>Gruppen als Chips</b>, ab der ersten Gruppe; „+“ legt eine an, lange gedrückt kommt das Menü einer Gruppe.</span></li>
+          <li><i>3</i><span><b>Der Kopf</b> mit Zahl und „Filter“ wie im Katalog; in einer Gruppe dazu „⋯“, ihr Menü.</span></li>
+          <li><i>4</i><span><b>Die Karten</b> des Katalogs; nach links gewischt entfernt, nach rechts eingeplant.</span></li>
+        </ol>
+        <h3 style="margin-top: 18px; font-size: 15px">Was wegfällt</h3>
+        <ul class="points">
+          <li><b>„Übersicht“:</b> Die Zahlen stehen im Kopf und bei den Gruppen.</li>
+          <li><b>„Reihenfolge“ als Liste:</b> eine Auswahl im Kopf.</li>
+          <li><b>„Aktionen“:</b> Teilen und Kopieren im Menü von „Alle“ und jeder Gruppe, Leeren im Menü von „Alle“.</li>
+          <li><b>Der Absatz über den Speicher:</b> ein Satz im leeren Zustand; ganz in der Datenschutzerklärung und im Profil.</li>
+          <li><b>Am Handy alles unter der Liste:</b> heute 4.495 px tief.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="zeile" aria-labelledby="row-title">
+    <h2 id="row-title">Die Zeile</h2>
+    <p class="lead">Die Zeile ist die des Katalogs, wie seit 1.31.0 auch in „Mein Studium“. Was die Merkliste dazugibt, steht in der Zeile unter dem Titel, hinter dem, was der Katalog dort sagt, in den Formen von Regel 2; die Notiz darunter so breit wie die Zeile, wie seit 1.32.1 der andere Titel in der Zeile einer Suche.</p>
+    <div class="figs">
+      <div class="fig"><p class="kicker">Am Rechner</p><div class="scroll"><div data-fig="row-desk"></div></div></div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">Am Handy</p><div data-fig="row-phone"></div></div>
+      <div class="fig">
+    <ol class="legend">
+      <li><i>1</i><span><b>Was der Katalog sagt:</b> Nummer und Flaggen (Auslaufmodul, begrenzte Plätze, FÜS), die Spalten.</span></li>
+      <li><i>2</i><span><b>Was Betula über dich weiß:</b> das Zeichen aus „Mein Studium“ mit dem Semester; Ring eingeplant, halber Ring läuft, Haken bestanden.</span></li>
+      <li><i>3</i><span><b>Was du festhältst:</b> deine Gruppen, umrandet, höchstens zwei, dann „+1“; die Gruppe, die die Liste gerade zeigt, nicht.</span></li>
+      <li><i>4</i><span><b>Deine Notiz:</b> ihre erste Zeile, nur wenn es eine gibt. Die Zeile wächst nur um sie; am Rechner geht sie unter den Spalten durch bis ans Lesezeichen.</span></li>
+    </ol>
+      </div>
+    </div>
+    <div class="figs">
+      <div class="fig"><p class="kicker">Zustände</p><div class="scroll"><div data-fig="row-states"></div></div><p class="cap">Von oben: in der Vorschau offen (der Strich links), ausgewählt (schraffiert, wie in „Mein Studium“), hier entfernt (gedimmt bis zum Verlassen der Seite, ein Tipp aufs Lesezeichen holt es zurück), von der Suche gefunden.</p></div>
+    </div>
+    <ul class="points">
+      <li><b>Die Reihenfolge in der Zeile ist fest:</b> Katalog, Betula, du. So steht jede Art immer an derselben Stelle.</li>
+      <li><b>Das Lesezeichen bleibt das Lesezeichen:</b> Es merkt und entfernt, überall gleich, auch in einer Gruppe. Aus einer Gruppe nimmt das Menü für Gruppe und Notiz.</li>
+      <li><b>Keine Farbe für Gruppen.</b> Farben bedeuten in Betula schon etwas: die Bereiche in „Mein Studium“, „jetzt“, Warnungen.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="finden" aria-labelledby="find-title">
+    <h2 id="find-title">Suchen, ordnen, filtern</h2>
+    <p class="lead">Die Suche oben gehört der Seite, auf der sie steht: auf der Merkliste sucht sie in der Merkliste. Die Ordnung ist eine Auswahl im Kopf; am Handy steht sie mit den Filtern im Sheet.</p>
+    <div class="figs">
+      <div class="fig"><p class="kicker">Die Ordnung am Rechner</p><div class="scroll"><div data-fig="order-desk"></div></div></div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">Gesucht am Handy</p><div data-fig="search-phone"></div></div>
+      <div class="fig">
+        <ul class="points" style="margin-top: 0">
+          <li><b>Das Suchfeld heißt „In der Merkliste suchen“</b> und filtert beim Tippen. Gefunden wird nach den Regeln der Katalogsuche, dazu in Gruppen und Notizen; was gefunden wurde, ist markiert.</li>
+          <li><b>Der Kopf sagt „2 von 9“.</b> Unter den Treffern steht „‚lena‘ im ganzen Katalog“; findet die Merkliste nichts, steht diese Zeile allein da.</li>
+          <li><b>Die Ordnung:</b> Zuletzt gemerkt, Nach Studium, Nach Angebot teilen in Abschnitte mit ihrer Zahl; Titel, Leistungspunkte und Termine ordnen ohne. Die Spaltenköpfe stellen dieselbe Auswahl um.</li>
+          <li><b>Am Handy</b> stehen Ordnung und Filter im Sheet „Filter“, wie im Katalog; aktive Filter als Tags unter dem Kopf.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="auswahl" aria-labelledby="sel-title">
+    <h2 id="sel-title">Mehrere auswählen</h2>
+    <p class="lead">Genau wie in „Mein Studium“ seit 1.31.0: ohne Kästchen, die Zeile hervorgehoben und schraffiert, die Leiste am Platz der Spaltenköpfe, am Handy über der Tab-Leiste.</p>
+    <div class="figs">
+      <div class="fig"><p class="kicker">Am Rechner</p><div class="scroll"><div data-fig="sel-desk"></div></div></div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">Am Handy</p><div data-fig="sel-phone"></div></div>
+      <div class="fig">
+    <ul class="points" style="margin-top: 0">
+      <li><b>Am Rechner:</b> Strg oder ⌘ und Klick, Shift und Klick, über Zeilen ziehen, „Auswählen“ im Menü der Zeile (Rechtsklick). <b>Am Handy:</b> lange drücken, mit dem Finger weiterziehen. Danach wählt ein Tipp an und ab.</li>
+      <li><b>Neu, für beide Listen:</b> Shift und ↑ ↓ erweitert die Auswahl, Strg A nimmt alle sichtbaren, Esc hebt sie auf.</li>
+      <li><b>Die Leiste:</b> „3 ausgewählt · 14 LP“, Gruppe, Einplanen, Teilen, Entfernen, ×. „Gruppe“ öffnet das Menü für mehrere, „Einplanen“ die Semester wie „Verschieben nach“ in „Mein Studium“.</li>
+      <li><b>Wischen bleibt</b>, nach links merken oder entfernen, nach rechts einplanen. Lange drücken ist kein Wischen: Der Finger hält erst still.</li>
+    </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="verwalten" aria-labelledby="manage-title">
+    <h2 id="manage-title">Gruppen verwalten</h2>
+    <p class="lead">Eine Gruppe hat ein Menü, und das steht an ihr: in der Seitenleiste am Rechner, am Chip am Handy.</p>
+    <div class="figs three">
+      <div class="fig"><div data-fig="manage-desk"></div><p class="cap"><b>Am Rechner:</b> „⋯“ beim Zeigen, oder Rechtsklick. Umbenennen (F2), Teilen, Nach oben, Nach unten, Löschen.</p></div>
+      <div class="fig"><div data-fig="manage-new"></div><p class="cap"><b>Neu anlegen:</b> „+ Neue Gruppe“ wird ein Feld, Enter legt an. Gibt es den Namen, sagt das Feld „Gibt es schon“, und Enter öffnet die Gruppe.</p></div>
+      <div class="fig"><div data-fig="manage-phone"></div><p class="cap"><b>Am Handy</b> den Chip lange drücken; in einer Gruppe auch „⋯“ im Kopf. Das Menü kommt als Sheet.</p></div>
+    </div>
+    <ul class="points">
+      <li><b>Löschen fragt nicht:</b> Die Module bleiben gemerkt. Der Hinweis danach sagt „‚Für Lena‘ gelöscht · 3 bleiben gemerkt“, mit „Rückgängig“, und wo Module nur dort standen, mit „Auch 2 entfernen“.</li>
+      <li><b>„Alle“ hat ein Menü wie eine Gruppe:</b> Link für ein anderes Gerät, Als Text kopieren, Merkliste leeren (fragt, wie heute).</li>
+      <li><b>Kein Ziehen auf eine Gruppe</b>, wie in „Mein Studium“ seit 1.31.0 kein Ziehen auf ein Semester.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="modul" aria-labelledby="mod-title">
+    <h2 id="mod-title">Am Modul</h2>
+    <p class="lead">Der Schalter bleibt „Merken“ und „Gemerkt“ mit M. Gemerkt trägt er klein die Gruppen, wie „Einplanen“ sein Semester trägt, und rechts einen Pfeil zum Menü für Gruppe und Notiz.</p>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">Vorschau am Rechner</p><div data-fig="mod-desk"></div></div>
+      <div class="fig"><p class="kicker">Sheet am Handy</p><div data-fig="mod-phone"></div></div>
+    </div>
+    <ul class="points">
+      <li><b>Der Pfeil</b> ist ein eigener Teil des Schalters; am Handy 42 px breit, damit der Daumen ihn trifft. Ungemerkt gibt es ihn nicht.</li>
+      <li><b>Die Notiz</b> steht unter den Schaltern, ganz; ein Klick bearbeitet sie (auch N). Ohne Notiz steht dort nichts.</li>
+      <li><b>Mit „Weitere Module auch in ‚Für Lena‘“</b> sagt der Schalter vorher „Merken · in Für Lena“.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="teilen" aria-labelledby="share-title">
+    <h2 id="share-title">Weitergeben und Ankommen</h2>
+    <p class="lead">Teilen steht im Menü einer Gruppe, im Menü von „Alle“ und in der Leiste der Auswahl, als ein Menü mit drei Zeilen.</p>
+    <div class="figs two">
+      <div class="fig"><div data-fig="share-menu"></div><p class="cap"><b>Teilen:</b> „Link kopieren“, darunter „Notizen mitnehmen“ (aus), „Als Text kopieren“ mit Nummer, Titel, LP und dem Link jedes Moduls. Für „Alle“ heißt der erste „Link für ein anderes Gerät“ und nimmt Gruppen und Notizen mit. Danach der Hinweis „Link kopiert“.</p></div>
+      <div class="fig"><div class="stack stretch" data-fig="offers"></div><p class="cap"><b>Ankommen</b> über der Liste wie heute. Gibt es den Namen schon, heißt der erste Knopf „Zu ‚Für Lena‘ hinzufügen“, und „Anderer Name …“ fragt nach einem, den es nicht gibt.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="grenze" aria-labelledby="limit-title">
+    <h2 id="limit-title">Bei 256 ist Schluss</h2>
+    <p class="lead">Wer das 257. Modul merken will, merkt nichts und bekommt eine Meldung im Gerüst der anderen Hinweise. Vorher sagt es nur der Kopf der Liste, und erst, wenn es knapp wird.</p>
+    <div class="figs">
+      <div class="fig"><div class="mocks" data-fig="limit-note"></div><p class="cap"><b>Voll:</b> „Merkliste voll · 256 Module“ und der Weg zur Merkliste; der Schalter bleibt „Merken“.</p></div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><div class="scroll"><div data-fig="limit-head"></div></div><p class="cap"><b>Knapp:</b> ab 240 sagt der Kopf „248 / 256“, ab 250 in der Farbe der Warnung. Sonst steht dort keine Grenze.</p></div>
+      <div class="fig"><div data-fig="limit-offer"></div><p class="cap"><b>Ein Link mit mehr</b> bietet an, was passt. Eine Liste, die von früher mehr hält, bleibt, wie sie ist; nur dazu kommt nichts.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="anderswo" aria-labelledby="else-title">
+    <h2 id="else-title">Die Merkliste anderswo</h2>
+    <p class="lead">Wo Betula nach einem Modul fragt, sind die gemerkten eine Quelle mit denselben Gruppen; überall dieselben Chips, dieselben Zeilen, dieselben Hinweise auf das, was ungewöhnlich ist.</p>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">„Mein Studium“ · Module hinzufügen</p><div data-fig="else-study"></div><p class="cap">Eine dritte Quelle zwischen Regelstudienplan und Katalog. Mit drei Reitern werden ihre Namen kurz, damit sie auch am Handy nebeneinander passen: Regelstudienplan, Merkliste, Katalog. Die Gruppen als Chips, darunter die Zeilen des Dialogs mit dem, was ein Modul hier heißt; abgelehnt wird nichts.</p></div>
+      <div class="fig"><p class="kicker">Stundenplan · Aus der Merkliste</p><div data-fig="else-plan"></div><p class="cap">Was das Semester anbietet zuerst, mit „passt“ oder der Überschneidung; was es nicht anbietet, eingeklappt darunter.</p></div>
+    </div>
+    <div class="figs two">
+      <div class="fig"><p class="kicker">Katalog · Filter „Gemerkt“</p><div data-fig="else-catalog"></div><p class="cap">Der Chip „Gemerkt“ öffnet unter sich die Gruppen, wie „Passt in meinen Stundenplan“ seine Lehrformen; die Adresse nennt die Gruppe bei ihrer Nummer.</p></div>
+      <div class="fig"><p class="kicker">Der Tab, lange gedrückt</p><div data-fig="else-tab"></div><p class="cap">Wie bei „Studium“: ein Menü am Tab, hier mit den Gruppen. Am Rechner mit der rechten Maustaste.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="tasten" aria-labelledby="keys-title">
+    <h2 id="keys-title">Tasten</h2>
+    <p class="lead">Für Leute, die viel damit machen. Die Tasten stehen neben ihrem Eintrag im Menü und im Kopf der Liste (R10); die neuen sind G und N.</p>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col">Taste</th><th scope="col">Wo</th><th scope="col">Was</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>M</kbd></td><td data-label="Wo">Zeile, offenes Modul</td><td data-label="Was">merken und entfernen, wie heute</td></tr>
+          <tr><td><kbd>G</kbd></td><td data-label="Wo">Zeile, offenes Modul, Hinweis, Auswahl</td><td data-label="Was">das Menü für Gruppe und Notiz, der Fokus im Feld</td></tr>
+          <tr><td><kbd>N</kbd></td><td data-label="Wo">Zeile, offenes Modul</td><td data-label="Was">dasselbe Menü, der Fokus in der Notiz</td></tr>
+          <tr><td><kbd>1</kbd> … <kbd>9</kbd></td><td data-label="Wo">im Menü, solange das Feld leer ist</td><td data-label="Was">die erste bis neunte Gruppe an und aus</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd></td><td data-label="Wo">Liste, Menü</td><td data-label="Was">wählen und öffnen, wie heute; im Menü schalten oder anlegen</td></tr>
+          <tr><td><kbd>/</kbd> <kbd>Strg K</kbd></td><td data-label="Wo">überall</td><td data-label="Was">die Suche; auf der Merkliste in der Merkliste</td></tr>
+          <tr><td><kbd>Shift ↑ ↓</kbd> <kbd>Strg A</kbd></td><td data-label="Wo">Liste</td><td data-label="Was">die Auswahl erweitern, alle sichtbaren auswählen; neu, auch in „Mein Studium“</td></tr>
+          <tr><td><kbd>F2</kbd></td><td data-label="Wo">Gruppe in der Seitenleiste</td><td data-label="Was">umbenennen</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td data-label="Wo">Menü, Auswahl, Hinweis, Vorschau</td><td data-label="Was">das Oberste schließen</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="block" id="nicht" aria-labelledby="not-title">
+    <h2 id="not-title">Bewusst nicht</h2>
+    <div class="not">
+      <div><h3>Keine Farben für Gruppen</h3><p>Farbe bedeutet in Betula schon etwas: Bereiche, „jetzt“, Warnungen. Gruppen sind Wörter.</p></div>
+      <div><h3>Kein Menüknopf an jeder Zeile</h3><p>Das Menü einer Zeile kommt mit der rechten Maustaste; sichtbar ist der Weg über das Modul.</p></div>
+      <div><h3>Keine Kästchen</h3><p>Ausgewählt wird wie in „Mein Studium“, hervorgehoben und schraffiert. Ein Haken nur in Menüs.</p></div>
+      <div><h3>Kein Ziehen auf Gruppen</h3><p>Wie bei den Semestern in „Mein Studium“: Das Menü tut es, für eine Zeile wie für viele.</p></div>
+      <div><h3>Keine Zahl zweimal</h3><p>Keine Übersicht neben dem Kopf, keine Summe neben der Summe.</p></div>
+      <div><h3>Kein Satz, der immer dasteht</h3><p>Erklärt wird im leeren Zustand und im Tooltip, einmal.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="offen" aria-labelledby="open-title">
+    <h2 id="open-title">Zu entscheiden</h2>
+    <p class="lead">Sieben Fragen, jeweils mit meiner Empfehlung. Danach baue ich Schritt 1, Wiederfinden: die Suche oben, Abschnitte, Ordnung und Filter, und die Seite am Handy ohne Werkzeuge unter der Liste.</p>
+    <ol class="ask">
+      <li><h3>1 · Der Hinweis: Feld oder Kurzwahl?</h3><p>Im Prototyp lassen sich beide ausprobieren.</p><p class="rec">Feld, mit „Weitere Module auch in …“.</p></li>
+      <li><h3>2 · Gruppen am Handy: Chips oder eine Auswahl?</h3><p>Chips über der Liste sind ein Tipp und zeigen die Zahlen. Die Alternative wäre der Name der Gruppe als Knopf mit einer Liste darunter, wie das Semester in „Mein Studium“: ruhiger, aber zwei Tipps.</p><p class="rec">Chips; ab etwa acht Gruppen scrollen sie seitlich.</p></li>
+      <li><h3>3 · Die Notiz in der Zeile?</h3><p>Ihre erste Zeile, oder nur ein Zeichen ✎, und die Notiz erst am Modul.</p><p class="rec">Die erste Zeile: Sie ist oft der Grund, warum das Modul da steht.</p></li>
+      <li><h3>4 · Der Stand in der Zeile?</h3><p>Eingeplant, läuft, bestanden, mit dem Zeichen aus „Mein Studium“ und dem Semester.</p><p class="rec">Ja, dort, wo es einen gibt.</p></li>
+      <li><h3>5 · Die Tasten G und N?</h3><p>Beide sind in Betula noch frei.</p><p class="rec">Ja.</p></li>
+      <li><h3>6 · „Weitere Filter“ in der Seitenleiste?</h3><p>Alle Filter des Katalogs für die gemerkten, oder nur die vier der Merkliste.</p><p class="rec">Eingeklappt darunter; ob auf oder zu, merkt sich der Browser (R13).</p></li>
+      <li><h3>7 · „3 Gruppen“ in der Zeile des Katalogs?</h3><p>Seit 1.32.0 sagt eine Zeile „3 Gruppen“, wenn eine Übung in Gruppen läuft. Auf der Merkliste stünde das neben deinen Gruppen und läse sich wie „in 3 deiner Gruppen“. Die Merkliste zählt ihre Gruppen darum nirgends so; sie nennt zwei und dann „+1“.</p><p class="rec">Im Katalog die Art davor, wo Betula sie kennt: „Übung in 3 Gruppen“, wie schon „Übung je Studiengang“.</p></li>
+    </ol>
+    <p class="src">Gebaut aus Folia 1.31.0 und nachgesehen in 1.32.1 (develop, 19.10.2026): <code>folia/crates/widgets/src/list.rs</code> (die Zeile, mit der Zeile einer Suche und „3 Gruppen“ aus 1.32), <code>folia/crates/planner/src/study/focus.rs</code> und <code>menu.rs</code> (Auswahl und Menüs), <code>folia/crates/widgets/src/plannote.rs</code> und <code>folia/crates/design/src/waitnote.rs</code> (der Hinweis), <code>folia/assets/app.css</code> (Maße und Farben); die Merkliste von heute auf canary. Das Konzept der Funktionen: <code>folia/design/merken/konzept.html</code>.</p>
+  </section>
+</main>
+
+<script>
+"use strict";
+// ======== icons (Lucide, as Betula draws them) ========
+const P = {
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  minus: '<path d="M5 12h14"/>',
+  more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  tag: '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5"/>',
+  cal: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  calplus: '<path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/>',
+  sliders: '<path d="M21 4h-7"/><path d="M10 4H3"/><path d="M21 12h-9"/><path d="M8 12H3"/><path d="M21 20h-5"/><path d="M12 20H3"/><path d="M14 2v4"/><path d="M8 10v4"/><path d="M16 18v4"/>',
+  house: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  list: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 4h7"/><path d="M14 9h7"/><path d="M14 15h7"/><path d="M14 20h7"/>',
+  cap: '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
+  week: '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M17 14h-6"/><path d="M13 18H7"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  updown: '<path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/>',
+  select: '<path d="M5 3a2 2 0 0 0-2 2"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M21 19a2 2 0 0 1-2 2"/><path d="M5 21a2 2 0 0 1-2-2"/><path d="M9 3h1"/><path d="M9 21h1"/><path d="M14 3h1"/><path d="M14 21h1"/><path d="M3 9v1"/><path d="M21 9v1"/><path d="M3 14v1"/><path d="M21 14v1"/>',
+};
+const ic = (name, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[name]}</svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fold = (s) => String(s ?? "").toLocaleLowerCase("de").trim();
+/** The text with the first place `q` is found in it marked, as the catalog's search marks it. */
+function hi(text, q) {
+  const f = fold(q);
+  const at = f ? fold(text).indexOf(f) : -1;
+  if (at < 0) return esc(text);
+  return esc(text.slice(0, at)) + `<mark>${esc(text.slice(at, at + f.length))}</mark>` + esc(text.slice(at + f.length));
+}
+
+// ======== the catalog of 19.10.2026, as canary shows it ========
+const W = "Winter", S_ = "Sommer", E = "jedes Sem.", U = "unregelm.";
+const MODS = {
+  "11787": { t: "Theoretische Informatik", lp: 8, tu: W, la: "DE", ev: "3 Termine" },
+  "14380": { t: "Special Topics of Algebra", lp: 8, tu: U, la: "EN", ev: "noch keine" },
+  "14642": { t: "Machine Learning for Engineers", lp: 6, tu: W, la: "EN", ev: "2 Termine" },
+  "13566": { t: "Praktikum Maschinelles Lernen", lp: 4, tu: W, la: "DE", ev: "1 Termin" },
+  "14896": { t: "Music and Artificial Intelligence", lp: 4, tu: U, la: "EN", ev: "noch keine", fl: [["begrenzte Plätze", "n"]] },
+  "14169": { t: "Das ist Kunst - kann ich das auch?", lp: 6, tu: U, la: "DE", ev: "noch keine", fl: [["FÜS", "n"]] },
+  "12177": { t: "Praktische Philosophie", lp: 6, tu: W, la: "DE", ev: "1 Termin", fl: [["FÜS", "n"]] },
+  "13428": { t: "Grundströmungen der Philosophie", lp: 6, tu: S_, la: "DE", ev: "noch keine" },
+  "12190": { t: "Philosophie- und Ideengeschichte", lp: 6, tu: S_, la: "DE", ev: "noch keine", fl: [["Auslaufmodul", "w"]] },
+  "41112": { t: "Projektmanagement im Sport", lp: 6, tu: E, la: "DE", ev: "noch keine", fl: [["FÜS", "n"]] },
+  "13674": { t: "Kunstgeschichte 1", lp: 6, tu: W, la: "DE", ev: "1 Termin", fl: [["FÜS", "n"]] },
+  "14034": { t: "Languages of Artificial Intelligence", lp: 6, tu: U, la: "EN", ev: "2 Termine" },
+  "13738": { t: "Technik in Wissenschaft und Philosophie", lp: 6, tu: E, la: "DE", ev: "1 Termin", fl: [["FÜS", "n"]] },
+  "12183": { t: "Einführung in die praktische Philosophie und die Sozialphilosophie", lp: 6, tu: W, la: "DE", ev: "1 Termin" },
+  "13379": { t: "Konstruktionstechnik", lp: 6, tu: W, la: "DE", ev: "1 Termin" },
+};
+// What Betula knows from „Mein Studium" (an example): planned, and passed.
+const STATUS = { "11787": ["planned", "WiSe 26/27"], "12190": ["passed", "SoSe 26"] };
+// The prototype's tab Module: a page of the catalog.
+const CATALOG = ["14896", "14169", "14034", "13674", "12177", "13738", "41112", "13379", "12183", "14642"];
+const DAY = 86400;
+const NOW = Date.UTC(2026, 9, 19, 10) / 1000; // Monday, 19.10.2026
+const LIMIT = 256;
+
+// ======== the state of a list of marks ========
+/** A fresh state: `name` is the start (groups, empty, full). */
+function scenario(name, device, variant) {
+  const st = {
+    device, variant, tab: "catalog", groups: [], marks: new Map(), removed: new Map(), dim: new Set(), extra: 0,
+    view: "all", q: "", qCat: "", sel: new Set(), anchorSel: null, open: null, note: null, editor: null, sticky: null,
+    recent: [], season: "all", order: "time", sheet: null, ctx: null, adding: null, nextG: 1,
+  };
+  if (name !== "empty") {
+    st.groups = [{ id: "g1", name: "Wahlpflicht" }, { id: "g2", name: "Für Lena" }, { id: "g3", name: "Witzig" }];
+    st.nextG = 4;
+    const add = (id, days, groups, note = "") => st.marks.set(id, { at: NOW - days * DAY, groups: new Set(groups), note });
+    add("14896", 0, ["g2"], "früh anmelden, Plätze sind begrenzt");
+    add("14642", 0, ["g1"], "lieber als das Praktikum?");
+    add("13566", 2, ["g1"]);
+    add("14169", 3, ["g3", "g2"]);
+    add("11787", 5, []);
+    add("12177", 9, [], "mal in die Vorlesung");
+    add("13428", 9, []);
+    add("14380", 24, ["g1"]);
+    add("12190", 31, []);
+    st.recent = ["g2", "g1", "g3"];
+  }
+  if (name === "full") st.extra = LIMIT - st.marks.size;
+  return st;
+}
+const markOf = (st, id) => st.marks.get(id) || st.removed.get(id);
+const groupById = (st, gid) => st.groups.find((g) => g.id === gid);
+const namesIn = (st, set) => st.groups.filter((g) => set.has(g.id)).map((g) => g.name);
+const total = (st) => st.marks.size + st.extra;
+function counts(st) {
+  const c = { all: total(st), none: 0 };
+  st.groups.forEach((g) => { c[g.id] = 0; });
+  st.marks.forEach((m) => { if (!m.groups.size) c.none++; m.groups.forEach((g) => { c[g] = (c[g] || 0) + 1; }); });
+  return c;
+}
+const viewName = (st) => st.view === "all" ? "Alle" : st.view === "none" ? "Ohne Gruppe" : groupById(st, st.view)?.name || "Alle";
+const offeredIn = (id, season) => season === "all" || MODS[id].tu === season || MODS[id].tu === E;
+function found(st, id, q) {
+  const f = fold(q);
+  const mark = markOf(st, id);
+  return fold(MODS[id].t).includes(f) || id.includes(f) || fold(mark?.note).includes(f) || namesIn(st, mark?.groups || new Set()).some((n) => fold(n).includes(f));
+}
+/** The modules the list shows: the view's (and those taken off it here, dimmed), its half of the year, the search. */
+function listed(st) {
+  let ids = [...new Set([...st.marks.keys(), ...st.dim])].filter((id) => markOf(st, id));
+  ids = ids.filter((id) => {
+    const m = markOf(st, id);
+    if (st.view === "none") return m.groups.size === 0;
+    if (st.view !== "all") return m.groups.has(st.view);
+    return true;
+  });
+  ids = ids.filter((id) => offeredIn(id, st.season));
+  if (fold(st.q)) ids = ids.filter((id) => found(st, id, st.q));
+  return ids;
+}
+const SECTION_OF = {
+  time: (at) => { const d = Math.floor((NOW - at) / DAY); return d <= 0 ? "Heute" : d <= 7 ? "Letzte Woche" : d <= 18 ? "Oktober" : d <= 48 ? "September" : "Früher"; },
+};
+const TIME_ORDER = ["Heute", "Letzte Woche", "Oktober", "September", "Früher"];
+const OFFER = { [W]: "Winter", [S_]: "Sommer", [E]: "Jedes Semester", [U]: "Unregelmäßig" };
+/** The list in its order: sections where the order has them. */
+function arranged(st, ids) {
+  const at = (id) => markOf(st, id).at;
+  const newest = [...ids].sort((a, b) => at(b) - at(a));
+  if (fold(st.q)) return [{ items: newest }];
+  if (st.order === "title") return [{ items: [...ids].sort((a, b) => MODS[a].t.localeCompare(MODS[b].t, "de")) }];
+  if (st.order === "lp") return [{ items: newest.sort((a, b) => MODS[b].lp - MODS[a].lp) }];
+  if (st.order === "offer") return Object.values(OFFER).map((label) => ({ label, items: newest.filter((id) => OFFER[MODS[id].tu] === label) })).filter((s) => s.items.length);
+  return TIME_ORDER.map((label) => ({ label, items: newest.filter((id) => SECTION_OF.time(at(id)) === label) })).filter((s) => s.items.length);
+}
+const ORDERS = [["time", "Zuletzt gemerkt"], ["study", "Nach Studium"], ["offer", "Nach Angebot"], ["title", "Titel"], ["lp", "Leistungspunkte"], ["events", "Termine"]];
+const orderName = (o) => ORDERS.find(([k]) => k === o)?.[1] || "Zuletzt gemerkt";
+/** What a row of the list says beyond the catalog, from the state. */
+function rowOpts(st, id, index) {
+  const m = markOf(st, id);
+  return {
+    marked: st.marks.has(id), dim: st.dim.has(id) && !st.marks.has(id), sel: st.sel.has(id), open: st.open === id, shade: index % 2 === 1,
+    q: fold(st.q) ? st.q : "", groups: namesIn(st, m.groups), hide: st.view.startsWith("g") ? viewName(st) : null, note: m.note, status: STATUS[id],
+  };
+}
+
+// ======== parts: a row, a card, a note, a menu, a switch, a bar ========
+const flags = (m) => (m.fl || []).map(([t, k]) => `<span class="mk-flag${k === "n" ? " neutral" : ""}">${esc(t)}</span>`).join("");
+/** A figure's numbered pin, where `o.pins` lists its number. */
+const pinOf = (o, n) => (o.pins?.includes(n) ? `<i class="pin">${n}</i>` : "");
+/** The line under a title: the catalog's (number, flags), then Betula's (status), then yours (groups). */
+function meta(id, o) {
+  const m = MODS[id];
+  let h = `<span class="mk-num">${id}</span>${flags(m)}${pinOf(o, 1)}`;
+  if (o.status) h += `<span class="mk-st"><i class="mk-glyph ${o.status[0]}"></i>${esc(o.status[1])}</span>${pinOf(o, 2)}`;
+  const tags = (o.groups || []).filter((g) => g !== o.hide);
+  tags.slice(0, 2).forEach((g) => { h += `<span class="mk-gt">${hi(g, o.q)}</span>`; });
+  if (tags.length > 2) h += `<span class="mk-gt" title="${esc(tags.slice(2).join(", "))}">+${tags.length - 2}</span>`;
+  if (tags.length) h += pinOf(o, 3);
+  return h;
+}
+const noteLine = (o) => o.note ? `<small class="mk-noteline">${ic("pencil")}<span>${hi(o.note, o.q)}</span>${pinOf(o, 4)}</small>` : "";
+const bm = (id, on) => `<button class="mk-bm${on ? " on" : ""}" type="button" data-act="bm" data-id="${id}" aria-pressed="${on}" aria-label="${esc(MODS[id].t)} merken">${ic("bookmark", on ? "fill" : "")}</button>`;
+function deskRow(id, o = {}) {
+  const m = MODS[id];
+  const cls = ["mk-row", o.shade && "shade", o.sel && "sel", o.dim && "dim", o.open && "open"].filter(Boolean).join(" ");
+  return `<div class="${cls}" data-row="${id}"><div class="mk-t"><b>${hi(m.t, o.q)}</b><small class="mk-meta">${meta(id, o)}</small></div>`
+    + `<span class="mk-c lp"><b>${m.lp}</b> LP</span><span class="mk-c">${esc(m.tu)}</span><span class="mk-c"><span class="mk-lang">${m.la}</span></span><span class="mk-c">${esc(m.ev)}</span>${bm(id, o.marked)}${noteLine(o)}</div>`;
+}
+function phoneCard(id, o = {}) {
+  const m = MODS[id];
+  const cls = ["mk-card", o.sel && "sel", o.dim && "dim"].filter(Boolean).join(" ");
+  const events = m.ev === "noch keine" ? "noch keine Termine" : m.ev;
+  return `<div class="mk-cw"><div class="mk-ground" aria-hidden="true"><span>${ic("calplus")}<span>Einplanen<small>WiSe 26/27</small></span></span><span class="r"></span></div>`
+    + `<div class="${cls}" data-card="${id}"><div class="mk-t"><b>${hi(m.t, o.q)}</b><small class="mk-meta">${meta(id, o)}</small><small class="mk-meta">${m.la} · ${esc(events)}</small>${noteLine(o)}</div>`
+    + `<span class="mk-cardlp"><b>${m.lp}</b> LP</span>${bm(id, o.marked)}</div></div>`;
+}
+const cols = (sorted) => `<div class="mk-cols"><span>${sorted === "title" ? "<b>Modul ↑</b>" : "Modul"}</span><span class="r">${sorted === "lp" ? "<b>LP ↓</b>" : "LP"}</span><span>Turnus</span><span>Spr.</span><span>Termine</span><span></span></div>`;
+
+/** The label of the note's field: where the module went. */
+function fieldLabel(names, anyGroup) {
+  if (!anyGroup) return { text: "Gruppe", empty: true, icon: "plus" };
+  if (!names.length) return { text: "Ohne Gruppe", empty: true, icon: "tag" };
+  return { text: names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", "), empty: false, icon: "tag" };
+}
+/**
+ * The note that waits for interaction, in the frame of „Einplanen"'s: kind mark (feld or kurz), unmark,
+ * removed (several), full, deleted (a group), copied (a link), plan (the note of „Einplanen", for comparison).
+ */
+function noteHtml(n) {
+  const phone = n.phone;
+  const end = (undo = true) => `${undo ? `<span class="mk-note-sep"></span><button class="mk-note-undo" type="button" data-act="note-undo">Rückgängig</button>` : ""}<button class="mk-note-x" type="button" data-act="note-close" aria-label="Schließen">${ic("x")}</button>`;
+  const title = !phone && n.title ? `<span class="mk-note-title">${esc(n.title)}</span>` : "";
+  let second = "";
+  let line = "";
+  if (n.kind === "mark") {
+    if (n.second) second = `<div class="mk-note-second">${ic("tag")}<span>Weitere Module auch in ‚${esc(n.second.name)}‘</span><button class="mk-switch${n.second.on ? " on" : ""}" type="button" data-act="note-sticky" role="switch" aria-checked="${!!n.second.on}" aria-label="Weitere Module auch in ${esc(n.second.name)}"></button></div>`;
+    let pick;
+    if (n.variant === "kurz" && n.chips?.length) {
+      pick = n.chips.map((c) => `<button class="mk-note-chip${c.on ? " on" : ""}" type="button" data-act="note-chip" data-g="${c.id}">${c.on ? ic("check") : ""}${esc(c.name)}</button>`).join("")
+        + `<button class="mk-note-chip more" type="button" data-act="note-field" aria-label="Weitere Gruppen">${ic("down")}</button>`;
+    } else {
+      const f = n.field;
+      pick = `<button class="mk-note-field${f.empty ? " empty" : ""}" type="button" data-act="note-field" aria-haspopup="menu">${ic(f.icon)}<span>${esc(f.text)}</span>${ic("down")}</button>`;
+    }
+    line = `<span class="mk-note-mark">${ic("check")}</span>${title}${phone ? "" : '<span class="mk-note-gap"></span>'}${pick}${phone ? '<span class="mk-note-gap"></span>' : ""}${end()}`;
+  } else if (n.kind === "plan") {
+    line = `<span class="mk-note-mark">${ic("check")}</span>${title}<span class="mk-note-gap"></span><span class="mk-stepper">${ic("left")}<b>WiSe 26/27<small>3. FS</small></b>${ic("right")}</span>${end()}`;
+  } else if (n.kind === "unmark" || n.kind === "removed") {
+    const say = n.kind === "removed" ? `${n.count} Module entfernt` : phone ? "Entfernt" : "entfernt";
+    line = `<span class="mk-note-mark out">${ic("minus")}</span>${title}<span class="mk-note-say">${say}</span><span class="mk-note-gap"></span>${end()}`;
+  } else if (n.kind === "full") {
+    line = `<span class="mk-note-mark warn">${ic("alert")}</span><span class="mk-note-say"><b>Merkliste voll</b> <i>· ${LIMIT} Module</i></span><span class="mk-note-gap"></span><button class="mk-note-act" type="button" data-act="to-list">Zur Merkliste</button>${end(false)}`;
+  } else if (n.kind === "deleted") {
+    line = `<span class="mk-note-mark out">${ic("trash")}</span><span class="mk-note-say"><b>‚${esc(n.name)}‘ gelöscht</b> <i>· ${n.kept} bleiben gemerkt</i></span><span class="mk-note-gap"></span>${n.only ? `<button class="mk-note-act" type="button">Auch ${n.only} entfernen</button>` : ""}${end()}`;
+  } else if (n.kind === "copied") {
+    line = `<span class="mk-note-mark">${ic("link")}</span><span class="mk-note-say"><b>Link kopiert</b> <i>· ${esc(n.what)}</i></span><span class="mk-note-gap"></span>${end(false)}`;
+  }
+  return `<div class="mk-note${n.static ? " static" : ""}${phone ? " ph" : ""}" role="status" data-keep${n.sn ? ` data-k="n${n.sn}"` : ""}>${second}<div class="mk-note-line">${line}</div></div>`;
+}
+/** The note grown into a list of groups: the form that was set aside, drawn to show why. */
+function unfoldHtml() {
+  return `<div class="mk-note static unfold"><div class="mk-note-list"><div class="f">${ic("search")}Gruppe suchen oder anlegen</div><div class="on"><span class="c">${ic("check")}</span>Für Lena</div><div><span class="c"></span>Wahlpflicht</div><div><span class="c"></span>Witzig</div></div>`
+    + `<div class="mk-note-line"><span class="mk-note-mark">${ic("check")}</span><span class="mk-note-title">Music and Artificial Intelligence</span><span class="mk-note-gap"></span><span class="mk-note-sep"></span><button class="mk-note-undo" type="button">Rückgängig</button></div></div>`;
+}
+/**
+ * The one menu of a mark's groups and note. `e`: title, q (what is typed), items [{id, name, count,
+ * state: on|off|part}] (the groups that hold what is typed), create (what is typed, where no group has
+ * that name: its row comes after the groups found, and first where none is found), note (a string: one
+ * module; null: several), active (the row the keys are on, the create row after the groups), phone (a
+ * sheet), static (a figure), typed (a figure's text).
+ */
+function editorHtml(e) {
+  const keys = !e.phone && !fold(e.q);
+  const items = e.items.map((it, i) => {
+    const mark = it.state === "on" ? ic("check") : it.state === "part" ? ic("minus") : "";
+    const checked = it.state === "on" ? "true" : it.state === "part" ? "mixed" : "false";
+    return `<button class="mk-item ${it.state}${i === e.active ? " act" : ""}" type="button" role="menuitemcheckbox" aria-checked="${checked}" data-act="ed-item" data-g="${it.id}"><span class="chk">${mark}</span><span class="nm">${hi(it.name, e.q)}</span><span class="n">${it.count}</span>${keys && i < 9 ? `<span class="mk-kbd">${i + 1}</span>` : ""}</button>`;
+  }).join("");
+  const createAct = e.active === e.items.length;
+  const create = e.create ? `<button class="mk-item create${createAct ? " act" : ""}" type="button" data-act="ed-create"><span class="chk">${ic("plus")}</span><span class="nm">‚${esc(e.create)}‘ anlegen</span><span></span>${e.phone || !createAct ? "" : '<span class="mk-kbd">Enter</span>'}</button>` : "";
+  const field = e.static
+    ? `<div class="mk-field${e.typed ? " focus" : ""}">${ic("search")}${e.typed ? `<span class="typed">${esc(e.typed)}</span>` : "<span>Gruppe suchen oder anlegen</span>"}</div>`
+    : `<label class="mk-field">${ic("search")}<input data-focus="ed-q" data-ed="q" value="${esc(e.q)}" placeholder="Gruppe suchen oder anlegen" autocomplete="off" aria-label="Gruppe suchen oder anlegen"></label>`;
+  const empty = !e.items.length && !e.create ? `<p class="mk-menu-row">Noch keine Gruppe. Tippe einen Namen.</p>` : "";
+  const note = typeof e.note === "string"
+    ? `<div class="mk-msep"></div><p class="mk-mlabel">Notiz</p>${e.static ? `<div class="mk-notearea">${esc(e.note) || '<span style="color: var(--text-3)">Notiz</span>'}</div>` : `<textarea class="mk-notearea" data-focus="ed-note" data-ed="note" rows="1" placeholder="Notiz" aria-label="Notiz">${esc(e.note)}</textarea>`}`
+    : "";
+  const body = `${field}<div class="mk-items" role="menu" data-ed-items>${items}${create}${empty}</div>${note}`;
+  if (e.phone) {
+    return `${e.static ? "" : `<div class="mk-shade" data-act="ed-done" data-keep data-k="es${e.sn}"></div>`}<div class="mk-sheet${e.static ? " static" : ""}" data-keep${e.sn ? ` data-k="e${e.sn}"` : ""}><div class="mk-grab"></div><div class="mk-sheet-head"><b>${esc(e.title)}</b><button class="mk-done" type="button" data-act="ed-done">Fertig</button></div><div class="mk-sheet-scroll">${body}</div></div>`;
+  }
+  return `<div class="mk-menu${e.static ? " static" : ""}" data-keep${e.sn ? ` data-k="e${e.sn}"` : ""}><p class="mk-menu-head">${esc(e.title)}</p>${body}</div>`;
+}
+/** The pair of switches at a module: „Einplanen" and „Merken", the latter split once marked. */
+function pairHtml(p) {
+  const plan = `<button class="mk-sw" type="button">${ic("calplus")}<span class="lbl"><b>Einplanen</b><small>WiSe 26/27</small></span>${p.phone ? "" : '<span class="mk-kbd">P</span>'}</button>`;
+  let mark;
+  if (p.marked) {
+    const small = p.groups.length ? `<small>${esc(p.groups.join(", "))}</small>` : "";
+    mark = `<span class="mk-swsplit"><button class="mk-sw on" type="button" data-act="sw-mark">${ic("bookmark", "fill")}<span class="lbl"><b>Gemerkt</b>${small}</span>${p.phone ? "" : '<span class="mk-kbd">M</span>'}</button><button class="mk-swchev" type="button" data-act="sw-chev" aria-label="Gruppe und Notiz" aria-haspopup="menu">${ic("down")}</button></span>`;
+  } else {
+    const small = p.sticky?.length ? `<small>in ${esc(p.sticky.join(", "))}</small>` : "";
+    mark = `<button class="mk-sw" type="button" data-act="sw-mark">${ic("bookmark")}<span class="lbl"><b>Merken</b>${small}</span>${p.phone ? "" : '<span class="mk-kbd">M</span>'}</button>`;
+  }
+  return `<div class="mk-swpair${p.phone ? "" : " stack"}">${plan}${mark}</div>`;
+}
+/** A module as its preview, its page or its sheet shows it: head, badges, the switches, the note, the rest (`p.short` leaves the rest out). */
+function moduleHtml(id, p) {
+  const m = MODS[id];
+  const note = p.marked && p.note ? `<button class="mk-modnote" type="button" data-act="sw-note">${ic("pencil")}<span>${esc(p.note)}</span></button>` : "";
+  const flagBadges = (m.fl || []).map(([t, k]) => `<span class="mk-badge${k === "w" ? " warn" : ""}">${esc(t)}</span>`).join("");
+  const rest = p.short ? "" : `<p class="mk-msec">Termine</p><div class="mk-skel" style="width: 80%"></div><div class="mk-skel" style="width: 55%"></div><p class="mk-msec">Auf einen Blick</p><div class="mk-pair"><div class="mk-skelbox"></div><div class="mk-skelbox"></div><div class="mk-skelbox"></div><div class="mk-skelbox"></div></div>`;
+  return `<div class="mk-mod"><span class="mk-mod-id">${id}</span><h4>${esc(m.t)}</h4><div class="mk-badges"><span class="mk-badge lp">${m.lp} LP</span><span class="mk-badge">${esc(m.tu)}</span><span class="mk-badge">${m.la}</span>${flagBadges}</div>${pairHtml(p)}${note}${rest}</div>`;
+}
+function deskSelbar(n, lp) {
+  return `<div class="mk-selbar" data-keep><span class="cnt">${n} ausgewählt <i>· ${lp} LP</i></span><button class="mk-act" type="button" data-act="sel-group">${ic("tag")}Gruppe${ic("down", "dn")}</button><button class="mk-act" type="button">${ic("calplus")}Einplanen${ic("down", "dn")}</button><button class="mk-act" type="button" data-act="sel-share">${ic("share")}Teilen</button><button class="mk-act danger" type="button" data-act="sel-remove">${ic("trash")}Entfernen</button><button class="mk-act x" type="button" data-act="sel-clear" aria-label="Auswahl aufheben">${ic("x")}</button></div>`;
+}
+function phoneSelbar(n, isStatic, sn) {
+  return `<div class="mk-pselbar${isStatic ? " static" : ""}" data-keep${sn ? ` data-k="b${sn}"` : ""}><span class="cnt">${n}</span><button class="mk-act" type="button" data-act="sel-group">${ic("tag")}Gruppe</button><button class="mk-act" type="button">${ic("calplus")}Einplanen</button><button class="mk-act" type="button" data-act="sel-share">${ic("share")}Teilen</button><button class="mk-act danger" type="button" data-act="sel-remove">${ic("trash")}Entfernen</button><button class="mk-act x" type="button" data-act="sel-clear" aria-label="Auswahl aufheben">${ic("x")}</button></div>`;
+}
+function tabsHtml(st, phone) {
+  const c = total(st);
+  const tab = (key, icon, name, live) => {
+    const cur = st.tab === key;
+    const cnt = key === "list" && c ? `<span class="cnt">${c}</span>` : "";
+    if (phone) return `<button class="mk-tab${cur ? " cur" : ""}${live ? "" : " idle"}" type="button" ${live ? `data-act="tab" data-tab="${key}"` : 'tabindex="-1" aria-disabled="true"'} aria-label="${name}">${ic(icon)}<span>${name}</span>${cnt}</button>`;
+    return `<button class="mk-rail-i${cur ? " cur" : ""}${live ? "" : " idle"}" type="button" ${live ? `data-act="tab" data-tab="${key}"` : 'tabindex="-1" aria-disabled="true"'} aria-label="${name}" title="${name}">${ic(icon)}${cnt}</button>`;
+  };
+  const items = tab("home", "house", "Start", false) + tab("catalog", "list", "Module", true) + tab("study", "cap", "Studium", false) + tab("list", "bookmark", "Merkliste", true) + tab("plan", "week", "Stundenplan", false);
+  return phone ? `<nav class="mk-tabbar">${items}</nav>` : `<nav class="mk-rail"><span class="logo"></span>${items}</nav>`;
+}
+
+// ======== a whole screen, from a state ========
+function sumLp(ids) { return ids.reduce((s, id) => s + MODS[id].lp, 0); }
+/** The head's words for what the list shows. */
+function headWords(st, shown) {
+  const n = shown.length;
+  const lp = sumLp(shown.filter((id) => st.marks.has(id)));
+  if (fold(st.q)) return { n, label: `von ${listedNoQuery(st).length} gemerkten`, lp: null };
+  const t = total(st);
+  const near = st.view === "all" && t >= 240;
+  if (st.view === "all") return { n: near ? `${t} / ${LIMIT}` : t, warn: t >= 250, label: t === 1 ? "gemerktes Modul" : "gemerkte Module", lp: st.extra ? null : lp };
+  if (st.view === "none") return { n, label: "ohne Gruppe", lp };
+  return { n, label: `in ${viewName(st)}`, lp };
+}
+function listedNoQuery(st) { return listed({ ...st, q: "" }); }
+function sectionsHtml(st, phone, pin = "") {
+  const shown = listed(st);
+  if (!total(st)) return `<div class="mk-empty"><span class="ico">${ic("bookmark")}</span><b>Noch nichts gemerkt</b><span>Das Lesezeichen an einem Modul oder M merkt es. Die Merkliste bleibt in diesem Browser.</span></div>`;
+  if (!shown.length && fold(st.q)) return `<div class="mk-empty"><b>Nichts Gemerktes zu ‚${esc(st.q)}‘</b></div>${catLink(st)}`;
+  if (!shown.length && st.view.startsWith("g")) return `<div class="mk-empty"><b>‚${esc(viewName(st))}‘ ist leer</b><span>Module kommen über „Gruppe“ im Hinweis, am Modul oder für mehrere ausgewählte hierher.</span></div>`;
+  if (!shown.length) return `<div class="mk-empty"><b>Nichts davon im ${st.season === W ? "Winter" : "Sommer"}</b></div>`;
+  let i = 0;
+  const parts = arranged(st, shown).map((s, k) => (s.label ? `<div class="mk-sem">${s.label} <small>${s.items.length}</small>${!phone && k === 0 ? pin : ""}</div>` : "")
+    + s.items.map((id) => (phone ? phoneCard(id, rowOpts(st, id, i++)) : deskRow(id, rowOpts(st, id, i++)))).join("")).join("");
+  return (phone ? `<div class="mk-cards" style="position: relative">${pin}${parts}</div>` : parts) + (fold(st.q) ? catLink(st) : "");
+}
+function catLink(st) {
+  const n = Object.keys(MODS).filter((id) => fold(MODS[id].t).includes(fold(st.q))).length;
+  return `<button class="mk-catlink" type="button" data-act="cat-link">${ic("search")}<span>‚${esc(st.q)}‘ im ganzen Katalog <small>· ${n ? `${n} Module` : "suchen"}</small></span>${ic("right")}</button>`;
+}
+function catalogRows(st, phone) {
+  const ids = CATALOG.filter((id) => !fold(st.qCat) || fold(MODS[id].t).includes(fold(st.qCat)) || id.includes(fold(st.qCat)));
+  const rows = ids.map((id, i) => {
+    const o = { marked: st.marks.has(id), shade: i % 2 === 1, q: st.qCat, open: st.open === id };
+    return phone ? phoneCard(id, o) : deskRow(id, o);
+  }).join("");
+  return { n: ids.length, rows: phone ? `<div class="mk-cards">${rows}</div>` : rows };
+}
+function chipsHtml(st, pin = "") {
+  if (!st.groups.length) return "";
+  const c = counts(st);
+  const chip = (v, name, n, cls = "") => `<button class="mk-gchip${st.view === v ? " cur" : ""} ${cls}" type="button" data-act="view" data-v="${v}">${esc(name)}<span class="n">${n}</span></button>`;
+  const adding = st.adding !== null
+    ? `<span class="mk-gchip input${st.adding.taken ? " taken" : ""}"><input data-focus="new-g" data-new value="${esc(st.adding.text)}" placeholder="Name" aria-label="Name der neuen Gruppe"></span>`
+    : `<button class="mk-gchip add" type="button" data-act="new-group" aria-label="Neue Gruppe">${ic("plus")}</button>`;
+  return `<div class="mk-gchips">${chip("all", "Alle", c.all)}${chip("none", "Ohne Gruppe", c.none, "derived")}${st.groups.map((g) => chip(g.id, g.name, c[g.id])).join("")}${adding}${pin}</div>${st.adding?.taken ? '<span class="mk-taken">Gibt es schon · Enter öffnet sie</span>' : ""}`;
+}
+/** The desktop's sidebar of the Merkliste: its groups, and the filters that separate something (`onlyGroups`: the groups alone). */
+function sideHtml(st, pins, onlyGroups = false) {
+  const c = counts(st);
+  const pin = (n) => (pins ? `<i class="pin">${n}</i>` : "");
+  const navi = (v, name, n, cls = "") => `<button class="mk-navi${st.view === v ? " cur" : ""} ${cls}" type="button" data-act="view" data-v="${v}"><span class="nm">${esc(name)}</span><span class="n">${n}</span>${v.startsWith("g") ? `<span class="more">${ic("more")}</span>` : ""}</button>${st.menuOn === v && st.menuHtml ? st.menuHtml : ""}`;
+  let nav = navi("all", "Alle", c.all);
+  if (st.groups.length) nav += navi("none", "Ohne Gruppe", c.none, "derived") + st.groups.map((g) => navi(g.id, g.name, c[g.id], st.menuOn === g.id ? "menu" : st.hoverOn === g.id ? "hover" : "")).join("");
+  nav += st.adding !== null
+    ? `<span class="mk-navi input${st.adding.taken ? " taken" : ""}"><input data-focus="new-g" data-new value="${esc(st.adding.text)}" placeholder="Name der Gruppe" aria-label="Name der neuen Gruppe"></span>${st.adding.taken ? '<span class="mk-taken" style="margin: 4px 6px 0">Gibt es schon · Enter öffnet sie</span>' : ""}`
+    : `<button class="mk-navi add" type="button" data-act="new-group">${ic("plus")}<span class="nm">Neue Gruppe</span></button>`;
+  const all = [...st.marks.keys()];
+  const winter = all.filter((id) => offeredIn(id, W)).length;
+  const summer = all.filter((id) => offeredIn(id, S_)).length;
+  const seg = (v, label, n) => `<button class="${st.season === v ? "on" : ""}" type="button" data-act="season" data-s="${v}">${label}${n !== null ? `<span class="n">${n}</span>` : ""}</button>`;
+  const stand = all.some((id) => STATUS[id]) ? `<p class="mk-flabel" style="margin-top: 12px">Stand</p><div class="mk-seg"><span class="on">Alle</span><span>Offen</span><span>Geplant</span><span>Best.</span></div>` : "";
+  return `<aside class="mk-side"><div class="mk-fg"><p class="mk-flabel">Gruppen${pin(1)}</p><div class="mk-nav">${nav}</div></div>`
+    + (all.length && !onlyGroups ? `<div class="mk-fg"><p class="mk-flabel">Angeboten im${pin(2)}</p><div class="mk-seg">${seg("all", "Alle", null)}${seg(W, "Winter", winter)}${seg(S_, "Sommer", summer)}</div>${stand}<p class="mk-flabel" style="margin-top: 12px">Mein Studium</p><span class="mk-chipf"><i class="box"></i>Zählt in meinem Studium</span><span class="mk-chipf"><i class="box"></i>Passt in meinen Stundenplan${ic("right")}</span><button class="mk-fold" type="button">${ic("right")}Weitere Filter</button></div>` : "")
+    + `</aside>`;
+}
+/** The desktop's list of the Merkliste: head, columns' heads (or the bar of the selection), rows. */
+function deskListHtml(st, pins) {
+  const shown = listed(st);
+  const w = headWords(st, shown);
+  const pin = (n) => (pins ? `<i class="pin">${n}</i>` : "");
+  const tags = st.season !== "all" ? `<div class="mk-ftags"><span class="mk-ftag"><em>Turnus</em> ${st.season}<button type="button" data-act="season" data-s="all" aria-label="Filter entfernen">${ic("x")}</button></span></div>` : "";
+  const head = `<div class="mk-lhead"><div class="mk-count-row"><span class="mk-count${w.warn ? " warn" : ""}">${w.n}</span><span class="mk-count-label">${esc(w.label)}${w.lp !== null && w.lp !== undefined ? ` <i>· ${w.lp} LP</i>` : ""}</span>${pin(3)}<div class="mk-tools"><button class="mk-select" type="button" data-act="order-open">${esc(orderName(st.order))}${ic("down")}</button><span class="mk-keys"><span class="mk-kbd">M</span>merken<span class="mk-kbd">G</span>Gruppe</span></div></div>${tags}</div>`;
+  const bar = st.sel.size ? deskSelbar(st.sel.size, sumLp([...st.sel])) : cols(st.order);
+  return `<section class="mk-list">${head}${bar}<div class="mk-rows" data-scroll="rows">${sectionsHtml(st, false, pins ? '<i class="pin">4</i>' : "")}</div></section>`;
+}
+function deskCatalogHtml(st) {
+  const { n, rows } = catalogRows(st, false);
+  return `<section class="mk-list"><div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">${n}</span><span class="mk-count-label">Module</span><div class="mk-tools"><span class="mk-keys"><span class="mk-kbd">↑</span><span class="mk-kbd">↓</span>wählen<span class="mk-kbd">M</span>merken</span></div></div></div>${cols("")}<div class="mk-rows" data-scroll="cat">${rows}</div></section>`;
+}
+function deskCatalogSide() {
+  return `<aside class="mk-side"><div class="mk-fg"><p class="mk-flabel">Angeboten im</p><span class="mk-chipf"><i class="box"></i>Winter</span><span class="mk-chipf"><i class="box"></i>Sommer</span></div><div class="mk-fg"><p class="mk-flabel">Eigenschaften</p><span class="mk-chipf"><i class="box"></i>Gemerkt${ic("right")}</span><span class="mk-chipf"><i class="box"></i>FÜS</span><span class="mk-chipf"><i class="box"></i>Ohne Klausur</span></div><p class="mk-hint">Die Filter des Katalogs, wie heute.</p></aside>`;
+}
+/** The editor's spec from the state: which modules, what is typed, what each group holds of them. */
+function editorSpec(st) {
+  const ed = st.editor;
+  const marks = ed.ids.map((id) => markOf(st, id)).filter(Boolean);
+  const c = counts(st);
+  const f = fold(ed.q);
+  const items = st.groups.filter((g) => !f || fold(g.name).includes(f)).map((g) => {
+    const inIt = marks.filter((m) => m.groups.has(g.id)).length;
+    return { id: g.id, name: g.name, count: c[g.id], state: inIt === 0 ? "off" : inIt === marks.length ? "on" : "part" };
+  });
+  const exact = st.groups.some((g) => fold(g.name) === f);
+  const create = f && !exact ? ed.q.trim() : null;
+  const title = ed.ids.length === 1 ? MODS[ed.ids[0]].t : `${ed.ids.length} Module`;
+  return { title, q: ed.q, items, create, note: ed.ids.length === 1 ? marks[0]?.note || "" : null, active: ed.active ?? 0, phone: st.device === "phone", sn: ed.sn };
+}
+function phoneScreen(st) {
+  let main;
+  const list = st.tab === "list";
+  if (list) {
+    const shown = listed(st);
+    const w = headWords(st, shown);
+    const more = st.view.startsWith("g") ? `<button class="mk-iconbtn" type="button" aria-label="Menü der Gruppe">${ic("more")}</button>` : "";
+    const filters = (st.season !== "all" ? 1 : 0) + (st.order !== "time" ? 1 : 0);
+    const tags = st.season !== "all" ? `<div class="mk-ftags"><span class="mk-ftag"><em>Turnus</em> ${st.season}<button type="button" data-act="season" data-s="all" aria-label="Filter entfernen">${ic("x")}</button></span></div>` : "";
+    main = `${chipsHtml(st)}<div class="mk-phead"><span class="mk-count${w.warn ? " warn" : ""}">${w.n}</span><span class="mk-count-label">${esc(w.label)}${w.lp ? ` <i>· ${w.lp} LP</i>` : ""}</span><span style="flex: 1"></span>${more}${total(st) ? `<button class="mk-btn" type="button" data-act="filter-open">${ic("sliders")}Filter${filters ? `<span class="badge">${filters}</span>` : ""}</button>` : ""}</div>${tags}${sectionsHtml(st, true)}`;
+  } else {
+    const { n, rows } = catalogRows(st, true);
+    main = `<div class="mk-phead"><span class="mk-count">${n}</span><span class="mk-count-label">Module</span><span style="flex: 1"></span><button class="mk-btn" type="button">${ic("sliders")}Filter</button></div>${rows}`;
+  }
+  const q = list ? st.q : st.qCat;
+  const top = `<div class="mk-ptop"><label class="mk-psearch">${ic("search")}<input data-focus="${list ? "q" : "qcat"}" data-q value="${esc(q)}" placeholder="${list ? "In der Merkliste suchen" : "Modul, Nummer oder Thema suchen"}" autocomplete="off" aria-label="Suchen"></label><span class="mk-pbox">${ic("user")}</span></div>`;
+  let over = "";
+  if (st.open) {
+    const m = markOf(st, st.open);
+    over += `<div class="mk-shade" data-act="close-open" data-keep data-k="os${st.openSn}" style="z-index: 24"></div><div class="mk-msheet" data-keep data-k="o${st.openSn}"><div class="mk-grab"></div><button class="mk-xbtn" type="button" data-act="close-open" aria-label="Schließen">${ic("x")}</button>${moduleHtml(st.open, { phone: true, marked: st.marks.has(st.open), groups: m ? namesIn(st, m.groups) : [], note: m?.note, sticky: st.sticky ? namesIn(st, st.sticky) : null })}</div>`;
+  }
+  const bottom = st.sel.size && list ? phoneSelbar(st.sel.size, false, st.selSn) : tabsHtml(st, true);
+  if (st.note) over += noteHtml(noteSpec(st));
+  if (st.sheet === "filter") over += filterSheet(st);
+  if (st.editor) over += editorHtml(editorSpec(st));
+  return `<div class="mk-phone" data-frame>${top}<div class="mk-pscroll" data-scroll="${list ? "list" : "cat"}">${main}</div>${bottom}${over}</div>`;
+}
+function filterSheet(st) {
+  const all = [...st.marks.keys()];
+  const seg = (v, label, n) => `<button class="${st.season === v ? "on" : ""}" type="button" data-act="season" data-s="${v}">${label}${n !== null ? `<span class="n">${n}</span>` : ""}</button>`;
+  const order = ORDERS.filter(([k]) => ["time", "offer", "title", "lp"].includes(k)).map(([k, name]) => `<button class="mk-item plain" type="button" data-act="order" data-o="${k}"><span class="chk">${st.order === k ? ic("check") : ""}</span><span class="nm">${name}</span><span></span></button>`).join("");
+  return `<div class="mk-shade" data-act="sheet-close" data-keep data-k="ss${st.sheetSn}"></div><div class="mk-sheet" data-keep data-k="s${st.sheetSn}"><div class="mk-grab"></div><div class="mk-sheet-head"><b>Filter</b><button class="mk-done" type="button" data-act="sheet-close">Fertig</button></div><div class="mk-sheet-scroll"><p class="mk-mlabel">Ordnung</p>${order}<p class="mk-mlabel" style="margin-top: 10px">Angeboten im</p><div class="mk-seg">${seg("all", "Alle", null)}${seg(W, "Winter", all.filter((id) => offeredIn(id, W)).length)}${seg(S_, "Sommer", all.filter((id) => offeredIn(id, S_)).length)}</div><p class="mk-mlabel" style="margin-top: 10px">Mein Studium</p><span class="mk-chipf"><i class="box"></i>Zählt in meinem Studium</span><span class="mk-chipf"><i class="box"></i>Passt in meinen Stundenplan${ic("right")}</span></div></div>`;
+}
+function deskScreen(st) {
+  const list = st.tab === "list";
+  const q = list ? st.q : st.qCat;
+  const top = `<div class="mk-dtop"><h3>${list ? "Merkliste" : "Module"}</h3><label class="mk-dsearch">${ic("search")}<input data-focus="${list ? "q" : "qcat"}" data-q value="${esc(q)}" placeholder="${list ? "In der Merkliste suchen" : "Modul, Nummer oder Thema suchen"}" autocomplete="off" aria-label="Suchen"><span class="mk-kbd">Strg K</span></label></div>`;
+  const body = list ? `${sideHtml(st, false)}${deskListHtml(st, false)}` : `${deskCatalogSide()}${deskCatalogHtml(st)}`;
+  let over = "";
+  if (st.open) {
+    const m = markOf(st, st.open);
+    over += `<aside class="mk-preview" data-keep data-k="o${st.openSn}"><div class="mk-preview-head"><span class="mk-kbd">Vorschau</span><button class="mk-close" type="button" data-act="close-open">${ic("x")}Schließen <span class="mk-kbd">Esc</span></button></div>${moduleHtml(st.open, { phone: false, marked: st.marks.has(st.open), groups: m ? namesIn(st, m.groups) : [], note: m?.note, sticky: st.sticky ? namesIn(st, st.sticky) : null })}</aside>`;
+  }
+  if (st.note) over += noteHtml(noteSpec(st));
+  if (st.ctx) over += ctxHtml(st);
+  if (st.sheet === "order") over += orderMenu(st);
+  if (st.editor) over += editorHtml(editorSpec(st));
+  return `<div class="mk-desk" data-frame>${tabsHtml(st, false)}<div class="mk-dmain">${top}<div class="mk-dbody">${body}</div></div>${over}</div>`;
+}
+function ctxHtml(st) {
+  const marked = st.marks.has(st.ctx.id);
+  return `<div class="mk-menu narrow" data-keep data-k="c${st.ctx.sn}" style="left: ${st.ctx.x}px; top: ${st.ctx.y}px"><p class="mk-menu-head">${esc(MODS[st.ctx.id].t)}</p>`
+    + (marked ? `<button class="mk-item plain" type="button" data-act="ctx-group">${ic("tag")}<span class="nm">Gruppe und Notiz …</span><span class="mk-kbd">G</span></button>` : "")
+    + `<button class="mk-item plain" type="button" data-act="ctx-select">${ic("select")}<span class="nm">Auswählen</span><span class="mk-kbd">Strg Klick</span></button><button class="mk-item plain" type="button">${ic("calplus")}<span class="nm">Einplanen</span><span class="mk-kbd">P</span></button><div class="mk-msep"></div>`
+    + `<button class="mk-item plain${marked ? " danger" : ""}" type="button" data-act="ctx-mark">${ic("bookmark")}<span class="nm">${marked ? "Von der Merkliste entfernen" : "Merken"}</span><span class="mk-kbd">M</span></button></div>`;
+}
+function orderMenu(st) {
+  const items = ORDERS.map(([k, name], i) => `${i === 3 ? '<div class="mk-msep"></div>' : ""}<button class="mk-item plain" type="button" data-act="order" data-o="${k}"${["study", "events"].includes(k) ? ' disabled style="opacity: .5" title="im Prototyp nicht dabei"' : ""}><span class="chk">${st.order === k ? ic("check") : ""}</span><span class="nm">${name}</span><span></span></button>`).join("");
+  return `<div class="mk-menu narrow" data-keep data-k="s${st.sheetSn}" style="right: 24px; top: 104px">${items}</div>`;
+}
+/** The note's spec from the state. */
+function noteSpec(st) {
+  const n = st.note;
+  const phone = st.device === "phone";
+  const base = { phone, sn: n.sn, kind: n.kind, title: n.id ? MODS[n.id].t : "", count: n.count, name: n.name, kept: n.kept, only: n.only, what: n.what };
+  if (n.kind !== "mark") return base;
+  const m = st.marks.get(n.id);
+  if (!m) return base;
+  const names = namesIn(st, m.groups);
+  base.variant = st.variant;
+  base.field = fieldLabel(names, st.groups.length > 0);
+  if (st.variant === "kurz") {
+    const order = [...st.recent, ...st.groups.map((g) => g.id)].filter((g, i, all) => all.indexOf(g) === i && groupById(st, g));
+    base.chips = order.slice(0, phone ? 2 : 3).map((gid) => ({ id: gid, name: groupById(st, gid).name, on: m.groups.has(gid) }));
+  }
+  if ((n.chose || st.sticky) && names.length) base.second = { name: names.join(", "), on: !!st.sticky };
+  return base;
+}
+
+// ======== the prototype ========
+const stage = document.getElementById("stage");
+let S = null;
+// Each note, menu, sheet and module shown gets a number: it animates in once, when it comes.
+let SN = 0;
+const setNote = (n) => { S.note = { ...n, sn: ++SN }; };
+let SC = "groups";
+function start() {
+  const device = S?.device || (window.matchMedia("(max-width: 1060px)").matches ? "phone" : "desk");
+  S = scenario(SC, device, S?.variant || "feld");
+  render();
+}
+/** Draws the frame anew, keeping the focus, the caret and the scroll of what was there. */
+function render() {
+  const active = document.activeElement;
+  const hadFocus = stage.contains(active);
+  const focusKey = hadFocus ? active.dataset.focus : null;
+  const caret = focusKey ? [active.selectionStart, active.selectionEnd] : null;
+  const scrolls = {};
+  stage.querySelectorAll("[data-scroll]").forEach((el) => { scrolls[el.dataset.scroll] = el.scrollTop; });
+  const seen = new Set([...stage.querySelectorAll("[data-k]")].map((el) => el.dataset.k));
+  if (S.sel.size) S.selSn ??= ++SN; else S.selSn = null;
+  stage.innerHTML = S.device === "phone" ? phoneScreen(S) : deskScreen(S);
+  stage.querySelectorAll("[data-k]").forEach((el) => { if (!seen.has(el.dataset.k)) el.classList.add("enter"); });
+  placeMenu();
+  stage.querySelectorAll("[data-scroll]").forEach((el) => { if (scrolls[el.dataset.scroll]) el.scrollTop = scrolls[el.dataset.scroll]; });
+  const want = focusKey || S.focusNext;
+  S.focusNext = null;
+  if (want) {
+    const el = stage.querySelector(`[data-focus="${want}"]`);
+    if (el) {
+      el.focus({ preventScroll: true });
+      if (caret && focusKey === want && el.setSelectionRange) el.setSelectionRange(caret[0], caret[1]);
+      else if (el.setSelectionRange) el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }
+  // What had the focus is drawn anew or gone (a menu closed): the frame keeps it, so its keys go on working.
+  if (hadFocus && !stage.contains(document.activeElement)) stage.focus({ preventScroll: true });
+  document.querySelector(".proto-grid").classList.toggle("desk", S.device === "desk");
+  document.querySelectorAll("[data-dev]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.dev === S.device)));
+  document.querySelectorAll("[data-var]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.var === S.variant)));
+  document.querySelectorAll("[data-sc]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sc === SC)));
+}
+/** A desktop's menu of a mark stands at what opened it: over the note (which grows upwards with its second row), under the module's arrow or the bar's „Gruppe", where the row's menu was. */
+function placeMenu() {
+  const ed = S.editor;
+  const menu = stage.querySelector('.mk-menu[data-k^="e"]');
+  if (!ed || !menu || S.device !== "desk") return;
+  const f = stage.querySelector("[data-frame]").getBoundingClientRect();
+  const w = menu.offsetWidth;
+  const h = menu.offsetHeight;
+  let left;
+  let top;
+  if (ed.from === "note") {
+    const note = stage.querySelector(".mk-note");
+    const field = stage.querySelector('.mk-note [data-act="note-field"]');
+    if (note && field) { left = field.getBoundingClientRect().left - f.left - 20; top = note.getBoundingClientRect().top - f.top - h - 8; }
+  } else if (ed.from === "menu" && ed.xy) {
+    ({ x: left, y: top } = ed.xy);
+  } else {
+    const opener = stage.querySelector(ed.from === "module" ? '[data-act="sw-chev"]' : '[data-act="sel-group"]');
+    if (opener) { const r = opener.getBoundingClientRect(); left = ed.from === "module" ? r.right - f.left - w : r.left - f.left; top = r.bottom - f.top + 6; }
+  }
+  if (left === undefined) return;
+  menu.style.left = `${Math.max(8, Math.min(left, f.width - w - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(top, f.height - h - 8))}px`;
+}
+function touchRecent(gid) { S.recent = [gid, ...S.recent.filter((g) => g !== gid)]; }
+function toggleMark(id) {
+  if (S.marks.has(id)) {
+    S.removed.set(id, S.marks.get(id));
+    S.marks.delete(id);
+    if (S.tab === "list") S.dim.add(id);
+    S.sel.delete(id);
+    setNote({ kind: "unmark", id });
+    return;
+  }
+  if (total(S) >= LIMIT) { setNote({ kind: "full" }); return; }
+  const back = S.dim.has(id) ? S.removed.get(id) : null;
+  S.dim.delete(id);
+  S.removed.delete(id);
+  S.marks.set(id, back || { at: NOW, groups: new Set(S.sticky || []), note: "" });
+  setNote({ kind: "mark", id, chose: false });
+}
+function undo() {
+  const n = S.note;
+  if (!n) return;
+  if (n.kind === "mark") { S.marks.delete(n.id); }
+  if (n.kind === "unmark" && S.removed.has(n.id)) { S.marks.set(n.id, S.removed.get(n.id)); S.removed.delete(n.id); S.dim.delete(n.id); }
+  if (n.kind === "removed") { n.ids.forEach((id) => { if (S.removed.has(id)) { S.marks.set(id, S.removed.get(id)); S.removed.delete(id); S.dim.delete(id); } }); }
+  S.note = null;
+}
+/** Opens the menu of a mark's groups and note for `ids`, at `opener` (a desktop's menu stands at it). */
+function openEditor(ids, opener, from, focus = "ed-q") {
+  ids = ids.filter((id) => S.marks.has(id));
+  if (!ids.length) return;
+  S.editor = { ids, from, q: "", active: 0, sn: ++SN };
+  S.ctx = null;
+  S.focusNext = S.device === "desk" || focus === "ed-note" ? focus : null;
+}
+function editorToggle(gid) {
+  const ed = S.editor;
+  const marks = ed.ids.map((id) => S.marks.get(id)).filter(Boolean);
+  const all = marks.every((m) => m.groups.has(gid));
+  marks.forEach((m) => (all ? m.groups.delete(gid) : m.groups.add(gid)));
+  if (!all) touchRecent(gid);
+  if (ed.from === "note" && !all) S.note.chose = true;
+  if (S.sticky && ed.from === "note") S.sticky = new Set(S.marks.get(ed.ids[0])?.groups || []);
+}
+function editorCreate() {
+  const name = S.editor.q.trim();
+  if (!name) return;
+  let g = S.groups.find((x) => fold(x.name) === fold(name));
+  if (!g) { g = { id: `g${S.nextG++}`, name }; S.groups.push(g); }
+  S.editor.q = "";
+  S.editor.active = 0;
+  const marks = S.editor.ids.map((id) => S.marks.get(id)).filter(Boolean);
+  if (!marks.every((m) => m.groups.has(g.id))) editorToggle(g.id);
+}
+function closeEditor() {
+  S.editor = null;
+}
+function leaveList() { S.sel.clear(); S.dim.forEach((id) => S.removed.delete(id)); S.dim.clear(); S.adding = null; }
+function visibleOrder() { return [...stage.querySelectorAll("[data-row], [data-card]")].map((el) => el.dataset.row || el.dataset.card); }
+
+// One handler for every click in the frame (`data-act`). A click outside what keeps them (the note, its
+// menu, a sheet) first lets go of them, as the app's note goes when the student does something else: an
+// open menu first, the note behind it with the next click. What the click does follows in the same pass.
+let suppressClick = false;
+stage.addEventListener("click", (ev) => {
+  if (suppressClick) { suppressClick = false; ev.preventDefault(); return; }
+  if (!ev.target.closest("[data-keep]")) {
+    S.ctx = null;
+    if (S.sheet === "order" && !ev.target.closest('[data-act="order-open"]')) S.sheet = null;
+    if (S.editor) S.editor = null; else S.note = null;
+  }
+  const t = ev.target.closest("[data-act]");
+  const row = ev.target.closest("[data-row], [data-card]");
+  if (!t && row) { onRow(row.dataset.row || row.dataset.card, ev); render(); return; }
+  if (!t) { render(); return; }
+  const act = t.dataset.act;
+  const id = t.dataset.id;
+  switch (act) {
+    case "tab": if (S.tab !== t.dataset.tab) { leaveList(); S.tab = t.dataset.tab; S.open = null; S.editor = null; S.sheet = null; } break;
+    case "bm": toggleMark(id); break;
+    case "note-field": openEditor([S.note.id], t, "note"); break;
+    case "note-chip": {
+      const m = S.marks.get(S.note.id);
+      if (m) { if (m.groups.has(t.dataset.g)) m.groups.delete(t.dataset.g); else { m.groups.add(t.dataset.g); touchRecent(t.dataset.g); } }
+      break;
+    }
+    case "note-sticky": S.sticky = S.sticky ? null : new Set(S.marks.get(S.note.id)?.groups || []); if (S.sticky && !S.sticky.size) S.sticky = null; break;
+    case "note-undo": undo(); break;
+    case "note-close": S.note = null; break;
+    case "to-list": leaveList(); S.tab = "list"; S.note = null; S.open = null; break;
+    case "ed-item": editorToggle(t.dataset.g); S.editor.active = [...t.parentElement.querySelectorAll('[data-act="ed-item"]')].indexOf(t); break;
+    case "ed-create": editorCreate(); break;
+    case "ed-done": closeEditor(); break;
+    case "view": S.view = t.dataset.v; S.sel.clear(); break;
+    case "new-group": S.adding = { text: "", taken: false }; S.focusNext = "new-g"; break;
+    case "sel-clear": S.sel.clear(); break;
+    case "sel-group": openEditor([...S.sel], t, "bar"); break;
+    case "sel-remove": {
+      const ids = [...S.sel];
+      ids.forEach((x) => { S.removed.set(x, S.marks.get(x)); S.marks.delete(x); S.dim.add(x); });
+      S.sel.clear();
+      setNote({ kind: "removed", ids, count: ids.length });
+      break;
+    }
+    case "sel-share": setNote({ kind: "copied", what: `${S.sel.size} Module` }); S.sel.clear(); break;
+    case "cat-link": S.qCat = S.q; leaveList(); S.tab = "catalog"; S.q = ""; break;
+    case "sw-mark": toggleMark(S.open); break;
+    case "sw-chev": openEditor([S.open], t, "module"); break;
+    case "sw-note": openEditor([S.open], t, "module", "ed-note"); break;
+    case "close-open": S.open = null; break;
+    case "filter-open": S.sheet = "filter"; S.sheetSn = ++SN; break;
+    case "sheet-close": S.sheet = null; break;
+    case "order-open": S.sheet = S.sheet === "order" ? null : "order"; S.sheetSn = ++SN; break;
+    case "order": S.order = t.dataset.o; if (S.device === "desk") S.sheet = null; break;
+    case "season": S.season = t.dataset.s; break;
+    case "ctx-group": { const xy = { x: S.ctx.x, y: S.ctx.y }; openEditor([S.ctx.id], null, "menu"); if (S.editor) S.editor.xy = xy; break; }
+    case "ctx-select": S.sel.add(S.ctx.id); S.ctx = null; break;
+    case "ctx-mark": { const x = S.ctx.id; S.ctx = null; toggleMark(x); break; }
+    default: break;
+  }
+  render();
+});
+function onRow(id, ev) {
+  if (S.device === "desk" && (ev.ctrlKey || ev.metaKey) && S.tab === "list") { S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id); S.anchorSel = id; return; }
+  if (S.device === "desk" && ev.shiftKey && S.tab === "list" && S.anchorSel) {
+    const order = visibleOrder();
+    const [a, b] = [order.indexOf(S.anchorSel), order.indexOf(id)].sort((x, y) => x - y);
+    order.slice(a, b + 1).forEach((x) => { if (S.marks.has(x)) S.sel.add(x); });
+    return;
+  }
+  if (S.sel.size && S.tab === "list") { S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id); return; }
+  if (S.open !== id) S.openSn = ++SN;
+  S.open = id;
+}
+// The frame takes the keys once it is pressed (its fields keep their own focus).
+stage.addEventListener("pointerdown", (ev) => {
+  if (!ev.target.closest("input, textarea")) stage.focus({ preventScroll: true });
+}, true);
+// …and when the page scrolls on by more than a few rows.
+stage.addEventListener("scroll", (ev) => {
+  const el = ev.target;
+  if (!S.note || !el.dataset?.scroll) return;
+  S.note.from ??= el.scrollTop;
+  if (Math.abs(el.scrollTop - S.note.from) > 140) { S.note = null; render(); }
+}, true);
+stage.addEventListener("contextmenu", (ev) => {
+  const row = ev.target.closest("[data-row]");
+  if (!row || S.device !== "desk") return;
+  ev.preventDefault();
+  const f = stage.querySelector("[data-frame]").getBoundingClientRect();
+  S.ctx = { id: row.dataset.row, x: Math.min(ev.clientX - f.left, f.width - 244), y: Math.min(ev.clientY - f.top, f.height - 200), sn: ++SN };
+  S.note = null;
+  render();
+});
+stage.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if (el.dataset.ed === "q") { S.editor.q = el.value; S.editor.active = 0; render(); return; }
+  if (el.dataset.ed === "note") { const m = S.marks.get(S.editor.ids[0]); if (m) m.note = el.value; return; }
+  if (el.hasAttribute("data-new")) { S.adding.text = el.value; S.adding.taken = S.groups.some((g) => fold(g.name) === fold(el.value)); render(); return; }
+  if (el.hasAttribute("data-q")) {
+    if (S.tab === "list") { S.q = el.value; S.sel.clear(); } else S.qCat = el.value;
+    render();
+  }
+});
+stage.addEventListener("keydown", (ev) => {
+  const typing = ev.target.matches("input, textarea");
+  if (ev.key === "Escape") {
+    if (S.editor) closeEditor(); else if (S.ctx) S.ctx = null; else if (S.sheet) S.sheet = null; else if (S.adding) S.adding = null; else if (S.open) S.open = null; else if (S.sel.size) S.sel.clear(); else if (S.note) S.note = null; else return;
+    ev.preventDefault();
+    render();
+    return;
+  }
+  if (ev.target.hasAttribute?.("data-new") && ev.key === "Enter") {
+    const name = S.adding.text.trim();
+    const g = S.groups.find((x) => fold(x.name) === fold(name));
+    if (g) S.view = g.id; else if (name) { const ng = { id: `g${S.nextG++}`, name }; S.groups.push(ng); S.view = ng.id; }
+    S.adding = null;
+    ev.preventDefault();
+    render();
+    return;
+  }
+  if (S.editor && (ev.target.dataset.ed === "q" || !typing)) {
+    const spec = editorSpec(S);
+    const n = spec.items.length + (spec.create ? 1 : 0);
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      S.editor.active = Math.max(0, Math.min(n - 1, (S.editor.active ?? 0) + (ev.key === "ArrowDown" ? 1 : -1)));
+      ev.preventDefault();
+      render();
+      return;
+    }
+    if (ev.key === "Enter") {
+      if (S.editor.active === spec.items.length && spec.create) editorCreate(); else if (spec.items[S.editor.active]) editorToggle(spec.items[S.editor.active].id);
+      ev.preventDefault();
+      render();
+      return;
+    }
+    if (/^[1-9]$/.test(ev.key) && !fold(S.editor.q) && S.device === "desk") {
+      const it = spec.items[Number(ev.key) - 1];
+      if (it) { editorToggle(it.id); ev.preventDefault(); render(); }
+      return;
+    }
+  }
+  if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  const key = ev.key.toLowerCase();
+  if (key === "g" && S.note?.kind === "mark" && S.marks.has(S.note.id)) { openEditor([S.note.id], stage.querySelector('[data-act="note-field"]'), "note"); ev.preventDefault(); render(); return; }
+  if (key === "g" && S.open && S.marks.has(S.open)) { openEditor([S.open], stage.querySelector('[data-act="sw-chev"]'), "module"); ev.preventDefault(); render(); return; }
+  if (key === "n" && S.open && S.marks.has(S.open)) { openEditor([S.open], stage.querySelector('[data-act="sw-chev"]'), "module", "ed-note"); ev.preventDefault(); render(); return; }
+  if (key === "m" && S.open) { toggleMark(S.open); ev.preventDefault(); render(); }
+});
+// A phone's card: swiped to the side (to the left „Merken"/„Entfernen", to the right „Einplanen"), held to select.
+let press = null;
+stage.addEventListener("pointerdown", (ev) => {
+  const card = ev.target.closest("[data-card]");
+  if (!card || S.device !== "phone" || ev.target.closest("[data-act]") || ev.button > 0) return;
+  const id = card.dataset.card;
+  press = { id, card, x: ev.clientX, y: ev.clientY, dx: 0, mode: null, pointer: ev.pointerId };
+  press.timer = setTimeout(() => {
+    if (!press || press.mode || S.tab !== "list" || !S.marks.has(id)) return;
+    press.mode = "hold";
+    S.sel.add(id);
+    S.note = null;
+    render();
+  }, 430);
+});
+stage.addEventListener("pointermove", (ev) => {
+  if (!press) return;
+  const dx = ev.clientX - press.x;
+  const dy = ev.clientY - press.y;
+  if (!press.mode) {
+    if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      press.mode = "swipe";
+      clearTimeout(press.timer);
+      press.ground = press.card.previousElementSibling;
+      const marked = S.marks.has(press.id);
+      press.ground.querySelector(".r").innerHTML = `<span>${marked ? "Entfernen" : "Merken"}<small>${marked ? "von der Merkliste" : S.sticky ? `in ${esc(namesIn(S, S.sticky).join(", "))}` : "auf die Merkliste"}</small></span>${ic("bookmark", marked ? "" : "fill")}`;
+      press.ground.classList.add("show");
+      try { press.card.setPointerCapture(press.pointer); } catch { /* the pointer is gone */ }
+    } else if (Math.abs(dy) > 10) { clearTimeout(press.timer); press = null; return; }
+  }
+  if (press.mode === "swipe") {
+    press.dx = dx;
+    press.card.style.transform = `translateX(${dx}px)`;
+    press.ground.style.justifyContent = dx > 0 ? "flex-start" : "flex-end";
+    press.ground.firstElementChild.style.display = dx > 0 ? "" : "none";
+    press.ground.querySelector(".r").style.display = dx < 0 ? "" : "none";
+    press.ground.classList.toggle("armed-plan", dx > 90);
+    press.ground.classList.toggle("armed-mark", dx < -90);
+  } else if (press.mode === "hold") {
+    const under = document.elementFromPoint(ev.clientX, ev.clientY)?.closest("[data-card]");
+    if (under && S.marks.has(under.dataset.card) && !S.sel.has(under.dataset.card)) { S.sel.add(under.dataset.card); render(); }
+  }
+});
+function endPress() {
+  if (!press) return;
+  clearTimeout(press.timer);
+  const p = press;
+  press = null;
+  if (p.mode === "swipe") {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 400);
+    p.card.classList.add("anim");
+    p.card.style.transform = "";
+    if (p.dx < -90) { toggleMark(p.id); setTimeout(render, 160); }
+    else if (p.dx > 90) { setNote({ kind: "plan", id: p.id }); setTimeout(render, 160); }
+    else setTimeout(() => p.ground?.classList.remove("show"), 200);
+  } else if (p.mode === "hold") {
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 400);
+  }
+}
+stage.addEventListener("pointerup", endPress);
+stage.addEventListener("pointercancel", endPress);
+document.querySelectorAll("[data-dev]").forEach((b) => b.addEventListener("click", () => { S.device = b.dataset.dev; S.editor = null; S.ctx = null; S.sheet = null; render(); }));
+document.querySelectorAll("[data-var]").forEach((b) => b.addEventListener("click", () => { S.variant = b.dataset.var; render(); }));
+document.querySelectorAll("[data-sc]").forEach((b) => b.addEventListener("click", () => { SC = b.dataset.sc; start(); }));
+document.getElementById("proto-reset").addEventListener("click", start);
+
+// ======== the figures: the same parts, at rest ========
+const fixture = (name = "groups", device = "desk") => scenario(name, device, "feld");
+const FIG = {
+  "note-feld": () => `<div class="dev"><p class="kicker">Am Rechner: gemerkt, dann eine Gruppe gewählt</p>${noteHtml({ static: true, kind: "mark", title: "Music and Artificial Intelligence", field: fieldLabel([], true) })}`
+    + `${noteHtml({ static: true, kind: "mark", title: "Music and Artificial Intelligence", field: fieldLabel(["Für Lena"], true), second: { name: "Für Lena", on: false } })}</div>`
+    + `<div class="dev phone"><p class="kicker">Am Handy: das nächste, in dieselbe Gruppe</p>${noteHtml({ static: true, phone: true, kind: "mark", field: fieldLabel([], true) })}`
+    + `${noteHtml({ static: true, phone: true, kind: "mark", field: fieldLabel(["Für Lena"], true), second: { name: "Für Lena", on: true } })}</div>`,
+  "note-kurz": () => `<div class="dev"><p class="kicker">Am Rechner</p>${noteHtml({ static: true, kind: "mark", variant: "kurz", title: "Music and Artificial Intelligence", chips: [{ id: "g2", name: "Für Lena", on: true }, { id: "g1", name: "Wahlpflicht" }, { id: "g3", name: "Witzig" }] })}</div>`
+    + `<div class="dev phone"><p class="kicker">Am Handy, nachdem „Witzig“ benutzt wurde</p>${noteHtml({ static: true, phone: true, kind: "mark", variant: "kurz", chips: [{ id: "g3", name: "Witzig" }, { id: "g2", name: "Für Lena" }] })}</div>`,
+  "note-auf": () => `<div class="dev">${unfoldHtml()}</div>`,
+  "notes-other": () => `<div class="dev"><p class="kicker">Am Rechner</p>${[
+    noteHtml({ static: true, kind: "unmark", title: "Music and Artificial Intelligence" }),
+    noteHtml({ static: true, kind: "full" }),
+    noteHtml({ static: true, kind: "deleted", name: "Für Lena", kept: 3, only: 2 }),
+    noteHtml({ static: true, kind: "copied", what: "Für Lena, 3 Module" }),
+    noteHtml({ static: true, kind: "plan", title: "Music and Artificial Intelligence" }),
+  ].join("")}</div><div class="dev phone"><p class="kicker">Am Handy</p>${[
+    noteHtml({ static: true, phone: true, kind: "unmark" }),
+    noteHtml({ static: true, phone: true, kind: "full" }),
+    noteHtml({ static: true, phone: true, kind: "removed", count: 3 }),
+  ].join("")}</div>`,
+  "menu-one": () => editorHtml({ static: true, title: "Music and Artificial Intelligence", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "off" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], note: "früh anmelden, Plätze sind begrenzt", active: 1 }),
+  "menu-typed": () => editorHtml({ static: true, title: "Theoretische Informatik", q: "mathe", typed: "mathe", items: [], create: "mathe", note: "", active: 0 }),
+  "menu-partial": () => editorHtml({ static: true, title: "Projektmanagement im Sport", q: "lena", typed: "lena", items: [{ id: "g2", name: "Für Lena", count: 2, state: "off" }], create: "lena", note: "", active: 0 }),
+  "menu-many": () => editorHtml({ static: true, title: "3 Module", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "part" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], note: null, active: 0 }),
+  "menu-sheet": () => `<div class="mk-phone short" style="height: auto; padding-top: 10px; background: var(--shade)">${editorHtml({ static: true, phone: true, title: "Music and Artificial Intelligence", q: "", items: [{ id: "g1", name: "Wahlpflicht", count: 3, state: "off" }, { id: "g2", name: "Für Lena", count: 2, state: "on" }, { id: "g3", name: "Witzig", count: 1, state: "off" }], note: "früh anmelden, Plätze sind begrenzt" })}</div>`,
+  "menu-exists": () => editorHtml({ static: true, title: "Projektmanagement im Sport", q: "für lena", typed: "für lena", items: [{ id: "g2", name: "Für Lena", count: 2, state: "off" }], note: "", active: 0 }),
+  "page-desk": () => {
+    const st = fixture("groups", "desk");
+    st.tab = "list";
+    return `<div class="mk-desk" style="height: 600px">${tabsHtml(st, false)}<div class="mk-dmain"><div class="mk-dtop"><h3>Merkliste</h3><label class="mk-dsearch">${ic("search")}<span>In der Merkliste suchen</span><span style="flex: 1"></span><span class="mk-kbd">Strg K</span></label></div><div class="mk-dbody">${sideHtml(st, true)}${deskListHtml(st, true)}</div></div></div>`;
+  },
+  "page-phone": () => {
+    const st = fixture("groups", "phone");
+    st.tab = "list";
+    const w = headWords(st, listed(st));
+    return `<div class="mk-phone" style="height: 640px"><div class="mk-ptop"><span class="mk-psearch">${ic("search")}<span>In der Merkliste suchen</span></span><i class="pin" style="align-self: center">1</i></div><div class="mk-pscroll" style="overflow: hidden">${chipsHtml(st, '<i class="pin" style="align-self: center">2</i>')}<div class="mk-phead"><span class="mk-count">${w.n}</span><span class="mk-count-label">${esc(w.label)} <i>· ${w.lp} LP</i></span><span style="flex: 1"></span><i class="pin">3</i><span class="mk-btn">${ic("sliders")}Filter</span></div>${sectionsHtml(st, true, '<i class="pin" style="position: absolute; z-index: 3; left: -6px; top: 34px">4</i>')}</div>${tabsHtml(st, true)}</div>`;
+  },
+  "row-desk": () => `<div class="mk-list" style="min-width: 700px"><div class="mk-rows" style="padding: 6px">${deskRow("14896", { marked: true, groups: ["Für Lena"], note: "früh anmelden, Plätze sind begrenzt", pins: [1, 3, 4] })}${deskRow("11787", { marked: true, status: STATUS["11787"], shade: true, pins: [2] })}${deskRow("14169", { marked: true, groups: ["Witzig", "Für Lena", "FÜS-Ideen"] })}</div></div>`,
+  "row-phone": () => `<div class="mk-cards" style="max-width: 340px">${phoneCard("14896", { marked: true, groups: ["Für Lena"], note: "früh anmelden, Plätze sind begrenzt", pins: [1, 3, 4] })}${phoneCard("11787", { marked: true, status: STATUS["11787"], pins: [2] })}</div>`,
+  "row-states": () => `<div class="mk-list" style="min-width: 700px"><div class="mk-rows" style="padding: 6px">${deskRow("14642", { marked: true, groups: ["Wahlpflicht"], note: "lieber als das Praktikum?", open: true })}${deskRow("13566", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("14380", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("13428", { marked: false, dim: true, shade: true })}${deskRow("12177", { marked: true, note: "mal in die Vorlesung", q: "phil" })}</div></div>`,
+  "search-phone": () => {
+    const st = fixture("groups", "phone");
+    st.tab = "list";
+    st.q = "lena";
+    return `<div class="mk-phone" style="height: 560px"><div class="mk-ptop"><span class="mk-psearch">${ic("search")}<span style="color: var(--text)">lena</span></span></div><div class="mk-pscroll" style="overflow: hidden">${chipsHtml(st)}<div class="mk-phead"><span class="mk-count">2</span><span class="mk-count-label">von 9 gemerkten</span><span style="flex: 1"></span><span class="mk-btn">${ic("sliders")}Filter</span></div>${sectionsHtml(st, true)}</div></div>`;
+  },
+  "order-desk": () => {
+    const st = fixture("groups", "desk");
+    st.tab = "list";
+    const head = `<div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">9</span><span class="mk-count-label">gemerkte Module <i>· 54 LP</i></span><div class="mk-tools"><span class="mk-select">Zuletzt gemerkt${ic("down")}</span></div></div></div>`;
+    const menu = `<div class="mk-menu static narrow" style="margin: -6px 12px 8px auto">${ORDERS.map(([k, name], i) => `${i === 3 ? '<div class="mk-msep"></div>' : ""}<span class="mk-item plain"><span class="chk">${k === "time" ? ic("check") : ""}</span><span class="nm">${name}</span><span class="n">${i < 3 ? "Abschnitte" : ""}</span></span>`).join("")}</div>`;
+    return `<div class="mk-list" style="min-width: 640px; overflow: visible">${head}${menu}${cols("")}<div class="mk-rows" style="padding: 4px 6px">${sectionsHtml({ ...st, marks: new Map([...st.marks].slice(0, 3)) }, false)}</div></div>`;
+  },
+  "sel-desk": () => `<div class="mk-list" style="min-width: 680px">${deskSelbar(3, 18)}<div class="mk-rows" style="padding: 4px 6px">${deskRow("14642", { marked: true, groups: ["Wahlpflicht"], sel: true })}${deskRow("13566", { marked: true, groups: ["Wahlpflicht"], sel: true, shade: true })}${deskRow("11787", { marked: true, status: STATUS["11787"] })}${deskRow("14380", { marked: true, groups: ["Wahlpflicht"], sel: true, shade: true })}</div></div>`,
+  "sel-phone": () => `<div class="mk-phone short" style="padding: 12px; gap: 8px"><div class="mk-cards">${phoneCard("14642", { marked: true, groups: ["Wahlpflicht"], sel: true })}${phoneCard("13566", { marked: true, groups: ["Wahlpflicht"], sel: true })}${phoneCard("11787", { marked: true, status: STATUS["11787"] })}</div>${phoneSelbar(2, true)}</div>`,
+  "manage-desk": () => {
+    const st = fixture("groups", "desk");
+    st.menuOn = "g2";
+    st.menuHtml = `<div class="mk-menu static narrow" style="width: 200px; margin: 2px 0 4px 20px"><span class="mk-item plain">${ic("pencil")}<span class="nm">Umbenennen</span><span class="mk-kbd">F2</span></span><span class="mk-item plain">${ic("share")}<span class="nm">Teilen</span><span></span></span><span class="mk-item plain">${ic("updown")}<span class="nm">Nach oben</span><span></span></span><span class="mk-item plain">${ic("updown")}<span class="nm">Nach unten</span><span></span></span><div class="mk-msep"></div><span class="mk-item plain danger">${ic("trash")}<span class="nm">Löschen</span><span></span></span></div>`;
+    return `<div style="width: 236px">${sideHtml(st, false, true)}</div>`;
+  },
+  "manage-new": () => {
+    const st = fixture("groups", "desk");
+    st.adding = { text: "witzig", taken: true };
+    return `<div style="width: 236px">${sideHtml(st, false, true).replace('<input data-focus="new-g" data-new value="witzig"', '<input value="witzig" readonly tabindex="-1"')}</div>`;
+  },
+  "manage-phone": () => {
+    const st = fixture("groups", "phone");
+    st.view = "g2";
+    return `<div class="mk-phone short" style="padding: 12px 12px 0; background: var(--bg)">${chipsHtml(st)}<div class="mk-sheet static" style="margin: 6px -12px 0; border-radius: 16px 16px 0 0"><div class="mk-grab"></div><div class="mk-sheet-head"><b>Für Lena · 2 Module</b></div><span class="mk-item plain">${ic("pencil")}<span class="nm">Umbenennen</span><span></span></span><span class="mk-item plain">${ic("share")}<span class="nm">Teilen</span><span></span></span><span class="mk-item plain">${ic("updown")}<span class="nm">Nach vorn</span><span></span></span><span class="mk-item plain danger">${ic("trash")}<span class="nm">Löschen</span><span></span></span></div></div>`;
+  },
+  "mod-desk": () => `<div class="mk-panel" style="max-width: 360px">${moduleHtml("14896", { marked: true, groups: ["Für Lena"], note: "früh anmelden, Plätze sind begrenzt" })}</div>`,
+  "mod-phone": () => `<div class="mk-phone short" style="padding: 14px">${moduleHtml("14169", { phone: true, marked: true, groups: ["Witzig", "Für Lena"], note: "", short: true })}</div>`,
+  "share-menu": () => `<div class="mk-menu static" style="width: 280px"><p class="mk-menu-head">Für Lena · 3 Module</p><button class="mk-menu-btn" type="button">${ic("link")}Link kopieren</button><div class="mk-menu-row">Notizen mitnehmen<span class="mk-switch light"></span></div><div class="mk-msep"></div><span class="mk-item plain">${ic("copy")}<span class="nm">Als Text kopieren</span><span></span></span></div>`,
+  "offers": () => `<div class="mk-offer">${ic("bookmark")}<p><b>Für Lena · 3 Module aus einem Link,</b> 1 davon schon gemerkt.</p><span class="btns"><button class="mk-mini primary" type="button">Als Gruppe merken</button><button class="mk-mini" type="button">Nur merken</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`
+    + `<div class="mk-offer">${ic("bookmark")}<p><b>Für Lena · 3 Module aus einem Link.</b> Die Gruppe gibt es schon.</p><span class="btns"><button class="mk-mini primary" type="button">Zu ‚Für Lena‘ hinzufügen</button><button class="mk-mini" type="button">Anderer Name …</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`
+    + `<div class="mk-offer">${ic("bookmark")}<p><b>46 Module in 4 Gruppen aus einem Link,</b> 12 davon neu.</p><span class="btns"><button class="mk-mini primary" type="button">Hinzufügen</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`,
+  "limit-note": () => `<div class="dev"><p class="kicker">Am Rechner</p>${noteHtml({ static: true, kind: "full" })}</div><div class="dev phone"><p class="kicker">Am Handy</p>${noteHtml({ static: true, phone: true, kind: "full" })}</div>`,
+  "limit-head": () => `<div class="mk-list" style="min-width: 300px"><div class="mk-lhead"><div class="mk-count-row"><span class="mk-count">248 / 256</span><span class="mk-count-label">gemerkte Module</span></div></div><div class="mk-lhead" style="border-top: 1px solid var(--line)"><div class="mk-count-row"><span class="mk-count warn">253 / 256</span><span class="mk-count-label">gemerkte Module</span></div></div></div>`,
+  "limit-offer": () => `<div class="mk-offer">${ic("bookmark")}<p><b>30 Module aus einem Link.</b> Auf die Merkliste passen noch 8.</p><span class="btns"><button class="mk-mini primary" type="button">Die ersten 8 merken</button><button class="mk-mini" type="button">Verwerfen</button></span></div>`,
+  "else-study": () => {
+    const pick = (on, title, small, warn, area, color, lp) => `<div class="mk-pick${on ? " on" : ""}"><span class="tick">${on ? ic("check") : ""}</span><span class="what"><span class="line"><b>${esc(title)}</b><span class="lp"><b>${lp}</b> LP</span></span><span class="sub"><span class="mk-area"><i class="mk-dot" style="background: ${color}"></i>${area}</span><span class="${warn ? "warn" : ""}">${small}</span></span></span></div>`;
+    return `<div class="mk-dialog"><div class="mk-dlg-head"><b>Module hinzufügen</b><small>WiSe 26/27 · 3. FS</small></div><div class="mk-dlg-body"><div class="mk-dlg-tabs"><span>Regelstudienplan</span><span class="on">Merkliste</span><span>Katalog</span></div><div class="mk-chiprow"><span class="mk-gchip cur">Alle <span class="n">9</span></span><span class="mk-gchip">Wahlpflicht <span class="n">3</span></span><span class="mk-gchip">Für Lena <span class="n">2</span></span><span class="mk-gchip">Witzig <span class="n">1</span></span></div><div>`
+      + pick(true, "Machine Learning for Engineers", "jedes WiSe", false, "Informatik", "#4f6bd8", 6)
+      + pick(false, "Praktikum Maschinelles Lernen", "jedes WiSe", false, "Fachstudium", "#b5523b", 4)
+      + pick(false, "Grundströmungen der Philosophie", "im WiSe nicht angeboten · nur SoSe", true, "ohne Bereich", "#8a93a6", 6)
+      + pick(false, "Theoretische Informatik", "geplant in WiSe 26/27 · steht schon hier", false, "Informatik", "#4f6bd8", 8)
+      + `</div></div><div class="mk-dlg-foot"><span>1 ausgewählt · 6 LP</span><button class="mk-mini primary" type="button">Einfügen</button></div></div>`;
+  },
+  "else-plan": () => `<div class="mk-panel"><div class="mk-panel-h">${ic("bookmark")}Aus der Merkliste <span class="n">5</span>${ic("down")}</div><div class="mk-chiprow" style="margin-bottom: 8px"><span class="mk-gchip cur">Alle <span class="n">5</span></span><span class="mk-gchip">Wahlpflicht <span class="n">2</span></span><span class="mk-gchip">Für Lena <span class="n">1</span></span></div>`
+    + `<div class="mk-prow"><span><b>Machine Learning for Engineers</b><span class="mk-fit ok">${ic("check")}passt</span></span><button class="mk-mini" type="button">Einplanen</button></div>`
+    + `<div class="mk-prow"><span><b>Praktikum Maschinelles Lernen</b><span class="mk-fit warn">${ic("alert")}überschneidet sich mit Theoretische Informatik · Di 9:15</span></span><button class="mk-mini" type="button">Einplanen</button></div>`
+    + `<div class="mk-prow"><span><b>Praktische Philosophie</b><span class="mk-fit ok">${ic("check")}passt</span></span><button class="mk-mini" type="button">Einplanen</button></div>`
+    + `<div class="mk-foldrow">${ic("right")}Im WiSe 26/27 nicht angeboten · 2</div></div>`,
+  "else-catalog": () => `<div class="mk-side" style="max-width: 300px"><div class="mk-fg"><p class="mk-flabel">Eigenschaften</p><span class="mk-chipf on"><i class="box"></i>Gemerkt${ic("right")}</span><div class="mk-subseg"><span class="on">Alle <span class="n">9</span></span><span>Ohne Gruppe <span class="n">2</span></span><span>Wahlpflicht <span class="n">3</span></span><span>Für Lena <span class="n">2</span></span><span>Witzig <span class="n">1</span></span></div><span class="mk-chipf"><i class="box"></i>FÜS</span><span class="mk-chipf"><i class="box"></i>Ohne Klausur</span></div></div>`,
+  "else-tab": () => {
+    const st = fixture("groups", "phone");
+    st.tab = "list";
+    const menu = `<div class="mk-menu static narrow" style="margin: 0 10px 8px auto"><span class="mk-item plain">${ic("bookmark")}<span class="nm">Alle gemerkten</span><span class="n">9</span></span><span class="mk-item plain"><span></span><span class="nm">Ohne Gruppe</span><span class="n">2</span></span><div class="mk-msep"></div><span class="mk-item plain">${ic("tag")}<span class="nm">Wahlpflicht</span><span class="n">3</span></span><span class="mk-item plain">${ic("tag")}<span class="nm">Für Lena</span><span class="n">2</span></span><span class="mk-item plain">${ic("tag")}<span class="nm">Witzig</span><span class="n">1</span></span></div>`;
+    return `<div class="mk-phone short" style="padding-top: 16px; padding-bottom: 80px; background: var(--shade)">${menu}${tabsHtml(st, true)}</div>`;
+  },
+};
+document.querySelectorAll("[data-fig]").forEach((el) => {
+  el.classList.add("mk");
+  el.innerHTML = FIG[el.dataset.fig]();
+});
+start();
+</script>
