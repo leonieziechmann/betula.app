@@ -44,9 +44,12 @@ async function open(context, path) {
       // after `history.back()`), which is the first frame with the new address.
       window.__back = () => { left = location.href; history.back(); };
       const skeleton = () => Boolean(document.querySelector(".pending-page, .rows-pending, .sk-detail"));
+      const started = performance.now();
       const tick = () => {
         const now = performance.now();
         if (at === null && left !== null && location.href !== left) at = now;
+        // Nothing clicked within 15 s: no frames (the check says so), rather than waiting for ever.
+        if (at === null && now - started > 15000) return resolve(frames);
         if (at !== null) {
           const safe = (f) => { try { return Boolean(f()); } catch { return false; } };
           frames.push({ ms: Math.round(now - at), feedback: safe(feedback), result: safe(result), skeleton: skeleton(), busy: document.querySelector("main")?.getAttribute("aria-busy") === "true" });
@@ -80,8 +83,11 @@ async function watch(page, name, act, { feedback, result, skeleton = null }, slo
   await page.waitForTimeout(250);
 }
 
+// What is seen: every tab's page is built on a stage of its own, the ones behind with parts of the
+// same name (folia_shell::stage), which a click at their place would miss.
+const seen = (selector) => (selector.includes(" >> nth=") ? selector.replace(" >> nth=", " >> visible=true >> nth=") : selector + " >> visible=true");
 const box = async (page, selector) => {
-  const found = await page.locator(selector).first().boundingBox();
+  const found = await page.locator(seen(selector)).first().boundingBox();
   if (!found) throw new Error("not on the page: " + selector);
   return { x: found.x + Math.min(found.width / 2, 40), y: found.y + found.height / 2 };
 };
@@ -193,6 +199,10 @@ for (const slow of [1, 4]) {
   // (plannote.mjs checks the question).
   await phone.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   const small = await open(phone, "/catalog");
+  // Once the start is over, every tab built behind the first page (folia_shell::stage, `prebuild`):
+  // the start may load (owner, 2026-10-18), and a tap that falls into a build waits for it.
+  await small.waitForFunction(() => ["home", "programs", "bookmarks", "studyplan"].every((name) => { const stage = document.querySelector(`#content > .page-stage[data-stage="${name}"]`); return stage?.childElementCount > 0 && stage.getAttribute("aria-busy") !== "true"; }), null, { timeout: 30000 }).catch(() => problems.push("phone: the tabs were not built at the start"));
+  await small.waitForTimeout(300);
   if (slow > 1) await (await phone.newCDPSession(small)).send("Emulation.setCPUThrottlingRate", { rate: slow });
   // A tab's page on a phone: what is in front first, the address after the frame that shows it,
   // once the history is written (folia_shell::nav); a tab built at the start comes at once.

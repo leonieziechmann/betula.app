@@ -4397,7 +4397,9 @@ cd e2e && node snappy.mjs
 drives a click answering first („A click answers first"), frame by frame after each interaction:
 a toggle, a row, Esc, the rail into the program overview, a program, one of its views, Back, the
 start page and the catalog as it was left, two toggles before the first has reached the list;
-then on a phone the bottom bar and a module. The first frame after each has to come within 80 ms
+then on a phone, once the start is over and every tab built, the bottom bar and a module. It
+clicks what is seen (`>> visible=true`: the stages behind have parts of the same name), and an
+interaction nothing comes of ends after 15 s. The first frame after each has to come within 80 ms
 and show what was clicked in its new state (and a skeleton, where the page or the list is being
 built for the first time), a later one the result without a skeleton, and no skeleton stays.
 All of it once more with the CPU slowed down four times (200 ms for the first frame), where the
