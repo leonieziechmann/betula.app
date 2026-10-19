@@ -4227,9 +4227,10 @@ cd e2e && node stages.mjs
 ```
 
 drives the tabs that stay built as § „Tabs that stay built" has them, on a phone (the bottom bar,
-taps) and on a wide screen (the rail, clicks): a tab seen before is in front in the first frame
-after the tap (after its click, which on a phone comes a moment after the finger lifted; timed from
-the finger's or the button's release), without a skeleton and without a picture held in front of it, with the same page
+taps) and on a wide screen (the rail, clicks): a tab seen before is seen within 80 ms of the
+finger's or the button's release (in front, or on a phone the page on top as the pages move: the app
+swaps the stages behind them once they move), without a skeleton and without a picture held in front
+of it, with the same page
 (the very elements), scrolled as far (the window on a phone, the list's area on a wide screen) and
 with the module beside the list still there; one stage in front once the pages have come to rest,
 the others not drawn, a link in them taking no focus, and on a phone without room; the title, one canonical address and one description of the page in front;
