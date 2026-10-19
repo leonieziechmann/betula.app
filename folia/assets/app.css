@@ -450,7 +450,8 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
      background, over the page and under the search. The ground follows the page, full width, the
      bottom bar floating over its lower part; under a page shorter than the window it lies just
-     past the window's lower edge all the same (the body's column, „phone and tablet"). */
+     past the window's lower edge all the same (the body's column, „phone and tablet"). Not under
+     the row of pages of „Mein Studium" (`.st-pager`, below). */
   .crown { z-index: 20; height: var(--bar); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
      no size, which draws nothing, as `none` would). */
@@ -2654,8 +2655,8 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 @keyframes tab-menu-in { from { opacity: 0; transform: translateY(6px) scale(.94); } }
 /* The menu of the profiles (chrome.rs `ProfileMenu`): a menu as a tab's is, beside the rail's way to
    the profile page and growing up from its foot, or hanging below the phone's box at its right
-   edge. The profiles as on the profile page (`.pf-item`), the active one checked; below them the
-   way to the profile page and the other language. */
+   edge. The profiles as on the profile page (`.pf-item`), the active one checked; below them
+   „Neues Profil", the way to the profile page and the other language. */
 .profile-menu { width: 272px; max-width: calc(100vw - 20px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; transform-origin: 100% 0; }
 .profile-menu.at-rail { transform-origin: 0 100%; }
 .pm-list { display: grid; gap: 2px; }
@@ -2668,6 +2669,19 @@ a.action:hover { background: var(--panel-3); text-decoration: none; }
 .pm-item:active { background: var(--row-hover); }
 .pm-item:focus-visible { background: var(--row-hover); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 @media (hover: hover) { .pm-item:hover { background: var(--row-hover); } }
+/* „Neues Profil" under the profiles (owner, 2026-10-19): a way as the others; tapped, a field for the
+   name in its place with „Anlegen" beside it (16px on a phone, which then does not zoom in). Where
+   there can be no other profile it says why under its words. */
+button.pm-new-way { width: 100%; text-align: left; }
+.pm-new-way > span { display: grid; min-width: 0; }
+.pm-new-way small { color: var(--text-3); font-size: 12px; font-weight: 450; }
+.pm-new-way[aria-disabled="true"], .pm-new-way[aria-disabled="true"] > .icon { color: var(--text-3); cursor: default; }
+.pm-new-way[aria-disabled="true"]:hover, .pm-new-way[aria-disabled="true"]:active { background: none; }
+.pm-new { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 3px 3px 3px 6px; }
+.pm-new input { flex: 1 1 auto; min-width: 0; height: 38px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 14px; }
+.pm-new input:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.pm-new .mini { flex: none; min-height: 38px; padding: 0 14px; font-size: 13px; }
+@media (max-width: 900px) { .pm-new input { font-size: 16px; } }
 .tab-menu-rule { height: 1px; margin: 6px 4px; border: 0; background: var(--line); }
 
 /* ---------- studyplan (folia/crates/app/src/pages/studyplan, folia/crates/stores/src/studyplan.rs) ----------
@@ -3483,8 +3497,10 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* The way to the profile page at the head of every page (chrome.rs `ProfileButton`; owner,
      2026-10-14: „für die mobile Version noch ein Konzept wie man an sein Profil rankommt"): a box at
      the right of the search, as the way back is one at its left, with the active profile's badge or
-     a person. A tap leads to the profile page, a finger held on it opens the menu of the profiles
-     (enhance.js), and nothing of the browser's own menu of a link or its preview comes. */
+     a person. A tap opens the menu of the profiles (owner, 2026-10-19: „die häufigste Aktion wird
+     sein, dass man das nur das Profil wechseln will"; the page is one of its ways), and so does a
+     finger held on it (enhance.js); nothing of the browser's own menu of a link or its preview
+     comes. */
   .top-profile { flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
   .top-profile .icon { width: 22px; height: 22px; }
   .top-profile .avatar { width: 30px; height: 30px; font-size: 14px; }
@@ -3565,6 +3581,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .rows.scroll:not(.virtual) > .plan-note { margin-bottom: 2px; }
   .app .keys { display: none; }
   .sem { top: var(--bar); background: var(--bg); padding: 12px 4px 4px; }
+  /* „Ähnliche Module" are cards as the list's, as far apart: its own block, the gap of the list's
+     grid (or the virtual list's rows) does not reach into it. */
+  .similar { display: grid; gap: 8px; }
   .rows .row-wrap { contain-intrinsic-size: auto 84px; }
   .row { grid-template-columns: minmax(0, 1fr) auto; min-height: 72px; padding: 12px 52px 12px 18px; background: var(--panel); box-shadow: var(--shadow-panel); border-radius: var(--r-panel); }
   .row .t b { font-size: 15.5px; }
@@ -4708,7 +4727,16 @@ a.st-rsp-name:hover { text-decoration: underline; }
      selected the row does not move sideways. */
   .page:has(> .page-inner.study) { overflow-x: clip; }
   :root:has(#content > .page-stage.front .st-pager) { overflow-anchor: none; overscroll-behavior-x: none; }
-  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 26px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  /* No ground under the row, on none of its pages, the overview's included (owner, 2026-10-19:
+     „wenn man nach unten scrolled zum footer und dann weiter swiped dann gibt es ganz komisches
+     behavior. Ich würde den footer bei den semester ansichten einfach raus nehmen. Der hat da eh
+     keinen Mehrwert"): a page that came in from the ground showed from its top in the strip above
+     it, cut off at the row's end, while the ground stood still under it, and at rest the window
+     jumped up. The row is the end of the page: its last page ends where the dots' frosted ground
+     begins (`.st-dock`: 26 + 6 + 84 px and the safe area), so that nothing of it stays under them.
+     Every other page keeps the ground. */
+  body:has(> .main > .content > .page-stage.front .st-pager) > .ground { display: none; }
+  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 calc(116px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .st-pager::-webkit-scrollbar { display: none; }
   .st-pager::before, .st-pager::after { content: ""; flex: none; width: 6px; }
   .st-pager.is-selecting { touch-action: pan-y; }
@@ -4785,7 +4813,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
      bar"), in no box: the page's ground, frosted over what passes under it as the bar at the top
      is, from the screen's lower edge, the tab bar floating over it, to a little above the dots,
      where it fades into the page (the same day: „einfach nur den grauen Hintergrund mit blur zum
-     content"); under the ground, which comes over it at the end of the page. */
+     content"); the row's end stands above it (no ground under the row, above). */
   .st-dock { position: fixed; z-index: 1; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; padding: 26px 0 calc(84px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(transparent, #000 18px); mask-image: linear-gradient(transparent, #000 18px); }
   .st-bar { height: 12px; margin-top: 22px; gap: 2px; }
   .st-bar .st-seg, .st-bar .st-seg > span:first-child, .st-bar .st-seg > span:last-of-type { border-radius: 4px; }

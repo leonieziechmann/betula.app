@@ -17,7 +17,7 @@ use folia_design::nav;
 use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::{program_name, MineResolved};
-use folia_stores::profiles::{Avatar, Profiles};
+use folia_stores::profiles::{Avatar, Profiles, MAX_NAME, MAX_PROFILES};
 use folia_stores::studyplan::Studyplan;
 
 /// The browser app (`csr`): only there is „Mein Studium", the first page of „Studium".
@@ -285,9 +285,11 @@ pub fn Rail() -> impl IntoView {
 /// (`TopBack`). It shows the active profile's badge (`Avatar`) where there is more than one
 /// profile or the one there is has a name, else the icon of a person, and names the profile for
 /// those who do not see it. A mouse resting on it, a right click or a long press opens the menu of
-/// the profiles (`ProfileMenu`). The profiles live in the browser (R20): the server writes the
-/// icon, the same for everybody (R9), and without JavaScript the way leads to the page's stand-in,
-/// which offers the other language (`folia_profile`).
+/// the profiles (`ProfileMenu`), and so does a tap on the phone's box (owner, 2026-10-19: „die
+/// häufigste Aktion wird sein, dass man das nur das Profil wechseln will"): there the page is one of
+/// the menu's ways. The profiles live in the browser (R20): the server writes the icon, the same for
+/// everybody (R9), and without JavaScript the way leads to the page's stand-in, which offers the
+/// other language (`folia_profile`).
 #[component]
 pub fn ProfileButton(
     #[prop(optional)] top: bool,
@@ -305,6 +307,10 @@ pub fn ProfileButton(
     let pending = Pending::expect();
     let here = move || (pending.and_then(|p| p.path()).unwrap_or_else(|| location.pathname.get()) == url::PROFILE).then_some("page");
     let menu = ProfileMenu::expect().filter(|_| APP);
+    let node = NodeRef::<leptos::html::A>::new();
+    // The phone's box opens the menu (the browser app's): it says so, and whether it is open.
+    let opens = top && menu.is_some();
+    let open = move || menu.is_some_and(|menu| menu.at.with(|at| at.is_some_and(|at| !at.rail && !at.hover)));
     view! {
         <a
             class=if top { "top-profile profile-btn" } else { "icon-btn profile-btn" }
@@ -312,8 +318,11 @@ pub fn ProfileButton(
             rel="nofollow"
             aria-label=label
             aria-current=here
+            aria-haspopup=opens.then_some("true")
+            aria-expanded=move || opens.then(|| if open() { "true" } else { "false" })
             inert=move || away.get()
             data-hold=APP.then_some("profiles")
+            node_ref=node
             on:pointerenter=move |ev| {
                 if let Some(menu) = menu {
                     menu.pointer_on(&ev, true);
@@ -324,11 +333,24 @@ pub fn ProfileButton(
                     menu.pointer_off(&ev);
                 }
             }
-            // The page chosen: no menu opens over it a moment later.
-            on:click=move |_| {
-                if let Some(menu) = menu {
-                    menu.close();
+            on:click=move |ev: leptos::ev::MouseEvent| {
+                let Some(menu) = menu else { return };
+                let plain = ev.button() == 0 && !(ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key());
+                // The phone's box: a tap opens the menu, and closes it again.
+                if top && plain && folia_design::nav::is_phone() {
+                    ev.prevent_default();
+                    if open() {
+                        menu.close();
+                    } else {
+                        #[cfg(feature = "csr")]
+                        if let Some(way) = node.get_untracked() {
+                            menu.open_at(&way, false);
+                        }
+                    }
+                    return;
                 }
+                // The page chosen: no menu opens over it a moment later.
+                menu.close();
             }
         >
             {move || match badge.get() {
@@ -367,22 +389,27 @@ struct MenuAt {
 /// The menu of the profiles (owner, 2026-10-14: „wenn man beim pc über das profil in der nav bar
 /// links hovert, kann man die profile direkt auswählen. Beim Handy long hold."): the profiles of
 /// this browser with their „Mein Studiengang", the active one checked; a click makes one the
-/// active profile (after the next frame, R21; the menu goes at once). Below them the way to the
-/// profile page and the language (`languages::LanguageWays`), which lives in the profile since
-/// 2026-10-14. A mouse resting on a way to the profile page (`ProfileButton`) opens it there; a
-/// right click or the menu key on it does as well (as on a tab, `TabMenu`), and so does a finger
-/// held on the phone's box (enhance.js, `betula:profile-menu`). The browser app's alone.
+/// active profile (after the next frame, R21; the menu goes at once). Below them „Neues Profil"
+/// (owner, 2026-10-19: „ein kleines Menü, wo man die profile als option hat, neues Profil anlegen
+/// und dann halt profil Einstellungen, und vlt noch change lang"): a name in the menu, none
+/// („Profil 3"), and the new profile, empty, is the active one. Then the way to the profile page
+/// and the language (`languages::LanguageWays`), which lives in the profile since 2026-10-14. A
+/// mouse resting on a way to the profile page (`ProfileButton`) opens it there; a right click or
+/// the menu key on it does as well (as on a tab, `TabMenu`), and so do a tap and a finger held on
+/// the phone's box (enhance.js, `betula:profile-menu`). The browser app's alone.
 #[derive(Clone, Copy)]
 pub struct ProfileMenu {
     at: RwSignal<Option<MenuAt>>,
     /// What a mouse's coming or going does a moment later (`HOVER_OPEN`, `HOVER_CLOSE`).
     timer: StoredValue<Option<TimeoutHandle>>,
+    /// „Neues Profil" asks for a name.
+    naming: RwSignal<bool>,
 }
 
 impl ProfileMenu {
     /// Creates the menu's place, closed, and provides it: call it once, in `App`.
     pub fn provide() -> Self {
-        let menu = ProfileMenu { at: RwSignal::new(None), timer: StoredValue::new(None) };
+        let menu = ProfileMenu { at: RwSignal::new(None), timer: StoredValue::new(None), naming: RwSignal::new(false) };
         provide_context(menu);
         menu
     }
@@ -403,6 +430,22 @@ impl ProfileMenu {
         self.cancel();
         if self.at.with_untracked(Option::is_some) {
             self.at.set(None);
+        }
+        if self.naming.get_untracked() {
+            self.naming.set(false);
+        }
+    }
+
+    /// The menu stays until a choice, a tap beside it or Esc, as one a click opened (a name is
+    /// being typed into it): a mouse leaving it takes it away no more.
+    fn hold(self) {
+        self.cancel();
+        if self.at.with_untracked(|at| at.is_some_and(|at| at.hover)) {
+            self.at.update(|at| {
+                if let Some(at) = at {
+                    at.hover = false;
+                }
+            });
         }
     }
 
@@ -459,6 +502,7 @@ impl ProfileMenu {
         let (width, height) = leptos::web_sys::window().map_or((0.0, 0.0), |window| (size(window.inner_width()), size(window.inner_height())));
         let rail = way.closest(".rail").ok().flatten().is_some();
         self.cancel();
+        self.naming.set(false);
         self.at.set(Some(MenuAt { rail, hover, bottom: rect.bottom(), right: rect.right(), width, height }));
     }
 }
@@ -480,6 +524,10 @@ fn focus_way(rail: bool) {
     let _ = rail;
 }
 
+/// The ids the focus is moved to in the menu of the profiles: „Neues Profil", and its field.
+const NEW_WAY_ID: &str = "pm-new";
+const NEW_NAME_ID: &str = "pm-new-name";
+
 /// The menu of the profiles where `ProfileMenu` opened it (see there).
 #[component]
 pub fn ProfileSwitcher() -> impl IntoView {
@@ -499,6 +547,12 @@ pub fn ProfileSwitcher() -> impl IntoView {
             let Some(at) = menu.at.get_untracked() else { return };
             if ev.key() == "Escape" && !crate::nav::watched() {
                 ev.prevent_default();
+                // One Esc, one thing: the name asked for goes first, then the menu.
+                if menu.naming.get_untracked() {
+                    menu.naming.set(false);
+                    request_animation_frame(|| nav::focus_by_id(NEW_WAY_ID));
+                    return;
+                }
                 focus_way(at.rail);
                 menu.close();
             }
@@ -531,14 +585,19 @@ pub fn ProfileSwitcher() -> impl IntoView {
             }
         }
     });
+    // Where the menu stands, and whether it stays (a click opened it, or a name is being typed into
+    // it): two memos, so that a menu a mouse opened stays as it is when it is held (`hold`).
+    let placed = Memo::new(move |_| menu.and_then(|menu| menu.at.get()).map(|at| (at.rail, at.bottom, at.right, at.width, at.height)));
+    let held = Memo::new(move |_| menu.is_some_and(|menu| menu.at.with(|at| at.is_some_and(|at| !at.hover))));
+    let name = RwSignal::new(String::new());
     move || {
         let menu = menu?;
         let profiles = profiles?;
-        let at = menu.at.get()?;
+        let (rail, bottom, right, width, height) = placed.get()?;
         let active = profiles.active();
         let lines = profiles.program_lines(t.locale);
         let choose = move |id: u16| {
-            focus_way(at.rail);
+            focus_way(rail);
             menu.close();
             if id != profiles.active_untracked() {
                 nav::after_paint(move || profiles.switch(id));
@@ -546,11 +605,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
         };
         let close = move |_| menu.close();
         // Beside the rail, its foot at the way's; below the phone's box, at its right edge.
-        let place = if at.rail {
-            format!("left: {:.0}px; bottom: {:.0}px", at.right + 8.0, (at.height - at.bottom).max(8.0))
-        } else {
-            format!("top: {:.0}px; right: {:.0}px", at.bottom + 8.0, (at.width - at.right).max(8.0))
-        };
+        let place = if rail { format!("left: {:.0}px; bottom: {:.0}px", right + 8.0, (height - bottom).max(8.0)) } else { format!("top: {:.0}px; right: {:.0}px", bottom + 8.0, (width - right).max(8.0)) };
         let items = profiles
             .all()
             .into_iter()
@@ -571,11 +626,64 @@ pub fn ProfileSwitcher() -> impl IntoView {
                 }
             })
             .collect_view();
+        // „Neues Profil": a name (none: „Profil 3"), and the new profile, empty, is the active one,
+        // as on the profile page. Where there are as many profiles as there can be, it says so.
+        let room = Memo::new(move |_| profiles.room());
+        let next = Memo::new(move |_| profiles.next_id().map(|id| (folia_stores::i18n::texts(t.locale).profiles.unnamed)(id)).unwrap_or_default());
+        let start = move |_| {
+            if !room.get_untracked() {
+                return;
+            }
+            menu.hold();
+            name.set(String::new());
+            menu.naming.set(true);
+            request_animation_frame(|| nav::focus_by_id(NEW_NAME_ID));
+        };
+        let create = move |ev: leptos::ev::SubmitEvent| {
+            ev.prevent_default();
+            let typed = name.get_untracked();
+            focus_way(rail);
+            menu.close();
+            // The menu goes at once; the profile, and every store reading its empty texts, after
+            // the next frame (R21).
+            nav::after_paint(move || {
+                profiles.create(&typed);
+            });
+        };
+        let new_profile = move || {
+            if menu.naming.get() {
+                view! {
+                    <form class="pm-new" on:submit=create>
+                        <input
+                            id=NEW_NAME_ID
+                            type="text"
+                            maxlength=MAX_NAME.to_string()
+                            aria-label=t.app.new_profile_name
+                            placeholder=move || next.get()
+                            autocomplete="off"
+                            enterkeyhint="done"
+                            prop:value=move || name.get()
+                            on:input=move |ev| name.set(event_target_value(&ev))
+                        />
+                        <button class="mini primary hit" type="submit">{t.app.create_profile}</button>
+                    </form>
+                }
+                .into_any()
+            } else {
+                view! {
+                    <button class="tab-menu-way pm-new-way" type="button" id=NEW_WAY_ID aria-disabled=move || (!room.get()).then_some("true") on:click=start>
+                        <Icon name="user-round-plus"/>
+                        <span>{t.app.new_profile}{move || (!room.get()).then(|| view! { <small>{(t.app.profiles_full)(MAX_PROFILES)}</small> })}</span>
+                    </button>
+                }
+                .into_any()
+            }
+        };
         Some(view! {
-            {(!at.hover).then(|| view! { <div class="tab-scrim" on:click=close on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); menu.close() }></div> })}
+            {move || held.get().then(|| view! { <div class="tab-scrim" on:click=close on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); menu.close() }></div> })}
             <div
                 class="tab-menu profile-menu"
-                class:at-rail=at.rail
+                class:at-rail=rail
                 role="group"
                 aria-label=t.app.switch_profile
                 style=place
@@ -584,6 +692,7 @@ pub fn ProfileSwitcher() -> impl IntoView {
             >
                 <p class="tab-menu-head">{t.app.profiles}</p>
                 <div class="pm-list" role="radiogroup" aria-label=t.app.profiles>{items}</div>
+                {new_profile}
                 <hr class="tab-menu-rule"/>
                 <a class="tab-menu-way" href=t.path(url::PROFILE) rel="nofollow" on:click=close><Icon name="sliders-horizontal"/><span>{t.app.profile_and_settings}</span></a>
                 <languages::LanguageWays/>
@@ -630,17 +739,26 @@ pub enum Up {
     /// alone, as „Mein Studium" is: without JavaScript the overview is where „Studium" starts, and
     /// its bar has no way back (app.css).
     Study,
+    /// Where the visitor was before, from a page of a while (`nav::passing`: the profile page; owner,
+    /// 2026-10-19: „dass die Profile page, als temporäre seite getreated werden soll wo man dann
+    /// oben den zurück pfeil hat und genau wieder da landet, wo man davor war"): back through the
+    /// history, to that page as it was left; Start where nothing is known (a reload, a link from
+    /// outside, the server's page).
+    Before,
 }
 
 /// The pages that have their way back at the head of a phone's page from their first paint
 /// (`TopBack`), by their address, and where it leads until the page says where (the server's
 /// page, where it is the link of its „Zurück" as well): a program's page — with whatever fills it,
 /// which has a way back of its own — and a module's own page up to the list of their area, the
-/// program overview up to „Mein Studium". A page with a `BackLink` that the server renders is
-/// named here, or the bar changes when the app takes over.
+/// program overview up to „Mein Studium", the profile page to where the visitor was before. A page
+/// with a `BackLink` that the server renders is named here, or the bar changes when the app takes
+/// over.
 pub fn back_at_head(path: &str) -> Option<Up> {
     if path == url::PROGRAMS {
         Some(Up::Study)
+    } else if crate::nav::passing(path) {
+        Some(Up::Before)
     } else if crate::tabs::page_below(path, url::PROGRAMS).is_some() {
         Some(Up::List(Area::Programs))
     } else if crate::tabs::page_below(path, &format!("{}/module", url::CATALOG)).is_some() {
@@ -705,9 +823,10 @@ impl TopBack {
 
 /// Where the box of `TopBack` leads on the page the app is at or going to (`pending`): where the
 /// page puts it (its `BackLink`, its step), else where its address puts it (`back_at_head`) — the
-/// list of its area as it was left (`Tabs::list`), or „Mein Studium" as it was left, through the
-/// history where that is the step before, as `BackLink` does. On the way to another page (another
-/// path) the page that is left has no say: the bar follows the click, the box there or gone at once.
+/// list of its area as it was left (`Tabs::list`), „Mein Studium" as it was left, or, from a page
+/// of a while, the page before it, through the history where that is the step before, as
+/// `BackLink` does. On the way to another page (another path) the page that is left has no say: the
+/// bar follows the click, the box there or gone at once.
 fn top_back_shown() -> Memo<Option<Back>> {
     let t = i18n::t();
     let location = use_location();
@@ -721,11 +840,15 @@ fn top_back_shown() -> Memo<Option<Back>> {
             return Some(step);
         }
         let path = headed.unwrap_or_else(|| location.pathname.get());
+        let now = crate::tabs::location_of(&location.pathname.get(), &location.search.get());
         let href = match back_at_head(&path)? {
             Up::List(area) => tabs.map_or_else(|| area.back_root().to_string(), |tabs| tabs.list(area)),
             Up::Study => tabs.map_or_else(|| url::STUDY.to_string(), Tabs::study),
+            // On the way there the page before it is the one the app is at.
+            Up::Before => Some(if elsewhere { now.clone() } else { tabs.map(|tabs| tabs.before(&now)).unwrap_or_default() })
+                .filter(|before| before.starts_with('/') && !crate::nav::passing(before.split(['?', '#']).next().unwrap_or(before)))
+                .unwrap_or_else(|| url::HOME.to_string()),
         };
-        let now = crate::tabs::location_of(&location.pathname.get(), &location.search.get());
         let history = tabs.is_some_and(|tabs| tabs.before(&now) == href);
         Some(Back { href, label: t.common.back, history })
     })
@@ -891,8 +1014,9 @@ mod tests {
     use super::*;
 
     /// A program's page and a module's own page have their way back at the head from their first
-    /// paint, by their address, up to their area's list, and the program overview up to „Mein
-    /// Studium"; the other lists, „Mein Studium" and the other pages do not.
+    /// paint, by their address, up to their area's list, the program overview up to „Mein
+    /// Studium", and the profile page to where the visitor was before; the other lists, „Mein
+    /// Studium" and the other pages do not.
     #[test]
     fn the_pages_with_a_way_back_have_it_at_the_head() {
         for path in ["/programs/bachelor-informatik-2008", "/programs/bachelor-informatik-2008/areas", "/programs/bachelor-informatik-2008/plan"] {
@@ -900,7 +1024,8 @@ mod tests {
         }
         assert_eq!(back_at_head("/catalog/module/11103"), Some(Up::List(Area::Catalog)));
         assert_eq!(back_at_head("/programs"), Some(Up::Study));
-        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile", "/", "/impressum"] {
+        assert_eq!(back_at_head("/profile"), Some(Up::Before));
+        for path in ["/programs/", "/study", "/catalog", "/catalog/module", "/catalog/module/", "/bookmarks", "/studyplan", "/profile/x", "/", "/impressum"] {
             assert_eq!(back_at_head(path), None, "{path}");
         }
     }

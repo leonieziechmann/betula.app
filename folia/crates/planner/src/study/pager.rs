@@ -40,7 +40,9 @@
 //! and its columns move the row in turn. The row is as tall as
 //! the page it rests at (the others count for nothing, app.css) and at least as tall as the screen
 //! below it, so that a page coming in shows as far down as the screen does; it changes only at
-//! rest, never under a finger. A page comes in from its top wherever the window was scrolled to in
+//! rest, never under a finger. It is the end of the page, with no ground after it (owner,
+//! 2026-10-19: „wenn man nach unten scrolled zum footer und dann weiter swiped dann gibt es ganz
+//! komisches behavior"): a page coming in from down in the ground showed only above it. A page comes in from its top wherever the window was scrolled to in
 //! the one before, as the page of an app does (`dom::lift`), and at rest the window is there
 //! (`dom::land`). While rows are selected the row does not move sideways: the finger selects
 //! (`focus.rs`).

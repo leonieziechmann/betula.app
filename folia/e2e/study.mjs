@@ -29,11 +29,13 @@
 //   one, to the right to the last that is over, a short pull back; the way back a square box left
 //   of the search on either side; the semesters pages in the catalog's look, no box, their head
 //   under the search, a card per module (its number and area under its name, its credits in LP),
-//   as far apart as from the screen's edge: the ground past the window's edge, the dots fixed over
+//   as far apart as from the screen's edge: no ground under the row, on none of its pages (owner,
+//   2026-10-19), the Regelstudienplan and all programs with theirs, the dots fixed over
 //   the tab bar on the page's frosted ground, no box and no legend, an empty semester a mark and
 //   „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll smoothly, past the overview
 //   from the current semester to the one before; a finger moves the row and a short pull goes
-//   back, a semester swiped to from down in another shows from its head, the last page adds a
+//   back, a semester swiped to from the end of another, which ends above the dots, shows from its
+//   head, the last page adds a
 //   semester; a long press selects a row, the bar over the tab bar; a row's menu as a sheet without
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
@@ -464,6 +466,11 @@ if (current !== "2026W") {
     && landing.mine === "Informatik B.Sc. | PO 2008 | 3. Fachsemester · seit WiSe 25/26" && landing.ways.join() === "Regelstudienplan,Wahlpflicht"
     && landing.columns === "1 2 3* 4 5 6" && landing.line === "Jetzt WiSe 2026/27 · 0 von 30 LP" && landing.rest.join() === "Alle Studiengänge" && !landing.sidebar
     && landing.pages === "S S O!+ S S S S S" && landing.dots === "S S O! S* S S S S" && landing.back === "0 inert", `the phone's overview: ${JSON.stringify(landing)}`);
+  // No ground under the row, the overview's page included (owner, 2026-10-19: „Ich würde den footer
+  // bei den semester ansichten einfach raus nehmen. Der hat da eh keinen Mehrwert"); every other
+  // page keeps it.
+  const grounded = () => page.evaluate(() => getComputedStyle(document.querySelector("body > .ground")).display !== "none");
+  check(!(await grounded()), "the phone's overview has the ground under its row");
   // A finger on the screen, as a phone's touch comes (through the browser's own input, so that the
   // browser scrolls what it scrolls): down near the side of `selector` it comes from, drawn sideways
   // by `by` px in `steps` moves 16 ms apart, held `hold` ms, lifted. How far the row `row` moved
@@ -546,7 +553,7 @@ if (current !== "2026W") {
     // No box around the semester, its head right under the search.
     box: (() => { const card = getComputedStyle(document.querySelector(`${HERE} .st-card-sem`)); return card.boxShadow === "none" && card.backgroundColor === "rgba(0, 0, 0, 0)"; })(),
     head: Math.round(document.querySelector(`${HERE} .st-sem-head h2`).getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom),
-    ground: Math.round(document.querySelector("body > .ground").getBoundingClientRect().top - innerHeight),
+    ground: getComputedStyle(document.querySelector("body > .ground")).display,
     // The card in view from the screen's edges, and from the pages before (the overview) and after
     // it (owner, 2026-10-05: „dass die Abstände zwischen den boxen genau der Abstand zum rand ist").
     apart: (() => {
@@ -558,7 +565,7 @@ if (current !== "2026W") {
     })(),
   }), HERE);
   check(phone.sideways <= 0 && phone.card >= 360 && phone.slots === 8 && phone.snap.startsWith("x mandatory") && phone.strip === 0 && phone.turns >= 44 && phone.grid === 0
-    && phone.back === "/study 12,48x48 8 48 true" && phone.box && phone.head >= 0 && phone.head <= 16 && phone.ground >= 0 && phone.apart === "12,12,12,12", `the phone's semesters: ${JSON.stringify(phone)}`);
+    && phone.back === "/study 12,48x48 8 48 true" && phone.box && phone.head >= 0 && phone.head <= 16 && phone.ground === "none" && phone.apart === "12,12,12,12", `the phone's semesters: ${JSON.stringify(phone)}`);
   // Over the tab bar, where they stay: the dots, the current semester's ringed and the card's
   // filled (owner, 2026-10-05: „fest über der nav bar"), in no box and with no legend, on the
   // page's ground frosted over what passes under it, from the screen's foot and edges to a little
@@ -684,13 +691,21 @@ if (current !== "2026W") {
   // A short pull, held: back where it was.
   await step("a short swipe", async () => { moved = await swipe(".st-pager", -50, { steps: 12, hold: 150 }); }, resting("SoSe 2027"));
   check(moved > 10, `a short pull does not move the cards: ${moved}`);
-  // The window scrolled down into a semester: the next one comes from its head.
-  await page.evaluate(() => window.scrollBy(0, 260));
+  // The window scrolled down to the end of a semester (owner, 2026-10-19: „wenn man nach unten
+  // scrolled zum footer und dann weiter swiped dann gibt es ganz komisches behavior"): no ground
+  // there, the page's end above the dots, nothing of it under them; the next one comes from its head.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   await page.waitForTimeout(200);
+  const end = await page.evaluate(() => ({
+    ground: getComputedStyle(document.querySelector("body > .ground")).display,
+    room: document.documentElement.scrollHeight - innerHeight,
+    above: Math.round(document.querySelector(".st-dock").getBoundingClientRect().top - document.querySelector(".st-pager > .st-slot[data-here]").firstElementChild.getBoundingClientRect().bottom),
+  }));
+  check(end.ground === "none" && end.above >= 0 && (end.above <= 2 || end.room <= 0), `the end of a semester on a phone: ${JSON.stringify(end)}`);
   const scrolled = await page.evaluate(() => Math.round(document.querySelector(".st-pager").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom));
-  await step("swipe from down in a semester", () => swipe(".st-pager", 220), resting("WiSe 2026/27"));
+  await step("swipe from the end of a semester", () => swipe(".st-pager", 220), resting("WiSe 2026/27"));
   const head = await page.evaluate(() => Math.round(document.querySelector(".st-pager > .st-slot[data-here] h2").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom));
-  check(scrolled < -200 && head >= 0 && head <= 16 && (await page.evaluate(() => scrollY)) === 0, `the semester that came does not show from its head: ${scrolled} before, ${head} after`);
+  check(scrolled < -40 && head >= 0 && head <= 16 && (await page.evaluate(() => scrollY)) === 0, `the semester that came does not show from its head: ${scrolled} before, ${head} after`);
   // To the end: one semester more.
   const restsAt = () => page.evaluate(() => [...document.querySelector(".st-pager").children].indexOf(document.querySelector(".st-pager > .st-slot[data-here]")));
   for (let i = 0; i < 10 && !(await page.$(".st-pager > .st-slot[data-here]:not([inert]) .st-new")); i++) {
@@ -912,6 +927,7 @@ if (current !== "2026W") {
     wide: document.documentElement.scrollWidth <= innerWidth + 1,
   }));
   check(sections.strip[2] === "3. FS · jetzt" && sections.cards === 23 && sections.wide, `the Regelstudienplan on a phone: ${JSON.stringify(sections)}`);
+  check(await grounded(), "the Regelstudienplan on a phone has no ground");
   // While the way back is at the head, the way to the profile page gives way to it (owner,
   // 2026-10-15), and it comes back with the overview.
   await step("the way back", () => page.tap(".top-back.on"), () => location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
@@ -946,9 +962,12 @@ if (current !== "2026W") {
   await watchRow();
   await step("all programs on a phone", () => page.tap('.st-rest a[href="/programs"]'), () => location.pathname === "/programs" && document.querySelector(".faccs") && document.querySelector(".top-back.on")?.getAttribute("href") === "/study" && document.querySelector(".topbar .top-profile").inert);
   await rowMoved("the way back coming");
+  // The row stays built behind (folia_design::stage): the page in front has its ground.
+  check(await grounded(), "all programs on a phone have no ground after „Mein Studium\"");
   await watchRow();
   await step("the way back from all programs", () => page.tap(".top-back.on"), () => location.pathname === "/study" && location.search === "" && document.querySelector(".st-pager") && !document.querySelector(".top-back.on") && !document.querySelector(".topbar .top-profile").inert);
   await rowMoved("the way back going");
+  check(!(await grounded()), "back at the row, the ground shows under it again");
   check((await page.evaluate(() => history.length)) === before + 1, "the way back from all programs added a step to the history");
   await context.close();
 }
