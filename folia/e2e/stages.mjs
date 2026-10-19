@@ -8,8 +8,9 @@
 //   picture held in front of it, as it was left: the same page (the very elements), scrolled as far
 //   (the window on a phone, the page's scroll area on a wide screen), a module beside the list still
 //   there;
-// 2 one stage is in front: the others are not drawn (`content-visibility: hidden`) and take no
-//   input (`inert`), and on a phone no room;
+// 2 one stage is in front, once a change has come to rest (on a phone the pages move, the Achse,
+//   achse.mjs): the others are not drawn (`content-visibility: hidden`) and take no input (a link
+//   in one takes no focus), and on a phone no room;
 // 3 the document's title, its canonical address and its description are those of the page in
 //   front, one of each;
 // 4 a link inside a page that came back works (a filter of the catalog, a row);
@@ -73,7 +74,17 @@ const film = (page) => page.evaluate(() => {
 const stages = (page) => page.evaluate(() => [...document.querySelectorAll("#content > .page-stage")].map((stage) => ({
   name: stage.dataset.stage,
   front: stage.classList.contains("front"),
-  inert: stage.inert,
+  // A link in a stage behind takes no focus.
+  focus: (() => {
+    const link = stage.classList.contains("front") ? null : stage.querySelector("a[href]");
+    if (!link) return false;
+    const was = document.activeElement;
+    link.focus({ preventScroll: true });
+    const took = document.activeElement === link;
+    if (took) link.blur();
+    was?.focus?.({ preventScroll: true });
+    return took;
+  })(),
   hidden: getComputedStyle(stage).contentVisibility === "hidden",
   height: Math.round(stage.getBoundingClientRect().height),
   built: stage.childElementCount > 0,
@@ -87,13 +98,14 @@ const head = (page) => page.evaluate(() => ({
 const reloaded = async (page) => !(await page.evaluate(() => window.__marker === 1));
 
 // One stage in front, the others built or empty, not drawn, without input (and on a phone without
-// room); the head the front page's.
+// room); the head the front page's. On a phone once the pages have come to rest.
 const oneInFront = async (page, name, { phone, title, canonical }) => {
+  await page.waitForFunction(() => !document.querySelector("#content > .page-stage.moving"), null, { timeout: 3000 }).catch(() => problems.push(`${during}: the pages did not come to rest`));
   const all = await stages(page);
   const front = all.filter((stage) => stage.front);
   check(front.length === 1 && front[0].name === name, `${during}: in front ${front.map((s) => s.name).join(", ") || "nothing"}, not ${name}`);
   for (const stage of all.filter((stage) => !stage.front)) {
-    check(stage.inert && stage.hidden, `${during}: the stage ${stage.name} behind is ${stage.inert ? "" : "not inert "}${stage.hidden ? "" : "drawn"}`);
+    check(!stage.focus && stage.hidden, `${during}: the stage ${stage.name} behind ${stage.focus ? "takes focus " : ""}${stage.hidden ? "" : "is drawn"}`);
     if (phone) check(stage.height === 0, `${during}: the stage ${stage.name} behind takes ${stage.height} px`);
   }
   const now = await head(page);

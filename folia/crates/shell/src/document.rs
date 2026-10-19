@@ -81,7 +81,9 @@
 /// kept built on a stage of its own (`stage`), a change of tab only swapping which one is in front:
 /// a tab seen before there in the frame of the tap, as it was left, scrolled as far; 1.27.2 with
 /// every tab's page built at the start, behind the first one while nothing happens
-/// (`stage::prebuild`), so that a tab's first visit only swaps as well. The version of the app's
+/// (`stage::prebuild`), so that a tab's first visit only swaps as well; 1.28.0 with the two pages of
+/// a change of tab moving on an axis on a phone, after a finger on the bottom bar as well (enhance.js,
+/// the Achse). The version of the app's
 /// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

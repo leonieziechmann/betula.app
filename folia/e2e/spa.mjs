@@ -103,7 +103,8 @@ const historyBefore = await page.evaluate(() => history.length);
 
 // Keyboard: click a row, two rows down with the arrow keys, Enter opens that one.
 const ids = await page.evaluate(() => [...allOnPage(".rows a.row")].slice(0, 4).map((row) => new URL(row.href).searchParams.get("open")));
-await step("click a row", () => page.click("a.row >> visible=true >> nth=0"), () => location.search.includes("open="));
+// Near its left edge: the module beside the list floats over the right part of the rows.
+await step("click a row", () => page.click("a.row >> visible=true >> nth=0", { position: { x: 24, y: 12 } }), () => location.search.includes("open="));
 await page.keyboard.press("ArrowDown");
 await page.keyboard.press("ArrowDown");
 if ((await page.evaluate(() => new URL(location.href).searchParams.get("open"))) !== ids[0]) problems.push("arrow keys: moving the selection already opened another module");
