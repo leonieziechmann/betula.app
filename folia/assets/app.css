@@ -3469,7 +3469,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   /* The bar at the top: 20 px above the search for the crown, 48 for the search, 10 below. */
   :root { --bar: 78px; }
   /* The view and the ground one under the other. The view is at least as high as the window at its
-     largest (the browser's bars hidden, `lvh`): a page shorter than the window leaves its room
+     largest (the browser's bars hidden, `lvh`; under the row of „Mein Studium", which has no ground,
+     as the window is, `.st-pager`): a page shorter than the window leaves its room
      above the ground, which lies just past the window's lower edge, the end of the page that is
      scrolled to and never seen before (owner, 2026-10-05: „der footer … mindestens genau außerhalb
      vom bild …, so dass man rein scrollen muss"; see „the birch"). */
@@ -4736,7 +4737,13 @@ a.st-rsp-name:hover { text-decoration: underline; }
      begins (`.st-dock`: 26 + 6 + 84 px and the safe area), so that nothing of it stays under them.
      Every other page keeps the ground. */
   body:has(> .main > .content > .page-stage.front .st-pager) > .ground { display: none; }
-  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100lvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 calc(116px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  /* With no ground after it, the view is as tall as the screen as it is, not as at its largest
+     (`lvh`, „phone and tablet", for the ground just past the window's edge): a page shorter than
+     the screen does not scroll by the height of the browser's bars, into nothing (owner,
+     2026-10-19: „irgendwie kann man noch scrollen, obwohl da kein content ist"). The row is as
+     tall, so that a page coming in shows as far down as the screen does. */
+  .main:has(> .content > .page-stage.front .st-pager) { min-height: 100dvh; }
+  .st-pager { position: relative; display: flex; align-items: flex-start; min-height: calc(100dvh - var(--bar)); margin: -10px -12px -12px; padding: 10px 0 calc(116px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .st-pager::-webkit-scrollbar { display: none; }
   .st-pager::before, .st-pager::after { content: ""; flex: none; width: 6px; }
   .st-pager.is-selecting { touch-action: pan-y; }

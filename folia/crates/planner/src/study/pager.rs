@@ -43,8 +43,10 @@
 //! rest, never under a finger. It is the end of the page, with no ground after it (owner,
 //! 2026-10-19: „wenn man nach unten scrolled zum footer und dann weiter swiped dann gibt es ganz
 //! komisches behavior"): a page coming in from down in the ground showed only above it. A page comes in from its top wherever the window was scrolled to in
-//! the one before, as the page of an app does (`dom::lift`), and at rest the window is there
-//! (`dom::land`). While rows are selected the row does not move sideways: the finger selects
+//! the one before, as the page of an app does (`dom::lift`), and at rest the window is where that
+//! page is, as far down in it as it was scrolled meanwhile (`dom::land`): what is scrolled while the
+//! row moves stays (owner, 2026-10-19), and the page that was left starts at its top again, off the
+//! screen. While rows are selected the row does not move sideways: the finger selects
 //! (`focus.rs`).
 //!
 //! The row comes with the page it opens at and its neighbours drawn; the others follow once it is
@@ -206,8 +208,9 @@ pub(super) struct Pages {
     /// The row has been placed where the address says (the first time at once).
     placed: StoredValue<bool>,
     quiet: StoredValue<Option<TimeoutHandle>>,
-    /// The pages it does not rest at are drawn from their tops (`dom::lift`).
-    lifted: StoredValue<bool>,
+    /// The pages it does not rest at are drawn from their tops (`dom::lift`): how far further down
+    /// they are drawn, until the row rests (`dom::land`).
+    lifted: StoredValue<Option<f64>>,
     /// A finger is on the row.
     touching: StoredValue<bool>,
     glide: StoredValue<Glide>,
@@ -239,7 +242,7 @@ impl Pages {
             heading: StoredValue::new(Heading::default()),
             placed: StoredValue::new(false),
             quiet: StoredValue::new(None),
-            lifted: StoredValue::new(false),
+            lifted: StoredValue::new(None),
             touching: StoredValue::new(false),
             glide: StoredValue::new(Glide::default()),
             waiting: StoredValue::new(None),
@@ -332,7 +335,7 @@ impl Pages {
     /// A finger comes down on the row (the pages coming in are drawn from their tops), or goes.
     fn finger(self, down: bool) {
         if down {
-            self.lift();
+            self.lift_anew();
         }
         self.touching.set_value(down);
     }
@@ -341,8 +344,19 @@ impl Pages {
     /// a tap or the address).
     fn lift(self) {
         if let Some(row) = self.node.get_untracked() {
-            dom::lift(&row);
-            self.lifted.set_value(true);
+            self.lifted.set_value(Some(dom::lift(&row)));
+        }
+    }
+
+    /// The pages coming in are drawn from their tops as the window is scrolled now, while none of
+    /// them shows (the row rests at its page, and does not glide): drawn so before, the window may
+    /// have moved since. One that shows stays where it is drawn: the window scrolled it along, and
+    /// drawn anew it would jump (owner, 2026-10-19: „wenn man vertikal am scrollen ist während man
+    /// swiped"); the row's rest takes the window there (`dom::land`).
+    fn lift_anew(self) {
+        let resting = self.glide.with_value(|glide| glide.to.is_none()) && self.at() == Some((self.here.get_untracked(), true));
+        if resting || self.lifted.get_value().is_none() {
+            self.lift();
         }
     }
 
@@ -399,9 +413,7 @@ impl Pages {
             return;
         }
         let Some((from, _)) = self.x() else { return };
-        if !self.lifted.get_value() {
-            self.lift();
-        }
+        self.lift_anew();
         let number = self.glide.with_value(|glide| glide.number.wrapping_add(1));
         self.glide.set_value(Glide { number, to: Some(index), at: from });
         if let Some(handle) = self.quiet.get_value() {
@@ -463,7 +475,7 @@ impl Pages {
         if self.glide.with_value(|glide| glide.to.is_some()) {
             return;
         }
-        if !self.lifted.get_value() {
+        if self.lifted.get_value().is_none() {
             self.lift();
         }
         if let Some((x, step)) = self.x() {
@@ -491,8 +503,8 @@ impl Pages {
         self.track(x, step);
         let moved = index != self.here.get_untracked();
         if let Some(row) = self.node.get_untracked() {
-            dom::land(&row, moved);
-            self.lifted.set_value(false);
+            dom::land(&row, moved, self.lifted.get_value().unwrap_or(0.0));
+            self.lifted.set_value(None);
         }
         if !moved {
             return;

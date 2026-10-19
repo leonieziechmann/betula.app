@@ -315,23 +315,32 @@ pub(super) fn window_to_top() {
 
 /// Before a row of pages moves sideways: the pages it does not rest at are drawn as far down as
 /// the window is scrolled past the row's top, so that the one coming in shows from its top, as a
-/// page of an app does (`land` takes it back).
+/// page of an app does (`land` takes it back). How far that is (px).
 #[allow(unused_variables)]
-pub(super) fn lift(row: &leptos::web_sys::Element) {
-    #[cfg(feature = "csr")]
-    if let Some(window) = web_sys::window() {
-        shift_others(row, past_top(&window, row));
-    }
-}
-
-/// The row has come to rest: at another page (`moved`), the window goes up to the row's top in the
-/// same frame as that page comes back to its place, so that nothing moves on the screen; the pages
-/// are where they are again either way.
-#[allow(unused_variables)]
-pub(super) fn land(row: &leptos::web_sys::Element, moved: bool) {
+pub(super) fn lift(row: &leptos::web_sys::Element) -> f64 {
     #[cfg(feature = "csr")]
     if let Some(window) = web_sys::window() {
         let by = past_top(&window, row);
+        shift_others(row, by);
+        return by;
+    }
+    0.0
+}
+
+/// The row has come to rest: at another page (`moved`), the window goes up as far as that page was
+/// drawn further down (`lifted`, what `lift` said) in the same frame as it comes back to its place,
+/// so that nothing moves on the screen; the pages are where they are again either way. Scrolled
+/// meanwhile, the page came along with the window, and it stays as far down in itself as it was
+/// scrolled (owner, 2026-10-19: „wenn man vertikal am scrollen ist während man swiped. Dann springt
+/// das am [Ende vom] swipen wieder zum Anfang. Mach das mal lieber so, dass sich das scrollen off
+/// Screen resetted"): the window went up to the row's top before, as far as it is past it now, and
+/// took the page back to its top at the end of the swipe. The page that was left is off the screen
+/// and comes in from its top the next time (`lift`).
+#[allow(unused_variables)]
+pub(super) fn land(row: &leptos::web_sys::Element, moved: bool, lifted: f64) {
+    #[cfg(feature = "csr")]
+    if let Some(window) = web_sys::window() {
+        let by = lifted;
         if moved && by > 0.5 {
             let options = web_sys::ScrollToOptions::new();
             options.set_top(window.scroll_y().unwrap_or(0.0) - by);
