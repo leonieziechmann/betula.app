@@ -339,12 +339,16 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
             Place { id, shown, sem, ids, current, town }
         }))
     });
+    // The program the page asks with (the plan's, else Mein Studiengang): another semester is asked
+    // as its own page asks, so its answer is the page's when the visitor goes there, and the panel
+    // names the module as that week does (its abbreviation, `ModuleIds`).
+    let program = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.2.clone()));
     let loaded = Memo::new(move |_| {
         let place = place.get()?;
         let loaded = match place.sem {
             Some(sem) if sem == place.shown => Loaded::Page,
             Some(sem) => Loaded::Other(ctx.source.with_value(|source| match source {
-                Some(source) => source.now(&StudyplanAsk { key: sem, ids: place.ids.clone(), program: None, locale: t.locale }),
+                Some(source) => source.now(&StudyplanAsk { key: sem, ids: place.ids.clone(), program: program.get(), locale: t.locale }),
                 None => Err(unavailable()),
             })),
             None => Loaded::Nowhere(ctx.source.with_value(|source| match source {

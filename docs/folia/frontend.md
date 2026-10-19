@@ -418,9 +418,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   module's own, which is the server's (R9). A program calls a module otherwise in 961 of 28,573
   pairs, 330 modules on the data of 2026-10-19 (the „Praktikum" 11150 is „Pra" by itself and
   „Prak-b" in Informatik M.Sc., beside another „Praktikum"; `ModuleData::program_abbrevs`,
-  `abbrev_in`). The panel
-  beside the Stundenplan takes the plan's form (`StudyplanData::abbrevs`). A list's rows keep the
-  number alone, and the sidebar of a module's page its number.
+  `abbrev_in`). The panel beside the Stundenplan takes the plan's form (`StudyplanData::abbrevs`),
+  also for a module planned in another semester than the one shown, whose data it asks with the
+  page's program since 1.33.2 (before, without one, it named such a module by its own form). A
+  list's rows keep the number alone, and the sidebar of a module's page its number.
 - **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
   „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
   formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in
@@ -2395,7 +2396,8 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   query as `CatalogQuery::rank_program`, filled by the catalog like the marks (`with_mine`), never
   in an address and never on the server (R9): it changes the order only, so a link to a search
   lists the same modules for everyone (owner: „Die idee ist bloß, dass man seinen freunden ne
-  suche teilen kann“).
+  suche teilen kann“). The owner confirmed ×1.35 the same day: „Ja klar 1.35 ist auch voll OK. Die
+  1.2 waren nur ein geschätzter Startwert.“
 - **The row says why** (`widgets::list::Row`, `CatalogRow::marks`, filled by `catalog_page` from
   `search::marks`): the letters found are marked (`<mark>`, `--hit`) in the title, in the number
   and in a line under the row that says what else the module was found by — the title in the
