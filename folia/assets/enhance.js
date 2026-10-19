@@ -1218,7 +1218,8 @@
   // the catalog's list with its filters, on a phone only. The way to the profile page
   // (`data-hold="profiles"`, chrome.rs `ProfileButton`; owner, 2026-10-14: „Beim Handy long hold")
   // is held the same way, the box at a phone's head with a finger, the rail's with a right click,
-  // and gets the menu of the profiles (`betula:profile-menu`, chrome.rs `ProfileMenu`). The touch
+  // and gets the menu of the profiles (`betula:profile-menu`, chrome.rs `ProfileMenu`; a tap on the
+  // phone's box opens it as well, chrome.rs `ProfileButton`). The touch
   // that held is no tap (its click goes) and no swipe. The bar's tabs and the phone's box never get
   // the browser's own menu of a link (nor, app.css, its preview of one).
   const TAB_HOLD = 420; // ms: a little before the browser's own long press (Android: 400–500)
