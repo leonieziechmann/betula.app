@@ -309,7 +309,7 @@ th.at { text-align: right; }
         <li><span><b>Was man sieht, zählt mehr.</b> Ein Fund im Titel der anderen Sprache zählt ×0,75. Ein Suchwort aus ein
           oder zwei Buchstaben findet dort keine Wortanfänge, „ti“ also nicht „Timber“.</span></li>
         <li><span><b>Schreibweise wie getippt ×1,1.</b> Wer „TI“ groß schreibt, bekommt „TIN*“ vor „Tissue“.</span></li>
-        <li><span><b>Mein Studiengang ×1,2.</b> Seine Module rücken nach oben, auch über Stufen hinweg.</span></li>
+        <li><span><b>Mein Studiengang ×1,35.</b> Seine Module rücken nach oben, auch über Stufen hinweg.</span></li>
         <li><span><b>Lehrende mit eigenen Regeln.</b> Nachname ganz, sein Anfang ab vier Buchstaben, ähnliche Schreibweisen
           („Hoffstedt“, „Doering“); ein Vorname nur mit dem Nachnamen.</span></li>
         <li><span><b>Die Zeile zeigt den Grund.</b> Gefundene Buchstaben sind markiert; kommt der Treffer aus dem anderen
@@ -329,8 +329,12 @@ th.at { text-align: right; }
           die englischen KI-Module über ihren deutschen Titel.</p></div>
       <div class="dec"><q>… die module aus deinem Studiengang ganz generell einen kleinen boost … Vlt score einfach x 1.2
           oder so</q>
-        <p><b>×1,2 auf die Punkte</b>, als Regler im Spielfeld. Mit Informatik B.Sc. stehen bei „BS“ die Betriebssysteme vor
-          „Biosensorik“, mit Informatik M.Sc. bei „SE“ „Softwaretechnik“ zuerst.</p></div>
+        <p><b>×1,35 auf die Punkte</b>, als Regler im Spielfeld; nachgemessen, ×1,2 war zu wenig. Wer Artificial
+          Intelligence M.Sc. studiert, fand bei „Masterarbeit“ die eigene „Master Thesis“ mit ×1,2 auf Platz 33, hinter der
+          „Master-Arbeit“ von 32 anderen Studiengängen, mit ×1,35 auf Platz 1: Ein eigenes Modul, mit dem Titel der anderen
+          Sprache genannt, steht vor einem fremden, das mit dem gezeigten Titel genannt ist. Vor eines, das mit seinem eigenen
+          Kürzel genannt ist, kommt es nicht: Mit Informatik M.Sc. steht bei „SE“ „Softwaretechnik“ auf Platz 2, hinter
+          „Sicherheitsengineering“ (Kürzel SE). Mit Informatik B.Sc. stehen bei „BS“ die Betriebssysteme vor „Biosensorik“.</p></div>
       <div class="dec"><q>Ja durchsuch mal Lehrende mit. Aber leg dafür andere regeln an … etwas restriktiver, aber typos oder
           ähnliche schreibweisen bitte doch zulassen.</q>
         <p><b>Eigene Regeln</b> (unter <a href="#lehrende">Lehrende</a>): „Hoffstedt“, „Hofstätt“, „Hofstet“ und
@@ -420,8 +424,8 @@ th.at { text-align: right; }
     </form>
     <fieldset class="weights" id="weights">
       <legend>Gewichte der neuen Suche</legend>
-      <div class="weight"><label for="w-program">Mein Studiengang <output id="o-program" for="w-program">×1,20</output></label>
-        <input id="w-program" type="range" min="1" max="1.5" step="0.05" value="1.2"></div>
+      <div class="weight"><label for="w-program">Mein Studiengang <output id="o-program" for="w-program">×1,35</output></label>
+        <input id="w-program" type="range" min="1" max="1.5" step="0.05" value="1.35"></div>
       <div class="weight"><label for="w-other">Titel der anderen Sprache <output id="o-other" for="w-other">×0,75</output></label>
         <input id="w-other" type="range" min="0.5" max="1" step="0.05" value="0.75"></div>
       <div class="weight"><label for="w-case">Schreibweise wie getippt <output id="o-case" for="w-case">×1,10</output></label>
@@ -510,7 +514,7 @@ th.at { text-align: right; }
           <tr><td>je Wort davor im Titel</td><td class="p">−3 %</td><td class="e">höchstens fünf Wörter, also −15 %</td></tr>
           <tr><td>Suchwörter nebeneinander</td><td class="p">1,05</td><td class="e">in der getippten Folge</td></tr>
           <tr><td>lehrt nur, verantwortet nicht</td><td class="p">0,90</td><td class="e">Lehrende einer Veranstaltung</td></tr>
-          <tr><td>Mein Studiengang</td><td class="p">1,20</td><td class="e">nur die Reihenfolge</td></tr>
+          <tr><td>Mein Studiengang</td><td class="p">1,35</td><td class="e">nur die Reihenfolge</td></tr>
         </tbody>
       </table>
       <p class="hint">Gleiche Punkte entscheidet: angeboten vor Auslaufmodul, weniger übrige Wörter (der kürzere Titel), in

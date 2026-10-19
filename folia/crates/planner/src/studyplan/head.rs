@@ -1439,6 +1439,7 @@ mod tests {
             kind_basis: None,
             plan_semester: None,
             area: None,
+            marks: None,
         };
         let data = BookmarksData {
             rows: vec![row("11103"), row("12330"), row("12104")],

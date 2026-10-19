@@ -1159,6 +1159,7 @@ name = "folia-search"
 version = "0.1.0"
 dependencies = [
  "folia-model",
+ "folia-test-support",
  "serde",
 ]
 

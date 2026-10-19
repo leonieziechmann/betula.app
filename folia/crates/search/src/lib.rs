@@ -1,28 +1,25 @@
 //! Text folding for every search of the app, so „okologie" finds „Ökologie" and „strasse"
 //! finds „Straße" on the server and in the browser alike; and the search of the module catalog.
 //!
-//! The catalog compares the words of a query with the names of a module that Radix folded the
-//! same way (`v_module_folded`, docs/radix/schema-v2.md „Search"): its titles, their initials and its
-//! abbreviations, not the texts of its description (owner, 2026-09-30). Every word has to be
-//! found, in any order, and fillers like „für" do not count. How a word is found ranks the
-//! module, best first: as its number, as one of its abbreviations („AuP"), as a word of a title
-//! (its first word counts a little more), as the start of a module number, as the start of a
-//! word, as the initials of words that follow each other („ti", Theoretische Informatik), and,
-//! from four letters on, inside a word („netz" in „Stromnetze", but „ki" not in
-//! „Schlüsselqualifikationen"). A number of one or two digits and a Roman numeral up to ten are
-//! found as a whole word of a title only, the one as the other („Analysis 1" finds „Analysis I",
-//! and „Analysis I" not „Analysis für Informatiker"). Where the words as typed find no
-//! module at all, `resolve` corrects their typos from the words of the titles, and where that
-//! finds none either, the modules with the most of the words are listed.
+//! The catalog's search (`rank`, owner, 2026-10-19; folia/design/suche/konzept.html) finds the words
+//! of a query in the names of a module — its number, its abbreviations, its two titles — and in
+//! the names of its lecturers, not in the texts of its description. Every word has to be found,
+//! in any order, and fillers like „für" do not count. `Plan` hands what a query finds, in the
+//! order of the list, to the catalog's SQL. Where the words as typed find no module at all,
+//! `resolve` corrects their typos from the words of the titles, and where that finds none either,
+//! the modules with the most of the words are listed. What a query finds depends on the query
+//! alone; the visitor's program changes the order only.
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod fuzzy;
+pub mod rank;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use folia_model::db::{fetch_count, Database, DbError, Value};
+use folia_model::db::{Database, DbError, Value};
+use folia_model::rows::SearchMarks;
 use serde::{Deserialize, Serialize};
 
 /// Lower case, `ß` → `ss`, umlauts and the common Latin diacritics removed.
@@ -50,9 +47,10 @@ pub fn matches(text: &str, query: &str) -> bool {
     fold(query).split_whitespace().all(|word| text.contains(word))
 }
 
-/// Words a query leaves out and initials skip („Algorithmen und Datenstrukturen" is „ad"). Radix
+/// Words the pickers' initials skip („Algorithmen und Datenstrukturen" is „ad", `fuzzy`). Radix
 /// skips the same in the initials it folds (`normalize.SearchFillers`, held to this list by
-/// radix/internal/normalize/testdata/search.tsv).
+/// radix/internal/normalize/testdata/search.tsv). The catalog's search has a list of its own
+/// (`rank::FILLERS`).
 pub const FILLERS: &[&str] = &["of", "and", "und", "der", "die", "das", "in", "im", "fur", "the", "zur", "zum", "von", "mit"];
 
 /// The words of a text as the search sees them: folded, and parted at every character that is
@@ -62,34 +60,13 @@ pub fn words(text: &str) -> Vec<String> {
     fold(text).split(|c: char| !c.is_alphanumeric()).filter(|word| !word.is_empty()).map(str::to_string).collect()
 }
 
-/// The words a query searches for: its words without the fillers (a query of fillers alone keeps
-/// them), each once.
-fn query_words(text: &str) -> Vec<String> {
-    let all = words(text);
-    let content: Vec<String> = all.iter().filter(|word| !FILLERS.contains(&word.as_str())).cloned().collect();
-    let mut chosen = if content.is_empty() { all } else { content };
-    let mut seen = HashSet::new();
-    chosen.retain(|word| seen.insert(word.clone()));
-    chosen
-}
+/// Roman numerals up to ten: a number is found as its numeral and the other way round.
+pub(crate) const ROMAN: [&str; 10] = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"];
 
-// How a word is found in a module, best first; a module's score is the sum over the words.
-const ID: i64 = 1200;
-const ABBREV: i64 = 1100;
-const FIRST_WORD: i64 = 1050;
-const WHOLE_WORD: i64 = 1000;
-const ID_START: i64 = 900;
-const FIRST_WORD_START: i64 = 850;
-const WORD_START: i64 = 800;
-const INITIALS: i64 = 600;
-const WORD_PART: i64 = 500;
-/// A word is found inside another from this many letters on.
-const PART_FROM: usize = 4;
-/// A number is (the start of) a module number from this many digits on; a shorter one is a word
-/// of a title („Mathematik 1").
-const NUMBER_FROM: usize = 3;
-/// The numerals a number up to ten is also found as, and the other way round.
-const ROMAN: [&str; 10] = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"];
+/// Whether a text searches at all: it has a letter or a digit.
+pub fn has_words(text: &str) -> bool {
+    text.chars().any(char::is_alphanumeric)
+}
 
 /// How the catalog searched a text where the text as typed found no module (`resolve`); the
 /// default is the text as typed. Derived by the page, never part of a URL.
@@ -139,95 +116,66 @@ impl Resolution {
     }
 }
 
-/// What the SQL of a search asks: for every word the forms it may be found as.
+/// What a search finds, in the order of the list: the table the catalog's SQL joins
+/// (`folia_query`), one row per module found with how many of the words it has and its place.
 pub struct Plan {
-    words: Vec<Vec<Form>>,
+    /// `[["11787",1,0],…]`: the module, its words found, its place.
+    hits: Arc<str>,
+    words: usize,
     most_words: bool,
 }
 
-struct Form {
-    text: String,
-    /// Only as a whole word: a short number, or a numeral standing in for a number.
-    whole: bool,
-}
-
 impl Plan {
-    /// The plan of `text` as `resolution` has it searched (as typed without one); `None` for a
-    /// blank text, which is no search.
-    pub fn new(text: &str, resolution: Option<&Resolution>) -> Option<Self> {
+    /// The plan of `text` as `resolution` has it searched (as typed without one), the modules of
+    /// `program` raised (their order only, `rank::points::PROGRAM`); `None` for a blank text, which
+    /// is no search.
+    pub fn new(db: &dyn Database, text: &str, resolution: Option<&Resolution>, program: Option<&str>) -> Result<Option<Self>, DbError> {
         if text.trim().is_empty() {
-            return None;
+            return Ok(None);
         }
-        let words = query_words(text)
-            .into_iter()
-            .map(|typed| {
-                let corrected = resolution.and_then(|r| r.corrected.iter().find(|c| c.typed == typed));
-                forms(corrected.map_or(typed, |c| c.word.clone()))
-            })
-            .collect();
-        Some(Self { words, most_words: resolution.is_some_and(|r| r.most_words) })
+        let most_words = resolution.is_some_and(|r| r.most_words);
+        let ranked = ranked(db, text, resolution, program)?;
+        let mut hits = String::with_capacity(ranked.hits.len() * 16 + 2);
+        hits.push('[');
+        for (place, (id, found)) in ranked.hits.iter().enumerate() {
+            if place > 0 {
+                hits.push(',');
+            }
+            hits.push_str(&format!("[\"{id}\",{found},{place}]"));
+        }
+        hits.push(']');
+        Ok(Some(Self { hits: hits.into(), words: ranked.words, most_words }))
     }
 
     /// How many words the plan searches for.
     pub fn len(&self) -> usize {
-        self.words.len()
+        self.words
     }
 
     /// Whether the plan searches for no word at all.
     pub fn is_empty(&self) -> bool {
-        self.words.is_empty()
+        self.words == 0
     }
 
-    /// The matches of every module, `(SELECT module_id, score, matched, w0, w1 … FROM …)`, with
-    /// its parameters: `wN` is how well word N is found (0: not at all), `matched` how many of the
-    /// words are found, `score` the sum. `None` for a text without a word, which finds nothing.
+    /// The modules found, `(SELECT module_id, matched, rank FROM …)`, with its parameter:
+    /// `matched` is how many of the words a module has, `rank` its place in the order of the list.
+    /// `None` for a text without a word, which finds nothing.
     pub fn table(&self) -> Option<(String, Vec<Value>)> {
-        if self.words.is_empty() {
+        if self.words == 0 {
             return None;
         }
-        let mut params = Vec::new();
-        let mut columns = Vec::with_capacity(self.words.len());
-        for (i, forms) in self.words.iter().enumerate() {
-            let cases: Vec<String> = forms.iter().map(|form| form.case(&mut params)).collect();
-            let score = if cases.len() == 1 { cases.concat() } else { format!("MAX({})", cases.join(", ")) };
-            columns.push(format!("{score} AS w{i}"));
-        }
-        // Only a module whose names contain a form of the words at all is scored: that is what
-        // every way of finding a form needs, and it spares the scoring of nearly every module (in
-        // sql.js on a phone, the difference between a list that follows the typing and one that
-        // lags behind it).
-        let mut prefilter = Vec::with_capacity(self.words.len());
-        for forms in &self.words {
-            let found: Vec<&str> = forms
-                .iter()
-                .map(|form| {
-                    params.extend(std::iter::repeat_n(Value::from(form.text.as_str()), 5));
-                    "instr(title_de, ?) > 0 OR instr(title_en, ?) > 0 OR instr(abbrevs, ?) > 0 OR instr(initials, ?) > 0 \
-                     OR instr(module_id, ?) > 0"
-                })
-                .collect();
-            prefilter.push(format!("({})", found.join(" OR ")));
-        }
-        let names: Vec<String> = (0..self.words.len()).map(|i| format!("w{i}")).collect();
-        let matched: Vec<String> = names.iter().map(|name| format!("({name} > 0)")).collect();
-        let sql = format!(
-            "(SELECT module_id, {} AS score, {} AS matched, {} FROM (SELECT module_id, {} FROM \
-             (SELECT module_id, ' ' || IFNULL(title_de, '') || ' ' AS de, ' ' || IFNULL(title_en, '') || ' ' AS en, \
-             ' ' || IFNULL(initials, '') || ' ' AS ini, ' ' || IFNULL(abbrevs, '') || ' ' AS ab FROM v_module_folded \
-             WHERE {})))",
-            names.join(" + "),
-            matched.join(" + "),
-            names.join(", "),
-            columns.join(", "),
-            prefilter.join(if self.most_words { " OR " } else { " AND " })
-        );
-        Some((sql, params))
+        Some((
+            "(SELECT json_extract(value, '$[0]') AS module_id, json_extract(value, '$[1]') AS matched, \
+             json_extract(value, '$[2]') AS rank FROM json_each(?))"
+                .to_string(),
+            vec![Value::Text(self.hits.to_string())],
+        ))
     }
 
     /// The condition on `table` joined as `alias`: every word found, or, for the most words, one
     /// of them; nothing for a text without a word.
     pub fn condition(&self, alias: &str) -> String {
-        match (self.words.len(), self.most_words) {
+        match (self.words, self.most_words) {
             (0, _) => "0".to_string(),
             (_, true) => format!("{alias}.matched > 0"),
             (n, false) => format!("{alias}.matched = {n}"),
@@ -235,125 +183,150 @@ impl Plan {
     }
 }
 
-/// The forms a word may be found as: itself, and a number up to ten also as its Roman numeral,
-/// and the other way round. A number of up to two digits and a numeral are found as a whole word
-/// only.
-fn forms(word: String) -> Vec<Form> {
-    let whole = (word.chars().all(|c| c.is_ascii_digit()) && word.chars().count() < NUMBER_FROM) || ROMAN.contains(&word.as_str());
-    let mut others = Vec::new();
-    if let Some(roman) = word.parse::<usize>().ok().and_then(|n| n.checked_sub(1)).and_then(|i| ROMAN.get(i)) {
-        others.push(Form { text: roman.to_string(), whole: true });
-    }
-    if let Some(i) = ROMAN.iter().position(|roman| *roman == word) {
-        others.push(Form { text: (i + 1).to_string(), whole: true });
-    }
-    let mut forms = vec![Form { text: word, whole }];
-    forms.extend(others);
-    forms
+/// What a query finds, in the order of the list: each module's id and how many words it has.
+struct Ranked {
+    hits: Vec<(String, usize)>,
+    words: usize,
 }
 
-impl Form {
-    /// How well the form is found in a module: a `CASE` over the columns of `Plan::table`, its
-    /// parameters appended to `params`.
-    fn case(&self, params: &mut Vec<Value>) -> String {
-        let text = self.text.as_str();
-        let length = text.chars().count();
-        let number = text.chars().all(|c| c.is_ascii_digit());
-        let letters = text.chars().all(char::is_alphabetic);
-        // (condition, how often it binds the form, score)
-        let mut arms: Vec<(&str, usize, i64)> = Vec::new();
-        if number && length >= NUMBER_FROM {
-            arms.push(("module_id = ?", 1, ID));
+/// What a query finds, in no order, with the points of the query alone, and its words.
+struct Evaluated {
+    hits: Vec<rank::Hit>,
+    words: Vec<rank::QueryWord>,
+}
+
+/// The snapshot a search runs on (its `content_digest`), the text, and how it is searched: the
+/// text as typed is `None`, whether no resolution was made or it found the text as typed.
+type Searched = (Option<String>, String, Option<Resolution>);
+
+fn searched(db: &dyn Database, text: &str, resolution: Option<&Resolution>) -> Result<Searched, DbError> {
+    let digest = folia_model::rows::meta(db)?.content_digest;
+    Ok((digest, text.to_string(), resolution.filter(|r| **r != Resolution::default()).cloned()))
+}
+
+/// What `text` finds as `resolution` has it searched, in no order; the last one kept: while
+/// typing, a page resolves the text (with the list and with the counts of its filters) and orders
+/// what it finds by the program (`ranked`), all from one evaluation.
+fn evaluated(db: &dyn Database, text: &str, resolution: Option<&Resolution>) -> Result<(Arc<rank::Index>, Arc<Evaluated>), DbError> {
+    static LAST: Mutex<Option<(Searched, Arc<Evaluated>)>> = Mutex::new(None);
+    let key = searched(db, text, resolution)?;
+    let index = rank::index(db)?;
+    if key.0.is_some() {
+        if let Some(kept) = LAST.lock().ok().and_then(|last| last.as_ref().filter(|(of, _)| *of == key).map(|(_, evaluated)| evaluated.clone())) {
+            return Ok((index, kept));
         }
-        if length >= 2 {
-            arms.push(("instr(ab, ' ' || ? || ' ') > 0", 1, ABBREV));
-        }
-        arms.push(("instr(de, ' ' || ? || ' ') = 1 OR instr(en, ' ' || ? || ' ') = 1", 2, FIRST_WORD));
-        arms.push(("instr(de, ' ' || ? || ' ') > 0 OR instr(en, ' ' || ? || ' ') > 0", 2, WHOLE_WORD));
-        if number && length >= NUMBER_FROM {
-            arms.push(("instr(module_id, ?) = 1", 1, ID_START));
-        }
-        if !self.whole {
-            arms.push(("instr(de, ' ' || ?) = 1 OR instr(en, ' ' || ?) = 1", 2, FIRST_WORD_START));
-            arms.push(("instr(de, ' ' || ?) > 0 OR instr(en, ' ' || ?) > 0", 2, WORD_START));
-            if letters && length >= 2 {
-                arms.push(("instr(ini, ?) > 0", 1, INITIALS));
-            }
-            if length >= PART_FROM {
-                arms.push(("instr(de, ?) > 0 OR instr(en, ?) > 0", 2, WORD_PART));
-            }
-        }
-        let mut case = String::from("CASE");
-        for (condition, uses, score) in arms {
-            case.push_str(&format!(" WHEN {condition} THEN {score}"));
-            params.extend(std::iter::repeat_n(Value::from(text), uses));
-        }
-        case.push_str(" ELSE 0 END");
-        case
     }
+    let words = rank::query_words(&index, text, key.2.as_ref());
+    let hits = rank::evaluate(&index, &words, key.2.as_ref().is_some_and(|r| r.most_words));
+    let evaluated = Arc::new(Evaluated { hits, words });
+    if key.0.is_some() {
+        if let Ok(mut last) = LAST.lock() {
+            *last = Some((key, evaluated.clone()));
+        }
+    }
+    Ok((index, evaluated))
+}
+
+/// What `text` finds as `resolution` has it searched, in the order of the list, `program`'s
+/// modules raised; the last one kept, since a page asks for the list, its count and what lies
+/// outside its filters in turn.
+fn ranked(db: &dyn Database, text: &str, resolution: Option<&Resolution>, program: Option<&str>) -> Result<Arc<Ranked>, DbError> {
+    /// A search and the program that orders it.
+    type Ordered = (Searched, Option<String>);
+    static LAST: Mutex<Option<(Ordered, Arc<Ranked>)>> = Mutex::new(None);
+    let program = program.filter(|p| !p.is_empty());
+    let key = (searched(db, text, resolution)?, program.map(str::to_string));
+    if key.0 .0.is_some() {
+        if let Some(kept) = LAST.lock().ok().and_then(|last| last.as_ref().filter(|(of, _)| *of == key).map(|(_, ranked)| ranked.clone())) {
+            return Ok(kept);
+        }
+    }
+    let (index, evaluated) = evaluated(db, text, resolution)?;
+    let mine = match program {
+        Some(program) => search_program_modules(db, program)?,
+        None => HashSet::new(),
+    };
+    let hits = rank::order(&index, &evaluated.hits, &evaluated.words, &mine)
+        .into_iter()
+        .filter_map(|i| evaluated.hits.get(i))
+        .filter_map(|hit| index.module_id(hit.module).map(|id| (id.to_string(), hit.found)))
+        .collect();
+    let ranked = Arc::new(Ranked { hits, words: evaluated.words.len() });
+    if key.0 .0.is_some() {
+        if let Ok(mut last) = LAST.lock() {
+            *last = Some((key, ranked.clone()));
+        }
+    }
+    Ok(ranked)
 }
 
 /// What the catalog searches `text` for (`pages::catalog`): the text as typed where some module
 /// has all its words; else with every word no module has corrected from the words of the titles,
 /// where that finds a module; else, for two words and more, the modules with the most of them.
-/// A text that finds nothing in any of these ways is searched as typed. Filters play no part:
-/// what the text finds outside them, the list says below its rows.
+/// A text that finds nothing in any of these ways is searched as typed. Filters and the profile
+/// play no part: what the text finds outside the filters, the list says below its rows.
 pub fn resolve(db: &dyn Database, text: &str) -> Result<Resolution, DbError> {
-    let typed = query_words(text);
-    if typed.is_empty() || search_count(db, text, None)? > 0 {
+    // The last one kept: a page resolves its text for the list and for the counts of its filters.
+    /// The snapshot (its `content_digest`) and the text.
+    type Text = (Option<String>, String);
+    static LAST: Mutex<Option<(Text, Resolution)>> = Mutex::new(None);
+    let key = (folia_model::rows::meta(db)?.content_digest, text.to_string());
+    if key.0.is_some() {
+        if let Some(kept) = LAST.lock().ok().and_then(|last| last.as_ref().filter(|(of, _)| *of == key).map(|(_, resolution)| resolution.clone())) {
+            return Ok(kept);
+        }
+    }
+    let resolution = resolved(db, text)?;
+    if key.0.is_some() {
+        if let Ok(mut last) = LAST.lock() {
+            *last = Some((key, resolution.clone()));
+        }
+    }
+    Ok(resolution)
+}
+
+fn resolved(db: &dyn Database, text: &str) -> Result<Resolution, DbError> {
+    let (index, as_typed) = evaluated(db, text, None)?;
+    let words = &as_typed.words;
+    if words.is_empty() || !as_typed.hits.is_empty() {
         return Ok(Resolution::default());
     }
-    let found = search_words_found(db, text)?;
+    let any = rank::evaluate(&index, words, true);
     let mut corrected = Vec::new();
-    if found.iter().any(|found| !found) {
-        let vocabulary = vocabulary(db)?;
-        for (word, found) in typed.iter().zip(&found) {
-            if let (false, Some((instead, shown))) = (*found, vocabulary.correct(word)) {
-                corrected.push(Correction { typed: word.clone(), word: instead, shown });
-            }
+    for (k, word) in words.iter().enumerate() {
+        let found = any.iter().any(|hit| hit.answer.best.get(k).is_some_and(Option::is_some));
+        if found {
+            continue;
+        }
+        let typed: String = word.q.iter().collect();
+        if let Some((instead, shown)) = index.vocabulary().correct(&typed) {
+            corrected.push(Correction { typed, word: instead, shown });
         }
     }
     if !corrected.is_empty() {
         let resolution = Resolution { corrected: corrected.clone(), most_words: false };
-        if search_count(db, text, Some(&resolution))? > 0 {
+        if found_count(db, text, Some(&resolution))? > 0 {
             return Ok(resolution);
         }
     }
-    if typed.len() > 1 {
+    if words.len() > 1 {
         let resolution = Resolution { corrected, most_words: true };
-        if search_count(db, text, Some(&resolution))? > 0 {
+        if found_count(db, text, Some(&resolution))? > 0 {
             return Ok(resolution);
         }
     }
     Ok(Resolution::default())
 }
 
-/// The vocabulary of the titles of the snapshot `db` is (its `content_digest`), made once for it:
-/// a search that types a word no title has would otherwise make it again with every letter (the
-/// titles of 4,938 modules, 40 ms of a laptop and four times that of a phone). A snapshot that
-/// does not say its digest gets one made for the search alone.
-fn vocabulary(db: &dyn Database) -> Result<Arc<Vocabulary>, DbError> {
-    static KEPT: Mutex<Option<(String, Arc<Vocabulary>)>> = Mutex::new(None);
-    let digest = folia_model::rows::meta(db)?.content_digest;
-    let kept = |digest: &str| KEPT.lock().ok()?.as_ref().filter(|(of, _)| of == digest).map(|(_, vocabulary)| vocabulary.clone());
-    if let Some(vocabulary) = digest.as_deref().and_then(kept) {
-        return Ok(vocabulary);
-    }
-    let vocabulary = Arc::new(Vocabulary::new(&search_titles(db)?));
-    if let (Some(digest), Ok(mut kept)) = (digest, KEPT.lock()) {
-        *kept = Some((digest, vocabulary.clone()));
-    }
-    Ok(vocabulary)
-}
-
 /// The words of the titles, for the correction of a typo: every word with the number of modules
 /// that have it, and as the first of them writes it.
-struct Vocabulary {
+#[derive(Debug)]
+pub(crate) struct Vocabulary {
     words: Vec<(String, u32, String)>,
 }
 
 impl Vocabulary {
-    fn new(titles: &[Titles]) -> Self {
+    pub(crate) fn new(titles: &[Titles]) -> Self {
         let mut counted: HashMap<String, (u32, String)> = HashMap::new();
         for (de, en) in titles {
             let mut of_module = HashSet::new();
@@ -376,7 +349,7 @@ impl Vocabulary {
     /// start with its letter and are within one typo of it or of their start (two from eight letters
     /// on), the one with the fewest, then the one most modules have. Words of fewer than four
     /// letters, and words with a digit, are not corrected.
-    fn correct(&self, word: &str) -> Option<(String, String)> {
+    pub(crate) fn correct(&self, word: &str) -> Option<(String, String)> {
         let typed: Vec<char> = word.chars().collect();
         if !typed.iter().all(|c| c.is_alphabetic()) {
             return None;
@@ -390,42 +363,158 @@ impl Vocabulary {
             .min_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then(a.2.len().cmp(&b.2.len())).then(a.2.cmp(b.2)))
             .map(|(_, _, candidate, shown)| (candidate.clone(), shown.clone()))
     }
+
+    /// Whether some word of a title starts with `start`.
+    pub(crate) fn starts_some_word(&self, start: &str) -> bool {
+        let at = self.words.partition_point(|(word, _, _)| word.as_str() < start);
+        self.words.get(at).is_some_and(|(word, _, _)| word.starts_with(start))
+    }
 }
 
 // The statements of the search: the only SQL of this crate besides `Plan`'s.
 
 /// How many modules the search of `text` finds, as `resolution` has it searched, whatever the
 /// filters: the whole catalog, offered or not (`search::resolve`).
-pub fn search_count(db: &dyn Database, text: &str, resolution: Option<&Resolution>) -> Result<u64, DbError> {
-    let Some(plan) = Plan::new(text, resolution) else { return Ok(0) };
-    let Some((table, params)) = plan.table() else { return Ok(0) };
-    fetch_count(db, "search_count", &format!("SELECT COUNT(*) FROM {table} sr WHERE {}", plan.condition("sr")), &params)
+pub fn found_count(db: &dyn Database, text: &str, resolution: Option<&Resolution>) -> Result<u64, DbError> {
+    if text.trim().is_empty() {
+        return Ok(0);
+    }
+    Ok(evaluated(db, text, resolution)?.1.hits.len() as u64)
 }
 
 /// Which of the words of `text` some module has, in the order the search takes them
 /// (`search::resolve`): a word no module has is one to correct.
-pub fn search_words_found(db: &dyn Database, text: &str) -> Result<Vec<bool>, DbError> {
-    // Every module that has one of the words, as for the most words.
-    let any = Resolution { corrected: Vec::new(), most_words: true };
-    let Some(plan) = Plan::new(text, Some(&any)) else { return Ok(Vec::new()) };
-    let Some((table, params)) = plan.table() else { return Ok(Vec::new()) };
-    let columns: Vec<String> = (0..plan.len()).map(|i| format!("MAX(w{i} > 0)")).collect();
-    let rows = db.query("search_words_found", &format!("SELECT {} FROM {table}", columns.join(", ")), &params)?;
-    let found = |value: &Value| matches!(value, Value::Integer(n) if *n > 0);
-    Ok(rows.rows.first().map(|row| row.iter().map(found).collect()).unwrap_or_default())
+pub fn words_found(db: &dyn Database, text: &str) -> Result<Vec<bool>, DbError> {
+    let index = rank::index(db)?;
+    let words = rank::query_words(&index, text, None);
+    let any = rank::evaluate(&index, &words, true);
+    Ok((0..words.len()).map(|k| any.iter().any(|hit| hit.answer.best.get(k).is_some_and(Option::is_some))).collect())
+}
+
+/// What the search of `text` (as `resolution` has it searched) found in each of the modules of
+/// `ids` that it finds: the letters of its title, the other title or a lecturer's name it found,
+/// the abbreviation. The rows of the list mark them.
+pub fn marks(db: &dyn Database, text: &str, resolution: Option<&Resolution>, ids: &[String]) -> Result<HashMap<String, SearchMarks>, DbError> {
+    let mut marks = HashMap::new();
+    if text.trim().is_empty() || ids.is_empty() {
+        return Ok(marks);
+    }
+    let index = rank::index(db)?;
+    let words = rank::query_words(&index, text, resolution);
+    for id in ids {
+        let Some(i) = index.position(id) else { continue };
+        let Some(answer) = index.answer_of(i, &words).filter(|answer| answer.found > 0) else { continue };
+        if let Some(found) = index.marks(i, &answer) {
+            marks.insert(id.clone(), found);
+        }
+    }
+    Ok(marks)
 }
 
 /// The German and the English title of a module.
 pub type Titles = (Option<String>, Option<String>);
 
-/// The titles of every module: the words a typo is corrected to (`search::resolve`).
-pub fn search_titles(db: &dyn Database) -> Result<Vec<Titles>, DbError> {
-    let rows = db.query("search_titles", "SELECT title_de, title_en FROM v_module ORDER BY id", &[])?;
-    let text = |value: Option<&Value>| match value {
+// The statements of the search, each read once per snapshot but the last (`rank::index`).
+
+/// The names of a module the search compares a query with, as the snapshot has them.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModuleNames {
+    pub id: String,
+    /// The title the list shows.
+    pub title: String,
+    pub title_de: Option<String>,
+    pub title_en: Option<String>,
+    pub offer_status: Option<String>,
+    /// The module's own abbreviation („ThI").
+    pub abbrev: Option<String>,
+}
+
+fn text_of(value: Option<&Value>) -> Option<String> {
+    match value {
         Some(Value::Text(text)) => Some(text.clone()),
         _ => None,
-    };
-    Ok(rows.rows.iter().map(|row| (text(row.first()), text(row.get(1)))).collect())
+    }
+}
+
+/// Every module's names, in the order of the ids.
+pub fn search_modules(db: &dyn Database) -> Result<Vec<ModuleNames>, DbError> {
+    let rows = db.query("search_modules", "SELECT id, title, title_de, title_en, offer_status, abbrev FROM v_module ORDER BY id", &[])?;
+    Ok(rows
+        .rows
+        .iter()
+        .filter_map(|row| {
+            Some(ModuleNames {
+                id: text_of(row.first())?,
+                title: text_of(row.get(1))?,
+                title_de: text_of(row.get(2)),
+                title_en: text_of(row.get(3)),
+                offer_status: text_of(row.get(4)),
+                abbrev: text_of(row.get(5)),
+            })
+        })
+        .collect())
+}
+
+/// The abbreviations the programs give the modules („AuP"): module, abbreviation.
+pub fn search_abbrevs(db: &dyn Database) -> Result<Vec<(String, String)>, DbError> {
+    let rows = db.query("search_abbrevs", "SELECT DISTINCT module_id, abbrev FROM v_program_module WHERE abbrev IS NOT NULL", &[])?;
+    Ok(rows.rows.iter().filter_map(|row| Some((text_of(row.first())?, text_of(row.get(1))?))).collect())
+}
+
+/// How many programs (their newest regulations) have each module in their curriculum.
+pub fn search_programs(db: &dyn Database) -> Result<Vec<(String, u32)>, DbError> {
+    let rows = db.query(
+        "search_programs",
+        "SELECT pm.module_id, COUNT(DISTINCT pm.program_id) FROM v_program_module pm JOIN v_program p ON p.id = pm.program_id \
+         WHERE pm.relation = 'curricular' AND p.is_latest_po = 1 GROUP BY pm.module_id",
+        &[],
+    )?;
+    Ok(rows
+        .rows
+        .iter()
+        .filter_map(|row| {
+            let count = match row.get(1) {
+                Some(Value::Integer(n)) => u32::try_from(*n).unwrap_or(0),
+                _ => 0,
+            };
+            Some((text_of(row.first())?, count))
+        })
+        .collect())
+}
+
+/// A lecturer of a module: the module, the name as QIS writes it („Hofstedt, Petra"), and whether
+/// responsible for it (else teaching it).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LecturerOf {
+    pub module_id: String,
+    pub name: String,
+    pub responsible: bool,
+}
+
+/// Every module's lecturers, by module, the responsible first.
+pub fn search_lecturers(db: &dyn Database) -> Result<Vec<LecturerOf>, DbError> {
+    let rows = db.query("search_lecturers", "SELECT DISTINCT module_id, name, role FROM v_module_lecturer ORDER BY module_id, role DESC, name", &[])?;
+    Ok(rows
+        .rows
+        .iter()
+        .filter_map(|row| {
+            Some(LecturerOf {
+                module_id: text_of(row.first())?,
+                name: text_of(row.get(1))?,
+                responsible: text_of(row.get(2)).as_deref() == Some("responsible"),
+            })
+        })
+        .collect())
+}
+
+/// The modules of a program's curriculum, which the order raises.
+pub fn search_program_modules(db: &dyn Database, program: &str) -> Result<HashSet<String>, DbError> {
+    let rows = db.query(
+        "search_program_modules",
+        "SELECT DISTINCT module_id FROM v_program_module WHERE program_id = ? AND relation = 'curricular'",
+        &[Value::from(program)],
+    )?;
+    Ok(rows.rows.iter().filter_map(|row| text_of(row.first())).collect())
 }
 
 #[cfg(test)]
@@ -464,32 +553,11 @@ mod tests {
     }
 
     #[test]
-    fn a_query_is_its_words_without_fillers() {
-        assert_eq!(query_words("Mathe für Informatiker"), vec!["mathe", "informatiker"]);
-        assert_eq!(query_words("  Einführung in die  Python-Programmierung "), vec!["einfuhrung", "python", "programmierung"]);
-        assert_eq!(query_words("in der"), vec!["in", "der"], "fillers alone are searched");
-        assert_eq!(query_words("Algebra algebra"), vec!["algebra"]);
-        assert!(query_words("%_\\").is_empty());
-    }
-
-    #[test]
-    fn numbers_and_numerals_are_found_as_each_other() {
-        let texts = |word: &str| forms(word.to_string()).into_iter().map(|form| (form.text, form.whole)).collect::<Vec<_>>();
-        assert_eq!(texts("1"), vec![("1".to_string(), true), ("i".to_string(), true)]);
-        assert_eq!(texts("ii"), vec![("ii".to_string(), true), ("2".to_string(), true)]);
-        assert_eq!(texts("iii2"), vec![("iii2".to_string(), false)]);
-        assert_eq!(texts("10"), vec![("10".to_string(), true), ("x".to_string(), true)]);
-        assert_eq!(texts("11"), vec![("11".to_string(), true)]);
-        assert_eq!(texts("118"), vec![("118".to_string(), false)]);
-        assert_eq!(texts("0"), vec![("0".to_string(), true)]);
-    }
-
-    #[test]
-    fn a_text_without_a_word_finds_nothing() {
-        let plan = Plan::new("%", None).unwrap();
-        assert!(plan.table().is_none());
-        assert_eq!(plan.condition("sr"), "0");
-        assert!(Plan::new("   ", None).is_none());
+    fn a_text_searches_with_a_letter_or_a_digit() {
+        assert!(has_words("TI"));
+        assert!(has_words(" 118 "));
+        assert!(!has_words("%_\\"));
+        assert!(!has_words("   "));
     }
 
     #[test]
@@ -521,5 +589,7 @@ mod tests {
         assert_eq!(correct("stat"), None, "a word that is the start of one needs no correction and gets none");
         assert_eq!(correct("sta"), None, "short words are not corrected");
         assert_eq!(correct("statistk2"), None, "nor words with a digit");
+        assert!(vocabulary.starts_some_word("algo") && vocabulary.starts_some_word("statistik"));
+        assert!(!vocabulary.starts_some_word("theoinf") && !vocabulary.starts_some_word("statistiken"));
     }
 }

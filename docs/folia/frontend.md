@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -2184,36 +2184,96 @@ them on an axis.
 
 `node folia/e2e/stages.mjs` and `node folia/e2e/achse.mjs` check it (§4).
 
-### The search of the catalog (`folia/crates/search/src/lib.rs`, 2026-09-30)
+### The search of the catalog (`folia/crates/search`, 2026-09-30; ranked anew 2026-10-19)
 
 Owner: the search should improve, first with the names of the modules („erstmal eine neue Zeile in
 der db wo keine Sonderzeichen etc drin sind“), typos forgiven; a semantic search („Ähnliche
 Module“) is worked on apart from this, so only the names are searched, not the texts of a
 description. The list stays the list it was („ich mag das UI da und würde das ungerne tauschen“).
 
-- **What is searched:** the words of the query in the names Radix folds (`v_module_folded`,
-  docs/radix/schema-v2.md „Search“): the module number, the German and the English title, the initials of
-  a title and the abbreviations — the module's own, those programs give it („AuP“), and the known
-  short forms of words of the titles („BWL“). Case, umlauts, ß and accents do not matter („okologie“
-  finds „Ökologie“: 21 offered modules, where `LIKE` found none); every word has to be found, in any
-  order („lernen maschinelles“); fillers („für“, „und“, „der“ …) do not count; `%` or `_` are no
-  patterns but marks between words. Not the names of the lecturers (the filter „Lehrende“ is there
-  for them), not the descriptions.
-- **How a word is found, best first** (the module's score is the sum over the words): as the module
-  number, as an abbreviation, as a whole word of a title (its first word a little more), as the start
-  of a module number („118“ finds the numbers that start with it, not 21185), as the start of a word,
-  as the initials of words that follow each other („ti“, Theoretische Informatik; „ki“ finds
-  „Künstliche Intelligenz“), and from four letters on inside a word („netz“ in „Stromnetze“, while
-  „ki“ no longer finds „Schlüsselqualifikationen“). A number of one or two digits and a Roman numeral
-  up to ten are whole words, the one the same as the other („Analysis 1“ finds „Analysis I“; 411 of
-  the offered titles number their parts with Roman numerals).
+Owner, 2026-10-19, on „TI“, which listed 49 modules with „TIN* - trans*, inter*, nicht-binär“ first
+and „Zeitdiskrete Systeme und Regelungen“ and „Ingenieurholzbau“ among them: „gemeint damit war
+Theoretische Informatik. Und die suchergebnisse sind ja mal so unfassbar bad … Erstell mal ein
+konzept, wie wir das hier richtig filtern und sortieren können, so dass die relevantesten
+ergebnisse oben sind.“ The concept is `folia/design/suche/konzept.html`, with the owner's answers
+(„Ähnliche module sollen unbedingt bleiben“, „Die zufälligen kürzel sind ok“, a boost for one's
+program, the lecturers searched with rules of their own, „die gefundenen Module bei allen gleich
+… Aber die reihenfolge darf sich zwischen nutzern ändern“, the other language's title weighted
+less, capitals as typed more). Its prototype (`engine.mjs`) is the rule book: `folia_search::rank`
+follows it rule for rule, and the two order 165 queries the same on the snapshot of 2026-10-19,
+every module of it (`ranking.rs`' `dump_for_the_prototype`).
+
+- **What is searched** (`rank::Index`, read once per snapshot from `v_module`, `v_program_module`
+  and `v_module_lecturer`, by its `content_digest`): the module number, the abbreviations — the
+  module's own and those programs give it („AuP“) —, the German and the English title, and the
+  names of the lecturers, those responsible for the module and those who teach its courses. Not
+  the descriptions: that is what „Ähnliche Module“ are for. Case, umlauts, ß and accents do not
+  decide whether a word is found („okologie“ finds „Ökologie“); every word has to be found, in any
+  order („lernen maschinelles“); fillers („für“, „und“, „der“, „Prof.“, „Dr.“ …) do not count; `%`
+  or `_` are no patterns but marks between words. A number of one or two digits and a Roman
+  numeral up to ten are whole words, the one the same as the other („Analysis 1“ finds „Analysis
+  I“).
+- **Points** (`rank::points`, the weights in one place; the concept's „Punkte“). Every word of the
+  query gets the points of its best find:
+  - *the whole module named*: its number 125, an abbreviation 125 (that of a part without its
+    number, „BS“ for „BS1“, 120), every word of a title but fillers and numerals 120 („mathe 1“,
+    „theo inf“, „TI“);
+  - *a word in a title*: a whole word 80, the short form of words that follow each other 80 —
+    their initials or starts, a filler's letter taken or left out („TI“, „theoinf“, „AuD“, „LinA“;
+    a piece no longer than the one before, a numeral never one, and it ends a group of words) —,
+    the start of a word or of a module number (from three digits) 60, a short form that leaves out
+    a filler 55, from four letters on inside a word 35;
+  - *a lecturer's name*, with rules of its own (owner: „etwas restriktiver, aber typos oder
+    ähnliche schreibweisen bitte doch zulassen. Zum beispeil Petra Hofstedt kann ja auf viele arten
+    und weisen geschrieben werden“): the surname whole, from three letters, 75; its start from four
+    letters 55; from four letters a surname written alike 50 — both made alike (`rank::alike`:
+    „ae“ and „ä“ as „a“, „dt“ and „th“ as „t“, „ph“ as „f“, „ck“ as „k“, „tz“ as „z“, „ie“ and
+    „y“ as „i“, „ei“ as „ai“, an „h“ after a vowel left out, a doubled letter as one), then one typo
+    apart (two from eight letters), the first letter right: „Hoffstedt“, „Hofstätt“ and „Hofstet“
+    find Hofstedt's modules, „Doering“ Döring's. A first name or an initial counts only with the surname („Petra Hofstedt“, „P.
+    Hofstedt“; „Petra“ alone is no name);
+  - *factors*: a find in the title of the other language ×0.75, and there a word of one or two
+    letters finds no starts of words (owner: „dass der nicht primary language match beim titel
+    etwas schlechter gewertet wird“: „ti“ no longer finds „Time-discrete Systems“), capitals as
+    typed ×1.1 where the query has capitals (owner: „wenn man halt case matching beim wortanfang
+    hat, dann soll das auch besser geweichtet sein“: for „TI“ „TIN*“ before „Tissue Engineering“,
+    for „Ti“ the other way round), every word before the find in its title −3 % (up to five), the
+    words of the query side by side in their order ×1.05, a lecturer who teaches the module and is
+    not responsible for it ×0.9.
+
+  A module has the points of its weakest word, or those of naming it whole where they are more.
+  What the query finds depends on the query alone: there is no limit of points („die gefundenen
+  Module bei allen gleich“), and the random short forms stay (owner: „Das ist ein tradeoff, mit
+  dem ich leben kann“: „TI“ also finds „Biodiversity of Terrestrial Invertebrates“).
 - **The order:** while there is a search, the list is ordered by relevance — the most words found,
-  then the score, then the title — also inside a program. A column orders the matches instead,
-  „Modul“ by title (not by the study plan while searching); typing in the top bar goes back to
-  relevance (`app::TopBar`), and without a search the list has its order as before.
+  the most points, then offered before phase-out, the fewer words left over in the title, a series
+  together and in its order („Elektrotechnik 1“, „2“), the module more programs have (a number's
+  start: the numbers in their order), A–Z — also inside a program. The search hands the catalog's
+  SQL its hits in that order (`search::Plan::table`: `json_each(?)`, joined as `sr`, ordered by
+  `sr.rank`); filters, the count, the pages and what lies outside the filters are SQL as before. A
+  column orders the matches instead, „Modul“ by title (not by the study plan while searching);
+  typing in the top bar goes back to relevance (`app::TopBar`), and without a search the list has
+  its order as before.
+- **Mein Studiengang** (owner: „dass die module aus deinem Studiengang ganz generell einen kleinen
+  boost sogar bekommen. Vlt score einfach x 1.2 oder so (Da muss man nochmal gucken, welche werte
+  da gut sind)“): the points of the modules of the program this browser keeps are raised ×1.35.
+  Measured, ×1.2 was too little: for „Masterarbeit“ a student of Artificial Intelligence M.Sc. got
+  their own „Master Thesis“ at place 33, behind the „Master-Arbeit“ of 32 other programs. With
+  ×1.35 one's own module named in the other language comes before another's named in the language
+  shown, and not before one named by its own abbreviation as typed: with Informatik M.Sc. „SE“ is
+  „Sicherheitsengineering“ (its abbreviation), then „Softwaretechnik“. The program goes with the
+  query as `CatalogQuery::rank_program`, filled by the catalog like the marks (`with_mine`), never
+  in an address and never on the server (R9): it changes the order only, so a link to a search
+  lists the same modules for everyone (owner: „Die idee ist bloß, dass man seinen freunden ne
+  suche teilen kann“).
+- **The row says why** (`widgets::list::Row`, `CatalogRow::marks`, filled by `catalog_page` from
+  `search::marks`): the letters found are marked (`<mark>`, `--hit`) in the title, in the number
+  and in a line under the title that says what else the module was found by — the title in the
+  other language („engl. Time-discrete Systems and Regulators“) or a lecturer („verantwortlich
+  Hofstedt, Petra“, „lehrt …“) — and an abbreviation stands as a tag („Kürzel ThI“).
 - **What the words as typed do not find** (`search::resolve`, run by `pages::catalog_scope`, so
-  that the page and the filter panel agree): where no module has all of them, the words no title
-  knows are corrected to the word of a title they are within one typo of (two from eight letters on,
+  that the page and the filter panel agree): where no module has all of them, the words no module
+  has are corrected to the word of a title they are within one typo of (two from eight letters on,
   the first letter right, the rules of the pickers' `fuzzy::typos_at_start`; of several, the one
   most modules have): „algoritmen“ is „Algorithmen“, „wirtschaftsinfromatik“
   „Wirtschaftsinformatik“. The head of the list says so: „Keine Treffer für „algoritmen“. Ergebnisse
@@ -2226,10 +2286,15 @@ description. The list stays the list it was („ich mag das UI da und würde das
   nicht mehr angeboten · anzeigen“; the link is the catalog with the search alone (and the modules
   no longer offered, where some are among them). Without filters it is only those no longer offered.
   With JavaScript and without it alike (`pages::CatalogData::elsewhere`).
-- **Speed:** the search is SQL on the snapshot like every filter (`search::Plan::table`, joined as
-  `sr`). Only modules whose names contain a form of every word are scored at all: in the sql.js of
-  the app on a laptop a query takes 2 to 8 ms (without that filter 11 to 72 ms, which a phone would
-  have felt while typing).
+- **Speed** (2026-10-19): the search ranks in Rust, not in SQL. Reading the index costs about
+  100 ms once per snapshot (natively, in a release build); then a text new to it takes 3–5 ms to
+  score every module (`rank::evaluate`, 9 ms for a long word, 20 ms where a typo is corrected), and
+  the order for the program a quarter of a millisecond (`rank::order`). The scores of the last
+  text, its order and its resolution are kept (`search::evaluated`, `ranked`, `resolve`): a page
+  resolves its text with the list and again with the counts of its filters, and orders it once.
+  Before, the search was SQL over `v_module_folded` that scored only the modules whose names
+  contained a form of every word, 2 to 8 ms in the sql.js of the app on a laptop. It all runs in
+  the data worker while typing („Typing“ below).
 - **„Ähnliche Module“** (2026-10-01; owner: „Unterteilung in Ergebnisse und Ähnliche Module“, the
   semantic search from develop, folia/crates/semantic/README.md): under the rows, after the note on the filters,
   the modules whose descriptions mean what the search says, as rows of the list under the heading
@@ -2291,8 +2356,8 @@ description. The list stays the list it was („ich mag das UI da und würde das
     out again), and the list's height and the rows' offsets are custom properties no element
     inherits (`@property --list-h`, `--top`; measuring the rows changed them, and every row was
     styled again).
-  - **The vocabulary of the titles is made once per snapshot** (`search::vocabulary`, by its
-    `content_digest`), not for every word no title has.
+  - **The vocabulary of the titles is made once per snapshot** (since 2026-10-19 with the
+    search's index, `rank::index`, by its `content_digest`), not for every word no title has.
 
   After (same snapshot, keys, slowdown): 140–270 ms at most in one task, keys waiting mostly less
   than 160 ms, 2–4 s of long tasks while typing a word; without the slowdown at most five long
@@ -4020,7 +4085,9 @@ What `cargo test` checks:
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
   real data, the URL codec, the ranking of the pickers (`fuzzy`), the search (folded as Radix
   folds, from `radix/internal/normalize/testdata/search.tsv`; words in any order, numbers and numerals,
-  the order by relevance, typos, the most words, what it finds outside the filters);
+  the order by relevance, typos, the most words, what it finds outside the filters; and in
+  `folia-search`'s `tests/ranking.rs` where what is meant lands, capitals as typed and the other
+  title, lecturers written alike, the same modules for everyone and a program's first);
   `SCHEMA_VERSION` is the number of Radix's newest migration, and the snapshot of the tests is not
   older.
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate, brotli; 304 →
@@ -4068,15 +4135,17 @@ cd e2e && node search.mjs
 ```
 
 searches modules („The search of the catalog“): without JavaScript, the server's page says a
-corrected typo above the list and the matches outside the filters under it; in the browser app, a
+corrected typo above the list and the matches outside the filters under it, and lists Theoretische
+Informatik first for „TI“, its T and I marked; in the browser app, a
 search inside Informatik B.Sc. says what it finds outside the program and its link leads there; with
 a stand-in for the semantic search (`window.betulaSemantic`; the repository has no model) „Ähnliche
 Module“ stand under the results without the result and the module no longer offered, one of them
 opens beside the list, and the arrow keys go on from the list's last row into them; a typo is
 corrected and said (and the semantic search is asked for the corrected word), the best match comes
-first, „Modul“ orders the matches by title, and typing orders them by relevance again. Last, a
-search the address carries: its list asks before `boot.js` offers the semantic search and still gets
-its „Ähnliche Module“.
+first, „Modul“ orders the matches by title, and typing orders them by relevance again; „TI“ lists
+Theoretische Informatik first with its T and I marked, and „Hoffstedt“ finds Petra Hofstedt's
+modules, the row saying „Hofstedt, Petra“ under the title. Last, a search the address carries: its
+list asks before `boot.js` offers the semantic search and still gets its „Ähnliche Module“.
 
 ```bash
 cd e2e && WORKER_SNAPSHOT_DIR=../../snapshot node worker.mjs
