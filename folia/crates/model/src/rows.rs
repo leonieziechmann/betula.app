@@ -224,6 +224,37 @@ pub struct CatalogRow {
     pub kind_basis: Option<Code<KindBasis>>,
     pub plan_semester: Option<i64>,
     pub area: Option<String>,
+    /// While the list is a search's: what of the module the search found, for the row's marks
+    /// (`folia_search::marks`). Filled by the query of the list, never read from a row of SQL.
+    #[serde(default)]
+    pub marks: Option<SearchMarks>,
+}
+
+/// What a search found in a module, as the row of the list shows it: byte ranges of the title it
+/// shows, and, where they were the reason, the title in the other language and a lecturer's name
+/// with theirs, the number and the abbreviation (folia/design/suche/konzept.html, „Die Zeile zeigt
+/// den Grund").
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchMarks {
+    /// Byte ranges of `CatalogRow::title`.
+    pub title: Vec<(u32, u32)>,
+    /// The title in the other language, with the byte ranges found in it.
+    pub other: Option<MarkedText>,
+    /// A lecturer's name as QIS writes it („Hofstedt, Petra"), with the byte ranges found in it.
+    pub lecturer: Option<MarkedText>,
+    /// Whether that lecturer only teaches the module (is not responsible for it).
+    pub teaching: bool,
+    /// Byte ranges of `CatalogRow::id`: the number, or its start, as typed.
+    pub id: Vec<(u32, u32)>,
+    /// The abbreviations found („ThI", „BS1, BS2").
+    pub abbrev: Option<String>,
+}
+
+/// A text with byte ranges of it to mark.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MarkedText {
+    pub text: String,
+    pub spans: Vec<(u32, u32)>,
 }
 
 impl FromRow for CatalogRow {
@@ -250,6 +281,7 @@ impl FromRow for CatalogRow {
             kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
             plan_semester: row.opt_int("plan_semester")?,
             area: row.opt_text("area")?,
+            marks: None,
         })
     }
 }

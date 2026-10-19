@@ -1,6 +1,6 @@
 //! The catalog's filter as SQL: what `folia_routes::filter::CatalogQuery` selects, over the facet
-//! columns of the views (the one exception is the search, `folia_search::Plan` against
-//! `v_module_folded`).
+//! columns of the views (the one exception is the search, `folia_search::Plan`: what the search
+//! found, in its order, read with `json_each`).
 
 use folia_model::db::Value;
 use folia_model::labels::{Campus, Labelled, OfferStatus, TeachingForm};
@@ -93,8 +93,9 @@ fn language_column(language: Language) -> &'static str {
 
 /// The catalog's filter as SQL.
 pub trait CatalogSql {
-    /// The joins, conditions and parameters that select the matching modules.
-    fn to_sql(&self) -> Sql;
+    /// The joins, conditions and parameters that select the matching modules; `search` is the
+    /// plan of the query's text (`crate::search_plan`), which a query with a text needs.
+    fn to_sql(&self, search: Option<&Plan>) -> Sql;
     /// `ORDER BY` for the list; the module id makes every order total, so paging is stable.
     fn order_by(&self) -> String;
     /// The terms of that order, for a window (`ROW_NUMBER() OVER (ORDER BY …)`) as well.
@@ -103,18 +104,17 @@ pub trait CatalogSql {
 
 impl CatalogSql for CatalogQuery {
     /// The joins, conditions and parameters that select the matching modules.
-    fn to_sql(&self) -> Sql {
+    fn to_sql(&self, search: Option<&Plan>) -> Sql {
         let mut joins = String::new();
         let mut conditions: Vec<String> = Vec::new();
         let mut params: Vec<Value> = Vec::new();
 
         // The matches of the search first: its parameters precede those of every other join.
-        let plan = self.search_plan();
-        if let Some((table, table_params)) = plan.as_ref().and_then(Plan::table) {
+        if let Some((table, table_params)) = search.and_then(Plan::table) {
             joins.push_str(&format!(" JOIN {table} sr ON sr.module_id = f.module_id"));
             params.extend(table_params);
         }
-        if let Some(plan) = &plan {
+        if let Some(plan) = search {
             conditions.push(plan.condition("sr"));
         }
 
@@ -354,10 +354,10 @@ impl CatalogSql for CatalogQuery {
     }
 
     /// The terms of that order, for a window (`ROW_NUMBER() OVER (ORDER BY …)`) as well. While
-    /// searching, the best matches first: the most words found, then how well, then by title.
+    /// searching, the search's own order (`folia_search::rank`).
     fn order_terms(&self) -> String {
         if self.by_relevance() {
-            return "sr.matched DESC, sr.score DESC, m.title COLLATE NOCASE, f.module_id".to_string();
+            return "sr.rank, f.module_id".to_string();
         }
         let direction = if self.descending { "DESC" } else { "ASC" };
         match self.sort {
@@ -389,8 +389,8 @@ mod tests {
 
     /// The switch adds one condition to what the query asks without it, or none.
     fn added(query: &CatalogQuery) -> (Vec<String>, Vec<Value>) {
-        let plain = CatalogQuery::default().to_sql();
-        let sql = query.to_sql();
+        let plain = CatalogQuery::default().to_sql(None);
+        let sql = query.to_sql(None);
         assert_eq!(sql.conditions.get(..plain.conditions.len()), Some(plain.conditions.as_slice()));
         assert_eq!(sql.params.get(..plain.params.len()), Some(plain.params.as_slice()));
         (sql.conditions[plain.conditions.len()..].to_vec(), sql.params[plain.params.len()..].to_vec())

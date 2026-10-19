@@ -4,8 +4,10 @@
 // A typo is corrected and the head of the list says so; what the other filters leave out is said
 // under the list, one click away; under it „Ähnliche Module“, rows as the list's (the semantic
 // search stands in: the repository has no model); the matches come by relevance, „Modul“ orders
-// them by title, and typing orders them by relevance again. Fails on a page load after takeover, a
-// console error, or a step that does not show up.
+// them by title, and typing orders them by relevance again. What is meant comes first with the
+// letters found marked („TI“ is Theoretische Informatik), and a lecturer is found written another
+// way, the row saying so. Fails on a page load after takeover, a console error, or a step that
+// does not show up.
 import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
@@ -22,6 +24,11 @@ if (!(await plain.locator(".rows a.row").count())) problems.push("server: no mod
 await plain.goto(base + "/catalog?q=python&program=bachelor-informatik-2008");
 const outside = (await plain.locator(".list-note").textContent().catch(() => "")) || "";
 if (!outside.includes("außerhalb deiner Filter")) problems.push(`server: nothing is said of the matches outside the filters („${outside}“)`);
+// What is meant first, the letters the search found marked (folia/design/suche/konzept.html).
+await plain.goto(base + "/catalog?q=TI");
+const meant = plain.locator(".rows a.row b").first();
+const [meantTitle, meantMarks] = [await meant.textContent().catch(() => ""), await meant.locator("mark").allTextContents().catch(() => [])];
+if (!meantTitle?.startsWith("Theoretische Informatik") || meantMarks.join() !== "T,I") problems.push(`server: „TI“ does not list Theoretische Informatik first, marked („${meantTitle}“, ${meantMarks.join()})`);
 await plain.close();
 
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
@@ -84,6 +91,12 @@ const titles = await page.evaluate(() => [...document.querySelectorAll(".vlist a
 if (titles.some((title, i) => i > 0 && titles[i - 1] > title)) problems.push(`„Modul“: not by title: ${titles.join(" | ")}`);
 await step("typing orders by relevance again", () => page.fill("#topsearch", "informatik 1"),
   () => location.search.includes("q=informatik") && !location.search.includes("sort=") && document.querySelectorAll(".vlist a.row").length > 0);
+await step("what is meant first, its letters marked", () => page.fill("#topsearch", "TI"), () => {
+  const first = document.querySelector(".vlist a.row b");
+  return first?.textContent.startsWith("Theoretische Informatik") && [...first.querySelectorAll("mark")].map((mark) => mark.textContent).join() === "T,I";
+});
+await step("a lecturer written another way, and the row says so", () => page.fill("#topsearch", "Hoffstedt"),
+  () => /Hofstedt, Petra/.test(document.querySelector(".vlist a.row .found-by")?.textContent || ""));
 
 // A search the address carries: its list asks before boot.js offers the semantic search (after
 // app.start()), and gets its answer once it does. The stand-in takes the place of boot.js's.

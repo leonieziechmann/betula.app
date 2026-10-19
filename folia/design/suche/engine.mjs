@@ -299,7 +299,7 @@ export const WEIGHTS = {
   perWord: 0.03, maxWords: 5, // every word before the find in the title, up to five
   phrase: 1.05, // the words of the query side by side, in their order
   instructor: 0.9, // a lecturer who teaches the module, not responsible for it
-  program: 1.2, // a module of my program: the order only, never what is found
+  program: 1.35, // a module of my program: the order only, never what is found
 };
 export const DEFAULT_WEIGHTS = { ...WEIGHTS };
 
