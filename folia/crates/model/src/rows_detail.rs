@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{DbError, FromRow, Row};
 use crate::labels::{
-    Campus, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind, PlanTotalScope, Relation,
-    ResolveStatus, Rhythm, TeachingForm, TextItemKind, TrackBasis,
+    Campus, ChoiceBasis, ChoiceKind, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind,
+    PlanTotalScope, Relation, ResolveStatus, Rhythm, TeachingForm, TextItemKind, TrackBasis,
 };
 
 /// `v_module_lecturer`
@@ -144,6 +144,17 @@ pub struct EventDate {
     /// docs/radix/schema-v2.md „Tracks"); `None` for an event in no such course, and for an exam.
     #[serde(default)]
     pub track: Option<Code<Campus>>,
+    /// The choice among its module's events the event is an option of, and which option, where a
+    /// student attends some of the events, not all (schema 17, docs/radix/schema-v2.md „Choices");
+    /// `None` for an event that is required, and for an exam.
+    #[serde(default)]
+    pub choice: Option<u32>,
+    #[serde(default)]
+    pub option: Option<u32>,
+    /// The event is beside the module's compulsory part, attended by whoever wants to: a tutorial,
+    /// an Aufbaukurs (schema 17).
+    #[serde(default)]
+    pub extra: bool,
 }
 
 impl EventDate {
@@ -180,6 +191,9 @@ impl FromRow for EventDate {
             room_short: row.opt_text("room_short")?,
             series: row.opt_int("series")?.zip(weeks).map(|(first, weeks)| Series { first, weeks }),
             track: Code::parse_opt(row.opt_text("track")?),
+            choice: row.opt_int("choice")?.and_then(|n| u32::try_from(n).ok()),
+            option: row.opt_int("option")?.and_then(|n| u32::try_from(n).ok()),
+            extra: row.opt_int("extra")? == Some(1),
         })
     }
 }
@@ -273,6 +287,79 @@ impl FromRow for TrackProgram {
             family_key: row.text("family_key")?,
             program_name: row.text("program_name")?,
             degree_display: row.opt_text("degree_display")?,
+            is_latest_po: row.flag("is_latest_po")?,
+        })
+    }
+}
+
+/// `v_module_choice`: an event of an option of a choice among a module's events in a semester, of
+/// which a student takes `pick` options (docs/radix/schema-v2.md, „Choices"): one of three
+/// exercises, one of 14 projects. An option is one event or more („Gruppe 2" of two titles).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ChoiceOption {
+    pub module_id: String,
+    pub semester_key: String,
+    pub choice: u32,
+    /// The course at a campus the choice is in, where the module has courses (`EventDate::track`).
+    pub course: Option<Code<Campus>>,
+    pub kind: Code<ChoiceKind>,
+    pub basis: Code<ChoiceBasis>,
+    /// What `pick` of the options cover; `None` for groups a title names.
+    pub sws: Option<f64>,
+    pub pick: u32,
+    pub option: u32,
+    pub event_id: String,
+    /// „Gruppe 2", „A-Kurs", where a title names the group.
+    pub label: Option<String>,
+    /// The SWS QIS gives the event; `None` where it gives none.
+    #[serde(default)]
+    pub event_sws: Option<f64>,
+}
+
+impl FromRow for ChoiceOption {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        let count = |column: &str| -> Result<u32, DbError> { Ok(u32::try_from(row.int(column)?).unwrap_or(1)) };
+        Ok(Self {
+            module_id: row.text("module_id")?,
+            semester_key: row.text("semester_key")?,
+            choice: count("choice")?,
+            course: Code::parse_opt(row.opt_text("course")?),
+            kind: Code::parse(&row.text("kind")?),
+            basis: Code::parse(&row.text("basis")?),
+            sws: row.opt_real("sws")?,
+            pick: count("pick")?,
+            option: count("option")?,
+            event_id: row.text("event_id")?,
+            label: row.opt_text("label")?,
+            event_sws: row.opt_real("event_sws")?,
+        })
+    }
+}
+
+/// `v_module_choice_family`: a family of programs QIS lists at an option's events, with the name of
+/// one of its POs (a row per PO; its newest PO's name is the family's). A program takes the options
+/// listed for its family.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ChoiceFamily {
+    pub module_id: String,
+    pub semester_key: String,
+    pub choice: u32,
+    pub option: u32,
+    pub family_key: String,
+    pub program_name: String,
+    pub is_latest_po: bool,
+}
+
+impl FromRow for ChoiceFamily {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        let count = |column: &str| -> Result<u32, DbError> { Ok(u32::try_from(row.int(column)?).unwrap_or(1)) };
+        Ok(Self {
+            module_id: row.text("module_id")?,
+            semester_key: row.text("semester_key")?,
+            choice: count("choice")?,
+            option: count("option")?,
+            family_key: row.text("family_key")?,
+            program_name: row.text("program_name")?,
             is_latest_po: row.flag("is_latest_po")?,
         })
     }

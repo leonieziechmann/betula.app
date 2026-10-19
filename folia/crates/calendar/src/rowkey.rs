@@ -128,6 +128,9 @@ mod tests {
             room_short: None,
             series: None,
             track: None,
+            choice: None,
+            option: None,
+            extra: false,
         }
     }
 
@@ -232,7 +235,7 @@ mod tests {
     fn rows_sharing_a_key() {
         let columns = "semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, \
                        end_time, first_date, last_date, room, campus, comment, source_url, room_short, NULL AS series, \
-                       NULL AS series_weeks, NULL AS track";
+                       NULL AS series_weeks, NULL AS track, NULL AS choice, NULL AS option, 0 AS extra";
         let pinned = folia_test_support::studyplan_db("rows_sharing_a_key");
         let is_pinned = pinned.is_some();
         let db = pinned.unwrap_or_else(folia_test_support::open);

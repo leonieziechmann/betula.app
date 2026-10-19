@@ -590,6 +590,8 @@ mod tests {
             kind_basis: None,
             plan_semester: None,
             area: None,
+            courses: 0,
+            choices: Vec::new(),
             marks: None,
         }
     }
@@ -622,6 +624,9 @@ mod tests {
                 room_short: None,
                 series: None,
                 track: None,
+                choice: None,
+                option: None,
+                extra: false,
             },
         }
     }

@@ -14,6 +14,7 @@ pub mod i18n;
 pub mod list;
 pub mod local;
 pub mod module;
+mod options;
 pub mod plannote;
 pub mod plansetup;
 pub mod swipe;

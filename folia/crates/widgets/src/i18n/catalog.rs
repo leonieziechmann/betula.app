@@ -1,6 +1,8 @@
 //! Texts of the module catalog: its list and its filter panel (`pages/catalog.rs`). The list of
 //! marked modules is a list like the catalog's and shares its heads, keys and tags.
 
+use crate::i18n::module::Noun;
+
 pub struct Texts {
     // ---- the page ----
     /// The title of the unfiltered catalog.
@@ -195,6 +197,15 @@ pub struct Texts {
     pub row_teaches: &'static str,
     /// „Kürzel ThI": the abbreviation a search found the module by.
     pub row_abbrev: fn(&str) -> String,
+    /// What a row says of a module's courses and choices in its newest semester
+    /// (`crate::options::row_offer`): „2 Standorte" …
+    pub row_courses: fn(usize) -> String,
+    /// … „Übung je Studiengang" …
+    pub row_choice_program: fn(Noun) -> String,
+    /// … „3 Gruppen" …
+    pub row_choice_group: fn(usize) -> String,
+    /// … „14 Projekte zur Wahl".
+    pub row_choice_topic: fn(usize, Noun) -> String,
 
     // ---- the filter panel ----
     /// The heading of „Mein Studiengang" at the top of the program picker.
@@ -428,6 +439,10 @@ pub const DE: Texts = Texts {
     row_responsible: "verantwortlich",
     row_teaches: "lehrt",
     row_abbrev: |abbrev| format!("Kürzel {abbrev}"),
+    row_courses: |n| format!("{n} Standorte"),
+    row_choice_program: |noun| format!("{} je Studiengang", noun.one),
+    row_choice_group: |n| format!("{n} Gruppen"),
+    row_choice_topic: |n, noun| format!("{n} {} zur Wahl", noun.many),
 
     my_program: "Mein Studiengang",
     program: "Studiengang",
@@ -645,6 +660,14 @@ pub const EN: Texts = Texts {
     row_responsible: "responsible",
     row_teaches: "teaches",
     row_abbrev: |abbrev| format!("abbr. {abbrev}"),
+    row_courses: |n| format!("{n} campuses"),
+    row_choice_program: |noun| {
+        let mut one = noun.one.chars();
+        let one: String = one.next().map(|first| first.to_uppercase().chain(one).collect()).unwrap_or_default();
+        format!("{one} per programme")
+    },
+    row_choice_group: |n| format!("{n} groups"),
+    row_choice_topic: |n, noun| format!("{n} {} to choose from", noun.many),
 
     my_program: "My programme",
     program: "Degree programme",

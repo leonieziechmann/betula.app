@@ -504,3 +504,76 @@ func TestBuildTracks(t *testing.T) {
 		t.Errorf("the second build changed the content: %s, %s", report.ContentDigest, again.ContentDigest)
 	}
 }
+
+// TestChoicesOnSnapshot reads the choices and extras of a real snapshot of schema 15 or newer
+// (canary's /api/db): RADIX_CHOICES_SNAPSHOT names a copy of one, which it migrates and writes them
+// into; RADIX_CHOICES_OUT, where given, a file it writes them to as JSON lines, one per module and
+// semester, for research/wahlangebote/python/evaluate.py:
+//
+//	RADIX_CHOICES_SNAPSHOT=/tmp/copy.db RADIX_CHOICES_OUT=/tmp/choices.jsonl go test ./internal/catalogbuild -run TestChoicesOnSnapshot -count=1 -v
+func TestChoicesOnSnapshot(t *testing.T) {
+	path := os.Getenv("RADIX_CHOICES_SNAPSHOT")
+	if path == "" {
+		t.Skip("RADIX_CHOICES_SNAPSHOT not set")
+	}
+	db, err := catalogdb.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	tx, err := db.SQL().Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	for _, table := range []string{"module_extra", "module_choice_option", "module_choice"} {
+		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report := &Report{}
+	if err := writeChoices(tx, report); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%d modules × semesters with choices: %d by program, %d in groups, %d of topics; %d extras",
+		report.ModulesWithChoices, report.ChoicesByProgram, report.ChoicesInGroups, report.ChoicesOfTopics, report.ChoiceExtras)
+
+	// Höhere Mathematik T3 at the Zentralcampus: three exercises, one per program; its Aufbaukurs an extra.
+	want(t, db, `SELECT kind, basis, sws, pick, COUNT(DISTINCT option) FROM v_module_choice WHERE module_id = '11206' AND semester_key = '2026W' AND course = 'zentralcampus' GROUP BY choice`,
+		"program|form|2|1|3")
+	want(t, db, `SELECT event_id, basis FROM module_extra WHERE module_id = '11206'`, "150190|title")
+	// The Programmierpraktikum has its courses and nothing else.
+	want(t, db, `SELECT COUNT(*) FROM module_choice WHERE module_id = '12102'`, "0")
+
+	if out := os.Getenv("RADIX_CHOICES_OUT"); out != "" {
+		f, err := os.Create(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		rows, err := db.SQL().Query(`
+			SELECT m.module_id, m.semester_key,
+			       IFNULL((SELECT GROUP_CONCAT(c.kind || ':' || c.basis || ':' || c.pick || ':' ||
+			              (SELECT COUNT(DISTINCT o.option) FROM module_choice_option o WHERE o.module_id = c.module_id AND o.semester_key = c.semester_key AND o.choice = c.choice), ';')
+			               FROM module_choice c WHERE c.module_id = m.module_id AND c.semester_key = m.semester_key), ''),
+			       IFNULL((SELECT GROUP_CONCAT(x.event_id, ';') FROM module_extra x WHERE x.module_id = m.module_id AND x.semester_key = m.semester_key), '')
+			FROM (SELECT module_id, semester_key FROM module_choice UNION SELECT module_id, semester_key FROM module_extra) m
+			ORDER BY 1, 2`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var module, semester, choices, extras string
+			if err := rows.Scan(&module, &semester, &choices, &extras); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.WriteString(module + "\t" + semester + "\t" + choices + "\t" + extras + "\n"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}

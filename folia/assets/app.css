@@ -1366,12 +1366,34 @@ a.slot { text-decoration: none; }
 #termine .slot.faint { background: var(--panel-2); color: var(--text-3); box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; }
 #termine .slot.faint.clash { outline-color: var(--no); }
 .ev.faint { opacity: .55; }
+/* The choices among a module's events and its extras (module.rs, options.rs; owner, 2026-10-19,
+   folia/design/wahlangebote/konzept.html): an option to choose is dashed, darker than a faint one
+   (another program's, or one QIS does not list the program at); an extra is lighter and dotted,
+   „+" before its kind. In the list, a heading per part with a dot before it (a dotted square for
+   the extras), a gap before each option of several lines, and the options of a long choice after
+   its first folded away. */
+#termine .slot.alt:not(.faint) { color: var(--text-2); outline-color: var(--text-3); }
+#termine .slot.extra { background: var(--panel); color: var(--text-3); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; }
+#termine .slot.extra.clash { outline-color: var(--no); }
+.choice-head { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 620; color: var(--text-2); }
+.choice-head:first-child { margin-top: 2px; }
+.choice-head::before { content: ""; flex: none; width: 7px; height: 7px; margin-top: calc((1.45em - 7px) / 2); border-radius: 50%; background: var(--text-3); }
+.choice-head.extra::before { border-radius: 2px; background: transparent; outline: 1px dotted var(--text-3); outline-offset: -1px; }
+.course-head + .choice-head { margin-top: 4px; }
+.evlist > .ev.gap { margin-top: 6px; }
+.evmore > summary { display: inline-flex; align-items: center; min-height: 36px; list-style: none; cursor: pointer; color: var(--accent-ink); font-weight: 620; font-size: 12.5px; -webkit-user-select: none; user-select: none; }
+.evmore > summary::-webkit-details-marker { display: none; }
+.evmore > summary:hover { color: var(--text); }
+.evmore[open] > summary { display: none; }
+.evmore > .evlist { margin-top: 0; }
+.row .t small .row-offer { color: var(--accent-ink); font-weight: 600; }
 .course-head { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; font-size: 12px; font-weight: 620; color: var(--text-2); }
 .course-head:first-child { margin-top: 2px; }
 /* The dot in the middle of the heading's first line, where a heading of many programs takes three. */
 .course-head[class*=" course-"]::before { content: ""; flex: none; width: 9px; height: 9px; margin-top: calc((1.45em - 9px) / 2); border-radius: 50%; background: var(--course); }
-.note.courses { background: var(--panel-2); color: var(--text-2); margin: 6px 0 10px; }
-.note.courses .icon { color: var(--text-3); }
+.note.courses, .note.choices { background: var(--panel-2); color: var(--text-2); margin: 6px 0 10px; }
+.note.courses .icon, .note.choices .icon { color: var(--text-3); }
+.note.courses + .note.choices, .note.choices + .note.choices { margin-top: -4px; }
 .course-key { white-space: nowrap; }
 .course-key[class*=" course-"]::before { content: ""; display: inline-block; width: 8px; height: 8px; margin: 0 5px 1px 1px; border-radius: 50%; background: var(--course); vertical-align: middle; }
 .courses-toggle { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 620; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }

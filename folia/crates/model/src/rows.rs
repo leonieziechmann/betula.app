@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::{Database, DbError, FromRow, Row, Value};
 use crate::labels::{
-    Code, DegreeLevel, ExamForm, KindBasis, KindSource, ModuleKind, OfferStatus, PlanStatus, PrerequisiteKind, Relation,
-    Season, StudySection, StudyVariant, TurnusParity, TurnusSeason,
+    ChoiceBasis, ChoiceKind, Code, DegreeLevel, ExamForm, KindBasis, KindSource, ModuleKind, OfferStatus, PlanStatus,
+    PrerequisiteKind, Relation, Season, StudySection, StudyVariant, TurnusParity, TurnusSeason,
 };
 
 /// `v_meta`, the keys the UI shows.
@@ -224,6 +224,13 @@ pub struct CatalogRow {
     pub kind_basis: Option<Code<KindBasis>>,
     pub plan_semester: Option<i64>,
     pub area: Option<String>,
+    /// In the module's newest semester with teaching: how many courses at campuses it is held as
+    /// (docs/radix/schema-v2.md, „Tracks"; 0 below two), and its choices („Choices"). Not of the
+    /// list's query: `catalog_offers` reads them for the rows of a page.
+    #[serde(default)]
+    pub courses: u32,
+    #[serde(default)]
+    pub choices: Vec<ChoiceSummary>,
     /// While the list is a search's: what of the module the search found, for the row's marks
     /// (`folia_search::marks`). Filled by the query of the list, never read from a row of SQL.
     #[serde(default)]
@@ -257,6 +264,45 @@ pub struct MarkedText {
     pub spans: Vec<(u32, u32)>,
 }
 
+/// A choice among a module's events as its row in a list names it: „14 Projekte zur Wahl",
+/// „Übung je Studiengang", „3 Gruppen".
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ChoiceSummary {
+    pub kind: Code<ChoiceKind>,
+    pub basis: Code<ChoiceBasis>,
+    /// How many options there are, and how many one takes.
+    pub options: u32,
+    pub pick: u32,
+    /// The type QIS gives every event of the options („Projekt"); `None` where they differ.
+    pub event_type: Option<String>,
+}
+
+/// A row of `catalog_offers`: a module's courses and one of its choices (`None` for a module with
+/// courses and no choice), in its newest semester with teaching.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CatalogOffer {
+    pub module_id: String,
+    pub courses: u32,
+    pub choice: Option<ChoiceSummary>,
+}
+
+impl FromRow for CatalogOffer {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        let count = |column: &str| -> Result<u32, DbError> { Ok(row.opt_int(column)?.and_then(|n| u32::try_from(n).ok()).unwrap_or(0)) };
+        let choice = match row.opt_text("kind")? {
+            Some(kind) => Some(ChoiceSummary {
+                kind: Code::parse(&kind),
+                basis: Code::parse(&row.text("basis")?),
+                options: count("options")?,
+                pick: count("pick")?.max(1),
+                event_type: row.opt_text("event_type")?,
+            }),
+            None => None,
+        };
+        Ok(Self { module_id: row.text("module_id")?, courses: count("courses")?, choice })
+    }
+}
+
 impl FromRow for CatalogRow {
     fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
         Ok(Self {
@@ -281,6 +327,8 @@ impl FromRow for CatalogRow {
             kind_basis: Code::parse_opt(row.opt_text("kind_basis")?),
             plan_semester: row.opt_int("plan_semester")?,
             area: row.opt_text("area")?,
+            courses: 0,
+            choices: Vec::new(),
             marks: None,
         })
     }

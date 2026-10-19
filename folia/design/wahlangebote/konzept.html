@@ -1,0 +1,596 @@
+<title>Betula Wahlangebote-Konzept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Modules of which a student attends only some of the events QIS lists (owner, 2026-10-19, after
+     the sweep of canary's catalog, betula-wahl-und-gruppen.md: „Also kümmer dich mal darum, dass diese
+     fälle nachhatlig gehandhabt werden. Also ich will nicht, dass wir sonderfälle per hand eintragen,
+     sondern eine lösung haben, die in die zukunft funktioniert. … Bitte bilde alles außer daten passen
+     nicht zusammen in der DB und dem UI ab. Die dateninkongruenz sind einfach fehler von der uni, das
+     sollten wir ignorieren. … Ja erstell mal ein konzept, wie man das erkennen würde und wie man die
+     darstellung der scenarien funktionieren kann."). A concept, nothing of it built: the cases, the
+     rules that find them (run in Python on canary's snapshot of 2026-10-19, Radix 0.9.1, WiSe
+     2026/27, and held against the manual review of 115 modules), what Radix stores, what the module
+     page, the catalog and the Stundenplan show, the steps, what is open. Builds on the courses at two
+     campuses (docs/radix/schema-v2.md, „Tracks"). Tokens are Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the five cases and their rule of thumb at the top, then the rules in their order, what
+   they found on canary, what Radix stores, the mockups of each case (module page, catalog row,
+   Stundenplan), the steps, what is not done and what is open, one block each.
+   Tokens: Betula's own (light, then dark); the mockups are drawn in them as the app draws its week. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --lec: color-mix(in srgb, var(--accent) 9%, var(--panel)); --lec-ink: var(--accent-ink);
+  --oth: #e7e9ee; --oth-ink: #5f6878;
+  --ice: #3d7fb3; --coral: #c8664e;
+  --no: #c2410c; --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --r-panel: 9px; --r-ctl: 9px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --lec: color-mix(in srgb, var(--accent) 16%, var(--panel)); --lec-ink: oklch(.8 .06 149);
+    --oth: #222838; --oth-ink: #a4adc0;
+    --ice: #7fb4dc; --coral: #ef9a84;
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --lec: color-mix(in srgb, var(--accent) 16%, var(--panel)); --lec-ink: oklch(.8 .06 149);
+  --oth: #222838; --oth-ink: #a4adc0;
+  --ice: #7fb4dc; --coral: #ef9a84;
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: var(--mono); font-size: .84em; padding: 1px 4px; border-radius: 4px; background: var(--panel-3); overflow-wrap: anywhere; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+.num { font-variant-numeric: tabular-nums; }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 24px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead b { color: var(--text); font-weight: 650; }
+.block > * + h3 { margin-top: 24px; }
+.block h3 { font-size: 15.5px; font-weight: 700; }
+.block h3 + .muted { margin-top: 4px; }
+.muted { color: var(--text-2); font-size: 14px; text-wrap: pretty; max-width: 80ch; }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin-top: 18px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 650; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules h2 { font-size: 15px; font-weight: 700; }
+ol.numbered { margin-top: 12px; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+ol.numbered > li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+ol.numbered > li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+ol.numbered.from0 > li::before { content: counter(rule, decimal); }
+ol.numbered.from0 { counter-reset: rule -1; }
+ol.numbered > li b { color: var(--text); font-weight: 640; }
+ol.wide { margin-top: 16px; max-width: 88ch; gap: 14px; }
+ol.wide > li { font-size: 14.5px; }
+
+/* The cases. */
+.cases { margin-top: 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.case { display: grid; gap: 6px; align-content: start; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.case header { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.case b { font-size: 15px; font-weight: 700; color: var(--text); }
+.case .count { font-size: 12.5px; font-weight: 650; color: var(--text-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.case p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.case .does { color: var(--text); font-size: 13.5px; font-weight: 600; }
+.case.built { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.case.off { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); border: 1px dashed var(--line-strong); }
+.case .tag { justify-self: start; padding: 1px 7px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 700; }
+.case.built .tag { background: var(--accent); color: var(--on-accent); }
+
+/* Tables. */
+.tablewrap { margin-top: 16px; overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 9px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; font-weight: 650; letter-spacing: .03em; color: var(--text-3); background: var(--panel-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 620; }
+td.num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.note { margin-top: 10px; color: var(--text-3); font-size: 13px; text-wrap: pretty; max-width: 88ch; }
+.cols2 { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cols2 > li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; min-width: 0; }
+.cols2 > li b { display: block; margin-bottom: 4px; color: var(--text); font-weight: 680; }
+
+/* Mockups: a module's „Termine" as the app draws them, the catalog's row, the Stundenplan's aside. */
+.mocks { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.mocks.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mockcap { display: grid; gap: 6px; min-width: 0; }
+.mockcap > .kicker { padding-left: 2px; }
+.mock { padding: 14px; border-radius: 12px; background: var(--panel); box-shadow: 0 0 0 1px var(--line-strong); display: grid; gap: 10px; min-width: 0; font-size: 13px; }
+.mock .head { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.mock .head span:last-child { text-transform: none; letter-spacing: 0; color: var(--text-2); font-size: 12px; }
+.say { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; padding: 9px 11px; border-radius: 8px; background: var(--panel-2); color: var(--text-2); font-size: 12.5px; line-height: 1.45; text-wrap: pretty; }
+.say svg { width: 15px; height: 15px; margin-top: 1px; fill: none; stroke: var(--text-3); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.say b { color: var(--text); font-weight: 650; }
+.say .link { color: var(--accent-ink); font-weight: 650; text-decoration: underline; text-underline-offset: 2px; }
+.week { display: grid; grid-template-columns: 22px repeat(var(--days, 5), minmax(0, 1fr)); grid-template-rows: 18px repeat(var(--rows, 46), 5px); column-gap: 3px; padding: 8px 8px 6px 4px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.week .d { grid-row: 1; text-align: center; font-size: 10.5px; font-weight: 650; color: var(--text-3); }
+.week .h { grid-column: 1; font-size: 9.5px; color: var(--text-3); line-height: 1; align-self: start; text-align: right; padding-right: 3px; font-variant-numeric: tabular-nums; }
+.week .gl { grid-column: 2 / -1; border-top: 1px solid var(--line); align-self: start; height: 0; }
+.sl { position: relative; z-index: 1; margin: 1px 0; padding: 3px 4px; border-radius: 5px; overflow: hidden; font-size: 10px; line-height: 1.2; background: var(--oth); color: var(--oth-ink); box-shadow: inset 2px 0 0 var(--text-3); min-width: 0; }
+.sl b { display: block; font-size: 10.5px; font-weight: 700; color: var(--text); }
+.sl small { display: block; font-size: 9.5px; overflow-wrap: anywhere; }
+.sl.lec { background: var(--lec); color: var(--lec-ink); box-shadow: inset 2px 0 0 var(--accent); }
+.sl.lec b { color: var(--lec-ink); }
+.sl.alt { background: transparent; box-shadow: none; outline: 1px dashed var(--text-3); outline-offset: -1px; }
+.sl.faint { background: transparent; box-shadow: none; outline: 1px dashed var(--line-strong); outline-offset: -1px; color: var(--text-3); }
+.sl.faint b { color: var(--text-3); }
+.sl.extra { background: var(--panel); box-shadow: none; outline: 1px dotted var(--text-3); outline-offset: -1px; color: var(--text-3); }
+.sl.extra b { color: var(--text-2); font-weight: 650; }
+.sl.mine { box-shadow: inset 2px 0 0 var(--ice); }
+.sl.clash { box-shadow: inset 2px 0 0 var(--no), inset 0 0 0 1px var(--no); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11.5px; color: var(--text-3); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 18px; height: 11px; border-radius: 3px; }
+.legend .l1 { background: var(--oth); box-shadow: inset 2px 0 0 var(--text-3); }
+.legend .l2 { outline: 1px dashed var(--text-3); outline-offset: -1px; }
+.legend .l3 { outline: 1px dotted var(--text-3); outline-offset: -1px; background: var(--panel); }
+.legend .l4 { outline: 1px dashed var(--line-strong); outline-offset: -1px; }
+.lst { display: grid; gap: 4px; }
+.lst .gh { display: flex; align-items: flex-start; gap: 7px; margin-top: 4px; font-size: 11.5px; font-weight: 650; color: var(--text-2); }
+.lst .gh:first-child { margin-top: 0; }
+.lst .gh::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: var(--text-3); }
+.lst .gh.q::before { background: var(--ice); }
+.lst .gh.plus::before { border-radius: 2px; background: transparent; outline: 1px dotted var(--text-3); }
+.ev { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 1px 10px; padding: 7px 9px; border-radius: 7px; box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; }
+.ev > span:first-child { font-weight: 650; color: var(--text); font-variant-numeric: tabular-nums; }
+.ev b { font-weight: 650; color: var(--text); }
+.ev small { display: block; color: var(--text-3); font-size: 11px; }
+.ev.faint { opacity: .55; }
+.ev .fit { justify-self: start; margin-top: 3px; padding: 0 6px; border-radius: 5px; font-size: 10.5px; font-weight: 700; }
+.fit.ok { background: var(--accent-soft); color: var(--accent-ink); }
+.fit.no { background: var(--no-soft); color: var(--no); }
+.more { font-size: 11.5px; color: var(--accent-ink); font-weight: 650; padding-left: 2px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px 12px; border-radius: 9px; box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; }
+.row b { font-weight: 650; color: var(--text); }
+.row small { color: var(--text-3); font-size: 12px; }
+.row .lp { grid-row: span 2; align-self: center; font-weight: 700; color: var(--text); white-space: nowrap; }
+.row .lp small { font-weight: 500; }
+.row .wahl { color: var(--accent-ink); font-weight: 650; }
+.aside { display: grid; gap: 8px; }
+.pick { display: grid; gap: 6px; padding: 10px 11px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; }
+.pick b { font-weight: 650; color: var(--text); }
+.pick small { color: var(--text-3); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { padding: 3px 9px; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 11.5px; font-weight: 650; }
+.chip.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.chip.q { box-shadow: inset 0 0 0 1px var(--ice); color: var(--text); }
+
+/* Steps, not done, open. */
+.steps { margin-top: 16px; display: grid; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 4px 14px; align-items: start; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.steps .n { grid-row: span 2; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); font-weight: 700; }
+.steps b { font-size: 15px; font-weight: 700; }
+.steps p { grid-column: 2 / 4; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.steps .ver { justify-self: end; padding: 2px 8px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.open { margin-top: 14px; display: grid; gap: 8px; }
+.open li { position: relative; padding: 12px 16px 12px 40px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14.5px; color: var(--text-2); text-wrap: pretty; }
+.open li::before { content: "?"; position: absolute; left: 12px; top: 12px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 800; }
+.open li b { color: var(--text); font-weight: 650; }
+
+@media (max-width: 900px) {
+  .intro, .cases, .mocks, .mocks.three, .cols2 { grid-template-columns: minmax(0, 1fr); }
+  .block { padding: 18px 16px; }
+}
+@media (max-width: 560px) {
+  th, td { padding: 8px 6px; font-size: 12.5px; }
+  th:first-child, td:first-child { padding-left: 12px; }
+  .steps li { grid-template-columns: 34px minmax(0, 1fr); }
+  .steps .ver { grid-column: 2; justify-self: start; }
+  .steps p { grid-column: 1 / 3; }
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; }
+  table.stack tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  table.stack tr:last-child { border-bottom: 0; }
+  table.stack td { padding: 2px 0; border: 0; white-space: normal; font-size: 13.5px; }
+  table.stack td:first-child { font-size: 14.5px; padding-bottom: 4px; }
+  table.stack td + td::before { content: attr(data-label) ": "; color: var(--text-3); font-weight: 600; }
+}
+</style>
+
+<main class="page" lang="de">
+  <header class="intro">
+    <div>
+      <p class="kicker">Konzept · 19.10.2026 · noch nicht gebaut</p>
+      <h1>Eine von mehreren: Wahlangebote, Gruppen und Zusatzangebote</h1>
+      <p class="lead">Bei vielen Modulen besucht man nicht alles, was QIS nennt: eine von drei Übungen, eines von 14 Projekten, ein Tutorium nur, wenn man will. Heute zeigt Betula alles, als wäre alles Pflicht. Dieses Blatt sagt, wie Betula diese Fälle bei jedem Build aus den Daten erkennt, ohne ein Modul von Hand einzutragen, und wie die Modulseite, der Katalog und der Stundenplan sie zeigen.</p>
+      <p class="quote"><b>Deine Vorgabe:</b> „Ich will nicht, dass wir sonderfälle per hand eintragen, sondern eine lösung haben, die in die zukunft funktioniert. … Bitte bilde alles außer daten passen nicht zusammen in der DB und dem UI ab. Die dateninkongruenz sind einfach fehler von der uni, das sollten wir ignorieren.“</p>
+      <nav class="toc" aria-label="Inhalt"><a href="#faelle">Die Fälle</a><a href="#erkennen">Erkennen</a><a href="#geprueft">Geprüft</a><a href="#daten">In der Datenbank</a><a href="#modulseite">Modulseite</a><a href="#katalog">Katalog</a><a href="#stundenplan">Stundenplan</a><a href="#schritte">Schritte</a><a href="#offen">Offen</a></nav>
+    </div>
+    <section class="rules" aria-labelledby="short-title">
+      <h2 id="short-title">In fünf Sätzen</h2>
+      <ol class="numbered">
+        <li><span>Neben den <b>Angeboten an zwei Standorten</b> (gebaut) kennt Betula vier Fälle: <b>dieselbe Veranstaltung mehrfach für verschiedene Studiengänge</b>, <b>dieselbe Veranstaltung in Gruppen</b>, <b>Wahlangebote</b> mit verschiedenen Themen oder Niveaus und <b>Zusatzangebote</b> wie Tutorien.</span></li>
+        <li><span>Erkannt wird bei jedem Build aus dem, was ohnehin in den Daten steht: den SWS des Moduls und der Veranstaltungen, ihrer Art, ihren Titeln und den Studiengängen, die QIS bei jeder Veranstaltung nennt. Keine Liste von Modulen, keine Ausnahme von Hand.</span></li>
+        <li><span>Im Zweifel bleibt alles Pflicht wie heute. Wo die Daten nicht zusammenpassen, findet die Erkennung nichts: auf canary bei allen 16 Datenfehlern aus der Durchsicht.</span></li>
+        <li><span>Was QIS einem Studiengang zuordnet, wählt Betula für ihn vor. Alles andere ist eine offene Wahl, bei der nichts verschwindet, bis man selbst gewählt hat.</span></li>
+        <li><span>Gebaut wird in zwei Schritten: Erkennung, Modulseite und Katalog zuerst, danach der Stundenplan.</span></li>
+      </ol>
+    </section>
+  </header>
+
+  <section class="block" id="faelle" aria-labelledby="cases-title">
+    <h2 id="cases-title">Die Fälle</h2>
+    <p class="lead">Gefunden in der Durchsicht von canary (WiSe 2026/27): alle 1.441 Module mit Terminen breit abgefragt, jedes auffällige von Hand geprüft. Die Zahlen sind, was die Regeln unten finden.</p>
+    <div class="cases">
+      <article class="case built">
+        <header><b>Angebote an zwei Standorten</b><span class="count">7 Module</span></header>
+        <span class="tag">gebaut, Radix 0.9.1</span>
+        <p>Programmierpraktikum: am Zentralcampus für Informatik und sechs weitere, in Sachsendorf für Medizininformatik.</p>
+        <p class="does">Du besuchst das Angebot deines Standorts.</p>
+      </article>
+      <article class="case">
+        <header><b>Mehrfach, je für andere Studiengänge</b><span class="count">8 Module</span></header>
+        <span class="tag">neu</span>
+        <p>Höhere Mathematik T3 am Zentralcampus: drei Übungen, laut QIS je für Bauingenieurwesen, Maschinenbau und Umwelt, Elektrotechnik und Energietechnik. Physiologiepraktikum „für MT“ und „für MedIF“.</p>
+        <p class="does">Du besuchst die, bei der QIS deinen Studiengang nennt.</p>
+      </article>
+      <article class="case">
+        <header><b>Mehrfach in Gruppen</b><span class="count">14 Module</span></header>
+        <span class="tag">neu</span>
+        <p>Musiktheorie: Kontrapunkt/Tonsatz I „(Gruppe 1)“ bis „(Gruppe 3)“. Lehrprobenseminar in vier Gruppen. Master Seminar in Artificial Intelligence: zweimal, beide für AI M.Sc.</p>
+        <p class="does">Du besuchst eine Gruppe, frei gewählt.</p>
+      </article>
+      <article class="case">
+        <header><b>Wahlangebot</b><span class="count">72 Module</span></header>
+        <span class="tag">neu</span>
+        <p>Berufspraktische Profilierung: 14 Praxisprojekte à 4 SWS. Fremdsprachen nach Niveau. Basis-Deutsch: zwei von vier Kursen. Stegreife für 4 SWS.</p>
+        <p class="does">Du wählst, so viel wie das Modul an SWS hat.</p>
+      </article>
+      <article class="case">
+        <header><b>Zusatzangebot</b><span class="count">21 Module</span></header>
+        <span class="tag">neu</span>
+        <p>Tutorium Statistics, Aufbaukurs Höhere Mathematik T1 und T3, Sprechstunde Technische Mechanik: 22 Veranstaltungen neben dem Pflichtteil.</p>
+        <p class="does">Freiwillig dazu.</p>
+      </article>
+      <article class="case off">
+        <header><b>Daten passen nicht zusammen</b><span class="count">16 Module</span></header>
+        <span class="tag">nicht abgebildet</span>
+        <p>Etwa: das Modul nennt 1 SWS, die Veranstaltungen haben 1 + 3. Fehler der Uni, wie gewünscht ignoriert.</p>
+        <p class="does">Betula zeigt alles wie heute.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="block" id="erkennen" aria-labelledby="detect-title">
+    <h2 id="detect-title">So erkennt Betula es</h2>
+    <p class="lead">Radix prüft bei jedem Build jedes Modul in jedem Semester, Schritt für Schritt in dieser Reihenfolge. Was ein Schritt einordnet, prüft der nächste nicht mehr. <b>SWS</b> sind die des Moduls laut Beschreibung und die der Veranstaltungen laut QIS, getrennt nach Art (Vorlesung, Übung, Seminar, Projekt …).</p>
+    <ol class="numbered from0 wide">
+      <li><span><b>Erst der Ort.</b> Die Angebote an zwei Standorten wie heute; alles Weitere gilt je Angebot für sich. Höhere Mathematik T1 hat am Zentralcampus eigene Übungen und in Senftenberg eine.</span></li>
+      <li><span><b>Zusatzangebote.</b> Eine Veranstaltung der Art Tutorium, die das Modul nicht vorsieht, oder deren Titel ein Zusatzformat nennt (Tutorium, Aufbaukurs, Sprechstunde, Fragestunde, Repetitorium, Vorkurs, Brückenkurs). Nur, wenn die übrigen Veranstaltungen die SWS des Moduls für diese Art noch abdecken: Was gebraucht wird, um auf die SWS zu kommen, ist nie Zusatz.</span></li>
+      <li><span><b>Benannte Gruppen.</b> Titel, die bis auf „Gruppe 1/2/3“ oder „A-/B-Kurs“ gleich sind: eine davon. Gruppen gleicher Nummer in einem Modul gehören zusammen. Kontrapunkt Gruppe 2 und Gehörbildung Gruppe 2 liegen am Freitag direkt hintereinander; wer eine Gruppe wählt, hat beide.</span></li>
+      <li><span><b>Ganze Einheiten zur Wahl.</b> Veranstaltungen eines Titels in verschiedener Art sind eine Einheit (Vorlesung und Seminar „Schauplätze …“). Halten zwei oder mehr Einheiten je mindestens ¾ der SWS des Moduls, sind sie etwa gleich groß und zusammen mindestens eine Einheit mehr als nötig, ist das eine Wahl: so viele Einheiten, wie das Modul SWS hat. Berufspraktische Profilierung: 4 SWS, 14 Projekte à 4, also eines. Basis-Deutsch: 8 SWS, Kurse à 4, also zwei.</span></li>
+      <li><span><b>Wahl je Art.</b> Sonst je Art: Halten die Veranstaltungen einer Art zusammen mindestens das 1,25-Fache und mindestens eine Veranstaltung mehr, als das Modul für diese Art vorsieht, und ist jede mindestens halb so groß wie ihr Anteil, wählt man daraus so viel, wie das Modul vorsieht. Höhere Mathematik T3: drei Übungen à 2 SWS bei 2 SWS Übung, also eine; die Vorlesung bleibt Pflicht.</span></li>
+      <li><span><b>Teile bleiben Pflicht.</b> Keine Wahl, wenn sich die Titel nur durch eine Teilnummer unterscheiden (T1, T2, Teil 1, I, II), wenn der Modulname die Teile nennt („Werkstoff- und Physiklabor“ über „Werkstofflabor“ und „Physiklabor“), wenn die Veranstaltungen mehr als doppelt so verschieden groß sind oder wenn ihre Arten nicht zum Modul passen. Veranstaltungen ohne SWS entscheiden nichts; steht die Wahl fest, sind sie Optionen wie die anderen (Entwurfsateliers ohne SWS-Angabe).</span></li>
+      <li><span><b>Was für eine Wahl.</b> Sind die Titel bis auf Gruppe, Variante („(Online)“) und Zielgruppe („für MT“) zu mindestens 60 % gleich, ist es dieselbe Veranstaltung mehrfach, sonst ein Wahlangebot. Nennt QIS bei den Optionen verschiedene Studiengänge, gehört zu jedem Studiengang die Option, bei der QIS ihn nennt; nennt QIS ihn bei mehreren, wählt er unter diesen.</span></li>
+    </ol>
+    <h3>Warum das in die Zukunft trägt</h3>
+    <ul class="cols2">
+      <li><b>Keine Modulnummern</b>Jede Regel liest nur SWS, Art, Titel und die Studiengänge aus QIS. Ein neues Modul, ein neues Semester, ein umbenanntes Seminar wird beim nächsten Build genauso behandelt.</li>
+      <li><b>Wenige, allgemeine Wörter</b>Gruppe, Kurs, Tutorium, Aufbaukurs, Sprechstunde: Begriffe, mit denen QIS und die Lehrstühle diese Formate benennen. Kein Wort ist ein Modulname.</li>
+      <li><b>Zur sicheren Seite</b>Jede Regel hat eine Schutzbedingung. Eine falsche Wahl würde eine Pflichtveranstaltung verstecken; ein verpasster Fall zeigt nur alles wie heute.</li>
+      <li><b>Sichtbar bei jedem Build</b>Radix zählt im Build-Bericht, was es gefunden hat (Wahlen je Art, Zusatzangebote, verworfene Fälle). Tests lesen die Regeln an echten QIS-Seiten: Programmierpraktikum, HM T3, Musiktheorie, Berufspraktische Profilierung und ein Datenfehler.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="geprueft" aria-labelledby="check-title">
+    <h2 id="check-title">Geprüft an canary</h2>
+    <p class="lead">Die Regeln liefen als Prototyp über den Katalog von canary vom 19.10. (WiSe 2026/27, Radix 0.9.1) und wurden mit der Durchsicht von Hand verglichen.</p>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th>Von Hand eingeordnet</th><th>Module</th><th>Erkannt</th><th>Nicht erkannt, bleibt wie heute</th></tr></thead>
+        <tbody>
+          <tr><td>Dieselbe Veranstaltung mehrfach</td><td class="num" data-label="Module">19</td><td class="num" data-label="Erkannt">18</td><td data-label="Nicht erkannt">1: Präsenz- und Online-Variante unterschiedlich groß (World Heritage Studies)</td></tr>
+          <tr><td>Wahlangebot</td><td class="num" data-label="Module">76</td><td class="num" data-label="Erkannt">68</td><td data-label="Nicht erkannt">8: Seminare ohne SWS-Angabe, Kataloge sehr verschieden großer Kurse, „Oberseminar I/II“ als Teile gelesen</td></tr>
+          <tr><td>Zusatzangebot</td><td class="num" data-label="Module">4</td><td class="num" data-label="Erkannt">3</td><td data-label="Nicht erkannt">1: ein Zusatzseminar ohne erkennbaren Namen</td></tr>
+          <tr><td>Daten passen nicht zusammen</td><td class="num" data-label="Module">16</td><td class="num" data-label="Erkannt">0</td><td data-label="Nicht erkannt">alle 16, wie gewünscht</td></tr>
+          <tr><td>Außerhalb der Durchsicht</td><td class="num" data-label="Module">–</td><td class="num" data-label="Erkannt">23</td><td data-label="Nicht erkannt">15 Tutorien und Sprechstunden, 7 Module mit „(Gruppe N)“, 1 Stegreif-Katalog; alle 23 von Hand nachgesehen, richtig</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Die Durchsicht fand nur Module, deren Veranstaltungen mindestens das 1,5-Fache der Modul-SWS halten; Gruppen und Tutorien in Modulen darunter kamen erst mit den Regeln dazu.</p>
+  </section>
+
+  <section class="block" id="daten" aria-labelledby="data-title">
+    <h2 id="data-title">Was in der Datenbank steht</h2>
+    <p class="lead">Radix legt es neben die Standort-Angebote (Migration 0017, Schema 17). Folia liest nur die Sichten.</p>
+    <ul class="cols2">
+      <li><b><code>module_choice</code></b>Je Wahl: Modul, Semester, das Standort-Angebot, in dem sie gilt (oder keins), ob dieselbe Veranstaltung mehrfach oder ein Wahlangebot, woran sie erkannt wurde (Gruppenname, Art, ganze Einheiten), wie viele SWS sie deckt und wie viele Optionen man wählt.</li>
+      <li><b><code>module_choice_option</code></b>Die Optionen, jede mit einer oder mehreren Veranstaltungen (Vorlesung und Seminar „Schauplätze“ sind eine), dazu die Gruppennummer, wo eine im Titel steht.</li>
+      <li><b><code>module_extra</code></b>Die Zusatzangebote eines Moduls im Semester und woran sie erkannt wurden (Art Tutorium, Titel).</li>
+      <li><b>Sichten</b><code>v_module_schedule</code> trägt an jedem Termin <code>choice</code>, <code>option</code> und <code>extra</code>, so wie heute <code>track</code>. <code>v_module_choice</code> nennt je Option die Studiengänge, bei denen QIS sie nennt. Daraus liest Folia, was es vorwählt.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="modulseite" aria-labelledby="module-title">
+    <h2 id="module-title">Auf der Modulseite</h2>
+    <p class="lead">Die Termine bleiben eine Woche mit Liste. Über der Woche sagt eine Zeile, was zur Wahl steht, so wie heute bei den Standorten. In der Woche hat jede Rolle ihr Aussehen, in der Liste ihre Überschrift.</p>
+    <div class="legend" style="margin-top:14px" aria-label="Legende">
+      <span><i class="l1"></i>Pflicht</span>
+      <span><i class="l2"></i>Option einer Wahl</span>
+      <span><i class="l4"></i>andere Option, blass</span>
+      <span><i class="l3"></i>Zusatzangebot</span>
+    </div>
+
+    <h3>Dieselbe Übung mehrfach, je für andere Studiengänge</h3>
+    <p class="muted">Höhere Mathematik T3, das Angebot am Zentralcampus. Ohne Studiengang stehen alle drei Übungen da, jede mit den Studiengängen, die QIS bei ihr nennt. Mit Bauingenieurwesen als Mein Studiengang nur dessen Übung; die anderen bringt „Auch zeigen“ blass zurück. Der Aufbaukurs steht als Zusatz dabei.</p>
+    <div class="mocks">
+      <figure class="mockcap">
+        <span class="kicker">Ohne Studiengang</span>
+        <div class="mock">
+          <div class="head"><span>Termine</span><span>WiSe 2026/27</span></div>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>Die Übung gibt es dreimal, je für andere Studiengänge. <b>Du besuchst eine.</b> Mit deinem Studiengang in „Mein Studium“ zeigt Betula nur deine.</span></p>
+          <div class="week" style="--days:5" aria-label="Woche">
+            <span class="d" style="grid-column:2">Mo</span><span class="d" style="grid-column:3">Di</span><span class="d" style="grid-column:4">Mi</span><span class="d" style="grid-column:5">Do</span><span class="d" style="grid-column:6">Fr</span>
+            <span class="h" style="grid-row:6">8</span><span class="gl" style="grid-row:6"></span>
+            <span class="h" style="grid-row:14">10</span><span class="gl" style="grid-row:14"></span>
+            <span class="h" style="grid-row:22">12</span><span class="gl" style="grid-row:22"></span>
+            <span class="h" style="grid-row:30">14</span><span class="gl" style="grid-row:30"></span>
+            <span class="h" style="grid-row:38">16</span><span class="gl" style="grid-row:38"></span>
+            <span class="sl extra" style="grid-column:2;grid-row:11/17"><b>+ Aufb.</b><small>09:15</small></span>
+            <span class="sl lec" style="grid-column:2;grid-row:36/42"><b>VL</b><small>15:30</small></span>
+            <span class="sl lec" style="grid-column:3;grid-row:36/42"><b>VL</b><small>15:30</small></span>
+            <span class="sl alt" style="grid-column:3;grid-row:4/10"><b>Ü</b><small>für BI</small></span>
+            <span class="sl alt" style="grid-column:4;grid-row:29/35"><b>Ü</b><small>für MB, UI</small></span>
+            <span class="sl alt" style="grid-column:5;grid-row:20/26"><b>Ü</b><small>für ET, EnEW, UI</small></span>
+          </div>
+          <div class="lst">
+            <p class="gh">Pflicht</p>
+            <div class="ev"><span>Mo, Di 15:30</span><span><b>Höhere Mathematik - T3</b><small>Vorlesung · ZHG/HS.B, GHS</small></span></div>
+            <p class="gh q">Eine der 3 Übungen</p>
+            <div class="ev"><span>Di 07:30</span><span><b>Übung</b><small>für Bauingenieurwesen · HG/0.20</small></span></div>
+            <div class="ev"><span>Mi 13:45</span><span><b>Übung</b><small>für Maschinenbau, Umweltingenieurwesen · HG/0.19</small></span></div>
+            <div class="ev"><span>Do 11:30</span><span><b>Übung</b><small>für Elektrotechnik, Energietechnik, Umweltingenieurwesen · HG/0.20</small></span></div>
+            <p class="gh plus">Zusätzlich, freiwillig</p>
+            <div class="ev"><span>Mo 09:15</span><span><b>Aufbaukurs Höhere Mathematik - T3</b><small>Übung · HG/0.17</small></span></div>
+          </div>
+        </div>
+      </figure>
+      <figure class="mockcap">
+        <span class="kicker">Mein Studiengang: Bauingenieurwesen</span>
+        <div class="mock">
+          <div class="head"><span>Termine</span><span>WiSe 2026/27</span></div>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span><b>Deine Übung: Di 07:30</b>, QIS nennt sie für Bauingenieurwesen. Auch angeboten: Mi und Do für andere Studiengänge. <span class="link">Auch zeigen</span></span></p>
+          <div class="week" style="--days:5" aria-label="Woche">
+            <span class="d" style="grid-column:2">Mo</span><span class="d" style="grid-column:3">Di</span><span class="d" style="grid-column:4">Mi</span><span class="d" style="grid-column:5">Do</span><span class="d" style="grid-column:6">Fr</span>
+            <span class="h" style="grid-row:6">8</span><span class="gl" style="grid-row:6"></span>
+            <span class="h" style="grid-row:14">10</span><span class="gl" style="grid-row:14"></span>
+            <span class="h" style="grid-row:22">12</span><span class="gl" style="grid-row:22"></span>
+            <span class="h" style="grid-row:30">14</span><span class="gl" style="grid-row:30"></span>
+            <span class="h" style="grid-row:38">16</span><span class="gl" style="grid-row:38"></span>
+            <span class="sl extra" style="grid-column:2;grid-row:11/17"><b>+ Aufb.</b><small>09:15</small></span>
+            <span class="sl lec" style="grid-column:2;grid-row:36/42"><b>VL</b><small>15:30</small></span>
+            <span class="sl lec" style="grid-column:3;grid-row:36/42"><b>VL</b><small>15:30</small></span>
+            <span class="sl" style="grid-column:3;grid-row:4/10"><b>Ü</b><small>07:30</small></span>
+          </div>
+          <div class="lst">
+            <p class="gh">Pflicht</p>
+            <div class="ev"><span>Mo, Di 15:30</span><span><b>Höhere Mathematik - T3</b><small>Vorlesung · ZHG/HS.B, GHS</small></span></div>
+            <div class="ev"><span>Di 07:30</span><span><b>Übung</b><small>für Bauingenieurwesen · HG/0.20</small></span></div>
+            <p class="gh plus">Zusätzlich, freiwillig</p>
+            <div class="ev"><span>Mo 09:15</span><span><b>Aufbaukurs Höhere Mathematik - T3</b><small>Übung · HG/0.17</small></span></div>
+          </div>
+        </div>
+      </figure>
+    </div>
+    <p class="note">Steht der Katalog nach einem anderen Studiengang gefiltert, ist dessen Übung hervorgehoben und die anderen sind blass, wie bei den Standorten. Nennt QIS Mein Studiengang bei keiner Übung, bleibt es eine offene Wahl unter allen dreien.</p>
+
+    <h3>Dieselbe Veranstaltung in Gruppen</h3>
+    <p class="muted">Musiktheorie - Grundlagen, Freitag in Sachsendorf. Kontrapunkt/Tonsatz I und Gehörbildung I gibt es je in drei Gruppen; die Gruppe gleicher Nummer schließt direkt an. Die Woche zeigt alle Gruppen als Optionen, die Liste fasst eine Gruppe zusammen.</p>
+    <div class="mocks">
+      <figure class="mockcap">
+        <span class="kicker">Ohne Wahl</span>
+        <div class="mock">
+          <div class="head"><span>Termine</span><span>WiSe 2026/27</span></div>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 20c0-2.8-2.2-5-5-5s-5 2.2-5 5"/><circle cx="12" cy="8" r="3.5"/></svg><span>Kontrapunkt/Tonsatz I und Gehörbildung I gibt es in 3 Gruppen. <b>Du besuchst eine</b>, beide Veranstaltungen in derselben Gruppe.</span></p>
+          <div class="week" style="--days:1;--rows:35;grid-template-columns:22px minmax(0,1fr)" aria-label="Freitag">
+            <span class="d" style="grid-column:2">Freitag</span>
+            <span class="h" style="grid-row:6">11</span><span class="gl" style="grid-row:6"></span>
+            <span class="h" style="grid-row:14">13</span><span class="gl" style="grid-row:14"></span>
+            <span class="h" style="grid-row:22">15</span><span class="gl" style="grid-row:22"></span>
+            <span class="h" style="grid-row:30">17</span><span class="gl" style="grid-row:30"></span>
+            <span class="sl alt" style="grid-column:2;grid-row:4/10"><b>Kontrapunkt · Gr. 1</b><small>10:30–12:00</small></span>
+            <span class="sl alt" style="grid-column:2;grid-row:10/13"><b>Gehörbildung · Gr. 1</b></span>
+            <span class="sl alt" style="grid-column:2;grid-row:16/22"><b>Kontrapunkt · Gr. 2</b><small>13:30–15:00</small></span>
+            <span class="sl alt" style="grid-column:2;grid-row:22/25"><b>Gehörbildung · Gr. 2</b></span>
+            <span class="sl alt" style="grid-column:2;grid-row:26/32"><b>Kontrapunkt · Gr. 3</b><small>16:00–17:30</small></span>
+            <span class="sl alt" style="grid-column:2;grid-row:32/35"><b>Gehörbildung · Gr. 3</b></span>
+          </div>
+        </div>
+      </figure>
+      <figure class="mockcap">
+        <span class="kicker">Die Liste</span>
+        <div class="mock">
+          <div class="lst">
+            <p class="gh q">Eine der 3 Gruppen</p>
+            <div class="ev"><span>Fr 10:30</span><span><b>Gruppe 1</b><small>Kontrapunkt/Tonsatz I 10:30–12:00, Gehörbildung I 12:00–12:45 · SD/7.116</small></span></div>
+            <div class="ev"><span>Fr 13:30</span><span><b>Gruppe 2</b><small>Kontrapunkt/Tonsatz I 13:30–15:00, Gehörbildung I 15:00–15:45 · SD/7.116</small></span></div>
+            <div class="ev"><span>Fr 16:00</span><span><b>Gruppe 3</b><small>Kontrapunkt/Tonsatz I 16:00–17:30, Gehörbildung I 17:30–18:15 · SD/7.116</small></span></div>
+          </div>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span>Das Master Seminar in Artificial Intelligence sieht genauso aus: zweimal, beide für AI M.Sc., „Eines der 2 Seminare“. Welches, entscheidest du; Betula wählt nichts vor, solange QIS sie nicht nach Studiengang trennt.</span></p>
+        </div>
+      </figure>
+    </div>
+
+    <h3>Wahlangebot</h3>
+    <p class="muted">Berufspraktische Profilierung (Soziale Arbeit): 14 Praxisprojekte à 4 SWS, sechs mit festen Terminen. Bei so vielen Optionen bleibt die Woche frei von ihnen; die Liste zeigt die Projekte zum Auswählen. Bis vier Optionen stehen gestrichelt in der Woche.</p>
+    <div class="mocks">
+      <figure class="mockcap">
+        <span class="kicker">Ohne Wahl</span>
+        <div class="mock">
+          <div class="head"><span>Termine</span><span>WiSe 2026/27</span></div>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg><span><b>Wahlangebot: Du belegst eines der 14 Projekte</b> (je 4 SWS). QIS nennt bei 7 davon Soziale Arbeit.</span></p>
+          <div class="lst">
+            <p class="gh q">Eines der 14 Projekte</p>
+            <div class="ev"><span>Mo 11:00</span><span><b>Geschichtenkoffer</b><small>Modul 12.2 OM3 · SD/11.301</small></span></div>
+            <div class="ev"><span>Mo 13:30</span><span><b>Digitale Pioniere</b><small>Modul 12.2 OM3 · SD/11.208</small></span></div>
+            <div class="ev"><span>Di 13:30</span><span><b>Erlebnispädagogische Ferienwoche</b><small>Praxisprojekte OM3</small></span></div>
+            <div class="ev"><span>Do 11:00</span><span><b>Medienwerkstatt Kultur: Aktive Audioarbeit</b><small>Praxisprojekte OM3 · SD/11.318</small></span></div>
+            <div class="ev"><span>ohne Termin</span><span><b>Positive Psychologie</b><small>Praxisprojekte OM3</small></span></div>
+            <p class="more">9 weitere anzeigen</p>
+          </div>
+        </div>
+      </figure>
+      <figure class="mockcap">
+        <span class="kicker">Was dazugehört</span>
+        <div class="mock">
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span><b>Wie viel:</b> „eines“, „zwei der vier Kurse“ (Basis-Deutsch, 8 SWS) oder, wo die Optionen verschieden groß sind, „Kurse für 6 SWS“ (English for Academic Purposes: 4, 4, 2, 2).</span></p>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span><b>Für wen:</b> Optionen, bei denen QIS Mein Studiengang nicht nennt, stehen blasser und zuletzt; wählbar bleiben sie.</span></p>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span><b>Ohne JavaScript</b> (die Seite des Servers, für alle gleich): dieselbe Zeile und Liste, nichts vorgewählt.</span></p>
+        </div>
+      </figure>
+    </div>
+
+    <h3>Zusatzangebot</h3>
+    <p class="muted">Tutorium, Aufbaukurs, Sprechstunde: in der Woche gepunktet mit einem „+“, in der Liste unter „Zusätzlich, freiwillig“, wie beim Aufbaukurs oben. Statistics bekommt so neben Vorlesung und Übung sein Tutorium, das keinen festen Termin hat.</p>
+  </section>
+
+  <section class="block" id="katalog" aria-labelledby="catalog-title">
+    <h2 id="catalog-title">Im Katalog</h2>
+    <p class="lead">Die Zeile eines Moduls sagt es schon in der Liste, dort, wo heute „2 Termine“ steht. So sieht man beim Suchen, dass man bei Berufspraktische Profilierung ein Projekt wählt.</p>
+    <div class="mocks three">
+      <div class="row"><span><b>Berufspraktische Profilierung</b></span><span class="lp">10 <small>LP</small></span><small>12672 · DE · <span class="wahl">14 Projekte zur Wahl</span></small></div>
+      <div class="row"><span><b>Höhere Mathematik - T3</b></span><span class="lp">6 <small>LP</small></span><small>11206 · DE · 2 Standorte · <span class="wahl">Übung je Studiengang</span></small></div>
+      <div class="row"><span><b>Musiktheorie - Grundlagen</b></span><span class="lp">5 <small>LP</small></span><small>13151 · DE · <span class="wahl">3 Gruppen</span></small></div>
+    </div>
+  </section>
+
+  <section class="block" id="stundenplan" aria-labelledby="plan-title">
+    <h2 id="plan-title">Im Stundenplan</h2>
+    <p class="lead">Der Stundenplan kann Gruppen innerhalb einer Veranstaltung schon zur Wahl stellen („1 von 2“). Dasselbe gilt dann über Veranstaltungen hinweg. <b>Was QIS deinem Studiengang zuordnet, ist vorgewählt; eine offene Wahl versteckt nichts</b>, bis du gewählt hast.</p>
+    <div class="mocks three">
+      <figure class="mockcap">
+        <span class="kicker">Vorgewählt nach Studiengang</span>
+        <div class="mock">
+          <div class="pick">
+            <b>Höhere Mathematik - T3</b>
+            <small>Übung Di 07:30, laut Studiengang. Die anderen beiden sind ausgeblendet („andere Studiengänge“).</small>
+            <div class="chips"><span class="chip on">Di 07:30</span><span class="chip">Mi 13:45</span><span class="chip">Do 11:30</span></div>
+          </div>
+          <p class="say"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><span>Wie der Standort heute: Unter dem Plan steht „Abgeleitet: … Übung Di 07:30 laut Studiengang“. Ein Tipp auf einen anderen Termin wählt um.</span></p>
+        </div>
+      </figure>
+      <figure class="mockcap">
+        <span class="kicker">Offene Wahl</span>
+        <div class="mock">
+          <div class="pick">
+            <b>Musiktheorie - Grundlagen</b>
+            <small>Gruppe wählen. Bis dahin stehen alle drei gestrichelt in der Woche, und Überschneidungen zählen nicht.</small>
+            <div class="chips"><span class="chip q">Gruppe 1</span><span class="chip q">Gruppe 2</span><span class="chip q">Gruppe 3</span></div>
+          </div>
+          <div class="week" style="--days:1;--rows:35;grid-template-columns:22px minmax(0,1fr)" aria-label="Freitag">
+            <span class="d" style="grid-column:2">Freitag</span>
+            <span class="h" style="grid-row:6">11</span><span class="gl" style="grid-row:6"></span>
+            <span class="h" style="grid-row:14">13</span><span class="gl" style="grid-row:14"></span>
+            <span class="h" style="grid-row:22">15</span><span class="gl" style="grid-row:22"></span>
+            <span class="h" style="grid-row:30">17</span><span class="gl" style="grid-row:30"></span>
+            <span class="sl alt" style="grid-column:2;grid-row:4/13"><b>MT Gr. 1</b><small>1 von 3</small></span>
+            <span class="sl alt" style="grid-column:2;grid-row:16/25"><b>MT Gr. 2</b><small>1 von 3</small></span>
+            <span class="sl alt" style="grid-column:2;grid-row:26/35"><b>MT Gr. 3</b><small>1 von 3</small></span>
+          </div>
+        </div>
+      </figure>
+      <figure class="mockcap">
+        <span class="kicker">Wahl aus vielen</span>
+        <div class="mock">
+          <div class="pick">
+            <b>Berufspraktische Profilierung</b>
+            <small>Projekt wählen, 1 von 14. Was zu deinem Plan passt, steht zuerst.</small>
+          </div>
+          <div class="lst">
+            <div class="ev"><span>Mo 11:00</span><span><b>Geschichtenkoffer</b><span class="fit ok">passt</span></span></div>
+            <div class="ev"><span>Di 13:30</span><span><b>Erlebnispädagogik</b><span class="fit ok">passt</span></span></div>
+            <div class="ev"><span>Do 11:00</span><span><b>Medienwerkstatt</b><span class="fit no">überschneidet sich</span></span></div>
+            <p class="more">11 weitere</p>
+          </div>
+        </div>
+      </figure>
+    </div>
+    <ul class="cols2">
+      <li><b>Zusatzangebote</b>stehen heller und gepunktet im Plan, zählen nicht als Überschneidung und lassen sich wie die Arten unter „Zeigen“ ausblenden („Zusatz“).</li>
+      <li><b>Kalender (.ics, Abo)</b>bekommt Pflicht, Vorgewähltes und Gewähltes. Eine offene Wahl kommt erst hinein, wenn gewählt ist, Zusatzangebote nur, wenn sie gezeigt sind.</li>
+      <li><b>Deine Wahl bleibt</b>im Browser wie die übrigen Einstellungen des Plans, je Modul und Semester. Ob sie mit „Link zum Teilen“ mitgeht, entscheidet Schritt 2: das Format der Links ist eingefroren.</li>
+      <li><b>„Passt in meinen Stundenplan“</b>im Katalog prüft bei einer Wahl die beste Option, nicht alle zugleich: Ein Modul passt, wenn eine seiner Gruppen passt.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="schritte" aria-labelledby="steps-title">
+    <h2 id="steps-title">In zwei Schritten</h2>
+    <p class="lead">Jeder Schritt geht für sich auf canary. Keiner braucht eine MAJOR: Was Folia heute liest, bleibt, und ein älterer Katalog im Browser wird wie bisher neu geladen.</p>
+    <ol class="steps">
+      <li><span class="n">1</span><b>Erkennen, Modulseite, Katalog</b><span class="ver">Radix 0.10.0 · Folia 1.30.0</span>
+        <p>Radix: die Regeln oben in <code>catalogbuild</code>, Migration 0017, Build-Bericht, Tests an echten QIS-Seiten und an einer Kopie von canarys Katalog. Folia: Zeile, Woche und Liste der Modulseite für alle drei Fälle und das Zusatzangebot, die Zeile im Katalog, e2e-Check wie <code>courses.mjs</code>.</p></li>
+      <li><span class="n">2</span><b>Stundenplan</b><span class="ver">Folia 1.31.0</span>
+        <p>Wahl über Veranstaltungen hinweg im Modell des Stundenplans, vorgewählt nach Studiengang, offene Wahl ohne Überschneidung, Zusatzangebote heller und ausblendbar, Kalender und „Passt in meinen Stundenplan“. Da du den Stundenplan ohnehin überarbeiten willst, baut dieser Schritt nur auf das, was es schon gibt.</p></li>
+    </ol>
+  </section>
+
+  <section class="block" id="nicht" aria-labelledby="not-title">
+    <h2 id="not-title">Bewusst nicht</h2>
+    <ul class="cols2">
+      <li><b>Datenfehler</b>Keine Regel für sie und keine Ausnahme. Die Schutzbedingungen sorgen dafür, dass sie nicht als Wahl erscheinen; Betula zeigt alles wie heute.</li>
+      <li><b>Studienrichtungen</b>Elektrotechnik IoT/PA in Senftenberg, EET/MIT am Zentralcampus: Betula kennt die Richtung nur als Tabelle im Plan. Bleibt, wie im Konzept der Standorte, ein eigener Schritt.</li>
+      <li><b>Irreguläre Kataloge</b>Seminare ohne SWS-Angabe oder Kurse, die sich um mehr als das Doppelte unterscheiden (8 Module): wie heute, alles sichtbar.</li>
+      <li><b>Wahl über Semester</b>„Oberseminar I“ und „II“ oder ein Kurs, den man in einem von zwei Semestern belegt: nicht Teil dieses Konzepts.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="offen" aria-labelledby="open-title">
+    <h2 id="open-title">Offen, mit Vorschlag</h2>
+    <ul class="open">
+      <li><b>Viele Optionen in der Woche:</b> bis zu vier gestrichelt in der Woche, mehr nur in der Liste mit „passt“ und „überschneidet sich“, bis gewählt ist. Oder immer alle in die Woche?</li>
+      <li><b>Zusatzangebote im Stundenplan:</b> sichtbar, heller, ohne Überschneidungswarnung und unter „Zeigen“ ausblendbar. Oder lieber erst ausgeblendet?</li>
+      <li><b>Kalender:</b> eine offene Wahl erst exportieren, wenn gewählt ist. Passt das, oder sollen alle Optionen hinein?</li>
+      <li><b>Ungleich große Optionen:</b> „Kurse für 6 SWS“ statt einer Anzahl. Verständlich genug, oder lieber „ein oder zwei Kurse“?</li>
+    </ul>
+  </section>
+</main>
