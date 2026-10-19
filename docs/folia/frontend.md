@@ -2104,7 +2104,7 @@ canary's build of 1.26.0 with the CPU four times slower a tab's first build is a
 0.19 s („Mein Studium" with a study; the concept measured 1.8 s on 1.22.0), so „Studium" is built as
 it is.
 
-**The pages on an axis on a phone** (step 3, Folia 1.28.0, as it is since 1.28.1; `enhance.js` „the
+**The pages on an axis on a phone** (step 3, Folia 1.28.0, as it is since 1.29.1; `enhance.js` „the
 Achse"; owner, 2026-10-18, of the prototype's ways: „Ich muss sagen ich finde achse fühlt sich am
 besten an. Quasi so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert",
 „Swipen soll explizit nur über die navbar funktionieren", and of the page following the finger: „das
