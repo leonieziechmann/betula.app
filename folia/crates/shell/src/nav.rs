@@ -36,6 +36,12 @@
 //!   Where the browser lacks the Navigation API, or an entry below is of another load of a page (the
 //!   site's pages before the app took over, another language: going there loads that page anew; a
 //!   reload keeps the entries the page wrote), each link is a step of its own as before.
+//! - **A page of a while** (`passing`: the profile page; owner, 2026-10-19: „dass die Profile page,
+//!   als temporäre seite getreated werden soll wo man dann oben den zurück pfeil hat und genau wieder
+//!   da landet, wo man davor war"): no tab's, so no change of tabs. It is a step on top of the tab
+//!   the visitor is in, and Back and the arrow lead back to the page under it as it was left. The
+//!   tab under it tapped leads there too, not to its first page, and a tab left from it keeps its
+//!   stack without it.
 
 use leptos::prelude::*;
 
@@ -93,11 +99,19 @@ pub fn chain_of(url: &str) -> Vec<String> {
     chain
 }
 
+/// A page of a while (the profile page): no tab's, it lies on top of the tab it was opened from
+/// for as long as the visitor is on it, and its way back leads to the page under it
+/// (`chrome::Up::Before`).
+pub fn passing(path: &str) -> bool {
+    path == folia_routes::url::PROFILE
+}
+
 /// The tab a page belongs to, come to from the tab `from`: its area's, but a module's own page
 /// opened out of a tab that shows its modules in place (a program, the Merkliste, the
-/// Stundenplan) stays in that tab, as the memory of the tabs has it (`Area::shows_in_place`).
+/// Stundenplan) stays in that tab, as the memory of the tabs has it (`Area::shows_in_place`), and
+/// a page of a while stays in the tab it was opened from (`passing`).
 pub fn tab_of_page(path: &str, from: Area) -> Area {
-    if path.starts_with("/catalog/module/") && from.shows_in_place() {
+    if (path.starts_with("/catalog/module/") && from.shows_in_place()) || passing(path) {
         from
     } else {
         Area::of(path)
@@ -426,9 +440,10 @@ pub fn steer(pending: crate::pending::Pending, from_path: &str, from_search: &st
 }
 
 /// A tab of the bar tapped on a phone: in another tab, to its stack as it was left (else to `href`,
-/// where its link leads, with what lies above it); in its own, back to its first page. True where it
-/// did; false where the link has to take the step itself (a wide screen, no Navigation API, an entry
-/// below of another load of a page).
+/// where its link leads, with what lies above it); in its own, back to its first page, but from a
+/// page of a while on top of it (`passing`) back to the page under it, the tab as it was left. True
+/// where it did; false where the link has to take the step itself (a wide screen, no Navigation
+/// API, an entry below of another load of a page).
 pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
     #[cfg(feature = "csr")]
     {
@@ -442,15 +457,16 @@ pub fn tab(pending: crate::pending::Pending, area: Area, href: &str) -> bool {
         let now = browser::tab_at(&entries, base, at);
         if now == area {
             let first = if area == Area::Home { base } else { base + 1 };
-            if at > first {
+            let to = if browser::passing_at(&entries, at) { (first..at).rev().find(|&i| !browser::passing_at(&entries, i)).unwrap_or(first) } else { first };
+            if at > to {
                 // An entry of another load of a page would load that page anew: the link then.
-                if !entries.get(first).is_some_and(|entry| entry.same) {
+                if !entries.get(to).is_some_and(|entry| entry.same) {
                     return false;
                 }
                 if let Some(landing) = landing {
                     browser::seed_now(landing);
                 }
-                browser::go(first as i32 - at as i32);
+                browser::go(to as i32 - at as i32);
             }
             return true;
         }
@@ -772,6 +788,11 @@ mod browser {
         entries.get(base + 1).and_then(|entry| entry.url.as_deref()).map_or(Area::Home, |url| Area::of(url.split('?').next().unwrap_or(url)))
     }
 
+    /// Whether the entry at `at` is a page of a while (`super::passing`).
+    pub(super) fn passing_at(entries: &[Seen], at: usize) -> bool {
+        entries.get(at).and_then(|entry| entry.url.as_deref()).is_some_and(|url| super::passing(url.split(['?', '#']).next().unwrap_or(url)))
+    }
+
     /// A page come to from outside, not used yet: the first entry of the app, not Start.
     /// A page come to from outside, not used yet (`seed`): its address, the first of the app's
     /// entries and not Start.
@@ -1057,16 +1078,18 @@ mod browser {
             .collect()
     }
 
-    /// The tab of the history keeps its stack, from its first page to where the browser is; the
-    /// row's semester where the browser is at „Mein Studium".
+    /// The tab of the history keeps its stack, from its first page to where the browser is, without
+    /// the pages of a while on top of it (`super::passing`: they were the visitor's for a while, not
+    /// the tab's); the row's semester where the browser is at „Mein Studium".
     fn save(entries: &[Seen], base: usize, at: usize) {
         let area = tab_at(entries, base, at);
         // Start has no stack of its own (the profile, the legal pages are only above it for a while).
         if area == Area::Home {
             return;
         }
-        let urls: Vec<String> = entries.iter().take(at + 1).skip(base + 1).filter_map(|entry| entry.url.clone()).collect();
-        let semester = (urls.last().map(String::as_str) == Some(folia_routes::url::STUDY)).then(|| kept("semester")).flatten();
+        let urls: Vec<String> = (base + 1..=at).filter(|&i| !passing_at(entries, i)).filter_map(|i| entries.get(i).and_then(|entry| entry.url.clone())).collect();
+        let here = entries.get(at).and_then(|entry| entry.url.as_deref());
+        let semester = (here == Some(folia_routes::url::STUDY)).then(|| kept("semester")).flatten();
         let mut all: Vec<_> = stacks().into_iter().filter(|(other, _, _)| other != name(area)).collect();
         if !urls.is_empty() {
             all.push((name(area).to_string(), semester, urls));
@@ -1112,8 +1135,8 @@ mod tests {
         assert_eq!(chain_of("/profile"), ["/profile"]);
     }
 
-    /// A module's own page stays in a tab that shows its modules in place; every other page is its
-    /// area's.
+    /// A module's own page stays in a tab that shows its modules in place, the profile page in the
+    /// tab it was opened from; every other page is its area's.
     #[test]
     fn the_tab_of_a_page() {
         assert_eq!(tab_of_page("/catalog/module/11103", Area::Programs), Area::Programs);
@@ -1121,7 +1144,10 @@ mod tests {
         assert_eq!(tab_of_page("/catalog/module/11103", Area::Home), Area::Catalog);
         assert_eq!(tab_of_page("/programs/bachelor-informatik-2008/plan", Area::Catalog), Area::Programs);
         assert_eq!(tab_of_page("/study", Area::Home), Area::Programs);
-        assert_eq!(tab_of_page("/profile", Area::Catalog), Area::Home);
+        // The profile page is a page of a while: it stays in the tab it was opened from.
+        assert_eq!(tab_of_page("/profile", Area::Catalog), Area::Catalog);
+        assert_eq!(tab_of_page("/profile", Area::Home), Area::Home);
+        assert!(passing("/profile") && !passing("/profile/x") && !passing("/") && !passing("/catalog"));
     }
 
     /// The history a change of tabs writes: what is missing pushed first (the tap is fresh), then

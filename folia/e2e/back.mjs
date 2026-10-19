@@ -17,7 +17,11 @@
 // 6 a stack for each tab: Start under every tab; a change of tabs writes the history in place, the
 //   tab left comes back as it was, Back leads up through the tab to Start; Forward does not lead into
 //   what a change of tabs left over; the tab tapped again leads to its first page; Start is
-//   the first entry, and its tab leads nowhere else (not to the profile, which lay above it).
+//   the first entry, and its tab leads nowhere else; the profile lies on top of the tab it was
+//   opened from, and a tab left from it keeps its stack without it.
+// 6b the profile is a page of a while: the arrow and Back lead to the page under it as it was left
+//   (a list with a filter, scrolled down), and so does the tab under it; from Start back to Start;
+//   come to from outside, its arrow leads to Start.
 // 7 a link to a page of another tab (a module's program) changes the tab, what lies above the page
 //   under it.
 // 8 a link from outside: while it is only read, Back leaves Betula; its first use (the arrow) lays
@@ -253,13 +257,65 @@ await part("tabs", async () => {
   await step("Back: „Mein Studium“", () => page.evaluate(() => history.back()), () => location.pathname === "/study");
   await step("Back: Start", () => page.evaluate(() => history.back()), () => location.pathname === "/");
   await step("„Module“: the module as it was left", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), () => /[?&]open=/.test(location.search));
-  // Start is the entry under every tab and leads nowhere else: not to the profile, which lay above
-  // it for a while.
+  // The profile is a page of a while (owner, 2026-10-19): a step on top of the tab it was opened
+  // from, and a tab left from it keeps its stack without it. Start is the entry under every tab and
+  // leads nowhere else.
   await step("Back: the list", () => page.evaluate(() => history.back()), () => !/[?&]open=/.test(location.search) && !document.querySelector(".detail.is-module"));
-  await step("the profile", () => page.tap(".topbar .top-profile"), () => location.pathname === "/profile");
+  const list = await where(page);
+  await step("the menu of the profiles", () => page.tap(".topbar .top-profile"), () => Boolean(document.querySelector(".profile-menu")));
+  await step("the profile", () => page.tap('.profile-menu a[href="/profile"]'), () => location.pathname === "/profile");
+  check((await stack()) === `${list.entries.slice(0, list.at + 1).join(" ")} /profile`, `the profile is not on top of „Module“: ${await stack()}`);
   await step("„Studium“ from the profile", () => page.tap('.bottomnav a.nav[data-area="programs"]'), () => location.pathname === "/study");
+  await step("„Module“ without the profile", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), (here) => location.pathname + location.search === here, list.here);
+  check((await stack()) === list.entries.slice(0, list.at + 1).join(" "), `„Module“ came back with the profile on it: ${await stack()}`);
   await step("Start", () => page.tap('.bottomnav a.nav[data-area="home"]'), () => location.pathname === "/");
   check((await where(page)).at === 0, `Start is not the first entry: ${JSON.stringify(await where(page))}`);
+});
+
+// ---------- the profile, a page of a while ----------
+// (owner, 2026-10-19: „dass die Profile page, als temporäre seite getreated werden soll wo man dann
+// oben den zurück pfeil hat und genau wieder da landet, wo man davor war")
+await part("the profile", async () => {
+  const { page, step } = await open(PHONE, "/");
+  const toProfile = (name) => step(name, async () => {
+    await page.tap(".topbar .top-profile");
+    await page.waitForSelector('.profile-menu a[href="/profile"]', { timeout: 3000 });
+    await page.tap('.profile-menu a[href="/profile"]');
+  }, () => location.pathname === "/profile" && document.querySelector(".top-back.on"));
+  // A list two levels deep: the catalog, and the catalog with a filter applied, scrolled down.
+  await step("„Module“", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), () => location.pathname === "/catalog" && document.querySelector(".rows a.row"));
+  await step("the filters", () => page.tap(".sheet-toggle"), () => document.getElementById("filters")?.classList.contains("open"));
+  const shown = await page.$eval("#filters .show", (el) => el.textContent);
+  await page.tap('#filters a.chip:has-text("Winter")');
+  await page.waitForFunction((shown) => document.querySelector("#filters .show")?.textContent !== shown, shown, { timeout: 5000 }).catch(() => problems.push("a tap on Winter did not change the count in the sheet"));
+  await step("„Module anzeigen“", () => page.tap("#filters .show"), () => /turnus=winter/.test(location.search) && !document.getElementById("filters").classList.contains("open"));
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.waitForTimeout(300);
+  const list = { ...(await where(page)), y: await page.evaluate(() => Math.round(scrollY)) };
+  check(list.at === 2 && list.y > 1000, `the list is not two levels deep and scrolled: ${JSON.stringify(list)}`);
+  const scrolled = () => page.evaluate(() => Math.round(scrollY));
+  // The arrow: back to the list as it was left, the same entry, scrolled as far.
+  await toProfile("the profile over the list");
+  check((await where(page)).at === list.at + 1, `the profile is not one step on top: ${JSON.stringify(await where(page))}`);
+  await step("the arrow: the list", () => page.tap(".top-back.on"), (here) => location.pathname + location.search === here, list.here);
+  check((await where(page)).at === list.at && Math.abs((await scrolled()) - list.y) < 4, `the arrow did not go back to the list as it was left: ${JSON.stringify(await where(page))}, scrolled ${await scrolled()}`);
+  // Back the same.
+  await toProfile("the profile again");
+  await step("Back: the list", () => back(page), (here) => location.pathname + location.search === here, list.here);
+  check((await where(page)).at === list.at && Math.abs((await scrolled()) - list.y) < 4, `Back did not go back to the list as it was left: ${JSON.stringify(await where(page))}, scrolled ${await scrolled()}`);
+  // The tab under it: the tab as it was left, not its first page.
+  await toProfile("the profile once more");
+  await step("„Module“ from the profile: the list as it was left", () => page.tap('.bottomnav a.nav[data-area="catalog"]'), (here) => location.pathname + location.search === here, list.here);
+  check((await where(page)).at === list.at, `„Module“ from the profile did not lead to the list as it was left: ${JSON.stringify(await where(page))}`);
+  // From Start: back to Start.
+  await step("Start", () => page.tap('.bottomnav a.nav[data-area="home"]'), () => location.pathname === "/");
+  await toProfile("the profile from Start");
+  await step("the arrow: Start", () => page.tap(".top-back.on"), () => location.pathname === "/");
+  check((await where(page)).at === 0, `the arrow did not lead back to Start: ${JSON.stringify(await where(page))}`);
+  // The page come to from outside: the arrow lays Start under it and leads there.
+  const { page: outside, step: outsideStep } = await open(PHONE, "/profile");
+  check(await outside.evaluate(() => Boolean(document.querySelector(".top-back.on")) && document.querySelector(".top-back").getAttribute("href") === "/"), "the profile come to from outside has no arrow to Start");
+  await outsideStep("the arrow from outside: Start", () => outside.tap(".top-back.on"), () => location.pathname === "/");
 });
 
 // ---------- a link from outside ----------
