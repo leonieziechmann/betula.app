@@ -60,12 +60,19 @@ pub struct Texts {
     pub show_exam: &'static str,
     /// The link to the event's page in QIS: „In QIS".
     pub in_qis: &'static str,
-    /// An event's choice, of how many options: „1 von 4 wählen" …
-    pub choose_one_of: fn(usize) -> String,
+    /// An event's choice, how many to take of how many options: „1 von 4 wählen" …
+    pub choose_of: fn(usize, usize) -> String,
     /// … the button and tooltip that open it again once it is made („Wahl aufheben") …
     pub clear_choice: &'static str,
     /// … and the tooltip of an option's line („Diesen wählen").
     pub choose_this: &'static str,
+    /// A choice among the module's events that the plan's program took: „Laut Studiengang; die
+    /// anderen sind für andere Studiengänge." …
+    pub by_program: &'static str,
+    /// … and of an option still to choose among, whether it fits the plan: „passt",
+    /// „überschneidet sich".
+    pub fits: &'static str,
+    pub meets: &'static str,
     /// An option QIS gives no group name for, by its place: „Gruppe 2".
     pub group: fn(usize) -> String,
     /// An event or exam QIS lists without any date: „Termine nicht angegeben".
@@ -157,9 +164,12 @@ pub const DE: Texts = Texts {
     hide_exam: "Prüfung ausblenden",
     show_exam: "Prüfung einblenden",
     in_qis: "In QIS",
-    choose_one_of: |n| format!("1 von {n} wählen"),
+    choose_of: |take, n| format!("{take} von {n} wählen"),
     clear_choice: "Wahl aufheben",
     choose_this: "Diesen wählen",
+    by_program: "Laut Studiengang; die anderen sind für andere Studiengänge.",
+    fits: "passt",
+    meets: "überschneidet sich",
     group: |n| format!("Gruppe {n}"),
     undated: "Termine nicht angegeben",
     hide_date: "Termin ausblenden",
@@ -236,9 +246,12 @@ pub const EN: Texts = Texts {
     hide_exam: "Hide exam",
     show_exam: "Show exam",
     in_qis: "View in QIS",
-    choose_one_of: |n| format!("Choose 1 of {n}"),
+    choose_of: |take, n| format!("Choose {take} of {n}"),
     clear_choice: "Clear choice",
     choose_this: "Choose this one",
+    by_program: "By your programme; the others are for other programmes.",
+    fits: "fits",
+    meets: "clashes",
     group: |n| format!("Group {n}"),
     undated: "Dates not stated",
     hide_date: "Hide this date",

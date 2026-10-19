@@ -43,6 +43,10 @@ pub struct Texts {
     pub kinds_hidden: fn(&str) -> String,
     /// … another option of its choice taken („andere Gruppe gewählt") …
     pub other_group_chosen: &'static str,
+    /// … another option of the choice among its module's events taken („andere Option gewählt"),
+    /// or the plan's program taking another („für andere Studiengänge") …
+    pub other_option_chosen: &'static str,
+    pub other_programs: &'static str,
     /// … its event or Termin hidden („ausgeblendet").
     pub hidden: &'static str,
     /// The buttons of a slot (their names and tooltips): „✓" takes an option of a choice („Diese
@@ -52,6 +56,13 @@ pub struct Texts {
     pub not_this_group: &'static str,
     /// … the „✓" of the option taken takes the choice back („Gruppe abwählen") …
     pub drop_group: &'static str,
+    /// The same of an option of a choice among a module's events: „Diese nehmen", „Nicht diese",
+    /// „Wahl aufheben".
+    pub take_option: &'static str,
+    pub not_this_option: &'static str,
+    pub drop_option: &'static str,
+    /// The tooltip of an extra beside a module's compulsory part: „zusätzlich, freiwillig".
+    pub extra: &'static str,
     /// … „×" hides one Termin of an event of several slots („Termin ausblenden") …
     pub hide_session: &'static str,
     /// … or the whole event, named by its type as QIS writes it: „Vorlesung ausblenden" …
@@ -60,8 +71,8 @@ pub struct Texts {
     pub show_kind: fn(&str) -> String,
     /// … or its Termin („Wieder einblenden").
     pub show_again: &'static str,
-    /// An option of a choice not made yet, of how many: „1 von 4".
-    pub one_of: fn(usize) -> String,
+    /// An option of a choice not made yet, how many to take of how many: „1 von 4".
+    pub one_of: fn(usize, usize) -> String,
     /// How many single dates a slot or a Termin gathers: „1 Termin", „3 Termine".
     pub sessions: fn(usize) -> String,
     /// The weeks a Termin meets in, in words: A weeks („A-Woche"), B weeks („B-Woche"), every
@@ -119,15 +130,21 @@ pub const DE: Texts = Texts {
     clashes_with: |others| format!("überschneidet sich mit {others}"),
     kinds_hidden: |kinds| format!("„{kinds}“ ausgeblendet"),
     other_group_chosen: "andere Gruppe gewählt",
+    other_option_chosen: "andere Option gewählt",
+    other_programs: "für andere Studiengänge",
     hidden: "ausgeblendet",
     take_group: "Diese Gruppe nehmen",
     not_this_group: "Nicht diese Gruppe",
     drop_group: "Gruppe abwählen",
+    take_option: "Diese nehmen",
+    not_this_option: "Nicht diese",
+    drop_option: "Wahl aufheben",
+    extra: "zusätzlich, freiwillig",
     hide_session: "Termin ausblenden",
     hide_event: |kind| format!("{kind} ausblenden"),
     show_kind: |kind| format!("„{kind}“ wieder einblenden"),
     show_again: "Wieder einblenden",
-    one_of: |n| format!("1 von {n}"),
+    one_of: |take, n| format!("{take} von {n}"),
     sessions: |n| if n == 1 { "1 Termin".to_string() } else { format!("{n} Termine") },
     in_week_a: "A-Woche",
     in_week_b: "B-Woche",
@@ -166,15 +183,21 @@ pub const EN: Texts = Texts {
     clashes_with: |others| format!("clashes with {others}"),
     kinds_hidden: |kinds| format!("“{kinds}” hidden"),
     other_group_chosen: "another group chosen",
+    other_option_chosen: "another option chosen",
+    other_programs: "for other programmes",
     hidden: "hidden",
     take_group: "Take this group",
     not_this_group: "Not this group",
     drop_group: "Deselect this group",
+    take_option: "Take this one",
+    not_this_option: "Not this one",
+    drop_option: "Undo the choice",
+    extra: "additional, optional",
     hide_session: "Hide this session",
     hide_event: |kind| format!("Hide {kind}"),
     show_kind: |kind| format!("Show “{kind}” again"),
     show_again: "Show again",
-    one_of: |n| format!("1 of {n}"),
+    one_of: |take, n| format!("{take} of {n}"),
     sessions: |n| if n == 1 { "1 session".to_string() } else { format!("{n} sessions") },
     in_week_a: "week A",
     in_week_b: "week B",

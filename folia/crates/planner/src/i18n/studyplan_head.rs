@@ -66,8 +66,12 @@ pub struct Texts {
     /// (how many options there are, the event's type as QIS writes it, the title); the neutral
     /// „Terminen", never glued to the type.
     pub blocked: fn(usize, &str, &str) -> String,
-    /// „1 von 3 wählen: Übung · Mathematik IT-1": a choice still open.
-    pub choose_one: fn(usize, &str, &str) -> String,
+    /// „Zu wenige Termine frei für 2 von 5: Seminar · …": a choice among a module's events that
+    /// asks for more than one option, and too few of them are free.
+    pub blocked_of: fn(usize, usize, &str, &str) -> String,
+    /// „1 von 3 wählen: Übung · Mathematik IT-1": a choice still open, how many to take of how
+    /// many.
+    pub choose: fn(usize, usize, &str, &str) -> String,
     /// „Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg": the modules
     /// taught in both towns, their titles joined with „, ".
     pub choose_town: fn(&str) -> String,
@@ -99,6 +103,9 @@ pub struct Texts {
     /// … „Programmierpraktikum in Cottbus-Sachsendorf laut Studiengang": those courses, joined with
     /// „, ".
     pub courses_derived: fn(&str) -> String,
+    /// An option of a choice among a module's events the program takes, in `courses_derived`:
+    /// „Höhere Mathematik - T3: Übung Di 07:30" (the module, its option's type and times).
+    pub option_of: fn(&str, &str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -145,7 +152,8 @@ pub const DE: Texts = Texts {
     week_a: "A-Woche",
     week_b: "B-Woche",
     blocked: |options, kind, title| format!("0 von {options} Terminen frei: {kind} · {title}"),
-    choose_one: |options, kind, title| format!("1 von {options} wählen: {kind} · {title}"),
+    blocked_of: |take, options, kind, title| format!("Zu wenige Termine frei für {take} von {options}: {kind} · {title}"),
+    choose: |take, options, kind, title| format!("{take} von {options} wählen: {kind} · {title}"),
     choose_town: |modules| format!("Standort wählen: {modules} · Cottbus oder Senftenberg"),
 
     exam_of: |title| format!("Prüfung {title}"),
@@ -160,6 +168,7 @@ pub const DE: Texts = Texts {
     town_derived: |town| format!("Standort {town}"),
     course_in: |module, campus| format!("{module} in {campus}"),
     courses_derived: |courses| format!("{courses} laut Studiengang"),
+    option_of: |module, option| format!("{module}: {option}"),
 };
 
 pub const EN: Texts = Texts {
@@ -209,7 +218,8 @@ pub const EN: Texts = Texts {
     week_a: "week A",
     week_b: "week B",
     blocked: |options, kind, title| format!("0 of {options} sessions free: {kind} · {title}"),
-    choose_one: |options, kind, title| format!("Choose 1 of {options}: {kind} · {title}"),
+    blocked_of: |take, options, kind, title| format!("Too few sessions free for {take} of {options}: {kind} · {title}"),
+    choose: |take, options, kind, title| format!("Choose {take} of {options}: {kind} · {title}"),
     choose_town: |modules| format!("Choose a location: {modules} · Cottbus or Senftenberg"),
 
     exam_of: |title| format!("Exam {title}"),
@@ -224,4 +234,5 @@ pub const EN: Texts = Texts {
     town_derived: |town| format!("location {town}"),
     course_in: |module, campus| format!("{module} in {campus}"),
     courses_derived: |courses| format!("{courses} by your program"),
+    option_of: |module, option| format!("{module}: {option}"),
 };

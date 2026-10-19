@@ -21,6 +21,9 @@ pub struct Texts {
     /// … the tooltip of a chip whose kind is hidden, and of one that is shown …
     pub unhide: &'static str,
     pub hide: &'static str,
+    /// The chip of the extras beside the modules' compulsory parts (tutorials, Aufbaukurse):
+    /// „Zusatz".
+    pub extras: &'static str,
     /// … the line without any Termin …
     pub no_dates: &'static str,
     /// … and under the chips, where an event counts for several kinds (their labels joined with
@@ -75,6 +78,7 @@ pub const DE: Texts = Texts {
     show: "Zeigen",
     unhide: "Einblenden",
     hide: "Ausblenden",
+    extras: "Zusatz",
     no_dates: "Keine Termine im Plan.",
     combined: |labels, kinds| match kinds {
         2 => format!("„{labels}“ zählt als beides."),
@@ -113,6 +117,7 @@ pub const EN: Texts = Texts {
     show: "Show",
     unhide: "Show",
     hide: "Hide",
+    extras: "Extra",
     no_dates: "No dates in the plan.",
     combined: |labels, kinds| match kinds {
         2 => format!("“{labels}” counts as both."),

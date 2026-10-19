@@ -105,7 +105,11 @@
 /// before the first search, as a search field takes the focus, and the row of a search: the line
 /// that says what else found the module (the other title, a lecturer) as wide as the row, the
 /// title marked where an abbreviation found the module too, and in the abbreviation's tag what the
-/// query names of it. The version of the app's crates, the same as the server's; Radix's is in the
+/// query names of it; 1.33.0 with the choices among a module's events in the Stundenplan: an open
+/// choice's options dashed in the week („1 von 3", „✓ Diese nehmen"), in the panel with „passt",
+/// taken by a tap or preselected for the plan's program, weighed as alternatives in overlaps and
+/// in „Passt in meinen Stundenplan", in the calendar once chosen; the extras lighter, behind the
+/// chip „Zusatz". The version of the app's crates, the same as the server's; Radix's is in the
 /// snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

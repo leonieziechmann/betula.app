@@ -718,6 +718,12 @@ pub struct StudyplanData {
     /// program.
     #[serde(default)]
     pub taken: Vec<TrackProgram>,
+    /// The choices among the modules' events (`modules_choices`, schema 17), and the options of
+    /// them QIS lists `program` at (`modules_choice_listed`; empty without a program).
+    #[serde(default)]
+    pub choices: Vec<ChoiceOption>,
+    #[serde(default)]
+    pub listed: Vec<ChoiceFamily>,
 }
 
 /// The Studienplan of `ids` in semester `key`, for a page in `locale`. For the browser (ids from
@@ -750,6 +756,11 @@ pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program
             Some(program) => queries::modules_tracks(db, &ids, &semester_key, program)?,
             None => Vec::new(),
         },
+        choices: queries::modules_choices(db, &ids, &semester_key)?,
+        listed: match program_id {
+            Some(program) => queries::modules_choice_listed(db, &ids, &semester_key, program)?,
+            None => Vec::new(),
+        },
         program: program_id.map(str::to_string),
         semester,
         ids,
@@ -777,6 +788,8 @@ impl StudyplanData {
             exams: &self.exams,
             sws: &self.sws,
             taken: &self.taken,
+            choices: &self.choices,
+            listed: &self.listed,
         };
         Timetable::build(&input, selection)
     }
@@ -810,8 +823,10 @@ impl StudyplanData {
     /// The same data with one more module's rows (a module page's overlay): no new SQL for the
     /// planned set. The module joins `ids` at the end; rows it had already are replaced, so its
     /// SWS count once, and rows of other modules in the arguments are left out. `modules` and
-    /// `missing` stay those of the plan. An id that is no module id changes nothing.
-    pub fn with_module(&self, id: &str, schedule: Vec<DateRow>, exams: Vec<DateRow>, sws: Vec<ModuleSws>) -> StudyplanData {
+    /// `missing` stay those of the plan. An id that is no module id changes nothing. `choices` are
+    /// the module's choices among its events and the options of them QIS lists the plan's program
+    /// at (`modules_choices`, `modules_choice_listed`).
+    pub fn with_module(&self, id: &str, schedule: Vec<DateRow>, exams: Vec<DateRow>, sws: Vec<ModuleSws>, choices: (Vec<ChoiceOption>, Vec<ChoiceFamily>)) -> StudyplanData {
         let mut data = self.clone();
         if !folia_model::ids::is_module_id(id) {
             return data;
@@ -819,9 +834,13 @@ impl StudyplanData {
         data.schedule.retain(|row| row.module_id != id);
         data.exams.retain(|row| row.module_id != id);
         data.sws.retain(|row| row.module_id != id);
+        data.choices.retain(|row| row.module_id != id);
+        data.listed.retain(|row| row.module_id != id);
         data.schedule.extend(schedule.into_iter().filter(|row| row.module_id == id));
         data.exams.extend(exams.into_iter().filter(|row| row.module_id == id));
         data.sws.extend(sws.into_iter().filter(|row| row.module_id == id));
+        data.choices.extend(choices.0.into_iter().filter(|row| row.module_id == id));
+        data.listed.extend(choices.1.into_iter().filter(|row| row.module_id == id));
         if !data.ids.iter().any(|known| known == id) {
             data.ids.push(id.to_string());
         }
@@ -1028,6 +1047,7 @@ pub fn fit(
     }
     let exams = queries::semester_exams(db, &semester_key)?;
     let sws = queries::semester_teaching_sws(db, &semester_key)?;
+    let choices = queries::semester_choices(db, &semester_key)?;
     let semester = queries::semesters(db)?.into_iter().find(|semester| semester.key == semester_key);
     let facts = SemesterFacts::derive(key, semester.as_ref(), &queries::semester_date_counts(db, &semester_key)?);
 
@@ -1041,6 +1061,8 @@ pub fn fit(
         exams: &exams,
         sws: &sws,
         taken: &[],
+        choices: &choices,
+        listed: &[],
     };
     let plan = Timetable::build(&input, selection);
     let options = filter.options();
@@ -1048,7 +1070,7 @@ pub fn fit(
     let set = match cache.take() {
         Some(set) if set.key == wanted => set,
         _ => {
-            let rows = Candidates { schedule: &schedule, exams: &exams, sws: &sws };
+            let rows = Candidates { schedule: &schedule, exams: &exams, sws: &sws, choices: &choices };
             fit::candidates(&rows, &facts, semester.as_ref(), selection, plan.town, options)
         }
     };
@@ -1114,11 +1136,16 @@ pub struct OverlaySlot {
 pub fn overlay(db: &dyn Database, plan: &StudyplanData, module_id: &str, selection: &Selection) -> Result<Overlay, DbError> {
     let id = [module_id.to_string()];
     let semester = plan.key.key();
+    let listed = match plan.program.as_deref() {
+        Some(program) => queries::modules_choice_listed(db, &id, &semester, program)?,
+        None => Vec::new(),
+    };
     let data = plan.with_module(
         module_id,
         queries::modules_schedule(db, &id, &semester)?,
         queries::modules_exams(db, &id, &semester)?,
         queries::modules_teaching_sws(db, &id)?,
+        (queries::modules_choices(db, &id, &semester)?, listed),
     );
     let table = data.timetable(selection);
     Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id, data.locale))
@@ -1741,7 +1768,7 @@ mod studyplan_tests {
         let rows = queries::modules_schedule(&db, &id, &key.key()).unwrap();
         let exams = queries::modules_exams(&db, &id, &key.key()).unwrap();
         let sws = queries::modules_teaching_sws(&db, &id).unwrap();
-        let with = plan.with_module("11103", rows.clone(), exams.clone(), sws.clone());
+        let with = plan.with_module("11103", rows.clone(), exams.clone(), sws.clone(), (Vec::new(), Vec::new()));
         assert_eq!(with.ids, ids(&["12104", "12107", "12102", "11112", "11103"]));
         assert_eq!(with.schedule, [plan.schedule.clone(), rows.clone()].concat());
         assert_eq!(with.exams, [plan.exams.clone(), exams.clone()].concat());
@@ -1749,11 +1776,11 @@ mod studyplan_tests {
         assert_eq!((&with.modules, &with.missing), (&plan.modules, &plan.missing));
         // A planned module added again replaces its rows: its SWS count once.
         let own = |data: &StudyplanData, id: &str| data.sws.iter().filter(|s| s.module_id == id).count();
-        let twice = with.with_module("11103", rows, exams, sws);
+        let twice = with.with_module("11103", rows, exams, sws, (Vec::new(), Vec::new()));
         assert_eq!(twice.ids, with.ids);
         assert_eq!(own(&twice, "11103"), own(&with, "11103"));
         assert_eq!(twice.schedule.len(), with.schedule.len());
-        assert_eq!(plan.with_module("1 OR 1=1", Vec::new(), Vec::new(), Vec::new()), plan);
+        assert_eq!(plan.with_module("1 OR 1=1", Vec::new(), Vec::new(), Vec::new(), (Vec::new(), Vec::new())), plan);
 
         if is_pinned {
             // A semester the snapshot does not have: no row, no Termin.
@@ -1974,7 +2001,7 @@ mod studyplan_tests {
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
         let input =
-            Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws: &[], taken: &[] };
+            Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws: &[], taken: &[], choices: &[], listed: &[] };
         let table = Timetable::build(&input, &Selection::default());
         invariants(&table);
         let titles: BTreeMap<String, String> =

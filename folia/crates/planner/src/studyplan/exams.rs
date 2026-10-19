@@ -528,7 +528,7 @@ mod tests {
     fn table(modules: &[&str], exams: &[DateRow], selection: &Selection) -> Timetable {
         let facts = SemesterFacts::derive(key(), None, &[]);
         let modules: Vec<String> = modules.iter().map(|module| module.to_string()).collect();
-        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &[], exams, sws: &[], taken: &[] };
+        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &[], exams, sws: &[], taken: &[], choices: &[], listed: &[] };
         Timetable::build(&input, selection)
     }
 

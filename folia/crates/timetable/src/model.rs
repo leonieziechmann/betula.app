@@ -23,6 +23,18 @@
 //! (a snapshot before schema 15), a module with a lecture and a non-lecture event in each town has
 //! two towns' courses, as before.
 //!
+//! Radix also reads which events of a module one attends some of, not all (docs/radix/schema-v2.md,
+//! „Choices"; `Input::choices`): one of the three exercises of Höhere Mathematik T3, each for other
+//! programs, one of 14 projects, a group. Such a choice across a module's events is `Across`: what
+//! the visitor chose („Nur diesen" on a Termin of an option) is taken, else, where the options are
+//! for other programs, the one QIS lists the plan's program at (owner, 2026-10-19, the concept of
+//! folia/design/wahlangebote/konzept.html: „Was QIS einem Studiengang zuordnet, wählt Betula für
+//! ihn vor. Alles andere ist eine offene Wahl, bei der nichts verschwindet, bis man selbst gewählt
+//! hat"); the options left out are hidden (`HiddenBy::Option`, `HiddenBy::Program`). An open choice
+//! shows every option, and its options meet nothing as long as one of them is free (`clash`). An
+//! extra beside a module's compulsory part (`Event::extra`) is attended by whoever wants to: it
+//! meets nothing.
+//!
 //! Then the visitor's selection: hidden events, kinds and Termine, and made choices. Every event
 //! and row says why it is not shown (`HiddenBy`, the first rule that holds). The clashes of what
 //! is left are `clash`'s, the exams and their warnings `exams`'.
@@ -35,9 +47,9 @@ use folia_calendar::kind::{class_of, kinds_of, Class, EventKind, KindSet};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{town_of, town_of_campus, HiddenBy, Selection, Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
-use folia_model::labels::Campus;
+use folia_model::labels::{Campus, ChoiceKind};
 use folia_model::rows::Semester;
-use folia_model::rows_detail::{DateRow, EventDate, ModuleSws, TrackProgram};
+use folia_model::rows_detail::{ChoiceFamily, ChoiceOption, DateRow, EventDate, ModuleSws, TrackProgram};
 
 use crate::clash::{self, Clash};
 use crate::exams::{self, Exam, ExamWarning};
@@ -81,6 +93,12 @@ pub struct Input<'a> {
     /// The courses the plan's program takes of the modules held as courses at two campuses or more
     /// (`modules_tracks`); empty without a program.
     pub taken: &'a [TrackProgram],
+    /// The choices among the planned modules' events (`modules_choices`), a row per event of an
+    /// option; empty before schema 17.
+    pub choices: &'a [ChoiceOption],
+    /// The options QIS lists the plan's program at (`modules_choice_listed`): of a choice whose
+    /// options are for other programs, those it takes. Empty without a program.
+    pub listed: &'a [ChoiceFamily],
 }
 
 /// One semester of a Studienplan, with the visitor's selection applied.
@@ -109,18 +127,94 @@ pub struct Timetable {
     pub town: Option<Town>,
     /// The town was derived from the plan's other modules, not chosen.
     pub town_derived: bool,
+    /// The choices among the planned modules' events, in the order of the modules and their
+    /// choices (`Across`).
+    pub choices: Vec<Across>,
     /// Hard teaching clashes (`clash::clashes`).
     pub clashes: Vec<Clash>,
     /// Open choices (`Event::unresolved`) that cannot take an option free of clashes, by event
     /// index (`clash::clashes`). A clash names each of them; the rows of all hard clashes are
     /// `clash::hard_rows`.
     pub blocked: Vec<usize>,
+    /// The same of the open choices among a module's events, by index into `choices`.
+    pub blocked_choices: Vec<usize>,
     /// Exam warnings (`exams::exam_warnings`).
     pub exam_warnings: Vec<ExamWarning>,
     /// Days on which a hop between exams cannot be judged, with their modules.
     pub place_unknown: Vec<(Day, Vec<String>)>,
     /// Planned modules without a dated teaching row this semester, in plan order.
     pub without_dates: Vec<String>,
+}
+
+/// A choice among the events of a planned module (docs/radix/schema-v2.md, „Choices"): of its
+/// options a student attends `pick`, each option one event or more.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Across {
+    pub module: String,
+    /// Its number in the module's semester (`v_module_choice.choice`).
+    pub number: u32,
+    pub kind: ChoiceKind,
+    pub pick: usize,
+    /// Per option its events, by index into `Timetable::events`, and its number
+    /// (`v_module_choice.option`), in the order of the numbers.
+    pub options: Vec<Vec<usize>>,
+    pub numbers: Vec<u32>,
+    /// The options taken, and what took them: the visitor's choice (a Termin of an option in
+    /// `Selection::chosen_rows`), else the plan's program. Fewer than `pick` leave the choice open
+    /// among the others.
+    pub taken: BTreeSet<usize>,
+    pub by: Option<TakenBy>,
+    /// The options the plan's program narrows the choice to, where QIS lists it at more of them
+    /// than one takes: the others are hidden (`HiddenBy::Program`).
+    pub narrowed: Option<BTreeSet<usize>>,
+}
+
+/// What took the options of a choice among a module's events.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TakenBy {
+    /// The visitor chose them („Nur diesen").
+    Chosen,
+    /// QIS lists the plan's program at them, and at no other option.
+    Program,
+}
+
+impl Across {
+    /// The options with a Termin shown, in order.
+    pub fn visible(&self, events: &[Event]) -> Vec<usize> {
+        let shown = |event: &usize| events.get(*event).is_some_and(|event| event.hidden.is_none() && (event.rows.is_empty() || event.rows.iter().any(|row| row.hidden.is_none())));
+        self.options.iter().enumerate().filter(|(_, events)| events.iter().any(shown)).map(|(option, _)| option).collect()
+    }
+
+    /// Whether the student still picks among its options: more of them are shown than one takes.
+    pub fn open(&self, events: &[Event]) -> bool {
+        self.visible(events).len() > self.pick
+    }
+
+    /// The options still to choose among: shown, not taken; empty when the choice is not open.
+    pub fn choosable(&self, events: &[Event]) -> Vec<usize> {
+        match self.open(events) {
+            true => self.visible(events).into_iter().filter(|option| !self.taken.contains(option)).collect(),
+            false => Vec::new(),
+        }
+    }
+
+    /// How many of the options to choose among one still takes („2 von 5"): 0 when the choice is
+    /// not open.
+    pub fn take(&self, events: &[Event]) -> usize {
+        self.pick.saturating_sub(self.taken.len()).min(self.choosable(events).len())
+    }
+}
+
+/// The option of a choice among its module's events an event is (`Timetable::choices`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Alt {
+    /// The choice, by index into `Timetable::choices`, and the option, by index into its options.
+    pub choice: usize,
+    pub option: usize,
+    /// The choice is open and this option is not taken: one to choose among („1 von 3").
+    pub open: bool,
+    /// How many of the options to choose among one still takes; 0 where `open` is not.
+    pub take: usize,
 }
 
 /// Which courses of a module with tracks a timetable shows, and what decided it.
@@ -175,6 +269,11 @@ pub struct Event {
     /// 1..=8, from the plan position of its first module.
     pub tone: u8,
     pub attendance: Attendance,
+    /// The option of a choice among its module's events it is (`Across`); `None` for most.
+    pub across: Option<Alt>,
+    /// An extra beside its module's compulsory part (`EventDate::extra`): attended by whoever
+    /// wants to, it meets nothing (`clash`).
+    pub extra: bool,
     /// The option a made choice („Nur diesen") picked.
     pub chosen: Option<usize>,
     /// Its dated rows by `ord`; empty for an event without dates („ohne Termine").
@@ -287,6 +386,7 @@ impl Timetable {
         for event in &mut events {
             decide(event, input.sws);
         }
+        let mut choices = choices_of(input.choices, &mut events, &modules, input.key);
         let courses = courses(input.schedule, &modules);
         let tracks = tracks(&events, &modules, &courses);
         let (town, town_derived) = effective_town(selection.town, &events, &tracks, selection.town_from.as_ref());
@@ -295,7 +395,8 @@ impl Timetable {
             event.hidden = event_hidden(event, selection, &shown);
             choose(event, selection);
         }
-        let (clashes, blocked) = clash::clashes(&events);
+        take(&mut choices, &mut events, input.listed, selection);
+        let (clashes, blocked, blocked_choices) = clash::clashes(&events);
         let towns: BTreeMap<String, BTreeSet<Town>> = shown.iter().map(|(module, shown)| (module.clone(), shown.towns.clone())).collect();
         let exams = exams::exams_of(input.exams, input.semester, &modules, selection, &towns);
         let (exam_warnings, place_unknown) = exams::exam_warnings(&exams, &modules);
@@ -315,8 +416,10 @@ impl Timetable {
             shown,
             town,
             town_derived,
+            choices,
             clashes,
             blocked,
+            blocked_choices,
             exam_warnings,
             place_unknown,
             without_dates,
@@ -417,6 +520,8 @@ fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Ve
             course: if courses.len() == 1 { courses.first().copied().flatten() } else { None },
             tone: tone(position),
             attendance: Attendance::All,
+            across: None,
+            extra: rows.iter().any(|row| row.date.extra),
             chosen: None,
             // A row without `ord` is the view's line for an event without dates: no row at all.
             rows: rows.iter().filter(|row| row.ord.is_some()).map(|row| Row::of(row, facts)).collect(),
@@ -713,6 +818,137 @@ fn event_hidden(event: &Event, selection: &Selection, shown: &BTreeMap<String, S
     }
 }
 
+/// The choices among the planned modules' events of the semester (`Input::choices`), each event
+/// marked as the option it is (`Event::across`), in the order of the modules and their numbers.
+/// An event another planned module links as well stays required (that module attends it), so it is
+/// no option; an option left without an event of the plan is none, and a choice left with fewer
+/// than two options is none.
+fn choices_of(rows: &[ChoiceOption], events: &mut [Event], modules: &[String], key: SemesterKey) -> Vec<Across> {
+    let semester = key.key();
+    /// A choice found: its module, number, kind, pick, and per option number its events.
+    type Found = (String, u32, ChoiceKind, usize, BTreeMap<u32, Vec<usize>>);
+    let mut found: Vec<Found> = Vec::new();
+    for row in rows.iter().filter(|row| row.semester_key == semester) {
+        let Some(at) = events.iter().position(|event| event.id == row.event_id && event.modules == [row.module_id.clone()]) else { continue };
+        let index = match found.iter().position(|(module, number, ..)| *module == row.module_id && *number == row.choice) {
+            Some(index) => index,
+            None => {
+                let kind = row.kind.known().unwrap_or(ChoiceKind::Topic);
+                found.push((row.module_id.clone(), row.choice, kind, usize::try_from(row.pick).unwrap_or(1).max(1), BTreeMap::new()));
+                found.len() - 1
+            }
+        };
+        if let Some((.., options)) = found.get_mut(index) {
+            let option = options.entry(row.option).or_default();
+            if !option.contains(&at) {
+                option.push(at);
+            }
+        }
+    }
+    let position = |module: &str| modules.iter().position(|known| known == module).unwrap_or(usize::MAX);
+    found.sort_by_key(|(module, number, ..)| (position(module), *number));
+    let mut choices = Vec::new();
+    for (module, number, kind, pick, options) in found {
+        if options.len() < 2 || options.len() <= pick {
+            continue;
+        }
+        let index = choices.len();
+        for (option, (_, held)) in options.iter().enumerate() {
+            for event in held {
+                if let Some(event) = events.get_mut(*event) {
+                    event.across = Some(Alt { choice: index, option, open: false, take: 0 });
+                }
+            }
+        }
+        choices.push(Across {
+            module,
+            number,
+            kind,
+            pick,
+            numbers: options.keys().copied().collect(),
+            options: options.into_values().collect(),
+            taken: BTreeSet::new(),
+            by: None,
+            narrowed: None,
+        });
+    }
+    choices
+}
+
+/// What is decided of each choice among a module's events, and the events of the options it
+/// leaves out hidden: the options a Termin of which the visitor chose (`Selection::chosen_rows`);
+/// else, of a choice whose options are for other programs, those QIS lists the plan's program at
+/// (`Input::listed`) — as many as one takes, or more, among which it then chooses. An event hidden
+/// for another reason stays so. Then each option's events say whether they are one to choose
+/// among (`Alt::open`).
+fn take(choices: &mut [Across], events: &mut [Event], listed: &[ChoiceFamily], selection: &Selection) {
+    for across in choices.iter_mut() {
+        let chosen: BTreeSet<usize> = across
+            .options
+            .iter()
+            .enumerate()
+            .filter(|(_, held)| {
+                held.iter().filter_map(|event| events.get(*event)).flat_map(|event| &event.rows).any(|row| row.key.is_some_and(|key| selection.chosen_rows.contains(&key)))
+            })
+            .map(|(option, _)| option)
+            .collect();
+        if !chosen.is_empty() {
+            across.taken = chosen;
+            across.by = Some(TakenBy::Chosen);
+        } else if across.kind == ChoiceKind::Program {
+            let own: BTreeSet<usize> = across
+                .numbers
+                .iter()
+                .enumerate()
+                .filter(|(_, number)| listed.iter().any(|row| row.module_id == across.module && row.choice == across.number && row.option == **number))
+                .map(|(option, _)| option)
+                .collect();
+            if !own.is_empty() && own.len() < across.options.len() {
+                match own.len() <= across.pick {
+                    true => {
+                        across.taken = own;
+                        across.by = Some(TakenBy::Program);
+                    }
+                    false => across.narrowed = Some(own),
+                }
+            }
+        }
+        // The options left out: all but those taken once enough are, else all but those the
+        // program narrows the choice to.
+        let (out, by): (Vec<usize>, HiddenBy) = match (&across.by, &across.narrowed) {
+            (Some(by), _) if across.taken.len() >= across.pick => {
+                let by = if *by == TakenBy::Chosen { HiddenBy::Option } else { HiddenBy::Program };
+                ((0..across.options.len()).filter(|option| !across.taken.contains(option)).collect(), by)
+            }
+            (None, Some(narrowed)) => ((0..across.options.len()).filter(|option| !narrowed.contains(option)).collect(), HiddenBy::Program),
+            _ => (Vec::new(), HiddenBy::Option),
+        };
+        for option in out {
+            for event in across.options.get(option).into_iter().flatten() {
+                if let Some(event) = events.get_mut(*event) {
+                    if event.hidden.is_none() {
+                        event.hidden = Some(by);
+                        for row in &mut event.rows {
+                            row.hidden = Some(by);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (index, across) in choices.iter().enumerate() {
+        let (choosable, take) = (across.choosable(events), across.take(events));
+        for (option, held) in across.options.iter().enumerate() {
+            let open = choosable.contains(&option);
+            for event in held {
+                if let Some(event) = events.get_mut(*event) {
+                    event.across = Some(Alt { choice: index, option, open, take: if open { take } else { 0 } });
+                }
+            }
+        }
+    }
+}
+
 /// A `veranstid` as the selection keeps it: digits without a leading zero that fit a `u32`.
 fn event_number(id: &str) -> Option<u32> {
     let canonical = !id.is_empty() && !id.starts_with('0') && id.bytes().all(|byte| byte.is_ascii_digit());
@@ -866,6 +1102,18 @@ pub mod tests {
             self
         }
 
+        /// A row of an event that is option `option` of its module's choice 1 (`EventDate::choice`).
+        pub fn option(mut self, option: u32) -> Self {
+            (self.0.date.choice, self.0.date.option) = (Some(1), Some(option));
+            self
+        }
+
+        /// A row of an extra beside the module's compulsory part (`EventDate::extra`).
+        pub fn extra(mut self) -> Self {
+            self.0.date.extra = true;
+            self
+        }
+
         /// A row of a series of single dates (`EventDate::series`) named by the row of `first`.
         pub fn series(mut self, first: i64, weeks: u8) -> Self {
             self.0.date.series = Some(folia_model::rows_detail::Series { first, weeks });
@@ -883,7 +1131,50 @@ pub mod tests {
 
     /// The timetable of synthetic rows of 2026W.
     pub fn table(rows: &[Fixture], modules: &[&str], sws: &[ModuleSws], selection: &Selection) -> Timetable {
-        built(rows, modules, sws, &[], selection)
+        built(rows, modules, sws, &[], &[], &[], selection)
+    }
+
+    /// The timetable of synthetic rows of 2026W with the choices among their events `choices`
+    /// (their rows' `choice` and `option` are the fixtures' own, `Fixture::option`), of whose
+    /// options the plan's program is listed at `listed`.
+    pub fn choosing(rows: &[Fixture], modules: &[&str], choices: &[ChoiceOption], listed: &[ChoiceFamily], selection: &Selection) -> Timetable {
+        let t = built(rows, modules, &[], &[], choices, listed, selection);
+        // The week of the choices holds too (in this crate's own tests).
+        #[cfg(test)]
+        crate::views::tests::invariants(&t);
+        t
+    }
+
+    /// A row of `v_module_choice`: of `module`'s choice 1 of `kind` in 2026W, of which one takes
+    /// `pick`, option `option` holds `event`.
+    pub fn choice_row(module: &str, kind: &str, pick: u32, option: u32, event: &str) -> ChoiceOption {
+        ChoiceOption {
+            module_id: module.into(),
+            semester_key: "2026W".into(),
+            choice: 1,
+            course: None,
+            kind: Code::parse(kind),
+            basis: Code::parse("form"),
+            sws: Some(2.0),
+            pick,
+            option,
+            event_id: event.into(),
+            label: None,
+            event_sws: Some(2.0),
+        }
+    }
+
+    /// The plan's program listed at option `option` of `module`'s choice 1 (`Input::listed`).
+    pub fn listed_at(module: &str, option: u32) -> ChoiceFamily {
+        ChoiceFamily {
+            module_id: module.into(),
+            semester_key: "2026W".into(),
+            choice: 1,
+            option,
+            family_key: "017-82".into(),
+            program_name: "Bauingenieurwesen".into(),
+            is_latest_po: true,
+        }
     }
 
     /// A course the plan's program takes (`Input::taken`): of `module` the one at `campus`.
@@ -903,10 +1194,11 @@ pub mod tests {
 
     /// The timetable of synthetic rows of 2026W whose program takes the courses `taken`.
     pub fn taking(rows: &[Fixture], modules: &[&str], taken: &[TrackProgram], selection: &Selection) -> Timetable {
-        built(rows, modules, &[], taken, selection)
+        built(rows, modules, &[], taken, &[], &[], selection)
     }
 
-    fn built(rows: &[Fixture], modules: &[&str], sws: &[ModuleSws], taken: &[TrackProgram], selection: &Selection) -> Timetable {
+    #[allow(clippy::too_many_arguments)]
+    fn built(rows: &[Fixture], modules: &[&str], sws: &[ModuleSws], taken: &[TrackProgram], choices: &[ChoiceOption], listed: &[ChoiceFamily], selection: &Selection) -> Timetable {
         let facts = winter();
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
@@ -919,6 +1211,8 @@ pub mod tests {
             exams: &[],
             sws,
             taken,
+            choices,
+            listed,
         };
         let built = Timetable::build(&input, selection);
         invariants(&built);
@@ -947,7 +1241,7 @@ pub mod tests {
         let schedule = queries::modules_schedule(db, modules, semester).unwrap();
         let exams = queries::modules_exams(db, modules, semester).unwrap();
         let sws = queries::modules_teaching_sws(db, modules).unwrap();
-        let input = Input { key, semester: row, facts: &facts, modules, schedule: &schedule, exams: &exams, sws: &sws, taken: &[] };
+        let input = Input { key, semester: row, facts: &facts, modules, schedule: &schedule, exams: &exams, sws: &sws, taken: &[], choices: &[], listed: &[] };
         let built = Timetable::build(&input, selection);
         invariants(&built);
         built
@@ -1018,9 +1312,43 @@ pub mod tests {
             assert!(!t.blocked.contains(&i) || e.unresolved(), "{}", e.id);
         }
         assert!(t.blocked.windows(2).all(|w| w[0] < w[1]));
+        // The choices among a module's events: each event of an option says so, an option taken
+        // or narrowed to is one of them, and what they hide is an option left out.
+        for (c, across) in t.choices.iter().enumerate() {
+            assert!(across.options.len() >= 2 && across.options.len() > across.pick && across.numbers.len() == across.options.len(), "{}", across.module);
+            for (o, held) in across.options.iter().enumerate() {
+                assert!(!held.is_empty());
+                for e in held {
+                    let alt = t.events[*e].across.unwrap_or_else(|| panic!("{} is no option", t.events[*e].id));
+                    assert_eq!((alt.choice, alt.option), (c, o));
+                    assert!(t.events[*e].modules == [across.module.clone()], "{}", t.events[*e].id);
+                    assert_eq!(alt.open, across.choosable(&t.events).contains(&o));
+                }
+            }
+            assert!(across.taken.iter().all(|o| *o < across.options.len()) && across.taken.is_empty() == across.by.is_none());
+            assert!(across.narrowed.as_ref().is_none_or(|narrowed| narrowed.len() > across.pick && across.by.is_none()));
+        }
+        for e in &t.events {
+            if matches!(e.hidden, Some(HiddenBy::Option | HiddenBy::Program)) {
+                let alt = e.across.unwrap_or_else(|| panic!("{} hidden as an option", e.id));
+                let across = &t.choices[alt.choice];
+                assert!(!across.taken.contains(&alt.option) && !across.narrowed.as_ref().is_some_and(|narrowed| narrowed.contains(&alt.option)), "{}", e.id);
+                assert!(!alt.open, "{}", e.id);
+            }
+        }
+        assert!(t.blocked_choices.windows(2).all(|w| w[0] < w[1]));
+        for b in &t.blocked_choices {
+            assert!(t.choices[*b].open(&t.events), "{} blocked, not open", t.choices[*b].module);
+            assert!(
+                t.clashes.iter().any(|c| [c.a.0, c.b.0].iter().any(|e| t.events[*e].across.is_some_and(|alt| alt.choice == *b))),
+                "{} blocked, named by no clash",
+                t.choices[*b].module
+            );
+        }
         for clash in &t.clashes {
             let (ea, eb) = (&t.events[clash.a.0], &t.events[clash.b.0]);
             let (ra, rb) = (&ea.rows[clash.a.1], &eb.rows[clash.b.1]);
+            assert!(!ea.extra && !eb.extra, "{} × {}: an extra meets nothing", ea.id, eb.id);
             assert!(clash.a.0 < clash.b.0);
             assert!(ea.modules.iter().all(|m| !eb.modules.contains(m)), "{} × {}", ea.id, eb.id);
             assert!(ea.hidden.is_none() && eb.hidden.is_none() && ra.hidden.is_none() && rb.hidden.is_none());
@@ -1048,7 +1376,8 @@ pub mod tests {
             let e = &t.events[*event];
             let r = &e.rows[*row];
             assert!(e.hidden.is_none() && r.hidden.is_none() && r.from.is_some());
-            assert!(r.option.is_none() || !e.unresolved() || t.blocked.contains(event), "{}/{:?}", e.id, r.ord);
+            assert!(r.option.is_none() || !e.unresolved() || t.blocked.contains(event) || e.across.is_some_and(|alt| alt.open), "{}/{:?}", e.id, r.ord);
+            assert!(e.across.is_none_or(|alt| !alt.open || t.blocked_choices.contains(&alt.choice)), "{}/{:?}", e.id, r.ord);
             assert!(t.clashes.iter().any(|c| c.a.0 == *event || c.b.0 == *event), "{}", e.id);
         }
         let chips = t.kinds_present();
@@ -1702,5 +2031,122 @@ pub mod tests {
         let t = taking(&shared, &modules, &taken, &Selection::default());
         assert_eq!(event(&t, "210").course, None);
         assert_eq!(event(&t, "210").hidden, None);
+    }
+
+    /// Höhere Mathematik T3 at the Zentralcampus (docs/radix/schema-v2.md, „Choices"): three
+    /// exercises, each for other programs, and an Aufbaukurs beside them; a module M of the plan
+    /// whose lecture meets the Tuesday exercise and the Aufbaukurs. Nothing chosen, every exercise
+    /// is an option and the clash counts for nothing; Bauingenieurwesen takes its exercise, and the
+    /// clash counts; the visitor's choice takes another; a program QIS lists at two chooses
+    /// between them; options that each meet the plan block the choice.
+    #[test]
+    fn a_choice_among_a_modules_events() {
+        let rows = [
+            teaching("H", "148060", 1, "Vorlesung", 1, "15:30", "17:00").title("Höhere Mathematik - T3"),
+            teaching("H", "150190", 1, "Übung", 1, "09:15", "10:45").title("Aufbaukurs Höhere Mathematik - T3").extra(),
+            teaching("H", "148245", 1, "Übung", 4, "11:30", "13:00").option(1),
+            teaching("H", "148246", 1, "Übung", 2, "07:30", "09:00").option(2),
+            teaching("H", "148932", 1, "Übung", 3, "13:45", "15:15").option(3),
+            teaching("M", "300", 1, "Vorlesung", 2, "07:30", "09:00"),
+            teaching("M", "301", 1, "Vorlesung", 1, "09:15", "10:45"),
+        ];
+        let choices = [
+            choice_row("H", "program", 1, 1, "148245"),
+            choice_row("H", "program", 1, 2, "148246"),
+            choice_row("H", "program", 1, 3, "148932"),
+        ];
+        let modules = ["H", "M"];
+        let none = Selection::default();
+        let hidden = |t: &Timetable| -> Vec<(String, HiddenBy)> { t.events.iter().filter_map(|e| Some((e.id.clone(), e.hidden?))).collect() };
+        let pair = |id: &str, by: HiddenBy| (id.to_string(), by);
+
+        // Nothing chosen: one choice of three open options; the Tuesday exercise meets M's
+        // lecture, but another is free; the Aufbaukurs meets the other one and is an extra.
+        let t = choosing(&rows, &modules, &choices, &[], &none);
+        assert_eq!(t.choices.len(), 1);
+        let across = &t.choices[0];
+        assert_eq!((across.module.as_str(), across.kind, across.pick, across.options.len(), across.by), ("H", ChoiceKind::Program, 1, 3, None));
+        assert!(across.open(&t.events) && hidden(&t).is_empty());
+        assert!(event(&t, "148246").across.is_some_and(|alt| alt.open && alt.option == 1 && alt.take == 1));
+        assert!(event(&t, "150190").extra && event(&t, "150190").across.is_none());
+        assert!(t.clashes.is_empty() && t.blocked_choices.is_empty(), "{:?}", t.clashes);
+        // The week: the options dashed („1 von 3"), the extra marked.
+        let week = t.regular_week();
+        let alt_of = |id: &str| week.iter().find(|item| t.events[item.event].id == id).map(|item| (item.alt, item.extra));
+        assert_eq!(alt_of("148246"), Some((Some((3, 1)), false)));
+        assert_eq!(alt_of("150190"), Some((None, true)));
+        assert_eq!(alt_of("148060"), Some((None, false)));
+
+        // Bauingenieurwesen, listed at the Tuesday exercise: it is taken, the others go, and its
+        // clash with M's lecture counts.
+        let t = choosing(&rows, &modules, &choices, &[listed_at("H", 2)], &none);
+        assert_eq!((t.choices[0].by, t.choices[0].taken.clone()), (Some(TakenBy::Program), BTreeSet::from([1])));
+        assert_eq!(hidden(&t), [pair("148245", HiddenBy::Program), pair("148932", HiddenBy::Program)]);
+        assert!(!t.choices[0].open(&t.events) && event(&t, "148246").across.is_some_and(|alt| !alt.open));
+        assert_eq!(t.clashes.len(), 1);
+        assert_eq!((t.events[t.clashes[0].a.0].id.as_str(), t.events[t.clashes[0].b.0].id.as_str()), ("148246", "300"));
+
+        // The visitor's choice of the Wednesday exercise wins over the program's.
+        let wednesday = rows[4].key();
+        let chosen = Selection { chosen_rows: [wednesday].into(), ..Selection::default() };
+        let t = choosing(&rows, &modules, &choices, &[listed_at("H", 2)], &chosen);
+        assert_eq!((t.choices[0].by, t.choices[0].taken.clone()), (Some(TakenBy::Chosen), BTreeSet::from([2])));
+        assert_eq!(hidden(&t), [pair("148245", HiddenBy::Option), pair("148246", HiddenBy::Option)]);
+        assert!(t.clashes.is_empty());
+
+        // Listed at two: the third goes, the choice is open between the two.
+        let t = choosing(&rows, &modules, &choices, &[listed_at("H", 1), listed_at("H", 3)], &none);
+        assert_eq!(t.choices[0].narrowed, Some(BTreeSet::from([0, 2])));
+        assert_eq!(hidden(&t), [pair("148246", HiddenBy::Program)]);
+        assert!(t.choices[0].open(&t.events) && t.choices[0].choosable(&t.events) == [0, 2]);
+
+        // Every option meets the plan: the choice is blocked, and its clashes count.
+        let mut busy = rows.to_vec();
+        busy.push(teaching("M", "302", 1, "Vorlesung", 4, "11:30", "13:00"));
+        busy.push(teaching("M", "303", 1, "Vorlesung", 3, "13:45", "15:15"));
+        let t = choosing(&busy, &modules, &choices, &[], &none);
+        assert_eq!(t.blocked_choices, [0]);
+        assert_eq!(t.clashes.len(), 3);
+
+        // A choice of more options than the week shows stands in the list alone.
+        let mut many = Vec::new();
+        let mut rows_of_many = vec![teaching("P", "400", 1, "Vorlesung", 1, "08:00", "09:30")];
+        for n in 1..=5_u32 {
+            let id = format!("41{n}");
+            rows_of_many.push(teaching("P", &id, 1, "Projekt", i64::from(n), "11:00", "12:30").option(n));
+            many.push(choice_row("P", "topic", 1, n, &id));
+        }
+        let t = choosing(&rows_of_many, &["P"], &many, &[], &none);
+        assert!(t.choices[0].open(&t.events));
+        assert_eq!(t.regular_week().iter().map(|item| t.events[item.event].id.as_str()).collect::<Vec<_>>(), ["400"]);
+    }
+
+    /// A choice that takes two of four: open until two are chosen, one at a time; then the others
+    /// go.
+    #[test]
+    fn a_choice_of_two_stays_open_until_both_are_taken() {
+        let mut rows = Vec::new();
+        let mut choices = Vec::new();
+        for n in 1..=4_u32 {
+            let id = format!("51{n}");
+            rows.push(teaching("S", &id, 1, "Seminar", i64::from(n), "11:00", "12:30").option(n));
+            choices.push(choice_row("S", "topic", 2, n, &id));
+        }
+        let take = |t: &Timetable| (t.choices[0].open(&t.events), t.choices[0].take(&t.events), t.choices[0].choosable(&t.events).len());
+        let t = choosing(&rows, &["S"], &choices, &[], &Selection::default());
+        assert_eq!(take(&t), (true, 2, 4));
+        assert!(t.events.iter().all(|event| event.across.is_some_and(|alt| alt.open && alt.take == 2)));
+        // One taken: one more to take of the three others, nothing hidden.
+        let one = Selection { chosen_rows: [rows[0].key()].into(), ..Selection::default() };
+        let t = choosing(&rows, &["S"], &choices, &[], &one);
+        assert_eq!((take(&t), t.choices[0].by), ((true, 1, 3), Some(TakenBy::Chosen)));
+        assert!(t.events.iter().all(|event| event.hidden.is_none()));
+        assert!(event(&t, "511").across.is_some_and(|alt| !alt.open) && event(&t, "512").across.is_some_and(|alt| alt.open && alt.take == 1));
+        // Two taken: the choice is made, the other two go.
+        let two = Selection { chosen_rows: [rows[0].key(), rows[2].key()].into(), ..Selection::default() };
+        let t = choosing(&rows, &["S"], &choices, &[], &two);
+        assert_eq!(take(&t), (false, 0, 0));
+        let hidden: Vec<(&str, Option<HiddenBy>)> = t.events.iter().map(|event| (event.id.as_str(), event.hidden)).collect();
+        assert_eq!(hidden, [("511", None), ("512", Some(HiddenBy::Option)), ("513", None), ("514", Some(HiddenBy::Option))]);
     }
 }

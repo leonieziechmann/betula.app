@@ -30,6 +30,7 @@ use folia_search::fold;
 use crate::clash::{self, Weeks};
 use crate::exams::ExamShape;
 use crate::facts::SemesterFacts;
+use crate::choices::WEEK_OPTIONS;
 use crate::model::{Event, Row, Timetable};
 use crate::occur::Every;
 
@@ -158,8 +159,11 @@ pub struct WeekItem {
     pub to: u16,
     pub label: WeekLabel,
     /// For an option of an open choice („1 von 4"): the number of visible options, and the
-    /// option.
+    /// option; of a choice among a module's events (`Event::across`), the options still to choose
+    /// among.
     pub alt: Option<(usize, usize)>,
+    /// Its event is an extra beside its module's compulsory part (`Event::extra`).
+    pub extra: bool,
     /// A row of the slot is in a hard clash (`clash::hard_rows`).
     pub clash: bool,
     /// The weeks of the A/B rhythm the slot is held in; `None` for dates that do not recur.
@@ -407,8 +411,15 @@ impl Timetable {
         }
         let open: Vec<Option<usize>> =
             self.events.iter().map(|event| event.unresolved().then(|| event.visible_options().len())).collect();
+        // Of the open choices among a module's events, how many options are left to choose
+        // among; a choice of more than the week shows stands in the list alone.
+        let choosable: Vec<usize> = self.choices.iter().map(|across| across.choosable(&self.events).len()).collect();
+        let across = |event: &Event| event.across.filter(|alt| alt.open).map(|alt| (choosable.get(alt.choice).copied().unwrap_or(0), alt.option));
         let mut slots: BTreeMap<SlotKey, Slot> = BTreeMap::new();
-        for (e, _, r, row) in shown(&self.events) {
+        for (e, event, r, row) in shown(&self.events) {
+            if across(event).is_some_and(|(options, _)| options > WEEK_OPTIONS) {
+                continue;
+            }
             let (Some(from), Some(to)) = (row.from, row.to) else {
                 continue;
             };
@@ -465,6 +476,7 @@ impl Timetable {
                         _ => WeekLabel::Every(every),
                     },
                 };
+                let of = self.events.get(event);
                 Some(WeekItem {
                     event,
                     row: slot.first.map_or(slot.lowest, |(_, row)| row),
@@ -472,7 +484,8 @@ impl Timetable {
                     from,
                     to,
                     label,
-                    alt: open.get(event).copied().flatten().zip(option),
+                    alt: of.and_then(across).or_else(|| open.get(event).copied().flatten().zip(option)),
+                    extra: of.is_some_and(|event| event.extra),
                     clash: slot.clash,
                     weeks: Weeks::of(slot.every),
                     against: slot.against.into_iter().collect(),
@@ -651,7 +664,7 @@ fn item_order(item: &AgendaItem) -> (bool, Option<u16>, Option<u16>, bool, Optio
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use folia_calendar::day::clock;
     use folia_calendar::rowkey::RowKey;
     use folia_calendar::select::{MAX_MODULES, Selection, TownChoice};
@@ -721,6 +734,8 @@ mod tests {
             exams,
             sws: &[],
             taken: &[],
+            choices: &[],
+            listed: &[],
         };
         let t = Timetable::build(&input, selection);
         model::tests::invariants(&t);
@@ -808,10 +823,14 @@ mod tests {
             assert!(e.hidden.is_none() && r.hidden.is_none(), "{}", e.id);
             assert!((1..=7).contains(&item.day) && item.from < item.to, "{}", e.id);
             assert_eq!((r.from, r.to), (Some(item.from), Some(item.to)), "{}", e.id);
-            match item.alt {
-                Some((n, o)) => assert!(e.unresolved() && n == e.visible_options().len() && r.option == Some(o)),
-                None => assert!(!e.unresolved() || r.option.is_none(), "{}", e.id),
+            // An option of an open choice among the module's events says how many are left to
+            // choose among; of an event's own choice, its options.
+            match (item.alt, e.across.filter(|alt| alt.open)) {
+                (Some((n, o)), Some(alt)) => assert!(n == t.choices[alt.choice].choosable(&t.events).len() && n <= WEEK_OPTIONS && o == alt.option, "{}", e.id),
+                (Some((n, o)), None) => assert!(e.unresolved() && n == e.visible_options().len() && r.option == Some(o)),
+                (None, across) => assert!(across.is_none() && (!e.unresolved() || r.option.is_none()), "{}", e.id),
             }
+            assert_eq!(item.extra, e.extra, "{}", e.id);
             if hard.contains(&(item.event, item.row)) {
                 assert!(item.clash, "{}/{:?}", e.id, r.ord);
             }
@@ -831,10 +850,14 @@ mod tests {
                 }
             }
         }
-        for (e, _, _, row) in shown(&t.events) {
+        for (e, event, _, row) in shown(&t.events) {
             let (Some(from), Some(to)) = (row.from, row.to) else {
                 continue;
             };
+            // The options of an open choice of more than the week shows stand in the list alone.
+            if event.across.is_some_and(|alt| alt.open && t.choices[alt.choice].choosable(&t.events).len() > WEEK_OPTIONS) {
+                continue;
+            }
             // A recurring row's slot may read as one date; dates that do not recur always do.
             let slotted = |day: u8, recurring: bool| {
                 week.iter().any(|i| {

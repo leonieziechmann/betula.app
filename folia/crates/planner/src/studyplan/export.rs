@@ -576,6 +576,8 @@ mod tests {
             course: None,
             tone: 1,
             attendance: Attendance::All,
+            across: None,
+            extra: false,
             chosen: None,
             rows: vec![row],
             hidden: None,
@@ -597,6 +599,8 @@ mod tests {
             town_derived: false,
             clashes: Vec::new(),
             blocked: Vec::new(),
+            blocked_choices: Vec::new(),
+            choices: Vec::new(),
             exam_warnings: Vec::new(),
             place_unknown: Vec::new(),
             without_dates: Vec::new(),
@@ -709,6 +713,8 @@ mod tests {
             abbrevs: Default::default(),
             program: None,
             taken: Vec::new(),
+            choices: Vec::new(),
+            listed: Vec::new(),
         };
         // Nothing published for the summer to come; a past summer's dates are gone.
         let summer = data("2027S");
