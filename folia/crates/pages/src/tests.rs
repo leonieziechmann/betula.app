@@ -126,6 +126,24 @@ fn every_query_runs_against_the_snapshot() {
         }
         None => assert!(queries::modules_tracks(&db, std::slice::from_ref(&id), "2026W", "079-82-2008").unwrap().is_empty()),
     }
+    // The choices among a module's events and whom QIS lists their options for (schema 17), where
+    // the snapshot was built with them; a list's rows name them, and a module's courses.
+    let id = column(&db.inner, "SELECT module_id FROM v_module_choice_family LIMIT 1").pop().unwrap_or_else(|| "12102".to_string());
+    let choices = queries::module_choices(&db, &id).unwrap();
+    let families = queries::module_choice_families(&db, &id).unwrap();
+    assert!(choices.iter().all(|row| row.module_id == id && row.pick >= 1 && row.option >= 1), "{choices:?}");
+    assert!(
+        families.iter().all(|row| !row.program_name.is_empty() && choices.iter().any(|c| (&c.semester_key, c.choice, c.option) == (&row.semester_key, row.choice, row.option))),
+        "{families:?}"
+    );
+    let offers = queries::catalog_offers(&db, &[id.clone(), "12102".to_string()]).unwrap();
+    let newest = queries::module_schedule(&db, &id).unwrap().first().map(|date| date.semester_key.clone());
+    match choices.first() {
+        Some(first) if Some(&first.semester_key) == newest.as_ref() => {
+            assert!(offers.iter().any(|offer| offer.module_id == id && offer.choice.as_ref().is_some_and(|c| c.options >= 2 && c.pick >= 1)), "{offers:?}")
+        }
+        _ => assert!(offers.iter().all(|offer| offer.module_id != id || offer.choice.is_none()), "{offers:?}"),
+    }
     let id = pick("SELECT module_id FROM v_module_program_link WHERE program_slug IS NOT NULL LIMIT 1");
     assert!(queries::module_program_links(&db, &id).unwrap().iter().any(|l| l.program_slug.is_some() && l.program_id.is_some()));
     let id = pick("SELECT module_id FROM v_program_plan_entry WHERE module_id IS NOT NULL LIMIT 1");

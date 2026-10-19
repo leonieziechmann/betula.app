@@ -980,6 +980,9 @@ mod tests {
             room_short: None,
             series: None,
             track: None,
+            choice: None,
+            option: None,
+            extra: false,
         };
         Row {
             key: Some(RowKey { event: event.parse().unwrap(), fp }),
@@ -1439,6 +1442,8 @@ mod tests {
             kind_basis: None,
             plan_semester: None,
             area: None,
+            courses: 0,
+            choices: Vec::new(),
         };
         let data = BookmarksData {
             rows: vec![row("11103"), row("12330"), row("12104")],

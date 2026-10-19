@@ -109,6 +109,9 @@ mod tests {
             room_short: None,
             series: None,
             track: track.map(Code::parse),
+            choice: None,
+            option: None,
+            extra: false,
         }
     }
 

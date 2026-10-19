@@ -1,6 +1,8 @@
 //! Texts of the module catalog: its list and its filter panel (`pages/catalog.rs`). The list of
 //! marked modules is a list like the catalog's and shares its heads, keys and tags.
 
+use crate::i18n::module::Noun;
+
 pub struct Texts {
     // ---- the page ----
     /// The title of the unfiltered catalog.
@@ -187,6 +189,15 @@ pub struct Texts {
     /// The same in the column, where there are none.
     pub events_none: &'static str,
     pub limited_places: &'static str,
+    /// What a row says of a module's courses and choices in its newest semester
+    /// (`crate::options::row_offer`): „2 Standorte" …
+    pub row_courses: fn(usize) -> String,
+    /// … „Übung je Studiengang" …
+    pub row_choice_program: fn(Noun) -> String,
+    /// … „3 Gruppen" …
+    pub row_choice_group: fn(usize) -> String,
+    /// … „14 Projekte zur Wahl".
+    pub row_choice_topic: fn(usize, Noun) -> String,
 
     // ---- the filter panel ----
     /// The heading of „Mein Studiengang" at the top of the program picker.
@@ -415,6 +426,10 @@ pub const DE: Texts = Texts {
     },
     events_none: "noch keine",
     limited_places: "begrenzte Plätze",
+    row_courses: |n| format!("{n} Standorte"),
+    row_choice_program: |noun| format!("{} je Studiengang", noun.one),
+    row_choice_group: |n| format!("{n} Gruppen"),
+    row_choice_topic: |n, noun| format!("{n} {} zur Wahl", noun.many),
 
     my_program: "Mein Studiengang",
     program: "Studiengang",
@@ -627,6 +642,14 @@ pub const EN: Texts = Texts {
     },
     events_none: "none yet",
     limited_places: "limited places",
+    row_courses: |n| format!("{n} campuses"),
+    row_choice_program: |noun| {
+        let mut one = noun.one.chars();
+        let one: String = one.next().map(|first| first.to_uppercase().chain(one).collect()).unwrap_or_default();
+        format!("{one} per programme")
+    },
+    row_choice_group: |n| format!("{n} groups"),
+    row_choice_topic: |n, noun| format!("{n} {} to choose from", noun.many),
 
     my_program: "My programme",
     program: "Degree programme",

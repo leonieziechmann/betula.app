@@ -17,14 +17,14 @@ use std::collections::BTreeSet;
 use folia_model::db::{fetch, fetch_count, fetch_optional, Database, DbError, Value};
 use folia_model::ids::is_module_id;
 use folia_model::rows::{
-    CatalogPage, CatalogRow, Department, Module, ModuleVector, Prerequisite, Program, ProgramModule, SearchElsewhere,
-    Semester,
+    CatalogOffer, CatalogPage, CatalogRow, Department, Module, ModuleVector, Prerequisite, Program, ProgramModule,
+    SearchElsewhere, Semester,
 };
 use folia_model::rows_detail::{
-    AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleAbbrev,
-    ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry, ProgramDepartmentCount,
-    ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry, ProgramVersion, Successor, TextItem,
-    TrackProgram,
+    AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
+    LecturerName, ModuleAbbrev, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry,
+    ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry, ProgramVersion,
+    Successor, TextItem, TrackProgram,
 };
 use folia_routes::filter::{CatalogQuery, ProgramRelation};
 use folia_search::Plan as SearchPlan;
@@ -179,7 +179,7 @@ pub fn catalog_page(
     params.push(Value::Integer(i64::try_from(limit).unwrap_or(i64::MAX)));
     params.push(Value::Integer(i64::try_from(offset).unwrap_or(i64::MAX)));
 
-    let rows: Vec<CatalogRow> = fetch(
+    let mut rows: Vec<CatalogRow> = fetch(
         db,
         "catalog_page",
         &format!(
@@ -191,7 +191,53 @@ pub fn catalog_page(
         ),
         &params,
     )?;
+    with_offers(db, &mut rows)?;
     Ok(CatalogPage { total, offset, rows })
+}
+
+/// The rows with what `catalog_offers` says of them: their courses and their choices.
+fn with_offers(db: &dyn Database, rows: &mut [CatalogRow]) -> Result<(), DbError> {
+    let ids: Vec<String> = rows.iter().map(|row| row.id.clone()).collect();
+    let offers = catalog_offers(db, &ids)?;
+    for row in rows.iter_mut() {
+        for offer in offers.iter().filter(|offer| offer.module_id == row.id) {
+            row.courses = offer.courses;
+            row.choices.extend(offer.choice.clone());
+        }
+    }
+    Ok(())
+}
+
+/// What the rows of a list say of the modules `module_ids` besides their facets, in each one's
+/// newest semester with teaching (the one its page shows the Termine of): how many courses at
+/// campuses it is held as (`v_module_schedule.track`, docs/radix/schema-v2.md „Tracks") and its
+/// choices („Choices"): their kind, how many options and how many to take, and the type QIS gives
+/// all their events. A row per choice, one for a module with courses and none; none for the rest.
+/// One page of a list at a time: the ids go in as one parameter (`id_json`), and the dates of
+/// those modules alone are read once.
+pub fn catalog_offers(db: &dyn Database, module_ids: &[String]) -> Result<Vec<CatalogOffer>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "catalog_offers",
+        "WITH sched AS MATERIALIZED (\
+             SELECT s.module_id, s.semester_key, s.track FROM json_each(?) i JOIN v_module_schedule s ON s.module_id = i.value \
+             WHERE s.semester_key IS NOT NULL), \
+         newest AS (SELECT module_id, MAX(semester_key) AS semester_key FROM sched GROUP BY module_id), \
+         courses AS (SELECT s.module_id, COUNT(DISTINCT s.track) AS courses FROM sched s \
+             JOIN newest n ON n.module_id = s.module_id AND n.semester_key = s.semester_key GROUP BY s.module_id), \
+         choices AS (SELECT c.module_id, c.choice, c.kind, c.basis, c.pick, COUNT(DISTINCT c.option) AS options, \
+             CASE WHEN COUNT(DISTINCT IFNULL(c.event_type, '')) = 1 THEN MAX(c.event_type) END AS event_type \
+             FROM newest n JOIN v_module_choice c ON c.module_id = n.module_id AND c.semester_key = n.semester_key \
+             GROUP BY c.module_id, c.choice) \
+         SELECT n.module_id, IFNULL(co.courses, 0) AS courses, ch.kind, ch.basis, ch.pick, ch.options, ch.event_type \
+         FROM newest n LEFT JOIN courses co ON co.module_id = n.module_id LEFT JOIN choices ch ON ch.module_id = n.module_id \
+         WHERE IFNULL(co.courses, 0) >= 2 OR ch.kind IS NOT NULL ORDER BY n.module_id, ch.choice",
+        &[Value::from(ids)],
+    )
 }
 
 /// The columns of a `CatalogRow`; with a program, the module's kind, semester and area in it
@@ -318,7 +364,7 @@ pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> 
     listed.conditions.push("m.title IS NOT NULL".to_string());
     sql.conditions.push(format!("m.title NOT IN (SELECT m.title FROM v_module_facets f JOIN v_module m ON m.id = f.module_id{}{})", listed.joins, listed.where_clause()));
     sql.params.extend(listed.params);
-    fetch(
+    let mut rows: Vec<CatalogRow> = fetch(
         db,
         "similar_rows",
         &format!(
@@ -328,7 +374,9 @@ pub fn similar_rows(db: &dyn Database, query: &CatalogQuery, ids: &[String]) -> 
             sql.where_clause()
         ),
         &sql.params,
-    )
+    )?;
+    with_offers(db, &mut rows)?;
+    Ok(rows)
 }
 
 /// The vectors of the semantic search, one per module that has one (`v_module_vector`), in id
@@ -400,7 +448,7 @@ pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDa
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, event_type, group_name, \
              weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, \
-             comment, source_url, room_short, series, series_weeks, track FROM v_module_schedule WHERE module_id = ? \
+             comment, source_url, room_short, series, series_weeks, track, choice, option, extra FROM v_module_schedule WHERE module_id = ? \
              AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
@@ -417,7 +465,7 @@ pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>
             "SELECT semester_key, semester_label, event_id, event_number, event_title, NULL AS event_type, \
              NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, first_date, \
              last_date, room, campus, NULL AS instructor, comment, source_url, room_short, NULL AS series, \
-             NULL AS series_weeks, NULL AS track FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
+             NULL AS series_weeks, NULL AS track, NULL AS choice, NULL AS option, 0 AS extra FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
     )
@@ -439,6 +487,33 @@ pub fn module_tracks(db: &dyn Database, module_id: &str) -> Result<Vec<TrackProg
             "SELECT {TRACK_COLUMNS} FROM v_module_track_program t JOIN v_program p ON p.id = t.program_id \
              WHERE t.module_id = ? ORDER BY t.semester_key DESC, t.campus, p.name COLLATE NOCASE, p.po_version DESC"
         ),
+        &[Value::from(module_id)],
+    )
+}
+
+/// The choices among a module's events (docs/radix/schema-v2.md, „Choices"), a row per event of
+/// an option, in every semester it has any: newest semester first, then by choice, option and
+/// event. Empty for a module without choices.
+pub fn module_choices(db: &dyn Database, module_id: &str) -> Result<Vec<ChoiceOption>, DbError> {
+    fetch(
+        db,
+        "module_choices",
+        "SELECT module_id, semester_key, choice, course, kind, basis, sws, pick, option, event_id, label, event_sws \
+         FROM v_module_choice WHERE module_id = ? ORDER BY semester_key DESC, choice, option, event_id",
+        &[Value::from(module_id)],
+    )
+}
+
+/// The families of the programs QIS lists at the options of a module's choices, a row per PO of
+/// each with its name (the family's is its newest PO's): whom an option is for, and which options
+/// a program takes. Newest semester first, then by choice, option, family and newest PO first.
+pub fn module_choice_families(db: &dyn Database, module_id: &str) -> Result<Vec<ChoiceFamily>, DbError> {
+    fetch(
+        db,
+        "module_choice_families",
+        "SELECT f.module_id, f.semester_key, f.choice, f.option, f.family_key, p.name AS program_name, p.is_latest_po \
+         FROM v_module_choice_family f JOIN v_program p ON p.family_key = f.family_key WHERE f.module_id = ? \
+         ORDER BY f.semester_key DESC, f.choice, f.option, f.family_key, p.is_latest_po DESC, p.po_version DESC",
         &[Value::from(module_id)],
     )
 }
@@ -665,14 +740,14 @@ fn id_json(module_ids: &[String]) -> String {
 /// The columns of `DateRow` from `v_module_schedule`.
 const DATE_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, \
-     campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks, track";
+     campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks, track, choice, option, extra";
 
 /// The columns of `DateRow` from `v_module_exam`, which has no type, group, rhythm, instructor,
 /// cancellations or series: the same row struct reads teaching and exam rows.
 const EXAM_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, \
      first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url, room_short, \
-     NULL AS series, NULL AS series_weeks, NULL AS track";
+     NULL AS series, NULL AS series_weeks, NULL AS track, NULL AS choice, NULL AS option, 0 AS extra";
 
 /// The teaching rows of the planned modules in one semester, events without dates included (the
 /// Studienplan lists them „ohne feste Zeit"). An event linked to two of the modules comes once for
@@ -720,7 +795,7 @@ pub fn semester_schedule(db: &dyn Database, semester_key: &str) -> Result<Vec<Da
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, event_type, ord, \
          group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, NULL AS room, campus, \
          NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url, NULL AS room_short, NULL AS series, \
-         NULL AS series_weeks, track FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
+         NULL AS series_weeks, track, choice, option, extra FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
 }
@@ -734,8 +809,8 @@ pub fn semester_exams(db: &dyn Database, semester_key: &str) -> Result<Vec<DateR
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, \
          NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, \
          NULL AS rhythm_raw, first_date, last_date, room, campus, NULL AS instructor, NULL AS comment, \
-         NULL AS cancelled_dates, NULL AS source_url, room_short, NULL AS series, NULL AS series_weeks, NULL AS track \
-         FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL ORDER BY module_id, event_id, ord",
+         NULL AS cancelled_dates, NULL AS source_url, room_short, NULL AS series, NULL AS series_weeks, NULL AS track, \
+         NULL AS choice, NULL AS option, 0 AS extra FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
 }

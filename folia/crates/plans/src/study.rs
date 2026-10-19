@@ -1423,6 +1423,8 @@ mod tests {
             kind_basis: None,
             plan_semester: None,
             area: None,
+            courses: 0,
+            choices: Vec::new(),
         }
     }
 

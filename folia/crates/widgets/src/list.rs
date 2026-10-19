@@ -51,6 +51,9 @@ pub fn Row(
     };
     let events = (t.catalog.events)(row.teaching_events);
     let has_events = row.teaching_events > 0;
+    // Its courses and choices (folia/design/wahlangebote/konzept.html): „14 Projekte zur Wahl",
+    // „2 Standorte · Übung je Studiengang".
+    let offered = crate::options::row_offer(row.courses, &row.choices, t);
     let finder = use_context::<Finder>();
     // The preview next to the list, on a phone a sheet over it (owner, 2026-10-06). `preview` is a
     // path of the app; the link carries the language's prefix.
@@ -84,6 +87,7 @@ pub fn Row(
                     {(row.is_fues && !with_program).then(|| view! { <span class="flag neutral">"FÜS"</span> })}
                     {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
                     {fit_note}
+                    {offered.map(|offered| view! { <span class="row-offer">{offered}</span> })}
                     <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
                 </small>
             </div>
