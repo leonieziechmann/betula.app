@@ -195,8 +195,8 @@ pub struct Texts {
     pub row_title_de: &'static str,
     pub row_responsible: &'static str,
     pub row_teaches: &'static str,
-    /// „Kürzel ThI": the abbreviation a search found the module by.
-    pub row_abbrev: fn(&str) -> String,
+    /// „Kürzel ThI": before the abbreviation a search found the module by.
+    pub row_abbrev: &'static str,
     /// What a row says of a module's courses and choices in its newest semester
     /// (`crate::options::row_offer`): „2 Standorte" …
     pub row_courses: fn(usize) -> String,
@@ -438,7 +438,7 @@ pub const DE: Texts = Texts {
     row_title_de: "dt.",
     row_responsible: "verantwortlich",
     row_teaches: "lehrt",
-    row_abbrev: |abbrev| format!("Kürzel {abbrev}"),
+    row_abbrev: "Kürzel",
     row_courses: |n| format!("{n} Standorte"),
     row_choice_program: |noun| format!("{} je Studiengang", noun.one),
     row_choice_group: |n| format!("{n} Gruppen"),
@@ -659,7 +659,7 @@ pub const EN: Texts = Texts {
     row_title_de: "Ger.",
     row_responsible: "responsible",
     row_teaches: "teaches",
-    row_abbrev: |abbrev| format!("abbr. {abbrev}"),
+    row_abbrev: "abbr.",
     row_courses: |n| format!("{n} campuses"),
     row_choice_program: |noun| {
         let mut one = noun.one.chars();
