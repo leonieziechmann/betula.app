@@ -620,6 +620,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -647,6 +648,7 @@ mod tests {
             counts: vec![DateCount { rhythm: Some(Code::parse("weekly")), first_date: "2026-10-05".into(), last_date: Some("2027-01-29".into()), dates: 40 }],
             abbrevs: [("12104", "EvS"), ("12107", "MIT"), ("11112", "MIT")].iter().map(|(id, abbrev)| (id.to_string(), abbrev.to_string())).collect(),
             program: Some("079-82-2008".into()),
+            taken: Vec::new(),
         }
     }
 

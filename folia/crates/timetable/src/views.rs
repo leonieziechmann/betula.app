@@ -699,6 +699,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -716,6 +717,7 @@ mod tests {
             schedule: &schedule,
             exams,
             sws: &[],
+            taken: &[],
         };
         let t = Timetable::build(&input, selection);
         model::tests::invariants(&t);

@@ -112,6 +112,20 @@ fn every_query_runs_against_the_snapshot() {
     assert!(schedule.iter().any(|d| d.weekday.is_some() && d.room.is_some()), "{schedule:?}");
     let id = pick("SELECT module_id FROM v_module_exam LIMIT 1");
     assert!(!queries::module_exams(&db, &id).unwrap().is_empty());
+    // The courses of a module held at two campuses (schema 15), where the snapshot was built with
+    // them; a module without courses has none.
+    let id = column(&db.inner, "SELECT module_id FROM v_module_track_program LIMIT 1").pop().unwrap_or_else(|| "12102".to_string());
+    let tracks = queries::module_tracks(&db, &id).unwrap();
+    assert!(tracks.iter().all(|track| track.module_id == id && !track.program_id.is_empty() && !track.program_name.is_empty()), "{tracks:?}");
+    match tracks.first() {
+        Some(first) => {
+            let taken = queries::modules_tracks(&db, std::slice::from_ref(&id), &first.semester_key, &first.program_id).unwrap();
+            assert!(taken.contains(first) && taken.iter().all(|track| track.program_id == first.program_id), "{taken:?}");
+            let dates = queries::module_schedule(&db, &id).unwrap();
+            assert!(dates.iter().any(|date| date.semester_key == first.semester_key && date.track.as_ref() == Some(&first.campus)), "{dates:?}");
+        }
+        None => assert!(queries::modules_tracks(&db, std::slice::from_ref(&id), "2026W", "079-82-2008").unwrap().is_empty()),
+    }
     let id = pick("SELECT module_id FROM v_module_program_link WHERE program_slug IS NOT NULL LIMIT 1");
     assert!(queries::module_program_links(&db, &id).unwrap().iter().any(|l| l.program_slug.is_some() && l.program_id.is_some()));
     let id = pick("SELECT module_id FROM v_program_plan_entry WHERE module_id IS NOT NULL LIMIT 1");

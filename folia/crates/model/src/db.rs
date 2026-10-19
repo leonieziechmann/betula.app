@@ -15,8 +15,10 @@ use std::fmt;
 /// search of the catalog (`v_module_folded`). 13: the series of single dates
 /// (`v_module_schedule.series`, `series_weeks`). 14: the kinds inferred from the plan's
 /// Wahlpflicht slots, and whether a kind is inferred where a module page lists its programs
-/// (`v_module_program_link.kind_basis`).
-pub const SCHEMA_VERSION: i64 = 14;
+/// (`v_module_program_link.kind_basis`). 15: the courses of a module held at two campuses or more
+/// (`v_module_schedule.track`, `v_module_track_program`) and whom QIS states an event is for
+/// (`v_event_program`; docs/radix/schema-v2.md, „Tracks").
+pub const SCHEMA_VERSION: i64 = 15;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

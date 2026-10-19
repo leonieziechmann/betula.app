@@ -30,6 +30,7 @@ use folia_calendar::day::{clock, Day};
 use folia_calendar::kind::{fold, EventKind, KindSet};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::{HiddenBy, Town, TownChoice};
+use folia_model::labels::Labelled;
 use folia_calendar::semester::{of_fachsemester, SemesterKey};
 use folia_model::labels::{Campus, Code, Rhythm, TurnusSeason};
 use folia_model::rows::CatalogRow;
@@ -1077,8 +1078,8 @@ fn shown_of(t: &Timetable, blocks: &[Block], texts: &i18n::Texts) -> Vec<BlockSh
 }
 
 /// Why an event is hidden, when that is decided elsewhere: its kinds switched off in the sidebar
-/// („Übungen ausgeblendet", each kind as the chips' plural says it), or the course of the other
-/// town („Standort Senftenberg", the town it is held in).
+/// („Übungen ausgeblendet", each kind as the chips' plural says it), or another course of its
+/// module („Standort Senftenberg", where it is held: the town, or the campus of a course).
 fn reason_text(hidden: Option<HiddenBy>, kinds: KindSet, own: Option<Town>, texts: &i18n::Texts) -> Option<String> {
     let words = &texts.studyplan_aside;
     match hidden? {
@@ -1093,6 +1094,8 @@ fn reason_text(hidden: Option<HiddenBy>, kinds: KindSet, own: Option<Town>, text
             };
             Some((words.location)(own.unwrap_or(other).label()))
         }
+        // Another course of the module, by the campus it is held at („Standort Cottbus-Sachsendorf").
+        HiddenBy::Course(campus) => Some((words.location)(campus.label(texts.locale))),
         HiddenBy::Event | HiddenBy::Choice | HiddenBy::Row => None,
     }
 }
@@ -1122,7 +1125,7 @@ fn notes_of(t: &Timetable, id: &str, titles: &BTreeMap<String, String>, town: To
     for (day, modules) in t.place_unknown.iter().filter(|(_, modules)| own(modules)) {
         add(Note { warn: false, text: (texts.studyplan_aside.room_open)(modules.len(), &dated(*day, texts)), to: None });
     }
-    if t.tracks.contains(id) && t.town.is_none() && town == TownChoice::Derive {
+    if t.towns_open().iter().any(|module| *module == id) && town == TownChoice::Derive {
         add(Note { warn: false, text: texts.studyplan_aside.choose_location.to_string(), to: None });
     }
     warnings.extend(quiet);
@@ -1487,6 +1490,7 @@ mod tests {
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
                 series: None,
+                track: None,
             },
         })
     }
@@ -1570,6 +1574,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -1578,7 +1583,7 @@ mod tests {
         let facts = winter();
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules: Vec<String> = modules.iter().map(|id| id.to_string()).collect();
-        let input = Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws };
+        let input = Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws, taken: &[] };
         Timetable::build(&input, selection)
     }
 

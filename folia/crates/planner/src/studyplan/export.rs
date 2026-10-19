@@ -552,6 +552,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
             cancelled_dates: None,
             occ: Occurrences::default(),
@@ -569,6 +570,7 @@ mod tests {
             kinds: kinds_of(Some("Übung")),
             class: Class::Other,
             modules: vec![module.into()],
+            course: None,
             tone: 1,
             attendance: Attendance::All,
             chosen: None,
@@ -586,6 +588,8 @@ mod tests {
             events,
             exams: Vec::new(),
             tracks: BTreeSet::new(),
+            courses: Default::default(),
+            shown: Default::default(),
             town: None,
             town_derived: false,
             clashes: Vec::new(),
@@ -701,6 +705,7 @@ mod tests {
             counts: Vec::new(),
             abbrevs: Default::default(),
             program: None,
+            taken: Vec::new(),
         };
         // Nothing published for the summer to come; a past summer's dates are gone.
         let summer = data("2027S");

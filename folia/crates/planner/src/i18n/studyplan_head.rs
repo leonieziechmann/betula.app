@@ -93,6 +93,12 @@ pub struct Texts {
     pub groups_derived: &'static str,
     /// „Standort Cottbus": the town the plan's other modules are taught in.
     pub town_derived: fn(&str) -> String,
+    /// „Programmierpraktikum in Cottbus-Sachsendorf": a module held as courses at two campuses or
+    /// more, and the campus of the course its program takes …
+    pub course_in: fn(&str, &str) -> String,
+    /// … „Programmierpraktikum in Cottbus-Sachsendorf laut Studiengang": those courses, joined with
+    /// „, ".
+    pub courses_derived: fn(&str) -> String,
 }
 
 pub const DE: Texts = Texts {
@@ -152,6 +158,8 @@ pub const DE: Texts = Texts {
     lecture_break: |breaks| format!("vorlesungsfrei {breaks}"),
     groups_derived: "Übungsgruppen",
     town_derived: |town| format!("Standort {town}"),
+    course_in: |module, campus| format!("{module} in {campus}"),
+    courses_derived: |courses| format!("{courses} laut Studiengang"),
 };
 
 pub const EN: Texts = Texts {
@@ -214,4 +222,6 @@ pub const EN: Texts = Texts {
     lecture_break: |breaks| format!("lecture break {breaks}"),
     groups_derived: "exercise groups",
     town_derived: |town| format!("location {town}"),
+    course_in: |module, campus| format!("{module} in {campus}"),
+    courses_derived: |courses| format!("{courses} by your program"),
 };

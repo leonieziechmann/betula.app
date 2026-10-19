@@ -154,6 +154,42 @@ pub struct Texts {
     /// „Termine als Liste": the line that unfolds the list under the week (its count follows).
     pub dates_list: &'static str,
 
+    // ---- the courses of a module held at two campuses (`crate::courses`) ----
+    /// What joins the last two of a list: „ und ".
+    pub courses_and: &'static str,
+    /// „An zwei Standorten angeboten: Zentralcampus Cottbus und Cottbus-Sachsendorf. Du besuchst
+    /// eines der Angebote.": how many, and the campuses as `courses_and` joins them.
+    pub courses_all: fn(usize, &str) -> String,
+    /// „In „Mein Studium“ mit deinem Studiengang zeigt Betula nur sein Angebot.": after
+    /// `courses_all` where the page stands for no program.
+    pub courses_setup: &'static str,
+    /// „Für Soziale Arbeit · Bachelor nennt QIS keines der Angebote.": after `courses_all` where it
+    /// stands for a program that takes no course …
+    pub courses_undecided: fn(&str) -> String,
+    /// … „QIS nennt Elektrotechnik · B.Sc. bei jedem Angebot.": one that takes every course.
+    pub courses_every: fn(&str) -> String,
+    /// „Nur die Termine für Medizininformatik · B.Sc. (Cottbus-Sachsendorf)." …
+    pub courses_mine: fn(&str, &str) -> String,
+    /// … „Auch angeboten: Zentralcampus Cottbus." …
+    pub courses_also: fn(&str) -> String,
+    /// … and the button that shows them, faint, and hides them again.
+    pub courses_show: &'static str,
+    pub courses_hide: &'static str,
+    /// „Hervorgehoben: die Termine für Informatik · B.Sc. (Zentralcampus Cottbus)." …
+    pub courses_highlight: fn(&str, &str) -> String,
+    /// … „Blass: Cottbus-Sachsendorf."
+    pub courses_faint: fn(&str) -> String,
+    /// The tooltip of the line: QIS names the program at these Termine …
+    pub courses_by_qis: fn(&str) -> String,
+    /// … or at none of them, and the program's campus decides.
+    pub courses_by_campus: fn(&str) -> String,
+    /// The heading of a course in the list: „Cottbus-Sachsendorf · für Medizininformatik · B.Sc." …
+    pub course_for: fn(&str, &str) -> String,
+    /// … „Informatik · B.Sc., Mathematik · B.Sc., Physik · B.Sc. und 4 weitere" …
+    pub courses_more: fn(&str, usize) -> String,
+    /// … and of the Termine in no course: „Für alle Angebote".
+    pub courses_shared: &'static str,
+
     // ---- „Studiengänge" ----
     /// „12 Curricula", beside the heading.
     pub curricula: fn(usize) -> String,
@@ -257,6 +293,31 @@ pub const DE: Texts = Texts {
     except_on: |days| format!("außer {days}"),
     dates_list: "Termine als Liste",
 
+    courses_and: " und ",
+    courses_all: |n, places| {
+        let n = match n {
+            2 => "zwei".to_string(),
+            3 => "drei".to_string(),
+            4 => "vier".to_string(),
+            n => n.to_string(),
+        };
+        format!("An {n} Standorten angeboten: {places}. Du besuchst eines der Angebote.")
+    },
+    courses_setup: "Mit deinem Studiengang in „Mein Studium“ zeigt Betula nur sein Angebot.",
+    courses_undecided: |program| format!("Für {program} nennt QIS keines der Angebote."),
+    courses_every: |program| format!("QIS nennt {program} bei jedem Angebot."),
+    courses_mine: |program, places| format!("Nur die Termine für {program} ({places})."),
+    courses_also: |places| format!("Auch angeboten: {places}."),
+    courses_show: "Auch zeigen",
+    courses_hide: "Wieder ausblenden",
+    courses_highlight: |program, places| format!("Hervorgehoben: die Termine für {program} ({places})."),
+    courses_faint: |places| format!("Blass: {places}."),
+    courses_by_qis: |program| format!("QIS nennt {program} bei diesen Terminen."),
+    courses_by_campus: |program| format!("QIS nennt {program} bei keinem der Angebote. Betula nimmt das Angebot am Standort, an dem die meisten Pflichtmodule des Studiengangs stattfinden."),
+    course_for: |place, programs| format!("{place} · für {programs}"),
+    courses_more: |programs, n| if n == 1 { format!("{programs} und einen weiteren") } else { format!("{programs} und {n} weitere") },
+    courses_shared: "Für alle Angebote",
+
     curricula: |n| format!("{n} Curricula"),
     no_curriculum: "Das Modul gehört zu keinem Curriculum eines Studiengangs im Katalog.",
     fues: |n| format!("Außerdem als fachübergreifendes Studium (FÜS) anrechenbar in {n} Studiengängen."),
@@ -353,6 +414,31 @@ pub const EN: Texts = Texts {
     single_dates: |n| if n == 1 { "1 single date".to_string() } else { format!("{n} single dates") },
     except_on: |days| format!("except {days}"),
     dates_list: "Dates as a list",
+
+    courses_and: " and ",
+    courses_all: |n, places| {
+        let n = match n {
+            2 => "two".to_string(),
+            3 => "three".to_string(),
+            4 => "four".to_string(),
+            n => n.to_string(),
+        };
+        format!("Offered at {n} campuses: {places}. You attend one of them.")
+    },
+    courses_setup: "With your degree programme set up in “My studies”, Betula shows only its dates.",
+    courses_undecided: |program| format!("QIS names none of them for {program}."),
+    courses_every: |program| format!("QIS names {program} at each of them."),
+    courses_mine: |program, places| format!("Only the dates for {program} ({places})."),
+    courses_also: |places| format!("Also offered: {places}."),
+    courses_show: "Show them too",
+    courses_hide: "Hide them again",
+    courses_highlight: |program, places| format!("Highlighted: the dates for {program} ({places})."),
+    courses_faint: |places| format!("Faint: {places}."),
+    courses_by_qis: |program| format!("QIS names {program} at these dates."),
+    courses_by_campus: |program| format!("QIS names {program} at none of them. Betula takes the one on the campus where most of the programme's compulsory modules are held."),
+    course_for: |place, programs| format!("{place} · for {programs}"),
+    courses_more: |programs, n| format!("{programs} and {n} more"),
+    courses_shared: "For every course",
 
     curricula: |n| if n == 1 { "1 curriculum".to_string() } else { format!("{n} curricula") },
     no_curriculum: "The module is in no curriculum of a degree programme in the catalogue.",
