@@ -69,6 +69,9 @@ pub struct GridSlot {
     pub class: &'static str,
     /// The tint of a `tinted` slot: one of the `t-…` classes of `app.css` („t-ice" … „t-slate").
     pub hue: Option<&'static str>,
+    /// The course of a module held at two campuses or more the slot belongs to, where its page
+    /// tells them apart (`course-1` … `course-4`, app.css): a stripe in the course's colour.
+    pub mark: Option<&'static str>,
     /// An option of a choice not yet made (dashed), and a slot in a hard clash.
     pub alt: bool,
     pub clash: bool,
@@ -134,7 +137,7 @@ impl GridSlot {
     pub fn classes(&self) -> String {
         let mut classes = String::from("slot");
         let brief = self.to.saturating_sub(self.from) < 60;
-        let parts = [self.class, self.hue.unwrap_or_default(), if self.alt { "alt" } else { "" }, if self.clash { "clash" } else { "" }, if brief { "brief" } else { "" }];
+        let parts = [self.class, self.hue.unwrap_or_default(), self.mark.unwrap_or_default(), if self.alt { "alt" } else { "" }, if self.clash { "clash" } else { "" }, if brief { "brief" } else { "" }];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
             classes.push_str(part);
@@ -603,6 +606,7 @@ mod tests {
         let tinted = GridSlot { class: "tinted", hue: Some("t-ice"), alt: true, clash: true, ..slot(1, 555, 645) };
         assert_eq!(tinted.classes(), "slot tinted t-ice alt clash");
         assert_eq!(GridSlot { class: "once", ..slot(1, 555, 645) }.classes(), "slot once");
+        assert_eq!(GridSlot { class: "other", mark: Some("course-2"), ..slot(1, 555, 645) }.classes(), "slot other course-2");
         // A label breaks between words, never after „und" or „von".
         assert_eq!(units("VL Entwicklung von Softwaresystemen"), ["VL", "Entwicklung", "von Softwaresystemen"]);
         assert_eq!(units("VL Elektrische und elektronische …"), ["VL", "Elektrische", "und elektronische …"]);

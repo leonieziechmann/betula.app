@@ -21,6 +21,7 @@ import (
 // plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
 // caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
+	"module_track_program", "module_track", "program_campus", "event_program_ref", "event_program",
 	"module_folded", "module_vector", "program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
 	"module_event", "event_date", "event_person", "event_form", "event", "semester",
@@ -69,6 +70,14 @@ type Report struct {
 	EventSeries         int      // series of single dates (normalize.Series): QIS lists them date by date, they follow a rhythm
 	EventSeriesDates    int      // the single dates in those series
 
+	// Tracks (docs/radix/schema-v2.md, „Tracks“).
+	EventProgramsResolved   int            // rows of the event pages' „Studiengänge“ that name programs of the catalog
+	EventProgramsUnresolved map[string]int // the label of a row that names none → rows
+	ProgramsWithCampus      int            // programs with a main campus (program_campus.is_main)
+	ModulesWithTracks       int            // (module, semester) pairs taught as courses at two or more campuses
+	TrackProgramsByQIS      int            // (module with tracks, program) pairs whose course QIS states
+	TrackProgramsByCampus   int            // … whose course the program's campus decides
+
 	// Short names (docs/radix/schema-v2.md, „Short names“).
 	RoomsUnknownBuilding  map[string]int // event rooms whose building the table lacks → event dates
 	RoomShortCollisions   []string       // event rooms that kept their long form: their short form was not unique
@@ -91,7 +100,8 @@ type Report struct {
 // kind of source data the build could not use (build.unresolved_refs,
 // build.tree_leaves_without_module, build.tree_pages_missing, build.plans_without_program,
 // build.plan_entries_unknown_module, build.modules_without_page, build.event_links_gone,
-// build.rooms_unknown_building, build.room_short_collisions, build.abbrev_overrides_unused).
+// build.rooms_unknown_building, build.room_short_collisions, build.abbrev_overrides_unused,
+// build.unresolved_event_programs).
 func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	log := oplog.For("build")
 	start := time.Now()
@@ -122,10 +132,13 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	warn(len(report.RoomsUnknownBuilding), "build.rooms_unknown_building", "event rooms name a building the short-name table lacks; they keep the building's full name", "examples", examples(report.RoomsUnknownBuilding, 5))
 	warn(len(report.RoomShortCollisions), "build.room_short_collisions", "rooms would share a short form; they keep their long form", "rooms", first(report.RoomShortCollisions, 10))
 	warn(len(report.AbbrevOverridesUnused), "build.abbrev_overrides_unused", "lines of the abbreviation override file apply to no module", "lines", report.AbbrevOverridesUnused)
+	warn(total(report.EventProgramsUnresolved), "build.unresolved_event_programs", "programs event pages list resolve to no program of the catalog", "distinct", len(report.EventProgramsUnresolved), "examples", examples(report.EventProgramsUnresolved, 5))
 
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
 		"event_series", report.EventSeries, "event_series_dates", report.EventSeriesDates,
+		"event_programs_resolved", report.EventProgramsResolved, "programs_with_campus", report.ProgramsWithCampus,
+		"modules_with_tracks", report.ModulesWithTracks, "track_programs_qis", report.TrackProgramsByQIS, "track_programs_campus", report.TrackProgramsByCampus,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
 		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
@@ -183,6 +196,8 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		Assertions:           make(map[string]int),
 		Unused:               make(map[string][]string),
 		RoomsUnknownBuilding: make(map[string]int),
+
+		EventProgramsUnresolved: make(map[string]int),
 	}
 
 	// Parse everything before the transaction starts: parsing is the slow part
@@ -225,8 +240,10 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"plan assertions", b.writePlanAssertions},
 		{"kinds of plan slots", b.writeSlotKinds}, // needs every stated statement
 		{"events", b.writeEvents},
+		{"event programs", b.writeEventPrograms}, // needs event and program
 		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},
+		{"tracks", b.writeTracks},               // needs the events, their programs and program_module
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
 		{"search", b.writeSearch},               // needs module and the abbreviations
 		{"module vectors", b.writeModuleVectors},

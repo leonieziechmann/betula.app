@@ -211,15 +211,15 @@ pub fn shape_of(reading: &ExamReading) -> ExamShape {
 /// The planned modules' exam events of the semester, deduplicated by `(event_id, ord)`, with
 /// shapes, ranks and visibility. Rows of modules that are not planned are left out; an event keeps
 /// only its planned modules. Visibility follows the timetable's rules for exams, first that holds:
-/// the event is hidden; the kind „Prüfung" is; `town` is the effective town, every linking module
-/// has city tracks and the exam's town is the other one; and per row, its key is hidden.
+/// the event is hidden; the kind „Prüfung" is; every linking module is taken in the towns `towns`
+/// names for it (`model::Shown::towns`: of a module with tracks, the towns of the courses shown)
+/// and the exam is held in another; and per row, its key is hidden.
 pub fn exams_of(
     rows: &[DateRow],
     semester: Option<&Semester>,
     modules: &[String],
     selection: &Selection,
-    town: Option<Town>,
-    tracks: &BTreeSet<String>,
+    towns: &BTreeMap<String, BTreeSet<Town>>,
 ) -> Vec<Exam> {
     // Per event: the plan positions of its planned modules and its rows, each `ord` once (the
     // view lists an event once for every module that links it).
@@ -244,7 +244,7 @@ pub fn exams_of(
             continue;
         };
         let linked: Vec<String> = positions.iter().filter_map(|position| modules.get(*position).cloned()).collect();
-        let hidden = exam_hidden(event_id, &event_rows, &linked, selection, town, tracks);
+        let hidden = exam_hidden(event_id, &event_rows, &linked, selection, towns);
         let title = first_row.date.event_title.clone();
         let source_url = first_row.date.source_url.clone();
         let exam_rows = event_rows
@@ -286,8 +286,7 @@ fn exam_hidden(
     rows: &[&DateRow],
     linked: &[String],
     selection: &Selection,
-    town: Option<Town>,
-    tracks: &BTreeSet<String>,
+    towns: &BTreeMap<String, BTreeSet<Town>>,
 ) -> Option<HiddenBy> {
     if event_number(event_id).is_some_and(|id| selection.hidden_events.contains(&id)) {
         return Some(HiddenBy::Event);
@@ -297,9 +296,9 @@ fn exam_hidden(
     }
     // Tracks are whole courses: the exam of a module taken in Cottbus is the Cottbus one. An exam
     // that also belongs to a module without tracks, or whose town is mixed or unknown, stays.
-    let shown = town?;
-    let all_tracks = !linked.is_empty() && linked.iter().all(|module| tracks.contains(module));
-    (all_tracks && single_town(rows).is_some_and(|own| own != shown)).then_some(HiddenBy::Town(shown))
+    let own = single_town(rows)?;
+    let shown = towns.get(linked.first()?)?.iter().copied().find(|town| *town != own)?;
+    linked.iter().all(|module| towns.get(module).is_some_and(|towns| !towns.contains(&own))).then_some(HiddenBy::Town(shown))
 }
 
 /// The one town of all rows with a known campus; `None` when they are in both or none is known.
@@ -640,6 +639,7 @@ mod tests {
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -650,7 +650,7 @@ mod tests {
     }
 
     fn plan(rows: &[DateRow], modules: &[&str], selection: &Selection) -> Vec<Exam> {
-        exams_of(rows, Some(&winter()), &ids(modules), selection, None, &BTreeSet::new())
+        exams_of(rows, Some(&winter()), &ids(modules), selection, &BTreeMap::new())
     }
 
     type Warned = (Vec<ExamWarning>, Vec<(Day, Vec<String>)>);
@@ -850,9 +850,10 @@ mod tests {
             row("U", "704", 1, "2027-02-15", "09:00", "11:00", Some(SFB)),
         ];
         let modules = ids(&["T", "U"]);
-        let tracks = BTreeSet::from(["T".to_string()]);
+        // T has tracks: taken in `town` where one is shown.
+        let towns = |town: Option<Town>| -> BTreeMap<String, BTreeSet<Town>> { town.map(|town| ("T".to_string(), BTreeSet::from([town]))).into_iter().collect() };
         let hidden = |selection: &Selection, town: Option<Town>| -> Vec<(String, Option<HiddenBy>)> {
-            exams_of(&rows, Some(&winter()), &modules, selection, town, &tracks)
+            exams_of(&rows, Some(&winter()), &modules, selection, &towns(town))
                 .into_iter()
                 .map(|e| (e.event_id, e.hidden))
                 .collect()
@@ -886,7 +887,7 @@ mod tests {
         // A hidden exam hides every row with its reason; a hidden key only its row.
         let key = RowKey::of(&rows[4].date).unwrap();
         let selection = Selection { hidden_rows: BTreeSet::from([key]), hidden_events: BTreeSet::from([700]), ..none };
-        let exams = exams_of(&rows, Some(&winter()), &modules, &selection, None, &tracks);
+        let exams = exams_of(&rows, Some(&winter()), &modules, &selection, &towns(None));
         assert_eq!(exams[0].rows[0].hidden, Some(HiddenBy::Event));
         let e703: Vec<Option<HiddenBy>> = exams[3].rows.iter().map(|r| r.hidden).collect();
         assert_eq!(e703, [None, Some(HiddenBy::Row)]);
@@ -903,7 +904,7 @@ mod tests {
             in_room(row("12204", "148696", 2, "2027-03-26", "11:00", "13:00", Some(ZC)), "Seminarraum 2"),
         ];
         let modules = ids(&["12104", "12204"]);
-        let exams = exams_of(&rows, Some(&winter()), &modules, &Selection::default(), None, &BTreeSet::new());
+        let exams = exams_of(&rows, Some(&winter()), &modules, &Selection::default(), &BTreeMap::new());
         let found = termine(&exams, &modules);
         assert_eq!(found[0].0, "12104");
         assert_eq!(found[0].1.len(), 1);
@@ -1166,11 +1167,11 @@ mod tests {
         let modules = ids(&["A", "B"]);
         assert_eq!(warn(&rows, &["A", "B"]).0.len(), 1);
         let quiet = Selection { hidden_kinds: KindSet::default().with(EventKind::Exam), ..Selection::default() };
-        let exams = exams_of(&rows, None, &modules, &quiet, None, &BTreeSet::new());
+        let exams = exams_of(&rows, None, &modules, &quiet, &BTreeMap::new());
         assert_eq!(exam_warnings(&exams, &modules), (vec![], vec![]));
         let first = RowKey::of(&rows[1].date).unwrap();
         let chosen = Selection { hidden_rows: BTreeSet::from([first]), ..Selection::default() };
-        let exams = exams_of(&rows, None, &modules, &chosen, None, &BTreeSet::new());
+        let exams = exams_of(&rows, None, &modules, &chosen, &BTreeMap::new());
         assert_eq!(exam_warnings(&exams, &modules), (vec![], vec![]));
     }
 
@@ -1232,7 +1233,7 @@ mod tests {
     /// an empty selection, no town, no tracks.
     fn planned(db: &dyn Database, semester: &Semester, modules: &[String]) -> (Vec<Exam>, Warned) {
         let rows = queries::modules_exams(db, modules, &semester.key).unwrap();
-        let exams = exams_of(&rows, Some(semester), modules, &Selection::default(), None, &BTreeSet::new());
+        let exams = exams_of(&rows, Some(semester), modules, &Selection::default(), &BTreeMap::new());
         let warned = exam_warnings(&exams, modules);
         invariants(&exams, modules, &warned);
         (exams, warned)
@@ -1354,7 +1355,7 @@ mod tests {
         let modules = ids(&["11109", "11152"]);
         let rows = queries::modules_exams(&db, &modules, "2026W").unwrap();
         let quiet = Selection { hidden_kinds: KindSet::default().with(EventKind::Exam), ..Selection::default() };
-        let exams = exams_of(&rows, Some(winter), &modules, &quiet, None, &BTreeSet::new());
+        let exams = exams_of(&rows, Some(winter), &modules, &quiet, &BTreeMap::new());
         assert_eq!(exam_warnings(&exams, &modules), (vec![], vec![]));
     }
 }

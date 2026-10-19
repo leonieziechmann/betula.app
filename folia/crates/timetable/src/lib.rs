@@ -2,7 +2,7 @@
 //! visitor's weeks.
 //!
 //! From the date rows of the planned modules it works out every date of a row, which slots are
-//! alternatives of one another, which town's course a module is taken in, what overlaps, which
+//! alternatives of one another, which course of a module held at two campuses is taken, what overlaps, which
 //! exams sit too close, which other modules still fit, and the calendar a visitor downloads or
 //! subscribes to. Everything is a function of rows the caller loaded, without I/O and without a
 //! clock, so the server's calendar feed and the browser compute the same answer.
@@ -15,6 +15,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod clash;
+pub mod courses;
 pub mod exam_reading;
 pub mod exams;
 pub mod export;

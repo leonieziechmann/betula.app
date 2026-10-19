@@ -864,6 +864,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         place: place.clone().unwrap_or_default(),
         class: if once { "once" } else { "tinted" },
         hue: Some(hue),
+        mark: None,
         alt: item.alt.is_some(),
         clash,
         href: Some(href.clone()),
@@ -926,11 +927,11 @@ fn ghost_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String,
         .collect()
 }
 
-/// The timetable with what the plan hides shown again, but the other town's course: every Termin
+/// The timetable with what the plan hides shown again, but another course of a module: every Termin
 /// of the planned modules, as „Alle Termine" draws them. Its events and rows are the plan's, at
 /// the same places.
 fn unhidden(table: &Timetable) -> Timetable {
-    let town = |hidden: Option<HiddenBy>| hidden.filter(|by| matches!(by, HiddenBy::Town(_)));
+    let town = |hidden: Option<HiddenBy>| hidden.filter(|by| matches!(by, HiddenBy::Town(_) | HiddenBy::Course(_)));
     let mut all = table.clone();
     for event in &mut all.events {
         event.hidden = town(event.hidden);
@@ -954,7 +955,7 @@ fn reason_text(reason: HiddenBy, event: &Event, t: &i18n::Texts) -> String {
     match reason {
         HiddenBy::Kinds => (words.kinds_hidden)(&event.kinds.iter().map(|kind| kind.label(t.locale)).collect::<Vec<_>>().join("/")),
         HiddenBy::Choice => words.other_group_chosen.to_string(),
-        HiddenBy::Event | HiddenBy::Row | HiddenBy::Town(_) => words.hidden.to_string(),
+        HiddenBy::Event | HiddenBy::Row | HiddenBy::Town(_) | HiddenBy::Course(_) => words.hidden.to_string(),
     }
 }
 
@@ -1824,6 +1825,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -1841,7 +1843,7 @@ mod tests {
     fn planned(modules: &[&str], schedule: &[DateRow], exams: &[DateRow]) -> Timetable {
         let facts = winter();
         let modules: Vec<String> = modules.iter().map(|id| id.to_string()).collect();
-        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule, exams, sws: &[] };
+        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule, exams, sws: &[], taken: &[] };
         Timetable::build(&input, &Selection::default())
     }
 
@@ -2109,7 +2111,7 @@ mod tests {
         let mut doc = PlanDoc::default();
         assert!(doc.plan(key(), "12104", 1, None));
         let plan_week = |doc: &PlanDoc, all: bool| {
-            let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[] };
+            let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[] };
             week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
         };
         // Each slot as „Mo 11:30" with its buttons, „✓ …" or „× …".
@@ -2371,7 +2373,7 @@ mod tests {
         let schedule = [monday, group(2, 3, ("11:30", "13:00"), "2026-10-07"), group(3, 4, ("11:30", "13:00"), "2026-10-08"), group(4, 5, ("13:45", "15:15"), "2026-10-09")];
         let facts = winter();
         let modules = vec!["12104".to_string()];
-        let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[] }, selection);
+        let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[] }, selection);
 
         let open = build(&Selection::default());
         let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);

@@ -28,7 +28,7 @@ use folia_model::rows::{
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
     ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry,
-    ProgramPlanTotal, ProgramVersion, Successor, TextItem,
+    ProgramPlanTotal, ProgramVersion, Successor, TextItem, TrackProgram,
 };
 use folia_plans::plan::{self, SemesterPlan};
 use folia_plans::variants::{self, PlanVariant, Supplement};
@@ -503,6 +503,10 @@ pub struct ModuleData {
     pub successors: Vec<Successor>,
     pub schedule: Vec<EventDate>,
     pub exams: Vec<EventDate>,
+    /// Where the module is held as courses at two campuses or more, which course each program
+    /// takes (`module_tracks`, schema 15); empty for a module without courses.
+    #[serde(default)]
+    pub tracks: Vec<TrackProgram>,
     pub programs: Vec<ProgramLink>,
     /// Where the validated study plans place the module (`plan_semesters`).
     pub plan_places: Vec<PlanPlace>,
@@ -536,6 +540,7 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<ModuleData>, DbError
         successors: queries::module_successors(db, id)?,
         schedule: queries::module_schedule(db, id)?,
         exams: queries::module_exams(db, id)?,
+        tracks: queries::module_tracks(db, id)?,
         programs: queries::module_program_links(db, id)?,
         plan_places: queries::module_plan_places(db, id)?,
         semesters: queries::semesters(db)?,
@@ -700,6 +705,11 @@ pub struct StudyplanData {
     /// The program `abbrevs` are of, as `studyplan_in` was asked for it (an id of another shape
     /// left out). A subscription carries it, so the feed names the modules as the page does.
     pub program: Option<String>,
+    /// The courses `program` takes of the modules held as courses at two campuses or more
+    /// (`modules_tracks`): the timetable shows only those (owner, 2026-10-19). Empty without a
+    /// program.
+    #[serde(default)]
+    pub taken: Vec<TrackProgram>,
 }
 
 /// The Studienplan of `ids` in semester `key`, for a page in `locale`. For the browser (ids from
@@ -728,6 +738,10 @@ pub fn studyplan_in(db: &dyn Database, key: SemesterKey, ids: &[String], program
         exams: queries::modules_exams(db, &ids, &semester_key)?,
         sws: queries::modules_teaching_sws(db, &ids)?,
         abbrevs: queries::modules_abbrevs(db, &ids, program_id)?.into_iter().map(|a| (a.module_id, a.abbrev)).collect(),
+        taken: match program_id {
+            Some(program) => queries::modules_tracks(db, &ids, &semester_key, program)?,
+            None => Vec::new(),
+        },
         program: program_id.map(str::to_string),
         semester,
         ids,
@@ -754,6 +768,7 @@ impl StudyplanData {
             schedule: &self.schedule,
             exams: &self.exams,
             sws: &self.sws,
+            taken: &self.taken,
         };
         Timetable::build(&input, selection)
     }
@@ -1017,6 +1032,7 @@ pub fn fit(
         schedule: &schedule,
         exams: &exams,
         sws: &sws,
+        taken: &[],
     };
     let plan = Timetable::build(&input, selection);
     let options = filter.options();
@@ -1931,6 +1947,7 @@ mod studyplan_tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -1946,7 +1963,7 @@ mod studyplan_tests {
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
         let input =
-            Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws: &[] };
+            Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws: &[], taken: &[] };
         let table = Timetable::build(&input, &Selection::default());
         invariants(&table);
         let titles: BTreeMap<String, String> =

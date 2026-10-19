@@ -1055,6 +1055,7 @@ mod tests {
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -1080,7 +1081,7 @@ mod tests {
     ) -> Timetable {
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
-        let input = Input { key: facts.key, semester: None, facts, modules: &modules, schedule: &schedule, exams, sws };
+        let input = Input { key: facts.key, semester: None, facts, modules: &modules, schedule: &schedule, exams, sws, taken: &[] };
         let built = Timetable::build(&input, selection);
         invariants(&built);
         built

@@ -83,9 +83,13 @@
 /// every tab's page built at the start, behind the first one while nothing happens
 /// (`stage::prebuild`), so that a tab's first visit only swaps as well; 1.28.0 with the two pages of
 /// a change of tab moving on an axis on a phone, after a finger on the bottom bar as well (enhance.js,
-/// the Achse); 1.28.1 with that change starting at once, never empty, and seen when swiped
-/// (design/tabwechsel/konzept.html, „Schnell hintereinander"). The version of the app's
-/// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
+/// the Achse); 1.29.0 with a module held at two campuses showing the course of the program (schema
+/// 15): on its page Mein Studiengang's course alone with „Auch zeigen", another program's
+/// highlighted and the others faint, without either every course in its colour; in the Stundenplan
+/// the course the plan's program takes; 1.29.1 with a change of tab on a phone starting at once,
+/// never empty, and seen when swiped (design/tabwechsel/konzept.html, „Schnell hintereinander"). The
+/// version of the app's crates, the same as the server's; Radix's is in the snapshot
+/// (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.
