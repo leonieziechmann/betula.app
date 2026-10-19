@@ -29,7 +29,7 @@ use folia_model::labels::{
 };
 use folia_model::rows::{Module, Prerequisite, Semester};
 use folia_model::rows_detail::{EventDate, ProgramLink, Series};
-use folia_pages::ask::OverlayAsk;
+use folia_pages::ask::{OverlayAsk, ProgramsAsk};
 use folia_pages::{ModuleData, Overlay};
 use folia_routes::url::{self, ProgramTab};
 use folia_timetable::exam_reading::{self, ExamReading, Reason, Slot};
@@ -42,14 +42,16 @@ use folia_stores::bookmarks::{MarkButton, MarkLook};
 use folia_data::use_data;
 use folia_design::format;
 use crate::i18n::{self, use_location, Locale, Texts};
-use folia_stores::myprogram::MyProgram;
+use folia_stores::myprogram::{MineResolved, MyProgram};
 use folia_shell::seo::{self, Seo};
 use folia_stores::studyplan::{PlanButton, PlanHint, PlanLook, Studyplan};
 use folia_shell::pending::same_page;
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::{BackLink, Frame};
 use folia_design::ui::{shows_minor, Fact, Icon, JsOnly, KindBadge, OfferBadge, Prose, Shortcut};
+use crate::courses::{self, campuses_text, course_heading, CourseView, Undecided};
 use crate::week::{GridSlot, WeekGrid, MIN_HOURS};
+use folia_timetable::courses::Courses;
 
 /// The browser app (`csr`): only there is a plan to meet.
 const APP: bool = cfg!(feature = "csr");
@@ -420,6 +422,11 @@ pub fn ModulePanel(
     #[prop(optional)] docked: bool,
     #[prop(optional_no_strip)] full_href: Option<String>,
     #[prop(optional, into)] hint: Signal<Option<PlanHint>>,
+    /// The slug of the program whose list or page the module stands beside (the catalog filtered by
+    /// it, the program's page): the courses of a module held at two campuses are that program's
+    /// (`crate::courses`).
+    #[prop(optional_no_strip)]
+    program: Option<String>,
 ) -> impl IntoView {
     let t = i18n::t();
     let id = data.module.id.clone();
@@ -459,7 +466,7 @@ pub fn ModulePanel(
                     <Heading data=data.clone() hint/>
                 </header>
                 <div class="dbody">
-                    <Side data=data.clone()/>
+                    <Side data=data.clone() program=program/>
                     <Main data=data.clone()/>
                     <DataClient data=data.clone()/>
                 </div>
@@ -532,6 +539,9 @@ pub fn ModuleFull(
     #[prop(optional_no_strip)] back_to: Option<String>,
     #[prop(optional)] noindex: bool,
     #[prop(optional, into)] hint: Signal<Option<PlanHint>>,
+    /// The slug of the program the page is shown in (a program's page): as `ModulePanel`'s.
+    #[prop(optional_no_strip)]
+    program: Option<String>,
 ) -> impl IntoView {
     let t = i18n::t();
     let derived = derive(&data, t);
@@ -561,7 +571,7 @@ pub fn ModuleFull(
                     </header>
                     // Same parts, same order as the preview; side by side where there is room.
                     <div class="module-grid">
-                        <aside class="panel dbody"><Side data=data.clone()/></aside>
+                        <aside class="panel dbody"><Side data=data.clone() program=program/></aside>
                         <div class="panel dbody"><Main data=data.clone()/><DataClient data=data.clone()/></div>
                     </div>
                 </article>
@@ -632,9 +642,10 @@ fn fact_wide(value: Option<&str>) -> bool {
     value.is_some_and(|value| value.chars().count() > FACT_BESIDE)
 }
 
-/// Schedule and key facts: the right column of the page, the top of the preview.
+/// Schedule and key facts: the right column of the page, the top of the preview. `program`: as
+/// `ModulePanel`'s.
 #[component]
-fn Side(data: ModuleData) -> impl IntoView {
+fn Side(data: ModuleData, program: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let m = data.module.clone();
     let derived = derive(&data, t);
@@ -665,7 +676,7 @@ fn Side(data: ModuleData) -> impl IntoView {
                 </span>
             </p>
         })}
-        <Schedule data=data.clone()/>
+        <Schedule data=data.clone() program/>
         <div class="section" id="blick">
             <h3 class="label">{words.at_a_glance}</h3>
             <dl class="facts">
@@ -753,9 +764,11 @@ fn DataClient(data: ModuleData) -> impl IntoView {
     }
 }
 
-/// Teaching events of the newest semester that has any, as a week grid plus a list; exams below.
+/// Teaching events of the newest semester that has any, as a week grid plus a list; exams below. A
+/// module held as courses at two campuses or more shows them as `crate::courses` says, for
+/// `program` (the slug of the program the page stands for) or Mein Studiengang.
 #[component]
-fn Schedule(data: ModuleData) -> impl IntoView {
+fn Schedule(data: ModuleData, program: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let words = &t.module;
     let m = &data.module;
@@ -781,6 +794,13 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     let exam_semester = data.exams.first().map(|d| (d.semester_key.clone(), semester_name(&d.semester_key, &d.semester_label, t.locale)));
     let exams: Vec<EventDate> = data.exams.iter().filter(|d| exam_semester.as_ref().is_some_and(|(key, _)| *key == d.semester_key)).cloned().collect();
 
+    // The courses of a module held at two campuses or more in the semester of its Termine, and
+    // which of them the page shows (owner, 2026-10-19); „Auch zeigen" shows Mein Studiengang the
+    // others, faint.
+    let courses = newest_key.as_deref().and_then(|key| Courses::of(&teaching, &data.tracks, key));
+    let view_of = course_view(courses.clone(), program);
+    let reveal = RwSignal::new(false);
+
     // The Studienplan beside the week (A.9): nothing on the server, so its HTML is the module's
     // alone; in the app the other modules planned into the semester of these Termine.
     let overlay = plan_overlay(&m.id, newest_key.as_deref().and_then(SemesterKey::parse), current.and_then(|c| SemesterKey::parse(&c.key)));
@@ -789,7 +809,30 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     // sein, so dass nicht so viel vertical space verschwendet wird"): a slot unfolds it and marks
     // its lines (enhance.js „termin"). Without a week the list is all there is, and stays open.
     let folded = !own.is_empty();
-    let slots = Memo::new(move |_| overlay.with(|overlay| with_overlay(&own, overlay, t)));
+    let slots = {
+        let courses = courses.clone();
+        Memo::new(move |_| {
+            let shown = view_of.with(|view| shown_slots(&own, courses.as_ref(), view, reveal.get()));
+            overlay.with(|overlay| with_overlay(&shown, overlay, t))
+        })
+    };
+    // The Termine list, grouped by course where the module has courses (`list_groups`).
+    let lines: Vec<(String, Vec<EventDate>, Option<Campus>)> = termine(&teaching)
+        .into_iter()
+        .enumerate()
+        .map(|(n, rows)| {
+            let course = rows.first().and_then(|row| row.track.as_ref()).and_then(|track| track.known());
+            (termin_id(n), rows.into_iter().cloned().collect(), course)
+        })
+        .collect();
+    let groups = {
+        let courses = courses.clone();
+        Memo::new(move |_| view_of.with(|view| list_groups(&lines, courses.as_ref(), view, reveal.get(), t)))
+    };
+    let note = {
+        let courses = courses.clone();
+        move || courses.as_ref().map(|courses| view_of.with(|view| course_note(courses, view, reveal, t)))
+    };
     let week_line = move || {
         overlay.with(|overlay| overlay.line.clone()).map(|(warn, text)| match warn {
             true => view! { <p class="note"><Icon name="triangle-alert"/><span>{text}</span></p> }.into_any(),
@@ -823,10 +866,10 @@ fn Schedule(data: ModuleData) -> impl IntoView {
 
     // A line per Termin (`termine`, `termin_text`), with the id its slots lead to; an exam date as
     // read (`exam_reading`).
-    let event_list = |dates: Vec<(Option<String>, Vec<EventDate>, Option<ExamReading>)>| {
+    let event_list = move |dates: Vec<ListLine>| {
         dates
             .into_iter()
-            .filter_map(|(id, rows, reading)| {
+            .filter_map(|(id, rows, reading, faint)| {
                 let d = rows.first()?.clone();
                 let mut text = termin_text(&rows, t)?;
                 let (mut open, mut stated, mut marker) = (words.time_open, None, None);
@@ -855,8 +898,8 @@ fn Schedule(data: ModuleData) -> impl IntoView {
                     {marker.map(|text| view! { <small class="odd"><Icon name="info"/><span>{text}</span></small> })}
                 };
                 Some(match d.source_url.clone() {
-                    Some(href) => view! { <a class="ev" id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
-                    None => view! { <div class="ev" id=id title=listed>{body}</div> }.into_any(),
+                    Some(href) => view! { <a class="ev" class:faint=faint id=id href=href rel="noopener" title=listed>{body}</a> }.into_any(),
+                    None => view! { <div class="ev" class:faint=faint id=id title=listed>{body}</div> }.into_any(),
                 })
             })
             .collect_view()
@@ -865,19 +908,28 @@ fn Schedule(data: ModuleData) -> impl IntoView {
     view! {
         <div class="section" id="termine">
             <h3 class="label">{words.dates}{newest.as_ref().map(|(_, label)| view! { <span>{label.clone()}</span> })}</h3>
+            {note}
             <WeekGrid slots/>
             {week_line}
             {gap_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             {no_schedule_note.map(|note| view! { <p class="hint">{note}</p> })}
             {(!teaching.is_empty()).then(|| {
-                let lines: Vec<(Option<String>, Vec<EventDate>, Option<ExamReading>)> =
-                    termine(&teaching).into_iter().enumerate().map(|(n, rows)| (Some(termin_id(n)), rows.into_iter().cloned().collect(), None)).collect();
-                let count = lines.len();
-                let list = view! { <div class="evlist">{event_list(lines)}</div> };
+                let count = move || groups.with(|groups| groups.iter().map(|group| group.lines.len()).sum::<usize>());
+                let list = move || {
+                    let groups = groups.get();
+                    view! {
+                        <div class="evlist">
+                            {groups.into_iter().map(|group| view! {
+                                {group.heading.map(|(heading, mark)| view! { <p class=format!("course-head {}", mark.unwrap_or_default())>{heading}</p> })}
+                                {event_list(group.lines.into_iter().map(|(id, rows, faint)| (Some(id), rows, None, faint)).collect())}
+                            }).collect_view()}
+                        </div>
+                    }
+                };
                 match folded {
                     true => view! {
                         <details class="evfold">
-                            <summary data-action="fold">{words.dates_list}<span class="num">{format!("({count})")}</span></summary>
+                            <summary data-action="fold">{words.dates_list}<span class="num">{move || format!("({})", count())}</span></summary>
                             {list}
                         </details>
                     }
@@ -890,7 +942,7 @@ fn Schedule(data: ModuleData) -> impl IntoView {
         {exam_semester.map(|(_, label)| view! {
             <div class="section" id="pruefungstermine">
                 <h3 class="label">{words.exam_dates}<span>{label}</span></h3>
-                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| (None, vec![d], reading)).collect())}</div>
+                <div class="evlist">{event_list(exams.into_iter().map(|(d, reading)| (None, vec![d], reading, false)).collect())}</div>
                 {exam_line}
                 {exam_note.map(|note| view! { <p class="note"><Icon name="info"/><span>{note}</span></p> })}
             </div>
@@ -1102,13 +1154,13 @@ fn joined<'a>(values: impl Iterator<Item = Option<&'a str>>, by: &str) -> Option
 /// time is a single date.
 #[cfg(test)]
 fn own_slots(teaching: &[EventDate], t: &'static Texts) -> Vec<GridSlot> {
-    own_groups(teaching, t).into_iter().map(|(slot, _)| slot).collect()
+    own_groups(teaching, t).into_iter().map(|(slot, ..)| slot).collect()
 }
 
 /// `own_slots`, each with the keys of the rows it stands for (`RowKey`): what the Studienplan
-/// names when one of them clashes with it. Each slot leads to the lines of the Termine list its rows
-/// stand on (`GridSlot::lines`, `termin_id`).
-fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>)> {
+/// names when one of them clashes with it; and the course its event is (`EventDate::track`). Each
+/// slot leads to the lines of the Termine list its rows stand on (`GridSlot::lines`, `termin_id`).
+fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<RowKey>, Option<Campus>)> {
     /// Once, the series, weekday, from, to, event, group.
     type Key<'a> = (bool, Option<Series>, u8, u16, u16, &'a str, Option<&'a str>);
     /// A slot's key, its first row, the days of its single dates, the keys of its rows, and the
@@ -1142,9 +1194,150 @@ fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<(GridSlot, Vec<R
             // A date of a series alone at its time is the single date it is.
             let once = once || (series.is_some() && dates.len() == 1);
             let slot = own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t);
-            (GridSlot { lines: on.into_iter().map(termin_id).collect(), ..slot }, rows)
+            let course = date.track.as_ref().and_then(|track| track.known());
+            (GridSlot { lines: on.into_iter().map(termin_id).collect(), ..slot }, rows, course)
         })
         .collect()
+}
+
+/// Which courses the page shows (`CourseView`): for the program the page stands for (`program`, a
+/// slug, found among the programs) and Mein Studiengang, which only the browser app knows (R9);
+/// every course on the server and without courses.
+fn course_view(courses: Option<Courses>, program: Option<String>) -> Memo<CourseView> {
+    let mine = MineResolved::expect();
+    let source = use_data().ok();
+    Memo::new(move |_| {
+        let Some(courses) = courses.as_ref() else { return CourseView::All { about: None } };
+        let page = program.as_ref().and_then(|slug| source.as_ref()?.now(&ProgramsAsk {}).ok()?.into_iter().find(|p| p.slug == *slug));
+        let mine = mine.and_then(MineResolved::exact);
+        CourseView::of(courses, page.as_ref(), mine.as_ref())
+    })
+}
+
+/// The module's own slots as its courses are shown (`CourseView`): each course in its colour where
+/// all are shown; another course than the one taken left out on Mein Studiengang's page (until
+/// „Auch zeigen") and faint on another program's. A slot in no course stays as it is.
+fn shown_slots(own: &[(GridSlot, Vec<RowKey>, Option<Campus>)], courses: Option<&Courses>, view: &CourseView, reveal: bool) -> Vec<(GridSlot, Vec<RowKey>)> {
+    own.iter()
+        .filter_map(|(slot, rows, course)| {
+            let course = course.filter(|course| courses.is_some_and(|courses| courses.campuses.contains(course)));
+            let (Some(courses), Some(course)) = (courses, course) else {
+                return Some((slot.clone(), rows.clone()));
+            };
+            match view {
+                CourseView::All { .. } => Some((GridSlot { mark: courses::mark(courses, course), ..slot.clone() }, rows.clone())),
+                _ if view.own().is_some_and(|own| own.contains(&course)) => Some((slot.clone(), rows.clone())),
+                CourseView::Mine { .. } if !reveal => None,
+                _ => Some((GridSlot { class: "faint", ..slot.clone() }, rows.clone())),
+            }
+        })
+        .collect()
+}
+
+/// A line of a list of Termine: its id (what a slot of the week leads to), its rows, how an exam
+/// date reads (`exam_reading`), and whether it is faint (another course than the one taken).
+type ListLine = (Option<String>, Vec<EventDate>, Option<ExamReading>, bool);
+
+/// A group of the Termine list: a course's heading with its mark (in its colour where every course
+/// is shown), and its lines, each with its id and whether it is faint.
+#[derive(Clone, Debug, PartialEq)]
+struct ListGroup {
+    heading: Option<(String, Option<&'static str>)>,
+    lines: Vec<(String, Vec<EventDate>, bool)>,
+}
+
+/// The lines of the Termine list as the courses are shown (`CourseView`): without courses one group
+/// of every line; with them one group per course, the courses taken first, then the others (faint
+/// on another program's page, left out on Mein Studiengang's until „Auch zeigen"), then the
+/// Termine in no course, each under its heading.
+fn list_groups(lines: &[(String, Vec<EventDate>, Option<Campus>)], courses: Option<&Courses>, view: &CourseView, reveal: bool, t: &'static Texts) -> Vec<ListGroup> {
+    let Some(courses) = courses else {
+        return vec![ListGroup { heading: None, lines: lines.iter().map(|(id, rows, _)| (id.clone(), rows.clone(), false)).collect() }];
+    };
+    let own = view.own();
+    let mut order: Vec<Campus> = courses.campuses.clone();
+    order.sort_by_key(|campus| own.is_some_and(|own| !own.contains(campus)));
+    let mut groups = Vec::new();
+    for campus in order {
+        let theirs = own.is_some_and(|own| !own.contains(&campus));
+        if theirs && matches!(view, CourseView::Mine { .. }) && !reveal {
+            continue;
+        }
+        let held: Vec<(String, Vec<EventDate>, bool)> = lines.iter().filter(|(_, _, course)| *course == Some(campus)).map(|(id, rows, _)| (id.clone(), rows.clone(), theirs)).collect();
+        if held.is_empty() {
+            continue;
+        }
+        let mark = matches!(view, CourseView::All { .. }).then(|| courses::mark(courses, campus)).flatten();
+        groups.push(ListGroup { heading: Some((course_heading(courses, campus, t), mark)), lines: held });
+    }
+    let shared: Vec<(String, Vec<EventDate>, bool)> =
+        lines.iter().filter(|(_, _, course)| course.is_none_or(|course| !courses.campuses.contains(&course))).map(|(id, rows, _)| (id.clone(), rows.clone(), false)).collect();
+    if !shared.is_empty() {
+        groups.push(ListGroup { heading: Some((t.module.courses_shared.to_string(), None)), lines: shared });
+    }
+    groups
+}
+
+/// The line over the week of a module with courses: where it is offered and which Termine the page
+/// shows, with „Auch zeigen" on Mein Studiengang's page; its tooltip says whether QIS names the
+/// program at them or its campus decided.
+fn course_note(courses: &Courses, view: &CourseView, reveal: RwSignal<bool>, t: &'static Texts) -> AnyView {
+    let words = &t.module;
+    let others = |own: &BTreeSet<Campus>| -> Vec<Campus> { courses.campuses.iter().copied().filter(|campus| !own.contains(campus)).collect() };
+    let listed = |own: &BTreeSet<Campus>| -> Vec<Campus> { own.iter().copied().collect() };
+    let basis = |program: &str, qis: bool| if qis { (words.courses_by_qis)(program) } else { (words.courses_by_campus)(program) };
+    match view {
+        CourseView::All { about } => {
+            let more = match about {
+                None => words.courses_setup.to_string(),
+                Some(Undecided::None(program)) => (words.courses_undecided)(program),
+                Some(Undecided::Every(program)) => (words.courses_every)(program),
+            };
+            // Each campus with the dot of its colour: the key to the stripes of the week while the
+            // list with its headings is folded away.
+            let last = courses.campuses.len().saturating_sub(1);
+            let keys: Vec<AnyView> = courses
+                .campuses
+                .iter()
+                .enumerate()
+                .map(|(at, campus)| {
+                    let before = match at {
+                        0 => "",
+                        at if at == last => words.courses_and,
+                        _ => ", ",
+                    };
+                    let class = format!("course-key {}", courses::mark(courses, *campus).unwrap_or_default());
+                    view! { {before}<span class=class>{campus.label(t.locale)}</span> }.into_any()
+                })
+                .collect();
+            view! {
+                <p class="note courses">
+                    <Icon name="map-pin"/>
+                    <span>{(words.courses_all)(courses.campuses.len())}" "{keys}". "{words.courses_one_of}" "{more}</span>
+                </p>
+            }
+            .into_any()
+        }
+        CourseView::Mine { program, own, qis } => {
+            let text = format!("{} {}", (words.courses_mine)(program, &campuses_text(&listed(own), t)), (words.courses_also)(&campuses_text(&others(own), t)));
+            view! {
+                <p class="note courses" title=basis(program, *qis)>
+                    <Icon name="map-pin"/>
+                    <span>
+                        {text}" "
+                        <button type="button" class="courses-toggle" aria-pressed=move || if reveal.get() { "true" } else { "false" } on:click=move |_| reveal.update(|on| *on = !*on)>
+                            {move || if reveal.get() { words.courses_hide } else { words.courses_show }}
+                        </button>
+                    </span>
+                </p>
+            }
+            .into_any()
+        }
+        CourseView::Highlight { program, own, qis } => {
+            let text = format!("{} {}", (words.courses_highlight)(program, &campuses_text(&listed(own), t)), (words.courses_faint)(&campuses_text(&others(own), t)));
+            view! { <p class="note courses" title=basis(program, *qis)><Icon name="map-pin"/><span>{text}</span></p> }.into_any()
+        }
+    }
 }
 
 /// The slot of one group of rows (`own_groups`): `date` is its first row, `dates` the days of its
@@ -1473,6 +1666,7 @@ mod tests {
             source_url: None,
             room_short: None,
             series: None,
+            track: None,
         }
     }
 
@@ -1488,6 +1682,92 @@ mod tests {
             last_date: Some(last.into()),
             ..exam(Some(weekday), Some(times.0), Some(times.1), Some(first))
         }
+    }
+
+    /// `own_groups` without the courses, as `with_overlay` takes them.
+    fn pairs(own: Vec<(GridSlot, Vec<RowKey>, Option<Campus>)>) -> Vec<(GridSlot, Vec<RowKey>)> {
+        own.into_iter().map(|(slot, rows, _)| (slot, rows)).collect()
+    }
+
+    /// The Programmierpraktikum of 2026W, held at the Zentralcampus and in Sachsendorf (owner,
+    /// 2026-10-19): every course in its colour and under its heading, Mein Studiengang's alone (the
+    /// others behind „Auch zeigen"), another program's highlighted and the others faint.
+    #[test]
+    fn the_courses_of_a_module_held_at_two_campuses() {
+        use folia_model::labels::Code;
+        use folia_model::rows_detail::TrackProgram;
+        let course = |date: EventDate, campus: &str| EventDate { track: Some(Code::parse(campus)), ..date };
+        let rows = vec![
+            course(teaching("148008", "Vorlesung", "[unbenannt]", 5, ("11:30", "13:00"), "week_a", "2026-10-09", "2027-01-29"), "zentralcampus"),
+            course(teaching("148370", "Praktikum", "[unbenannt]", 1, ("11:30", "13:00"), "weekly", "2026-10-05", "2027-01-25"), "zentralcampus"),
+            course(teaching("149408", "Vorlesung", "[unbenannt]", 2, ("07:30", "09:00"), "weekly", "2026-10-06", "2027-01-27"), "sachsendorf"),
+            course(teaching("148455", "Laborausbildung", "[unbenannt]", 2, ("09:15", "10:45"), "weekly", "2026-10-06", "2027-01-27"), "sachsendorf"),
+            teaching("150000", "Tutorium", "[unbenannt]", 4, ("13:45", "15:15"), "weekly", "2026-10-08", "2027-01-28"),
+        ];
+        let row = |campus: &str, program: &str, name: &str| TrackProgram {
+            module_id: "12102".into(),
+            semester_key: "2026W".into(),
+            campus: Code::parse(campus),
+            program_id: program.into(),
+            basis: Code::parse("qis"),
+            family_key: program.get(..6).unwrap_or(program).into(),
+            program_name: name.into(),
+            degree_display: Some("B.Sc.".into()),
+            is_latest_po: true,
+        };
+        let tracks = [row("zentralcampus", "079-82-2008", "Informatik"), row("sachsendorf", "247-82-2016", "Medizininformatik")];
+        let courses = Courses::of(&rows, &tracks, "2026W").unwrap();
+        let lines: Vec<(String, Vec<EventDate>, Option<Campus>)> =
+            termine(&rows).into_iter().enumerate().map(|(n, rows)| (termin_id(n), rows.iter().map(|row| (*row).clone()).collect(), rows[0].track.as_ref().and_then(|track| track.known()))).collect();
+        let own = own_groups(&rows, &DE);
+        let all = CourseView::All { about: None };
+        let mine = CourseView::Mine { program: "Medizininformatik · B.Sc.".into(), own: BTreeSet::from([Campus::Sachsendorf]), qis: true };
+        let other = CourseView::Highlight { program: "Informatik · B.Sc.".into(), own: BTreeSet::from([Campus::Zentralcampus]), qis: true };
+
+        // The week: every course in its colour; Mein Studiengang's alone, the others faint once
+        // asked for; another program's highlighted, the others faint. The tutorial is in no course.
+        let looks = |view: &CourseView, reveal: bool| -> Vec<(String, &'static str, Option<&'static str>)> {
+            shown_slots(&own, Some(&courses), view, reveal).into_iter().map(|(slot, _)| (slot.lines.join(" "), slot.class, slot.mark)).collect()
+        };
+        assert_eq!(
+            looks(&all, false),
+            [
+                ("termin-1".to_string(), "", Some("course-1")),
+                ("termin-2".to_string(), "other", Some("course-1")),
+                ("termin-3".to_string(), "", Some("course-2")),
+                ("termin-4".to_string(), "other", Some("course-2")),
+                ("termin-5".to_string(), "other", None),
+            ]
+        );
+        assert_eq!(looks(&mine, false), [("termin-3".to_string(), "", None), ("termin-4".to_string(), "other", None), ("termin-5".to_string(), "other", None)]);
+        assert_eq!(looks(&mine, true).iter().filter(|(_, class, _)| *class == "faint").count(), 2);
+        assert_eq!(looks(&other, false).iter().map(|(_, class, _)| *class).collect::<Vec<_>>(), ["", "other", "faint", "faint", "other"]);
+
+        // The list: a heading per course, the courses taken first, the Termine in no course last.
+        type Group = (Option<String>, Vec<(String, bool)>);
+        let groups = |view: &CourseView, reveal: bool| -> Vec<Group> {
+            list_groups(&lines, Some(&courses), view, reveal, &DE).into_iter().map(|group| (group.heading.map(|(heading, _)| heading), group.lines.into_iter().map(|(id, _, faint)| (id, faint)).collect())).collect()
+        };
+        let line = |id: &str, faint: bool| (id.to_string(), faint);
+        let (zentral, sachsendorf, shared) = (
+            Some("Zentralcampus Cottbus · für Informatik · B.Sc.".to_string()),
+            Some("Cottbus-Sachsendorf · für Medizininformatik · B.Sc.".to_string()),
+            Some("Für alle Angebote".to_string()),
+        );
+        assert_eq!(
+            groups(&all, false),
+            [
+                (zentral.clone(), vec![line("termin-1", false), line("termin-2", false)]),
+                (sachsendorf.clone(), vec![line("termin-3", false), line("termin-4", false)]),
+                (shared.clone(), vec![line("termin-5", false)]),
+            ]
+        );
+        assert_eq!(groups(&mine, false), [(sachsendorf.clone(), vec![line("termin-3", false), line("termin-4", false)]), (shared.clone(), vec![line("termin-5", false)])]);
+        assert_eq!(groups(&mine, true)[1], (zentral.clone(), vec![line("termin-1", true), line("termin-2", true)]));
+        assert_eq!(groups(&other, false)[1], (sachsendorf, vec![line("termin-3", true), line("termin-4", true)]));
+        assert_eq!(list_groups(&lines, Some(&courses), &all, false, &DE)[0].heading.as_ref().and_then(|(_, mark)| *mark), Some("course-1"));
+        // Without courses, one group of every line, as before.
+        assert_eq!(list_groups(&lines, None, &all, false, &DE).len(), 1);
     }
 
     /// A series of single dates is one Termin on the page (owner, 2026-10-13: „sehr
@@ -1636,7 +1916,7 @@ mod tests {
         let lines: Vec<(u8, Vec<&str>)> = slots.iter().map(|s| (s.day, s.lines.iter().map(String::as_str).collect())).collect();
         assert_eq!(lines, [(5, vec!["termin-1", "termin-3"]), (2, vec!["termin-2"])]);
         // The week with the plan beside it keeps where its own slots lead.
-        assert!(with_overlay(&own_groups(&rows, &DE), &Overlay::default(), &DE).iter().all(|s| !s.lines.is_empty()));
+        assert!(with_overlay(&pairs(own_groups(&rows, &DE)), &Overlay::default(), &DE).iter().all(|s| !s.lines.is_empty()));
     }
 
     /// Two facts side by side where their values are short (owner, 2026-10-17); a long one takes the
@@ -1751,7 +2031,7 @@ mod tests {
             teaching("150132", "Übung", "1-Gruppe", 2, ("09:15", "10:45"), "weekly", "2026-10-13", "2027-01-26"),
             teaching("148663", "Vorlesung", "[unbenannt]", 4, ("11:30", "13:00"), "weekly", "2026-10-15", "2027-01-28"),
         ];
-        let own = own_groups(&rows, &DE);
+        let own = pairs(own_groups(&rows, &DE));
         let clashing = own.first().and_then(|(_, rows)| rows.first().copied());
         let named = |name: &str, day, from: &str, to: &str| OverlaySlot { module: "12102".into(), short: name.into(), day, from: minutes(from).unwrap(), to: minutes(to).unwrap() };
         let planned = |day, from: &str, to: &str| named("Programmierpraktikum", day, from, to);
@@ -1948,6 +2228,7 @@ mod tests {
             successors: Vec::new(),
             schedule,
             exams,
+            tracks: Vec::new(),
             programs: vec![informatik],
             plan_places: vec![folia_model::rows_detail::PlanPlace { program_id: "079-82-2008".into(), semester: Some(1), start_semester: Some(1), end_semester: Some(1) }],
             semesters: vec![semester("2026S", "SoSe 2026", "2026-04-01", "2026-09-30"), semester("2026W", "WiSe 2026/27", "2026-10-01", "2027-03-31")],

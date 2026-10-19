@@ -78,7 +78,8 @@ macro_rules! code_enum {
         }
     ) => {
         $(#[$meta])*
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        // Ordered as declared: the campuses Zentralcampus, Sachsendorf, Senftenberg, Nord.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
         pub enum $name { $($variant),+ }
 
         impl Labelled for $name {
@@ -309,6 +310,15 @@ code_enum! {
 }
 
 code_enum! {
+    /// Why a program takes a course of a module held at two campuses (`v_module_track_program`):
+    /// QIS lists the program on its events, or the program's compulsory modules are held there.
+    TrackBasis {
+        Qis = "qis" => { de: "laut QIS", en: "as QIS states" },
+        Campus = "campus" => { de: "nach dem Standort des Studiengangs", en: "by the program's campus" },
+    }
+}
+
+code_enum! {
     LecturerRole {
         Responsible = "responsible" => { de: "Modulverantwortung", en: "Module coordination" },
         Instructor = "instructor" => { de: "Lehrende", en: "Lecturers" },
@@ -349,6 +359,7 @@ pub fn code_sets() -> Vec<(&'static str, Vec<&'static str>)> {
         ("EventCategory", codes::<EventCategory>()),
         ("Rhythm", codes::<Rhythm>()),
         ("Campus", codes::<Campus>()),
+        ("TrackBasis", codes::<TrackBasis>()),
         ("LecturerRole", codes::<LecturerRole>()),
     ]
 }

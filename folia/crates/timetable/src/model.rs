@@ -10,12 +10,18 @@
 //! „1 von 2" hides a date a student needs, a false clash costs one click on „Veranstaltung
 //! ausblenden".
 //!
-//! Five modules are taught in Cottbus and in Senftenberg as two whole courses, each town with its
-//! lecture and its Übung (12104). A student takes one of them, so the other town's events of such
-//! a module are hidden: those of the town the visitor chose, else of the town most of the plan's
-//! other modules are taught in. A module whose Cottbus lecture and Senftenberg lab are both
-//! required (13693) has no tracks, and Cottbus sites are never tracks (11760's two sites hold its
-//! two required parts).
+//! Eight modules of 2026W are held as two whole courses at two campuses or more, each with its
+//! lecture and its Übung (docs/radix/schema-v2.md, „Tracks"): Entwicklung von Softwaresystemen
+//! (12104) at the Zentralcampus and in Senftenberg, the Programmierpraktikum (12102) at the
+//! Zentralcampus and in Sachsendorf. A student takes one of them, so the events of the others are
+//! hidden: of the courses the plan's program takes (owner, 2026-10-19: „nur die termine anzeigen,
+//! die den eingerichteten Studiengang entsprechend"), within the town the visitor chose where
+//! one is; else of the town the visitor chose; else of the town most of the plan's other modules
+//! are taught in. „Beide" shows every course. Radix reads the courses (`EventDate::track`): a module
+//! whose Cottbus lecture and Senftenberg lab are both required (13693) has none, and neither has
+//! 11760, whose two campuses hold its two required parts. Where the rows carry no courses at all
+//! (a snapshot before schema 15), a module with a lecture and a non-lecture event in each town has
+//! two towns' courses, as before.
 //!
 //! Then the visitor's selection: hidden events, kinds and Termine, and made choices. Every event
 //! and row says why it is not shown (`HiddenBy`, the first rule that holds). The clashes of what
@@ -27,10 +33,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use folia_calendar::day::Day;
 use folia_calendar::kind::{class_of, kinds_of, Class, EventKind, KindSet};
 use folia_calendar::rowkey::RowKey;
-use folia_calendar::select::{town_of, HiddenBy, Selection, Town, TownChoice};
+use folia_calendar::select::{town_of, town_of_campus, HiddenBy, Selection, Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
+use folia_model::labels::Campus;
 use folia_model::rows::Semester;
-use folia_model::rows_detail::{DateRow, EventDate, ModuleSws};
+use folia_model::rows_detail::{DateRow, EventDate, ModuleSws, TrackProgram};
 
 use crate::clash::{self, Clash};
 use crate::exams::{self, Exam, ExamWarning};
@@ -71,6 +78,9 @@ pub struct Input<'a> {
     pub exams: &'a [DateRow],
     /// The modules' SWS per teaching form (`modules_teaching_sws`).
     pub sws: &'a [ModuleSws],
+    /// The courses the plan's program takes of the modules held as courses at two campuses or more
+    /// (`modules_tracks`); empty without a program.
+    pub taken: &'a [TrackProgram],
 }
 
 /// One semester of a Studienplan, with the visitor's selection applied.
@@ -85,9 +95,17 @@ pub struct Timetable {
     pub events: Vec<Event>,
     /// The planned modules' exams (`exams::exams_of`).
     pub exams: Vec<Exam>,
-    /// The planned modules with city tracks: a lecture and a non-lecture event in each town.
+    /// The planned modules held as courses at two places, of which a student attends one: those
+    /// with courses (`courses`), and, where the rows carry none, those with a lecture and a
+    /// non-lecture event in each town.
     pub tracks: BTreeSet<String>,
-    /// The town whose course a module with tracks is taken in; `None` for both.
+    /// The campuses of the courses of each planned module that Radix reads them for (two or more).
+    pub courses: BTreeMap<String, BTreeSet<Campus>>,
+    /// Of the modules with tracks, which courses are shown and what decided it; a module not in
+    /// here shows all of them.
+    pub shown: BTreeMap<String, Shown>,
+    /// The town the visitor chose or most of the plan's other modules are taught in (the town a
+    /// module of two towns' courses is taken in where nothing else decides); `None` for both.
     pub town: Option<Town>,
     /// The town was derived from the plan's other modules, not chosen.
     pub town_derived: bool,
@@ -105,6 +123,40 @@ pub struct Timetable {
     pub without_dates: Vec<String>,
 }
 
+/// Which courses of a module with tracks a timetable shows, and what decided it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Shown {
+    /// The courses shown, by campus (`Event::course`); empty for a module of two towns' courses
+    /// whose rows carry none, which `towns` decides.
+    pub campuses: BTreeSet<Campus>,
+    /// The towns of the courses shown: an exam of the module is shown where it is held in one.
+    pub towns: BTreeSet<Town>,
+    pub by: ShownBy,
+}
+
+/// What decided the courses of a module a timetable shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShownBy {
+    /// The plan's program takes them (`Input::taken`).
+    Program,
+    /// The town the visitor chose.
+    Chosen,
+    /// The town most of the plan's other modules are taught in.
+    Derived,
+}
+
+impl Shown {
+    /// Whether the event is shown for this module: it is one of the courses shown, or in no
+    /// course; of two towns' courses, held in a town shown or in none known.
+    pub fn shows(&self, event: &Event) -> bool {
+        match (event.course, self.campuses.is_empty()) {
+            (Some(course), false) => self.campuses.contains(&course),
+            (None, false) => true,
+            (_, true) => event.town().is_none_or(|town| self.towns.contains(&town)),
+        }
+    }
+}
+
 /// One teaching event of the planned modules.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Event {
@@ -117,6 +169,9 @@ pub struct Event {
     pub class: Class,
     /// The planned modules that link it, in plan order.
     pub modules: Vec<String>,
+    /// The campus of the course of its own it is part of for every planned module that links it
+    /// (`EventDate::track`); `None` for an event in no course.
+    pub course: Option<Campus>,
     /// 1..=8, from the plan position of its first module.
     pub tone: u8,
     pub attendance: Attendance,
@@ -232,14 +287,17 @@ impl Timetable {
         for event in &mut events {
             decide(event, input.sws);
         }
-        let tracks = tracks(&events, &modules);
+        let courses = courses(input.schedule, &modules);
+        let tracks = tracks(&events, &modules, &courses);
         let (town, town_derived) = effective_town(selection.town, &events, &tracks, selection.town_from.as_ref());
+        let shown = shown(&tracks, &courses, &taken(input.taken, &courses), selection.town, town, town_derived);
         for event in &mut events {
-            event.hidden = event_hidden(event, selection, town, &tracks);
+            event.hidden = event_hidden(event, selection, &shown);
             choose(event, selection);
         }
         let (clashes, blocked) = clash::clashes(&events);
-        let exams = exams::exams_of(input.exams, input.semester, &modules, selection, town, &tracks);
+        let towns: BTreeMap<String, BTreeSet<Town>> = shown.iter().map(|(module, shown)| (module.clone(), shown.towns.clone())).collect();
+        let exams = exams::exams_of(input.exams, input.semester, &modules, selection, &towns);
         let (exam_warnings, place_unknown) = exams::exam_warnings(&exams, &modules);
         let without_dates = modules
             .iter()
@@ -253,6 +311,8 @@ impl Timetable {
             events,
             exams,
             tracks,
+            courses,
+            shown,
             town,
             town_derived,
             clashes,
@@ -265,34 +325,46 @@ impl Timetable {
 
     /// The kinds of the semester's events and exams with the number of events of each, hidden
     /// ones included, in the kinds' order: the chips „Vorlesung 5", „Übung 4", „Prüfung 4". A
-    /// „Vorlesung/Übung" counts for both. The other town's course of a module with city tracks is
-    /// not the visitor's, whatever else hides it: a chip counts what its click can show, and
-    /// Senftenberg's student of 11107 has no Tutorium to show (only the Cottbus course has one).
+    /// „Vorlesung/Übung" counts for both. Another course of a module with tracks is not the
+    /// visitor's, whatever else hides it: a chip counts what its click can show, and Senftenberg's
+    /// student of 11107 has no Tutorium to show (only the Cottbus course has one).
     pub fn kinds_present(&self) -> Vec<(EventKind, usize)> {
-        let theirs = |modules: &[String], own: Option<Town>| other_course(modules, own, self.town, &self.tracks);
         EventKind::ALL
             .into_iter()
             .filter_map(|kind| {
                 let count = match kind {
-                    EventKind::Exam => self.exams.iter().filter(|exam| !theirs(&exam.modules, exam.town())).count(),
-                    _ => self
-                        .events
-                        .iter()
-                        .filter(|event| event.kinds.contains(kind) && !theirs(&event.modules, event.town()))
-                        .count(),
+                    EventKind::Exam => self.exams.iter().filter(|exam| !self.theirs_exam(exam)).count(),
+                    _ => self.events.iter().filter(|event| event.kinds.contains(kind) && !self.theirs(event)).count(),
                 };
                 (count > 0).then_some((kind, count))
             })
             .collect()
     }
-}
 
-/// Whether what `modules` link, held in `own` town, is the other town's course while `shown` is
-/// the town they are taken in: every one of the modules has city tracks, and the towns differ. An
-/// event or exam of mixed or unknown town, or one a module without tracks links too, is anyone's.
-fn other_course(modules: &[String], own: Option<Town>, shown: Option<Town>, tracks: &BTreeSet<String>) -> bool {
-    let all_tracks = !modules.is_empty() && modules.iter().all(|module| tracks.contains(module));
-    all_tracks && own.zip(shown).is_some_and(|(own, shown)| own != shown)
+    /// The planned modules with tracks in both towns between which nothing decides — not the
+    /// program, not a town chosen or derived: what „Standort offen" asks about. A module whose
+    /// courses are all in one town (12102 at the Zentralcampus and in Sachsendorf) shows them all
+    /// until its program decides, and is not asked about: the visitor chooses towns, not campuses.
+    pub fn towns_open(&self) -> Vec<&String> {
+        self.tracks
+            .iter()
+            .filter(|module| !self.shown.contains_key(*module))
+            .filter(|module| self.courses.get(*module).is_none_or(|held| held.iter().map(|campus| town_of_campus(*campus)).collect::<BTreeSet<_>>().len() >= 2))
+            .collect()
+    }
+
+    /// Whether the event is another course than the one its modules are taken in, whatever else
+    /// hides it: every module that links it has tracks, and none of them shows it.
+    pub fn theirs(&self, event: &Event) -> bool {
+        !event.modules.is_empty() && event.modules.iter().all(|module| self.shown.get(module).is_some_and(|shown| !shown.shows(event)))
+    }
+
+    /// Whether the exam is another course's: every module that links it has tracks, and the exam
+    /// is held in a town none of them is taken in.
+    pub fn theirs_exam(&self, exam: &Exam) -> bool {
+        let Some(own) = exam.town() else { return false };
+        !exam.modules.is_empty() && exam.modules.iter().all(|module| self.shown.get(module).is_some_and(|shown| !shown.towns.contains(&own)))
+    }
 }
 
 /// The planned ids in plan order, each once.
@@ -307,22 +379,26 @@ fn plan_order(modules: &[String]) -> Vec<String> {
 fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Vec<Event> {
     let positions: BTreeMap<&str, usize> =
         modules.iter().enumerate().map(|(position, module)| (module.as_str(), position)).collect();
-    let mut by_event: BTreeMap<&str, (BTreeSet<usize>, Vec<&DateRow>)> = BTreeMap::new();
+    /// The plan positions of an event's modules, its rows (each `ord` once), and the courses it is
+    /// part of (`EventDate::track`) for each of them.
+    type Gathered<'a> = (BTreeSet<usize>, Vec<&'a DateRow>, BTreeSet<Option<Campus>>);
+    let mut by_event: BTreeMap<&str, Gathered<'_>> = BTreeMap::new();
     let mut seen: BTreeSet<(&str, Option<i64>)> = BTreeSet::new();
     for row in schedule {
         let Some(position) = positions.get(row.module_id.as_str()) else {
             continue;
         };
         let id = row.date.event_id.as_str();
-        let (linked, rows) = by_event.entry(id).or_default();
+        let (linked, rows, courses) = by_event.entry(id).or_default();
         linked.insert(*position);
+        courses.insert(row.date.track.as_ref().and_then(|track| track.known()));
         if seen.insert((id, row.ord)) {
             rows.push(row);
         }
     }
 
     let mut events: Vec<(usize, Event)> = Vec::with_capacity(by_event.len());
-    for (id, (linked, mut rows)) in by_event {
+    for (id, (linked, mut rows, courses)) in by_event {
         rows.sort_by_key(|row| row.ord);
         let (Some(position), Some(first)) = (linked.first().copied(), rows.first()) else {
             continue;
@@ -337,6 +413,8 @@ fn gather(schedule: &[DateRow], modules: &[String], facts: &SemesterFacts) -> Ve
             kinds,
             class: class_of(kinds),
             modules: linked.iter().filter_map(|position| modules.get(*position).cloned()).collect(),
+            // One course for every module: the event is that course; one module without, anyone's.
+            course: if courses.len() == 1 { courses.first().copied().flatten() } else { None },
             tone: tone(position),
             attendance: Attendance::All,
             chosen: None,
@@ -483,27 +561,103 @@ fn stated_sws(event: &Event, sws: &[ModuleSws]) -> Option<f64> {
         .fold(None, |most: Option<f64>, sum| Some(most.map_or(sum, |most| most.max(sum))))
 }
 
-/// The planned modules with city tracks: each town holds a lecture event and a non-lecture event
-/// of the module (only events whose rows are in one town count). The reading „both towns together
-/// hold both kinds" would also mark 13693, whose Cottbus lecture and Senftenberg lab are both
-/// required.
-fn tracks(events: &[Event], modules: &[String]) -> BTreeSet<String> {
+/// The campuses of the courses of each planned module whose rows carry them (`EventDate::track`),
+/// where they are two or more.
+fn courses(schedule: &[DateRow], modules: &[String]) -> BTreeMap<String, BTreeSet<Campus>> {
+    let mut courses: BTreeMap<String, BTreeSet<Campus>> = BTreeMap::new();
+    for row in schedule.iter().filter(|row| modules.contains(&row.module_id)) {
+        if let Some(campus) = row.date.track.as_ref().and_then(|track| track.known()) {
+            courses.entry(row.module_id.clone()).or_default().insert(campus);
+        }
+    }
+    courses.retain(|_, campuses| campuses.len() >= 2);
+    courses
+}
+
+/// The planned modules with tracks: those with courses, and, of those whose rows carry none, those
+/// whose two towns each hold a lecture event and a non-lecture event of the module (only events
+/// whose rows are in one town count) — the reading before Radix read courses (schema 15). The
+/// reading „both towns together hold both kinds" would also mark 13693, whose Cottbus lecture and
+/// Senftenberg lab are both required.
+fn tracks(events: &[Event], modules: &[String], courses: &BTreeMap<String, BTreeSet<Campus>>) -> BTreeSet<String> {
     let towns: Vec<Option<Town>> = events.iter().map(Event::town).collect();
     modules
         .iter()
         .filter(|module| {
-            let held: BTreeSet<(Town, bool)> = events
-                .iter()
-                .zip(&towns)
-                .filter(|(event, _)| event.modules.contains(module))
-                .filter_map(|(event, town)| Some(((*town)?, event.class == Class::Lecture)))
-                .collect();
+            if courses.contains_key(*module) {
+                return true;
+            }
+            let linking = || events.iter().zip(&towns).filter(|(event, _)| event.modules.contains(module));
+            if linking().any(|(event, _)| event.course.is_some()) {
+                return false;
+            }
+            let held: BTreeSet<(Town, bool)> = linking().filter_map(|(event, town)| Some(((*town)?, event.class == Class::Lecture))).collect();
             [Town::Cottbus, Town::Senftenberg]
                 .into_iter()
                 .all(|town| held.contains(&(town, true)) && held.contains(&(town, false)))
         })
         .cloned()
         .collect()
+}
+
+/// The courses the program takes, per module with courses (`Input::taken`).
+fn taken(rows: &[TrackProgram], courses: &BTreeMap<String, BTreeSet<Campus>>) -> BTreeMap<String, BTreeSet<Campus>> {
+    let mut taken: BTreeMap<String, BTreeSet<Campus>> = BTreeMap::new();
+    for row in rows {
+        if let Some(campus) = row.campus.known().filter(|campus| courses.get(&row.module_id).is_some_and(|held| held.contains(campus))) {
+            taken.entry(row.module_id.clone()).or_default().insert(campus);
+        }
+    }
+    taken
+}
+
+/// Which courses of each module with tracks are shown, and what decided it: „Beide" shows all; a
+/// town chosen shows the courses in it, of them those the program takes where it takes one there;
+/// else the courses the program takes; else those in the town most of the plan's other modules
+/// are taught in. A module whose courses are all shown is not in the result, nor is one of two
+/// towns' courses while no town decides.
+fn shown(
+    tracks: &BTreeSet<String>,
+    courses: &BTreeMap<String, BTreeSet<Campus>>,
+    taken: &BTreeMap<String, BTreeSet<Campus>>,
+    choice: TownChoice,
+    town: Option<Town>,
+    derived: bool,
+) -> BTreeMap<String, Shown> {
+    let mut shown = BTreeMap::new();
+    for module in tracks {
+        let Some(held) = courses.get(module) else {
+            // Two towns' courses without courses from Radix: the town decides.
+            if let Some(town) = town {
+                let by = if derived { ShownBy::Derived } else { ShownBy::Chosen };
+                shown.insert(module.clone(), Shown { campuses: BTreeSet::new(), towns: BTreeSet::from([town]), by });
+            }
+            continue;
+        };
+        let in_town = |town: Town| -> BTreeSet<Campus> { held.iter().copied().filter(|campus| town_of_campus(*campus) == town).collect() };
+        let program = taken.get(module).filter(|taken| !taken.is_empty());
+        let decided = match choice {
+            TownChoice::Both => None,
+            TownChoice::Only(chosen) => {
+                let there = in_town(chosen);
+                let theirs: BTreeSet<Campus> = program.map(|taken| taken.intersection(&there).copied().collect()).unwrap_or_default();
+                match (there.is_empty(), theirs.is_empty()) {
+                    (true, _) => None,
+                    (false, false) => Some((theirs, ShownBy::Program)),
+                    (false, true) => Some((there, ShownBy::Chosen)),
+                }
+            }
+            TownChoice::Derive => match program {
+                Some(taken) => Some((taken.clone(), ShownBy::Program)),
+                None => town.map(in_town).filter(|there| !there.is_empty()).map(|there| (there, ShownBy::Derived)),
+            },
+        };
+        if let Some((campuses, by)) = decided.filter(|(campuses, _)| campuses != held) {
+            let towns = campuses.iter().map(|campus| town_of_campus(*campus)).collect();
+            shown.insert(module.clone(), Shown { campuses, towns, by });
+        }
+    }
+    shown
 }
 
 /// The town a module with tracks is taken in, and whether it was derived: the chosen one; none
@@ -537,23 +691,26 @@ fn effective_town(choice: TownChoice, events: &[Event], tracks: &BTreeSet<String
 }
 
 /// Why a whole event is not shown, first rule that holds: hidden itself; every kind hidden (a
-/// „Vorlesung/Übung" stays while lectures are shown); the other town's course of modules that all
-/// have tracks, carrying the town that is shown. An event of mixed or unknown town, or one that
-/// also belongs to a module without tracks, stays.
-fn event_hidden(
-    event: &Event,
-    selection: &Selection,
-    town: Option<Town>,
-    tracks: &BTreeSet<String>,
-) -> Option<HiddenBy> {
+/// „Vorlesung/Übung" stays while lectures are shown); another course than the one its modules
+/// are taken in (`Shown`), every module that links it having tracks and none showing it — named by
+/// the campus of its course, or, of two towns' courses, by the town shown. An event in no course,
+/// of mixed or unknown town, or one that also belongs to a module without tracks, stays.
+fn event_hidden(event: &Event, selection: &Selection, shown: &BTreeMap<String, Shown>) -> Option<HiddenBy> {
     if event_number(&event.id).is_some_and(|id| selection.hidden_events.contains(&id)) {
         return Some(HiddenBy::Event);
     }
     if event.kinds.hidden_by(selection.hidden_kinds) {
         return Some(HiddenBy::Kinds);
     }
-    let shown = town?;
-    other_course(&event.modules, event.town(), Some(shown), tracks).then_some(HiddenBy::Town(shown))
+    let first = shown.get(event.modules.first()?)?;
+    let theirs = event.modules.iter().all(|module| shown.get(module).is_some_and(|shown| !shown.shows(event)));
+    if !theirs {
+        return None;
+    }
+    match event.course {
+        Some(course) if !first.campuses.is_empty() => Some(HiddenBy::Course(course)),
+        _ => first.towns.first().copied().map(HiddenBy::Town),
+    }
 }
 
 /// A `veranstid` as the selection keeps it: digits without a leading zero that fit a `u32`.
@@ -657,6 +814,7 @@ pub mod tests {
                 source_url: Some(format!("https://qis.example/{event}")),
                 room_short: None,
                 series: None,
+                track: None,
             },
         })
     }
@@ -699,6 +857,12 @@ pub mod tests {
             self
         }
 
+        /// A row of an event that is a course of its module at `campus` (`EventDate::track`).
+        pub fn track(mut self, campus: &str) -> Self {
+            self.0.date.track = Some(Code::parse(campus));
+            self
+        }
+
         /// A row of a series of single dates (`EventDate::series`) named by the row of `first`.
         pub fn series(mut self, first: i64, weeks: u8) -> Self {
             self.0.date.series = Some(folia_model::rows_detail::Series { first, weeks });
@@ -716,6 +880,30 @@ pub mod tests {
 
     /// The timetable of synthetic rows of 2026W.
     pub fn table(rows: &[Fixture], modules: &[&str], sws: &[ModuleSws], selection: &Selection) -> Timetable {
+        built(rows, modules, sws, &[], selection)
+    }
+
+    /// A course the plan's program takes (`Input::taken`): of `module` the one at `campus`.
+    pub fn takes(module: &str, campus: &str) -> TrackProgram {
+        TrackProgram {
+            module_id: module.into(),
+            semester_key: "2026W".into(),
+            campus: Code::parse(campus),
+            program_id: "247-82-2016".into(),
+            basis: Code::parse("qis"),
+            family_key: "247-82".into(),
+            program_name: "Medizininformatik".into(),
+            degree_display: Some("B.Sc.".into()),
+            is_latest_po: true,
+        }
+    }
+
+    /// The timetable of synthetic rows of 2026W whose program takes the courses `taken`.
+    pub fn taking(rows: &[Fixture], modules: &[&str], taken: &[TrackProgram], selection: &Selection) -> Timetable {
+        built(rows, modules, &[], taken, selection)
+    }
+
+    fn built(rows: &[Fixture], modules: &[&str], sws: &[ModuleSws], taken: &[TrackProgram], selection: &Selection) -> Timetable {
         let facts = winter();
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules = ids(modules);
@@ -727,6 +915,7 @@ pub mod tests {
             schedule: &schedule,
             exams: &[],
             sws,
+            taken,
         };
         let built = Timetable::build(&input, selection);
         invariants(&built);
@@ -755,7 +944,7 @@ pub mod tests {
         let schedule = queries::modules_schedule(db, modules, semester).unwrap();
         let exams = queries::modules_exams(db, modules, semester).unwrap();
         let sws = queries::modules_teaching_sws(db, modules).unwrap();
-        let input = Input { key, semester: row, facts: &facts, modules, schedule: &schedule, exams: &exams, sws: &sws };
+        let input = Input { key, semester: row, facts: &facts, modules, schedule: &schedule, exams: &exams, sws: &sws, taken: &[] };
         let built = Timetable::build(&input, selection);
         invariants(&built);
         built
@@ -816,7 +1005,12 @@ pub mod tests {
             }
             if let Some(HiddenBy::Town(shown)) = e.hidden {
                 assert_eq!(t.town, Some(shown));
-                assert!(e.modules.iter().all(|m| t.tracks.contains(m)) && e.town() != Some(shown), "{}", e.id);
+                assert!(e.modules.iter().all(|m| t.tracks.contains(m) && !t.courses.contains_key(m)) && e.town() != Some(shown), "{}", e.id);
+            }
+            if let Some(HiddenBy::Course(course)) = e.hidden {
+                assert_eq!(e.course, Some(course));
+                assert!(e.modules.iter().all(|m| t.courses.get(m).is_some_and(|held| held.contains(&course))), "{}", e.id);
+                assert!(e.modules.iter().all(|m| t.shown.get(m).is_some_and(|shown| !shown.campuses.contains(&course))), "{}", e.id);
             }
             assert!(!t.blocked.contains(&i) || e.unresolved(), "{}", e.id);
         }
@@ -856,17 +1050,24 @@ pub mod tests {
         }
         let chips = t.kinds_present();
         assert!(chips.iter().all(|(_, n)| *n > 0) && chips.windows(2).all(|w| w[0].0 < w[1].0));
-        let theirs = |modules: &[String], own: Option<Town>| other_course(modules, own, t.town, &t.tracks);
-        let exams_of_mine = t.exams.iter().any(|exam| !theirs(&exam.modules, exam.town()));
+        let exams_of_mine = t.exams.iter().any(|exam| !t.theirs_exam(exam));
         assert_eq!(chips.iter().any(|(k, _)| *k == EventKind::Exam), exams_of_mine);
-        // What the other town's course alone holds is no chip; everything shown has one.
+        // What another course alone holds is no chip; everything shown has one.
         for event in t.events.iter().filter(|event| event.hidden.is_none()) {
             assert!(event.kinds.iter().all(|kind| chips.iter().any(|(k, _)| *k == kind)), "{}", event.id);
+            assert!(!t.theirs(event), "{}", event.id);
         }
-        for event in t.events.iter().filter(|event| matches!(event.hidden, Some(HiddenBy::Town(_)))) {
-            assert!(theirs(&event.modules, event.town()), "{}", event.id);
+        for event in t.events.iter().filter(|event| matches!(event.hidden, Some(HiddenBy::Town(_) | HiddenBy::Course(_)))) {
+            assert!(t.theirs(event), "{}", event.id);
         }
         assert!(!t.town_derived || t.town.is_some());
+        assert!(t.courses.keys().all(|m| t.tracks.contains(m)) && t.shown.keys().all(|m| t.tracks.contains(m)));
+        for (module, shown) in &t.shown {
+            match t.courses.get(module) {
+                Some(held) => assert!(!shown.campuses.is_empty() && shown.campuses.is_subset(held) && shown.campuses != *held, "{module}"),
+                None => assert!(shown.campuses.is_empty() && shown.towns.len() == 1 && t.town == shown.towns.first().copied(), "{module}"),
+            }
+        }
         for m in &t.without_dates {
             assert!(t.events.iter().all(|e| e.rows.is_empty() || !e.modules.contains(m)), "{m}");
         }
@@ -1420,5 +1621,83 @@ pub mod tests {
         assert_eq!((t.town, t.town_derived), (Some(Town::Senftenberg), true));
         let mine = [(Lecture, 5), (Exercise, 3), (Seminar, 2), (Practical, 2), (Exam, 7)];
         assert_eq!(t.kinds_present(), mine);
+    }
+
+    /// Courses Radix reads (schema 15, docs/radix/schema-v2.md „Tracks"): the Programmierpraktikum
+    /// at the Zentralcampus and in Sachsendorf, Entwicklung von Softwaresystemen at the
+    /// Zentralcampus and in Senftenberg. The program decides (owner, 2026-10-19: „nur die termine
+    /// anzeigen, die den eingerichteten Studiengang entsprechend"), a town chosen first, „Beide"
+    /// shows all.
+    #[test]
+    fn the_program_takes_its_courses() {
+        let (sachsendorf, senftenberg) = (Some("sachsendorf"), Some("senftenberg"));
+        let rows = [
+            // P: a course at the Zentralcampus and one in Sachsendorf, both in Cottbus.
+            teaching("P", "200", 1, "Vorlesung", 5, "11:30", "13:00").track("zentralcampus"),
+            teaching("P", "201", 1, "Praktikum", 1, "11:30", "13:00").track("zentralcampus"),
+            teaching("P", "202", 1, "Vorlesung", 2, "07:30", "09:00").campus(sachsendorf).track("sachsendorf"),
+            teaching("P", "203", 1, "Laborausbildung", 2, "09:15", "10:45").campus(sachsendorf).track("sachsendorf"),
+            // E: a course at the Zentralcampus and one in Senftenberg; a tutorial in no course.
+            teaching("E", "210", 1, "Vorlesung", 3, "09:15", "10:45").track("zentralcampus"),
+            teaching("E", "211", 1, "Übung", 3, "11:30", "13:00").track("zentralcampus"),
+            teaching("E", "212", 1, "Vorlesung", 5, "10:00", "11:30").campus(senftenberg).track("senftenberg"),
+            teaching("E", "213", 1, "Übung", 5, "14:30", "16:00").campus(senftenberg).track("senftenberg"),
+            teaching("E", "214", 1, "Tutorium", 4, "13:45", "15:15").campus(None),
+            // C: a module of the Zentralcampus without courses.
+            teaching("C", "220", 1, "Seminar", 4, "09:15", "10:45"),
+        ];
+        let modules = ["P", "E", "C"];
+        let hidden = |t: &Timetable| -> Vec<(String, HiddenBy)> {
+            let mut hidden: Vec<(String, HiddenBy)> = t.events.iter().filter_map(|e| Some((e.id.clone(), e.hidden?))).collect();
+            hidden.sort_by(|a, b| a.0.cmp(&b.0));
+            hidden
+        };
+        let pair = |id: &str, by: HiddenBy| (id.to_string(), by);
+
+        // Without a program: Cottbus derived from C, so E's Senftenberg course goes; P's two
+        // courses are both in Cottbus and both shown.
+        let t = table(&rows, &modules, &[], &Selection::default());
+        assert_eq!(t.tracks, BTreeSet::from(["E".to_string(), "P".to_string()]));
+        assert_eq!(t.courses["P"], BTreeSet::from([Campus::Zentralcampus, Campus::Sachsendorf]));
+        assert_eq!((t.town, t.town_derived), (Some(Town::Cottbus), true));
+        assert_eq!(hidden(&t), [pair("212", HiddenBy::Course(Campus::Senftenberg)), pair("213", HiddenBy::Course(Campus::Senftenberg))]);
+        assert_eq!(t.shown["E"].by, ShownBy::Derived);
+        assert!(!t.shown.contains_key("P"));
+        assert_eq!(event(&t, "214").course, None);
+
+        // Medizininformatik takes P in Sachsendorf and E in Senftenberg, whatever the plan's town.
+        let taken = [takes("P", "sachsendorf"), takes("E", "senftenberg")];
+        let t = taking(&rows, &modules, &taken, &Selection::default());
+        let zc = HiddenBy::Course(Campus::Zentralcampus);
+        assert_eq!(hidden(&t), [pair("200", zc), pair("201", zc), pair("210", zc), pair("211", zc)]);
+        assert_eq!((t.shown["P"].by, t.shown["E"].by), (ShownBy::Program, ShownBy::Program));
+        assert_eq!(t.shown["E"].towns, BTreeSet::from([Town::Senftenberg]));
+        // The other courses count for no chip; the tutorial in no course stays everybody's.
+        assert_eq!(t.kinds_present(), [(EventKind::Lecture, 2), (EventKind::Exercise, 1), (EventKind::Seminar, 1), (EventKind::Practical, 1), (EventKind::Tutorial, 1)]);
+
+        // A town chosen wins over the program's course in the other town, and within the town the
+        // program still decides: Cottbus shows P in Sachsendorf and E at the Zentralcampus.
+        let cottbus = Selection { town: TownChoice::Only(Town::Cottbus), ..Selection::default() };
+        let t = taking(&rows, &modules, &taken, &cottbus);
+        let sfb = HiddenBy::Course(Campus::Senftenberg);
+        assert_eq!(hidden(&t), [pair("200", zc), pair("201", zc), pair("212", sfb), pair("213", sfb)]);
+        assert_eq!((t.shown["P"].by, t.shown["E"].by), (ShownBy::Program, ShownBy::Chosen));
+        // Senftenberg chosen: P is held in no course there, so both of its courses are shown.
+        let t = taking(&rows, &modules, &taken, &Selection { town: TownChoice::Only(Town::Senftenberg), ..Selection::default() });
+        assert_eq!(hidden(&t), [pair("210", zc), pair("211", zc)]);
+        // „Beide" shows every course.
+        let both = Selection { town: TownChoice::Both, ..Selection::default() };
+        assert!(hidden(&taking(&rows, &modules, &taken, &both)).is_empty());
+
+        // A program that takes both courses of E (a family QIS lists on both) leaves E open; one
+        // whose course is no course of the module decides nothing.
+        let t = taking(&rows, &modules, &[takes("E", "zentralcampus"), takes("E", "senftenberg"), takes("P", "nord")], &Selection { town: TownChoice::Both, ..Selection::default() });
+        assert!(t.shown.is_empty());
+        // An event two planned modules link, one of them without courses, stays.
+        let mut shared = rows.to_vec();
+        shared.push(teaching("C", "210", 1, "Vorlesung", 3, "09:15", "10:45"));
+        let t = taking(&shared, &modules, &taken, &Selection::default());
+        assert_eq!(event(&t, "210").course, None);
+        assert_eq!(event(&t, "210").hidden, None);
     }
 }

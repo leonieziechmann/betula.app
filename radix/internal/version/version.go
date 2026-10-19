@@ -11,9 +11,11 @@
 // dates (2026-10-13); 0.7.1 on 2026-10-16, where a prerequisite text rules a module out or a
 // module replaces one, the module is no prerequisite (docs/radix/data-sources.md §15); 0.8.0 on
 // 2026-10-18, a module of a Wahlpflicht slot of the plan that no source gives a kind is
-// Wahlpflicht, inferred (schema 14; docs/radix/schema-v2.md, „Kinds from the plan's slots"). Folia's
-// lives in folia/crates/shell/src/document.rs (VERSION).
+// Wahlpflicht, inferred (schema 14; docs/radix/schema-v2.md, „Kinds from the plan's slots"); 0.9.0
+// on 2026-10-19, whom QIS lists an event for, and the courses of a module held at two campuses with
+// the programs that take each (schema 15; docs/radix/schema-v2.md, „Tracks"). Folia's lives in
+// folia/crates/shell/src/document.rs (VERSION).
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.8.0"
+const Radix = "0.9.0"

@@ -165,6 +165,8 @@ pub fn candidates(
                 schedule: part(&schedule, id),
                 exams: part(&exams, id),
                 sws: part(&sws, id),
+                // The finder takes a candidate's course by the plan's town, as before (`town`).
+                taken: &[],
             };
             let build =
                 |town: TownChoice| Timetable::build(&input, &Selection { hidden_kinds, town, ..Selection::default() });
@@ -543,7 +545,7 @@ fn judge(
         let planned = context.index.get(event.id.as_str()).and_then(|i| context.events.get(*i));
         let mine = match planned {
             // Attended once with the plan: it never clashes.
-            Some(planned) if !matches!(planned.hidden, Some(HiddenBy::Town(_))) => None,
+            Some(planned) if !matches!(planned.hidden, Some(HiddenBy::Town(_) | HiddenBy::Course(_))) => None,
             // The plan hides it as the other town's course of its modules, which all have tracks.
             // The candidate has none, since its own course shows the event, so once planned it
             // brings the event back (`model::event_hidden`). Then it meets the plan as the
@@ -679,7 +681,7 @@ mod tests {
         planned: &[String],
         selection: &Selection,
     ) -> Timetable {
-        let input = Input { key: facts.key, semester: None, facts, modules: planned, schedule: rows, exams, sws };
+        let input = Input { key: facts.key, semester: None, facts, modules: planned, schedule: rows, exams, sws, taken: &[] };
         let table = Timetable::build(&input, selection);
         invariants(&table);
         table
@@ -799,6 +801,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
@@ -1270,7 +1273,7 @@ mod tests {
         let fs1 = ids(&["12104", "12107", "12102", "11112"]);
         let selection = Selection { hidden_events: [149408, 148455].into(), ..Selection::default() };
         let plan_input =
-            Input { key, semester: row, facts: &facts, modules: &fs1, schedule: &schedule, exams: &exams, sws: &sws };
+            Input { key, semester: row, facts: &facts, modules: &fs1, schedule: &schedule, exams: &exams, sws: &sws, taken: &[] };
         let plan = Timetable::build(&plan_input, &selection);
         let input = Candidates { schedule: &schedule, exams: &exams, sws: &sws };
         let started = Instant::now();

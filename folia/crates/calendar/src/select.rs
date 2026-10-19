@@ -22,8 +22,10 @@ pub const MAX_MODULES: usize = 60;
 /// semester: the store's cap and the subscription code's.
 pub const MAX_HIDDEN: usize = 500;
 
-/// One of the BTU's two towns. Tracks are towns only, never Cottbus sites: a module's events at
-/// Zentralcampus and at Sachsendorf are just as often its two required parts (11760).
+/// One of the BTU's two towns: what a visitor chooses („Standort"). The courses of a module are
+/// campuses (`HiddenBy::Course`, docs/radix/schema-v2.md „Tracks"): Radix tells a module's two
+/// courses at the Zentralcampus and in Sachsendorf (12102) from its two required parts there
+/// (11760) by their SWS; a town chosen decides between courses in two towns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Town {
     Cottbus,
@@ -50,9 +52,14 @@ impl Town {
 /// The town of a campus: Zentralcampus, Sachsendorf and Nord are Cottbus; a campus this build has
 /// no label for is unknown, not guessed.
 pub fn town_of(campus: &Code<Campus>) -> Option<Town> {
-    match campus.known()? {
-        Campus::Zentralcampus | Campus::Sachsendorf | Campus::Nord => Some(Town::Cottbus),
-        Campus::Senftenberg => Some(Town::Senftenberg),
+    campus.known().map(town_of_campus)
+}
+
+/// The town of a known campus.
+pub fn town_of_campus(campus: Campus) -> Town {
+    match campus {
+        Campus::Zentralcampus | Campus::Sachsendorf | Campus::Nord => Town::Cottbus,
+        Campus::Senftenberg => Town::Senftenberg,
     }
 }
 
@@ -118,6 +125,10 @@ pub enum HiddenBy {
     Kinds,
     /// The event belongs to a module's course in the other town; the town is the one shown.
     Town(Town),
+    /// The event is the course of a module held at two campuses or more that the plan does not
+    /// take (docs/radix/schema-v2.md, „Tracks"): its program takes another, or the town shown
+    /// holds another. The campus is the event's own, where it is held.
+    Course(Campus),
     /// Another option of the event's choice was chosen.
     Choice,
     /// The Termin itself is hidden.

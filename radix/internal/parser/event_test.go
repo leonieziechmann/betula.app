@@ -1,8 +1,12 @@
 package parser
 
 import (
+	"bytes"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/leonieziechmann/betula/radix/internal/model"
 )
 
 func TestEventParser(t *testing.T) {
@@ -161,5 +165,58 @@ func TestEventParser(t *testing.T) {
 	}
 	if event.AssociatedModules[0] != "12105" || event.AssociatedModules[1] != "11826" {
 		t.Errorf("unexpected associated modules: %v", event.AssociatedModules)
+	}
+}
+
+// The two Programmierpraktika of 2026W (12102, owner 2026-10-19): QIS states on each event page
+// whom it is for. testdata/qis_event_148008.html is the lecture at the Zentralcampus,
+// testdata/qis_event_149408.html the one in Sachsendorf, both cut to the content (2026-10-19).
+func TestEventPrograms(t *testing.T) {
+	read := func(id string) *model.EventDetail {
+		t.Helper()
+		body, err := os.ReadFile("testdata/qis_event_" + id + ".html")
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := NewEventParser().Parse(bytes.NewReader(body), id, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+
+	central := read("148008")
+	want := []model.EventProgram{
+		{Label: "Physik Bachelor (universitäres Profil)", Semesters: "5 - 5", QISID: "253"},
+		{Label: "Informatik Bachelor (universitäres Profil)", Semesters: "1 - 1", QISID: "71"},
+		{Label: "Künstliche Intelligenz Bachelor", Semesters: "1 - 1", PO: "2022", QISID: "448"},
+		{Label: "Künstliche Intelligenz Technologie Bachelor", Semesters: "1 - 1", PO: "2022", QISID: "449"},
+	}
+	if len(central.Programs) != 7 {
+		t.Fatalf("programs of 148008: %d, want 7: %+v", len(central.Programs), central.Programs)
+	}
+	for i, w := range want {
+		if central.Programs[i] != w {
+			t.Errorf("program %d of 148008: %+v, want %+v", i, central.Programs[i], w)
+		}
+	}
+	if last := central.Programs[6]; last.Label != "Wirtschaftsinformatik Bachelor" || last.PO != "2024" {
+		t.Errorf("last program of 148008: %+v", last)
+	}
+
+	sachsendorf := read("149408")
+	if len(sachsendorf.Programs) != 1 || sachsendorf.Programs[0].Label != "Medizininformatik Bachelor (universitäres Profil)" || sachsendorf.Programs[0].Semesters != "1 - 1" {
+		t.Errorf("programs of 149408: %+v", sachsendorf.Programs)
+	}
+	if sachsendorf.SWS != "1" || len(sachsendorf.Schedules) != 1 {
+		t.Errorf("149408: SWS %q, %d dates", sachsendorf.SWS, len(sachsendorf.Schedules))
+	}
+
+	// A page whose table has no programs, and the rows of a page without the section, are none.
+	empty := `<html><body><h1>X - Einzelansicht</h1><table summary="Übersicht über die zugehörigen Studiengänge"><caption>Studiengänge</caption>
+<tr><th>Studiengang</th><th>Semester</th><th>PO</th><th>Bemerkung</th></tr></table></body></html>`
+	d, err := NewEventParser().Parse(strings.NewReader(empty), "1", "")
+	if err != nil || len(d.Programs) != 0 {
+		t.Errorf("an empty table: %+v, %v", d.Programs, err)
 	}
 }

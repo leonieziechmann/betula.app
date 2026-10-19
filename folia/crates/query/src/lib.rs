@@ -24,6 +24,7 @@ use folia_model::rows_detail::{
     AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleAbbrev,
     ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry, ProgramDepartmentCount,
     ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry, ProgramVersion, Successor, TextItem,
+    TrackProgram,
 };
 use folia_routes::filter::{CatalogQuery, ProgramRelation};
 use folia_search::Plan as SearchPlan;
@@ -399,7 +400,7 @@ pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDa
         &format!(
             "SELECT semester_key, semester_label, event_id, event_number, event_title, event_type, group_name, \
              weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, \
-             comment, source_url, room_short, series, series_weeks FROM v_module_schedule WHERE module_id = ? \
+             comment, source_url, room_short, series, series_weeks, track FROM v_module_schedule WHERE module_id = ? \
              AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
@@ -416,9 +417,49 @@ pub fn module_exams(db: &dyn Database, module_id: &str) -> Result<Vec<EventDate>
             "SELECT semester_key, semester_label, event_id, event_number, event_title, NULL AS event_type, \
              NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, first_date, \
              last_date, room, campus, NULL AS instructor, comment, source_url, room_short, NULL AS series, \
-             NULL AS series_weeks FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
+             NULL AS series_weeks, NULL AS track FROM v_module_exam WHERE module_id = ? AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
+    )
+}
+
+/// The columns of `TrackProgram`: `v_module_track_program` with the program's name.
+const TRACK_COLUMNS: &str = "t.module_id, t.semester_key, t.campus, t.program_id, t.basis, t.family_key, \
+     p.name AS program_name, p.degree_display, p.is_latest_po";
+
+/// The courses of a module held at two campuses or more (docs/radix/schema-v2.md, „Tracks") and
+/// which of them each program takes, in every semester the module has courses in: what its page
+/// says of each course, and which it shows for a program. Newest semester first, then by campus,
+/// the program's name and its newest PO first. Empty for a module without courses.
+pub fn module_tracks(db: &dyn Database, module_id: &str) -> Result<Vec<TrackProgram>, DbError> {
+    fetch(
+        db,
+        "module_tracks",
+        &format!(
+            "SELECT {TRACK_COLUMNS} FROM v_module_track_program t JOIN v_program p ON p.id = t.program_id \
+             WHERE t.module_id = ? ORDER BY t.semester_key DESC, t.campus, p.name COLLATE NOCASE, p.po_version DESC"
+        ),
+        &[Value::from(module_id)],
+    )
+}
+
+/// The courses `program_id` takes of those of `module_ids` held as courses at two campuses or more
+/// in a semester: the Stundenplan shows only those (owner, 2026-10-19). A module the program takes
+/// either course of has no row.
+pub fn modules_tracks(db: &dyn Database, module_ids: &[String], semester_key: &str, program_id: &str) -> Result<Vec<TrackProgram>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_tracks",
+        &format!(
+            "SELECT {TRACK_COLUMNS} FROM v_module_track_program t JOIN v_program p ON p.id = t.program_id \
+             WHERE t.semester_key = ? AND t.program_id = ? AND t.module_id IN (SELECT value FROM json_each(?)) \
+             ORDER BY t.module_id, t.campus"
+        ),
+        &[Value::from(semester_key), Value::from(program_id), Value::from(ids)],
     )
 }
 
@@ -624,14 +665,14 @@ fn id_json(module_ids: &[String]) -> String {
 /// The columns of `DateRow` from `v_module_schedule`.
 const DATE_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, \
-     campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks";
+     campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks, track";
 
 /// The columns of `DateRow` from `v_module_exam`, which has no type, group, rhythm, instructor,
 /// cancellations or series: the same row struct reads teaching and exam rows.
 const EXAM_ROW_COLUMNS: &str = "module_id, semester_key, semester_label, event_id, event_number, event_title, \
      NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, NULL AS rhythm_raw, \
      first_date, last_date, room, campus, NULL AS instructor, comment, NULL AS cancelled_dates, source_url, room_short, \
-     NULL AS series, NULL AS series_weeks";
+     NULL AS series, NULL AS series_weeks, NULL AS track";
 
 /// The teaching rows of the planned modules in one semester, events without dates included (the
 /// Studienplan lists them „ohne feste Zeit"). An event linked to two of the modules comes once for
@@ -679,7 +720,7 @@ pub fn semester_schedule(db: &dyn Database, semester_key: &str) -> Result<Vec<Da
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, event_type, ord, \
          group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, NULL AS room, campus, \
          NULL AS instructor, NULL AS comment, cancelled_dates, NULL AS source_url, NULL AS room_short, NULL AS series, \
-         NULL AS series_weeks FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
+         NULL AS series_weeks, track FROM v_module_schedule WHERE semester_key = ? AND ord IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )
 }
@@ -693,7 +734,7 @@ pub fn semester_exams(db: &dyn Database, semester_key: &str) -> Result<Vec<DateR
         "SELECT module_id, semester_key, semester_label, event_id, NULL AS event_number, event_title, \
          NULL AS event_type, ord, NULL AS group_name, weekday, start_time, end_time, NULL AS rhythm, \
          NULL AS rhythm_raw, first_date, last_date, room, campus, NULL AS instructor, NULL AS comment, \
-         NULL AS cancelled_dates, NULL AS source_url, room_short, NULL AS series, NULL AS series_weeks \
+         NULL AS cancelled_dates, NULL AS source_url, room_short, NULL AS series, NULL AS series_weeks, NULL AS track \
          FROM v_module_exam WHERE semester_key = ? AND first_date IS NOT NULL ORDER BY module_id, event_id, ord",
         &[Value::from(semester_key)],
     )

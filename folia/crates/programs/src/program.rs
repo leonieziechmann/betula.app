@@ -197,7 +197,8 @@ pub fn ProgramPage() -> impl IntoView {
             // where it was.
             Filling::Module(id) => {
                 let back = here.with_untracked(folia_routes::local::back_href);
-                view! { <ModuleInPlace id area=Area::Programs back/> }.into_any()
+                let program = Some(data.program.slug.clone());
+                view! { <ModuleInPlace id area=Area::Programs back program/> }.into_any()
             }
             Filling::Area(_) | Filling::Req(_) => {
                 let name = format!("{} ({})", data.program.name, data.program.degree());
@@ -654,7 +655,9 @@ fn ProgramAside(
         match module.get() {
             Ok(Some(Some(module))) => {
                 let full_href = folia_routes::local::full_href(&links.get(), &module.module.id);
-                view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href)/> }.into_any()
+                // The program's courses of a module held at two campuses (`folia_widgets::courses`).
+                let program = Some(data.program.slug.clone());
+                view! { <ModulePanel data=module close_href=links.get().path() docked=true full_href=Some(full_href) program/> }.into_any()
             }
             Ok(Some(None)) | Err(_) => view! {
                 <section class="panel detail aside" id="preview" aria-label=t.program.preview>

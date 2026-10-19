@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use folia_calendar::day::{clock, Day};
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::TownChoice;
+use folia_model::labels::Labelled;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Rhythm};
 use folia_pages::ask::BookmarksAsk;
@@ -25,7 +26,7 @@ use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{BookmarkSort, CatalogUrl, PlanView, Season};
 use folia_timetable::clash::{self, Overlap, Weeks, When};
 use folia_timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
-use folia_timetable::model::{Attendance, Basis, Event, Row, Timetable};
+use folia_timetable::model::{Attendance, Basis, Event, Row, ShownBy, Timetable};
 use folia_timetable::views::short_title;
 use leptos::prelude::*;
 
@@ -666,11 +667,12 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
     if open > 0 {
         parts.push((false, (h.choices_open)(open)));
     }
-    if !table.tracks.is_empty() && table.town.is_none() && choice == TownChoice::Derive {
-        let names: Vec<String> = table.tracks.iter().map(|module| about.title(module, t)).collect();
+    let open = table.towns_open();
+    if !open.is_empty() && choice == TownChoice::Derive {
+        let names: Vec<String> = open.iter().map(|module| about.title(module, t)).collect();
         parts.push((false, h.town_open.to_string()));
         let text = (h.choose_town)(&names.join(", "));
-        lines.push(Note::quiet(text, table.tracks.iter().next().cloned(), None));
+        lines.push(Note::quiet(text, open.first().map(|module| module.to_string()), None));
     }
     Summary { parts, lines }
 }
@@ -898,9 +900,24 @@ pub(super) fn derived_line(table: &Timetable, t: &i18n::Texts) -> Option<String>
         parts.push(h.groups_derived.to_string());
     }
     // Every plan derives a town from its modules, but the town decides something only where a
-    // module is taught in both towns.
-    if let Some(town) = table.town.filter(|_| table.town_derived && !table.tracks.is_empty()) {
+    // module is held in both towns and nothing else decides.
+    if let Some(town) = table.town.filter(|_| table.town_derived && table.shown.values().any(|shown| shown.by == ShownBy::Derived)) {
         parts.push((h.town_derived)(town.label()));
+    }
+    // The courses the program takes (owner, 2026-10-19): „Programmierpraktikum in
+    // Cottbus-Sachsendorf laut Studiengang", each module by the title of its first event.
+    let courses: Vec<String> = table
+        .shown
+        .iter()
+        .filter(|(_, shown)| shown.by == ShownBy::Program)
+        .filter_map(|(module, shown)| {
+            let title = table.events.iter().find(|event| event.modules.first() == Some(module))?.title.clone();
+            let campuses: Vec<&str> = shown.campuses.iter().map(|campus| campus.label(locale)).collect();
+            Some((h.course_in)(&title, &campuses.join(", ")))
+        })
+        .collect();
+    if !courses.is_empty() {
+        parts.push((h.courses_derived)(&courses.join(", ")));
     }
     (!parts.is_empty()).then(|| (h.derived)(&parts.join(", ")))
 }
@@ -919,7 +936,9 @@ mod tests {
     use folia_calendar::kind::EventKind;
     use folia_calendar::kind::{kinds_of, Class};
     use folia_calendar::select::Town;
+    use folia_model::labels::Campus;
     use folia_model::rows_detail::{EventDate, Series};
+    use folia_timetable::model::Shown;
     use folia_plans::studyplan::Placeholder;
     use folia_timetable::clash::Clash;
     use folia_timetable::facts::SemesterFacts;
@@ -960,6 +979,7 @@ mod tests {
             source_url: None,
             room_short: None,
             series: None,
+            track: None,
         };
         Row {
             key: Some(RowKey { event: event.parse().unwrap(), fp }),
@@ -985,6 +1005,7 @@ mod tests {
             kinds,
             class: if kinds.contains(EventKind::Lecture) { Class::Lecture } else { Class::Other },
             modules: vec![module.into()],
+            course: None,
             tone: 1,
             attendance,
             chosen: None,
@@ -1028,6 +1049,8 @@ mod tests {
             events,
             exams: Vec::new(),
             tracks: BTreeSet::new(),
+            courses: Default::default(),
+            shown: Default::default(),
             town: Some(Town::Cottbus),
             town_derived: true,
             clashes: vec![Clash { a: (0, 0), b: (3, 0), first: day("2026-10-06"), days: 8 }],
@@ -1218,17 +1241,31 @@ mod tests {
     fn the_standort_is_asked_only_while_nothing_decides_it() {
         let (mut table, about) = first_semester();
         table.tracks = ["12104".to_string()].into_iter().collect();
+        let derived = Shown { campuses: BTreeSet::new(), towns: BTreeSet::from([Town::Cottbus]), by: ShownBy::Derived };
+        table.shown = [("12104".to_string(), derived)].into_iter().collect();
+        let open = |table: &Timetable, choice| summary(table, &about, &[], Weeks::All, choice, &DE).parts.contains(&(false, "Standort offen".to_string()));
         let asks = |table: &Timetable, choice| {
-            let summary = summary(table, &about, &[], Weeks::All, choice, &DE);
-            summary.parts.contains(&(false, "Standort offen".to_string()))
-                && summary.lines.iter().any(|note| note.text == "Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg")
+            open(table, choice)
+                && summary(table, &about, &[], Weeks::All, choice, &DE).lines.iter().any(|note| note.text == "Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg")
         };
         // A derived town decides; so does a stored one, „Beide" included.
         assert!(!asks(&table, TownChoice::Derive));
         table.town = None;
         table.town_derived = false;
+        table.shown.clear();
         assert!(asks(&table, TownChoice::Derive));
         assert!(!asks(&table, TownChoice::Both));
+        // Courses its program takes decide too (schema 15).
+        table.courses = [("12104".to_string(), BTreeSet::from([Campus::Zentralcampus, Campus::Senftenberg]))].into_iter().collect();
+        assert!(asks(&table, TownChoice::Derive));
+        let taken = Shown { campuses: BTreeSet::from([Campus::Senftenberg]), towns: BTreeSet::from([Town::Senftenberg]), by: ShownBy::Program };
+        table.shown = [("12104".to_string(), taken)].into_iter().collect();
+        assert!(!open(&table, TownChoice::Derive));
+        // Courses in one town are no choice of a town: 12102 at the Zentralcampus and in Sachsendorf.
+        table.shown.clear();
+        table.tracks = ["12102".to_string()].into_iter().collect();
+        table.courses = [("12102".to_string(), BTreeSet::from([Campus::Zentralcampus, Campus::Sachsendorf]))].into_iter().collect();
+        assert!(!open(&table, TownChoice::Derive));
     }
 
     #[test]
@@ -1305,6 +1342,8 @@ mod tests {
         // The town is derived in every plan, but decides something only with a module of both towns.
         assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen."));
         table.tracks = ["12104".to_string()].into_iter().collect();
+        let derived = Shown { campuses: BTreeSet::new(), towns: BTreeSet::from([Town::Cottbus]), by: ShownBy::Derived };
+        table.shown = [("12104".to_string(), derived)].into_iter().collect();
         assert_eq!(
             derived_line(&table, &DE).as_deref(),
             Some("Abgeleitet: Vorlesungszeit 05.10.2026–31.01.2027, vorlesungsfrei 21.12.–03.01., Übungsgruppen, Standort Cottbus.")
@@ -1322,7 +1361,13 @@ mod tests {
         table.facts.breaks.clear();
         table.facts.lecture = None;
         assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus."));
+        // The course a program takes is named with its module (owner, 2026-10-19).
+        let taken = Shown { campuses: BTreeSet::from([Campus::Sachsendorf]), towns: BTreeSet::from([Town::Cottbus]), by: ShownBy::Program };
+        table.shown.insert("12102".to_string(), taken);
+        assert_eq!(derived_line(&table, &DE).as_deref(), Some("Abgeleitet: Standort Cottbus, Veranstaltung 149408 in Cottbus-Sachsendorf laut Studiengang."));
+        assert_eq!(derived_line(&table, &EN).as_deref(), Some("Derived: location Cottbus, Veranstaltung 149408 in Cottbus-Sachsendorf by your program."));
         table.tracks.clear();
+        table.shown.clear();
         assert_eq!(derived_line(&table, &DE), None);
     }
 

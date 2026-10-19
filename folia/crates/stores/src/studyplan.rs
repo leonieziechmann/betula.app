@@ -868,6 +868,7 @@ mod tests {
                 source_url: None,
                 room_short: None,
                 series: None,
+                track: None,
             },
         }
     }
