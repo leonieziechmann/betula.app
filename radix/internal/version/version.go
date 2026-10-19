@@ -13,9 +13,11 @@
 // 2026-10-18, a module of a Wahlpflicht slot of the plan that no source gives a kind is
 // Wahlpflicht, inferred (schema 14; docs/radix/schema-v2.md, „Kinds from the plan's slots"); 0.9.0
 // on 2026-10-19, whom QIS lists an event for, and the courses of a module held at two campuses with
-// the programs that take each (schema 15; docs/radix/schema-v2.md, „Tracks"). Folia's lives in
+// the programs that take each (schema 15; docs/radix/schema-v2.md, „Tracks"); 0.9.1 the same day,
+// no courses where QIS lists the same programs at each, and where a program is taught by where QIS
+// lists its events before its compulsory modules (schema 16, „Better criteria"). Folia's lives in
 // folia/crates/shell/src/document.rs (VERSION).
 package version
 
 // Radix is the version of this collector.
-const Radix = "0.9.0"
+const Radix = "0.9.1"

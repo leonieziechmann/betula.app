@@ -74,7 +74,9 @@ type Report struct {
 	EventProgramsResolved   int            // rows of the event pages' „Studiengänge“ that name programs of the catalog
 	EventProgramsUnresolved map[string]int // the label of a row that names none → rows
 	ProgramsWithCampus      int            // programs with a main campus (program_campus.is_main)
+	ProgramsCampusByQIS     int            // … where QIS's events decide it, not the compulsory modules
 	ModulesWithTracks       int            // (module, semester) pairs taught as courses at two or more campuses
+	TracksOneAudience       int            // … that would be, but QIS lists the same programs at every course
 	TrackProgramsByQIS      int            // (module with tracks, program) pairs whose course QIS states
 	TrackProgramsByCampus   int            // … whose course the program's campus decides
 
@@ -137,8 +139,8 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 	log.Info("build finished", "event", "build.finished", "duration_ms", time.Since(start).Milliseconds(),
 		"modules", report.Modules, "programs", report.Programs, "events", report.Events, "events_from_list", report.EventsFromList,
 		"event_series", report.EventSeries, "event_series_dates", report.EventSeriesDates,
-		"event_programs_resolved", report.EventProgramsResolved, "programs_with_campus", report.ProgramsWithCampus,
-		"modules_with_tracks", report.ModulesWithTracks, "track_programs_qis", report.TrackProgramsByQIS, "track_programs_campus", report.TrackProgramsByCampus,
+		"event_programs_resolved", report.EventProgramsResolved, "programs_with_campus", report.ProgramsWithCampus, "programs_campus_qis", report.ProgramsCampusByQIS,
+		"modules_with_tracks", report.ModulesWithTracks, "tracks_one_audience", report.TracksOneAudience, "track_programs_qis", report.TrackProgramsByQIS, "track_programs_campus", report.TrackProgramsByCampus,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
 		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])

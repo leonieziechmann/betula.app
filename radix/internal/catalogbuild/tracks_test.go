@@ -83,6 +83,43 @@ func TestTracksOf(t *testing.T) {
 	}
 }
 
+// Whom QIS lists at the courses of 2026W (canary's snapshot of 2026-10-19).
+func TestSameAudience(t *testing.T) {
+	of := func(keys ...string) map[string]bool {
+		set := make(map[string]bool)
+		for _, key := range keys {
+			set[key] = true
+		}
+		return set
+	}
+	audiences := map[string]map[string]bool{
+		// Programmierpraktikum: Informatik and six more at the Zentralcampus, Medizininformatik in
+		// Sachsendorf.
+		"148008": of("079-82", "105-82", "128-82"), "148370": of("079-82", "label:Physik Bachelor (universitäres Profil)"),
+		"149408": of("247-82"), "148455": of("247-82"),
+		// Research Module in Artificial Intelligence: every seminar for AI M.Sc.
+		"150000": of("ARI-88"), "151375": of("ARI-88"), "150690": of("ARI-88"),
+		// Höhere Mathematik - T1: Elektrotechnik at both campuses, the others at one.
+		"150828": of("048-82", "017-82", "104-82"), "149440": of("048-82", "049-82", "216-82"),
+	}
+	cases := []struct {
+		name    string
+		courses map[string][]string
+		want    bool
+	}{
+		{"12102: a program of its own at each campus", map[string][]string{"zentralcampus": {"148008", "148370"}, "sachsendorf": {"148455", "149408"}}, false},
+		{"14060: AI M.Sc. at every seminar", map[string][]string{"zentralcampus": {"150000", "151375"}, "sachsendorf": {"150690"}}, true},
+		{"11107: Elektrotechnik at both, the others at one", map[string][]string{"zentralcampus": {"150828"}, "senftenberg": {"149440"}}, false},
+		{"a course QIS lists nobody at", map[string][]string{"zentralcampus": {"150000"}, "sachsendorf": {"1"}}, false},
+		{"one audience a part of the other", map[string][]string{"zentralcampus": {"148008"}, "sachsendorf": {"148370"}}, false},
+	}
+	for _, c := range cases {
+		if got := sameAudience(c.courses, audiences); got != c.want {
+			t.Errorf("%s: %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 // The labels of the event pages of 2026W (2026-10-19) against programs as the catalog has them.
 func TestResolveEventPrograms(t *testing.T) {
 	prog := func(id, name, level, kind, variant string, po int) *program {
@@ -174,13 +211,34 @@ func TestMostOf(t *testing.T) {
 	if got := mostOf(counts, map[string][]string{"nord": nil}); got != "" {
 		t.Errorf("none among = %q", got)
 	}
+
+	// Wirtschaftsingenieurwesen B.Sc., FH profile: QIS lists it for 30 SWS in Senftenberg and 3 at
+	// the Zentralcampus; three of its four compulsory modules are held at the Zentralcampus.
+	wing := campusEvidence{sws: map[string]float64{"senftenberg": 30, "zentralcampus": 3}, modules: map[string]int{"zentralcampus": 3, "senftenberg": 1}}
+	if got := wing.main(nil); got != "senftenberg" {
+		t.Errorf("QIS first: %q", got)
+	}
+	if got := wing.main(map[string][]string{"zentralcampus": nil, "sachsendorf": nil}); got != "zentralcampus" {
+		t.Errorf("among the Zentralcampus and Sachsendorf: %q", got)
+	}
+	// Where QIS lists the program nowhere among the courses, its compulsory modules decide.
+	plan := campusEvidence{sws: map[string]float64{"senftenberg": 12}, modules: map[string]int{"sachsendorf": 2, "zentralcampus": 1}}
+	if got := plan.main(map[string][]string{"zentralcampus": nil, "sachsendorf": nil}); got != "sachsendorf" {
+		t.Errorf("the compulsory modules after QIS: %q", got)
+	}
+	if got := mostSWS(map[string]float64{"zentralcampus": 2, "senftenberg": 2}, nil); got != "" {
+		t.Errorf("a tie of SWS = %q", got)
+	}
+	if got := (campusEvidence{}).main(nil); got != "" {
+		t.Errorf("no evidence = %q", got)
+	}
 }
 
 // TestTracksOnSnapshot reads the tracks of a real snapshot: RADIX_TRACKS_SNAPSHOT names a copy of
-// one, which it migrates and writes the tracks into; RADIX_TRACKS_PAGES a directory of QIS event
-// pages saved as <veranstid>.html (also in its subdirectories), whose „Studiengänge" it reads as
-// the build does — a snapshot has no pages. Folia's checks run on such a copy until canary serves
-// a snapshot with tracks:
+// one, which it migrates and writes the tracks into. A snapshot has no pages: the programs QIS
+// lists at the events are the snapshot's own (schema 15 or newer, canary's /api/db), or those of
+// RADIX_TRACKS_PAGES, a directory of QIS event pages saved as <veranstid>.html (also in its
+// subdirectories), whose „Studiengänge" it reads as the build does:
 //
 //	RADIX_TRACKS_SNAPSHOT=$PWD/../snapshot/catalog.db go test ./internal/catalogbuild -run TestTracksOnSnapshot -count=1 -v
 func TestTracksOnSnapshot(t *testing.T) {
@@ -213,13 +271,20 @@ func TestTracksOnSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	for _, table := range []string{"module_track_program", "module_track", "program_campus", "event_program_ref", "event_program"} {
+	// The programs of the events stay as the snapshot has them unless pages are given to read them
+	// from (a snapshot of schema 15 or newer has them).
+	pages := os.Getenv("RADIX_TRACKS_PAGES")
+	tables := []string{"module_track_program", "module_track", "program_campus"}
+	if pages != "" {
+		tables = append(tables, "event_program_ref", "event_program")
+	}
+	for _, table := range tables {
 		if _, err := tx.Exec("DELETE FROM " + table); err != nil {
 			t.Fatal(err)
 		}
 	}
 	report := &Report{EventProgramsUnresolved: make(map[string]int)}
-	if dir := os.Getenv("RADIX_TRACKS_PAGES"); dir != "" {
+	if dir := pages; dir != "" {
 		events := make(map[string]bool)
 		rows, err := tx.Query("SELECT id FROM event")
 		if err != nil {
@@ -266,8 +331,8 @@ func TestTracksOnSnapshot(t *testing.T) {
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("%d modules × semesters with tracks, %d programs with a main campus, %d track programs by QIS, %d by campus",
-		report.ModulesWithTracks, report.ProgramsWithCampus, report.TrackProgramsByQIS, report.TrackProgramsByCampus)
+	t.Logf("%d modules × semesters with tracks, %d with one audience at every course; %d programs with a main campus, %d of them by QIS; %d track programs by QIS, %d by campus",
+		report.ModulesWithTracks, report.TracksOneAudience, report.ProgramsWithCampus, report.ProgramsCampusByQIS, report.TrackProgramsByQIS, report.TrackProgramsByCampus)
 
 	var listed string
 	if err := db.SQL().QueryRow(`SELECT IFNULL(GROUP_CONCAT(m, ' '), '') FROM (SELECT DISTINCT module_id || ':' || semester_key AS m FROM module_track ORDER BY 1)`).Scan(&listed); err != nil {
@@ -295,7 +360,11 @@ func TestTracksOnSnapshot(t *testing.T) {
 	if got := of("079-82-2008"); !strings.HasPrefix(got, "zentralcampus/") {
 		t.Errorf("Informatik B.Sc. takes 12102 at %q", got)
 	}
-	if os.Getenv("RADIX_TRACKS_PAGES") != "" {
+	var programRows int
+	if err := db.SQL().QueryRow(`SELECT COUNT(*) FROM event_program`).Scan(&programRows); err != nil {
+		t.Fatal(err)
+	}
+	if programRows > 0 {
 		if got := of("247-82-2016"); got != "sachsendorf/qis" {
 			t.Errorf("Medizininformatik B.Sc. takes 12102 at %q", got)
 		}
@@ -344,8 +413,8 @@ func TestBuildTracks(t *testing.T) {
 		informatik  = "Informatik Bachelor (universitäres Profil)"
 		medinf      = "Medizininformatik Bachelor (universitäres Profil)"
 	)
-	modules := map[string]string{"12102": "Programmierpraktikum", "11760": "Betriebssysteme und Rechnernetze", "11112": "Mathematik IT-1", "11777": "Medizinische Grundlagen"}
-	events := map[string][]string{"12102": {"148008", "148370", "149408", "148455"}, "11760": {"150029", "150033"}, "11112": {"150100"}, "11777": {"148769"}}
+	modules := map[string]string{"12102": "Programmierpraktikum", "11760": "Betriebssysteme und Rechnernetze", "11112": "Mathematik IT-1", "11777": "Medizinische Grundlagen", "14060": "Research Module"}
+	events := map[string][]string{"12102": {"148008", "148370", "149408", "148455"}, "11760": {"150029", "150033"}, "11112": {"150100"}, "11777": {"148769"}, "14060": {"150000", "150690"}}
 	var list strings.Builder
 	list.WriteString(`<table><tbody class="list">`)
 	for _, id := range sortedKeys(modules) {
@@ -366,7 +435,11 @@ func TestBuildTracks(t *testing.T) {
 	put(catalogdb.SourceQISEvent, "150029", trackEventPage("Betriebssysteme und Rechnernetze - Betriebssysteme", "Vorlesung/Übung", "3", sachsendorf, medinf))
 	put(catalogdb.SourceQISEvent, "150033", trackEventPage("Betriebssysteme und Rechnernetze - Rechnernetze", "Vorlesung/Übung", "3", central, medinf))
 	put(catalogdb.SourceQISEvent, "150100", trackEventPage("Mathematik IT-1", "Vorlesung", "6", central))
-	put(catalogdb.SourceQISEvent, "148769", trackEventPage("Medizinische Grundlagen", "Vorlesung", "6", sachsendorf))
+	put(catalogdb.SourceQISEvent, "148769", trackEventPage("Medizinische Grundlagen", "Vorlesung", "6", sachsendorf, "Wirtschaftsinformatik Bachelor"))
+	// Two whole seminars, at each campus one, both for Medizininformatik: topics to choose from, no
+	// choice of place.
+	put(catalogdb.SourceQISEvent, "150000", trackEventPage("Research Module", "Vorlesung", "6", central, medinf))
+	put(catalogdb.SourceQISEvent, "150690", trackEventPage("Projektmodul", "Vorlesung", "6", sachsendorf, medinf))
 
 	for _, p := range []fixtureProgram{
 		{name: "Informatik", stg: "079", abschl: "82", degree: "Bachelor (universitär)", pversion: "2008", po: "2008 - 2. SÄ 2024"},
@@ -394,26 +467,33 @@ func TestBuildTracks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ModulesWithTracks != 1 || report.EventProgramsResolved != 6 || total(report.EventProgramsUnresolved) != 1 {
-		t.Errorf("report: %d modules with tracks, %d rows resolved, unresolved %v", report.ModulesWithTracks, report.EventProgramsResolved, report.EventProgramsUnresolved)
+	if report.ModulesWithTracks != 1 || report.TracksOneAudience != 1 || report.EventProgramsResolved != 9 || total(report.EventProgramsUnresolved) != 1 {
+		t.Errorf("report: %d modules with tracks, %d with one audience, %d rows resolved, unresolved %v", report.ModulesWithTracks, report.TracksOneAudience, report.EventProgramsResolved, report.EventProgramsUnresolved)
+	}
+	if report.ProgramsWithCampus != 3 || report.ProgramsCampusByQIS != 3 {
+		t.Errorf("report: %d programs with a campus, %d of them by QIS", report.ProgramsWithCampus, report.ProgramsCampusByQIS)
 	}
 
 	want(t, db, `SELECT event_id, ord, label, semester_min, semester_max, resolve_status, IFNULL(program_id, '∅'), IFNULL(family_key, '∅') FROM v_event_program WHERE event_id = '148370' ORDER BY ord`,
 		"148370|1|Informatik Bachelor (universitäres Profil)|1|1|resolved|079-82-2008|079-82",
 		"148370|2|Physik Bachelor (universitäres Profil)|1|1|unresolved|∅|∅")
-	// Two courses of the Programmierpraktikum; 11760's halves are no courses.
+	// Two courses of the Programmierpraktikum; 11760's halves are no courses, nor are 14060's
+	// seminars, which QIS lists for the same program.
 	want(t, db, `SELECT DISTINCT module_id, event_id, track FROM v_module_schedule WHERE track IS NOT NULL ORDER BY 1, 3, 2`,
 		"12102|148455|sachsendorf", "12102|149408|sachsendorf", "12102|148008|zentralcampus", "12102|148370|zentralcampus")
-	want(t, db, `SELECT program_id, campus, modules, is_main FROM v_program_campus ORDER BY 1, 2`,
-		"079-82-2008|zentralcampus|1|1",
-		"247-82-2016|sachsendorf|2|1", "247-82-2016|zentralcampus|1|0",
-		"C38-82-2024|zentralcampus|1|1")
+	// Where QIS lists each program's events (Medizininformatik: 4 + 2 + 3 + 6 SWS in Sachsendorf,
+	// 3 + 6 at the Zentralcampus), and its compulsory modules but 12102. Wirtschaftsinformatik's at
+	// the Zentralcampus, QIS lists it in Sachsendorf alone: there it is taught.
+	want(t, db, `SELECT program_id, campus, modules, sws, is_main FROM v_program_campus ORDER BY 1, 2`,
+		"079-82-2008|zentralcampus|1|6|1",
+		"247-82-2016|sachsendorf|2|15|1", "247-82-2016|zentralcampus|1|9|0",
+		"C38-82-2024|sachsendorf|0|6|1", "C38-82-2024|zentralcampus|1|0|0")
 	// Informatik and Medizininformatik as QIS lists them; Wirtschaftsinformatik, which QIS does not
-	// name, by the campus of its other compulsory module.
+	// name at 12102, where QIS lists its other events.
 	want(t, db, `SELECT module_id, semester_key, program_id, campus, basis, family_key FROM v_module_track_program ORDER BY program_id`,
 		"12102|2026W|079-82-2008|zentralcampus|qis|079-82",
 		"12102|2026W|247-82-2016|sachsendorf|qis|247-82",
-		"12102|2026W|C38-82-2024|zentralcampus|campus|C38-82")
+		"12102|2026W|C38-82-2024|sachsendorf|campus|C38-82")
 
 	// A second build replaces what the first wrote, to the same content.
 	again, err := Build(context.Background(), db)

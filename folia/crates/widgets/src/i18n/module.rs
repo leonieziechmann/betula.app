@@ -183,7 +183,8 @@ pub struct Texts {
     pub courses_faint: fn(&str) -> String,
     /// The tooltip of the line: QIS names the program at these Termine …
     pub courses_by_qis: fn(&str) -> String,
-    /// … or at none of them, and the program's campus decides.
+    /// … or at none of them, and the campus the program is taught at decides (Radix's
+    /// `v_program_campus`: where QIS lists its other events, else its compulsory modules).
     pub courses_by_campus: fn(&str) -> String,
     /// The heading of a course in the list: „Cottbus-Sachsendorf · für Medizininformatik · B.Sc." …
     pub course_for: fn(&str, &str) -> String,
@@ -316,7 +317,7 @@ pub const DE: Texts = Texts {
     courses_highlight: |program, places| format!("Hervorgehoben: die Termine für {program} ({places})."),
     courses_faint: |places| format!("Blass: {places}."),
     courses_by_qis: |program| format!("QIS nennt {program} bei diesen Terminen."),
-    courses_by_campus: |program| format!("QIS nennt {program} bei keinem der Angebote. Betula nimmt das Angebot am Standort, an dem die meisten Pflichtmodule des Studiengangs stattfinden."),
+    courses_by_campus: |program| format!("QIS nennt {program} bei keinem der Angebote. Betula nimmt das Angebot an dem Standort, an dem der Studiengang studiert wird: wo QIS die meisten seiner Veranstaltungen nennt, sonst wo die meisten seiner Pflichtmodule stattfinden."),
     course_for: |place, programs| format!("{place} · für {programs}"),
     courses_more: |programs, n| if n == 1 { format!("{programs} und einen weiteren") } else { format!("{programs} und {n} weitere") },
     courses_shared: "Für alle Angebote",
@@ -439,7 +440,7 @@ pub const EN: Texts = Texts {
     courses_highlight: |program, places| format!("Highlighted: the dates for {program} ({places})."),
     courses_faint: |places| format!("Faint: {places}."),
     courses_by_qis: |program| format!("QIS names {program} at these dates."),
-    courses_by_campus: |program| format!("QIS names {program} at none of them. Betula takes the one on the campus where most of the programme's compulsory modules are held."),
+    courses_by_campus: |program| format!("QIS names {program} at none of them. Betula takes the one on the campus where the programme is taught: where QIS names most of its courses, else where most of its compulsory modules are held."),
     course_for: |place, programs| format!("{place} · for {programs}"),
     courses_more: |programs, n| format!("{programs} and {n} more"),
     courses_shared: "For every course",
