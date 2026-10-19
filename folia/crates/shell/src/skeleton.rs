@@ -95,7 +95,7 @@ fn frame(shape: Shape) -> AnyView {
         }
         .into_any(),
         Shape::Bookmarks => framed(
-            Side::Filters(&[3, 4]),
+            Side::Filters(&[3, 3, 2]),
             view! {
                 <div class="panel sk-sweep sk-fill">
                     <div class="list-head"><div class="count-row">{bar("sk-count")}{bar("sk-w1")}</div></div>

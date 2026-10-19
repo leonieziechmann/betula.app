@@ -871,6 +871,7 @@ dependencies = [
 name = "folia-bookmarks"
 version = "1.33.3"
 dependencies = [
+ "folia-calendar",
  "folia-data",
  "folia-design",
  "folia-model",

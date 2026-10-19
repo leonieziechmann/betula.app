@@ -15,6 +15,7 @@ csr = ["leptos/csr", "dep:web-sys", "dep:wasm-bindgen", "folia-design/csr", "fol
 leptos = "0.8.20"
 leptos_router = "0.8"
 leptos_meta = "0.8"
+folia-calendar = { path = "../calendar" }
 folia-design = { path = "../design" }
 folia-data = { path = "../data" }
 folia-shell = { path = "../shell" }
