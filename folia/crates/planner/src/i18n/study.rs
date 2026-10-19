@@ -196,7 +196,7 @@ pub struct Texts {
     pub fs_long: fn(u8) -> String,
     /// „1. FS", „1. und 2. FS", „1.–4. FS".
     pub fs_span: fn(u8, u8) -> String,
-    /// The strip: „von 32 bestanden", „von 30 LP", „noch leer", „Plan 30".
+    /// The list of the semesters: „von 32 bestanden", „von 30 LP", „noch leer", „Plan 30".
     pub of_passed: fn(&str) -> String,
     pub of_planned: fn(&str) -> String,
     pub still_empty: &'static str,
@@ -206,12 +206,15 @@ pub struct Texts {
     pub head_past: fn(&str, &str) -> String,
     /// „Semester anfügen".
     pub add_semester: &'static str,
-    /// The columns of a semester.
-    pub col_module: &'static str,
-    pub col_area: &'static str,
-    pub col_credits: &'static str,
-    /// A row's ⋯ and a semester's, for screen readers: „Mehr zu Datenbanken".
+    /// A semester's ⋯, for screen readers: „Mehr zu WiSe 2026/27".
     pub more_about: fn(&str) -> String,
+    /// A row's status (`focus::Status`), and its button for screen readers: „Bestanden – Menü zu
+    /// Datenbanken".
+    pub status_planned: &'static str,
+    pub status_running: &'static str,
+    pub status_passed: &'static str,
+    pub status_failed: &'static str,
+    pub status_of: fn(&str, &str) -> String,
     /// The marks of a row: „Wiederholung · aus 1. FS", „im SoSe nicht angeboten", „nur WiSe" …
     pub chip_retake: fn(&str) -> String,
     pub unoffered: fn(&str) -> String,
@@ -323,13 +326,14 @@ pub struct Texts {
     pub not_offered: &'static str,
     pub n_not_offered: fn(usize) -> String,
     pub remove: &'static str,
-    /// The box of a row and the one of all, for screen readers; the bar: „Auswahl", „Auswahl
-    /// aufheben", „3 Einträge" (what a drag of several shows); on a phone its words are short.
+    /// „Auswählen" in a row's menu, „Alle auswählen"; a row selected, for screen readers; the bar:
+    /// „3 ausgewählt", „Auswahl", „Auswahl aufheben"; on a phone its words are short.
+    pub select_one: &'static str,
     pub select_all: &'static str,
+    pub is_selected: &'static str,
     pub n_selected: fn(usize) -> String,
     pub selection: &'static str,
     pub clear_selection: &'static str,
-    pub n_entries: fn(usize) -> String,
     pub act_passed: &'static str,
     pub unmark_short: &'static str,
     pub act_move: &'static str,
@@ -346,7 +350,6 @@ pub struct Texts {
     pub n_unmarked_passed: fn(usize) -> String,
 
     // The views.
-    pub view_label: &'static str,
     pub view_semester: &'static str,
     pub view_grid: &'static str,
 
@@ -507,10 +510,12 @@ pub const DE: Texts = Texts {
     more: |n| format!("{n} mehr"),
     head_past: |passed, all| format!("{passed} von {all}\u{a0}LP bestanden"),
     add_semester: "Semester anfügen",
-    col_module: "Modul",
-    col_area: "Bereich",
-    col_credits: "LP",
     more_about: |name| format!("Mehr zu {name}"),
+    status_planned: "Geplant",
+    status_running: "Läuft",
+    status_passed: "Bestanden",
+    status_failed: "Nicht bestanden",
+    status_of: |status, name| format!("{status} – Menü zu {name}"),
     chip_retake: |from| format!("Wiederholung · aus {from}"),
     unoffered: |season| format!("im {season} nicht angeboten"),
     only_winter: "nur WiSe",
@@ -593,11 +598,12 @@ pub const DE: Texts = Texts {
     not_offered: "nicht angeboten",
     n_not_offered: |n| format!("{n} nicht angeboten"),
     remove: "Entfernen",
+    select_one: "Auswählen",
     select_all: "Alle auswählen",
+    is_selected: "ausgewählt",
     n_selected: |n| format!("{n} ausgewählt"),
     selection: "Auswahl",
     clear_selection: "Auswahl aufheben",
-    n_entries: |n| if n == 1 { "1 Eintrag".to_string() } else { format!("{n} Einträge") },
     act_passed: "Bestanden",
     unmark_short: "Zurücknehmen",
     act_move: "Verschieben",
@@ -611,7 +617,6 @@ pub const DE: Texts = Texts {
     unmarked_passed: |name| format!("„{name}“ nicht mehr als bestanden markiert"),
     n_unmarked_passed: |n| format!("{n} Einträge nicht mehr als bestanden markiert"),
 
-    view_label: "Ansicht",
     view_semester: "Semester",
     view_grid: "Gesamtplan",
 
@@ -768,10 +773,12 @@ pub const EN: Texts = Texts {
     more: |n| format!("{n} more"),
     head_past: |passed, all| format!("{passed} of {all}\u{a0}CP passed"),
     add_semester: "Add a semester",
-    col_module: "Module",
-    col_area: "Area",
-    col_credits: "CP",
     more_about: |name| format!("More on {name}"),
+    status_planned: "Planned",
+    status_running: "Under way",
+    status_passed: "Passed",
+    status_failed: "Not passed",
+    status_of: |status, name| format!("{status} – menu of {name}"),
     chip_retake: |from| format!("Retake · from {from}"),
     unoffered: |season| format!("not offered in {season}"),
     only_winter: "winter only",
@@ -854,11 +861,12 @@ pub const EN: Texts = Texts {
     not_offered: "not offered",
     n_not_offered: |n| format!("{n} not offered"),
     remove: "Remove",
+    select_one: "Select",
     select_all: "Select all",
+    is_selected: "selected",
     n_selected: |n| format!("{n} selected"),
     selection: "Selection",
     clear_selection: "Clear selection",
-    n_entries: |n| if n == 1 { "1 entry".to_string() } else { format!("{n} entries") },
     act_passed: "Passed",
     unmark_short: "Unmark",
     act_move: "Move",
@@ -872,7 +880,6 @@ pub const EN: Texts = Texts {
     unmarked_passed: |name| format!("\u{201c}{name}\u{201d} no longer marked as passed"),
     n_unmarked_passed: |n| format!("{n} entries no longer marked as passed"),
 
-    view_label: "View",
     view_semester: "Semester",
     view_grid: "Whole plan",
 

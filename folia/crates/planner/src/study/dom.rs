@@ -1,6 +1,6 @@
 //! What „Mein Studium" asks of the browser itself: where a button or the pointer is, which row lies
-//! under the pointer while a selection is drawn, what a menu gives the focus back to, the picture a
-//! drag of several rows carries, where a row of pages is scrolled, how its pages come in from their
+//! under the pointer while a selection is drawn, what a menu gives the focus back to, what a drag
+//! of the Gesamtplan carries, where a row of pages is scrolled, how its pages come in from their
 //! tops and where they are drawn while it glides. Nothing of it on the server, which has neither.
 
 #[cfg(feature = "csr")]
@@ -59,15 +59,21 @@ pub(super) fn row_at(x: f64, y: f64) -> Option<String> {
 }
 
 /// The key of the semester's row nearest to the height `y`: for a pointer that left the rows
-/// (above the first, below the last) the first or the last.
+/// (above the first, below the last) the first or the last. Only rows on the screen count: on a
+/// phone the semesters beside the one in view are pages of the row too, and an item is the same
+/// key in every semester it is in.
 #[allow(unused_variables)]
 pub(super) fn row_nearest(y: f64) -> Option<String> {
     #[cfg(feature = "csr")]
     {
+        let (width, _) = viewport();
         // The rows of this page's stage (`folia_design::stage`).
         let mut best: Option<(f64, String)> = None;
         for row in folia_design::stage::select_all(".st-card-sem .st-row[data-key]") {
             let r = row.get_bounding_client_rect();
+            if r.width() <= 0.0 || r.left() < -1.0 || r.right() > width + 1.0 {
+                continue;
+            }
             let distance = if y < r.top() { r.top() - y } else if y > r.bottom() { y - r.bottom() } else { 0.0 };
             if best.as_ref().is_none_or(|(d, _)| distance < *d) {
                 best = row.get_attribute("data-key").map(|key| (distance, key));
@@ -133,6 +139,7 @@ pub(super) fn step_focus(panel: &str, step: Step) {
         let at = items.iter().position(|item| active.as_ref().is_some_and(|active| active.is_same_node(Some(item))));
         let last = items.len() - 1;
         let to = match (step, at) {
+            (Step::Current, _) => items.iter().position(|item| item.get_attribute("aria-current").as_deref() == Some("true")).unwrap_or(0),
             (Step::First, _) | (Step::Next, None) => 0,
             (Step::Last, _) | (Step::Previous, None) => last,
             (Step::Next, Some(at)) => if at == last { 0 } else { at + 1 },
@@ -149,6 +156,8 @@ pub(super) fn step_focus(panel: &str, step: Step) {
 /// Where the focus goes among a menu's entries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Step {
+    /// The entry marked current (`aria-current`), else the first.
+    Current,
     First,
     Last,
     Next,
@@ -166,19 +175,6 @@ pub(super) fn focused_attribute(name: &str) -> Option<String> {
     None
 }
 
-/// Gives a drag the picture of the element `selector` finds („3 Einträge") instead of the row
-/// it began on.
-#[allow(unused_variables)]
-pub(super) fn drag_picture(ev: &leptos::ev::DragEvent, selector: &str) {
-    #[cfg(feature = "csr")]
-    {
-        let picture = folia_design::stage::select(selector);
-        if let (Some(data), Some(picture)) = (ev.data_transfer(), picture) {
-            data.set_drag_image(&picture, 16, 16);
-        }
-    }
-}
-
 /// Puts what a drag carries into it: the keys of its rows, a move.
 #[allow(unused_variables)]
 pub(super) fn drag_data(ev: &leptos::ev::DragEvent, keys: &[String]) {
@@ -186,20 +182,6 @@ pub(super) fn drag_data(ev: &leptos::ev::DragEvent, keys: &[String]) {
     if let Some(data) = ev.data_transfer() {
         let _ = data.set_data("text/plain", &keys.join("\n"));
         data.set_effect_allowed("move");
-    }
-}
-
-/// Follows the module link of the row the event was heard in (`a.st-name`), as a click on it
-/// does: the module beside the page. Once this click is over, since the link's own click comes
-/// back to the row (which does nothing with a click on a link).
-#[allow(unused_variables)]
-pub(super) fn follow_name(ev: &leptos::ev::MouseEvent) {
-    #[cfg(feature = "csr")]
-    {
-        let link = ev.current_target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|body| body.query_selector("a.st-name").ok().flatten());
-        if let Some(link) = link.and_then(|link| link.dyn_into::<web_sys::HtmlElement>().ok()) {
-            leptos::prelude::set_timeout(move || link.click(), std::time::Duration::ZERO);
-        }
     }
 }
 
@@ -464,12 +446,13 @@ pub(super) fn on_control(ev: &leptos::ev::Event) -> bool {
     false
 }
 
-/// Whether the event began on the module's link of a row (`a.st-name`).
+/// Whether the event began on the link that lies over the whole box of a row (`.st-open`): the
+/// module, or a row's modules in the catalog. A click anywhere on the box is one on it.
 #[allow(unused_variables)]
-pub(super) fn on_name(ev: &leptos::ev::Event) -> bool {
+pub(super) fn on_open(ev: &leptos::ev::Event) -> bool {
     #[cfg(feature = "csr")]
     {
-        ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).is_some_and(|target| target.closest("a.st-name").ok().flatten().is_some())
+        ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).is_some_and(|target| target.closest(".st-open").ok().flatten().is_some())
     }
     #[cfg(not(feature = "csr"))]
     false
