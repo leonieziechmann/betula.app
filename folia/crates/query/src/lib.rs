@@ -23,8 +23,8 @@ use folia_model::rows::{
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
     LecturerName, ModuleAbbrev, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry,
-    ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry, ProgramVersion,
-    Successor, TextItem, TrackProgram,
+    ProgramAbbrev, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry,
+    ProgramVersion, Successor, TextItem, TrackProgram,
 };
 use folia_routes::filter::{CatalogQuery, ProgramRelation};
 use folia_search::Plan as SearchPlan;
@@ -304,7 +304,7 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<Module>, DbError> {
          turnus_raw, turnus_season, turnus_parity, offer_status, limitation_raw, is_limited, participant_limit, \
          exam_form, exam_form_raw, exam_details, grading_raw, is_graded, is_fues, department, page_lang, \
          learning_outcomes, contents, prerequisites_recommended, prerequisites_mandatory, remarks, \
-         source_url, fetched_at, at_zentralcampus, at_sachsendorf, at_senftenberg \
+         source_url, fetched_at, at_zentralcampus, at_sachsendorf, at_senftenberg, abbrev \
          FROM v_module WHERE id = ?",
         &[Value::from(id)],
     )
@@ -944,6 +944,19 @@ pub fn modules_abbrevs(db: &dyn Database, module_ids: &[String], program_id: Opt
          LEFT JOIN v_program_module p ON p.module_id = m.id AND p.program_id = ? \
          WHERE m.id IN (SELECT value FROM json_each(?)) AND COALESCE(p.abbrev, m.abbrev) IS NOT NULL ORDER BY m.id",
         &[program_id.map_or(Value::Null, Value::from), Value::from(ids)],
+    )
+}
+
+/// The programs that call a module otherwise than its own form (`v_module.abbrev`), with theirs
+/// (`v_program_module`, unique within the program; schema 9): 330 of the 4,938 modules on the
+/// data of 2026-10-19, in 961 of 28,573 pairs. By program.
+pub fn module_program_abbrevs(db: &dyn Database, module_id: &str) -> Result<Vec<ProgramAbbrev>, DbError> {
+    fetch(
+        db,
+        "module_program_abbrevs",
+        "SELECT p.program_id, p.abbrev FROM v_program_module p JOIN v_module m ON m.id = p.module_id \
+         WHERE p.module_id = ? AND p.abbrev IS NOT NULL AND p.abbrev IS NOT m.abbrev ORDER BY p.program_id",
+        &[Value::from(module_id)],
     )
 }
 

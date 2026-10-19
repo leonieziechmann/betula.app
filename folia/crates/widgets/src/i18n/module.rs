@@ -61,6 +61,9 @@ pub struct Texts {
     pub close_preview: &'static str,
     pub full_view_title: &'static str,
     pub close_preview_title: &'static str,
+    /// What the chip beside the module's number is („EvS"): its tooltip, and its name for screen
+    /// readers.
+    pub abbrev: &'static str,
 
     // ---- the sidebar of the page ----
     /// „Auf dieser Seite": the jumps to the sections, their heading and name.
@@ -306,6 +309,7 @@ pub const DE: Texts = Texts {
     close_preview: "Vorschau schließen",
     full_view_title: "Als ganze Seite öffnen (F)",
     close_preview_title: "Vorschau schließen (Esc)",
+    abbrev: "Kürzel",
 
     on_this_page: "Auf dieser Seite",
     actions: "Aktionen",
@@ -481,6 +485,7 @@ pub const EN: Texts = Texts {
     close_preview: "Close preview",
     full_view_title: "Open as a full page (F)",
     close_preview_title: "Close preview (Esc)",
+    abbrev: "Abbreviation",
 
     on_this_page: "On this page",
     actions: "Actions",

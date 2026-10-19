@@ -221,7 +221,8 @@ async function persistence() {
 async function withoutTheApp() {
   const context = await browser.newContext({ viewport: { width: 1500, height: 900 }, javaScriptEnabled: false });
   const page = await context.newPage();
-  const response = await page.goto(base + "/studyplan?sem=2026W&open=12104", { waitUntil: "domcontentloaded" });
+  // Until the stylesheet is in, what it hides shows (over a network, at DOMContentLoaded it is not).
+  const response = await page.goto(base + "/studyplan?sem=2026W&open=12104", { waitUntil: "load" });
   const plain = await page.evaluate(() => ({
     title: document.querySelector(".state .state-title")?.textContent ?? "",
     h1: document.querySelectorAll("h1").length,

@@ -384,6 +384,11 @@ pub struct Module {
     pub at_zentralcampus: Option<bool>,
     pub at_sachsendorf: Option<bool>,
     pub at_senftenberg: Option<bool>,
+    /// What the module is called for short without a program („EvS", schema 9,
+    /// docs/radix/schema-v2.md „Short names"); a program may call it otherwise
+    /// (`ProgramAbbrev`). Every module has one; `None` in an answer kept from before 1.33.1.
+    #[serde(default)]
+    pub abbrev: Option<String>,
 }
 
 impl FromRow for Module {
@@ -424,6 +429,7 @@ impl FromRow for Module {
             at_zentralcampus: row.opt_flag("at_zentralcampus")?,
             at_sachsendorf: row.opt_flag("at_sachsendorf")?,
             at_senftenberg: row.opt_flag("at_senftenberg")?,
+            abbrev: row.opt_text("abbrev")?,
         })
     }
 }

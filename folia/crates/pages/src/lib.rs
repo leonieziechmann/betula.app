@@ -27,8 +27,9 @@ use folia_model::rows::{
 };
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
-    LecturerName, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount,
-    ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramVersion, Successor, TextItem, TrackProgram,
+    LecturerName, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramAbbrev,
+    ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramVersion, Successor, TextItem,
+    TrackProgram,
 };
 use folia_plans::plan::{self, SemesterPlan};
 use folia_plans::variants::{self, PlanVariant, Supplement};
@@ -517,9 +518,23 @@ pub struct ModuleData {
     /// Where the validated study plans place the module (`plan_semesters`).
     pub plan_places: Vec<PlanPlace>,
     pub semesters: Vec<Semester>,
+    /// The programs that call the module otherwise than its own form (`abbrev_in`).
+    #[serde(default)]
+    pub program_abbrevs: Vec<ProgramAbbrev>,
 }
 
 impl ModuleData {
+    /// What the module is called for short in the program `program_id`, as the Stundenplan names
+    /// it (`queries::modules_abbrevs`): that program's form where it calls the module otherwise
+    /// (unique among its modules: „Prak-b" beside another „Praktikum"), else the module's own
+    /// („EvS"), which is also its name without a program.
+    pub fn abbrev_in(&self, program_id: Option<&str>) -> Option<&str> {
+        program_id
+            .and_then(|id| self.program_abbrevs.iter().find(|form| form.program_id == id))
+            .map(|form| form.abbrev.as_str())
+            .or(self.module.abbrev.as_deref())
+    }
+
     /// The semesters the validated plan of `program_id` places the module in, each once and in
     /// order: `[(1, 1)]`, `[(5, 6)]` for a span the regulation prints, `[(4, 4), (5, 5)]` where its
     /// study directions place it differently. Empty where no plan of the program names it.
@@ -552,6 +567,7 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<ModuleData>, DbError
         programs: queries::module_program_links(db, id)?,
         plan_places: queries::module_plan_places(db, id)?,
         semesters: queries::semesters(db)?,
+        program_abbrevs: queries::module_program_abbrevs(db, id)?,
         module,
     }))
 }
@@ -708,7 +724,9 @@ pub struct StudyplanData {
     pub counts: Vec<DateCount>,
     /// The modules' abbreviations („EvS", schema 9), by id: within the plan's program where it has
     /// one (`studyplan_in`), else each module's own. Only a week grid and the calendar's entries
-    /// name modules by them (`slot_names`); everywhere else the title stands (owner, 2026-09-25).
+    /// name modules by them (`slot_names`); everywhere else the title stands (owner, 2026-09-25),
+    /// and the panel beside the plan shows it beside the module's number, as a module's page does
+    /// (owner, 2026-10-19; `folia_widgets::module::ModuleIds`).
     pub abbrevs: BTreeMap<String, String>,
     /// The program `abbrevs` are of, as `studyplan_in` was asked for it (an id of another shape
     /// left out). A subscription carries it, so the feed names the modules as the page does.

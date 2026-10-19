@@ -407,6 +407,20 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     out too). „Passt in meinen Stundenplan" judges a candidate's choice by its best options: it
     fits when as many of them are free as it asks for (`fit::Candidates::choices`), and the plan
     beside a module's week (the overlay) takes the module's choices as well.
+- **A module's number and its abbreviation** (owner, 2026-10-19: „auf der Modul page neben die
+  Modul Nummer auch die Abkürzung anzeigen? Bei der Liste muss das nicht sein. Ich glaube das wäre
+  tmi"; Folia 1.33.1, `folia_widgets::module::ModuleIds`). At the head of a module's page, of its
+  preview and of its panel beside the Stundenplan the number stands in a chip, and beside it the
+  abbreviation in a chip of the same look („12104" „EvS"), named „Kürzel" in its tooltip and for
+  screen readers. It is the form the Stundenplan names the module by: that of the program the page
+  stands for (the catalog filtered by it, its program page), else of „Mein Studiengang" (the
+  page's program is the visitor's own where it is of that family, as for the courses), else the
+  module's own, which is the server's (R9). A program calls a module otherwise in 961 of 28,573
+  pairs, 330 modules on the data of 2026-10-19 (the „Praktikum" 11150 is „Pra" by itself and
+  „Prak-b" in Informatik M.Sc., beside another „Praktikum"; `ModuleData::program_abbrevs`,
+  `abbrev_in`). The panel
+  beside the Stundenplan takes the plan's form (`StudyplanData::abbrevs`). A list's rows keep the
+  number alone, and the sidebar of a module's page its number.
 - **A module's texts are set as text, not as lines** (owner, 2026-10-01: „support für Blocksatz",
   „Paragraphen sollen als solche erkennbar sein. Listen sollen erkannt werden und dem entsprechend
   formatiert werden"). Learning outcomes, contents, assessment, remarks and the prerequisites in

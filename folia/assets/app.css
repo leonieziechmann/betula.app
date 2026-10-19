@@ -1248,6 +1248,10 @@ button.action:hover { background: var(--panel-3); }
 .hero { padding: 12px 14px 16px 20px; border-bottom: 1px solid var(--line); }
 .hero-top { display: flex; align-items: center; gap: 2px; color: var(--text-2); min-height: 40px; }
 .hero-top .mono { margin-right: auto; padding: 4px 8px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+/* A module's number and, beside it, what it is called for short (owner, 2026-10-19): one group at
+   the start of the line, what follows it at its end. */
+.hero-top .ids { display: flex; align-items: center; gap: 6px; margin-right: auto; }
+.hero-top .ids .mono { margin-right: 0; white-space: nowrap; }
 .hero h2 { margin: 10px 0 4px; font-size: 24px; line-height: 1.16; font-weight: 700; letter-spacing: -.03em; text-wrap: pretty; }
 .hero .en { color: var(--text-2); font-size: 14px; }
 .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
