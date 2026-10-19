@@ -47,6 +47,10 @@ func writeTracks(q querier, programs []*program, report *Report) error {
 	if err != nil {
 		return err
 	}
+	audiences, err := eventAudiences(q)
+	if err != nil {
+		return err
+	}
 
 	keys := make([]moduleSemester, 0, len(events))
 	for key := range events {
@@ -65,6 +69,10 @@ func writeTracks(q querier, programs []*program, report *Report) error {
 		if courses == nil {
 			continue
 		}
+		if sameAudience(courses, audiences) {
+			report.TracksOneAudience++
+			continue
+		}
 		tracks[key] = courses
 		report.ModulesWithTracks++
 		for _, campus := range sortedKeys(courses) {
@@ -81,7 +89,7 @@ func writeTracks(q querier, programs []*program, report *Report) error {
 	if err != nil {
 		return err
 	}
-	return writeTrackPrograms(q, programs, keys, tracks, campuses, report)
+	return writeTrackPrograms(q, programs, keys, tracks, audiences, campuses, report)
 }
 
 // tracksOf reads the courses of a module's teaching in one semester: the events at each campus,
@@ -119,6 +127,65 @@ func tracksOf(events []trackEvent, sws, lectureSWS float64) map[string][]string 
 		return nil
 	}
 	return courses
+}
+
+// sameAudience says whether QIS lists the same programs at every course: then the place binds no
+// program to a course, and the courses are no choice of campus but topics to choose from — the
+// Research Module in Artificial Intelligence (14060) holds its seminars at the Zentralcampus and in
+// Sachsendorf, every one of them for AI M.Sc. — or parts of the module that the SWS did not tell
+// apart. A course whose events QIS lists nobody at leaves it open: the SWS decide alone.
+func sameAudience(courses map[string][]string, audiences map[string]map[string]bool) bool {
+	var first map[string]bool
+	for _, campus := range sortedKeys(courses) {
+		who := make(map[string]bool)
+		for _, event := range courses[campus] {
+			for key := range audiences[event] {
+				who[key] = true
+			}
+		}
+		if len(who) == 0 {
+			return false
+		}
+		if first == nil {
+			first = who
+			continue
+		}
+		if len(who) != len(first) {
+			return false
+		}
+		for key := range who {
+			if !first[key] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// eventAudiences is whom QIS lists each event for (event_program): the families of the programs a
+// row names, and a row that names none of the catalog's by its label („label:" and the label).
+func eventAudiences(q querier) (map[string]map[string]bool, error) {
+	rows, err := q.Query(`
+		SELECT ep.event_id, IFNULL(p.family_key, 'label:' || ep.label)
+		FROM event_program ep
+		LEFT JOIN event_program_ref r ON r.event_id = ep.event_id AND r.ord = ep.ord
+		LEFT JOIN program p ON p.id = r.program_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	audiences := make(map[string]map[string]bool)
+	for rows.Next() {
+		var event, who string
+		if err := rows.Scan(&event, &who); err != nil {
+			return nil, err
+		}
+		if audiences[event] == nil {
+			audiences[event] = make(map[string]bool)
+		}
+		audiences[event][who] = true
+	}
+	return audiences, rows.Err()
 }
 
 // teachingEvents are the teaching events of every module per semester, with the campus of their
@@ -175,13 +242,39 @@ func moduleSWS(q querier) (sws, lecture map[string]float64, err error) {
 	return sws, lecture, rows.Err()
 }
 
-// writeProgramCampus says where each program is taught (owner, 2026-10-19: „den Standort der
-// Studiengangs erkennen, anhand der Pflicht module im regelstudienplan"): per campus, the
-// compulsory modules of its validated plan held there — of its other statements where it has no
-// plan with one —, each module in the newest semester in which it has dates with a room. A module
-// with tracks in that semester counts nowhere: where it is taken is what is to be decided. The
-// main campus holds more of them than any other. Returns program → campus → modules.
-func writeProgramCampus(q querier, programs []*program, tracks map[moduleSemester]map[string][]string, report *Report) (map[string]map[string]int, error) {
+// campusEvidence is where a program is taught, per campus: the SWS of the teaching events QIS lists
+// its family at, and its compulsory modules held there.
+type campusEvidence struct {
+	sws     map[string]float64
+	modules map[string]int
+}
+
+// main is the program's campus among `among` (every campus where nil): where QIS lists its family
+// for strictly the most SWS; where QIS decides nothing there, where strictly the most of its
+// compulsory modules are held; "" where neither decides.
+func (e campusEvidence) main(among map[string][]string) string {
+	if campus := mostSWS(e.sws, among); campus != "" {
+		return campus
+	}
+	return mostOf(e.modules, among)
+}
+
+// writeProgramCampus says where each program is taught: where QIS lists the events of its family
+// (every PO: the students of an older one are taught where those of the newest are), weighted by
+// their SWS, an event without SWS as one; and as the owner proposed (2026-10-19: „den Standort der
+// Studiengangs erkennen, anhand der Pflicht module im regelstudienplan"), per campus the compulsory
+// modules of its validated plan held there — of its other statements where it has no plan with
+// one —, each module in the newest semester in which it has dates with a room. A module with
+// tracks in that semester counts nowhere: where it is taken is what is to be decided. QIS decides
+// first (owner, the same day: „Wenn du bessere Kriterien findest um das einzustufen dann kannst du
+// auch die Verwenden"): it states for whom an event is held, where the plan only says what is
+// compulsory. Returns program → its evidence.
+func writeProgramCampus(q querier, programs []*program, tracks map[moduleSemester]map[string][]string, report *Report) (map[string]campusEvidence, error) {
+	listed, err := familyCampusSWS(q)
+	if err != nil {
+		return nil, err
+	}
+
 	compulsory := make(map[string][]string) // program → modules
 	planned := make(map[string]bool)
 	rows, err := q.Query(`
@@ -262,7 +355,7 @@ func writeProgramCampus(q querier, programs []*program, tracks map[moduleSemeste
 		return nil, err
 	}
 
-	result := make(map[string]map[string]int)
+	result := make(map[string]campusEvidence)
 	for _, p := range programs {
 		counts := make(map[string]int)
 		for _, module := range compulsory[p.id] {
@@ -274,17 +367,30 @@ func writeProgramCampus(q querier, programs []*program, tracks map[moduleSemeste
 				counts[campus]++
 			}
 		}
-		if len(counts) == 0 {
+		evidence := campusEvidence{sws: listed[p.familyKey], modules: counts}
+		campuses := make(map[string]bool)
+		for campus := range evidence.sws {
+			campuses[campus] = true
+		}
+		for campus := range counts {
+			campuses[campus] = true
+		}
+		if len(campuses) == 0 {
 			continue
 		}
-		result[p.id] = counts
-		main := mostOf(counts, nil)
-		if main != "" {
+		result[p.id] = evidence
+		main := evidence.main(nil)
+		switch {
+		case main == "":
+		case main == mostSWS(evidence.sws, nil):
+			report.ProgramsWithCampus++
+			report.ProgramsCampusByQIS++
+		default:
 			report.ProgramsWithCampus++
 		}
-		for _, campus := range sortedKeys(counts) {
-			if _, err := q.Exec("INSERT INTO program_campus (program_id, campus, modules, is_main) VALUES (?, ?, ?, ?)",
-				p.id, campus, counts[campus], boolInt(campus == main)); err != nil {
+		for _, campus := range sortedKeys(campuses) {
+			if _, err := q.Exec("INSERT INTO program_campus (program_id, campus, modules, sws, is_main) VALUES (?, ?, ?, ?, ?)",
+				p.id, campus, counts[campus], evidence.sws[campus], boolInt(campus == main)); err != nil {
 				return nil, err
 			}
 		}
@@ -292,33 +398,50 @@ func writeProgramCampus(q querier, programs []*program, tracks map[moduleSemeste
 	return result, nil
 }
 
-// writeTrackPrograms says which course of a module with tracks each program takes: the courses
-// whose events QIS lists the program on, a program of the same family (any of its POs: a page
-// lists „Informatik Bachelor" without one); else the course at the campus where the program has
-// strictly more of its compulsory modules than at the other courses' campuses. Neither: no row,
-// and a reader shows every course.
-func writeTrackPrograms(q querier, programs []*program, keys []moduleSemester, tracks map[moduleSemester]map[string][]string, campuses map[string]map[string]int, report *Report) error {
-	families := make(map[string][]string) // event → families QIS lists it for
+// familyCampusSWS is where QIS lists each family's teaching events: family → campus → SWS, each
+// event once per family and only at the one campus of its dates with a room, an event without SWS
+// as one.
+func familyCampusSWS(q querier) (map[string]map[string]float64, error) {
 	rows, err := q.Query(`
-		SELECT DISTINCT r.event_id, p.family_key FROM event_program_ref r
+		SELECT DISTINCT e.id, IFNULL(e.sws, 0), p.family_key,
+		       (SELECT COUNT(DISTINCT d.campus) FROM event_date d WHERE d.event_id = e.id AND d.campus IS NOT NULL),
+		       (SELECT MIN(d.campus) FROM event_date d WHERE d.event_id = e.id AND d.campus IS NOT NULL)
+		FROM event_program_ref r
 		JOIN program p ON p.id = r.program_id
-		ORDER BY 1, 2`)
+		JOIN event e ON e.id = r.event_id AND e.category = 'teaching'`)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	defer rows.Close()
+	listed := make(map[string]map[string]float64)
 	for rows.Next() {
 		var event, family string
-		if err := rows.Scan(&event, &family); err != nil {
-			rows.Close()
-			return err
+		var sws float64
+		var count int
+		var campus sql.NullString
+		if err := rows.Scan(&event, &sws, &family, &count, &campus); err != nil {
+			return nil, err
 		}
-		families[event] = append(families[event], family)
+		if count != 1 {
+			continue
+		}
+		if sws <= 0 {
+			sws = 1
+		}
+		if listed[family] == nil {
+			listed[family] = make(map[string]float64)
+		}
+		listed[family][campus.String] += sws
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
+	return listed, rows.Err()
+}
 
+// writeTrackPrograms says which course of a module with tracks each program takes: the courses
+// whose events QIS lists the program on, a program of the same family (any of its POs: a page
+// lists „Informatik Bachelor" without one); else the course at the campus where the program is
+// taught (campusEvidence.main among the courses' campuses). Neither: no row, and a reader shows
+// every course.
+func writeTrackPrograms(q querier, programs []*program, keys []moduleSemester, tracks map[moduleSemester]map[string][]string, audiences map[string]map[string]bool, campuses map[string]campusEvidence, report *Report) error {
 	insert := func(key moduleSemester, campus, program, basis string) error {
 		_, err := q.Exec("INSERT INTO module_track_program (module_id, semester_key, campus, program_id, basis) VALUES (?, ?, ?, ?, ?)",
 			key.module, key.semester, campus, program, basis)
@@ -332,7 +455,7 @@ func writeTrackPrograms(q querier, programs []*program, keys []moduleSemester, t
 		listed := make(map[string]map[string]bool) // family → the courses QIS lists it on
 		for campus, events := range courses {
 			for _, event := range events {
-				for _, family := range families[event] {
+				for family := range audiences[event] {
 					if listed[family] == nil {
 						listed[family] = make(map[string]bool)
 					}
@@ -350,7 +473,7 @@ func writeTrackPrograms(q querier, programs []*program, keys []moduleSemester, t
 				report.TrackProgramsByQIS++
 				continue
 			}
-			if campus := mostOf(campuses[p.id], courses); campus != "" {
+			if campus := campuses[p.id].main(courses); campus != "" {
 				if err := insert(key, campus, p.id, "campus"); err != nil {
 					return err
 				}
@@ -359,6 +482,29 @@ func writeTrackPrograms(q querier, programs []*program, keys []moduleSemester, t
 		}
 	}
 	return nil
+}
+
+// mostSWS is the campus with strictly the most SWS, among those of `among` where it is given; ""
+// for a tie or none.
+func mostSWS(sws map[string]float64, among map[string][]string) string {
+	best, most, tie := "", 0.0, false
+	for _, campus := range sortedKeys(sws) {
+		if among != nil {
+			if _, ok := among[campus]; !ok {
+				continue
+			}
+		}
+		switch n := sws[campus]; {
+		case n > most:
+			best, most, tie = campus, n, false
+		case n == most && n > 0:
+			tie = true
+		}
+	}
+	if tie {
+		return ""
+	}
+	return best
 }
 
 // mostOf is the campus with strictly the most modules, among those of `among` where it is given;
