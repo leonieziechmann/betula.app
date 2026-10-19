@@ -41,20 +41,25 @@ const open = async (options, path) => {
   return { context, page };
 };
 
-// The frames after the next tap or click (from the finger's or the button's release), or from now
-// on (`now`): which stage is in front in each, and whether a skeleton or a picture held in front of
-// the page is there. Nothing after 3 s without one: no frames. And the marker a page load takes.
+// The frames after the next tap or click, or from now on (`now`): which stage is in front in each,
+// and whether a skeleton or a picture held in front of the page is there. The frames from the click
+// on, which changes the tab (a finger's tap is clicked a moment after it lifted, and a frame may come
+// between), each timed from the finger's or the button's release. Nothing after 3 s without one: no
+// frames. And the marker a page load takes.
 const film = (page) => page.evaluate(() => {
     window.__marker = 1;
     window.__film = (now) => new Promise((done) => {
       const frames = [];
-      let at = now ? performance.now() : null;
+      let at = now ? performance.now() : null, clicked = Boolean(now);
       const start = (e) => { if (at === null) at = e.timeStamp; };
-      if (!now) for (const type of ["pointerup", "click"]) addEventListener(type, start, { capture: true, once: true });
+      if (!now) {
+        addEventListener("pointerup", start, { capture: true, once: true });
+        addEventListener("click", (e) => { start(e); clicked = true; }, { capture: true, once: true });
+      }
       const until = performance.now() + 3000;
       const look = (now) => {
-        if (at === null && now > until) return done(frames);
-        if (at !== null) {
+        if (!clicked && now > until) return done(frames);
+        if (clicked) {
           frames.push({
             ms: Math.round(now - at),
             front: document.querySelector("#content > .page-stage.front")?.dataset.stage ?? null,
@@ -119,10 +124,11 @@ const oneInFront = async (page, name, { phone, title, canonical }) => {
 const tab = async (page, area, phone) => {
   const selector = phone ? `.bottomnav > .nav[data-area="${area}"]` : `.rail nav > .nav[data-area="${area}"]`;
   const box = await page.locator(selector).first().boundingBox();
-  const frames = page.evaluate(() => window.__film());
+  // Filming before the finger or the button goes: input can overtake a script still waiting its turn.
+  await page.evaluate(() => { window.__filming = window.__film(); });
   if (phone) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
   else await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  return frames;
+  return page.evaluate(() => window.__filming);
 };
 // A tab seen before: there in the first frame, nothing in front of it, and it stays.
 const swapped = (frames, name) => {
