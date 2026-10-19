@@ -86,7 +86,8 @@
 /// the Achse); 1.29.0 with a module held at two campuses showing the course of the program (schema
 /// 15): on its page Mein Studiengang's course alone with „Auch zeigen", another program's
 /// highlighted and the others faint, without either every course in its colour; in the Stundenplan
-/// the course the plan's program takes. The version of the app's
+/// the course the plan's program takes; 1.29.1 with schema 16, the tooltip of a course the
+/// program's campus decides naming QIS before the compulsory modules. The version of the app's
 /// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
