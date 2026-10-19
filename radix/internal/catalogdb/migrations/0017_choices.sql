@@ -17,7 +17,7 @@
 --
 -- v_module_schedule.choice, .option, .extra   the choice and option a date's event is one of, and
 --                                             whether it is an extra; NULL, NULL, 0 for most
--- v_module_choice           the choices with their options' events and the SWS QIS gives them
+-- v_module_choice           the choices with their options' events, their types and SWS in QIS
 -- v_module_choice_family    the families of the programs QIS lists at an option's events
 --
 -- Existing data is not rewritten: the tables stay empty until the next build.
@@ -57,7 +57,7 @@ CREATE TABLE module_extra (
 
 CREATE VIEW v_module_choice AS
 SELECT c.module_id, c.semester_key, c.choice, c.course, c.kind, c.basis, c.sws, c.pick,
-       o.option, o.event_id, o.label, e.sws AS event_sws
+       o.option, o.event_id, o.label, e.type_raw AS event_type, e.sws AS event_sws
 FROM module_choice c
 JOIN module_choice_option o ON o.module_id = c.module_id AND o.semester_key = c.semester_key AND o.choice = c.choice
 LEFT JOIN event e ON e.id = o.event_id;
