@@ -49,7 +49,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
-| `/bookmarks?turnus=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, order, the previewed module), never what is on it: the marks live in the browser. `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
+| `/bookmarks?turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times), on a phone all but the row of pages of „Mein Studium", which has no ground (owner, 2026-10-19): there they are a tab further, at the end of any other page. The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
@@ -473,12 +473,49 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     visitor's fits the other filters, the server that it cannot know.
   - **The list of marked modules** is the catalog's list in the catalog's frame: sidebar, rows
     with the same columns, the preview of `open=<id>` floating at the right edge, on a phone a
-    sheet over the list. The sidebar holds what belongs to the list as a
-    whole: its numbers (modules, credits), the halves of the year as a row of links with their
-    counts („Alle", „Winter", „Sommer": what the catalog's turnus filter would find among the
-    marked), the order (of marking, the newest first; by title, credits, teaching events; the
-    column headers sort as in the catalog), and the actions: copy the list as text, and empty it,
-    which asks first and can be taken back („Rückgängig").
+    sheet over the list (folia/design/merken/oberflaeche.html, „Suchen, ordnen, filtern"; Folia
+    1.34.0). The head counts the marked modules and their credits.
+    - **The search at the head searches the list** while the Merkliste is up, as it searches the
+      programs on their overview: the catalog's search (`pages::bookmarks`, titles in both
+      languages, numbers, abbreviations, lecturers, its typos corrected, the rows marked where it
+      found them), among the marked modules, the head saying „2 von 9 gemerkten". What is typed
+      never goes into an address or a request (R20; once the Merkliste has notes it may name what
+      only a note says): it lives in the page (`folia_shell::search::LocalSearch`), and the data
+      worker searches in the browser. Under what it found, or alone where it found nothing, a line
+      leads into the whole catalog with the same text and says how many modules it finds there
+      (konzept.html: „Der Weg in den ganzen Katalog bleibt eine Zeile").
+    - **The order is at the heads of the columns,** as in the catalog (owner, 2026-10-19: „die
+      Sortierung bei der PC version etwas komisch. Das könnte noch eleganter umgesetzt werden"):
+      „Gemerkt" over the bookmarks orders by the time of marking (the newest first, then the
+      oldest), „Modul" by the study with Mein Studiengang and by the title without one (as the
+      catalog's „Modul" is the plan's order inside a program), „LP", „Turnus" by the offer,
+      „Termine"; a second click turns an order round. „Zuletzt gemerkt" falls into sections by
+      the time of marking (Heute, Gestern, Diese Woche, Letzte Woche, then the months, a month of
+      another year with its year; „Früher" for a mark without a time), „Nach Studium" by where a
+      module counts in Mein Studiengang (Pflicht, Wahlpflicht by area in the order of the module
+      tree, Abschlussarbeit, Praktikum, FÜS — the program's own list and the BTU's general one —,
+      „Gehört nicht zu deinem Studiengang"; `pages::bookmark_places`), „Nach Angebot" by the half
+      of the year (Winter, Sommer, Jedes Semester, Unregelmäßig, Ohne Angabe), each heading with
+      its number and staying under the heads of the columns while its rows scroll. A search
+      keeps the order without the sections. On a phone the sheet of the filters lists the orders.
+    - **What „Mein Studium" says stands at the row** (owner, 2026-10-19: „Ja mein stadium"): its
+      mark (planned, under way, passed, not passed, as the semesters of „Mein Studium" draw it)
+      with the semester, after what the catalog says of the module (`list::RowStatus`).
+    - **The filters are the few that separate marked modules** (owner, 2026-10-19: „hier reichen
+      ein paar, die wirklich relevant sind"), each with its numbers under the others and there
+      once it separates something (konzept.html, „Filter, die nur da sind, wenn sie etwas
+      trennen"): „Angeboten im" while the marked modules are not all offered alike, „Stand"
+      (open, planned, passed; a module planned in a semester that is over and not passed is open
+      again) once „Mein Studium" says something of one, „Zählt in meinem Studium" with Mein
+      Studiengang, „Passt in meinen Stundenplan" once the Stundenplan holds something (the
+      catalog's finder against the current semester, comparing what it compared last), and,
+      folded, four of the catalog's: language, credits, campus, graded. The tags above the list
+      name what filters it, each taking its filter away. On a phone the sidebar is a sheet behind
+      „Filter" (its badge counts the filters and an order other than the first), and what is
+      picked there is a draft, as in the catalog's sheet: „N Module anzeigen" applies it, any
+      other way it goes throws it away.
+    - **The actions** stay in the sidebar: copy the list as text, the link for another device,
+      and empty it, which asks first and can be taken back („Rückgängig").
   - **A mark taken away on that page stays on the page,** dimmed, until the page is left: a slip
     is one click to undo, and the list does not jump under the pointer. Marking changes numbers,
     never the list: no query runs and the rows stay the same elements (each button reads the
@@ -4608,8 +4645,11 @@ drives „Merken". Desktop: the button at the end of a row (in its place, the co
 over their columns, a click neither navigates nor renders the list again), `M` on the row the
 keyboard is on, in the preview and on the module's page, one state wherever a module shows, the
 switch keeping its width, the number at the rail, a reload keeping the marks; the list of marked
-modules (order of marking, numbers and credits, sorting by column and in the sidebar, the halves
-of the year with their counts, the floating preview, a mark taken away staying on the page,
+modules (order of marking in its sections, numbers and credits, the order at the heads of the
+columns with „Gemerkt" turned round and „Turnus" in its sections, the search at the head finding
+among the marked modules without touching the address or any request, with its line into the
+whole catalog and its empty state, the halves of the year with their counts where the marks are
+not all offered alike, the floating preview, a mark taken away staying on the page,
 copying the list, the link for another device and what the other device does with it: asking
 first, counting what is new, taking the ids out of the address without a history entry;
 emptying with the question and „Rückgängig"); „Gemerkt" as a filter of the catalog (only the
@@ -4620,8 +4660,10 @@ still the current one, the module's sidebar, the catalog's tab untouched), „Zu
 to the list with the module beside it and without a new history entry; a mark made in another
 tab arriving; a module the snapshot does not know; garbage in the storage. Privacy: no request of the
 whole session carries a mark, none leaves the site, and server HTML shows nothing marked. Phone:
-a 44 px target, marking by touch, the bottom bar's count, a tap opening the module in the list's
-place (the address still the list's) and „Zurück" returning. Without the app: nothing of it
+a 44 px target, marking by touch, the bottom bar's count, the sheet behind „Filter" (closed until
+opened, an order picked there a draft until „2 Module anzeigen", the badge counting it, a draft
+thrown away with the ×), a tap opening the module in the list's place (the address still the
+list's) and „Zurück" returning. Without the app: nothing of it
 shows without JavaScript, `/bookmarks` explains itself and is `noindex`; with JavaScript but
 before the takeover the buttons are invisible and their room is kept (the heading is exactly as
 tall as once the app runs).

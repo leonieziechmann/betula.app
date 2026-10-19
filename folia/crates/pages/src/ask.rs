@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     BookmarksData, CatalogChoices, CatalogData, CatalogSummary, FitResult, Ground, HomeData, ModuleData, MyProgramInfo,
-    Overlay, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyModules, StudyplanData,
+    Overlay, Place, PlanSource, ProgramData, ProgramsData, SharedPlanData, StudyModules, StudyplanData,
 };
 
 /// What a page shows instead of data. Serializable: it crosses to the page from wherever the
@@ -172,8 +172,14 @@ ask!(
     ProgramAsk { slug: String } -> Option<ProgramData>, Lane::Page, |q, db, kept| crate::program(db, &q.slug)
 );
 ask!(
-    /// The Merkliste.
-    BookmarksAsk { ids: Vec<String>, sort: BookmarkSort, descending: bool } -> BookmarksData, Lane::Page, |q, db, kept| crate::bookmarks(db, &q.ids, q.sort, q.descending)
+    /// The Merkliste: the marked modules in an order, under the visitor's filter of the list
+    /// (`pages::bookmarks`).
+    BookmarksAsk { ids: Vec<String>, sort: BookmarkSort, descending: bool, query: CatalogQuery } -> BookmarksData, Lane::Page, |q, db, kept| crate::bookmarks(db, &q.ids, q.sort, q.descending, &q.query)
+);
+ask!(
+    /// Where the marked modules count in Mein Studiengang (`pages::bookmark_places`): the program by
+    /// its slug.
+    BookmarkPlacesAsk { ids: Vec<String>, program: String } -> Vec<Place>, Lane::Page, |q, db, kept| crate::bookmark_places(db, &q.ids, &q.program)
 );
 ask!(
     /// A semester of the Stundenplan, its modules named by `program`'s abbreviations where given.
@@ -262,7 +268,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
     }
     dispatch!(
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
-        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
+        ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
     )
 }
@@ -291,7 +297,9 @@ mod tests {
         same(ModuleAsk { id: "11103".into() });
         same(ModuleAsk { id: "00000".into() });
         same(ProgramAsk { slug: "bachelor-informatik-2008".into() });
-        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into()], sort: BookmarkSort::Added, descending: false });
+        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into()], sort: BookmarkSort::Added, descending: false, query: CatalogQuery::default() });
+        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into(), "12330".into()], sort: BookmarkSort::Offer, descending: true, query: CatalogQuery { text: "Analysis".into(), ..Default::default() } });
+        same(BookmarkPlacesAsk { ids: vec!["11103".into(), "12104".into(), "99999".into()], program: "bachelor-informatik-2008".into() });
         let key = SemesterKey::parse("2026W").unwrap();
         same(StudyplanAsk { key, ids: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), locale: Locale::De });
         same(PlanRowsAsk { key, own: vec!["12104".into()], others: vec!["12107".into()] });

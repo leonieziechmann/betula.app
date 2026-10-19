@@ -174,6 +174,9 @@ pub fn App() -> impl IntoView {
     // follows the store.
     Profiles::provide();
     Bookmarks::provide();
+    // What is typed into the search at the head on the Merkliste: it stays out of the address
+    // (`folia_shell::search`).
+    folia_shell::search::LocalSearch::provide();
     Studyplan::provide();
     MyProgram::provide();
     MineResolved::provide();

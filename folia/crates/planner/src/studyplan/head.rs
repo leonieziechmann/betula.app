@@ -236,7 +236,7 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
         if ids.is_empty() {
             return None;
         }
-        let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&BookmarksAsk { ids: ids.clone(), sort: BookmarkSort::Added, descending: false })))?;
+        let now = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&BookmarksAsk { ids: ids.clone(), sort: BookmarkSort::Added, descending: false, query: Default::default() })))?;
         folia_pages::ask::unless_pending(now, before, Result::ok)
     });
     // The semester and what is planned into it, from the semester's data (its ids are the plan's).

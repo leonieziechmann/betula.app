@@ -3,12 +3,16 @@
 // Desktop: the button at the end of a row (in place, aligned, no navigation, the list is not
 // rendered again), M on a row, in the preview and on the module's page, the same state wherever a
 // module shows, the number at the rail, a reload keeps the marks; the list of marked modules
-// (order of marking, numbers, sorting, halves of the year, preview, a mark taken away stays on the
+// (order of marking in sections by its time, numbers, the order at the heads of the columns with
+// „Gemerkt" over the bookmarks, halves of the year, the search at the head searching the list and
+// never the address, with its line into the whole catalog, preview, a mark taken away stays on the
 // page dimmed, emptying with „Rückgängig"); „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Vollbild" of a
 // module opened from the marked modules in place, and „Zurück" from it; another tab of the same
 // browser; what the snapshot does not know; garbage in the storage.
-// Privacy: no request ever carries a marked id, and server HTML shows nothing marked.
-// Phone: marking by touch, a tap on a marked module opens it in the list's place and „Zurück" returns.
+// Privacy: no request ever carries a marked id or what is typed into the Merkliste's search, and
+// server HTML shows nothing marked.
+// Phone: marking by touch, the filters and the orders in a sheet behind „Filter" that is a draft
+// until „N Module anzeigen", a tap on a marked module opens it in the list's place and „Zurück" returns.
 // Without the app: nothing of it shows without JavaScript, and with JavaScript the places are
 // kept so that nothing moves at the takeover.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
@@ -177,38 +181,59 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const numbers = await page.evaluate(() => ({
     count: onPage(".list .count").textContent,
     label: onPage(".list .count-label").textContent,
-    side: [...allOnPage(".side-facts dd")].map((dd) => dd.textContent),
+    sections: [...allOnPage(".rows .sem")].map((sem) => sem.textContent),
     credits: [...allOnPage(".rows a.row .lp")].map((lp) => parseFloat(lp.textContent.replace(",", "."))).filter((n) => !Number.isNaN(n)).reduce((a, b) => a + b, 0),
     current: onPage('.rail .nav[data-area="bookmarks"]').getAttribute("aria-current"),
     title: document.title,
     frame: ["sidebar"].map((id) => { const r = onPage(`#${id}`).getBoundingClientRect(); return [r.left, r.top]; })[0],
   }));
-  check(numbers.count === "3" && numbers.label.startsWith("gemerkte Module") && numbers.side[0] === "3 Module", `the numbers of the list: ${JSON.stringify(numbers)}`);
-  check(numbers.label.includes(`${String(numbers.credits).replace(".", ",")} LP`) && numbers.side[1].startsWith(`${String(numbers.credits).replace(".", ",")} LP`), `the credits do not add up: ${JSON.stringify(numbers)}`);
+  check(numbers.count === "3" && numbers.label.startsWith("gemerkte Module"), `the numbers of the list: ${JSON.stringify(numbers)}`);
+  check(numbers.label.includes(`${String(numbers.credits).replace(".", ",")} LP`), `the credits do not add up: ${JSON.stringify(numbers)}`);
+  // Marked just now: one section, „Heute", with its number.
+  check(JSON.stringify(numbers.sections) === JSON.stringify(["Heute 3"]), `the sections by the time of marking: ${JSON.stringify(numbers.sections)}`);
   check(numbers.current === "page" && numbers.title.startsWith("Merkliste"), `rail or title: ${JSON.stringify(numbers)}`);
 
-  // Sorting: the column links and the sidebar are one state, in the URL.
+  // Sorting: the heads of the columns are the order, in the URL; the phone's list of the orders
+  // (hidden here) says the same.
   await step("sort by credits", () => page.click(".cols a.c-lp >> visible=true"), () => location.search.includes("sort=ects") && !location.search.includes("desc"));
   const credits = () => page.evaluate(() => [...allOnPage(".rows a.row .lp")].map((lp) => parseFloat(lp.textContent.replace(",", ".")) || 0));
   let sorted = await credits();
   check(sorted.every((n, i) => i === 0 || sorted[i - 1] <= n), `not sorted by credits: ${sorted}`);
-  check(await page.evaluate(() => onPage('.toc a[aria-current="page"]')?.textContent.trim() === "Leistungspunkte"), "the sidebar does not show the order");
+  check(await page.evaluate(() => onPage('.cols a.c-lp[aria-current="true"]')?.textContent.includes("↑") && onPage('.order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte") && !allOnPage(".rows .sem").length), "the heads or the orders do not show the order, or an order without sections has some");
   await step("the other way round", () => page.click(".cols a.c-lp >> visible=true"), () => location.search.includes("desc=1"));
   sorted = await credits();
   check(sorted.every((n, i) => i === 0 || sorted[i - 1] >= n), `not sorted downwards: ${sorted}`);
-  await step("back to the order of marking", () => page.click(".toc a:first-of-type >> visible=true"), () => location.search === "");
+  await step("„Gemerkt“ is the order of marking", () => page.click(".cols a.c-marked >> visible=true"), () => location.search === "" && onPage(".cols a.c-marked")?.textContent.includes("↓"));
   check(JSON.stringify(await listIds(page)) === JSON.stringify(marked), "the order of marking did not come back");
+  await step("„Gemerkt“ again: the oldest first", () => page.click(".cols a.c-marked >> visible=true"), () => location.search === "?desc=1" && onPage(".cols a.c-marked")?.textContent.includes("↑"));
+  check(JSON.stringify(await listIds(page)) === JSON.stringify([...marked].reverse()), `the oldest first: ${await listIds(page)}`);
+  await step("and back", () => page.click(".cols a.c-marked >> visible=true"), () => location.search === "");
+  await step("„Turnus“ orders by the offer, in sections", () => page.click(".cols a.c-turnus >> visible=true"), () => location.search === "?sort=offer" && allOnPage(".rows .sem").length > 0);
+  check(await page.evaluate(() => [...allOnPage(".rows .sem")].every((sem) => /^(Winter|Sommer|Jedes Semester|Unregelmäßig|Ohne Angabe) \d+$/.test(sem.textContent))), `the sections of the offer: ${await page.evaluate(() => [...allOnPage(".rows .sem")].map((sem) => sem.textContent))}`);
+  await step("back to the order of marking", () => page.click(".cols a.c-marked >> visible=true"), () => location.search === "");
 
-  // Halves of the year: the numbers on the switch are the numbers of the lists.
+  // The search at the head searches the list, and never the address (R20): what is typed may
+  // name what only a note says. Under what it found, the same text in the whole catalog.
+  const word = await page.evaluate((id) => onPage(`a.row[data-id="${id}"] .t b`).textContent.split(/[\s(),:–-]+/).filter((w) => w.length >= 4).sort((a, b) => b.length - a.length)[0], marked[1]);
+  await step("the search finds among the marked modules", () => page.fill("#topsearch", word), (id) => Boolean(onPage(`.rows a.row[data-id="${id}"] mark`)) && /· \d[\d.]* Module?$/.test(onPage(".rows .catalog-line")?.textContent ?? ""), marked[1]);
+  const found = await page.evaluate(() => ({ search: location.search, label: onPage(".list .count-label").textContent, line: onPage(".rows .catalog-line").textContent, href: onPage(".rows .catalog-line").getAttribute("href"), sections: allOnPage(".rows .sem").length, marks: allOnPage(".rows a.row mark").length }));
+  check(found.search === "" && found.label.startsWith("von 3 gemerkten") && found.line.includes(`‚${word}‘ im ganzen Katalog`) && found.href.startsWith("/catalog?q=") && found.sections === 0 && found.marks > 0, `the search on the Merkliste: ${JSON.stringify(found)}`);
+  await step("nothing found, and the way into the catalog stays", () => page.fill("#topsearch", "zzqqzz"), () => allOnPage(".rows a.row").length === 0 && onPage(".rows .state-title")?.textContent.includes("Nichts Gemerktes") && Boolean(onPage(".rows .catalog-line")));
+  await step("the search emptied: the whole list", () => page.fill("#topsearch", ""), () => allOnPage(".rows a.row").length === 3 && !onPage(".rows .catalog-line"));
+  check(!requests.some((r) => r.includes(encodeURIComponent(word)) || r.includes(word) || r.includes("zzqqzz")), "a request carried what was typed into the Merkliste's search");
+
+  // Halves of the year: the numbers on the switch are the numbers of the lists. The switch is
+  // there while the marked modules are not all offered alike.
   const seasons = await page.evaluate(() => [...allOnPage('.sidebar .seg a')].map((a) => [a.textContent.replace(/\d+/g, "").trim(), Number(a.querySelector(".num").textContent), a.getAttribute("aria-checked")]));
-  check(JSON.stringify(seasons.map((s) => s[0])) === JSON.stringify(["Alle", "Winter", "Sommer"]) && seasons[0][1] === 3 && seasons[0][2] === "true", `the halves of the year: ${JSON.stringify(seasons)}`);
-  for (const [index, name, code] of [[1, "Winter", "winter"], [2, "Sommer", "summer"]]) {
+  const turnus = await page.evaluate(() => [...new Set([...allOnPage(".rows a.row .turnus")].map((t) => t.getAttribute("title")))]);
+  check(seasons.length ? JSON.stringify(seasons.map((s) => s[0])) === JSON.stringify(["Alle", "Winter", "Sommer"]) && seasons[0][1] === 3 && seasons[0][2] === "true" : turnus.length === 1, `the halves of the year: ${JSON.stringify(seasons)} for ${JSON.stringify(turnus)}`);
+  for (const [index, name, code] of seasons.length ? [[1, "Winter", "winter"], [2, "Sommer", "summer"]] : []) {
     await step(`only ${name}`, () => page.click(`.sidebar .seg a:nth-child(${index + 1}) >> visible=true`), (code) => location.search.includes(`turnus=${code}`), code);
     const shown = await page.evaluate(() => ({ rows: allOnPage(".rows a.row").length, count: Number(onPage(".list .count").textContent), tag: onPage(".active-filters .tag")?.textContent ?? "", empty: Boolean(onPage(".rows .state")) }));
     check(shown.rows === seasons[index][1] && shown.count === seasons[index][1] && shown.tag.includes(name), `${name}: ${JSON.stringify(shown)} instead of ${seasons[index][1]}`);
     check(shown.rows > 0 || shown.empty, `${name}: an empty list says nothing`);
   }
-  await step("the tag takes the filter away", () => page.click(".active-filters .tag a >> visible=true"), () => location.search === "" && allOnPage(".rows a.row").length === 3);
+  if (seasons.length) await step("the tag takes the filter away", () => page.click(".active-filters .tag a >> visible=true"), () => location.search === "" && allOnPage(".rows a.row").length === 3);
 
   // The preview, as in the catalog; the list stays.
   await step("preview of a marked module", () => page.click(`a.row[data-id="${marked[1]}"] >> visible=true`), (id) => location.search === `?open=${id}` && Boolean(onPage(".detail h2")), marked[1]);
@@ -221,8 +246,8 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // A mark taken away here stays on the page, dimmed; the numbers follow; one click undoes it.
   await page.evaluate(() => { allOnPage(".rows .row-wrap").forEach((wrap, i) => { wrap.__kept = i; }); });
   await step("a mark taken away stays on the page", () => page.click(".detail .mark-toggle.mark-switch >> visible=true"), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]);
-  const after = await page.evaluate(() => ({ rows: allOnPage(".rows a.row").length, count: onPage(".list .count").textContent, side: onPage(".side-facts dd").textContent, kept: [...allOnPage(".rows .row-wrap")].every((wrap, i) => wrap.__kept === i), all: onPage(".sidebar .seg a .num").textContent }));
-  check(after.rows === 3 && after.count === "2" && after.side === "2 Module" && after.all === "2" && after.kept && (await badge(page)) === "2", `after taking a mark away: ${JSON.stringify(after)}`);
+  const after = await page.evaluate(() => ({ rows: allOnPage(".rows a.row").length, count: onPage(".list .count").textContent, kept: [...allOnPage(".rows .row-wrap")].every((wrap, i) => wrap.__kept === i), all: onPage(".sidebar .seg a .num")?.textContent ?? "2" }));
+  check(after.rows === 3 && after.count === "2" && after.all === "2" && after.kept && (await badge(page)) === "2", `after taking a mark away: ${JSON.stringify(after)}`);
   // (The preview floats over the right end of the rows, so their buttons are reached once it is closed.)
   await step("Esc closes the preview", () => page.keyboard.press("Escape"), () => location.search === "" && !onPage(".detail"));
   check(await page.evaluate((id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]), "closing the preview took the unmarked module off the page");
@@ -340,7 +365,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.reload({ waitUntil: "domcontentloaded" });
   await takeover(page);
   await page.waitForFunction(() => allOnPage(".rows .row-wrap").length === 2, null, { timeout: 8000 }).catch(() => problems.push("garbage in the storage: the list did not come up with two entries"));
-  const unknown = await page.evaluate(() => ({ group: onPage(".rows .sem")?.textContent, missing: onPage(".rows .row.missing")?.textContent ?? "", count: onPage(".list .count").textContent, markup: onPage(".rows").innerHTML.includes("<script>") }));
+  const unknown = await page.evaluate(() => ({ group: [...allOnPage(".rows .sem")].map((sem) => sem.textContent).find((text) => text.startsWith("Nicht")), missing: onPage(".rows .row.missing")?.textContent ?? "", count: onPage(".list .count").textContent, markup: onPage(".rows").innerHTML.includes("<script>") }));
   check(unknown.group === "Nicht im Modulkatalog" && unknown.missing.includes("99999999") && unknown.count === "2" && !unknown.markup, `what the snapshot does not know: ${JSON.stringify(unknown)}`);
   await page.click(".row-wrap:has(.row.missing) > .mark-toggle >> visible=true");
   check(JSON.stringify(await stored(page)) === JSON.stringify([marked[0]]), `the mark of an unknown module cannot be taken away: ${await stored(page)}`);
@@ -411,16 +436,27 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   check(await page.evaluate(() => onPage('.bottomnav .nav[data-area="bookmarks"] .nav-count')?.textContent === "2"), "phone: the bottom bar does not count");
 
   await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"] >> visible=true'), () => location.pathname === "/bookmarks" && allOnPage(".rows a.row").length === 2);
-  const layout = await page.evaluate(() => { const [list, side] = [onPage(".panel.list"), onPage("#sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });
-  check(layout.below && !layout.overflow, `phone: the sidebar is not under the list, or the page is wider than the screen: ${JSON.stringify(layout)}`);
+  // The filters and the orders are a sheet behind „Filter" (folia/design/merken/oberflaeche.html),
+  // closed until it is opened, and a draft: the list follows only „2 Module anzeigen".
+  const layout = await page.evaluate(() => ({ closed: onPage("#sidebar").getBoundingClientRect().top >= innerHeight - 1, toggle: Boolean(onPage(".list-head .sheet-toggle")?.getClientRects().length), overflow: document.documentElement.scrollWidth > innerWidth }));
+  check(layout.closed && layout.toggle && !layout.overflow, `phone: the sheet of the filters is not closed behind „Filter", or the page is wider than the screen: ${JSON.stringify(layout)}`);
+  await step("phone: „Filter“ opens the sheet", () => page.tap(".list-head .sheet-toggle >> visible=true"), () => onPage("#sidebar").classList.contains("open") && Boolean(onPage("#sidebar .order-list")?.getClientRects().length));
+  await page.waitForTimeout(400);
+  await step("phone: an order in the sheet is a draft", () => page.tap('#sidebar .order-list a:has-text("Leistungspunkte") >> visible=true'), () => location.search === "" && onPage('#sidebar .order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte") && onPage("#sidebar .filter-actions .show")?.textContent === "2 Module anzeigen");
+  await step("phone: „2 Module anzeigen“ applies it", () => page.tap("#sidebar .filter-actions .show >> visible=true"), () => location.search === "?sort=ects" && !onPage("#sidebar").classList.contains("open"));
+  await step("phone: „Filter“ counts the order", () => page.waitForTimeout(400), () => onPage(".list-head .sheet-toggle em")?.textContent === "1");
+  await step("phone: the sheet again", () => page.tap(".list-head .sheet-toggle >> visible=true"), () => onPage("#sidebar").classList.contains("open"));
+  await page.waitForTimeout(400);
+  await step("phone: another order, then the sheet closed with its ×", async () => { await page.tap('#sidebar .order-list a:has-text("Zuletzt gemerkt") >> visible=true'); await page.tap("#sidebar .sheet-close >> visible=true"); }, () => !onPage("#sidebar").classList.contains("open") && location.search === "?sort=ects");
+  check(await page.evaluate(() => onPage('#sidebar .order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte")), "phone: a sheet closed with its × kept its draft");
   // The module comes up as a sheet over the list (2026-10-06): the address and the tab stay the
   // list's, and the list stays under it.
-  await step("phone: a tap opens the module's sheet over the list", () => page.tap(`a.row[data-id="${ids[1]}"] >> visible=true`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(onPage(".detail.is-module .mark-toggle")) && allOnPage(".rows a.row").length === 2, ids[1]);
+  await step("phone: a tap opens the module's sheet over the list", () => page.tap(`a.row[data-id="${ids[1]}"] >> visible=true`), (id) => location.pathname === "/bookmarks" && location.search === `?sort=ects&open=${id}` && Boolean(onPage(".detail.is-module .mark-toggle")) && allOnPage(".rows a.row").length === 2, ids[1]);
   check(await page.evaluate(() => onPage('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !onPage('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules', or the catalog's tab heard of it");
   await page.waitForTimeout(500);
   const button = await page.evaluate(() => { const mark = onPage(".detail.is-module .mark-toggle"); const r = mark.getBoundingClientRect(); return { height: r.height, pressed: mark.getAttribute("aria-pressed"), seen: r.top < innerHeight && r.bottom <= innerHeight }; });
   check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch in the module's sheet: ${JSON.stringify(button)}`);
-  await step("phone: closing it returns to the marked modules", () => page.tap('.detail.is-module [data-action="close-detail"] >> visible=true'), () => location.pathname === "/bookmarks" && location.search === "" && !onPage(".detail.is-module") && allOnPage(".rows a.row").length === 2);
+  await step("phone: closing it returns to the marked modules", () => page.tap('.detail.is-module [data-action="close-detail"] >> visible=true'), () => location.pathname === "/bookmarks" && location.search === "?sort=ects" && !onPage(".detail.is-module") && allOnPage(".rows a.row").length === 2);
   await context.close();
 }
 

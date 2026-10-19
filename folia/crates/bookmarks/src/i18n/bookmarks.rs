@@ -27,6 +27,49 @@ pub struct Texts {
     /// What the number above the list counts: „gemerkte Module", „gemerkte Module im Winter";
     /// the values are the number and the half of the year the list shows, if one.
     pub count_label: fn(u64, Option<&str>) -> String,
+    /// While the search at the head searches the list: „von 9 gemerkten" after the number of what
+    /// it found; the value is how many the list shows without the search.
+    pub count_found: fn(u64) -> String,
+    /// The head over the bookmarks, the order by the time of marking.
+    pub col_marked: &'static str,
+    /// The sections of „Zuletzt gemerkt": the days and weeks, then the months, a month of another
+    /// year with its year („September 2025").
+    pub today: &'static str,
+    pub yesterday: &'static str,
+    pub this_week: &'static str,
+    pub last_week: &'static str,
+    pub months: [&'static str; 12],
+    pub month_year: fn(&str, i32) -> String,
+    /// What was marked before the Merkliste kept the time of a mark.
+    pub earlier: &'static str,
+    /// The sections of „Nach Studium": a kind with its area („Wahlpflicht · Praktische
+    /// Mathematik"; the values are the kind's word and the area's name), the program's modules no
+    /// source gives a kind, and what lies outside the program.
+    pub kind_in: fn(&str, &str) -> String,
+    pub in_program: &'static str,
+    pub not_in_program: &'static str,
+    /// The sections of „Nach Angebot".
+    pub offer_winter: &'static str,
+    pub offer_summer: &'static str,
+    pub offer_every: &'static str,
+    pub offer_irregular: &'static str,
+    pub offer_unstated: &'static str,
+    /// What the mark of „Mein Studium" at a row stands for.
+    pub status_planned: &'static str,
+    pub status_running: &'static str,
+    pub status_passed: &'static str,
+    pub status_failed: &'static str,
+    /// The search found nothing marked: „Nichts Gemerktes zu ‚Lena‘" and what it searches.
+    pub nothing_found: fn(&str) -> String,
+    pub nothing_found_hint: &'static str,
+    /// The way from the search into the whole catalog, under what it found: „‚Philosophie‘ im ganzen
+    /// Katalog", then „11 Module" (the number written already), or „suchen" for none known yet.
+    pub in_catalog: fn(&str) -> String,
+    pub catalog_modules: fn(u64, &str) -> String,
+    pub catalog_search: &'static str,
+    /// The filters leave nothing of the list: its title, its hint and the way back to all.
+    pub nothing_filtered: &'static str,
+    pub nothing_filtered_hint: &'static str,
     /// The server's page, which cannot know what is marked.
     pub server_title: &'static str,
     pub server_hint: &'static str,
@@ -44,16 +87,16 @@ pub struct Texts {
     pub module_numbered: fn(&str) -> String,
     pub not_in_catalog_row: &'static str,
 
-    // ---- the sidebar ----
-    pub overview: &'static str,
-    /// „Gemerkt": how many modules are marked.
-    pub saved: &'static str,
-    pub credit_points: &'static str,
-    /// „ · 2 ohne Angabe": how many marked modules state no credits.
-    pub unstated: fn(u64) -> String,
+    // ---- the sidebar: on a phone the sheet behind „Filter" ----
     /// „Angeboten im": the choice between every half of the year, the winter and the summer.
     pub offered_in: &'static str,
     pub all: &'static str,
+    /// „Stand": what „Mein Studium" says of a module (`url::Stand` names the choices).
+    pub stand: &'static str,
+    /// „Mein Studium": what counts in the visitor's study and what fits their Stundenplan.
+    pub my_study: &'static str,
+    pub counts: &'static str,
+    /// „Ordnung": the orders, on a phone in the sheet (on a wide screen the heads of the columns).
     pub order: &'static str,
     pub actions: &'static str,
     pub copy_list: &'static str,
@@ -92,6 +135,34 @@ pub const DE: Texts = Texts {
         (1, Some(season)) => format!("gemerktes Modul im {season}"),
         (_, Some(season)) => format!("gemerkte Module im {season}"),
     },
+    count_found: |n| format!("von {n} gemerkten"),
+    col_marked: "Gemerkt",
+    today: "Heute",
+    yesterday: "Gestern",
+    this_week: "Diese Woche",
+    last_week: "Letzte Woche",
+    months: ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"],
+    month_year: |month, year| format!("{month} {year}"),
+    earlier: "Früher",
+    kind_in: |kind, area| format!("{kind} · {area}"),
+    in_program: "Weitere im Studiengang",
+    not_in_program: "Gehört nicht zu deinem Studiengang",
+    offer_winter: "Winter",
+    offer_summer: "Sommer",
+    offer_every: "Jedes Semester",
+    offer_irregular: "Unregelmäßig",
+    offer_unstated: "Ohne Angabe",
+    status_planned: "Geplant",
+    status_running: "Läuft",
+    status_passed: "Bestanden",
+    status_failed: "Nicht bestanden",
+    nothing_found: |text| format!("Nichts Gemerktes zu ‚{text}‘"),
+    nothing_found_hint: "Die Suche findet Titel in beiden Sprachen, Nummern, Kürzel und Lehrende.",
+    in_catalog: |text| format!("‚{text}‘ im ganzen Katalog"),
+    catalog_modules: |n, written| if n == 1 { format!("{written} Modul") } else { format!("{written} Module") },
+    catalog_search: "suchen",
+    nothing_filtered: "Nichts Gemerktes passt zu diesen Filtern",
+    nothing_filtered_hint: "Nimm einen Filter zurück oder sieh dir alle gemerkten an.",
     server_title: "Deine Merkliste",
     server_hint: "Sie liegt in deinem Browser, nicht auf dem Server, und erscheint, sobald die App geladen ist. Dafür braucht es JavaScript.",
     empty_title: "Noch nichts gemerkt",
@@ -104,13 +175,12 @@ pub const DE: Texts = Texts {
     module_numbered: |id| format!("Modul {id}"),
     not_in_catalog_row: "steht nicht (mehr) im Modulkatalog der BTU",
 
-    overview: "Übersicht",
-    saved: "Gemerkt",
-    credit_points: "Leistungspunkte",
-    unstated: |n| format!("{n} ohne Angabe"),
     offered_in: "Angeboten im",
     all: "Alle",
-    order: "Reihenfolge",
+    stand: "Stand",
+    my_study: "Mein Studium",
+    counts: "Zählt in meinem Studium",
+    order: "Ordnung",
     actions: "Aktionen",
     copy_list: "Liste kopieren",
     transfer_title: "Der Link trägt die Merkliste hinter dem #: dieser Teil einer Adresse wird nie an einen Server gesendet",
@@ -144,6 +214,34 @@ pub const EN: Texts = Texts {
         (1, Some(season)) => format!("saved module offered in {season}"),
         (_, Some(season)) => format!("saved modules offered in {season}"),
     },
+    count_found: |n| format!("of {n} saved"),
+    col_marked: "Saved",
+    today: "Today",
+    yesterday: "Yesterday",
+    this_week: "This week",
+    last_week: "Last week",
+    months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    month_year: |month, year| format!("{month} {year}"),
+    earlier: "Earlier",
+    kind_in: |kind, area| format!("{kind} · {area}"),
+    in_program: "More in your programme",
+    not_in_program: "Not part of your programme",
+    offer_winter: "Winter",
+    offer_summer: "Summer",
+    offer_every: "Every semester",
+    offer_irregular: "Irregularly",
+    offer_unstated: "Not stated",
+    status_planned: "Planned",
+    status_running: "Under way",
+    status_passed: "Passed",
+    status_failed: "Not passed",
+    nothing_found: |text| format!("Nothing saved matches ‘{text}’"),
+    nothing_found_hint: "The search finds titles in both languages, numbers, abbreviations and lecturers.",
+    in_catalog: |text| format!("‘{text}’ in the whole catalogue"),
+    catalog_modules: |n, written| if n == 1 { format!("{written} module") } else { format!("{written} modules") },
+    catalog_search: "search",
+    nothing_filtered: "None of your saved modules matches these filters",
+    nothing_filtered_hint: "Remove a filter, or look at all your saved modules.",
     server_title: "Your saved modules",
     server_hint: "They are kept in your browser, not on the server, and appear once the app has loaded. This needs JavaScript.",
     empty_title: "Nothing saved yet",
@@ -156,12 +254,11 @@ pub const EN: Texts = Texts {
     module_numbered: |id| format!("Module {id}"),
     not_in_catalog_row: "is not (or no longer) in BTU's module catalogue",
 
-    overview: "Overview",
-    saved: "Saved",
-    credit_points: "Credit points",
-    unstated: |n| format!("{n} not stated"),
     offered_in: "Offered in",
     all: "All",
+    stand: "Status",
+    my_study: "My studies",
+    counts: "Counts in my studies",
     order: "Order",
     actions: "Actions",
     copy_list: "Copy list",

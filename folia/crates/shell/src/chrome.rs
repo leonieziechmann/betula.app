@@ -941,12 +941,19 @@ pub fn TopBar() -> impl IntoView {
     let app_back = Memo::new(move |_| back_at_head(&path_now.get()) == Some(Up::Study));
     let away = Signal::derive(move || backed.get() && (APP || !app_back.get()));
 
-    // The search belongs to the page: programs on the program overview, modules everywhere else.
-    // In the browser app it filters while typing (replacing the history entry, not adding one).
+    // The search belongs to the page: programs on the program overview, the marked modules on the
+    // Merkliste, modules everywhere else. In the browser app it filters while typing (replacing the
+    // history entry, not adding one). On the Merkliste what is typed stays out of the address: it
+    // may name what only a note of the visitor's says (`search::LocalSearch`, R20).
+    let local = crate::search::LocalSearch::expect();
     let on_input = move |ev: leptos::ev::Event| {
         let text = event_target_value(&ev);
         if let Some(handle) = pending.get_value() {
             handle.clear();
+        }
+        if let (Area::Bookmarks, Some(local)) = (area_now.get_untracked(), local) {
+            pending.set_value(set_timeout_with_handle(move || local.set(text.clone()), std::time::Duration::from_millis(140)).ok());
+            return;
         }
         // The list of a text typed before is not built any more once it is worked out: this key's
         // takes its place (`Pending::typed`).
@@ -988,20 +995,33 @@ pub fn TopBar() -> impl IntoView {
             {move || {
                 let study = study_now.get();
                 let programs = area_now.get() == Area::Programs && !study;
+                // The Merkliste searches itself in the app; the server writes its explanation.
+                let marked = APP && area_now.get() == Area::Bookmarks && local.is_some();
                 let modules = t.app.search_modules_placeholder;
                 let (title, action, placeholder) = match area_now.get() {
                     Area::Programs if study => (t.app.my_studies, url::CATALOG, modules),
                     Area::Programs => (t.app.programs, url::PROGRAMS, t.app.search_programs_placeholder),
                     Area::Catalog => (t.app.modules, url::CATALOG, modules),
+                    // The form's action is the catalog's all the same: without the app, Enter
+                    // searches there.
+                    Area::Bookmarks if marked => (t.app.bookmarks, url::CATALOG, t.app.search_bookmarks_placeholder),
                     Area::Bookmarks => (t.app.bookmarks, url::CATALOG, modules),
                     Area::Studyplan => (t.app.studyplan, url::CATALOG, modules),
                     Area::Home => (t.app.home, url::CATALOG, modules),
                 };
-                let initial = url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)
-                    .into_iter()
-                    .find(|(key, _)| key == "q")
-                    .map(|(_, value)| value)
-                    .unwrap_or_default();
+                let initial = match (marked, local) {
+                    (true, Some(local)) => local.text_untracked(),
+                    _ => url::parse_pairs(&Pending::shown_of(going, location.pathname, location.search).1)
+                        .into_iter()
+                        .find(|(key, _)| key == "q")
+                        .map(|(_, value)| value)
+                        .unwrap_or_default(),
+                };
+                let label = match (programs, marked) {
+                    (true, _) => t.app.search_programs,
+                    (false, true) => t.app.search_bookmarks,
+                    (false, false) => t.app.search_modules,
+                };
                 let title = if profile_now.get() { t.app.profile } else { title };
                 // The start page carries the name: next to the mark in the rail it reads as the logo.
                 let home = area_now.get() == Area::Home && !profile_now.get();
@@ -1014,7 +1034,7 @@ pub fn TopBar() -> impl IntoView {
                     <div class="crumb" class:brand=home>{heading}</div>
                     <form class="search" role="search" method="get" action=t.path(action) data-live-search="">
                         <Icon name="search"/>
-                        <label class="visually-hidden" for="topsearch">{if programs { t.app.search_programs } else { t.app.search_modules }}</label>
+                        <label class="visually-hidden" for="topsearch">{label}</label>
                         <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input/>
                         <ui::Shortcut keys=t.common.search_shortcut/>
                     </form>

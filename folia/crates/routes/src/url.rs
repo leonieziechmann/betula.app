@@ -502,12 +502,21 @@ impl ProgramsUrl {
     }
 }
 
-/// How the list of marked modules is ordered.
+/// How the list of marked modules is ordered (folia/design/merken/oberflaeche.html, „Suchen,
+/// ordnen, filtern"). On a wide screen the heads of the columns are the order, as in the catalog;
+/// on a phone the sheet of the filters lists it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BookmarkSort {
-    /// The newest mark first: the order of a list one keeps adding to.
+    /// The newest mark first, in sections by the time of marking: the order of a list one keeps
+    /// adding to. The head over the bookmarks, „Gemerkt".
     #[default]
     Added,
+    /// Where a module counts in „Mein Studiengang", in sections by its area, in the study's order
+    /// (the head „Modul" while a program is set, as the catalog's „Modul" is the plan's order).
+    Study,
+    /// By the half of the year it is offered in, in sections: winter, summer, every semester,
+    /// irregularly, not stated (the head „Turnus").
+    Offer,
     Title,
     Credits,
     /// Number of teaching events in the module's newest semester.
@@ -515,11 +524,13 @@ pub enum BookmarkSort {
 }
 
 impl BookmarkSort {
-    pub const ALL: &'static [Self] = &[Self::Added, Self::Title, Self::Credits, Self::Events];
+    pub const ALL: &'static [Self] = &[Self::Added, Self::Study, Self::Offer, Self::Title, Self::Credits, Self::Events];
 
     pub fn code(self) -> &'static str {
         match self {
             BookmarkSort::Added => "added",
+            BookmarkSort::Study => "study",
+            BookmarkSort::Offer => "offer",
             BookmarkSort::Title => "title",
             BookmarkSort::Credits => "ects",
             BookmarkSort::Events => "events",
@@ -529,13 +540,61 @@ impl BookmarkSort {
     pub fn label(self, locale: Locale) -> &'static str {
         match (locale, self) {
             (Locale::De, BookmarkSort::Added) => "Zuletzt gemerkt",
+            (Locale::De, BookmarkSort::Study) => "Nach Studium",
+            (Locale::De, BookmarkSort::Offer) => "Nach Angebot",
             (Locale::De, BookmarkSort::Title) => "Titel",
             (Locale::De, BookmarkSort::Credits) => "Leistungspunkte",
             (Locale::De, BookmarkSort::Events) => "Termine",
             (Locale::En, BookmarkSort::Added) => "Recently saved",
+            (Locale::En, BookmarkSort::Study) => "By study",
+            (Locale::En, BookmarkSort::Offer) => "By offer",
             (Locale::En, BookmarkSort::Title) => "Title",
             (Locale::En, BookmarkSort::Credits) => "Credit points",
             (Locale::En, BookmarkSort::Events) => "Dates",
+        }
+    }
+
+    /// Whether its first way is the falling one: the newest mark first. Every other order starts
+    /// low (A to Z, few credits first, the study's first area, winter), as the catalog's do.
+    pub fn first_down(self) -> bool {
+        self == BookmarkSort::Added
+    }
+
+    /// Whether the list falls into sections in this order.
+    pub fn sections(self) -> bool {
+        matches!(self, BookmarkSort::Added | BookmarkSort::Study | BookmarkSort::Offer)
+    }
+}
+
+/// „Stand": what „Mein Studium" says of a marked module.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Stand {
+    /// Neither planned nor passed.
+    Open,
+    /// Planned in a semester, the one under way included.
+    Planned,
+    Passed,
+}
+
+impl Stand {
+    pub const ALL: &'static [Self] = &[Self::Open, Self::Planned, Self::Passed];
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Stand::Open => "open",
+            Stand::Planned => "planned",
+            Stand::Passed => "passed",
+        }
+    }
+
+    pub fn label(self, locale: Locale) -> &'static str {
+        match (locale, self) {
+            (Locale::De, Stand::Open) => "Offen",
+            (Locale::De, Stand::Planned) => "Geplant",
+            (Locale::De, Stand::Passed) => "Bestanden",
+            (Locale::En, Stand::Open) => "Open",
+            (Locale::En, Stand::Planned) => "Planned",
+            (Locale::En, Stand::Passed) => "Passed",
         }
     }
 }
@@ -666,15 +725,30 @@ impl LocalView for StudyUrl {
 
 /// What the URL of the marked modules says: `/bookmarks?turnus=winter&sort=ects&desc=1&open=11101`.
 /// It says how the list is shown and never what is on it: the marks are personal, they live in
-/// the browser and reach neither a URL nor the server (R9, R13). Tolerant and canonical like
+/// the browser and reach neither a URL nor the server (R9, R13, R20). So neither does what is
+/// typed into the search at the head on that page: it may name what only a note of the visitor's
+/// says, and lives in the page (`folia_shell::search::LocalSearch`). Tolerant and canonical like
 /// `CatalogUrl`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BookmarksUrl {
     /// Only what is offered in this half of the year.
     pub season: Option<Season>,
     pub sort: BookmarkSort,
-    /// The other way round. The order of marking has one direction only, the newest first.
+    /// The other way round than the order's first way: the oldest mark first, Z to A, the most
+    /// credits first.
     pub descending: bool,
+    /// „Stand" (`stand=planned`): only what „Mein Studium" has planned, passed, or neither.
+    pub stand: Option<Stand>,
+    /// „Zählt in meinem Studium" (`counts=1`): only what counts in „Mein Studiengang". The URL
+    /// carries the switch; the page fills the program from the profile before it asks, as the
+    /// catalog fills the marked ids for `marked=only`.
+    pub counts: bool,
+    /// The catalog's filters the Merkliste offers too, under the catalog's names (owner,
+    /// 2026-10-19: „hier reichen ein paar, die wirklich relevant sind"): the languages (`lang`),
+    /// the credits (`ects_min`, `ects_max`), the campuses (`campus`), graded (`graded`), and
+    /// „Passt in meinen Stundenplan" (`fits`, `fits-skip`, `fits-undated`). Nothing else of a
+    /// `CatalogQuery` is read or written here.
+    pub filter: CatalogQuery,
     /// The module previewed next to the list (`open=<id>`), as in the catalog.
     pub open: Option<String>,
     /// The module of `open` fills the page (`full=1`): its whole page, shown in the list's place,
@@ -692,10 +766,44 @@ impl BookmarksUrl {
         Self {
             season: first("turnus").and_then(|code| Season::ALL.iter().copied().find(|season| season.code() == code)),
             sort,
-            descending: sort != BookmarkSort::Added && first("desc").is_some(),
+            descending: first("desc").is_some(),
+            stand: first("stand").and_then(|code| Stand::ALL.iter().copied().find(|stand| stand.code() == code)),
+            counts: first("counts").is_some_and(|value| value == "1"),
+            filter: Self::kept(CatalogUrl::from_pairs(&pairs).query),
             open,
             full,
         }
+    }
+
+    /// What of a catalog's filter the Merkliste keeps.
+    pub fn kept(query: CatalogQuery) -> CatalogQuery {
+        CatalogQuery {
+            languages: query.languages,
+            credits_min: query.credits_min,
+            credits_max: query.credits_max,
+            campuses: query.campuses,
+            graded: query.graded,
+            fits: query.fits,
+            ..Default::default()
+        }
+    }
+
+    /// How many of the filters are set, for the badge of the phone's „Filter".
+    pub fn filters_set(&self) -> usize {
+        let f = &self.filter;
+        [
+            self.season.is_some(),
+            self.stand.is_some(),
+            self.counts,
+            !f.languages.is_empty(),
+            f.credits_min.is_some() || f.credits_max.is_some(),
+            !f.campuses.is_empty(),
+            f.graded.is_some(),
+            f.fits.is_some(),
+        ]
+        .iter()
+        .filter(|set| **set)
+        .count()
     }
 
     pub fn path(&self) -> String {
@@ -703,17 +811,28 @@ impl BookmarksUrl {
         if let Some(season) = self.season {
             out.push(("turnus", season.code().to_string()));
         }
+        if let Some(stand) = self.stand {
+            out.push(("stand", stand.code().to_string()));
+        }
+        if self.counts {
+            out.push(("counts", "1".to_string()));
+        }
         if self.sort != BookmarkSort::Added {
             out.push(("sort", self.sort.code().to_string()));
-            if self.descending {
-                out.push(("desc", "1".to_string()));
-            }
         }
-        out.extend(local_pairs(self.open.as_deref(), self.full));
-        if out.is_empty() {
+        if self.descending {
+            out.push(("desc", "1".to_string()));
+        }
+        let mut query: Vec<String> = out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect();
+        let filter = CatalogUrl { query: Self::kept(self.filter.clone()), ..Default::default() }.to_query_string();
+        if !filter.is_empty() {
+            query.push(filter);
+        }
+        query.extend(local_pairs(self.open.as_deref(), self.full).into_iter().map(|(key, value)| format!("{key}={}", encode(&value))));
+        if query.is_empty() {
             return BOOKMARKS.to_string();
         }
-        format!("{BOOKMARKS}?{}", out.iter().map(|(key, value)| format!("{key}={}", encode(value))).collect::<Vec<_>>().join("&"))
+        format!("{BOOKMARKS}?{}", query.join("&"))
     }
 }
 
@@ -1768,9 +1887,26 @@ mod tests {
         assert_eq!(full.with_open(Some("12204")).path(), "/bookmarks?turnus=winter&sort=ects&desc=1&open=12204");
         assert_eq!(full.with_open(None).with_full(true).path(), "/bookmarks?turnus=winter&sort=ects&desc=1");
         assert!(!BookmarksUrl::parse("full=1").full && !BookmarksUrl::parse("open=11101&full=yes").full);
-        // The order of marking has one direction, and nonsense is ignored.
-        assert_eq!(BookmarksUrl::parse("sort=added&desc=1").path(), "/bookmarks");
-        assert_eq!(BookmarksUrl::parse("sort=random&turnus=spring&open=../../etc&full=1&desc=1"), BookmarksUrl::default());
+        // The order of marking turns round too (the oldest first), and nonsense is ignored.
+        assert_eq!(BookmarksUrl::parse("sort=added&desc=1").path(), "/bookmarks?desc=1");
+        assert_eq!(BookmarksUrl::parse("sort=random&turnus=spring&open=../../etc&full=1&stand=maybe&counts=yes"), BookmarksUrl::default());
+        // The study and the offer are orders of their own (the heads „Modul" and „Turnus").
+        assert_eq!(BookmarksUrl::parse("sort=study").sort, BookmarkSort::Study);
+        assert_eq!(BookmarksUrl::parse("sort=offer&desc=1").path(), "/bookmarks?sort=offer&desc=1");
+        // „Stand", „Zählt" and the few filters of the catalog the Merkliste has, under the
+        // catalog's names; nothing else of the catalog's filter (no search: what is typed on this
+        // page may name what a note says, and never goes into an address).
+        let filtered = BookmarksUrl::parse("q=lena&marked=only&stand=Planned&counts=1&lang=en&ects_min=5&campus=senftenberg&graded=yes&fits=2026w&fues=only&open=11101");
+        assert_eq!((filtered.stand, filtered.counts, filtered.open.as_deref()), (Some(Stand::Planned), true, Some("11101")));
+        assert_eq!(filtered.filter.languages, vec![Language::English]);
+        assert_eq!((filtered.filter.credits_min, filtered.filter.graded), (Some(5.0), Some(true)));
+        assert_eq!(filtered.filter.campuses, vec![Campus::Senftenberg]);
+        assert!(filtered.filter.fits.is_some() && filtered.filter.text.is_empty() && filtered.filter.marked.is_none() && filtered.filter.fues.is_none());
+        let written = filtered.path();
+        assert!(!written.contains("q=") && !written.contains("marked") && !written.contains("fues"), "{written}");
+        assert!(written.starts_with("/bookmarks?stand=planned&counts=1&") && written.ends_with("&open=11101"), "{written}");
+        assert_eq!(BookmarksUrl::parse(written.split_once('?').map(|(_, query)| query).unwrap_or_default()), filtered);
+        assert_eq!(filtered.filters_set(), 7);
         assert!(is_module_id("11101") && is_module_id("FÜS-1".replace('Ü', "U").as_str()));
         assert!(!is_module_id("") && !is_module_id("1 OR 1=1") && !is_module_id(&"9".repeat(33)) && !is_module_id("a\tb"));
     }

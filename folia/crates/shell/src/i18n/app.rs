@@ -44,6 +44,9 @@ pub struct Texts {
     pub search_programs_placeholder: &'static str,
     pub search_modules: &'static str,
     pub search_modules_placeholder: &'static str,
+    /// The search at the head on the Merkliste: its name, and what it says while empty.
+    pub search_bookmarks: &'static str,
+    pub search_bookmarks_placeholder: &'static str,
     /// What the tab of „Studium" holds besides its page (a long press, a right click): the
     /// menu's name, and its ways.
     pub shortcuts: fn(&str) -> String,
@@ -83,6 +86,8 @@ pub const DE: Texts = Texts {
     search_programs_placeholder: "Studiengang suchen",
     search_modules: "Module suchen",
     search_modules_placeholder: "Modul, Nummer oder Thema suchen",
+    search_bookmarks: "In der Merkliste suchen",
+    search_bookmarks_placeholder: "In der Merkliste suchen",
     shortcuts: |area| format!("{area}: Abkürzungen"),
     to_plan: "Regelstudienplan",
     to_areas: "Wahlpflicht",
@@ -120,6 +125,8 @@ pub const EN: Texts = Texts {
     search_programs_placeholder: "Search degree programmes",
     search_modules: "Search modules",
     search_modules_placeholder: "Search modules, numbers or topics",
+    search_bookmarks: "Search your saved modules",
+    search_bookmarks_placeholder: "Search your saved modules",
     shortcuts: |area| format!("{area}: shortcuts"),
     to_plan: "Standard study plan",
     to_areas: "Electives",
