@@ -202,7 +202,8 @@ pub struct Texts {
     pub row_courses: fn(usize) -> String,
     /// … „Übung je Studiengang" …
     pub row_choice_program: fn(Noun) -> String,
-    /// … „3 Gruppen" …
+    /// … „3 Gruppen zur Wahl" (one of the university's groups to attend; never „Gruppen" alone, which a
+    /// student could read as Betula's own collections of the Merkliste) …
     pub row_choice_group: fn(usize) -> String,
     /// … „14 Projekte zur Wahl".
     pub row_choice_topic: fn(usize, Noun) -> String,
@@ -441,7 +442,7 @@ pub const DE: Texts = Texts {
     row_abbrev: "Kürzel",
     row_courses: |n| format!("{n} Standorte"),
     row_choice_program: |noun| format!("{} je Studiengang", noun.one),
-    row_choice_group: |n| format!("{n} Gruppen"),
+    row_choice_group: |n| format!("{n} Gruppen zur Wahl"),
     row_choice_topic: |n, noun| format!("{n} {} zur Wahl", noun.many),
 
     my_program: "Mein Studiengang",
@@ -666,7 +667,7 @@ pub const EN: Texts = Texts {
         let one: String = one.next().map(|first| first.to_uppercase().chain(one).collect()).unwrap_or_default();
         format!("{one} per programme")
     },
-    row_choice_group: |n| format!("{n} groups"),
+    row_choice_group: |n| format!("{n} groups to choose from"),
     row_choice_topic: |n, noun| format!("{n} {} to choose from", noun.many),
 
     my_program: "My programme",
