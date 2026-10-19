@@ -21,6 +21,7 @@ import (
 // plan, plan_entry and plan_scan_status are a source of their own and stay, and so do the
 // caches of the semantic search, module_summary and passage_embedding.
 var derivedTables = []string{
+	"module_extra", "module_choice_option", "module_choice",
 	"module_track_program", "module_track", "program_campus", "event_program_ref", "event_program",
 	"module_folded", "module_vector", "program_module_abbrev", "module_abbrev",
 	"module_facet", "program_module",
@@ -77,6 +78,11 @@ type Report struct {
 	ProgramsCampusByQIS     int            // … where QIS's events decide it, not the compulsory modules
 	ModulesWithTracks       int            // (module, semester) pairs taught as courses at two or more campuses
 	TracksOneAudience       int            // … that would be, but QIS lists the same programs at every course
+	ModulesWithChoices      int            // (module, semester) pairs with a choice among their events (module_choice)
+	ChoicesByProgram        int            // choices of one event more than once, QIS naming other programs at each
+	ChoicesInGroups         int            // … of one event in groups
+	ChoicesOfTopics         int            // … of different contents
+	ChoiceExtras            int            // events beside the compulsory part (module_extra)
 	TrackProgramsByQIS      int            // (module with tracks, program) pairs whose course QIS states
 	TrackProgramsByCampus   int            // … whose course the program's campus decides
 
@@ -141,6 +147,7 @@ func Build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		"event_series", report.EventSeries, "event_series_dates", report.EventSeriesDates,
 		"event_programs_resolved", report.EventProgramsResolved, "programs_with_campus", report.ProgramsWithCampus, "programs_campus_qis", report.ProgramsCampusByQIS,
 		"modules_with_tracks", report.ModulesWithTracks, "tracks_one_audience", report.TracksOneAudience, "track_programs_qis", report.TrackProgramsByQIS, "track_programs_campus", report.TrackProgramsByCampus,
+		"modules_with_choices", report.ModulesWithChoices, "choices_program", report.ChoicesByProgram, "choices_group", report.ChoicesInGroups, "choices_topic", report.ChoicesOfTopics, "choice_extras", report.ChoiceExtras,
 		"assertions_page", report.Assertions["module_page"], "assertions_tree", report.Assertions["qis_tree"], "assertions_plan", report.Assertions["pdf_plan"],
 		"abbrev_fell_back", report.AbbrevFellBack, "abbrev_twins", report.AbbrevTwins, "abbrev_changed", report.AbbrevChanged,
 		"module_vectors", report.ModuleVectors, "content_changed", report.ContentChanged, "content_digest", report.ContentDigest[:16])
@@ -246,6 +253,7 @@ func build(ctx context.Context, db *catalogdb.DB) (*Report, error) {
 		{"room short forms", b.writeRoomShorts},
 		{"materialized views", b.materialize},
 		{"tracks", b.writeTracks},               // needs the events, their programs and program_module
+		{"choices", b.writeChoices},             // needs the tracks and the events' programs
 		{"abbreviations", b.writeAbbreviations}, // needs module and program_module
 		{"search", b.writeSearch},               // needs module and the abbreviations
 		{"module vectors", b.writeModuleVectors},

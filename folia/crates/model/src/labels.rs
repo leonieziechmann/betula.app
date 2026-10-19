@@ -319,6 +319,35 @@ code_enum! {
 }
 
 code_enum! {
+    /// What a choice among a module's events offers (`v_module_choice`, docs/radix/schema-v2.md
+    /// „Choices"): one event more than once, QIS naming other programs at each option, or in groups;
+    /// or different contents to choose from.
+    ChoiceKind {
+        Program = "program" => { de: "je für andere Studiengänge", en: "each for other programmes" },
+        Group = "group" => { de: "in Gruppen", en: "in groups" },
+        Topic = "topic" => { de: "Wahlangebot", en: "elective offer" },
+    }
+}
+
+code_enum! {
+    /// How Radix found a choice: groups a title names, whole units that each hold the module, or
+    /// within one form.
+    ChoiceBasis {
+        Named = "named" => { de: "nach dem Titel", en: "by its title" },
+        Module = "module" => { de: "nach den SWS des Moduls", en: "by the module's SWS" },
+        Form = "form" => { de: "nach den SWS einer Form", en: "by the SWS of one form" },
+    }
+}
+
+code_enum! {
+    /// Why an event is beside a module's compulsory part (`module_extra`).
+    ExtraBasis {
+        Tutorial = "tutorial" => { de: "Tutorium", en: "tutorial" },
+        Title = "title" => { de: "nach dem Titel", en: "by its title" },
+    }
+}
+
+code_enum! {
     LecturerRole {
         Responsible = "responsible" => { de: "Modulverantwortung", en: "Module coordination" },
         Instructor = "instructor" => { de: "Lehrende", en: "Lecturers" },
@@ -360,6 +389,9 @@ pub fn code_sets() -> Vec<(&'static str, Vec<&'static str>)> {
         ("Rhythm", codes::<Rhythm>()),
         ("Campus", codes::<Campus>()),
         ("TrackBasis", codes::<TrackBasis>()),
+        ("ChoiceKind", codes::<ChoiceKind>()),
+        ("ChoiceBasis", codes::<ChoiceBasis>()),
+        ("ExtraBasis", codes::<ExtraBasis>()),
         ("LecturerRole", codes::<LecturerRole>()),
     ]
 }

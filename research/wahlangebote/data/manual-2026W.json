@@ -1,0 +1,472 @@
+{
+ "classes": {
+  "A": "choice catalogue (topics, levels, ateliers): each option covers the module",
+  "B": "the same event more than once (by program or in groups): one of them",
+  "C": "extras beside the compulsory part (tutorial, Aufbaukurs)",
+  "D": "data that does not fit (the module's SWS against its events, parts): ignored"
+ },
+ "modules": {
+  "11107": {
+   "class": "B",
+   "note": "Zentralcampus: 2 Übungen (Mo/Do), QIS: MB+UI | ET+MB+EnEW; dazu Aufbaukurs und Tutorium"
+  },
+  "11109": {
+   "class": "B",
+   "note": "2 Übungen (Mo+Mi / Mo+Mi, andere Zeiten), Modul hat 2 SWS Übung; dazu Tutorium"
+  },
+  "11206": {
+   "class": "B",
+   "note": "Zentralcampus: 3 Übungen (Di/Mi/Do), laut QIS je für andere Studiengänge (BI | MB+UI | ET+EnEW+UI); Modul hat 2 SWS Übung"
+  },
+  "11212": {
+   "class": "C",
+   "note": "Tutorium zusätzlich zu Vorlesung und Übung"
+  },
+  "11326": {
+   "class": "D",
+   "note": "geteilte Veranstaltung mit anderem Modul, 4+2 statt 4"
+  },
+  "11395": {
+   "class": "B",
+   "note": "„Town and House“ zweimal, Di vormittags überlappend"
+  },
+  "11503": {
+   "class": "A",
+   "note": "3 Mathe-Seminare"
+  },
+  "11579": {
+   "class": "A",
+   "note": "2 Seminare (Digitale Methoden/Fabrikation)"
+  },
+  "11706": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "11708": {
+   "class": "A",
+   "note": "Seminar + 3 „Anleitung von …“-Übungen zur Wahl"
+  },
+  "11749": {
+   "class": "A",
+   "note": "Entwurfsateliers"
+  },
+  "11751": {
+   "class": "A",
+   "note": "Entwurfsateliers"
+  },
+  "11752": {
+   "class": "A",
+   "note": "Entwurfsateliers"
+  },
+  "11777": {
+   "class": "B",
+   "note": "Physiologiepraktikum zweimal in Sachsendorf: für Medizintechnik (Mi) und für Medizininformatik (Do)"
+  },
+  "11779": {
+   "class": "B",
+   "note": "„Praktikum für MT“ (Mi) und „Praktikum für MedIF“ (Do), beide in Sachsendorf"
+  },
+  "11790": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "11826": {
+   "class": "C",
+   "note": "Tutorium am Zentralcampus (Standort-Angebote sind erkannt)"
+  },
+  "11833": {
+   "class": "D",
+   "note": "Übung nicht in den Modul-SWS"
+  },
+  "11906": {
+   "class": "A",
+   "note": "Seminare/Master Class/Filmkurs"
+  },
+  "11961": {
+   "class": "A",
+   "note": "Oberseminar I/II"
+  },
+  "12034": {
+   "class": "A",
+   "note": "M 01a plus eine Sprache aus M 01b (Rumänisch, Polnisch)"
+  },
+  "12105": {
+   "class": "C",
+   "note": "wie 11826"
+  },
+  "12111": {
+   "class": "A",
+   "note": "2 Proseminare"
+  },
+  "12118": {
+   "class": "D",
+   "note": "Übungen „T1/T2/T3“ – eher Teile als Gruppen"
+  },
+  "12178": {
+   "class": "A",
+   "note": "Spanisch/Französisch/Englisch nach Niveau"
+  },
+  "12244": {
+   "class": "A",
+   "note": "Kolloquien verschiedener Lehrstühle"
+  },
+  "12258": {
+   "class": "D",
+   "note": "Vorlesung 4 statt 2 SWS"
+  },
+  "12317": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "12333": {
+   "class": "A",
+   "note": "Oberseminare der Lehrstühle"
+  },
+  "12461": {
+   "class": "A",
+   "note": "3 Seminare"
+  },
+  "12462": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "12463": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "12521": {
+   "class": "A",
+   "note": "Oberseminare der Lehrstühle"
+  },
+  "12532": {
+   "class": "D",
+   "note": "Übung 4 statt 2 SWS"
+  },
+  "12664": {
+   "class": "A",
+   "note": "M 01a plus eine Sprache aus M 01b"
+  },
+  "12670": {
+   "class": "B",
+   "note": "„M 09: Praxis und methodische Begleitung“ dreimal (eine mit 7 Gruppen)"
+  },
+  "12672": {
+   "class": "A",
+   "note": "14 Praxisprojekte à 4 SWS (Modul 4 SWS)"
+  },
+  "12803": {
+   "class": "D",
+   "note": "geteilte Veranstaltung, 4+2 statt 2+2"
+  },
+  "12813": {
+   "class": "A",
+   "note": "Study Projects"
+  },
+  "12816": {
+   "class": "A",
+   "note": "Study Projects"
+  },
+  "12818": {
+   "class": "A",
+   "note": "DaF-Kurse nach Niveau (Modul 8 SWS = zwei Kurse)"
+  },
+  "12823": {
+   "class": "B",
+   "note": "„Theoretical and Methodological Foundations“ zweimal: Präsenz (WHS) und ohne Ort für den Online-Studiengang (768-O8)"
+  },
+  "12824": {
+   "class": "B",
+   "note": "„UNESCO Heritage Governance“ Präsenz und „(online)“ für den Online-Studiengang"
+  },
+  "12850": {
+   "class": "A",
+   "note": "Fachdidaktik je Instrument (Gesang, Klavier, Violine, Gitarre)"
+  },
+  "12852": {
+   "class": "A",
+   "note": "Fachdidaktik je Instrument"
+  },
+  "12880": {
+   "class": "A",
+   "note": "Fachdidaktik + Klavier oder MIDI/Audio"
+  },
+  "12897": {
+   "class": "A",
+   "note": "Französisch nach Niveau"
+  },
+  "12898": {
+   "class": "A",
+   "note": "Spanisch nach Niveau"
+  },
+  "12901": {
+   "class": "A",
+   "note": "Spanisch nach Niveau"
+  },
+  "12903": {
+   "class": "A",
+   "note": "Französisch nach Niveau"
+  },
+  "12994": {
+   "class": "A",
+   "note": "3 Forschungsprojekte"
+  },
+  "13008": {
+   "class": "A",
+   "note": "2 Oberseminare"
+  },
+  "13012": {
+   "class": "A",
+   "note": "Seminare"
+  },
+  "13095": {
+   "class": "B",
+   "note": "Lehrprobenseminar (Gruppe 1–4)"
+  },
+  "13096": {
+   "class": "B",
+   "note": "Lehrprobenseminar (Gruppe 1–4)"
+  },
+  "13144": {
+   "class": "B",
+   "note": "EMP-Lehrproben (Gruppe 1/2) an zwei Schulen"
+  },
+  "13151": {
+   "class": "B",
+   "note": "Kontrapunkt/Tonsatz I und Gehörbildung I je „(Gruppe 1/2/3)“ als eigene Veranstaltungen"
+  },
+  "13152": {
+   "class": "B",
+   "note": "Kontrapunkt/Tonsatz II und Gehörbildung II je „(Gruppe 1/2/3)“"
+  },
+  "13280": {
+   "class": "D",
+   "note": "zwei Laborwochen à 4 SWS bei 4 im Modul (eher beide Pflicht)"
+  },
+  "13288": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13291": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13431": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13623": {
+   "class": "A",
+   "note": "2 Ateliers"
+  },
+  "13625": {
+   "class": "A",
+   "note": "2 Ateliers"
+  },
+  "13627": {
+   "class": "A",
+   "note": "Ateliers Komplexer Raum"
+  },
+  "13629": {
+   "class": "A",
+   "note": "Ateliers Komplexer Raum/Bachelorarbeit"
+  },
+  "13630": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13631": {
+   "class": "D",
+   "note": "0 + 4 SWS bei 2 im Modul"
+  },
+  "13635": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13658": {
+   "class": "A",
+   "note": "DaF-Kurse nach Niveau (B1.1 … C1.1)"
+  },
+  "13681": {
+   "class": "A",
+   "note": "3 Seminare"
+  },
+  "13682": {
+   "class": "A",
+   "note": "3 Seminare"
+  },
+  "13688": {
+   "class": "A",
+   "note": "Seminare/Vorlesung"
+  },
+  "13774": {
+   "class": "A",
+   "note": "Integrationsmodul-Seminare"
+  },
+  "13776": {
+   "class": "A",
+   "note": "4 Seminare"
+  },
+  "13866": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13867": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13868": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "13884": {
+   "class": "A",
+   "note": "Masterprojekte"
+  },
+  "13885": {
+   "class": "A",
+   "note": "Masterprojekte"
+  },
+  "13886": {
+   "class": "A",
+   "note": "Masterprojekte"
+  },
+  "14011": {
+   "class": "A",
+   "note": "Englischkurse nach Niveau"
+  },
+  "14016": {
+   "class": "A",
+   "note": "Stegreife und Workshops zur Wahl"
+  },
+  "14060": {
+   "class": "A",
+   "note": "4 Seminare, alle für AI M.Sc. (seit 0.9.1 keine Standort-Aufteilung mehr)"
+  },
+  "14125": {
+   "class": "B",
+   "note": "„Design Studio Project I/III“ zweimal zur selben Zeit (Mi 9:30)"
+  },
+  "14127": {
+   "class": "B",
+   "note": "dieselben zwei wie 14125"
+  },
+  "14159": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "14160": {
+   "class": "D",
+   "note": "wie 13631"
+  },
+  "14161": {
+   "class": "A",
+   "note": "Integrationsmodul-Seminare"
+  },
+  "14163": {
+   "class": "A",
+   "note": "4 Seminare (wie 13776)"
+  },
+  "14166": {
+   "class": "A",
+   "note": "Integrationsmodul-Seminare"
+  },
+  "14167": {
+   "class": "A",
+   "note": "4 Seminare (wie 13776)"
+  },
+  "14224": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "14227": {
+   "class": "A",
+   "note": "Seminare/Vorlesung"
+  },
+  "14230": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "14261": {
+   "class": "B",
+   "note": "zwei gleichnamige „Master Seminar in AI …“ (Di, Mi)"
+  },
+  "14401": {
+   "class": "A",
+   "note": "2 Study Projects"
+  },
+  "14658": {
+   "class": "D",
+   "note": "Teile"
+  },
+  "14674": {
+   "class": "D",
+   "note": "Teile, eine Veranstaltung doppelt zur selben Zeit"
+  },
+  "14703": {
+   "class": "D",
+   "note": "Teile"
+  },
+  "14709": {
+   "class": "D",
+   "note": "Praxismodul: drei Formate à 1 SWS"
+  },
+  "14711": {
+   "class": "D",
+   "note": "Praxisbegleitung zusätzlich"
+  },
+  "14824": {
+   "class": "D",
+   "note": "Modul nennt nur 1 SWS Vorlesung, dazu 3 SWS Praktikum"
+  },
+  "14874": {
+   "class": "D",
+   "note": "Vorlesung und Seminar je 4 SWS bei 2+2 im Modul"
+  },
+  "14895": {
+   "class": "A",
+   "note": "2 Thesis-Seminare"
+  },
+  "14900": {
+   "class": "B",
+   "note": "dieselben zwei Seminare wie 14261"
+  },
+  "25302": {
+   "class": "A",
+   "note": "Seminare Bau- und Kunstgeschichte"
+  },
+  "25421": {
+   "class": "A",
+   "note": "Vorlesung + Seminare"
+  },
+  "25431": {
+   "class": "A",
+   "note": "Vorlesung + Seminare"
+  },
+  "33432": {
+   "class": "A",
+   "note": "2 Seminare"
+  },
+  "36303": {
+   "class": "C",
+   "note": "Seminar/Übung „Industrie“ zusätzlich"
+  },
+  "37407": {
+   "class": "B",
+   "note": "dieselben zwei wie 12823"
+  },
+  "37410": {
+   "class": "A",
+   "note": "4 Study Projects"
+  },
+  "37411": {
+   "class": "A",
+   "note": "4 Study Projects"
+  },
+  "41201": {
+   "class": "A",
+   "note": "Vorlesung plus eines von 2 Seminaren"
+  }
+ },
+ "semester": "2026W",
+ "snapshot": "canary, 2026-10-19, Radix 0.9.1"
+}

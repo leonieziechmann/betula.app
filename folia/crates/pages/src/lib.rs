@@ -26,9 +26,9 @@ use folia_model::rows::{
     CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester,
 };
 use folia_model::rows_detail::{
-    AreaNode, AreaPlacement, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer, LecturerName, ModuleSws,
-    ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry,
-    ProgramPlanTotal, ProgramVersion, Successor, TextItem, TrackProgram,
+    AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
+    LecturerName, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, ProgramDepartmentCount,
+    ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramVersion, Successor, TextItem, TrackProgram,
 };
 use folia_plans::plan::{self, SemesterPlan};
 use folia_plans::variants::{self, PlanVariant, Supplement};
@@ -507,6 +507,12 @@ pub struct ModuleData {
     /// takes (`module_tracks`, schema 15); empty for a module without courses.
     #[serde(default)]
     pub tracks: Vec<TrackProgram>,
+    /// The choices among its events, a row per event of an option, and whom QIS lists the options
+    /// for (`module_choices`, `module_choice_families`, schema 17); empty for a module without.
+    #[serde(default)]
+    pub choices: Vec<ChoiceOption>,
+    #[serde(default)]
+    pub choice_families: Vec<ChoiceFamily>,
     pub programs: Vec<ProgramLink>,
     /// Where the validated study plans place the module (`plan_semesters`).
     pub plan_places: Vec<PlanPlace>,
@@ -541,6 +547,8 @@ pub fn module(db: &dyn Database, id: &str) -> Result<Option<ModuleData>, DbError
         schedule: queries::module_schedule(db, id)?,
         exams: queries::module_exams(db, id)?,
         tracks: queries::module_tracks(db, id)?,
+        choices: queries::module_choices(db, id)?,
+        choice_families: queries::module_choice_families(db, id)?,
         programs: queries::module_program_links(db, id)?,
         plan_places: queries::module_plan_places(db, id)?,
         semesters: queries::semesters(db)?,
@@ -1948,6 +1956,9 @@ mod studyplan_tests {
                 room_short: None,
                 series: None,
                 track: None,
+                choice: None,
+                option: None,
+                extra: false,
             },
         }
     }

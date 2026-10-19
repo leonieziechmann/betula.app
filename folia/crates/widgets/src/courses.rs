@@ -80,7 +80,7 @@ impl CourseView {
 }
 
 /// „Informatik · B.Sc.": a program as a course's line names it.
-fn program_name(program: &Program) -> String {
+pub(crate) fn program_name(program: &Program) -> String {
     format!("{} · {}", program.name, program.degree())
 }
 
@@ -149,6 +149,9 @@ mod tests {
             room_short: None,
             series: None,
             track: Some(Code::parse(track)),
+            choice: None,
+            option: None,
+            extra: false,
         }
     }
 
