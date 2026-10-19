@@ -2365,7 +2365,7 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   and in a line under the row that says what else the module was found by — the title in the
   other language („engl. Time-discrete Systems and Regulators“) or a lecturer („verantwortlich
   Hofstedt, Petra“, „lehrt …“) — and an abbreviation stands as a tag („Kürzel ThI“). Since Folia
-  1.31.1 (owner, 2026-10-19):
+  1.32.1 (owner, 2026-10-19):
   - the line is a row of the row's grid of its own, as wide as the row, the columns staying beside
     the title and the bookmark beside them („Mach mal die line mit der Übersetzung über die ganze
     Länge (oder zumindest 75%) von der Zeile“); on a phone it is as wide as the title, the credits
@@ -2401,7 +2401,7 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   resolves its text with the list and again with the counts of its filters, and orders it once.
   In the data worker on canary the index took a quarter of a second of a laptop, which the first
   search of a visit waited for (457 ms against 200–230 for the next ones; a phone's second or so).
-  So it is made before (Folia 1.31.1, `search::prepare`, `worker_prepare_search`): `boot.js` tells
+  So it is made before (Folia 1.32.1, `search::prepare`, `worker_prepare_search`): `boot.js` tells
   the worker a search is coming as a search field takes the focus, and with a mouse once the
   browser is idle, as it loads the semantic search; the worker makes it once per snapshot, when
   no question has come for 300 ms, so the questions of a page being built go first.
