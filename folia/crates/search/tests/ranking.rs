@@ -1,7 +1,9 @@
 //! The order of the catalog's search on the snapshot of the tests (folia/design/suche/konzept.html,
 //! „Wo das Gemeinte landet"): what a student most likely means by a query stands first, or among
-//! the first. A case whose module the snapshot does not offer is left out, so the checks hold on
-//! any snapshot.
+//! the first. A case whose module the snapshot does not offer is left out. The cases are the real
+//! catalog's (canary's snapshot, docs/folia/frontend.md §4): Radix's synthetic one names its modules
+//! by pattern, „Theoretische Informationssysteme" in more programs beside „Theoretische
+//! Informatik", and is not what they are about.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 
@@ -183,8 +185,10 @@ fn a_module_found_by_its_abbreviation_is_marked_in_its_title_too() {
 #[test]
 fn the_index_is_made_ahead_of_the_first_search() {
     let db = open();
+    let before = found(&db, "Informatik", None);
     folia_search::prepare(&db).unwrap();
-    assert!(found(&db, "TI", None).first().is_some_and(|(_, title)| title.starts_with("Theoretische Informatik")) || !offers(&db, &|t| t == "Theoretische Informatik"));
+    folia_search::prepare(&db).unwrap();
+    assert_eq!(found(&db, "Informatik", None), before, "the same answer, made ahead or not");
 }
 
 #[test]
