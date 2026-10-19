@@ -393,6 +393,21 @@ impl FromRow for ModuleAbbrev {
     }
 }
 
+/// What a program calls a module for short where that is not the module's own form
+/// (`Module::abbrev`): unique among the program's modules („Prak-b" beside another „Praktikum"),
+/// as `queries::module_program_abbrevs` picks it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProgramAbbrev {
+    pub program_id: String,
+    pub abbrev: String,
+}
+
+impl FromRow for ProgramAbbrev {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { program_id: row.text("program_id")?, abbrev: row.text("abbrev")? })
+    }
+}
+
 /// `v_module_program_link`: a program a module page names, resolved to the catalog or not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProgramLink {

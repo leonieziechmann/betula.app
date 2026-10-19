@@ -108,6 +108,8 @@ fn every_query_runs_against_the_snapshot() {
     assert!(!queries::module_lecturers(&db, &id).unwrap().is_empty());
     let id = pick("SELECT module_id FROM v_module_teaching_form WHERE sws IS NOT NULL LIMIT 1");
     assert!(queries::module_teaching_forms(&db, &id).unwrap().iter().any(|f| f.sws.is_some()));
+    let id = pick("SELECT p.module_id FROM v_program_module p JOIN v_module m ON m.id = p.module_id WHERE p.abbrev <> m.abbrev LIMIT 1");
+    assert!(!queries::module_program_abbrevs(&db, &id).unwrap().is_empty());
     let id = pick("SELECT module_id FROM v_module_text_item WHERE kind = 'literature' LIMIT 1");
     assert!(!queries::module_text_items(&db, &id).unwrap().is_empty());
     let id = pick("SELECT module_id FROM v_module_successor LIMIT 1");
@@ -1042,6 +1044,37 @@ fn page_loaders_return_everything_a_page_shows() {
     assert_eq!(pages::program(&db, "no-such-program").unwrap(), None);
 
     eprintln!("all page loaders: {:?}", started.elapsed());
+}
+
+/// What a module's page shows beside its number (owner, 2026-10-19) is what the Stundenplan names
+/// the module by in the same program (`queries::modules_abbrevs`): the program's form where it
+/// calls the module otherwise, else the module's own, which is also its name without a program.
+#[test]
+fn a_module_is_called_for_short_as_the_stundenplan_calls_it() {
+    let db = open();
+    let otherwise = column(
+        &db,
+        "SELECT p.module_id || ' ' || p.program_id FROM v_program_module p JOIN v_module m ON m.id = p.module_id \
+         WHERE p.abbrev <> m.abbrev ORDER BY p.module_id, p.program_id LIMIT 40",
+    );
+    let alike = column(
+        &db,
+        "SELECT p.module_id || ' ' || p.program_id FROM v_program_module p JOIN v_module m ON m.id = p.module_id \
+         WHERE p.abbrev = m.abbrev ORDER BY p.module_id, p.program_id LIMIT 20",
+    );
+    assert!(!otherwise.is_empty() && !alike.is_empty(), "the snapshot has programs that call a module otherwise, and others");
+    for (pair, differs) in otherwise.iter().map(|pair| (pair, true)).chain(alike.iter().map(|pair| (pair, false))) {
+        let (module_id, program_id) = pair.split_once(' ').unwrap();
+        let data = pages::module(&db, module_id).unwrap().expect("module page");
+        let week = queries::modules_abbrevs(&db, &[module_id.to_string()], Some(program_id)).unwrap();
+        assert_eq!(data.abbrev_in(Some(program_id)), week.first().map(|form| form.abbrev.as_str()), "{pair}");
+        let own = data.module.abbrev.as_deref();
+        assert!(own.is_some(), "{module_id} has a form of its own");
+        assert_eq!(data.abbrev_in(Some(program_id)) != own, differs, "{pair}");
+        assert_eq!(data.program_abbrevs.iter().any(|form| form.program_id == program_id), differs, "{pair}");
+        assert_eq!(data.abbrev_in(None), own, "{module_id}");
+        assert_eq!(data.abbrev_in(Some("000-00-0000")), own, "a program without the module: {module_id}");
+    }
 }
 
 #[test]

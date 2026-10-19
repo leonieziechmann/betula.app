@@ -55,6 +55,7 @@ use folia_shell::pending::same_page;
 use folia_shell::tabs::Tabs;
 use folia_design::combobox::{ComboItem, Select};
 use folia_design::ui::{Icon, Shortcut};
+use folia_widgets::module::ModuleIds;
 use super::head::blocked_line;
 use super::{full_href, key_of, PlanCtx};
 
@@ -105,15 +106,18 @@ struct Info {
     dated: bool,
     /// The titles of the semester's planned modules, for the notes.
     titles: BTreeMap<String, String>,
+    /// What the module is called for short, as the week names it (`StudyplanData::abbrevs`).
+    abbrev: Option<String>,
     error: Option<DataError>,
 }
 
-/// The panel's head: the module's title and credits.
+/// The panel's head: the module's title and credits, and its abbreviation beside its number.
 #[derive(Clone, Debug, PartialEq)]
 struct Head {
     title: String,
     credits: Option<f64>,
     missing: bool,
+    abbrev: Option<String>,
 }
 
 /// Where the module stands, as the select of its placeholder offers it.
@@ -468,7 +472,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
                     // No arrow back on a phone as well, where the panel is a sheet over the plan:
                     // „Schließen" says it, and a phone has no room for both beside „Modul ansehen".
                     <div class="hero-top">
-                        <span class="mono">{id}</span>
+                        <ModuleIds id=Signal::derive(id) abbrev=Signal::derive(move || head.with(|head| head.as_ref().and_then(|head| head.abbrev.clone())))/>
                         <a class="ghost" href=full data-action="fullscreen" title=t.studyplan_aside.full_title><Icon name="maximize-2"/>{t.studyplan_aside.full}<Shortcut keys="F"/></a>
                         <a class="ghost" href=close data-action="close-detail" data-back=back data-noscroll="" title=t.studyplan_aside.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
@@ -874,6 +878,7 @@ fn info_of(place: &Place, data: Result<&StudyplanData, &DataError>) -> Info {
         missing: false,
         dated: false,
         titles: BTreeMap::new(),
+        abbrev: None,
         error: None,
     };
     match data {
@@ -883,6 +888,7 @@ fn info_of(place: &Place, data: Result<&StudyplanData, &DataError>) -> Info {
                 info.credits = row.credits;
                 info.turnus = row.turnus_season.as_ref().and_then(Code::known);
             }
+            info.abbrev = data.abbrevs.get(&place.id).cloned();
             info.missing = data.missing.contains(&place.id);
             info.dated = !data.counts.is_empty();
             info.titles = data.titles();
@@ -907,12 +913,18 @@ fn info_nowhere(place: &Place, row: Result<Option<&CatalogRow>, &DataError>) -> 
         missing: row.is_none() && error.is_none(),
         dated: false,
         titles: BTreeMap::new(),
+        abbrev: None,
         error,
     }
 }
 
 fn head_of(info: &Info) -> Head {
-    Head { title: info.title.clone().unwrap_or_else(|| info.place.id.clone()), credits: info.credits, missing: info.missing }
+    Head {
+        title: info.title.clone().unwrap_or_else(|| info.place.id.clone()),
+        credits: info.credits,
+        missing: info.missing,
+        abbrev: info.abbrev.clone(),
+    }
 }
 
 /// Everything below the head, from the module's semester and its timetable (`None` while the
@@ -2104,6 +2116,7 @@ mod tests {
             missing: false,
             dated,
             titles: BTreeMap::new(),
+            abbrev: None,
             error: None,
         };
         // 12104 has a Termin, 11103 none.

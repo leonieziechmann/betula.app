@@ -514,6 +514,29 @@ async fn legal_pages_are_one_step_from_every_page() {
     }
 }
 
+/// The head of a module's page: its number, and beside it what the module is called for short
+/// (owner, 2026-10-19), as the Stundenplan names it. The server knows no Mein Studiengang (R9) and
+/// renders no preview beside a list: on the module's own page the module's own form, also where a
+/// program calls it otherwise; the browser app shows that program's (`ModuleData::abbrev_in`).
+#[tokio::test]
+async fn the_head_names_the_module_for_short_beside_its_number() {
+    let file = snapshot_file();
+    let router = crate::router(state(store_with("abbrev", &file)));
+    let db = NativeDatabase::open(&file).unwrap();
+    let pair = folia_test_support::column(
+        &db,
+        "SELECT p.module_id || ' ' || m.abbrev FROM v_program_module p JOIN v_module m ON m.id = p.module_id \
+         WHERE p.abbrev <> m.abbrev ORDER BY p.module_id, p.program_id LIMIT 1",
+    );
+    let (id, own) = pair.first().and_then(|pair| pair.split_once(' ')).expect("a program that calls a module otherwise");
+    let (status, _, body) = request(&router, &format!("/catalog/module/{id}"), &[]).await;
+    let html = String::from_utf8(body).unwrap();
+    let head = html.split("<span class=\"ids\">").nth(1).and_then(|rest| rest.split("</div>").next()).unwrap_or_default();
+    assert_eq!(status, StatusCode::OK);
+    assert!(head.starts_with(&format!("<span class=\"mono\">{id}</span>")), "{head}");
+    assert!(head.contains(&format!("<span class=\"visually-hidden\">Kürzel </span>{own}</span>")), "{head}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let real = std::fs::read(snapshot_file()).unwrap();
