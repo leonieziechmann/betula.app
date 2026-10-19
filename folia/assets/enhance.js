@@ -714,7 +714,12 @@
     const card = axis.cards.size ? axis.cards.get(stage()?.dataset.stage) : null;
     if (card && Math.abs(card.page.scrollTop - scrollY) > 0.5) card.page.scrollTop = scrollY;
   }, { passive: true });
-  const axisStill = (e) => { if (axis.cards.size && !axis.grip && !e.target?.closest?.(".bottomnav")) axisFinish(); };
+  // The app's click of a tap still to come goes first (`later`, below), so that the pages come to
+  // rest where the app is going, not where it was.
+  const axisStill = (e) => {
+    flushLater();
+    if (axis.cards.size && !axis.grip && !e.target?.closest?.(".bottomnav")) axisFinish();
+  };
   addEventListener("pointerdown", axisStill, true);
   addEventListener("wheel", axisStill, { capture: true, passive: true });
   addEventListener("keydown", axisStill, true);
@@ -725,8 +730,9 @@
 
   // The app's click of a change the pages have started (a tap's, a swipe's): once they are on their
   // way (their animations started, the compositor running them), so that the app's work does not
-  // hold up their first frames; at once when a finger, a key or another click comes first, in the
-  // order they came. A page whose frames have stopped (hidden) has it after 150 ms all the same.
+  // hold up their first frames; at once when a finger, a key, a wheel (`axisStill`) or another
+  // click comes first, in the order they came. A page whose frames have stopped (hidden) has it
+  // after 150 ms all the same.
   let later = null;
   const flushLater = () => {
     const job = later;
@@ -749,8 +755,6 @@
     job.slow = setTimeout(send, 150);
     later = job;
   };
-  addEventListener("pointerdown", flushLater, true);
-  addEventListener("keydown", flushLater, true);
 
   // The tab of `name` current on the bars at once, as the app has it once it has the click (the
   // start does the same before the app, above): its mark answers the tap in the frame the pages
@@ -779,7 +783,8 @@
     axis.idle = setTimeout(() => { if (!axis.run && !axis.grip && !later && axis.cards.size) axisFinish(); }, 700);
   };
   // A tap (a click, a key) on a tab of the bar whose page stands: the pages start now, and the app
-  // gets the click a frame later (`later`). Not the click that ends a swipe (the bar's own, below).
+  // gets the click once they are on their way (`later`). Not the click that ends a swipe (the bar's
+  // own, below).
   addEventListener("click", (e) => {
     if (!e.isTrusted || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
     const tab = e.target.closest?.(".bottomnav > .nav[data-area]");
