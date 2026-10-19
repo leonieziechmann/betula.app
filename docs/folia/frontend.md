@@ -1973,12 +1973,17 @@ before, the tab's mark at once) is Folia 1.24.6, this is step 1 (Folia 1.26.0):
 - **What a page does to the whole document it does in front alone** (`folia_design::stage::front`):
   its tags for search engines (`seo::Seo`, one description and one canonical address in the
   document), the listeners of the window (Esc of „Mein Studium", the catalog's list following the
-  window, the fragment of the Merkliste), the layers of `nav`. Its title is kept on its stage
-  (`stage::Title`, a stack for each stage as `leptos_meta` keeps one), and the stages give the
-  document the title of the stage in front. A page that goes behind is left as a new address leaves
-  it: what lies over it closes (`nav::layer_while`; a `<dialog>` open on it, such as the map of the
-  start page, as the stages swap), the filters' sheet throws its draft away (`enhance.js`,
-  `betula:stage`), the semester of „Mein Studium" stays, without its watcher.
+  window, the fragment of the Merkliste), the layers of `nav`, the semester the row of „Mein
+  Studium" keeps in the entry the browser is at. The catalog's list writes its page into the
+  address only while the router is at it and no step is on its way: Back from a list still settling
+  at a shared module's row wrote the list's page into Start's entry and came back to the list. The
+  page in front alone names the scroll timeline the wood rises on (`--page`, app.css): a name two
+  pages give is no timeline at all, and the wood stood at the foot of the window. Its title is kept
+  on its stage (`stage::Title`, a stack for each stage as `leptos_meta` keeps one), and the stages
+  give the document the title of the stage in front. A page that goes behind is left as a new
+  address leaves it: what lies over it closes (`nav::layer_while`; a `<dialog>` open on it, such as
+  the map of the start page, as the stages swap), the filters' sheet throws its draft away
+  (`enhance.js`, `betula:stage`), the semester of „Mein Studium" stays, without its watcher.
 - **Parts of the same name**: several stages have a `#filters`, a `#preview`, a `#page-scroll`.
   The browser app looks for a page's parts on the stage of the page that asks
   (`folia_design::stage::by_id`, `select`, `select_all`: an effect has its page's owner), else on the
@@ -1999,8 +2004,27 @@ before, the tab's mark at once) is Folia 1.24.6, this is step 1 (Folia 1.26.0):
 Measured with the dev bundle on the laptop of §3 (Chromium, the real catalog): a tab seen before
 is in front in the first frame after the click, 13–16 ms after it on a wide screen and 20–40 ms after
 the tap in a phone's window (412 × 915); before, the same change built its page again behind a
-skeleton for 100 to 600 ms. A tab's first visit is as before; building every tab at the start, in
-idle time, is the next step of the concept.
+skeleton for 100 to 600 ms.
+
+**Every tab built at the start** (step 2, Folia 1.26.1, `stage::prebuild`; owner, 2026-10-18: „Am
+anfang darf die App ruhig etwas laden/kurz Skeltons zeigen"): once the app has taken the page over
+and its first page's answers are in, Betula builds the other tabs' pages behind it, one after the
+other, the cheapest first (Merkliste, Stundenplan, Start, Module, Studium), each in a task of its
+own and only while nothing happens: no finger on the screen, nothing for 600 ms (no key, wheel or
+scroll), no step on its way, no question of a page on its way; in an idle moment where the browser
+tells one (`requestIdleCallback`; Safari does not, then a moment later). A stage is built at the
+place its tab leads to (`chrome::tab_target`, on a phone the top of the tab's stack, `nav::tab_top`)
+and as if it was left there at its top: its first visit only swaps, as every later one does, and
+opens at its top. It counts as standing once its answers are in (`ready`; the stage is `aria-busy`
+until then): a tab tapped before that comes as before, with a skeleton, and its page is the one being
+built. What a page behind would do over time waits for the front: the row of „Mein Studium" draws
+the pages further out once its stage comes to the front (a step of them on a stage behind was what a
+tap then waited for). Measured with the dev bundle in a phone's window (412 × 915, a study set up):
+every tab built 1.05 s after the takeover, its longest task 56 ms (1.8 s and 270 ms with the CPU four
+times slower); each first visit in the first frame after the tap, 22–35 ms after it, at its top. On
+canary's build of 1.26.0 with the CPU four times slower a tab's first build is at most a task of
+0.19 s („Mein Studium" with a study; the concept measured 1.8 s on 1.22.0), so „Studium" is built as
+it is.
 
 `node folia/e2e/stages.mjs` checks it (§4).
 
@@ -4036,7 +4060,12 @@ after the tap, without a skeleton and without a picture held in front of it, wit
 with the module beside the list still there; one stage in front, the others not drawn, inert and
 on a phone without room; the title, one canonical address and one description of the page in front;
 a filter and a row of a page that came back; the filters' sheet left open going as its tab changes,
-nothing dimmed; Back on a phone up to Start, which comes as it was left.
+nothing dimmed; Back on a phone up to Start, which comes as it was left. All of it once the start is
+over; the start itself: every tab built behind the first page (a study set up, so that „Studium" is
+„Mein Studium"), each first visit in the first frame after the tap without a skeleton and at its
+top, the longest task meanwhile (with the CPU four times slower as well), the row of „Mein Studium"
+at its overview, and a tab tapped while the others are built coming as before, its page not built
+anew.
 
 ```bash
 cd e2e && node swipe.mjs
