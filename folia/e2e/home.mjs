@@ -15,6 +15,7 @@
 // under the board follows and leads into the catalog. The head describes the page shown.
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const base = process.argv[2] || process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080";
@@ -22,13 +23,18 @@ const failures = [];
 const check = (ok, message) => { if (!ok) failures.push(message); };
 
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge" });
+// What the check looks for is on the page in front (on-page.js): every tab's page is built behind
+// it at the start (folia/crates/shell/src/stage.rs, `prebuild`), with parts of the same name.
+const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (options) => { const context = await newContext(options); await context.addInitScript(ON_PAGE); return context; };
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 const errors = [];
 page.on("pageerror", (error) => errors.push(String(error)));
 const images = [];
 page.on("request", (request) => { if (request.url().includes("/assets/shots/")) images.push(new URL(request.url()).pathname); });
-const current = () => page.evaluate(() => document.querySelector(".cslide.is-current .cap-text b")?.textContent);
-const waitFor = (title) => page.waitForFunction((t) => document.querySelector(".cslide.is-current .cap-text b")?.textContent === t, title, { timeout: 5000 });
+const current = () => page.evaluate(() => onPage(".cslide.is-current .cap-text b")?.textContent);
+const waitFor = (title) => page.waitForFunction((t) => onPage(".cslide.is-current .cap-text b")?.textContent === t, title, { timeout: 5000 });
 
 // Without the app: the map is part of the server's HTML (the picture, and the dialog whose dots
 // are links), every picture is a link, the screenshots are lazy (the carousel's and the two of
@@ -55,24 +61,24 @@ check(!/<a [^>]*class="chip"/.test(html) && /class="board-foot"[^>]*><a [^>]*hre
 
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
-await page.waitForSelector(".home .map-preview");
+await page.waitForSelector(".home .map-preview >> visible=true");
 // A page load would lose this (the method of spa.mjs).
 await page.evaluate(() => { window.__marker = 1; });
 check(await page.evaluate(() => typeof window.betulaMap === "string" && window.betulaMap.length > 1000), "boot.js did not hand the map to the app");
-check(await page.evaluate(() => document.querySelectorAll("head meta[name=description]").length) === 1, "the head has not exactly one description after the takeover");
-check(await page.evaluate(() => document.querySelectorAll("head link[rel=canonical]").length) === 1, "the head has not exactly one canonical address after the takeover");
+check(await page.evaluate(() => allOnPage("head meta[name=description]").length) === 1, "the head has not exactly one description after the takeover");
+check(await page.evaluate(() => allOnPage("head link[rel=canonical]").length) === 1, "the head has not exactly one canonical address after the takeover");
 // Two stylesheets could come from different places (the service worker, the network) and mix.
-check(await page.evaluate(() => document.querySelectorAll("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
-check(await page.evaluate(() => document.querySelectorAll("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
-check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(document.querySelector(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
+check(await page.evaluate(() => allOnPage("link[rel=stylesheet]").length) === 1, "the document has not exactly one stylesheet after the takeover");
+check(await page.evaluate(() => allOnPage("link[rel=preload]").length) === 1, "the document has not exactly one preloaded font after the takeover");
+check(await page.evaluate(() => /^\d+\.\d+\.\d+/.test(onPage(".ground .ver")?.textContent || "")), "the ground does not name Folia's version");
 // The first panel: a birch down its right edge, the whole height, and the figures to its left,
 // beside the text, each on a branch reaching the trunk; behind the page the wood, from the rail to
 // the window's right edge and bottom, beneath everything, its masks those of the season.
 const hero = await page.evaluate(() => {
-  const panel = document.querySelector(".home-hero").getBoundingClientRect();
-  const text = document.querySelector(".home-hero-text").getBoundingClientRect();
-  const trunk = document.querySelector(".hero-trunk").getBoundingClientRect();
-  const tags = [...document.querySelectorAll(".tree-figures > div")].map((tag) => tag.getBoundingClientRect());
+  const panel = onPage(".home-hero").getBoundingClientRect();
+  const text = onPage(".home-hero-text").getBoundingClientRect();
+  const trunk = onPage(".hero-trunk").getBoundingClientRect();
+  const tags = [...allOnPage(".tree-figures > div")].map((tag) => tag.getBoundingClientRect());
   return {
     edge: Math.abs(trunk.right - panel.right) <= 1 && Math.abs(trunk.top - panel.top) <= 1 && Math.abs(trunk.bottom - panel.bottom) <= 1 && trunk.width >= 40,
     tags: tags.length,
@@ -83,15 +89,15 @@ const hero = await page.evaluate(() => {
 });
 check(hero.edge && hero.tags === 4 && hero.beside && hero.reach && hero.height < 440, `the figures do not hang on a birch at the first panel's edge: ${JSON.stringify(hero)}`);
 const wood = await page.evaluate(() => {
-  const el = document.querySelector("body > .wood"), box = el.getBoundingClientRect(), style = getComputedStyle(el);
+  const el = onPage("body > .wood"), box = el.getBoundingClientRect(), style = getComputedStyle(el);
   const season = document.documentElement.dataset.season || "summer";
   const masks = ["::before", "::after"].map((pseudo) => getComputedStyle(el, pseudo).maskImage || getComputedStyle(el, pseudo).webkitMaskImage);
   return {
-    place: style.position === "fixed" && style.zIndex === "-1" && box.left === document.querySelector(".rail").getBoundingClientRect().right && box.right === innerWidth && box.bottom === innerHeight,
+    place: style.position === "fixed" && style.zIndex === "-1" && box.left === onPage(".rail").getBoundingClientRect().right && box.right === innerWidth && box.bottom === innerHeight,
     masks: masks[0].includes(`/assets/birch/${season}-wood-back.svg`) && masks[1].includes(`/assets/birch/${season}-wood-front.svg`),
-    branches: document.querySelectorAll(".branch").length,
+    branches: allOnPage(".branch").length,
     // One wood for the whole app, beside the crown, not one per page.
-    woods: document.querySelectorAll(".wood").length,
+    woods: allOnPage(".wood").length,
   };
 });
 check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the wood does not stand behind the page: ${JSON.stringify(wood)}`);
@@ -101,10 +107,10 @@ check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the 
 await page.setViewportSize({ width: 1920, height: 1080 });
 const column = await page.evaluate(async () => {
   // The scroll area's content: the gap right of the page (with the scrollbar in it) is its padding.
-  const home = document.querySelector(".home").getBoundingClientRect(), scroller = document.getElementById("page-scroll"), box = scroller.getBoundingClientRect();
+  const home = onPage(".home").getBoundingClientRect(), scroller = onPage("#page-scroll"), box = scroller.getBoundingClientRect();
   const season = document.documentElement.dataset.season || "summer";
   const drawn = (await (await fetch(`/assets/birch/${season}-wood-front.svg`)).text()).match(/width="(\d+)" height="(\d+)"/);
-  const style = getComputedStyle(document.querySelector("body > .wood"), "::after");
+  const style = getComputedStyle(onPage("body > .wood"), "::after");
   return { width: home.width, left: Math.round(home.left - box.left), right: Math.round(box.left + scroller.clientWidth - parseFloat(getComputedStyle(scroller).paddingRight) - home.right), drawn: drawn && `${drawn[1]}px ${drawn[2]}px`, sized: style.maskSize || style.webkitMaskSize };
 });
 check(column.width === 1600 && column.left > 100 && Math.abs(column.left - column.right) <= 1 && column.drawn === `${1600 + 2 * 900}px 1600px` && column.sized === column.drawn, `the column is not 1600 px in the middle, or the wood is not drawn for it: ${JSON.stringify(column)}`);
@@ -114,16 +120,16 @@ await page.setViewportSize({ width: 1500, height: 1000 });
 // button — the picker of the programs, the catalog, the Stundenplan —, the first the next one for a
 // browser that has done nothing yet, each naming the item of the navigation that keeps it.
 const wayIn = () => page.evaluate(() => ({
-  sidebar: document.querySelector("#sidebar") !== null,
-  after: document.querySelector(".home-hero").nextElementSibling?.id,
-  buttons: [...document.querySelectorAll(".start-act")].map((act) => (act.querySelector(".combo-trigger") ? "picker" : act.querySelector("a")?.getAttribute("href"))).join(),
-  labels: [...document.querySelectorAll(".start-act")].map((act) => act.textContent.trim()).join("|"),
-  row: new Set([...document.querySelectorAll(".start-step")].map((step) => Math.round(step.getBoundingClientRect().top))).size,
-  next: document.querySelector(".start-step.is-next h3")?.textContent,
-  done: document.querySelectorAll(".start-step.is-done").length,
-  places: [...document.querySelectorAll(".start-place")].map((place) => place.textContent).join(),
-  state: [...document.querySelectorAll(".start-state")].map((state) => state.textContent).join("|"),
-  hero: document.querySelector(".intro-actions .combo-trigger") ? "picker" : document.querySelector(".intro-actions a.btn.secondary")?.getAttribute("href"),
+  sidebar: onPage("#sidebar") !== null,
+  after: onPage(".home-hero").nextElementSibling?.id,
+  buttons: [...allOnPage(".start-act")].map((act) => (act.querySelector(".combo-trigger") ? "picker" : act.querySelector("a")?.getAttribute("href"))).join(),
+  labels: [...allOnPage(".start-act")].map((act) => act.textContent.trim()).join("|"),
+  row: new Set([...allOnPage(".start-step")].map((step) => Math.round(step.getBoundingClientRect().top))).size,
+  next: onPage(".start-step.is-next h3")?.textContent,
+  done: allOnPage(".start-step.is-done").length,
+  places: [...allOnPage(".start-place")].map((place) => place.textContent).join(),
+  state: [...allOnPage(".start-state")].map((state) => state.textContent).join("|"),
+  hero: onPage(".intro-actions .combo-trigger") ? "picker" : onPage(".intro-actions a.btn.secondary")?.getAttribute("href"),
 }));
 const way = await wayIn();
 check(!way.sidebar && way.after === "loslegen" && way.buttons === "picker,/catalog,/studyplan" && way.row === 1, `the way in is not under the first panel: ${JSON.stringify(way)}`);
@@ -131,82 +137,82 @@ check(way.next === "Studiengang wählen" && way.done === 0 && way.places === "St
 // One click: the picker opens in place, a pick is „Mein Studiengang" and the way goes on — the
 // program's catalog, its Regelstudienplan ready in the Stundenplan —, and the first panel's button
 // leads to all programs now. Nothing loads a page, the address stays.
-await page.click("#start-program");
-await page.waitForSelector("#start-program-search");
+await page.click("#start-program >> visible=true");
+await page.waitForSelector("#start-program-search >> visible=true");
 await page.keyboard.type("Informatik");
 await page.keyboard.press("Enter");
-await page.waitForFunction(() => document.querySelector(".start-step.is-done") !== null, null, { timeout: 5000 }).catch(() => failures.push("a pick does not do the first step"));
+await page.waitForFunction(() => onPage(".start-step.is-done") !== null, null, { timeout: 5000 }).catch(() => failures.push("a pick does not do the first step"));
 const picked = await wayIn();
 check(/^Informatik B\.Sc\./.test(picked.state) && picked.next === "Module finden und merken" && picked.hero === "/programs", `the way in does not go on after a pick: ${JSON.stringify(picked)}`);
 check(/^\/programs,\/catalog\?program=bachelor-informatik-2008,\/studyplan\?import=mine$/.test(picked.buttons) && picked.labels.includes("Module deines Studiengangs") && picked.labels.includes("Fachsemester übernehmen"), `the steps after a pick do not lead into the program: ${JSON.stringify(picked)}`);
 check(await page.evaluate(() => /^program\t079-82-2008$/m.test(localStorage.getItem("betula.myprogram.v1") || "") && location.pathname === "/" && window.__marker === 1), "the pick is not „Mein Studiengang\", or it left the page");
 check(await page.evaluate(() => document.activeElement?.id === "start-program"), "the focus does not stay on the first step's button after a pick");
 // „Direkt suchen" goes into the search at the top, not to the catalog.
-await page.click(".start-path a[data-action=search]");
+await page.click(".start-path a[data-action=search] >> visible=true");
 check(await page.evaluate(() => document.activeElement?.id === "topsearch" && location.pathname === "/"), "„Direkt suchen\" does not go into the search");
 await page.evaluate(() => document.activeElement?.blur());
 
 // The carousel: the map in the middle, a neighbour on each side.
 check((await current()) === "Die Karte", `the first picture is not the map: ${await current()}`);
-const places = await page.evaluate(() => [...document.querySelectorAll(".cslide:not(.spacer)")].map((slide) => getComputedStyle(slide).getPropertyValue("--at").trim()));
+const places = await page.evaluate(() => [...allOnPage(".cslide:not(.spacer)")].map((slide) => getComputedStyle(slide).getPropertyValue("--at").trim()));
 check(JSON.stringify(places) === JSON.stringify(["0", "1", "-2", "-1"]), `the pictures are not placed around the current one: ${places}`);
 const sides = await page.evaluate(() => {
-  const frame = document.querySelector(".carousel").getBoundingClientRect();
-  return [...document.querySelectorAll(".cslide.is-side")].map((slide) => { const r = slide.getBoundingClientRect(); return r.right > frame.left + 20 && r.left < frame.right - 20; });
+  const frame = onPage(".carousel").getBoundingClientRect();
+  return [...allOnPage(".cslide.is-side")].map((slide) => { const r = slide.getBoundingClientRect(); return r.right > frame.left + 20 && r.left < frame.right - 20; });
 });
 check(sides.length === 2 && sides.every(Boolean), `the neighbours do not show at the sides: ${sides}`);
 // Lazy pictures: what shows beside the map is fetched, never the hidden theme or the phone's.
 check(images.every((path) => !path.includes("-dark") && !path.includes("-phone")), `pictures of the hidden theme or the phone were fetched: ${images}`);
 
 // The arrows, a click on a neighbour, a tab, the keys; it goes round.
-await page.click(".show-arrow.next");
+await page.click(".show-arrow.next >> visible=true");
 await waitFor("Der Katalog");
 // A neighbour lies half behind the current picture: a click on the half that shows.
-const right = page.locator(".cslide.is-side >> nth=1");
+const right = page.locator(".cslide.is-side >> visible=true >> nth=1");
 const size = await right.boundingBox();
 await right.click({ position: { x: size.width * 0.85, y: size.height * 0.4 } });
 await waitFor("Der Regelstudienplan");
-await page.click(".show-tabs button:has-text('Modul')");
+await page.click(".show-tabs button:has-text('Modul') >> visible=true");
 await waitFor("Ein Modul");
-await page.focus(".carousel");
+await page.focus(".carousel >> visible=true");
 await page.keyboard.press("ArrowRight");
 await waitFor("Die Karte");
 await page.keyboard.press("ArrowLeft");
 await waitFor("Ein Modul");
-check(await page.evaluate(() => document.querySelector(".show-tabs button[aria-checked='true']")?.textContent.startsWith("Modul")), "the tab does not follow");
+check(await page.evaluate(() => onPage(".show-tabs button[aria-checked='true']")?.textContent.startsWith("Modul")), "the tab does not follow");
 check(await page.evaluate(() => location.pathname === "/" && location.hash === ""), "turning the pictures changed the address");
 
-check(await page.evaluate(() => document.querySelector(".show-tabs").style.getPropertyValue("--i") === "3"), "the mark of the tabs does not stand at the current one");
+check(await page.evaluate(() => onPage(".show-tabs").style.getPropertyValue("--i") === "3"), "the mark of the tabs does not stand at the current one");
 
 // It turns on by itself, the pointer on it or not; the pause button stops it and starts it again.
-await page.hover(".cslide.is-current");
-await page.waitForFunction(() => document.querySelector(".cslide.is-current .cap-text b")?.textContent === "Die Karte", null, { timeout: 12000 }).catch(() => failures.push("the carousel does not turn by itself"));
-check((await page.getAttribute(".show-play", "aria-label")) === "Bilder anhalten", "the pictures do not play from the start");
-await page.click(".show-play");
-check((await page.getAttribute(".show-play", "aria-label")) === "Bilder abspielen", "the pause button does not offer to play again");
+await page.hover(".cslide.is-current >> visible=true");
+await page.waitForFunction(() => onPage(".cslide.is-current .cap-text b")?.textContent === "Die Karte", null, { timeout: 12000 }).catch(() => failures.push("the carousel does not turn by itself"));
+check((await page.getAttribute(".show-play >> visible=true", "aria-label")) === "Bilder anhalten", "the pictures do not play from the start");
+await page.click(".show-play >> visible=true");
+check((await page.getAttribute(".show-play >> visible=true", "aria-label")) === "Bilder abspielen", "the pause button does not offer to play again");
 check(await page.evaluate(() => localStorage.getItem("betula.showcase") === "paused"), "the browser does not remember the stop");
 const held = await current();
 await page.waitForTimeout(8000);
 check((await current()) === held, "the carousel turns while paused");
-await page.click(".show-play");
-await page.waitForFunction((t) => document.querySelector(".cslide.is-current .cap-text b")?.textContent !== t, held, { timeout: 12000 }).catch(() => failures.push("the play button does not start it again"));
+await page.click(".show-play >> visible=true");
+await page.waitForFunction((t) => onPage(".cslide.is-current .cap-text b")?.textContent !== t, held, { timeout: 12000 }).catch(() => failures.push("the play button does not start it again"));
 check(await page.evaluate(() => localStorage.getItem("betula.showcase") === null), "playing again leaves something in the browser");
 
 // A click on the map opens it large; there a pointer shows a program, a click picks it.
-if ((await current()) !== "Die Karte") { await page.click(".show-tabs button:has-text('Karte')"); await waitFor("Die Karte"); }
+if ((await current()) !== "Die Karte") { await page.click(".show-tabs button:has-text('Karte') >> visible=true"); await waitFor("Die Karte"); }
 // Where the page stands when the click reaches it: Playwright now and then scrolls the page before
 // it clicks (313 px, even with the map in full view), which is no doing of the page; measured
 // before the click, that used to fail the check of the wheel below.
-await page.evaluate(() => addEventListener("pointerdown", () => { window.__atClick = document.getElementById("page-scroll").scrollTop; }, { capture: true, once: true }));
-await page.click(".cslide.is-current");
-await page.waitForSelector(".map-dialog[open]");
-const scrolled = await page.evaluate(() => document.getElementById("page-scroll").scrollTop);
+await page.evaluate(() => addEventListener("pointerdown", () => { window.__atClick = onPage("#page-scroll").scrollTop; }, { capture: true, once: true }));
+await page.click(".cslide.is-current >> visible=true");
+await page.waitForSelector(".map-dialog[open] >> visible=true");
+const scrolled = await page.evaluate(() => onPage("#page-scroll").scrollTop);
 check(await page.evaluate((top) => window.__atClick === top, scrolled), "opening the map moves the page behind it");
 check(await page.evaluate(() => location.pathname === "/"), "a click on the map navigated");
-check(await page.evaluate(() => document.querySelector(".showcase").classList.contains("paused")), "the carousel does not stand still while the map is open");
+check(await page.evaluate(() => onPage(".showcase").classList.contains("paused")), "the carousel does not stand still while the map is open");
 // A wide screen: the legend and the caption beside the map, the map 4:3 as high as it can be.
 const layout = await page.evaluate(() => {
-  const box = (s) => document.querySelector(s).getBoundingClientRect();
+  const box = (s) => onPage(s).getBoundingClientRect();
   const key = box(".map-dialog .live-key"), cap = box(".map-dialog .map-cap"), map = box(".map-dialog .map-live");
   return { beside: key.right <= map.left && cap.right <= map.left, ratio: map.width / map.height };
 });
@@ -215,86 +221,86 @@ check(layout.beside && Math.abs(layout.ratio - 4 / 3) < 0.02, `the legend is not
 await page.mouse.move(8, 500);
 await page.mouse.wheel(0, 800);
 await page.waitForTimeout(300);
-check(await page.evaluate((top) => document.getElementById("page-scroll").scrollTop === top, scrolled), "the page scrolls behind the open map");
-const dot = page.locator(".map-dialog .map-wide .map-dot.bachelor").first();
+check(await page.evaluate((top) => onPage("#page-scroll").scrollTop === top, scrolled), "the page scrolls behind the open map");
+const dot = page.locator(".map-dialog .map-wide .map-dot.bachelor >> visible=true").first();
 const name = (await dot.getAttribute("aria-label")).split(" · ")[0];
 await dot.hover();
-await page.waitForSelector(".map-dialog .map-wide.has-hot .map-hot path");
-check((await page.textContent(".map-dialog .map-cap")).includes(name), "the caption does not name the program under the pointer");
+await page.waitForSelector(".map-dialog .map-wide.has-hot .map-hot path >> visible=true");
+check((await page.textContent(".map-dialog .map-cap >> visible=true")).includes(name), "the caption does not name the program under the pointer");
 const href = await dot.getAttribute("href");
 await dot.click();
-await page.waitForSelector(".map-dialog .cap-link.picked");
-check(await page.evaluate(() => document.querySelectorAll(".map-dialog .map-wide .map-region.shown").length) === 1, "not exactly one faculty outline is shown");
-check(await page.evaluate(() => document.querySelectorAll(".map-dialog .map-wide .map-dot.outside").length) > 20, "the programs of the other faculties do not step back");
+await page.waitForSelector(".map-dialog .cap-link.picked >> visible=true");
+check(await page.evaluate(() => allOnPage(".map-dialog .map-wide .map-region.shown").length) === 1, "not exactly one faculty outline is shown");
+check(await page.evaluate(() => allOnPage(".map-dialog .map-wide .map-dot.outside").length) > 20, "the programs of the other faculties do not step back");
 // The first Escape puts the pick away, the next one closes the dialog.
 await page.keyboard.press("Escape");
-await page.waitForFunction(() => !document.querySelector(".map-dialog .cap-link.picked"));
-check(await page.evaluate(() => document.querySelector(".map-dialog").open), "the first Escape closed the dialog");
+await page.waitForFunction(() => !onPage(".map-dialog .cap-link.picked"));
+check(await page.evaluate(() => onPage(".map-dialog").open), "the first Escape closed the dialog");
 await page.keyboard.press("Escape");
-await page.waitForFunction(() => !document.querySelector(".map-dialog").open);
+await page.waitForFunction(() => !onPage(".map-dialog").open);
 // „Schließen" closes it too; the caption's link opens the program in the app.
-await page.click(".cslide.is-current");
-await page.waitForSelector(".map-dialog[open]");
-await page.click(".map-dialog .dlg-close");
-await page.waitForFunction(() => !document.querySelector(".map-dialog").open);
-await page.click(".cslide.is-current");
-await page.waitForSelector(".map-dialog[open]");
+await page.click(".cslide.is-current >> visible=true");
+await page.waitForSelector(".map-dialog[open] >> visible=true");
+await page.click(".map-dialog .dlg-close >> visible=true");
+await page.waitForFunction(() => !onPage(".map-dialog").open);
+await page.click(".cslide.is-current >> visible=true");
+await page.waitForSelector(".map-dialog[open] >> visible=true");
 await dot.click();
-await page.click(".map-dialog .cap-link.picked");
+await page.click(".map-dialog .cap-link.picked >> visible=true");
 await page.waitForFunction((path) => location.pathname === path, href);
-await page.waitForSelector("[data-walk='program-page']");
+await page.waitForSelector("[data-walk='program-page'] >> visible=true");
 check(await page.evaluate(() => window.__marker === 1), "the program was opened by a page load");
-check(await page.evaluate((path) => document.querySelector("head link[rel=canonical]")?.href.endsWith(path), href), "the canonical address did not follow to the program");
-check(await page.evaluate(() => document.querySelectorAll("head meta[name=description]").length) === 1, "two descriptions after a navigation");
+check(await page.evaluate((path) => onPage("head link[rel=canonical]")?.href.endsWith(path), href), "the canonical address did not follow to the program");
+check(await page.evaluate(() => allOnPage("head meta[name=description]").length) === 1, "two descriptions after a navigation");
 
 // A click on the current screenshot opens its page in the app.
 await page.goBack();
-await page.waitForSelector(".home .map-preview");
-await page.click(".show-arrow.next");
+await page.waitForSelector(".home .map-preview >> visible=true");
+await page.click(".show-arrow.next >> visible=true");
 await waitFor("Der Katalog");
-await page.click(".cslide.is-current");
+await page.click(".cslide.is-current >> visible=true");
 await page.waitForFunction(() => location.pathname === "/catalog");
 check(await page.evaluate(() => window.__marker === 1), "the catalog was opened by a page load");
 await page.goBack();
-await page.waitForSelector(".home .map-preview");
+await page.waitForSelector(".home .map-preview >> visible=true");
 
 // The foot of the way in jumps to the questions, without a history entry; a question opens in place.
-await page.click(".start-foot a[href='#fragen']");
-await page.waitForFunction(() => { const top = document.getElementById("fragen").getBoundingClientRect().top; return top >= 0 && top < 160; });
+await page.click(".start-foot a[href='#fragen'] >> visible=true");
+await page.waitForFunction(() => { const top = onPage("#fragen").getBoundingClientRect().top; return top >= 0 && top < 160; });
 check(await page.evaluate(() => location.pathname === "/" && location.hash === ""), "a jump of the way in changed the address");
-await page.click(".faq summary >> nth=1");
-check(await page.evaluate(() => document.querySelectorAll(".faq details[open]").length === 1), "a question does not open");
-check(await page.evaluate(() => document.querySelectorAll(".faq-group").length === 3), "the questions are not in three groups");
+await page.click(".faq summary >> visible=true >> nth=1");
+check(await page.evaluate(() => allOnPage(".faq details[open]").length === 1), "a question does not open");
+check(await page.evaluate(() => allOnPage(".faq-group").length === 3), "the questions are not in three groups");
 // After the questions „Betula im Detail": its row of chapters, the chapters, and every group of
 // the filter panel, each chip that filters by itself a switch and none a link.
 const detail = await page.evaluate(() => ({
-  nav: [...document.querySelectorAll("#im-detail .detail-nav a")].map((a) => a.getAttribute("href")).join(),
-  chapters: [...document.querySelectorAll(".home .feature")].map((section) => "#" + section.id).join(),
-  groups: document.querySelectorAll(".board .bgroup").length,
-  switches: document.querySelectorAll(".board button.chip[role=checkbox]").length,
-  chipLinks: document.querySelectorAll("#filter a.chip").length,
-  example: document.querySelector(".board-foot a")?.getAttribute("href"),
-  links: [...document.querySelectorAll(".feature-link")].map((a) => a.getAttribute("href")).join(),
+  nav: [...allOnPage("#im-detail .detail-nav a")].map((a) => a.getAttribute("href")).join(),
+  chapters: [...allOnPage(".home .feature")].map((section) => "#" + section.id).join(),
+  groups: allOnPage(".board .bgroup").length,
+  switches: allOnPage(".board button.chip[role=checkbox]").length,
+  chipLinks: allOnPage("#filter a.chip").length,
+  example: onPage(".board-foot a")?.getAttribute("href"),
+  links: [...allOnPage(".feature-link")].map((a) => a.getAttribute("href")).join(),
 }));
 check(detail.nav === detail.chapters && detail.chapters.split(",").length === 8 && detail.groups === 12 && detail.switches === 25 && detail.chipLinks === 0, `„Betula im Detail" is not what it was: ${JSON.stringify(detail)}`);
 check(/^\/catalog\?/.test(detail.example || "") && detail.links === "/catalog,/programs,/studyplan,/datenschutz", `„Betula im Detail" leads nowhere: ${JSON.stringify(detail)}`);
 // Its last chapter shows the catalog and a module on a phone: in the theme shown only.
-await page.evaluate(() => document.getElementById("geraete").scrollIntoView({ block: "center" }));
-await page.waitForFunction(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
+await page.evaluate(() => onPage("#geraete").scrollIntoView({ block: "center" }));
+await page.waitForFunction(() => [...allOnPage(".devices img")].filter((img) => img.checkVisibility()).every((img) => img.complete && img.naturalWidth > 0));
 check(images.every((path) => !path.includes("-dark") && (!path.includes("-phone") || path.endsWith("/module-phone.webp"))), `wrong pictures fetched: ${images}`);
-check(await page.evaluate(() => [...document.querySelectorAll(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
+check(await page.evaluate(() => [...allOnPage(".devices img")].filter((img) => img.checkVisibility()).length) === 2, "„Geräte und Sprachen\" does not show one theme's pictures");
 
 // A chip of the board switches in place (owner, 2026-09-29: it led straight into the catalog):
 // off, with, without, as in the catalog's panel; the number under the board follows, and its
 // button opens the catalog with that selection, which counts the same.
-const foot = () => page.evaluate(() => ({ text: document.querySelector(".board-foot a")?.textContent, href: document.querySelector(".board-foot a")?.getAttribute("href") }));
+const foot = () => page.evaluate(() => ({ text: onPage(".board-foot a")?.textContent, href: onPage(".board-foot a")?.getAttribute("href") }));
 // What the foot says once its count of a new selection has come (the data worker answers a moment
 // after the click; until then the count of the selection before stays).
 const footAfter = async (before) => {
-  await page.waitForFunction((text) => document.querySelector(".board-foot a")?.textContent !== text, before.text, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction((text) => onPage(".board-foot a")?.textContent !== text, before.text, { timeout: 5000 }).catch(() => {});
   return foot();
 };
-const summer = page.locator(".board button.chip", { hasText: "Sommer" });
+const summer = page.locator(".board button.chip >> visible=true", { hasText: "Sommer" });
 const example = await foot();
 await summer.click();
 const withSummer = await footAfter(example);
@@ -302,12 +308,12 @@ await summer.click();
 const withoutSummer = { ...(await footAfter(withSummer)), state: await summer.getAttribute("data-state") };
 check(withSummer.text !== example.text && withSummer.href.includes("summer") && withoutSummer.state === "without" && withoutSummer.href.includes("not-turnus=summer"), `a chip of the board does not switch the count: ${JSON.stringify([example, withSummer, withoutSummer])}`);
 check(await page.evaluate(() => location.pathname === "/" && window.__marker === 1), "a chip of the board left the page");
-await page.locator(".board .seg button", { hasText: "1 Semester" }).click();
+await page.locator(".board .seg button >> visible=true", { hasText: "1 Semester" }).click();
 const chosen = await footAfter(withoutSummer);
 check(chosen.href.includes("duration=1") && chosen.text !== withoutSummer.text, `the duration of the board does not choose: ${JSON.stringify(chosen)}`);
-await page.click(".board-foot a");
+await page.click(".board-foot a >> visible=true");
 await page.waitForFunction((href) => location.pathname + location.search === href, chosen.href, { timeout: 5000 }).catch(() => failures.push("the board's button does not open its selection in the catalog"));
-await page.waitForFunction((text) => document.querySelector(".list .count") && text.includes(`: ${document.querySelector(".list .count").textContent} `), chosen.text, { timeout: 5000 }).catch(() => failures.push(`the catalog does not count what the board counted (${chosen.text})`));
+await page.waitForFunction((text) => onPage(".list .count") && text.includes(`: ${onPage(".list .count").textContent} `), chosen.text, { timeout: 5000 }).catch(() => failures.push(`the catalog does not count what the board counted (${chosen.text})`));
 check(await page.evaluate(() => window.__marker === 1), "the board's button loaded a page");
 
 // What this browser has done shows on the way in: with a program set as „Mein Studiengang" (the
@@ -316,12 +322,12 @@ check(await page.evaluate(() => window.__marker === 1), "the board's button load
 await page.evaluate(() => localStorage.setItem("betula.bookmarks.v1", "12330\t1\n"));
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
-await page.waitForFunction(() => document.querySelectorAll(".start-step.is-done").length === 2, null, { timeout: 5000 }).catch(() => failures.push("the way in does not follow what this browser has done"));
+await page.waitForFunction(() => allOnPage(".start-step.is-done").length === 2, null, { timeout: 5000 }).catch(() => failures.push("the way in does not follow what this browser has done"));
 const kept = await page.evaluate(() => ({
-  program: document.querySelector(".start-step:nth-child(1) .start-state")?.textContent,
-  href: document.querySelector(".start-step:nth-child(1) .start-state a")?.getAttribute("href"),
-  marked: document.querySelector(".start-step:nth-child(2) .start-state")?.textContent,
-  next: document.querySelector(".start-step.is-next .start-btn")?.getAttribute("href"),
+  program: onPage(".start-step:nth-child(1) .start-state")?.textContent,
+  href: onPage(".start-step:nth-child(1) .start-state a")?.getAttribute("href"),
+  marked: onPage(".start-step:nth-child(2) .start-state")?.textContent,
+  next: onPage(".start-step.is-next .start-btn")?.getAttribute("href"),
 }));
 // The program leads to „Mein Studium", where its study is planned (owner, 2026-10-04).
 check(kept.program?.startsWith("Informatik B.Sc.") && kept.href === "/study" && kept.marked === "1 Modul gemerkt" && kept.next === "/studyplan?import=mine", `the way in does not show what was done: ${JSON.stringify(kept)}`);
@@ -333,15 +339,15 @@ await page.evaluate(() => localStorage.setItem("betula.showcase", "paused"));
 await page.setViewportSize({ width: 390, height: 844 });
 await page.goto(base + "/", { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 60000 });
-await page.waitForSelector(".home .map-preview.map-tall");
-check(await page.evaluate(() => document.querySelector(".showcase").classList.contains("paused")), "a remembered stop is forgotten over a page load");
+await page.waitForSelector(".home .map-preview.map-tall >> visible=true");
+check(await page.evaluate(() => onPage(".showcase").classList.contains("paused")), "a remembered stop is forgotten over a page load");
 await page.evaluate(() => localStorage.removeItem("betula.showcase"));
-const shown = await page.evaluate(() => [".map-preview.map-wide", ".map-preview.map-tall"].map((s) => getComputedStyle(document.querySelector(s)).display));
+const shown = await page.evaluate(() => [".map-preview.map-wide", ".map-preview.map-tall"].map((s) => getComputedStyle(onPage(s)).display));
 check(shown[0] === "none" && shown[1] !== "none", `phone: the wrong sheet is shown (${shown})`);
-const stage = await page.evaluate(() => { const r = document.querySelector(".cslide.is-current .stage").getBoundingClientRect(); return r.height / r.width; });
+const stage = await page.evaluate(() => { const r = onPage(".cslide.is-current .stage").getBoundingClientRect(); return r.height / r.width; });
 check(stage > 1.2, `phone: the pictures do not stand upright (${stage})`);
-await page.locator(".carousel").scrollIntoViewIfNeeded();
-const box = await page.locator(".carousel").boundingBox();
+await page.locator(".carousel >> visible=true").scrollIntoViewIfNeeded();
+const box = await page.locator(".carousel >> visible=true").boundingBox();
 await page.mouse.move(box.x + box.width * 0.8, box.y + 150);
 await page.mouse.down();
 await page.mouse.move(box.x + box.width * 0.2, box.y + 160, { steps: 6 });
@@ -350,7 +356,7 @@ await waitFor("Der Katalog").catch(() => failures.push("phone: a swipe does not 
 check(await page.evaluate(() => location.pathname === "/"), "phone: a swipe opened a page");
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: the page scrolls sideways");
 // A phone: the first panel is its text alone, without the birch and its figures.
-check(await page.evaluate(() => !document.querySelector(".hero-trunk").checkVisibility() && !document.querySelector(".tree-figures").checkVisibility()), "phone: the first panel shows the birch or its figures");
+check(await page.evaluate(() => !onPage(".hero-trunk").checkVisibility() && !onPage(".tree-figures").checkVisibility()), "phone: the first panel shows the birch or its figures");
 // A phone: „Studiengang wählen" opens in place and across its panel, 8 px in from its edges,
 // however far in its button stands (the way in: beside the marks, over the line through them) and
 // however long the names it lists (owner, 2026-09-29: „von ganz links bis nach ganz rechts. Kein
@@ -360,7 +366,7 @@ check(await page.evaluate(() => !document.querySelector(".hero-trunk").checkVisi
 for (const [id, wide] of [["home-program", true], ["start-program", false]]) {
   await page.evaluate((id) => document.getElementById(id).scrollIntoView({ block: "center" }), id);
   const button = () => page.evaluate((id) => { const r = document.getElementById(id).getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.width)}`; }, id);
-  const words = () => page.evaluate((id) => { const r = document.querySelector(`#${id} .combo-value`).getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }, id);
+  const words = () => page.evaluate((id) => { const r = onPage(`#${id} .combo-value`).getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)}`; }, id);
   const [before, said] = [await button(), await words()];
   await page.click(`#${id}`);
   await page.waitForSelector(`#${id}-search`);
@@ -377,18 +383,18 @@ for (const [id, wide] of [["home-program", true], ["start-program", false]]) {
   await page.keyboard.press("Escape");
 }
 // The name, not the button (its hit area reaches past it).
-check(await page.evaluate(() => [...document.querySelectorAll(".show-tabs button")].every((b) => {
+check(await page.evaluate(() => [...allOnPage(".show-tabs button")].every((b) => {
   const range = document.createRange();
   range.selectNodeContents(b);
   return range.getBoundingClientRect().width <= b.clientWidth;
 })), "phone: a tab is cut off");
-check(await page.isVisible(".show-play"), "phone: no pause button");
+check(await page.isVisible(".show-play >> visible=true"), "phone: no pause button");
 // The board of the filters: the groups of a first look, the others after „Alle Filter zeigen".
-const groups = () => page.evaluate(() => [...document.querySelectorAll(".board .bgroup")].filter((group) => group.checkVisibility()).length);
+const groups = () => page.evaluate(() => [...allOnPage(".board .bgroup")].filter((group) => group.checkVisibility()).length);
 check((await groups()) === 5, `phone: the board does not start with its first groups (${await groups()})`);
-await page.locator(".board-more").scrollIntoViewIfNeeded();
-await page.click(".board-more");
-check((await groups()) === 12 && !(await page.isVisible(".board-more")), `phone: „Alle Filter zeigen" does not show all filters (${await groups()})`);
+await page.locator(".board-more >> visible=true").scrollIntoViewIfNeeded();
+await page.click(".board-more >> visible=true");
+check((await groups()) === 12 && !(await page.isVisible(".board-more >> visible=true")), `phone: „Alle Filter zeigen" does not show all filters (${await groups()})`);
 check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "phone: „Betula im Detail\" scrolls sideways");
 // The narrowest phone, in the longer words of English: the pickers' buttons take a second line
 // rather than standing out of their panel's padding.

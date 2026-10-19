@@ -136,6 +136,10 @@ const open = async (options, path, { requests } = {}) => {
 };
 const stored = (page, key) => page.evaluate((key) => localStorage.getItem(key), key);
 const lines = async (page, prefix) => ((await stored(page, PLAN)) || "").split("\n").filter((line) => line.startsWith(prefix));
+// The note's „Rückgängig": the click takes the note away with it, which Playwright, still at the
+// button after the click, can take for a button gone before it; its retries then wait for a button
+// that is no more. The step's `until` says whether the change was taken back.
+const undo = (page, selector = ".st-undo .mini") => page.click(selector, { timeout: 5000 }).catch(() => {});
 // The rows of the semester in focus: their names, whether passed, whether selected, their marks.
 const rows = (page) => page.evaluate(() => [...document.querySelectorAll(".st-card-sem .st-row")].map((row) => ({
   name: row.querySelector(".st-name")?.textContent,
@@ -270,7 +274,7 @@ if (current !== "2026W") {
   check((await rows(page)).map((row) => row.on).join() === "false,true,true,true,false", `the drawn selection: ${JSON.stringify((await rows(page)).map((row) => row.on))}`);
   await step("the bar marks them", () => page.click("#st-sel-passed"), () => !document.querySelector(".st-selbar") && document.querySelector(".st-undo")?.textContent.includes("3 Einträge als bestanden markiert") && document.querySelector(".st-headline")?.textContent !== "8 von 180 LP bestanden");
   check((await lines(page, "d\t")).length === 4, `the bar's mark: ${JSON.stringify(await lines(page, "d\t"))}`);
-  await step("Rückgängig the mark", () => page.click(".st-undo .mini"), () => document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
+  await step("Rückgängig the mark", () => undo(page), () => document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
 
   // The current semester: „Module hinzufügen" offers the plan's third semester, its modules ticked.
   await step("to now", () => page.click(".st-strip .st-tab.is-now"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
@@ -309,7 +313,7 @@ if (current !== "2026W") {
   await step("verschieben", () => page.click('.st-pop.sub [role=menuitem]:has-text("WiSe 27/28")'), () => document.querySelector(".st-undo")?.textContent.includes("ins WiSe 2027/28 verschoben") && !document.querySelector(".st-pop"));
   check((await focused(page)) === "WiSe 2026/27", "moving took the focus to the other semester");
   check((await lines(page, "m\t2027W\t11787\t")).length === 1 && (await lines(page, "m\t2026W\t11787\t")).length === 0, "the module did not move");
-  await step("Rückgängig", () => page.click(".st-undo .mini"), () => !document.querySelector(".st-undo"));
+  await step("Rückgängig", () => undo(page), () => !document.querySelector(".st-undo"));
   await page.waitForTimeout(300);
   check((await lines(page, "m\t2026W\t11787\t")).length === 1, "„Rückgängig“ did not bring the module back");
   // The keys: Enter opens the menu, the arrows go through it and into its submenu and back,
@@ -326,7 +330,7 @@ if (current !== "2026W") {
   await step("the menu again", () => page.click(menu), () => document.querySelector("#st-menu-remove"));
   await step("Entfernen", () => page.click("#st-menu-remove"), () => document.querySelector(".st-undo")?.textContent.includes("„Theoretische Informatik“ entfernt"));
   check((await lines(page, "m\t2026W\t11787\t")).length === 0, "„Entfernen“ left the module");
-  await step("Rückgängig again", () => page.click(".st-undo .mini"), () => [...document.querySelectorAll(".st-card-sem .st-name")].some((name) => name.textContent === "Theoretische Informatik"));
+  await step("Rückgängig again", () => undo(page), () => [...document.querySelectorAll(".st-card-sem .st-name")].some((name) => name.textContent === "Theoretische Informatik"));
 
   // Two rows selected by their boxes, dragged onto a semester of the strip: both move, and back.
   await step("select two", async () => {
@@ -337,7 +341,7 @@ if (current !== "2026W") {
   await step("drag them onto SoSe 27", () => page.dragAndDrop(".st-card-sem .st-row >> nth=0 >> .st-area.st-pc", '.st-strip .st-tab:has-text("SoSe 27")'), () => document.querySelector(".st-undo")?.textContent.includes("2 Einträge ins SoSe 2027 verschoben"));
   const left = (await rows(page)).map((row) => row.name);
   check(two.length === 2 && two.every((name) => !left.includes(name)) && (await lines(page, "m\t2027S\t")).length === 2, `the two dragged: ${JSON.stringify({ two, left })}`);
-  await step("Rückgängig the drag", () => page.click(".st-undo .mini"), (n) => document.querySelectorAll(".st-card-sem .st-row").length === n, left.length + 2);
+  await step("Rückgängig the drag", () => undo(page), (n) => document.querySelectorAll(".st-card-sem .st-row").length === n, left.length + 2);
 
   // A right click opens a row's menu where the pointer is; the semester's ⋯ selects all of it;
   // Escape lets go.
@@ -411,8 +415,10 @@ if (current !== "2026W") {
   await step("a row planned from the plan", () => page.click('.st-mx tr.st-rsp-row:has(.st-rsp-name:text-is("Digitaltechnik-Praktikum")) button.st-addb'), () => document.querySelector(".st-undo")?.textContent.includes("„Digitaltechnik-Praktikum“ ins SoSe 2027 eingeplant"));
   await page.waitForFunction(() => [...document.querySelectorAll(".st-mx tbody tr.st-rsp-row")].find((tr) => tr.querySelector(".st-rsp-name")?.textContent === "Digitaltechnik-Praktikum")?.querySelector(".st-minec")?.textContent.trim() === "SoSe 27", null, { timeout: 4000 }).catch(() => problems.push("the row planned from the plan does not say where it is planned"));
   check((await lines(page, "m\t2027S\t12214")).length === 1, "„Einplanen\" of the plan did not plan the module");
-  await step("Rückgängig", () => page.click(".st-undo button.mini"), () => !document.querySelector(".st-undo"));
+  await step("Rückgängig", () => undo(page, ".st-undo button.mini"), () => !document.querySelector(".st-undo"));
   await page.waitForFunction(() => document.querySelector(".st-mx") !== null, null, { timeout: 4000 });
+  // The store follows the click after its frame (R21).
+  await page.waitForFunction(([key, prefix]) => !(localStorage.getItem(key) || "").split("\n").some((line) => line.startsWith(prefix)), [PLAN, "m\t2027S\t12214"], { timeout: 4000 }).catch(() => {});
   check((await lines(page, "m\t2027S\t12214")).length === 0, "„Rückgängig\" did not take the module out again");
   await step("Wählen: the Wahlpflicht", () => page.click('.st-mx tr.st-rsp-row:has-text("Anwendungsfach") a.st-addb'), () => location.search === "?view=areas" && document.querySelector('.st-sl[aria-current="true"]')?.textContent.includes("Anwendungsfach"));
   const choice = await page.evaluate(() => ({

@@ -374,8 +374,10 @@ const LINE = ".fx-desk a.prog-line";
 // taller than its name (up to 1200 px „Bereich" has given way, at 1000 px „Art" of the eight semesters).
 {
   const fits = (page, chosen, semesters) => page.evaluate(([chosen, semesters]) => {
-    const table = document.querySelector("table.matrix, table.planlist");
-    const panel = document.querySelector(".plan-block");
+    // On the page in front: the other tabs' pages stay built behind it (stage.rs).
+    const front = document.querySelector("#content > .page-stage.front");
+    const table = front.querySelector("table.matrix, table.planlist");
+    const panel = front.querySelector(".plan-block");
     const scroll = panel.querySelector(".table-scroll");
     // The names at their minimum and every semester (app.css, `matrix_min_width` in program.rs).
     const room = panel.getBoundingClientRect().width + 1 >= 200 + semesters * Math.max(48, 144 / semesters);
@@ -383,10 +385,10 @@ const LINE = ".fx-desk a.prog-line";
     const found = [];
     if (matrix && scroll.scrollWidth > scroll.clientWidth + 1) found.push("the matrix scrolls sideways");
     if (chosen === "matrix" && matrix !== room) found.push(room ? "the list is drawn although the matrix fits" : "the matrix is drawn without room for it");
-    const checked = document.querySelector('#sidebar .seg [aria-checked="true"]')?.textContent;
+    const checked = front.querySelector('#sidebar .seg [aria-checked="true"]')?.textContent;
     if (checked !== (matrix ? "Matrix" : "Liste")) found.push(`the switch says „${checked}"`);
-    const blocked = document.querySelector('#sidebar .seg button[aria-disabled="true"]')?.textContent;
-    if ((blocked === "Matrix") === room || Boolean(document.querySelector("#sidebar .seg + .hint")) === room) found.push(`the switch blocks „${blocked ?? "nothing"}" and ${room ? "says" : "does not say"} why`);
+    const blocked = front.querySelector('#sidebar .seg button[aria-disabled="true"]')?.textContent;
+    if ((blocked === "Matrix") === room || Boolean(front.querySelector("#sidebar .seg + .hint")) === room) found.push(`the switch blocks „${blocked ?? "nothing"}" and ${room ? "says" : "does not say"} why`);
     const pad = (cell, side) => parseFloat(getComputedStyle(cell)[side]) || 0;
     for (const cell of table.querySelectorAll("th, td")) {
       const box = cell.getBoundingClientRect();

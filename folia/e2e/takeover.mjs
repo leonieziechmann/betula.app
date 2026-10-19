@@ -44,7 +44,8 @@ const measure = ([scope, selectors, rows]) => {
   if (!root) return null;
   const boxes = {};
   for (const selector of selectors) {
-    [...root.querySelectorAll(selector)].slice(0, selector === ".row" ? rows : 1).forEach((el, i) => {
+    // Not of a page kept behind (folia/crates/shell/src/stage.rs): every tab's is built at the start.
+    [...root.querySelectorAll(selector)].filter((el) => !el.closest("#content > .page-stage:not(.front)")).slice(0, selector === ".row" ? rows : 1).forEach((el, i) => {
       const r = el.getBoundingClientRect();
       const top = Math.max(r.top, 0), bottom = Math.min(r.bottom, innerHeight);
       if ((r.width || r.height) && bottom > top) boxes[`${selector} ${i}`] = [r.x, top, r.width, bottom - top].map((v) => Math.round(v * 100) / 100);

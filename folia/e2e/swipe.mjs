@@ -59,7 +59,7 @@ async function open(context, path) {
 // stands: the swipe's state, where the card is against its place, what the ground says and in which
 // colour, the module's bookmark, the card dimmed (a mark taken away on the Merkliste) and how much;
 // and the page around it.
-const rowState = ({ i, rows = ".vrow .row-wrap" }) => {
+const rowState = ({ i, rows = "#content > .page-stage.front .vrow .row-wrap" }) => {
   const wrap = document.querySelectorAll(rows)[i];
   const place = wrap.getBoundingClientRect(), card = wrap.querySelector(".row").getBoundingClientRect();
   const ground = wrap.querySelector(".swipe-ground"), toggle = wrap.querySelector(".mark-toggle");
@@ -107,12 +107,12 @@ const context = await browser.newContext(phone);
 // (plannote.mjs checks the question).
 await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
 const { page, swipe, lift } = await open(context, "/catalog");
-await page.waitForSelector(".vrow .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("the catalog's rows cannot be swiped"));
+await page.waitForSelector("#content > .page-stage.front .vrow .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("the catalog's rows cannot be swiped"));
 const state = (i = 1) => page.evaluate(rowState, { i });
 const colour = await page.evaluate(colours);
 // Once the card has glided back: the row at rest, nothing of the swipe left.
 const rested = async (what, i = 1) => {
-  await page.waitForFunction((i) => !document.querySelectorAll(".vrow .row-wrap")[i]?.dataset.swipe, i, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction((i) => !document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[i]?.dataset.swipe, i, { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(80);
   const now = await state(i);
   check(!now.swipe && !now.styled && now.said === null && now.dx === 0, `${what}: the row is not at rest (${now.swipe}, style ${now.styled}, ground ${now.said}, card ${now.dx} px)`);
@@ -121,7 +121,7 @@ const rested = async (what, i = 1) => {
 };
 // The key of a semester the ground names: „SoSe 2027" 2027S, „WiSe 2026/27" 2026W.
 const keyOf = (said) => { const m = /^(WiSe|SoSe) (\d{4})/.exec(said ?? ""); return m ? m[2] + (m[1] === "WiSe" ? "W" : "S") : null; };
-const box = await page.evaluate(() => { const r = document.querySelectorAll(".vrow .row-wrap")[1].getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), width: r.width }; });
+const box = await page.evaluate(() => { const r = document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[1].getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), width: r.width }; });
 let now = await state();
 const start = now;
 check(!now.marked && now.marks === "" && now.planned === "", `start: something is marked or planned already (${now.marked}, ${now.marks}, ${now.planned})`);
@@ -205,7 +205,7 @@ await swipe(box.x + 60, box.y, -80, 0, { steps: 3, ms: 8 });
 await page.waitForTimeout(60);
 now = await state();
 check(now.marked && now.done, `flick: the module was not marked (${now.marked}, ${now.done})`);
-const mark = await page.evaluate(() => { const r = document.querySelectorAll(".vrow .row-wrap")[1].querySelector(".mark-toggle").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+const mark = await page.evaluate(() => { const r = document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[1].querySelector(".mark-toggle").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
 await page.touchscreen.tap(mark.x, mark.y);
 now = await rested("a tap after a flick");
 check(!now.marked && now.marks === "", `a tap after a flick: the bookmark did not take the mark away (${now.marked}, ${now.marks})`);
@@ -240,7 +240,7 @@ check(!now.marked, "on its way back: the module was marked");
 const top = now.scrollY;
 await swipe(box.x, box.y + 20, 6, -300, { steps: 12 });
 await page.waitForTimeout(600);
-const scrolled = await page.evaluate(() => [...document.querySelectorAll(".vrow .row-wrap")].filter((wrap) => wrap.dataset.swipe).length);
+const scrolled = await page.evaluate(() => [...document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")].filter((wrap) => wrap.dataset.swipe).length);
 check((await page.evaluate(() => scrollY)) > top + 100, `scroll: a finger up a row did not scroll the page (${top} → ${await page.evaluate(() => scrollY)})`);
 check(scrolled === 0, `scroll: ${scrolled} row(s) took the finger`);
 await page.evaluate(() => window.scrollTo(0, 0));
@@ -249,7 +249,7 @@ await page.waitForTimeout(300);
 // ---- a tap on another row right after a swipe opens that module, as a tap does (R21, no page
 // load): its sheet over the list
 await swipe(box.x + 60, box.y, -160, 0, { steps: 4 });
-const other = await page.evaluate(() => { const row = document.querySelectorAll(".vrow .row-wrap")[3].querySelector(".row"); const r = row.getBoundingClientRect(); return { id: row.dataset.id, x: r.left + 60, y: r.top + r.height / 2 }; });
+const other = await page.evaluate(() => { const row = document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[3].querySelector(".row"); const r = row.getBoundingClientRect(); return { id: row.dataset.id, x: r.left + 60, y: r.top + r.height / 2 }; });
 await page.touchscreen.tap(other.x, other.y);
 await page.waitForFunction((id) => location.pathname === "/catalog" && location.search.includes(`open=${id}`) && document.querySelector(".detail.is-module h2"), other.id, { timeout: 8000 }).catch(() => problems.push(`tap after a swipe: the module ${other.id} did not open (${page.url()})`));
 check(await page.evaluate(() => window.__marker === 1), "tap after a swipe: the page was loaded again");
@@ -264,13 +264,13 @@ const saved = await browser.newContext(phone);
 await saved.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
 {
   const { page, swipe, lift } = await open(saved, "/catalog");
-  const ids = await page.evaluate(() => [...document.querySelectorAll(".vrow .row-wrap .row")].slice(0, 2).map((row) => row.dataset.id));
+  const ids = await page.evaluate(() => [...document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap .row")].slice(0, 2).map((row) => row.dataset.id));
   await page.evaluate((ids) => localStorage.setItem("betula.bookmarks.v1", ids.map((id, n) => `${id}\t${1790000000 - n}\n`).join("")), ids);
   await page.goto(base + "/bookmarks", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("Merkliste: the browser app never took over"));
   await page.evaluate(() => { window.__marker = 1; });
-  await page.waitForSelector(".rows .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("Merkliste: its rows cannot be swiped"));
-  const rows = ".rows .row-wrap";
+  await page.waitForSelector("#content > .page-stage.front .rows .row-wrap.swipes", { timeout: 20000 }).catch(() => problems.push("Merkliste: its rows cannot be swiped"));
+  const rows = "#content > .page-stage.front .rows .row-wrap";
   const listed = () => page.evaluate((rows) => [...document.querySelectorAll(rows)].map((wrap) => wrap.querySelector(".row").dataset.id), rows);
   const state = () => page.evaluate(rowState, { i: 0, rows });
   const rested = async (what) => {
@@ -322,7 +322,7 @@ await narrow.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"
   page.on("console", (m) => { if (m.type() === "error") problems.push("narrow console: " + m.text().slice(0, 600)); });
   await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("narrow: the browser app never took over"));
-  const r = await page.evaluate(() => { const r = document.querySelectorAll(".vrow .row-wrap")[1].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  const r = await page.evaluate(() => { const r = document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[1].getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
   await page.mouse.move(r.x, r.y);
   await page.mouse.down();
   for (let i = 1; i <= 10; i++) { await page.mouse.move(r.x - i * 20, r.y); await page.waitForTimeout(16); }
@@ -344,11 +344,11 @@ await wide.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"))
   const page = await wide.newPage();
   await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("wide: the browser app never took over"));
-  const r = await page.evaluate(() => { const r = document.querySelectorAll(".vrow .row-wrap")[1].getBoundingClientRect(); return { x: r.left + 200, y: r.top + r.height / 2 }; });
+  const r = await page.evaluate(() => { const r = document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[1].getBoundingClientRect(); return { x: r.left + 200, y: r.top + r.height / 2 }; });
   await page.mouse.move(r.x, r.y);
   await page.mouse.down();
   for (let i = 1; i <= 8; i++) { await page.mouse.move(r.x - i * 20, r.y); await page.waitForTimeout(16); }
-  const held = await page.evaluate(() => document.querySelectorAll(".vrow .row-wrap")[1].dataset.swipe ?? null);
+  const held = await page.evaluate(() => document.querySelectorAll("#content > .page-stage.front .vrow .row-wrap")[1].dataset.swipe ?? null);
   await page.mouse.up();
   check(held === null, `wide: the row took the mouse (${held})`);
 }
