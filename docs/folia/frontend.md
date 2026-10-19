@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -424,8 +424,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   erst wenn man los lässt geht das dann wieder zur original Location zurück"; of the prototype's
   ways „nur tabs + ein Element", `folia/design/tabbar/swipe.html`; `enhance.js`, app.css): to the left
   one tab to the right, to the right one to the left, from wherever on the bar the finger starts.
-  What moves is the bar's row of tabs, not the page (owner: „keine Seitenanimationen", but „eine
-  Animation der Selection um den Prozess vom Swipen visuell zu unterstützen"): a finger that moves
+  What moves is the bar's row of tabs (owner: „eine Animation der Selection um den Prozess vom
+  Swipen visuell zu unterstützen"; the page went along from Folia 1.28.0, „The pages on an axis"
+  below, before that „keine Seitenanimationen"): a finger that moves
   sideways rather than up or down takes the row with it inside the bar, which stays, clips the row
   and fades it out at its two ends, while the mark of the current tab stays where it is; so a
   finger to the left brings the tab on the right under the mark, with the finger as far as that
@@ -1993,8 +1994,12 @@ before, the tab's mark at once) is Folia 1.24.6, this is step 1 (Folia 1.26.0):
   held in front of it, the window is not taken to the top, and its time is no measure for a
   skeleton. A step anywhere else goes as before: a skeleton where such a step was slow, then the
   picture of the stage in front held over the new page until its answers are in.
-- **Behind** is built and not drawn: `content-visibility: hidden` and `inert` (app.css), no room on a
-  phone, under the one in front in the content area on a wide screen. The window's scroll on a phone
+- **Behind** is built and not drawn: `content-visibility: hidden` (app.css; focus, find in page and
+  the accessibility tree skip it) and cut to nothing (`clip-path`, so that its box, which covers the
+  content area on a wide screen, takes no click), no room on a phone, under the one in front in the
+  content area on a wide screen. Not `inert` (until Folia 1.28.0), nor `pointer-events` or
+  `visibility`: what a stage's elements inherit has the browser work out their style anew as it
+  comes or goes, hundreds of them, and a change of tab waited for it. The window's scroll on a phone
   is kept for each stage as it scrolls and given back as a stage comes to the front where it was
   left; one at a new place is where the router puts it, at the top if it never scrolled. On a wide
   screen each page scrolls in its own areas, which keep their place.
@@ -2054,7 +2059,53 @@ canary's build of 1.26.0 with the CPU four times slower a tab's first build is a
 0.19 s („Mein Studium" with a study; the concept measured 1.8 s on 1.22.0), so „Studium" is built as
 it is.
 
-`node folia/e2e/stages.mjs` checks it (§4).
+**The pages on an axis on a phone** (step 3, Folia 1.28.0, `enhance.js` „the Achse"; owner,
+2026-10-18, of the prototype's ways: „Ich muss sagen ich finde achse fühlt sich am besten an. Quasi
+so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert", „Swipen soll explizit
+nur über die navbar funktionieren", and of the page following the finger: „das verhalten im
+Prototypen passt für mich"): where a phone's view is shown, a change of tab between two pages that
+stand moves them as Material's shared axis does.
+
+- **A tap, Back, a link to another tab**: the page that goes slides 36 px away to the side of its
+  tab and fades out, quickly (a damped spring of 0.13 s, nothing past its place); the page that
+  comes slides in 36 px from the side of its tab and fades in, 90 ms later, on a spring of 0.3 s; at
+  rest after about half a second. A far jump is the same (Start to Stundenplan comes from the right
+  as Start to Module does), and Back from a tab's root to Start comes as a tap on „Start". Where a
+  page stands and how clear it is are springs worked out ahead, every 1/120 s, and played as Web
+  Animations, which the compositor runs while the app takes its step.
+- **On the way**: a tap takes the pages where they stand and as fast as they go, and goes on from
+  there, without a jump, however many taps come; the page it goes back to comes back from where it
+  is, a page overtaken while it came fades where it is rather than crossing the middle. A finger on
+  the page, a wheel or a key puts the pages at rest at once.
+- **A finger along the bar** takes the pages with it, as far as it takes the bar's row (`axisGrab`,
+  `axisDrag`, `axisRelease` in the swipe): up to four tenths of the way the page goes, from a little
+  after that the page of the tab beside comes; let go, they go on from there as fast as the finger
+  went, to the tab the bar goes to (a third of the way, or flicked), and its link is clicked behind
+  them. Only a page that stands comes along (`chrome.rs`, `window.__betulaStands(area)`); where no
+  tab lies that way the page gives a little, as the bar does.
+- **Layers**: the window scrolls one page only, so for as long as they move the pages are layers of
+  their own (`.page-stage.moving`, app.css): the stage fixed and as large as the screen, which is
+  what moves (so that what of a page stands fixed, the dots of „Mein Studium" or a sheet put away,
+  stands where it stood), its page scrolling inside it from under the bar at the top as far as it
+  was scrolled, its own ground at its end where the window's lies at rest. The window keeps room
+  for the farthest any page was scrolled, the page in front follows its scroll, and at rest that
+  page is in the window again in the same frame. The stages tell enhance.js before they swap
+  (`betula:stage-going`: the page that goes becomes a layer while it is still drawn) and after
+  (`betula:stage`, with `from`, `to` and `step`, whether both pages stand); a stage that goes
+  behind keeps how far it was scrolled and how high it was (`data-scroll`, `data-height`) for a
+  finger that brings it back.
+- **The cost**: what a layer sets is never inherited and never reaches into the page beyond the
+  parts it names (no `pointer-events`, no custom property on the stage, no rule for all of its
+  children): any of it had the browser work out the style of the stage's every element, about a
+  thousand. So a tap costs 5 to 10 ms more than without the motion (20 to 40 ms with the CPU four
+  times slower, the dev bundle in a phone's window); the page that goes starts moving in the first
+  frame.
+- **Not**: on a wide screen (the page is there in the next frame), where a sheet or a dialog lies
+  over one of the pages, after the browser animated a step already (Safari's swipe back from the
+  edge, `hasUAVisualTransition`), on a tab whose page does not stand yet (it comes as before); with
+  less motion a short fade, nothing slides.
+
+`node folia/e2e/stages.mjs` and `node folia/e2e/achse.mjs` check it (§4).
 
 ### The search of the catalog (`folia/crates/search/src/lib.rs`, 2026-09-30)
 
@@ -4102,8 +4153,8 @@ drives the tabs that stay built as § „Tabs that stay built" has them, on a ph
 taps) and on a wide screen (the rail, clicks): a tab seen before is in front in the first frame
 after the tap, without a skeleton and without a picture held in front of it, with the same page
 (the very elements), scrolled as far (the window on a phone, the list's area on a wide screen) and
-with the module beside the list still there; one stage in front, the others not drawn, inert and
-on a phone without room; the title, one canonical address and one description of the page in front;
+with the module beside the list still there; one stage in front once the pages have come to rest,
+the others not drawn, a link in them taking no focus, and on a phone without room; the title, one canonical address and one description of the page in front;
 a filter and a row of a page that came back; the filters' sheet left open going as its tab changes,
 nothing dimmed; Back on a phone up to Start, which comes as it was left. All of it once the start is
 over; the start itself: every tab built behind the first page (a study set up, so that „Studium" is
@@ -4111,6 +4162,21 @@ over; the start itself: every tab built behind the first page (a study set up, s
 top, the longest task meanwhile (with the CPU four times slower as well), the row of „Mein Studium"
 at its overview, and a tab tapped while the others are built coming as before, its page not built
 anew.
+
+```bash
+cd e2e && node achse.mjs
+```
+
+films the pages on an axis as § „The pages on an axis on a phone" has them, every frame, on a phone
+with a study set up and every tab built: a tap from Start scrolled down to Module, the page that goes
+leaving to the left and the one that comes from the right only once the first has faded, no frame
+jumping (12 px and a third of its clearness at most where it can be seen), at rest within 0.8 s with
+nothing of the layers left and the window where the page was left; Back from Module to Start coming
+from the left, scrolled as left; a tap back on the way; three taps in a row; a finger along the bar
+from the Merkliste to the Stundenplan (at a third of the way the Merkliste going, at the end the
+Stundenplan coming) and let go, and one let go short (nothing changes); in the first frame of a change
+the ground of a page scrolled to its end and the dots of „Mein Studium" where they stood; less motion
+a fade; a tab tapped before its page stands not moving; a wide screen not moving.
 
 ```bash
 cd e2e && node swipe.mjs
@@ -4331,7 +4397,9 @@ cd e2e && node snappy.mjs
 drives a click answering first („A click answers first"), frame by frame after each interaction:
 a toggle, a row, Esc, the rail into the program overview, a program, one of its views, Back, the
 start page and the catalog as it was left, two toggles before the first has reached the list;
-then on a phone the bottom bar and a module. The first frame after each has to come within 80 ms
+then on a phone, once the start is over and every tab built, the bottom bar and a module. It
+clicks what is seen (`>> visible=true`: the stages behind have parts of the same name), and an
+interaction nothing comes of ends after 15 s. The first frame after each has to come within 80 ms
 and show what was clicked in its new state (and a skeleton, where the page or the list is being
 built for the first time), a later one the result without a skeleton, and no skeleton stays.
 All of it once more with the CPU slowed down four times (200 ms for the first frame), where the

@@ -12,9 +12,13 @@
 //!   app is going (`Pending::to`): a tab whose stage stands there already comes in the frame of the
 //!   tap, and the router follows (`Pending` takes the step at once, `nav` after the history is
 //!   written). A stage that does not show it yet comes with the router, as a page did before.
-//! - **Behind** is built and not drawn: `content-visibility: hidden` and `inert` (app.css). Nothing
-//!   there takes a finger or a reader, and the browser keeps what it worked out. The document's
-//!   title and the tags for search engines are those of the page in front.
+//! - **Behind** is built and not drawn: `content-visibility: hidden`, and cut to nothing so that its
+//!   box takes no click (app.css). Nothing there takes a finger or a reader (focus, find in page and
+//!   the accessibility tree skip it), and the browser keeps what it worked out. Not `inert`: a
+//!   browser works out the style of every element under a stage anew as it changes (Chrome: hundreds
+//!   for a list), which a change of tab waited for, and on a phone the page that goes stays drawn
+//!   while it moves away (the Achse, enhance.js). The document's title and the tags for search
+//!   engines are those of the page in front.
 //! - **The window's scroll on a phone** is the stage's: kept as it goes behind, given back in the
 //!   frame it comes to the front. On a wide screen every page scrolls in its own areas, which keep
 //!   their place.
@@ -328,10 +332,16 @@ pub fn Stages(pages: Pages) -> impl IntoView {
         let now = front.get();
         let before = before.unwrap_or(first);
         let mut restore = None;
+        // How far the stage that goes behind was scrolled, and whether `now` comes back where it was
+        // left with its answers in, so that both pages stand (not a page the router has just built).
+        let mut down = None;
+        let mut step = false;
         if before != now {
+            down = scrolled.with_value(|scrolled| scrolled.get(before.index()).copied().flatten());
             // Where `now` stands: the router's place if the router shows it, else its own.
             let at = if now == shown.get_untracked() { Some(here.get_untracked()) } else { place(now).and_then(|slot| slot.get_untracked()) };
             let back = at.is_some() && left.with_value(|left| left.get(now.index()).is_some_and(|was| *was == at));
+            step = back && is_ready(now);
             scrolled.update_value(|scrolled| {
                 if let Some(down) = scrolled.get_mut(now.index()) {
                     if back {
@@ -349,9 +359,9 @@ pub fn Stages(pages: Pages) -> impl IntoView {
             });
         }
         #[cfg(feature = "csr")]
-        browser::swap(before, now, &nodes, restore);
+        browser::swap(before, now, &nodes, restore, down, step);
         #[cfg(not(feature = "csr"))]
-        let _ = restore;
+        let _ = (restore, down, step);
         now
     });
     let stages = Key::ALL
@@ -391,7 +401,7 @@ fn OneStage(key: Key, stage: Stage, which: Memo<Option<Page>>, pages: Pages, fro
     view! {
         <Provider value=stage>
             // Busy while a page built at the start waits for its answers (`prebuild`).
-            <div class=if front { "page-stage front" } else { "page-stage" } data-stage=key.name() inert=(!front).then_some("") aria-busy=move || (!answered.get()).then_some("true") node_ref=node>
+            <div class=if front { "page-stage front" } else { "page-stage" } data-stage=key.name() aria-busy=move || (!answered.get()).then_some("true") node_ref=node>
                 {move || which.get().map(|page| untrack(|| pages(page)))}
             </div>
         </Provider>
@@ -613,18 +623,25 @@ mod prebuild {
 #[cfg(feature = "csr")]
 mod browser {
     use leptos::prelude::*;
-    use leptos::wasm_bindgen::JsCast;
+    use leptos::wasm_bindgen::{JsCast, JsValue};
     use leptos::web_sys;
 
     use super::Key;
 
-    /// The stage `now` comes to the front, `before` goes behind: inert and not drawn, and on a phone
+    /// The stage `now` comes to the front, `before` goes behind and is not drawn, and on a phone
     /// the window scrolled to `restore` (where `now` was left, if it comes back there), in this
-    /// frame.
-    pub(super) fn swap(before: Key, now: Key, nodes: &[NodeRef<leptos::html::Div>; 6], restore: Option<f64>) {
+    /// frame. On a phone the stage that goes behind keeps how far its page was scrolled (`down`)
+    /// and how high it was (`data-scroll`, `data-height`): enhance.js draws it so while a finger on
+    /// the bar brings it back (the Achse). `step`: `now` comes back where it was left, its answers
+    /// in, so both pages stand. enhance.js hears of the change before it (`betula:stage-going`:
+    /// the page that goes becomes a layer of its own while it is still drawn; hidden and drawn
+    /// again in the same task, a stage's every element works out its style anew) and after it
+    /// (`betula:stage`).
+    pub(super) fn swap(before: Key, now: Key, nodes: &[NodeRef<leptos::html::Div>; 6], restore: Option<f64>, down: Option<f64>, step: bool) {
         let element = |key: Key| nodes.get(key.index()).and_then(|node| node.get_untracked()).map(|node| node.unchecked_into::<web_sys::Element>());
         let window = web_sys::window();
         if before != now {
+            announce(window.as_ref(), "betula:stage-going", before, now, step);
             let phone = folia_design::nav::is_phone();
             if let Some(stage) = element(before) {
                 // The page that goes behind is left, as a new address left it: a dialog open on it
@@ -634,11 +651,17 @@ mod browser {
                         dialog.close();
                     }
                 }
+                if phone {
+                    let down = down.or_else(|| window.as_ref().and_then(|window| window.scroll_y().ok())).unwrap_or(0.0);
+                    let _ = stage.set_attribute("data-scroll", &down.to_string());
+                    // A stage on its way (`moving`) is as high as the screen, not as its page.
+                    if !stage.class_list().contains("moving") {
+                        let _ = stage.set_attribute("data-height", &stage.get_bounding_client_rect().height().to_string());
+                    }
+                }
                 let _ = stage.class_list().remove_1("front");
-                let _ = stage.set_attribute("inert", "");
             }
             if let Some(stage) = element(now) {
-                let _ = stage.remove_attribute("inert");
                 let _ = stage.class_list().add_1("front");
             }
             if let (true, Some(window), Some(top)) = (phone, window.as_ref(), restore) {
@@ -649,11 +672,25 @@ mod browser {
             }
         }
         folia_design::stage::set_front(element(now));
-        // enhance.js follows the page in front: its scroll area, „Nach oben", a sheet left open.
+        // enhance.js follows the page in front (its scroll area, „Nach oben", a sheet left open),
+        // and on a phone moves the two pages where both stand.
         if before != now {
-            if let (Some(window), Ok(event)) = (window, web_sys::Event::new("betula:stage")) {
-                let _ = window.dispatch_event(&event);
-            }
+            announce(window.as_ref(), "betula:stage", before, now, step);
+        }
+    }
+
+    /// Tells enhance.js of a change of stage (`name`): from which stage to which (`from`, `to`), and
+    /// whether both pages stand (`step`).
+    fn announce(window: Option<&web_sys::Window>, name: &str, before: Key, now: Key, step: bool) {
+        let Some(window) = window else { return };
+        let detail = web_sys::js_sys::Object::new();
+        for (key, value) in [("from", JsValue::from_str(before.name())), ("to", JsValue::from_str(now.name())), ("step", JsValue::from_bool(step))] {
+            let _ = web_sys::js_sys::Reflect::set(&detail, &JsValue::from_str(key), &value);
+        }
+        let init = web_sys::CustomEventInit::new();
+        init.set_detail(&detail);
+        if let Ok(event) = web_sys::CustomEvent::new_with_event_init_dict(name, &init) {
+            let _ = window.dispatch_event(&event);
         }
     }
 }
