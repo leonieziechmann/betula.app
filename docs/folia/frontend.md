@@ -2395,7 +2395,8 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   query as `CatalogQuery::rank_program`, filled by the catalog like the marks (`with_mine`), never
   in an address and never on the server (R9): it changes the order only, so a link to a search
   lists the same modules for everyone (owner: „Die idee ist bloß, dass man seinen freunden ne
-  suche teilen kann“).
+  suche teilen kann“). The owner confirmed ×1.35 the same day: „Ja klar 1.35 ist auch voll OK. Die
+  1.2 waren nur ein geschätzter Startwert.“
 - **The row says why** (`widgets::list::Row`, `CatalogRow::marks`, filled by `catalog_page` from
   `search::marks`): the letters found are marked (`<mark>`, `--hit`) in the title, in the number
   and in a line under the row that says what else the module was found by — the title in the
