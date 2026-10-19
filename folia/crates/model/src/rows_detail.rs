@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::{DbError, FromRow, Row};
 use crate::labels::{
     Campus, Code, DegreeLevel, DocumentType, KindBasis, KindSource, LecturerRole, ModuleKind, PlanTotalScope, Relation,
-    ResolveStatus, Rhythm, TeachingForm, TextItemKind,
+    ResolveStatus, Rhythm, TeachingForm, TextItemKind, TrackBasis,
 };
 
 /// `v_module_lecturer`
@@ -139,6 +139,11 @@ pub struct EventDate {
     /// a row in none, and always for an exam row.
     #[serde(default)]
     pub series: Option<Series>,
+    /// The campus of the course of its own the event is part of, where the module is held as
+    /// courses at two campuses or more of which a student attends one (schema 15,
+    /// docs/radix/schema-v2.md „Tracks"); `None` for an event in no such course, and for an exam.
+    #[serde(default)]
+    pub track: Option<Code<Campus>>,
 }
 
 impl EventDate {
@@ -174,6 +179,7 @@ impl FromRow for EventDate {
             source_url: row.opt_text("source_url")?,
             room_short: row.opt_text("room_short")?,
             series: row.opt_int("series")?.zip(weeks).map(|(first, weeks)| Series { first, weeks }),
+            track: Code::parse_opt(row.opt_text("track")?),
         })
     }
 }
@@ -234,6 +240,40 @@ impl FromRow for DateCount {
             first_date: row.text("first_date")?,
             last_date: row.opt_text("last_date")?,
             dates: row.int("dates")?,
+        })
+    }
+}
+
+/// `v_module_track_program` with the program's name: the course a program takes of a module held
+/// as courses at two campuses or more, in one semester (docs/radix/schema-v2.md, „Tracks"). A
+/// program may take two (a family QIS lists on both); a program without a row takes either.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TrackProgram {
+    pub module_id: String,
+    pub semester_key: String,
+    /// The course, by its campus: `EventDate::track` of its events.
+    pub campus: Code<Campus>,
+    pub program_id: String,
+    pub basis: Code<TrackBasis>,
+    pub family_key: String,
+    pub program_name: String,
+    /// „B.Sc.", else „Bachelor"; `None` where even that is unknown.
+    pub degree_display: Option<String>,
+    pub is_latest_po: bool,
+}
+
+impl FromRow for TrackProgram {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self {
+            module_id: row.text("module_id")?,
+            semester_key: row.text("semester_key")?,
+            campus: Code::parse(&row.text("campus")?),
+            program_id: row.text("program_id")?,
+            basis: Code::parse(&row.text("basis")?),
+            family_key: row.text("family_key")?,
+            program_name: row.text("program_name")?,
+            degree_display: row.opt_text("degree_display")?,
+            is_latest_po: row.flag("is_latest_po")?,
         })
     }
 }

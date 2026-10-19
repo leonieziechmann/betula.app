@@ -370,10 +370,12 @@ pub fn CatalogPage() -> impl IntoView {
                 }
                 // A path of the app, as `ModulePanel` takes it: the panel writes it as a link.
                 let close_href = url.get().with_open(None).path();
+                // The program the list is filtered by: a module held at two campuses shows its course.
+                let program = url.with(|url| url.query.program.as_ref().map(|scope| scope.program_slug.clone()));
                 match preview.get() {
                     Ok(None) | Err(_) => ().into_any(),
                     Ok(Some(Some(data))) => view! {
-                        <ModulePanel data close_href hint/>
+                        <ModulePanel data close_href hint program/>
                         // Its handle is a sibling, not a child: the panel would clip the part in front of its edge.
                         <div class="resizer preview-edge js-only" data-action="resize-preview" role="separator" aria-orientation="vertical" aria-controls="preview" aria-label=t.ui.resize_preview tabindex="0"></div>
                     }.into_any(),

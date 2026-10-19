@@ -38,9 +38,10 @@ use folia_design::ui::NotFound;
 /// at its own address), in the place of the area's page. „Zurück" leads to `back` (`back_href`),
 /// a path of the app without the language's prefix: the page writes it as a link of its language.
 /// A view of the module's own page is not one for search engines: `noindex`, and its address for
-/// them stays the module's own.
+/// them stays the module's own. `program`: the slug of the program whose page it fills, whose
+/// course of a module held at two campuses the page shows (`ModulePanel`).
 #[component]
-pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
+pub fn ModuleInPlace(id: String, area: Area, back: String, #[prop(optional_no_strip)] program: Option<String>) -> impl IntoView {
     let t = i18n::t();
     let status = PageStatus::capture();
     let data = use_data();
@@ -54,6 +55,6 @@ pub fn ModuleInPlace(id: String, area: Area, back: String) -> impl IntoView {
             status.set(404);
             view! { <Plain><NotFound title=t.module.not_found hint=t.module.not_found_hint/></Plain> }.into_any()
         }
-        Ok(Some(data)) => view! { <ModuleFull data back_area=area back_to=Some(back.clone()) noindex=true/> }.into_any(),
+        Ok(Some(data)) => view! { <ModuleFull data back_area=area back_to=Some(back.clone()) noindex=true program=program.clone()/> }.into_any(),
     }
 }

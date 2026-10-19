@@ -652,6 +652,7 @@ mod tests {
             schedule: &schedule,
             exams: &[],
             sws: &[],
+            taken: &[],
         };
         let t = Timetable::build(&input, &Selection::default());
         crate::model::tests::invariants(&t);

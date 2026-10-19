@@ -8,6 +8,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod choices;
+mod courses;
 pub mod finder;
 pub mod i18n;
 pub mod list;
