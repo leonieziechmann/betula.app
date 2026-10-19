@@ -7,10 +7,16 @@
 // a semester scrolling away, confirmed dates only) → nothing moves at the takeover (the site's
 // catalog holds the panel's place) → the site's catalog without JavaScript.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
+// What the check looks for is on the page in front (on-page.js): every tab's page is built behind
+// it at the start (folia/crates/shell/src/stage.rs, `prebuild`), with parts of the same name.
+const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
+const newContext = browser.newContext.bind(browser);
+browser.newContext = async (options) => { const context = await newContext(options); await context.addInitScript(ON_PAGE); return context; };
 const page = await browser.newPage({ viewport: { width: 1500, height: 900 } });
 const problems = [];
 const timings = {};
@@ -23,7 +29,7 @@ const step = async (name, action, until, arg) => {
   try {
     await page.waitForFunction(until, arg, { timeout: 8000 });
     // The page before stays as a picture in front of the new one while its answers come (pending.rs, `hold`).
-    await page.waitForFunction(() => !document.querySelector(".pending-page.held"), null, { timeout: 2000 });
+    await page.waitForFunction(() => !onPage(".pending-page.held"), null, { timeout: 2000 });
   } catch {
     problems.push(`${name}: did not happen (${page.url()})`);
   }
@@ -32,11 +38,11 @@ const step = async (name, action, until, arg) => {
 };
 const check = (ok, message) => { if (!ok) problems.push(message); };
 const param = (name) => page.evaluate((n) => new URL(location.href).searchParams.getAll(n).join("|"), name);
-const count = () => page.evaluate(() => document.querySelector(".count")?.textContent);
+const count = () => page.evaluate(() => onPage(".count")?.textContent);
 
 await page.goto(base + "/catalog", { waitUntil: "domcontentloaded" });
 await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
-await page.evaluate(() => { window.__marker = 1; document.getElementById("filters").__same = true; });
+await page.evaluate(() => { window.__marker = 1; onPage("#filters").__same = true; });
 
 // ---- toggles: with → without → off; the panel is the same element throughout, the focus stays
 const all = await count();
@@ -46,29 +52,29 @@ check((await page.getAttribute(talk, "data-state")) === "with" && (await page.ge
 const withTalk = await count();
 await step("toggle: without", () => page.click(talk), () => new URL(location.href).searchParams.get("not-exam") === "presentation" && !location.search.includes("&exam=") && !location.search.includes("?exam="));
 check((await page.getAttribute(talk, "data-state")) === "without", "toggle: the chip does not show 'without'");
-check(await page.evaluate(() => [...document.querySelectorAll(".tag")].some((tag) => tag.textContent.includes("ohne Vortrag"))), "toggle: no tag 'ohne Vortrag' above the list");
+check(await page.evaluate(() => [...allOnPage(".tag")].some((tag) => tag.textContent.includes("ohne Vortrag"))), "toggle: no tag 'ohne Vortrag' above the list");
 const withoutTalk = await count();
 check(all !== withTalk && withTalk !== withoutTalk && all !== withoutTalk, `toggle: counts did not change (${all}, ${withTalk}, ${withoutTalk})`);
 check(await page.evaluate(() => document.activeElement?.textContent.includes("Vortrag")), "toggle: the chip lost the focus");
 await step("toggle: space bar flips it off", () => page.keyboard.press(" "), () => !location.search.includes("exam"));
 check((await page.getAttribute(talk, "data-state")) === "off", "toggle: the chip does not show 'off'");
-check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by a filter change");
+check(await page.evaluate(() => onPage("#filters").__same === true), "the filter panel was rebuilt by a filter change");
 
 // ---- every link of the panel follows the whole filter. (The first toggle once kept the link of
 // the empty filter, so a click on it dropped everything else: a change of the filter that leaves
 // a toggle's own state alone has to reach that toggle's link all the same.)
-await step("two filters", async () => { await page.click('#filters a.chip:has-text("Vorlesung")'); await page.click('#filters a.chip:has-text("Klausur")'); }, () => location.search.includes("form=lecture") && location.search.includes("exam=written"));
-const forgetful = await page.evaluate(() => [...document.querySelectorAll('#filters a[role="checkbox"], #filters a[role="radio"]')]
+await step("two filters", async () => { await page.click('#filters a.chip:has-text("Vorlesung") >> visible=true'); await page.click('#filters a.chip:has-text("Klausur") >> visible=true'); }, () => location.search.includes("form=lecture") && location.search.includes("exam=written"));
+const forgetful = await page.evaluate(() => [...allOnPage('#filters a[role="checkbox"], #filters a[role="radio"]')]
   .filter((a) => a.offsetParent && !(a.getAttribute("href").includes("form=lecture") && a.getAttribute("href").includes("exam=written")))
   .map((a) => `${a.textContent.trim()} → ${a.getAttribute("href")}`));
 check(forgetful.length === 0, `links that drop the rest of the filter: ${forgetful.slice(0, 4).join(" | ")}`);
-await step("the first toggle keeps the others", () => page.click('#filters a.chip:has-text("Winter")'), () => ["turnus=winter", "form=lecture", "exam=written"].every((part) => location.search.includes(part)));
-await step("reset", () => page.click('#filters a:has-text("Zurücksetzen")'), () => location.search === "");
+await step("the first toggle keeps the others", () => page.click('#filters a.chip:has-text("Winter") >> visible=true'), () => ["turnus=winter", "form=lecture", "exam=written"].every((part) => location.search.includes(part)));
+await step("reset", () => page.click('#filters a:has-text("Zurücksetzen") >> visible=true'), () => location.search === "");
 
 // ---- every toggle has its box, and the toggles of a row share the row's whole width
 const layout = await page.evaluate(() => {
   const issues = [];
-  for (const chips of document.querySelectorAll("#filters .chips")) {
+  for (const chips of allOnPage("#filters .chips")) {
     if (!chips.offsetParent) continue; // inside the closed „Weitere Filter"
     const frame = chips.getBoundingClientRect();
     const rows = new Map();
@@ -88,7 +94,7 @@ layout.forEach((issue) => problems.push("toggles: " + issue));
 
 // ---- virtual oversizing: a toggle also reacts just outside of what it shows, up to the middle of the gap
 const beyond = await page.evaluate(() => {
-  const chips = [...document.querySelectorAll("#filters .chips")].find((c) => c.querySelectorAll(".chip").length > 3);
+  const chips = [...allOnPage("#filters .chips")].find((c) => c.querySelectorAll(".chip").length > 3);
   const [a, b] = chips.querySelectorAll(".chip");
   const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
   const owner = (x, y) => document.elementFromPoint(x, y)?.closest(".chip");
@@ -97,17 +103,17 @@ const beyond = await page.evaluate(() => {
 check(beyond.above && beyond.leftOfGap && beyond.rightOfGap, `oversizing: the area around a toggle is not its own (${JSON.stringify(beyond)})`);
 
 // ---- the search field starts exactly where the list starts
-const edges = await page.evaluate(() => [document.querySelector(".search").getBoundingClientRect().left, document.querySelector(".panel.list").getBoundingClientRect().left]);
+const edges = await page.evaluate(() => [onPage(".search").getBoundingClientRect().left, onPage(".panel.list").getBoundingClientRect().left]);
 check(Math.abs(edges[0] - edges[1]) < 0.01, `top bar: the search starts at ${edges[0]}, the list at ${edges[1]}`);
 
 // ---- program picker
 const pop = "#pick-program-list";
-const active = () => page.evaluate(() => document.querySelector(".combo-option.active .combo-label")?.textContent || null);
-await step("picker opens", () => page.click("#pick-program"), () => document.activeElement?.id === "pick-program-search" && document.querySelectorAll("#pick-program-list .combo-option").length > 50);
+const active = () => page.evaluate(() => onPage(".combo-option.active .combo-label")?.textContent || null);
+await step("picker opens", () => page.click("#pick-program >> visible=true"), () => document.activeElement?.id === "pick-program-search" && allOnPage("#pick-program-list .combo-option").length > 50);
 check((await active()) === "Alle Studiengänge", `picker: starts at ${await active()} instead of the selection`);
 const doubles = await page.evaluate(() => {
   const seen = new Set(), twice = [];
-  for (const option of document.querySelectorAll("#pick-program-list .combo-option")) {
+  for (const option of allOnPage("#pick-program-list .combo-option")) {
     if (seen.has(option.textContent)) twice.push(option.textContent);
     seen.add(option.textContent);
   }
@@ -115,81 +121,81 @@ const doubles = await page.evaluate(() => {
 });
 check(doubles.length === 0, `picker: entries that cannot be told apart: ${doubles.slice(0, 3).join(" | ")}`);
 // One shape for all: name, short degree, year of the PO; the form of study only where two would read the same.
-const shapes = await page.evaluate(() => [...document.querySelectorAll("#pick-program-list .combo-option small")].map((el) => el.textContent).filter((text) => !/^[^·]+ · \d{4}( · [^·]+)?$/.test(text) || /SÄ|NF|PO/.test(text)));
+const shapes = await page.evaluate(() => [...allOnPage("#pick-program-list .combo-option small")].map((el) => el.textContent).filter((text) => !/^[^·]+ · \d{4}( · [^·]+)?$/.test(text) || /SÄ|NF|PO/.test(text)));
 check(shapes.length === 0, `picker: entries of another shape: ${shapes.slice(0, 3).join(" | ")}`);
 
 // A typo, a second word, and the best match on top.
-await step("picker: search with a typo", () => page.keyboard.type("infomatik bsc"), () => document.querySelector("#pick-program-list .combo-option .combo-label")?.textContent === "Informatik");
+await step("picker: search with a typo", () => page.keyboard.type("infomatik bsc"), () => onPage("#pick-program-list .combo-option .combo-label")?.textContent === "Informatik");
 check((await active()) === "Informatik", `picker: the first match is not marked (${await active()})`);
 // The arrow keys move the mark; a resting mouse pointer over the list does not take it back.
-await page.fill("#pick-program-search", "inf");
-await page.waitForFunction(() => document.querySelectorAll("#pick-program-list .combo-option").length > 3);
+await page.fill("#pick-program-search >> visible=true", "inf");
+await page.waitForFunction(() => allOnPage("#pick-program-list .combo-option").length > 3);
 const box = await page.locator(`${pop} .combo-option >> nth=0`).boundingBox();
 await page.mouse.move(box.x + 40, box.y + box.height / 2);
 const first = await active();
 await page.keyboard.press("ArrowDown");
 await page.keyboard.press("ArrowDown");
 const third = await active();
-const expectedThird = await page.evaluate(() => document.querySelectorAll("#pick-program-list .combo-option .combo-label")[2]?.textContent);
+const expectedThird = await page.evaluate(() => allOnPage("#pick-program-list .combo-option .combo-label")[2]?.textContent);
 check(third === expectedThird && third !== null, `picker: two steps down mark "${third}", expected "${expectedThird}" (first was "${first}")`);
-check((await page.getAttribute("#pick-program-search", "aria-activedescendant")) === "pick-program-option-2", "picker: aria-activedescendant does not follow");
+check((await page.getAttribute("#pick-program-search >> visible=true", "aria-activedescendant")) === "pick-program-option-2", "picker: aria-activedescendant does not follow");
 await page.keyboard.press("ArrowUp");
 await page.keyboard.press("ArrowUp");
 await page.keyboard.press("ArrowUp");
-const last = await page.evaluate(() => [...document.querySelectorAll("#pick-program-list .combo-option .combo-label")].pop()?.textContent);
+const last = await page.evaluate(() => [...allOnPage("#pick-program-list .combo-option .combo-label")].pop()?.textContent);
 check((await active()) === last, `picker: arrow up from the first entry does not wrap to the last (${await active()} / ${last})`);
 
-await page.fill("#pick-program-search", "informatik b.sc");
-await page.waitForFunction(() => document.querySelector("#pick-program-list .combo-option .combo-label")?.textContent === "Informatik");
-await step("picker: Enter takes the marked entry", () => page.keyboard.press("Enter"), () => new URL(location.href).searchParams.get("program")?.startsWith("bachelor-informatik") && !document.querySelector(".combo-pop") && document.querySelector(".rows .plan-sem"));
+await page.fill("#pick-program-search >> visible=true", "informatik b.sc");
+await page.waitForFunction(() => onPage("#pick-program-list .combo-option .combo-label")?.textContent === "Informatik");
+await step("picker: Enter takes the marked entry", () => page.keyboard.press("Enter"), () => new URL(location.href).searchParams.get("program")?.startsWith("bachelor-informatik") && !onPage(".combo-pop") && onPage(".rows .plan-sem"));
 check(await page.evaluate(() => document.activeElement?.id === "pick-program"), "picker: the focus did not return to the button");
-check((await page.textContent("#pick-program .combo-value")).startsWith("Informatik"), "picker: the button does not show the selection");
-check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by picking a program");
+check((await page.textContent("#pick-program .combo-value >> visible=true")).startsWith("Informatik"), "picker: the button does not show the selection");
+check(await page.evaluate(() => onPage("#filters").__same === true), "the filter panel was rebuilt by picking a program");
 
 // Esc closes the picker and nothing else: the preview stays.
-await step("open a preview", () => page.click("a.row >> nth=2"), () => location.search.includes("open=") && document.querySelector(".detail h2"));
-await step("picker opens by keyboard", async () => { await page.focus("#pick-program"); await page.keyboard.press("ArrowDown"); }, () => document.activeElement?.id === "pick-program-search");
+await step("open a preview", () => page.click("a.row >> visible=true >> nth=2"), () => location.search.includes("open=") && onPage(".detail h2"));
+await step("picker opens by keyboard", async () => { await page.focus("#pick-program >> visible=true"); await page.keyboard.press("ArrowDown"); }, () => document.activeElement?.id === "pick-program-search");
 check((await active()) === "Informatik", `picker: reopened at "${await active()}" instead of the selected program`);
-await step("picker: Esc closes it", () => page.keyboard.press("Escape"), () => !document.querySelector(".combo-pop") && document.activeElement?.id === "pick-program");
+await step("picker: Esc closes it", () => page.keyboard.press("Escape"), () => !onPage(".combo-pop") && document.activeElement?.id === "pick-program");
 check((await param("open")) !== "", "picker: Esc also closed the module preview");
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => !location.search.includes("open="));
 
-await step("picker opens again", () => page.click("#pick-program"), () => Boolean(document.querySelector(".combo-pop")));
-await step("picker: a click outside closes it", () => page.click(".count-row"), () => !document.querySelector(".combo-pop"));
-await step("picker: a click on an entry", async () => { await page.click("#pick-program"); await page.fill("#pick-program-search", "architektur bachelor"); await page.click(`${pop} .combo-option >> nth=0`); }, () => new URL(location.href).searchParams.get("program")?.includes("architektur") && !document.querySelector(".combo-pop"));
-await step("picker: clear", () => page.click("#pick-program ~ .combo-clear"), () => !location.search.includes("program="));
+await step("picker opens again", () => page.click("#pick-program >> visible=true"), () => Boolean(onPage(".combo-pop")));
+await step("picker: a click outside closes it", () => page.click(".count-row >> visible=true"), () => !onPage(".combo-pop"));
+await step("picker: a click on an entry", async () => { await page.click("#pick-program >> visible=true"); await page.fill("#pick-program-search >> visible=true", "architektur bachelor"); await page.click(`${pop} .combo-option >> nth=0`); }, () => new URL(location.href).searchParams.get("program")?.includes("architektur") && !onPage(".combo-pop"));
+await step("picker: clear", () => page.click("#pick-program ~ .combo-clear >> visible=true"), () => !location.search.includes("program="));
 
 // ---- lecturer picker: adds a person as a toggle (with → without → gone)
-await page.click('#filters summary:has-text("Weitere Filter")');
-await step("lecturer picker opens", () => page.click("#pick-lecturer"), () => document.querySelectorAll("#pick-lecturer-list .combo-option").length > 50);
-const person = await page.evaluate(() => document.querySelectorAll("#pick-lecturer-list .combo-option .combo-label")[5]?.textContent || "");
+await page.click('#filters summary:has-text("Weitere Filter") >> visible=true');
+await step("lecturer picker opens", () => page.click("#pick-lecturer >> visible=true"), () => allOnPage("#pick-lecturer-list .combo-option").length > 50);
+const person = await page.evaluate(() => allOnPage("#pick-lecturer-list .combo-option .combo-label")[5]?.textContent || "");
 const family = person.split(",")[0];
-await page.fill("#pick-lecturer-search", family);
-await page.waitForFunction((name) => document.querySelector("#pick-lecturer-list .combo-option .combo-label")?.textContent.startsWith(name), family);
-const picked = await page.evaluate(() => document.querySelector("#pick-lecturer-list .combo-option .combo-label").textContent);
-await step("lecturer: Enter adds the person", () => page.keyboard.press("Enter"), (name) => new URL(location.href).searchParams.get("lecturer") === name && document.querySelector('.people .person[data-state="with"]'), picked);
+await page.fill("#pick-lecturer-search >> visible=true", family);
+await page.waitForFunction((name) => onPage("#pick-lecturer-list .combo-option .combo-label")?.textContent.startsWith(name), family);
+const picked = await page.evaluate(() => onPage("#pick-lecturer-list .combo-option .combo-label").textContent);
+await step("lecturer: Enter adds the person", () => page.keyboard.press("Enter"), (name) => new URL(location.href).searchParams.get("lecturer") === name && onPage('.people .person[data-state="with"]'), picked);
 const onlyFirst = await count();
 // Academic titles: small, in the picker and under the chosen name.
-await step("lecturer picker opens again", () => page.click("#pick-lecturer"), () => document.querySelectorAll("#pick-lecturer-list .combo-option").length > 50);
-check(await page.evaluate(() => [...document.querySelectorAll("#pick-lecturer-list .combo-option small")].some((el) => el.textContent.startsWith("Prof."))), "lecturer: the picker shows no academic titles");
-check(!(await page.evaluate((name) => [...document.querySelectorAll("#pick-lecturer-list .combo-label")].some((el) => el.textContent === name), picked)), "lecturer: a chosen person is offered again");
+await step("lecturer picker opens again", () => page.click("#pick-lecturer >> visible=true"), () => allOnPage("#pick-lecturer-list .combo-option").length > 50);
+check(await page.evaluate(() => [...allOnPage("#pick-lecturer-list .combo-option small")].some((el) => el.textContent.startsWith("Prof."))), "lecturer: the picker shows no academic titles");
+check(!(await page.evaluate((name) => [...allOnPage("#pick-lecturer-list .combo-label")].some((el) => el.textContent === name), picked)), "lecturer: a chosen person is offered again");
 // A second wanted person is an alternative: the list grows (or stays), it never shrinks.
-await page.fill("#pick-lecturer-search", "prof dr");
-await page.waitForFunction(() => document.querySelectorAll("#pick-lecturer-list .combo-option").length > 3);
-await step("lecturer: a second person, by a click", () => page.click('#pick-lecturer-list .combo-option:has(small:text-matches("^Prof\.")) >> nth=0'), () => new URL(location.href).searchParams.getAll("lecturer").length === 2 && document.querySelectorAll(".people .person").length === 2);
+await page.fill("#pick-lecturer-search >> visible=true", "prof dr");
+await page.waitForFunction(() => allOnPage("#pick-lecturer-list .combo-option").length > 3);
+await step("lecturer: a second person, by a click", () => page.click('#pick-lecturer-list .combo-option:has(small:text-matches("^Prof\.")) >> visible=true >> nth=0'), () => new URL(location.href).searchParams.getAll("lecturer").length === 2 && allOnPage(".people .person").length === 2);
 const either = await count();
 const number = (text) => Number(String(text).replace(/\D/g, ""));
 check(number(either) >= number(onlyFirst) && number(either) > 0, `lecturer: two wanted persons are not alternatives (${onlyFirst} → ${either})`);
-check(await page.evaluate(() => [...document.querySelectorAll(".people .person-name small")].some((el) => el.textContent.startsWith("Prof."))), "lecturer: no title under the chosen name");
-const second = await page.evaluate(() => document.querySelectorAll(".people .person-name b")[1].textContent);
-await step("lecturer: × excludes", () => page.click(".people .person >> nth=1 >> a.cross"), (name) => new URL(location.href).searchParams.get("not-lecturer") === name && document.querySelectorAll('.people .person[data-state="without"]').length === 1, second);
-await step("lecturer: + wants again", () => page.click(".people .person >> nth=1 >> a.plus"), () => new URL(location.href).searchParams.getAll("lecturer").length === 2 && !location.search.includes("not-lecturer"));
-await step("lecturer: the button on the right removes", async () => { await page.click(".people .person >> nth=1 >> a.remove"); await page.click(".people .person >> nth=0 >> a.remove"); }, () => !location.search.includes("lecturer") && !document.querySelector(".people"));
+check(await page.evaluate(() => [...allOnPage(".people .person-name small")].some((el) => el.textContent.startsWith("Prof."))), "lecturer: no title under the chosen name");
+const second = await page.evaluate(() => allOnPage(".people .person-name b")[1].textContent);
+await step("lecturer: × excludes", () => page.click(".people .person >> visible=true >> nth=1 >> a.cross"), (name) => new URL(location.href).searchParams.get("not-lecturer") === name && allOnPage('.people .person[data-state="without"]').length === 1, second);
+await step("lecturer: + wants again", () => page.click(".people .person >> visible=true >> nth=1 >> a.plus"), () => new URL(location.href).searchParams.getAll("lecturer").length === 2 && !location.search.includes("not-lecturer"));
+await step("lecturer: the button on the right removes", async () => { await page.click(".people .person >> visible=true >> nth=1 >> a.remove"); await page.click(".people .person >> visible=true >> nth=0 >> a.remove"); }, () => !location.search.includes("lecturer") && !onPage(".people"));
 
 // ---- credits: drag the lower thumb, step the upper one with the keyboard
-await page.evaluate(() => document.querySelector("#filters .slider").scrollIntoView({ block: "center" }));
-const track = await page.locator("#filters .slider").boundingBox();
+await page.evaluate(() => onPage("#filters .slider").scrollIntoView({ block: "center" }));
+const track = await page.locator("#filters .slider >> visible=true").boundingBox();
 const thumb = track.height; // the grabbed thumb is as high as the slider and larger than the knob it shows
 const at = (credits) => track.x + thumb / 2 + ((track.width - thumb) * credits) / 30;
 await page.mouse.move(at(0), track.y + track.height / 2);
@@ -197,20 +203,20 @@ await page.mouse.down();
 await page.mouse.move(at(6), track.y + track.height / 2, { steps: 8 });
 await step("slider: letting go filters", () => page.mouse.up(), () => new URL(location.href).searchParams.get("ects_min") === "6");
 check((await page.inputValue('#filters input[name="ects_min"]')) === "6", "slider: the number field does not follow");
-await page.focus("#filters .slider input >> nth=1");
+await page.focus("#filters .slider input >> visible=true >> nth=1");
 await step("slider: arrow key on the upper thumb", () => page.keyboard.press("ArrowLeft"), () => new URL(location.href).searchParams.get("ects_max") === "29");
 // The upper thumb cannot pass the lower one.
 await page.mouse.move(at(29), track.y + track.height / 2);
 await page.mouse.down();
 await page.mouse.move(at(2), track.y + track.height / 2, { steps: 8 });
 await step("slider: thumbs do not cross", () => page.mouse.up(), () => new URL(location.href).searchParams.get("ects_max") === "6");
-await step("slider: typed numbers", async () => { await page.fill('#filters input[name="ects_max"]', "12"); await page.keyboard.press("Tab"); }, () => new URL(location.href).searchParams.get("ects_max") === "12");
-check((await page.textContent("#filters .fgroup:has(.slider) .flabel span")) === "6–12 LP", "slider: the summary does not say 6–12 LP");
+await step("slider: typed numbers", async () => { await page.fill('#filters input[name="ects_max"] >> visible=true', "12"); await page.keyboard.press("Tab"); }, () => new URL(location.href).searchParams.get("ects_max") === "12");
+check((await page.textContent("#filters .fgroup:has(.slider) .flabel span >> visible=true")) === "6–12 LP", "slider: the summary does not say 6–12 LP");
 
 // ---- width of the panel: dragged, limited, remembered outside the URL
-const width = () => page.evaluate(() => Math.round(document.getElementById("filters").getBoundingClientRect().width));
+const width = () => page.evaluate(() => Math.round(onPage("#filters").getBoundingClientRect().width));
 const drag = async (dx) => {
-  const edge = await page.locator('[data-action="resize-filters"]').boundingBox();
+  const edge = await page.locator('[data-action="resize-filters"] >> visible=true').boundingBox();
   await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
   await page.mouse.down();
   await page.mouse.move(edge.x + edge.width / 2 + dx, edge.y + 200, { steps: 6 });
@@ -224,14 +230,14 @@ const startWidth = await width();
 // frames; `resize-perf.mjs` measures it), what either mode does does not.
 {
   const state = () => page.evaluate(() => ({
-    panel: Math.round(document.getElementById("filters").getBoundingClientRect().width),
-    list: Math.round(document.querySelector(".panel.list").getBoundingClientRect().width),
-    search: Math.round(document.querySelector(".search").getBoundingClientRect().left),
+    panel: Math.round(onPage("#filters").getBoundingClientRect().width),
+    list: Math.round(onPage(".panel.list").getBoundingClientRect().width),
+    search: Math.round(onPage(".search").getBoundingClientRect().left),
     variable: document.documentElement.style.getPropertyValue("--w-filters"),
     mode: document.documentElement.dataset.resizeMode || null,
   }));
   const dragBy = async (dx) => {
-    const edge = await page.locator('[data-action="resize-filters"]').boundingBox();
+    const edge = await page.locator('[data-action="resize-filters"] >> visible=true').boundingBox();
     await page.mouse.move(edge.x + edge.width / 2, edge.y + 200);
     await page.mouse.down();
     await page.mouse.move(edge.x + edge.width / 2 + dx, edge.y + 200, { steps: 12 });
@@ -248,7 +254,7 @@ const startWidth = await width();
   check(live.during.mode === "live" && Math.abs(live.during.panel - (before.panel + 60)) <= 2 && live.during.list === before.list - (live.during.panel - before.panel) && live.during.search === before.search + (live.during.panel - before.panel),
     `resize: the page does not follow the handle live: ${JSON.stringify(live.during)}, before ${JSON.stringify(before)}`);
   check(live.after.mode === null && live.after.variable === live.after.panel + "px", `resize: after letting go ${JSON.stringify(live.after)}`);
-  await page.dblclick('[data-action="resize-filters"]');
+  await page.dblclick('[data-action="resize-filters"] >> visible=true');
 
   await page.evaluate(() => { document.documentElement.dataset.resizeBudget = "0.001"; });
   const forced = await dragBy(60);
@@ -256,10 +262,10 @@ const startWidth = await width();
   check(forced.after.mode === null && forced.after.variable === forced.after.panel + "px" && forced.after.list === before.list - (forced.after.panel - before.panel) && Math.abs(forced.after.panel - (before.panel + 60)) <= 2,
     `resize: after the fallback the page did not catch up: ${JSON.stringify(forced.after)}`);
   await page.evaluate(() => { delete document.documentElement.dataset.resizeBudget; });
-  await page.dblclick('[data-action="resize-filters"]');
+  await page.dblclick('[data-action="resize-filters"] >> visible=true');
 }
 // The zone that takes the pointer is much wider than the grip, and none of it lies over the panel (its scrollbar).
-const zone = await page.evaluate(() => { const z = document.querySelector('[data-action="resize-filters"]').getBoundingClientRect(); return { width: z.width, over: document.getElementById("filters").getBoundingClientRect().right - z.left }; });
+const zone = await page.evaluate(() => { const z = onPage('[data-action="resize-filters"]').getBoundingClientRect(); return { width: z.width, over: onPage("#filters").getBoundingClientRect().right - z.left }; });
 check(zone.width >= 16 && zone.over <= 0.5, `resize: the handle's zone is ${zone.width}px wide and ${zone.over}px over the filter panel`);
 await drag(60);
 check(Math.abs((await width()) - (startWidth + 60)) <= 2, `resize: expected about ${startWidth + 60}px, got ${await width()}px`);
@@ -269,27 +275,27 @@ check((await width()) === 440, `resize: the upper limit is 440px, got ${await wi
 await drag(-900);
 check((await width()) === 232, `resize: the lower limit is 232px, got ${await width()}px`);
 check(!(await page.evaluate(() => location.search)).includes("232"), "resize: the width leaked into the URL");
-await page.dblclick('[data-action="resize-filters"]');
+await page.dblclick('[data-action="resize-filters"] >> visible=true');
 check((await width()) === startWidth && (await page.evaluate(() => localStorage.getItem("betula.filters.width"))) === null, `resize: a double click does not reset (${await width()}px)`);
 
 // ---- the list of a program: in plan order with the semester at every row (no headings between
 // the semesters: the semester filter is for that), and the areas of its tree as a picker
-await step("program list", async () => { await page.click('#filters a:has-text("Zurücksetzen")'); await page.click("#pick-program"); await page.fill("#pick-program-search", "informatik b.sc"); await page.keyboard.press("Enter"); }, () => document.querySelector(".rows .plan-sem") && !document.querySelector(".rows .sem") && document.querySelector("#pick-area"));
-const semesters = await page.evaluate(() => [...document.querySelectorAll(".rows .vrow")].slice(0, 12).map((row) => row.querySelector(".plan-sem")?.textContent ?? null));
+await step("program list", async () => { await page.click('#filters a:has-text("Zurücksetzen") >> visible=true'); await page.click("#pick-program >> visible=true"); await page.fill("#pick-program-search >> visible=true", "informatik b.sc"); await page.keyboard.press("Enter"); }, () => onPage(".rows .plan-sem") && !onPage(".rows .sem") && onPage("#pick-area"));
+const semesters = await page.evaluate(() => [...allOnPage(".rows .vrow")].slice(0, 12).map((row) => row.querySelector(".plan-sem")?.textContent ?? null));
 check(semesters[0] === "1. Semester" && semesters.every((s) => s === null || /^\d+\. Semester$/.test(s)), `program list: the first rows say ${semesters.join(" | ")}`);
-await step("scroll into the second page", () => page.evaluate(() => { document.getElementById("catalog-scroll").scrollTop = 60 * 58 + 120; }), () => /[?&]page=2\b/.test(location.search) && document.querySelector('.vrow[data-i="60"] a.row'));
+await step("scroll into the second page", () => page.evaluate(() => { onPage("#catalog-scroll").scrollTop = 60 * 58 + 120; }), () => /[?&]page=2\b/.test(location.search) && onPage('.vrow[data-i="60"] a.row'));
 // A semester lists what the plan places there and, for the plan's requirement rows („Wahlpflicht…"),
 // the modules that can be chosen; the note above the list says so and where they come from.
-await step("semester 3", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("3")'), () => new URL(location.href).searchParams.get("semester") === "3" && document.querySelector(".plan-note"));
+await step("semester 3", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("3") >> visible=true'), () => new URL(location.href).searchParams.get("semester") === "3" && onPage(".plan-note"));
 const semester3 = await page.evaluate(() => ({
-  count: Number(document.querySelector(".count").textContent.replace(/\D/g, "")),
-  placed: [...document.querySelectorAll(".rows .vrow .plan-sem")].filter((s) => s.textContent === "3. Semester").length,
-  rows: document.querySelectorAll(".rows .vrow").length,
-  note: document.querySelector(".plan-note")?.textContent || "",
-  items: document.querySelectorAll(".plan-note li").length,
-  links: document.querySelectorAll(".plan-note a").length,
-  first: document.querySelector(".rows .vrow")?.dataset.i,
-  top: document.getElementById("catalog-scroll").scrollTop,
+  count: Number(onPage(".count").textContent.replace(/\D/g, "")),
+  placed: [...allOnPage(".rows .vrow .plan-sem")].filter((s) => s.textContent === "3. Semester").length,
+  rows: allOnPage(".rows .vrow").length,
+  note: onPage(".plan-note")?.textContent || "",
+  items: allOnPage(".plan-note li").length,
+  links: allOnPage(".plan-note a").length,
+  first: onPage(".rows .vrow")?.dataset.i,
+  top: onPage("#catalog-scroll").scrollTop,
   search: location.search,
 }));
 check(semester3.first === "0" && semester3.top === 0 && !semester3.search.includes("page="), `semester: the list of the new filter does not start at the top (row ${semester3.first} at ${semester3.top}px, ${semester3.search})`);
@@ -300,37 +306,37 @@ check(semester3.items > 0 && /≥\s6\sLP/.test(semester3.note) && !/vermutlich|K
 // The note scrolls away with the rows; the heads of the columns stay at the top, under the list's
 // head, which stays at the top of the page's scroll area.
 const scrolled = await page.evaluate(async () => {
-  const area = document.getElementById("catalog-scroll"), rows = document.querySelector(".rows"), note = document.querySelector(".plan-note"), head = document.querySelector(".rows > .cols");
+  const area = onPage("#catalog-scroll"), rows = onPage(".rows"), note = onPage(".plan-note"), head = onPage(".rows > .cols");
   area.scrollTop = 400;
   await new Promise((resolve) => setTimeout(resolve, 50));
-  const top = document.getElementById("rows-top").getBoundingClientRect().bottom;
+  const top = onPage("#rows-top").getBoundingClientRect().bottom;
   const at = { inRows: note.parentElement === rows, note: note.getBoundingClientRect().bottom - top, head: head.getBoundingClientRect().top - top, search: location.search };
   area.scrollTop = 0;
   return at;
 });
 check(scrolled.inRows && scrolled.note < 0 && Math.abs(scrolled.head) < 1 && !scrolled.search.includes("page="), `semester: the note stays or the heads of the columns go (${JSON.stringify(scrolled)})`);
 // „Termine: bestätigt" keeps the rows with published teaching events, none that says „noch keine" (owner, 2026-09-23).
-await step("events: confirmed only", () => page.click('#filters a.chip:has-text("Bestätigt")'), () => new URL(location.href).searchParams.get("events") === "yes" && [...document.querySelectorAll(".tag")].some((tag) => tag.textContent.includes("Termine")));
+await step("events: confirmed only", () => page.click('#filters a.chip:has-text("Bestätigt") >> visible=true'), () => new URL(location.href).searchParams.get("events") === "yes" && [...allOnPage(".tag")].some((tag) => tag.textContent.includes("Termine")));
 const confirmed = await page.evaluate(() => ({
-  count: Number(document.querySelector(".count").textContent.replace(/\D/g, "")),
-  rows: document.querySelectorAll(".rows .vrow").length,
-  none: document.querySelectorAll(".rows .vrow .events.none").length,
+  count: Number(onPage(".count").textContent.replace(/\D/g, "")),
+  rows: allOnPage(".rows .vrow").length,
+  none: allOnPage(".rows .vrow .events.none").length,
   semester: new URL(location.href).searchParams.get("semester"),
 }));
 check(confirmed.rows > 0 && confirmed.none === 0 && confirmed.count <= semester3.count && confirmed.semester === "3", `events: ${confirmed.none} of ${confirmed.rows} rows without dates, ${confirmed.count} of ${semester3.count} listed (${JSON.stringify(confirmed)})`);
-await step("events: the tag takes it out again", () => page.click('.tag:has(em:text("Termine")) a'), () => !location.search.includes("events="));
-check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by choosing a semester");
-await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle")'), () => !location.search.includes("semester=") && !document.querySelector(".plan-note"));
-await step("area picker opens", () => page.click("#pick-area"), () => document.activeElement?.id === "pick-area-search" && document.querySelectorAll("#pick-area-list .combo-option").length > 3);
+await step("events: the tag takes it out again", () => page.click('.tag:has(em:text("Termine")) a >> visible=true'), () => !location.search.includes("events="));
+check(await page.evaluate(() => onPage("#filters").__same === true), "the filter panel was rebuilt by choosing a semester");
+await step("all semesters again", () => page.click('#filters .seg[aria-label="Fachsemester"] a:has-text("Alle") >> visible=true'), () => !location.search.includes("semester=") && !onPage(".plan-note"));
+await step("area picker opens", () => page.click("#pick-area >> visible=true"), () => document.activeElement?.id === "pick-area-search" && allOnPage("#pick-area-list .combo-option").length > 3);
 // Only the areas a student chooses from are offered (the fixed complexes are not), named without
 // „Wahlpflichtmodule", in sections (folia_plans::areas::catalog_areas): the own electives first,
 // without a heading, then the Nebenfach — never a phase of the studies or „Komplex" as a heading,
 // never a heading twice, never a heading over a single area.
-const areaNames = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).filter((name) => name !== "Alle Bereiche"));
-const areaGroups = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-group:not(.combo-rule)")].map((el) => el.textContent));
+const areaNames = await page.evaluate(() => [...allOnPage("#pick-area-list .combo-option .combo-label")].map((el) => el.textContent).filter((name) => name !== "Alle Bereiche"));
+const areaGroups = await page.evaluate(() => [...allOnPage("#pick-area-list .combo-group:not(.combo-rule)")].map((el) => el.textContent));
 const areaSections = await page.evaluate(() => {
   const sections = [{ heading: null, names: [] }];
-  for (const item of document.querySelectorAll("#pick-area-list li")) {
+  for (const item of allOnPage("#pick-area-list li")) {
     if (item.classList.contains("combo-group")) sections.push({ heading: item.textContent, names: [] });
     else if (item.classList.contains("combo-option")) sections.at(-1).names.push(item.querySelector(".combo-label").textContent);
   }
@@ -345,29 +351,29 @@ check(areaSections[1]?.names.join(" | ") === "Praktische Mathematik | Mathematik
 check(new Set(areaGroups).size === areaGroups.length && !areaGroups.some((heading) => /^(Komplex |Grundstudium|Fachstudium|Maschinenbau$)/.test(heading)) && areaNames.includes("Maschinenbau / Elektrotechnik"), `area picker: a heading repeats, splits a name or only structures (${areaGroups.join(" | ")})`);
 check(areaSections.slice(1).every((section) => section.names.length >= 2), `area picker: a heading stands over a single area (${areaSections.map((section) => `${section.heading}: ${section.names.length}`).join(", ")})`);
 // Typing keeps each section together: a heading does not come twice in the results either.
-await page.fill("#pick-area-search", "mat");
-await page.waitForFunction(() => document.querySelectorAll("#pick-area-list .combo-option").length >= 2);
-const searchGroups = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-group:not(.combo-rule)")].map((el) => el.textContent));
+await page.fill("#pick-area-search >> visible=true", "mat");
+await page.waitForFunction(() => allOnPage("#pick-area-list .combo-option").length >= 2);
+const searchGroups = await page.evaluate(() => [...allOnPage("#pick-area-list .combo-group:not(.combo-rule)")].map((el) => el.textContent));
 check(new Set(searchGroups).size === searchGroups.length, `area picker: while searching a heading comes twice (${searchGroups.join(" | ")})`);
-await page.fill("#pick-area-search", "");
+await page.fill("#pick-area-search >> visible=true", "");
 const areaName = areaNames.find((name) => name.split(" ").length >= 2);
 check(Boolean(areaName), "area picker: no elective area is offered");
 // An entry is the name and the number of modules, nothing else: the path of the tree pushed the names out.
-const areaDetails = await page.evaluate(() => [...document.querySelectorAll("#pick-area-list .combo-option small")].map((el) => el.textContent));
+const areaDetails = await page.evaluate(() => [...allOnPage("#pick-area-list .combo-option small")].map((el) => el.textContent));
 check(areaDetails.length > 3 && areaDetails.every((text) => /^\d+ Modul(e)?$/.test(text)), `area picker: an entry says more than its name and count (${areaDetails.find((text) => !/^\d+ Modul(e)?$/.test(text))})`);
-await page.fill("#pick-area-search", areaName.split(" ").slice(0, 2).join(" "));
-await page.waitForFunction((name) => document.querySelector("#pick-area-list .combo-option .combo-label")?.textContent === name, areaName);
-await step("area: Enter filters the list", () => page.keyboard.press("Enter"), (name) => /[?&]area=\d+/.test(location.search) && [...document.querySelectorAll(".tag")].some((tag) => tag.textContent.includes(name)) && !location.search.includes("page="), areaName);
+await page.fill("#pick-area-search >> visible=true", areaName.split(" ").slice(0, 2).join(" "));
+await page.waitForFunction((name) => onPage("#pick-area-list .combo-option .combo-label")?.textContent === name, areaName);
+await step("area: Enter filters the list", () => page.keyboard.press("Enter"), (name) => /[?&]area=\d+/.test(location.search) && [...allOnPage(".tag")].some((tag) => tag.textContent.includes(name)) && !location.search.includes("page="), areaName);
 const inArea = await count();
 check(number(inArea) > 0 && number(inArea) < number(all), `area: ${inArea} modules in „${areaName}" (of ${all})`);
-check(await page.evaluate(() => document.getElementById("filters").__same === true), "the filter panel was rebuilt by picking an area");
-await step("area: the tag takes it out again", () => page.click('.tag:has(em:text("Bereich")) a'), () => !location.search.includes("area="));
+check(await page.evaluate(() => onPage("#filters").__same === true), "the filter panel was rebuilt by picking an area");
+await step("area: the tag takes it out again", () => page.click('.tag:has(em:text("Bereich")) a >> visible=true'), () => !location.search.includes("area="));
 
 // ---- nothing moves at the takeover: the site's catalog has no filter panel (docs/folia/
 // folia-refactor.md §4.1), but its place, with the panel's bars, so the list stands where the app's does.
 const boxes = (p) => p.evaluate(() => {
   const box = (el) => { const r = el?.getBoundingClientRect(); return r ? `${r.left.toFixed(0)},${r.top.toFixed(0)},${r.width.toFixed(0)}` : "none"; };
-  return { panel: box(document.querySelector("#filters, .filters.sk-standin")), list: box(document.querySelector(".panel.list")) };
+  return { panel: box(onPage("#filters, .filters.sk-standin")), list: box(onPage(".panel.list")) };
 });
 for (const path of ["/catalog", "/catalog?turnus=winter"]) {
   const server = await browser.newContext({ viewport: { width: 1500, height: 900 } });
@@ -398,7 +404,7 @@ check((await still.locator("#filters, .filters select, .filters a.chip").count()
 check((await still.locator(".filters.sk-standin").evaluate((el) => el.getClientRects().length)) === 0, "no JS: the stand-in of the filter panel shows");
 // What needs JavaScript (shortcut hints, drag handles, the slider, the theme switch) is not shown.
 await still.goto(base + "/catalog?open=11101", { waitUntil: "domcontentloaded" });
-const leftovers = await still.evaluate(() => [...document.querySelectorAll("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
+const leftovers = await still.evaluate(() => [...allOnPage("kbd, .resizer, .slider, .scale, .theme-toggle, .keys, .load-more, .fit-chip")].filter((el) => el.getClientRects().length > 0).map((el) => el.tagName + "." + el.className));
 check(leftovers.length === 0, `no JS: still visible: ${leftovers.join(", ")}`);
 // The preview is the app's: the server's page ignores `open` and every row leads to the module's own page.
 check((await still.locator(".detail").count()) === 0, "no JS: the server's page shows a preview for a shared link");

@@ -36,11 +36,15 @@ const open = async (options, path) => {
   page.on("pageerror", (e) => problems.push(`pageerror (${during}): ` + String(e).slice(0, 300)));
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
-  await page.evaluate(() => {
+  await film(page);
+  return { context, page };
+};
+
+// The frames after the next tap or click (from the finger's or the button's release), or from now
+// on (`now`): which stage is in front in each, and whether a skeleton or a picture held in front of
+// the page is there. Nothing after 3 s without one: no frames. And the marker a page load takes.
+const film = (page) => page.evaluate(() => {
     window.__marker = 1;
-    // The frames after the next tap or click (from the finger's or the button's release), or from
-    // now on (`now`): which stage is in front in each, and whether a skeleton or a picture held in
-    // front of the page is there. Nothing after 3 s without one: no frames.
     window.__film = (now) => new Promise((done) => {
       const frames = [];
       let at = now ? performance.now() : null;
@@ -64,8 +68,6 @@ const open = async (options, path) => {
       requestAnimationFrame(look);
     });
   });
-  return { context, page };
-};
 
 // The stages as they are: which is in front, and what the others are.
 const stages = (page) => page.evaluate(() => [...document.querySelectorAll("#content > .page-stage")].map((stage) => ({
@@ -125,12 +127,24 @@ const settle = (page) => page.waitForFunction(() => !document.querySelector("#co
 const remember = (page, name, key) => page.evaluate(([name, key]) => { window[key] = document.querySelector(`#content > .page-stage[data-stage="${name}"] > :not(template)`); return Boolean(window[key]); }, [name, key]);
 const same = (page, name, key) => page.evaluate(([name, key]) => document.querySelector(`#content > .page-stage[data-stage="${name}"] > :not(template)`) === window[key], [name, key]);
 
+// The tabs built at the start (stage.rs, `prebuild`).
+// A study set up, so that „Studium" is „Mein Studium" with its semesters, the most it shows.
+const MINE = ["betula.myprogram.v1", "program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\ncaption\t\nstart\t2025W\n"];
+const PLAN = ["betula.studyplan.v1", ["m\t2025W\t12104\t1\t\tplan", "m\t2025W\t12107\t1\t\tplan", "m\t2025W\t12102\t1\t\tplan", "m\t2025W\t11112\t1\t\tplan", "m\t2026S\t11113\t1\t\tplan", "m\t2026W\t12101\t1\t\tplan", "m\t2026W\t11903\t1\t\tplan"].join("\n") + "\n"];
+const TABS = ["home", "catalog", "programs", "bookmarks", "studyplan"];
+// Until every tab's stage has its page and its answers (no stage `aria-busy`).
+const allBuilt = (page, timeout) => page.waitForFunction((tabs) => tabs.every((name) => {
+  const stage = document.querySelector(`#content > .page-stage[data-stage="${name}"]`);
+  return stage && stage.childElementCount > 0 && stage.getAttribute("aria-busy") !== "true";
+}), TABS, { timeout }).then(() => true, () => false);
 // ---- a phone
 {
   const phone = true;
   const { context, page } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, "/");
   during = "phone: Start";
   await settle(page);
+  // What follows is the app running: the start over, every tab built (`prebuild`).
+  check(await allBuilt(page, 90000), `${during}: not every tab was built (${JSON.stringify(await stages(page))})`);
   check(await remember(page, "home", "__home"), `${during}: no page on the stage of Start`);
   await oneInFront(page, "home", { phone, canonical: "/" });
 
@@ -210,6 +224,75 @@ const same = (page, name, key) => page.evaluate(([name, key]) => document.queryS
   await context.close();
 }
 
+// ---- a phone, the start over: every tab built behind the first page (stage.rs, `prebuild`)
+for (const slow of [1, 4]) {
+  const phone = true;
+  const tag = slow > 1 ? ` (CPU ${slow}× slower)` : "";
+  const { context, page } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, "/");
+  await page.evaluate((entries) => { for (const [key, text] of entries) localStorage.setItem(key, text); }, [MINE, PLAN]);
+  if (slow > 1) await (await context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: slow });
+  // The long tasks from the load on: what a tap during the start may fall into.
+  await page.addInitScript(() => {
+    window.__long = [];
+    new PerformanceObserver((list) => { for (const entry of list.getEntries()) window.__long.push([Math.round(entry.startTime), Math.round(entry.duration)]); }).observe({ type: "longtask", buffered: true });
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+  const tookOver = await page.evaluate(() => performance.now());
+  await film(page);
+  during = `phone, the start${tag}: every tab built`;
+  check(await allBuilt(page, 90000), `${during}: not every tab was built (${JSON.stringify(await stages(page))})`);
+  const start = await page.evaluate((tookOver) => ({ after: Math.round(performance.now() - tookOver), long: window.__long.filter(([at]) => at >= tookOver).map(([, ms]) => ms) }), tookOver);
+  timings[`${during}: built after (ms)`] = start.after;
+  timings[`${during}: its longest task (ms)`] = Math.max(0, ...start.long);
+  timings[`${during}: its long tasks (ms)`] = start.long.reduce((sum, ms) => sum + ms, 0);
+  await oneInFront(page, "home", { phone, canonical: "/" });
+  // Each tab the first time: in the first frame after the tap, nothing in front of it, at its top
+  // although the page before was scrolled.
+  let homeAt = null;
+  for (const name of ["bookmarks", "studyplan", "catalog", "programs", "home"]) {
+    during = `phone, the start over${tag}: ${name} ${name === "home" ? "again" : "the first time"}`;
+    await page.evaluate(() => scrollTo(0, 500));
+    await page.waitForTimeout(300);
+    homeAt ??= await page.evaluate(() => Math.round(scrollY));
+    if (name !== "home") check(await remember(page, name, `__${name}`), `${during}: no page on its stage`);
+    const frames = await tab(page, name, phone);
+    if (slow === 1) swapped(frames, name);
+    else check(frames[0]?.front === name && frames.every((frame) => !frame.skeleton && !frame.held), `${during}: ${JSON.stringify(frames.slice(0, 3))}`);
+    timings[during] = frames[0]?.ms;
+    // Start was left scrolled; the others open at their top, although the page before was scrolled.
+    const y = await page.evaluate(() => Math.round(scrollY));
+    if (name === "home") check(Math.abs(y - homeAt) <= 2, `${during}: scrolled to ${y}, left at ${homeAt}`);
+    else check(y < 2, `${during}: not at its top (${y})`);
+    if (name !== "home") check(await same(page, name, `__${name}`), `${during}: the page was built anew`);
+    await settle(page);
+    await oneInFront(page, name, { phone });
+  }
+  during = `phone, the start over${tag}: „Mein Studium" at its overview`;
+  await tab(page, "programs", phone);
+  await page.waitForTimeout(400);
+  check(await page.evaluate(() => Boolean(document.querySelector("#content > .page-stage.front .st-pager > .st-slot[data-here].is-overview"))), `${during}: the row of the semesters does not rest at the overview`);
+  if (await reloaded(page)) problems.push(`${during}: the page was loaded again`);
+  await context.close();
+}
+
+// ---- a phone: a tab tapped while the tabs are still built
+{
+  const phone = true;
+  const { context, page } = await open({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, "/");
+  during = "phone, the start: „Studium“ tapped at once";
+  await tab(page, "programs", phone);
+  await page.waitForFunction(() => document.querySelector("#content > .page-stage.front")?.dataset.stage === "programs" && document.querySelector("#content > .page-stage.front .st-setup, #content > .page-stage.front .st-pager"), null, { timeout: 15000 }).catch(() => problems.push(`${during}: „Mein Studium“ did not come`));
+  await settle(page);
+  check(await remember(page, "programs", "__programs"), `${during}: no page on its stage`);
+  during = "phone, the start: the other tabs built meanwhile";
+  check(await allBuilt(page, 90000), `${during}: not every tab was built (${JSON.stringify(await stages(page))})`);
+  check(await same(page, "programs", "__programs"), `${during}: „Mein Studium“ was built anew`);
+  await oneInFront(page, "programs", { phone });
+  if (await reloaded(page)) problems.push(`${during}: the page was loaded again`);
+  await context.close();
+}
+
 // ---- a wide screen
 {
   const phone = false;
@@ -217,6 +300,7 @@ const same = (page, name, key) => page.evaluate(([name, key]) => document.queryS
   during = "wide: the catalog";
   await page.waitForFunction(() => document.querySelectorAll("#content > .page-stage.front .rows a.row").length > 5, null, { timeout: 15000 }).catch(() => problems.push(`${during}: no rows`));
   await settle(page);
+  check(await allBuilt(page, 90000), `${during}: not every tab was built (${JSON.stringify(await stages(page))})`);
   check(await remember(page, "catalog", "__catalog"), `${during}: no page on the catalog's stage`);
   await page.click("#content > .page-stage.front .rows a.row >> nth=2");
   await page.waitForFunction(() => location.search.includes("open=") && document.querySelector("#content > .page-stage.front .work > .detail h2"), null, { timeout: 10000 }).catch(() => problems.push(`${during}: the module beside the list did not open`));

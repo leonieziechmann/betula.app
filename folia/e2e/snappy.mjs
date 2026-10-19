@@ -194,11 +194,14 @@ for (const slow of [1, 4]) {
   await phone.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
   const small = await open(phone, "/catalog");
   if (slow > 1) await (await phone.newCDPSession(small)).send("Emulation.setCPUThrottlingRate", { rate: slow });
+  // A tab's page on a phone: what is in front first, the address after the frame that shows it,
+  // once the history is written (folia_shell::nav); a tab built at the start comes at once.
   await watch(small, "phone: the bottom bar" + tag, tap(small, '.bottomnav a.nav[data-area="programs"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="programs"]')?.getAttribute("aria-current") === "page",
-    result: () => location.pathname === "/study" && document.querySelector(".st-setup"),
+    result: () => document.querySelector('#content > .page-stage.front[data-stage="programs"] .st-setup'),
     skeleton: true,
   }, slow);
+  await small.waitForFunction(() => location.pathname === "/study", null, { timeout: 5000 }).catch(() => problems.push(`phone: the bottom bar${tag}: the address did not follow (${small.url()})`));
   await watch(small, "phone: back to the catalog" + tag, tap(small, '.bottomnav a.nav[data-area="catalog"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="catalog"]')?.getAttribute("aria-current") === "page",
     result: () => location.pathname === "/catalog" && document.querySelectorAll(".rows a.row").length > 5,
@@ -213,9 +216,10 @@ for (const slow of [1, 4]) {
   await small.waitForFunction(() => !location.search.includes("open=") && !document.querySelector(".detail.is-module"), null, { timeout: 8000 }).catch(() => problems.push("phone: Back did not close the module's sheet"));
   await watch(small, "phone: the bottom bar: Stundenplan" + tag, tap(small, '.bottomnav a.nav[data-area="studyplan"]'), {
     feedback: () => document.querySelector('.bottomnav a.nav[data-area="studyplan"]')?.getAttribute("aria-current") === "page",
-    result: () => location.pathname === "/studyplan" && document.querySelector(".sp-body .state-actions"),
+    result: () => document.querySelector('#content > .page-stage.front[data-stage="studyplan"] .sp-body .state-actions'),
     skeleton: true,
   }, slow);
+  await small.waitForFunction(() => location.pathname === "/studyplan", null, { timeout: 5000 }).catch(() => problems.push(`phone: the bottom bar: Stundenplan${tag}: the address did not follow (${small.url()})`));
   await phone.close();
 }
 

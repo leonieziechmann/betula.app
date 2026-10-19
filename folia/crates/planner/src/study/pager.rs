@@ -218,6 +218,9 @@ pub(super) struct Pages {
     start: usize,
     reach: RwSignal<usize>,
     going: Option<Pending>,
+    /// The page is in front (`folia_design::stage`): behind, built at the start or left, no more
+    /// pages are drawn until it comes to the front (`draw_on`).
+    in_front: Signal<bool>,
 }
 
 impl Pages {
@@ -244,6 +247,7 @@ impl Pages {
             start,
             reach: RwSignal::new(1),
             going: Pending::expect(),
+            in_front: folia_design::stage::front(),
         }
     }
 
@@ -265,8 +269,13 @@ impl Pages {
     }
 
     /// The pages further out, two a step, until all are drawn; not while a finger is on the row or
-    /// it moves, whose frames the drawing would take.
+    /// it moves, whose frames the drawing would take, and not while the page is behind: built at the
+    /// start, it draws on once it comes to the front (`Pager`), so that a tap on the page in front
+    /// never waits for it.
     fn draw_on(self) {
+        if !self.in_front.try_get_untracked().unwrap_or(true) || self.reach.try_get_untracked().is_none_or(|reach| reach + 1 >= self.order.with_untracked(Vec::len)) {
+            return;
+        }
         let Some(busy) = self.touching.try_get_value().zip(self.quiet.try_with_value(Option::is_some)).map(|(touching, moving)| touching || moving) else { return };
         if busy {
             set_timeout(move || self.draw_on(), QUIET);
@@ -504,7 +513,11 @@ impl Pages {
             Page::Semester(key) => Some(key.key()),
             Page::Overview => None,
         };
-        folia_shell::nav::keep(KEPT, semester.as_deref());
+        // The entry the browser is at is the page's own only while it is in front: a glide that
+        // ends after its tab changed writes nothing into another page's entry.
+        if self.in_front.try_get_untracked().unwrap_or(true) {
+            folia_shell::nav::keep(KEPT, semester.as_deref());
+        }
         if page == Page::Overview {
             if self.ctx.selection.with_untracked(|selection| !selection.keys.is_empty()) {
                 self.ctx.selection.set(Selection::default());
@@ -612,8 +625,13 @@ pub(super) fn Pager(ctx: StudyCtx, pages: Pages) -> impl IntoView {
             dom::on_finger(&row, move |down| pages.finger(down));
         }
     });
-    // The pages further out, once the page the row opened at is there.
-    set_timeout(move || pages.draw_on(), DRAW);
+    // The pages further out, once the page the row opened at is there, and again once a page
+    // built behind comes to the front (`draw_on`).
+    Effect::new(move |_| {
+        if pages.in_front.get() {
+            set_timeout(move || pages.draw_on(), DRAW);
+        }
+    });
     on_cleanup(move || {
         pages.stop();
         if let Some(Some(handle)) = pages.quiet.try_get_value() {
