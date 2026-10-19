@@ -1,25 +1,127 @@
-//! A module as a row of a list (`Row`), the keys of a list (`ListKeys`), and whether the phone
-//! layout is in use (`phone_layout`): the catalog's list, the marked modules, a program's page.
+//! A module as a row of a list (`Row`) and what it says of the module beside its title (`Facts`),
+//! the keys of a list (`ListKeys`), and whether the phone layout is in use (`phone_layout`): the
+//! catalog's list, the marked modules, a program's page, the semesters of „Mein Studium".
 
 
 use folia_model::labels::TurnusSeason;
-use folia_model::rows::CatalogRow;
+use folia_model::rows::{CatalogRow, MarkedText};
 use leptos::prelude::*;
 
 use folia_stores::bookmarks::{Bookmarks, MarkButton, MarkLook};
 use folia_design::format;
-use crate::i18n::{self};
+use crate::i18n::{self, Locale};
 use folia_design::nav;
 use crate::finder::Finder;
 use crate::swipe::RowSwipe;
 use folia_design::ui::{Icon, KindBadge, OfferBadge};
 
 
-/// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
-/// a link; the mark at its end is a button next to the link, not inside it.
 /// Whether this build is the browser app: only there does a row swipe and mark.
 const APP: bool = cfg!(feature = "csr");
 
+/// What a row of a list says of a module besides its title, its number and its marks: under them
+/// its language and its events where the list is narrow, and beside them its columns — who is
+/// responsible, the exam, then (after the credits, which each list writes itself) the turnus, the
+/// language, the events. The catalog's list and the Merkliste (`Row`), and the semesters of „Mein
+/// Studium", which show a module as the catalog does (owner, 2026-10-19: „1 zu 1 der Style vom
+/// Modulkatalog … so dass man einfach versteht, dass es sich um ein Modul handelt"). For a row
+/// that is no module of the catalog (a row of a plan that names none) the columns stand empty, so
+/// that the next ones keep their places.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Facts {
+    known: bool,
+    /// „DE", „EN", „DE/EN"; what the column says without one.
+    language: Option<&'static str>,
+    unknown: &'static str,
+    turnus: (&'static str, String),
+    /// „2 Termine" under the title; what the column says, „noch keine" for none.
+    events: String,
+    events_cell: String,
+    has_events: bool,
+    responsible: Option<String>,
+    exam: Option<String>,
+}
+
+impl Facts {
+    /// The facts of `row` in the language of `locale`; `None` for a row that is no module.
+    pub fn of(row: Option<&CatalogRow>, locale: Locale) -> Self {
+        let t = i18n::texts(locale);
+        let Some(row) = row else {
+            return Facts {
+                known: false,
+                language: None,
+                unknown: t.catalog.row_unknown,
+                turnus: ("minus", String::new()),
+                events: String::new(),
+                events_cell: String::new(),
+                has_events: false,
+                responsible: None,
+                exam: None,
+            };
+        };
+        let turnus = match row.turnus_season.as_ref().and_then(|s| s.known()) {
+            Some(TurnusSeason::Winter) => ("snowflake", t.catalog.row_winter.to_string()),
+            Some(TurnusSeason::Summer) => ("sun", t.catalog.row_summer.to_string()),
+            Some(TurnusSeason::Both) => ("repeat", t.catalog.row_every.to_string()),
+            Some(TurnusSeason::Irregular) => ("shuffle", t.catalog.row_irregular.to_string()),
+            None => ("minus", row.turnus_season.as_ref().map(|s| s.label(t.locale).to_string()).unwrap_or_else(|| t.catalog.row_unknown.to_string())),
+        };
+        let has_events = row.teaching_events > 0;
+        let events = (t.catalog.events)(row.teaching_events);
+        Facts {
+            known: true,
+            language: format::languages(row.teaches_german, row.teaches_english),
+            unknown: t.catalog.row_unknown,
+            turnus,
+            events_cell: if has_events { events.clone() } else { t.catalog.events_none.to_string() },
+            events,
+            has_events,
+            responsible: row.responsible.clone(),
+            exam: row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale)),
+        }
+    }
+
+    /// Whether the module has teaching events in its newest semester.
+    pub fn has_events(&self) -> bool {
+        self.has_events
+    }
+
+    /// Under the title where the list is narrow: „DE · 2 Termine".
+    pub fn narrow(&self) -> impl IntoView + use<> {
+        let (language, events) = (self.language, self.events.clone());
+        self.known.then(|| view! { <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events}</span> })
+    }
+
+    /// The columns before the credits.
+    pub fn lead(&self) -> impl IntoView + use<> {
+        view! {
+            <span class="resp">{self.responsible.clone()}</span>
+            <span class="exam">{self.exam.clone()}</span>
+        }
+    }
+
+    /// The columns after the credits.
+    pub fn trail(&self) -> impl IntoView + use<> {
+        if !self.known {
+            return view! { <span class="turnus"></span><span class="lang"></span><span class="events none"></span> }.into_any();
+        }
+        let (icon, text) = self.turnus.clone();
+        let title = text.clone();
+        let has_events = self.has_events;
+        view! {
+            <span class="turnus" title=title><Icon name=icon/><span class="txt">{text}</span></span>
+            <span class="lang" class:unknown=self.language.is_none()>{self.language.unwrap_or(self.unknown)}</span>
+            <span class="events" class:none=!has_events>
+                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
+                {self.events_cell.clone()}
+            </span>
+        }
+        .into_any()
+    }
+}
+
+/// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
+/// a link; the mark at its end is a button next to the link, not inside it.
 #[component]
 pub fn Row(
     row: CatalogRow,
@@ -41,16 +143,18 @@ pub fn Row(
     #[prop(optional)] swipe: bool,
 ) -> impl IntoView {
     let t = i18n::t();
-    let language = format::languages(row.teaches_german, row.teaches_english);
-    let (turnus_icon, turnus_text) = match row.turnus_season.as_ref().and_then(|s| s.known()) {
-        Some(TurnusSeason::Winter) => ("snowflake", t.catalog.row_winter.to_string()),
-        Some(TurnusSeason::Summer) => ("sun", t.catalog.row_summer.to_string()),
-        Some(TurnusSeason::Both) => ("repeat", t.catalog.row_every.to_string()),
-        Some(TurnusSeason::Irregular) => ("shuffle", t.catalog.row_irregular.to_string()),
-        None => ("minus", row.turnus_season.as_ref().map(|s| s.label(t.locale).to_string()).unwrap_or_else(|| t.catalog.row_unknown.to_string())),
-    };
-    let events = (t.catalog.events)(row.teaching_events);
-    let has_events = row.teaching_events > 0;
+    let facts = Facts::of(Some(&row), t.locale);
+    let has_events = facts.has_events();
+    // In the list of a search: the letters it found, and a line under the title with what it was
+    // found by where that is not the title one sees (folia/design/suche/konzept.html, „Die Zeile
+    // zeigt den Grund").
+    let marks = row.marks.clone().unwrap_or_default();
+    let found_by = |label: &'static str, found: &MarkedText| view! { <small class="found-by"><i>{label}</i>" "{marked(&found.text, &found.spans)}</small> };
+    let other = marks.other.as_ref().map(|other| {
+        let english = row.title_en.as_deref() == Some(other.text.as_str());
+        found_by(if english { t.catalog.row_title_en } else { t.catalog.row_title_de }, other)
+    });
+    let lecturer = marks.lecturer.as_ref().map(|name| found_by(if marks.teaching { t.catalog.row_teaches } else { t.catalog.row_responsible }, name));
     // Its courses and choices (folia/design/wahlangebote/konzept.html): „14 Projekte zur Wahl",
     // „2 Standorte · Übung je Studiengang".
     let offered = crate::options::row_offer(row.courses, &row.choices, t);
@@ -76,9 +180,10 @@ pub fn Row(
     let link = view! {
         <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
             <div class="t">
-                <b>{row.title.clone()}</b>
+                <b>{marked(&row.title, &marks.title)}</b>
                 <small>
-                    <span class="mono">{row.id.clone()}</span>
+                    <span class="mono">{marked(&row.id, &marks.id)}</span>
+                    {marks.abbrev.as_ref().map(|abbrev| view! { <span class="flag neutral">{(t.catalog.row_abbrev)(abbrev)}</span> })}
                     {with_program.then(|| view! { <KindBadge kind=row.kind.clone() basis=row.kind_basis.clone() source=row.kind_source.clone() area=row.area.clone()/> })}
                     // Inside a program the study plan's semester stands at the row (the
                     // list is in plan order, without headings between the semesters).
@@ -88,18 +193,14 @@ pub fn Row(
                     {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
                     {fit_note}
                     {offered.map(|offered| view! { <span class="row-offer">{offered}</span> })}
-                    <span class="narrow-only">{language.map(|l| format!("{l} · "))}{events.clone()}</span>
+                    {facts.narrow()}
                 </small>
+                {other}
+                {lecturer}
             </div>
-            <span class="resp">{row.responsible.clone()}</span>
-            <span class="exam">{row.exam_form.as_ref().map(|form| format::exam_short(form, t.locale))}</span>
+            {facts.lead()}
             <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
-            <span class="turnus" title=turnus_text.clone()><Icon name=turnus_icon/><span class="txt">{turnus_text.clone()}</span></span>
-            <span class="lang" class:unknown=language.is_none()>{language.unwrap_or(t.catalog.row_unknown)}</span>
-            <span class="events" class:none=!has_events>
-                {has_events.then(|| view! { <Icon name="calendar-check-2"/> })}
-                {if has_events { events } else { t.catalog.events_none.to_string() }}
-            </span>
+            {facts.trail()}
         </a>
     };
     // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
@@ -141,6 +242,34 @@ pub fn Row(
         }
         .into_any(),
     }
+}
+
+/// `text` with the letters a search found in it marked (`<mark>`): `spans` are byte ranges of it,
+/// those that overlap or touch made one; one that is no range of the text is left out.
+fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
+    let mut ranges: Vec<(usize, usize)> = spans.iter().map(|&(a, b)| (a as usize, b as usize)).filter(|(a, b)| a < b).collect();
+    ranges.sort_unstable();
+    let mut joined: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
+    for (a, b) in ranges {
+        match joined.last_mut() {
+            Some(last) if a <= last.1 => last.1 = last.1.max(b),
+            _ => joined.push((a, b)),
+        }
+    }
+    let mut parts = Vec::with_capacity(joined.len() * 2 + 1);
+    let mut at = 0;
+    for (a, b) in joined {
+        let (Some(before), Some(found)) = (text.get(at..a), text.get(a..b)) else { continue };
+        if !before.is_empty() {
+            parts.push(before.to_string().into_any());
+        }
+        parts.push(view! { <mark>{found.to_string()}</mark> }.into_any());
+        at = b;
+    }
+    if let Some(rest) = text.get(at..).filter(|rest| !rest.is_empty()) {
+        parts.push(rest.to_string().into_any());
+    }
+    parts
 }
 
 /// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,

@@ -1,0 +1,845 @@
+<title>Betula Such-Konzept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The search of the module catalog: what it compares a query with, how a module is found and in
+     which order the list stands (owner, 2026-10-19, of a screenshot of the catalog searched for „TI“:
+     „gemeint damit war Theoretische Informatik. Und die suchergebnisse sind ja mal so unfassbar bad.
+     Erstmal punkt nummer 1, fulltext search in der modulbeschreibung ergibt ja mal so gar keinen sinn,
+     das kann einfach raus. Ja und dann müssen wir natürlich nochmal die hierarchie hier besprechen.
+     Denn „TIN* - trans*, inter...“ sehe ich sofort, dass das an platz eins ist. Aber „Zeitdiskrete
+     Systeme und Regelungen“ sind hier etwas komisch, genau so wie Ingenieurholzbau. Erstell mal ein
+     konzept, wie wir das hier richtig filtern und sortieren können, so dass die relevantesten
+     ergebnisse oben sind. Ich glaube dafür kann man gut fuzzy matching verwenden."; and on the first
+     round, the same day: „Ähnliche module sollen unbedingt bleiben … Die zufälligen kürzel sind ok …
+     die module aus deinem Studiengang ganz generell einen kleinen boost … Vlt score einfach x 1.2 oder
+     so … Ja durchsuch mal Lehrende mit. Aber leg dafür andere regeln an, als für die modultitel. Also
+     etwas restriktiver, aber typos oder ähnliche schreibweisen bitte doch zulassen … die gefundenen
+     Module bei allen gleich … Aber die reihenfolge darf sich zwischen nutzern ändern … dass man seinen
+     freunden ne suche teilen kann … dass der nicht primary language match beim titel etwas schlechter
+     gewertet wird … „TIN* - trans*, inter*...“ vielleicht eher so an stelle 3/4 … wenn man case
+     matching beim wortanfang hat, dann soll das auch besser geweichtet sein. => suche „TI“: Tissue
+     Engineering < TIN*").
+     What happens today was read in folia/crates/search/src/lib.rs and query/src/sql.rs (Folia 1.29.2)
+     and played on canary's snapshot of 2026-10-19 (Radix 0.9.1, schema 16): the port in engine.mjs
+     finds the same hits in the same order as the SQL, the 49 of „TI“ among them. The lists on this
+     page are computed by engine.mjs on that snapshot's 3,232 offered modules (build.mjs inlines both);
+     the questions in „Wo das Gemeinte landet“ and what a student means by them are examples.
+     Tokens are Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the finding and the six rules at the top; „TI“ today and with the rules side by side; why
+   today looks so; the field to try any query; where what is meant lands; the rules to look up; what
+   fuzzy matching does here; the steps; what is open. Tokens: Betula's own (light, then dark), and the
+   mark of the letters a query found. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58; --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel)); --no: #c2410c;
+  --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --mark: color-mix(in srgb, #e0a91b 34%, transparent); --mark-ink: #10151f;
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1; --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --no: #ff8f85;
+    --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --mark: color-mix(in srgb, #f0c14b 30%, transparent); --mark-ink: #fff6dc;
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1; --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 14%, var(--panel)); --no: #ff8f85;
+  --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --mark: color-mix(in srgb, #f0c14b 30%, transparent); --mark-ink: #fff6dc;
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .86em; }
+mark { background: var(--mark); color: var(--mark-ink); border-radius: 3px; padding: 0 1px; margin: 0 -1px; }
+.num { font-variant-numeric: tabular-nums; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 82ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead + .lead { margin-top: 10px; }
+.block h3 { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+
+/* The brief: the finding, and the six rules. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.finding { margin-top: 14px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.finding b { color: var(--text); font-weight: 650; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+
+/* Results: two lists side by side, as the catalog's rows. */
+.pair { margin-top: 16px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.col { min-width: 0; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 12px 10px 10px; }
+.col-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 0 6px 8px; }
+.col-head h3 { font-size: 14px; font-weight: 700; }
+.col-head .count { font-size: 13px; color: var(--text-2); }
+.col-head .count b { color: var(--text); font-size: 18px; font-weight: 760; letter-spacing: -.02em; margin-right: 3px; }
+.col.neu { background: var(--panel); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.note { margin: 0 6px 8px; padding: 8px 10px; border-radius: var(--r-row); background: var(--warn-soft); color: var(--warn); font-size: 12.5px; font-weight: 520; }
+.hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.hit { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 2px 8px; padding: 7px 8px; border-radius: var(--r-row); }
+.hit:nth-child(odd) { background: color-mix(in oklab, var(--text) 3%, transparent); }
+.hit .rank { grid-row: span 3; font-size: 12px; font-weight: 650; color: var(--text-3); text-align: right; padding-top: 2px; }
+.hit .t { font-weight: 600; font-size: 14.5px; line-height: 1.3; letter-spacing: -.012em; overflow-wrap: anywhere; }
+.hit .s { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: center; font-size: 12.5px; color: var(--text-3); }
+.hit .o { font-size: 12.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.hit .o i { font-style: normal; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-right: 4px; }
+.hit.target { box-shadow: inset 3px 0 0 var(--accent); }
+.flag { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--warn-soft); color: var(--warn); }
+.flag.neutral { background: var(--panel-3); color: var(--text-2); }
+.why { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--panel-3); color: var(--text-2); }
+.why.c1 { background: var(--accent); color: var(--on-accent); }
+.why.c2 { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.why.hidden { background: var(--warn-soft); color: var(--warn); }
+.gone { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--no-soft); color: var(--no); }
+.mine { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--invert); color: var(--on-invert); }
+.more { margin: 8px 6px 0; padding: 6px 10px; border: 0; border-radius: 8px; background: var(--panel-3); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.more:hover { color: var(--text); }
+.empty { padding: 10px 8px; color: var(--text-3); font-size: 13.5px; }
+
+/* Why today looks so: four causes. */
+.causes { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cause { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cause .big { font-size: 26px; font-weight: 760; letter-spacing: -.02em; line-height: 1; }
+.cause .big small { font-size: 13px; font-weight: 600; color: var(--text-3); letter-spacing: 0; margin-left: 4px; }
+.cause p { font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.cause ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--text-2); }
+.cause ul li { overflow-wrap: anywhere; }
+.cause .to { font-size: 12.5px; color: var(--accent-ink); font-weight: 600; }
+
+/* The field to try: the query, examples, my program, both lists. */
+.try { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 12px; font-weight: 650; color: var(--text-2); }
+.field.q { flex: 1 1 280px; }
+.field.p { flex: 1 1 240px; max-width: 380px; }
+.field input, .field select { height: 42px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); min-width: 0; width: 100%; }
+.field input { font-size: 17px; font-weight: 600; }
+.chips { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 4px 9px; border: 0; border-radius: 7px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-family: var(--mono); font-size: 12.5px; font-weight: 500; cursor: pointer; }
+.chip:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.chip[aria-pressed="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.hint { margin-top: 10px; font-size: 13px; color: var(--text-3); text-wrap: pretty; max-width: 90ch; }
+.reading { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12.5px; color: var(--text-2); align-items: center; }
+.reading .w { padding: 1px 7px; border-radius: 5px; background: var(--panel-3); font-family: var(--mono); }
+.reading .w.strong { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
+
+/* Where what is meant lands: a table. */
+.scroll { margin-top: 14px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); padding: 6px 10px; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td.q button { padding: 2px 8px; border: 0; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-family: var(--mono); font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+td.q button:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+td.meant { color: var(--text-2); min-width: 14ch; }
+td.at { white-space: nowrap; text-align: right; }
+td.at b { font-weight: 720; }
+td.at small { color: var(--text-3); margin-left: 4px; }
+td.at.top b { color: var(--ok); }
+td.at.far b { color: var(--no); }
+td.at.none b { color: var(--no); }
+th.at { text-align: right; }
+
+/* The rules to look up. */
+.grid2 { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; }
+.grid2 > div { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.grid2 p, .grid2 li { font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.grid2 b { color: var(--text); font-weight: 620; }
+.list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.classes { margin-top: 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.cls { padding: 12px 14px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cls .why { align-self: flex-start; }
+.cls p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.cls ul { margin: 0; padding: 0; list-style: none; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
+.order { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: step; columns: 2; column-gap: 28px; }
+.order li { counter-increment: step; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); break-inside: avoid; padding-bottom: 8px; }
+.order li::before { content: counter(step); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.order li b { color: var(--text); font-weight: 620; }
+.rowmock { margin-top: 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.rowmock .hit { grid-template-columns: minmax(0, 1fr) auto; }
+.rowmock .lp { grid-row: span 3; font-weight: 650; font-size: 15px; align-self: center; }
+.rowmock .lp small { font-weight: 500; font-size: 11px; color: var(--text-3); margin-left: 2px; }
+
+/* Fuzzy: three numbers, then what is used. */
+.fz { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fz > div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.fz b { display: block; font-size: 26px; font-weight: 760; letter-spacing: -.02em; }
+.fz span { font-size: 13px; color: var(--text-2); }
+.bar { margin-top: 8px; height: 6px; border-radius: 3px; background: var(--panel-3); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--no); }
+
+/* Steps and what is open. */
+.steps { margin: 14px 0 0; padding: 0; list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 12px; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; font-size: 14px; color: var(--text-2); text-wrap: pretty; max-width: 100ch; }
+.steps li::before { content: counter(s); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--invert); color: var(--on-invert); font-size: 12.5px; font-weight: 700; }
+.steps li b { color: var(--text); font-weight: 620; }
+.open { margin-top: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.q-open { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.q-open h3 { font-size: 15px; }
+.q-open p { font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.q-open .rec { font-size: 13px; color: var(--accent-ink); font-weight: 600; }
+.foot { color: var(--text-3); font-size: 13px; max-width: 100ch; text-wrap: pretty; }
+
+@media (max-width: 900px) {
+  .intro, .grid2, .open { grid-template-columns: minmax(0, 1fr); }
+  .classes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .order { columns: 1; }
+}
+@media (max-width: 760px) {
+  .pair, .causes, .fz { grid-template-columns: minmax(0, 1fr); }
+  .col.neu { order: -1; }
+  .block { padding: 18px 16px; }
+}
+@media (max-width: 460px) {
+  .classes { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* Round two: the owner's decisions, the weights, the sliders, the lecturers. */
+.decided { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dec { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dec q { quotes: none; font-size: 14px; color: var(--text); text-wrap: pretty; }
+.dec q::before { content: "„"; } .dec q::after { content: "“"; }
+.dec p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.dec p b { color: var(--accent-ink); font-weight: 650; }
+.weights { margin: 12px 0 0; padding: 12px 14px; border: 0; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: end; }
+.weights legend { float: left; width: 100%; padding: 0; font-size: 12px; font-weight: 650; color: var(--text-2); }
+.weight { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 190px; }
+.weight label { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text-2); }
+.weight output { font-family: var(--mono); font-size: 12.5px; color: var(--text); font-weight: 600; }
+.weight input { width: 100%; accent-color: var(--accent); }
+.reset { padding: 6px 10px; border: 0; border-radius: 8px; background: var(--panel-3); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.reset:hover { color: var(--text); }
+.pts { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
+.hit .l { font-size: 12.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.hit .l i { font-style: normal; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); margin-right: 4px; }
+.hit .rank { grid-row: span 4; }
+.mod { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--panel-3); color: var(--text-2); }
+.why.name { background: color-mix(in srgb, var(--accent) 6%, var(--panel-3)); color: var(--text); }
+.points { margin-top: 10px; }
+.points td.p { font-family: var(--mono); text-align: right; white-space: nowrap; }
+.points td.e { color: var(--text-2); }
+.points tr.group td { padding-top: 12px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--line-strong); }
+@media (max-width: 900px) { .decided { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+<main class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Konzept · Suche im Modulkatalog · 19. Oktober 2026, zweite Runde</p>
+      <h1>Bei „TI“ steht Theoretische Informatik oben</h1>
+      <p class="lead">Heute findet „TI“ 49 Module, und „Theoretische Informatik“ steht auf Platz 43. Mit den Regeln
+        hier sind es <span class="num">14</span>: „Theoretische Informatik“ auf Platz 1, „TIN*“ auf Platz 3. Die zweite
+        Runde nimmt deine Antworten auf: Punkte mit Gewichten, die Lehrenden, und für alle dieselben Treffer. Alle Listen
+        rechnet der Prototyp auf dem Katalog von Canary (3.232 angebotene Module, Stand 19.10.2026), auch jede Suche
+        <a href="#spielfeld">im Spielfeld</a>, dort mit Reglern für die Gewichte.</p>
+      <p class="finding"><b>Die Modulbeschreibung durchsucht die Liste gar nicht</b>, seit dem 30.09. nur Nummer, Kürzel und
+        Titel. „Zeitdiskrete Systeme und Regelungen“ steht da, weil der englische Titel „<mark>Ti</mark>me-discrete Systems and
+        Regulators“ heißt, „Ingenieurholzbau“ wegen „Engineering Design of <mark>Ti</mark>mber Structures“. Den englischen
+        Titel sieht man in der Liste nicht. Die Beschreibung liest nur „Ähnliche Module“ unter der Liste, und die
+        bleiben.</p>
+      <nav class="toc" aria-label="Inhalt">
+        <a href="#entschieden">Entschieden</a><a href="#ti">„TI“ vorher und nachher</a><a href="#warum">Warum heute so</a>
+        <a href="#spielfeld">Spielfeld</a><a href="#gemeint">Wo das Gemeinte landet</a><a href="#regeln">Die Regeln</a>
+        <a href="#lehrende">Lehrende</a><a href="#fuzzy">Fuzzy Matching</a><a href="#umsetzung">Umsetzung</a>
+      </nav>
+    </div>
+    <aside class="rules" aria-label="Die Regeln in Kürze">
+      <p class="kicker">Neun Regeln</p>
+      <ol>
+        <li><span><b>Gesucht wird in Namen.</b> Modulnummer, Kürzel (des Moduls und der Studiengänge), beide Titel und
+          die Lehrenden. Keine Beschreibung.</span></li>
+        <li><span><b>Für alle dieselben Treffer.</b> Was gefunden wird, hängt nur an der Suche und den Filtern der Adresse.
+          Das Profil ändert die Reihenfolge, nie die Treffer; ein geteilter Link zeigt dieselben Module.</span></li>
+        <li><span><b>Kürzel werden erkannt.</b> „TI“, „KI“, „AuD“, „MfI“, „TheoInf“, „LinA“ sind Anfänge von Wörtern, die
+          aufeinander folgen; „BS“ findet die Kürzel BS1 bis BS3. Zahlen sind keine Anfangsbuchstaben.</span></li>
+        <li><span><b>Punkte nach Art des Fundes.</b> Genau 120, ganzes Wort oder Kürzel 80, Wortanfang 60, im Wort 35. Bei
+          mehreren Suchwörtern zählt das schwächste.</span></li>
+        <li><span><b>Was man sieht, zählt mehr.</b> Ein Fund im Titel der anderen Sprache zählt ×0,75. Ein Suchwort aus ein
+          oder zwei Buchstaben findet dort keine Wortanfänge, „ti“ also nicht „Timber“.</span></li>
+        <li><span><b>Schreibweise wie getippt ×1,1.</b> Wer „TI“ groß schreibt, bekommt „TIN*“ vor „Tissue“.</span></li>
+        <li><span><b>Mein Studiengang ×1,35.</b> Seine Module rücken nach oben, auch über Stufen hinweg.</span></li>
+        <li><span><b>Lehrende mit eigenen Regeln.</b> Nachname ganz, sein Anfang ab vier Buchstaben, ähnliche Schreibweisen
+          („Hoffstedt“, „Doering“); ein Vorname nur mit dem Nachnamen.</span></li>
+        <li><span><b>Die Zeile zeigt den Grund.</b> Gefundene Buchstaben sind markiert; kommt der Treffer aus dem anderen
+          Titel oder von Lehrenden, steht das darunter.</span></li>
+      </ol>
+    </aside>
+  </header>
+
+  <section class="block" id="entschieden">
+    <h2>Entschieden</h2>
+    <p class="lead">Deine Antworten vom 19.10. auf die erste Runde, und was daraus in diesem Konzept geworden ist.</p>
+    <div class="decided">
+      <div class="dec"><q>Ähnliche module sollen unbedingt bleiben.</q>
+        <p><b>Bleiben, wie sie sind:</b> unter der Liste, ab drei Zeichen, höchstens zehn.</p></div>
+      <div class="dec"><q>Die zufälligen kürzel sind ok. Das ist ein tradeoff, mit dem ich leben kann.</q>
+        <p><b>Bleiben:</b> „TI“ findet auch „Biodiversity of <mark>T</mark>errestrial <mark>I</mark>nvertebrates“, „KI“ dafür
+          die englischen KI-Module über ihren deutschen Titel.</p></div>
+      <div class="dec"><q>… die module aus deinem Studiengang ganz generell einen kleinen boost … Vlt score einfach x 1.2
+          oder so</q>
+        <p><b>×1,35 auf die Punkte</b>, als Regler im Spielfeld; nachgemessen, ×1,2 war zu wenig. Wer Artificial
+          Intelligence M.Sc. studiert, fand bei „Masterarbeit“ die eigene „Master Thesis“ mit ×1,2 auf Platz 33, hinter der
+          „Master-Arbeit“ von 32 anderen Studiengängen, mit ×1,35 auf Platz 1: Ein eigenes Modul, mit dem Titel der anderen
+          Sprache genannt, steht vor einem fremden, das mit dem gezeigten Titel genannt ist. Vor eines, das mit seinem eigenen
+          Kürzel genannt ist, kommt es nicht: Mit Informatik M.Sc. steht bei „SE“ „Softwaretechnik“ auf Platz 2, hinter
+          „Sicherheitsengineering“ (Kürzel SE). Mit Informatik B.Sc. stehen bei „BS“ die Betriebssysteme vor „Biosensorik“.</p></div>
+      <div class="dec"><q>Ja durchsuch mal Lehrende mit. Aber leg dafür andere regeln an … etwas restriktiver, aber typos oder
+          ähnliche schreibweisen bitte doch zulassen.</q>
+        <p><b>Eigene Regeln</b> (unter <a href="#lehrende">Lehrende</a>): „Hoffstedt“, „Hofstätt“, „Hofstet“ und
+          „P. Hofstedt“ finden die zwölf Module von Prof. Hofstedt; „Petra“ allein findet niemanden.</p></div>
+      <div class="dec"><q>… die gefundenen Module bei allen gleich … Aber die reihenfolge darf sich zwischen nutzern ändern.
+          Die idee ist bloß, dass man seinen freunden ne suche teilen kann.</q>
+        <p><b>Regel 2:</b> Punkte und Profil ordnen nur. Es gibt keine Grenze nach Punkten, und die Tippfehler-Korrektur
+          fragt den ganzen Katalog.</p></div>
+      <div class="dec"><q>… dass der nicht primary language match beim titel etwas schlechter gewertet wird … „TIN*“
+          vielleicht eher so an stelle 3/4 … => suche „TI“: Tissue Engineering &lt; TIN*</q>
+        <p><b>×0,75 für den anderen Titel, ×1,1 für die Schreibweise wie getippt:</b> „TIN*“ steht bei „TI“ auf Platz 3,
+          „Tissue Engineering“ auf Platz 8. Bei „Ti“ ist es umgekehrt, bei „ti“ zählt nur der kürzere Titel.</p></div>
+    </div>
+  </section>
+
+  <section class="block" id="ti">
+    <h2>„TI“ vorher und nachher</h2>
+    <p class="lead">Die ersten zwölf Zeilen der Liste ohne Filter, wie der Katalog sie heute zeigt („Heute“) und mit den
+      Regeln dieses Konzepts („Neu“, ohne Studiengang). Markiert ist, was die Suche gefunden hat; steht ein Titel darunter,
+      war es der, den man nicht sieht. „Fällt weg“: Diesen Treffer gibt es mit den neuen Regeln nicht mehr.</p>
+    <div class="pair" id="ti-pair"></div>
+  </section>
+
+  <section class="block" id="warum">
+    <h2>Warum „TI“ heute so aussieht</h2>
+    <p class="lead">Jeder der 49 Treffer lässt sich aus den Namen erklären. Vier Dinge kommen zusammen.</p>
+    <div class="causes">
+      <div class="cause">
+        <p class="big num">9<small>von 49</small></p>
+        <h3>Der Titel, den man nicht sieht</h3>
+        <p>Jedes Modul hat einen deutschen und einen englischen Titel, die Liste zeigt einen. Gesucht wird in beiden, gleich
+          stark. So kommt „ti“ als Wortanfang aus Wörtern, die nicht dastehen:</p>
+        <ul>
+          <li>Zeitdiskrete Systeme und Regelungen (2×) · <mark>Ti</mark>me-discrete Systems</li>
+          <li>Industriefachpraktikum – Teilzeit, – Vollzeit · Part <mark>Ti</mark>me, Full <mark>Ti</mark>me</li>
+          <li>Ingenieurholzbau, Stahl- &amp; Holzbau und 2 weitere · <mark>Ti</mark>mber</li>
+          <li>Bioengineering of Animal/Human Cells · <mark>ti</mark>erischen</li>
+        </ul>
+        <p class="to">→ Regel 5: zwei Buchstaben finden im anderen Titel keine Wortanfänge, und der zählt ×0,75.</p>
+      </div>
+      <div class="cause">
+        <p class="big num">34<small>von 49</small></p>
+        <h3>Anfangsbuchstaben irgendwo im Titel</h3>
+        <p>Radix legt die Anfangsbuchstaben jedes Titels ab, Folia sucht „ti“ als beliebiges Stück davon. Dabei zählen
+          römische Zahlen und Füllwörter mit:</p>
+        <ul>
+          <li>11 mit einer Zahl: Power Plant <mark>T</mark>echnology <mark>I</mark> (Kraftwerkstechnik I), Systems <mark>T</mark>heory <mark>I</mark>, Transformationsplanung <mark>I</mark>I …</li>
+          <li>4 mit einem Füllwort: Ways <mark>t</mark>o <mark>I</mark>mprove Visibility, <mark>T</mark>his <mark>i</mark>s art, Digital Skills and <mark>t</mark>heir <mark>I</mark>mpact …</li>
+          <li>19 aufeinanderfolgende Wörter, darunter <mark>T</mark>heoretische <mark>I</mark>nformatik, aber auch Urban <mark>T</mark>echnical <mark>I</mark>nfrastructure (4×)</li>
+        </ul>
+        <p class="to">→ Regel 3: Kürzel nur aus Wörtern, Zahlen nie, und es muss eine Wortgruppe abschließen.</p>
+      </div>
+      <div class="cause">
+        <p class="big num">800<small>gegen 600 Punkte</small></p>
+        <h3>Ein Wortanfang schlägt jedes Kürzel</h3>
+        <p>Jedes Suchwort bekommt heute Punkte nach Art des Fundes: ganzes Wort 1000, Wortanfang 800 (im ersten Wort 850),
+          Anfangsbuchstaben 600. „Theoretische Informatik“ kann als Kürzel nie vor einem Wort stehen, das mit „ti“ anfängt,
+          egal ob „Tissue“, „Time“ oder „Timber“.</p>
+        <p class="to">→ Regel 4: Ein Kürzel, das den ganzen Titel abkürzt, ist „Genau“ (120), ein Wortanfang 60.</p>
+      </div>
+      <div class="cause">
+        <p class="big num">A–Z<small>bei Gleichstand</small></p>
+        <h3>Gleiche Punkte heißt Alphabet</h3>
+        <p>Bei gleicher Punktzahl entscheidet der Titel von A bis Z. Darum steht „Theoretische Informatik“ hinter
+          „Technology and Innovation Management“ (beide 600), und „theo inf“ setzt die drei Module zur
+          Informations- und Codierungstheorie vor „Theoretische Informatik“ (alle 1650).</p>
+        <p class="to">→ Neu entscheiden bei gleichen Punkten das Angebot, der kürzere Titel und die Zahl der
+          Studiengänge, das Alphabet zuletzt.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="spielfeld">
+    <h2>Spielfeld</h2>
+    <p class="lead">Gib eine Suche ein, wie du sie oben in Betula tippen würdest. Links die Suche von heute, rechts die
+      neuen Regeln, beide auf denselben 3.232 angebotenen Modulen, ohne Filter. Die Regler ändern die Gewichte der neuen
+      Suche; die Treffer bleiben dabei dieselben, nur die Reihenfolge ändert sich.</p>
+    <form class="try" id="try" autocomplete="off">
+      <div class="field q">
+        <label for="q">Suche</label>
+        <input id="q" name="q" type="search" value="TI" spellcheck="false" autocapitalize="off" enterkeyhint="search">
+      </div>
+      <div class="field p">
+        <label for="prog">Mein Studiengang</label>
+        <select id="prog" name="prog"><option value="-1">keiner</option></select>
+      </div>
+    </form>
+    <fieldset class="weights" id="weights">
+      <legend>Gewichte der neuen Suche</legend>
+      <div class="weight"><label for="w-program">Mein Studiengang <output id="o-program" for="w-program">×1,35</output></label>
+        <input id="w-program" type="range" min="1" max="1.5" step="0.05" value="1.35"></div>
+      <div class="weight"><label for="w-other">Titel der anderen Sprache <output id="o-other" for="w-other">×0,75</output></label>
+        <input id="w-other" type="range" min="0.5" max="1" step="0.05" value="0.75"></div>
+      <div class="weight"><label for="w-case">Schreibweise wie getippt <output id="o-case" for="w-case">×1,10</output></label>
+        <input id="w-case" type="range" min="1" max="1.3" step="0.05" value="1.1"></div>
+      <button type="button" class="reset" id="w-reset">Zurücksetzen</button>
+    </fieldset>
+    <div class="chips" id="chips" aria-label="Beispiele"></div>
+    <div class="reading" id="reading" aria-live="polite"></div>
+    <div class="pair" id="play-pair"></div>
+  </section>
+
+  <section class="block" id="gemeint">
+    <h2>Wo das Gemeinte landet</h2>
+    <p class="lead">Typische Suchen von Studierenden und das Modul, das sie vermutlich meinen, mit seinem Platz in der
+      Liste heute und mit den neuen Regeln (ohne Studiengang). Ein Klick auf die Suche spielt sie im Spielfeld.</p>
+    <div class="scroll"><table id="ranks">
+      <thead><tr><th>Suche</th><th>gemeint</th><th class="at">heute</th><th class="at">neu</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="hint">Platz von Treffern. „–“: nicht gefunden. Bei „BS“ stehen „Biosensorik“ und „Biostatistics“ davor:
+      beide haben „BS“ als eigenes Kürzel, die Betriebssysteme „BS1“ bis „BS3“. Heute findet die Suche keine Lehrenden:
+      „Hofstedt“ und „Doering“ finden nichts, „P. Hofstedt“ findet 1.260 Module mit einem Wort, das mit „p“ anfängt.</p>
+  </section>
+
+  <section class="block" id="regeln">
+    <h2>Die Regeln</h2>
+    <div class="grid2">
+      <div>
+        <h3>Was gesucht wird</h3>
+        <ul class="list">
+          <li><b>Die Modulnummer</b>, ganz („11787“) oder ab drei Ziffern ihr Anfang („118“, dann der Nummer nach).</li>
+          <li><b>Die Kürzel</b>, die Radix dem Modul und die Studiengänge ihm geben („ThI“, „AuP“), auch ohne die Nummer
+            eines Teils („BS“ für BS1, BS2, BS3; „ET“ für ET1, ET2).</li>
+          <li><b>Der Titel, den die Liste zeigt.</b></li>
+          <li><b>Der andere Titel</b> (deutsch oder englisch), mit ×0,75 und strenger: Ein Suchwort aus ein oder zwei
+            Buchstaben findet dort nur ein ganzes Wort, ein in Großbuchstaben geschriebenes Wort („DB“ in „DBS“) oder ein
+            Kürzel einer ganzen Wortgruppe („KI“ in „Kontinuierliche Optimierung für <mark>K</mark>ünstliche
+            <mark>I</mark>ntelligenz“).</li>
+          <li><b>Die Lehrenden</b>, mit eigenen Regeln (unten).</li>
+          <li><b>Nicht</b> die Beschreibung; die liest nur „Ähnliche Module“.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Wann ein Wort ein Kürzel sein darf</h3>
+        <p>Jedes Suchwort wird als Wort und als Wortanfang gesucht. Als Kürzel zusätzlich, wenn es</p>
+        <ul class="list">
+          <li>ein oder zwei Buchstaben hat („ti“, „KI“, „ml“),</li>
+          <li>Großbuchstaben im Inneren hat oder nur aus Großbuchstaben besteht („AuD“, „TheoInf“, „LinA“, „BWL“),</li>
+          <li>oder kein Wort eines Titels damit anfängt („theoinf“, „lina“).</li>
+        </ul>
+        <p>So bleibt „mathe“ ein Wortanfang und wird nicht zu „<mark>Math</mark>ematics of <mark>E</mark>ngineering“.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 22px">Punkte</h3>
+    <p class="lead" style="margin-top: 6px; color: var(--text-2); max-width: 82ch">Jedes Suchwort bekommt die Punkte seines
+      besten Fundes, mal den Faktoren, die für ihn gelten. Ein Modul hat die Punkte seines schwächsten Suchworts; nennen die
+      Suchwörter zusammen einen ganzen Titel, ist es „Genau“. Dann kommt der Faktor für den eigenen Studiengang dazu.</p>
+    <div class="grid2">
+      <div class="scroll" style="margin-top: 0"><table class="points">
+        <thead><tr><th>Fund</th><th class="at">Punkte</th><th>Beispiel</th></tr></thead>
+        <tbody>
+          <tr class="group"><td colspan="3">Genau</td></tr>
+          <tr><td>Modulnummer, Kürzel des Moduls</td><td class="p">125</td><td class="e"><code>11787</code>, <code>ThI</code>, <code>DB</code></td></tr>
+          <tr><td>Kürzel ohne die Nummer des Teils</td><td class="p">120</td><td class="e"><code>BS</code> → BS1</td></tr>
+          <tr><td>alle Wörter eines Titels</td><td class="p">120</td><td class="e"><code>TI</code>, <code>theo inf</code>, <code>mathe 1</code></td></tr>
+          <tr class="group"><td colspan="3">Wort oder Kürzel</td></tr>
+          <tr><td>ganzes Wort</td><td class="p">80</td><td class="e"><code>Statik</code> → Statik - Stabtragwerke</td></tr>
+          <tr><td>Kürzel aufeinanderfolgender Wörter</td><td class="p">80</td><td class="e"><code>KI</code> → Einführung in die <mark>K</mark>ünstliche <mark>I</mark>ntelligenz</td></tr>
+          <tr class="group"><td colspan="3">Wortanfang</td></tr>
+          <tr><td>Anfang eines Worts oder der Nummer</td><td class="p">60</td><td class="e"><code>ti</code> → <mark>Ti</mark>ssue</td></tr>
+          <tr><td>Kürzel, das ein Füllwort überspringt</td><td class="p">55</td><td class="e"><code>TI</code> → <mark>T</mark>echnologie- und <mark>I</mark>nnovationsmanagement</td></tr>
+          <tr class="group"><td colspan="3">Im Wort</td></tr>
+          <tr><td>ab vier Buchstaben mitten im Wort</td><td class="p">35</td><td class="e"><code>holz</code> → Ingenieur<mark>holz</mark>bau</td></tr>
+          <tr class="group"><td colspan="3">Lehrende</td></tr>
+          <tr><td>Nachname ganz (mit Vorname auch)</td><td class="p">75</td><td class="e"><code>Hofstedt</code>, <code>P. Hofstedt</code></td></tr>
+          <tr><td>Anfang des Nachnamens</td><td class="p">55</td><td class="e"><code>Hofs</code></td></tr>
+          <tr><td>ähnlich geschrieben</td><td class="p">50</td><td class="e"><code>Hoffstedt</code>, <code>Doering</code></td></tr>
+        </tbody>
+      </table></div>
+      <div class="scroll" style="margin-top: 0"><table class="points">
+        <thead><tr><th>Faktor</th><th class="at">mal</th><th>wofür</th></tr></thead>
+        <tbody>
+          <tr><td>Titel der anderen Sprache</td><td class="p">0,75</td><td class="e">was man nicht sieht, zählt weniger</td></tr>
+          <tr><td>Schreibweise wie getippt</td><td class="p">1,10</td><td class="e">nur wenn die Suche Großbuchstaben hat</td></tr>
+          <tr><td>je Wort davor im Titel</td><td class="p">−3 %</td><td class="e">höchstens fünf Wörter, also −15 %</td></tr>
+          <tr><td>Suchwörter nebeneinander</td><td class="p">1,05</td><td class="e">in der getippten Folge</td></tr>
+          <tr><td>lehrt nur, verantwortet nicht</td><td class="p">0,90</td><td class="e">Lehrende einer Veranstaltung</td></tr>
+          <tr><td>Mein Studiengang</td><td class="p">1,35</td><td class="e">nur die Reihenfolge</td></tr>
+        </tbody>
+      </table>
+      <p class="hint">Gleiche Punkte entscheidet: angeboten vor Auslaufmodul, weniger übrige Wörter (der kürzere Titel), in
+        mehr Studiengängen (bei Nummern: der Nummer nach), eine Reihe in ihrer Ordnung, A–Z. Findet kein Modul alle
+        Wörter, stehen die mit den meisten oben.</p></div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <h3>Kürzel</h3>
+        <ul class="list">
+          <li>Mindestens zwei Stücke, jedes der Anfang eines Worts, die Wörter folgen aufeinander:
+            <code>TI</code>, <code>TheoInf</code> (Theo·Inf), <code>LinA</code> (Lin·A), <code>MaLe</code>.</li>
+          <li>Füllwörter dürfen mitzählen oder fehlen: <code>AuD</code> und <code>AD</code> für Algorithmen und
+            Datenstrukturen; mit dem Füllwort steht das Kürzel höher.</li>
+          <li>Kein Stück ist länger als das vorige. „bau“ ist darum nie B·au.</li>
+          <li><b>Zahlen sind nie Anfangsbuchstaben.</b> „Kraftwerkstechnik I“ ist kein „KI“, „Technology I“ kein „TI“.</li>
+          <li><b>Ein Kürzel schließt eine Wortgruppe ab</b>: am Titelende, vor einem Füllwort, einer Zahl oder einem
+            Satzzeichen. „Explainable Machine Learning“ ist „ML“, „Power Plant Technology“ ist kein „PP“. Im Titel, den
+            man nicht sieht, muss es auch am Anfang einer Wortgruppe stehen.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Für alle dieselben Treffer</h3>
+        <p>Ob ein Modul gefunden wird, entscheiden nur die Suche und die Filter, die in der Adresse stehen. Punkte, Gewichte
+          und das Profil ordnen nur:</p>
+        <ul class="list">
+          <li>Es gibt keine Grenze nach Punkten, unter der ein Treffer wegfällt.</li>
+          <li>Die Tippfehler-Korrektur fragt den ganzen Katalog, nicht das Profil.</li>
+          <li>„Mein Studiengang“ steht nie in der Adresse; die Seite gibt ihn nur der Reihenfolge mit.</li>
+        </ul>
+        <p>Ein geteilter Link zeigt darum dieselben Module, bei Freunden mit einem anderen Studiengang in anderer
+          Reihenfolge.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="lehrende">
+    <h2>Lehrende</h2>
+    <p class="lead">Gesucht werden die Modulverantwortlichen und die Lehrenden der Veranstaltungen (519 Namen bei den
+      angebotenen Modulen). Strenger als bei Titeln, aber nachsichtig mit der Schreibweise.</p>
+    <div class="grid2">
+      <div>
+        <h3>Was einen Namen findet</h3>
+        <ul class="list">
+          <li><b>Der Nachname ganz</b>, ab drei Buchstaben (der kürzeste ist „Lee“): <code>Hofstedt</code>.</li>
+          <li><b>Sein Anfang ab vier Buchstaben</b>: <code>Hofs</code>. Mit drei nicht, sonst fände „Bau“ Frau Bauer.</li>
+          <li><b>Eine ähnliche Schreibweise ab vier Buchstaben</b>: ein Unterschied, ab acht Buchstaben zwei, der erste
+            Buchstabe gleich. Vorher wird angeglichen: ä und ae, ö und oe, ü und ue, dt/tt/t, th/t, ph/f, ck/k, tz/z,
+            ie/i, y/i, ei/ai/ey/ay, ein stummes h nach einem Vokal, doppelte Buchstaben.</li>
+          <li><b>Ein Vorname</b> (oder sein Anfangsbuchstabe) nur mit dem Nachnamen derselben Person:
+            <code>Petra Hofstedt</code>, <code>P. Hofstedt</code>. <code>Petra</code> allein findet niemanden.</li>
+          <li>„Prof.“ und „Dr.“ werden überlesen. Kein „im Wort“, keine Kürzel aus Namen.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>So schreiben Leute „Hofstedt“</h3>
+        <ul class="list">
+          <li><code>Hofstedt</code>, <code>hofstedt</code>, <code>Prof. Hofstedt</code>: Nachname, 75 Punkte</li>
+          <li><code>Hoffstedt</code>, <code>Hofstet</code>, <code>Hofstätt</code>: ähnlich geschrieben, 50 Punkte</li>
+          <li><code>Petra Hofstedt</code>, <code>P. Hofstedt</code>, <code>Hofstedt Petra</code>: mit Vorname, 75 Punkte</li>
+          <li><code>Hofstedt Programmierung</code>: ihre zwei Module mit „Programmierung“ im Titel</li>
+        </ul>
+        <p>Alle finden dieselben zwölf Module. Ein Name zählt etwas weniger als ein ganzes Wort im Titel (75 gegen 80):
+          Wer „Kraft“ sucht, bekommt zuerst Titel mit dem Wort „Kraft“, dann die Module von Frau oder Herrn Kraft, dann
+          „Kraftwerkstechnik“. Wer nur lehrt, aber nicht verantwortet, zählt ×0,9.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="fuzzy">
+    <h2>Fuzzy Matching, aber an Wortanfängen</h2>
+    <p class="lead">Klassisches Fuzzy Matching wie in fzf oder einer Kommandopalette lässt Buchstaben zwischen den
+      gesuchten zu, solange die Reihenfolge stimmt. Bei Wörtern aus zwei oder drei Buchstaben passt das auf fast alles:</p>
+    <div class="fz">
+      <div><b class="num">2.423</b><span>der 3.232 Titel enthalten „t“ und danach „i“</span><div class="bar"><i style="width: 75%"></i></div></div>
+      <div><b class="num">1.116</b><span>enthalten „k“ und danach „i“</span><div class="bar"><i style="width: 34.5%"></i></div></div>
+      <div><b class="num">516</b><span>enthalten „d“ und danach „b“</span><div class="bar"><i style="width: 16%"></i></div></div>
+    </div>
+    <p class="lead" style="margin-top: 14px">Solche Verfahren sortieren dann mit Boni für Wortanfänge und
+      aufeinanderfolgende Buchstaben, und dabei liegen „<mark>Ti</mark>ssue“ und „<mark>T</mark>heoretische
+      <mark>I</mark>nformatik“ gleichauf. Das Unscharfe, das hilft, steckt darum an drei Stellen, alle an Wortanfängen:</p>
+    <div class="grid2">
+      <div>
+        <h3>Kürzel aus Wortanfängen</h3>
+        <p>Buchstaben dürfen innerhalb eines Worts fehlen, aber jedes Stück beginnt ein Wort: „TheoInf“, „LinA“, „AuD“,
+          „TI“. Das ist der Teil von Fuzzy Matching, der Kürzel versteht, ohne „Tissue“ dafür zu halten.</p>
+      </div>
+      <div>
+        <h3>Tippfehler und Schreibweisen</h3>
+        <p>Vertauschte, fehlende oder falsche Buchstaben, wie schon heute: „infromatik“, „theoretishe informatik“,
+          „algoritmen“. Bei Namen zusätzlich ähnliche Schreibweisen: „Hoffstedt“, „Doering“.</p>
+      </div>
+    </div>
+    <p class="hint">Alle Suchen der Tabelle „Wo das Gemeinte landet“ finden das Gemeinte ohne „Buchstaben irgendwo in
+      Reihenfolge“.</p>
+  </section>
+
+  <section class="block" id="umsetzung">
+    <h2>Umsetzung</h2>
+    <p class="lead">Der Prototyp ist <code>folia/design/suche/engine.mjs</code>: die Suche von heute (aus dem SQL von
+      <code>folia_search</code> übertragen, mit denselben Treffern in derselben Folge) und die neue, dieselbe Datei, die
+      diese Seite rechnet. Die neue braucht im Schnitt 16 ms für eine Suche über 3.232 Module (JavaScript, Laptop), die
+      erste etwa 100 ms, weil sie Titel und Namen einmal zerlegt.</p>
+    <ol class="steps">
+      <li><span><b>Ein Suchindex pro Snapshot</b> in <code>folia_search</code>: beide Titel in Wörtern mit dem, was zwischen
+        ihnen steht, die Kürzel wie geschrieben aus <code>v_module</code> und <code>v_program_module</code>, die Lehrenden aus
+        <code>v_module_lecturer</code>, der Status, die Studiengänge. Einmal gebaut wie heute das Vokabular, im Daten-Worker.
+        Radix ändert sich nicht.</span></li>
+      <li><span><b>Die Liste aus SQL wie bisher.</b> Der Index gibt die Treffer mit ihrem Platz, die Abfrage des Katalogs
+        liest sie mit <code>json_each(?)</code> statt <code>Plan::table</code> und ordnet nach dem Platz. Filter, Anzahl,
+        Seiten, „außerhalb deiner Filter“ und „Ähnliche Module“ bleiben; <code>search::resolve</code> (Tippfehler) fragt den
+        Index.</span></li>
+      <li><span><b>Mein Studiengang</b> kommt aus dem Profil in die abgeleiteten Teile der Abfrage, wie heute die
+        Tippfehler-Korrektur: nie in die Adresse, nur in den Platz.</span></li>
+      <li><span><b>Die Zeile</b> (<code>widgets/src/list.rs</code>): Markierung der gefundenen Buchstaben, der andere Titel
+        und die Lehrenden als zweite Zeile, wenn sie der Grund waren, das Kürzel, wenn es der Grund war.</span></li>
+      <li><span><b>Prüfen</b>: Die Tabelle „Wo das Gemeinte landet“ wird ein Test auf dem Test-Snapshot; die Rust-Suche wird
+        auf dem Snapshot von Canary mit diesem Prototyp verglichen; <code>e2e/search.mjs</code> und <code>e2e/typing.mjs</code>
+        (Tempo beim Tippen) laufen mit.</span></li>
+      <li><span><b>Doku und Version</b>: „The search of the catalog“ in <code>docs/folia/frontend.md</code> neu; Folia
+        bekommt eine neue Minor-Version, weil die Suche neu ordnet und Lehrende findet.</span></li>
+    </ol>
+    <p class="hint">Die Gewichte sind Startwerte. In der Umsetzung stehen sie als benannte Werte an einer Stelle, und die
+      Regler oben zeigen, was eine Änderung bewirkt.</p>
+  </section>
+
+  <p class="foot">Daten: Canary-Snapshot vom 19.10.2026 (Radix 0.9.1, Schema 16), die 3.232 angebotenen Module und
+    Auslaufmodule mit ihren Lehrenden. Heute: <code>folia/crates/search/src/lib.rs</code> und <code>query/src/sql.rs</code> in
+    Folia 1.29.2. Prototyp und Bau dieser Seite: <code>folia/design/suche/engine.mjs</code>, <code>build.mjs</code>.</p>
+</main>
+
+<script type="application/json" id="catalog">/*DATA*/</script>
+<script type="application/json" id="ranks-data">/*RANKS*/</script>
+<script type="module">
+/*ENGINE*/
+
+// ---------------------------------------------------------------- the page
+const index = buildIndex(JSON.parse(document.getElementById("catalog").textContent));
+const RANKS = JSON.parse(document.getElementById("ranks-data").textContent);
+const STATUS = ["", "Auslaufmodul", "nicht mehr angeboten"];
+const LIMIT = 25;
+const num = (x, d = 2) => x.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+function marked(raw, spans) {
+  if (!spans?.length) return esc(raw);
+  const ordered = [...spans].filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  let out = "", at = 0;
+  for (const [a, b] of ordered) {
+    if (a < at) continue;
+    out += esc(raw.slice(at, a)) + "<mark>" + esc(raw.slice(a, b)) + "</mark>";
+    at = b;
+  }
+  return out + esc(raw.slice(at));
+}
+const otherLang = (m) => (m.shownEn ? "dt." : "engl.");
+
+const KIND = {
+  id: "Modulnummer", idstart: "Anfang der Nummer", word: "ganzes Wort", prefix: "Wortanfang", inside: "im Wort",
+  name: "Nachname", nameStart: "Anfang des Nachnamens", nameLike: "ähnlich geschriebener Name", firstName: "Vorname",
+};
+function kindOf(b) {
+  if (b.kind === "abbrev" || b.kind === "abbrevpart") return `Kürzel ${b.abbrev}`;
+  if (b.kind === "short") return (b.spans.every(([x, y]) => y - x === 1) ? "Kürzel aus Anfangsbuchstaben" : "Kürzel aus Wortanfängen") + (b.skipped ? ", Füllwort übersprungen" : "");
+  if (b.kind === "word" && b.known) return `${b.known} im Wort`;
+  return KIND[b.kind] ?? b.kind;
+}
+// the pill: what the module's weakest word is, or „Genau“
+function pillOf(r) {
+  if (r.named) return ["Genau", "why c1"];
+  const weakest = r.best.filter(Boolean).reduce((a, b) => (b.points < a.points ? b : a));
+  if (weakest.lecturer) return ["Lehrende", "why name"];
+  if (weakest.kind === "word" || weakest.kind === "abbrev" || weakest.kind === "abbrevpart" || (weakest.kind === "short" && !weakest.skipped)) return ["Wort oder Kürzel", "why c2"];
+  if (weakest.kind === "inside") return ["Im Wort", "why"];
+  return ["Wortanfang", "why"];
+}
+
+function rowNew(r, i, target) {
+  const m = r.m;
+  const hits = r.best.filter(Boolean);
+  const shownSpans = hits.filter((b) => b.spans && b.other === false).flatMap((b) => b.spans);
+  const otherSpans = hits.filter((b) => b.other === true).flatMap((b) => b.spans);
+  const people = new Map();
+  for (const b of hits) {
+    if (!b.lecturer) continue;
+    const p = people.get(b.lecturer.raw) ?? { L: b.lecturer, spans: [] };
+    p.spans.push(...b.spans);
+    people.set(b.lecturer.raw, p);
+  }
+  const reasons = [...new Set(hits.map(kindOf))];
+  const mods = [];
+  if (hits.some((b) => b.other)) mods.push(`anderer Titel ×${num(WEIGHTS.other)}`);
+  if (hits.some((b) => b.caseMatch)) mods.push(`wie getippt ×${num(WEIGHTS.caseMatch)}`);
+  if (hits.some((b) => b.lecturer?.role === 1)) mods.push(`lehrt ×${num(WEIGHTS.instructor)}`);
+  if (r.mine) mods.push(`Mein Studiengang ×${num(WEIGHTS.program)}`);
+  const [pill, pillClass] = pillOf(r);
+  const status = m.status ? `<span class="flag">${STATUS[m.status]}</span>` : "";
+  const other = otherSpans.length ? `<span class="o"><i>${otherLang(m)}</i>${marked(m.other, otherSpans)}</span>` : "";
+  const lecturers = [...people.values()].map(({ L, spans }) =>
+    `<span class="l"><i>${L.role === 1 ? "lehrt" : "verantwortlich"}</i>${marked(L.raw, spans)}</span>`).join("");
+  return `<li class="hit${target ? " target" : ""}"><span class="rank num">${i + 1}</span><span class="t">${marked(m.title, shownSpans)}</span>
+    <span class="s"><span class="mono">${m.id}</span>${status}<span class="${pillClass}">${pill}</span><span class="pts">${num(r.points, 1)} P.</span><span>${esc(reasons.join(" + "))}</span>${mods.map((x) => `<span class="mod">${x}</span>`).join("")}</span>${other}${lecturers}</li>`;
+}
+
+function rowOld(r, i, target, kept) {
+  const m = r.m;
+  const first = r.why.find(Boolean);
+  const where = oldWhere(m, first);
+  const reasons = [...new Set(r.why.filter(Boolean).map((h) => OLD_KIND[h.score]))].join(" + ");
+  const hidden = where.other;
+  const title = hidden || !where.raw ? esc(m.title) : marked(m.title, where.spans);
+  const other = hidden ? `<span class="o"><i>${otherLang(m)}</i>${marked(where.raw, where.spans)}</span>` : "";
+  const cls = hidden ? "why hidden" : "why";
+  const gone = kept && !kept.has(m.id) ? `<span class="gone">fällt weg</span>` : "";
+  const status = m.status ? `<span class="flag">${STATUS[m.status]}</span>` : "";
+  return `<li class="hit${target ? " target" : ""}"><span class="rank num">${i + 1}</span><span class="t">${title}</span>
+    <span class="s"><span class="mono">${m.id}</span>${status}<span class="${cls}">${r.score} Punkte</span><span>${reasons}${hidden ? ", im Titel, den man nicht sieht" : ""}</span>${gone}</span>${other}</li>`;
+}
+
+function resolutionNote(res) {
+  if (!res) return "";
+  const said = res.corrected.map((c) => `„${esc(c.typed)}“ → „${esc(c.shown)}“`).join(", ");
+  if (res.mostWords) return `<p class="note">Kein Modul enthält alle Wörter. Hier sind die mit den meisten davon${said ? ` (${said})` : ""}:</p>`;
+  return `<p class="note">Keine Treffer für das Getippte. Ergebnisse für ${said}:</p>`;
+}
+
+function column(kind, label, result, row, limit, isTarget, kept) {
+  const shown = result.rows.slice(0, limit);
+  const items = shown.map((r, i) => row(r, i, isTarget(r), kept)).join("");
+  const more = result.rows.length > limit ? `<button type="button" class="more" data-more="${kind}">Alle ${result.rows.length} zeigen</button>` : "";
+  return `<div class="col ${kind}"><div class="col-head"><h3>${label}</h3><span class="count"><b class="num">${result.rows.length}</b>${result.rows.length === 1 ? "Modul" : "Module"}</span></div>
+    ${resolutionNote(result.resolution)}${shown.length ? `<ol class="hits">${items}</ol>` : `<p class="empty">Nichts gefunden.</p>`}${more}</div>`;
+}
+
+// „TI“ before and after: the first twelve rows, with the weights as proposed.
+{
+  const isTI = (r) => r.m.title === "Theoretische Informatik";
+  const o = searchOld(index, "TI"), n = searchNew(index, "TI");
+  document.getElementById("ti-pair").innerHTML =
+    column("alt", "Heute", o, rowOld, 12, isTI, new Set(n.rows.map((r) => r.m.id))) + column("neu", "Neu", n, rowNew, 12, isTI);
+  const at = (rows, title) => rows.findIndex((r) => r.m.title.startsWith(title)) + 1;
+  const tail = document.createElement("p");
+  tail.className = "hint";
+  tail.textContent = `„Theoretische Informatik“ steht heute auf Platz ${at(o.rows, "Theoretische Informatik")} von ${o.rows.length}, neu auf Platz ${at(n.rows, "Theoretische Informatik")} von ${n.rows.length}; „TIN*“ neu auf Platz ${at(n.rows, "TIN*")}, „Tissue Engineering“ auf Platz ${at(n.rows, "Tissue Engineering")}.`;
+  document.getElementById("ti-pair").after(tail);
+}
+
+// The field to try.
+const q = document.getElementById("q");
+const prog = document.getElementById("prog");
+const pair = document.getElementById("play-pair");
+const reading = document.getElementById("reading");
+const chips = document.getElementById("chips");
+const EXAMPLES = ["TI", "ti", "Ti", "KI", "theo inf", "TheoInf", "LinA", "mathe 1", "BS", "ML", "SE", "AuD", "BWL", "Masterarbeit", "algoritmen", "118", "Hofstedt", "Hoffstedt", "P. Hofstedt", "Doering", "Petra"];
+chips.innerHTML = EXAMPLES.map((e) => `<button type="button" class="chip" data-q="${esc(e)}">${esc(e)}</button>`).join("");
+prog.insertAdjacentHTML("beforeend", index.programs.map(([slug, name, degree], i) => `<option value="${i}">${esc(`${name} ${degree ?? ""}`.trim())}</option>`).join(""));
+try { const saved = localStorage.getItem("betula-suche-prog"); if (saved && prog.querySelector(`option[value="${saved}"]`)) prog.value = saved; } catch {}
+
+const sliders = [["w-program", "o-program", "program"], ["w-other", "o-other", "other"], ["w-case", "o-case", "caseMatch"]];
+function readSliders() {
+  for (const [input, output, key] of sliders) {
+    const value = Number(document.getElementById(input).value);
+    WEIGHTS[key] = value;
+    document.getElementById(output).textContent = `×${num(value)}`;
+  }
+}
+
+let limits = { alt: LIMIT, neu: LIMIT };
+let timer = 0;
+function play() {
+  readSliders();
+  const text = q.value;
+  const program = Number(prog.value);
+  for (const c of chips.children) c.setAttribute("aria-pressed", String(c.dataset.q === text.trim()));
+  if (!text.trim()) {
+    pair.innerHTML = "";
+    reading.innerHTML = "";
+    return;
+  }
+  const o = searchOld(index, text), n = searchNew(index, text, { program });
+  reading.innerHTML = n.parts.length ? `<span>Neu gelesen als</span>` + n.parts.map((p) =>
+    `<span class="w${p.strong ? " strong" : ""}" title="${p.strong ? "auch als Kürzel" : "als Wort und Wortanfang"}">${esc(p.q)}${p.strong ? " · auch Kürzel" : ""}</span>`).join("") : "";
+  pair.innerHTML = column("alt", "Heute", o, rowOld, limits.alt, () => false, new Set(n.rows.map((r) => r.m.id)))
+    + column("neu", "Neu", n, rowNew, limits.neu, () => false);
+}
+q.addEventListener("input", () => { limits = { alt: LIMIT, neu: LIMIT }; clearTimeout(timer); timer = setTimeout(play, 120); });
+prog.addEventListener("change", () => { try { localStorage.setItem("betula-suche-prog", prog.value); } catch {} play(); });
+for (const [input] of sliders) document.getElementById(input).addEventListener("input", play);
+document.getElementById("w-reset").addEventListener("click", () => {
+  for (const [input, , key] of sliders) document.getElementById(input).value = String(DEFAULT_WEIGHTS[key]);
+  play();
+});
+document.getElementById("try").addEventListener("submit", (e) => { e.preventDefault(); play(); });
+chips.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-q]");
+  if (!b) return;
+  q.value = b.dataset.q;
+  limits = { alt: LIMIT, neu: LIMIT };
+  play();
+});
+pair.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-more]");
+  if (!b) return;
+  limits[b.dataset.more] = Infinity;
+  play();
+});
+play();
+
+// Where what is meant lands.
+{
+  const body = document.querySelector("#ranks tbody");
+  const cell = (at, of) => {
+    const cls = at === null ? "none" : at === 1 ? "top" : at > 10 ? "far" : "";
+    return `<td class="at num ${cls}"><b>${at ?? "–"}</b><small>von ${of}</small></td>`;
+  };
+  body.innerHTML = RANKS.map(([query, meant, a, aOf, b, bOf]) =>
+    `<tr><td class="q"><button type="button" data-q="${esc(query)}">${esc(query)}</button></td><td class="meant">${esc(meant)}</td>${cell(a, aOf)}${cell(b, bOf)}</tr>`).join("");
+  body.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-q]");
+    if (!b) return;
+    q.value = b.dataset.q;
+    limits = { alt: LIMIT, neu: LIMIT };
+    play();
+    document.getElementById("spielfeld").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  });
+}
+</script>

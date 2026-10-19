@@ -1,13 +1,19 @@
 //! The menus of „Mein Studium" (owner, 2026-10-04: „Die drei Punkte sind in der Allgemeinheit
-//! verstanden als Kontextmenü"): a row's ⋯ or a right click on it — „Als bestanden markieren",
-//! „Verschieben nach ›" with every semester it can go to and whether that one offers it,
+//! verstanden als Kontextmenü"): a row's, at its status (owner, 2026-10-19: „Die merken flag soll
+//! getauscht werden mit einem Status symbol") or at a right click on it — „Als bestanden
+//! markieren", „Verschieben nach ›" with every semester it can go to and whether that one offers
+//! it, „Auswählen" (the first of several to do something to, now that no box is there to tick),
 //! „Entfernen"; the module itself only where a click on the entry opens the menu rather than the
 //! module, in the Gesamtplan (owner, 2026-10-05: „modul ansehen aus dem kontext menu nehmen, weil
 //! man ja per klick auf das feld das auf macht") —; a semester's ⋯ in its head — the Stundenplan,
 //! all of its rows selected, a semester of leave, an empty semester added beyond the plan taken
-//! out again —; and where the rows selected move to. On a desktop a menu stands at what opened it and a submenu beside it; on
-//! a phone a menu is a sheet from below, and a submenu takes its place. The arrow keys go through
-//! it, Escape and a click beside it close it, and the focus goes back to what opened it.
+//! out again —; where the rows selected move to; and the list of every semester under the name of
+//! the one shown, to go to one directly (owner, 2026-10-19: „auf das semester selbst klicken
+//! können, um eine selection … zu bekommen"), each with what it holds, „jetzt" at the current one,
+//! and „Semester anfügen" after the last. On a desktop a menu stands at what opened it and a
+//! submenu beside it; on a phone a menu is a sheet from below, and a submenu takes its place. The
+//! arrow keys go through it, Escape and a click beside it close it, and the focus goes back to what
+//! opened it.
 //!
 //! What a menu does (`Act`) is the same for one row and for the rows selected (`focus.rs`), and
 //! „Rückgängig" takes it back.
@@ -37,13 +43,18 @@ pub(crate) enum MenuFor {
     /// Where the rows selected in a semester move to.
     Move(SemesterKey),
     Semester(SemesterKey),
+    /// The list of every semester under the name of the one shown (`focus.rs`, `SemesterPick`).
+    Pick(SemesterKey),
 }
 
 /// Where a menu opens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Anchor {
-    /// Under the button that opened it, or above it where the window has no room below.
+    /// Under the button that opened it, or above it where the window has no room below; its right
+    /// edge at the button's.
     Button(Rect),
+    /// The same with its left edge at the button's: a list under a heading.
+    Under(Rect),
     /// At the pointer: a right click.
     Point(f64, f64),
 }
@@ -64,6 +75,10 @@ pub(super) enum Act {
     Remove { semester: SemesterKey, keys: Vec<String> },
     /// Selects every row of a semester.
     SelectAll(SemesterKey),
+    /// Selects a row of a semester, besides those selected there.
+    Select { semester: SemesterKey, key: String },
+    /// Shows a semester (the one after the last: the page that adds it).
+    Focus(SemesterKey),
     Leave { semester: SemesterKey, leave: bool },
     /// Takes the last semester out again: added beyond the plan, and empty.
     RemoveSemester(SemesterKey),
@@ -82,6 +97,8 @@ struct Entry {
     note: Option<(String, &'static str)>,
     /// The current semester, among those to move to.
     now: bool,
+    /// The semester shown, in the list of them: a check at its end.
+    current: bool,
     danger: bool,
     does: Does,
 }
@@ -101,7 +118,7 @@ enum Does {
 
 impl Entry {
     fn new(id: Option<&'static str>, icon: Option<&'static str>, label: impl Into<String>, does: Does) -> Self {
-        Entry { id, icon, label: label.into(), hint: None, note: None, now: false, danger: false, does }
+        Entry { id, icon, label: label.into(), hint: None, note: None, now: false, current: false, danger: false, does }
     }
 
     fn line() -> Self {
@@ -127,12 +144,22 @@ const LINE: f64 = 9.0;
 /// How far a menu stays from the window's edges.
 const EDGE: f64 = 8.0;
 
-/// What a menu shows: its title (the sheet's, on a phone) and its entries.
+/// What a menu shows: its title (the sheet's, on a phone) and its entries; its width on a desktop.
 #[derive(Clone, Debug, PartialEq)]
 struct Content {
     title: String,
     entries: Vec<Entry>,
+    width: f64,
 }
+
+impl Content {
+    fn new(title: impl Into<String>, entries: Vec<Entry>) -> Self {
+        Content { title: title.into(), entries, width: WIDTH }
+    }
+}
+
+/// How wide the list of the semesters is: its entries say what each holds.
+const PICK_WIDTH: f64 = 340.0;
 
 fn height_of(entries: &[Entry]) -> f64 {
     2.0 * PAD + entries.iter().map(Entry::height).sum::<f64>()
@@ -145,10 +172,11 @@ fn height_of(entries: &[Entry]) -> f64 {
 pub(super) fn place(anchor: Anchor, size: (f64, f64), view: (f64, f64)) -> (f64, f64) {
     let ((width, height), (view_width, view_height)) = (size, view);
     let (left, top) = match anchor {
-        Anchor::Button(button) => {
+        Anchor::Button(button) | Anchor::Under(button) => {
             let below = button.bottom + 4.0;
             let above = button.top - 4.0 - height;
-            (button.right - width, if below + height <= view_height - EDGE || above < EDGE { below } else { above })
+            let left = if matches!(anchor, Anchor::Under(_)) { button.left } else { button.right - width };
+            (left, if below + height <= view_height - EDGE || above < EDGE { below } else { above })
         }
         Anchor::Point(x, y) => (if x + width <= view_width - EDGE { x } else { x - width }, if y + height <= view_height - EDGE { y } else { y - height }),
     };
@@ -169,6 +197,13 @@ pub(super) fn place_beside(menu: (f64, f64), entry_top: f64, size: (f64, f64), v
 pub(super) fn open_at_button(ctx: StudyCtx, what: MenuFor, ev: &leptos::ev::MouseEvent) {
     dom::keep_trigger(ev);
     let at = dom::rect_of(ev).map_or_else(|| Anchor::Point(f64::from(ev.client_x()), f64::from(ev.client_y())), Anchor::Button);
+    ctx.menu.set(Some(Menu { what, at }));
+}
+
+/// Opens the menu `what` under the button the event was heard on, its left edge at the button's.
+pub(super) fn open_under_button(ctx: StudyCtx, what: MenuFor, ev: &leptos::ev::MouseEvent) {
+    dom::keep_trigger(ev);
+    let at = dom::rect_of(ev).map_or_else(|| Anchor::Point(f64::from(ev.client_x()), f64::from(ev.client_y())), Anchor::Under);
     ctx.menu.set(Some(Menu { what, at }));
 }
 
@@ -242,6 +277,16 @@ pub(super) fn act(ctx: StudyCtx, act: Act, t: &'static Texts) {
             let keys: BTreeSet<String> = ctx.with_ready(|ready| ready.study.semester(semester).map(|semester| semester.items.iter().map(Item::key).collect())).flatten().unwrap_or_default();
             ctx.selection.set(Selection { semester: Some(semester), keys, anchor: None });
         }
+        Act::Select { semester, key } => {
+            ctx.selection.update(|selection| {
+                if selection.semester != Some(semester) {
+                    *selection = Selection { semester: Some(semester), ..Selection::default() };
+                }
+                selection.keys.insert(key.clone());
+                selection.anchor = Some(key);
+            });
+        }
+        Act::Focus(semester) => ctx.focus.set(Some(semester)),
         Act::Leave { semester, leave } => {
             if let Some(mine) = ctx.mine {
                 mine.set_leave(semester, leave);
@@ -338,9 +383,12 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
             if !targets.is_empty() {
                 entries.push(Entry::new(Some("st-menu-move"), Some("arrow-right-left"), s.move_to, Does::Sub((s.move_title)(&item.name), targets)));
             }
+            if !*view {
+                entries.push(Entry::new(Some("st-menu-select"), Some("list-checks"), s.select_one, Does::Act(Act::Select { semester, key: key.clone() })));
+            }
             entries.push(Entry::line());
             entries.push(Entry { danger: true, ..Entry::new(Some("st-menu-remove"), Some("trash-2"), s.remove, Does::Act(Act::Remove { semester, keys })) });
-            Some(Content { title: item.name, entries })
+            Some(Content::new(item.name, entries))
         }
         MenuFor::Move(semester) => {
             let semester = *semester;
@@ -348,7 +396,7 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
             ctx.with_ready(|ready| {
                 let items: Vec<Item> = keys.iter().filter_map(|key| item_of(ready, semester, key)).collect();
                 let entries = targets(ready, semester, &items, &keys, t);
-                (!entries.is_empty()).then(|| Content { title: (s.move_n)(items.len()), entries })
+                (!entries.is_empty()).then(|| Content::new((s.move_n)(items.len()), entries))
             })
             .flatten()
         }
@@ -366,9 +414,36 @@ fn content(ctx: StudyCtx, what: &MenuFor, t: &'static Texts) -> Option<Content> 
                     entries.push(Entry::line());
                     entries.push(Entry { danger: true, ..Entry::new(Some("st-menu-drop"), Some("calendar-minus"), s.remove_semester, Does::Act(Act::RemoveSemester(semester))) });
                 }
-                Some(Content { title: semester.label(t.locale), entries })
+                Some(Content::new(semester.label(t.locale), entries))
             })
             .flatten()
+        }
+        MenuFor::Pick(shown) => {
+            let shown = *shown;
+            ctx.with_ready(|ready| {
+                let study = &ready.study;
+                let mut entries: Vec<Entry> = study
+                    .semesters
+                    .iter()
+                    .map(|semester| {
+                        let label = match ready.fs_label(semester.key, t) {
+                            Some(fs) => format!("{} · {fs}", semester.key.short(t.locale)),
+                            None => semester.key.short(t.locale),
+                        };
+                        Entry {
+                            note: super::focus::figure(ready, semester.key, t),
+                            now: semester.when == When::Now,
+                            current: semester.key == shown,
+                            ..Entry::new(None, None, label, Does::Act(Act::Focus(semester.key)))
+                        }
+                    })
+                    .collect();
+                if let Some(end) = study.semesters.last().and_then(|last| last.key.plus(1)) {
+                    entries.push(Entry::line());
+                    entries.push(Entry { current: end == shown, ..Entry::new(Some("st-menu-append"), Some("calendar-plus"), s.add_semester, Does::Act(Act::Focus(end))) });
+                }
+                Content { width: PICK_WIDTH, ..Content::new(s.choose_semester, entries) }
+            })
         }
     }
 }
@@ -404,13 +479,14 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
             closing.set_value(handle.ok());
         }
     };
-    // A menu opened: its first entry has the focus (the arrows go on from there).
+    // A menu opened: its first entry has the focus (the arrows go on from there); in the list of the
+    // semesters the one shown.
     Effect::new(move |_| {
         let open = ctx.menu.with(Option::is_some);
         stay();
         sub.set(None);
         if open {
-            request_animation_frame(|| dom::step_focus(".st-pop.root", Step::First));
+            request_animation_frame(|| dom::step_focus(".st-pop.root", Step::Current));
         }
     });
     Effect::new(move |_| {
@@ -499,7 +575,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
 
     // One entry; `i` its place among the menu's entries, `None` in a submenu.
     let entry = move |i: Option<usize>, entry: Entry| -> AnyView {
-        let Entry { id, icon, label, hint, note, now, danger, does } = entry;
+        let Entry { id, icon, label, hint, note, now, current, danger, does } = entry;
         let element_id = id.map(str::to_string).or_else(|| i.map(|i| format!("st-pop-e{i}")));
         let icon = move || icon.map(|icon| view! { <Icon name=icon/> });
         let words = view! {
@@ -509,6 +585,8 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
             </span>
         };
         let note = note.map(|(text, class)| view! { <span class=format!("st-pop-note {class}")>{(class == "warn").then(|| view! { <Icon name="triangle-alert"/> })}{text}</span> });
+        // The semester shown, in the list of them.
+        let mark = current.then(|| view! { <Icon name="check" class="st-pop-current"/> });
         // A mouse moved onto another entry leaves the submenu. Only a move counts, not a menu
         // drawn under a pointer that stands still, and a phone opens a submenu by a tap alone.
         let hovers = move |ev: &leptos::ev::PointerEvent| ev.pointer_type() == "mouse" && !ctx.phone.get_untracked();
@@ -526,8 +604,8 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
             }
             .into_any(),
             Does::Act(act) => view! {
-                <button class="st-pop-item" class:danger=danger type="button" role="menuitem" id=element_id on:click=move |_| run(act.clone()) on:pointermove=others>
-                    {icon()}{words}{note}
+                <button class="st-pop-item" class:danger=danger type="button" role="menuitem" id=element_id aria-current=current.then_some("true") on:click=move |_| run(act.clone()) on:pointermove=others>
+                    {icon()}{words}{note}{mark}
                 </button>
             }
             .into_any(),
@@ -567,7 +645,8 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
         let (at, content) = shown.get()?;
         let view_size = dom::viewport();
         let height = height_of(&content.entries).min(view_size.1 - 2.0 * EDGE);
-        let (left, top) = place(at, (WIDTH, height), view_size);
+        let width = content.width;
+        let (left, top) = place(at, (width, height), view_size);
         let entries = content.entries.clone();
         let sub_panel = move || {
             let open = sub.get()?;
@@ -586,7 +665,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
         let (title, label) = (content.title.clone(), content.title.clone());
         Some(view! {
             <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close() on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close(); } on:wheel=move |_| ctx.menu.set(None)></div>
-            <div class="st-pop root" class:has-sub=move || sub.get().is_some() role="menu" aria-label=label style=format!("--x:{left:.0}px;--y:{top:.0}px") on:keydown=root_keys>
+            <div class="st-pop root" class:has-sub=move || sub.get().is_some() role="menu" aria-label=label style=format!("--x:{left:.0}px;--y:{top:.0}px;--w:{width:.0}px") on:keydown=root_keys>
                 <p class="st-pop-title st-phone">{title}</p>
                 {content.entries.into_iter().enumerate().map(|(i, root_entry)| entry(Some(i), root_entry)).collect_view()}
             </div>
@@ -613,6 +692,8 @@ mod tests {
         assert_eq!(place(button(900.0, 800.0), (264.0, 200.0), VIEW), (668.0, 596.0), "above the button");
         assert_eq!(place(button(100.0, 300.0), (264.0, 200.0), VIEW).0, 8.0, "not past the left edge");
         assert_eq!(place(Anchor::Point(500.0, 400.0), (264.0, 200.0), VIEW), (500.0, 400.0));
+        // The list of the semesters under the name of the one shown: their left edges flush.
+        assert_eq!(place(Anchor::Under(Rect { left: 400.0, top: 300.0, right: 560.0, bottom: 332.0 }), (340.0, 200.0), VIEW), (400.0, 336.0));
         assert_eq!(place(Anchor::Point(1300.0, 850.0), (264.0, 200.0), VIEW), (1036.0, 650.0));
         // Taller than the window: from its top.
         assert_eq!(place(button(900.0, 300.0), (264.0, 2000.0), VIEW).1, 8.0);

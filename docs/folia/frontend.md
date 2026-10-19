@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 dashed and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row), `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the rows' menus, selecting several, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 dashed and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row), `programs.mjs`, `bookmarks.mjs`, `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -1154,7 +1154,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the card itself is the button to „Studiengang wechseln"); „Ansichten": „Semester" (jetzt 3.
     FS), „Gesamtplan", „Regelstudienplan" (Soll · Ist) and „Wahlpflicht" (what is left to choose),
     the first two one address and a setting of the browser's (R13), the others addresses of their
-    own (`view`); „Studiengang": its regulations and documents on its page, and „Alle
+    own (`view`), and the one switch between them (since 2026-10-19 no switch over the semesters
+    says it again); „Studiengang": its regulations and documents on its page, and „Alle
     Studiengänge"; then the legend, the parts of the bar („Fortschrittsbalken") apart from the marks
     of a module („Zeichen an Modulen"), a word each, and the storage hint. Nothing in it says again what the page or the tab
     bar says (owner, 2026-10-04: „Mein Studium Sidebar ist noch sehr redundant und nicht platz
@@ -1391,41 +1392,78 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     follows the finger and the dim behind it fades, let go far enough or flicked it goes on down and
     closes, short of it it slides back. „Studiengang wechseln" says no more in its head than its
     title (owner, the same day, of its lead „Das machst du selten …": „Mach den weg").
-  - **The semesters** (`focus.rs`, the view „Semester"): on a desktop a strip of every semester
-    (what it holds of what the plan puts in, passed of the semesters that are over, a load bar,
-    „jetzt"; „+" goes to the page that adds one) over the semester in focus: ‹ › and its „⋯" in its
-    head (`menu.rs`: „Im Stundenplan öffnen", „Alle auswählen", „Urlaubssemester", and „Semester
-    entfernen" for an empty one added beyond the plan), its rows as a table, and „Module
-    hinzufügen" as the last row, a row like the others; an empty one is a mark, „Noch keine Module"
-    and „Module hinzufügen" right under it (owner, 2026-10-05: „keine Module sollte mit icon und
-    gleich modul hinzufügen sein"), no sentence on where modules come from; beside it „Passt in dieses Semester"
-    (`study::fits`): the plan's open rows of its Fachsemester, the Wiederholer of the semesters
-    before it, what is still open of the Fachsemester before it (the earliest first, four of them),
-    each one „+" from being planned here; never a row of a Fachsemester after it, and only what the
-    semester offers (owner, 2026-10-04: „Es darf nur vorgeschlagen werden, was in dem Semester oder
-    zuvor angeboten wurde … im SoSe soll kein WiSe modul angezeigt werden"). Where the open rows of
-    its Fachsemester are all of the other half of the year it says so („Was noch offen ist, wird im
-    SoSe nicht angeboten."); a semester of leave has those of the Fachsemester reached. A row is a box, the module (its name with its marks, its area,
-    its credits, ✓ before them where it is passed) and its „⋯"; the box and the „⋯" are as tall as
-    the row and 44–48 px wide, and a click anywhere on the module opens it beside the page. Its
-    „⋯", or a right click on it, opens its menu at the button or the pointer (`menu.rs`): „Modul
-    wählen" for a placeholder, „Als bestanden markieren" (or „Bestanden zurücknehmen"),
-    „Verschieben nach ›" (a submenu of every semester it can go to — one that is over only for what
-    was done or not passed there —, each with its Fachsemester and whether it offers the module),
-    „Entfernen"; not the module, which a click on the row opens (owner, 2026-10-05: „modul ansehen
-    aus dem kontext menu nehmen, weil man ja per klick auf das feld das auf macht"), only in the
-    Gesamtplan, whose click opens the menu. The arrows go through a menu, → opens the submenu and ←
-    closes it, Escape or a click beside it closes it and gives the focus back. *Selecting* (`Selection`): the
-    boxes select rows for what is done to several; a row's box shows under the pointer, every box
-    while rows are selected. A press on a box drawn over the others selects (or, begun on a selected
-    row, lets go of) every row it passes; Shift and a click selects a range, Ctrl or ⌘ and a click
-    on the module one more, and while rows are selected a click on a row selects it or lets it go.
-    The box in the columns' head selects all (or lets all go). While rows are selected a bar takes
-    the place of the columns' head: „3 ausgewählt · 18 LP", „Als bestanden markieren" („Bestanden
-    zurücknehmen" where all are), „Verschieben nach" (the semesters as a menu), „Entfernen", „×";
-    Escape lets go too, and so does turning to another semester. A row dragged onto a semester of
-    the strip moves there, with every row selected if it is one of them („3 Einträge" under the
-    pointer). On a phone the semester is a page of the row the overview is a page of (`pager.rs`;
+  - **The semesters** (`focus.rs`, the view „Semester"; in the catalog's look since 2026-10-19, Folia
+    1.31.0): on a desktop the semester in focus at the top of its box (owner, 2026-10-19: „Die
+    aktuelle Auswahl mit (z.B. WiSe 2022/23 1. FS) kann dann nach ganz oben in die box wandern. Die
+    Option mit links und rechts für vorgeriges/nächstes semester soll bleiben"; until then a strip
+    of every semester stood over it — what each held of what the plan puts in, a load bar, „jetzt",
+    „+" — and over that a line with „Semester" and the switch „Semester | Gesamtplan", which went:
+    „Es verbraucht zu [viel] Platz und bietet wenig Mehrwert", „um mehr platz zu schaffen"; the
+    sidebar's „Ansichten" switch the views): its head
+    with ‹ ›, its name and its „⋯" (`menu.rs`: „Im Stundenplan öffnen", „Alle auswählen",
+    „Urlaubssemester", and „Semester entfernen" for an empty one added beyond the plan), its rows
+    under the heads of their columns, and „Module hinzufügen" as the last row; an empty one is a
+    mark, „Noch keine Module" and „Module hinzufügen" right under it (owner, 2026-10-05: „keine Module
+    sollte mit icon und gleich modul hinzufügen sein"), no sentence on where modules come from. Its
+    name, on a phone as well, is a button with a chevron that opens the list of every semester
+    (`MenuFor::Pick`; owner, the same day: „Dazu soll man aber auch auf das semester selbst klicken
+    können, um eine selection (maybe combobox) zu bekommen, um direkt das aktuelle semester auswählen
+    zu können"): each semester with its Fachsemester and, at its end, what the strip said of it („24
+    von 32 bestanden", „32 von 30 LP" with a warning where it is more than the plan puts in, „noch
+    leer · Plan 30"), „jetzt" at the current one, a check at the one shown, which has the focus, and
+    „Semester anfügen" after the last; a menu at the name on a desktop (its left edge at the name's),
+    a sheet from below on a phone, where the row glides to the semester picked. Beside it „Passt in
+    dieses Semester" (`study::fits`): the plan's open rows of its Fachsemester, the Wiederholer of the
+    semesters before it, what is still open of the Fachsemester before it (the earliest first, four
+    of them), each one „+" from being planned here; never a row of a Fachsemester after it, and only
+    what the semester offers (owner, 2026-10-04: „Es darf nur vorgeschlagen werden, was in dem
+    Semester oder zuvor angeboten wurde … im SoSe soll kein WiSe modul angezeigt werden"). Where the
+    open rows of its Fachsemester are all of the other half of the year it says so („Was noch offen
+    ist, wird im SoSe nicht angeboten."); a semester of leave has those of the Fachsemester reached.
+    *A row* is a module as the catalog's list has it (owner, 2026-10-19, on a phone: „das aussehen,
+    von den Modulen im semesterplan zu weit von den modulen im Modulkatalog abweicht … Gestalte das
+    so, das der aufbau komplett gleich ist. Also padding, margin, Titel, LP, und format von den
+    Metadaten", and on a desktop: „Auch hier soll 1 zu 1 der Style vom Modulkatalog übernommen
+    werden, so dass man einfach versteht, dass es sich um ein Modul handelt"): the catalog's `.row`,
+    its title over the line of its number, its area where the catalog puts a module's kind (a dot in
+    the area's colour and its name) and its marks as the catalog's flags, its credits with „LP", and
+    on a desktop the catalog's columns as well (`folia_widgets::list::Facts`: Verantwortlich,
+    Prüfung, Turnus, Sprache, Termine; the table is the container `list`, so that they go one by one
+    as it gets narrower, as the list's do), every other row shaded, under the heads of the catalog's
+    columns. At its end, where the catalog has the bookmark and as large, its status (the same day:
+    „Die merken flag soll getauscht werden mit einem Status symbol (In progress/bestanden/nicht
+    bestanden)"; `focus::Status`): a ring for planned (a semester to come), a ring half filled in the
+    accent of „jetzt" for under way (the current one), a check on green for passed, a cross in red
+    for not passed (in a semester that is over); the sidebar's legend names them under „Zeichen an
+    Modulen". The whole box is the module's button (the same day: „Der Modul Soll auch nicht mehr
+    anklickbar sein und auch nicht unterstrichen werden wenn man darüber hovert/anklickt. Es soll die
+    gesamte modulbox als button funktionieren"): its link (`.st-open`) reaches over all of it, so a
+    click anywhere on it opens the module beside the page, the name underlines no more and is no
+    target of its own; a row of the plan that names no module leads so to its modules in the catalog
+    („Modul wählen", `variants::row_query`). Until then the name was a link of its own that
+    underlined, a box to tick stood before the row and a „⋯" after it. The status, or a right click
+    on the row, opens its menu at the status or the pointer (`menu.rs`): „Modul wählen" for a
+    placeholder, „Als bestanden markieren" (or „Bestanden zurücknehmen"), „Verschieben nach ›" (a
+    submenu of every semester it can go to — one that is over only for what was done or not passed
+    there —, each with its Fachsemester and whether it offers the module), „Auswählen", „Entfernen";
+    not the module, which a click on the row opens (owner, 2026-10-05: „modul ansehen aus dem kontext
+    menu nehmen, weil man ja per klick auf das feld das auf macht"), only in the Gesamtplan, whose
+    click opens the menu. The arrows go through a menu, → opens the submenu and ← closes it, Escape
+    or a click beside it closes it and gives the focus back. *Selecting* (`Selection`) rows for what
+    is done to several needs no box to tick (owner, 2026-10-19: „Die selection soll nicht mehr per
+    checkbox umgesetzt werden, sondern per hervorheben/vlt texture funktionieren"): a row selected is
+    tinted in the accent, lined with it and hatched. Ctrl or ⌘ and a click selects a row or lets it
+    go, Shift and a click the rows up to it, a mouse pressed on a row and drawn onto others every row
+    it passes (or, begun on a selected row, lets go of them; `focus::Draw`, which the list hears, as a
+    mouse's moves go to the row under it), „Auswählen" in a row's menu the row and the semester's
+    „Alle auswählen" all of them; while rows are selected a click on a row selects it or lets it go,
+    and the space bar on a row does the same. A bar takes the place of the columns' heads, as tall as
+    they are, so that no row moves: „3 ausgewählt · 18 LP", „Alle auswählen" while some are not,
+    „Als bestanden markieren" („Bestanden zurücknehmen" where all are), „Verschieben nach" (the
+    semesters as a menu), „Entfernen", „×", its words short where the table is narrow (`@container
+    list`); Escape lets go too, and so does turning to another semester. A row is no longer dragged
+    onto another semester: the strip it was dropped on is gone, and „Verschieben nach" moves it (the
+    Gesamtplan's entries are still dragged between its columns). On a phone the semester is a page of the row the overview is a page of (`pager.rs`;
     owner, 2026-10-05: „die swipe bewegungen nach links und rechts brauchen Animationen, damit man
     versteht was passiert …", and after a try on her phone the same day: „das swiping ist richtig
     komisch das stockt immer wieder … dass das sich wie eine native app anfühlt"): every semester a
@@ -1436,9 +1474,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     keine box geben, und der text für welches Semester gerade ist oben unter die suchbar auch ohne
     box"; until then a card as wide as the page): no box around the semester, its head right under
     the search as the catalog's count is (the semester, „jetzt", under it its Fachsemester and
-    credits; at its end ‹ › and its „⋯" in a box as the catalog's „Filter"), and a card per row as
-    the catalog's (its name, under it a line of its number, its area and its marks, its credits in
-    LP at its end, its „⋯" where the catalog has its mark); „Module hinzufügen" under them a card to
+    credits; at its end ‹ › and its „⋯" in a box as the catalog's „Filter"), and a row as the
+    catalog's card on a phone (its padding, its title, its line of number, area and marks, „DE · 2
+    Termine" under them, its credits in LP, its status where the card has the bookmark, 44 px as
+    that is); „Module hinzufügen" under them a card to
     be filled, with a dashed edge. What is on two pages lies as far apart as from the screen's edge,
     12 px (owner, the same day: „dass die Abstände zwischen den boxen genau der Abstand zum rand
     ist, so dass sich das nicht doppelt, wenn man swiped"; until then 24 px): a page's place has
@@ -1471,12 +1510,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     While rows
     are selected a finger selects, and the row does not move sideways. Under its rows what the plan
     still has open for its Fachsemester and the semester offers, under a heading as the catalog's
-    semesters have one („Laut Regelstudienplan · 3. FS" and a line), as open cards (a ring, no
-    ground) with their number, area and credits and a „+" each that plans them here (owner,
-    2026-10-05: „die module, die noch vorgesehen sind, sollten auch als rows organisiert sein und
-    nicht als fließtext"; a desktop has them beside it, „Passt in dieses Semester"); a long press
-    selects a row and brings the boxes in, inside the cards (a finger drawn down them selects more,
-    a tap on a row selects it or lets it go), the bar takes the tab bar's place over it (owner,
+    semesters have one („Laut Regelstudienplan · 3. FS" and a line), each the catalog's card as the
+    semester's own rows (owner, 2026-10-19: „Es gibt keinen grund, dass der hintergrund anders sein
+    sollte"; until then open cards, a ring and no ground) with its number, area and credits and a
+    „+" where the bookmark is that plans it here (owner, 2026-10-05: „die module, die noch
+    vorgesehen sind, sollten auch als rows organisiert sein und nicht als fließtext"; a desktop has
+    them beside it, „Passt in dieses Semester"); a long press selects a row, and the finger held on
+    and drawn up or down selects every row it passes (the page does not scroll meanwhile), a tap on
+    a row selects it or lets it go; the bar takes the tab bar's place over it (owner,
     2026-10-05: „Mach das mal so, dass die die navbar überdeckt"), and a menu is a sheet from below
     whose submenu takes its place (with „‹" back). After the last semester a page adds one („WiSe
     2028/29 anfügen · 7. Fachsemester", as a semester of leave if ticked). A row's marks:
@@ -1486,8 +1527,8 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Bedarf · FÜS hat schon 6 LP", „Platzhalter" (a row of the plan without a module, with „Modul
     wählen": its modules in the catalog, `variants::row_query`), „gefüllt mit …", and in a semester
     that is over „nicht bestanden · wieder im …" or „… noch nicht wieder eingeplant · Einplanen".
-  - **The Gesamtplan** (`grid.rs`, a desktop's second view, kept in `localStorage`
-    `betula.study.view`): the areas as rows (with their figures and a thin bar), the semesters as
+  - **The Gesamtplan** (`grid.rs`, a desktop's second view, switched to in the sidebar and kept in
+    `localStorage` `betula.study.view`): the areas as rows (with their figures and a thin bar), the semesters as
     columns (the ones before the current one folded into „Bisher", „Bisher aufklappen"), each cell
     the area's modules in that semester as plain lines; in grey where it fits next what the plan
     still has open (`study::open_lines`: a row at its first Fachsemester, not before the current
@@ -1544,27 +1585,32 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     leeren" empties the semester shown and leaves the others and what was passed.
   - `node folia/e2e/study.mjs` checks the first visit, the overview (the credits, nothing else), the
     sidebar (the program's card and its dialog, no way to the Stundenplan, the legend in two
-    parts), what fits a winter and a summer,
-    a row's menu (without the module; marking as passed, „Verschieben nach ›", removing,
-    „Rückgängig", a right click, the keys: Enter, the arrows into the submenu and back, Escape and
-    the focus back),
-    selecting (the boxes, a drag over them, the bar, the semester's „Alle auswählen", Escape), rows
-    dragged onto the strip, „Module hinzufügen", an area, a module beside the page by its name and
-    its row, the Gesamtplan (each cell as tall as what it lists, its menu, its grey lines), the phone
+    parts, the statuses in the second), the semester at the top of its box with no strip and no
+    switch over it, the list of the semesters at its name (what each holds, „jetzt", the one shown
+    with the focus, Escape), the rows as the catalog's (its row and columns, the status, no box to
+    tick, no underline under the pointer), what fits a winter and a summer,
+    a row's menu at its status (without the module; marking as passed, „Verschieben nach ›",
+    „Auswählen", removing, „Rückgängig", a right click, the keys: Enter, the arrows into the submenu
+    and back, Escape and the focus back),
+    selecting (the semester's „Alle auswählen", the rows hatched, a press drawn over three, the
+    bar, Ctrl and a click, two rows moved by the bar, Escape), „Module hinzufügen", an area, a
+    module beside the page by its name and by a click at its credits, the Gesamtplan (each cell as
+    tall as what it lists, its menu, its grey lines), the phone
     (the overview in its order and
     without a sidebar, one row of the semesters that are over, the overview and the rest, the
     overview the page in view and no way back at the head, the row's dots on it; the box by a tap
     and a column; the way back a square box left of the search, as the search is; the
-    semesters without a box, their head under the search, their rows the catalog's cards with
-    number, area and LP; no ground under the row and its end above the dots, the pages 12 px from the screen's edges
+    semesters without a box, their head under the search, their rows the catalog's cards (the
+    catalog's padding and title, number, area and LP, the status where the bookmark is, 44 px); no
+    ground under the row and its end above the dots, the pages 12 px from the screen's edges
     and from each other, the dots fixed over the tab bar on the frosted grey, without a box or a
     legend, an empty semester and the plan's rows with their „+", ‹ › gliding and past the overview,
     the glides of a tap quick (the box, ‹ past the overview, the way back: at most 280–360 ms from
     the first move to rest), a real finger moving the row and a short pull going back, the last
     semester that is over drawn to the overview, a semester scrolled while the row moves staying as
     scrolled at rest, up from the end of one into the next with nothing of the one that goes above it, the window scrolled into a semester and the next
-    shown from its top, a long press and the bar over the tab bar, the menu as a sheet without the
-    module, a semester added, the way back and Back without a step more, the credits opening the
+    shown from its top, a long press (the row hatched, no box) and the bar over the tab bar, a tap
+    selecting one more, the menu at a status as a sheet without the module, a semester added, the way back and Back without a step more, the credits opening the
     areas from their headline, their bar, their legend and next to each edge of their box, the
     areas' sheet dragged a little and back and dragged down to close, the program's card without a
     lead, the whole overview drawn by a finger a little and back, to the left to the current
@@ -2154,30 +2200,59 @@ canary's build of 1.26.0 with the CPU four times slower a tab's first build is a
 0.19 s („Mein Studium" with a study; the concept measured 1.8 s on 1.22.0), so „Studium" is built as
 it is.
 
-**The pages on an axis on a phone** (step 3, Folia 1.28.0, `enhance.js` „the Achse"; owner,
-2026-10-18, of the prototype's ways: „Ich muss sagen ich finde achse fühlt sich am besten an. Quasi
-so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert", „Swipen soll explizit
-nur über die navbar funktionieren", and of the page following the finger: „das verhalten im
-Prototypen passt für mich"): where a phone's view is shown, a change of tab between two pages that
-stand moves them as Material's shared axis does.
+**The pages on an axis on a phone** (step 3, Folia 1.28.0, as it is since 1.29.2; `enhance.js` „the
+Achse"; owner, 2026-10-18, of the prototype's ways: „Ich muss sagen ich finde achse fühlt sich am
+besten an. Quasi so, als währe es nicht da aber man versteht trotzdem, wie das funktioniert",
+„Swipen soll explizit nur über die navbar funktionieren", and of the page following the finger: „das
+verhalten im Prototypen passt für mich"; the next day, of 1.28.0 on a phone: „Es wäre wirklich
+perfekt, wenn es sich so anfühlt als würde es sofort los gehen", of a quick swipe „sieht die
+Animation echt ganz schön laggy aus", of one at its usual speed „dann sehe ich die Animation gar
+nicht. Da sollte es vielleicht ein max speed geben. Aber trotzdem so, dass man dann noch weiter
+machen kann also nichts blockiert", of quick taps „dann flackert die seite … Es muss ein Konzept für
+schnelle aufeinander folgende aktionen geben"; folia/design/tabwechsel/konzept.html, „Schnell
+hintereinander"): where a phone's view is shown, a change of tab between two pages that stand moves
+them on an axis.
 
-- **A tap, Back, a link to another tab**: the page that goes slides 36 px away to the side of its
-  tab and fades out, quickly (a damped spring of 0.13 s, nothing past its place); the page that
-  comes slides in 36 px from the side of its tab and fades in, 90 ms later, on a spring of 0.3 s; at
-  rest after about half a second. A far jump is the same (Start to Stundenplan comes from the right
-  as Start to Module does), and Back from a tab's root to Start comes as a tap on „Start". Where a
-  page stands and how clear it is are springs worked out ahead, every 1/120 s, and played as Web
-  Animations, which the compositor runs while the app takes its step.
-- **On the way**: a tap takes the pages where they stand and as fast as they go, and goes on from
-  there, without a jump, however many taps come; the page it goes back to comes back from where it
-  is, a page overtaken while it came fades where it is rather than crossing the middle. A finger on
+- **A tap, Back, a link to another tab**: the page that comes slides in 36 px from the side of its
+  tab and gets clear over the page that goes, from the first frame: a spring of 0.06 s that starts
+  at its full pace, a fifth of the page in the first frame, half after 45 ms; its way on a spring of
+  0.3 s. The page that goes slides 36 px away to the side of its own tab under it (a damped spring
+  of 0.13 s, nothing past its place). At rest after about half a second. A far jump is the same
+  (Start to Stundenplan comes from the right as Start to Module does), and Back from a tab's root to
+  Start comes as a tap on „Start". Where a page stands and how clear it is are springs worked out
+  ahead, every 1/120 s, and played as Web Animations, which the compositor runs while the app takes
+  its step; each starts a frame in, since the frame before showed where it starts.
+- **Never empty**: the pages on their way are opaque (the window's ground, `--bg`) and lie one over
+  the other, the page they go to on top (their `z-index`, from enhance.js): what lies under a page
+  shows only as far as that page is not clear yet. 1.28.0 faded the page that goes out before the
+  one that comes faded in, as Material has it; half there 250 ms after a tap, the screen mostly
+  empty for 170 ms between, which read as loading, and quick taps made it flicker.
+- **On the way**: a tap, Back or a finger takes the pages where they stand and as fast as they go,
+  and the page it goes to goes on top, every page still seen as much as it was (`onTop`: on top it
+  is as clear as it was seen, each page under it as clear as what is left over it lets it be seen
+  as much again), so nothing jumps however many come. A page under it that was still coming gets
+  clear under it, and a page all covered goes behind at once (one layer less to draw). A finger on
   the page, a wheel or a key puts the pages at rest at once.
-- **A finger along the bar** takes the pages with it, as far as it takes the bar's row (`axisGrab`,
-  `axisDrag`, `axisRelease` in the swipe): up to four tenths of the way the page goes, from a little
-  after that the page of the tab beside comes; let go, they go on from there as fast as the finger
-  went, to the tab the bar goes to (a third of the way, or flicked), and its link is clicked behind
-  them. Only a page that stands comes along (`chrome.rs`, `window.__betulaStands(area)`); where no
-  tab lies that way the page gives a little, as the bar does.
+- **Before the change**: a finger on a tab makes the page in front and the pages it may bring layers
+  while it is down (`axisPrepare`; on another tab that tab's page, on the current one the two beside
+  it, where a swipe starts), undone 0.7 s after if nothing came of it. A tap on a tab whose page
+  stands starts the pages itself (a click listener before the app's), marks its tab at once
+  (`aria-current`, as the start does before the app: the mark answers in the frame the pages start
+  in) and gives the app the click once the pages' animations have started (`later`: the `ready` of
+  the first, 150 ms at most), so that the app's work (the stages swapped, the title, the scroll)
+  does not hold up their first frames; a finger, a key or another click before that has the app
+  take it at once, in the order they came. The swipe's click comes the same way.
+- **A finger along the bar** says where the pages should be (`axisGrab`, `axisDrag`, `axisRelease` in
+  the swipe): as far along the way to the tab beside as the bar's lens is. They follow it frame by
+  frame on a damped spring of 0.12 s, never faster than four ways a second (`axisFollow`), so a slow
+  swipe goes with the finger and a quick one is seen as a motion: the page of the tab beside comes on
+  top, clearer as the way goes on, the page in front slides away under it. Let go, they go on from
+  where they are and as fast as they went, not faster (the page on top gets clear on a spring of
+  0.09 s from its own pace), to the tab the bar goes to (a third of the way, or flicked), and its link
+  is clicked behind them. A finger that comes again on their way takes them where they are, and
+  until it has turned them what was on its way goes on. Only a page that stands comes along
+  (`chrome.rs`, `window.__betulaStands(area)`); where no tab lies that way the page gives a little,
+  as the bar does.
 - **Layers**: the window scrolls one page only, so for as long as they move the pages are layers of
   their own (`.page-stage.moving`, app.css): the stage fixed and as large as the screen, which is
   what moves (so that what of a page stands fixed, the dots of „Mein Studium" or a sheet put away,
@@ -2185,53 +2260,114 @@ stand moves them as Material's shared axis does.
   was scrolled, its own ground at its end where the window's lies at rest. The window keeps room
   for the farthest any page was scrolled, the page in front follows its scroll, and at rest that
   page is in the window again in the same frame. The stages tell enhance.js before they swap
-  (`betula:stage-going`: the page that goes becomes a layer while it is still drawn) and after
-  (`betula:stage`, with `from`, `to` and `step`, whether both pages stand); a stage that goes
-  behind keeps how far it was scrolled and how high it was (`data-scroll`, `data-height`) for a
-  finger that brings it back.
+  (`betula:stage-going`: the page that goes becomes a layer while it is still drawn, where nothing
+  made it one before) and after (`betula:stage`, with `from`, `to` and `step`, whether both pages
+  stand); a stage that goes behind keeps how far it was scrolled and how high it was
+  (`data-scroll`, `data-height`) for a finger that brings it back.
 - **The cost**: what a layer sets is never inherited and never reaches into the page beyond the
   parts it names (no `pointer-events`, no custom property on the stage, no rule for all of its
   children): any of it had the browser work out the style of the stage's every element, about a
-  thousand. So a tap costs 5 to 10 ms more than without the motion (20 to 40 ms with the CPU four
-  times slower, the dev bundle in a phone's window); the page that goes starts moving in the first
-  frame.
+  thousand. Measured with the bundle that ships in a phone's window, a finger's touches sent as a
+  phone sends them: the page that comes half there 50 to 80 ms after a tap (76 ms with the CPU four
+  times slower; 1.28.0: 250 and 440 ms), no frame with the window showing between the pages, the
+  app's work (about 50 ms slowed down four times) after the pages started.
 - **Not**: on a wide screen (the page is there in the next frame), where a sheet or a dialog lies
   over one of the pages, after the browser animated a step already (Safari's swipe back from the
   edge, `hasUAVisualTransition`), on a tab whose page does not stand yet (it comes as before); with
-  less motion a short fade, nothing slides.
+  less motion a short dissolve, nothing slides.
 
 `node folia/e2e/stages.mjs` and `node folia/e2e/achse.mjs` check it (§4).
 
-### The search of the catalog (`folia/crates/search/src/lib.rs`, 2026-09-30)
+### The search of the catalog (`folia/crates/search`, 2026-09-30; ranked anew 2026-10-19, Folia 1.30.0)
 
 Owner: the search should improve, first with the names of the modules („erstmal eine neue Zeile in
 der db wo keine Sonderzeichen etc drin sind“), typos forgiven; a semantic search („Ähnliche
 Module“) is worked on apart from this, so only the names are searched, not the texts of a
 description. The list stays the list it was („ich mag das UI da und würde das ungerne tauschen“).
 
-- **What is searched:** the words of the query in the names Radix folds (`v_module_folded`,
-  docs/radix/schema-v2.md „Search“): the module number, the German and the English title, the initials of
-  a title and the abbreviations — the module's own, those programs give it („AuP“), and the known
-  short forms of words of the titles („BWL“). Case, umlauts, ß and accents do not matter („okologie“
-  finds „Ökologie“: 21 offered modules, where `LIKE` found none); every word has to be found, in any
-  order („lernen maschinelles“); fillers („für“, „und“, „der“ …) do not count; `%` or `_` are no
-  patterns but marks between words. Not the names of the lecturers (the filter „Lehrende“ is there
-  for them), not the descriptions.
-- **How a word is found, best first** (the module's score is the sum over the words): as the module
-  number, as an abbreviation, as a whole word of a title (its first word a little more), as the start
-  of a module number („118“ finds the numbers that start with it, not 21185), as the start of a word,
-  as the initials of words that follow each other („ti“, Theoretische Informatik; „ki“ finds
-  „Künstliche Intelligenz“), and from four letters on inside a word („netz“ in „Stromnetze“, while
-  „ki“ no longer finds „Schlüsselqualifikationen“). A number of one or two digits and a Roman numeral
-  up to ten are whole words, the one the same as the other („Analysis 1“ finds „Analysis I“; 411 of
-  the offered titles number their parts with Roman numerals).
+Owner, 2026-10-19, on „TI“, which listed 49 modules with „TIN* - trans*, inter*, nicht-binär“ first
+and „Zeitdiskrete Systeme und Regelungen“ and „Ingenieurholzbau“ among them: „gemeint damit war
+Theoretische Informatik. Und die suchergebnisse sind ja mal so unfassbar bad … Erstell mal ein
+konzept, wie wir das hier richtig filtern und sortieren können, so dass die relevantesten
+ergebnisse oben sind.“ The concept is `folia/design/suche/konzept.html`, with the owner's answers
+(„Ähnliche module sollen unbedingt bleiben“, „Die zufälligen kürzel sind ok“, a boost for one's
+program, the lecturers searched with rules of their own, „die gefundenen Module bei allen gleich
+… Aber die reihenfolge darf sich zwischen nutzern ändern“, the other language's title weighted
+less, capitals as typed more). Its prototype (`engine.mjs`) is the rule book: `folia_search::rank`
+follows it rule for rule, and the two order 165 queries the same on the snapshot of 2026-10-19,
+every module of it (`ranking.rs`' `dump_for_the_prototype`).
+
+- **What is searched** (`rank::Index`, read once per snapshot from `v_module`, `v_program_module`
+  and `v_module_lecturer`, by its `content_digest`): the module number, the abbreviations — the
+  module's own and those programs give it („AuP“) —, the German and the English title, and the
+  names of the lecturers, those responsible for the module and those who teach its courses. Not
+  the descriptions: that is what „Ähnliche Module“ are for. Case, umlauts, ß and accents do not
+  decide whether a word is found („okologie“ finds „Ökologie“); every word has to be found, in any
+  order („lernen maschinelles“); fillers („für“, „und“, „der“, „Prof.“, „Dr.“ …) do not count; `%`
+  or `_` are no patterns but marks between words. A number of one or two digits and a Roman
+  numeral up to ten are whole words, the one the same as the other („Analysis 1“ finds „Analysis
+  I“).
+- **Points** (`rank::points`, the weights in one place; the concept's „Punkte“). Every word of the
+  query gets the points of its best find:
+  - *the whole module named*: its number 125, an abbreviation 125 (that of a part without its
+    number, „BS“ for „BS1“, 120), every word of a title but fillers and numerals 120 („mathe 1“,
+    „theo inf“, „TI“);
+  - *a word in a title*: a whole word 80, the short form of words that follow each other 80 —
+    their initials or starts, a filler's letter taken or left out („TI“, „theoinf“, „AuD“, „LinA“;
+    a piece no longer than the one before, a numeral never one, and it ends a group of words) —,
+    the start of a word or of a module number (from three digits) 60, a short form that leaves out
+    a filler 55, from four letters on inside a word 35;
+  - *a lecturer's name*, with rules of its own (owner: „etwas restriktiver, aber typos oder
+    ähnliche schreibweisen bitte doch zulassen. Zum beispeil Petra Hofstedt kann ja auf viele arten
+    und weisen geschrieben werden“): the surname whole, from three letters, 75; its start from four
+    letters 55; from four letters a surname written alike 50 — both made alike (`rank::alike`:
+    „ae“ and „ä“ as „a“, „dt“ and „th“ as „t“, „ph“ as „f“, „ck“ as „k“, „tz“ as „z“, „ie“ and
+    „y“ as „i“, „ei“ as „ai“, an „h“ after a vowel left out, a doubled letter as one), then one typo
+    apart (two from eight letters), the first letter right: „Hoffstedt“, „Hofstätt“ and „Hofstet“
+    find Hofstedt's modules, „Doering“ Döring's. A first name or an initial counts only with the surname („Petra Hofstedt“, „P.
+    Hofstedt“; „Petra“ alone is no name);
+  - *factors*: a find in the title of the other language ×0.75, and there a word of one or two
+    letters finds no starts of words (owner: „dass der nicht primary language match beim titel
+    etwas schlechter gewertet wird“: „ti“ no longer finds „Time-discrete Systems“), capitals as
+    typed ×1.1 where the query has capitals (owner: „wenn man halt case matching beim wortanfang
+    hat, dann soll das auch besser geweichtet sein“: for „TI“ „TIN*“ before „Tissue Engineering“,
+    for „Ti“ the other way round), every word before the find in its title −3 % (up to five), the
+    words of the query side by side in their order ×1.05, a lecturer who teaches the module and is
+    not responsible for it ×0.9.
+
+  A module has the points of its weakest word, or those of naming it whole where they are more.
+  What the query finds depends on the query alone: there is no limit of points („die gefundenen
+  Module bei allen gleich“), and the random short forms stay (owner: „Das ist ein tradeoff, mit
+  dem ich leben kann“: „TI“ also finds „Biodiversity of Terrestrial Invertebrates“).
 - **The order:** while there is a search, the list is ordered by relevance — the most words found,
-  then the score, then the title — also inside a program. A column orders the matches instead,
-  „Modul“ by title (not by the study plan while searching); typing in the top bar goes back to
-  relevance (`app::TopBar`), and without a search the list has its order as before.
+  the most points, then offered before phase-out, the fewer words left over in the title, a series
+  together and in its order („Elektrotechnik 1“, „2“), the module more programs have (a number's
+  start: the numbers in their order), A–Z — also inside a program. The search hands the catalog's
+  SQL its hits in that order (`search::Plan::table`: `json_each(?)`, joined as `sr`, ordered by
+  `sr.rank`); filters, the count, the pages and what lies outside the filters are SQL as before. A
+  column orders the matches instead, „Modul“ by title (not by the study plan while searching);
+  typing in the top bar goes back to relevance (`app::TopBar`), and without a search the list has
+  its order as before.
+- **Mein Studiengang** (owner: „dass die module aus deinem Studiengang ganz generell einen kleinen
+  boost sogar bekommen. Vlt score einfach x 1.2 oder so (Da muss man nochmal gucken, welche werte
+  da gut sind)“): the points of the modules of the program this browser keeps are raised ×1.35.
+  Measured, ×1.2 was too little: for „Masterarbeit“ a student of Artificial Intelligence M.Sc. got
+  their own „Master Thesis“ at place 33, behind the „Master-Arbeit“ of 32 other programs. With
+  ×1.35 one's own module named in the other language comes before another's named in the language
+  shown, and not before one named by its own abbreviation as typed: with Informatik M.Sc. „SE“ is
+  „Sicherheitsengineering“ (its abbreviation), then „Softwaretechnik“. The program goes with the
+  query as `CatalogQuery::rank_program`, filled by the catalog like the marks (`with_mine`), never
+  in an address and never on the server (R9): it changes the order only, so a link to a search
+  lists the same modules for everyone (owner: „Die idee ist bloß, dass man seinen freunden ne
+  suche teilen kann“).
+- **The row says why** (`widgets::list::Row`, `CatalogRow::marks`, filled by `catalog_page` from
+  `search::marks`): the letters found are marked (`<mark>`, `--hit`) in the title, in the number
+  and in a line under the title that says what else the module was found by — the title in the
+  other language („engl. Time-discrete Systems and Regulators“) or a lecturer („verantwortlich
+  Hofstedt, Petra“, „lehrt …“) — and an abbreviation stands as a tag („Kürzel ThI“).
 - **What the words as typed do not find** (`search::resolve`, run by `pages::catalog_scope`, so
-  that the page and the filter panel agree): where no module has all of them, the words no title
-  knows are corrected to the word of a title they are within one typo of (two from eight letters on,
+  that the page and the filter panel agree): where no module has all of them, the words no module
+  has are corrected to the word of a title they are within one typo of (two from eight letters on,
   the first letter right, the rules of the pickers' `fuzzy::typos_at_start`; of several, the one
   most modules have): „algoritmen“ is „Algorithmen“, „wirtschaftsinfromatik“
   „Wirtschaftsinformatik“. The head of the list says so: „Keine Treffer für „algoritmen“. Ergebnisse
@@ -2244,10 +2380,15 @@ description. The list stays the list it was („ich mag das UI da und würde das
   nicht mehr angeboten · anzeigen“; the link is the catalog with the search alone (and the modules
   no longer offered, where some are among them). Without filters it is only those no longer offered.
   With JavaScript and without it alike (`pages::CatalogData::elsewhere`).
-- **Speed:** the search is SQL on the snapshot like every filter (`search::Plan::table`, joined as
-  `sr`). Only modules whose names contain a form of every word are scored at all: in the sql.js of
-  the app on a laptop a query takes 2 to 8 ms (without that filter 11 to 72 ms, which a phone would
-  have felt while typing).
+- **Speed** (2026-10-19): the search ranks in Rust, not in SQL. Reading the index costs about
+  100 ms once per snapshot (natively, in a release build); then a text new to it takes 3–5 ms to
+  score every module (`rank::evaluate`, 9 ms for a long word, 20 ms where a typo is corrected), and
+  the order for the program a quarter of a millisecond (`rank::order`). The scores of the last
+  text, its order and its resolution are kept (`search::evaluated`, `ranked`, `resolve`): a page
+  resolves its text with the list and again with the counts of its filters, and orders it once.
+  Before, the search was SQL over `v_module_folded` that scored only the modules whose names
+  contained a form of every word, 2 to 8 ms in the sql.js of the app on a laptop. It all runs in
+  the data worker while typing („Typing“ below).
 - **„Ähnliche Module“** (2026-10-01; owner: „Unterteilung in Ergebnisse und Ähnliche Module“, the
   semantic search from develop, folia/crates/semantic/README.md): under the rows, after the note on the filters,
   the modules whose descriptions mean what the search says, as rows of the list under the heading
@@ -2309,8 +2450,8 @@ description. The list stays the list it was („ich mag das UI da und würde das
     out again), and the list's height and the rows' offsets are custom properties no element
     inherits (`@property --list-h`, `--top`; measuring the rows changed them, and every row was
     styled again).
-  - **The vocabulary of the titles is made once per snapshot** (`search::vocabulary`, by its
-    `content_digest`), not for every word no title has.
+  - **The vocabulary of the titles is made once per snapshot** (since 2026-10-19 with the
+    search's index, `rank::index`, by its `content_digest`), not for every word no title has.
 
   After (same snapshot, keys, slowdown): 140–270 ms at most in one task, keys waiting mostly less
   than 160 ms, 2–4 s of long tasks while typing a word; without the slowdown at most five long
@@ -4038,7 +4179,9 @@ What `cargo test` checks:
   pinned numbers, enum labels from the CHECK constraints, every query and page loader against
   real data, the URL codec, the ranking of the pickers (`fuzzy`), the search (folded as Radix
   folds, from `radix/internal/normalize/testdata/search.tsv`; words in any order, numbers and numerals,
-  the order by relevance, typos, the most words, what it finds outside the filters);
+  the order by relevance, typos, the most words, what it finds outside the filters; and in
+  `folia-search`'s `tests/ranking.rs` where what is meant lands, capitals as typed and the other
+  title, lecturers written alike, the same modules for everyone and a program's first);
   `SCHEMA_VERSION` is the number of Radix's newest migration, and the snapshot of the tests is not
   older.
 - `server`: a fake Radix over HTTP: not ready → 503; download, check, gzip, activate, brotli; 304 →
@@ -4086,15 +4229,17 @@ cd e2e && node search.mjs
 ```
 
 searches modules („The search of the catalog“): without JavaScript, the server's page says a
-corrected typo above the list and the matches outside the filters under it; in the browser app, a
+corrected typo above the list and the matches outside the filters under it, and lists Theoretische
+Informatik first for „TI“, its T and I marked; in the browser app, a
 search inside Informatik B.Sc. says what it finds outside the program and its link leads there; with
 a stand-in for the semantic search (`window.betulaSemantic`; the repository has no model) „Ähnliche
 Module“ stand under the results without the result and the module no longer offered, one of them
 opens beside the list, and the arrow keys go on from the list's last row into them; a typo is
 corrected and said (and the semantic search is asked for the corrected word), the best match comes
-first, „Modul“ orders the matches by title, and typing orders them by relevance again. Last, a
-search the address carries: its list asks before `boot.js` offers the semantic search and still gets
-its „Ähnliche Module“.
+first, „Modul“ orders the matches by title, and typing orders them by relevance again; „TI“ lists
+Theoretische Informatik first with its T and I marked, and „Hoffstedt“ finds Petra Hofstedt's
+modules, the row saying „Hofstedt, Petra“ under the title. Last, a search the address carries: its
+list asks before `boot.js` offers the semantic search and still gets its „Ähnliche Module“.
 
 ```bash
 cd e2e && WORKER_SNAPSHOT_DIR=../../snapshot node worker.mjs
@@ -4245,8 +4390,10 @@ cd e2e && node stages.mjs
 ```
 
 drives the tabs that stay built as § „Tabs that stay built" has them, on a phone (the bottom bar,
-taps) and on a wide screen (the rail, clicks): a tab seen before is in front in the first frame
-after the tap, without a skeleton and without a picture held in front of it, with the same page
+taps) and on a wide screen (the rail, clicks): a tab seen before is seen within 80 ms of the
+finger's or the button's release (in front, or on a phone the page on top as the pages move: the app
+swaps the stages behind them once they move), without a skeleton and without a picture held in front
+of it, with the same page
 (the very elements), scrolled as far (the window on a phone, the list's area on a wide screen) and
 with the module beside the list still there; one stage in front once the pages have come to rest,
 the others not drawn, a link in them taking no focus, and on a phone without room; the title, one canonical address and one description of the page in front;
@@ -4263,15 +4410,19 @@ cd e2e && node achse.mjs
 ```
 
 films the pages on an axis as § „The pages on an axis on a phone" has them, every frame, on a phone
-with a study set up and every tab built: a tap from Start scrolled down to Module, the page that goes
-leaving to the left and the one that comes from the right only once the first has faded, no frame
-jumping (12 px and a third of its clearness at most where it can be seen), at rest within 0.8 s with
-nothing of the layers left and the window where the page was left; Back from Module to Start coming
-from the left, scrolled as left; a tap back on the way; three taps in a row; a finger along the bar
-from the Merkliste to the Stundenplan (at a third of the way the Merkliste going, at the end the
-Stundenplan coming) and let go, and one let go short (nothing changes); in the first frame of a change
-the ground of a page scrolled to its end and the dots of „Mein Studium" where they stood; less motion
-a fade; a tab tapped before its page stands not moving; a wide screen not moving.
+with a study set up and every tab built, and what the eye sees of each (how clear it is, of what the
+pages over it leave): a tap from Start scrolled down to Module, Module coming from the right on top
+and half seen within 120 ms of the change's first frame, the tab's mark on „Module" in that frame,
+Start going to the left under it; no frame jumping (12 px and a third of what is seen of a page at
+most) and none with the window showing between the pages; at rest within 0.8 s with nothing of the
+layers left and the window where the page was left; Back from Module to Start coming from the left,
+scrolled as left; a tap back on the way; three taps in a row, and four quick ones back and forth; a
+finger along the bar from the Merkliste to the Stundenplan (at a third of the way the Merkliste going
+and the Stundenplan on top, partly seen, at the end the Stundenplan most of the way there) and let go,
+a quick swipe (a finger's moves every 8 ms, sent as a phone sends them) taking 0.15 s at least from
+a tenth of the page seen to nine tenths, and one let go short (nothing changes); in the first frame
+of a change the ground of a page scrolled to its end and the dots of „Mein Studium" where they stood;
+less motion a fade; a tab tapped before its page stands not moving; a wide screen not moving.
 
 ```bash
 cd e2e && node swipe.mjs

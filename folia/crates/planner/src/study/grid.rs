@@ -16,7 +16,7 @@ use super::dom;
 use super::focus::add_pick;
 use super::menu::{self, Act, MenuFor};
 use super::picker::short_title;
-use super::{n, Dialog, Ready, StudyCtx, ViewSwitch};
+use super::{n, Dialog, Ready, StudyCtx};
 use crate::i18n::{self, Texts};
 
 /// A column of the grid: a semester, or the ones before the current one together.
@@ -153,7 +153,6 @@ pub(super) fn Grid(ctx: StudyCtx) -> impl IntoView {
                         {move || if open_past.get() { s.collapse_past } else { s.expand_past }}
                     </button>
                 })}
-                <ViewSwitch ctx/>
             </div>
             {move || layout.get().map(|layout| {
                 let past_column = layout.columns.iter().any(|column| matches!(column, Column::Past { .. }));

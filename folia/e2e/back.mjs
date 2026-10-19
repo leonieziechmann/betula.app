@@ -169,7 +169,7 @@ await part("Android", async () => {
   await page.waitForFunction(resting("WiSe 2026/27"), null, { timeout: 8000 }).catch(() => problems.push("a reload did not keep the semester"));
 
   // 3 the selection first
-  const row = await middle(page, ".st-pager > .st-slot[data-here] .st-row .st-what");
+  const row = await middle(page, ".st-pager > .st-slot[data-here] .st-row .lp");
   await step("a long press", async () => {
     await touch("touchStart", row.x, row.y);
     await page.waitForTimeout(700);
@@ -180,7 +180,7 @@ await part("Android", async () => {
   check((await where(page)).at === start.at, "the selection or the semester moved the history");
   // The arrow at the head is Back as well: the selection first, the semester staying; then the overview.
   await step("„Studium planen“ for the arrow", () => page.tap(".st-planbox-head"), resting("WiSe 2026/27"));
-  const again = await middle(page, ".st-pager > .st-slot[data-here] .st-row .st-what");
+  const again = await middle(page, ".st-pager > .st-slot[data-here] .st-row .lp");
   await step("a long press for the arrow", async () => {
     await touch("touchStart", again.x, again.y);
     await page.waitForTimeout(700);

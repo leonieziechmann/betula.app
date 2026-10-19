@@ -2,13 +2,13 @@
 //!
 //! `CatalogQuery` is what a catalog URL encodes and the only thing that triggers a
 //! catalog query. It filters on the facet columns of the views, never on free text
-//! (the one exception is the search, `folia_search::Plan` against `v_module_folded`).
+//! (the one exception is the search, `folia_search::Plan`).
 
 use folia_calendar::select::FitOptions;
 use folia_calendar::semester::SemesterKey;
 use folia_locale::Locale;
 use folia_model::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, TeachingForm, TurnusParity};
-use folia_search::{Plan, Resolution};
+use folia_search::Resolution;
 use serde::{Deserialize, Serialize};
 
 /// Which modules of a program to list.
@@ -250,6 +250,13 @@ pub struct CatalogQuery {
     /// describe itself (postcard), which cannot skip a field (R29).
     #[serde(default)]
     pub text_resolution: Option<Resolution>,
+    /// Derived by the app's page from the profile („Mein Studiengang", the program's id), never
+    /// part of a URL: the search raises its modules (`folia_search::rank::points::PROGRAM`). It
+    /// orders only, so a search finds the same modules for everyone (owner, 2026-10-19: „die
+    /// gefundenen Module bei allen gleich … Aber die reihenfolge darf sich zwischen nutzern
+    /// ändern"). Always written, like `text_resolution` (R29).
+    #[serde(default)]
+    pub rank_program: Option<String>,
     pub program: Option<ProgramScope>,
     /// At least one of these teaches or is responsible for the module (owner decision
     /// 2026-09-20: „Meer oder Köhler", not „Meer und Köhler").
@@ -357,15 +364,10 @@ impl CatalogQuery {
             + self.lecturers_exclude.len()
     }
 
-    /// The plan of the search text, as its resolution has it searched; `None` without a text.
-    pub fn search_plan(&self) -> Option<Plan> {
-        Plan::new(&self.text, self.text_resolution.as_ref())
-    }
-
     /// Whether the list is ordered by how well the modules match the search text: while there
     /// is one and no column was chosen to order by (owner, 2026-09-30).
     pub fn by_relevance(&self) -> bool {
-        self.sort == SortKey::Default && self.search_plan().is_some_and(|plan| !plan.is_empty())
+        self.sort == SortKey::Default && folia_search::has_words(&self.text)
     }
 
 }

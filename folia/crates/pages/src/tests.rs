@@ -85,9 +85,14 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(queries::module(&db, "00000").unwrap(), None);
     queries::module_prerequisites(&db, &module.id).unwrap();
     // The search, where a text finds nothing as typed (`search::resolve`), and under a filtered list.
-    assert!(folia_search::search_count(&db, "Algebra", None).unwrap() > 0);
-    assert_eq!(folia_search::search_words_found(&db, "algebra xqzvw").unwrap(), vec![true, false]);
-    assert!(folia_search::search_titles(&db).unwrap().len() as u64 >= queries::catalog_count(&db, &everything()).unwrap());
+    assert!(folia_search::found_count(&db, "Algebra", None).unwrap() > 0);
+    assert_eq!(folia_search::words_found(&db, "algebra xqzvw").unwrap(), vec![true, false]);
+    // The search's own statements, each read once per snapshot (`folia_search::rank::index`).
+    assert!(folia_search::search_modules(&db).unwrap().len() as u64 >= queries::catalog_count(&db, &everything()).unwrap());
+    assert!(!folia_search::search_abbrevs(&db).unwrap().is_empty());
+    assert!(!folia_search::search_programs(&db).unwrap().is_empty());
+    assert!(folia_search::search_lecturers(&db).unwrap().iter().any(|l| l.responsible));
+    folia_search::search_program_modules(&db, &program.id).unwrap();
     let elsewhere = queries::search_elsewhere(&db, &CatalogQuery { text: "Algebra".into(), ..Default::default() }).unwrap();
     assert_eq!(elsewhere.offered, 0, "the catalog's default lists every offered module");
     // „Ähnliche Module": of modules the filter holds, those the text does not find.
@@ -1180,36 +1185,47 @@ fn exam_readings_never_state_what_the_source_does_not() {
 fn the_search_folds_and_takes_words_in_any_order() {
     let db = open();
     let count = |text: &str| queries::catalog_count(&db, &CatalogQuery { text: text.into(), ..everything() }).unwrap();
+    let found = |text: &str| -> BTreeSet<String> {
+        queries::catalog_page(&db, &CatalogQuery { text: text.into(), ..everything() }, 0, 100_000).unwrap().rows.into_iter().map(|row| row.id).collect()
+    };
     // LIKE found none of the modules on „Ökologie“ for „okologie“, and 5 of 16 for „ökologie“.
     assert!(count("okologie") > 0);
-    for same in ["Ökologie", "ÖKOLOGIE", "ökologie"] {
-        assert_eq!(count(same), count("okologie"), "{same}");
+    for same in ["Ökologie", "ökologie"] {
+        assert_eq!(found(same), found("okologie"), "{same}");
     }
+    // Capitals throughout read a word as a short form too (folia/design/suche/konzept.html:
+    // „ÖKOLOGIE“ is „Ökologische Exkursion“ as well): more, never fewer.
+    assert!(found("ÖKOLOGIE").is_superset(&found("okologie")));
     assert_eq!(count("strasse"), count("Straße"));
     assert!(count("Maschinelles Lernen") > 0);
-    assert_eq!(count("lernen maschinelles"), count("Maschinelles Lernen"));
-    assert_eq!(count("Mathematik für Ingenieure"), count("mathematik ingenieure"), "fillers do not count");
+    assert_eq!(found("lernen maschinelles"), found("Maschinelles Lernen"));
+    assert_eq!(found("Mathematik für Ingenieure"), found("mathematik ingenieure"), "fillers do not count");
     assert!(count("Analysis I") > 0);
-    assert_eq!(count("Analysis 1"), count("Analysis I"), "a number is its Roman numeral");
-    // „ki“ is too short to be found inside a word („Schlüsselqualifikationen“, „Kinetik“ is the start of one).
-    let ki = scalar(
-        &db,
-        "SELECT COUNT(*) FROM v_module_folded WHERE instr(' ' || title_de, ' ki') > 0 OR instr(' ' || title_en, ' ki') > 0 \
-         OR instr(' ' || abbrevs || ' ', ' ki ') > 0 OR instr(initials, 'ki') > 0",
-    ) as u64;
-    assert_eq!(count("KI"), ki);
-    // The known short form of a word of a title (radix/internal/abbrev: BWL) finds every title with the
-    // word; three letters are found as a word, the start of one, an abbreviation or initials.
-    let bwl = scalar(
-        &db,
-        "SELECT COUNT(*) FROM v_module_folded WHERE instr(' ' || title_de, ' bwl') > 0 OR instr(' ' || title_en, ' bwl') > 0 \
-         OR instr(' ' || abbrevs || ' ', ' bwl ') > 0 OR instr(initials, 'bwl') > 0",
-    ) as u64;
-    let titled = scalar(&db, "SELECT COUNT(*) FROM v_module_folded WHERE instr(title_de, 'betriebswirtschaftslehre') > 0") as u64;
-    assert!(titled > 0 && bwl >= titled);
-    assert_eq!(count("BWL"), bwl);
-    let with_word = CatalogQuery { text: "BWL".into(), only_ids: Some(column(&db, "SELECT module_id FROM v_module_folded WHERE instr(title_de, 'betriebswirtschaftslehre') > 0")), ..everything() };
-    assert_eq!(queries::catalog_count(&db, &with_word).unwrap(), titled);
+    assert_eq!(found("Analysis 1"), found("Analysis I"), "a number is its Roman numeral");
+    // „ki“ is too short to be found inside a word („Schlüsselqualifikationen“): a module whose titles
+    // have it only there, no word of them starting with „k“, is not found.
+    let titles = folia_search::search_modules(&db).unwrap();
+    let ki = found("KI");
+    let starts_k = |title: &Option<String>| title.as_deref().is_some_and(|t| folia_search::words(t).iter().any(|w| w.starts_with('k')));
+    let abbreviated: BTreeSet<String> =
+        folia_search::search_abbrevs(&db).unwrap().into_iter().filter(|(_, abbrev)| folia_search::fold(abbrev).starts_with("ki")).map(|(id, _)| id).collect();
+    let inside: Vec<&String> = titles
+        .iter()
+        .filter(|m| [&m.title_de, &m.title_en].iter().any(|t| t.as_deref().is_some_and(|t| folia_search::fold(t).contains("ki"))))
+        .filter(|m| !starts_k(&m.title_de) && !starts_k(&m.title_en) && !starts_k(&m.abbrev) && !abbreviated.contains(&m.id))
+        .map(|m| &m.id)
+        .collect();
+    assert!(!inside.is_empty() && inside.iter().all(|id| !ki.contains(*id)), "{inside:?}");
+    // „KI“ is the initials of „Künstliche Intelligenz“: every title that begins with them is found.
+    let intelligence: Vec<&String> = titles.iter().filter(|m| folia_search::fold(&m.title).starts_with("kunstliche intelligenz")).map(|m| &m.id).collect();
+    assert!(!intelligence.is_empty() && intelligence.iter().all(|id| ki.contains(*id)));
+    // The known short form of a word of a title (radix/internal/abbrev: BWL) finds every title with
+    // the word.
+    let titled = column(&db, "SELECT module_id FROM v_module_folded WHERE instr(title_de, 'betriebswirtschaftslehre') > 0");
+    assert!(!titled.is_empty());
+    assert!(titled.iter().all(|id| found("BWL").contains(id)));
+    let with_word = CatalogQuery { text: "BWL".into(), only_ids: Some(titled.clone()), ..everything() };
+    assert_eq!(queries::catalog_count(&db, &with_word).unwrap(), titled.len() as u64);
 }
 
 /// The best match comes first while nothing else is chosen to order by: the module of the number,
@@ -1372,7 +1388,7 @@ fn the_search_says_what_it_finds_outside_the_filters() {
     let db = open();
     let data = pages::catalog(&db, &CatalogUrl::parse(&format!("q=python&program={INFORMATIK_BSC}")), folia_locale::Locale::De).unwrap();
     let elsewhere = data.elsewhere.unwrap();
-    let anywhere = folia_search::search_count(&db, "python", None).unwrap();
+    let anywhere = folia_search::found_count(&db, "python", None).unwrap();
     assert_eq!(elsewhere.offered + elsewhere.not_offered + data.page.total, anywhere);
     let offered = queries::catalog_count(&db, &CatalogQuery { text: "python".into(), ..Default::default() }).unwrap();
     assert!(elsewhere.offered > 0 && elsewhere.offered <= offered);

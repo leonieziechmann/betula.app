@@ -23,6 +23,9 @@
   /* A shaded row of a list of modules (every other one), and a row pointed at, a step above it. */
   --row-shade: color-mix(in oklab, var(--text) 2.6%, var(--panel));
   --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  /* The letters a search found, in a row of its list (`<mark>`): a warm yellow over whatever the
+     row stands on. */
+  --hit: color-mix(in srgb, #e0a91b 30%, transparent);
   --text: #10151f;
   --text-2: #4b5565;
   --text-3: #8790a0;
@@ -127,6 +130,7 @@
     --line-strong: rgba(255, 255, 255, .15);
     --row-shade: color-mix(in oklab, var(--text) 3.4%, var(--panel));
     --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --hit: color-mix(in srgb, #f0c14b 26%, transparent);
     --text: #eceff5;
     --text-2: #a4adc0;
     --text-3: #6a748a;
@@ -183,6 +187,7 @@
   --line-strong: rgba(255, 255, 255, .15);
   --row-shade: color-mix(in oklab, var(--text) 3.4%, var(--panel));
   --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --hit: color-mix(in srgb, #f0c14b 26%, transparent);
   --text: #eceff5;
   --text-2: #a4adc0;
   --text-3: #6a748a;
@@ -407,14 +412,15 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    away) stands where it stood; its page scrolls inside it, from under the bar at the top as in the
    window (its `padding-top`, enhance.js), with a ground of its own at its end where the window's
    lies at rest (its `top`: after the page, or just past the window's lower edge under a page
-   shorter than it, „phone and tablet"). The bars stay over both, the page that comes over the one
-   that goes, which takes no tap so. At rest the page in front is in the window again, as far down,
-   in the same frame; the window keeps its room meanwhile. Nothing here is inherited, and nothing
-   reaches into the page beyond the parts named: a stage's thousand elements would each work out
-   their style anew. */
+   shorter than it, „phone and tablet"). Each is as opaque as the window's ground (`--bg`, the
+   same colour), and they lie one over the other as enhance.js lays them (their `z-index`), the page
+   they go to on top, which takes the taps so: what lies under a page shows only as far as it is not
+   clear yet, and the screen is never empty. The bars stay over all of them. At rest the page in
+   front is in the window again, as far down, in the same frame; the window keeps its room
+   meanwhile. Nothing here is inherited, and nothing reaches into the page beyond the parts named: a
+   stage's thousand elements would each work out their style anew. */
 @media (max-width: 900px) {
-  #content > .page-stage.moving { position: fixed; inset: 0; z-index: 2; overflow: clip; content-visibility: visible; clip-path: none; }
-  #content > .page-stage.moving.front { z-index: 3; }
+  #content > .page-stage.moving { position: fixed; inset: 0; z-index: 2; overflow: clip; content-visibility: visible; clip-path: none; background: var(--bg); }
   /* Its page as high as it is, the screen's height at most: a page laid out as a column (`.framed`)
      lets nothing of it shrink for that (enhance.js, on each of its parts: a rule for all of them
      would have the browser work out the style of the stage's every element). */
@@ -947,6 +953,11 @@ html:not(.js) .fit-chip { display: none; }
 .row .t { min-width: 0; }
 .row .t b { font-weight: 600; font-size: 14.5px; line-height: 1.3; letter-spacing: -.012em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .row .t small { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; color: var(--text-3); font-size: 12.5px; margin-top: 3px; }
+/* A search's marks, and under the title what it found the module by where that is not the title:
+   the other title, a lecturer (`Row`). */
+.row mark { background: var(--hit); color: inherit; border-radius: 3px; padding: 0 1px; margin: 0 -1px; }
+.row .t small.found-by { display: block; margin-top: 2px; color: var(--text-2); overflow-wrap: anywhere; }
+.row .t small.found-by i { font-style: normal; color: var(--text-3); }
 .row .lp { font-weight: 650; font-size: 15px; }
 .row .lp small { font-weight: 500; font-size: 11px; color: var(--text-3); margin-left: 2px; }
 .resp, .exam { color: var(--text-2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -959,6 +970,8 @@ html:not(.js) .fit-chip { display: none; }
 .turnus { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-weight: 520; font-size: 13px; }
 .turnus .icon { width: 15px; height: 15px; color: var(--text-3); }
 .lang { font-size: 11.5px; font-weight: 650; color: var(--text-2); padding: 3px 7px; border-radius: 5px; background: var(--panel-3); justify-self: start; }
+/* A row that is no module of the catalog (a row of a plan that names none) has its columns, empty. */
+.lang:empty { visibility: hidden; }
 .events { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); font-weight: 520; }
 .events.none { color: var(--text-3); font-weight: 450; }
 .events .icon { width: 15px; height: 15px; }
@@ -4123,38 +4136,26 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-card-state.done, .st-area-list b.done { color: var(--ok); }
 .st-card-state.over, .st-area-list b.over { color: color-mix(in oklab, var(--c) 75%, var(--text)); font-weight: 650; }
 
-/* The semesters: the strip, the one in focus, what fits it. */
+/* The semesters: the one in focus at the top of its box, what fits it beside it (owner,
+   2026-10-19: „Die aktuelle Auswahl … kann dann nach ganz oben in die box wandern"; the strip of
+   every semester over it and the line with the switch of the views went: „Es verbraucht zu [viel]
+   Platz und bietet wenig Mehrwert"). */
 .st-sems { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; container: semesters / inline-size; }
 @container semesters (max-width: 900px) {
   .st-sems .st-focus { grid-template-columns: minmax(0, 1fr); }
-  .st-table .st-cols, .st-table .st-row { grid-template-columns: 44px minmax(0, 1fr) 128px 40px 48px; }
 }
 .st-sems-head { display: flex; align-items: center; gap: 12px; }
 .st-sems-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
 .st-sems-head h2.st-kicker { font-size: 11px; }
-.st-sems-head .st-views { margin-left: auto; }
 .st-views, .st-tabs { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
 .st-views button, .st-tabs button { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .st-views .icon { width: 15px; height: 15px; }
 .st-views [aria-pressed="true"], .st-tabs [aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, .12); }
-.st-strip { display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin: -2px; scrollbar-width: thin; }
-.st-tab { flex: 1 0 118px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 9px; border: 0; border-radius: var(--r-panel); background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .15s, box-shadow .15s; }
-.st-tab:hover { background: var(--row-hover); }
-.st-tab[aria-pressed="true"] { background: var(--panel); box-shadow: 0 0 0 1.5px var(--accent), 0 6px 16px -10px rgba(15, 23, 42, .3); }
-.st-tab.is-drop { box-shadow: 0 0 0 2px var(--accent); background: var(--accent-soft); }
-.st-tab.add { flex: 0 0 48px; display: grid; place-items: center; background: transparent; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--text-2); }
-.st-tab-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-.st-tab-name { font-size: 13px; font-weight: 650; white-space: nowrap; }
-.st-tab-fs { font-size: 11.5px; color: var(--text-2); white-space: nowrap; }
-.st-tab-line { font-size: 12px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-tab-line b { color: var(--text); font-weight: 650; }
-.st-tab.ok .st-tab-line b { color: var(--ok); }
-.st-tab.heavy .st-tab-line b { color: var(--warn); }
+/* A semester's load, in the heads of the Gesamtplan's columns. */
 .st-load { display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: var(--panel-3); }
 .st-load > span { flex-basis: 0; }
 .st-load > span:first-child { background: var(--st-passed); }
-.st-tab.ok .st-load > span:first-child { background: var(--ok); }
-.st-tab.heavy .st-load > span:first-child, .st-col-head .heavy ~ .st-load > span:first-child { background: #c98a1a; }
+.st-col-head .heavy ~ .st-load > span:first-child { background: #c98a1a; }
 .st-focus { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
 .st-card-sem { min-width: 0; display: flex; flex-direction: column; }
 .st-sem-head { display: flex; align-items: center; gap: 6px; padding-bottom: 10px; }
@@ -4164,59 +4165,82 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-sem-title { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
 .st-sem-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .st-sem-name h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+/* The name of the semester is the button of the list of every semester (focus.rs `SemesterPick`;
+   owner, 2026-10-19: „auf das semester selbst klicken können, um eine selection … zu bekommen"): it
+   reads as the heading it is, with a chevron, and shows its box under the pointer and while the
+   list is open. */
+.st-sem-pick { display: inline-flex; align-items: center; gap: 4px; margin: -3px -6px; padding: 3px 6px; border: 0; border-radius: var(--r-ctl); background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; transition: background .12s; -webkit-tap-highlight-color: transparent; }
+.st-sem-pick .icon { flex: none; width: 18px; height: 18px; color: var(--text-3); transition: transform .15s var(--ease), color .12s; }
+@media (hover: hover) {
+  .st-sem-pick:hover { background: var(--row-hover); }
+  .st-sem-pick:hover .icon { color: var(--text-2); }
+}
+.st-sem-pick:active, .st-sem-pick[aria-expanded="true"] { background: var(--panel-3); }
+.st-sem-pick[aria-expanded="true"] .icon { color: var(--text); transform: rotate(180deg); }
 .st-sem-fs { font-size: 13px; color: var(--text-2); margin-left: 4px; }
 .st-sem-sub { margin: 0 0 0 auto; font-size: 13px; color: var(--text-2); }
 .st-sem-sub b { color: var(--text); font-size: 15px; font-weight: 700; }
 .st-sem-sub b.heavy { color: var(--warn); }
 .st-sem-sub b.ok { color: var(--ok); }
-/* A semester's table (owner, 2026-10-04: „Die klickflächen sind zu klein"): a row is its box, the
-   module (its name, marks, area, credits; a click opens the module) and its ⋯, the box and the ⋯
-   as tall as the row and as wide as a finger. The box shows under the pointer, and on every row
-   while rows are selected (.is-selecting); then the bar of the rows selected takes the place of
-   the columns' head. */
-.st-table { display: flex; flex-direction: column; }
-.st-cols, .st-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 160px 44px 48px; column-gap: 8px; }
-.st-cols { align-items: center; min-height: 36px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); border-bottom: 1px solid var(--line); }
-.st-cols > span:nth-child(4) { text-align: right; }
-.st-table.is-selecting .st-cols { display: none; }
+/* A semester's rows as the catalog's list has them (owner, 2026-10-19: „1 zu 1 der Style vom
+   Modulkatalog …, so dass man einfach versteht, dass es sich um ein Modul handelt"): the heads of
+   the columns, then a row a module — the catalog's `.row` with its columns, which go one by one as
+   the table gets narrower, as the list's do (the container `list`), every other row shaded — and at
+   its end, where the catalog has the bookmark, its status. While rows are selected the bar of them
+   takes the place of the heads, as tall as they are, so that no row moves. */
+.st-table { display: flex; flex-direction: column; container: list / inline-size; }
+.st-table > .cols { height: 36px; padding: 0 50px 0 15px; }
 .st-rows { list-style: none; margin: 0; padding: 0; }
-.st-row { align-items: stretch; min-height: 52px; border-bottom: 1px solid var(--line); transition: background .12s; }
-.st-row:hover { background: var(--row-hover); }
-.st-row.is-selected { background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
-/* The box and the ⋯ reach into the gap beside them: no row has a dead strip between them and
-   the module. */
-.st-sel { display: grid; place-items: center; width: calc(100% + 8px); min-height: 36px; margin-right: -8px; padding: 0 8px 0 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
-.st-sel:disabled { cursor: default; }
-.st-sel .st-box { opacity: 0; transition: opacity .12s, background .15s, box-shadow .15s; }
-.st-row:hover .st-sel .st-box, .st-cols:hover .st-sel:not(:disabled) .st-box, .st-sel:focus-visible .st-box, .st-table.is-selecting .st-sel .st-box { opacity: 1; }
-.st-sel:hover .st-box:not(.with) { box-shadow: inset 0 0 0 1.5px var(--text-2); }
-.st-sel .st-box.with { background: var(--accent); }
-.st-sel:focus-visible, .st-more:focus-visible, .st-add:focus-visible { outline-offset: -4px; border-radius: 10px; }
-.st-box.mixed .icon:not(.part), .st-box:not(.mixed) .icon.part { display: none; }
-.st-body { grid-column: 2 / 5; display: grid; grid-template-columns: subgrid; align-items: center; min-width: 0; padding: 4px 0; }
-.st-body.opens { cursor: pointer; }
-.st-body[draggable="true"]:not(.opens) { cursor: grab; }
-.st-more { width: calc(100% + 8px); height: auto; min-height: 44px; margin-left: -8px; padding-left: 8px; border-radius: 0; }
-.st-more::before { content: ""; position: absolute; inset: 50% 6px auto 14px; height: 34px; translate: 0 -50%; border-radius: 8px; transition: background .12s; }
-.st-more:hover, .st-more[aria-expanded="true"] { background: transparent; color: var(--text); }
-.st-more:hover::before, .st-more[aria-expanded="true"]::before { background: var(--panel-3); }
-.st-more .icon { position: relative; }
-.st-what { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 10px; padding: 5px 0; }
-/* The line under a module's name on a phone (its number, its area, its marks); beside the name
-   here. */
-.st-meta { display: contents; }
-.st-name { color: var(--text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; hyphens: auto; }
-@media (hover: hover) { a.st-name:hover { text-decoration: underline; text-underline-offset: 3px; } }
-a.st-name[aria-current="true"] { color: var(--accent-ink); }
-.st-row.is-passed .st-name { color: var(--text-2); }
+.st-table > .st-rows { padding-top: 4px; }
+@media (min-width: 901px) { :where(.st-rows > .st-row:nth-child(even of .st-row)) > .row { background: var(--row-shade); } }
+/* The box is the module's button (owner, 2026-10-19: „Es soll die gesamte modulbox als button
+   funktionieren"): its link (`.st-open`, focus.rs) reaches over all of it, its name no link of its
+   own that underlines; what else the row holds („Einplanen", its status) lies above it. Pressed
+   and drawn over the rows it selects them, so it selects no words. */
+.st-row > .row, .st-prow > .row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.st-open, .st-open:hover { color: inherit; text-decoration: none; outline: none; -webkit-tap-highlight-color: transparent; }
+.st-open::after { content: ""; position: absolute; inset: 0; }
+.st-find.st-open { color: var(--accent-ink); }
+.row:has(.st-open:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--row-hover); }
+.row.st-inert { cursor: default; }
+.st-row .st-link { position: relative; z-index: 1; font-size: 12.5px; }
+/* The words of a row that are no mark: „nicht bestanden · wieder im WiSe 2026/27", and in the
+   warning's colour what is still open of it. */
+.st-quiet { color: var(--text-2); }
+/* An area with its colour, in a dialog's list and a view's row: its dot, its name. */
 .st-area { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; color: var(--text-2); }
-.st-row .st-lp { text-align: right; font-size: 13.5px; white-space: nowrap; }
-.st-passed { display: inline-flex; margin-right: 6px; vertical-align: -3px; color: var(--ok); }
-.st-passed .icon { width: 15px; height: 15px; }
-.st-more .icon { width: 16px; height: 16px; }
-.st-chip.long { white-space: normal; }
+.st-quiet.warn { color: var(--warn); font-weight: 560; }
+.flag.long { white-space: normal; }
 .st-find { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; }
 .st-find .icon { width: 13px; height: 13px; }
+/* A row selected (owner, 2026-10-19: „Die selection soll nicht mehr per checkbox umgesetzt
+   werden, sondern per hervorheben/vlt texture funktionieren"): tinted in the accent, lined with
+   it and hatched, under the pointer too. */
+.st-row.is-selected > .row, .st-row.is-selected:hover > .row {
+  background-color: color-mix(in srgb, var(--accent) 11%, var(--panel));
+  background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 1.5px, transparent 1.5px 7px);
+  box-shadow: inset 0 0 0 1.5px var(--accent-line);
+}
+/* At the end of a row, where the catalog has the bookmark, the module's status (owner,
+   2026-10-19: „Die merken flag soll getauscht werden mit einem Status symbol (In
+   progress/bestanden/nicht bestanden)"), the button of the row's menu: as large as the bookmark and
+   where it is. A ring for planned, a ring half filled in the accent of „jetzt" for under way, a
+   check on green for passed, a cross in red for not passed. */
+.row-wrap > .st-status { --hit-y: 11px; --hit-l: 6px; --hit-r: 5px; position: absolute; z-index: 1; right: 5px; top: 50%; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-row); background: transparent; color: var(--text-2); cursor: pointer; transition: background .12s; -webkit-tap-highlight-color: transparent; }
+.row-wrap > .st-status:focus-visible, .row-wrap > .st-status[aria-expanded="true"] { background: var(--line); }
+@media (hover: hover) { .row-wrap > .st-status:hover { background: var(--line); } }
+.st-glyph { position: relative; flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.75px currentColor; }
+.st-glyph > .icon { display: none; width: 12px; height: 12px; stroke-width: 3.2; }
+.st-glyph.planned { color: var(--text-3); }
+.st-glyph.running { color: var(--accent-ink); }
+.st-glyph.running::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: conic-gradient(currentColor 0 50%, transparent 0); }
+.st-glyph.passed { color: var(--ok); background: currentColor; box-shadow: none; }
+.st-glyph.passed > .g-passed { display: block; color: var(--panel); }
+.st-glyph.failed { color: var(--no); }
+.st-glyph.failed > .g-failed { display: block; width: 11px; height: 11px; }
+/* „+" at the plan's rows not planned yet: where the status is, in the accent. */
+.row-wrap > .st-prow-add { color: var(--accent-ink); }
+.st-prow-add .icon { width: 18px; height: 18px; }
 /* An empty semester (owner, 2026-10-05: „keine Module sollte mit icon und gleich modul hinzufügen
    sein"): a mark, two words, and „Module hinzufügen" right under them. */
 .st-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 12px 20px; text-align: center; }
@@ -4225,26 +4249,31 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-empty p { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-2); }
 .st-empty-add { margin-top: 4px; }
 .st-empty-add .icon { width: 18px; height: 18px; }
-/* „Module hinzufügen": a row as the others, its „+" where their boxes are. */
-.st-add { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 8px; align-items: center; width: 100%; min-height: 52px; padding: 0; border: 0; border-radius: 0 0 8px 8px; background: transparent; color: var(--accent-ink); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; transition: background .12s; }
+/* „Module hinzufügen": a row under the others, its „+" where their names begin. */
+.st-add { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 0 15px; border: 0; border-radius: var(--r-row); background: transparent; color: var(--accent-ink); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; transition: background .12s; }
 .st-add:hover { background: var(--row-hover); }
+.st-add:focus-visible { outline-offset: -2px; }
 .st-add-icon { display: grid; place-items: center; }
 .st-add-icon .icon { width: 18px; height: 18px; }
-/* The bar of the rows selected, in the columns' head. */
-.st-selbar { display: flex; align-items: center; gap: 4px; min-height: 44px; padding-right: 4px; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
-.st-selbar .st-sel { flex: 0 0 44px; align-self: stretch; margin-right: 0; padding: 0; }
-.st-selbar-count { margin-left: 4px; font-size: 13.5px; font-weight: 650; white-space: nowrap; }
-.st-act { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background .12s; }
-.st-act:hover { background: color-mix(in oklab, var(--accent) 14%, var(--panel)); }
+/* The bar of the rows selected, in the place of the columns' heads. */
+.st-selbar { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 3px 0 12px; border-radius: var(--r-row); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.st-selbar-count { margin-right: 4px; font-size: 13.5px; font-weight: 650; white-space: nowrap; }
+.st-act { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: background .12s; }
+.st-act:hover:not(:disabled) { background: color-mix(in oklab, var(--accent) 14%, var(--panel)); }
+.st-act:disabled { opacity: .45; cursor: default; }
 .st-act .icon { width: 16px; height: 16px; }
 .st-act > .icon:last-child:not(:first-child) { width: 14px; height: 14px; color: var(--text-2); }
 .st-act.danger { color: var(--no); }
-.st-act-close { width: 34px; height: 34px; }
-/* What a drag of several rows shows under the pointer; out of sight until then. */
-.st-ghost { position: fixed; top: -200px; left: -400px; padding: 6px 12px; border-radius: 8px; background: var(--accent); color: var(--on-accent); font-size: 13px; font-weight: 650; white-space: nowrap; pointer-events: none; }
+.st-act-close { width: 30px; height: 30px; }
+/* The bar's words in full where the table has room for them, else short (a phone has them short). */
+.st-selbar .st-short { display: none; }
+@container list (max-width: 820px) {
+  .st-selbar .st-long { display: none; }
+  .st-selbar .st-short { display: inline; }
+}
 /* A menu: at what opened it, a submenu beside it. Its sizes are `menu.rs`'s (WIDTH, ITEM …). */
 .st-pop-shade { position: fixed; inset: 0; z-index: 70; }
-.st-pop { position: fixed; z-index: 71; left: var(--x, 8px); top: var(--y, 8px); width: 264px; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); animation: pop-in .12s var(--ease); }
+.st-pop { position: fixed; z-index: 71; left: var(--x, 8px); top: var(--y, 8px); width: var(--w, 264px); max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); animation: pop-in .12s var(--ease); }
 .st-pop.sub { z-index: 72; }
 .st-pop-item { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; font-size: 13.5px; font-weight: 500; text-align: left; text-decoration: none; cursor: pointer; }
 .st-pop-item.with-hint { height: 50px; }
@@ -4262,6 +4291,8 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-pop-note.warn { color: var(--warn); }
 .st-pop-note .icon { width: 13px; height: 13px; }
 .st-pop-item > .st-pop-more { margin-left: auto; width: 15px; height: 15px; color: var(--text-3); }
+/* The semester shown, in the list of them: a check at its end. */
+.st-pop-item > .icon.st-pop-current { color: var(--accent-ink); }
 .st-pop hr { height: 0; margin: 4px 6px; border: 0; border-top: 1px solid var(--line); }
 .st-fits { display: flex; flex-direction: column; gap: 14px; padding: 14px 14px 16px; border-radius: var(--r-panel); background: var(--panel-2); }
 .st-fits h3 { margin: 0; font-size: 13.5px; font-weight: 700; }
@@ -4556,12 +4587,12 @@ a.st-name[aria-current="true"] { color: var(--accent-ink); }
 .st-legend-part.planned { background: var(--st-planned); }
 .st-legend-part.open { background: var(--st-open); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .st-legend-part.over { background: repeating-linear-gradient(135deg, var(--st-passed) 0 2px, var(--panel-3) 2px 5px); }
-.st-legend-mark { flex: none; display: grid; place-items: center; width: 22px; height: 16px; border-radius: 8px; }
-.st-legend-mark .icon { width: 11px; height: 11px; }
-.st-legend-mark.passed { color: var(--ok); }
-.st-legend-mark.passed .icon { width: 15px; height: 15px; }
-.st-legend-pill { background: var(--panel-3); color: var(--text-2); }
-.st-legend-pill.warn { background: var(--warn-soft); color: var(--warn); }
+/* The statuses of a module (focus.rs `Status`), one a line („Nicht bestanden" has no room beside
+   another), each glyph as wide as a part's mark. */
+.st-legend-marks .st-glyph { width: 16px; height: 16px; margin: 0 3px; }
+.st-legend-marks .st-glyph.running::before { inset: 3.5px; }
+.st-legend-marks .st-glyph > .icon { width: 11px; height: 11px; }
+.st-legend-marks .st-glyph.failed > .icon { width: 10px; height: 10px; }
 
 /* The views of „Mein Studium" (regular.rs, choose.rs; owner, 2026-10-14, concept A „Ansichten"):
    the Regelstudienplan and the Wahlpflicht with the student's stand in them, under the overview
@@ -4840,7 +4871,7 @@ a.st-rsp-name:hover { text-decoration: underline; }
   /* What lies at a page's edge draws its ring inside it, and its shadow ends at the page's sides: a
      page beside the one in view ends at the screen's edge, where a ring outside would draw a line
      and a shadow a shade. */
-  .st-pager :is(.panel, .st-row, .st-sem-more) { box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lift); }
+  .st-pager :is(.panel, .row, .st-sem-more) { box-shadow: inset 0 0 0 1px var(--line), var(--shadow-lift); }
   .st-phone-page, .st-card-sem { overflow-x: clip; }
   .st-phone-page { display: grid; gap: 12px; min-width: 0; }
   .st-phone-page .action { min-height: 46px; font-size: 14px; }
@@ -4925,34 +4956,23 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-turn { width: 40px; height: 44px; color: var(--text-2); }
   .st-turn:disabled { opacity: .3; }
   .st-sem-more { grid-area: more; width: 42px; height: 42px; margin-left: 6px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
-  /* A row: a card as the catalog's (its name, under it a line of its number, its area and its
-     marks; its credits; its ⋯ where the catalog has its mark). The boxes come in from the left
-     while rows are selected (a long press selects the first), and a finger drawn down them selects
-     the rows it passes. */
+  /* A row: the catalog's card as a phone has it (owner, 2026-10-19: „Gestalte das so, das der
+     aufbau komplett gleich ist. Also padding, margin, Titel, LP, und format von den Metadaten"),
+     its status where the card has the bookmark, as large. Selected (a long press, a finger held
+     and drawn on), it is tinted and hatched as on a desktop. */
   .st-rows { display: grid; gap: 8px; }
-  .st-row { grid-template-columns: 0 minmax(0, 1fr) auto 44px; column-gap: 0; min-height: 72px; border: 0; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); transition: grid-template-columns .18s var(--ease), background .12s, box-shadow .12s; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-  .st-table.is-selecting .st-row { grid-template-columns: 44px minmax(0, 1fr) auto 44px; }
-  .st-row:hover { background: var(--panel); }
-  .st-pager .st-row.is-selected { background: color-mix(in srgb, var(--accent) 9%, var(--panel)); box-shadow: inset 0 0 0 1.5px var(--accent-line), var(--shadow-lift); }
-  .st-sel { width: 100%; margin-right: 0; padding: 0; overflow: hidden; border-radius: var(--r-panel) 0 0 var(--r-panel); }
-  .st-table.is-selecting .st-sel { touch-action: none; }
-  .st-body { grid-column: 2 / 4; align-items: center; column-gap: 10px; padding: 12px 0 12px 18px; transition: padding .18s var(--ease); }
-  .st-table.is-selecting .st-body { padding-left: 4px; }
-  .st-more { width: 100%; min-height: 48px; margin: 0; padding: 0; border-radius: 0 var(--r-panel) var(--r-panel) 0; color: var(--text-3); }
-  .st-more::before { display: none; }
+  .st-table > .st-rows { padding-top: 0; }
+  .st-pager .st-row.is-selected > .row { box-shadow: inset 0 0 0 1.5px var(--accent-line), var(--shadow-lift); }
+  .row-wrap > .st-status { --hit-y: 8px; --hit-l: 6px; --hit-r: 1px; right: 1px; width: 44px; height: 44px; margin-top: -22px; border-radius: var(--r-ctl); }
   .st-box { width: 20px; height: 20px; border-radius: 6px; }
-  .st-what { flex-direction: column; align-items: flex-start; gap: 3px; padding: 0; }
-  .st-what > * { max-width: 100%; }
-  .st-name { font-size: 15.5px; line-height: 1.3; letter-spacing: -.012em; }
+  /* The line under a name in the cards of the views (regular.rs, choose.rs): its number, its area,
+     its marks. */
   .st-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; font-size: 12.5px; color: var(--text-3); }
   .st-code { font-size: 12px; }
-  .st-area.st-phone, .st-meta .st-area { display: inline-flex !important; gap: 5px; font-size: 12.5px; font-weight: 560; color: var(--text-2); }
+  .st-meta .st-area { display: inline-flex !important; gap: 5px; font-size: 12.5px; font-weight: 560; color: var(--text-2); }
   .st-meta .st-dot { width: 7px; height: 7px; }
   .st-chip { white-space: normal; padding: 1px 6px; border-radius: 5px; line-height: 1.5; }
   .st-chip.quiet { padding: 0; }
-  .st-row .st-lp, .st-prow .st-lp { font-size: 15px; font-weight: 650; color: var(--text); white-space: nowrap; }
-  .st-row .st-lp small, .st-prow .st-lp small { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--text-3); }
-  .st-row.is-passed .st-lp { color: var(--text-2); }
   /* An empty semester: its mark, two words and „Module hinzufügen" on the page's ground; under the
      rows „Module hinzufügen" a card still to be filled. */
   .st-empty { padding: 26px 8px 10px; }
@@ -4962,24 +4982,17 @@ a.st-rsp-name:hover { text-decoration: underline; }
   .st-add:active { background: var(--row-hover); }
   .st-add-icon .icon { width: 18px; height: 18px; }
   /* What the Regelstudienplan still has open for the semester: under a heading as the catalog's
-     semesters have, cards as the semester's own, open ones (no ground, a ring), a „+" where their
-     ⋯ is. */
+     semesters have, the catalog's cards as the semester's own (owner, 2026-10-19: „Es gibt keinen
+     grund, dass der hintergrund anders sein sollte"; until then open ones, a ring and no ground), a
+     „+" where the bookmark is. */
   .st-plan-rows { margin-top: 20px; }
   .st-plan-label { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 0 4px; font-size: 13px; font-weight: 650; color: var(--text); }
   .st-plan-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   .st-plan-rows ul { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
-  .st-prow { display: grid; grid-template-columns: minmax(0, 1fr) auto 52px; align-items: center; column-gap: 10px; min-height: 68px; padding-left: 18px; border-radius: var(--r-panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
-  .st-prow .st-what { padding: 11px 0; }
-  .st-prow .st-name { color: var(--text-2); font-weight: 600; }
-  .st-prow .st-lp { color: var(--text-2); }
-  .st-prow-add { position: relative; width: 100%; height: auto; min-height: 52px; border-radius: 0 var(--r-panel) var(--r-panel) 0; color: var(--accent-ink); }
-  .st-prow-add::before { content: ""; position: absolute; top: 50%; left: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--accent-line); }
-  .st-prow-add .icon { width: 17px; height: 17px; }
   .st-plan-note { margin: 16px 4px 0; font-size: 12.5px; color: var(--text-2); }
   /* The bar of the rows selected: in the tab bar's place, over it (owner, 2026-10-05: „Mach das
      mal so, dass die die navbar überdeckt"). */
   .st-selbar { position: fixed; z-index: 35; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); height: 62px; min-height: 0; padding: 5px; gap: 2px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-pop), inset 0 0 0 1px var(--accent-line); animation: st-bar-up .2s var(--ease); }
-  .st-selbar .st-sel { display: none; }
   .st-selbar-count { margin-left: 8px; font-size: 13px; }
   .st-act { flex-direction: column; justify-content: center; gap: 2px; height: 48px; padding: 0 6px; font-size: 11px; }
   .st-act .icon { width: 18px; height: 18px; }

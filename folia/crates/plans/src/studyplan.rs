@@ -2416,6 +2416,7 @@ town	cottbus
             area: None,
             courses: 0,
             choices: Vec::new(),
+            marks: None,
         }
     }
 

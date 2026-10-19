@@ -86,7 +86,7 @@ pub fn CatalogPage() -> impl IntoView {
     let (plan, mine) = (Studyplan::expect().filter(|_| APP), MyProgram::expect());
     let fit_source = source.clone().ok();
     let fitted = Memo::new(move |_| with_fits(list_query.get(), plan, mine, fit_source.as_ref(), t));
-    let asked = Memo::new(move |_| fitted.with(|fitted| fitted.failed.clone().map_or_else(|| Ok(with_marks(fitted.query.clone(), bookmarks)), Err)));
+    let asked = Memo::new(move |_| fitted.with(|fitted| fitted.failed.clone().map_or_else(|| Ok(with_mine(with_marks(fitted.query.clone(), bookmarks), mine)), Err)));
     let fit_view = Memo::new(move |_| fitted.with(|fitted| fitted.view.clone()));
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
@@ -135,7 +135,7 @@ pub fn CatalogPage() -> impl IntoView {
                 return None;
             }
             let target = CatalogUrl::parse(search);
-            let marked = untrack(|| with_marks(target.query.clone(), bookmarks));
+            let marked = untrack(|| with_mine(with_marks(target.query.clone(), bookmarks), mine));
             let fit = untrack(|| fit_ask(&marked, plan, mine));
             let (data, locale) = (data.clone(), crate::i18n::locale());
             Some(Box::pin(async move {
@@ -194,7 +194,7 @@ pub fn CatalogPage() -> impl IntoView {
     let summary_source = source.clone();
     let draft_facts = Memo::new(move |_| {
         let fitted = with_fits(counted.get()?, plan, mine, summary_source.as_ref().ok(), t);
-        let query = with_marks(fitted.query, bookmarks);
+        let query = with_mine(with_marks(fitted.query, bookmarks), mine);
         summary_source.clone().and_then(|source| source.now(&CatalogSummaryAsk { query })).ok().map(|summary| Facts::of_summary(&summary))
     });
     let panel_facts = Memo::new(move |_| draft_facts.get().unwrap_or_else(|| facts.get()));
@@ -411,10 +411,20 @@ fn with_marks(mut query: CatalogQuery, bookmarks: Option<Bookmarks>) -> CatalogQ
     query
 }
 
+/// „Mein Studiengang" orders the list of a search: the points of its modules are raised (owner,
+/// 2026-10-19: „die module aus deinem Studiengang ganz generell einen kleinen boost";
+/// `folia_search::rank::points::PROGRAM`). Like the marks it is the browser's and never in an
+/// address, and it changes the order only: a link to a search lists the same modules for
+/// everyone („dass man seinen freunden ne suche teilen kann").
+fn with_mine(mut query: CatalogQuery, mine: Option<MyProgram>) -> CatalogQuery {
+    query.rank_program = if query.by_relevance() { mine.and_then(|mine| mine.with(|doc| doc.program.clone())) } else { None };
+    query
+}
+
 /// The part of a query its address holds: without the ids the browser fills in (the marks and
-/// what fits the plan).
+/// what fits the plan) and the program that orders a search.
 fn addressed(query: &CatalogQuery) -> CatalogQuery {
-    CatalogQuery { only_ids: None, without_ids: Vec::new(), fits_ids: None, ..query.clone() }
+    CatalogQuery { only_ids: None, without_ids: Vec::new(), fits_ids: None, rank_program: None, ..query.clone() }
 }
 
 /// What „Passt in meinen Stundenplan" makes of a query (A.7): the query with the modules the
