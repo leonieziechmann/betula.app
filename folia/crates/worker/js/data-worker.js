@@ -23,6 +23,8 @@
 //   {id, type: "query", sql, params}      a statement of boot.js's own (the semantic search's
 //                                         vectors) → {columns, rows}
 //   {type: "look"}                        the tab is in view again: is there a newer snapshot?
+//   {type: "prepare"}                     a search is coming: the search's index of the snapshot
+//                                         is made (`worker_prepare_search`), once per snapshot
 // Messages to the page, without an id:
 //   {event: "snapshot", etag}             a newer snapshot answers from now on
 //
@@ -141,6 +143,34 @@ function use(next) {
   current = next;
   app?.worker_forget();
   before?.db.close();
+  if (prepareWanted) prepare();
+}
+
+// The search's index of the snapshot in use (`folia_search::prepare`: the names of every module,
+// a quarter of a second of a laptop, a phone's second), made once the page says a search is
+// coming, so that the first search does not wait for it; once per snapshot, and only when no
+// question has come for a moment (`PREPARE_QUIET_MS`): the questions of a page that is being
+// built go first. Asked before the catalog is open, it is made once it is and things are quiet.
+const PREPARE_QUIET_MS = 300;
+let prepareWanted = false;
+let preparedFor = null;
+let prepareTimer = 0;
+function prepare() {
+  prepareWanted = true;
+  clearTimeout(prepareTimer);
+  if (!app || !current || preparedFor === current.etag) return;
+  const etag = current.etag;
+  prepareTimer = setTimeout(() => {
+    queue = queue.then(() => {
+      if (current?.etag !== etag || preparedFor === etag) return;
+      preparedFor = etag;
+      try {
+        app.worker_prepare_search();
+      } catch (error) {
+        console.warn("[catalog] the search's index", error);
+      }
+    });
+  }, PREPARE_QUIET_MS);
 }
 
 async function start(build) {
@@ -192,6 +222,7 @@ async function start(build) {
     },
   };
   app = bundle;
+  if (prepareWanted) prepare();
   // A kept copy older than the server's is used now, and the newer one comes in the background.
   if (serverFits && server.etag !== current.etag) setTimeout(look, 0);
   setInterval(look, LOOK_EVERY_MS);
@@ -260,6 +291,12 @@ self.onmessage = ({ data }) => {
     look();
     return;
   }
+  if (data.type === "prepare") {
+    prepare();
+    return;
+  }
+  // A question puts the index off until things are quiet again (a search makes it itself).
+  if (prepareTimer && preparedFor !== current?.etag) prepare();
   queue = queue.then(async () => {
     try {
       const handler = handlers[data.type];

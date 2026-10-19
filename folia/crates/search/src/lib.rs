@@ -260,6 +260,14 @@ fn ranked(db: &dyn Database, text: &str, resolution: Option<&Resolution>, progra
     Ok(ranked)
 }
 
+/// Makes the search's index of the snapshot (`rank::index`) before the first search asks for it:
+/// the data worker, as a search field takes the focus. That first search then answers as fast as
+/// the next ones (the index takes a quarter of a second of a laptop in the worker, a phone's
+/// second).
+pub fn prepare(db: &dyn Database) -> Result<(), DbError> {
+    rank::index(db).map(|_| ())
+}
+
 /// What the catalog searches `text` for (`pages::catalog`): the text as typed where some module
 /// has all its words; else with every word no module has corrected from the words of the titles,
 /// where that finds a module; else, for two words and more, the modules with the most of them.

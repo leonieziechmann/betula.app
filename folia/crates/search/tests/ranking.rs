@@ -156,6 +156,13 @@ fn a_search_finds_the_same_for_everyone_and_orders_by_the_program() {
 }
 
 #[test]
+fn the_index_is_made_ahead_of_the_first_search() {
+    let db = open();
+    folia_search::prepare(&db).unwrap();
+    assert!(found(&db, "TI", None).first().is_some_and(|(_, title)| title.starts_with("Theoretische Informatik")) || !offers(&db, &|t| t == "Theoretische Informatik"));
+}
+
+#[test]
 fn a_text_without_a_word_finds_nothing() {
     let db = open();
     let plan = Plan::new(&db, "%", None, None).unwrap().unwrap();

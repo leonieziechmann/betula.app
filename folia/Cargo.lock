@@ -1316,6 +1316,7 @@ version = "0.1.0"
 dependencies = [
  "folia-model",
  "folia-pages",
+ "folia-search",
  "js-sys",
  "wasm-bindgen",
 ]

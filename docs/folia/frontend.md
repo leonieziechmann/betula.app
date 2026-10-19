@@ -2338,6 +2338,12 @@ every module of it (`ranking.rs`' `dump_for_the_prototype`).
   the order for the program a quarter of a millisecond (`rank::order`). The scores of the last
   text, its order and its resolution are kept (`search::evaluated`, `ranked`, `resolve`): a page
   resolves its text with the list and again with the counts of its filters, and orders it once.
+  In the data worker on canary the index took a quarter of a second of a laptop, which the first
+  search of a visit waited for (457 ms against 200–230 for the next ones; a phone's second or so).
+  So it is made before (Folia 1.31.1, `search::prepare`, `worker_prepare_search`): `boot.js` tells
+  the worker a search is coming as a search field takes the focus, and with a mouse once the
+  browser is idle, as it loads the semantic search; the worker makes it once per snapshot, when
+  no question has come for 300 ms, so the questions of a page being built go first.
   Before, the search was SQL over `v_module_folded` that scored only the modules whose names
   contained a form of every word, 2 to 8 ms in the sql.js of the app on a laptop. It all runs in
   the data worker while typing („Typing“ below).
