@@ -33,7 +33,7 @@
 
 use folia_routes::url;
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use crate::i18n::{self, legal::Texts, Locale};
 use folia_shell::seo::Seo;

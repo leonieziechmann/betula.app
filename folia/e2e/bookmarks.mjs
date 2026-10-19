@@ -13,6 +13,7 @@
 // kept so that nothing moves at the takeover.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
+import { fileURLToPath } from "node:url";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
@@ -27,8 +28,11 @@ const watch = (page, requests) => {
   if (requests) page.on("request", (r) => requests.push(r.url() + " " + (r.postData() || "")));
 };
 const takeover = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
+// What a step looks for is on the page in front (on-page.js; the steps' selectors: what is seen).
+const ON_PAGE = { path: fileURLToPath(new URL("on-page.js", import.meta.url)) };
 const open = async (options, path, requests) => {
   const context = await browser.newContext(options);
+  await context.addInitScript(ON_PAGE);
   const page = await context.newPage();
   watch(page, requests);
   await page.goto(base + path, { waitUntil: "domcontentloaded" });
@@ -50,19 +54,19 @@ const open = async (options, path, requests) => {
   return { page, step, context };
 };
 const stored = (page) => page.evaluate((key) => (localStorage.getItem(key) || "").split("\n").filter(Boolean).map((line) => line.split("\t")[0]), KEY);
-const badge = (page) => page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent ?? null);
-const pressed = (page, selector) => page.evaluate((s) => document.querySelector(s)?.getAttribute("aria-pressed") ?? null, selector);
-const listIds = (page) => page.evaluate(() => [...document.querySelectorAll(".rows a.row")].map((row) => row.dataset.id));
+const badge = (page) => page.evaluate(() => onPage('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent ?? null);
+const pressed = (page, selector) => page.evaluate((s) => onPage(s)?.getAttribute("aria-pressed") ?? null, selector);
+const listIds = (page) => page.evaluate(() => [...allOnPage(".rows a.row")].map((row) => row.dataset.id));
 // Where the switch „Merken" of a module's heading stands: at the right end of the line of the
 // credits, where the content under the heading ends, or, where the line has no room for the pair
 // side by side, under „Einplanen", which stands there.
 const placement = (page, root, body) => page.evaluate(([root, body]) => {
-  const rect = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+  const rect = (selector) => onPage(selector)?.getBoundingClientRect();
   const [credits, mark, edge] = [`${root} .badges .badge.strong`, `${root} .mark-toggle.mark-switch`, body].map(rect);
   const plan = rect(`${root} .plan-toggle.mark-switch`) ?? mark;
   const inLine = mark.top >= plan.bottom ? plan : mark;
   const middle = (r) => (r.top + r.bottom) / 2;
-  const badges = [...document.querySelectorAll(`${root} .badges > .badge`)].map((badge) => badge.getBoundingClientRect().right);
+  const badges = [...allOnPage(`${root} .badges > .badge`)].map((badge) => badge.getBoundingClientRect().right);
   return { sameLine: Math.abs(middle(credits) - middle(inLine)), edge: Math.abs(mark.right - edge.right), afterBadges: Math.min(plan.left, mark.left) - Math.max(...badges), height: mark.height };
 }, [root, body]);
 
@@ -76,9 +80,9 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // its glyph ending where the content of the list ends (12px from the row's edge, like the head
   // of the list), and the column labels still stand over their columns.
   const geometry = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll(".rows .row-wrap")].slice(0, 12);
-    const label = document.querySelector(".cols .c-events").getBoundingClientRect();
-    const head = document.querySelector(".list-tools").getBoundingClientRect();
+    const rows = [...allOnPage(".rows .row-wrap")].slice(0, 12);
+    const label = onPage(".cols .c-events").getBoundingClientRect();
+    const head = onPage(".list-tools").getBoundingClientRect();
     return rows.map((wrap) => {
       const [row, mark, glyph, events] = [wrap.querySelector("a.row"), wrap.querySelector(":scope > .mark-toggle"), wrap.querySelector(":scope > .mark-toggle .icon"), wrap.querySelector(".events")].map((el) => el?.getBoundingClientRect());
       if (!mark) return { missing: true };
@@ -100,20 +104,20 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
 
   // A click marks: no navigation, no preview, the row is the same element, the rail counts.
   const ids = (await listIds(page)).slice(0, 12);
-  await page.evaluate(() => { document.querySelectorAll(".rows .row-wrap").forEach((wrap, i) => { wrap.__kept = i; }); });
-  await step("a click marks the module", () => page.click(`.row-wrap:has(a.row[data-id="${ids[2]}"]) > .mark-toggle`), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[2]);
+  await page.evaluate(() => { allOnPage(".rows .row-wrap").forEach((wrap, i) => { wrap.__kept = i; }); });
+  await step("a click marks the module", () => page.click(`.row-wrap:has(a.row[data-id="${ids[2]}"]) > .mark-toggle >> visible=true`), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[2]);
   check(page.url() === base + "/catalog", `marking changed the address: ${page.url()}`);
   check(JSON.stringify(await stored(page)) === JSON.stringify([ids[2]]), `the mark was not stored: ${await stored(page)}`);
   check((await badge(page)) === "1", `the rail does not count the mark: ${await badge(page)}`);
-  check(await page.evaluate(() => [...document.querySelectorAll(".rows .row-wrap")].slice(0, 12).every((wrap, i) => wrap.__kept === i)), "marking rendered the list again");
-  check(await page.evaluate((id) => getComputedStyle(document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle .icon`)).fill !== "none", ids[2]), "a marked module does not look marked");
+  check(await page.evaluate(() => [...allOnPage(".rows .row-wrap")].slice(0, 12).every((wrap, i) => wrap.__kept === i)), "marking rendered the list again");
+  check(await page.evaluate((id) => getComputedStyle(onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle .icon`)).fill !== "none", ids[2]), "a marked module does not look marked");
 
   // A marked module keeps its strength while the pointer is on its row; an unmarked one is quiet
   // and comes forward under the pointer.
   const strength = async (id) => {
-    await page.hover(`a.row[data-id="${id}"] .t`);
+    await page.hover(`a.row[data-id="${id}"] .t >> visible=true`);
     await page.waitForTimeout(200);
-    return page.evaluate((id) => { const mark = document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`); return [getComputedStyle(mark).color, getComputedStyle(document.body).color]; }, id);
+    return page.evaluate((id) => { const mark = onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`); return [getComputedStyle(mark).color, getComputedStyle(document.body).color]; }, id);
   };
   const [markedColor, textColor] = await strength(ids[2]);
   const [quietColor] = await strength(ids[3]);
@@ -121,139 +125,140 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.mouse.move(5, 5);
 
   // M marks the row the keyboard is on; again takes the mark away.
-  await page.focus(`a.row[data-id="${ids[4]}"]`);
-  await step("M marks the focused row", () => page.keyboard.press("m"), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[4]);
-  await step("M again takes the mark away", () => page.keyboard.press("m"), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "false", ids[4]);
+  await page.focus(`a.row[data-id="${ids[4]}"] >> visible=true`);
+  await step("M marks the focused row", () => page.keyboard.press("m"), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[4]);
+  await step("M again takes the mark away", () => page.keyboard.press("m"), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "false", ids[4]);
   await page.keyboard.press("m");
   check(JSON.stringify(await stored(page)) === JSON.stringify([ids[4], ids[2]]), `the newest mark is not first: ${await stored(page)}`);
-  check(await page.evaluate((id) => document.activeElement === document.querySelector(`a.row[data-id="${id}"]`), ids[4]), "marking by keyboard moved the focus");
+  check(await page.evaluate((id) => document.activeElement === onPage(`a.row[data-id="${id}"]`), ids[4]), "marking by keyboard moved the focus");
 
   // In the preview: the switch under the heading, with M written on it; the row follows.
-  await step("preview", () => page.click(`a.row[data-id="${ids[6]}"]`), () => Boolean(document.querySelector(".detail .mark-toggle.mark-switch")));
+  await step("preview", () => page.click(`a.row[data-id="${ids[6]}"] >> visible=true`), () => Boolean(onPage(".detail .mark-toggle.mark-switch")));
   check((await pressed(page, ".detail .mark-toggle.mark-switch")) === "false", "the preview of an unmarked module shows it marked");
-  check(await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch kbd")?.textContent === "M"), "the shortcut is not written on the switch");
+  check(await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch kbd")?.textContent === "M"), "the shortcut is not written on the switch");
   // In the line of the credits, at its right end (or under „Einplanen" there).
   const placed = await placement(page, ".detail", ".detail .dbody .section");
   check(placed.sameLine <= 0.5 && placed.edge <= 0.5 && placed.afterBadges >= 6 && placed.height >= 32, `the switch is not at the right end of the line of the credits: ${JSON.stringify(placed)}`);
   await page.evaluate(() => document.activeElement?.blur());
-  const widthBefore = await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").getBoundingClientRect().width);
-  await step("M marks the previewed module", () => page.keyboard.press("m"), () => document.querySelector(".detail .mark-toggle.mark-switch").getAttribute("aria-pressed") === "true");
+  const widthBefore = await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch").getBoundingClientRect().width);
+  await step("M marks the previewed module", () => page.keyboard.press("m"), () => onPage(".detail .mark-toggle.mark-switch").getAttribute("aria-pressed") === "true");
   check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[6]}"]) > .mark-toggle`)) === "true", "the row does not follow the preview");
-  check(await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").textContent.includes("Gemerkt")), "the switch does not say „Gemerkt“");
-  check(Math.abs((await page.evaluate(() => document.querySelector(".detail .mark-toggle.mark-switch").getBoundingClientRect().width)) - widthBefore) < 0.5, "the switch changes its width when pressed");
+  check(await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch").textContent.includes("Gemerkt")), "the switch does not say „Gemerkt“");
+  check(Math.abs((await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch").getBoundingClientRect().width)) - widthBefore) < 0.5, "the switch changes its width when pressed");
   check((await badge(page)) === "3", `three marks, the rail says ${await badge(page)}`);
   // The focused row wins over the preview: M acts where the keyboard is.
-  await page.focus(`a.row[data-id="${ids[8]}"]`);
+  await page.focus(`a.row[data-id="${ids[8]}"] >> visible=true`);
   await page.keyboard.press("m");
   check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[8]}"]) > .mark-toggle`)) === "true" && (await pressed(page, ".detail .mark-toggle.mark-switch")) === "true", "M did not act on the focused row");
   await page.keyboard.press("m");
 
   // On the module's page: under the heading and among the actions of the sidebar, one state.
   await page.evaluate(() => document.activeElement?.blur());
-  await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(document.querySelector(".module-page .mark-toggle.mark-switch")));
+  await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(onPage(".module-page .mark-toggle.mark-switch")));
   check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
   const onPage = await placement(page, ".module-page", ".module-grid > aside .section");
   check(onPage.sameLine <= 0.5 && onPage.edge <= 0.5, `on the module's page the switch is not at the right end of the line of the credits: ${JSON.stringify(onPage)}`);
-  await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle"), () => document.querySelector(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && document.querySelector(".sidebar .action.mark-toggle").textContent.includes("Merken"));
-  await step("and M gives it back", () => page.keyboard.press("m"), () => document.querySelector(".sidebar .action.mark-toggle").getAttribute("aria-pressed") === "true");
+  await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle >> visible=true"), () => onPage(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && onPage(".sidebar .action.mark-toggle").textContent.includes("Merken"));
+  await step("and M gives it back", () => page.keyboard.press("m"), () => onPage(".sidebar .action.mark-toggle").getAttribute("aria-pressed") === "true");
 
   // A reload keeps the marks; server HTML knows nothing of them.
   const html = await (await context.request.get(page.url())).text();
   check(!html.includes('aria-pressed="true"') && !html.includes("nav-count"), "server HTML shows something marked");
   await page.reload({ waitUntil: "domcontentloaded" });
   await takeover(page);
-  await page.waitForFunction(() => document.querySelector(".module-page .mark-toggle.mark-switch")?.getAttribute("aria-pressed") === "true", null, { timeout: 8000 }).catch(() => problems.push("a reload lost the mark"));
+  await page.waitForFunction(() => onPage(".module-page .mark-toggle.mark-switch")?.getAttribute("aria-pressed") === "true", null, { timeout: 8000 }).catch(() => problems.push("a reload lost the mark"));
   await page.evaluate(() => { window.__marker = 1; });
   const marked = await stored(page);
   check(JSON.stringify(marked) === JSON.stringify([ids[6], ids[4], ids[2]]), `stored after all of this: ${marked}`);
 
   // ----- the list of marked modules -----
-  await step("the rail leads to the marked modules", () => page.click('.rail .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 3);
+  await step("the rail leads to the marked modules", () => page.click('.rail .nav[data-area="bookmarks"] >> visible=true'), () => location.pathname === "/bookmarks" && allOnPage(".rows a.row").length === 3);
   check(JSON.stringify(await listIds(page)) === JSON.stringify(marked), `the order of marking, newest first: ${await listIds(page)}`);
   const numbers = await page.evaluate(() => ({
-    count: document.querySelector(".list .count").textContent,
-    label: document.querySelector(".list .count-label").textContent,
-    side: [...document.querySelectorAll(".side-facts dd")].map((dd) => dd.textContent),
-    credits: [...document.querySelectorAll(".rows a.row .lp")].map((lp) => parseFloat(lp.textContent.replace(",", "."))).filter((n) => !Number.isNaN(n)).reduce((a, b) => a + b, 0),
-    current: document.querySelector('.rail .nav[data-area="bookmarks"]').getAttribute("aria-current"),
+    count: onPage(".list .count").textContent,
+    label: onPage(".list .count-label").textContent,
+    side: [...allOnPage(".side-facts dd")].map((dd) => dd.textContent),
+    credits: [...allOnPage(".rows a.row .lp")].map((lp) => parseFloat(lp.textContent.replace(",", "."))).filter((n) => !Number.isNaN(n)).reduce((a, b) => a + b, 0),
+    current: onPage('.rail .nav[data-area="bookmarks"]').getAttribute("aria-current"),
     title: document.title,
-    frame: ["sidebar"].map((id) => { const r = document.getElementById(id).getBoundingClientRect(); return [r.left, r.top]; })[0],
+    frame: ["sidebar"].map((id) => { const r = onPage(`#${id}`).getBoundingClientRect(); return [r.left, r.top]; })[0],
   }));
   check(numbers.count === "3" && numbers.label.startsWith("gemerkte Module") && numbers.side[0] === "3 Module", `the numbers of the list: ${JSON.stringify(numbers)}`);
   check(numbers.label.includes(`${String(numbers.credits).replace(".", ",")} LP`) && numbers.side[1].startsWith(`${String(numbers.credits).replace(".", ",")} LP`), `the credits do not add up: ${JSON.stringify(numbers)}`);
   check(numbers.current === "page" && numbers.title.startsWith("Merkliste"), `rail or title: ${JSON.stringify(numbers)}`);
 
   // Sorting: the column links and the sidebar are one state, in the URL.
-  await step("sort by credits", () => page.click(".cols a.c-lp"), () => location.search.includes("sort=ects") && !location.search.includes("desc"));
-  const credits = () => page.evaluate(() => [...document.querySelectorAll(".rows a.row .lp")].map((lp) => parseFloat(lp.textContent.replace(",", ".")) || 0));
+  await step("sort by credits", () => page.click(".cols a.c-lp >> visible=true"), () => location.search.includes("sort=ects") && !location.search.includes("desc"));
+  const credits = () => page.evaluate(() => [...allOnPage(".rows a.row .lp")].map((lp) => parseFloat(lp.textContent.replace(",", ".")) || 0));
   let sorted = await credits();
   check(sorted.every((n, i) => i === 0 || sorted[i - 1] <= n), `not sorted by credits: ${sorted}`);
-  check(await page.evaluate(() => document.querySelector('.toc a[aria-current="page"]')?.textContent.trim() === "Leistungspunkte"), "the sidebar does not show the order");
-  await step("the other way round", () => page.click(".cols a.c-lp"), () => location.search.includes("desc=1"));
+  check(await page.evaluate(() => onPage('.toc a[aria-current="page"]')?.textContent.trim() === "Leistungspunkte"), "the sidebar does not show the order");
+  await step("the other way round", () => page.click(".cols a.c-lp >> visible=true"), () => location.search.includes("desc=1"));
   sorted = await credits();
   check(sorted.every((n, i) => i === 0 || sorted[i - 1] >= n), `not sorted downwards: ${sorted}`);
-  await step("back to the order of marking", () => page.click(".toc a:first-of-type"), () => location.search === "");
+  await step("back to the order of marking", () => page.click(".toc a:first-of-type >> visible=true"), () => location.search === "");
   check(JSON.stringify(await listIds(page)) === JSON.stringify(marked), "the order of marking did not come back");
 
   // Halves of the year: the numbers on the switch are the numbers of the lists.
-  const seasons = await page.evaluate(() => [...document.querySelectorAll('.sidebar .seg a')].map((a) => [a.textContent.replace(/\d+/g, "").trim(), Number(a.querySelector(".num").textContent), a.getAttribute("aria-checked")]));
+  const seasons = await page.evaluate(() => [...allOnPage('.sidebar .seg a')].map((a) => [a.textContent.replace(/\d+/g, "").trim(), Number(a.querySelector(".num").textContent), a.getAttribute("aria-checked")]));
   check(JSON.stringify(seasons.map((s) => s[0])) === JSON.stringify(["Alle", "Winter", "Sommer"]) && seasons[0][1] === 3 && seasons[0][2] === "true", `the halves of the year: ${JSON.stringify(seasons)}`);
   for (const [index, name, code] of [[1, "Winter", "winter"], [2, "Sommer", "summer"]]) {
-    await step(`only ${name}`, () => page.click(`.sidebar .seg a:nth-child(${index + 1})`), (code) => location.search.includes(`turnus=${code}`), code);
-    const shown = await page.evaluate(() => ({ rows: document.querySelectorAll(".rows a.row").length, count: Number(document.querySelector(".list .count").textContent), tag: document.querySelector(".active-filters .tag")?.textContent ?? "", empty: Boolean(document.querySelector(".rows .state")) }));
+    await step(`only ${name}`, () => page.click(`.sidebar .seg a:nth-child(${index + 1}) >> visible=true`), (code) => location.search.includes(`turnus=${code}`), code);
+    const shown = await page.evaluate(() => ({ rows: allOnPage(".rows a.row").length, count: Number(onPage(".list .count").textContent), tag: onPage(".active-filters .tag")?.textContent ?? "", empty: Boolean(onPage(".rows .state")) }));
     check(shown.rows === seasons[index][1] && shown.count === seasons[index][1] && shown.tag.includes(name), `${name}: ${JSON.stringify(shown)} instead of ${seasons[index][1]}`);
     check(shown.rows > 0 || shown.empty, `${name}: an empty list says nothing`);
   }
-  await step("the tag takes the filter away", () => page.click(".active-filters .tag a"), () => location.search === "" && document.querySelectorAll(".rows a.row").length === 3);
+  await step("the tag takes the filter away", () => page.click(".active-filters .tag a >> visible=true"), () => location.search === "" && allOnPage(".rows a.row").length === 3);
 
   // The preview, as in the catalog; the list stays.
-  await step("preview of a marked module", () => page.click(`a.row[data-id="${marked[1]}"]`), (id) => location.search === `?open=${id}` && Boolean(document.querySelector(".detail h2")), marked[1]);
+  await step("preview of a marked module", () => page.click(`a.row[data-id="${marked[1]}"] >> visible=true`), (id) => location.search === `?open=${id}` && Boolean(onPage(".detail h2")), marked[1]);
   check((await pressed(page, ".detail .mark-toggle.mark-switch")) === "true", "the preview of a marked module does not show it marked");
   // (Measured once the panel has arrived: it slides in.)
-  await page.waitForFunction(() => document.querySelector(".work > .detail").getAnimations().every((animation) => animation.playState === "finished"), null, { timeout: 4000 }).catch(() => {});
-  const floats = await page.evaluate(() => { const [list, detail] = [document.querySelector(".panel.list"), document.querySelector(".work > .detail")].map((el) => el.getBoundingClientRect()); return [detail.right - list.right, detail.top - list.top, detail.bottom - list.bottom, list.left - detail.left]; });
+  await page.waitForFunction(() => onPage(".work > .detail").getAnimations().every((animation) => animation.playState === "finished"), null, { timeout: 4000 }).catch(() => {});
+  const floats = await page.evaluate(() => { const [list, detail] = [onPage(".panel.list"), onPage(".work > .detail")].map((el) => el.getBoundingClientRect()); return [detail.right - list.right, detail.top - list.top, detail.bottom - list.bottom, list.left - detail.left]; });
   check(floats.slice(0, 3).every((d) => Math.abs(d) <= 1) && floats[3] < -100, `the preview does not float at the right edge of the list: ${floats}`);
 
   // A mark taken away here stays on the page, dimmed; the numbers follow; one click undoes it.
-  await page.evaluate(() => { document.querySelectorAll(".rows .row-wrap").forEach((wrap, i) => { wrap.__kept = i; }); });
-  await step("a mark taken away stays on the page", () => page.click(".detail .mark-toggle.mark-switch"), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]);
-  const after = await page.evaluate(() => ({ rows: document.querySelectorAll(".rows a.row").length, count: document.querySelector(".list .count").textContent, side: document.querySelector(".side-facts dd").textContent, kept: [...document.querySelectorAll(".rows .row-wrap")].every((wrap, i) => wrap.__kept === i), all: document.querySelector(".sidebar .seg a .num").textContent }));
+  await page.evaluate(() => { allOnPage(".rows .row-wrap").forEach((wrap, i) => { wrap.__kept = i; }); });
+  await step("a mark taken away stays on the page", () => page.click(".detail .mark-toggle.mark-switch >> visible=true"), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]);
+  const after = await page.evaluate(() => ({ rows: allOnPage(".rows a.row").length, count: onPage(".list .count").textContent, side: onPage(".side-facts dd").textContent, kept: [...allOnPage(".rows .row-wrap")].every((wrap, i) => wrap.__kept === i), all: onPage(".sidebar .seg a .num").textContent }));
   check(after.rows === 3 && after.count === "2" && after.side === "2 Module" && after.all === "2" && after.kept && (await badge(page)) === "2", `after taking a mark away: ${JSON.stringify(after)}`);
   // (The preview floats over the right end of the rows, so their buttons are reached once it is closed.)
-  await step("Esc closes the preview", () => page.keyboard.press("Escape"), () => location.search === "" && !document.querySelector(".detail"));
-  check(await page.evaluate((id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]), "closing the preview took the unmarked module off the page");
-  await step("one click gives it back", () => page.click(`.row-wrap:has(a.row[data-id="${marked[1]}"]) > .mark-toggle`), () => document.querySelectorAll(".rows .row-wrap.unmarked").length === 0 && document.querySelector(".list .count").textContent === "3");
+  await step("Esc closes the preview", () => page.keyboard.press("Escape"), () => location.search === "" && !onPage(".detail"));
+  check(await page.evaluate((id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]), "closing the preview took the unmarked module off the page");
+  await step("one click gives it back", () => page.click(`.row-wrap:has(a.row[data-id="${marked[1]}"]) > .mark-toggle >> visible=true`), () => allOnPage(".rows .row-wrap.unmarked").length === 0 && onPage(".list .count").textContent === "3");
 
   // „Liste kopieren" hands the marked modules to the clipboard as text.
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await step("copy the list", () => page.click('[data-action="copy-text"]'), () => document.querySelector('[data-action="copy-text"] span').textContent === "Kopiert");
+  await step("copy the list", () => page.click('[data-action="copy-text"] >> visible=true'), () => onPage('[data-action="copy-text"] span').textContent === "Kopiert");
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   check(copied.split("\n").length === 3 && marked.every((id) => copied.includes(id)) && /\tLP|LP$/m.test(copied.replace(/\d+(,\d+)? /g, "")), `copied: ${JSON.stringify(copied)}`);
 
   // A list travels to another device in the fragment of a link, which no browser sends anywhere:
   // the other device asks before it adds anything, and the answer takes the ids out of the address.
   const carried = await stored(page);
-  await step("copy the link for another device", () => page.click('[data-action="copy-text"][data-absolute]'), () => document.querySelector('[data-action="copy-text"][data-absolute] [data-label]').textContent === "Kopiert");
+  await step("copy the link for another device", () => page.click('[data-action="copy-text"][data-absolute] >> visible=true'), () => onPage('[data-action="copy-text"][data-absolute] [data-label]').textContent === "Kopiert");
   const link = await page.evaluate(() => navigator.clipboard.readText());
   // The list as a code (pack/): characters an address carries as they are, the last two check the
   // rest, and the last one is a letter or a digit. Shorter than the ids one by one.
   const code = link.slice(`${base}/bookmarks#m=`.length);
   check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && code.length < carried.join(",").length, `the link for another device: ${link}`);
-  check(await page.evaluate(() => Boolean(document.querySelector('[data-action="copy-text"][data-absolute] small')?.textContent)), "copying the link lost the second line of its action");
+  check(await page.evaluate(() => Boolean(onPage('[data-action="copy-text"][data-absolute] small')?.textContent)), "copying the link lost the second line of its action");
   {
     const elsewhere = await browser.newContext({ viewport: { width: 1500, height: 900 } });
+    await elsewhere.addInitScript(ON_PAGE);
     const device = await elsewhere.newPage();
     const sent = [];
     watch(device, sent);
     await device.goto(link, { waitUntil: "domcontentloaded" });
     await takeover(device);
-    await device.waitForSelector(".offer", { timeout: 8000 }).catch(() => problems.push("another device: the list from the link is not offered"));
-    const offer = await device.evaluate(() => ({ text: document.querySelector(".offer")?.textContent ?? "", rows: document.querySelectorAll(".rows a.row").length, left: Math.abs(document.querySelector(".offer").getBoundingClientRect().left - document.querySelector(".list .count").getBoundingClientRect().left) }));
+    await device.waitForSelector(".offer >> visible=true", { timeout: 8000 }).catch(() => problems.push("another device: the list from the link is not offered"));
+    const offer = await device.evaluate(() => ({ text: onPage(".offer")?.textContent ?? "", rows: allOnPage(".rows a.row").length, left: Math.abs(onPage(".offer").getBoundingClientRect().left - onPage(".list .count").getBoundingClientRect().left) }));
     check(offer.text.includes("3 Module aus einem Link") && offer.rows === 0 && (await stored(device)).length === 0, `another device: nothing may be added before the visitor says so: ${JSON.stringify(offer)}`);
     check(offer.left <= 0.5, `another device: the offer does not start where the head of the list starts: ${offer.left}`);
     const entries = await device.evaluate(() => history.length);
-    await device.click("#offer-add");
-    await device.waitForFunction(() => document.querySelectorAll(".rows a.row").length === 3 && location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: the list did not arrive, or the ids stayed in the address"));
+    await device.click("#offer-add >> visible=true");
+    await device.waitForFunction(() => allOnPage(".rows a.row").length === 3 && location.hash === "" && !onPage(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: the list did not arrive, or the ids stayed in the address"));
     // The same modules; not in the same order, since the link carries them as a set.
     const same = (ids) => JSON.stringify([...ids].sort()) === JSON.stringify([...carried].sort());
     check(same(await stored(device)) && same(await listIds(device)), `another device: what arrived: ${await stored(device)}`);
@@ -261,16 +266,16 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
     // The same link again: nothing new. And one module more than the list has.
     await device.goto(link, { waitUntil: "domcontentloaded" });
     await takeover(device);
-    await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("schon auf deiner Merkliste") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push("another device: the same link again offers to add what is there"));
-    await device.click("#offer-dismiss");
-    await device.waitForFunction(() => location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take the ids out of the address"));
+    await device.waitForFunction(() => onPage(".offer")?.textContent.includes("schon auf deiner Merkliste") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push("another device: the same link again offers to add what is there"));
+    await device.click("#offer-dismiss >> visible=true");
+    await device.waitForFunction(() => location.hash === "" && !onPage(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take the ids out of the address"));
     // One module of the link that the list lacks (the list here loses one, a page load later).
     await device.evaluate(([key, id]) => localStorage.setItem(key, (localStorage.getItem(key) || "").split("\n").filter((line) => line && line.split("\t")[0] !== id).map((line) => `${line}\n`).join("")), [KEY, carried[0]]);
     await device.goto(`${base}/`, { waitUntil: "domcontentloaded" });
     await device.goto(link, { waitUntil: "domcontentloaded" });
     await takeover(device);
-    await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("3 Module aus einem Link") && document.querySelector(".offer").textContent.includes("Eins davon"), null, { timeout: 8000 }).catch(() => problems.push("another device: a link with one new module is not counted right"));
-    await device.click("#offer-dismiss");
+    await device.waitForFunction(() => onPage(".offer")?.textContent.includes("3 Module aus einem Link") && onPage(".offer").textContent.includes("Eins davon"), null, { timeout: 8000 }).catch(() => problems.push("another device: a link with one new module is not counted right"));
+    await device.click("#offer-dismiss >> visible=true");
     check((await stored(device)).length === 2, "another device: „Verwerfen“ added something");
     // A character typed wrong, two neighbours swapped: caught for certain by the check characters,
     // named, and nothing of the list offered.
@@ -279,9 +284,9 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
     for (const broken of [link.replace(/.$/, (c) => (c === "A" ? "B" : "A")), swapped]) {
       await device.goto(broken, { waitUntil: "domcontentloaded" });
       await takeover(device);
-      await device.waitForFunction(() => document.querySelector(".offer")?.textContent.includes("beschädigt") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push(`another device: a broken link is not named: ${broken}`));
-      await device.click("#offer-dismiss");
-      await device.waitForFunction(() => location.hash === "" && !document.querySelector(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take a broken link out of the address"));
+      await device.waitForFunction(() => onPage(".offer")?.textContent.includes("beschädigt") && !document.getElementById("offer-add"), null, { timeout: 8000 }).catch(() => problems.push(`another device: a broken link is not named: ${broken}`));
+      await device.click("#offer-dismiss >> visible=true");
+      await device.waitForFunction(() => location.hash === "" && !onPage(".offer"), null, { timeout: 8000 }).catch(() => problems.push("another device: „In Ordnung“ did not take a broken link out of the address"));
     }
     check((await stored(device)).length === 2, "another device: a broken link added something");
     const told = sent.filter((r) => r.includes(code) || carried.some((id) => r.includes(id)));
@@ -291,31 +296,31 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
 
   // Emptying asks first and can be taken back.
   const beforeEmptying = await stored(page);
-  await step("emptying asks first", () => page.click(".sidebar button.action:not(.mark-toggle)"), () => document.activeElement?.id === "clear-yes");
+  await step("emptying asks first", () => page.click(".sidebar button.action:not(.mark-toggle) >> visible=true"), () => document.activeElement?.id === "clear-yes");
   check((await stored(page)).length === 3, "asking already emptied the list");
-  await step("emptied", () => page.keyboard.press("Enter"), () => document.querySelector(".list .count").textContent === "0" && document.activeElement?.id === "clear-undo");
-  check((await badge(page)) === null && (await page.evaluate((key) => localStorage.getItem(key), KEY)) === null && (await page.evaluate(() => document.querySelectorAll(".rows .row-wrap.unmarked").length)) === 3, "an emptied list leaves something behind, or takes the rows away");
-  await step("„Rückgängig“ brings the marks back", () => page.click("#clear-undo"), () => document.querySelector(".list .count").textContent === "3" && document.querySelectorAll(".rows .row-wrap.unmarked").length === 0);
+  await step("emptied", () => page.keyboard.press("Enter"), () => onPage(".list .count").textContent === "0" && document.activeElement?.id === "clear-undo");
+  check((await badge(page)) === null && (await page.evaluate((key) => localStorage.getItem(key), KEY)) === null && (await page.evaluate(() => allOnPage(".rows .row-wrap.unmarked").length)) === 3, "an emptied list leaves something behind, or takes the rows away");
+  await step("„Rückgängig“ brings the marks back", () => page.click("#clear-undo >> visible=true"), () => onPage(".list .count").textContent === "3" && allOnPage(".rows .row-wrap.unmarked").length === 0);
   check(beforeEmptying.length === 3 && JSON.stringify(await stored(page)) === JSON.stringify(beforeEmptying), `what came back: ${await stored(page)} instead of ${beforeEmptying}`);
 
   // The rail's item is a tab: it remembers how the list was left.
-  await step("sorted, then away", () => page.click(".cols a.c-events"), () => location.search === "?sort=events");
-  await step("to the catalog", () => page.click('.rail .nav[data-area="catalog"]'), () => location.pathname.startsWith("/catalog"));
-  await step("the tab leads back to the list as it was left", () => page.click('.rail .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && location.search === "?sort=events");
+  await step("sorted, then away", () => page.click(".cols a.c-events >> visible=true"), () => location.search === "?sort=events");
+  await step("to the catalog", () => page.click('.rail .nav[data-area="catalog"] >> visible=true'), () => location.pathname.startsWith("/catalog"));
+  await step("the tab leads back to the list as it was left", () => page.click('.rail .nav[data-area="bookmarks"] >> visible=true'), () => location.pathname === "/bookmarks" && location.search === "?sort=events");
 
   // A module opened from the marked modules stays among them (owner, 2026-09-24): „Vollbild" fills
   // the list's place, the address stays the list's, the tab stays the current one, and the
   // catalog's tab does not hear of the module. „Zurück" and Esc lead back to the list with the
   // module beside it, through the history.
-  const catalogTab = () => page.getAttribute('.rail .nav[data-area="catalog"]', "href");
+  const catalogTab = () => page.getAttribute('.rail .nav[data-area="catalog"] >> visible=true', "href");
   const catalogBefore = await catalogTab();
-  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"]`); await page.waitForSelector(".detail h2"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("f"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(document.querySelector(".module-page h2")) && Boolean(document.querySelector("#sidebar .toc.jumps")), marked[0]);
-  check(await page.evaluate(() => document.querySelector('.rail .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page"), "full page: the tab of the marked modules is not the current one");
+  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"] >> visible=true`); await page.waitForSelector(".detail h2 >> visible=true"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("f"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(onPage(".module-page h2")) && Boolean(onPage("#sidebar .toc.jumps")), marked[0]);
+  check(await page.evaluate(() => onPage('.rail .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page"), "full page: the tab of the marked modules is not the current one");
   check((await catalogTab()) === catalogBefore, `full page: the catalog's tab leads to ${await catalogTab()} instead of ${catalogBefore}`);
-  check(await page.evaluate(() => { const back = document.querySelector('[data-action="back"]').getAttribute("href"); return back.startsWith("/bookmarks?") && back.includes("open=") && !back.includes("full="); }), "„Zurück“ of a module opened from the marked modules leads elsewhere");
+  check(await page.evaluate(() => { const back = onPage('[data-action="back"]').getAttribute("href"); return back.startsWith("/bookmarks?") && back.includes("open=") && !back.includes("full="); }), "„Zurück“ of a module opened from the marked modules leads elsewhere");
   check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true", "full page: the module's page does not know the mark");
   const entries = await page.evaluate(() => history.length);
-  await step("Esc leads back to the marked modules", () => page.keyboard.press("Escape"), () => location.pathname === "/bookmarks" && location.search.includes("open=") && !location.search.includes("full=") && document.querySelectorAll(".rows a.row").length === 3 && Boolean(document.querySelector(".detail h2")));
+  await step("Esc leads back to the marked modules", () => page.keyboard.press("Escape"), () => location.pathname === "/bookmarks" && location.search.includes("open=") && !location.search.includes("full=") && allOnPage(".rows a.row").length === 3 && Boolean(onPage(".detail h2")));
   check((await page.evaluate(() => history.length)) === entries, "back from the full page added a history entry instead of walking back");
   await page.keyboard.press("Escape");
 
@@ -324,9 +329,9 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   watch(other, requests);
   await other.goto(base + "/catalog?turnus=summer", { waitUntil: "domcontentloaded" });
   await takeover(other);
-  const fresh = await other.evaluate((known) => [...document.querySelectorAll(".rows a.row")].map((row) => row.dataset.id).find((id) => !known.includes(id)), marked);
-  await other.click(`.row-wrap:has(a.row[data-id="${fresh}"]) > .mark-toggle`);
-  await page.waitForFunction((id) => document.querySelector(".rows a.row")?.dataset.id === id && document.querySelector(".list .count").textContent === "4", fresh, { timeout: 8000 }).catch(() => problems.push("a mark from another tab did not arrive"));
+  const fresh = await other.evaluate((known) => [...allOnPage(".rows a.row")].map((row) => row.dataset.id).find((id) => !known.includes(id)), marked);
+  await other.click(`.row-wrap:has(a.row[data-id="${fresh}"]) > .mark-toggle >> visible=true`);
+  await page.waitForFunction((id) => onPage(".rows a.row")?.dataset.id === id && onPage(".list .count").textContent === "4", fresh, { timeout: 8000 }).catch(() => problems.push("a mark from another tab did not arrive"));
   check((await badge(page)) === "4", "the rail did not follow the other tab");
   await other.close();
 
@@ -334,10 +339,10 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.evaluate(([key, id]) => localStorage.setItem(key, `99999999\t5\n<script>alert(1)</script>\t4\n../../etc\t3\n${id}\tyesterday\n${id}\t1\n`), [KEY, marked[0]]);
   await page.reload({ waitUntil: "domcontentloaded" });
   await takeover(page);
-  await page.waitForFunction(() => document.querySelectorAll(".rows .row-wrap").length === 2, null, { timeout: 8000 }).catch(() => problems.push("garbage in the storage: the list did not come up with two entries"));
-  const unknown = await page.evaluate(() => ({ group: document.querySelector(".rows .sem")?.textContent, missing: document.querySelector(".rows .row.missing")?.textContent ?? "", count: document.querySelector(".list .count").textContent, markup: document.querySelector(".rows").innerHTML.includes("<script>") }));
+  await page.waitForFunction(() => allOnPage(".rows .row-wrap").length === 2, null, { timeout: 8000 }).catch(() => problems.push("garbage in the storage: the list did not come up with two entries"));
+  const unknown = await page.evaluate(() => ({ group: onPage(".rows .sem")?.textContent, missing: onPage(".rows .row.missing")?.textContent ?? "", count: onPage(".list .count").textContent, markup: onPage(".rows").innerHTML.includes("<script>") }));
   check(unknown.group === "Nicht im Modulkatalog" && unknown.missing.includes("99999999") && unknown.count === "2" && !unknown.markup, `what the snapshot does not know: ${JSON.stringify(unknown)}`);
-  await page.click(".row-wrap:has(.row.missing) > .mark-toggle");
+  await page.click(".row-wrap:has(.row.missing) > .mark-toggle >> visible=true");
   check(JSON.stringify(await stored(page)) === JSON.stringify([marked[0]]), `the mark of an unknown module cannot be taken away: ${await stored(page)}`);
 
   // Privacy: whatever was marked, no request named it (the ids are five digits or more, the
@@ -354,32 +359,32 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const { page, step, context } = await open({ viewport: { width: 1500, height: 900 } }, "/catalog?turnus=winter");
   const ids = (await listIds(page)).slice(0, 8);
   const marked = [ids[1], ids[3], ids[5]];
-  for (const id of marked) await page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`);
-  await page.waitForFunction((n) => document.querySelector('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
+  for (const id of marked) await page.click(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle >> visible=true`);
+  await page.waitForFunction((n) => onPage('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent === String(n), marked.length, { timeout: 8000 }).catch(() => problems.push("filter: the marks were not made"));
 
   const chip = '.filters .chip:has(.chip-label:text-is("Gemerkt"))';
-  await step("only the marked ones", () => page.click(chip), () => location.search.includes("marked=only") && document.querySelectorAll(".rows a.row").length === 3);
+  await step("only the marked ones", () => page.click(chip), () => location.search.includes("marked=only") && allOnPage(".rows a.row").length === 3);
   const shown = await listIds(page);
   check(JSON.stringify([...shown].sort()) === JSON.stringify([...marked].sort()), `only the marked ones: ${shown} instead of ${marked}`);
-  check((await page.evaluate(() => document.querySelector(".list .count").textContent)) === "3", "the header counts something else than the list");
-  check(await page.evaluate(() => [...document.querySelectorAll(".active-filters .tag")].some((tag) => tag.textContent.includes("nur gemerkte"))), "the filter is not among the tags above the list");
+  check((await page.evaluate(() => onPage(".list .count").textContent)) === "3", "the header counts something else than the list");
+  check(await page.evaluate(() => [...allOnPage(".active-filters .tag")].some((tag) => tag.textContent.includes("nur gemerkte"))), "the filter is not among the tags above the list");
   // The other filters still hold, and a mark made now changes this list.
   check(await page.evaluate(() => location.search.includes("turnus=winter")), "turning the filter on dropped the rest of the filter");
   // A mark taken away here takes the module out of this list at once.
-  await step("a mark taken away leaves the list", () => page.click(`.row-wrap:has(a.row[data-id="${shown[0]}"]) > .mark-toggle`), () => document.querySelectorAll(".rows a.row").length === 2);
+  await step("a mark taken away leaves the list", () => page.click(`.row-wrap:has(a.row[data-id="${shown[0]}"]) > .mark-toggle >> visible=true`), () => allOnPage(".rows a.row").length === 2);
 
   await step("without the marked ones", () => page.click(chip), () => location.search.includes("marked=none"));
   const rest = await listIds(page);
   const still = marked.filter((id) => id !== shown[0]);
   check(rest.length > 0 && !rest.some((id) => still.includes(id)), `„ohne Gemerkte" still shows marked modules: ${rest.slice(0, 5)}`);
   check(rest.includes(shown[0]), "the module whose mark was taken away is missing from „ohne Gemerkte“");
-  await step("and a mark made here leaves this one", () => page.click(`.row-wrap:has(a.row[data-id="${shown[0]}"]) > .mark-toggle`), (id) => !document.querySelector(`a.row[data-id="${id}"]`), shown[0]);
-  await step("the tag takes the filter off", () => page.click('.active-filters .tag:has-text("gemerkte") a'), () => !location.search.includes("marked="));
+  await step("and a mark made here leaves this one", () => page.click(`.row-wrap:has(a.row[data-id="${shown[0]}"]) > .mark-toggle >> visible=true`), (id) => !onPage(`a.row[data-id="${id}"]`), shown[0]);
+  await step("the tag takes the filter off", () => page.click('.active-filters .tag:has-text("gemerkte") a >> visible=true'), () => !location.search.includes("marked="));
 
   // Nothing marked matches the rest of the filter: the app says so, and says nothing else.
   await page.goto(base + "/catalog?q=zzzzzz&marked=only", { waitUntil: "domcontentloaded" });
   await takeover(page);
-  await page.waitForFunction(() => document.querySelector(".rows .state-title")?.textContent === "Keine gemerkten Module in dieser Liste", null, { timeout: 8000 }).catch(() => problems.push("filter: an empty list does not say that nothing marked matches"));
+  await page.waitForFunction(() => onPage(".rows .state-title")?.textContent === "Keine gemerkten Module in dieser Liste", null, { timeout: 8000 }).catch(() => problems.push("filter: an empty list does not say that nothing marked matches"));
   const stored_ids = await stored(page);
   check(stored_ids.length === 3, `filter: the marks changed while filtering: ${stored_ids}`);
   await context.close();
@@ -398,24 +403,24 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const { page, step, context } = await open(phone, "/catalog");
   const ids = (await listIds(page)).slice(0, 6);
-  const target = await page.evaluate((id) => { const wrap = document.querySelector(`.row-wrap:has(a.row[data-id="${id}"])`); const [row, mark, lp] = [wrap.querySelector("a.row"), wrap.querySelector(":scope > .mark-toggle"), wrap.querySelector(".lp")].map((el) => el.getBoundingClientRect()); return { size: [mark.width, mark.height], inside: mark.right <= row.right && mark.left >= lp.right, centred: Math.abs((mark.top + mark.bottom) / 2 - (row.top + row.bottom) / 2) }; }, ids[1]);
+  const target = await page.evaluate((id) => { const wrap = onPage(`.row-wrap:has(a.row[data-id="${id}"])`); const [row, mark, lp] = [wrap.querySelector("a.row"), wrap.querySelector(":scope > .mark-toggle"), wrap.querySelector(".lp")].map((el) => el.getBoundingClientRect()); return { size: [mark.width, mark.height], inside: mark.right <= row.right && mark.left >= lp.right, centred: Math.abs((mark.top + mark.bottom) / 2 - (row.top + row.bottom) / 2) }; }, ids[1]);
   check(target.size[0] >= 44 && target.size[1] >= 44 && target.inside && target.centred <= 0.5, `phone: the mark is no target for a finger: ${JSON.stringify(target)}`);
-  await step("phone: a tap marks", () => page.tap(`.row-wrap:has(a.row[data-id="${ids[1]}"]) > .mark-toggle`), (id) => document.querySelector(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[1]);
+  await step("phone: a tap marks", () => page.tap(`.row-wrap:has(a.row[data-id="${ids[1]}"]) > .mark-toggle >> visible=true`), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) > .mark-toggle`).getAttribute("aria-pressed") === "true", ids[1]);
   check(page.url() === base + "/catalog", `phone: marking opened something: ${page.url()}`);
-  await page.tap(`.row-wrap:has(a.row[data-id="${ids[3]}"]) > .mark-toggle`);
-  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"] .nav-count')?.textContent === "2"), "phone: the bottom bar does not count");
+  await page.tap(`.row-wrap:has(a.row[data-id="${ids[3]}"]) > .mark-toggle >> visible=true`);
+  check(await page.evaluate(() => onPage('.bottomnav .nav[data-area="bookmarks"] .nav-count')?.textContent === "2"), "phone: the bottom bar does not count");
 
-  await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"]'), () => location.pathname === "/bookmarks" && document.querySelectorAll(".rows a.row").length === 2);
-  const layout = await page.evaluate(() => { const [list, side] = [document.querySelector(".panel.list"), document.getElementById("sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });
+  await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"] >> visible=true'), () => location.pathname === "/bookmarks" && allOnPage(".rows a.row").length === 2);
+  const layout = await page.evaluate(() => { const [list, side] = [onPage(".panel.list"), onPage("#sidebar")].map((el) => el.getBoundingClientRect()); return { below: side.top >= list.bottom - 1, overflow: document.documentElement.scrollWidth > innerWidth }; });
   check(layout.below && !layout.overflow, `phone: the sidebar is not under the list, or the page is wider than the screen: ${JSON.stringify(layout)}`);
   // The module comes up as a sheet over the list (2026-10-06): the address and the tab stay the
   // list's, and the list stays under it.
-  await step("phone: a tap opens the module's sheet over the list", () => page.tap(`a.row[data-id="${ids[1]}"]`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(document.querySelector(".detail.is-module .mark-toggle")) && document.querySelectorAll(".rows a.row").length === 2, ids[1]);
-  check(await page.evaluate(() => document.querySelector('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !document.querySelector('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules', or the catalog's tab heard of it");
+  await step("phone: a tap opens the module's sheet over the list", () => page.tap(`a.row[data-id="${ids[1]}"] >> visible=true`), (id) => location.pathname === "/bookmarks" && location.search === `?open=${id}` && Boolean(onPage(".detail.is-module .mark-toggle")) && allOnPage(".rows a.row").length === 2, ids[1]);
+  check(await page.evaluate(() => onPage('.bottomnav .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page" && !onPage('.bottomnav .nav[data-area="catalog"]').getAttribute("href").startsWith("/catalog/module/")), "phone: the module is not the marked modules', or the catalog's tab heard of it");
   await page.waitForTimeout(500);
-  const button = await page.evaluate(() => { const mark = document.querySelector(".detail.is-module .mark-toggle"); const r = mark.getBoundingClientRect(); return { height: r.height, pressed: mark.getAttribute("aria-pressed"), seen: r.top < innerHeight && r.bottom <= innerHeight }; });
+  const button = await page.evaluate(() => { const mark = onPage(".detail.is-module .mark-toggle"); const r = mark.getBoundingClientRect(); return { height: r.height, pressed: mark.getAttribute("aria-pressed"), seen: r.top < innerHeight && r.bottom <= innerHeight }; });
   check(button.height >= 44 && button.pressed === "true" && button.seen, `phone: the switch in the module's sheet: ${JSON.stringify(button)}`);
-  await step("phone: closing it returns to the marked modules", () => page.tap('.detail.is-module [data-action="close-detail"]'), () => location.pathname === "/bookmarks" && location.search === "" && !document.querySelector(".detail.is-module") && document.querySelectorAll(".rows a.row").length === 2);
+  await step("phone: closing it returns to the marked modules", () => page.tap('.detail.is-module [data-action="close-detail"] >> visible=true'), () => location.pathname === "/bookmarks" && location.search === "" && !onPage(".detail.is-module") && allOnPage(".rows a.row").length === 2);
   await context.close();
 }
 

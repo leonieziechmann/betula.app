@@ -31,7 +31,7 @@ use folia_routes::filter::{
 };
 use folia_routes::url::{self, CatalogUrl, PAGE_SIZE, ProgramTab};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
@@ -206,7 +206,12 @@ pub fn CatalogPage() -> impl IntoView {
             draft.set(None);
         }
     });
+    // Only the page in front applies its draft: the sheet that went is the one in front.
+    let in_front = folia_design::stage::front();
     let apply = move || {
+        if !in_front.get_untracked() {
+            return;
+        }
         let Some(query) = draft.get_untracked() else { return };
         if query == list_query.get_untracked() {
             draft.set(None);
@@ -1238,9 +1243,12 @@ fn VirtualRows(
     let navigate = use_navigate();
     let location = use_location();
     let base = StoredValue::new(current.clone());
+    // A list on a stage behind (`folia_design::stage`) neither follows the window's scroll, which
+    // is the page's in front, nor writes its page into the address: it stays where it was left.
+    let in_front = folia_design::stage::front();
     let alive_follow = alive.clone();
     let follow = move || {
-        if total == 0 || !alive_follow.load(Ordering::Relaxed) {
+        if total == 0 || !alive_follow.load(Ordering::Relaxed) || !in_front.get_untracked() {
             return;
         }
         let Some((offset, viewport)) = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID) else { return };
@@ -1288,7 +1296,7 @@ fn VirtualRows(
     // of the same filter) they are most of what lies above. `true` if any height changed.
     let alive_measure = alive.clone();
     let measure = move || -> bool {
-        if !alive_measure.load(Ordering::Relaxed) {
+        if !alive_measure.load(Ordering::Relaxed) || !in_front.get_untracked() {
             return false;
         }
         let Some((offset, _)) = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID) else { return false };
@@ -1374,6 +1382,19 @@ fn VirtualRows(
         let follow = on_scroll.clone();
         let watch = nav::watch_scroll(SCROLL_ID, follow);
         on_cleanup(move || drop(watch));
+    });
+    // Back in front: where the window or the page's scroll area is now.
+    let (to_front, measure_front) = (follow.clone(), measure.clone());
+    Effect::new(move |was: Option<bool>| {
+        let now = in_front.get();
+        if now && was == Some(false) {
+            let (follow, measure) = (to_front.clone(), measure_front.clone());
+            request_animation_frame(move || {
+                measure();
+                follow();
+            });
+        }
+        now
     });
 
     // Where the list starts: at the row the visitor comes back to (in the middle of the screen),

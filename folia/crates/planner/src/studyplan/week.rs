@@ -553,7 +553,7 @@ fn week_to_top(id: &str) -> bool {
     {
         let Some(window) = web_sys::window() else { return false };
         let Some(document) = window.document() else { return false };
-        let Some(element) = document.get_element_by_id(id) else { return false };
+        let Some(element) = folia_design::stage::by_id(id) else { return false };
         let options = web_sys::ScrollIntoViewOptions::new();
         options.set_block(web_sys::ScrollLogicalPosition::Start);
         element.scroll_into_view_with_scroll_into_view_options(&options);

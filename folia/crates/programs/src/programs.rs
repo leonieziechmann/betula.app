@@ -28,7 +28,7 @@ use folia_pages as pages;
 use folia_pages::{PlanFacts, ProgramsData};
 use folia_routes::url::{self, FormGroup, LevelGroup, ProgramTab, ProgramsUrl};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use folia_data::{use_ask, use_data, PageStatus};
 use folia_design::format;
@@ -593,10 +593,7 @@ fn shown_link(slug: &str) -> String {
 fn narrow_list() -> bool {
     #[cfg(feature = "csr")]
     {
-        leptos::web_sys::window()
-            .and_then(|window| window.document())
-            .and_then(|document| document.query_selector(".faccs").ok().flatten())
-            .is_some_and(|faccs| faccs.get_bounding_client_rect().width() < 761.0)
+        folia_design::stage::select(".faccs").is_some_and(|faccs| faccs.get_bounding_client_rect().width() < 761.0)
     }
     #[cfg(not(feature = "csr"))]
     false
@@ -606,7 +603,7 @@ fn narrow_list() -> bool {
 fn open_around(selector: &str) {
     #[cfg(feature = "csr")]
     {
-        let Some(found) = leptos::web_sys::window().and_then(|window| window.document()).and_then(|document| document.query_selector(selector).ok().flatten()) else { return };
+        let Some(found) = folia_design::stage::select(selector) else { return };
         let mut at = found.parent_element();
         while let Some(element) = at {
             if element.tag_name().eq_ignore_ascii_case("details") {

@@ -54,7 +54,7 @@ use folia_plans::study::{self, AreaKind, Input, Item, Line, Study};
 use folia_plans::studyplan::{self as stored, MineDoc, PlanDoc};
 use folia_routes::url::{self, LocalView, StudyUrl, StudyView};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use folia_data::{use_data, DataClient, DataError};
 use folia_design::nav;
@@ -572,9 +572,11 @@ pub fn StudyPage() -> impl IntoView {
     folia_shell::nav::layer_while(move || ctx.menu.with(Option::is_some), move || ctx.menu.set(None), folia_shell::nav::Kind::Over);
     // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
     // where no dialog takes it first. Where Back's watcher has the newest of them, it does.
+    // Only the page in front: a page kept built behind (`folia_design::stage`) takes no key.
+    let in_front = folia_design::stage::front();
     Effect::new(move |_| {
         let handle = window_event_listener(leptos::ev::keydown, move |ev| {
-            if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() {
+            if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() || !in_front.get_untracked() {
                 return;
             }
             // What this Esc closes is all it does: no close request after it reaches the page's

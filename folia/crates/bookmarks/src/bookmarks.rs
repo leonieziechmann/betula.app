@@ -24,7 +24,7 @@ use folia_pages::ask::{BookmarksAsk, ModuleAsk};
 use folia_pages::BookmarksData;
 use folia_routes::url::{self, BookmarkSort, BookmarksUrl, LocalView, Season};
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
@@ -251,8 +251,14 @@ fn Offer() -> impl IntoView {
         location.hash.track();
         fragment.set(nav::fragment());
     });
+    // The fragment of the window is the page's in front (`folia_design::stage`).
+    let in_front = folia_design::stage::front();
     Effect::new(move |_| {
-        let handle = window_event_listener_untyped("hashchange", move |_| fragment.set(nav::fragment()));
+        let handle = window_event_listener_untyped("hashchange", move |_| {
+            if in_front.get_untracked() {
+                fragment.set(nav::fragment());
+            }
+        });
         on_cleanup(move || handle.remove());
     });
     let offered = Memo::new(move |_| ids_from_fragment(&fragment.get()));

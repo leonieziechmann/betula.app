@@ -149,7 +149,7 @@ const LINE = ".fx-desk a.prog-line";
   check((await tab("catalog")) === "/catalog", "tabs: on the list the own tab is not the plain list");
 
   await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".home .home-hero"));
-  check((await box(page, "#sidebar")) === null, "home: a sidebar beside the start page (owner, 2026-09-28: none)");
+  check((await box(page, "#content > .page-stage.front #sidebar")) === null, "home: a sidebar beside the start page (owner, 2026-09-28: none)");
   await context.close();
 }
 

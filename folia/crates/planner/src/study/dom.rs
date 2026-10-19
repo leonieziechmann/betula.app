@@ -64,11 +64,9 @@ pub(super) fn row_at(x: f64, y: f64) -> Option<String> {
 pub(super) fn row_nearest(y: f64) -> Option<String> {
     #[cfg(feature = "csr")]
     {
-        let document = web_sys::window()?.document()?;
-        let rows = document.query_selector_all(".st-card-sem .st-row[data-key]").ok()?;
+        // The rows of this page's stage (`folia_design::stage`).
         let mut best: Option<(f64, String)> = None;
-        for i in 0..rows.length() {
-            let Some(row) = rows.item(i).and_then(|node| node.dyn_into::<web_sys::Element>().ok()) else { continue };
+        for row in folia_design::stage::select_all(".st-card-sem .st-row[data-key]") {
             let r = row.get_bounding_client_rect();
             let distance = if y < r.top() { r.top() - y } else if y > r.bottom() { y - r.bottom() } else { 0.0 };
             if best.as_ref().is_none_or(|(d, _)| distance < *d) {
@@ -127,8 +125,7 @@ pub(super) fn step_focus(panel: &str, step: Step) {
     #[cfg(feature = "csr")]
     {
         let Some(document) = web_sys::window().and_then(|window| window.document()) else { return };
-        let Ok(items) = document.query_selector_all(&format!("{panel} [role^=\"menuitem\"]:not([disabled])")) else { return };
-        let items: Vec<web_sys::HtmlElement> = (0..items.length()).filter_map(|i| items.item(i)?.dyn_into::<web_sys::HtmlElement>().ok()).collect();
+        let items: Vec<web_sys::HtmlElement> = folia_design::stage::select_all(&format!("{panel} [role^=\"menuitem\"]:not([disabled])")).into_iter().filter_map(|item| item.dyn_into::<web_sys::HtmlElement>().ok()).collect();
         if items.is_empty() {
             return;
         }
@@ -175,7 +172,7 @@ pub(super) fn focused_attribute(name: &str) -> Option<String> {
 pub(super) fn drag_picture(ev: &leptos::ev::DragEvent, selector: &str) {
     #[cfg(feature = "csr")]
     {
-        let picture = web_sys::window().and_then(|window| window.document()).and_then(|document| document.query_selector(selector).ok().flatten());
+        let picture = folia_design::stage::select(selector);
         if let (Some(data), Some(picture)) = (ev.data_transfer(), picture) {
             data.set_drag_image(&picture, 16, 16);
         }

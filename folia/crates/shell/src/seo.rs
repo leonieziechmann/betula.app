@@ -145,6 +145,20 @@ pub fn Seo(
     #[prop(optional)]
     data: Vec<serde_json::Value>,
 ) -> impl IntoView {
+    // From the page in front alone: every stage keeps its page built (`folia_design::stage`), and a
+    // page must not carry two descriptions. A page that comes to the front writes them again. The
+    // tags live in the head and hold no place in the page (`leptos_meta`), so the empty view after
+    // them does: without it, what stands in for them while the page is behind would have nowhere
+    // to go, and they nowhere to come back to. Outside the stages (the server) they are just there.
+    let Some(stage) = folia_design::stage::Stage::here() else {
+        return tags(title, description, path, card, noindex, data).into_any();
+    };
+    let front = stage.front;
+    (move || front.get().then(|| (tags(title.clone(), description.clone(), path.clone(), card.clone(), noindex, data.clone()), ()))).into_any()
+}
+
+/// The tags `Seo` writes.
+fn tags(title: String, description: String, path: String, card: Option<String>, noindex: bool, data: Vec<serde_json::Value>) -> impl IntoView {
     let t = i18n::t();
     let address = absolute(&path);
     // The same page in every language, and for whoever speaks none of them.

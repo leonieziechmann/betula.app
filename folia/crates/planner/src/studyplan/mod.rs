@@ -49,7 +49,7 @@ use folia_routes::url::{self, PlanView, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::model::Timetable;
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use folia_data::{use_data, DataClient, DataError};
 use crate::i18n::{self, use_location};

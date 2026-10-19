@@ -36,7 +36,7 @@ use folia_timetable::exam_reading::{self, ExamReading, Reason, Slot};
 use folia_timetable::grid;
 use folia_timetable::ics::TZID;
 use leptos::prelude::*;
-use leptos_meta::Title;
+use folia_design::stage::Title;
 
 use folia_stores::bookmarks::{MarkButton, MarkLook};
 use folia_data::use_data;
