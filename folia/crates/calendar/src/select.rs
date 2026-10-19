@@ -131,6 +131,12 @@ pub enum HiddenBy {
     Course(Campus),
     /// Another option of the event's choice was chosen.
     Choice,
+    /// Another option of the choice among its module's events was chosen (docs/radix/schema-v2.md,
+    /// „Choices": one exercise of three, one of 14 projects).
+    Option,
+    /// QIS lists the plan's program at another option of the choice among its module's events,
+    /// whose options are for other programs: the program takes that one.
+    Program,
     /// The Termin itself is hidden.
     Row,
 }

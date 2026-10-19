@@ -40,7 +40,7 @@ use folia_plans::studyplan::{Placeholder, PlanDoc};
 use folia_routes::url::{PlanView, StudyplanUrl};
 use folia_timetable::clash;
 use folia_timetable::exams::{self, ExamRow, ExamShape, ExamWarning, Termin, TerminAt, WarningKind};
-use folia_timetable::model::{Attendance, Basis, Event, Row, Timetable};
+use folia_timetable::model::{Attendance, Basis, Event, Row, TakenBy, Timetable};
 use folia_timetable::occur::Every;
 use leptos::prelude::*;
 
@@ -176,6 +176,9 @@ struct Block {
     head: String,
     qis: Option<String>,
     items: Vec<Item>,
+    /// Of an option of a choice among the module's events, the ids of every event of the choice:
+    /// a pick undoes the others' (`Timetable::choices`).
+    across: Option<Vec<u32>>,
 }
 
 /// A line of an event.
@@ -186,6 +189,9 @@ enum Item {
     Line(Line),
     /// The event's choice: „1 von 4 wählen" while it is open, „Wahl aufheben" once it is made.
     Choice,
+    /// The choice among the module's events the event is the first option of: „1 von 3 wählen",
+    /// „Wahl aufheben", or that the program took one.
+    Across,
     /// An option of several Termine (a group), named: the row that chooses it, its Termine under it.
     Option { name: String, key: Option<RowKey>, option: usize },
     /// An event QIS lists without any date.
@@ -257,6 +263,8 @@ struct BlockShown {
     /// The event's choice while it is shown: of how many options (those whose Termine are not
     /// all hidden), and whether one is chosen.
     choice: Option<(usize, bool)>,
+    /// The choice among the module's events the event is an option of.
+    across: Option<AcrossShown>,
     /// Per item of the block.
     items: Vec<ItemShown>,
 }
@@ -272,6 +280,23 @@ struct ItemShown {
     chosen: bool,
     /// An exam sitting after the module's first: „2. Termin".
     second: bool,
+    /// An option of an open choice among the module's events: whether it fits the plan („passt")
+    /// or meets a Termin of it („überschneidet sich").
+    fits: Option<bool>,
+}
+
+/// What is shown of a choice among the module's events, at an option of it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct AcrossShown {
+    /// Its options a Termin of which is shown or left out only by the choice, and how many of
+    /// them one takes.
+    available: usize,
+    pick: usize,
+    /// It is open: how many options one still takes, of how many left to choose among.
+    open: Option<(usize, usize)>,
+    /// The visitor took an option („Wahl aufheben"), or the plan's program did.
+    chosen: bool,
+    program: bool,
 }
 
 /// One of the module's notes.
@@ -576,6 +601,8 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
     let elsewhere = Memo::new(move |_| state.with(|s| s.0.is_some_and(|by| by != HiddenBy::Event)));
     let reason = Memo::new(move |_| state.with(|s| s.1.clone()));
     let choice = Memo::new(move |_| state.with(|s| s.2));
+    let across = Memo::new(move |_| shown.with(|shown| key.state(shown).and_then(|s| s.across)));
+    let across_events = StoredValue::new(body.with_untracked(|body| key.block(body).and_then(|block| block.across.clone())));
     let toggle = move |_: leptos::ev::MouseEvent| {
         if let (Some(plan), Some(event)) = (ctx.plan, event) {
             let hide = !pressed.get_untracked();
@@ -595,7 +622,7 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
             .enumerate()
             .map(|(item, it)| {
                 let state = Memo::new(move |_| shown.with(|shown| key.state(shown).and_then(|s| s.items.get(item).copied()).unwrap_or_default()));
-                item_view(ctx, key.sem, event, it, state, choice, t)
+                item_view(ctx, key.sem, event, it, state, (choice, across, across_events), t)
             })
             .collect_view()
     };
@@ -627,12 +654,37 @@ fn BlockView(ctx: PlanCtx, key: BlockKey, body: Memo<Body>, shown: Memo<Vec<Bloc
 /// line of an option is the choice itself, with a radio mark at its left (owner, 2026-09-25): a
 /// click chooses it, a click on the one chosen opens the choice again, as „Wahl aufheben" does.
 /// A choice changes what is shown, not what is listed, so the lines stay and so does the focus.
-fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, choice: Memo<Option<(usize, bool)>>, t: &'static i18n::Texts) -> AnyView {
+/// The choices of an item's block: its event's own, and the one among the module's events with
+/// the ids of all its events.
+type BlockChoices = (Memo<Option<(usize, bool)>>, Memo<Option<AcrossShown>>, StoredValue<Option<Vec<u32>>>);
+
+fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, state: Memo<ItemShown>, choices: BlockChoices, t: &'static i18n::Texts) -> AnyView {
+    let (choice, across, across_events) = choices;
+    // A pick of an option of a choice among the module's events: beside what an open choice took
+    // so far, else instead of what it took (its other options' choices undone first). A click on
+    // the one taken takes it back, and with it the choice where that takes one.
     let pick = move |key: Option<RowKey>| {
         move |_: leptos::ev::MouseEvent| {
             let (Some(plan), Some(event), Some(key)) = (ctx.plan, event, key) else { return };
             let chosen = state.with_untracked(|s| s.chosen);
-            plan.update(|doc| doc.choose(sem, event, (!chosen).then_some(key)));
+            match across_events.get_value() {
+                Some(events) => {
+                    let (open, pick) = across.with_untracked(|state| state.map_or((false, 1), |state| (state.open.is_some(), state.pick)));
+                    let undone = match (chosen, open, pick > 1) {
+                        (true, _, true) => vec![event],
+                        (false, true, _) => Vec::new(),
+                        _ => events,
+                    };
+                    plan.update(|doc| {
+                        undone.iter().for_each(|other| doc.choose(sem, *other, None));
+                        if !chosen {
+                            doc.set_event(sem, event, false);
+                            doc.choose(sem, event, Some(key));
+                        }
+                    });
+                }
+                None => plan.update(|doc| doc.choose(sem, event, (!chosen).then_some(key))),
+            }
         }
     };
     match item {
@@ -647,8 +699,31 @@ fn item_view(ctx: PlanCtx, sem: SemesterKey, event: Option<u32>, item: Item, sta
                 choice.get().map(|(of, chosen)| {
                     view! {
                         <p class="sp-choice">
-                            <span>{(t.studyplan_aside.choose_one_of)(of)}</span>
+                            <span>{(t.studyplan_aside.choose_of)(1, of)}</span>
                             {chosen.then(|| view! { <button class="mini" type="button" data-action="reopen" on:click=reopen>{t.studyplan_aside.clear_choice}</button> })}
+                        </p>
+                    }
+                })
+            })
+            .into_any()
+        }
+        Item::Across => {
+            let reopen = move |_: leptos::ev::MouseEvent| {
+                if let (Some(plan), Some(events)) = (ctx.plan, across_events.get_value()) {
+                    plan.update(|doc| events.iter().for_each(|other| doc.choose(sem, *other, None)));
+                }
+            };
+            (move || {
+                across.get().map(|state| {
+                    let text = match (state.open, state.program) {
+                        (Some((take, left)), _) => (t.studyplan_aside.choose_of)(take, left),
+                        (None, true) => t.studyplan_aside.by_program.to_string(),
+                        (None, false) => (t.studyplan_aside.choose_of)(state.pick, state.available),
+                    };
+                    view! {
+                        <p class="sp-choice">
+                            <span>{text}</span>
+                            {state.chosen.then(|| view! { <button class="mini" type="button" data-action="reopen" on:click=reopen>{t.studyplan_aside.clear_choice}</button> })}
                         </p>
                     }
                 })
@@ -698,8 +773,10 @@ where
         ctx.url.with(|url| url.row.as_ref().is_some_and(|row| keys.with_value(|keys| keys.iter().any(|key| key.text() == *row))))
     });
     // Another option chosen: its Termine step back, not struck through (its mark says it).
-    let hidden = Memo::new(move |_| state.with(|s| s.hidden.is_some_and(|by| by != HiddenBy::Choice)));
-    let off = Memo::new(move |_| state.with(|s| s.hidden == Some(HiddenBy::Choice)));
+    let chosen_over = |by: HiddenBy| matches!(by, HiddenBy::Choice | HiddenBy::Option | HiddenBy::Program);
+    let hidden = Memo::new(move |_| state.with(|s| s.hidden.is_some_and(|by| !chosen_over(by))));
+    let off = Memo::new(move |_| state.with(|s| s.hidden.is_some_and(chosen_over)));
+    let fits = Memo::new(move |_| state.with(|s| s.fits));
     let pressed = Memo::new(move |_| state.with(|s| s.hidden == Some(HiddenBy::Row)));
     // Hidden with its event, by a kind or a town: dimmed, without an eye of its own.
     let eye = Memo::new(move |_| state.with(|s| matches!(s.hidden, None | Some(HiddenBy::Row))));
@@ -739,6 +816,10 @@ where
         <div class="sp-rowline" aria-current=move || current.get().then_some("true") data-hidden=move || hidden.get().then_some("") data-off=move || off.get().then_some("")>
             {first}
             {move || clash.get().then(|| view! { <small class="clash">{t.studyplan_aside.clash}</small> })}
+            {move || fits.get().map(|fits| match fits {
+                true => view! { <small class="fit ok">{t.studyplan_aside.fits}</small> }.into_any(),
+                false => view! { <small class="fit no">{t.studyplan_aside.meets}</small> }.into_any(),
+            })}
             {move || second.get().then(|| view! { <small>{t.timetable_data.second_sitting}</small> })}
             {key.is_some().then_some(move || eye.get().then(|| view! {
                 <button class="eye" type="button" on:click=toggle aria-pressed=move || if pressed.get() { "true" } else { "false" } aria-label=label title=label>
@@ -882,14 +963,54 @@ fn lead_of(info: &Info, t: &Timetable, sem: SemesterKey, texts: &i18n::Texts) ->
 /// Standort hides after the rest.
 fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) -> Vec<Block> {
     let own = |modules: &[String]| modules.iter().any(|module| module == id);
-    let events = t.events.iter().enumerate().filter(|(_, event)| own(&event.modules)).map(|(index, event)| Block {
-        exam: false,
-        index,
-        event: event_number(&event.id),
-        head: head_text(&kind_word(event, texts), &event.title, title),
-        qis: event.source_url.clone(),
-        items: items_of(event, texts),
-    });
+    let meets = clash::option_meetings(&t.events);
+    let mut events: Vec<Block> = t
+        .events
+        .iter()
+        .enumerate()
+        .filter(|(_, event)| own(&event.modules))
+        .map(|(index, event)| {
+            let mut items = items_of(event, texts);
+            let across = event.across.and_then(|alt| t.choices.get(alt.choice).map(|across| (alt, across)));
+            if let Some((alt, _)) = across.filter(|_| matches!(event.attendance, Attendance::All)) {
+                // Each line of an option is the choice of it.
+                for item in &mut items {
+                    if let Item::Line(line) = item {
+                        line.choose = Some(alt.option);
+                    }
+                }
+            }
+            let ids = across.map(|(_, across)| across.options.iter().flatten().filter_map(|event| t.events.get(*event).and_then(|event| event_number(&event.id))).collect());
+            Block { exam: false, index, event: event_number(&event.id), head: head_text(&kind_word(event, texts), &event.title, title), qis: event.source_url.clone(), items, across: ids }
+        })
+        .collect();
+    // The options of a choice among the module's events stand together where its first one does,
+    // under its line („1 von 3 wählen"), by their first time; of a choice too long for the week
+    // those that fit the plan first (owner, 2026-10-19, the concept: „Was zu deinem Plan passt,
+    // steht zuerst").
+    for (number, across) in t.choices.iter().enumerate().filter(|(_, across)| across.module == id) {
+        let of = |block: &Block| t.events.get(block.index).and_then(|event| event.across).filter(|alt| alt.choice == number);
+        let Some(first) = events.iter().position(|block| of(block).is_some()) else { continue };
+        let mut options: Vec<Block> = Vec::new();
+        let mut rest: Vec<Block> = Vec::new();
+        for (at, block) in events.into_iter().enumerate() {
+            match of(&block).is_some() && at >= first {
+                true => options.push(block),
+                false => rest.push(block),
+            }
+        }
+        let long = across.options.len() > folia_timetable::choices::WEEK_OPTIONS;
+        let start = |block: &Block| t.events.get(block.index).and_then(|event| event.rows.iter().filter_map(|row| Some((row.slot_day()?, row.from?))).min());
+        let meeting = |block: &Block| long && t.events.get(block.index).is_some_and(|event| (0..event.rows.len()).any(|row| meets.contains(&(block.index, row))));
+        options.sort_by_key(|block| (meeting(block), start(block).is_none(), start(block), block.index));
+        if let Some(head) = options.first_mut() {
+            head.items.insert(0, Item::Across);
+        }
+        let at = first.min(rest.len());
+        rest.splice(at..at, options);
+        events = rest;
+    }
+    let events = events.into_iter();
     let exams = t.exams.iter().enumerate().filter(|(_, exam)| own(&exam.modules)).map(|(index, exam)| {
         let items = if exam.rows.is_empty() {
             vec![Item::Undated]
@@ -902,7 +1023,7 @@ fn blocks_of(t: &Timetable, id: &str, title: Option<&str>, texts: &i18n::Texts) 
                 })
                 .collect()
         };
-        Block { exam: true, index, event: event_number(&exam.event_id), head: head_text(texts.timetable_data.exam, &exam.title, title), qis: exam.source_url.clone(), items }
+        Block { exam: true, index, event: event_number(&exam.event_id), head: head_text(texts.timetable_data.exam, &exam.title, title), qis: exam.source_url.clone(), items, across: None }
     });
     // The other town's course of a module taught in both comes last: first what the student
     // attends, its exams included.
@@ -1023,6 +1144,7 @@ fn option_name(event: &Event, options: &[Vec<usize>], option: usize, groups: boo
 /// What is shown of the blocks in `t` now.
 fn shown_of(t: &Timetable, blocks: &[Block], texts: &i18n::Texts) -> Vec<BlockShown> {
     let hard = clash::hard_rows(&t.events);
+    let meets = clash::option_meetings(&t.events);
     blocks
         .iter()
         .map(|block| {
@@ -1057,22 +1179,59 @@ fn shown_of(t: &Timetable, blocks: &[Block], texts: &i18n::Texts) -> Vec<BlockSh
             };
             let choice = (event.hidden.is_none() && (available.len() >= 2 || event.chosen.is_some())).then_some((available.len(), event.chosen.is_some()));
             let can = |option: usize| choice.is_some() && available.contains(&option);
+            // An option of a choice among the module's events: every option a Termin of which is
+            // shown, or left out only by the choice, can be taken.
+            let across = event.across.and_then(|alt| Some((alt, t.choices.get(alt.choice)?)));
+            let across_shown = across.map(|(_, across)| {
+                let left_out = |event: &usize| t.events.get(*event).is_some_and(|event| matches!(event.hidden, None | Some(HiddenBy::Option | HiddenBy::Program)));
+                let available = across.options.iter().filter(|held| held.iter().any(left_out)).count();
+                let choosable = across.choosable(&t.events);
+                AcrossShown {
+                    available,
+                    pick: across.pick,
+                    open: (!choosable.is_empty()).then_some((across.take(&t.events), choosable.len())),
+                    chosen: across.by == Some(TakenBy::Chosen),
+                    program: across.by == Some(TakenBy::Program),
+                }
+            });
+            let across_line = |line: &Line| -> (bool, bool, Option<bool>) {
+                let Some((alt, across)) = across.filter(|_| line.choose.is_some()) else { return (false, false, None) };
+                // The option the program takes is pressed, but there is nothing to undo: the
+                // others take its place.
+                let chosen = across.by.is_some() && across.taken.contains(&alt.option);
+                let by_program = chosen && across.by == Some(TakenBy::Program);
+                let movable = matches!(event.hidden, None | Some(HiddenBy::Option | HiddenBy::Program)) && !line.keys.is_empty() && !by_program;
+                let fits = alt.open.then(|| !line.rows.iter().any(|row| meets.contains(&(block.index, *row))));
+                (movable, chosen, fits)
+            };
             let items = block
                 .items
                 .iter()
                 .map(|item| match item {
+                    Item::Line(line) if across.is_some() && line.choose.is_some() => {
+                        let (choosable, chosen, fits) = across_line(line);
+                        ItemShown {
+                            hidden: line.rows.first().and_then(|row| event.rows.get(*row)).and_then(|row| row.hidden),
+                            clash: line.rows.iter().any(|row| hard.contains(&(block.index, *row))),
+                            choosable,
+                            chosen,
+                            second: false,
+                            fits,
+                        }
+                    }
                     Item::Line(line) => ItemShown {
                         hidden: line.rows.first().and_then(|row| event.rows.get(*row)).and_then(|row| row.hidden),
                         clash: line.rows.iter().any(|row| hard.contains(&(block.index, *row))),
                         choosable: line.choose.is_some_and(can),
                         chosen: line.choose.is_some() && line.choose == event.chosen,
                         second: false,
+                        fits: None,
                     },
                     Item::Option { option, .. } => ItemShown { choosable: can(*option), chosen: event.chosen == Some(*option), ..ItemShown::default() },
                     _ => ItemShown::default(),
                 })
                 .collect();
-            BlockShown { hidden: event.hidden, reason: reason_text(event.hidden, event.kinds, event.town(), texts), choice, items, ..none }
+            BlockShown { hidden: event.hidden, reason: reason_text(event.hidden, event.kinds, event.town(), texts), choice, across: across_shown, items, ..none }
         })
         .collect()
 }
@@ -1096,7 +1255,9 @@ fn reason_text(hidden: Option<HiddenBy>, kinds: KindSet, own: Option<Town>, text
         }
         // Another course of the module, by the campus it is held at („Standort Cottbus-Sachsendorf").
         HiddenBy::Course(campus) => Some((words.location)(campus.label(texts.locale))),
-        HiddenBy::Event | HiddenBy::Choice | HiddenBy::Row => None,
+        // QIS lists the plan's program at another option of the module's choice.
+        HiddenBy::Program => Some(texts.studyplan_week.other_programs.to_string()),
+        HiddenBy::Event | HiddenBy::Choice | HiddenBy::Option | HiddenBy::Row => None,
     }
 }
 
@@ -1433,7 +1594,7 @@ fn covers(p: &Placeholder, sem: SemesterKey, start: Option<SemesterKey>) -> bool
 #[cfg(test)]
 mod tests {
     use folia_calendar::select::Selection;
-    use folia_model::rows_detail::{DateRow, EventDate, ModuleSws};
+    use folia_model::rows_detail::{ChoiceFamily, ChoiceOption, DateRow, EventDate, ModuleSws};
     use folia_timetable::facts::SemesterFacts;
     use folia_timetable::model::Input;
 
@@ -1589,7 +1750,7 @@ mod tests {
         let facts = winter();
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let modules: Vec<String> = modules.iter().map(|id| id.to_string()).collect();
-        let input = Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws, taken: &[] };
+        let input = Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams, sws, taken: &[], choices: &[], listed: &[] };
         Timetable::build(&input, selection)
     }
 
@@ -1615,6 +1776,7 @@ mod tests {
             .map(|item| match item {
                 Item::Line(line) => format!("{}{}", if line.choose.is_some() { "( ) " } else { "" }, line.text.text()),
                 Item::Choice => "1 von n wählen".to_string(),
+                Item::Across => "1 von n Optionen".to_string(),
                 Item::Option { name, .. } => format!("( ) {name}"),
                 Item::Undated => "Termine nicht angegeben".to_string(),
             })
@@ -1748,6 +1910,82 @@ mod tests {
             states,
             vec![(true, true, None), (false, true, Some(HiddenBy::Choice)), (false, true, Some(HiddenBy::Choice)), (false, true, Some(HiddenBy::Choice))]
         );
+    }
+
+    /// Three Übungen, each its own event, of which the module asks for one (as QIS lists Höhere
+    /// Mathematik - T3's: each for other programs), and the plan's program listed at `listed`.
+    fn three_options(listed: &[u32], selection: &Selection) -> (Timetable, Vec<Block>) {
+        let rows = [
+            teaching("201", 1, "Übung", 2, "07:30", "09:00"),
+            teaching("202", 1, "Übung", 3, "13:45", "15:15"),
+            teaching("203", 1, "Übung", 4, "11:30", "13:00"),
+        ];
+        let choices: Vec<ChoiceOption> = (1..=3u32)
+            .map(|option| ChoiceOption {
+                module_id: "12104".into(),
+                semester_key: "2026W".into(),
+                choice: 1,
+                course: None,
+                kind: Code::parse("program"),
+                basis: Code::parse("form"),
+                sws: Some(2.0),
+                pick: 1,
+                option,
+                event_id: format!("20{option}"),
+                label: None,
+                event_sws: Some(2.0),
+            })
+            .collect();
+        let listed: Vec<ChoiceFamily> = listed
+            .iter()
+            .map(|option| ChoiceFamily {
+                module_id: "12104".into(),
+                semester_key: "2026W".into(),
+                choice: 1,
+                option: *option,
+                family_key: "017-82".into(),
+                program_name: "Bauingenieurwesen".into(),
+                is_latest_po: true,
+            })
+            .collect();
+        let facts = winter();
+        let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
+        let modules = vec!["12104".to_string()];
+        let input = Input { key: facts.key, semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &choices, listed: &listed };
+        let t = Timetable::build(&input, selection);
+        let blocks = blocks_of(&t, "12104", Some("Höhere Mathematik - T3"), &i18n::DE);
+        (t, blocks)
+    }
+
+    #[test]
+    fn an_option_among_the_modules_events_is_taken_at_its_line() {
+        // Open: the first block says how many to choose, each line can be taken and says whether
+        // it fits the plan.
+        let (t, blocks) = three_options(&[], &Selection::default());
+        assert_eq!(texts(blocks.first().unwrap()).first().map(String::as_str), Some("1 von n Optionen"));
+        let shown = shown_of(&t, &blocks, &i18n::DE);
+        assert_eq!(shown.first().unwrap().across, Some(AcrossShown { available: 3, pick: 1, open: Some((1, 3)), chosen: false, program: false }));
+        let lines = |shown: &[BlockShown]| -> Vec<(bool, bool, Option<bool>, Option<HiddenBy>)> {
+            shown.iter().flat_map(|block| &block.items).filter(|item| item.choosable || item.chosen || item.hidden.is_some()).map(|item| (item.chosen, item.choosable, item.fits, item.hidden)).collect()
+        };
+        assert_eq!(lines(&shown), vec![(false, true, Some(true), None); 3]);
+
+        // Mi 13:45 chosen: it is pressed (a click opens the choice again), and the others step
+        // back but can be taken instead.
+        let chosen = RowKey::of(&teaching("202", 1, "Übung", 3, "13:45", "15:15").0.date).unwrap();
+        let (t, blocks) = three_options(&[], &Selection { chosen_rows: BTreeSet::from([chosen]), ..Selection::default() });
+        let shown = shown_of(&t, &blocks, &i18n::DE);
+        assert_eq!(shown.first().unwrap().across, Some(AcrossShown { available: 3, pick: 1, open: None, chosen: true, program: false }));
+        let other = (false, true, None, Some(HiddenBy::Option));
+        assert_eq!(lines(&shown), vec![other, (true, true, None, None), other]);
+
+        // The program listed at Di 07:30: it is pressed, with nothing to undo, and the others are
+        // for other programs, each a tap away.
+        let (t, blocks) = three_options(&[1], &Selection::default());
+        let shown = shown_of(&t, &blocks, &i18n::DE);
+        assert_eq!(shown.first().unwrap().across, Some(AcrossShown { available: 3, pick: 1, open: None, chosen: false, program: true }));
+        let other = (false, true, None, Some(HiddenBy::Program));
+        assert_eq!(lines(&shown), vec![(true, false, None, None), other, other]);
     }
 
     #[test]

@@ -1266,7 +1266,7 @@ fn own_groups(teaching: &[EventDate], t: &'static Texts) -> Vec<Own> {
             let once = once || (series.is_some() && dates.len() == 1);
             let mut slot = own_slot(once, series.filter(|_| !once), day, from, to, date, &dates, t);
             if date.extra {
-                slot = GridSlot { class: "extra", label: format!("+ {}", slot.label), title: format!("{} · {}", slot.title, t.module.choice_extras), ..slot };
+                slot = GridSlot { extra: true, label: format!("+ {}", slot.label), title: format!("{} · {}", slot.title, t.module.choice_extras), ..slot };
             }
             let course = date.track.as_ref().and_then(|track| track.known());
             let option = date.choice.zip(date.option);
@@ -2118,7 +2118,7 @@ mod tests {
         let all = CourseView::All { about: None };
         let own = own_groups(&rows, &DE);
         let looks = |sight: &Sight<'_>| -> Vec<(String, &'static str, bool, String)> {
-            shown_slots(&own, None, &all, false, sight, &rows, &DE).into_iter().map(|(slot, _)| (slot.label, slot.class, slot.alt, slot.place)).collect()
+            shown_slots(&own, None, &all, false, sight, &rows, &DE).into_iter().map(|(slot, _)| (slot.label, if slot.extra { "extra" } else { slot.class }, slot.alt, slot.place)).collect()
         };
 
         // The week: the lecture as before, the Aufbaukurs dotted with its „+", the exercises dashed,

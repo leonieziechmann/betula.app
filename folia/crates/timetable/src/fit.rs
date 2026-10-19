@@ -19,6 +19,11 @@
 //! holds is attended once and never clashes. One the plan hides as the other town's course of its
 //! modules is not held, though: a candidate without city tracks that links it brings it back.
 //!
+//! A candidate's choice among its events (one of three exercises, one of 14 projects,
+//! `model::Across`) is judged by its best options: it is free when as many of its options as one
+//! takes are free, lectures among them or not (owner, 2026-10-19, the concept of
+//! folia/design/wahlangebote/konzept.html: „Ein Modul passt, wenn eine seiner Gruppen passt").
+//!
 //! The plan's open choices („1 von 4 wählen") are no obstacle as long as the plan can still take a
 //! free option of each. Whether it can is `clash`'s own weighing, run over the plan and the
 //! candidate together, so the finder and the Studienplan never disagree: a candidate that leaves
@@ -52,7 +57,7 @@ use folia_calendar::select::{FitOptions, HiddenBy, Selection, Town, TownChoice};
 use folia_calendar::semester::SemesterKey;
 use folia_locale::Locale;
 use folia_model::rows::Semester;
-use folia_model::rows_detail::{DateRow, ModuleSws};
+use folia_model::rows_detail::{ChoiceOption, DateRow, ModuleSws};
 
 use crate::clash;
 use crate::exams::{self, TerminAt, WarningKind};
@@ -95,6 +100,8 @@ pub struct Candidates<'a> {
     pub schedule: &'a [DateRow],
     pub exams: &'a [DateRow],
     pub sws: &'a [ModuleSws],
+    /// The choices among the modules' events (`semester_choices`).
+    pub choices: &'a [ChoiceOption],
 }
 
 /// Every module with a dated row (teaching or exam) in the semester, each built like a plan of
@@ -150,6 +157,7 @@ pub fn candidates(
     let schedule = by_module(input.schedule, |row| row.module_id.as_str());
     let exams = by_module(input.exams, |row| row.module_id.as_str());
     let sws = by_module(input.sws, |row| row.module_id.as_str());
+    let choices = by_module(input.choices, |row| row.module_id.as_str());
     let ids: BTreeSet<&str> = schedule.keys().chain(exams.keys()).copied().collect();
     let hidden_kinds = selection.hidden_kinds;
 
@@ -167,6 +175,9 @@ pub fn candidates(
                 sws: part(&sws, id),
                 // The finder takes a candidate's course by the plan's town, as before (`town`).
                 taken: &[],
+                // A choice among its events is open: its best options decide (`judge`).
+                choices: part(&choices, id),
+                listed: &[],
             };
             let build =
                 |town: TownChoice| Timetable::build(&input, &Selection { hidden_kinds, town, ..Selection::default() });
@@ -441,19 +452,27 @@ struct Choices {
     base: Vec<Event>,
     /// Their open choices that the plan alone leaves open (not blocked), by index into `base`.
     open: Vec<usize>,
+    /// The same of the plan's choices among a module's events, by index into its choices.
+    open_across: BTreeSet<usize>,
 }
+
+/// What a candidate's choices among its events are numbered from while they are weighed with the
+/// plan's (`Choices::blocked_by`): apart from the plan's own.
+const CANDIDATE_CHOICES: usize = 1 << 20;
 
 impl Choices {
     fn of(shown: &[(usize, &Event)]) -> Self {
         let base: Vec<Event> = shown.iter().map(|(_, event)| (*event).clone()).collect();
-        let (_, blocked) = clash::clashes(&base);
+        let (_, blocked, blocked_across) = clash::clashes(&base);
         let open = base
             .iter()
             .enumerate()
             .filter(|(i, event)| event.unresolved() && !blocked.contains(i))
             .map(|(i, _)| i)
             .collect();
-        Choices { base, open }
+        let open_across =
+            base.iter().filter_map(|event| event.across.filter(|alt| alt.open)).map(|alt| alt.choice).filter(|choice| !blocked_across.contains(choice)).collect();
+        Choices { base, open, open_across }
     }
 
     /// Whether planning `module` with its `own` events (those the plan does not hold) blocks one of
@@ -462,7 +481,7 @@ impl Choices {
     /// meet its own events; an own event the plan hides as the other town's course of its modules
     /// is linked by them as well.
     fn blocked_by(&mut self, module: &str, ids: &BTreeSet<String>, own: &[Own<'_>]) -> bool {
-        if self.open.is_empty() {
+        if self.open.is_empty() && self.open_across.is_empty() {
             return false;
         }
         let len = self.base.len();
@@ -476,16 +495,20 @@ impl Choices {
         self.base.extend(own.iter().map(|own| {
             let mut event = own.event.clone();
             event.modules = own.linked.iter().chain(&event.modules).cloned().collect();
+            // The candidate's own choices among its events are its own, not the plan's.
+            if let Some(alt) = event.across.as_mut() {
+                alt.choice += CANDIDATE_CHOICES;
+            }
             event
         }));
-        let (_, blocked) = clash::clashes(&self.base);
+        let (_, blocked, blocked_across) = clash::clashes(&self.base);
         self.base.truncate(len);
         for i in linked {
             if let Some(event) = self.base.get_mut(i) {
                 event.modules.pop();
             }
         }
-        self.open.iter().any(|choice| blocked.contains(choice))
+        self.open.iter().any(|choice| blocked.contains(choice)) || self.open_across.iter().any(|choice| blocked_across.contains(choice))
     }
 }
 
@@ -541,6 +564,9 @@ fn judge(
     let shared: BTreeSet<usize> = course.ids.iter().filter_map(|id| context.index.get(id.as_str()).copied()).collect();
     let (mut lectures, mut others) = (Tally::default(), Tally::default());
     let mut own: Vec<Own<'_>> = Vec::new();
+    // Per open choice among the candidate's events: per option whether all its events are free,
+    // whether a lecture is among them, and how many options one takes.
+    let mut across: BTreeMap<usize, (BTreeMap<usize, bool>, bool, usize)> = BTreeMap::new();
     for event in &course.events {
         let planned = context.index.get(event.id.as_str()).and_then(|i| context.events.get(*i));
         let mine = match planned {
@@ -569,6 +595,15 @@ fn judge(
             }
         };
         let lecture = event.class == Class::Lecture;
+        if let Some(alt) = event.across.filter(|alt| alt.open) {
+            let (options, lectures, take) = across.entry(alt.choice).or_insert_with(|| (BTreeMap::new(), false, alt.take.max(1)));
+            let all = options.entry(alt.option).or_insert(true);
+            *all &= free_units > 0;
+            *lectures |= lecture;
+            *take = (*take).max(alt.take);
+            own.extend(mine);
+            continue;
+        }
         let tally = if lecture { &mut lectures } else { &mut others };
         tally.events += 1;
         tally.free_events += usize::from(free_units > 0);
@@ -578,6 +613,16 @@ fn judge(
             tally.free_units += free_units;
         }
         own.extend(mine);
+    }
+    // A choice among its events is one event of its class, free when enough of its options are,
+    // and its options are what the student picks among.
+    for (options, lecture, take) in across.into_values() {
+        let free = options.values().filter(|free| **free).count();
+        let tally = if lecture { &mut lectures } else { &mut others };
+        tally.events += 1;
+        tally.free_events += usize::from(free >= take);
+        tally.units += options.len();
+        tally.free_units += free;
     }
 
     let exam = exam_fit(course, context, texts);
@@ -655,7 +700,7 @@ mod tests {
     use folia_query as queries;
 
     use crate::exams::ExamWarning;
-    use crate::model::tests::{ids, invariants, sws, teaching, winter, Fixture};
+    use crate::model::tests::{choice_row, ids, invariants, sws, teaching, winter, Fixture};
     use super::*;
 
     const ALL: FitOptions = FitOptions { lectures: true, exercises: true, exams: true };
@@ -681,7 +726,7 @@ mod tests {
         planned: &[String],
         selection: &Selection,
     ) -> Timetable {
-        let input = Input { key: facts.key, semester: None, facts, modules: planned, schedule: rows, exams, sws, taken: &[] };
+        let input = Input { key: facts.key, semester: None, facts, modules: planned, schedule: rows, exams, sws, taken: &[], choices: &[], listed: &[] };
         let table = Timetable::build(&input, selection);
         invariants(&table);
         table
@@ -716,7 +761,7 @@ mod tests {
         let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
         let plan = plan_of(facts, &schedule, exams, sws, &ids(planned), selection);
         let set =
-            candidates(&Candidates { schedule: &schedule, exams, sws }, facts, None, selection, plan.town, options);
+            candidates(&Candidates { schedule: &schedule, exams, sws, choices: &[] }, facts, None, selection, plan.town, options);
         fits(&plan, &set, locale).into_iter().map(|fit| (fit.module_id, fit.verdict, fit.note)).collect()
     }
 
@@ -1121,7 +1166,7 @@ mod tests {
         let both = plan_of(&winter(), &schedule, &[], &[], &ids(&["C", "T"]), &town(TownChoice::Both));
         assert_eq!(both.town, None);
         assert!(!both.clashes.is_empty());
-        let input = Candidates { schedule: &schedule, exams: &[], sws: &[] };
+        let input = Candidates { schedule: &schedule, exams: &[], sws: &[], choices: &[] };
         let courses = |town| {
             let set = candidates(&input, &winter(), None, &Selection::default(), town, ALL);
             set.modules.iter().map(|c| (c.module_id.clone(), c.courses.len())).collect::<Vec<_>>()
@@ -1131,6 +1176,39 @@ mod tests {
         };
         assert_eq!(courses(None), counted([1, 2, 2, 2]));
         assert_eq!(courses(Some(Town::Cottbus)), counted([1, 1, 1, 1]));
+    }
+
+    /// A candidate's choice among its events is judged by its best options (owner, 2026-10-19:
+    /// „Ein Modul passt, wenn eine seiner Gruppen passt"): of three projects held as lectures, two
+    /// free leave it fitting in part, none free it clashes; without the choice (a snapshot before
+    /// schema 17) every lecture has to be free.
+    #[test]
+    fn a_candidates_choice_is_judged_by_its_best_options() {
+        let rows = [
+            teaching("C", "10", 1, "Vorlesung", 1, "09:15", "10:45"),
+            teaching("C", "11", 1, "Vorlesung", 4, "09:15", "10:45"),
+            teaching("W", "20", 1, "Vorlesung", 1, "09:15", "10:45").option(1),
+            teaching("W", "21", 1, "Vorlesung", 2, "09:15", "10:45").option(2),
+            teaching("W", "22", 1, "Vorlesung", 3, "09:15", "10:45").option(3),
+            teaching("X", "30", 1, "Vorlesung", 1, "09:15", "10:45").option(1),
+            teaching("X", "31", 1, "Vorlesung", 4, "09:15", "10:45").option(2),
+        ];
+        let choices = [
+            choice_row("W", "topic", 1, 1, "20"),
+            choice_row("W", "topic", 1, 2, "21"),
+            choice_row("W", "topic", 1, 3, "22"),
+            choice_row("X", "topic", 1, 1, "30"),
+            choice_row("X", "topic", 1, 2, "31"),
+        ];
+        let schedule: Vec<DateRow> = rows.iter().map(|row| row.0.clone()).collect();
+        let selection = Selection::default();
+        let plan = plan_of(&winter(), &schedule, &[], &[], &ids(&["C"]), &selection);
+        let verdicts = |choices: &[ChoiceOption]| -> Verdicts {
+            let set = candidates(&Candidates { schedule: &schedule, exams: &[], sws: &[], choices }, &winter(), None, &selection, plan.town, ALL);
+            fits(&plan, &set, Locale::De).into_iter().map(|fit| (fit.module_id, fit.verdict, fit.note)).collect()
+        };
+        assert_eq!(verdicts(&choices), [partly("W", &(crate::i18n::DE.lectures_free)(2, 3)), clashes("X")]);
+        assert_eq!(verdicts(&[]), [clashes("W"), clashes("X")]);
     }
 
     #[test]
@@ -1228,7 +1306,7 @@ mod tests {
         assert_eq!(with(&two, &["P"]), [partly("Q", "Übung 3 von 4 frei")]);
         assert_eq!(with(&four, &["P"]), [clashes("Q")]);
         // One set serves every plan of the semester; a planned module is no candidate.
-        let input = Candidates { schedule: &schedule, exams: &[], sws: &two };
+        let input = Candidates { schedule: &schedule, exams: &[], sws: &two, choices: &[] };
         let hidden_kinds = KindSet::default().with(EventKind::Seminar);
         let selection = Selection { hidden_kinds, ..Selection::default() };
         let set = candidates(&input, &winter(), None, &selection, Some(Town::Cottbus), NO_EXAMS);
@@ -1276,9 +1354,9 @@ mod tests {
         let fs1 = ids(&["12104", "12107", "12102", "11112"]);
         let selection = Selection { hidden_events: [149408, 148455].into(), ..Selection::default() };
         let plan_input =
-            Input { key, semester: row, facts: &facts, modules: &fs1, schedule: &schedule, exams: &exams, sws: &sws, taken: &[] };
+            Input { key, semester: row, facts: &facts, modules: &fs1, schedule: &schedule, exams: &exams, sws: &sws, taken: &[], choices: &[], listed: &[] };
         let plan = Timetable::build(&plan_input, &selection);
-        let input = Candidates { schedule: &schedule, exams: &exams, sws: &sws };
+        let input = Candidates { schedule: &schedule, exams: &exams, sws: &sws, choices: &[] };
         let started = Instant::now();
         let set = candidates(&input, &facts, row, &selection, plan.town, ALL);
         let built = started.elapsed();

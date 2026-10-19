@@ -14,7 +14,9 @@
 //! unclear time never does.
 //!
 //! An option of an open choice („1 von 4 wählen") that clashes is no conflict while the student
-//! can take another one. The plan's open choices are weighed together: an option is free when it
+//! can take another one, whether the options are an event's Termine or a module's events (one of
+//! three exercises, `model::Across`; of a choice of two, two picks). An extra beside a module's
+//! compulsory part (`Event::extra`) meets nothing: whoever attends it fits it in. The plan's open choices are weighed together: an option is free when it
 //! meets no required Termin, and when every open choice can take a free option with no two picks
 //! meeting, none of their clashes counts (two Übungen whose Friday slots meet leave each other
 //! their other slots). A choice whose every option meets a required Termin is blocked („0 von 4
@@ -68,8 +70,16 @@ struct Found {
     meeting: Meeting,
 }
 
-/// An option of an open choice: `(event, option)`.
-type Pick = (usize, usize);
+/// An open choice: of an event's Termine (`Event::unresolved`), or among a module's events
+/// (`model::Alt`, by index into `Timetable::choices`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Of {
+    Event(usize),
+    Across(usize),
+}
+
+/// An option of an open choice: `(choice, option)`.
+type Pick = (Of, usize);
 
 /// The most picks the search for free options tries per group of choices. A plan has a handful of
 /// open choices with a few options each and needs far fewer; a pathological one falls back to
@@ -77,12 +87,12 @@ type Pick = (usize, usize);
 const MAX_STEPS: usize = 10_000;
 
 /// The hard clashes of the visible rows of `events`, and the open choices that cannot take a free
-/// option (see the module's text). A clash is dropped when one side is an option of an open
-/// choice that is not blocked. The rest are reported once per pair of events, weekday and start
-/// of the overlap, with the first common day and the number of common days, in the order of the
-/// events.
-pub fn clashes(events: &[Event]) -> (Vec<Clash>, Vec<usize>) {
-    let Weighed { hard, blocked } = weigh(events);
+/// option (see the module's text): of an event's Termine by event, among a module's events by
+/// choice. A clash is dropped when one side is an option of an open choice that is not blocked. The
+/// rest are reported once per pair of events, weekday and start of the overlap, with the first
+/// common day and the number of common days, in the order of the events.
+pub fn clashes(events: &[Event]) -> (Vec<Clash>, Vec<usize>, Vec<usize>) {
+    let Weighed { hard, blocked, blocked_choices } = weigh(events);
 
     // Hard clashes by pair of events, weekday and start: the common days, and the pair of rows of
     // the earliest one.
@@ -109,7 +119,29 @@ pub fn clashes(events: &[Event]) -> (Vec<Clash>, Vec<usize>) {
             days: group.days.len(),
         })
         .collect();
-    (clashes, blocked)
+    (clashes, blocked, blocked_choices)
+}
+
+/// The rows of options of open choices that meet a Termin the plan requires, as `(event, row)`:
+/// what taking such an option would cost („überschneidet sich"), though the choice can still take
+/// another. Options of open choices that meet each other leave each other free.
+pub fn option_meetings(events: &[Event]) -> BTreeSet<(usize, usize)> {
+    let option = |(event, row): (usize, usize)| {
+        events.get(event).is_some_and(|e| e.across.is_some_and(|alt| alt.open) || (e.unresolved() && e.rows.get(row).is_some_and(|row| row.option.is_some())))
+    };
+    let mut rows = BTreeSet::new();
+    for f in meetings(events) {
+        match (option(f.a), option(f.b)) {
+            (true, false) => {
+                rows.insert(f.a);
+            }
+            (false, true) => {
+                rows.insert(f.b);
+            }
+            _ => {}
+        }
+    }
+    rows
 }
 
 /// Every row in a hard clash, as `(event, row)`. A reported `Clash` names only the rows of its
@@ -269,10 +301,12 @@ pub fn on_days(overlaps: &[Overlap]) -> usize {
     overlaps.iter().filter(|o| matches!(o.when, When::Day(_))).count()
 }
 
-/// The meetings that count, and the blocked choices by event index.
+/// The meetings that count, and the blocked choices: of an event's Termine by event index, among
+/// a module's events by choice.
 struct Weighed {
     hard: Vec<Found>,
     blocked: Vec<usize>,
+    blocked_choices: Vec<usize>,
 }
 
 /// Weighs the open choices of `events` against their meetings. An option is free when it meets
@@ -285,17 +319,30 @@ struct Weighed {
 /// meeting counts unless one side is an option of a choice that moves away.
 fn weigh(events: &[Event]) -> Weighed {
     let found = meetings(events);
-    let open: BTreeMap<usize, Vec<usize>> = events
-        .iter()
-        .enumerate()
-        .filter(|(_, event)| event.unresolved())
-        .map(|(i, event)| (i, event.visible_options()))
-        .collect();
+    // The open choices, each with its options and how many of them one takes.
+    let mut open: BTreeMap<Of, Vec<usize>> = BTreeMap::new();
+    let mut takes: BTreeMap<Of, usize> = BTreeMap::new();
+    for (i, event) in events.iter().enumerate() {
+        if let Some(alt) = event.across.filter(|alt| alt.open && event.hidden.is_none()) {
+            let options = open.entry(Of::Across(alt.choice)).or_default();
+            if !options.contains(&alt.option) {
+                options.push(alt.option);
+            }
+            takes.insert(Of::Across(alt.choice), alt.take.max(1));
+        } else if event.unresolved() {
+            open.insert(Of::Event(i), event.visible_options());
+            takes.insert(Of::Event(i), 1);
+        }
+    }
     let pick_of = |(event, index): (usize, usize)| -> Option<Pick> {
-        if !open.contains_key(&event) {
+        let e = events.get(event)?;
+        if let Some(alt) = e.across.filter(|alt| alt.open) {
+            return Some((Of::Across(alt.choice), alt.option));
+        }
+        if !open.contains_key(&Of::Event(event)) {
             return None;
         }
-        events.get(event)?.rows.get(index)?.option.map(|option| (event, option))
+        e.rows.get(index)?.option.map(|option| (Of::Event(event), option))
     };
 
     // What each option of an open choice meets: `None` is a required row.
@@ -311,7 +358,7 @@ fn weigh(events: &[Event]) -> Weighed {
     }
     let meets: BTreeSet<(Pick, Pick)> =
         partners.iter().flat_map(|(pick, others)| others.iter().flatten().map(move |other| (*pick, *other))).collect();
-    let free: BTreeMap<usize, Vec<usize>> = open
+    let free: BTreeMap<Of, Vec<usize>> = open
         .iter()
         .map(|(event, options)| {
             let free = options
@@ -343,10 +390,14 @@ fn weigh(events: &[Event]) -> Weighed {
                 }
             }
         }
-        // Fewest options first: a dead end shows early.
-        let mut choices: Vec<(usize, &[usize])> =
-            group.iter().filter_map(|event| Some((*event, free.get(event)?.as_slice()))).collect();
-        choices.sort_by_key(|(event, options)| (options.len(), *event));
+        // Fewest options first: a dead end shows early. A choice of which one takes two is two
+        // picks of different options.
+        let mut choices: Vec<(Of, &[usize])> = group
+            .iter()
+            .filter_map(|choice| Some((*choice, free.get(choice)?.as_slice())))
+            .flat_map(|(choice, options)| std::iter::repeat_n((choice, options), takes.get(&choice).copied().unwrap_or(1)))
+            .collect();
+        choices.sort_by_key(|(choice, options)| (options.len(), *choice));
         let mut steps = MAX_STEPS;
         if place(&choices, &mut Vec::new(), &meets, &mut steps) {
             settled.extend(group);
@@ -359,14 +410,14 @@ fn weigh(events: &[Event]) -> Weighed {
     // an option that meets only options of choices that move away.
     let mut away = settled;
     loop {
-        let more: Vec<usize> = failed
+        let more: Vec<Of> = failed
             .iter()
             .copied()
-            .filter(|event| !away.contains(event))
-            .filter(|event| {
-                open.get(event).into_iter().flatten().any(|option| {
+            .filter(|choice| !away.contains(choice))
+            .filter(|choice| {
+                open.get(choice).into_iter().flatten().any(|option| {
                     partners
-                        .get(&(*event, *option))
+                        .get(&(*choice, *option))
                         .into_iter()
                         .flatten()
                         .all(|other| matches!(other, Some((mover, _)) if away.contains(mover)))
@@ -379,21 +430,23 @@ fn weigh(events: &[Event]) -> Weighed {
         away.extend(more);
     }
 
-    let blocked = open.keys().copied().filter(|event| !away.contains(event)).collect();
-    let moves = |side: (usize, usize)| pick_of(side).is_some_and(|(event, _)| away.contains(&event));
+    let stuck: Vec<Of> = open.keys().copied().filter(|choice| !away.contains(choice)).collect();
+    let blocked = stuck.iter().filter_map(|choice| if let Of::Event(event) = choice { Some(*event) } else { None }).collect();
+    let blocked_choices = stuck.iter().filter_map(|choice| if let Of::Across(across) = choice { Some(*across) } else { None }).collect();
+    let moves = |side: (usize, usize)| pick_of(side).is_some_and(|(choice, _)| away.contains(&choice));
     let hard = found.into_iter().filter(|f| !moves(f.a) && !moves(f.b)).collect();
-    Weighed { hard, blocked }
+    Weighed { hard, blocked, blocked_choices }
 }
 
 /// Whether each choice can take one of its options with no two picks meeting: a depth-first
 /// search that tries at most `steps` picks. Running out of steps counts as no.
 fn place(
-    choices: &[(usize, &[usize])],
+    choices: &[(Of, &[usize])],
     picked: &mut Vec<Pick>,
     meets: &BTreeSet<(Pick, Pick)>,
     steps: &mut usize,
 ) -> bool {
-    let Some(((event, options), rest)) = choices.split_first() else {
+    let Some(((choice, options), rest)) = choices.split_first() else {
         return true;
     };
     for option in options.iter() {
@@ -401,8 +454,9 @@ fn place(
             return false;
         };
         *steps = left;
-        let pick = (*event, *option);
-        if picked.iter().any(|other| meets.contains(&(pick, *other))) {
+        let pick = (*choice, *option);
+        // Two picks of one choice take two of its options.
+        if picked.contains(&pick) || picked.iter().any(|other| meets.contains(&(pick, *other))) {
             continue;
         }
         picked.push(pick);
@@ -420,7 +474,7 @@ fn meetings(events: &[Event]) -> Vec<Found> {
     let placed: Vec<Placed<'_>> = events
         .iter()
         .enumerate()
-        .filter(|(_, event)| event.hidden.is_none())
+        .filter(|(_, event)| event.hidden.is_none() && !event.extra)
         .flat_map(|(event, e)| {
             e.rows.iter().enumerate().filter_map(move |(index, row)| {
                 if row.hidden.is_some() {
@@ -653,6 +707,8 @@ mod tests {
             exams: &[],
             sws: &[],
             taken: &[],
+            choices: &[],
+            listed: &[],
         };
         let t = Timetable::build(&input, &Selection::default());
         crate::model::tests::invariants(&t);

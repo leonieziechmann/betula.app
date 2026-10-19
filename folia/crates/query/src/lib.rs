@@ -515,8 +515,7 @@ pub fn module_choices(db: &dyn Database, module_id: &str) -> Result<Vec<ChoiceOp
     fetch(
         db,
         "module_choices",
-        "SELECT module_id, semester_key, choice, course, kind, basis, sws, pick, option, event_id, label, event_sws \
-         FROM v_module_choice WHERE module_id = ? ORDER BY semester_key DESC, choice, option, event_id",
+        &format!("SELECT {CHOICE_COLUMNS} FROM v_module_choice WHERE module_id = ? ORDER BY semester_key DESC, choice, option, event_id"),
         &[Value::from(module_id)],
     )
 }
@@ -552,6 +551,57 @@ pub fn modules_tracks(db: &dyn Database, module_ids: &[String], semester_key: &s
              ORDER BY t.module_id, t.campus"
         ),
         &[Value::from(semester_key), Value::from(program_id), Value::from(ids)],
+    )
+}
+
+/// The columns of `ChoiceOption`: `v_module_choice`.
+const CHOICE_COLUMNS: &str = "module_id, semester_key, choice, course, kind, basis, sws, pick, option, event_id, label, event_sws";
+
+/// The choices among the events of `module_ids` in a semester (docs/radix/schema-v2.md,
+/// „Choices"), a row per event of an option: the Stundenplan's options („1 von 3"). Empty for
+/// modules without.
+pub fn modules_choices(db: &dyn Database, module_ids: &[String], semester_key: &str) -> Result<Vec<ChoiceOption>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_choices",
+        &format!(
+            "SELECT {CHOICE_COLUMNS} FROM v_module_choice WHERE semester_key = ? AND module_id IN (SELECT value FROM json_each(?)) \
+             ORDER BY module_id, choice, option, event_id"
+        ),
+        &[Value::from(semester_key), Value::from(ids)],
+    )
+}
+
+/// The options of those choices QIS lists `program_id` at (any PO of its family): of a choice
+/// whose options are for other programs, those the program takes (owner, 2026-10-19: „Was QIS
+/// einem Studiengang zuordnet, wählt Betula für ihn vor"). A row per option, the program's name.
+pub fn modules_choice_listed(db: &dyn Database, module_ids: &[String], semester_key: &str, program_id: &str) -> Result<Vec<ChoiceFamily>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "modules_choice_listed",
+        "SELECT f.module_id, f.semester_key, f.choice, f.option, f.family_key, p.name AS program_name, p.is_latest_po \
+         FROM v_module_choice_family f JOIN v_program p ON p.id = ? AND p.family_key = f.family_key \
+         WHERE f.semester_key = ? AND f.module_id IN (SELECT value FROM json_each(?)) ORDER BY f.module_id, f.choice, f.option",
+        &[Value::from(program_id), Value::from(semester_key), Value::from(ids)],
+    )
+}
+
+/// The choices among the events of every module of a semester, as `modules_choices`: the finder's
+/// candidates (`fit::Candidates`).
+pub fn semester_choices(db: &dyn Database, semester_key: &str) -> Result<Vec<ChoiceOption>, DbError> {
+    fetch(
+        db,
+        "semester_choices",
+        &format!("SELECT {CHOICE_COLUMNS} FROM v_module_choice WHERE semester_key = ? ORDER BY module_id, choice, option, event_id"),
+        &[Value::from(semester_key)],
     )
 }
 

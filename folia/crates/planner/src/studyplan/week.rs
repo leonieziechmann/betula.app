@@ -58,7 +58,7 @@ use folia_routes::url::{self, StudyplanUrl};
 use folia_timetable::clash::Weeks;
 use folia_timetable::exams::{ExamShape, Termin};
 use folia_timetable::facts::SemesterFacts;
-use folia_timetable::model::{Event, Row, Timetable};
+use folia_timetable::model::{Across, Alt, Event, Row, TakenBy, Timetable};
 use folia_timetable::occur::Every;
 use folia_timetable::views::{
     kind_and_title, kind_short, short_title, type_text, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel,
@@ -823,7 +823,9 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     let every = shown.every;
     let once = matches!(item.label, WeekLabel::Once { .. });
     let rows: Vec<&Row> = slot_rows(event, item, every).into_iter().filter_map(|r| event.rows.get(r)).collect();
-    let notes = qualifiers(&item.label, every, item.alt, &table.facts, t);
+    // An option of an open choice: how many to take of how many („1 von 3").
+    let take = event.across.filter(|alt| alt.open).map_or(1, |alt| alt.take);
+    let notes = qualifiers(&item.label, every, item.alt.map(|(options, _)| (take, options)), &table.facts, t);
     let hue = hue(event.tone);
     let href = base.with_open(Some(module.as_str()), shown.key).path();
     let place = rooms(rows.iter().map(|row| &row.date));
@@ -853,6 +855,9 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     if clash {
         title.push((t.studyplan_week.clashes_with)(&others.join(", ")));
     }
+    if item.extra {
+        title.push(t.studyplan_week.extra.to_string());
+    }
 
     let slot = GridSlot {
         day: item.day,
@@ -867,6 +872,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         mark: None,
         alt: item.alt.is_some(),
         clash,
+        extra: item.extra,
         href: Some(href.clone()),
         lines: Vec::new(),
         current: false,
@@ -876,7 +882,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     };
     let row = DayRow {
         day: item.day,
-        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash")]),
+        class: classes(hue, &[(item.alt.is_some(), "alt"), (clash, "clash"), (item.extra, "extra")]),
         time: format!("{}–{}", clock(item.from), clock(item.to)),
         text: event_text(event, t.locale),
         note: place.into_iter().chain(notes).collect::<Vec<_>>().join(" · "),
@@ -921,7 +927,7 @@ fn ghost_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String,
             slot.slot.title = format!("{why} · {}", slot.slot.title);
             slot.row.class = classes(hue, &[(true, "faint"), (slot.slot.clash, "clash")]);
             slot.row.note = std::iter::once(why).chain(Some(slot.row.note.clone()).filter(|note| !note.is_empty())).collect::<Vec<_>>().join(" · ");
-            slot.acts = ghost_acts(hidden, item, &slot.row.keys, reason, t);
+            slot.acts = ghost_acts(table, hidden, item, &slot.row.keys, reason, t);
             Some(keyed(slot, 'g', item))
         })
         .collect()
@@ -955,6 +961,8 @@ fn reason_text(reason: HiddenBy, event: &Event, t: &i18n::Texts) -> String {
     match reason {
         HiddenBy::Kinds => (words.kinds_hidden)(&event.kinds.iter().map(|kind| kind.label(t.locale)).collect::<Vec<_>>().join("/")),
         HiddenBy::Choice => words.other_group_chosen.to_string(),
+        HiddenBy::Option => words.other_option_chosen.to_string(),
+        HiddenBy::Program => words.other_programs.to_string(),
         HiddenBy::Event | HiddenBy::Row | HiddenBy::Town(_) | HiddenBy::Course(_) => words.hidden.to_string(),
     }
 }
@@ -1005,6 +1013,17 @@ enum Act {
     Drop { event: u32, rows: Vec<RowKey> },
     /// Shows the slot again: its event, a kind of it, its Termine.
     Show { event: Option<u32>, kind: Option<EventKind>, rows: Vec<RowKey> },
+    /// Takes the slot's event, an option of the choice among its module's events, by a Termin of
+    /// it (`row`): the choices of `events` undone first (all of the choice's where it takes this
+    /// one instead of what it took, none where it is open and has room for it), the event and the
+    /// slot's Termine shown again.
+    ChooseAcross { events: Vec<u32>, event: u32, row: RowKey, rows: Vec<RowKey> },
+    /// Takes the choices of `events` back (the whole choice's where it takes one, else the slot's
+    /// option alone): the choice is open again.
+    UnchooseAcross(Vec<u32>),
+    /// Leaves out the option it took, and undoes the choices of `events` as `UnchooseAcross`: the
+    /// choice is open again, without it.
+    DropAcross { events: Vec<u32>, event: u32 },
 }
 
 impl Act {
@@ -1032,8 +1051,28 @@ impl Act {
                 }
                 rows.iter().for_each(|row| doc.set_row(key, *row, false));
             }
+            Act::ChooseAcross { events, event, row, rows } => {
+                events.iter().for_each(|other| doc.choose(key, *other, None));
+                doc.set_event(key, *event, false);
+                rows.iter().for_each(|row| doc.set_row(key, *row, false));
+                doc.choose(key, *event, Some(*row));
+            }
+            Act::UnchooseAcross(events) => events.iter().for_each(|other| doc.choose(key, *other, None)),
+            Act::DropAcross { events, event } => {
+                events.iter().for_each(|other| doc.choose(key, *other, None));
+                doc.set_event(key, *event, true);
+            }
         }
     }
+}
+
+/// The choice among its module's events that `event` is an option of (`Timetable::choices`): the
+/// ids of all its events, the choice, and what the event is of it.
+fn across_of<'t>(table: &'t Timetable, event: &Event) -> Option<(Vec<u32>, &'t Across, Alt)> {
+    let alt = event.across?;
+    let across = table.choices.get(alt.choice)?;
+    let events = across.options.iter().flatten().filter_map(|index| table.events.get(*index)?.id.parse::<u32>().ok()).collect();
+    Some((events, across, alt))
 }
 
 /// The buttons of a slot of the plan. An option of an open choice: „✓" takes it, „×" leaves it
@@ -1047,6 +1086,28 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
     let Ok(id) = event.id.parse::<u32>() else { return Vec::new() };
     let shown = event.rows.get(item.row);
     let (option, row) = (shown.and_then(|row| row.option), shown.and_then(|row| row.key));
+    // An option of a choice among the module's events: taken („✓") or left out („×") as a whole
+    // event, beside what the open choice took so far; the one the visitor took takes the choice
+    // back, of a choice that takes more than one only itself.
+    if let Some((events, across, alt)) = across_of(table, event) {
+        let chosen = across.by == Some(TakenBy::Chosen) && across.taken.contains(&alt.option);
+        match row {
+            Some(row) if alt.open => {
+                return vec![
+                    SlotAct::take(words.take_option, Act::ChooseAcross { events: Vec::new(), event: id, row, rows: keys.to_vec() }),
+                    SlotAct::leave(words.not_this_option, Act::HideEvent(id)),
+                ];
+            }
+            _ if chosen => {
+                let undone = if across.pick > 1 { vec![id] } else { events };
+                return vec![
+                    SlotAct::taken(words.drop_option, Act::UnchooseAcross(undone.clone())),
+                    SlotAct::leave(words.not_this_option, Act::DropAcross { events: undone, event: id }),
+                ];
+            }
+            _ => {}
+        }
+    }
     match (item.alt, row) {
         (Some(_), Some(row)) => vec![
             SlotAct::take(words.take_group, Act::Choose { event: id, row, rows: keys.to_vec() }),
@@ -1065,11 +1126,19 @@ fn plan_acts(table: &Timetable, item: &WeekItem, keys: &[RowKey], slots: usize, 
 /// („Diese Gruppe nehmen"); a kind switched off comes back with every event of it („„Übung“ wieder
 /// einblenden"); any other Termin is shown again, its event with it. `event` is the plan's, `keys`
 /// the slot's Termine.
-fn ghost_acts(event: &Event, item: &WeekItem, keys: &[RowKey], reason: HiddenBy, t: &i18n::Texts) -> Vec<SlotAct> {
+fn ghost_acts(table: &Timetable, event: &Event, item: &WeekItem, keys: &[RowKey], reason: HiddenBy, t: &i18n::Texts) -> Vec<SlotAct> {
     let words = &t.studyplan_week;
     let id = event.id.parse::<u32>().ok();
     let shown = event.rows.get(item.row);
     let (option, row) = (shown.and_then(|row| row.option), shown.and_then(|row| row.key));
+    // Another option of a choice among the module's events, left out by a choice or the program:
+    // its „✓" takes it instead (owner, 2026-10-19, the concept: „Ein Tipp auf einen anderen Termin
+    // wählt um").
+    if let (HiddenBy::Option | HiddenBy::Program, Some(number), Some(row)) = (reason, id, row) {
+        if let Some((events, ..)) = across_of(table, event) {
+            return vec![SlotAct::take(words.take_option, Act::ChooseAcross { events, event: number, row, rows: keys.to_vec() })];
+        }
+    }
     let act = match (reason, id, row) {
         (HiddenBy::Kinds, _, _) => {
             let kind = event.kinds.iter().next();
@@ -1100,13 +1169,14 @@ fn slot_rows(event: &Event, item: &WeekItem, every: Option<Every>) -> Vec<usize>
         .collect()
 }
 
-/// What a slot says besides its time: which option of a choice not yet made, the weeks it meets
-/// in, the part of the lecture period, or how many single dates it gathers.
-fn qualifiers(label: &WeekLabel, every: Option<Every>, alt: Option<(usize, usize)>, facts: &SemesterFacts, t: &i18n::Texts) -> Vec<String> {
+/// What a slot says besides its time: that it is an option of a choice not yet made (`choice`: how
+/// many to take of how many), the weeks it meets in, the part of the lecture period, or how many
+/// single dates it gathers.
+fn qualifiers(label: &WeekLabel, every: Option<Every>, choice: Option<(usize, usize)>, facts: &SemesterFacts, t: &i18n::Texts) -> Vec<String> {
     let words = &t.studyplan_week;
     let mut parts = Vec::new();
-    if let Some((options, _)) = alt {
-        parts.push((words.one_of)(options));
+    if let Some((take, options)) = choice {
+        parts.push((words.one_of)(take, options));
     }
     match label {
         WeekLabel::Every(every) => parts.extend(rhythm_word(*every, t)),
@@ -1418,8 +1488,8 @@ fn choice_item(table: &Timetable, base: &StudyplanUrl, e: usize, dates: &[(Day, 
         _ => String::new(),
     };
     let small = match days.is_empty() {
-        true => format!("{} · {}", (words.one_of)(options), words.cancelled),
-        false => format!("{} ({})", (words.one_of)(options), days.join(", ")),
+        true => format!("{} · {}", (words.one_of)(1, options), words.cancelled),
+        false => format!("{} ({})", (words.one_of)(1, options), days.join(", ")),
     };
     let text = event_text(event, t.locale);
     let whens = dates.iter().map(|(day, item)| match (item.from, item.to) {
@@ -1456,7 +1526,12 @@ fn teaching_item(table: &Timetable, base: &StudyplanUrl, day: Day, item: &Agenda
 
     let mut small = Vec::new();
     if alt {
-        small.push((words.one_of)(event.visible_options().len()));
+        small.push((words.one_of)(1, event.visible_options().len()));
+    }
+    // An option of an open choice among the module's events.
+    if let Some(alt) = event.across.filter(|alt| alt.open) {
+        let options = table.choices.get(alt.choice).map_or(0, |across| across.choosable(&table.events).len());
+        small.push((words.one_of)(alt.take, options));
     }
     // A room note says where the date is instead of the row's room, so it takes the room's place.
     let said = match (&item.cancelled, &item.note) {
@@ -1768,7 +1843,7 @@ mod tests {
     use folia_calendar::select::{Selection, TownChoice};
     use folia_calendar::semester::SemesterKey;
     use folia_model::labels::Code;
-    use folia_model::rows_detail::DateRow;
+    use folia_model::rows_detail::{ChoiceOption, DateRow};
     use folia_timetable::model::Input;
     use folia_timetable::views::AgendaDay;
 
@@ -1846,7 +1921,7 @@ mod tests {
     fn planned(modules: &[&str], schedule: &[DateRow], exams: &[DateRow]) -> Timetable {
         let facts = winter();
         let modules: Vec<String> = modules.iter().map(|id| id.to_string()).collect();
-        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule, exams, sws: &[], taken: &[] };
+        let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule, exams, sws: &[], taken: &[], choices: &[], listed: &[] };
         Timetable::build(&input, &Selection::default())
     }
 
@@ -1903,7 +1978,8 @@ mod tests {
         // weeks in words, the part of the lecture period.
         let facts = winter();
         let said = |label: WeekLabel, every: Option<Every>, alt| qualifiers(&label, every, alt, &facts, &i18n::DE).join(" · ");
-        assert_eq!(said(WeekLabel::Every(Every::Week), Some(Every::Week), Some((4, 1))), "1 von 4");
+        assert_eq!(said(WeekLabel::Every(Every::Week), Some(Every::Week), Some((1, 4))), "1 von 4");
+        assert_eq!(said(WeekLabel::Every(Every::Week), Some(Every::Week), Some((2, 5))), "2 von 5");
         assert_eq!(said(WeekLabel::Every(Every::BWeek), Some(Every::BWeek), None), "B-Woche");
         let until = WeekLabel::Partial { first: d("2026-10-06"), last: d("2026-11-24") };
         assert_eq!(said(until, Some(Every::AWeek), None), "A-Woche · bis 24.11.");
@@ -2114,7 +2190,7 @@ mod tests {
         let mut doc = PlanDoc::default();
         assert!(doc.plan(key(), "12104", 1, None));
         let plan_week = |doc: &PlanDoc, all: bool| {
-            let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[] };
+            let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] };
             week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
         };
         // Each slot as „Mo 11:30" with its buttons, „✓ …" or „× …".
@@ -2362,6 +2438,101 @@ mod tests {
         assert!(labels.contains(&("VL Höhere Mathematik W-1".to_string(), "Vorlesung · Entwicklung von Softwaresystemen".to_string())), "{labels:?}");
     }
 
+    /// A choice among the module's events, decided in the week: „✓" takes an option, beside what
+    /// a choice of two took so far, else instead; „✓" on the one taken takes it back, of a choice
+    /// of one the whole choice.
+    #[test]
+    fn an_option_among_the_modules_events_is_taken_in_the_week() {
+        let option = |event: &str, weekday: i64, from: &str, to: &str, first: &str| row(event, 1, "Übung", "weekly", weekday, (from, to), (first, "2027-01-29"));
+        let schedule = [
+            option("201", 2, "07:30", "09:00", "2026-10-06"),
+            option("202", 3, "13:45", "15:15", "2026-10-07"),
+            option("203", 4, "11:30", "13:00", "2026-10-08"),
+            option("204", 5, "09:15", "10:45", "2026-10-09"),
+        ];
+        let choice = |pick: u32, options: usize| -> Vec<ChoiceOption> {
+            (1..=options as u32)
+                .map(|n| ChoiceOption {
+                    module_id: "12104".into(),
+                    semester_key: "2026W".into(),
+                    choice: 1,
+                    course: None,
+                    kind: Code::parse("topic"),
+                    basis: Code::parse("form"),
+                    sws: Some(2.0),
+                    pick,
+                    option: n,
+                    event_id: format!("20{n}"),
+                    label: None,
+                    event_sws: Some(2.0),
+                })
+                .collect()
+        };
+        let facts = winter();
+        let modules = vec!["12104".to_string()];
+        let plan_week = |doc: &PlanDoc, choices: &[ChoiceOption], all: bool| {
+            let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices, listed: &[] };
+            week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
+        };
+        let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", if act.icon == "check" { "✓" } else { "×" }, act.label)).collect() };
+        let at = |slots: &[PlanSlot], day: u8| slots.iter().find(|slot| slot.slot.day == day).cloned().unwrap();
+        let days = |slots: &[PlanSlot]| -> Vec<u8> { slots.iter().filter(|slot| slot.slot.class != "faint").map(|slot| slot.slot.day).collect() };
+        let open_buttons = ["✓ Diese nehmen", "× Nicht diese"];
+        let taken_buttons = ["✓ Wahl aufheben", "× Nicht diese"];
+
+        // One of three: each dashed, „1 von 3" in its tooltip, „✓" and „×".
+        let three = choice(1, 3);
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(key(), "12104", 1, None));
+        let open = plan_week(&doc, &three, false);
+        assert_eq!(days(&open), [2, 3, 4, 5]);
+        for day in [2, 3, 4] {
+            let slot = at(&open, day);
+            assert!(slot.slot.alt && slot.slot.title.contains("1 von 3") && said(&slot) == open_buttons, "{day}: {:?} {}", said(&slot), slot.slot.title);
+        }
+        // „✓" on Wednesday: the others leave the week; its „✓", on, takes the choice back.
+        at(&open, 3).acts[0].act.apply(&mut doc, key());
+        let chosen = plan_week(&doc, &three, false);
+        assert_eq!(days(&chosen), [3, 5]);
+        let wednesday = at(&chosen, 3);
+        assert!(!wednesday.slot.alt && said(&wednesday) == taken_buttons && wednesday.slot.acts[0].pressed);
+        wednesday.acts[0].act.apply(&mut doc, key());
+        assert_eq!(days(&plan_week(&doc, &three, false)), [2, 3, 4, 5]);
+        // Tuesday taken, then Thursday's faint „✓" beside the plan takes it instead.
+        at(&plan_week(&doc, &three, false), 2).acts[0].act.apply(&mut doc, key());
+        let all = plan_week(&doc, &three, true);
+        let thursday = at(&all, 4);
+        assert!(thursday.slot.class == "faint" && said(&thursday) == ["✓ Diese nehmen"] && thursday.slot.title.starts_with("andere Option gewählt"), "{}", thursday.slot.title);
+        thursday.acts[0].act.apply(&mut doc, key());
+        assert_eq!(days(&plan_week(&doc, &three, false)), [4, 5]);
+        // „×" on the one taken: open again without it.
+        at(&plan_week(&doc, &three, false), 4).acts[1].act.apply(&mut doc, key());
+        let reopened = plan_week(&doc, &three, false);
+        assert_eq!(days(&reopened), [2, 3, 5]);
+        assert!(at(&reopened, 2).slot.title.contains("1 von 2"), "{}", at(&reopened, 2).slot.title);
+
+        // Two of four: „2 von 4"; a first „✓" leaves the choice open for one more, a second makes
+        // it; „✓" on one of them takes back that one alone.
+        let four = choice(2, 4);
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(key(), "12104", 1, None));
+        let open = plan_week(&doc, &four, false);
+        assert!(open.iter().all(|slot| slot.slot.alt && slot.slot.title.contains("2 von 4")), "{:?}", open.iter().map(|slot| &slot.slot.title).collect::<Vec<_>>());
+        at(&open, 2).acts[0].act.apply(&mut doc, key());
+        let one = plan_week(&doc, &four, false);
+        assert_eq!(days(&one), [2, 3, 4, 5]);
+        assert_eq!(said(&at(&one, 2)), taken_buttons);
+        assert!([3, 4, 5].iter().all(|day| at(&one, *day).slot.title.contains("1 von 3") && said(&at(&one, *day)) == open_buttons));
+        at(&one, 4).acts[0].act.apply(&mut doc, key());
+        let both = plan_week(&doc, &four, false);
+        assert_eq!(days(&both), [2, 4]);
+        at(&both, 2).acts[0].act.apply(&mut doc, key());
+        let back = plan_week(&doc, &four, false);
+        assert_eq!(days(&back), [2, 3, 4, 5]);
+        assert_eq!(said(&at(&back, 4)), taken_buttons);
+        assert!([2, 3, 5].iter().all(|day| at(&back, *day).slot.title.contains("1 von 3")));
+    }
+
     #[test]
     fn an_open_choice_is_one_line_a_week() {
         // Programmierpraktikum (148370): four groups, Mo, Mi, Do 11:30 and Fr 13:45.
@@ -2376,7 +2547,7 @@ mod tests {
         let schedule = [monday, group(2, 3, ("11:30", "13:00"), "2026-10-07"), group(3, 4, ("11:30", "13:00"), "2026-10-08"), group(4, 5, ("13:45", "15:15"), "2026-10-09")];
         let facts = winter();
         let modules = vec!["12104".to_string()];
-        let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[] }, selection);
+        let build = |selection: &Selection| Timetable::build(&Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] }, selection);
 
         let open = build(&Selection::default());
         let blocks = agenda_blocks(&open, &open.agenda(folia_locale::Locale::De), &plain(), None, &i18n::DE);

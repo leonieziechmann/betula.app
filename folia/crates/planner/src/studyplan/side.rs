@@ -219,6 +219,22 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
     let hidden = Memo::new(move |_| ctx.selection.with(|(_, selection)| selection.hidden_kinds));
     let combined = Memo::new(move |_| ctx.table.with(|table| table.as_ref().and_then(|table| combined_hint(table, t))));
     let any = Memo::new(move |_| kinds.with(|kinds| !kinds.is_empty()));
+    // The extras beside the modules' compulsory parts (owner, 2026-10-19, the concept: „lassen sich
+    // wie die Arten unter „Zeigen“ ausblenden („Zusatz“)"): one chip for all of them, which hides
+    // or shows their events.
+    let extras = Memo::new(move |_| {
+        ctx.table.with(|table| {
+            table.as_ref().map(|table| table.events.iter().filter(|event| event.extra && !table.theirs(event)).filter_map(|event| event.id.parse::<u32>().ok()).collect::<Vec<u32>>()).unwrap_or_default()
+        })
+    });
+    let extras_off = Memo::new(move |_| extras.with(|ids| !ids.is_empty() && ctx.selection.with(|(_, selection)| ids.iter().all(|id| selection.hidden_events.contains(id)))));
+    let toggle_extras = move |_| {
+        let (key, hide) = (ctx.key.get_untracked(), !extras_off.get_untracked());
+        let ids = extras.get_untracked();
+        if let Some(plan) = ctx.plan {
+            plan.update(|doc| ids.iter().for_each(|id| doc.set_event(key, *id, hide)));
+        }
+    };
     view! {
         <div class="fgroup">
             <p class="flabel label">{t.studyplan_side.show}</p>
@@ -252,6 +268,19 @@ fn KindsGroup(ctx: PlanCtx) -> impl IntoView {
                                 }
                             }
                         />
+                        {move || extras.with(|ids| !ids.is_empty()).then(|| view! {
+                            <button
+                                class="chip"
+                                type="button"
+                                aria-pressed=move || if extras_off.get() { "false" } else { "true" }
+                                data-state=move || if extras_off.get() { "without" } else { "off" }
+                                title=move || if extras_off.get() { t.studyplan_side.unhide } else { t.studyplan_side.hide }
+                                on:click=toggle_extras
+                            >
+                                <span class="chip-label">{t.studyplan_side.extras}</span>
+                                <span class="chip-count num">{move || extras.with(Vec::len)}</span>
+                            </button>
+                        })}
                     </div>
                     {move || combined.get().map(|text| view! { <p class="hint">{text}</p> })}
                 }
@@ -633,6 +662,8 @@ mod tests {
             course: None,
             tone: 1,
             attendance: if options.is_empty() { Attendance::All } else { Attendance::OneOf { options, basis: folia_timetable::model::Basis::Groups } },
+            across: None,
+            extra: false,
             chosen,
             rows,
             hidden: None,
@@ -655,6 +686,8 @@ mod tests {
             town_derived: false,
             clashes: Vec::new(),
             blocked: Vec::new(),
+            blocked_choices: Vec::new(),
+            choices: Vec::new(),
             exam_warnings: Vec::new(),
             place_unknown: Vec::new(),
             without_dates: Vec::new(),
