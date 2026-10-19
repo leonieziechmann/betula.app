@@ -277,6 +277,15 @@ Program, degree, PO version, regulation documents.
 | Authority | **Derived** (`docs/radix/schema-v2.md`, „Series of single dates"): single dates of one event (no exam), group, weekday and start, three days or more, one to four weeks apart with at least half of the gaps one step, no gap of more than four weeks. The rows themselves stay QIS's; the series only says which belong together (owner, 2026-10-13: the detection is data normalization and belongs in Radix). |
 | Provenance | Rebuilt by every build; a reader that knows no series reads the rows date by date. |
 
+### 5.16 Whom an event is for (2026-10-19)
+
+| | |
+|---|---|
+| Sources | **S3**, the event page's „Studiengänge“: per row the program as QIS names it (a link to its QIS page, `k_abstgv.abstgvnr`), the Fachsemester („1 - 1“), the PO (often empty) and a remark („Wahlpflicht“). The event search (S3's list) names no programs. |
+| Code path | `parser/event.go:parseStudyPrograms` → `model.EventProgram` → `event_program`; resolved to programs by `catalogbuild/eventprograms.go` (`event_program_ref`). |
+| Authority | **S3** for whom the event is meant; the resolution to the catalog's programs is **derived** (`docs/radix/schema-v2.md`, „Tracks“), by name, degree, profile, form of study and PO, every PO of the program where the row names none. A row that resolves to nothing is kept with its label and reported (`build.unresolved_event_programs`), never guessed. |
+| Provenance | Rebuilt by every build from the archived pages; a newer reading of the event search keeps the page's rows. |
+
 ## 6. Spot-check log
 
 Only two live requests were made: 2026-09-19 16:43 CEST, 2 s apart, with the scraper's

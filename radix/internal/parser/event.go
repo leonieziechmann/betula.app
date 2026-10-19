@@ -278,23 +278,47 @@ func (p *EventParser) parseModules(tbl *html.Node, d *model.EventDetail) {
 	}
 }
 
+// parseStudyPrograms reads „Studiengänge": per row the program as QIS names it, the
+// Fachsemester, the PO and a remark, each by its column's heading (the page comments out three
+// more columns, which the parser does not see). A row without a name is none.
 func (p *EventParser) parseStudyPrograms(tbl *html.Node, d *model.EventDetail) {
 	rows := FindAllByTag(tbl, atom.Tr)
+	columns := map[string]int{"label": 0, "semesters": 1, "po": 2, "remark": 3}
 	for _, tr := range rows {
-		tds := FindAllByTag(tr, atom.Td)
-		if len(tds) == 0 {
+		if ths := FindAllByTag(tr, atom.Th); len(ths) > 0 {
+			for i, th := range ths {
+				switch head := strings.ToLower(CleanSingleLine(NodeText(th))); {
+				case strings.Contains(head, "studiengang") || strings.Contains(head, "programme") || strings.Contains(head, "program"):
+					columns["label"] = i
+				case strings.Contains(head, "semester"):
+					columns["semesters"] = i
+				case head == "po" || strings.Contains(head, "prüfungsordnung") || strings.Contains(head, "regulation"):
+					columns["po"] = i
+				case strings.Contains(head, "bemerkung") || strings.Contains(head, "remark") || strings.Contains(head, "comment"):
+					columns["remark"] = i
+				}
+			}
 			continue
 		}
-		var parts []string
-		for _, td := range tds {
-			t := CleanSingleLine(NodeText(td))
-			if t != "" {
-				parts = append(parts, t)
+		tds := FindAllByTag(tr, atom.Td)
+		cell := func(name string) string {
+			if i := columns[name]; i < len(tds) {
+				return CleanSingleLine(NodeText(tds[i]))
+			}
+			return ""
+		}
+		program := model.EventProgram{Label: cell("label"), Semesters: cell("semesters"), PO: cell("po"), Remark: cell("remark")}
+		if program.Label == "" {
+			continue
+		}
+		if i := columns["label"]; i < len(tds) {
+			if a := FindFirstByTag(tds[i], atom.A); a != nil {
+				if u, err := url.Parse(GetAttr(a, "href")); err == nil {
+					program.QISID = u.Query().Get("k_abstgv.abstgvnr")
+				}
 			}
 		}
-		if len(parts) > 0 {
-			d.StudyPrograms = append(d.StudyPrograms, strings.Join(parts, " | "))
-		}
+		d.Programs = append(d.Programs, program)
 	}
 }
 

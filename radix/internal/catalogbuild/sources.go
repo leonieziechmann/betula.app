@@ -277,6 +277,10 @@ func loadEvents(ctx context.Context, db *catalogdb.DB, src *sources, report *Rep
 					entry.Schedules[i].Room = name
 				}
 			}
+			// The search names no programs: whom the event is for stays what its page says.
+			if page != nil && len(entry.Programs) == 0 {
+				entry.Programs = page.detail.Programs
+			}
 			src.events[p.Key] = &eventPage{detail: entry, url: p.URL, fetchedAt: p.FetchedAt}
 			report.EventsFromList++
 		}
