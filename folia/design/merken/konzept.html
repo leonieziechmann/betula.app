@@ -1,0 +1,742 @@
+<title>Betula Merken-Konzept</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- What the Merkliste does, before how it looks (owner, 2026-10-19: „lass mal bitte an der Merken page
+     arbeiten. Aktuell ist die ziemlich unpraktisch … Wenn man sich gedanken zu seinem Studium macht guckt
+     man sich ja potentiell viele module an, um welche zu finden, die die eigenen interessen abbilden. Die
+     merken page ist dafür da interessante funde festzuhalten, damit man sie später wieder findet. Dabei ist
+     das aber nicht nur für den eigenen plan, denn oftmals möchte man sich einfach was für freunde merken,
+     oder findet irgendwas witzig. Es kann also von ein paar wenigen modulen bis zu hundert alles möglich
+     sein. Auf die gemerkten module soll dann von allen anderen stellen zugegriffen werden können. Also zum
+     Beispiel vom Plan für das Studium oder ein extra termin im Stundenplan. Die Merken Liste soll also genau
+     so komplex für den einzelnen nutzer sein, wie er es braucht. Also von dem punkt, wo das eine unsortiete
+     ablage ist, bis hin zu verschiedenen Gruppen und suche/sortierung/filter in den gemerken modulen. Bitte
+     erstelle als erstes ein konzept zu der funktionalität, die du vorsehen würdest für diese merken Liste.
+     Wenn wir das geklärt haben können wir weiter mit dem UI und UX design fortfahen."; and on 2026-10-17,
+     of the menu at „Einplanen": „Bau das system gleich so, dass man das dann später auch für merken machen
+     kann, so dass man da mehrere gruppen haben kann. Aber imementiere das bitte noch nicht"). A concept of
+     the functions only; the UI and UX follow in a second round. Read against canary (Folia 1.29.2,
+     2026-10-19) with 46 marked modules, on a phone (412 × 915) and a desktop (1366 × 860), and against the
+     code of that day: folia/crates/bookmarks, folia/crates/stores/src/bookmarks.rs,
+     folia/crates/planner/src/studyplan/head.rs („Aus der Merkliste"), folia/crates/planner/src/study/picker.rs
+     („Module hinzufügen"), folia/crates/shell/src/chrome.rs (the search at the head),
+     folia/crates/widgets/src/plannote.rs (the note of „Einplanen"). Tokens are Betula's (folia/assets/app.css). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: the thesis and its five sentences at the top, then what the list is for, today, the model, the
+   four stages, and one block per function; the steps and the questions at the end. The figures are schemas
+   in Betula's own tokens, drawn quiet on purpose: they show how things hang together, not how they look. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --warn: #a35a00; --warn-soft: color-mix(in srgb, #d97706 11%, var(--panel));
+  --no: #c2410c; --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --r-panel: 9px; --r-ctl: 9px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+p, ul, ol, figure, blockquote, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code { font-family: var(--mono); font-size: .84em; padding: 1px 4px; border-radius: 4px; background: var(--panel-3); overflow-wrap: anywhere; }
+a { color: var(--accent-ink); text-underline-offset: 3px; }
+b { font-weight: 650; }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: .86em; color: var(--text-3); }
+.page { max-width: 1180px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 24px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.block { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 22px 24px; scroll-margin-top: 24px; min-width: 0; }
+.block > h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.block > .lead { margin-top: 6px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.block > .lead b { color: var(--text); }
+.block > * + h3 { margin-top: 24px; }
+.block h3 { font-size: 15.5px; font-weight: 700; }
+.muted { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.note { margin-top: 12px; max-width: 86ch; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+.note b { color: var(--text-2); }
+
+/* The thesis. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(27px, 4vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 760; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin-top: 18px; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.toc a { padding: 5px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.toc a:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin-top: 12px; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules .who { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+
+/* Plain lists with a bold lead. */
+.points { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; max-width: 88ch; }
+.points li { position: relative; padding-left: 18px; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.points li::before { content: ""; position: absolute; left: 3px; top: .62em; width: 6px; height: 6px; border-radius: 2px; background: var(--line-strong); }
+.points li b { color: var(--text); }
+
+/* What the list is for: four cases. */
+.cases { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.case { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.case h3 { font-size: 15px; }
+.case p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.case .mod { color: var(--text); font-weight: 600; }
+.case .needs { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; }
+.case .needs b { color: var(--text-2); font-weight: 650; }
+
+/* Today: findings, and the phone's page to scale. */
+.finds { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.finds li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; min-width: 0; }
+.finds li b { display: block; margin-bottom: 4px; color: var(--text); font-weight: 680; }
+.finds li.worst { background: var(--no-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 30%, transparent); }
+.depth { margin-top: 18px; padding: 16px 18px 14px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.depth figcaption { color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.depth figcaption b { color: var(--text); }
+.depth-scale { position: relative; height: 18px; margin-top: 14px; }
+.depth-scale span { position: absolute; left: calc(var(--at) / 5240 * 100%); transform: translateX(-50%); color: var(--text-3); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.depth-bar { position: relative; height: 34px; border-radius: 8px; background: var(--panel-3); overflow: hidden; }
+.depth-bar i { position: absolute; top: 0; bottom: 0; left: calc(var(--from) / 5240 * 100%); width: calc((var(--to) - var(--from)) / 5240 * 100%); }
+.depth-bar .rows { background: color-mix(in srgb, var(--text-3) 26%, var(--panel-3)); background-image: repeating-linear-gradient(90deg, transparent 0 7px, color-mix(in srgb, var(--panel) 55%, transparent) 7px 8px); }
+.depth-bar .side { background: var(--no); }
+.depth-bar .ground { background: color-mix(in srgb, var(--text-3) 12%, var(--panel-3)); }
+.depth-bar .view { top: 3px; bottom: 3px; border-radius: 6px; box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.depth-bar .tick { width: 1px; left: calc(var(--at) / 5240 * 100%); background: color-mix(in srgb, var(--text) 30%, transparent); }
+.depth-key { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--text-2); font-size: 13px; }
+.depth-key span { display: inline-flex; align-items: center; gap: 7px; }
+.depth-key i { width: 14px; height: 10px; border-radius: 3px; flex: none; }
+.depth-key .k-view { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.depth-key .k-rows { background: color-mix(in srgb, var(--text-3) 26%, var(--panel-3)); }
+.depth-key .k-side { background: var(--no); }
+.depth-key .k-ground { background: color-mix(in srgb, var(--text-3) 12%, var(--panel-3)); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.keep { margin-top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text-2); font-size: 14px; max-width: 100%; text-wrap: pretty; }
+.keep b { color: var(--text); }
+
+/* The model: what you keep and what Betula knows; a schema of a list. */
+.two { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.two > div { padding: 16px 18px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.two h3 { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.two ul { margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.two li { position: relative; padding-left: 16px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.two li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 2px; background: var(--line-strong); }
+.two li b { color: var(--text); }
+.swatch { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.swatch.you { box-shadow: inset 0 0 0 1.5px var(--text); background: var(--panel); }
+.swatch.betula { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.schema { margin-top: 18px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; padding: 16px; border-radius: 14px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.schema-groups { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); align-self: start; }
+.schema-groups p { margin-bottom: 4px; }
+.schema-groups div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; border-radius: 7px; font-size: 13.5px; color: var(--text-2); }
+.schema-groups div b { color: var(--text); font-weight: 620; }
+.schema-groups div.on { background: var(--panel-3); }
+.schema-groups div.derived { color: var(--text-3); font-style: italic; }
+.schema-groups .num { color: var(--text-3); }
+.schema-rows { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 12px; border-radius: 10px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); min-width: 0; }
+.mrow .t { font-size: 14px; font-weight: 620; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.mrow .facts { grid-column: 1; color: var(--text-3); font-size: 12.5px; }
+.mrow .facts .state { color: var(--accent-ink); font-weight: 600; }
+.mrow .tags { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: 4px; max-width: 220px; }
+.tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--text); color: var(--text); font-size: 12px; font-weight: 620; white-space: nowrap; }
+.mrow .memo { grid-column: 1 / -1; display: flex; gap: 6px; align-items: baseline; padding: 5px 8px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--text); color: var(--text); font-size: 12.5px; text-wrap: pretty; }
+.mrow .memo::before { content: "Notiz"; color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.schema-cap { grid-column: 1 / -1; color: var(--text-3); font-size: 12.5px; text-wrap: pretty; }
+
+/* The four stages: what is new in each. */
+.stages { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.stage { padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; background: var(--panel); }
+.stage + .stage { box-shadow: inset 1px 0 0 var(--line); }
+.stage .n { display: flex; align-items: baseline; gap: 8px; }
+.stage .n span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 700; flex: none; }
+.stage h3 { font-size: 16px; }
+.stage .when { color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+.stage .does { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.stage .does b { color: var(--text); }
+.stage ul { display: flex; flex-direction: column; gap: 5px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+.stage ul::before { content: "Neu zu sehen"; margin-bottom: 2px; color: var(--text-3); font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.stage li { padding: 5px 9px; border-radius: 7px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text); font-size: 13px; text-wrap: pretty; }
+.stage-rules { margin-top: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.stage-rules li { padding: 12px 14px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.stage-rules li b { display: block; margin-bottom: 3px; color: var(--text); font-weight: 680; }
+
+/* The note after „Merken": its parts, as a schema. */
+.parts { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; border-radius: 12px; overflow: hidden; background: var(--invert); color: var(--on-invert); max-width: 860px; }
+.parts > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; min-width: 0; flex: 1 1 140px; }
+.parts > div + div { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 18%, transparent); }
+.parts b { font-size: 13.5px; }
+.parts small { color: color-mix(in srgb, var(--on-invert) 66%, transparent); font-size: 12px; text-wrap: pretty; }
+.parts-cap { margin-top: 8px; color: var(--text-3); font-size: 12.5px; }
+
+/* Columns of rules. */
+.cols2 { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.cols2 > div { min-width: 0; }
+.cols2 h3 { font-size: 15.5px; }
+.cols2 .points { margin-top: 10px; }
+
+/* Tables. */
+.tablewrap { margin-top: 16px; overflow-x: auto; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--line); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); text-wrap: pretty; }
+th { font-size: 12px; font-weight: 650; letter-spacing: .03em; color: var(--text-3); background: var(--panel-2); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 620; color: var(--text); }
+td { color: var(--text-2); }
+td .today { color: var(--text-3); }
+td b { color: var(--text); }
+.size { display: inline-block; padding: 1px 8px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.size.l { background: var(--warn-soft); color: var(--warn); }
+
+/* Deliberately not, later. */
+.not { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.not div { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.not h3 { font-size: 14px; font-weight: 700; }
+.not p { margin-top: 4px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+
+/* The questions. */
+.ask { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.ask li { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+.ask h3 { font-size: 15px; }
+.ask p { margin-top: 6px; color: var(--text-2); font-size: 14px; max-width: 92ch; text-wrap: pretty; }
+.ask .rec { display: flex; gap: 10px; align-items: baseline; margin-top: 8px; padding: 9px 12px; border-radius: 9px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text); font-size: 14px; text-wrap: pretty; }
+.ask .rec::before { content: "Empfehlung"; flex: none; color: var(--accent-ink); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.next { margin-top: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; max-width: 980px; }
+.next li { position: relative; padding-left: 18px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.next li::before { content: "→"; position: absolute; left: 0; color: var(--text-3); }
+.src { margin-top: 18px; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
+
+@media (max-width: 1000px) {
+  .cases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stage:nth-child(3) { box-shadow: inset 0 1px 0 var(--line); }
+  .stage:nth-child(4) { box-shadow: inset 1px 0 0 var(--line), inset 0 1px 0 var(--line); }
+  .not { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .schema { grid-template-columns: minmax(0, 1fr); }
+  .schema-groups { flex-direction: row; flex-wrap: wrap; }
+  .schema-groups p { width: 100%; }
+  .schema-groups div { flex: 0 0 auto; }
+}
+@media (max-width: 700px) {
+  .block { padding: 18px 16px; }
+  .finds, .two, .stage-rules, .cols2, .next { grid-template-columns: minmax(0, 1fr); }
+  .not { grid-template-columns: minmax(0, 1fr); }
+  .depth-scale span { font-size: 10.5px; }
+}
+@media (max-width: 560px) {
+  .cases, .stages { grid-template-columns: minmax(0, 1fr); }
+  .stage + .stage, .stage:nth-child(3), .stage:nth-child(4) { box-shadow: inset 0 1px 0 var(--line); }
+  .mrow { grid-template-columns: minmax(0, 1fr); }
+  .mrow .tags { grid-column: 1; grid-row: auto; justify-content: flex-start; max-width: none; }
+  th, td { padding: 8px 10px; font-size: 13.5px; }
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; }
+  table.stack tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  table.stack tr:last-child { border-bottom: 0; }
+  table.stack td { padding: 3px 0; border: 0; }
+  table.stack td:first-child { font-size: 14.5px; padding-bottom: 4px; }
+  table.stack td + td::before { content: attr(data-label) ": "; color: var(--text-3); font-weight: 600; }
+}
+</style>
+
+<main class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Merkliste · 19.10.2026</p>
+      <h1>Merken bleibt ein Tipp, Ordnung kommt erst, wenn man sie will</h1>
+      <p class="lead">Die Merkliste hält fest, was man beim Stöbern findet, damit man es wiederfindet: fürs eigene Studium, für Freunde, oder weil es witzig ist. Dieses Blatt legt fest, was sie können soll; wie sie aussieht, folgt in der nächsten Runde. Der Kern: Merken bleibt ein Tipp ohne Frage. Was darüber hinausgeht, liegt dort, wo man es braucht: eine Suche in den gemerkten Modulen, eine Notiz, warum etwas da steht, Gruppen für die verschiedenen Zwecke, und die Merkliste als Quelle in „Mein Studium“, im Stundenplan und im Katalog. Wer nur sammelt, merkt davon nichts.</p>
+      <blockquote class="quote">„Die merken page ist dafür da <b>interessante funde festzuhalten, damit man sie später wieder findet</b>. Dabei ist das aber nicht nur für den eigenen plan, denn oftmals möchte man sich einfach <b>was für freunde merken, oder findet irgendwas witzig</b>. Es kann also <b>von ein paar wenigen modulen bis zu hundert</b> alles möglich sein. <b>Auf die gemerkten module soll dann von allen anderen stellen zugegriffen werden können</b> … Die Merken Liste soll also <b>genau so komplex für den einzelnen nutzer sein, wie er es braucht</b>.“</blockquote>
+      <nav class="toc" aria-label="Inhalt"><a href="#wofuer">Wofür</a><a href="#heute">Heute</a><a href="#modell">Das Modell</a><a href="#stufen">Vier Stufen</a><a href="#merken">Merken</a><a href="#gruppen">Gruppen und Notizen</a><a href="#finden">Wiederfinden</a><a href="#mehrere">Mehrere</a><a href="#ueberall">Von überall</a><a href="#teilen">Weitergeben</a><a href="#grenzen">Grenzen</a><a href="#darunter">Darunter</a><a href="#schritte">Schritte</a><a href="#offen">Zu klären</a></nav>
+    </div>
+    <aside class="rules" aria-labelledby="short-title">
+      <p class="kicker" id="short-title">In fünf Sätzen</p>
+      <ol>
+        <li><span><b>Merken bleibt ein Tipp.</b> Das Modul steht sofort auf der Liste. Ein Hinweis danach bietet eine Gruppe und eine Notiz an und geht, sobald du weitermachst.</span></li>
+        <li><span><b>Ein Modul trägt eine Notiz und beliebig viele Gruppen.</b> „Für Lena“ und „Wahlpflicht“ zugleich geht. Gruppen ordnen die Merkliste und sind keine zweite: Was in einer Gruppe steht, ist gemerkt.</span></li>
+        <li><span><b>Wiederfinden geht ohne Ordnen.</b> Auf der Merkliste sucht das Suchfeld oben in den gemerkten Modulen und ihren Notizen, und Betula ordnet von selbst nach Zeit, nach Angebot und danach, wo ein Modul in deinem Studium zählt.</span></li>
+        <li><span><b>Die Merkliste ist überall eine Quelle.</b> Wo Betula nach einem Modul fragt, in „Mein Studium“, im Stundenplan, im Katalog, stehen die gemerkten bereit: die passenden zuerst, die anderen mit dem Grund.</span></li>
+        <li><span><b>Eine Gruppe lässt sich weitergeben.</b> Ein Link bringt sie zu Freunden oder aufs eigene Handy, ohne dass der Server sie sieht, und dort kommt sie als Gruppe an.</span></li>
+      </ol>
+      <p class="who">Nur Funktion: Wo etwas steht und wie es aussieht, entscheidet die Runde zu UI und UX. Die Bilder hier sind Schemas, keine Entwürfe.</p>
+    </aside>
+  </header>
+
+  <section class="block" id="wofuer" aria-labelledby="for-title">
+    <h2 id="for-title">Wofür die Merkliste da ist</h2>
+    <p class="lead">Wer sein Studium plant, sieht sich viele Module an, um die zu finden, die zu den eigenen Interessen passen. Die Merkliste hält die Funde fest. Vier Fälle, mit Modulen aus dem Katalog vom 19.10.:</p>
+    <div class="cases">
+      <article class="case">
+        <p class="kicker">Fürs eigene Studium</p>
+        <h3>Zwei Kandidaten für die Wahlpflicht</h3>
+        <p><span class="mod">Machine Learning for Engineers</span> <span class="mono">14642</span> (6 LP, Winter) und <span class="mod">Praktikum Maschinelles Lernen</span> <span class="mono">13566</span> (4 LP, Winter). Später vergleicht man sie und plant eins in „Mein Studium“ ein.</p>
+        <p class="needs"><b>Braucht:</b> wiederfinden, sehen, wo es zählt, aus „Mein Studium“ heraus holen.</p>
+      </article>
+      <article class="case">
+        <p class="kicker">Für jemand anderen</p>
+        <h3>Etwas für eine Freundin</h3>
+        <p><span class="mod">Music and Artificial Intelligence</span> <span class="mono">14896</span> (4 LP, begrenzte Plätze) für eine Freundin, die Musik macht. Später schickt man es ihr.</p>
+        <p class="needs"><b>Braucht:</b> festhalten, für wen es ist, und es weitergeben.</p>
+      </article>
+      <article class="case">
+        <p class="kicker">Weil es witzig ist</p>
+        <h3>Kein Plan dahinter</h3>
+        <p><span class="mod">Das ist Kunst - kann ich das auch?</span> <span class="mono">14169</span> (FÜS, 6 LP). Vielleicht zeigt man es jemandem, vielleicht nicht.</p>
+        <p class="needs"><b>Braucht:</b> ablegen, ohne etwas auszufüllen.</p>
+      </article>
+      <article class="case">
+        <p class="kicker">Zum Reinschnuppern</p>
+        <h3>Mal in die Vorlesung</h3>
+        <p><span class="mod">Praktische Philosophie</span> <span class="mono">12177</span> (FÜS, Winter, 1 Termin): einmal hingehen und sehen, ob es etwas ist.</p>
+        <p class="needs"><b>Braucht:</b> in den Stundenplan holen, als Extra.</p>
+      </article>
+    </div>
+    <p class="note"><b>Daraus folgt:</b> Die Merkliste hat keinen Zweck, den Betula kennen kann. Nach dem Zweck ordnen kann nur, wer gemerkt hat; Betula ordnet nach dem, was es selbst weiß. Und sie muss mit drei Modulen so einfach sein wie heute und mit hundert noch zu überblicken.</p>
+  </section>
+
+  <section class="block" id="heute" aria-labelledby="today-title">
+    <h2 id="today-title">Was heute unpraktisch ist</h2>
+    <p class="lead">Nachgesehen auf canary (Folia 1.29.2, 19.10.2026) mit 46 gemerkten Modulen aus zehn Suchen, am Handy (412 × 915) und am Rechner (1366 × 860), und im Code dieses Tages.</p>
+    <ul class="finds">
+      <li class="worst"><b>Am Handy liegt alles außer der Liste unter der Liste.</b> „Angeboten im“, „Reihenfolge“, „Liste kopieren“, „Übertragen“ und „Leeren“ kommen erst nach allen 46 Modulen: „Reihenfolge“ steht 4.495 px tief, fast fünf Bildschirmhöhen. Mit 100 Modulen wären es rund zehn.</li>
+      <li class="worst"><b>Das Suchfeld oben sucht nicht in der Merkliste.</b> Wer dort „Philosophie“ tippt, landet im Tab Module bei den 11 Modulen des ganzen Katalogs. Die fünf gemerkten Philosophie-Module findet man auf der Merkliste nur durch Scrollen.</li>
+      <li><b>Eine Liste für alles.</b> Wahlpflicht-Kandidaten, das Modul für die Freundin und das witzige stehen in einer Reihe, ohne Gruppe und ohne Notiz, warum sie da stehen. Nach ein paar Wochen weiß man es nicht mehr.</li>
+      <li><b>Die Summe sagt nichts.</b> „46 gemerkte Module · 281 LP“ zählt das witzige und das für Freunde mit. Eine Summe hat erst für einen Teil einen Sinn, etwa für die Kandidaten der Wahlpflicht.</li>
+      <li><b>Filtern geht nur nach Winter und Sommer.</b> Nicht danach, was schon eingeplant ist, was in den Stundenplan passt oder was in deinem Studiengang zählt; all das weiß Betula an anderer Stelle schon.</li>
+      <li><b>„Zuletzt gemerkt“ ohne Zeit.</b> Die Reihenfolge stimmt, aber nichts zeigt, wo „letzte Woche“ beginnt.</li>
+      <li><b>Weitergeben nur im Ganzen.</b> „Auf anderes Gerät übertragen“ bringt die ganze Liste, „Liste kopieren“ die ganze Liste als Text. Drei Module für eine Freundin gehen nicht.</li>
+      <li><b>Von anderswo kommt man kaum heran.</b> „Module hinzufügen“ in „Mein Studium“ holt aus dem Regelstudienplan und dem Katalog, nicht aus der Merkliste. Der Stundenplan bietet „Aus der Merkliste“ an, aber nur die im Halbjahr angebotenen, einzeln, ohne Suche. In die andere Richtung geht es: Aus der Merkliste plant „Einplanen“ jedes Modul einzeln.</li>
+    </ul>
+    <figure class="depth" aria-label="Die Merkliste am Handy, maßstäblich: 5.240 px hoch, die Werkzeuge ab 4.276 px">
+      <figcaption><b>Die Merkliste am Handy, maßstäblich.</b> 46 Module, die Seite 5.240 px hoch. Die Ziffern oben zählen Bildschirmhöhen zu 915 px.</figcaption>
+      <div class="depth-scale" aria-hidden="true"><span style="--at: 915">1</span><span style="--at: 1830">2</span><span style="--at: 2745">3</span><span style="--at: 3660">4</span><span style="--at: 4575">5</span></div>
+      <div class="depth-bar" aria-hidden="true">
+        <i class="rows" style="--from: 150; --to: 4250"></i>
+        <i class="side" style="--from: 4276; --to: 4920"></i>
+        <i class="ground" style="--from: 4950; --to: 5240"></i>
+        <i class="tick" style="--at: 915"></i><i class="tick" style="--at: 1830"></i><i class="tick" style="--at: 2745"></i><i class="tick" style="--at: 3660"></i><i class="tick" style="--at: 4575"></i>
+        <i class="view" style="--from: 0; --to: 915"></i>
+      </div>
+      <p class="depth-key"><span><i class="k-view"></i>was man beim Öffnen sieht</span><span><i class="k-rows"></i>46 Module, je eine Karte</span><span><i class="k-side"></i>Übersicht, Angeboten im, Reihenfolge, Aktionen (ab 4.276 px)</span><span><i class="k-ground"></i>Boden mit Impressum</span></p>
+    </figure>
+    <p class="keep"><b>Was gut ist und bleibt:</b> Ein Tipp merkt (das Lesezeichen, M, eine Zeile nach links gewischt). Ein Modul, das man auf der Merkliste entfernt, bleibt gedimmt stehen, bis man die Seite verlässt, ein Tipp holt es zurück. Ein Modul, das die BTU nicht mehr führt, bleibt benannt. Und alles bleibt im Browser, ohne Konto.</p>
+  </section>
+
+  <section class="block" id="modell" aria-labelledby="model-title">
+    <h2 id="model-title">Was ein Merker ist</h2>
+    <p class="lead">Heute ist ein Merker ein Modul und der Zeitpunkt, an dem es gemerkt wurde. Dazu kommen zwei Dinge, die nur du weißt, und vieles, was Betula ohnehin weiß.</p>
+    <div class="two">
+      <div>
+        <h3><i class="swatch you" aria-hidden="true"></i>Was du festhältst</h3>
+        <ul>
+          <li><b>das Modul und wann du es gemerkt hast</b>, wie heute</li>
+          <li><b>eine Notiz</b>, wenn du willst: „Lena fragen“, „Prüfung mündlich?“, „erst im Master“</li>
+          <li><b>die Gruppen</b>, in denen es steht: keine, eine oder mehrere</li>
+        </ul>
+        <p class="note">Gespeichert im Browser, je Profil, wie die Merkliste heute (R20).</p>
+      </div>
+      <div>
+        <h3><i class="swatch betula" aria-hidden="true"></i>Was Betula dazu weiß</h3>
+        <ul>
+          <li><b>wann es angeboten wird</b> und ob es Termine hat (der Katalog)</li>
+          <li><b>ob es eingeplant ist</b>, in welchem Semester, oder bestanden („Mein Studium“)</li>
+          <li><b>wo es in deinem Studiengang zählt</b>: Pflicht, Wahlpflicht in welchem Bereich, FÜS, oder gar nicht („Mein Studiengang“)</li>
+          <li><b>ob es in deinen Stundenplan passt</b>, wie „Passt in meinen Stundenplan“ im Katalog</li>
+          <li><b>ob die BTU es noch führt</b></li>
+        </ul>
+        <p class="note">Nie gespeichert, immer aus dem Stand von jetzt.</p>
+      </div>
+    </div>
+    <h3>Zwei Arten von Ordnung</h3>
+    <ul class="points">
+      <li><b>Was Betula weiß, ordnet Betula:</b> nach Zeit, nach Angebot, nach Studium. Das kostet dich nichts und ist immer aktuell.</li>
+      <li><b>Was nur du weißt, ordnest du:</b> wofür, für wen, warum. Dafür sind Gruppen und Notizen da. Betula rät hier nicht und legt nichts an.</li>
+    </ul>
+    <figure class="schema" aria-label="Schema einer Merkliste mit sechs Modulen, drei Gruppen und zwei Notizen">
+      <div class="schema-groups">
+        <p class="kicker">Gruppen</p>
+        <div class="on"><b>Alle</b><span class="num">6</span></div>
+        <div class="derived"><span>Ohne Gruppe</span><span class="num">2</span></div>
+        <div><b>Wahlpflicht</b><span class="num">2</span></div>
+        <div><b>Für Lena</b><span class="num">2</span></div>
+        <div><b>Witzig</b><span class="num">1</span></div>
+      </div>
+      <div class="schema-rows">
+        <div class="mrow"><span class="t">Theoretische Informatik</span><span class="tags"></span><span class="facts"><span class="mono">11787</span> · 8 LP · Winter · <span class="state">eingeplant, WiSe 26/27</span></span></div>
+        <div class="mrow"><span class="t">Machine Learning for Engineers</span><span class="tags"><span class="tag">Wahlpflicht</span></span><span class="facts"><span class="mono">14642</span> · 6 LP · Winter · EN · <span class="state">zählt: Wahlpflicht</span></span><span class="memo">lieber als das Praktikum?</span></div>
+        <div class="mrow"><span class="t">Praktikum Maschinelles Lernen</span><span class="tags"><span class="tag">Wahlpflicht</span></span><span class="facts"><span class="mono">13566</span> · 4 LP · Winter · <span class="state">zählt: Wahlpflicht</span></span></div>
+        <div class="mrow"><span class="t">Music and Artificial Intelligence</span><span class="tags"><span class="tag">Für Lena</span></span><span class="facts"><span class="mono">14896</span> · 4 LP · unregelmäßig · EN · begrenzte Plätze</span><span class="memo">früh anmelden, Plätze sind begrenzt</span></div>
+        <div class="mrow"><span class="t">Das ist Kunst - kann ich das auch?</span><span class="tags"><span class="tag">Witzig</span><span class="tag">Für Lena</span></span><span class="facts"><span class="mono">14169</span> · 6 LP · unregelmäßig · FÜS</span></div>
+        <div class="mrow"><span class="t">Praktische Philosophie</span><span class="tags"></span><span class="facts"><span class="mono">12177</span> · 6 LP · Winter · FÜS</span></div>
+      </div>
+      <figcaption class="schema-cap">Schema, kein Entwurf: so hängen Merker, Notizen und Gruppen zusammen. Kräftig umrandet, was du festhältst; grau, was Betula weiß. Module und Angaben aus dem Katalog vom 19.10.; Gruppen, Notizen, „eingeplant“ und „zählt“ sind Beispiele. „Das ist Kunst“ steht in zwei Gruppen, „Ohne Gruppe“ zählt die zwei, die in keiner stehen.</figcaption>
+    </figure>
+  </section>
+
+  <section class="block" id="stufen" aria-labelledby="stages-title">
+    <h2 id="stages-title">Mitwachsen in vier Stufen</h2>
+    <p class="lead">Niemand richtet die Merkliste ein. Eine Stufe beginnt, wenn jemand zum ersten Mal tut, wofür sie da ist; vorher steht nichts davon im Weg. Die Stufen beschreiben, was jemand tut, nicht was Betula freischaltet.</p>
+    <div class="stages">
+      <div class="stage">
+        <div class="n"><span>1</span><h3>Sammeln</h3></div>
+        <p class="when">ein paar Module, bis ein Bildschirm voll</p>
+        <p class="does"><b>Du</b> merkst, öffnest wieder, entfernst.</p>
+        <ul>
+          <li>die Liste, das Neueste oben</li>
+          <li>Abschnitte nach der Zeit: Heute, Diese Woche, September</li>
+          <li>die Suche oben sucht in der Merkliste</li>
+        </ul>
+      </div>
+      <div class="stage">
+        <div class="n"><span>2</span><h3>Wiederfinden</h3></div>
+        <p class="when">ab etwa 15, sicher ab 40</p>
+        <p class="does"><b>Du</b> suchst, lässt ordnen, schränkst ein.</p>
+        <ul>
+          <li>Ordnung nach Studium und nach Angebot</li>
+          <li>Filter, die etwas trennen: Stand, passt, zählt</li>
+          <li>alle Filter des Katalogs, eine Stufe tiefer</li>
+        </ul>
+      </div>
+      <div class="stage">
+        <div class="n"><span>3</span><h3>Ordnen</h3></div>
+        <p class="when">sobald du die erste Gruppe anlegst oder eine Notiz schreibst</p>
+        <p class="does"><b>Du</b> legst Gruppen an, ordnest zu, schreibst dazu, warum.</p>
+        <ul>
+          <li>die Gruppen und „Ohne Gruppe“ zur Wahl</li>
+          <li>Gruppen und Notiz an Zeile und Modul</li>
+          <li>die zuletzt benutzten Gruppen im Hinweis nach dem Merken</li>
+        </ul>
+      </div>
+      <div class="stage">
+        <div class="n"><span>4</span><h3>Verwenden</h3></div>
+        <p class="when">wenn du planst oder weitergibst</p>
+        <p class="does"><b>Du</b> holst Module in „Mein Studium“ und den Stundenplan, planst mehrere auf einmal, schickst eine Gruppe.</p>
+        <ul>
+          <li>„Aus der Merkliste“ an jedem Ort, der nach einem Modul fragt</li>
+          <li>mehrere auswählen, mit ihren Aktionen</li>
+          <li>ein Link je Gruppe</li>
+        </ul>
+      </div>
+    </div>
+    <ul class="stage-rules">
+      <li><b>Merken wird nie schwerer.</b> Ein Tipp bleibt ein Tipp, auch mit zehn Gruppen. Wer nichts wählt, hat nach „Ohne Gruppe“ gemerkt.</li>
+      <li><b>Was keiner nutzt, steht nicht im Weg.</b> Ohne Gruppe keine Wahl der Gruppe, ohne „Mein Studiengang“ kein Filter „zählt in meinem Studium“, und ein Filter, der nichts trennt (alle sechs im Winter), ist nicht da.</li>
+      <li><b>Kein Drängen.</b> Betula schlägt nie vor aufzuräumen und zählt nichts als „unsortiert“, solange es keine Gruppe gibt.</li>
+      <li><b>Keine Modi.</b> Kein Schalter „einfach / erweitert“ und nichts, was erst ab einer Zahl kommt: „Aus der Merkliste“ in „Mein Studium“ geht mit drei Modulen wie mit hundert.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="merken" aria-labelledby="mark-title">
+    <h2 id="mark-title">Merken bleibt ein Tipp</h2>
+    <p class="lead">Gemerkt wird, wo heute gemerkt wird: das Lesezeichen an einer Zeile, der Schalter „Merken“ am Modul, die Taste M, am Handy eine Zeile nach links gewischt. Das Modul steht sofort auf der Liste, ohne Frage.</p>
+    <ul class="points">
+      <li><b>Danach ein Hinweis, der wartet.</b> Wie nach „Einplanen“ (Konzept E) steht unten ein Hinweis, der geht, sobald du weitermachst; es ist derselbe Baustein (<code>WaitNote</code>). Darin: „Gemerkt“, eine Gruppe wählen oder eine neue anlegen, eine Notiz schreiben, „Rückgängig“. Wer ihn übergeht, hat gemerkt, nach „Ohne Gruppe“. So kennt man es von Instagram: Speichern speichert, der Hinweis danach bietet die Sammlung an.</li>
+      <li><b>„Weitere Module auch in ‚Für Lena‘“.</b> Wer im Hinweis eine Gruppe wählt, bekommt wie bei „Weitere Module auch nach SoSe 27“ einen Schalter dafür: Die nächsten gemerkten kommen in dieselbe Gruppe, für diese Sitzung, und jeder Hinweis sagt es, um es dort wieder auszuschalten. So sammelt man für jemanden, ohne jedes Mal zu wählen.</li>
+      <li><b>Entfernen sagt, was weg ist.</b> Wer ein Modul entmerkt, bekommt „Entfernt · von der Merkliste“ mit „Rückgängig“; das bringt auch Notiz und Gruppen zurück. Auf der Merkliste selbst bleibt ein entferntes Modul daneben gedimmt stehen, wie heute.</li>
+      <li><b>Am Modul sieht man, wo es steht.</b> Der Schalter sagt „Gemerkt“ und, sobald es Gruppen gibt, in welchen. Gruppen und Notiz lassen sich dort ändern: in der Vorschau, auf der Seite des Moduls, im Sheet am Handy.</li>
+      <li><b>Die Taste bleibt M.</b> Solange der Hinweis steht, hat er eigene Tasten für Gruppe und Notiz, wie ← und → beim Einplanen; welche, entscheidet das UI-Design.</li>
+    </ul>
+    <div class="parts" role="img" aria-label="Was im Hinweis nach dem Merken steht: Gemerkt mit dem Modul, die Gruppe, die Notiz, Rückgängig">
+      <div><b>✓ Gemerkt</b><small>Music and Artificial Intelligence</small></div>
+      <div><b>Gruppe</b><small>die zuletzt benutzten, „Neue Gruppe …“</small></div>
+      <div><b>Notiz</b><small>eine Zeile, gleich hier</small></div>
+      <div><b>Rückgängig</b><small>nimmt den Merker wieder weg</small></div>
+    </div>
+    <p class="parts-cap">Was der Hinweis enthält, nicht wie er aussieht. Nach einer gewählten Gruppe kommt die Zeile „Weitere Module auch in …“ dazu.</p>
+  </section>
+
+  <section class="block" id="gruppen" aria-labelledby="groups-title">
+    <h2 id="groups-title">Gruppen und Notizen</h2>
+    <p class="lead">Gruppen ordnen die Merkliste, sie sind keine zweite Liste neben ihr. Eine Notiz sagt, warum ein Modul da steht.</p>
+    <div class="cols2">
+      <div>
+        <h3>Gruppen</h3>
+        <ul class="points">
+          <li><b>Ein Modul kann in mehreren Gruppen stehen.</b> „Das ist Kunst“ ist „Witzig“ und „Für Lena“. Ein Ordner, in dem jedes Modul nur einmal steht, zwänge zu einer Wahl, die es nicht gibt.</li>
+          <li><b>Was in einer Gruppe steht, ist gemerkt.</b> In eine Gruppe tun merkt ein Modul; aus einer Gruppe nehmen lässt es auf der Merkliste; entmerken nimmt es aus allen Gruppen, mit „Rückgängig“.</li>
+          <li><b>„Ohne Gruppe“</b> sind die gemerkten, die in keiner Gruppe stehen: meist das Neue. Es kommt mit der ersten Gruppe und lässt sich weder umbenennen noch löschen.</li>
+          <li><b>Anlegen, wo man gerade ist:</b> im Hinweis nach dem Merken, am Modul, an einer Zeile, für mehrere ausgewählte, auf der Merkliste selbst. Eine Gruppe darf leer sein.</li>
+          <li><b>Umbenennen, verschieben, löschen.</b> Löschen nimmt nur die Gruppe weg, die Module bleiben gemerkt; wer will, entmerkt zugleich die, die sonst in keiner Gruppe stehen. Beides mit „Rückgängig“.</li>
+          <li><b>Reihenfolge:</b> die Gruppen so, wie sie angelegt wurden, bis man eine verschiebt; im Hinweis nach dem Merken die zuletzt benutzten zuerst.</li>
+          <li><b>Eine Gruppe ist eine Ansicht der Merkliste.</b> Alles gilt in ihr weiter: Suche, Ordnung, Filter, Auswahl, Weitergeben. Ihre Zahlen sind ihre eigenen, „Wahlpflicht · 2 Module · 10 LP“, und so hat die Summe einen Sinn.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Notizen</h3>
+        <ul class="points">
+          <li><b>Eine Notiz je Modul</b>, freier Text, so kurz oder lang, wie man will. An der Zeile steht ihr Anfang, am Modul die ganze.</li>
+          <li><b>Schreiben merkt.</b> Eine Notiz an einem Modul, das noch nicht gemerkt ist, setzt es auf die Merkliste.</li>
+          <li><b>Die Suche findet sie.</b> „Lena“ findet, wobei „Lena fragen“ notiert ist.</li>
+          <li><b>Sie bleibt bei dir.</b> Weitergeben nimmt sie nur mit, wenn du es willst (<a href="#teilen">Weitergeben</a>).</li>
+        </ul>
+        <h3 style="margin-top: 24px">Wo die Gruppe eines Moduls entsteht</h3>
+        <ul class="points">
+          <li><b>beim Merken</b>, im Hinweis</li>
+          <li><b>am Modul</b>, beim Schalter „Gemerkt“</li>
+          <li><b>an einer Zeile</b> der Merkliste</li>
+          <li><b>für eine Auswahl</b>, mehrere auf einmal</li>
+          <li><b>beim Ankommen</b> eines geteilten Links</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="finden" aria-labelledby="find-title">
+    <h2 id="find-title">Wiederfinden</h2>
+    <p class="lead">Mit 46 Modulen hilft Scrollen nicht mehr. Drei Wege, die ohne Gruppen auskommen und mit Gruppen weiter gelten.</p>
+    <h3>Die Suche oben sucht in der Merkliste</h3>
+    <ul class="points">
+      <li><b>Auf der Merkliste durchsucht das Suchfeld oben die gemerkten Module</b>, so wie es auf der Übersicht der Studiengänge die Studiengänge durchsucht. Gefunden wird nach den Regeln der Katalogsuche (Titel in beiden Sprachen, Nummer, Kürzel wie „TI“, Lehrende; <code>folia/design/suche/konzept.html</code>), dazu in Notizen und Namen von Gruppen.</li>
+      <li><b>Der Weg in den ganzen Katalog bleibt eine Zeile:</b> unter den Treffern „Philosophie im Katalog: 11 Module“. Findet die Merkliste nichts, steht diese Zeile allein da.</li>
+      <li><b>In einer Gruppe sucht sie in der Gruppe</b> und sagt, wie viele Treffer der Rest der Merkliste hat.</li>
+    </ul>
+    <h3>Ordnungen, die Betula kennt</h3>
+    <ul class="points">
+      <li><b>Zuletzt gemerkt</b>, wie heute vorn, mit Abschnitten nach der Zeit: Heute, Gestern, Diese Woche, Letzte Woche, dann die Monate. Was aus einem Link kam, trägt die Zeit, zu der es ankam.</li>
+      <li><b>Nach Studium:</b> Abschnitte danach, wo ein Modul in „Mein Studiengang“ zählt, mit den Bereichen, wie „Mein Studium“ sie nennt: Pflicht, Wahlpflicht je Bereich, FÜS, „Gehört nicht zu deinem Studiengang“. Nur, wenn ein Studiengang gesetzt ist.</li>
+      <li><b>Nach Angebot:</b> Winter, Sommer, jedes Semester, unregelmäßig, ohne Angabe.</li>
+      <li><b>Titel, Leistungspunkte, Termine</b>, wie heute.</li>
+    </ul>
+    <h3>Filter, die nur da sind, wenn sie etwas trennen</h3>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col">Filter</th><th scope="col">Was er wählt</th><th scope="col">Da, sobald</th></tr></thead>
+        <tbody>
+          <tr><td>Gruppe</td><td data-label="Was er wählt">Alle, Ohne Gruppe, jede Gruppe</td><td data-label="Da, sobald">es eine Gruppe gibt</td></tr>
+          <tr><td>Angeboten im</td><td data-label="Was er wählt">Winter oder Sommer, wie heute</td><td data-label="Da, sobald">die gemerkten nicht alle gleich angeboten werden</td></tr>
+          <tr><td>Stand</td><td data-label="Was er wählt">noch nicht eingeplant, eingeplant, bestanden</td><td data-label="Da, sobald">eins davon eingeplant oder bestanden ist</td></tr>
+          <tr><td>Passt in meinen Stundenplan</td><td data-label="Was er wählt">ein Semester, wie der Filter im Katalog</td><td data-label="Da, sobald">ein Stundenplan etwas enthält</td></tr>
+          <tr><td>Zählt in meinem Studium</td><td data-label="Was er wählt">zählt, zählt nicht</td><td data-label="Da, sobald">„Mein Studiengang“ gesetzt ist</td></tr>
+          <tr><td>Alle Filter des Katalogs</td><td data-label="Was er wählt">Sprache, Prüfung, Campus, LP und der Rest, für die gemerkten</td><td data-label="Da, sobald">immer, eine Stufe tiefer</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Jeder Filter mit seinen Zahlen, wie „Angeboten im“ heute („Winter 21, Sommer 18“). Wer die Filter des Katalogs braucht, bekommt sie auf der Merkliste, statt in den Katalog geschickt zu werden.</p>
+  </section>
+
+  <section class="block" id="mehrere" aria-labelledby="many-title">
+    <h2 id="many-title">Mehrere auf einmal</h2>
+    <p class="lead">Mit vielen Modulen lohnt es, mehrere zugleich zu bewegen. Ausgewählt wird wie in „Mein Studium“; wie man am Handy neben dem Wischen dahin kommt, klärt das UI-Design.</p>
+    <ul class="points">
+      <li><b>In eine Gruppe tun oder aus einer nehmen.</b> Wer aus „Ohne Gruppe“ fünf auswählt und „Wahlpflicht“ wählt, hat aufgeräumt.</li>
+      <li><b>Einplanen:</b> jedes dorthin, wohin sein „Einplanen“ zielt, oder alle in ein Semester. Ein Hinweis sagt, wohin, mit „Rückgängig“ für alle.</li>
+      <li><b>Weitergeben</b> als Link oder <b>als Text kopieren</b>.</li>
+      <li><b>Entmerken</b>, mit „Rückgängig“.</li>
+      <li><b>„Alle auswählen“</b> nimmt, was die Liste gerade zeigt: eine Gruppe, einen Filter, die Treffer einer Suche.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="ueberall" aria-labelledby="everywhere-title">
+    <h2 id="everywhere-title">Von überall erreichbar</h2>
+    <p class="lead">Wo Betula fragt, welches Modul, steht die Merkliste als Quelle bereit: mit ihren Gruppen, ihrer Suche und dem, was ein Modul an dieser Stelle heißt. <b>Die passenden zuerst, die anderen mit dem Grund; abgelehnt wird nichts.</b></p>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col">Wo</th><th scope="col">Heute</th><th scope="col">Mit der Merkliste</th></tr></thead>
+        <tbody>
+          <tr><td>„Mein Studium“ · Module hinzufügen</td><td data-label="Heute"><span class="today">„Aus dem Regelstudienplan“, „Im Katalog suchen“</span></td><td data-label="Mit der Merkliste">eine dritte Quelle, <b>„Aus der Merkliste“</b>: nach Gruppe und Suche, jedes Modul mit dem, was es für dieses Semester heißt: angeboten oder „im SoSe nicht angeboten“, „geplant in WiSe 26/27, wird verschoben“, bestanden, der Bereich, in dem es zählt. Ankreuzen, „Einfügen“.</td></tr>
+          <tr><td>„Mein Studium“ · Gesamtplan, eine Zelle</td><td data-label="Heute"><span class="today">die Module des Bereichs aus dem Katalog</span></td><td data-label="Mit der Merkliste">die gemerkten des Bereichs zuerst, als gemerkt kenntlich</td></tr>
+          <tr><td>„Mein Studium“ · Wahlpflicht</td><td data-label="Heute"><span class="today">die Module jedes Bereichs</span></td><td data-label="Mit der Merkliste">je Bereich, wie viele gemerkte dort zählen („3 gemerkte zählen hier“), die gemerkten zuerst</td></tr>
+          <tr><td>Stundenplan · „Aus der Merkliste“</td><td data-label="Heute"><span class="today">die im Halbjahr angebotenen, noch nicht eingeplanten, einzeln</span></td><td data-label="Mit der Merkliste">nach Gruppe und Suche; zuerst, was das Semester anbietet, mit „passt“ oder „überschneidet sich mit …“; danach, was es nicht anbietet, mit dem Grund; „3 gemerkte übernehmen“ auch für eine Gruppe</td></tr>
+          <tr><td>Stundenplan · ein Extra</td><td data-label="Heute"><span class="today">ein Modul außerhalb des Studiengangs zählt in „Mein Studium“ als „ohne Bereich“</span></td><td data-label="Mit der Merkliste">ein gemerktes Modul nur besuchen, ohne dass es zählt (<a href="#offen">Zu klären</a>, Frage 3)</td></tr>
+          <tr><td>Katalog · Filter „Gemerkt“</td><td data-label="Heute"><span class="today">nur gemerkte, alle außer gemerkten</span></td><td data-label="Mit der Merkliste">auch je Gruppe: „Gemerkt: Für Lena“, „nicht in Wahlpflicht“</td></tr>
+          <tr><td>Modul · Vorschau, Seite, Sheet</td><td data-label="Heute"><span class="today">„Merken“ und „Gemerkt“</span></td><td data-label="Mit der Merkliste">dazu die Gruppen und die Notiz, dort zu ändern</td></tr>
+          <tr><td>Tab „Merkliste“ gehalten</td><td data-label="Heute"><span class="today">nichts</span></td><td data-label="Mit der Merkliste">ein Menü mit den Gruppen, wie das von „Studium“: am Handy lange gedrückt, am Rechner mit der rechten Maustaste</td></tr>
+          <tr><td>Profil</td><td data-label="Heute"><span class="today">„12 gemerkte Module“</span></td><td data-label="Mit der Merkliste">dazu Gruppen und Notizen; die Datei eines Profils und „Profil leeren“ nehmen sie mit</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Was „Mein Studium“ beim Hinzufügen schon kann, gilt auch für die gemerkten: Ein Modul, das woanders geplant ist, zieht um, eins, das das Semester nicht anbietet, wird es mit dem Hinweis darauf (<code>folia/crates/planner/src/study/picker.rs</code>).</p>
+  </section>
+
+  <section class="block" id="teilen" aria-labelledby="share-title">
+    <h2 id="share-title">Weitergeben</h2>
+    <p class="lead">Heute geht nur alles auf einmal. Künftig lässt sich weitergeben, was man gerade sieht: eine Gruppe, eine Auswahl, einen gefilterten Teil, die ganze Liste.</p>
+    <ul class="points">
+      <li><b>Ein Link, den nur der Browser liest.</b> Wie „Auf anderes Gerät übertragen“ heute trägt er die Module hinter dem <code>#</code> (<code>/bookmarks#m=…</code>), dem Teil einer Adresse, den kein Browser an einen Server schickt; neu dazu den Namen der Gruppe. Der Code bekommt dafür eine neue Fassung, die Links von heute bleiben lesbar.</li>
+      <li><b>Er kommt als Gruppe an.</b> Wer ihn öffnet, wird gefragt, wie heute: „Für Lena: 3 Module, 1 davon schon gemerkt“, mit „Als Gruppe merken“, „Nur merken“ und „Verwerfen“. Den Namen kann man dabei ändern; gibt es schon eine Gruppe dieses Namens, kommen sie dort hinein.</li>
+      <li><b>Notizen bleiben zu Hause</b>, außer du nimmst sie mit: fürs eigene Gerät ja, für Freunde nur, wenn du es wählst.</li>
+      <li><b>Das eigene Gerät bekommt alles.</b> „Auf anderes Gerät übertragen“ nimmt künftig Gruppen und Notizen mit; die Datei eines Profils tut das ohnehin.</li>
+      <li><b>Als Text für eine Nachricht:</b> Nummer, Titel, LP und der Link zur Seite jedes Moduls, damit die Freundin nur tippen muss.</li>
+      <li><b>Eine Kopie, kein gemeinsames Bearbeiten.</b> Was die andere an ihrer Gruppe ändert, kommt nicht zurück. Gemeinsame Listen bräuchten einen Server, der beide kennt (R20).</li>
+    </ul>
+  </section>
+
+  <section class="block" id="grenzen" aria-labelledby="limits-title">
+    <h2 id="limits-title">Was geht, auch wenn es ungewöhnlich ist</h2>
+    <p class="lead">Nach der Regel vom 18.10. (<code>CLAUDE.md</code>, „Design“): Was einfach geht, ist erlaubt, und Betula sagt dazu, was ungewöhnlich ist.</p>
+    <div class="cols2">
+      <div>
+        <h3>Erlaubt</h3>
+        <ul class="points">
+          <li><b>eine leere Gruppe</b>; <b>zwei Gruppen gleichen Namens</b>, Betula sagt, dass es den Namen schon gibt</li>
+          <li><b>eine Gruppe ohne Namen</b>: Sie heißt „Gruppe 3“, bis man sie nennt, wie „Profil 2“</li>
+          <li><b>ein Modul in allen Gruppen</b></li>
+          <li><b>ein Modul, das die BTU nicht mehr führt</b>: Es bleibt, benannt, in seinen Gruppen, wie heute</li>
+          <li><b>in ein Semester einplanen, das es nicht anbietet</b>: mit „im SoSe nicht angeboten“, wie in „Mein Studium“</li>
+          <li><b>eine Gruppe mit einem einzigen Modul</b>, eine mit hundert</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Grenzen, mit ihrem Grund</h3>
+        <ul class="points">
+          <li><b>2.000 Module</b>, wie heute: Ein Browser hebt für eine Seite nur wenige Megabyte auf, und ein Profil soll seine Größe kennen. Neu ist, dass Betula es am Rand sagt. Heute fällt das älteste Modul ohne ein Wort heraus.</li>
+          <li><b>Sehr lange Namen und Notizen</b> werden beim Speichern begrenzt, weil alles aus dem Speicher wie von außen gelesen wird; auf dem Schirm kürzt „…“. Wer an die Grenze kommt, sieht sie, bevor etwas verloren geht.</li>
+          <li><b>Ein Link</b> trägt höchstens, was ein Code tragen kann, wie heute. Wo es mehr ist, gibt es den Link nicht, die Datei des Profils schon.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="darunter" aria-labelledby="below-title">
+    <h2 id="below-title">Was sich darunter ändert</h2>
+    <p class="lead">Kurz, für die Umsetzung. Nichts davon nimmt einem Besucher, was er heute hat.</p>
+    <ul class="points">
+      <li><b>Ein zweiter Schlüssel je Profil.</b> Die Merker bleiben, wie sie sind, in <code>betula.bookmarks.v1</code> (Modul und Zeit). Gruppen und Notizen kommen unter einen eigenen Schlüssel daneben. So liest ein älterer Build (ein Rollback, ein alter Tab der installierten App) die Merkliste weiter, und nichts muss umziehen. Kein MAJOR.</li>
+      <li><b>Gruppen und Notizen gelten nur für gemerkte Module.</b> Entmerkt ein alter Tab ein Modul, fallen dessen Notiz und Gruppen beim nächsten Schreiben weg.</li>
+      <li><b>Gelesen wie von außen</b>, wie die Merker heute: eine Gruppe, die es nicht gibt, ein Name über der Grenze, eine Nummer zweimal.</li>
+      <li><b>Jedes Profil hat seine eigenen.</b> <code>profiles::KEYS</code> bekommt den Schlüssel, damit die Datei eines Profils, „Profil leeren“ und Löschen ihn kennen.</li>
+      <li><b>Adressen nennen eine Gruppe bei ihrer Nummer</b> (<code>/bookmarks?group=3</code>), wie <code>fill=p&lt;n&gt;</code> einen Platzhalter: nie ihren Namen, nie die Module (R13, R20). Der Server rendert für jede Adresse dieselbe Erklärung (R9).</li>
+      <li><b>Die Datenschutzerklärung</b> („Speicher im Browser“ in <code>folia/crates/home/src/legal.rs</code>) nennt den neuen Schlüssel und, was ein Link künftig trägt: Module, den Namen der Gruppe, Notizen, wenn gewählt.</li>
+      <li><b>Geprüft</b> von <code>folia/e2e/bookmarks.mjs</code>, das jede Anfrage einer Sitzung nach Merkern absucht und das künftig auch nach Gruppen und Notizen tut; dazu <code>study.mjs</code>, <code>studyplan.mjs</code> und <code>swipe.mjs</code>, wo ein Schritt sie berührt.</li>
+      <li><b>Versionen:</b> Jeder Schritt unten ist ein MINOR von Folia; dieses Blatt allein erhöht nichts.</li>
+    </ul>
+  </section>
+
+  <section class="block" id="nicht" aria-labelledby="not-title">
+    <h2 id="not-title">Bewusst nicht, und später, wenn gewünscht</h2>
+    <div class="not">
+      <div><h3>Keine Frage beim Merken</h3><p>Kein Dialog „In welche Gruppe?“, auch nicht, wenn es zehn Gruppen gibt.</p></div>
+      <div><h3>Kein Konto, kein Abgleich</h3><p>Zwischen Geräten reisen der Link und die Datei eines Profils (R20).</p></div>
+      <div><h3>Keine Gruppen in Gruppen</h3><p>Für hundert Module reichen Gruppen nebeneinander. Verschachtelt wäre viel Arbeit für einen seltenen Fall.</p></div>
+      <div><h3>Keine Gruppen, die Betula anlegt</h3><p>Was Betula weiß, ordnet es selbst, nach Studium, Angebot und Zeit, ohne dafür Gruppen in deine Liste zu legen.</p></div>
+      <div><h3>Keine Sterne</h3><p>Wer bewerten will, legt „Favoriten“ oder „Vielleicht“ als Gruppe an.</p></div>
+      <div><h3>Keine Erinnerungen</h3><p>Eine Erinnerung an eine Anmeldung bräuchte einen Server, der dich kennt.</p></div>
+    </div>
+    <h3>Später, wenn gewünscht</h3>
+    <ul class="points">
+      <li><b>Vergleichen:</b> zwei bis vier ausgewählte nebeneinander, mit LP, Turnus, Prüfung, Sprache, Terminen und Überschneidungen, Voraussetzungen und wo sie zählen.</li>
+      <li><b>Neu seit dem Merken:</b> „Termine für SoSe 27 sind da“ an einem Modul, das beim Merken noch keine hatte. Dafür müsste ein Merker behalten, was beim Merken galt.</li>
+      <li><b>Zuletzt angesehen:</b> die Module, die man geöffnet und nicht gemerkt hat, für „das von gestern“.</li>
+      <li><b>Eine eigene Reihenfolge in einer Gruppe</b>, etwa Erstwahl vor Zweitwahl.</li>
+      <li><b>Eine Vorschau geteilter Gruppen</b> im Messenger (Frage 4).</li>
+    </ul>
+  </section>
+
+  <section class="block" id="schritte" aria-labelledby="steps-title">
+    <h2 id="steps-title">In fünf Schritten</h2>
+    <p class="lead">Jeder Schritt hilft für sich und kommt als eigenes Feature auf canary. Der erste braucht keine neuen Daten und behebt die beiden größten Mängel von heute.</p>
+    <div class="tablewrap">
+      <table class="stack">
+        <thead><tr><th scope="col">Schritt</th><th scope="col">Was er bringt</th><th scope="col">Aufwand</th></tr></thead>
+        <tbody>
+          <tr><td>1 · Wiederfinden</td><td data-label="Was er bringt">Die Suche oben sucht in der Merkliste, mit der Zeile in den Katalog; Abschnitte nach der Zeit; Ordnung nach Studium und Angebot; die Filter Stand, passt und zählt; am Handy Ordnung, Filter und Aktionen erreichbar, ohne unter die Liste zu scrollen.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
+          <tr><td>2 · Ordnen</td><td data-label="Was er bringt">Der zweite Schlüssel; Gruppen und Notizen; „Ohne Gruppe“; der Hinweis nach Merken und Entmerken mit „Weitere Module auch in …“; Gruppen und Notiz am Modul; die Gruppe als Ansicht mit eigener Adresse; Profil und Datenschutzerklärung.</td><td data-label="Aufwand"><span class="size l">groß</span></td></tr>
+          <tr><td>3 · Mehrere auf einmal</td><td data-label="Was er bringt">Auswählen und die Aktionen dazu: Gruppe, Einplanen, Weitergeben, Entmerken.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
+          <tr><td>4 · Von überall</td><td data-label="Was er bringt">„Aus der Merkliste“ in „Mein Studium“ (Hinzufügen, Gesamtplan, Wahlpflicht), der Stundenplan mit Gruppen und „passt“, der Filter „Gemerkt“ je Gruppe, der gehaltene Tab.</td><td data-label="Aufwand"><span class="size l">mittel bis groß</span></td></tr>
+          <tr><td>5 · Weitergeben</td><td data-label="Was er bringt">Gruppe, Auswahl oder Teil als Link in einer neuen Fassung des Codes; Ankommen als Gruppe; Text mit Links; das eigene Gerät mit allem.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Jeder Schritt ist ein MINOR von Folia. Schritt 2 und 4 lassen sich teilen, wenn sie zu groß werden: Notizen vor Gruppen, „Mein Studium“ vor dem Stundenplan.</p>
+  </section>
+
+  <section class="block" id="offen" aria-labelledby="open-title">
+    <h2 id="open-title">Zu klären, bevor es ans Design geht</h2>
+    <p class="lead">Sieben Fragen, jeweils mit meiner Empfehlung. Wo du zustimmst, wird sie Regel dieses Blatts.</p>
+    <ol class="ask">
+      <li>
+        <h3>1 · Ein Modul in mehreren Gruppen?</h3>
+        <p>Etiketten (ein Modul in beliebig vielen) oder Ordner (jedes Modul in höchstens einer). Ordner sind schneller erklärt, aber „Für Lena“ und „Wahlpflicht“ zugleich gingen nicht.</p>
+        <p class="rec">Mehrere Gruppen je Modul.</p>
+      </li>
+      <li>
+        <h3>2 · Der Hinweis nach dem Merken: immer?</h3>
+        <p>Immer, auch bevor es Gruppen gibt, ruhig und weg, sobald man weitermacht; so findet man Gruppen und Notiz, ohne sie zu suchen. Oder erst, wenn es eine Gruppe gibt; dann legt man die erste auf der Merkliste an, und bis dahin sieht Merken genau aus wie heute.</p>
+        <p class="rec">Immer, wie beim Einplanen.</p>
+      </li>
+      <li>
+        <h3>3 · Was ist ein Extra-Termin im Stundenplan?</h3>
+        <p>Meine Lesart: ein gemerktes Modul, das man im Stundenplan haben will, ohne dass es im Studium zählt, zum Reinschnuppern oder Gasthören. Halb geht das heute schon: Ein Modul außerhalb des Studiengangs steht in „Mein Studium“ als „ohne Bereich“. Eins aus dem eigenen Studiengang zählt aber mit, und seine LP landen im Fortschritt. Oder meinst du etwas anderes, etwa einzelne Termine eines Moduls?</p>
+        <p class="rec">Ein geplantes Modul lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht. Gebaut mit dem Stundenplan, nicht mit der Merkliste.</p>
+      </li>
+      <li>
+        <h3>4 · Geteilte Gruppen mit Vorschau im Messenger?</h3>
+        <p>Hinter dem <code>#</code> sieht der Server nichts, und die Vorschau im Messenger sagt nur „Merkliste“. Eine Vorschau mit den Modulen bräuchte sie in der Adresse, die der Server sieht, so wie du es am 26.09. für den geteilten Stundenplan entschieden hast.</p>
+        <p class="rec">Erst hinter dem #, ohne Vorschau. Die Vorschau später, wenn sie fehlt.</p>
+      </li>
+      <li>
+        <h3>5 · Notizen beim Weitergeben?</h3>
+        <p>Notizen sind oft privat („Lena fragen“), aufs eigene Gerät gehören sie mit.</p>
+        <p class="rec">Aufs eigene Gerät immer, zu Freunden nur, wenn man es wählt.</p>
+      </li>
+      <li>
+        <h3>6 · Heißen sie „Gruppen“?</h3>
+        <p>„Gruppen“ ist dein Wort. „Listen“ verwechselt man mit der Merkliste, „Sammlungen“ ist länger, „Ordner“ verspricht, dass ein Modul nur an einem Ort steht.</p>
+        <p class="rec">„Gruppen“, im Englischen „groups“.</p>
+      </li>
+      <li>
+        <h3>7 · Die Reihenfolge der Schritte?</h3>
+        <p>Wiederfinden zuerst, weil es die beiden größten Mängel von heute behebt und keine neuen Daten braucht; Gruppen und Notizen danach.</p>
+        <p class="rec">Wie oben: 1 bis 5.</p>
+      </li>
+    </ol>
+    <h3>Danach: UI und UX</h3>
+    <p class="muted" style="margin-top: 6px">Was die nächste Runde entscheidet, mit Entwürfen für Handy und Rechner:</p>
+    <ul class="next">
+      <li>wo Gruppen, Filter und Ordnung stehen, am Handy über der Liste statt darunter</li>
+      <li>wie eine Zeile Gruppen und Notiz zeigt, ohne voller zu werden</li>
+      <li>wie der Hinweis nach dem Merken aussieht und welche Tasten er hat</li>
+      <li>wie man am Handy auswählt, neben dem Wischen nach links und rechts</li>
+      <li>ob Gruppen eine Farbe oder ein Zeichen tragen</li>
+      <li>„Aus der Merkliste“ in den Dialogen von „Mein Studium“ und im Stundenplan</li>
+      <li>die leeren Zustände: nichts gemerkt, eine leere Gruppe, nichts gefunden</li>
+      <li>was die Seitenleiste am Rechner noch hält, wenn die Zahlen zur Ansicht gehören</li>
+    </ul>
+    <p class="src">Nachgesehen auf canary (Folia 1.29.2, Radix 0.9.1, Daten vom 19.10.2026) in Chromium, mit 46 gemerkten Modulen im Browser. Im Code: <code>folia/crates/bookmarks/src/bookmarks.rs</code> (die Seite), <code>folia/crates/stores/src/bookmarks.rs</code> (der Speicher, <code>MAX_BOOKMARKS</code> in <code>folia/crates/pages/src/lib.rs</code>), <code>folia/crates/planner/src/studyplan/head.rs</code> („Aus der Merkliste“), <code>folia/crates/planner/src/study/picker.rs</code> („Module hinzufügen“), <code>folia/crates/shell/src/chrome.rs</code> (das Suchfeld oben), <code>folia/crates/widgets/src/plannote.rs</code> (der Hinweis beim Einplanen), <code>docs/folia/frontend.md</code> („Merken“, R9, R13, R20).</p>
+  </section>
+</main>
