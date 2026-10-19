@@ -271,7 +271,8 @@ fn PlanBox(ctx: StudyCtx) -> impl IntoView {
 /// No box and no legend (owner, the same day, after a look: „Mach mal die Legende weg und die
 /// Punkte nicht in eine box, sondern einfach nur den grauen Hintergrund mit blur zum content"): the
 /// dots on the page's ground, frosted over what passes under it as the bar at the top is (app.css);
-/// the ground at the end of the page comes over it.
+/// the row's end stands above them, with no ground under the row (owner, 2026-10-19: „Ich würde den
+/// footer bei den semester ansichten einfach raus nehmen").
 #[component]
 fn Dock(ctx: StudyCtx, pages: Pages) -> impl IntoView {
     view! {
