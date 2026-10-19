@@ -17,8 +17,10 @@ use std::fmt;
 /// Wahlpflicht slots, and whether a kind is inferred where a module page lists its programs
 /// (`v_module_program_link.kind_basis`). 15: the courses of a module held at two campuses or more
 /// (`v_module_schedule.track`, `v_module_track_program`) and whom QIS states an event is for
-/// (`v_event_program`; docs/radix/schema-v2.md, „Tracks").
-pub const SCHEMA_VERSION: i64 = 15;
+/// (`v_event_program`; docs/radix/schema-v2.md, „Tracks"). 16: where QIS lists a program's events,
+/// which decides where it is taught before its compulsory modules (`v_program_campus.sws`), and no
+/// courses where QIS lists the same programs at each.
+pub const SCHEMA_VERSION: i64 = 16;
 
 /// A SQLite value, as a parameter or as a result cell.
 #[derive(Clone, Debug, PartialEq)]

@@ -55,7 +55,7 @@ is derived and replaced by each build.
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name; `event_date.series` and `series_weeks` say which single dates are one series (section „Series of single dates“) | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/radix/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` and the series by the build (sections „Short names“, „Series of single dates“) |
 | `event_program`, `event_program_ref` | what an event page lists under „Studiengänge“: the program as QIS names it („Informatik Bachelor (universitäres Profil)“), the Fachsemester, the PO, a remark, the id of QIS's link; and the programs of the catalog each row names (`resolve_status`) | the QIS event page (`docs/radix/data-sources.md` §5.16); resolved by the build (section „Tracks“) |
-| `program_campus`, `module_track`, `module_track_program` | where a program is taught (its compulsory modules per campus); the events of a module that form a course of their own at one campus, where two campuses each hold one; which of them each program takes (`basis` `qis` or `campus`) | build (section „Tracks“) |
+| `program_campus`, `module_track`, `module_track_program` | where a program is taught (the SWS of the events QIS lists its family at, and its compulsory modules, per campus); the events of a module that form a course of their own at one campus, where two campuses each hold one; which of them each program takes (`basis` `qis` or `campus`) | build (section „Tracks“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `module_folded` | the names of every module as the search compares them: its titles folded, their initials, its abbreviations folded | build, from the titles and the abbreviations (section „Search“) |
 | `module_summary`, `passage_embedding` | caches of the semantic search, kept across builds and never published: what Gemini wrote about a module's text (German and English summary, search terms; keyed by `semantic.Text.Hash`), and the vector of a passage under a model (keyed by `semantic.PassageHash`) | the semantic stage (section 6, „Semantic search“) |
@@ -104,9 +104,9 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_module_prerequisite` | module × required module | `module_id, required_module_id, kind, required_title, required_offer_status` |
 | `v_module_successor` | module × successor | `module_id, successor_id, successor_title` |
 | `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks` (the series of single dates a row belongs to, section „Series of single dates“; schema 13)`, track` (the campus of the course of its own the event is part of, NULL for an event in none; section „Tracks“, schema 15) |
-| `v_module_track_program` | module × semester × program × course | `module_id, semester_key, campus, program_id, basis, family_key`: the course (`campus`, as `v_module_schedule.track`) a program takes of a module with tracks; `qis` where QIS lists the program (any PO of its family) on the course's events, `campus` where the program's compulsory modules decide; a program with no row takes either (section „Tracks“; schema 15) |
+| `v_module_track_program` | module × semester × program × course | `module_id, semester_key, campus, program_id, basis, family_key`: the course (`campus`, as `v_module_schedule.track`) a program takes of a module with tracks; `qis` where QIS lists the program (any PO of its family) on the course's events, `campus` where the campus the program is taught at decides (`v_program_campus`: QIS's other events, else its compulsory modules); a program with no row takes either (section „Tracks“; schema 15) |
 | `v_event_program` | event × listed program × resolved program | `event_id, ord, label, semester_min, semester_max, po_raw, remark, resolve_status, program_id, family_key`: whom QIS states the event is for; `program_id` and `family_key` NULL where the row names no program of the catalog (schema 15) |
-| `v_program_campus` | program × campus | `program_id, campus, modules, is_main`: how many compulsory modules of the program's Regelstudienplan are held at the campus (in the newest semester each module has dates with a room), `is_main` for the one campus with more than any other (schema 15) |
+| `v_program_campus` | program × campus | `program_id, campus, modules, sws, is_main`: how many compulsory modules of the program's Regelstudienplan are held at the campus (in the newest semester each module has dates with a room), and the SWS of the teaching events there that QIS lists a program of its family at (`sws`, schema 16); `is_main` for the one campus with strictly the most `sws`, where QIS lists the family nowhere strictly the most `modules` (schema 15, `sws` 16) |
 | `v_module_exam` | module × exam date | `module_id, semester_key, semester_label, event_id, event_number, event_title, ord, weekday, start_time, end_time, first_date, last_date, room, campus, comment, source_url, room_short` |
 | `v_module_program_link` | module × listed triple | `module_id, ord, degree_raw, program_raw, po_raw, resolve_status, program_id, program_slug, program_name, degree_display, po_version, is_latest_po, relation, kind, kind_source, area, kind_basis` (whether the kind is inferred; schema 14) |
 | `v_program` | program | `id, slug, name, degree_level, degree_type, study_variant, degree_label, degree_raw, degree_display, po_version, po_year, po_amendment, family_key, name_key, is_latest_po, stg_code, abschl_code, source_url, fetched_at, has_plan, plan_validated_at, plan_status, curricular_modules, fues_modules, documents` |
@@ -936,7 +936,8 @@ Standorten -> plausibel, dass es Dopplungen gibt“). Every build now does both
   taken is what is to be decided. The main campus holds more of them than any other (138 of 182
   programs; none for a tie). Medizininformatik B.Sc. is held at the Zentralcampus with 5 modules
   and in Sachsendorf with 4; it takes the Programmierpraktikum in Sachsendorf all the same, as QIS
-  says, which is why QIS's statement comes first.
+  says, which is why QIS's statement comes first. Since schema 16 QIS decides the main campus as
+  well (below, „Better criteria“).
 - **The courses of a module** (`module_track`): per module and semester, the teaching events at
   each campus (an event whose dates with a room are at one campus; one at two campuses or at none
   is in no course and stays everybody's). A campus holds a course of its own where its events'
@@ -947,19 +948,21 @@ Standorten -> plausibel, dass es Dopplungen gibt“). Every build now does both
   holds 2 of its 4 SWS in Sachsendorf and 2 at the Zentralcampus, both required; Medizinische
   Grundlagen (11777) 3 of 6 in Sachsendorf and 2 in Senftenberg; Elektronische Bauelemente und
   Schaltungen (13693) its lecture at the Zentralcampus and its lab in Senftenberg. Of the 15
-  modules of 2026W with events at two campuses, 8 have tracks: Höhere Mathematik T1 and T3,
+  modules of 2026W with events at two campuses, 7 have tracks: Höhere Mathematik T1 and T3,
   Informatik 1, Einführung in die Programmierung (Zentralcampus and Senftenberg), Entwicklung von
-  Softwaresystemen (Zentralcampus, and Senftenberg for Medizininformatik), Programmierpraktikum,
-  Softwarepraktikum (Zentralcampus, and Sachsendorf for Medizininformatik) and the Research Module
-  in Artificial Intelligence (three seminars, two at the Zentralcampus, one in Sachsendorf, all of
-  them for Artificial Intelligence M.Sc.). Cottbus's two campuses are tracks as Cottbus and
-  Senftenberg are: the town alone, which Folia's Stundenplan went by, did not see the
-  Programmierpraktikum.
+  Softwaresystemen (Zentralcampus, and Senftenberg for Medizininformatik), Programmierpraktikum and
+  Softwarepraktikum (Zentralcampus, and Sachsendorf for Medizininformatik). The Research Module in
+  Artificial Intelligence (14060) passes the SWS, three seminars, two at the Zentralcampus and one
+  in Sachsendorf, but QIS lists every one of them for Artificial Intelligence M.Sc. alone: topics
+  to choose from, not places, and no tracks since schema 16 (below). Cottbus's two campuses are
+  tracks as Cottbus and Senftenberg are: the town alone, which Folia's Stundenplan went by, did not
+  see the Programmierpraktikum.
 - **Which course a program takes** (`module_track_program`): the courses whose events QIS lists a
   program of its family on (`qis`; a page lists „Informatik Bachelor“ without a PO, so every PO of
   the family counts); else the course at the campus where the program has strictly more of its
-  compulsory modules than at the other courses' campuses (`campus`). Neither: no row, and a reader
-  shows every course. A family listed on two courses takes both: Elektrotechnik B.Sc. is taught
+  compulsory modules than at the other courses' campuses (`campus`; since schema 16 the campus where
+  QIS lists the program's other events comes first). Neither: no row, and a reader shows every
+  course. A family listed on two courses takes both: Elektrotechnik B.Sc. is taught
   in Cottbus (EET, MIT) and in Senftenberg (IoT, PA), its study directions are one program in the
   catalog, and its rows of Höhere Mathematik T1 are both courses. Every program of the catalog
   gets its rows, not only those whose curriculum holds the module: a student of Soziale Arbeit
@@ -967,9 +970,46 @@ Standorten -> plausibel, dass es Dopplungen gibt“). Every build now does both
 - **`v_module_schedule.track`** carries the course on every date of its events, so that a reader
   of the schedule needs no second question to group or hide them.
 
-`TestTracksOnSnapshot` runs the courses on a copy of a snapshot, optionally with QIS's event pages
-saved as `<veranstid>.html` for their „Studiengänge“ (a snapshot has no pages):
+**Better criteria** (the same day; owner: „Wenn du bessere Kriterien findest um das einzustufen
+dann kannst du auch die Verwenden.“). Canary's snapshot of 2026-10-19, built by Radix 0.9.0 from all
+4,093 event pages of the public site's archive (7,750 of 8,148 rows of „Studiengänge“ resolved),
+was read against both steps (migration 0016, schema 16):
 
+- **The same audience at every course is no choice of place** (`sameAudience`). Of the 15 modules
+  with events at two campuses, the SWS keep the 7 whose required parts are spread apart and find
+  8 with a whole course at each campus. QIS lists at least one family at one course and not at
+  the other at 7 of them; at the Research Module in Artificial Intelligence it lists AI M.Sc.
+  alone, at every seminar. Courses whose events QIS lists the same families at (an unresolved row
+  by its label) are no tracks (`build.finished` `tracks_one_audience`); a course QIS lists nobody
+  at leaves it to the SWS. The SWS stay the plausibility as they were: a module whose parts would
+  be read as courses loses required dates from a Stundenplan, one whose courses are missed shows
+  them all, as before.
+- **QIS says where a program is taught** (`program_campus.sws`): per campus the SWS of the
+  teaching events QIS lists a program of the family at (every PO: an older PO is taught where the
+  newest is; an event without SWS counts one). The main campus is the one with strictly the most
+  of them, else as before the one with strictly the most compulsory modules. QIS and the
+  compulsory modules agree for 76 families; QIS places 26 more, which have no plan or no strict
+  majority in it (Informatik M.Sc., Artificial Intelligence M.Sc., Pflegewissenschaft); they
+  differ for two, both clear for QIS: Wirtschaftsingenieurwesen B.Sc. and M.Sc. of the FH profile,
+  30 of 33 and 21 of 31 SWS in Senftenberg, against three compulsory modules of four and one at
+  the Zentralcampus. 168 programs have a main campus, 123 of them by QIS. A program whose family
+  QIS does not list at a module's courses takes the course at its campus by the same order (QIS's
+  SWS among the courses' campuses, then its compulsory modules): of 1,074 rows, 14 move
+  (Wirtschaftsingenieurwesen FH to Senftenberg, Medizintechnik's Programmier- and
+  Softwarepraktikum to Sachsendorf, where QIS lists its medical events) and 197 are new, for
+  programs that took either course before.
+- **Not done:** a study direction of a program in the catalog. QIS's „Elektrotechnik - IoT -
+  Bachelor“ and „Elektrotechnik - EET - Bachelor“ are one program, Elektrotechnik B.Sc., whose
+  plan has a table for MIT and EET and one for PA and IoT; Höhere Mathematik T3 is held for IoT and
+  PA in Senftenberg and for EET and MIT at the Zentralcampus, so Elektrotechnik takes both courses.
+  Seven labels name a direction (Elektrotechnik, Medizintechnik), and Folia knows the direction a
+  student chose only as the plan's table.
+
+`TestTracksOnSnapshot` runs the courses on a copy of a snapshot: with the programs QIS lists at
+the events that a snapshot of schema 15 or newer carries (canary's `/api/db`), or with QIS's event
+pages saved as `<veranstid>.html` for their „Studiengänge“ (a snapshot has no pages):
+
+    RADIX_TRACKS_SNAPSHOT=/tmp/copy.db go test ./internal/catalogbuild -run TestTracksOnSnapshot -count=1 -v
     RADIX_TRACKS_SNAPSHOT=/tmp/copy.db RADIX_TRACKS_PAGES=/tmp/qis-pages go test ./internal/catalogbuild -run TestTracksOnSnapshot -count=1 -v
 
 Open:
