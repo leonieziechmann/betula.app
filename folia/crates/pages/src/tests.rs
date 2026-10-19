@@ -767,6 +767,7 @@ fn lecturer_and_bookmark_filters() {
 /// is named instead of dropped.
 #[test]
 fn the_marked_modules_page() {
+    use folia_routes::filter::CatalogQuery;
     use folia_routes::url::{BookmarkSort, Season};
 
     use crate::BookmarksData;
@@ -783,7 +784,8 @@ fn the_marked_modules_page() {
     let known: Vec<String> = [&gone[0], &summer[0], &winter[1], &winter[0]].iter().map(|id| id.to_string()).collect();
     let ids = |data: &BookmarksData| data.rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>();
 
-    let data = pages::bookmarks(&db, &marked, BookmarkSort::Added, false).unwrap();
+    let none = CatalogQuery::default();
+    let data = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &none).unwrap();
     assert_eq!(ids(&data), known, "the order of marking, and the module that is no longer offered stays on the list");
     assert_eq!(data.missing, vec!["99999999".to_string()]);
 
@@ -798,16 +800,67 @@ fn the_marked_modules_page() {
     assert!(!data.offered_in(Season::Winter, "99999999"));
 
     // Another order comes from the same query as the catalog's.
-    let by_credits = pages::bookmarks(&db, &marked, BookmarkSort::Credits, true).unwrap();
+    let by_credits = pages::bookmarks(&db, &marked, BookmarkSort::Credits, true, &none).unwrap();
     let credits: Vec<f64> = by_credits.rows.iter().filter_map(|row| row.credits).collect();
     assert!(credits.windows(2).all(|pair| pair[0] >= pair[1]), "descending credits: {credits:?}");
     assert_eq!((by_credits.rows.len(), by_credits.missing.clone(), by_credits.winter.len()), (4, data.missing.clone(), data.winter.len()));
-    // The order of marking has one direction.
-    assert_eq!(ids(&pages::bookmarks(&db, &marked, BookmarkSort::Added, true).unwrap()), known);
+    // The order of marking turns round (the oldest first); the study's and the offer's sections,
+    // which the page draws, keep the order of marking within them.
+    let oldest_first: Vec<String> = known.iter().rev().cloned().collect();
+    assert_eq!(ids(&pages::bookmarks(&db, &marked, BookmarkSort::Added, true, &none).unwrap()), oldest_first);
+    for sort in [BookmarkSort::Study, BookmarkSort::Offer] {
+        assert_eq!(ids(&pages::bookmarks(&db, &marked, sort, true, &none).unwrap()), known, "{sort:?}");
+    }
+
+    // The search at the head searches the marked modules as the catalog searches: by the title,
+    // marked where it found them; what the snapshot does not know stays named.
+    let title = by_credits.rows.iter().find(|row| row.id == winter[0]).map(|row| row.title.clone()).unwrap_or_default();
+    let word = title.split_whitespace().max_by_key(|word| word.chars().count()).unwrap_or_default().to_string();
+    let found = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { text: word.clone(), ..Default::default() }).unwrap();
+    assert!(found.rows.iter().any(|row| row.id == winter[0]), "„{word}\" finds {}", winter[0]);
+    assert!(found.rows.iter().all(|row| known.contains(&row.id)), "nothing but marked modules");
+    assert!(found.rows.iter().any(|row| row.marks.is_some()), "the rows say what the search found");
+    assert_eq!(found.missing, data.missing);
+    // A filter of the catalog's, among the marked.
+    let english = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { languages: vec![folia_routes::filter::Language::English], ..Default::default() }).unwrap();
+    assert!(english.rows.iter().all(|row| row.teaches_english == Some(true)), "only what is taught in English");
+    assert_eq!(english.missing, data.missing);
 
     // Nothing marked: nothing listed, and no query that matches everything.
-    assert_eq!(pages::bookmarks(&db, &[], BookmarkSort::Added, false).unwrap(), BookmarksData::default());
-    assert_eq!(pages::bookmarks(&db, &["1 OR 1=1".to_string()], BookmarkSort::Title, false).unwrap(), BookmarksData::default());
+    assert_eq!(pages::bookmarks(&db, &[], BookmarkSort::Added, false, &none).unwrap(), BookmarksData::default());
+    assert_eq!(pages::bookmarks(&db, &["1 OR 1=1".to_string()], BookmarkSort::Title, false, &none).unwrap(), BookmarksData::default());
+}
+
+/// Where the marked modules count in Mein Studiengang (the Merkliste's „Nach Studium" and „Zählt in
+/// meinem Studium"): a compulsory module, an elective one in its area of the module tree (by the
+/// area's short name, the tree's order with it), a module of the program's FÜS list, and nothing for
+/// one outside the program or a program the snapshot does not know.
+#[test]
+fn where_marked_modules_count_in_a_program() {
+    use folia_model::labels::{Code, ModuleKind};
+
+    let db = open();
+    let pick = |sql: &str| column(&db, sql).into_iter().next().unwrap_or_else(|| panic!("the snapshot has what the test needs: {sql}"));
+    let program = "079-82-2008";
+    let slug = pick(&format!("SELECT slug FROM v_program WHERE id = '{program}'"));
+    let compulsory = pick(&format!("SELECT module_id FROM v_program_module WHERE program_id = '{program}' AND relation = 'curricular' AND kind = 'compulsory' ORDER BY module_id LIMIT 1"));
+    let elective = pick(&format!("SELECT module_id FROM v_program_module WHERE program_id = '{program}' AND relation = 'curricular' AND kind = 'elective' AND area LIKE '%Wahlpflichtmodule Praktische Mathematik' ORDER BY module_id LIMIT 1"));
+    let fues = pick(&format!("SELECT module_id FROM v_program_module WHERE program_id = '{program}' AND relation = 'fues' AND module_id NOT IN (SELECT module_id FROM v_program_module WHERE program_id = '{program}' AND relation = 'curricular') ORDER BY module_id LIMIT 1"));
+    let outside = pick(&format!("SELECT id FROM v_module WHERE id NOT IN (SELECT module_id FROM v_program_module WHERE program_id = '{program}') ORDER BY id LIMIT 1"));
+    let ids = vec![outside.clone(), fues.clone(), elective.clone(), compulsory.clone()];
+
+    let places = pages::bookmark_places(&db, &ids, &slug).unwrap();
+    // In the order of the marks, without the module outside the program.
+    assert_eq!(places.iter().map(|place| place.id.as_str()).collect::<Vec<_>>(), [fues.as_str(), elective.as_str(), compulsory.as_str()]);
+    let of = |id: &str| places.iter().find(|place| place.id == id).unwrap();
+    assert_eq!(of(&compulsory).kind, Some(Code::Known(ModuleKind::Compulsory)));
+    assert_eq!((of(&elective).kind.clone(), of(&elective).area.as_str()), (Some(Code::Known(ModuleKind::Elective)), "Praktische Mathematik"));
+    assert!(of(&compulsory).order < of(&elective).order, "the areas in the order of the module tree");
+    assert_eq!((of(&fues).kind.clone(), of(&fues).area.as_str(), of(&fues).order), (Some(Code::Known(ModuleKind::Fues)), "", i64::MAX));
+
+    assert!(pages::bookmark_places(&db, &ids, "no-such-program").unwrap().is_empty());
+    assert!(pages::bookmark_places(&db, &[], &slug).unwrap().is_empty());
+    assert!(pages::bookmark_places(&db, &["1 OR 1=1".to_string()], &slug).unwrap().is_empty());
 }
 
 /// The search takes words, never patterns: a wildcard of `LIKE` alone finds nothing, and next to

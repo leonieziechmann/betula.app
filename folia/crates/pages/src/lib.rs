@@ -21,7 +21,7 @@ use folia_calendar::share::SharedPlan;
 use folia_calendar::subscription::Subscription;
 use folia_locale::Locale;
 use folia_model::db::{Database, DbError};
-use folia_model::labels::{Labelled, OfferStatus};
+use folia_model::labels::{Code, Labelled, ModuleKind, OfferStatus};
 use folia_model::rows::{
     CatalogPage, CatalogRow, Department, Meta, Module, Prerequisite, Program, ProgramModule, SearchElsewhere, Semester,
 };
@@ -37,7 +37,7 @@ use folia_query as queries;
 use folia_routes::filter::{
     CatalogQuery, FitsFilter, PlanSemesterFilter, ProgramRelation, ProgramScope, SortKey, TurnusFilter,
 };
-use folia_routes::url::{BookmarkSort, CatalogUrl, PAGE_SIZE, Season};
+use folia_routes::url::{BookmarkSort, BookmarksUrl, CatalogUrl, PAGE_SIZE, Season};
 use folia_search as search;
 use folia_timetable::clash;
 use folia_timetable::exams::{self, ExamWarning, Termin, TerminAt, WarningKind};
@@ -633,8 +633,9 @@ pub const MAX_BOOKMARKS: usize = 2000;
 pub struct BookmarksData {
     /// The modules the snapshot knows, in the order asked for.
     pub rows: Vec<CatalogRow>,
-    /// Which of them are offered in winter and which in summer, as the catalog's turnus filter
-    /// sees it (a module offered every semester is in both, one without a stated turnus in none).
+    /// Which of the modules asked for are offered in winter and which in summer, as the catalog's
+    /// turnus filter sees it (a module offered every semester is in both, one without a stated
+    /// turnus in none), whatever the filter: of all the marked modules.
     pub winter: Vec<String>,
     pub summer: Vec<String>,
     /// Ids the snapshot does not know (no longer part of the BTU's catalog, or marked with a
@@ -652,43 +653,145 @@ impl BookmarksData {
     }
 }
 
-/// `ids` in the order of marking, the newest first: that is the order `BookmarkSort::Added` shows.
-pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descending: bool) -> Result<BookmarksData, DbError> {
+/// `ids` in the order of marking, the newest first: that is the order `BookmarkSort::Added` shows,
+/// and the order within the sections of `Study` and `Offer`, which the page draws.
+///
+/// `filter` is the visitor's own filter of the list (`BookmarksAsk::query`): what is typed into the
+/// search at the head, searched as the catalog searches (its typos corrected where the text as typed
+/// finds nothing, `search::resolve`, the rows marked where it found them), the few of the catalog's
+/// filters the Merkliste offers (`BookmarksUrl::kept`), and what lives in the browser, which the page
+/// fills before it asks: Mein Studiengang for „Zählt in meinem Studium" (`program`) and for the
+/// search's ranking, the modules that fit the Stundenplan (`fits_ids`). Everything else of it is
+/// left out, so that the marked modules' own conditions (all of them, offered or not) hold.
+pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descending: bool, filter: &CatalogQuery) -> Result<BookmarksData, DbError> {
     // What comes from a browser's storage is checked like what comes from a URL.
     let mut seen = std::collections::BTreeSet::new();
     let ids: Vec<String> = ids.iter().filter(|id| folia_model::ids::is_module_id(id) && seen.insert(id.as_str())).take(MAX_BOOKMARKS).cloned().collect();
     if ids.is_empty() {
         return Ok(BookmarksData::default());
     }
+    let text = filter.text.trim().to_string();
+    let text_resolution = match (&filter.text_resolution, text.is_empty()) {
+        (_, true) => None,
+        (Some(resolution), false) => Some(resolution.clone()),
+        (None, false) => Some(search::resolve(db, &text)?),
+    };
     let limit = ids.len() as u64;
+    // The orders of the page's sections keep the order of marking (`by_marking`); within them, and
+    // in „Zuletzt gemerkt" turned round, it is the order of marking that counts.
+    let by_marking = matches!(sort, BookmarkSort::Added | BookmarkSort::Study | BookmarkSort::Offer);
     let marked = |season: Option<Season>| CatalogQuery {
         only_ids: Some(ids.clone()),
         // A marked module stays on the list when it is no longer offered.
         offer: Some(OfferStatus::ALL.to_vec()),
         turnus: TurnusFilter { winter: season == Some(Season::Winter), summer: season == Some(Season::Summer), ..Default::default() },
         sort: match sort {
-            BookmarkSort::Added | BookmarkSort::Title => SortKey::Title,
+            BookmarkSort::Added | BookmarkSort::Study | BookmarkSort::Offer | BookmarkSort::Title => SortKey::Title,
             BookmarkSort::Credits => SortKey::Credits,
             BookmarkSort::Events => SortKey::Events,
         },
-        descending: descending && sort != BookmarkSort::Added,
+        descending: descending && !by_marking,
+        text: text.clone(),
+        text_resolution: text_resolution.clone(),
+        rank_program: filter.rank_program.clone(),
+        program: filter.program.clone(),
+        languages: filter.languages.clone(),
+        credits_min: filter.credits_min,
+        credits_max: filter.credits_max,
+        campuses: filter.campuses.clone(),
+        graded: filter.graded,
+        fits: filter.fits.clone(),
+        fits_ids: filter.fits_ids.clone(),
         ..Default::default()
     };
+    // Which of all the marked modules are offered in each half of the year, whatever the filter:
+    // the page filters by it itself, and shows the choice while the marked modules are not all
+    // offered alike.
     let offered_in = |season: Season| -> Result<Vec<String>, DbError> {
-        Ok(queries::catalog_page(db, &marked(Some(season)), 0, limit)?.rows.into_iter().map(|row| row.id).collect())
+        let all = CatalogQuery {
+            only_ids: Some(ids.clone()),
+            offer: Some(OfferStatus::ALL.to_vec()),
+            turnus: TurnusFilter { winter: season == Season::Winter, summer: season == Season::Summer, ..Default::default() },
+            ..Default::default()
+        };
+        Ok(queries::catalog_page(db, &all, 0, limit)?.rows.into_iter().map(|row| row.id).collect())
     };
 
     let mut rows = queries::catalog_page(db, &marked(None), 0, limit)?.rows;
-    if sort == BookmarkSort::Added {
+    if by_marking {
         let place = |id: &str| ids.iter().position(|marked| marked == id).unwrap_or(usize::MAX);
         rows.sort_by_key(|row| place(&row.id));
+        if sort == BookmarkSort::Added && descending {
+            rows.reverse();
+        }
     }
+    // What the snapshot does not know is named under the list; which those are does not depend on
+    // the filter, so a filtering list asks once more without it.
+    let filtering = !text.is_empty() || filter.program.is_some() || filter.fits.is_some() || BookmarksUrl::kept(filter.clone()) != CatalogQuery::default();
+    let known: BTreeSet<String> = if filtering {
+        let all = CatalogQuery { only_ids: Some(ids.clone()), offer: Some(OfferStatus::ALL.to_vec()), ..Default::default() };
+        queries::catalog_page(db, &all, 0, limit)?.rows.into_iter().map(|row| row.id).collect()
+    } else {
+        rows.iter().map(|row| row.id.clone()).collect()
+    };
     Ok(BookmarksData {
-        missing: ids.iter().filter(|id| !rows.iter().any(|row| row.id == **id)).cloned().collect(),
+        missing: ids.iter().filter(|id| !known.contains(id.as_str())).cloned().collect(),
         winter: offered_in(Season::Winter)?,
         summer: offered_in(Season::Summer)?,
         rows,
     })
+}
+
+/// Where a marked module counts in a program (`bookmark_places`): the Merkliste's order „Nach
+/// Studium" falls into sections by it, and „Zählt in meinem Studium" keeps the modules that have one
+/// (folia/design/merken/konzept.html, „Ordnungen, die Betula kennt").
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Place {
+    pub id: String,
+    /// The kind the program's sources settle on (`v_program_module.kind`: compulsory, elective,
+    /// thesis, internship); a module of the program's own FÜS list is `fues`. `None` where no
+    /// source says.
+    pub kind: Option<Code<ModuleKind>>,
+    /// The area of the program's module tree the module lies in, by its short name („Praktische
+    /// Mathematik" for „Wahlpflichtmodule Praktische Mathematik", `study::area_name`); empty for
+    /// none.
+    pub area: String,
+    /// Where that area stands in the tree, for the order of the sections; `i64::MAX` for none.
+    pub order: i64,
+}
+
+/// Where the marked modules `ids` count in the program `slug` (Mein Studiengang): in its
+/// curriculum, else in its own list of FÜS modules. A module in neither has no place; a program
+/// the snapshot does not know has none at all. In the order of `ids`.
+pub fn bookmark_places(db: &dyn Database, ids: &[String], slug: &str) -> Result<Vec<Place>, DbError> {
+    let mut seen = BTreeSet::new();
+    let ids: Vec<String> = ids.iter().filter(|id| folia_model::ids::is_module_id(id) && seen.insert(id.as_str())).take(MAX_BOOKMARKS).cloned().collect();
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(program) = queries::program_by_slug(db, slug)? else { return Ok(Vec::new()) };
+    let limit = ids.len() as u64;
+    let scope = |relation: ProgramRelation| CatalogQuery {
+        only_ids: Some(ids.clone()),
+        // A marked module counts whether it is still offered or not.
+        offer: Some(OfferStatus::ALL.to_vec()),
+        program: Some(ProgramScope { program_slug: program.slug.clone(), relation, ..Default::default() }),
+        ..Default::default()
+    };
+    // The areas of the tree by their path, with their label and their place in the tree.
+    let tree: BTreeMap<String, (String, i64)> = queries::program_areas(db, &program.id)?.into_iter().map(|placed| (placed.area, (placed.area_label, placed.area_ord))).collect();
+    let mut places: BTreeMap<String, Place> = BTreeMap::new();
+    for row in queries::catalog_page(db, &scope(ProgramRelation::Curricular), 0, limit)?.rows {
+        let (area, order) = match row.area.as_deref().and_then(|path| tree.get(path)) {
+            Some((label, order)) => (folia_plans::study::area_name(label).to_string(), *order),
+            None => (String::new(), i64::MAX),
+        };
+        places.insert(row.id.clone(), Place { id: row.id, kind: row.kind, area, order });
+    }
+    for row in queries::catalog_page(db, &scope(ProgramRelation::Fues), 0, limit)?.rows {
+        places.entry(row.id.clone()).or_insert(Place { id: row.id, kind: Some(Code::Known(ModuleKind::Fues)), area: String::new(), order: i64::MAX });
+    }
+    Ok(ids.iter().filter_map(|id| places.remove(id)).collect())
 }
 
 /// One semester of a Studienplan: the planned modules' rows, and what the semester's timetable is

@@ -120,6 +120,19 @@ impl Facts {
     }
 }
 
+/// What „Mein Studium" says of a module, where a row of the Merkliste shows it (owner, 2026-10-19:
+/// „Ja mein stadium"): its mark as „Mein Studium" draws it (app.css `.st-glyph`), the word that mark
+/// stands for, and the semester it is about.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RowStatus {
+    /// `planned`, `running`, `passed` or `failed`, the class of the mark.
+    pub class: &'static str,
+    /// „Geplant", „Läuft", „Bestanden", „Nicht bestanden": for screen readers and the tooltip.
+    pub word: &'static str,
+    /// „WiSe 26/27".
+    pub semester: String,
+}
+
 /// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
 /// a link; the mark at its end is a button next to the link, not inside it.
 #[component]
@@ -141,6 +154,8 @@ pub fn Row(
     /// On a phone the row is swiped to mark the module (to the left) and to plan it (to the right,
     /// `crate::swipe`): the lists of the catalog and of the marked modules in the browser app.
     #[prop(optional)] swipe: bool,
+    /// What „Mein Studium" says of the module, after what the catalog says of it (the Merkliste).
+    #[prop(optional, into)] status: Option<Signal<Option<RowStatus>>>,
 ) -> impl IntoView {
     let t = i18n::t();
     let facts = Facts::of(Some(&row), t.locale);
@@ -197,6 +212,16 @@ pub fn Row(
                     {(row.is_limited == Some(true)).then(|| view! { <span class="flag neutral">{t.catalog.limited_places}</span> })}
                     {fit_note}
                     {offered.map(|offered| view! { <span class="row-offer">{offered}</span> })}
+                    {status.map(|status| move || status.get().map(|status| {
+                        let title = format!("{} · {}", status.word, status.semester);
+                        view! {
+                            <span class="row-status" title=title>
+                                <span class=format!("st-glyph {}", status.class) aria-hidden="true"><Icon name="check" class="g-passed"/><Icon name="x" class="g-failed"/></span>
+                                <span class="visually-hidden">{status.word}" "</span>
+                                {status.semester}
+                            </span>
+                        }
+                    }))}
                     {facts.narrow()}
                 </small>
             </div>
