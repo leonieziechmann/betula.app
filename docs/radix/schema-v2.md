@@ -55,6 +55,7 @@ is derived and replaced by each build.
 | `plan_total`, `plan_total_entry` | the sums a regulation prints over the rows of its own plan, with the rows each counts. `scope` = `plan` (everything these semesters hold) or `section` (a named part); `is_choice` marks the sum that is the only statement of how much its rows count for. A sum is stored only where its rows reach it, so `credits` always lies between `min_credits` and `max_credits` | statute PDFs |
 | `semester`, `event`, `event_form`, `event_person`, `event_date`, `module_event` | events keyed by semester (`2026S`, `2026W`), `category` (`teaching`, `exam`, `other`), `last_date` for the retention rule, campus per date; `event_date.room_short` is the room's short form („ZHG/HS.A“), `room` keeps the full name; `event_date.series` and `series_weeks` say which single dates are one series (section „Series of single dates“) | the QIS event page where the QIS event search confirms it, else the newer of page and search entry (`docs/radix/data-sources.md` §11); a reading that states nothing of the event is none, and an event without a reading, one BTU removed, is not built; the module page decides which events belong to a module; `room_short` and the series by the build (sections „Short names“, „Series of single dates“) |
 | `event_program`, `event_program_ref` | what an event page lists under „Studiengänge“: the program as QIS names it („Informatik Bachelor (universitäres Profil)“), the Fachsemester, the PO, a remark, the id of QIS's link; and the programs of the catalog each row names (`resolve_status`) | the QIS event page (`docs/radix/data-sources.md` §5.16); resolved by the build (section „Tracks“) |
+| `module_choice`, `module_choice_option`, `module_extra` | the choices among a module's events in a semester (within one of its courses where it has them): how many options one takes and what they cover, `program`, `group` or `topic`; their options, each one event or more; the extras beside the compulsory part | build (section „Choices“) |
 | `program_campus`, `module_track`, `module_track_program` | where a program is taught (the SWS of the events QIS lists its family at, and its compulsory modules, per campus); the events of a module that form a course of their own at one campus, where two campuses each hold one; which of them each program takes (`basis` `qis` or `campus`) | build (section „Tracks“) |
 | `module_abbrev`, `program_module_abbrev` | the abbreviation of every module („AuP“), and of every module of every program, unique within the program; `is_override` (a line of the curated file), `choice` (1 = the first candidate; more = it fell back), `is_twin` (`-b`, `-c` after an identical title) | build, from the titles (section „Short names“) |
 | `module_folded` | the names of every module as the search compares them: its titles folded, their initials, its abbreviations folded | build, from the titles and the abbreviations (section „Search“) |
@@ -103,7 +104,9 @@ Consumers read only these. `v_*_src` views and base tables are implementation.
 | `v_module_text_item` | module × item | `module_id, kind` (`literature`, `course`)`, ord, text` |
 | `v_module_prerequisite` | module × required module | `module_id, required_module_id, kind, required_title, required_offer_status` |
 | `v_module_successor` | module × successor | `module_id, successor_id, successor_title` |
-| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks` (the series of single dates a row belongs to, section „Series of single dates“; schema 13)`, track` (the campus of the course of its own the event is part of, NULL for an event in none; section „Tracks“, schema 15) |
+| `v_module_schedule` | module × event date, exams excluded | `module_id, semester_key, semester_label, event_id, event_number, event_title, event_type, ord, group_name, weekday, start_time, end_time, rhythm, rhythm_raw, first_date, last_date, room, campus, instructor, comment, cancelled_dates, source_url, room_short, series, series_weeks` (the series of single dates a row belongs to, section „Series of single dates“; schema 13)`, track` (the campus of the course of its own the event is part of, NULL for an event in none; section „Tracks“, schema 15)`, choice, option, extra` (the choice and option the event is one of, NULL for most; `extra` 1 for an event beside the compulsory part; section „Choices“, schema 17) |
+| `v_module_choice` | module × semester × choice × option × event | `module_id, semester_key, choice, course, kind, basis, sws, pick, option, event_id, label`: a choice among the module's events, in the course `course` (NULL: in none); `kind` `program` (one event more than once, QIS naming other programs at its options), `group` (one event in groups) or `topic` (different contents); `basis` `named` (groups a title names), `module` (whole units that each hold the module's SWS) or `form` (within one form); of its options one takes `pick`, together `sws` SWS (NULL for named groups); `label` „Gruppe 2“ where a title names it (section „Choices“; schema 17) |
+| `v_module_choice_family` | module × semester × choice × option × family | `module_id, semester_key, choice, option, family_key`: the families of the programs QIS lists at an option's events; a program takes the options listed for its family (section „Choices“; schema 17) |
 | `v_module_track_program` | module × semester × program × course | `module_id, semester_key, campus, program_id, basis, family_key`: the course (`campus`, as `v_module_schedule.track`) a program takes of a module with tracks; `qis` where QIS lists the program (any PO of its family) on the course's events, `campus` where the campus the program is taught at decides (`v_program_campus`: QIS's other events, else its compulsory modules); a program with no row takes either (section „Tracks“; schema 15) |
 | `v_event_program` | event × listed program × resolved program | `event_id, ord, label, semester_min, semester_max, po_raw, remark, resolve_status, program_id, family_key`: whom QIS states the event is for; `program_id` and `family_key` NULL where the row names no program of the catalog (schema 15) |
 | `v_program_campus` | program × campus | `program_id, campus, modules, sws, is_main`: how many compulsory modules of the program's Regelstudienplan are held at the campus (in the newest semester each module has dates with a room), and the SWS of the teaching events there that QIS lists a program of its family at (`sws`, schema 16); `is_main` for the one campus with strictly the most `sws`, where QIS lists the family nowhere strictly the most `modules` (schema 15, `sws` 16) |
@@ -1011,6 +1014,56 @@ pages saved as `<veranstid>.html` for their „Studiengänge“ (a snapshot has 
 
     RADIX_TRACKS_SNAPSHOT=/tmp/copy.db go test ./internal/catalogbuild -run TestTracksOnSnapshot -count=1 -v
     RADIX_TRACKS_SNAPSHOT=/tmp/copy.db RADIX_TRACKS_PAGES=/tmp/qis-pages go test ./internal/catalogbuild -run TestTracksOnSnapshot -count=1 -v
+
+### Choices (2026-10-19)
+
+Many modules list more events than a student attends: one of three exercises, one of 14 projects, a
+tutorial for whoever wants one. Folia showed every one as required. The owner, after a sweep of
+canary's catalog: „ich will nicht, dass wir sonderfälle per hand eintragen, sondern eine lösung
+haben, die in die zukunft funktioniert … Bitte bilde alles außer daten passen nicht zusammen in der
+DB und dem UI ab. Die dateninkongruenz sind einfach fehler von der uni, das sollten wir
+ignorieren“; the concept (`folia/design/wahlangebote/konzept.html`) was accepted as it stood
+(„Passt so, nimm deine Vorschläge und bau es“). Every build reads them (`catalogbuild/choices.go`,
+migration 0017) from the SWS of the module per form and of its events, their forms, their titles and
+whom QIS lists them for; no module is named anywhere. Per module and semester, and within each course
+at a campus where it has them (the first course claims the events its courses share), in this
+order, each step leaving what an earlier one placed:
+
+1. **Extras** (`module_extra`): an event of the form tutorial the module states no SWS for, or one
+   whose title names a support format (Tutorium, Aufbaukurs, Sprechstunde, Fragestunde,
+   Repetitorium, Vorkurs, Brückenkurs), where the rest still holds three quarters of the module's
+   SWS of its other forms: what is needed to reach them is never an extra.
+2. **Groups a title names** (`basis` `named`): titles alike but for „(Gruppe 2)“, „2. Gruppe“ or
+   „(A-Kurs)“, one of them. Groups of the same numbers in one module are one choice, an option per
+   group (Kontrapunkt/Tonsatz I and Gehörbildung I, the one right after the other in each).
+3. **Whole units** (`module`): the events of one title in different forms are one unit (a lecture
+   and its seminar); where two units or more each hold three quarters of the module's SWS, are of
+   about one size (the largest at most twice the least), hold more than the module by a quarter
+   and by one unit, and share a form the module states (or are all of one form it does not state:
+   QIS's „Projekt“, the module's „Seminar“), a student takes as many as cover the module (rounded
+   half to even). Units without SWS of those forms are options too.
+4. **Within one form** (`form`): otherwise per form, the units holding a quarter and one unit more
+   than the module states for it (all of the module where no unit is of a form it states), of about
+   one size, each at least half of its share and none more than a quarter above all of it.
+5. **Parts stay compulsory**: no choice where titles differ only by a part's number (T1, Teil 2,
+   II) or where the module's title names each option apart („Werkstoff- und Physiklabor“ over
+   „Laborwoche Werkstofflabor“ and „Laborwoche Physiklabor“).
+6. **Kind**: titles that share 60 % of their words, leaving out group, variant and audience
+   („(Online)“, „für MT“), are one content: `program` where QIS lists other programs at the options
+   (an option without any makes it `group`), else `group`; different titles are `topic`.
+
+On canary's snapshot of 2026-10-19 (WiSe 2026/27, built by Radix 0.9.1) the build finds 94 modules
+with choices — 8 by program, 14 in groups, 72 of topics — and 22 extras in 21 modules, exactly what
+the prototype in `research/wahlangebote` found there (its groups of the same numbers counted
+apart). Held against a review by hand of the 115 modules whose events hold 1.5 times the module's
+SWS or more: of the choice catalogues 68 of 76, of the same event more than once 18 of 19, of the
+extras 3 of 4, and none of the 16 whose data do not fit; 23 more beyond the review, all right. What
+the rules do not decide stays as it was: every event required.
+
+`TestChoicesOnSnapshot` runs them on a copy of a snapshot of schema 15 or newer and can write them
+out for `research/wahlangebote/python/evaluate.py`:
+
+    RADIX_CHOICES_SNAPSHOT=/tmp/copy.db RADIX_CHOICES_OUT=/tmp/choices.tsv go test ./internal/catalogbuild -run TestChoicesOnSnapshot -count=1 -v
 
 Open:
 
