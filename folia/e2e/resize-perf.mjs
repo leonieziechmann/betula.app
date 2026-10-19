@@ -20,8 +20,10 @@ const open = async (path, width = 1500) => {
   return page;
 };
 
+// The handle that is seen: every tab's page stays built on a stage of its own, the ones behind with
+// handles of the same name (folia_shell::stage).
 const drag = async (page, selector, dx) => {
-  const handle = await page.locator(selector).boundingBox();
+  const handle = await page.locator(selector + " >> visible=true").first().boundingBox();
   const y = handle.y + 300;
   await page.mouse.move(handle.x + handle.width / 2, y);
   await page.mouse.down();
@@ -52,11 +54,11 @@ const result = {};
   result["catalog, 50 rows: filters"] = await drag(page, '[data-action="resize-filters"]', 120);
   result["catalog, 50 rows: preview"] = await drag(page, '[data-action="resize-preview"]', -160);
   for (let i = 0; i < 5; i++) {
-    const before = await page.evaluate(() => document.querySelectorAll(".rows a.row").length);
-    await page.evaluate(() => { const rows = document.querySelector(".rows"); rows.scrollTop = rows.scrollHeight; });
-    await page.waitForFunction((n) => document.querySelectorAll(".rows a.row").length > n, before, { timeout: 8000 }).catch(() => {});
+    const before = await page.evaluate(() => document.querySelectorAll("#content > .page-stage.front .rows a.row").length);
+    await page.evaluate(() => { const rows = document.querySelector("#content > .page-stage.front .rows"); rows.scrollTop = rows.scrollHeight; });
+    await page.waitForFunction((n) => document.querySelectorAll("#content > .page-stage.front .rows a.row").length > n, before, { timeout: 8000 }).catch(() => {});
   }
-  const rows = await page.evaluate(() => document.querySelectorAll(".rows a.row").length);
+  const rows = await page.evaluate(() => document.querySelectorAll("#content > .page-stage.front .rows a.row").length);
   result[`catalog, ${rows} rows: filters`] = await drag(page, '[data-action="resize-filters"]', 120);
   result[`catalog, ${rows} rows: preview`] = await drag(page, '[data-action="resize-preview"]', -160);
   await page.close();
