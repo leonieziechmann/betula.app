@@ -1237,16 +1237,24 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     browser could take for a swipe back through the history (`overscroll-behavior-x`). The page that
     comes in shows from its top, wherever the window was scrolled to in the one before, as a page of
     an app does: while the row moves the pages it does not rest at are drawn as far down as the
-    window is past its top (`dom::lift`), and at rest the window goes up as far as the page there
-    was drawn down, in the same frame (`dom::land`); the window keeps no scroll anchor meanwhile.
-    What is scrolled while the row moves stays: the page coming in goes along with the window, and
-    at rest it is as far down in itself as it was scrolled, while the page that was left starts at
-    its top again, off the screen (owner, 2026-10-19: „wenn man vertikal am scrollen ist während man
-    swiped. Dann springt das am [Ende vom] swipen wieder zum Anfang. Mach das mal lieber so, dass sich
-    das scrollen off Screen resetted wenn man weg geswiped hat"; until then the window went up as
-    far as it was past the row's top at rest, which took the page back to its top). A finger that
-    comes down while a page coming in shows leaves it where it is drawn; on a row at rest the
-    pages coming in are drawn anew, as the window is scrolled then. The page the row rests at alone can
+    window is past its top (`dom::lift`, as a finger comes down on it), and as soon as the row moves
+    the window scrolls the page it heads for, from its top to its end, and nothing of the page it
+    leaves (`dom::turn`): the window goes up as far as the pages coming in were drawn down and they
+    come back to their places, the page that goes is drawn as far up, where it was, and counts for
+    nothing of the row's height, which is the height of the page it heads for (`is-turning`,
+    `data-to`), all in one frame (owner, 2026-10-19: „wenn man bei einem langen semester ganz nach
+    unten scrolled, dann zur seite swiped und dann nach oben scrolled, wird der vertikale space von
+    der gerade verschwinden seite noch als scrollbar angesehen, bis sie verschwindet und dann springt
+    es wieder zurück … Ich glaube der beste fix ist da einfach den overflow für die page auszustellen,
+    die weg geswiped wird"). The row reaches up under the bar at the top, so that the page that goes
+    is cut off at the window's edge as before, not under the bar. At rest the window stays where it
+    is (`dom::land`): what is scrolled while the row moves stays, up or down, and the page that was
+    left starts at its top again, off the screen (the same day: „wenn man vertikal am scrollen ist
+    während man swiped. Dann springt das am [Ende vom] swipen wieder zum Anfang. Mach das mal lieber
+    so, dass sich das scrollen off Screen resetted wenn man weg geswiped hat"). Back at the page it
+    left (a short pull), the row is as before at once (`dom::unturn`), not only once it rests. The
+    window keeps no scroll anchor meanwhile; a finger that comes down while a page coming in shows
+    leaves it where it is drawn. The page the row rests at alone can
     be used; the others are let go of at rest, not under the finger (a whole page made inert cost
     the frame it happened in on a thread four times slower). A semester's way back, on either side
     of the overview, is a square box left of the search at the head of the screen, as the search is
@@ -1458,7 +1466,7 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     the glides of a tap quick (the box, ‹ past the overview, the way back: at most 280–360 ms from
     the first move to rest), a real finger moving the row and a short pull going back, the last
     semester that is over drawn to the overview, a semester scrolled while the row moves staying as
-    scrolled at rest, the window scrolled into a semester and the next
+    scrolled at rest, up from the end of one into the next with nothing of the one that goes above it, the window scrolled into a semester and the next
     shown from its top, a long press and the bar over the tab bar, the menu as a sheet without the
     module, a semester added, the way back and Back without a step more, the credits opening the
     areas from their headline, their bar, their legend and next to each edge of their box, the

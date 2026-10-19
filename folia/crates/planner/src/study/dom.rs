@@ -315,7 +315,7 @@ pub(super) fn window_to_top() {
 
 /// Before a row of pages moves sideways: the pages it does not rest at are drawn as far down as
 /// the window is scrolled past the row's top, so that the one coming in shows from its top, as a
-/// page of an app does (`land` takes it back). How far that is (px).
+/// page of an app does (`turn` and `land` take it back). How far that is (px).
 #[allow(unused_variables)]
 pub(super) fn lift(row: &leptos::web_sys::Element) -> f64 {
     #[cfg(feature = "csr")]
@@ -327,27 +327,93 @@ pub(super) fn lift(row: &leptos::web_sys::Element) -> f64 {
     0.0
 }
 
-/// The row has come to rest: at another page (`moved`), the window goes up as far as that page was
-/// drawn further down (`lifted`, what `lift` said) in the same frame as it comes back to its place,
-/// so that nothing moves on the screen; the pages are where they are again either way. Scrolled
-/// meanwhile, the page came along with the window, and it stays as far down in itself as it was
-/// scrolled (owner, 2026-10-19: „wenn man vertikal am scrollen ist während man swiped. Dann springt
-/// das am [Ende vom] swipen wieder zum Anfang. Mach das mal lieber so, dass sich das scrollen off
-/// Screen resetted"): the window went up to the row's top before, as far as it is past it now, and
-/// took the page back to its top at the end of the swipe. The page that was left is off the screen
-/// and comes in from its top the next time (`lift`).
+/// The window goes to `y` at once.
+#[cfg(feature = "csr")]
+fn window_at(window: &web_sys::Window, y: f64) {
+    let options = web_sys::ScrollToOptions::new();
+    options.set_top(y);
+    options.set_behavior(web_sys::ScrollBehavior::Instant);
+    window.scroll_to_with_scroll_to_options(&options);
+}
+
+/// The row moves sideways from the page it rests at to the page at `to` (its place in the row):
+/// from now on the window scrolls that page, from its top to its end, and nothing of the page that
+/// goes (owner, 2026-10-19: „wenn man bei einem langen semester ganz nach unten scrolled, dann zur
+/// seite swiped und dann nach oben scrolled, wird der vertikale space von der gerade verschwinden
+/// seite noch als scrollbar angesehen, bis sie verschwindet und dann springt es wieder zurück … Ich
+/// glaube der beste fix ist da einfach den overflow für die page auszustellen, die weg geswiped
+/// wird"). The window goes up as far as the pages coming in are drawn further down (`lifted`, what
+/// `lift` said) and they come back to their places; the page that goes is drawn as far up, where it
+/// was, and counts for nothing of the row's height, which is the height of the page at `to` (app.css
+/// `is-turning`, `data-to`). In one frame: nothing moves on the screen.
 #[allow(unused_variables)]
-pub(super) fn land(row: &leptos::web_sys::Element, moved: bool, lifted: f64) {
+pub(super) fn turn(row: &leptos::web_sys::Element, lifted: f64, to: usize) {
     #[cfg(feature = "csr")]
     if let Some(window) = web_sys::window() {
-        let by = lifted;
-        if moved && by > 0.5 {
-            let options = web_sys::ScrollToOptions::new();
-            options.set_top(window.scroll_y().unwrap_or(0.0) - by);
-            options.set_behavior(web_sys::ScrollBehavior::Instant);
-            window.scroll_to_with_scroll_to_options(&options);
+        let y = window.scroll_y().unwrap_or(0.0);
+        for (index, (child, style)) in styles_of(row).into_iter().enumerate() {
+            if lifted > 0.5 && child.has_attribute("data-here") {
+                let _ = style.set_property("transform", &format!("translateY({:.1}px)", -lifted));
+            } else {
+                let _ = style.remove_property("transform");
+            }
+            let _ = if index == to { child.set_attribute("data-to", "") } else { child.remove_attribute("data-to") };
         }
-        shift_others(row, 0.0);
+        mark(row, "is-turning", true);
+        if lifted > 0.5 {
+            window_at(&window, y - lifted);
+        }
+    }
+}
+
+/// The row that turns (`turn`) heads for the page at `to` now, the other way or a page further:
+/// the row is as tall as that page.
+#[allow(unused_variables)]
+pub(super) fn head_for(row: &leptos::web_sys::Element, to: usize) {
+    #[cfg(feature = "csr")]
+    for (index, (child, _)) in styles_of(row).into_iter().enumerate() {
+        let _ = if index == to { child.set_attribute("data-to", "") } else { child.remove_attribute("data-to") };
+    }
+}
+
+/// The row that turned (`turn`) is back at the page it rests at, under a finger or on its way to
+/// rest: the window goes down again as far as it went up, that page comes back to its place and the
+/// pages coming in are drawn from their tops again (`lift`), as before it turned. In one frame.
+#[allow(unused_variables)]
+pub(super) fn unturn(row: &leptos::web_sys::Element, lifted: f64) {
+    #[cfg(feature = "csr")]
+    {
+        land(row, false, lifted, true);
+        shift_others(row, lifted);
+    }
+}
+
+/// The row has come to rest. Where it turned (`turned`, `turn`): at another page (`moved`) the
+/// window stays, the page there being where it is drawn, as far down in itself as it was scrolled
+/// meanwhile; back at the page it left, the window goes down again as far as it went up, in the
+/// same frame as that page comes back to its place. Where it did not (a finger on it that did not
+/// move it): the pages coming in come back to their places. Nothing moves on the screen either way;
+/// the page that was left is off the screen and comes in from its top the next time (`lift`).
+#[allow(unused_variables)]
+pub(super) fn land(row: &leptos::web_sys::Element, moved: bool, lifted: f64, turned: bool) {
+    #[cfg(feature = "csr")]
+    if let Some(window) = web_sys::window() {
+        let y = window.scroll_y().unwrap_or(0.0);
+        if turned {
+            for (child, style) in styles_of(row) {
+                let _ = style.remove_property("transform");
+                let _ = child.remove_attribute("data-to");
+            }
+            mark(row, "is-turning", false);
+            if !moved && lifted > 0.5 {
+                window_at(&window, y + lifted);
+            }
+        } else {
+            if moved && lifted > 0.5 {
+                window_at(&window, y - lifted);
+            }
+            shift_others(row, 0.0);
+        }
     }
 }
 
