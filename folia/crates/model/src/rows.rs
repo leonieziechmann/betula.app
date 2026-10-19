@@ -266,7 +266,7 @@ pub struct MarkedText {
 }
 
 /// A choice among a module's events as its row in a list names it: „14 Projekte zur Wahl",
-/// „Übung je Studiengang", „3 Gruppen".
+/// „Übung je Studiengang", „3 Gruppen zur Wahl".
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChoiceSummary {
     pub kind: Code<ChoiceKind>,

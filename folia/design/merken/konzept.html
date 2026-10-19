@@ -25,7 +25,13 @@
      selbst. Leere Gruppen sind aber gut"; „Also 256 Module sind auch genug. Dann gibt es einfach ein Limit,
      und man bekommt ne Meldung"; „Dem rest würde ich ein OK geben"): a group's name only once, empty groups
      kept, at most 256 modules with a message, the seven questions answered as recommended. The UI and UX
-     are the second round, oberflaeche.html beside this page. -->
+     are the second round, oberflaeche.html beside this page; its answers, the same day, change the
+     functions a little: Betula's groups are „Sammlungen" („finde eine bessere formulierung für den Katalog
+     und die Merkliste, so dass betulas Gruppen mechanic nicht mit der von der uni verwechselt wird"), a
+     default for new marks replaces the note's second row („Man sollte in dem Modal was da kommt einstellen
+     können, dass das der default ist"), notes are Markdown („Mach mal notizen mit md support, du brauchst
+     kein visuellen editor"), and a few of the catalog's filters are enough („hier reichen ein paar, die
+     wirklich relevant sind"). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -296,20 +302,20 @@ td b { color: var(--text); }
     <div>
       <p class="kicker">Betula · Merkliste · 19.10.2026</p>
       <h1>Merken bleibt ein Tipp, Ordnung kommt erst, wenn man sie will</h1>
-      <p class="lead">Die Merkliste hält fest, was man beim Stöbern findet, damit man es wiederfindet: fürs eigene Studium, für Freunde, oder weil es witzig ist. Dieses Blatt legt fest, was sie können soll; wie sie aussieht, zeigt die zweite Runde, <code>oberflaeche.html</code> daneben. Der Kern: Merken bleibt ein Tipp ohne Frage. Was darüber hinausgeht, liegt dort, wo man es braucht: eine Suche in den gemerkten Modulen, eine Notiz, warum etwas da steht, Gruppen für die verschiedenen Zwecke, und die Merkliste als Quelle in „Mein Studium“, im Stundenplan und im Katalog. Wer nur sammelt, merkt davon nichts.</p>
+      <p class="lead">Die Merkliste hält fest, was man beim Stöbern findet, damit man es wiederfindet: fürs eigene Studium, für Freunde, oder weil es witzig ist. Dieses Blatt legt fest, was sie können soll; wie sie aussieht, zeigt die zweite Runde, <code>oberflaeche.html</code> daneben. Der Kern: Merken bleibt ein Tipp ohne Frage. Was darüber hinausgeht, liegt dort, wo man es braucht: eine Suche in den gemerkten Modulen, eine Notiz, warum etwas da steht, Sammlungen für die verschiedenen Zwecke, und die Merkliste als Quelle in „Mein Studium“, im Stundenplan und im Katalog. Wer nur sammelt, merkt davon nichts.</p>
       <blockquote class="quote">„Die merken page ist dafür da <b>interessante funde festzuhalten, damit man sie später wieder findet</b>. Dabei ist das aber nicht nur für den eigenen plan, denn oftmals möchte man sich einfach <b>was für freunde merken, oder findet irgendwas witzig</b>. Es kann also <b>von ein paar wenigen modulen bis zu hundert</b> alles möglich sein. <b>Auf die gemerkten module soll dann von allen anderen stellen zugegriffen werden können</b> … Die Merken Liste soll also <b>genau so komplex für den einzelnen nutzer sein, wie er es braucht</b>.“</blockquote>
-      <nav class="toc" aria-label="Inhalt"><a href="#wofuer">Wofür</a><a href="#heute">Heute</a><a href="#modell">Das Modell</a><a href="#stufen">Vier Stufen</a><a href="#merken">Merken</a><a href="#gruppen">Gruppen und Notizen</a><a href="#finden">Wiederfinden</a><a href="#mehrere">Mehrere</a><a href="#ueberall">Von überall</a><a href="#teilen">Weitergeben</a><a href="#grenzen">Grenzen</a><a href="#darunter">Darunter</a><a href="#schritte">Schritte</a><a href="#offen">Entschieden</a></nav>
+      <nav class="toc" aria-label="Inhalt"><a href="#wofuer">Wofür</a><a href="#heute">Heute</a><a href="#modell">Das Modell</a><a href="#stufen">Vier Stufen</a><a href="#merken">Merken</a><a href="#gruppen">Sammlungen und Notizen</a><a href="#finden">Wiederfinden</a><a href="#mehrere">Mehrere</a><a href="#ueberall">Von überall</a><a href="#teilen">Weitergeben</a><a href="#grenzen">Grenzen</a><a href="#darunter">Darunter</a><a href="#schritte">Schritte</a><a href="#offen">Entschieden</a></nav>
     </div>
     <aside class="rules" aria-labelledby="short-title">
       <p class="kicker" id="short-title">In fünf Sätzen</p>
       <ol>
-        <li><span><b>Merken bleibt ein Tipp.</b> Das Modul steht sofort auf der Liste. Ein Hinweis danach bietet eine Gruppe und eine Notiz an und geht, sobald du weitermachst.</span></li>
-        <li><span><b>Ein Modul trägt eine Notiz und beliebig viele Gruppen.</b> „Für Lena“ und „Wahlpflicht“ zugleich geht. Gruppen ordnen die Merkliste und sind keine zweite: Was in einer Gruppe steht, ist gemerkt.</span></li>
+        <li><span><b>Merken bleibt ein Tipp.</b> Das Modul steht sofort auf der Liste. Ein Hinweis danach bietet eine Sammlung und eine Notiz an und geht, sobald du weitermachst.</span></li>
+        <li><span><b>Ein Modul trägt eine Notiz und beliebig viele Sammlungen.</b> „Für Lena“ und „Wahlpflicht“ zugleich geht. Sammlungen ordnen die Merkliste und sind keine zweite: Was in einer Sammlung steht, ist gemerkt.</span></li>
         <li><span><b>Wiederfinden geht ohne Ordnen.</b> Auf der Merkliste sucht das Suchfeld oben in den gemerkten Modulen und ihren Notizen, und Betula ordnet von selbst nach Zeit, nach Angebot und danach, wo ein Modul in deinem Studium zählt.</span></li>
         <li><span><b>Die Merkliste ist überall eine Quelle.</b> Wo Betula nach einem Modul fragt, in „Mein Studium“, im Stundenplan, im Katalog, stehen die gemerkten bereit: die passenden zuerst, die anderen mit dem Grund.</span></li>
-        <li><span><b>Eine Gruppe lässt sich weitergeben.</b> Ein Link bringt sie zu Freunden oder aufs eigene Handy, ohne dass der Server sie sieht, und dort kommt sie als Gruppe an.</span></li>
+        <li><span><b>Eine Sammlung lässt sich weitergeben.</b> Ein Link bringt sie zu Freunden oder aufs eigene Handy, ohne dass der Server sie sieht, und dort kommt sie als Sammlung an.</span></li>
       </ol>
-      <p class="who">Nur Funktion: Wo etwas steht und wie es aussieht, zeigt die Runde zu UI und UX (<code>oberflaeche.html</code>). Die Bilder hier sind Schemas, keine Entwürfe. Am 19.10. entschieden: Jeden Namen einer Gruppe gibt es nur einmal, die Merkliste hält bis zu 256 Module, die sieben Fragen wie empfohlen (<a href="#offen">Entschieden</a>).</p>
+      <p class="who">Nur Funktion: Wo etwas steht und wie es aussieht, zeigt die Runde zu UI und UX (<code>oberflaeche.html</code>). Die Bilder hier sind Schemas, keine Entwürfe. Am 19.10. entschieden: Jeden Namen einer Sammlung gibt es nur einmal, die Merkliste hält bis zu 256 Module, die sieben Fragen wie empfohlen (<a href="#offen">Entschieden</a>).</p>
     </aside>
   </header>
 
@@ -351,7 +357,7 @@ td b { color: var(--text); }
     <ul class="finds">
       <li class="worst"><b>Am Handy liegt alles außer der Liste unter der Liste.</b> „Angeboten im“, „Reihenfolge“, „Liste kopieren“, „Übertragen“ und „Leeren“ kommen erst nach allen 46 Modulen: „Reihenfolge“ steht 4.495 px tief, fast fünf Bildschirmhöhen. Mit 100 Modulen wären es rund zehn.</li>
       <li class="worst"><b>Das Suchfeld oben sucht nicht in der Merkliste.</b> Wer dort „Philosophie“ tippt, landet im Tab Module bei den 11 Modulen des ganzen Katalogs. Die fünf gemerkten Philosophie-Module findet man auf der Merkliste nur durch Scrollen.</li>
-      <li><b>Eine Liste für alles.</b> Wahlpflicht-Kandidaten, das Modul für die Freundin und das witzige stehen in einer Reihe, ohne Gruppe und ohne Notiz, warum sie da stehen. Nach ein paar Wochen weiß man es nicht mehr.</li>
+      <li><b>Eine Liste für alles.</b> Wahlpflicht-Kandidaten, das Modul für die Freundin und das witzige stehen in einer Reihe, ohne Sammlung und ohne Notiz, warum sie da stehen. Nach ein paar Wochen weiß man es nicht mehr.</li>
       <li><b>Die Summe sagt nichts.</b> „46 gemerkte Module · 281 LP“ zählt das witzige und das für Freunde mit. Eine Summe hat erst für einen Teil einen Sinn, etwa für die Kandidaten der Wahlpflicht.</li>
       <li><b>Filtern geht nur nach Winter und Sommer.</b> Nicht danach, was schon eingeplant ist, was in den Stundenplan passt oder was in deinem Studiengang zählt; all das weiß Betula an anderer Stelle schon.</li>
       <li><b>„Zuletzt gemerkt“ ohne Zeit.</b> Die Reihenfolge stimmt, aber nichts zeigt, wo „letzte Woche“ beginnt.</li>
@@ -382,7 +388,7 @@ td b { color: var(--text); }
         <ul>
           <li><b>das Modul und wann du es gemerkt hast</b>, wie heute</li>
           <li><b>eine Notiz</b>, wenn du willst: „Lena fragen“, „Prüfung mündlich?“, „erst im Master“</li>
-          <li><b>die Gruppen</b>, in denen es steht: keine, eine oder mehrere</li>
+          <li><b>die Sammlungen</b>, in denen es steht: keine, eine oder mehrere</li>
         </ul>
         <p class="note">Gespeichert im Browser, je Profil, wie die Merkliste heute (R20).</p>
       </div>
@@ -401,13 +407,13 @@ td b { color: var(--text); }
     <h3>Zwei Arten von Ordnung</h3>
     <ul class="points">
       <li><b>Was Betula weiß, ordnet Betula:</b> nach Zeit, nach Angebot, nach Studium. Das kostet dich nichts und ist immer aktuell.</li>
-      <li><b>Was nur du weißt, ordnest du:</b> wofür, für wen, warum. Dafür sind Gruppen und Notizen da. Betula rät hier nicht und legt nichts an.</li>
+      <li><b>Was nur du weißt, ordnest du:</b> wofür, für wen, warum. Dafür sind Sammlungen und Notizen da. Betula rät hier nicht und legt nichts an.</li>
     </ul>
-    <figure class="schema" aria-label="Schema einer Merkliste mit sechs Modulen, drei Gruppen und zwei Notizen">
+    <figure class="schema" aria-label="Schema einer Merkliste mit sechs Modulen, drei Sammlungen und zwei Notizen">
       <div class="schema-groups">
-        <p class="kicker">Gruppen</p>
+        <p class="kicker">Sammlungen</p>
         <div class="on"><b>Alle</b><span class="num">6</span></div>
-        <div class="derived"><span>Ohne Gruppe</span><span class="num">2</span></div>
+        <div class="derived"><span>Ohne Sammlung</span><span class="num">2</span></div>
         <div><b>Wahlpflicht</b><span class="num">2</span></div>
         <div><b>Für Lena</b><span class="num">2</span></div>
         <div><b>Witzig</b><span class="num">1</span></div>
@@ -420,7 +426,7 @@ td b { color: var(--text); }
         <div class="mrow"><span class="t">Das ist Kunst - kann ich das auch?</span><span class="tags"><span class="tag">Witzig</span><span class="tag">Für Lena</span></span><span class="facts"><span class="mono">14169</span> · 6 LP · unregelmäßig · FÜS</span></div>
         <div class="mrow"><span class="t">Praktische Philosophie</span><span class="tags"></span><span class="facts"><span class="mono">12177</span> · 6 LP · Winter · FÜS</span></div>
       </div>
-      <figcaption class="schema-cap">Schema, kein Entwurf: so hängen Merker, Notizen und Gruppen zusammen. Kräftig umrandet, was du festhältst; grau, was Betula weiß. Module und Angaben aus dem Katalog vom 19.10.; Gruppen, Notizen, „eingeplant“ und „zählt“ sind Beispiele. „Das ist Kunst“ steht in zwei Gruppen, „Ohne Gruppe“ zählt die zwei, die in keiner stehen.</figcaption>
+      <figcaption class="schema-cap">Schema, kein Entwurf: so hängen Merker, Notizen und Sammlungen zusammen. Kräftig umrandet, was du festhältst; grau, was Betula weiß. Module und Angaben aus dem Katalog vom 19.10.; Sammlungen, Notizen, „eingeplant“ und „zählt“ sind Beispiele. „Das ist Kunst“ steht in zwei Sammlungen, „Ohne Sammlung“ zählt die zwei, die in keiner stehen.</figcaption>
     </figure>
   </section>
 
@@ -450,29 +456,29 @@ td b { color: var(--text); }
       </div>
       <div class="stage">
         <div class="n"><span>3</span><h3>Ordnen</h3></div>
-        <p class="when">sobald du die erste Gruppe anlegst oder eine Notiz schreibst</p>
-        <p class="does"><b>Du</b> legst Gruppen an, ordnest zu, schreibst dazu, warum.</p>
+        <p class="when">sobald du die erste Sammlung anlegst oder eine Notiz schreibst</p>
+        <p class="does"><b>Du</b> legst Sammlungen an, ordnest zu, schreibst dazu, warum.</p>
         <ul>
-          <li>die Gruppen und „Ohne Gruppe“ zur Wahl</li>
-          <li>Gruppen und Notiz an Zeile und Modul</li>
-          <li>die zuletzt benutzten Gruppen im Hinweis nach dem Merken</li>
+          <li>die Sammlungen und „Ohne Sammlung“ zur Wahl</li>
+          <li>Sammlungen und Notiz an Zeile und Modul</li>
+          <li>die zuletzt benutzten Sammlungen im Hinweis nach dem Merken</li>
         </ul>
       </div>
       <div class="stage">
         <div class="n"><span>4</span><h3>Verwenden</h3></div>
         <p class="when">wenn du planst oder weitergibst</p>
-        <p class="does"><b>Du</b> holst Module in „Mein Studium“ und den Stundenplan, planst mehrere auf einmal, schickst eine Gruppe.</p>
+        <p class="does"><b>Du</b> holst Module in „Mein Studium“ und den Stundenplan, planst mehrere auf einmal, schickst eine Sammlung.</p>
         <ul>
           <li>„Aus der Merkliste“ an jedem Ort, der nach einem Modul fragt</li>
           <li>mehrere auswählen, mit ihren Aktionen</li>
-          <li>ein Link je Gruppe</li>
+          <li>ein Link je Sammlung</li>
         </ul>
       </div>
     </div>
     <ul class="stage-rules">
-      <li><b>Merken wird nie schwerer.</b> Ein Tipp bleibt ein Tipp, auch mit zehn Gruppen. Wer nichts wählt, hat nach „Ohne Gruppe“ gemerkt.</li>
-      <li><b>Was keiner nutzt, steht nicht im Weg.</b> Ohne Gruppe keine Wahl der Gruppe, ohne „Mein Studiengang“ kein Filter „zählt in meinem Studium“, und ein Filter, der nichts trennt (alle sechs im Winter), ist nicht da.</li>
-      <li><b>Kein Drängen.</b> Betula schlägt nie vor aufzuräumen und zählt nichts als „unsortiert“, solange es keine Gruppe gibt.</li>
+      <li><b>Merken wird nie schwerer.</b> Ein Tipp bleibt ein Tipp, auch mit zehn Sammlungen. Wer nichts wählt, hat nach „Ohne Sammlung“ gemerkt.</li>
+      <li><b>Was keiner nutzt, steht nicht im Weg.</b> Ohne Sammlung keine Wahl der Sammlung, ohne „Mein Studiengang“ kein Filter „zählt in meinem Studium“, und ein Filter, der nichts trennt (alle sechs im Winter), ist nicht da.</li>
+      <li><b>Kein Drängen.</b> Betula schlägt nie vor aufzuräumen und zählt nichts als „unsortiert“, solange es keine Sammlung gibt.</li>
       <li><b>Keine Modi.</b> Kein Schalter „einfach / erweitert“ und nichts, was erst ab einer Zahl kommt: „Aus der Merkliste“ in „Mein Studium“ geht mit drei Modulen wie mit hundert.</li>
     </ul>
   </section>
@@ -481,47 +487,47 @@ td b { color: var(--text); }
     <h2 id="mark-title">Merken bleibt ein Tipp</h2>
     <p class="lead">Gemerkt wird, wo heute gemerkt wird: das Lesezeichen an einer Zeile, der Schalter „Merken“ am Modul, die Taste M, am Handy eine Zeile nach links gewischt. Das Modul steht sofort auf der Liste, ohne Frage.</p>
     <ul class="points">
-      <li><b>Danach ein Hinweis, der wartet.</b> Wie nach „Einplanen“ (Konzept E) steht unten ein Hinweis, der geht, sobald du weitermachst; es ist derselbe Baustein (<code>WaitNote</code>). Darin: „Gemerkt“, eine Gruppe wählen oder eine neue anlegen, eine Notiz schreiben, „Rückgängig“. Wer ihn übergeht, hat gemerkt, nach „Ohne Gruppe“. So kennt man es von Instagram: Speichern speichert, der Hinweis danach bietet die Sammlung an. Für Gruppen wird er nicht breiter: Er nennt die Gruppe in einem Feld, das ein Menü für Gruppen und Notiz öffnet (<code>oberflaeche.html</code>, „Merken und der Hinweis danach“).</li>
-      <li><b>„Weitere Module auch in ‚Für Lena‘“.</b> Wer im Hinweis eine Gruppe wählt, bekommt wie bei „Weitere Module auch nach SoSe 27“ einen Schalter dafür: Die nächsten gemerkten kommen in dieselbe Gruppe, für diese Sitzung, und jeder Hinweis sagt es, um es dort wieder auszuschalten. So sammelt man für jemanden, ohne jedes Mal zu wählen.</li>
-      <li><b>Entfernen sagt, was weg ist.</b> Wer ein Modul entmerkt, bekommt „Entfernt · von der Merkliste“ mit „Rückgängig“; das bringt auch Notiz und Gruppen zurück. Auf der Merkliste selbst bleibt ein entferntes Modul daneben gedimmt stehen, wie heute.</li>
-      <li><b>Am Modul sieht man, wo es steht.</b> Der Schalter sagt „Gemerkt“ und, sobald es Gruppen gibt, in welchen. Gruppen und Notiz lassen sich dort ändern: in der Vorschau, auf der Seite des Moduls, im Sheet am Handy.</li>
-      <li><b>Die Taste bleibt M.</b> Solange der Hinweis steht, öffnet G sein Menü für Gruppe und Notiz, wie ← und → beim Einplanen das Semester wählen; an einer Zeile und am offenen Modul öffnet N dasselbe Menü mit dem Fokus in der Notiz (<code>oberflaeche.html</code>, „Tasten“).</li>
+      <li><b>Danach ein Hinweis, der wartet.</b> Wie nach „Einplanen“ (Konzept E) steht unten ein Hinweis, der geht, sobald du weitermachst; es ist derselbe Baustein (<code>WaitNote</code>). Darin: „Gemerkt“, eine Sammlung wählen oder eine neue anlegen, eine Notiz schreiben, „Rückgängig“. Wer ihn übergeht, hat gemerkt, nach „Ohne Sammlung“. So kennt man es von Instagram: Speichern speichert, der Hinweis danach bietet die Sammlung an. Für Sammlungen wird er nicht breiter: Er nennt die Sammlung in einem Feld, das ein Menü für Sammlungen und Notiz öffnet (<code>oberflaeche.html</code>, „Merken und der Hinweis danach“).</li>
+      <li><b>Ein Standard für neue Merker.</b> Wer viele Module für jemanden sammelt, stellt im Menü hinter dem Hinweis ein, dass die nächsten gemerkten in dieselben Sammlungen kommen (zweite Runde: „Man sollte in dem Modal was da kommt einstellen können, dass das der default ist“). Er gilt, bis man ihn ausschaltet; jeder Hinweis zeigt ihn mit einer Nadel, und der Schalter am Modul sagt vorher „Merken · in Für Lena“. So sammelt man für jemanden, ohne jedes Mal zu wählen. Er ersetzt die zweite Zeile „Weitere Module auch in …“, die die erste Fassung vom Einplanen übernommen hatte.</li>
+      <li><b>Entfernen sagt, was weg ist.</b> Wer ein Modul entmerkt, bekommt „Entfernt · von der Merkliste“ mit „Rückgängig“; das bringt auch Notiz und Sammlungen zurück. Auf der Merkliste selbst bleibt ein entferntes Modul daneben gedimmt stehen, wie heute.</li>
+      <li><b>Am Modul sieht man, wo es steht.</b> Der Schalter sagt „Gemerkt“ und, sobald es Sammlungen gibt, in welchen. Sammlungen und Notiz lassen sich dort ändern: in der Vorschau, auf der Seite des Moduls, im Sheet am Handy.</li>
+      <li><b>Die Taste bleibt M.</b> Solange der Hinweis steht, öffnet S sein Menü für Sammlung und Notiz, wie ← und → beim Einplanen das Semester wählen; an einer Zeile und am offenen Modul öffnet N dasselbe Menü mit dem Fokus in der Notiz (<code>oberflaeche.html</code>, „Tasten“).</li>
     </ul>
-    <div class="parts" role="img" aria-label="Was im Hinweis nach dem Merken steht: Gemerkt mit dem Modul, die Gruppe, die Notiz, Rückgängig">
+    <div class="parts" role="img" aria-label="Was im Hinweis nach dem Merken steht: Gemerkt mit dem Modul, die Sammlung, die Notiz, Rückgängig">
       <div><b>✓ Gemerkt</b><small>Music and Artificial Intelligence</small></div>
-      <div><b>Gruppe</b><small>die zuletzt benutzten, „Neue Gruppe …“</small></div>
-      <div><b>Notiz</b><small>eine Zeile, gleich hier</small></div>
+      <div><b>Sammlung</b><small>ein Feld; dahinter ein Menü zum Suchen, Anlegen und für den Standard</small></div>
+      <div><b>Notiz</b><small>im selben Menü, in Markdown</small></div>
       <div><b>Rückgängig</b><small>nimmt den Merker wieder weg</small></div>
     </div>
-    <p class="parts-cap">Was der Hinweis enthält, nicht wie er aussieht. Nach einer gewählten Gruppe kommt die Zeile „Weitere Module auch in …“ dazu.</p>
+    <p class="parts-cap">Was der Hinweis enthält, nicht wie er aussieht; wie er aussieht, zeigt <code>oberflaeche.html</code>. Am Handy beendet „Fertig“ im Menü auch den Hinweis.</p>
   </section>
 
   <section class="block" id="gruppen" aria-labelledby="groups-title">
-    <h2 id="groups-title">Gruppen und Notizen</h2>
-    <p class="lead">Gruppen ordnen die Merkliste, sie sind keine zweite Liste neben ihr. Eine Notiz sagt, warum ein Modul da steht.</p>
+    <h2 id="groups-title">Sammlungen und Notizen</h2>
+    <p class="lead">Sammlungen ordnen die Merkliste, sie sind keine zweite Liste neben ihr. Eine Notiz sagt, warum ein Modul da steht.</p>
     <div class="cols2">
       <div>
-        <h3>Gruppen</h3>
+        <h3>Sammlungen</h3>
         <ul class="points">
-          <li><b>Ein Modul kann in mehreren Gruppen stehen.</b> „Das ist Kunst“ ist „Witzig“ und „Für Lena“. Ein Ordner, in dem jedes Modul nur einmal steht, zwänge zu einer Wahl, die es nicht gibt.</li>
-          <li><b>Was in einer Gruppe steht, ist gemerkt.</b> In eine Gruppe tun merkt ein Modul; aus einer Gruppe nehmen lässt es auf der Merkliste; entmerken nimmt es aus allen Gruppen, mit „Rückgängig“.</li>
-          <li><b>„Ohne Gruppe“</b> sind die gemerkten, die in keiner Gruppe stehen: meist das Neue. Es kommt mit der ersten Gruppe und lässt sich weder umbenennen noch löschen.</li>
-          <li><b>Anlegen, wo man gerade ist:</b> im Hinweis nach dem Merken, am Modul, an einer Zeile, für mehrere ausgewählte, auf der Merkliste selbst. Eine Gruppe darf leer sein, auch auf Dauer.</li>
-          <li><b>Jeden Namen gibt es nur einmal.</b> Wer einen Namen tippt, den es schon gibt, bekommt die Gruppe dieses Namens statt einer zweiten; beim Umbenennen ebenso. Groß und klein und Leerzeichen am Rand zählen dabei nicht: „für lena“ ist „Für Lena“.</li>
-          <li><b>Umbenennen, verschieben, löschen.</b> Löschen nimmt nur die Gruppe weg, die Module bleiben gemerkt; wer will, entmerkt zugleich die, die sonst in keiner Gruppe stehen. Beides mit „Rückgängig“.</li>
-          <li><b>Reihenfolge:</b> die Gruppen so, wie sie angelegt wurden, bis man eine verschiebt; im Hinweis nach dem Merken die zuletzt benutzten zuerst.</li>
-          <li><b>Eine Gruppe ist eine Ansicht der Merkliste.</b> Alles gilt in ihr weiter: Suche, Ordnung, Filter, Auswahl, Weitergeben. Ihre Zahlen sind ihre eigenen, „Wahlpflicht · 2 Module · 10 LP“, und so hat die Summe einen Sinn.</li>
+          <li><b>Ein Modul kann in mehreren Sammlungen stehen.</b> „Das ist Kunst“ ist „Witzig“ und „Für Lena“. Ein Ordner, in dem jedes Modul nur einmal steht, zwänge zu einer Wahl, die es nicht gibt.</li>
+          <li><b>Was in einer Sammlung steht, ist gemerkt.</b> In eine Sammlung tun merkt ein Modul; aus einer Sammlung nehmen lässt es auf der Merkliste; entmerken nimmt es aus allen Sammlungen, mit „Rückgängig“.</li>
+          <li><b>„Ohne Sammlung“</b> sind die gemerkten, die in keiner Sammlung stehen: meist das Neue. Es kommt mit der ersten Sammlung und lässt sich weder umbenennen noch löschen.</li>
+          <li><b>Anlegen, wo man gerade ist:</b> im Hinweis nach dem Merken, am Modul, an einer Zeile, für mehrere ausgewählte, auf der Merkliste selbst. Eine Sammlung darf leer sein, auch auf Dauer.</li>
+          <li><b>Jeden Namen gibt es nur einmal.</b> Wer einen Namen tippt, den es schon gibt, bekommt die Sammlung dieses Namens statt einer zweiten; beim Umbenennen ebenso. Groß und klein und Leerzeichen am Rand zählen dabei nicht: „für lena“ ist „Für Lena“.</li>
+          <li><b>Umbenennen, verschieben, löschen.</b> Löschen nimmt nur die Sammlung weg, die Module bleiben gemerkt; wer will, entmerkt zugleich die, die sonst in keiner Sammlung stehen. Beides mit „Rückgängig“.</li>
+          <li><b>Reihenfolge:</b> die Sammlungen so, wie sie angelegt wurden, bis man eine verschiebt; im Hinweis nach dem Merken die zuletzt benutzten zuerst.</li>
+          <li><b>Eine Sammlung ist eine Ansicht der Merkliste.</b> Alles gilt in ihr weiter: Suche, Ordnung, Filter, Auswahl, Weitergeben. Ihre Zahlen sind ihre eigenen, „Wahlpflicht · 2 Module · 10 LP“, und so hat die Summe einen Sinn.</li>
         </ul>
       </div>
       <div>
         <h3>Notizen</h3>
         <ul class="points">
-          <li><b>Eine Notiz je Modul</b>, freier Text, so kurz oder lang, wie man will. An der Zeile steht ihr Anfang, am Modul die ganze.</li>
+          <li><b>Eine Notiz je Modul</b>, so kurz oder lang, wie man will, in Markdown (zweite Runde: „Mach mal notizen mit md support, du brauchst kein visuellen editor“): geschrieben als Text, dargestellt mit Hervorhebungen, Listen und Links. An der Zeile steht ihre erste Zeile mit „…“, am Modul die ganze.</li>
           <li><b>Schreiben merkt.</b> Eine Notiz an einem Modul, das noch nicht gemerkt ist, setzt es auf die Merkliste.</li>
           <li><b>Die Suche findet sie.</b> „Lena“ findet, wobei „Lena fragen“ notiert ist.</li>
           <li><b>Sie bleibt bei dir.</b> Weitergeben nimmt sie nur mit, wenn du es willst (<a href="#teilen">Weitergeben</a>).</li>
         </ul>
-        <h3 style="margin-top: 24px">Wo die Gruppe eines Moduls entsteht</h3>
+        <h3 style="margin-top: 24px">Wo die Sammlung eines Moduls entsteht</h3>
         <ul class="points">
           <li><b>beim Merken</b>, im Hinweis</li>
           <li><b>am Modul</b>, beim Schalter „Gemerkt“</li>
@@ -535,12 +541,12 @@ td b { color: var(--text); }
 
   <section class="block" id="finden" aria-labelledby="find-title">
     <h2 id="find-title">Wiederfinden</h2>
-    <p class="lead">Mit 46 Modulen hilft Scrollen nicht mehr. Drei Wege, die ohne Gruppen auskommen und mit Gruppen weiter gelten.</p>
+    <p class="lead">Mit 46 Modulen hilft Scrollen nicht mehr. Drei Wege, die ohne Sammlungen auskommen und mit Sammlungen weiter gelten.</p>
     <h3>Die Suche oben sucht in der Merkliste</h3>
     <ul class="points">
-      <li><b>Auf der Merkliste durchsucht das Suchfeld oben die gemerkten Module</b>, so wie es auf der Übersicht der Studiengänge die Studiengänge durchsucht. Gefunden wird nach den Regeln der Katalogsuche (Titel in beiden Sprachen, Nummer, Kürzel wie „TI“, Lehrende; <code>folia/design/suche/konzept.html</code>), dazu in Notizen und Namen von Gruppen.</li>
+      <li><b>Auf der Merkliste durchsucht das Suchfeld oben die gemerkten Module</b>, so wie es auf der Übersicht der Studiengänge die Studiengänge durchsucht. Gefunden wird nach den Regeln der Katalogsuche (Titel in beiden Sprachen, Nummer, Kürzel wie „TI“, Lehrende; <code>folia/design/suche/konzept.html</code>), dazu in Notizen und Namen von Sammlungen.</li>
       <li><b>Der Weg in den ganzen Katalog bleibt eine Zeile:</b> unter den Treffern „Philosophie im Katalog: 11 Module“. Findet die Merkliste nichts, steht diese Zeile allein da.</li>
-      <li><b>In einer Gruppe sucht sie in der Gruppe</b> und sagt, wie viele Treffer der Rest der Merkliste hat.</li>
+      <li><b>In einer Sammlung sucht sie in der Sammlung</b> und sagt, wie viele Treffer der Rest der Merkliste hat.</li>
     </ul>
     <h3>Ordnungen, die Betula kennt</h3>
     <ul class="points">
@@ -554,46 +560,46 @@ td b { color: var(--text); }
       <table class="stack">
         <thead><tr><th scope="col">Filter</th><th scope="col">Was er wählt</th><th scope="col">Da, sobald</th></tr></thead>
         <tbody>
-          <tr><td>Gruppe</td><td data-label="Was er wählt">Alle, Ohne Gruppe, jede Gruppe</td><td data-label="Da, sobald">es eine Gruppe gibt</td></tr>
+          <tr><td>Sammlung</td><td data-label="Was er wählt">Alle, Ohne Sammlung, jede Sammlung</td><td data-label="Da, sobald">es eine Sammlung gibt</td></tr>
           <tr><td>Angeboten im</td><td data-label="Was er wählt">Winter oder Sommer, wie heute</td><td data-label="Da, sobald">die gemerkten nicht alle gleich angeboten werden</td></tr>
           <tr><td>Stand</td><td data-label="Was er wählt">noch nicht eingeplant, eingeplant, bestanden</td><td data-label="Da, sobald">eins davon eingeplant oder bestanden ist</td></tr>
           <tr><td>Passt in meinen Stundenplan</td><td data-label="Was er wählt">ein Semester, wie der Filter im Katalog</td><td data-label="Da, sobald">ein Stundenplan etwas enthält</td></tr>
           <tr><td>Zählt in meinem Studium</td><td data-label="Was er wählt">zählt, zählt nicht</td><td data-label="Da, sobald">„Mein Studiengang“ gesetzt ist</td></tr>
-          <tr><td>Alle Filter des Katalogs</td><td data-label="Was er wählt">Sprache, Prüfung, Campus, LP und der Rest, für die gemerkten</td><td data-label="Da, sobald">immer, eine Stufe tiefer</td></tr>
+          <tr><td>Weitere Filter</td><td data-label="Was er wählt">vier aus dem Katalog: Sprache, Leistungspunkte, Standort, benotet</td><td data-label="Da, sobald">er etwas trennt, eingeklappt</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Jeder Filter mit seinen Zahlen, wie „Angeboten im“ heute („Winter 21, Sommer 18“). Wer die Filter des Katalogs braucht, bekommt sie auf der Merkliste, statt in den Katalog geschickt zu werden.</p>
+    <p class="note">Jeder Filter mit seinen Zahlen, wie „Angeboten im“ heute („Winter 21, Sommer 18“). Für alles Weitere ist der Katalog da (zweite Runde: „hier reichen ein paar, die wirklich relevant sind“).</p>
   </section>
 
   <section class="block" id="mehrere" aria-labelledby="many-title">
     <h2 id="many-title">Mehrere auf einmal</h2>
     <p class="lead">Mit vielen Modulen lohnt es, mehrere zugleich zu bewegen. Ausgewählt wird wie in „Mein Studium“; wie man am Handy neben dem Wischen dahin kommt, klärt das UI-Design.</p>
     <ul class="points">
-      <li><b>In eine Gruppe tun oder aus einer nehmen.</b> Wer aus „Ohne Gruppe“ fünf auswählt und „Wahlpflicht“ wählt, hat aufgeräumt.</li>
+      <li><b>In eine Sammlung tun oder aus einer nehmen.</b> Wer aus „Ohne Sammlung“ fünf auswählt und „Wahlpflicht“ wählt, hat aufgeräumt.</li>
       <li><b>Einplanen:</b> jedes dorthin, wohin sein „Einplanen“ zielt, oder alle in ein Semester. Ein Hinweis sagt, wohin, mit „Rückgängig“ für alle.</li>
       <li><b>Weitergeben</b> als Link oder <b>als Text kopieren</b>.</li>
       <li><b>Entmerken</b>, mit „Rückgängig“.</li>
-      <li><b>„Alle auswählen“</b> nimmt, was die Liste gerade zeigt: eine Gruppe, einen Filter, die Treffer einer Suche.</li>
+      <li><b>„Alle auswählen“</b> nimmt, was die Liste gerade zeigt: eine Sammlung, einen Filter, die Treffer einer Suche.</li>
     </ul>
   </section>
 
   <section class="block" id="ueberall" aria-labelledby="everywhere-title">
     <h2 id="everywhere-title">Von überall erreichbar</h2>
-    <p class="lead">Wo Betula fragt, welches Modul, steht die Merkliste als Quelle bereit: mit ihren Gruppen, ihrer Suche und dem, was ein Modul an dieser Stelle heißt. <b>Die passenden zuerst, die anderen mit dem Grund; abgelehnt wird nichts.</b></p>
+    <p class="lead">Wo Betula fragt, welches Modul, steht die Merkliste als Quelle bereit: mit ihren Sammlungen, ihrer Suche und dem, was ein Modul an dieser Stelle heißt. <b>Die passenden zuerst, die anderen mit dem Grund; abgelehnt wird nichts.</b></p>
     <div class="tablewrap">
       <table class="stack">
         <thead><tr><th scope="col">Wo</th><th scope="col">Heute</th><th scope="col">Mit der Merkliste</th></tr></thead>
         <tbody>
-          <tr><td>„Mein Studium“ · Module hinzufügen</td><td data-label="Heute"><span class="today">„Aus dem Regelstudienplan“, „Im Katalog suchen“</span></td><td data-label="Mit der Merkliste">eine dritte Quelle, <b>„Aus der Merkliste“</b>: nach Gruppe und Suche, jedes Modul mit dem, was es für dieses Semester heißt: angeboten oder „im SoSe nicht angeboten“, „geplant in WiSe 26/27, wird verschoben“, bestanden, der Bereich, in dem es zählt. Ankreuzen, „Einfügen“.</td></tr>
+          <tr><td>„Mein Studium“ · Module hinzufügen</td><td data-label="Heute"><span class="today">„Aus dem Regelstudienplan“, „Im Katalog suchen“</span></td><td data-label="Mit der Merkliste">eine dritte Quelle, <b>„Aus der Merkliste“</b>: nach Sammlung und Suche, jedes Modul mit dem, was es für dieses Semester heißt: angeboten oder „im SoSe nicht angeboten“, „geplant in WiSe 26/27, wird verschoben“, bestanden, der Bereich, in dem es zählt. Ankreuzen, „Einfügen“.</td></tr>
           <tr><td>„Mein Studium“ · Gesamtplan, eine Zelle</td><td data-label="Heute"><span class="today">die Module des Bereichs aus dem Katalog</span></td><td data-label="Mit der Merkliste">die gemerkten des Bereichs zuerst, als gemerkt kenntlich</td></tr>
           <tr><td>„Mein Studium“ · Wahlpflicht</td><td data-label="Heute"><span class="today">die Module jedes Bereichs</span></td><td data-label="Mit der Merkliste">je Bereich, wie viele gemerkte dort zählen („3 gemerkte zählen hier“), die gemerkten zuerst</td></tr>
-          <tr><td>Stundenplan · „Aus der Merkliste“</td><td data-label="Heute"><span class="today">die im Halbjahr angebotenen, noch nicht eingeplanten, einzeln</span></td><td data-label="Mit der Merkliste">nach Gruppe und Suche; zuerst, was das Semester anbietet, mit „passt“ oder „überschneidet sich mit …“; danach, was es nicht anbietet, mit dem Grund; „3 gemerkte übernehmen“ auch für eine Gruppe</td></tr>
+          <tr><td>Stundenplan · „Aus der Merkliste“</td><td data-label="Heute"><span class="today">die im Halbjahr angebotenen, noch nicht eingeplanten, einzeln</span></td><td data-label="Mit der Merkliste">nach Sammlung und Suche; zuerst, was das Semester anbietet, mit „passt“ oder „überschneidet sich mit …“; danach, was es nicht anbietet, mit dem Grund; „3 gemerkte übernehmen“ auch für eine Sammlung</td></tr>
           <tr><td>Stundenplan · ein Extra</td><td data-label="Heute"><span class="today">ein Modul außerhalb des Studiengangs zählt in „Mein Studium“ als „ohne Bereich“</span></td><td data-label="Mit der Merkliste">ein gemerktes Modul nur besuchen, ohne dass es zählt; gebaut mit dem Stundenplan (<a href="#offen">Entschieden</a>, 3)</td></tr>
-          <tr><td>Katalog · Filter „Gemerkt“</td><td data-label="Heute"><span class="today">nur gemerkte, alle außer gemerkten</span></td><td data-label="Mit der Merkliste">auch je Gruppe: „Gemerkt: Für Lena“, „nicht in Wahlpflicht“</td></tr>
-          <tr><td>Modul · Vorschau, Seite, Sheet</td><td data-label="Heute"><span class="today">„Merken“ und „Gemerkt“</span></td><td data-label="Mit der Merkliste">dazu die Gruppen und die Notiz, dort zu ändern</td></tr>
-          <tr><td>Tab „Merkliste“ gehalten</td><td data-label="Heute"><span class="today">nichts</span></td><td data-label="Mit der Merkliste">ein Menü mit den Gruppen, wie das von „Studium“: am Handy lange gedrückt, am Rechner mit der rechten Maustaste</td></tr>
-          <tr><td>Profil</td><td data-label="Heute"><span class="today">„12 gemerkte Module“</span></td><td data-label="Mit der Merkliste">dazu Gruppen und Notizen; die Datei eines Profils und „Profil leeren“ nehmen sie mit</td></tr>
+          <tr><td>Katalog · Filter „Gemerkt“</td><td data-label="Heute"><span class="today">nur gemerkte, alle außer gemerkten</span></td><td data-label="Mit der Merkliste">auch je Sammlung: „Gemerkt: Für Lena“, „nicht in Wahlpflicht“</td></tr>
+          <tr><td>Modul · Vorschau, Seite, Sheet</td><td data-label="Heute"><span class="today">„Merken“ und „Gemerkt“</span></td><td data-label="Mit der Merkliste">dazu die Sammlungen und die Notiz, dort zu ändern</td></tr>
+          <tr><td>Tab „Merkliste“ gehalten</td><td data-label="Heute"><span class="today">nichts</span></td><td data-label="Mit der Merkliste">ein Menü mit den Sammlungen, wie das von „Studium“: am Handy lange gedrückt, am Rechner mit der rechten Maustaste</td></tr>
+          <tr><td>Profil</td><td data-label="Heute"><span class="today">„12 gemerkte Module“</span></td><td data-label="Mit der Merkliste">dazu Sammlungen und Notizen; die Datei eines Profils und „Profil leeren“ nehmen sie mit</td></tr>
         </tbody>
       </table>
     </div>
@@ -602,14 +608,14 @@ td b { color: var(--text); }
 
   <section class="block" id="teilen" aria-labelledby="share-title">
     <h2 id="share-title">Weitergeben</h2>
-    <p class="lead">Heute geht nur alles auf einmal. Künftig lässt sich weitergeben, was man gerade sieht: eine Gruppe, eine Auswahl, einen gefilterten Teil, die ganze Liste.</p>
+    <p class="lead">Heute geht nur alles auf einmal. Künftig lässt sich weitergeben, was man gerade sieht: eine Sammlung, eine Auswahl, einen gefilterten Teil, die ganze Liste.</p>
     <ul class="points">
-      <li><b>Ein Link, den nur der Browser liest.</b> Wie „Auf anderes Gerät übertragen“ heute trägt er die Module hinter dem <code>#</code> (<code>/bookmarks#m=…</code>), dem Teil einer Adresse, den kein Browser an einen Server schickt; neu dazu den Namen der Gruppe. Der Code bekommt dafür eine neue Fassung, die Links von heute bleiben lesbar.</li>
-      <li><b>Er kommt als Gruppe an.</b> Wer ihn öffnet, wird gefragt, wie heute: „Für Lena: 3 Module, 1 davon schon gemerkt“, mit „Als Gruppe merken“, „Nur merken“ und „Verwerfen“. Den Namen kann man dabei ändern; gibt es schon eine Gruppe dieses Namens, kommen sie dort hinein, und wer das nicht will, gibt einen anderen. Passt nicht alles auf die Merkliste, bietet der Link an, was noch passt.</li>
+      <li><b>Ein Link, den nur der Browser liest.</b> Wie „Auf anderes Gerät übertragen“ heute trägt er die Module hinter dem <code>#</code> (<code>/bookmarks#m=…</code>), dem Teil einer Adresse, den kein Browser an einen Server schickt; neu dazu den Namen der Sammlung. Der Code bekommt dafür eine neue Fassung, die Links von heute bleiben lesbar.</li>
+      <li><b>Er kommt als Sammlung an.</b> Wer ihn öffnet, wird gefragt, wie heute: „Für Lena: 3 Module, 1 davon schon gemerkt“, mit „Als Sammlung merken“, „Nur merken“ und „Verwerfen“. Den Namen kann man dabei ändern; gibt es schon eine Sammlung dieses Namens, kommen sie dort hinein, und wer das nicht will, gibt einen anderen. Passt nicht alles auf die Merkliste, bietet der Link an, was noch passt.</li>
       <li><b>Notizen bleiben zu Hause</b>, außer du nimmst sie mit: fürs eigene Gerät ja, für Freunde nur, wenn du es wählst.</li>
-      <li><b>Das eigene Gerät bekommt alles.</b> „Auf anderes Gerät übertragen“ nimmt künftig Gruppen und Notizen mit; die Datei eines Profils tut das ohnehin.</li>
+      <li><b>Das eigene Gerät bekommt alles.</b> „Auf anderes Gerät übertragen“ nimmt künftig Sammlungen und Notizen mit; die Datei eines Profils tut das ohnehin.</li>
       <li><b>Als Text für eine Nachricht:</b> Nummer, Titel, LP und der Link zur Seite jedes Moduls, damit die Freundin nur tippen muss.</li>
-      <li><b>Eine Kopie, kein gemeinsames Bearbeiten.</b> Was die andere an ihrer Gruppe ändert, kommt nicht zurück. Gemeinsame Listen bräuchten einen Server, der beide kennt (R20).</li>
+      <li><b>Eine Kopie, kein gemeinsames Bearbeiten.</b> Was die andere an ihrer Sammlung ändert, kommt nicht zurück. Gemeinsame Listen bräuchten einen Server, der beide kennt (R20).</li>
     </ul>
   </section>
 
@@ -620,19 +626,19 @@ td b { color: var(--text); }
       <div>
         <h3>Erlaubt</h3>
         <ul class="points">
-          <li><b>eine leere Gruppe</b>, auch auf Dauer, etwa „Für Lena“, bevor es etwas für sie gibt</li>
-          <li><b>eine Gruppe ohne Namen</b>: Sie heißt „Gruppe 3“, mit der nächsten freien Nummer, bis man sie nennt, wie „Profil 2“</li>
-          <li><b>ein Modul in allen Gruppen</b></li>
-          <li><b>ein Modul, das die BTU nicht mehr führt</b>: Es bleibt, benannt, in seinen Gruppen, wie heute</li>
+          <li><b>eine leere Sammlung</b>, auch auf Dauer, etwa „Für Lena“, bevor es etwas für sie gibt</li>
+          <li><b>eine Sammlung ohne Namen</b>: Sie heißt „Sammlung 3“, mit der nächsten freien Nummer, bis man sie nennt, wie „Profil 2“</li>
+          <li><b>ein Modul in allen Sammlungen</b></li>
+          <li><b>ein Modul, das die BTU nicht mehr führt</b>: Es bleibt, benannt, in seinen Sammlungen, wie heute</li>
           <li><b>in ein Semester einplanen, das es nicht anbietet</b>: mit „im SoSe nicht angeboten“, wie in „Mein Studium“</li>
-          <li><b>eine Gruppe mit einem einzigen Modul</b>, eine mit hundert</li>
+          <li><b>eine Sammlung mit einem einzigen Modul</b>, eine mit hundert</li>
         </ul>
       </div>
       <div>
         <h3>Grenzen, mit ihrem Grund</h3>
         <ul class="points">
           <li><b>256 Module.</b> Genug für jeden Fall, für den es eine Merkliste braucht, und ein Profil kennt seine Größe (entschieden am 19.10.: „Also 256 Module sind auch genug. Dann gibt es einfach ein Limit, und man bekommt ne Meldung“). Wer das 257. merken will, merkt nichts und bekommt eine Meldung, „Merkliste voll“, mit dem Weg zur Merkliste; ab 240 sagt der Kopf der Liste, wie viele es sind. Ein Link mit mehr bietet an, was noch passt. Eine Liste, die von früher mehr hält (bis heute fasst sie 2.000), bleibt, wie sie ist; nur kommt nichts dazu, bis sie unter 256 ist. Heute fällt das älteste Modul ohne ein Wort heraus.</li>
-          <li><b>Zwei Gruppen gleichen Namens.</b> Sie ließen sich nicht auseinanderhalten, in keinem Menü, keinem Filter und keinem Link (entschieden am 19.10.: „Das ist einfach nur stupid und verwirrt einen selbst“). Statt eines Neins bietet Betula die Gruppe an, die es gibt.</li>
+          <li><b>Zwei Sammlungen gleichen Namens.</b> Sie ließen sich nicht auseinanderhalten, in keinem Menü, keinem Filter und keinem Link (entschieden am 19.10.: „Das ist einfach nur stupid und verwirrt einen selbst“). Statt eines Neins bietet Betula die Sammlung an, die es gibt.</li>
           <li><b>Sehr lange Namen und Notizen</b> werden beim Speichern begrenzt, weil alles aus dem Speicher wie von außen gelesen wird; auf dem Schirm kürzt „…“. Wer an die Grenze kommt, sieht sie, bevor etwas verloren geht.</li>
           <li><b>Ein Link</b> trägt höchstens, was ein Code tragen kann, wie heute. Wo es mehr ist, gibt es den Link nicht, die Datei des Profils schon.</li>
         </ul>
@@ -644,14 +650,15 @@ td b { color: var(--text); }
     <h2 id="below-title">Was sich darunter ändert</h2>
     <p class="lead">Kurz, für die Umsetzung. Nichts davon nimmt einem Besucher, was er heute hat.</p>
     <ul class="points">
-      <li><b>Ein zweiter Schlüssel je Profil.</b> Die Merker bleiben, wie sie sind, in <code>betula.bookmarks.v1</code> (Modul und Zeit). Gruppen und Notizen kommen unter einen eigenen Schlüssel daneben. So liest ein älterer Build (ein Rollback, ein alter Tab der installierten App) die Merkliste weiter, und nichts muss umziehen. Kein MAJOR.</li>
-      <li><b>Gruppen und Notizen gelten nur für gemerkte Module.</b> Entmerkt ein alter Tab ein Modul, fallen dessen Notiz und Gruppen beim nächsten Schreiben weg.</li>
-      <li><b>Gelesen wie von außen</b>, wie die Merker heute: eine Gruppe, die es nicht gibt, ein Name über der Grenze, eine Nummer zweimal, ein Name zweimal (die zweite Gruppe geht in der ersten auf).</li>
+      <li><b>Ein zweiter Schlüssel je Profil.</b> Die Merker bleiben, wie sie sind, in <code>betula.bookmarks.v1</code> (Modul und Zeit). Sammlungen, Notizen und der Standard für neue Merker kommen unter einen eigenen Schlüssel daneben. So liest ein älterer Build (ein Rollback, ein alter Tab der installierten App) die Merkliste weiter, und nichts muss umziehen. Kein MAJOR.</li>
+      <li><b>Sammlungen und Notizen gelten nur für gemerkte Module.</b> Entmerkt ein alter Tab ein Modul, fallen dessen Notiz und Sammlungen beim nächsten Schreiben weg.</li>
+      <li><b>Gelesen wie von außen</b>, wie die Merker heute: eine Sammlung, die es nicht gibt, ein Name über der Grenze, eine Nummer zweimal, ein Name zweimal (die zweite Sammlung geht in der ersten auf), ein Standard mit einer Sammlung, die es nicht mehr gibt.</li>
+      <li><b>Markdown ohne HTML.</b> Eine Notiz wird zu Elementen der Seite, nie zu eingesetztem HTML: HTML in ihr bleibt Text; ein Link nur zu http(s) oder Mail, mit <code>rel="noopener noreferrer nofollow"</code>; ein Bild nur als Link, nie geladen, denn eine Notiz aus einem Link könnte sonst einen fremden Server rufen (R20). Dafür ein Parser ohne HTML (<code>pulldown-cmark</code>) oder ein kleiner eigener für das, was eine Notiz braucht; was er dem WASM hinzufügt, wird vorher gemessen. Gesucht wird im Text ohne die Zeichen des Markdowns.</li>
           <li><b>Die 256 gelten beim Hinzufügen.</b> Gelesen wird weiter bis <code>MAX_BOOKMARKS</code> (2.000, <code>folia/crates/pages/src/lib.rs</code>), im Speicher, aus einem Link und in der Anfrage an den Server, damit keine Liste von heute kürzer wird; ein Merker über 256 kommt nicht dazu, statt dass das älteste Modul herausfällt.</li>
       <li><b>Jedes Profil hat seine eigenen.</b> <code>profiles::KEYS</code> bekommt den Schlüssel, damit die Datei eines Profils, „Profil leeren“ und Löschen ihn kennen.</li>
-      <li><b>Adressen nennen eine Gruppe bei ihrer Nummer</b> (<code>/bookmarks?group=3</code>), wie <code>fill=p&lt;n&gt;</code> einen Platzhalter: nie ihren Namen, nie die Module (R13, R20). Der Server rendert für jede Adresse dieselbe Erklärung (R9).</li>
-      <li><b>Die Datenschutzerklärung</b> („Speicher im Browser“ in <code>folia/crates/home/src/legal.rs</code>) nennt den neuen Schlüssel und, was ein Link künftig trägt: Module, den Namen der Gruppe, Notizen, wenn gewählt.</li>
-      <li><b>Geprüft</b> von <code>folia/e2e/bookmarks.mjs</code>, das jede Anfrage einer Sitzung nach Merkern absucht und das künftig auch nach Gruppen und Notizen tut; dazu <code>study.mjs</code>, <code>studyplan.mjs</code> und <code>swipe.mjs</code>, wo ein Schritt sie berührt.</li>
+      <li><b>Adressen nennen eine Sammlung bei ihrer Nummer</b> (<code>/bookmarks?collection=3</code>), wie <code>fill=p&lt;n&gt;</code> einen Platzhalter: nie ihren Namen, nie die Module (R13, R20). Der Server rendert für jede Adresse dieselbe Erklärung (R9).</li>
+      <li><b>Die Datenschutzerklärung</b> („Speicher im Browser“ in <code>folia/crates/home/src/legal.rs</code>) nennt den neuen Schlüssel und, was ein Link künftig trägt: Module, den Namen der Sammlung, Notizen, wenn gewählt.</li>
+      <li><b>Geprüft</b> von <code>folia/e2e/bookmarks.mjs</code>, das jede Anfrage einer Sitzung nach Merkern absucht und das künftig auch nach Sammlungen und Notizen tut; dazu <code>study.mjs</code>, <code>studyplan.mjs</code> und <code>swipe.mjs</code>, wo ein Schritt sie berührt.</li>
       <li><b>Versionen:</b> Jeder Schritt unten ist ein MINOR von Folia; dieses Blatt allein erhöht nichts.</li>
     </ul>
   </section>
@@ -659,11 +666,11 @@ td b { color: var(--text); }
   <section class="block" id="nicht" aria-labelledby="not-title">
     <h2 id="not-title">Bewusst nicht, und später, wenn gewünscht</h2>
     <div class="not">
-      <div><h3>Keine Frage beim Merken</h3><p>Kein Dialog „In welche Gruppe?“, auch nicht, wenn es zehn Gruppen gibt.</p></div>
+      <div><h3>Keine Frage beim Merken</h3><p>Kein Dialog „In welche Sammlung?“, auch nicht, wenn es zehn Sammlungen gibt.</p></div>
       <div><h3>Kein Konto, kein Abgleich</h3><p>Zwischen Geräten reisen der Link und die Datei eines Profils (R20).</p></div>
-      <div><h3>Keine Gruppen in Gruppen</h3><p>Für hundert Module reichen Gruppen nebeneinander. Verschachtelt wäre viel Arbeit für einen seltenen Fall.</p></div>
-      <div><h3>Keine Gruppen, die Betula anlegt</h3><p>Was Betula weiß, ordnet es selbst, nach Studium, Angebot und Zeit, ohne dafür Gruppen in deine Liste zu legen.</p></div>
-      <div><h3>Keine Sterne</h3><p>Wer bewerten will, legt „Favoriten“ oder „Vielleicht“ als Gruppe an.</p></div>
+      <div><h3>Keine Sammlungen in Sammlungen</h3><p>Für hundert Module reichen Sammlungen nebeneinander. Verschachtelt wäre viel Arbeit für einen seltenen Fall.</p></div>
+      <div><h3>Keine Sammlungen, die Betula anlegt</h3><p>Was Betula weiß, ordnet es selbst, nach Studium, Angebot und Zeit, ohne dafür Sammlungen in deine Liste zu legen.</p></div>
+      <div><h3>Keine Sterne</h3><p>Wer bewerten will, legt „Favoriten“ oder „Vielleicht“ als Sammlung an.</p></div>
       <div><h3>Keine Erinnerungen</h3><p>Eine Erinnerung an eine Anmeldung bräuchte einen Server, der dich kennt.</p></div>
     </div>
     <h3>Später, wenn gewünscht</h3>
@@ -671,8 +678,8 @@ td b { color: var(--text); }
       <li><b>Vergleichen:</b> zwei bis vier ausgewählte nebeneinander, mit LP, Turnus, Prüfung, Sprache, Terminen und Überschneidungen, Voraussetzungen und wo sie zählen.</li>
       <li><b>Neu seit dem Merken:</b> „Termine für SoSe 27 sind da“ an einem Modul, das beim Merken noch keine hatte. Dafür müsste ein Merker behalten, was beim Merken galt.</li>
       <li><b>Zuletzt angesehen:</b> die Module, die man geöffnet und nicht gemerkt hat, für „das von gestern“.</li>
-      <li><b>Eine eigene Reihenfolge in einer Gruppe</b>, etwa Erstwahl vor Zweitwahl.</li>
-      <li><b>Eine Vorschau geteilter Gruppen</b> im Messenger (Frage 4).</li>
+      <li><b>Eine eigene Reihenfolge in einer Sammlung</b>, etwa Erstwahl vor Zweitwahl.</li>
+      <li><b>Eine Vorschau geteilter Sammlungen</b> im Messenger (Frage 4).</li>
     </ul>
   </section>
 
@@ -683,30 +690,30 @@ td b { color: var(--text); }
       <table class="stack">
         <thead><tr><th scope="col">Schritt</th><th scope="col">Was er bringt</th><th scope="col">Aufwand</th></tr></thead>
         <tbody>
-          <tr><td>1 · Wiederfinden</td><td data-label="Was er bringt">Die Suche oben sucht in der Merkliste, mit der Zeile in den Katalog; Abschnitte nach der Zeit; Ordnung nach Studium und Angebot; die Filter Stand, passt und zählt; am Handy Ordnung, Filter und Aktionen erreichbar, ohne unter die Liste zu scrollen.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
-          <tr><td>2 · Ordnen</td><td data-label="Was er bringt">Der zweite Schlüssel; Gruppen und Notizen; „Ohne Gruppe“; der Hinweis nach Merken und Entmerken mit „Weitere Module auch in …“; Gruppen und Notiz am Modul; die Gruppe als Ansicht mit eigener Adresse; Profil und Datenschutzerklärung.</td><td data-label="Aufwand"><span class="size l">groß</span></td></tr>
-          <tr><td>3 · Mehrere auf einmal</td><td data-label="Was er bringt">Auswählen und die Aktionen dazu: Gruppe, Einplanen, Weitergeben, Entmerken.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
-          <tr><td>4 · Von überall</td><td data-label="Was er bringt">„Aus der Merkliste“ in „Mein Studium“ (Hinzufügen, Gesamtplan, Wahlpflicht), der Stundenplan mit Gruppen und „passt“, der Filter „Gemerkt“ je Gruppe, der gehaltene Tab.</td><td data-label="Aufwand"><span class="size l">mittel bis groß</span></td></tr>
-          <tr><td>5 · Weitergeben</td><td data-label="Was er bringt">Gruppe, Auswahl oder Teil als Link in einer neuen Fassung des Codes; Ankommen als Gruppe; Text mit Links; das eigene Gerät mit allem.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
+          <tr><td>1 · Wiederfinden</td><td data-label="Was er bringt">Die Suche oben sucht in der Merkliste, mit der Zeile in den Katalog; Abschnitte nach der Zeit; Ordnung nach Studium und Angebot, am Rechner an den Spaltenköpfen; die Filter Stand, passt und zählt, eingeklappt vier weitere; am Handy Ordnung, Filter und Aktionen erreichbar, ohne unter die Liste zu scrollen.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
+          <tr><td>2 · Ordnen</td><td data-label="Was er bringt">Der zweite Schlüssel; Sammlungen und Notizen; „Ohne Sammlung“; der Hinweis nach Merken und Entmerken mit dem Menü und dem Standard für neue Merker; Notizen in Markdown; Sammlungen und Notiz am Modul; die Sammlung als Ansicht mit eigener Adresse; Profil und Datenschutzerklärung.</td><td data-label="Aufwand"><span class="size l">groß</span></td></tr>
+          <tr><td>3 · Mehrere auf einmal</td><td data-label="Was er bringt">Auswählen und die Aktionen dazu: Sammlung, Einplanen, Weitergeben, Entmerken.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
+          <tr><td>4 · Von überall</td><td data-label="Was er bringt">„Aus der Merkliste“ in „Mein Studium“ (Hinzufügen, Gesamtplan, Wahlpflicht), der Stundenplan mit Sammlungen und „passt“, der Filter „Gemerkt“ je Sammlung, der gehaltene Tab.</td><td data-label="Aufwand"><span class="size l">mittel bis groß</span></td></tr>
+          <tr><td>5 · Weitergeben</td><td data-label="Was er bringt">Sammlung, Auswahl oder Teil als Link in einer neuen Fassung des Codes; Ankommen als Sammlung; Text mit Links; das eigene Gerät mit allem.</td><td data-label="Aufwand"><span class="size">mittel</span></td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Jeder Schritt ist ein MINOR von Folia. Schritt 2 und 4 lassen sich teilen, wenn sie zu groß werden: Notizen vor Gruppen, „Mein Studium“ vor dem Stundenplan.</p>
+    <p class="note">Jeder Schritt ist ein MINOR von Folia. Schritt 2 und 4 lassen sich teilen, wenn sie zu groß werden: Notizen vor Sammlungen, „Mein Studium“ vor dem Stundenplan.</p>
   </section>
 
   <section class="block" id="offen" aria-labelledby="open-title">
     <h2 id="open-title">Entschieden am 19.10.</h2>
-    <p class="lead">Die sieben Fragen dieser Runde sind wie empfohlen entschieden, und jede Antwort ist Regel dieses Blatts. Zwei Punkte aus „Was geht, auch wenn es ungewöhnlich ist“ hast du dabei geändert: die Namen der Gruppen und die Zahl der Module.</p>
+    <p class="lead">Die sieben Fragen dieser Runde sind wie empfohlen entschieden, und jede Antwort ist Regel dieses Blatts. Zwei Punkte aus „Was geht, auch wenn es ungewöhnlich ist“ hast du dabei geändert: die Namen der Sammlungen und die Zahl der Module.</p>
     <blockquote class="quote">„Also ich finde das Konzept echt sehr gelungen und durchdacht. … <b>zwei Gruppen gleichen Namens soll nicht erlaubt sein.</b> Das ist einfach nur stupid und verwirrt einen selbst. <b>Leere Gruppen sind aber gut</b> - Also <b>256 Module sind auch genug.</b> Dann gibt es einfach ein Limit, und man bekommt ne Meldung. <b>Dem rest würde ich ein OK geben</b> …“</blockquote>
     <ol class="ask">
       <li>
-        <h3>1 · Ein Modul in mehreren Gruppen?</h3>
+        <h3>1 · Ein Modul in mehreren Sammlungen?</h3>
         <p>Etiketten (ein Modul in beliebig vielen) oder Ordner (jedes Modul in höchstens einer). Ordner sind schneller erklärt, aber „Für Lena“ und „Wahlpflicht“ zugleich gingen nicht.</p>
-        <p class="rec">Mehrere Gruppen je Modul.</p>
+        <p class="rec">Mehrere Sammlungen je Modul.</p>
       </li>
       <li>
         <h3>2 · Der Hinweis nach dem Merken: immer?</h3>
-        <p>Immer, auch bevor es Gruppen gibt, ruhig und weg, sobald man weitermacht; so findet man Gruppen und Notiz, ohne sie zu suchen. Oder erst, wenn es eine Gruppe gibt; dann legt man die erste auf der Merkliste an, und bis dahin sieht Merken genau aus wie heute.</p>
+        <p>Immer, auch bevor es Sammlungen gibt, ruhig und weg, sobald man weitermacht; so findet man Sammlungen und Notiz, ohne sie zu suchen. Oder erst, wenn es eine Sammlung gibt; dann legt man die erste auf der Merkliste an, und bis dahin sieht Merken genau aus wie heute.</p>
         <p class="rec">Immer, wie beim Einplanen.</p>
       </li>
       <li>
@@ -715,7 +722,7 @@ td b { color: var(--text); }
         <p class="rec">Ein geplantes Modul lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht. Gebaut mit dem Stundenplan, nicht mit der Merkliste.</p>
       </li>
       <li>
-        <h3>4 · Geteilte Gruppen mit Vorschau im Messenger?</h3>
+        <h3>4 · Geteilte Sammlungen mit Vorschau im Messenger?</h3>
         <p>Hinter dem <code>#</code> sieht der Server nichts, und die Vorschau im Messenger sagt nur „Merkliste“. Eine Vorschau mit den Modulen bräuchte sie in der Adresse, die der Server sieht, so wie du es am 26.09. für den geteilten Stundenplan entschieden hast.</p>
         <p class="rec">Erst hinter dem #, ohne Vorschau. Die Vorschau später, wenn sie fehlt.</p>
       </li>
@@ -726,31 +733,38 @@ td b { color: var(--text); }
       </li>
       <li>
         <h3>6 · Heißen sie „Gruppen“?</h3>
-        <p>„Gruppen“ ist dein Wort. „Listen“ verwechselt man mit der Merkliste, „Sammlungen“ ist länger, „Ordner“ verspricht, dass ein Modul nur an einem Ort steht.</p>
-        <p class="rec">„Gruppen“, im Englischen „groups“.</p>
+        <p>„Gruppen“ war dein Wort. „Listen“ verwechselt man mit der Merkliste, „Sammlungen“ ist länger, „Ordner“ verspricht, dass ein Modul nur an einem Ort steht.</p>
+        <p class="rec">Erst „Gruppen“. In der zweiten Runde „Sammlungen“, im Englischen „collections“: Seit Folia 1.32.0 nennt der Katalog die Übungsgruppen der Uni „Gruppen“, und die sollen nicht mit Betulas verwechselt werden (19.10.: „finde eine bessere formulierung für den Katalog und die Merkliste, so dass betulas Gruppen mechanic nicht mit der von der uni verwechselt wird“).</p>
       </li>
       <li>
         <h3>7 · Die Reihenfolge der Schritte?</h3>
-        <p>Wiederfinden zuerst, weil es die beiden größten Mängel von heute behebt und keine neuen Daten braucht; Gruppen und Notizen danach.</p>
+        <p>Wiederfinden zuerst, weil es die beiden größten Mängel von heute behebt und keine neuen Daten braucht; Sammlungen und Notizen danach.</p>
         <p class="rec">Wie oben: 1 bis 5.</p>
       </li>
     </ol>
     <h3>Dazu am selben Tag</h3>
     <ul class="points">
-      <li><b>Namen nur einmal, leere Gruppen ja</b> (<a href="#gruppen">Gruppen</a>, <a href="#grenzen">Grenzen</a>).</li>
+      <li><b>Namen nur einmal, leere Sammlungen ja</b> (<a href="#gruppen">Sammlungen</a>, <a href="#grenzen">Grenzen</a>).</li>
       <li><b>Höchstens 256 Module</b>, mit einer Meldung, wenn es mehr werden sollen; was schon da ist, bleibt (<a href="#grenzen">Grenzen</a>, <a href="#darunter">Darunter</a>).</li>
-      <li><b>Der Hinweis nach dem Merken</b> bleibt, mit dem Auftrag, ihn für Gruppen richtig zu bauen: „Weil das was für das eindimensionale semester auswählen gut funktioniert muss nicht gut sein für komplexere Sachen, wie Gruppen.“ Die Antwort steht in <code>oberflaeche.html</code>.</li>
+      <li><b>Der Hinweis nach dem Merken</b> bleibt, mit dem Auftrag, ihn für Sammlungen richtig zu bauen: „Weil das was für das eindimensionale semester auswählen gut funktioniert muss nicht gut sein für komplexere Sachen, wie Gruppen.“ Die Antwort steht in <code>oberflaeche.html</code>.</li>
+    </ul>
+    <h3>Aus der zweiten Runde, am selben Tag</h3>
+    <ul class="points">
+      <li><b>„Sammlungen“ statt „Gruppen“</b>, englisch „collections“, damit sie nicht mit den Gruppen der Uni verwechselt werden (Frage 6). Im Katalog heißen die Gruppen einer Übung „3 Gruppen zur Wahl“.</li>
+      <li><b>Ein Standard für neue Merker</b> statt der zweiten Zeile im Hinweis (<a href="#merken">Merken</a>).</li>
+      <li><b>Notizen in Markdown</b>, ohne Editor mit Knöpfen (<a href="#gruppen">Notizen</a>, <a href="#darunter">Darunter</a>).</li>
+      <li><b>Wenige weitere Filter</b>; für den Rest der Katalog (<a href="#finden">Wiederfinden</a>).</li>
     </ul>
     <h3>Die zweite Runde: UI und UX</h3>
-    <p class="muted" style="margin-top: 6px">In <code>folia/design/merken/oberflaeche.html</code>, mit Entwürfen für Handy und Rechner und einem Prototyp zum Ausprobieren. Sie beantwortet:</p>
+    <p class="muted" style="margin-top: 6px">In <code>folia/design/merken/oberflaeche.html</code>, mit Entwürfen für Handy und Rechner und einem Prototyp zum Ausprobieren, in zweiter Fassung nach deinen Antworten. Sie beantwortet:</p>
     <ul class="next">
-      <li>wo Gruppen, Filter und Ordnung stehen, am Handy über der Liste statt darunter</li>
-      <li>wie eine Zeile Gruppen und Notiz zeigt, ohne voller zu werden</li>
+      <li>wo Sammlungen, Filter und Ordnung stehen, am Handy über der Liste statt darunter</li>
+      <li>wie eine Zeile Sammlungen und Notiz zeigt, ohne voller zu werden</li>
       <li>wie der Hinweis nach dem Merken aussieht und welche Tasten er hat</li>
       <li>wie man am Handy auswählt, neben dem Wischen nach links und rechts</li>
-      <li>ob Gruppen eine Farbe oder ein Zeichen tragen</li>
+      <li>ob Sammlungen eine Farbe oder ein Zeichen tragen</li>
       <li>„Aus der Merkliste“ in den Dialogen von „Mein Studium“ und im Stundenplan</li>
-      <li>die leeren Zustände: nichts gemerkt, eine leere Gruppe, nichts gefunden</li>
+      <li>die leeren Zustände: nichts gemerkt, eine leere Sammlung, nichts gefunden</li>
       <li>was die Seitenleiste am Rechner noch hält, wenn die Zahlen zur Ansicht gehören</li>
     </ul>
     <p class="src">Nachgesehen auf canary (Folia 1.29.2, Radix 0.9.1, Daten vom 19.10.2026) in Chromium, mit 46 gemerkten Modulen im Browser. Im Code: <code>folia/crates/bookmarks/src/bookmarks.rs</code> (die Seite), <code>folia/crates/stores/src/bookmarks.rs</code> (der Speicher, <code>MAX_BOOKMARKS</code> in <code>folia/crates/pages/src/lib.rs</code>), <code>folia/crates/planner/src/studyplan/head.rs</code> („Aus der Merkliste“), <code>folia/crates/planner/src/study/picker.rs</code> („Module hinzufügen“), <code>folia/crates/shell/src/chrome.rs</code> (das Suchfeld oben), <code>folia/crates/widgets/src/plannote.rs</code> (der Hinweis beim Einplanen), <code>docs/folia/frontend.md</code> („Merken“, R9, R13, R20).</p>

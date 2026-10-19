@@ -372,7 +372,7 @@ pub(crate) fn extras_text(dates: &[EventDate], module_title: &str, t: &'static T
 }
 
 /// What a module's row in a list says of its courses and its choices (`CatalogRow::courses`,
-/// `choices`): „2 Standorte · Übung je Studiengang", „14 Projekte zur Wahl", „3 Gruppen"; `None`
+/// `choices`): „2 Standorte · Übung je Studiengang", „14 Projekte zur Wahl", „3 Gruppen zur Wahl"; `None`
 /// for a module with neither.
 pub fn row_offer(courses: u32, choices: &[ChoiceSummary], t: &'static Texts) -> Option<String> {
     let mut parts: Vec<String> = Vec::new();
@@ -639,7 +639,7 @@ mod tests {
         };
         assert_eq!(row_offer(0, &[summary("topic", "module", 14, Some("Projekt"))], &DE).as_deref(), Some("14 Projekte zur Wahl"));
         assert_eq!(row_offer(2, &[summary("program", "form", 3, Some("Übung"))], &DE).as_deref(), Some("2 Standorte · Übung je Studiengang"));
-        assert_eq!(row_offer(0, &[summary("group", "named", 3, None)], &DE).as_deref(), Some("3 Gruppen"));
+        assert_eq!(row_offer(0, &[summary("group", "named", 3, None)], &DE).as_deref(), Some("3 Gruppen zur Wahl"));
         assert_eq!(row_offer(0, &[summary("topic", "module", 4, Some("Seminar/Übung"))], &DE).as_deref(), Some("4 Angebote zur Wahl"));
         assert_eq!(row_offer(0, &[summary("topic", "module", 14, Some("Projekt"))], &EN).as_deref(), Some("14 projects to choose from"));
         assert_eq!(row_offer(0, &[], &DE), None);

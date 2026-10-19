@@ -377,10 +377,13 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     Arbeit · Bachelor bei 7 davon, sie stehen zuerst."). On the server (R9) and without a program
     every option is open.
   - **The catalog's row** (`options::row_offer`): where „2 Termine" stands on a phone, in the line
-    under the title, „14 Projekte zur Wahl", „Übung je Studiengang", „3 Gruppen", and „2 Standorte"
-    for a module held at two campuses, of the module's newest semester with teaching. One query
-    reads them for the rows of a page (`queries::catalog_offers`, 0.2 ms for 50 rows on canary's
-    data), so the list's own query stays as it was.
+    under the title, „14 Projekte zur Wahl", „Übung je Studiengang", „3 Gruppen zur Wahl" (owner,
+    2026-10-19: „finde eine bessere formulierung für den Katalog und die Merkliste, so dass betulas
+    Gruppen mechanic nicht mit der von der uni verwechselt wird"; the Merkliste's own are
+    „Sammlungen", `folia/design/merken/oberflaeche.html`), and „2 Standorte" for a module held at two
+    campuses, of the module's newest semester with teaching. One query reads them for the rows of a
+    page (`queries::catalog_offers`, 0.2 ms for 50 rows on canary's data), so the list's own query
+    stays as it was.
   - **The Stundenplan** (step 2 of the concept; `folia_timetable::model` `Across`, `take`,
     `clash`, `fit`; the planner's `week.rs`, `aside.rs`, `head.rs`, `side.rs`): a choice among a
     module's events (`Timetable::choices`, from `StudyplanData::choices`, `modules_choices`) is open
