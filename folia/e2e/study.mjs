@@ -35,7 +35,7 @@
 //   „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll smoothly, past the overview
 //   from the current semester to the one before; a finger moves the row and a short pull goes
 //   back, a semester swiped to from the end of another, which ends above the dots, shows from its
-//   head, the last page adds a
+//   head, and one scrolled while the row moves stays as scrolled, the last page adds a
 //   semester; a long press selects a row, the bar over the tab bar; a row's menu as a sheet without
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
@@ -834,6 +834,32 @@ if (current !== "2026W") {
   // overview.
   await step("‹ to the first", () => page.tap(`${HERE} .st-turn >> nth=0`), resting("WiSe 2025/26"));
   await step("the first semester drawn to the right", async () => { moved = await swipe(".st-pager", 160); }, resting("WiSe 2025/26"));
+  // The window scrolled while the row moves (owner, 2026-10-19: „wenn man vertikal am scrollen ist
+  // während man swiped. Dann springt das am [Ende vom] swipen wieder zum Anfang"): the page that came
+  // stays as far down in itself as it was scrolled, nothing moves as the row rests. The window goes
+  // down halfway through the finger's way and again as it lets go, as a fling of it would; from the
+  // first semester to the second, both longer than the screen. (Scrolled past the end of the page
+  // that came, which the row as tall as the page it left allows, the window goes back to its end.)
+  const headOf = () => page.evaluate(() => {
+    const mid = [...document.querySelectorAll(".st-pager > .st-slot")].find((slot) => { const box = slot.getBoundingClientRect(); return box.left < innerWidth / 2 && box.right > innerWidth / 2; });
+    return { name: mid?.querySelector("h2")?.textContent, top: Math.round(mid.querySelector("h2").getBoundingClientRect().top - document.querySelector(".topbar").getBoundingClientRect().bottom), end: document.documentElement.scrollHeight - innerHeight - scrollY < 2 };
+  });
+  const sideways = await page.$eval(".st-pager", (el) => { const box = el.getBoundingClientRect(); return { x: box.right - 30, y: Math.min(Math.max(box.top + 120, 160), 600) }; });
+  await touch("touchStart", sideways.x, sideways.y);
+  for (let i = 1; i <= 10; i++) {
+    await page.waitForTimeout(16);
+    await touch("touchMove", sideways.x - 22 * i, sideways.y);
+    if (i === 5) await page.evaluate(() => window.scrollBy(0, 10));
+  }
+  await touch("touchEnd", 0, 0);
+  await page.evaluate(() => window.scrollBy(0, 10));
+  const swiping = await headOf();
+  await page.waitForFunction(resting("SoSe 2026"), null, { timeout: 4000 }).catch(() => problems.push("the swipe while the window scrolls does not rest at SoSe 2026"));
+  await page.waitForTimeout(200);
+  const rested = await headOf();
+  check(swiping.name === "SoSe 2026" && swiping.top < -10 && rested.name === "SoSe 2026" && (Math.abs(rested.top - swiping.top) <= 2 || (rested.end && rested.top > swiping.top && rested.top < 0)), `a semester scrolled while the row moves does not stay as scrolled: ${JSON.stringify({ swiping, rested })}`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await step("back to the first", async () => { moved = await swipe(".st-pager", 220); }, resting("WiSe 2025/26"));
   entries = await page.evaluate(() => history.length);
   await step("the way back from the first", () => page.tap(".top-back.on"), atOverview);
   check((await page.evaluate(() => history.length)) === entries, "the way back from a semester that is over added a step to the history");
