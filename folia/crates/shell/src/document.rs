@@ -92,9 +92,13 @@
 /// „Schnell hintereinander"); 1.30.0 with the search of the catalog ranked anew
 /// (design/suche/konzept.html): what is meant first („TI" is Theoretische Informatik), the
 /// lecturers searched with their names written alike, the modules of Mein Studiengang raised in the
-/// order but not in what is found, and the row marking what the search found and by what. The
-/// version of the app's crates, the same as the server's; Radix's is in the snapshot
-/// (`Meta::radix_version`).
+/// order but not in what is found, and the row marking what the search found and by what; 1.31.0
+/// with the semesters of „Mein Studium" in the catalog's look: a module a row of the catalog, its
+/// status (planned, under way, passed, not passed) where the catalog has the bookmark and the button
+/// of its menu, the whole box opening the module, rows selected without boxes, highlighted and
+/// hatched; on a desktop the semester at the top of its box, without the strip of the semesters
+/// and the switch of the views, its name the list of every semester. The version of the app's
+/// crates, the same as the server's; Radix's is in the snapshot (`Meta::radix_version`).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Where the host serves the files of `folia/assets`.

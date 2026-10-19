@@ -29,6 +29,7 @@ use folia_shell::pending::Pending;
 use folia_stores::myprogram::{po_of, program_name, ProgramPlans};
 
 use super::card::{Ids, Kept, Part, StudyCard};
+use super::focus::{Glyph, Status};
 use super::dialog::DialogHead;
 use super::{chosen, input_of, n, rows_of, Dialog, Plans, Ready, Setup, StudyCtx, View};
 use crate::i18n::{self, Texts};
@@ -295,20 +296,20 @@ fn LegendBar() -> impl IntoView {
     }
 }
 
-/// The marks a module has in the semesters, each a word.
+/// The statuses a module has in the semesters (owner, 2026-10-19: „Status symbol (In
+/// progress/bestanden/nicht bestanden)"), each a word; its other marks are words themselves.
 #[component]
 fn LegendMarks() -> impl IntoView {
     let t = i18n::t();
     let s = &t.study;
-    let mark = |class: &'static str, icon: &'static str, name: &'static str| {
-        view! { <li><span class=format!("st-legend-mark {class}") aria-hidden="true"><Icon name=icon/></span>{name}</li> }
-    };
+    let mark = |status: Status| view! { <li><Glyph status=Signal::stored(status)/>{status.word(t)}</li> };
     view! {
         <p class="flabel label" id="st-legend-marks">{s.legend_marks}</p>
         <ul class="st-legend-marks" aria-labelledby="st-legend-marks">
-            {mark("passed", "circle-check-big", s.legend_passed)}
-            {mark("st-legend-pill", "repeat", s.legend_retake)}
-            {mark("st-legend-pill warn", "triangle-alert", s.legend_offer)}
+            {mark(Status::Planned)}
+            {mark(Status::Running)}
+            {mark(Status::Passed)}
+            {mark(Status::Failed)}
         </ul>
     }
 }

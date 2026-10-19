@@ -7,16 +7,20 @@
 //   Regelstudienplan füllen" set it up: the overview, the first two semesters filled.
 // 2 Informatik B.Sc. in its third semester, the first two filled and nothing marked as passed: the
 //   overview says nothing of it, only the credits; the sidebar has the program as one card, which
-//   opens „Studiengang wechseln", no way to the Stundenplan, the legend in two parts; the box in
-//   the head selects the first semester's rows; the boxes show while rows are selected and go with
-//   „×"; a row's menu marks it as passed (counted, the row in its place, the focus back on its ⋯);
-//   a drag over the boxes selects three, the bar marks them and „Rückgängig" takes it back;
+//   opens „Studiengang wechseln", no way to the Stundenplan, the legend in two parts (the
+//   statuses of a module the second); the semester at the top of its box, no strip of the
+//   semesters and no switch of the views over it (owner, 2026-10-19), its name the list of every
+//   semester with what each holds; its rows the catalog's, each with its status where the catalog
+//   has the bookmark, no box to tick, the name no link that underlines; the semester's ⋯ selects
+//   the first semester's rows, highlighted and hatched, and „×" lets go; a row's menu at its
+//   status marks it as passed (counted, the row in its place, the focus back on its status); a
+//   press drawn over three rows selects them, the bar marks them and „Rückgängig" takes it back;
 //   „Module hinzufügen" puts the plan's third semester in; the Stundenplan's tab counts it; what
 //   fits the third, a winter, and the fourth, a summer: nothing of a Fachsemester after it, nothing
 //   of the other half of the year; a module moved by its menu's „Verschieben nach ›" and taken back,
-//   removed and taken back; two rows selected and dragged onto a semester of the strip, and back;
-//   a right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an
-//   area's dialog; a module beside the page by its name and by its row, in full and back; the
+//   removed and taken back; two rows selected by Ctrl and a click, moved by the bar, and back; a
+//   right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an area's
+//   dialog; a module beside the page by its name and by its row, in full and back; the
 //   Gesamtplan, each cell as tall as what it lists, a module's menu, a grey line of the plan added
 //   with a click, the view kept; a reload keeps all of it; nothing of it in a request.
 // 3 a phone: the overview first (owner, 2026-10-05), the bar with its legend, the program's card
@@ -28,7 +32,8 @@
 //   its column to that one, and the whole overview drawn to the left by a finger to the current
 //   one, to the right to the last that is over, a short pull back; the way back a square box left
 //   of the search on either side; the semesters pages in the catalog's look, no box, their head
-//   under the search, a card per module (its number and area under its name, its credits in LP),
+//   under the search, a card per module as the catalog's (its padding, its title, its number and
+//   area under its name, its credits in LP, its status where the bookmark is; owner, 2026-10-19),
 //   as far apart as from the screen's edge: no ground under the row, on none of its pages (owner,
 //   2026-10-19), the Regelstudienplan and all programs with theirs, the dots fixed over
 //   the tab bar on the page's frosted ground, no box and no legend, an empty semester a mark and
@@ -37,7 +42,8 @@
 //   back, a semester swiped to from the end of another, which ends above the dots, shows from its
 //   head, and one scrolled while the row moves stays as scrolled, up or down, with nothing of the
 //   page that goes to scroll into, the last page adds a
-//   semester; a long press selects a row, the bar over the tab bar; a row's menu as a sheet without
+//   semester; a long press selects a row, highlighted and no box to tick, the bar over the tab
+//   bar; a row's menu at its status as a sheet without
 //   „Modul ansehen", „Verschieben nach" in its place; the way back, Back and a finger towards the
 //   overview lead back to it (Back as a close request, as Android has it); a tap anywhere on the
 //   credits opens the areas
@@ -46,7 +52,7 @@
 //   at the foot of the body, its picker of the program 8 px off the sheet's edges, the screen's
 //   keyboard up (simulated: the part of the page shown shorter) the sheet that part without its
 //   foot, the picker at the top of its body, gliding there and scrolling up frame by frame, all as
-//   it was with the keyboard gone; nothing scrolls sideways; boxes and ⋯ as tall as a finger.
+//   it was with the keyboard gone; nothing scrolls sideways; a row's status as tall as a finger.
 // 4 the Stundenplan: its import from „Mein Studium" takes the Wiederholer.
 // 5 without the app: one page for everybody, for no index; the server's tab is the overview.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
@@ -145,11 +151,16 @@ const lines = async (page, prefix) => ((await stored(page, PLAN)) || "").split("
 const undo = (page, selector = ".st-undo .mini") => page.click(selector, { timeout: 5000 }).catch(() => {});
 // The rows of the semester in focus: their names, whether passed, whether selected, their marks.
 const rows = (page) => page.evaluate(() => [...document.querySelectorAll(".st-card-sem .st-row")].map((row) => ({
-  name: row.querySelector(".st-name")?.textContent,
-  done: row.classList.contains("is-passed") && !!row.querySelector(".st-passed"),
-  on: row.querySelector(".st-sel")?.getAttribute("aria-checked") === "true",
-  chips: [...row.querySelectorAll(".st-chip")].map((chip) => chip.textContent),
+  name: row.querySelector(".st-name")?.firstChild?.textContent,
+  done: row.classList.contains("is-passed") && !!row.querySelector(".st-status .st-glyph.passed"),
+  on: row.classList.contains("is-selected"),
+  chips: [...row.querySelectorAll(".t small > .flag, .t small > .st-quiet")].map((chip) => chip.textContent),
 })));
+// The semester `label` („WiSe 25/26") by the list at the name of the one shown.
+const pick = async (page, label) => {
+  await page.click(".st-card-sem .st-sem-pick");
+  await page.click(`.st-pop.root [role=menuitem]:has-text("${label}")`);
+};
 // The middle of an element on the screen.
 const middle = (page, selector) => page.$eval(selector, (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
 const selected = (page) => page.evaluate(() => document.querySelector(".st-selbar-count")?.textContent ?? "");
@@ -217,12 +228,12 @@ if (current !== "2026W") {
   const requests = [];
   const { page, step, seed, context } = await open({ viewport: { width: 1440, height: 900 } }, "/", { requests });
   await seed([[MINE, THIRD], [PLAN, FILLED]]);
-  await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelectorAll(".st-strip .st-tab").length === 7);
+  await step("Studium", () => page.click('.rail a[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   const over = await page.evaluate(() => ({
     headline: document.querySelector(".st-headline")?.textContent,
     cards: [...document.querySelectorAll(".st-card .st-card-name")].map((name) => name.textContent),
     words: document.querySelector(".st-over")?.textContent ?? "",
-    now: document.querySelector(".st-tab.is-now .st-now")?.textContent,
+    now: document.querySelector(".st-card-sem .st-sem-name .st-now")?.textContent,
   }));
   check(over.headline === "0 von 180 LP bestanden" && over.cards.slice(0, 5).join() === "Informatik,Mathematik,Nebenfach,FÜS,Fachstudium" && over.cards.length === 6 && over.now === "jetzt", `the overview of the third semester: ${JSON.stringify(over)}`);
   check(!/nicht (als )?bestanden|Wiederhol|Einplanen/.test(over.words), `the overview says more than the credits: ${over.words}`);
@@ -236,38 +247,73 @@ if (current !== "2026W") {
     legend: [...document.querySelectorAll("#sidebar .st-legend ul")].map((list) => list.textContent),
   }));
   check(side.labels.join("|") === "Ansichten|Studiengang|Fortschrittsbalken|Zeichen an Modulen" && side.mine.join("|") === "Informatik B.Sc.|PO 2008|3. Fachsemester · seit WiSe 25/26" && !side.timetable, `the sidebar: ${JSON.stringify(side)}`);
-  check(side.legend.join("|") === "BestandenGeplantOffenÜber Bedarf|BestandenWiederholungNicht angeboten", `the legend: ${JSON.stringify(side.legend)}`);
+  check(side.legend.join("|") === "BestandenGeplantOffenÜber Bedarf|GeplantLäuftBestandenNicht bestanden", `the legend: ${JSON.stringify(side.legend)}`);
   await step("the program's card", () => page.click("#st-mine"), () => document.querySelector(".st-dialog[open] #st-switch-program"));
   await step("not changed", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-dialog[open]"));
 
-  // The first winter: its rows not passed (Wiederholer), all selected by the box in the head.
-  await step("the first winter", () => page.click('.st-strip .st-tab:has-text("WiSe 25/26")'), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2025/26");
-  await step("select all", () => page.click(".st-card-sem .st-sel.all"), () => document.querySelector(".st-selbar"));
+  // The semester at the top of its box (owner, 2026-10-19: „Die aktuelle Auswahl … kann dann nach
+  // ganz oben in die box wandern"): no strip of the semesters over it, no switch of the views.
+  const top = await page.evaluate(() => ({
+    strip: document.querySelectorAll(".st-strip, .st-tab, .st-sems .st-sems-head, .st-sems .st-views").length,
+    head: Math.round(document.querySelector(".st-sems .st-sem-head").getBoundingClientRect().top - document.querySelector(".st-sems").getBoundingClientRect().top),
+  }));
+  check(top.strip === 0 && top.head <= 16, `the semester is not at the top of its box: ${JSON.stringify(top)}`);
+  // Its name opens the list of every semester (the same day: „auf das semester selbst klicken
+  // können, um eine selection … zu bekommen"): what each holds, „jetzt", the one shown, one more.
+  await step("the list of the semesters", () => page.click(".st-card-sem .st-sem-pick"), () => document.activeElement?.matches(".st-pop.root [aria-current=true]"));
+  const list = await page.evaluate(() => ({
+    entries: [...document.querySelectorAll(".st-pop.root [role=menuitem]")].map((item) => item.querySelector(".st-pop-label").textContent.trim() + "|" + (item.querySelector(".st-pop-note")?.textContent ?? "")),
+    shown: document.querySelector(".st-pop.root [aria-current=true] .st-pop-label")?.textContent.trim(),
+    focus: document.activeElement?.getAttribute("aria-current"),
+  }));
+  check(list.entries.length === 7 && list.entries[0] === "WiSe 25/26 · 1. FS|0 von 32 bestanden" && list.entries[2] === "WiSe 26/27 · 3. FS jetzt|noch leer · Plan 30" && list.entries[6] === "Semester anfügen|" && list.shown === "WiSe 26/27 · 3. FS jetzt" && list.focus === "true", `the list of the semesters: ${JSON.stringify(list)}`);
+  await step("closed by Escape", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop") && document.activeElement?.classList.contains("st-sem-pick"));
+
+  // The first winter: its rows not passed (Wiederholer), all selected by the semester's ⋯.
+  await step("the first winter", () => pick(page, "WiSe 25/26"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2025/26");
+  // Its rows as the catalog's (owner, 2026-10-19: „1 zu 1 der Style vom Modulkatalog"): the
+  // catalog's row with its columns, the status where the catalog has the bookmark, no box to
+  // tick, a name that is no link of its own that underlines.
+  await page.hover(".st-card-sem .st-row >> nth=0 >> .st-name");
+  const looks = await page.evaluate(() => {
+    const row = document.querySelector(".st-card-sem .st-row");
+    const box = row.querySelector(":scope > .row");
+    return {
+      catalog: Boolean(box && row.classList.contains("row-wrap") && box.querySelector(":scope > .t > b") && box.querySelector(":scope > .t > small > .mono") && box.querySelector(":scope > .lp small") && box.querySelector(":scope > .turnus")),
+      cols: [...document.querySelectorAll(".st-card-sem .cols > span")].map((span) => span.textContent).join(","),
+      status: Boolean(row.querySelector(":scope > .st-status .st-glyph.failed")),
+      boxes: document.querySelectorAll(".st-card-sem .st-sel, .st-card-sem .st-row .st-box, .st-card-sem .st-more").length,
+      underline: getComputedStyle(row.querySelector(".st-name")).textDecorationLine,
+      pointer: getComputedStyle(box).cursor + "," + getComputedStyle(row.querySelector(".st-name")).cursor,
+    };
+  });
+  check(looks.catalog && looks.cols === "Modul,Verantwortlich,Prüfung,LP,Turnus,Spr.,Termine" && looks.status && looks.boxes === 0 && looks.underline === "none", `the rows are not the catalog's: ${JSON.stringify(looks)}`);
+  await step("select all", async () => { await page.click(".st-card-sem .st-sem-more"); await page.click("#st-menu-select"); }, () => document.querySelector(".st-selbar"));
   const before = await rows(page);
   check(before.length === 5 && before.every((row) => !row.done && row.on && row.chips.some((chip) => chip.startsWith("nicht bestanden"))), `the first winter: ${JSON.stringify(before)}`);
   check((await selected(page)).startsWith("5 ausgewählt"), `the bar: ${await selected(page)}`);
+  // Highlighted and hatched (the same day: „per hervorheben/vlt texture").
+  const lit = await page.evaluate(() => getComputedStyle(document.querySelector(".st-card-sem .st-row.is-selected > .row")).backgroundImage);
+  check(lit.includes("repeating-linear-gradient"), `a selected row is not hatched: ${lit}`);
   await step("let go", () => page.click(".st-selbar .st-act-close"), () => !document.querySelector(".st-selbar") && !document.querySelector(".st-row.is-selected"));
-  await page.mouse.move(5, 5);
-  await page.waitForTimeout(400);
-  const hidden = await page.$eval(".st-card-sem .st-row .st-sel .st-box", (box) => getComputedStyle(box).opacity);
-  check(hidden === "0", `a row's box shows with nothing selected: opacity ${hidden}`);
 
-  // A row's menu: „Als bestanden markieren" counts, keeps the row in its place, gives the focus back.
-  await step("the row's menu", () => page.click(".st-card-sem .st-row >> nth=0 >> .st-more"), () => document.querySelector(".st-pop.root #st-menu-passed"));
+  // A row's menu at its status: „Als bestanden markieren" counts, keeps the row in its place, gives
+  // the focus back.
+  await step("the row's menu", () => page.click(".st-card-sem .st-row >> nth=0 >> .st-status"), () => document.querySelector(".st-pop.root #st-menu-passed"));
   const entries = await page.evaluate(() => [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.textContent.trim()));
   // Not the module: a click on the row opens it (owner, 2026-10-05).
-  check(entries.join("|") === "Als bestanden markieren|Verschieben nach|Entfernen", `the row's menu: ${JSON.stringify(entries)}`);
+  check(entries.join("|") === "Als bestanden markieren|Verschieben nach|Auswählen|Entfernen", `the row's menu: ${JSON.stringify(entries)}`);
   await step("Als bestanden markieren", () => page.click("#st-menu-passed"), () => !document.querySelector(".st-pop") && document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
   const after = await rows(page);
   check(after[0]?.name === before[0]?.name && after[0]?.done && after.length === before.length, `marking moved the row: ${JSON.stringify(after.map((row) => row.name))}`);
-  check((await page.evaluate(() => document.activeElement?.classList.contains("st-more"))), "the menu did not give the focus back to its ⋯");
+  check((await page.evaluate(() => document.activeElement?.classList.contains("st-status"))), "the menu did not give the focus back to the row's status");
   check((await lines(page, "d\t")).join() === "d\t2025W\t12104", `what was stored for passed: ${JSON.stringify(await lines(page, "d\t"))}`);
   check((await page.evaluate(() => document.querySelector(".st-undo")?.textContent ?? "")).includes("als bestanden markiert"), "no note to take the mark back");
 
-  // A drag over the boxes selects the rows it passes; the bar marks them; „Rückgängig" takes it back.
-  const from = await middle(page, ".st-card-sem .st-row >> nth=1 >> .st-sel");
-  const to = await middle(page, ".st-card-sem .st-row >> nth=3 >> .st-sel");
-  await step("draw over three boxes", async () => {
+  // A press drawn over three rows selects them; the bar marks them; „Rückgängig" takes it back.
+  const from = await middle(page, ".st-card-sem .st-row >> nth=1 >> .lp");
+  const to = await middle(page, ".st-card-sem .st-row >> nth=3 >> .lp");
+  await step("draw over three rows", async () => {
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move(to.x, (from.y + to.y) / 2, { steps: 4 });
@@ -280,7 +326,7 @@ if (current !== "2026W") {
   await step("Rückgängig the mark", () => undo(page), () => document.querySelector(".st-headline")?.textContent === "8 von 180 LP bestanden");
 
   // The current semester: „Module hinzufügen" offers the plan's third semester, its modules ticked.
-  await step("to now", () => page.click(".st-strip .st-tab.is-now"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+  await step("to now", () => pick(page, "WiSe 26/27"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
   const empty = await page.evaluate(() => ({ words: document.querySelector(".st-card-sem .st-empty p")?.textContent, icon: Boolean(document.querySelector(".st-card-sem .st-empty-icon .icon")), rows: document.querySelectorAll(".st-card-sem .st-addrow").length }));
   check(empty.words === "Noch keine Module" && empty.icon && empty.rows === 0, `an empty semester is no mark with „Module hinzufügen“ under it: ${JSON.stringify(empty)}`);
   await step("Module hinzufügen", () => page.click(".st-card-sem .st-empty-add"), () => document.querySelector(".st-dialog[open] .st-choices") && document.querySelector("#st-plan-fs")?.dataset.value === "3");
@@ -302,13 +348,13 @@ if (current !== "2026W") {
   }));
   const winter = await fits();
   check(winter.names.includes("Programmierpraktikum") && !winter.names.includes("Digitaltechnik") && winter.warn === 0 && !winter.lines.some((line) => /im ([4-9]|1\d)\. FS/.test(line)), `what fits the third semester, a winter: ${JSON.stringify(winter)}`);
-  await step("SoSe 27", () => page.click('.st-strip .st-tab:has-text("SoSe 27")'), () => document.querySelector(".st-card-sem h2")?.textContent === "SoSe 2027");
+  await step("SoSe 27", () => pick(page, "SoSe 27"), () => document.querySelector(".st-card-sem h2")?.textContent === "SoSe 2027");
   const summer = await fits();
   check(summer.names.includes("Digitaltechnik") && !summer.names.includes("Programmierpraktikum") && summer.warn === 0 && !summer.lines.some((line) => /im ([5-9]|1\d)\. FS/.test(line)), `what fits the fourth semester, a summer: ${JSON.stringify(summer)}`);
-  await step("back to now", () => page.click(".st-strip .st-tab.is-now"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+  await step("back to now", () => pick(page, "WiSe 26/27"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
 
   // A module's menu: „Verschieben nach ›" to the next winter, and back; removed, and back.
-  const menu = '.st-card-sem .st-row:has(.st-name:text-is("Theoretische Informatik")) .st-more';
+  const menu = '.st-card-sem .st-row:has(.st-name:text-is("Theoretische Informatik")) .st-status';
   await step("the menu", () => page.click(menu), () => document.querySelector(".st-pop.root #st-menu-move"));
   await step("Verschieben nach", () => page.click("#st-menu-move"), () => document.querySelector(".st-pop.sub [role=menuitem]"));
   const targets = await page.evaluate(() => [...document.querySelectorAll(".st-pop.sub [role=menuitem]")].map((item) => item.textContent.trim()));
@@ -320,7 +366,7 @@ if (current !== "2026W") {
   await page.waitForTimeout(300);
   check((await lines(page, "m\t2026W\t11787\t")).length === 1, "„Rückgängig“ did not bring the module back");
   // The keys: Enter opens the menu, the arrows go through it and into its submenu and back,
-  // Escape closes it and gives the focus back to its ⋯.
+  // Escape closes it and gives the focus back to the row's status.
   // A click on the row opens the module: the menu does not offer it again.
   await step("the menu by the keys", async () => {
     await page.focus(menu);
@@ -329,26 +375,26 @@ if (current !== "2026W") {
   await step("down to Verschieben nach", () => page.keyboard.press("ArrowDown"), () => document.activeElement?.id === "st-menu-move");
   await step("into the submenu", () => page.keyboard.press("ArrowRight"), () => document.activeElement?.closest(".st-pop.sub"));
   await step("back out of it", () => page.keyboard.press("ArrowLeft"), () => !document.querySelector(".st-pop.sub") && document.activeElement?.id === "st-menu-move");
-  await step("Escape gives the focus back", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop") && document.activeElement?.classList.contains("st-more"));
+  await step("Escape gives the focus back", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop") && document.activeElement?.classList.contains("st-status"));
   await step("the menu again", () => page.click(menu), () => document.querySelector("#st-menu-remove"));
   await step("Entfernen", () => page.click("#st-menu-remove"), () => document.querySelector(".st-undo")?.textContent.includes("„Theoretische Informatik“ entfernt"));
   check((await lines(page, "m\t2026W\t11787\t")).length === 0, "„Entfernen“ left the module");
   await step("Rückgängig again", () => undo(page), () => [...document.querySelectorAll(".st-card-sem .st-name")].some((name) => name.textContent === "Theoretische Informatik"));
 
-  // Two rows selected by their boxes, dragged onto a semester of the strip: both move, and back.
+  // Two rows selected by Ctrl and a click, moved by the bar to SoSe 27: both move, and back.
   await step("select two", async () => {
-    await page.click(".st-card-sem .st-row >> nth=0 >> .st-sel");
-    await page.click(".st-card-sem .st-row >> nth=1 >> .st-sel");
-  }, () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 2);
+    await page.click(".st-card-sem .st-row >> nth=0 >> .row", { modifiers: ["Control"] });
+    await page.click(".st-card-sem .st-row >> nth=1 >> .row", { modifiers: ["Control"] });
+  }, () => document.querySelectorAll(".st-card-sem .st-row.is-selected").length === 2 && location.search === "");
   const two = (await rows(page)).filter((row) => row.on).map((row) => row.name);
-  await step("drag them onto SoSe 27", () => page.dragAndDrop(".st-card-sem .st-row >> nth=0 >> .st-area.st-pc", '.st-strip .st-tab:has-text("SoSe 27")'), () => document.querySelector(".st-undo")?.textContent.includes("2 Einträge ins SoSe 2027 verschoben"));
+  await step("move them to SoSe 27", async () => { await page.click("#st-sel-move"); await page.click('.st-pop.root [role=menuitem]:has-text("SoSe 27")'); }, () => document.querySelector(".st-undo")?.textContent.includes("2 Einträge ins SoSe 2027 verschoben"));
   const left = (await rows(page)).map((row) => row.name);
-  check(two.length === 2 && two.every((name) => !left.includes(name)) && (await lines(page, "m\t2027S\t")).length === 2, `the two dragged: ${JSON.stringify({ two, left })}`);
-  await step("Rückgängig the drag", () => undo(page), (n) => document.querySelectorAll(".st-card-sem .st-row").length === n, left.length + 2);
+  check(two.length === 2 && two.every((name) => !left.includes(name)) && (await lines(page, "m\t2027S\t")).length === 2, `the two moved: ${JSON.stringify({ two, left })}`);
+  await step("Rückgängig the move", () => undo(page), (n) => document.querySelectorAll(".st-card-sem .st-row").length === n, left.length + 2);
 
   // A right click opens a row's menu where the pointer is; the semester's ⋯ selects all of it;
   // Escape lets go.
-  await step("a right click", () => page.click(".st-card-sem .st-row >> nth=1 >> .st-area.st-pc", { button: "right" }), () => document.querySelector(".st-pop.root #st-menu-passed"));
+  await step("a right click", () => page.click(".st-card-sem .st-row >> nth=1 >> .row", { button: "right" }), () => document.querySelector(".st-pop.root #st-menu-passed"));
   await step("Escape closes it", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));
   await step("the semester's menu", () => page.click(".st-card-sem .st-sem-more"), () => document.querySelector(".st-pop.root #st-menu-select"));
   const semester = await page.evaluate(() => [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.id));
@@ -364,9 +410,11 @@ if (current !== "2026W") {
 
   // A module beside the page, in full, and back.
   await step("a module beside it", () => page.click('.st-card-sem a.st-name:text-is("Theoretische Informatik")'), () => location.search === "?open=11787" && document.querySelector("#preview .hero .mono")?.textContent.trim() === "11787");
-  // A click on a row beside its name opens its module too.
   const other = await page.evaluate(() => [...document.querySelectorAll(".st-card-sem .st-row")].findIndex((row) => row.querySelector("a.st-name") && row.querySelector("a.st-name").textContent !== "Theoretische Informatik"));
-  await step("another by its row", () => page.click(`.st-card-sem .st-row >> nth=${other} >> .st-area.st-pc`), () => /^\?open=\d+$/.test(location.search) && location.search !== "?open=11787");
+  // A click on a row beside its name (at its credits) opens its module too: the whole box is its
+  // button (owner, 2026-10-19).
+  const credits = await middle(page, `.st-card-sem .st-row >> nth=${other} >> .lp`);
+  await step("another by its row", () => page.mouse.click(credits.x, credits.y), () => /^\?open=\d+$/.test(location.search) && location.search !== "?open=11787");
   await step("Theoretische Informatik again", () => page.click('.st-card-sem a.st-name:text-is("Theoretische Informatik")'), () => location.search === "?open=11787" && document.querySelector("#preview .hero .mono")?.textContent.trim() === "11787");
   await step("Vollbild", () => page.click('#preview [data-action="fullscreen"]'), () => location.search === "?open=11787&full=1" && document.querySelector(".module-page"));
   check((await page.getAttribute('.rail a[data-area="programs"]', "aria-current")) === "page", "the module in full left the Studium tab");
@@ -374,7 +422,7 @@ if (current !== "2026W") {
   await step("close the module", () => page.click('#preview [data-action="close-detail"]'), () => location.search === "" && !document.querySelector("#preview"));
 
   // The Gesamtplan: a grey line of the plan, added with a click; the view kept.
-  await step("Gesamtplan", () => page.click('.st-views button:has-text("Gesamtplan")'), () => document.querySelector(".st-grid") && document.querySelectorAll(".st-row-head").length === 6);
+  await step("Gesamtplan", () => page.click('#sidebar .st-vl:has-text("Gesamtplan")'), () => document.querySelector(".st-grid") && document.querySelectorAll(".st-row-head").length === 6);
   // A cell as tall as what it lists (the Regelstudienplan's pills once took its class, and the
   // cells shrank to a pill, their modules over the semesters' heads).
   const cut = await page.evaluate(() => [...document.querySelectorAll(".st-grid .st-cell")].filter((cell) => {
@@ -606,11 +654,11 @@ if (current !== "2026W") {
       add: card.querySelector(".st-empty .st-empty-add")?.textContent.trim(),
       addrow: card.querySelectorAll(".st-addrow").length,
       label: card.querySelector(".st-plan-rows .st-plan-label")?.textContent,
-      plan: [...card.querySelectorAll(".st-plan-rows .st-prow")].map((row) => ({ name: row.querySelector(".st-name")?.textContent, lp: row.querySelector(".st-lp")?.textContent.trim(), plus: Math.round(row.querySelector(".st-prow-add").getBoundingClientRect().height) })),
+      plan: [...card.querySelectorAll(".st-plan-rows .st-prow")].map((row) => ({ name: row.querySelector(".st-name")?.textContent, lp: row.querySelector(".lp")?.textContent.trim(), plus: Math.round(row.querySelector(".st-prow-add").getBoundingClientRect().height), card: getComputedStyle(row.querySelector(".row")).backgroundColor !== "rgba(0, 0, 0, 0)" })),
     };
   }, HERE);
   check(empty.icon && empty.words === "Noch keine Module" && empty.add === "Module hinzufügen" && empty.addrow === 0 && empty.label === "Laut Regelstudienplan · 3. FS"
-    && empty.plan.length >= 3 && empty.plan.every((row) => row.name && row.lp && row.plus >= 44), `an empty semester on a phone: ${JSON.stringify(empty)}`);
+    && empty.plan.length >= 3 && empty.plan.every((row) => row.name && row.lp && row.plus >= 44 && row.card), `an empty semester on a phone: ${JSON.stringify(empty)}`);
   const first = empty.plan[0]?.name;
   await step("a row of the plan planned", () => page.tap(`${HERE} .st-prow >> nth=0 >> .st-prow-add`), (first) => {
     const card = document.querySelector(".st-pager > .st-slot:not([inert]) .st-card-sem");
@@ -629,27 +677,34 @@ if (current !== "2026W") {
   check(glide > 60 && glide <= 320, `‹ past the overview is no quick glide: ${glide} ms for two pages`);
   check((await page.evaluate(() => history.state?.["betula.semester"])) === "2026S", "‹ past the overview stopped there");
   check((await dock()).here === 1, "the dots do not follow the card");
-  // A semester's rows: a card each as the catalog's (owner, 2026-10-05: „die rows pro modul sollen
-  // ähnlich aussehen"): its name, under it its number and its area, its credits in LP.
+  // A semester's rows: the catalog's cards (owner, 2026-10-05: „die rows pro modul sollen ähnlich
+  // aussehen"; 2026-10-19: „Gestalte das so, das der aufbau komplett gleich ist. Also padding,
+  // margin, Titel, LP, und format von den Metadaten"): its name, under it its number and its area,
+  // its credits in LP, as far from the card's edges as the catalog's, its status where the
+  // catalog's card has the bookmark.
   const cards = await page.evaluate((HERE) => [...document.querySelectorAll(`${HERE} .st-row`)].map((row) => {
-    const style = getComputedStyle(row);
-    const name = row.querySelector(".st-name").getBoundingClientRect();
-    const meta = row.querySelector(".st-meta").getBoundingClientRect();
+    const box = row.querySelector(":scope > .row");
+    const style = getComputedStyle(box);
+    const name = row.querySelector(".t > b").getBoundingClientRect();
+    const meta = row.querySelector(".t > small").getBoundingClientRect();
+    const card = box.getBoundingClientRect();
+    const status = row.querySelector(":scope > .st-status").getBoundingClientRect();
     return {
       card: style.backgroundColor !== "rgba(0, 0, 0, 0)" && style.boxShadow !== "none" && parseFloat(style.borderTopLeftRadius) >= 8,
+      padding: style.padding,
+      title: getComputedStyle(row.querySelector(".t > b")).fontSize,
       under: meta.top >= name.bottom - 1,
-      line: [row.querySelector(".st-code")?.textContent, row.querySelector(".st-meta .st-area")?.textContent].filter(Boolean).join(" "),
-      lp: row.querySelector(".st-lp").textContent.trim(),
+      line: [row.querySelector(".t small > .mono")?.textContent, row.querySelector(".t small > .kind")?.textContent].filter(Boolean).join(" "),
+      lp: row.querySelector(".lp").textContent.trim(),
+      status: [Math.round(card.right - status.right), Math.round(status.height)].join(),
     };
   }), HERE);
-  check(cards.length === 4 && cards.every((card) => card.card && card.under && /LP$/.test(card.lp)) && cards[0].line === "12101 Informatik" && cards[0].lp === "10LP", `a semester's rows are not the catalog's cards: ${JSON.stringify(cards)}`);
-  const mores = await page.evaluate((HERE) => Math.min(...[...document.querySelectorAll(`${HERE} .st-more`)].map((more) => more.getBoundingClientRect().height)), HERE);
-  check(mores >= 44, `a row's ⋯ on a phone is ${mores} px tall`);
-  // A long press selects a row: the boxes come in, the bar over the tab bar.
+  check(cards.length === 4 && cards.every((card) => card.card && card.under && /LP$/.test(card.lp) && card.padding === "12px 52px 12px 18px" && card.title === "15.5px" && card.status === "1,44") && cards[0].line === "12101 Informatik" && cards[0].lp === "10LP", `a semester's rows are not the catalog's cards: ${JSON.stringify(cards)}`);
+  // A long press selects a row: highlighted, no box to tick, the bar over the tab bar.
   await step("a long press", async () => {
-    const at = await middle(page, `${HERE} .st-row >> nth=0 >> .st-what`);
+    const at = await middle(page, `${HERE} .st-row >> nth=0 >> .lp`);
     const fire = (type) => page.evaluate(({ x, y, type, HERE }) => {
-      const body = document.querySelector(`${HERE} .st-row .st-body`);
+      const body = document.querySelector(`${HERE} .st-row .row`);
       body.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType: "touch", isPrimary: true, clientX: x, clientY: y }));
     }, { ...at, type, HERE });
     await fire("pointerdown");
@@ -660,19 +715,25 @@ if (current !== "2026W") {
   const bar = await page.evaluate((HERE) => {
     const box = document.querySelector(".st-selbar").getBoundingClientRect();
     const nav = document.querySelector(".bottomnav").getBoundingClientRect();
-    const sel = document.querySelector(`${HERE} .st-row .st-sel`).getBoundingClientRect();
     const top = document.elementFromPoint(nav.left + nav.width / 2, nav.top + nav.height / 2);
-    return { fixed: getComputedStyle(document.querySelector(".st-selbar")).position, off: [box.left - nav.left, box.right - nav.right, box.top - nav.top, box.bottom - nav.bottom].map(Math.round).join(), covers: Boolean(top?.closest(".st-selbar")), sel: Math.round(Math.min(sel.width, sel.height)), still: getComputedStyle(document.querySelector(".st-pager")).touchAction };
+    return {
+      fixed: getComputedStyle(document.querySelector(".st-selbar")).position,
+      off: [box.left - nav.left, box.right - nav.right, box.top - nav.top, box.bottom - nav.bottom].map(Math.round).join(),
+      covers: Boolean(top?.closest(".st-selbar")),
+      boxes: document.querySelectorAll(`${HERE} .st-sel, ${HERE} .st-row .st-box`).length,
+      lit: getComputedStyle(document.querySelector(`${HERE} .st-row.is-selected > .row`)).backgroundImage.includes("repeating-linear-gradient"),
+      still: getComputedStyle(document.querySelector(".st-pager")).touchAction,
+    };
   }, HERE);
-  check(bar.fixed === "fixed" && bar.off === "0,0,0,0" && bar.covers && bar.sel >= 40 && bar.still === "pan-y", `the phone's bar is not over the tab bar: ${JSON.stringify(bar)}`);
-  await step("a tap selects another", () => page.tap(`${HERE} .st-row >> nth=1 >> .st-what`), () => document.querySelectorAll(".st-pager > .st-slot:not([inert]) .st-row.is-selected").length === 2);
+  check(bar.fixed === "fixed" && bar.off === "0,0,0,0" && bar.covers && bar.boxes === 0 && bar.lit && bar.still === "pan-y", `the phone's bar is not over the tab bar: ${JSON.stringify(bar)}`);
+  await step("a tap selects another", () => page.tap(`${HERE} .st-row >> nth=1 >> .row`), () => document.querySelectorAll(".st-pager > .st-slot:not([inert]) .st-row.is-selected").length === 2 && location.search === "");
   await step("let go on the phone", () => page.tap(".st-selbar .st-act-close"), () => !document.querySelector(".st-selbar"));
   // A row's menu: a sheet, without the module (a tap on the row opens it); „Verschieben nach"
   // takes its place, and gives it back.
-  await step("a row's menu as a sheet", () => page.tap(`${HERE} .st-row >> nth=0 >> .st-more`), () => document.querySelector(".st-pop.root #st-menu-move"));
+  await step("a row's menu as a sheet", () => page.tap(`${HERE} .st-row >> nth=0 >> .st-status`), () => document.querySelector(".st-pop.root #st-menu-move"));
   await page.waitForTimeout(400);
   const menuSheet = await page.evaluate(() => { const box = document.querySelector(".st-pop.root").getBoundingClientRect(); return { bottom: Math.round(innerHeight - box.bottom), width: Math.round(box.width), entries: [...document.querySelectorAll(".st-pop.root [role^=menuitem]")].map((item) => item.id).join() }; });
-  check(menuSheet.bottom === 0 && menuSheet.width === 390 && menuSheet.entries === "st-menu-passed,st-menu-move,st-menu-remove", `a row's menu on a phone: ${JSON.stringify(menuSheet)}`);
+  check(menuSheet.bottom === 0 && menuSheet.width === 390 && menuSheet.entries === "st-menu-passed,st-menu-move,st-menu-select,st-menu-remove", `a row's menu on a phone: ${JSON.stringify(menuSheet)}`);
   await step("Verschieben nach on a phone", () => page.tap("#st-menu-move"), () => document.querySelector(".st-pop.sub .st-pop-back") && getComputedStyle(document.querySelector(".st-pop.root")).display === "none");
   await step("back to the menu", () => page.tap(".st-pop.sub .st-pop-back"), () => !document.querySelector(".st-pop.sub") && getComputedStyle(document.querySelector(".st-pop.root")).display !== "none");
   await step("close the menu", () => page.keyboard.press("Escape"), () => !document.querySelector(".st-pop"));
