@@ -39,12 +39,19 @@
 //! every phone the way back at the head, bring it back to the overview. The box „Studium planen"
 //! and its columns move the row in turn. The row is as tall as
 //! the page it rests at (the others count for nothing, app.css) and at least as tall as the screen
-//! below it, so that a page coming in shows as far down as the screen does; it changes only at
-//! rest, never under a finger. It is the end of the page, with no ground after it (owner,
-//! 2026-10-19: „wenn man nach unten scrolled zum footer und dann weiter swiped dann gibt es ganz
-//! komisches behavior"): a page coming in from down in the ground showed only above it. A page comes in from its top wherever the window was scrolled to in
-//! the one before, as the page of an app does (`dom::lift`), and at rest the window is there
-//! (`dom::land`). While rows are selected the row does not move sideways: the finger selects
+//! below it, so that a page coming in shows as far down as the screen does. It is the end of the
+//! page, with no ground after it (owner, 2026-10-19: „wenn man nach unten scrolled zum footer und
+//! dann weiter swiped dann gibt es ganz komisches behavior"): a page coming in from down in the
+//! ground showed only above it. A page comes in from its top wherever the window was scrolled to
+//! in the one before, as the page of an app does: a finger on the row draws the pages coming in
+//! from their tops (`dom::lift`), and once the row moves, the window scrolls the page it heads for,
+//! from its top to its end, the page it leaves drawn where it was and counting for nothing
+//! (`dom::turn`; owner, 2026-10-19: „wird der vertikale space von der gerade verschwinden seite noch
+//! als scrollbar angesehen … den overflow für die page auszustellen, die weg geswiped wird"). At
+//! rest the window stays where the page is, as far down in it as it was scrolled meanwhile
+//! (`dom::land`; the same day: „wenn man vertikal am scrollen ist während man swiped. Dann springt
+//! das … wieder zum Anfang"), and the page that was left starts at its top again, off the screen.
+//! While rows are selected the row does not move sideways: the finger selects
 //! (`focus.rs`).
 //!
 //! The row comes with the page it opens at and its neighbours drawn; the others follow once it is
@@ -206,8 +213,12 @@ pub(super) struct Pages {
     /// The row has been placed where the address says (the first time at once).
     placed: StoredValue<bool>,
     quiet: StoredValue<Option<TimeoutHandle>>,
-    /// The pages it does not rest at are drawn from their tops (`dom::lift`).
-    lifted: StoredValue<bool>,
+    /// The pages it does not rest at are drawn from their tops (`dom::lift`): how far further down
+    /// they are drawn, until the row rests (`dom::land`).
+    lifted: StoredValue<Option<f64>>,
+    /// The page the row heads for while it moves sideways (`dom::turn`): the window scrolls it, and
+    /// the row is as tall as it.
+    turning: StoredValue<Option<usize>>,
     /// A finger is on the row.
     touching: StoredValue<bool>,
     glide: StoredValue<Glide>,
@@ -239,7 +250,8 @@ impl Pages {
             heading: StoredValue::new(Heading::default()),
             placed: StoredValue::new(false),
             quiet: StoredValue::new(None),
-            lifted: StoredValue::new(false),
+            lifted: StoredValue::new(None),
+            turning: StoredValue::new(None),
             touching: StoredValue::new(false),
             glide: StoredValue::new(Glide::default()),
             waiting: StoredValue::new(None),
@@ -332,7 +344,7 @@ impl Pages {
     /// A finger comes down on the row (the pages coming in are drawn from their tops), or goes.
     fn finger(self, down: bool) {
         if down {
-            self.lift();
+            self.lift_anew();
         }
         self.touching.set_value(down);
     }
@@ -341,9 +353,58 @@ impl Pages {
     /// a tap or the address).
     fn lift(self) {
         if let Some(row) = self.node.get_untracked() {
-            dom::lift(&row);
-            self.lifted.set_value(true);
+            self.lifted.set_value(Some(dom::lift(&row)));
         }
+    }
+
+    /// The pages coming in are drawn from their tops as the window is scrolled now, while none of
+    /// them shows (the row rests at its page, does not glide and has not turned): drawn so before,
+    /// the window may have moved since. One that shows stays where it is drawn: the window scrolled
+    /// it along, and drawn anew it would jump (owner, 2026-10-19: „wenn man vertikal am scrollen ist
+    /// während man swiped"); the row's rest leaves the window there (`dom::land`).
+    fn lift_anew(self) {
+        let resting = self.glide.with_value(|glide| glide.to.is_none()) && self.turning.get_value().is_none() && self.at() == Some((self.here.get_untracked(), true));
+        if resting || self.lifted.get_value().is_none() {
+            self.lift();
+        }
+    }
+
+    /// The row is `x` px along, its pages `step` apart: off the page it rests at, it heads for the
+    /// next page the way it moves (`head_to`); back at it, the window scrolls that page again
+    /// (`dom::unturn`), not only once the row rests.
+    fn head(self, x: f64, step: f64) {
+        let here = self.here.get_untracked();
+        let last = self.order.with_untracked(Vec::len).saturating_sub(1);
+        let at = here as f64 * step;
+        if step <= 0.0 {
+            return;
+        }
+        if (x - at).abs() <= 0.5 {
+            if self.turning.get_value().is_some() {
+                if let Some(row) = self.node.get_untracked() {
+                    dom::unturn(&row, self.lifted.get_value().unwrap_or(0.0));
+                }
+                self.turning.set_value(None);
+            }
+            return;
+        }
+        let to = if x > at { ((x / step).ceil() as usize).min(last) } else { (x / step).floor().max(0.0) as usize };
+        self.head_to(to);
+    }
+
+    /// The row heads for the page at `to`: the window scrolls that page from now on, from its top to
+    /// its end, and nothing of the page it leaves (`dom::turn`), until it rests (`dom::land`).
+    fn head_to(self, to: usize) {
+        let Some(row) = self.node.get_untracked() else { return };
+        if to == self.here.get_untracked() || self.turning.get_value() == Some(to) {
+            return;
+        }
+        if self.turning.get_value().is_some() {
+            dom::head_for(&row, to);
+        } else {
+            dom::turn(&row, self.lifted.get_value().unwrap_or(0.0), to);
+        }
+        self.turning.set_value(Some(to));
     }
 
     /// Turns to semester `to` (‹ ›): the row glides there.
@@ -399,9 +460,8 @@ impl Pages {
             return;
         }
         let Some((from, _)) = self.x() else { return };
-        if !self.lifted.get_value() {
-            self.lift();
-        }
+        self.lift_anew();
+        self.head_to(index);
         let number = self.glide.with_value(|glide| glide.number.wrapping_add(1));
         self.glide.set_value(Glide { number, to: Some(index), at: from });
         if let Some(handle) = self.quiet.get_value() {
@@ -463,11 +523,12 @@ impl Pages {
         if self.glide.with_value(|glide| glide.to.is_some()) {
             return;
         }
-        if !self.lifted.get_value() {
+        if self.lifted.get_value().is_none() {
             self.lift();
         }
         if let Some((x, step)) = self.x() {
             self.track(x, step);
+            self.head(x, step);
         }
         if let Some(handle) = self.quiet.get_value() {
             handle.clear();
@@ -491,8 +552,9 @@ impl Pages {
         self.track(x, step);
         let moved = index != self.here.get_untracked();
         if let Some(row) = self.node.get_untracked() {
-            dom::land(&row, moved);
-            self.lifted.set_value(false);
+            dom::land(&row, moved, self.lifted.get_value().unwrap_or(0.0), self.turning.get_value().is_some());
+            self.lifted.set_value(None);
+            self.turning.set_value(None);
         }
         if !moved {
             return;
