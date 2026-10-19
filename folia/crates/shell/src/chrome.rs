@@ -45,6 +45,16 @@ pub fn tab_target(tabs: Option<Tabs>, mine: Option<MineResolved>, area: Area, pa
     }
 }
 
+/// `window.__betulaStands(area)` for enhance.js: whether a tap on the tab of `area` (its `data-area`)
+/// only swaps the stages.
+#[cfg(feature = "csr")]
+fn expose_stands(stands: impl Fn(Area) -> bool + 'static) {
+    use leptos::wasm_bindgen::{closure::Closure, JsValue};
+    let Some(window) = leptos::web_sys::window() else { return };
+    let ask = Closure::<dyn Fn(JsValue) -> bool>::new(move |area: JsValue| area.as_string().and_then(|name| Area::from_name(&name)).is_some_and(&stands));
+    let _ = leptos::web_sys::js_sys::Reflect::set(&window, &JsValue::from_str("__betulaStands"), &ask.into_js_value());
+}
+
 /// The main navigation. Its items are tabs: each leads to where its area was left (`tabs`), and is
 /// a digit away on a keyboard (`Area::key`, `NavKey`).
 #[component]
@@ -70,6 +80,12 @@ pub fn NavItems() -> impl IntoView {
     // Where a tab leads, as the app's path.
     let target = move |area: Area| tab_target(tabs, mine, area, &location.pathname.get());
     let href = move |area: Area| t.path(&target(area));
+    // Whether a tap on a tab only swaps the stages, where it leads standing already: then its page
+    // follows a finger along the bar (enhance.js, the Achse), `__betulaStands(area)`.
+    #[cfg(feature = "csr")]
+    if let Some(pending) = pending {
+        expose_stands(move |area| untrack(|| pending.stands(&crate::nav::tab_top(area, &target(area)))));
+    }
     // A tab tapped where its area is (not the end of a swipe along the bar, enhance.js): its page
     // goes back to where it starts (`TabAgain`). On a phone the tab is a stack of its own: the
     // history becomes Start and the tab's stack as it was left, and in its own tab back to its
