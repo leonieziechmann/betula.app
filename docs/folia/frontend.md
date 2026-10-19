@@ -295,12 +295,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
   Cottbus und ein andere teil in Senftenberg ist. Deswegen gibt es zwei Vorlesungen … Aber es wird
   nur erwartet, dass die Studies eine der beiden vls/praktika besucht"; schema 15). Radix reads the
   courses and which one each program takes (docs/radix/schema-v2.md, „Tracks": whom QIS lists an
-  event for, else the campus of the program's compulsory modules, with the SWS as the check of
-  plausibility); `v_module_schedule.track` carries a date's course, `v_module_track_program` the
-  programs' (`ModuleData::tracks`). Eight modules of 2026W, the Programmierpraktikum (12102) at the
+  event for, else the campus the program is taught at — where QIS lists its other events, else its
+  compulsory modules —, with the SWS as the check of plausibility and no courses where QIS lists
+  the same programs at each); `v_module_schedule.track` carries a date's course, `v_module_track_program` the
+  programs' (`ModuleData::tracks`). Seven modules of 2026W, the Programmierpraktikum (12102) at the
   Zentralcampus for Informatik, Mathematik and five more and in Sachsendorf for Medizininformatik
   among them; Betriebssysteme und Rechnernetze (11760), whose two campuses hold its two required
-  parts, has none.
+  parts, has none, nor has the Research Module in Artificial Intelligence (14060), whose seminars
+  at both campuses QIS lists for AI M.Sc. alone (Radix 0.9.1).
   - **The module's Termine** (`folia_widgets::courses`, `module.rs` `course_view`, `shown_slots`,
     `list_groups`, `course_note`) for whom the page stands: with „Mein Studiengang" (and the
     catalog filtered by it, or by another PO of it) only the courses it takes, in the week and the

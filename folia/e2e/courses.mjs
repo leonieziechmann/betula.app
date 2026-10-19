@@ -2,7 +2,7 @@
 // held at two campuses shows the course of the program"): the Programmierpraktikum (12102) of 2026W
 // at the Zentralcampus for Informatik and in Sachsendorf for Medizininformatik.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node courses.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// Needs a snapshot of schema 15 built by a Radix that read the courses (radix TestTracksOnSnapshot
+// Needs a snapshot built by a Radix that read the courses, schema 15 or newer (radix TestTracksOnSnapshot
 // writes them into a copy of an older one).
 // - Nobody's: every course in its colour, a heading for each, the line over the week naming both.
 // - Mein Studiengang Medizininformatik: only Sachsendorf's Termine; „Auch zeigen" brings the
