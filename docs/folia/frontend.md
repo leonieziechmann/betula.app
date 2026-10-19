@@ -2184,7 +2184,7 @@ them on an axis.
 
 `node folia/e2e/stages.mjs` and `node folia/e2e/achse.mjs` check it (§4).
 
-### The search of the catalog (`folia/crates/search`, 2026-09-30; ranked anew 2026-10-19)
+### The search of the catalog (`folia/crates/search`, 2026-09-30; ranked anew 2026-10-19, Folia 1.30.0)
 
 Owner: the search should improve, first with the names of the modules („erstmal eine neue Zeile in
 der db wo keine Sonderzeichen etc drin sind“), typos forgiven; a semantic search („Ähnliche
