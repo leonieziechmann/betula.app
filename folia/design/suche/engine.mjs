@@ -45,13 +45,15 @@ function forms(word) {
 }
 
 // ---------------------------------------------------------------- the data
-// A row: [id, the title the list shows, the other title or "", 1 if the shown one is English,
-// status (0 offered, 1 phase-out, 2 no longer offered), Radix's folded abbreviations (its own, the
-// programs', the known forms), its own and the programs' abbreviations folded, programs (latest PO)
-// whose curriculum has it, [their indices]].
+// data.modules, a row each: [id, the title the list shows, the other title or "", 1 if the shown one
+// is English, status (0 offered, 1 phase-out, 2 no longer offered), Radix's folded abbreviations (its
+// own, the programs', the known forms), [its own and the programs' abbreviations as written],
+// programs (latest PO) whose curriculum has it, [their indices], [[a lecturer's index, 0 responsible
+// or 1 teaching]]]. data.lecturers: the names as QIS writes them („Hofstedt, Petra").
 export function buildIndex(data) {
+  const names = (data.lecturers ?? []).map(parseName);
   const modules = data.modules.map((r) => {
-    const [id, title, other, shownEn, status, radixAbbrevs, abbrevs, pop, progs] = r;
+    const [id, title, other, shownEn, status, radixAbbrevs, abbrevs, pop, progs, lecturers = []] = r;
     const de = shownEn ? other || null : title;
     const en = shownEn ? title : other || title;
     const initials = [];
@@ -63,7 +65,8 @@ export function buildIndex(data) {
       id, title, other: other || null, shownEn: !!shownEn, status, pop, progs: new Set(progs), de, en,
       // what today's SQL compares (v_module_folded, as Radix folds it)
       old: { de: searchText(de), en: searchText(en), ini: initials.join(" ") || null, ab: radixAbbrevs || null },
-      abbrevs: abbrevs ? abbrevs.split(" ") : [],
+      abbrevs: abbrevs.map((raw) => ({ raw, folded: words(raw).join("") })).filter((a) => a.folded),
+      lecturers: lecturers.map(([i, role]) => ({ ...names[i], role })),
       shownT: null, otherT: null,
     };
   });
@@ -265,7 +268,8 @@ export function searchOld(index, text) {
 
 // ================================================================= the concept
 // Fillers, for the query and for the titles: a query leaves them out, a short form may take their
-// letter („AuD“, „MfI“) or leave them out, and they end a group of words.
+// letter („AuD“, „MfI“) or leave them out, and they end a group of words. „Prof.“ and „Dr.“ too,
+// so that „Prof. Hofstedt“ is Hofstedt.
 export const FILLERS = new Set([
   "und", "oder", "sowie", "der", "die", "das", "des", "dem", "den", "ein", "eine", "einer", "eines", "einem", "einen",
   "in", "im", "am", "an", "auf", "aus", "bei", "fur", "mit", "nach", "uber", "unter", "von", "vom", "zu", "zur", "zum",
@@ -274,17 +278,36 @@ export const FILLERS = new Set([
   "of", "and", "or", "the", "to", "for", "from", "with", "by", "into", "on", "at", "as", "s", "is", "are", "its",
   "their", "our", "your", "this", "these", "that", "how", "what", "may", "can", "have", "has", "between", "within",
   "without", "about", "across", "through", "towards", "under", "over", "after", "before", "beyond", "among", "per",
-  "via", "vs", "versus",
+  "via", "vs", "versus", "prof", "dr",
 ]);
 // Short forms everybody knows (Radix's abbrev.knownForms): a word that is or contains the long form.
 const KNOWN = { bwl: "betriebswirtschaftslehre", vwl: "volkswirtschaftslehre", sw: "software", hw: "hardware" };
 const isNumeral = (w) => ROMAN.includes(w) || /[0-9]/.test(w);
 
-/** The classes, best first. */
-export const CLASS = { 1: "Genau", 2: "Wort oder Kürzel", 3: "Wortanfang", 4: "Im Wort" };
+/** The points of a find, and what changes them. The page's sliders change `program`, `other` and
+ *  `caseMatch`; everything else is the concept's. */
+export const WEIGHTS = {
+  // the query names the whole module
+  number: 125, abbrev: 125, abbrevPart: 120, title: 120,
+  // a word of the query in a title
+  word: 80, short: 80, prefix: 60, shortSkip: 55, numberStart: 60, inside: 35,
+  // a word of the query in the name of a lecturer
+  name: 75, nameStart: 55, nameLike: 50,
+  // factors
+  other: 0.75, // a find in the title of the other language
+  caseMatch: 1.1, // capitals as typed (only where the query has capitals)
+  perWord: 0.03, maxWords: 5, // every word before the find in the title, up to five
+  phrase: 1.05, // the words of the query side by side, in their order
+  instructor: 0.9, // a lecturer who teaches the module, not responsible for it
+  program: 1.2, // a module of my program: the order only, never what is found
+};
+export const DEFAULT_WEIGHTS = { ...WEIGHTS };
 
-/** The words of a title, with where each stands in the text (for the marks) and what the short
- *  forms need: fillers, numerals, and what lies between two words. */
+/** What a module's find is called on the page, by its points. */
+export const LEVELS = [[120, "Genau"], [75, "Wort oder Kürzel"], [50, "Wortanfang"], [0, "Im Wort"]];
+
+/** The words of a text with where each stands (for the marks), and what the short forms need:
+ *  fillers, numerals, and what lies between two words. */
 export function tokenize(raw) {
   const toks = [];
   const re = /[\p{Alphabetic}\p{N}]+/gu;
@@ -298,7 +321,7 @@ export function tokenize(raw) {
       for (const f of fold(ch)) { text += f; map.push(start + i); }
       i += ch.length;
     }
-    toks.push({ text, start, end: start + mt[0].length, map, caps: /^\p{Lu}{2,}$/u.test(mt[0]) });
+    toks.push({ text, start, end: start + mt[0].length, map });
   }
   let content = 0;
   toks.forEach((t, i) => {
@@ -359,9 +382,7 @@ function shortForms(q, T, strict) {
       if (!t.text.startsWith(q.slice(off, off + len))) continue;
       const next = [...pieces, [i, len]];
       if (off + len === q.length) {
-        if (next.length >= 2 && t.content && endsGroup(T, i)) {
-          out.push({ pieces: next, from, to: i, skipped, full: from === T.firstContent && i === T.lastContent });
-        }
+        if (next.length >= 2 && t.content && endsGroup(T, i)) out.push({ pieces: next, from, to: i, skipped });
         continue;
       }
       // the next word, or past fillers; never past a mark or past a word that is no filler
@@ -375,120 +396,210 @@ function shortForms(q, T, strict) {
   return out;
 }
 
-/** Every way one word of the query is found in one title. */
-function matchesIn(qw, T, otherTitle) {
+/** Capitals as typed: where the query word has a capital, the letters a find marks are written as
+ *  typed („TI“ is so in „TIN*“, not in „Tissue“). `null` where the query has no capital. */
+function caseOf(qw, raw, spans) {
+  if (!/\p{Lu}/u.test(qw.raw)) return null;
+  let typed = "";
+  for (const [a, b] of spans) typed += raw.slice(a, b);
+  return typed === qw.raw;
+}
+
+/** Every way one word of the query is found in one title, with its points. */
+function findsIn(qw, T, other) {
+  const W = WEIGHTS;
   const { q, strong } = qw;
   const out = [];
   const whole = (isDigits(q) && q.length < 3) || ROMAN.includes(q);
   const alts = forms(q).map((f) => f.text);
   const known = KNOWN[q];
-  const add = (kind, from, to, spans, extra = {}) => out.push({ kind, from, to, pos: T.toks[from].pos, spans, ...extra });
+  const add = (kind, base, from, to, spans, extra = {}) => {
+    const pos = T.toks[from].pos;
+    const c = kind === "inside" ? null : caseOf(qw, T.raw, spans);
+    const points = base * (1 - W.perWord * Math.min(pos, W.maxWords)) * (other ? W.other : 1) * (c ? W.caseMatch : 1);
+    out.push({ kind, from, to, pos, spans, points, other, caseMatch: c === true, ...extra });
+  };
   T.toks.forEach((t, i) => {
-    if (alts.includes(t.text)) add("word", i, i, [[t.start, t.end]]);
-    else if (known && t.text.includes(known)) add("word", i, i, [[t.start, t.end]], { known: q.toUpperCase() });
-    else if (!whole && t.text.startsWith(q)) add("prefix", i, i, [spanOf(t, 0, q.length)]);
-    else if (!whole && q.length >= 4 && t.text.indexOf(q) > 0) add("inside", i, i, [spanOf(t, t.text.indexOf(q), q.length)]);
+    if (alts.includes(t.text)) add("word", W.word, i, i, [[t.start, t.end]]);
+    else if (known && t.text.includes(known)) add("word", W.word, i, i, [[t.start, t.end]], { known: q.toUpperCase() });
+    else if (!whole && t.text.startsWith(q)) add("prefix", W.prefix, i, i, [spanOf(t, 0, q.length)]);
+    else if (!whole && q.length >= 4 && t.text.indexOf(q) > 0) add("inside", W.inside, i, i, [spanOf(t, t.text.indexOf(q), q.length)]);
   });
   for (const j of T.joined) {
-    if (j.text === q) add("word", j.from, j.to, [[j.start, j.end]]);
-    else if (!whole && j.text.startsWith(q) && !T.toks[j.from].text.startsWith(q)) add("prefix", j.from, j.to, [spanOf(j, 0, q.length)]);
+    if (j.text === q) add("word", W.word, j.from, j.to, [[j.start, j.end]]);
+    else if (!whole && j.text.startsWith(q) && !T.toks[j.from].text.startsWith(q)) add("prefix", W.prefix, j.from, j.to, [spanOf(j, 0, q.length)]);
   }
   if (strong && !whole && isLetters(q) && q.length >= 2) {
-    for (const s of shortForms(q, T, otherTitle)) {
-      add("short", s.from, s.to, s.pieces.map(([i, len]) => spanOf(T.toks[i], 0, len)), { skipped: s.skipped, full: s.full });
+    for (const s of shortForms(q, T, other)) {
+      add("short", s.skipped ? W.shortSkip : W.short, s.from, s.to, s.pieces.map(([i, len]) => spanOf(T.toks[i], 0, len)), { skipped: s.skipped });
     }
   }
   // In the title one does not see, a word of one or two letters finds no word's start („ti“ not
   // in „Timber“), only a whole word, a short form, or the start of a word in capitals („DB“ in „DBS“).
-  if (otherTitle && q.length <= 2) {
-    return out.filter((x) => x.kind === "word" || (x.kind === "short" && !x.skipped) || (x.kind === "prefix" && T.toks[x.from].caps));
+  if (other && q.length <= 2) {
+    return out.filter((x) => x.kind === "word" || (x.kind === "short" && !x.skipped)
+      || (x.kind === "prefix" && /^\p{Lu}{2,}$/u.test(T.raw.slice(T.toks[x.from].start, T.toks[x.from].end))));
   }
   return out;
 }
 
-// A whole word and a short form that leaves out no filler are class 2; a word's start and a short
-// form that leaves one out („TI“ for Technologie- und Innovationsmanagement) class 3; inside a word 4.
-const kindClass = (x) => (x.kind === "word" || (x.kind === "short" && !x.skipped) ? 2 : x.kind === "inside" ? 4 : 3);
-
 /** Do the query's words, in their order, name every word of the title but fillers and numerals? One
  *  word only as a whole word or a short form („Datenbanken“, „TI“), several also as starts
- *  („theo inf“, „mathe 1“). */
+ *  („theo inf“, „mathe 1“). With capitals as typed, if it can (`true`), else without (`false`);
+ *  `null`: no. */
 function covers(qs, T, all) {
   const toks = T.toks;
-  const memo = new Map();
-  const go = (k, t) => {
-    const key = k * 1000 + t;
-    if (memo.has(key)) return memo.get(key);
-    let ok = false;
-    if (k === qs.length) ok = toks.slice(t).every((x) => !x.content);
-    else {
-      if (t < toks.length && !toks[t].content) ok = go(k, t + 1);
-      for (const x of all[k]) {
-        if (ok) break;
-        if (x.from !== t || x.kind === "inside" || (x.kind === "prefix" && qs.length === 1) || (x.kind === "short" && x.skipped)) continue;
-        ok = go(k + 1, x.to + 1);
+  const run = (strictCase) => {
+    const memo = new Map();
+    const go = (k, t) => {
+      const key = k * 1000 + t;
+      if (memo.has(key)) return memo.get(key);
+      let ok = false;
+      if (k === qs.length) ok = toks.slice(t).every((x) => !x.content);
+      else {
+        if (t < toks.length && !toks[t].content) ok = go(k, t + 1);
+        for (const x of all[k]) {
+          if (ok) break;
+          if (x.from !== t || x.kind === "inside" || (x.kind === "prefix" && qs.length === 1) || (x.kind === "short" && x.skipped)) continue;
+          if (strictCase && !x.caseMatch) continue;
+          ok = go(k + 1, x.to + 1);
+        }
       }
-    }
-    memo.set(key, ok);
-    return ok;
+      memo.set(key, ok);
+      return ok;
+    };
+    return go(0, 0);
   };
-  return go(0, 0);
+  const capitals = qs.some((w) => /\p{Lu}/u.test(w.raw));
+  if (capitals && run(true)) return true;
+  return run(false) ? false : null;
 }
 
-function evaluateTitle(m, qs, T, otherTitle) {
-  const all = qs.map((w) => matchesIn(w, T, otherTitle));
+// ---------------------------------------------------------------- lecturers
+// Restricted, but forgiving with spelling: a surname whole (from three letters), its start from
+// four, or a similar spelling from four (one slip, two from eight letters, the first letter right,
+// after ä/ae, dt/tt/t, ph/f, th/t, ck/k, tz/z, ie/i, y/i, ei/ai/ey/ay, a silent h and doubled
+// letters are made alike); a first name only with the same person's surname. No inside a word,
+// no short forms.
+const TITLE_WORDS = new Set(["prof", "dr", "rer", "nat", "habil", "ing", "phil", "med", "medic", "oec", "pol", "jur",
+  "techn", "paed", "apl", "pd", "dipl", "mult", "h", "c", "hc", "sc", "soc", "publ", "theol", "agr", "des", "univ", "em"]);
+const PARTICLES = new Set(["von", "van", "de", "der", "den", "del", "della", "la", "le", "zu", "zur", "di", "da", "dos", "du", "ten", "ter", "vom"]);
+
+function parseName(raw) {
+  const comma = raw.indexOf(",");
+  const toks = tokenize(raw).toks;
+  const surname = toks.filter((t) => (comma < 0 || t.start < comma) && !TITLE_WORDS.has(t.text) && !PARTICLES.has(t.text) && !/[0-9]/.test(t.text));
+  const first = toks.filter((t) => comma >= 0 && t.start > comma && !TITLE_WORDS.has(t.text));
+  return { raw, surname, first };
+}
+
+/** Spellings made alike, for similar names only. */
+export function alike(word) {
+  return word
+    .replace(/ae/g, "a").replace(/oe/g, "o").replace(/ue/g, "u")
+    .replace(/dt/g, "t").replace(/th/g, "t").replace(/ph/g, "f").replace(/ck/g, "k").replace(/tz/g, "z")
+    .replace(/ie/g, "i").replace(/y/g, "i").replace(/e[iy]|a[iy]/g, "ai")
+    .replace(/([aeiou])h/g, "$1")
+    .replace(/(.)\1+/g, "$1");
+}
+
+function similarName(q, name) {
+  if (q.length < 4 || q[0] !== name[0]) return false;
+  const a = alike(q), b = alike(name);
+  if (a[0] !== b[0]) return false;
+  return editDistance([...a], [...b]) <= (a.length >= 8 ? 2 : 1);
+}
+
+/** How the words of the query are found in the names of a module's lecturers: per word its best. */
+function findsInLecturers(m, qs) {
+  const W = WEIGHTS;
+  const best = qs.map(() => null);
+  for (const L of m.lecturers) {
+    const role = L.role === 1 ? W.instructor : 1;
+    const own = qs.map((w) => {
+      let found = null;
+      if (!isLetters(w.q)) return null;
+      for (const t of L.surname) {
+        const kind = w.q === t.text && w.q.length >= 3 ? "name"
+          : w.q.length >= 4 && t.text.startsWith(w.q) ? "nameStart"
+          : similarName(w.q, t.text) ? "nameLike" : null;
+        if (!kind) continue;
+        const points = W[kind] * role;
+        const span = kind === "nameStart" ? spanOf(t, 0, w.q.length) : [t.start, t.end];
+        if (!found || points > found.points) found = { kind, points, spans: [span], lecturer: L, surname: true };
+      }
+      return found;
+    });
+    // a first name (or its initial) counts with the surname of the same person
+    if (own.some((f) => f?.surname)) {
+      qs.forEach((w, k) => {
+        if (own[k]) return;
+        const t = L.first.find((f) => f.text === w.q || (w.q.length === 1 && f.text[0] === w.q));
+        if (t) own[k] = { kind: "firstName", points: W.name * role, spans: [w.q.length === 1 ? spanOf(t, 0, 1) : [t.start, t.end]], lecturer: L };
+      });
+    }
+    own.forEach((f, k) => { if (f && (!best[k] || f.points > best[k].points)) best[k] = f; });
+  }
+  return best;
+}
+
+// ---------------------------------------------------------------- a module
+function evaluate(m, qs) {
+  const W = WEIGHTS;
+  if (!m.shownT) { m.shownT = tokenize(m.title); m.otherT = m.other ? tokenize(m.other) : null; }
+  const titles = [[m.shownT, false], ...(m.otherT ? [[m.otherT, true]] : [])];
+  const inTitles = titles.map(([T, other]) => qs.map((w) => findsIn(w, T, other)));
+  const inNames = findsInLecturers(m, qs);
   const best = qs.map((w, k) => {
     const q = w.q;
-    // the module's number and its abbreviations count with either title
     const cands = [];
-    if (isDigits(q) && q.length >= 3 && m.id === q) cands.push({ kind: "id", cls: 1, pos: 0, from: -1, to: -1, spans: [] });
-    else if (isDigits(q) && q.length >= 3 && m.id.startsWith(q)) cands.push({ kind: "idstart", cls: 3, pos: 0, from: -1, to: -1, spans: [] });
-    if (q.length >= 2 && m.abbrevs.includes(q)) cands.push({ kind: "abbrev", cls: 1, pos: 0, from: -1, to: -1, spans: [] });
-    // the abbreviation of a part without its number: „BS“ for BS1, BS2, BS3 (Betriebssysteme I–III)
-    else if (q.length >= 2 && isLetters(q) && m.abbrevs.some((a) => a.startsWith(q) && isDigits(a.slice(q.length)))) {
-      cands.push({ kind: "abbrevpart", cls: 1, pos: 0, from: -1, to: -1, spans: [] });
+    // the module's number and its abbreviations, whichever title
+    if (isDigits(q) && q.length >= 3 && m.id === q) cands.push({ kind: "id", points: W.number, spans: [] });
+    else if (isDigits(q) && q.length >= 3 && m.id.startsWith(q)) cands.push({ kind: "idstart", points: W.numberStart, spans: [] });
+    if (q.length >= 2) {
+      const exact = m.abbrevs.filter((a) => a.folded === q);
+      const part = m.abbrevs.filter((a) => isLetters(q) && a.folded.startsWith(q) && isDigits(a.folded.slice(q.length)));
+      const typed = (list, prefix) => /\p{Lu}/u.test(w.raw) && list.some((a) => (prefix ? a.raw.startsWith(w.raw) : a.raw === w.raw));
+      if (exact.length) cands.push({ kind: "abbrev", points: W.abbrev * (typed(exact, false) ? W.caseMatch : 1), spans: [], abbrev: exact[0].raw, caseMatch: typed(exact, false) });
+      else if (part.length) cands.push({ kind: "abbrevpart", points: W.abbrevPart * (typed(part, true) ? W.caseMatch : 1), spans: [], abbrev: part.map((a) => a.raw).join(", "), caseMatch: typed(part, true) });
     }
-    for (const x of all[k]) cands.push({ ...x, cls: kindClass(x) });
-    cands.sort((a, b) => a.cls - b.cls || a.pos - b.pos || (a.to - a.from) - (b.to - b.from));
+    for (const list of inTitles) cands.push(...list[k]);
+    if (inNames[k]) cands.push(inNames[k]);
+    cands.sort((a, b) => b.points - a.points || (a.to - a.from) - (b.to - b.from));
     return cands[0] ?? null;
   });
-  return { all, best };
-}
+  const found = best.filter(Boolean).length;
+  if (!found) return { found: 0 };
 
-function summarize(m, qs, T, { all, best }, otherTitle) {
+  // the whole module named: its number, its abbreviation, or every word of one of its titles
+  let named = 0, namedBy = null;
+  if (qs.length === 1 && ["id", "abbrev", "abbrevpart"].includes(best[0].kind)) { named = best[0].points; namedBy = best[0].kind; }
+  titles.forEach(([T, other], i) => {
+    if (found < qs.length) return;
+    const c = covers(qs, T, inTitles[i]);
+    if (c === null) return;
+    const points = W.title * (other ? W.other : 1) * (c ? W.caseMatch : 1);
+    if (points > named) { named = points; namedBy = other ? "other" : "shown"; }
+  });
+
+  // else the weakest word, more where the words stand side by side in their order
   const hits = best.filter(Boolean);
-  const found = hits.length;
-  if (!found) return { found: 0, cls: 9, best };
-  const single = qs.length === 1 ? best[0].kind : null;
-  let cls = Math.max(...hits.map((b) => b.cls));
-  if (single === "id" || single === "abbrev" || single === "abbrevpart") cls = 1;
-  else if (found === qs.length && covers(qs, T, all)) cls = 1;
-  else if (cls === 1) cls = 2; // a number or an abbreviation among other words
-  const inTitle = hits.filter((b) => b.from >= 0);
-  const covered = new Set();
-  for (const b of inTitle) for (let i = b.from; i <= b.to; i++) covered.add(i);
-  // what of the title the query leaves out; a number or an abbreviation names all of it
-  const exact = single === "id" || single === "abbrev";
-  const named = exact || single === "abbrevpart" || single === "idstart";
-  const rest = named ? 0 : T.toks.filter((t, i) => t.content && !covered.has(i)).length;
-  const pos = inTitle.length ? Math.min(...inTitle.map((b) => b.pos)) : 0;
-  let phrase = qs.length > 1 && inTitle.length === qs.length;
-  for (let k = 1; phrase && k < best.length; k++) {
-    let t = best[k - 1].to + 1;
-    while (t < T.toks.length && T.toks[t].filler) t++;
-    if (best[k].from !== t) phrase = false;
+  let phrase = false;
+  if (qs.length > 1 && hits.length === qs.length && hits.every((b) => b.from !== undefined && b.other === hits[0].other)) {
+    const T = hits[0].other ? m.otherT : m.shownT;
+    phrase = true;
+    for (let k = 1; k < hits.length && phrase; k++) {
+      let t = hits[k - 1].to + 1;
+      while (t < T.toks.length && T.toks[t].filler) t++;
+      if (hits[k].from !== t) phrase = false;
+    }
   }
-  return { found, cls, exact, pos, rest, phrase, best, viaOther: otherTitle, spans: inTitle.flatMap((b) => b.spans) };
-}
-
-function evaluate(m, qs) {
-  if (!m.shownT) { m.shownT = tokenize(m.title); m.otherT = m.other ? tokenize(m.other) : null; }
-  const shown = summarize(m, qs, m.shownT, evaluateTitle(m, qs, m.shownT, false), false);
-  if (!m.otherT) return shown;
-  const other = summarize(m, qs, m.otherT, evaluateTitle(m, qs, m.otherT, true), true);
-  // the title one sees, unless the other finds more words or finds them in a better class
-  if (other.found !== shown.found) return other.found > shown.found ? other : shown;
-  return other.cls < shown.cls ? other : shown;
+  const weakest = Math.min(...hits.map((b) => b.points)) * (phrase ? W.phrase : 1);
+  const score = Math.max(named, weakest);
+  const covered = new Set();
+  for (const b of hits) if (b.from !== undefined && !b.other) for (let i = b.from; i <= b.to; i++) covered.add(i);
+  const rest = namedBy && namedBy !== "other" && namedBy !== "shown" ? 0 : m.shownT.toks.filter((t, i) => t.content && !covered.has(i)).length;
+  return { found, score, named: named >= weakest ? namedBy : null, phrase, rest, best };
 }
 
 /** A title's place in a series: what stands before its first number, and the number. */
@@ -523,11 +634,14 @@ export function queryParts(index, text, resolution) {
   return (content.length ? content : out).map((w) => {
     const c = resolution?.corrected.find((c) => c.typed === w.q);
     const q = c ? c.word : w.q;
+    const raw = c ? c.shown : w.raw;
     const capitals = !c && /\p{Lu}/u.test(w.raw.slice(1));
     const strong = q.length <= 2 || capitals || (!c && !startsSomeWord(index, q));
-    return { q, raw: w.raw, strong };
+    return { q, raw, strong };
   });
 }
+
+const round = (x) => Math.round(x * 1e4) / 1e4;
 
 function newRun(index, text, resolution, program) {
   const qs = queryParts(index, text, resolution);
@@ -535,25 +649,31 @@ function newRun(index, text, resolution, program) {
   const out = [];
   for (const m of index.modules) {
     const e = evaluate(m, qs);
+    // Whether a module is found depends on the query alone; my program changes the order only.
     if (resolution?.mostWords ? e.found > 0 : e.found === qs.length) out.push({ m, ...e, why: e.best });
   }
   const number = qs.length === 1 && isDigits(qs[0].q);
-  // The order: the words found, the class, my program, the title one sees, the module's own number
-  // or abbreviation, the words in their order side by side, how early in the title, offered before
-  // phase-out; a series in its order; the fewer words left over, the more programs (numbers: in
-  // their order); A–Z.
+  // The parts of a series stand together, in their order („Elektrotechnik 1“, „2“): what decides
+  // after the points and the offer is the series' best (its fewest words left, its most programs).
+  const groups = new Map();
   for (const r of out) {
     r.mine = program >= 0 && r.m.progs.has(program);
-    r.key = [-r.found, r.cls, r.mine ? 0 : 1, r.viaOther ? 1 : 0, r.exact ? 0 : 1, r.phrase ? 0 : 1, r.pos, r.m.status];
-    r.tail = [r.rest, number ? Number(r.m.id) : -r.m.pop];
+    r.points = round(r.score * (r.mine ? WEIGHTS.program : 1));
+    const s = series(r.m);
+    if (!s) continue;
+    const g = groups.get(s.base) ?? { rest: Infinity, pop: -1 };
+    groups.set(s.base, { rest: Math.min(g.rest, r.rest), pop: Math.max(g.pop, r.m.pop) });
   }
-  out.sort((a, b) => {
-    for (let i = 0; i < a.key.length; i++) if (a.key[i] !== b.key[i]) return a.key[i] - b.key[i];
-    const sa = series(a.m), sb = series(b.m);
-    if (sa && sb && sa.base === sb.base && sa.n !== sb.n) return sa.n - sb.n;
-    for (let i = 0; i < a.tail.length; i++) if (a.tail[i] !== b.tail[i]) return a.tail[i] - b.tail[i];
-    return compareTitle(a.m.title, b.m.title) || (a.m.id < b.m.id ? -1 : 1);
-  });
+  for (const r of out) {
+    const s = series(r.m), g = s && groups.get(s.base);
+    r.tie = [g ? g.rest : r.rest, number ? Number(r.m.id) : -(g ? g.pop : r.m.pop), s ? s.base : fold(r.m.title), s ? s.n : 0];
+  }
+  // the words found, the points; then offered before phase-out, the fewer words left over, the more
+  // programs (numbers: in their order), a series in its order, A–Z
+  const cmp = (x, y) => (x < y ? -1 : x > y ? 1 : 0);
+  out.sort((a, b) => b.found - a.found || b.points - a.points || a.m.status - b.m.status
+    || a.tie[0] - b.tie[0] || a.tie[1] - b.tie[1] || cmp(a.tie[2], b.tie[2]) || a.tie[3] - b.tie[3]
+    || compareTitle(a.m.title, b.m.title) || (a.m.id < b.m.id ? -1 : 1));
   return out;
 }
 
@@ -562,4 +682,10 @@ export function searchNew(index, text, opts = {}) {
   const run = (t, r) => newRun(index, t, r, program);
   const resolution = resolveWith(index, text, run, FILLERS);
   return { resolution, rows: run(text, resolution), parts: queryParts(index, text, resolution) };
+}
+
+/** The level a module's points stand for (for the page's pills). */
+export function levelOf(points) {
+  for (const [min, name] of LEVELS) if (points >= min) return name;
+  return LEVELS[LEVELS.length - 1][1];
 }

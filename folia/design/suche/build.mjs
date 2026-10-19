@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildIndex, searchNew, searchOld, words } from "./engine.mjs";
+import { buildIndex, searchNew, searchOld } from "./engine.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const snapshot = process.argv[2];
@@ -39,6 +39,18 @@ for (const { module_id, abbrev } of all("SELECT DISTINCT module_id, abbrev FROM 
   if (!programAbbrevs.has(module_id)) programAbbrevs.set(module_id, new Set());
   programAbbrevs.get(module_id).add(abbrev);
 }
+// the lecturers: a name each, responsible (0) or teaching (1)
+const lecturerNames = [];
+const lecturerIndex = new Map();
+const taught = new Map();
+for (const { module_id, name, role } of all("SELECT DISTINCT module_id, name, role FROM v_module_lecturer ORDER BY module_id, role DESC, name")) {
+  if (!lecturerIndex.has(name)) { lecturerIndex.set(name, lecturerNames.length); lecturerNames.push(name); }
+  if (!taught.has(module_id)) taught.set(module_id, new Map());
+  const roles = taught.get(module_id);
+  const r = role === "responsible" ? 0 : 1;
+  const i = lecturerIndex.get(name);
+  roles.set(i, Math.min(roles.get(i) ?? 1, r));
+}
 const modules = [];
 for (const m of all(`SELECT m.id, m.title, m.title_de, m.title_en, m.offer_status, m.abbrev, f.abbrevs FROM v_module m
     JOIN v_module_folded f ON f.module_id = m.id WHERE m.offer_status != 'not_offered' ORDER BY m.id`)) {
@@ -50,16 +62,20 @@ for (const m of all(`SELECT m.id, m.title, m.title_de, m.title_en, m.offer_statu
     other = m.title_de && m.title_de !== m.title ? m.title_de : "";
     shownEn = 1;
   }
-  const own = new Set([m.abbrev, ...(programAbbrevs.get(m.id) ?? [])].filter(Boolean).map((a) => words(a).join("")).filter(Boolean));
+  const own = [...new Set([m.abbrev, ...(programAbbrevs.get(m.id) ?? [])].filter(Boolean))].sort();
   const progs = [...(member.get(m.id) ?? [])].sort((a, b) => a - b);
-  modules.push([m.id, m.title, other, shownEn, STATUS[m.offer_status], m.abbrevs ?? "", [...own].sort().join(" "), progs.length, progs]);
+  const lecturers = [...(taught.get(m.id) ?? new Map())].sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  modules.push([m.id, m.title, other, shownEn, STATUS[m.offer_status], m.abbrevs ?? "", own, progs.length, progs, lecturers]);
 }
 const meta = Object.fromEntries(all("SELECT key, value FROM v_meta").map((r) => [r.key, r.value]));
 const data = {
   snapshot: { built_at: meta.built_at, current_semester: meta.current_semester, radix_version: meta.radix_version },
   programs: programs.map((p) => [p.slug, p.name, p.degree_display]),
+  lecturers: lecturerNames,
   modules,
 };
+
+if (process.env.DATA_OUT) writeFileSync(process.env.DATA_OUT, JSON.stringify(data));
 
 // ---------------------------------------------------------------- where what is meant lands
 // A search, what a student most likely means by it, and how its title is recognised.
@@ -94,9 +110,14 @@ const CASES = [
   ["Projekt", "Projekt I", /^Projekt I$/],
   ["Masterarbeit", "Master-Arbeit", /^Master-Arbeit$/],
   ["algoritmen", "ein Modul zu Algorithmen", /Algorithmen/],
+  ["Hofstedt", "ein Modul von Prof. Hofstedt", { lecturer: /Hofstedt/ }],
+  ["Hoffstedt", "ein Modul von Prof. Hofstedt", { lecturer: /Hofstedt/ }],
+  ["P. Hofstedt", "ein Modul von Prof. Hofstedt", { lecturer: /Hofstedt/ }],
+  ["Doering", "ein Modul von Prof. Döring", { lecturer: /Döring/ }],
 ];
 const index = buildIndex(data);
-const at = (rows, re) => { const i = rows.findIndex((r) => re.test(r.m.title)); return i < 0 ? null : i + 1; };
+const meant = (m, re) => (re instanceof RegExp ? re.test(m.title) : m.lecturers.some((l) => re.lecturer.test(l.raw)));
+const at = (rows, re) => { const i = rows.findIndex((r) => meant(r.m, re)); return i < 0 ? null : i + 1; };
 const ranks = CASES.map(([query, meant, re]) => {
   const o = searchOld(index, query).rows, n = searchNew(index, query).rows;
   return [query, meant, at(o, re), o.length, at(n, re), n.length];
