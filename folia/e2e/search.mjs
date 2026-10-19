@@ -97,6 +97,12 @@ await step("what is meant first, its letters marked", () => page.fill("#topsearc
 });
 await step("a lecturer written another way, and the row says so", () => page.fill("#topsearch", "Hoffstedt"),
   () => /Hofstedt, Petra/.test(document.querySelector(".vlist a.row .found-by")?.textContent || ""));
+// Found by its abbreviation („An2“), a module is marked in its title too, and its tag marks what of
+// the abbreviation was found („An“).
+await step("an abbreviation's module marked in its title and its tag", () => page.fill("#topsearch", "An"), () => {
+  const row = [...document.querySelectorAll(".vlist a.row")].find((r) => r.querySelector(".t small .flag mark"));
+  return row && /^An$/i.test(row.querySelector(".t b mark")?.textContent || "") && /^An$/i.test(row.querySelector(".t small .flag mark").textContent);
+});
 
 // A search the address carries: its list asks before boot.js offers the semantic search (after
 // app.start()), and gets its answer once it does. The stand-in takes the place of boot.js's.

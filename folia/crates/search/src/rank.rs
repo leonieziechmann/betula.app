@@ -541,7 +541,8 @@ pub(crate) struct Find {
     skipped: usize,
     /// A lecturer's index in `Index::names`, and whether only teaching.
     pub(crate) lecturer: Option<(usize, bool)>,
-    /// The abbreviations a find by abbreviation stands for, as written.
+    /// The abbreviations a find by abbreviation stands for, as written; `spans` are what of them
+    /// the query names.
     pub(crate) abbrev: Option<String>,
 }
 
@@ -866,6 +867,40 @@ pub(crate) struct Answer {
     pub(crate) best: Vec<Option<Find>>,
 }
 
+/// The abbreviations of the parts a query names without their numbers („BS" of „BS1, BS2"), as
+/// one text, and what of it the query names: the letters of each before its number.
+fn named_parts(parts: &[&Abbrev]) -> (String, Vec<(usize, usize)>) {
+    let mut text = String::new();
+    let mut spans = Vec::with_capacity(parts.len());
+    for (n, part) in parts.iter().enumerate() {
+        if n > 0 {
+            text.push_str(", ");
+        }
+        let at = text.len();
+        let first = part.raw.char_indices().find(|(_, c)| c.is_alphanumeric()).map_or(0, |(i, _)| i);
+        let end = part.raw.char_indices().rfind(|(_, c)| c.is_alphabetic()).map_or(0, |(i, c)| i + c.len_utf8());
+        if end > first {
+            spans.push((at + first, at + end));
+        }
+        text.push_str(&part.raw);
+    }
+    (text, spans)
+}
+
+/// The best of `finds`: the most points; among equals the narrower find in a title, else the first.
+fn best_of(mut finds: Vec<Find>) -> Option<Find> {
+    finds.sort_by(|a, b| {
+        b.points.partial_cmp(&a.points).unwrap_or(std::cmp::Ordering::Equal).then_with(|| {
+            if a.in_title() && b.in_title() {
+                a.width().cmp(&b.width())
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+    });
+    finds.into_iter().next()
+}
+
 fn answer(index: &Index, module: &Module, words: &[QueryWord]) -> Answer {
     use points::*;
     let titles: Vec<(&Text, bool)> = std::iter::once((&module.shown, false)).chain(module.other.as_ref().map(|t| (t, true))).collect();
@@ -897,11 +932,12 @@ fn answer(index: &Index, module: &Module, words: &[QueryWord]) -> Answer {
                 };
                 if let Some(first) = exact.first() {
                     let case = typed(&exact, false);
-                    candidates.push(Find { abbrev: Some(first.raw.clone()), case, ..Find::elsewhere(Kind::Abbrev, ABBREV * if case { CASE } else { 1.0 }) });
+                    let spans = vec![(0, first.raw.len())];
+                    candidates.push(Find { abbrev: Some(first.raw.clone()), spans, case, ..Find::elsewhere(Kind::Abbrev, ABBREV * if case { CASE } else { 1.0 }) });
                 } else if !part.is_empty() {
                     let case = typed(&part, true);
-                    let raws: Vec<&str> = part.iter().map(|a| a.raw.as_str()).collect();
-                    candidates.push(Find { abbrev: Some(raws.join(", ")), case, ..Find::elsewhere(Kind::AbbrevPart, ABBREV_PART * if case { CASE } else { 1.0 }) });
+                    let (text, spans) = named_parts(&part);
+                    candidates.push(Find { abbrev: Some(text), spans, case, ..Find::elsewhere(Kind::AbbrevPart, ABBREV_PART * if case { CASE } else { 1.0 }) });
                 }
             }
             for title in &in_titles {
@@ -910,17 +946,7 @@ fn answer(index: &Index, module: &Module, words: &[QueryWord]) -> Answer {
             if let Some(Some(find)) = in_names.get(k) {
                 candidates.push(find.clone());
             }
-            // the most points; among equals the narrower find in a title, else the first
-            candidates.sort_by(|a, b| {
-                b.points.partial_cmp(&a.points).unwrap_or(std::cmp::Ordering::Equal).then_with(|| {
-                    if a.in_title() && b.in_title() {
-                        a.width().cmp(&b.width())
-                    } else {
-                        std::cmp::Ordering::Equal
-                    }
-                })
-            });
-            candidates.into_iter().next()
+            best_of(candidates)
         })
         .collect();
     let found = best.iter().filter(|find| find.is_some()).count();
@@ -1108,14 +1134,24 @@ impl Index {
     }
 
     /// The marks of a module's answer: what of its title, its other title, a lecturer's name, its
-    /// number and its abbreviations the query found (`folia_model::rows::SearchMarks`).
-    pub(crate) fn marks(&self, i: usize, answer: &Answer) -> Option<SearchMarks> {
+    /// number and its abbreviations the query found (`folia_model::rows::SearchMarks`). `shown`
+    /// is every word's best find in the title one sees (`shown_finds`): marked as well where
+    /// something else found the module (owner, 2026-10-19: „selbst wenn das kürzel gematcht wird,
+    /// dann markier mal trotzdem … Also hier könnte ruhig [An]alysis stehen").
+    pub(crate) fn marks(&self, i: usize, answer: &Answer, shown: &[Option<Find>]) -> Option<SearchMarks> {
         let module = self.modules.get(i)?;
         let finds: Vec<&Find> = answer.best.iter().flatten().collect();
         let spans = |keep: &dyn Fn(&Find) -> bool| -> Vec<(u32, u32)> {
             finds.iter().filter(|f| keep(f)).flat_map(|f| f.spans.iter().map(|(a, b)| (*a as u32, *b as u32))).collect()
         };
-        let title = spans(&|f| f.field == Field::Shown);
+        let mut title = spans(&|f| f.field == Field::Shown);
+        for (best, in_shown) in answer.best.iter().zip(shown) {
+            if let (Some(best), Some(in_shown)) = (best, in_shown) {
+                if best.field != Field::Shown {
+                    title.extend(in_shown.spans.iter().map(|(a, b)| (*a as u32, *b as u32)));
+                }
+            }
+        }
         let id = spans(&|f| matches!(f.kind, Kind::Id | Kind::IdStart));
         let other_spans = spans(&|f| f.field == Field::Other);
         let other = module.other.as_ref().filter(|_| !other_spans.is_empty()).map(|t| MarkedText { text: t.raw.clone(), spans: other_spans });
@@ -1124,7 +1160,10 @@ impl Index {
             let spans = spans(&|f| f.lecturer.map(|(m, _)| m) == Some(n));
             self.names.get(n).map(|name| MarkedText { text: name.text.raw.clone(), spans })
         });
-        let abbrev = finds.iter().find_map(|f| f.abbrev.clone());
+        let abbrev = finds.iter().find_map(|f| {
+            let text = f.abbrev.clone()?;
+            Some(MarkedText { text, spans: f.spans.iter().map(|(a, b)| (*a as u32, *b as u32)).collect() })
+        });
         Some(SearchMarks { title, other, lecturer, teaching: person.is_some_and(|(_, teaching)| teaching), id, abbrev })
     }
 
@@ -1134,6 +1173,13 @@ impl Index {
 
     pub(crate) fn answer_of(&self, i: usize, words: &[QueryWord]) -> Option<Answer> {
         self.modules.get(i).map(|module| answer(self, module, words))
+    }
+
+    /// Per word of the query, its best find in the title one sees, whatever found the module: the
+    /// row marks it (`marks`). The order of the list does not depend on it.
+    pub(crate) fn shown_finds(&self, i: usize, words: &[QueryWord]) -> Vec<Option<Find>> {
+        let Some(module) = self.modules.get(i) else { return Vec::new() };
+        words.iter().map(|word| best_of(finds_in(word, &module.shown, false))).collect()
     }
 }
 

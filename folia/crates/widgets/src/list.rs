@@ -145,9 +145,10 @@ pub fn Row(
     let t = i18n::t();
     let facts = Facts::of(Some(&row), t.locale);
     let has_events = facts.has_events();
-    // In the list of a search: the letters it found, and a line under the title with what it was
+    // In the list of a search: the letters it found, and a line under the row with what it was
     // found by where that is not the title one sees (folia/design/suche/konzept.html, „Die Zeile
-    // zeigt den Grund").
+    // zeigt den Grund"), as wide as the row (owner, 2026-10-19: „über die ganze Länge (oder
+    // zumindest 75%) von der Zeile").
     let marks = row.marks.clone().unwrap_or_default();
     let found_by = |label: &'static str, found: &MarkedText| view! { <small class="found-by"><i>{label}</i>" "{marked(&found.text, &found.spans)}</small> };
     let other = marks.other.as_ref().map(|other| {
@@ -183,7 +184,10 @@ pub fn Row(
                 <b>{marked(&row.title, &marks.title)}</b>
                 <small>
                     <span class="mono">{marked(&row.id, &marks.id)}</span>
-                    {marks.abbrev.as_ref().map(|abbrev| view! { <span class="flag neutral">{(t.catalog.row_abbrev)(abbrev)}</span> })}
+                    // What the query names of it marked as in the title: one sign for what the
+                    // search found (owner, 2026-10-19: „einheitliches zeichen für die suche", „nur
+                    // so in den badges, dass da der Matching text makiert wird").
+                    {marks.abbrev.as_ref().map(|abbrev| view! { <span class="flag neutral">{t.catalog.row_abbrev}" "{marked(&abbrev.text, &abbrev.spans)}</span> })}
                     {with_program.then(|| view! { <KindBadge kind=row.kind.clone() basis=row.kind_basis.clone() source=row.kind_source.clone() area=row.area.clone()/> })}
                     // Inside a program the study plan's semester stands at the row (the
                     // list is in plan order, without headings between the semesters).
@@ -195,12 +199,12 @@ pub fn Row(
                     {offered.map(|offered| view! { <span class="row-offer">{offered}</span> })}
                     {facts.narrow()}
                 </small>
-                {other}
-                {lecturer}
             </div>
             {facts.lead()}
             <span class="lp num">{row.credits.map(|value| format::number(value, t.locale))}<small>{t.common.credits_unit}</small></span>
             {facts.trail()}
+            {other}
+            {lecturer}
         </a>
     };
     // Marking belongs to the browser app (R9, R15). The server leaves the button out and the

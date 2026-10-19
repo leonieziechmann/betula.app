@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 folia-model = { path = "../model" }
 folia-pages = { path = "../pages" }
+folia-search = { path = "../search" }
 # Must be the version of the wasm-bindgen CLI that scripts/build-client.sh runs.
 wasm-bindgen = "=0.2.128"
 js-sys = "0.3"

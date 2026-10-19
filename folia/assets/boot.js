@@ -208,6 +208,16 @@ function startData() {
       return send({ type: "query", sql, params: [] });
     },
   };
+  // The search's index of the catalog (`folia_search::prepare`) is made when a search is coming, as
+  // the semantic search is loaded (above): as a search field takes the focus, and with a mouse once
+  // the browser is idle. The first search then answers as fast as the next ones; the worker makes
+  // it once per snapshot, when no question is waiting.
+  const prepare = () => { if (!failed) worker.postMessage({ type: "prepare" }); };
+  document.addEventListener("focusin", (e) => { if (e.target.matches?.('input[type="search"], form[data-live-search] input')) prepare(); });
+  if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+    if ("requestIdleCallback" in window) requestIdleCallback(prepare, { timeout: 3000 });
+    else setTimeout(prepare, 500);
+  }
   // The worker loads its own bundle meanwhile: the download does not wait for the page's. Without
   // a catalog (offline on a first visit, an older schema) the site stays a website.
   return send({ type: "start", schema: SCHEMA }).then(({ etag }) => {

@@ -175,6 +175,13 @@ pub fn worker_answer(name: &str, question: &str) -> String {
     KEPT.with_borrow_mut(|kept| ask::answer_json(name, question, &LocalDatabase, kept)).unwrap_or_default()
 }
 
+/// In the worker: the search's index of the snapshot in use, made before a search asks for it
+/// (`folia_search::prepare`; `data-worker.js` when the page says a search is coming).
+#[wasm_bindgen]
+pub fn worker_prepare_search() {
+    let _ = folia_search::prepare(&LocalDatabase);
+}
+
 /// In the worker: a newer snapshot answers from now on, so nothing kept of the one before counts,
 /// neither what the questions keep nor the statements' answers.
 #[wasm_bindgen]
