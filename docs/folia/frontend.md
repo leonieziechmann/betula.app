@@ -1344,13 +1344,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     follows the finger and the dim behind it fades, let go far enough or flicked it goes on down and
     closes, short of it it slides back. „Studiengang wechseln" says no more in its head than its
     title (owner, the same day, of its lead „Das machst du selten …": „Mach den weg").
-  - **The semesters** (`focus.rs`, the view „Semester"): on a desktop the semester in focus at the
-    top of its box (owner, 2026-10-19: „Die aktuelle Auswahl mit (z.B. WiSe 2022/23 1. FS) kann dann
-    nach ganz oben in die box wandern. Die Option mit links und rechts für vorgeriges/nächstes
-    semester soll bleiben"; until then a strip of every semester stood over it — what each held of
-    what the plan puts in, a load bar, „jetzt", „+" — and over that a line with „Semester" and the
-    switch „Semester | Gesamtplan", which went: „Es verbraucht zu [viel] Platz und bietet wenig
-    Mehrwert", „um mehr platz zu schaffen"; the sidebar's „Ansichten" switch the views): its head
+  - **The semesters** (`focus.rs`, the view „Semester"; in the catalog's look since 2026-10-19, Folia
+    1.31.0): on a desktop the semester in focus at the top of its box (owner, 2026-10-19: „Die
+    aktuelle Auswahl mit (z.B. WiSe 2022/23 1. FS) kann dann nach ganz oben in die box wandern. Die
+    Option mit links und rechts für vorgeriges/nächstes semester soll bleiben"; until then a strip
+    of every semester stood over it — what each held of what the plan puts in, a load bar, „jetzt",
+    „+" — and over that a line with „Semester" and the switch „Semester | Gesamtplan", which went:
+    „Es verbraucht zu [viel] Platz und bietet wenig Mehrwert", „um mehr platz zu schaffen"; the
+    sidebar's „Ansichten" switch the views): its head
     with ‹ ›, its name and its „⋯" (`menu.rs`: „Im Stundenplan öffnen", „Alle auswählen",
     „Urlaubssemester", and „Semester entfernen" for an empty one added beyond the plan), its rows
     under the heads of their columns, and „Module hinzufügen" as the last row; an empty one is a
