@@ -121,6 +121,9 @@ pub struct Texts {
     /// „16 weitere, nicht im SoSe angeboten", „alle zeigen".
     pub more_unoffered: fn(usize, &str) -> String,
     pub show_all: &'static str,
+    /// How many marked modules a choice's lists hold: „3 gemerkte zählen hier"; and what marks one.
+    pub marked_here: fn(usize) -> String,
+    pub marked: &'static str,
     /// „17 Module".
     pub modules: fn(usize) -> String,
     /// „laut Plan im 4. FS".
@@ -208,6 +211,8 @@ pub const DE: Texts = Texts {
     into: |semester| format!("In {semester}"),
     more_unoffered: |n, season| if n == 1 { format!("1 weiteres, nicht im {season} angeboten") } else { format!("{n} weitere, nicht im {season} angeboten") },
     show_all: "alle zeigen",
+    marked_here: |n| if n == 1 { "1 gemerktes zählt hier".to_string() } else { format!("{n} gemerkte zählen hier") },
+    marked: "Gemerkt",
     modules: |n| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") },
     plan_says: |span| format!("laut Plan im {span}"),
     lists: "Listen",
@@ -291,6 +296,8 @@ pub const EN: Texts = Texts {
     into: |semester| format!("In {semester}"),
     more_unoffered: |n, season| if n == 1 { format!("1 more, not offered in {season}") } else { format!("{n} more, not offered in {season}") },
     show_all: "show all",
+    marked_here: |n| format!("{n} saved count{} here", if n == 1 { "s" } else { "" }),
+    marked: "Saved",
     modules: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
     plan_says: |span| format!("per plan in {span}"),
     lists: "Lists",

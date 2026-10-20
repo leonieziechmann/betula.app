@@ -1058,6 +1058,7 @@ dependencies = [
  "folia-pages",
  "folia-plans",
  "folia-routes",
+ "folia-search",
  "folia-shell",
  "folia-stores",
  "folia-timetable",

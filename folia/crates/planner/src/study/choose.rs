@@ -11,8 +11,12 @@
 //! („Anwendungsfach": Mathematik, Physik …), and the list's modules. On a phone a page of its own
 //! behind the overview: the areas as chips, the semester, and the area's choices one under the
 //! other, their modules as cards.
+//!
+//! What is on the Merkliste comes first in a list and carries the bookmark, and each choice says
+//! how many marked modules count in it („3 gemerkte zählen hier"; folia/design/merken/konzept.html,
+//! „Von überall").
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Labelled, OfferStatus, TurnusSeason};
@@ -26,6 +30,7 @@ use leptos::prelude::*;
 
 use folia_design::format;
 use folia_design::ui::{EmptyState, Icon};
+use folia_stores::bookmarks::Bookmarks;
 
 use super::regular::view_back;
 use super::{n, now_secs, Ready, StudyCtx};
@@ -234,13 +239,16 @@ struct Module {
     seasonal: bool,
     phase_out: bool,
     has: Has,
+    /// On the Merkliste.
+    marked: bool,
     /// Where „In SoSe 27" plans it.
     into: SemesterKey,
 }
 
-/// The modules of a list for `target`: what the student has first, then what the semester offers,
-/// then the rest; and how many of them the semester does not offer.
-fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMap<String, Has>, target: Target, due: SemesterKey, t: &Texts) -> Vec<Module> {
+/// The modules of a list for `target`: what the student has first, then what is marked (whether
+/// the semester offers it or not: it was kept for a reason), then what the semester offers, then
+/// the rest.
+fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMap<String, Has>, marked: &BTreeSet<String>, target: Target, due: SemesterKey, t: &Texts) -> Vec<Module> {
     let v = &t.study_views;
     let mut out: Vec<Module> = ids
         .iter()
@@ -271,12 +279,24 @@ fn modules_of(ids: &[String], rows: &BTreeMap<String, CatalogRow>, has: &BTreeMa
                 seasonal: offer.only().is_some(),
                 phase_out: row.offer_status.known() == Some(OfferStatus::PhaseOut),
                 has,
+                marked: marked.contains(id),
                 into,
             })
         })
         .collect();
-    out.sort_by_cached_key(|module| (module.has == Has::No, !module.fits, !module.seasonal, module.title.to_lowercase()));
+    out.sort_by_cached_key(|module| (module.has == Has::No, !module.marked, !module.fits, !module.seasonal, module.title.to_lowercase()));
     out
+}
+
+/// How many marked modules the lists of a choice hold.
+fn marked_in(item: &Item, marked: &BTreeSet<String>) -> usize {
+    item.lists.iter().flat_map(|(_, modules)| modules.iter()).filter(|id| marked.contains(*id)).collect::<BTreeSet<_>>().len()
+}
+
+/// The bookmark of a marked module, with its word for a screen reader.
+fn marked_sign(t: &'static Texts) -> impl IntoView {
+    let v = &t.study_views;
+    view! { <span class="st-mk" title=v.marked><Icon name="bookmark"/><span class="visually-hidden">{v.marked}</span></span> }
 }
 
 /// Plans the module `id` into `s`, with a note „Rückgängig" takes it back by.
@@ -318,6 +338,9 @@ pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
     let t = i18n::t();
     view_back(ctx);
     let pane = Memo::new(move |_| ctx.with_input(|input, ready| Pane::of(input, ready, ctx, t)));
+    // What is on the Merkliste, in this browser alone.
+    let bookmarks = Bookmarks::expect();
+    let marked = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<BTreeSet<String>>()).unwrap_or_default());
     // The catalog's rows of every module of the lists.
     let ids = Memo::new(move |_| {
         pane.with(|pane| {
@@ -356,8 +379,8 @@ pub(super) fn Choose(ctx: StudyCtx) -> impl IntoView {
                 </section>
             }
             .into_any(),
-            Some(false) if phone => view! { <ChoosePhone ctx pane rows picked/> }.into_any(),
-            Some(false) => view! { <ChooseDesk ctx pane rows picked/> }.into_any(),
+            Some(false) if phone => view! { <ChoosePhone ctx pane rows picked marked/> }.into_any(),
+            Some(false) => view! { <ChooseDesk ctx pane rows picked marked/> }.into_any(),
         }
     }
 }
@@ -395,7 +418,7 @@ fn list_at(item: &Item, has: &BTreeMap<String, Has>) -> usize {
 
 /// On a desktop: the choices on the left, the one picked on the right.
 #[component]
-fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<String, CatalogRow>>, picked: Memo<Option<usize>>) -> impl IntoView {
+fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<String, CatalogRow>>, picked: Memo<Option<usize>>, marked: Memo<BTreeSet<String>>) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
     let item = Memo::new(move |_| {
@@ -432,9 +455,11 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                                     (Some(line), false) => view! { <small>{item.credits.clone()}" · "{line.clone()}</small> }.into_any(),
                                     (None, _) => view! { <small>{item.credits.clone()}" · "{item.span.clone()}</small> }.into_any(),
                                 };
+                                let count = marked.with(|marked| marked_in(item, marked));
                                 view! {
                                     <button class="st-sl" type="button" style=format!("--c: {}", item.tone) title=item.name.clone() aria-current=(now == Some(at)).then_some("true") on:click=move |_| ctx.choice.set(Some(at))>
                                         <b>{item.name.clone()}</b>{sub}
+                                        {(count > 0).then(|| view! { <small class="st-sl-mk"><Icon name="bookmark"/>{(v.marked_here)(count)}</small> })}
                                     </button>
                                 }
                             }).collect_view()}
@@ -462,8 +487,8 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
         let ids = item.lists.get(shown_list).map(|(_, modules)| modules.clone()).unwrap_or_default();
         let table = (!item.lists.is_empty()).then(|| {
             let target_now = target.get();
-            let modules = rows.with(|rows| modules_of(&ids, rows, &has, target_now, item.due, t));
-            let (fit, rest): (Vec<Module>, Vec<Module>) = modules.into_iter().partition(|module| module.fits || module.has != Has::No);
+            let modules = marked.with(|marked| rows.with(|rows| modules_of(&ids, rows, &has, marked, target_now, item.due, t)));
+            let (fit, rest): (Vec<Module>, Vec<Module>) = modules.into_iter().partition(|module| module.fits || module.has != Has::No || module.marked);
             let season = match target_now {
                 Target::In(s) => if s.winter { t.format.winter_short } else { t.format.summer_short },
                 Target::All => "",
@@ -478,7 +503,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
                             view! {
                                 <tr class:taken=module.has != Has::No>
                                     <td class="id mono">{module.id.clone()}</td>
-                                    <td class="nm"><a href=href data-noscroll="">{module.title.clone()}</a>{module.phase_out.then(|| view! { <small>{OfferStatus::PhaseOut.label(t.locale)}</small> })}</td>
+                                    <td class="nm"><a href=href data-noscroll="">{module.title.clone()}</a>{module.marked.then(|| marked_sign(t))}{module.phase_out.then(|| view! { <small>{OfferStatus::PhaseOut.label(t.locale)}</small> })}</td>
                                     <td class="r num">{module.credits.clone()}</td>
                                     <td><span class="st-turnus" class:match=module.fits && module.seasonal && target_now != Target::All>{module.turnus.clone()}</span></td>
                                     <td class="r">{module_act(ctx, &module, t)}</td>
@@ -541,7 +566,7 @@ fn ChooseDesk(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Strin
 
 /// On a phone: the areas as chips, the semester, the area's choices with their modules.
 #[component]
-fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<String, CatalogRow>>, picked: Memo<Option<usize>>) -> impl IntoView {
+fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<String, CatalogRow>>, picked: Memo<Option<usize>>, marked: Memo<BTreeSet<String>>) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
     // The area shown: the picked choice's.
@@ -577,10 +602,13 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
                     .iter()
                     .map(|candidate| {
                         let at = candidate.area;
+                        // How many marked modules count in the area's choices, each once.
+                        let count = marked.with(|marked| candidate.choices.iter().filter_map(|at| pane.items.get(*at)).flat_map(|item| item.lists.iter().flat_map(|(_, modules)| modules.iter())).filter(|id| marked.contains(*id)).collect::<BTreeSet<_>>().len());
                         view! {
                             <button class="st-fchip" type="button" style=format!("--c: {}", candidate.tone) aria-pressed=if now == Some(at) { "true" } else { "false" } on:click=move |_| area.set(at)>
                                 <span class="st-dot"></span>{candidate.name.clone()}
                                 <small>{if candidate.complete { "✓".to_string() } else { candidate.figure.clone() }}</small>
+                                {(count > 0).then(|| view! { <small class="st-fchip-mk" title=(v.marked_here)(count)><Icon name="bookmark"/>{count}<span class="visually-hidden">{format!(" · {}", (v.marked_here)(count))}</span></small> })}
                             </button>
                         }
                     })
@@ -592,7 +620,7 @@ fn ChoosePhone(ctx: StudyCtx, pane: Memo<Option<Pane>>, rows: Memo<BTreeMap<Stri
         let area = shown.get()?;
         let (items, has) = pane.with(|pane| pane.as_ref().map(|pane| (area.choices.iter().filter_map(|at| pane.items.get(*at).cloned()).collect::<Vec<_>>(), pane.has.clone())))?;
         let target_now = target.get();
-        Some(items.into_iter().map(|item| view! { <ChoiceGroup ctx item has=has.clone() rows target=target_now/> }).collect_view())
+        Some(items.into_iter().map(|item| view! { <ChoiceGroup ctx item has=has.clone() rows target=target_now marked/> }).collect_view())
     };
     view! {
         <div class="st-phone-page st-wp-phone">
@@ -612,13 +640,14 @@ const SHOWN: usize = 6;
 
 /// A choice on a phone: its head, what is taken, its lists, its modules as cards.
 #[component]
-fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo<BTreeMap<String, CatalogRow>>, target: Target) -> impl IntoView {
+fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo<BTreeMap<String, CatalogRow>>, target: Target, marked: Memo<BTreeSet<String>>) -> impl IntoView {
     let t = i18n::t();
     let v = &t.study_views;
     let list = RwSignal::new(list_at(&item, &has));
     let all = RwSignal::new(false);
     let count: usize = item.lists.iter().map(|(_, modules)| modules.len()).sum();
     let head_sub = if item.lists.is_empty() { item.span.clone() } else { format!("{} · {}", item.span, (v.modules)(count)) };
+    let marked_count = marked.with_untracked(|marked| marked_in(&item, marked));
     let lists = (item.lists.len() > 1).then(|| {
         view! {
             <div class="st-chiprow small" role="group" aria-label=v.lists>
@@ -637,8 +666,8 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
         if ids.is_empty() {
             return None;
         }
-        let modules = rows.with(|rows| modules_of(&ids, rows, &has, target, due, t));
-        let (fit, rest): (Vec<Module>, Vec<Module>) = modules.into_iter().partition(|module| module.fits || module.has != Has::No);
+        let modules = marked.with(|marked| rows.with(|rows| modules_of(&ids, rows, &has, marked, target, due, t)));
+        let (fit, rest): (Vec<Module>, Vec<Module>) = modules.into_iter().partition(|module| module.fits || module.has != Has::No || module.marked);
         let total = fit.len();
         let open = all.get();
         let shown: Vec<Module> = if open { fit } else { fit.into_iter().take(SHOWN).collect() };
@@ -656,7 +685,7 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
                         <li class="st-mcard" class:taken=module.has != Has::No>
                             <div class="st-mcard-t">
                                 <a href=href data-noscroll="">{module.title.clone()}</a>
-                                <span class="st-meta"><span class="st-code mono">{module.id.clone()}</span><span class="st-turnus" class:match=module.fits && module.seasonal && target != Target::All>{module.turnus.clone()}</span></span>
+                                <span class="st-meta">{module.marked.then(|| marked_sign(t))}<span class="st-code mono">{module.id.clone()}</span><span class="st-turnus" class:match=module.fits && module.seasonal && target != Target::All>{module.turnus.clone()}</span></span>
                             </div>
                             <span class="st-lp">{module.credits.clone()}<small>{v.col_credits}</small></span>
                             <span class="st-mcard-act">{module_act(ctx, &module, t)}</span>
@@ -673,6 +702,7 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
             <div class="st-grp-h">
                 <b>{item.name.clone()}<span class="st-chip">{item.credits.clone()}</span></b>
                 <small>{head_sub}</small>
+                {(marked_count > 0).then(|| view! { <small class="st-sl-mk"><Icon name="bookmark"/>{(v.marked_here)(marked_count)}</small> })}
             </div>
             {item.rule_extra.clone().map(|rule| view! { <p class="st-rule"><Icon name="info"/><span>{rule}</span></p> })}
             {(!item.taken.is_empty() || item.taken_line.is_some()).then(|| view! {
@@ -691,5 +721,63 @@ fn ChoiceGroup(ctx: StudyCtx, item: Item, has: BTreeMap<String, Has>, rows: Memo
             {lists}
             {cards}
         </section>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use folia_model::labels::Code;
+
+    use super::*;
+
+    fn row(id: &str, title: &str, season: &str) -> CatalogRow {
+        CatalogRow {
+            id: id.into(),
+            title: title.into(),
+            title_de: None,
+            title_en: None,
+            credits: Some(6.0),
+            turnus_season: Some(Code::parse(season)),
+            turnus_parity: None,
+            offer_status: Code::parse("active"),
+            teaches_german: None,
+            teaches_english: None,
+            is_fues: false,
+            is_limited: None,
+            department: None,
+            teaching_events: 0,
+            exam_form: None,
+            responsible: None,
+            kind: None,
+            kind_source: None,
+            kind_basis: None,
+            plan_semester: None,
+            area: None,
+            courses: 0,
+            choices: Vec::new(),
+            marks: None,
+        }
+    }
+
+    /// What the student has comes first; then what is on the Merkliste, offered in the semester or
+    /// not; then what the semester offers; then the rest.
+    #[test]
+    fn the_marked_come_after_what_the_student_has() {
+        let rows: BTreeMap<String, CatalogRow> = [row("11001", "Algebra", "winter"), row("11002", "Botanik", "summer"), row("11003", "Chemie", "winter"), row("11004", "Didaktik", "summer"), row("11005", "Ethik", "winter")].into_iter().map(|row| (row.id.clone(), row)).collect();
+        let ids: Vec<String> = rows.keys().cloned().collect();
+        let winter = SemesterKey::parse("2026W").unwrap();
+        let has: BTreeMap<String, Has> = [("11005".to_string(), Has::Planned(winter))].into_iter().collect();
+        let marked: BTreeSet<String> = ["11002".to_string(), "11003".to_string()].into_iter().collect();
+        let order: Vec<(String, bool, bool)> = modules_of(&ids, &rows, &has, &marked, Target::In(winter), winter, &crate::i18n::DE).into_iter().map(|module| (module.id, module.marked, module.fits)).collect();
+        assert_eq!(
+            order,
+            [
+                ("11005".to_string(), false, true),
+                ("11003".to_string(), true, true),
+                ("11002".to_string(), true, false),
+                ("11001".to_string(), false, true),
+                ("11004".to_string(), false, false),
+            ]
+        );
     }
 }

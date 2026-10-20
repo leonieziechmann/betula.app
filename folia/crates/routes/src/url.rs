@@ -567,8 +567,9 @@ impl BookmarkSort {
 }
 
 /// Which part of the Merkliste a view shows (folia/design/merken/konzept.html: „Eine Sammlung ist
-/// eine Ansicht der Merkliste").
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+/// eine Ansicht der Merkliste"); also which of the marked modules the catalog's „Gemerkt" is about
+/// (`CatalogQuery::marked_in`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CollectionView {
     #[default]
     All,
@@ -1331,7 +1332,11 @@ impl CatalogUrl {
                 _ => SortKey::Default,
             },
             descending: first("desc").is_some(),
+            // Which of the marked modules „Gemerkt" is about: a collection by its number alone
+            // (R20), and only with the switch.
+            marked_in: CollectionView::All,
         };
+        let query = CatalogQuery { marked_in: if query.marked.is_some() { first("collection").map_or(CollectionView::All, |code| CollectionView::parse(&code)) } else { CollectionView::All }, ..query };
         let page = first("page").and_then(|n| n.parse::<u64>().ok()).filter(|n| (1..=100_000).contains(n)).unwrap_or(1);
         let open = first("open").filter(|id| id.len() <= 32 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
         let fill = first("fill").and_then(|text| parse_fill(&text));
@@ -1453,6 +1458,9 @@ impl CatalogUrl {
         }
         if let Some(marked) = q.marked {
             out.push(("marked", if marked { "only" } else { "none" }.to_string()));
+            if let Some(code) = q.marked_in.code() {
+                out.push(("collection", code));
+            }
         }
         if let Some(fits) = &q.fits {
             out.push(("fits", fits.semester.clone()));
@@ -1698,6 +1706,7 @@ mod tests {
                 only_ids: None,
                 without_ids: Vec::new(),
                 marked: Some(true),
+                marked_in: CollectionView::Of(3),
                 prerequisites_met_by: Some(vec![]),
                 sort: SortKey::Credits,
                 descending: true,
@@ -1715,10 +1724,26 @@ mod tests {
              &not-kind=thesis&lecturer=K%C3%B6hler,+Ekkehard&not-lecturer=Meer,+Klaus&not-lecturer=Wachsmuth,+Gerd&department=7\
              &turnus=winter,irregular&not-turnus=summer&years=odd&form=lecture,exercise&not-form=seminar&duration=2&limited=no\
              &fues=only&exam=mca,oral&not-exam=presentation&graded=yes&events=yes&status=all&ects_min=5&ects_max=7.5\
-             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&fits=2026W&fits-skip=exercise&fits-undated=1\
+             &campus=senftenberg&not-campus=sachsendorf&lang=en&not-lang=de&marked=only&collection=3&fits=2026W&fits-skip=exercise&fits-undated=1\
              &prereqs=met&sort=ects&desc=1&page=4&open=12104&fill=p3"
         );
         assert_eq!(CatalogUrl::parse(&text), url);
+    }
+
+    /// The catalog's „Gemerkt" about a collection names it by its number alone, and only with the
+    /// switch; „Ohne Sammlung" is `none`, nonsense is all of them.
+    #[test]
+    fn the_marked_filter_names_a_collection_by_its_number() {
+        let lena = CatalogUrl::parse("marked=only&collection=3");
+        assert_eq!((lena.query.marked, lena.query.marked_in), (Some(true), CollectionView::Of(3)));
+        assert_eq!(lena.to_query_string(), "marked=only&collection=3");
+        let not_lena = CatalogUrl::parse("marked=none&collection=3");
+        assert_eq!((not_lena.query.marked, not_lena.query.marked_in), (Some(false), CollectionView::Of(3)));
+        assert_eq!(CatalogUrl::parse("marked=only&collection=none").query.marked_in, CollectionView::Without);
+        // Without the switch the collection means nothing and is not written.
+        let alone = CatalogUrl::parse("collection=3");
+        assert_eq!((alone.query.marked, alone.query.marked_in, alone.to_query_string().as_str()), (None, CollectionView::All, ""));
+        assert_eq!(CatalogUrl::parse("marked=only&collection=lena").query.marked_in, CollectionView::All);
     }
 
     #[test]
