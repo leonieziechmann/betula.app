@@ -4188,7 +4188,11 @@ way to them. It is for working on the code: the bundle that ships (`build-client
 on 6 500 pages (every address of the sitemap and 1 100 lists and filters found on them):
 
 - The server's HTML carries more of Leptos's markers (`<!>`, `<!--<() />-->`): 2–5 % of a page,
-  about 1 % gzipped. Without its comments every page is the same, byte for byte.
+  about 1 % gzipped. Without its comments every page is the same, byte for byte. With the flag the
+  children of every element are one erased list, which ends in `<!>` (`<span
+  class="mono">11112<!></span>`, without it `<span class="mono">11112</span>`), so the server's
+  tests match a page without the markers (`markup`, `folia/crates/server/src/tests.rs`); the
+  browser app does not hydrate, and none of them is anything to it.
 - Every reactive closure costs an `Arc<Mutex<_>>` and a call through a vtable. A page not yet
   in the cache renders in 8.8 ms instead of 8.0 ms (median of 250, debug builds).
 - What compiles with the flag need not compile without it: the types it erases are deeper there,
