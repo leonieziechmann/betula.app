@@ -1,6 +1,6 @@
 [package]
 name = "folia-stores"
-version = "1.44.0"
+version = "1.44.1"
 edition = "2021"
 description = "What a visitor of Betula keeps in the browser: marked modules, the Studienplan, Mein Studiengang, in profiles"
 
