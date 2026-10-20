@@ -29,6 +29,11 @@ pub struct Texts {
     pub letters_on: &'static str,
     pub letters_off: &'static str,
     pub letters_hint: &'static str,
+    /// The heading of a module's commands in „Befehle" (`data-commands`, folia_shell::commands):
+    /// „Für „Analysis I“".
+    pub commands_for: fn(&str) -> String,
+    /// A filter that is on, as „Befehle" says it: „mit".
+    pub with: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -55,6 +60,8 @@ pub const DE: Texts = Texts {
     letters_on: "An",
     letters_off: "Aus",
     letters_hint: "F, V, M, P, / und ? (auch mit Shift) wirken ohne Strg. Aus, tun sie nichts und stehen nirgends; Strg + K, Tab, die Pfeile, Enter und Esc bleiben, und jeder Knopf sowieso. Für Spracheingabe und wer sich vertippt.",
+    commands_for: |title| format!("Für „{title}“"),
+    with: "mit",
 };
 
 pub const EN: Texts = Texts {
@@ -81,4 +88,6 @@ pub const EN: Texts = Texts {
     letters_on: "On",
     letters_off: "Off",
     letters_hint: "F, V, M, P, / and ? (with Shift as well) work without Ctrl. Off, they do nothing and are shown nowhere; Ctrl + K, Tab, the arrows, Enter and Esc stay, and every button anyway. For voice input and for typos.",
+    commands_for: |title| format!("For “{title}”"),
+    with: "with",
 };

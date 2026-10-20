@@ -412,6 +412,9 @@ pub fn Combobox(
                 class="combo-trigger"
                 id=id
                 aria-haspopup="listbox"
+                // A command of „Befehle" (folia_shell::commands) that opens the picker.
+                data-command=label
+                data-command-state=move || current.get().map(|(name, _)| name)
                 aria-expanded=move || if open.get() { "true" } else { "false" }
                 aria-label=move || match current.get() {
                     Some((name, _)) => format!("{label}: {name}"),
@@ -690,6 +693,8 @@ pub fn Select(
                 id=id
                 role="combobox"
                 aria-haspopup="listbox"
+                data-command=label
+                data-command-state=move || current.get().map(|(name, _)| name)
                 aria-expanded=move || if open.get() { "true" } else { "false" }
                 aria-controls=list_id
                 aria-activedescendant=move || open.get().then(|| option_id(active.get()))
