@@ -283,12 +283,16 @@ pub fn Row(
     // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
     // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
     let mark = APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row quiet=position.is_some()/> });
+    // The row's commands in „Befehle" (folia_shell::commands), while the keyboard is on it.
+    let commands = (t.ui.commands_for)(&row.title);
     match swipe {
         // What lies under the card comes while the row is swiped, before the card in the order of
         // the page, so the card covers it.
         Some(swipe) => view! {
             <div
                 class="row-wrap swipes"
+                data-commands=commands.clone()
+                data-commands-when="focus"
                 class:shaded=shaded
                 class:unmarked=unmarked
                 class:is-selected=is_selected
@@ -313,7 +317,7 @@ pub fn Row(
         }
         .into_any(),
         None => view! {
-            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked class:is-selected=is_selected>
+            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked class:is-selected=is_selected data-commands=commands data-commands-when="focus">
                 {link}
                 {mark}
             </div>

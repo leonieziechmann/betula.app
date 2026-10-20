@@ -69,6 +69,7 @@ use folia_shell::seo::Seo;
 use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::ErrorState;
+use folia_design::keys::Keys;
 use folia_design::ui::{Hit, Icon, ToggleLink};
 use crate::pick::{self, Listed, PickBar, PickMenus, PickRow, Picking};
 
@@ -414,16 +415,43 @@ pub fn BookmarksPage() -> impl IntoView {
         view! {
             <Title text=t.bookmarks.title/>
             // One scroll area with the ground at its end, as the catalog (app.css „one scroll area").
-            <div class="work framed flowing" id=SCROLL_ID data-keep-scroll="rows">
+            // The page's regions for the keyboard as the catalog's (enhance.js, „the keyboard";
+            // folia/design/tastatur/konzept.html, „Die anderen Seiten"): the content Tab goes round
+            // in, the sidebar a mode F leads into.
+            <div class="work framed flowing" id=SCROLL_ID data-keep-scroll="rows" data-region="content" data-cycle="">
                 <BookmarksSeo/>
                 // `data-draft`: on a phone what is picked in the sheet is a draft, which only „N Module
                 // anzeigen" applies (`enhance.js`).
-                <aside class="panel sidebar sheet" id="sidebar" aria-label=t.bookmarks.title data-draft="" on:click=into_draft>
-                    <div class="panel-head">
-                        // On a phone the sidebar is the sheet behind „Filter", and named so.
-                        <h2><span class="side-title">{t.bookmarks.title}</span><span class="sheet-title">{t.catalog.filters}</span></h2>
+                // The sidebar, the collections and the filters, is the page's side region and a mode
+                // of the keyboard, as the catalog's filters: F leads in, Tab goes from section to
+                // section, the arrows from collection to collection and filter to filter, Esc leads
+                // out to the list. In „Befehle" (folia_shell::commands) it is a command of „Gehe zu"
+                // with its key, and what it holds is found by typing.
+                <aside
+                    class="panel sidebar sheet"
+                    id="sidebar"
+                    aria-label=t.bookmarks.title
+                    aria-describedby="sidebar-leave"
+                    aria-keyshortcuts="F"
+                    data-region="side"
+                    data-mode=""
+                    data-draft=""
+                    data-command=t.bookmarks.sidebar
+                    data-command-icon="sliders-horizontal"
+                    data-command-group="go"
+                    data-command-keys="F"
+                    data-command-act="go side"
+                    data-commands=t.bookmarks.title
+                    data-commands-typed=""
+                    on:click=into_draft
+                >
+                    <span class="visually-hidden" id="sidebar-leave">{t.bookmarks.sidebar_leave}</span>
+                    <div class="panel-head" data-section="plain">
+                        // On a phone the sidebar is the sheet behind „Filter", and named so. The key
+                        // that leads in, at the head (R10): F.
+                        <div class="panel-title"><h2><span class="side-title">{t.bookmarks.title}</span><span class="sheet-title">{t.catalog.filters}</span></h2><span class="js-only" aria-hidden="true"><Keys spec="F"/></span></div>
                         {move || (panel.with(BookmarksUrl::filters_set) > 0).then(|| view! {
-                            <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&BookmarksUrl { collection: panel.with(|p| p.collection), sort: panel.with(|p| p.sort), descending: panel.with(|p| p.descending), open: open.get(), ..Default::default() }.path()) data-noscroll=""><Icon name="rotate-ccw"/>{t.common.reset}</a>
+                            <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&BookmarksUrl { collection: panel.with(|p| p.collection), sort: panel.with(|p| p.sort), descending: panel.with(|p| p.descending), open: open.get(), ..Default::default() }.path()) data-noscroll="" data-command=t.catalog.reset_all><Icon name="rotate-ccw"/>{t.common.reset}</a>
                         })}
                         <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.catalog.close_filters><Icon name="x"/></a>
                     </div>
@@ -1243,7 +1271,8 @@ fn List(
     let cols = move || {
         let module_head = head(if program_set { &[BookmarkSort::Study, BookmarkSort::Title] } else { &[BookmarkSort::Title, BookmarkSort::Study] }, module_order, t.catalog.col_module, "c-module");
         view! {
-            <div class="cols label">
+            // The heads are one stop of Tab, ← and → go from one to the next (enhance.js).
+            <div class="cols label" role="toolbar" aria-label=t.catalog.sort_label data-stop="x">
                 {module_head}
                 <span class="c-resp">{t.catalog.col_responsible}</span>
                 <span class="c-exam">{t.catalog.exam}</span>
@@ -1355,9 +1384,11 @@ fn List(
             let selecting = Memo::new(move |_| picking.any());
             move || if selecting.get() { view! { <PickBar picking/> }.into_any() } else { cols().into_any() }
         })}
+        // The rows are one stop of Tab, ↑ and ↓ go from row to row (enhance.js, „the keyboard").
         <div
             class="rows scroll"
             id=ROWS_ID
+            data-stop="y"
             on:pointerdown=move |ev: leptos::ev::PointerEvent| picking.down(&ev, phone.get_untracked())
             on:pointermove=move |ev: leptos::ev::PointerEvent| picking.moved(&ev)
             on:pointerup=move |_| picking.end()
@@ -1526,6 +1557,8 @@ fn Sidebar(
                 draggable="false"
                 data-noscroll=""
                 aria-checked=move || if panel.with(|url| url.season == season) { "true" } else { "false" }
+                data-command=label
+                data-command-state=move || panel.with(|url| url.season == season).then_some(t.catalog.chosen)
             >
                 <span class="seg-label">{label}</span><span class="num">{move || format::count(count() as u64, t.locale)}</span>
             </a>
@@ -1647,9 +1680,9 @@ fn Sidebar(
     view! {
         <Show when=move || any_marked.get()>
             <Show when=move || seasons_apart.get()>
-                <div class="fgroup">
+                <div class="fgroup" data-section="">
                     <p class="flabel label">{t.bookmarks.offered_in}</p>
-                    <div class="seg" role="radiogroup" aria-label=t.bookmarks.offered_in>
+                    <div class="seg" role="radiogroup" aria-label=t.bookmarks.offered_in data-command-of=t.bookmarks.offered_in>
                         {season_link(None, t.bookmarks.all)}
                         {season_link(Some(Season::Winter), Season::Winter.label(t.locale))}
                         {season_link(Some(Season::Summer), Season::Summer.label(t.locale))}
@@ -1657,15 +1690,15 @@ fn Sidebar(
                 </div>
             </Show>
             <Show when=move || stand_shown.get()>
-                <div class="fgroup">
+                <div class="fgroup" data-section="">
                     <p class="flabel label">{t.bookmarks.stand}</p>
-                    <div class="chips">{stand_chips}</div>
+                    <div class="chips" data-command-of=t.bookmarks.stand>{stand_chips}</div>
                 </div>
             </Show>
             <Show when=move || study_shown.get()>
-                <div class="fgroup">
+                <div class="fgroup" data-section="">
                     <p class="flabel label">{t.bookmarks.my_study}</p>
-                    <div class="chips">
+                    <div class="chips" data-command-of=t.bookmarks.my_study>
                         {move || counts_shown.get().then(|| view! {
                             <ToggleLink
                                 label=t.bookmarks.counts
@@ -1688,16 +1721,16 @@ fn Sidebar(
                     </div>
                 </div>
             </Show>
-            <details class="fgroup more" open=more_open>
+            <details class="fgroup more" data-section="" open=more_open>
                 <summary class="label">{t.catalog.more_filters}</summary>
                 <div class="flabel label">{t.catalog.language}</div>
-                <div class="chips">{Language::ALL.iter().map(|language| language_chip(*language)).collect_view()}</div>
+                <div class="chips" data-command-of=t.catalog.language>{Language::ALL.iter().map(|language| language_chip(*language)).collect_view()}</div>
                 <div class="flabel label">{t.catalog.credit_points}</div>
                 <div class="range">{credits_field(true)}<span>"–"</span>{credits_field(false)}</div>
                 <div class="flabel label">{t.catalog.location}</div>
-                <div class="chips">{[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg].into_iter().map(campus_chip).collect_view()}</div>
+                <div class="chips" data-command-of=t.catalog.location>{[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg].into_iter().map(campus_chip).collect_view()}</div>
                 <div class="flabel label">{t.catalog.exam}</div>
-                <div class="chips">
+                <div class="chips" data-command-of=t.catalog.exam>
                     <ToggleLink
                         label=t.catalog.graded_chip
                         on=Signal::derive(move || panel.with(|url| url.filter.graded == Some(true)))
@@ -1891,7 +1924,7 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
                 ui.menu.set(box_of(&ev).map(|at| (of, at)));
             }
         };
-        let renamed = name.clone();
+        let (renamed, command_name) = (name.clone(), name.clone());
         let keys = move |ev: leptos::ev::KeyboardEvent| {
             let CollectionView::Of(id) = view else { return };
             match ev.key().as_str() {
@@ -1912,9 +1945,11 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
             }
         };
         view! {
-            <div class="coll-item" class:derived=view == CollectionView::Without class:menu=move || menu_of.is_some_and(|of| ui.menu.with(|menu| menu.as_ref().is_some_and(|(open, _)| *open == of)))>
+            // A command of „Befehle" (folia_shell::commands): „Sammlung: Für Lena".
+            <div class="coll-item" class:derived=view == CollectionView::Without class:menu=move || menu_of.is_some_and(|of| ui.menu.with(|menu| menu.as_ref().is_some_and(|(open, _)| *open == of))) data-command-of=b.collection>
                 <a
                     href=move || t.path(&BookmarksUrl { collection: view, ..here.get() }.path())
+                    data-command=command_name
                     aria-current=move || here.with(|url| url.collection == view).then_some("page")
                     data-noscroll=""
                     on:keydown=keys
@@ -1930,7 +1965,8 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
         }
     };
     view! {
-        <nav class="fgroup coll-nav" aria-label=b.collections>
+        // A section of the sidebar's mode, whose ↑ and ↓ go from collection to collection (enhance.js).
+        <nav class="fgroup coll-nav" aria-label=b.collections data-section="">
             <p class="flabel label">{b.collections}</p>
             {move || {
                 let Views { all, without, each } = views.get();
@@ -2055,7 +2091,7 @@ fn add_button(ui: CollUi, chip: bool) -> AnyView {
         .into_any()
     } else {
         view! {
-            <button class="coll-item add" type="button" on:click=start>
+            <button class="coll-item add" type="button" on:click=start data-command="">
                 <Icon name="plus"/><span class="coll-name">{t.bookmarks.new_collection}</span>
             </button>
         }

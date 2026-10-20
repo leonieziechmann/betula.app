@@ -1,7 +1,7 @@
 //! The overview of the keys (folia/design/tastatur/konzept.html, step 4 „Hilfe": „Der Knopf
 //! „Tasten" und ? mit den Tasten des Ortes, … der Schalter für die einzelnen Tasten"): a dialog
 //! with what the keys do everywhere and, on a page that has more, at its places (the catalog: the
-//! list, the filters, the module beside it), the group of where the keyboard was first and marked
+//! list, the filters, the module beside it; the Merkliste: its list, its collections and filters), the group of where the keyboard was first and marked
 //! „Hier"; under them the switch for Betula's single keys (`folia_design::keys::LettersSwitch`).
 //!
 //! The button that opens it stands in the rail (`KeysButton`; no action is a key's alone, CLAUDE.md
@@ -39,6 +39,8 @@ enum Group {
     List,
     Filters,
     Module,
+    Marked,
+    Sidebar,
 }
 
 impl Group {
@@ -48,6 +50,8 @@ impl Group {
             Group::List => t.keys.list,
             Group::Filters => t.keys.filters,
             Group::Module => t.keys.module,
+            Group::Marked => t.keys.marked,
+            Group::Sidebar => t.keys.sidebar,
         }
     }
 
@@ -57,15 +61,19 @@ impl Group {
             Group::List => t.keys.list_rows,
             Group::Filters => t.keys.filters_rows,
             Group::Module => t.keys.module_rows,
+            Group::Marked => t.keys.marked_rows,
+            Group::Sidebar => t.keys.sidebar_rows,
         }
     }
 
-    /// The group of a place the keyboard was at (`data-from`).
-    fn of(place: &str) -> Option<Self> {
-        match place {
-            "side" => Some(Group::Filters),
-            "list" => Some(Group::List),
-            "module" => Some(Group::Module),
+    /// The group of a place the keyboard was at (`data-from`) on a page of `area`.
+    fn of(place: &str, area: Area) -> Option<Self> {
+        match (place, area) {
+            ("side", Area::Bookmarks) => Some(Group::Sidebar),
+            ("list", Area::Bookmarks) => Some(Group::Marked),
+            ("side", _) => Some(Group::Filters),
+            ("list", _) => Some(Group::List),
+            ("module", _) => Some(Group::Module),
             _ => None,
         }
     }
@@ -75,6 +83,7 @@ impl Group {
 fn groups(area: Area) -> Vec<Group> {
     match area {
         Area::Catalog => vec![Group::Everywhere, Group::List, Group::Filters, Group::Module],
+        Area::Bookmarks => vec![Group::Everywhere, Group::Marked, Group::Sidebar, Group::Module],
         _ => vec![Group::Everywhere],
     }
 }
@@ -85,7 +94,7 @@ fn caps(keys: &'static [&'static str]) -> AnyView {
     keys.iter()
         .enumerate()
         .map(|(i, key)| {
-            let cap = if *key == "Nav" { view! { <kbd class="nav-combo">"1–5"</kbd> }.into_any() } else { view! { <Keys spec=key/> }.into_any() };
+            let cap = if *key == "Nav" { view! { <kbd class="nav-combo">"1–5"</kbd> }.into_any() } else { view! { <Keys spec=*key/> }.into_any() };
             view! { {(i > 0).then(|| view! { <i class="alt">"·"</i> })}{cap} }
         })
         .collect_view()
@@ -112,7 +121,7 @@ pub fn KeysButton() -> impl IntoView {
         }
     };
     view! {
-        <button class="icon-btn keys-btn js-only" type="button" data-action="keys" aria-keyshortcuts="?" aria-label=t.keys.button title=t.keys.button_title on:click=on_click>
+        <button class="icon-btn keys-btn js-only" type="button" data-action="keys" aria-keyshortcuts="?" aria-label=t.keys.button title=t.keys.button_title data-command=t.keys.all data-command-group="help" data-command-keys="?" on:click=on_click>
             <Icon name="keyboard"/><kbd class="hold-key k-letter" aria-hidden="true">"?"</kbd>
         </button>
     }
@@ -138,8 +147,9 @@ pub fn KeysHelp() -> impl IntoView {
     let close = move || open.set(None);
     let body = move || {
         open.get().map(|from| {
-            let here = Group::of(&from);
-            let mut shown = groups(Area::of(&location.pathname.get_untracked()));
+            let area = Area::of(&location.pathname.get_untracked());
+            let here = Group::of(&from, area);
+            let mut shown = groups(area);
             // Where the keyboard was comes first.
             if let Some(here) = here.filter(|here| shown.contains(here)) {
                 shown.retain(|group| *group != here);

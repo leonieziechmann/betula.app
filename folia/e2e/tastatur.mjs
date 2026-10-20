@@ -14,7 +14,9 @@
 // of the keys, marked where the keyboard was, whose switch turns the single keys off (F does
 // nothing then, and its hint is gone); the rail is one stop of Tab whose ↓ goes from tab to tab;
 // Esc in the search leads into the list; a combination is written with „+" on a PC and as signs on
-// a Mac. On the synthetic catalog (docs/folia/frontend.md §4) as on the real one.
+// a Mac; on the Merkliste ↓ goes from row to row, F into its sidebar as a mode, Esc back to the row,
+// Entf takes a row off with „Rückgängig“ and ? marks „In der Merkliste“. On the synthetic catalog
+// (docs/folia/frontend.md §4) as on the real one.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node tastatur.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Fails on a console error or a step that does not come out as it should.
 import { chromium } from "playwright-core";
@@ -274,6 +276,45 @@ const url = (page, test, timeout = 5000) => page.waitForFunction(test, null, { t
   const hint = await page.evaluate(() => [...onPage("#filters .panel-title").querySelectorAll("kbd")].some((k) => k.getClientRects().length));
   check(!hint, "the single keys off: „F\" still at the head of the filters");
   await page.evaluate(() => { localStorage.removeItem("betula.letters.v1"); delete document.documentElement.dataset.letters; });
+  await context.close();
+}
+
+// ---------- the Merkliste ----------
+// The same regions on the Merkliste (folia/design/tastatur/konzept.html, „Die anderen Seiten"): its
+// rows a stop whose ↓ goes from row to row, F into the sidebar (the collections and the filters) as
+// a mode with its ring, ↓ from collection to collection, Esc back to the row, Entf taking a row off
+// with „Rückgängig", ? with „In der Merkliste" marked.
+{
+  const { context, page } = await open("/catalog");
+  // Four modules marked with M, from the first row down.
+  await page.locator(".rows a.row >> visible=true").first().focus();
+  for (let i = 0; i < 4; i++) { await press(page, "m", 120); await press(page, "ArrowDown", 80); }
+  await page.click('.rail .nav[data-area="bookmarks"] >> visible=true');
+  await url(page, () => location.pathname === "/bookmarks" && document.querySelectorAll("#rows a.row").length >= 4);
+  await page.waitForTimeout(400);
+  const titles = await page.evaluate(() => allOnPage("#rows a.row").map((r) => r.dataset.id));
+  await page.locator("#rows a.row >> visible=true").first().focus();
+  await press(page, "ArrowDown", 150);
+  let now = await page.evaluate(() => ({ id: document.activeElement?.dataset?.id || "", region: document.activeElement?.closest?.("[data-region]")?.dataset.region || "" }));
+  check(now.id === titles[1] && now.region === "content", `the Merkliste: ↓ did not go to the second row (${JSON.stringify(now)}, ${JSON.stringify(titles)})`);
+  // F: into the sidebar, a mode with its ring and its tag; ↓ from collection to collection.
+  await press(page, "f", 250);
+  now = await at(page);
+  const ring = await page.evaluate(() => ({ kb: document.documentElement.hasAttribute("data-kb"), tag: document.querySelector(".mode-tag[data-on]")?.textContent || "", outline: getComputedStyle(onPage("#sidebar")).outlineStyle }));
+  check(now.region === "side" && ring.kb && /Esc/.test(ring.tag) && ring.outline === "solid", `the Merkliste: F did not lead into the sidebar as a mode (${JSON.stringify({ now, ring })})`);
+  // Esc: back to the row the keyboard left.
+  await press(page, "Escape", 250);
+  now = await page.evaluate(() => ({ id: document.activeElement?.dataset?.id || "", region: document.activeElement?.closest?.("[data-region]")?.dataset.region || "" }));
+  check(now.id === titles[1] && now.region === "content", `the Merkliste: Esc did not lead back to the row (${JSON.stringify(now)})`);
+  // Entf: the row off the Merkliste, dimmed in its place, the note with „Rückgängig".
+  await press(page, "Delete", 400);
+  const removed = await page.evaluate((id) => ({ pressed: onPage(`#rows .row-wrap:has(a.row[data-id="${id}"]) [data-action="mark"]`)?.getAttribute("aria-pressed") || "", note: document.querySelector(".wait-note")?.textContent || "", row: !!onPage(`#rows a.row[data-id="${id}"]`) }), titles[1]);
+  check(removed.pressed === "false" && /Rückgängig/.test(removed.note) && removed.row, `the Merkliste: Entf did not take the row off with „Rückgängig“ (${JSON.stringify(removed)})`);
+  // ?: the overview with „In der Merkliste" marked where the keyboard was.
+  await press(page, "?", 300);
+  const overview = await page.evaluate(() => document.querySelector("dialog.keys-dialog[open] .keys-group.here h3")?.textContent || "");
+  check(/In der Merkliste/.test(overview), `the Merkliste: ? did not mark „In der Merkliste“ (${overview})`);
+  await press(page, "Escape", 200);
   await context.close();
 }
 

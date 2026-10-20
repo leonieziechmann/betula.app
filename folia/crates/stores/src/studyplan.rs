@@ -496,6 +496,9 @@ pub fn PlanButton(
             type="button"
             data-action="plan"
             on:click=toggle
+            // A command of „Befehle" (folia_shell::commands): what a click does now, with its key.
+            data-command=move || if pressed.get() { t.planner.unplan } else { t.planner.plan }
+            data-command-keys="P"
             aria-pressed=pressed_attr
             aria-busy=busy
             title=tip
@@ -524,7 +527,7 @@ pub fn PlanButton(
     view! {
         <span class="plan-pair split">
             {switch}
-            <button class="plan-more hit" type="button" data-action="plan-more" aria-label=more_label title=more_hint aria-haspopup="menu" on:click=more>
+            <button class="plan-more hit" type="button" data-action="plan-more" aria-label=more_label title=more_hint aria-haspopup="menu" on:click=more data-command=more_label data-command-keys="Shift+P" data-command-icon="calendar-range">
                 <Icon name="chevron-down"/>
             </button>
         </span>

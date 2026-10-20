@@ -1760,6 +1760,7 @@ fn Chip(
     let held_by = toggle.held.clone();
     let held = Memo::new(move |_| held_by.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))));
     let keyed = toggle.clone();
+    let commanded = toggle.clone();
     // The link reads the filter itself and not `state` or `held`. A closure that reads a memo
     // derived from `query` before `query` misses a change of `query` whenever the derived value
     // stays the same (reactive_graph 0.2.14 does not mark the observer that made a memo
@@ -1795,6 +1796,25 @@ fn Chip(
             go.run(changed(query, |q| write(q, next)));
         }
     };
+    // A command of „Befehle" (folia_shell::commands, `data-command-by="event"`): Enter sets it
+    // „mit" (again: off), Shift + Enter „ohne" (again: off), as the panel's other changes go.
+    let command = move |alt: bool| {
+        if commanded.held.as_ref().is_some_and(|(held, _)| query.with_untracked(|q| held(q))) {
+            return;
+        }
+        let now = query.with_untracked(|q| (commanded.read)(q));
+        let next = match (alt && commanded.excludes, now) {
+            (true, Tri::Without) | (false, Tri::With) => Tri::Off,
+            (true, _) => Tri::Without,
+            (false, _) => Tri::With,
+        };
+        if let Some(FilterGo(go)) = go {
+            let write = commanded.write.clone();
+            go.run(changed(query, |q| write(q, next)));
+        }
+    };
+    let command_alt = command.clone();
+    let command_name = label.clone();
     // Its tooltip names the keys after what a click does.
     let keys = (t.catalog.chip_keys)(&folia_design::keys::text_here("Del"));
     view! {
@@ -1810,6 +1830,15 @@ fn Chip(
             draggable="false"
             data-noscroll=""
             data-state=move || state.get().code()
+            data-command=command_name
+            data-command-state=move || match state.get() {
+                Tri::With => Some(t.catalog.with),
+                Tri::Without => Some(t.catalog.without),
+                Tri::Off => None,
+            }
+            data-command-by="event"
+            on:betula-command=move |_: leptos::web_sys::Event| command(false)
+            on:betula-command-alt=move |_: leptos::web_sys::Event| command_alt(true)
             aria-checked=move || state.get().checked()
             aria-expanded=move || opens.then(|| if state.get() == Tri::With { "true" } else { "false" })
             aria-label=move || match state.get() {
@@ -1885,6 +1914,7 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
         .into_iter()
         .map(|choice| {
             let Choice { label, title, count, is_on, choose } = choice;
+            let (name, on) = (label.clone(), is_on.clone());
             view! {
                 <a
                     href=move || t.path(&target(query, open, fill, |q| choose(q)))
@@ -1894,6 +1924,8 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
                     data-noscroll=""
                     title=title
                     aria-checked=move || if query.with(|q| is_on(q)) { "true" } else { "false" }
+                    data-command=name
+                    data-command-state=move || query.with(|q| on(q)).then_some(t.catalog.chosen)
                 >
                     <span class="seg-label">{label}</span>
                     {count.map(|count| view! { <span class="num">{move || count.get().map(|count| format::count(count, t.locale))}</span> })}
@@ -1901,7 +1933,8 @@ fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<O
             }
         })
         .collect_view();
-    view! { <div class="seg" role="radiogroup" aria-label=label>{links}</div> }
+    // Each option a command of „Befehle", named by the group: „Dauer: 1 Semester".
+    view! { <div class="seg" role="radiogroup" aria-label=label data-command-of=label>{links}</div> }
 }
 
 /// The filter panel. It is rendered once and then follows `query`: every control is a link to
@@ -2123,7 +2156,7 @@ fn Filters(
                 <div class="fgroup">
                     <div class="fsub" data-section="" role="group" aria-labelledby="fl-kind">
                         <div class="flabel label" id="fl-kind">{t.catalog.module_kind}</div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.module_kind>
                             {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
                                 .iter().map(|k| chip(k.label(t.locale), None, kind(KindFilter::Stated(*k)))).collect_view()}
                             {chip(t.catalog.not_stated, None, kind(KindFilter::Unstated))}
@@ -2274,13 +2307,15 @@ fn Filters(
         // section and stays, the arrows go from filter to filter, typing finds one, Esc leads out
         // to the list (`data-region`, `data-mode`, `data-section`). A screen reader hears the way
         // out with the panel's name.
-        <aside class="panel filters" id="filters" aria-label=t.catalog.filters aria-describedby="filters-leave" aria-keyshortcuts="F" data-region="side" data-mode="" data-draft="" on:click=into_draft>
+        // In „Befehle" (folia_shell::commands) the panel is „Filter" of „Gehe zu" with its key, and
+        // its filters are found by typing, each named by its group („Prüfung: Klausur").
+        <aside class="panel filters" id="filters" aria-label=t.catalog.filters aria-describedby="filters-leave" aria-keyshortcuts="F" data-region="side" data-mode="" data-draft="" on:click=into_draft data-command=t.catalog.filters data-command-icon="sliders-horizontal" data-command-group="go" data-command-keys="F" data-command-act="go side" data-commands=t.catalog.filters data-commands-typed="">
             <span class="visually-hidden" id="filters-leave">{t.catalog.filters_leave}</span>
             <form on:submit=move |ev| ev.prevent_default()>
                 <div class="panel-head" data-section="plain">
                     // The key that leads in, at the head (R10): F.
                     <div class="panel-title"><h2>{t.catalog.filters}</h2><span class="js-only" aria-hidden="true"><Keys spec="F"/></span></div>
-                    <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&CatalogUrl { open: open.get(), ..Default::default() }.path()) data-noscroll=""><Icon name="rotate-ccw"/>{t.common.reset}</a>
+                    <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&CatalogUrl { open: open.get(), ..Default::default() }.path()) data-noscroll="" data-command=t.catalog.reset_all><Icon name="rotate-ccw"/>{t.common.reset}</a>
                     <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.catalog.close_filters><Icon name="x"/></a>
                 </div>
                 <div class="body scroll" data-keep-scroll="filters" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
@@ -2294,7 +2329,7 @@ fn Filters(
                     // published dates probably does not take place.
                     <div class="fgroup" data-section="" role="group" aria-labelledby="fl-dates">
                         <div class="flabel label" id="fl-dates">{t.catalog.dates}</div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.dates>
                             {chip(t.catalog.confirmed, Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value))}
                             {finder_chip}
                         </div>
@@ -2302,7 +2337,7 @@ fn Filters(
                     </div>
                     <div class="fgroup" data-section="" role="group" aria-labelledby="fl-offered">
                         <div class="flabel label" id="fl-offered">{t.catalog.offered_in}<span class="legend" aria-hidden="true"><i class="box with"><Icon name="check"/></i>{t.catalog.with}<i class="box without"><Icon name="x"/></i>{t.catalog.without}</span></div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.offered_in>
                             {chip(t.catalog.winter_chip, Some("snowflake"), Toggle::turnus(|f| (f.winter, f.not_winter), |f| (&mut f.winter, &mut f.not_winter)))}
                             {chip(t.catalog.summer_chip, Some("sun"), Toggle::turnus(|f| (f.summer, f.not_summer), |f| (&mut f.summer, &mut f.not_summer)))}
                             {chip(t.catalog.irregular_chip, Some("shuffle"), Toggle::turnus(|f| (f.irregular, f.not_irregular), |f| (&mut f.irregular, &mut f.not_irregular)))}
@@ -2310,27 +2345,27 @@ fn Filters(
                     </div>
                     <div class="fgroup" data-section="" role="group" aria-labelledby="fl-form">
                         <div class="flabel label" id="fl-form">{t.catalog.teaching_form}</div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.teaching_form>
                             {[TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion]
                                 .iter().map(|form| chip(form.label(t.locale), None, Toggle::teaching_form(*form))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup" data-section="" role="group" aria-labelledby="fl-exam">
                         <div class="flabel label" id="fl-exam">{t.catalog.exam}</div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.exam>
                             {ExamPart::ALL.iter().map(|part| chip(part.short_label(t.locale), None, Toggle::exam_part(*part))).collect_view()}
                         </div>
                     </div>
                     <Credits query go/>
                     <div class="fgroup" data-section="" role="group" aria-labelledby="fl-language">
                         <div class="flabel label" id="fl-language">{t.catalog.language}</div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.language>
                             {Language::ALL.iter().map(|language| chip(language.label(t.locale), None, Toggle::language(*language))).collect_view()}
                         </div>
                     </div>
                     <div class="fgroup" data-section="" role="group" aria-labelledby="fl-properties">
                         <div class="flabel label" id="fl-properties">{t.catalog.properties}</div>
-                        <div class="chips">
+                        <div class="chips" data-command-of=t.catalog.properties>
                             {chip(t.catalog.graded_chip, None, Toggle::flag(|q| q.graded, |q, value| q.graded = value))}
                             {chip(t.catalog.limited_chip, None, Toggle::flag(|q| q.limited, |q, value| q.limited = value))}
                             {chip(t.catalog.fues_list, None, Toggle::flag(|q| q.fues, |q, value| q.fues = value))}
@@ -2380,13 +2415,13 @@ fn Filters(
                         </div>
                         <div class="fsub" data-section="" role="group" aria-labelledby="fl-location">
                             <div class="flabel label" id="fl-location">{t.catalog.location}</div>
-                            <div class="chips">
+                            <div class="chips" data-command-of=t.catalog.location>
                                 {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
                                     .iter().map(|campus| chip(campus.label(t.locale), None, Toggle::campus(*campus))).collect_view()}
                             </div>
                             <p class="hint">{t.catalog.location_hint}</p>
                             {move || program.get().is_none().then(|| view! {
-                                <div class="chips">
+                                <div class="chips" data-command-of=t.catalog.location>
                                     {chip(t.catalog.show_not_offered, None, Toggle::show_not_offered())}
                                 </div>
                             })}

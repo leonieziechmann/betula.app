@@ -8,6 +8,8 @@ pub struct Texts {
     pub save_hint: &'static str,
     /// … and marked.
     pub saved_hint: &'static str,
+    /// The switch as a command of „Befehle" while the module is marked: „Nicht mehr merken".
+    pub unsave: &'static str,
     /// The icon alone at the end of a row, for screen readers: „Analysis I merken"; the value is
     /// the module's title.
     pub save_title: fn(&str) -> String,
@@ -97,6 +99,7 @@ pub struct Texts {
 pub const DE: Texts = Texts {
     save: "Merken",
     saved: "Gemerkt",
+    unsave: "Nicht mehr merken",
     save_hint: "Auf die Merkliste setzen (M)",
     saved_hint: "Gemerkt. Noch einmal nimmt das Modul von der Merkliste (M)",
     save_title: |title| format!("{title} merken"),
@@ -150,6 +153,7 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     save: "Save",
     saved: "Saved",
+    unsave: "Unsave",
     save_hint: "Add to your saved modules (M)",
     saved_hint: "Saved. Once more removes the module from your saved modules (M)",
     save_title: |title| format!("Save {title}"),
