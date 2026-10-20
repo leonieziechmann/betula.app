@@ -3236,10 +3236,12 @@ matters most — „organisch ohne Popup, einfach intuitiv". (The way in went wi
   `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
 
 `node folia/e2e/about.mjs` (`home.mjs` until 2026-10-20) checks the page without a sidebar, the
-birch of the figures and the wood behind it (at 1920 px the column 1600 px wide in the middle, the
-masks drawn and sized for it), a pick in the first panel's picker (its button „Alle Studiengänge"
-then, no page load); the server test that there is no sidebar, the link of „Studiengang wählen",
-the trunk and the wood (and that no branch and no step of the way in is left).
+birch of the figures and the wood behind it (at 1920 px the column 1600 px wide in the middle of
+the page, its gaps measured inside the 8 px the page keeps from the rail and from the window's
+edge; the masks drawn and sized for it, their middle under its), a pick in the first panel's
+picker (its button „Alle Studiengänge" then, no page load); the server test that there is no
+sidebar, the link of „Studiengang wählen", the trunk and the wood (and that no branch and no step
+of the way in is left).
 
 ### The birch: crown and ground (2026-09-25)
 

@@ -2170,7 +2170,8 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
    above the ground under a column shorter than the one beside it). Each mask
    (`<season>-wood-back.svg`, `-front.svg`, 3400 × 1600) has the start page's column (1600 px) in
    its middle, with wood under it too, and that middle lies under the column's: the page is the
-   window less the rail and the gap on its right, so its middle is 4 px left of the wood's. The
+   window less the rail and a gap of 8 px on either side, so its middle is the wood's (until the
+   pages stood 8 px from the rail, owner 2026-10-20, it was 4 px left of it). The
    masks stand on the window's bottom, and when the ground comes up at the end of a page they go
    up with its edge (enhance.js), so that the birches stand on it; a window taller than they are
    sees the trunks fade out at their top. Their trees walk outwards from the column's edges, so the
@@ -2187,7 +2188,7 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
   /* Under the wood, as it goes up with the ground, its front colour goes on down to the window's
      edge: a shadow only draws outside the box. */
   body:has(> .main > .content > .page-stage.front > .work.flowing) > .wood { box-shadow: 0 208px 0 var(--wood-front); }
-  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") calc(50% - 4px) 100% / 3400px 1600px no-repeat; }
+  .wood::before, .wood::after { content: ""; position: absolute; inset: 0; background: var(--wood-back); -webkit-mask: url("/assets/birch/summer-wood-back.svg") 50% 100% / 3400px 1600px no-repeat; mask: url("/assets/birch/summer-wood-back.svg") 50% 100% / 3400px 1600px no-repeat; }
   .wood::after { background: var(--wood-front); -webkit-mask-image: url("/assets/birch/summer-wood-front.svg"); mask-image: url("/assets/birch/summer-wood-front.svg"); }
   :root[data-season="spring"] .wood::before { -webkit-mask-image: url("/assets/birch/spring-wood-back.svg"); mask-image: url("/assets/birch/spring-wood-back.svg"); }
   :root[data-season="spring"] .wood::after { -webkit-mask-image: url("/assets/birch/spring-wood-front.svg"); mask-image: url("/assets/birch/spring-wood-front.svg"); }

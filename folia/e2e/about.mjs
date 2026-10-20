@@ -103,17 +103,37 @@ const wood = await page.evaluate(() => {
 check(wood.place && wood.masks && wood.branches === 0 && wood.woods === 1, `the wood does not stand behind the page: ${JSON.stringify(wood)}`);
 // A wide window: the column stops at 1600 px in the middle of the page (owner, 2026-09-29: as wide
 // as still reads well), a strip of the wood on either side, and the masks are drawn for that
-// column — 900 px of wood on either side of it —, sized by the stylesheet as they are drawn.
+// column — 900 px of wood on either side of it —, sized by the stylesheet as they are drawn, and
+// their middle stands under the column's (design/forest).
 await page.setViewportSize({ width: 1920, height: 1080 });
 const column = await page.evaluate(async () => {
-  // The scroll area's content: the gap right of the page (with the scrollbar in it) is its padding.
-  const home = onPage(".home").getBoundingClientRect(), scroller = onPage("#page-scroll"), box = scroller.getBoundingClientRect();
+  // The page is the scroll area's content: the area's padding is the gap of 8 px on either side of
+  // it, to the rail and to the window's edge (the scrollbar stands in that one), so both gaps of
+  // the column are measured from there.
+  const home = onPage(".home").getBoundingClientRect(), scroller = onPage("#page-scroll"), box = scroller.getBoundingClientRect(), area = getComputedStyle(scroller);
   const season = document.documentElement.dataset.season || "summer";
   const drawn = (await (await fetch(`/assets/birch/${season}-wood-front.svg`)).text()).match(/width="(\d+)" height="(\d+)"/);
-  const style = getComputedStyle(onPage("body > .wood"), "::after");
-  return { width: home.width, left: Math.round(home.left - box.left), right: Math.round(box.left + scroller.clientWidth - parseFloat(getComputedStyle(scroller).paddingRight) - home.right), drawn: drawn && `${drawn[1]}px ${drawn[2]}px`, sized: style.maskSize || style.webkitMaskSize };
+  const wood = onPage("body > .wood"), room = wood.getBoundingClientRect(), style = getComputedStyle(wood, "::after");
+  // Where the stylesheet puts the masks across the wood: a share of the room they leave there, and
+  // pixels (`50%`, `calc(50% - 4px)`).
+  const across = (style.maskPosition || style.webkitMaskPosition).match(/^(calc\(.*?\)|\S+)/)[1];
+  const share = Number(across.match(/(-?[\d.]+)%/)?.[1] ?? 0) / 100, pixels = Number(across.match(/([+-]?)\s*([\d.]+)px/)?.slice(1).join("") || 0);
+  const sized = style.maskSize || style.webkitMaskSize, maskWidth = parseFloat(sized);
+  const maskMiddle = room.left + (room.width - maskWidth) * share + pixels + maskWidth / 2;
+  return {
+    width: home.width,
+    left: Math.round(home.left - box.left - parseFloat(area.paddingLeft)),
+    right: Math.round(box.left + scroller.clientWidth - parseFloat(area.paddingRight) - home.right),
+    masks: Math.round((maskMiddle - (home.left + home.right) / 2) * 10) / 10,
+    bar: scroller.offsetWidth - scroller.clientWidth,
+    drawn: drawn && `${drawn[1]}px ${drawn[2]}px`,
+    sized,
+  };
 });
 check(column.width === 1600 && column.left > 100 && Math.abs(column.left - column.right) <= 1 && column.drawn === `${1600 + 2 * 900}px 1600px` && column.sized === column.drawn, `the column is not 1600 px in the middle, or the wood is not drawn for it: ${JSON.stringify(column)}`);
+// A scrollbar wider than the gap on the right takes the rest from the page (`--pad-r`), and its
+// middle goes left by half of that; the wood does not know the scrollbar.
+check(Math.abs(column.masks) <= 1 + Math.max(0, column.bar - 8) / 2, `the masks of the wood do not stand under the column (their middle less its: ${column.masks} px): ${JSON.stringify(column)}`);
 await page.setViewportSize({ width: 1500, height: 1000 });
 
 // No sidebar; „Studiengang wählen" of the first panel opens the picker of all programs in place,
