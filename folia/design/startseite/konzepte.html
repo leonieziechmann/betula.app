@@ -14,7 +14,15 @@
      canary had them on 2026-10-20, and the real day of Informatik B.Sc., 1. FS, on Tuesday
      20.10.2026 (KW 43, A-Woche). The tokens are Betula's own (folia/assets/app.css); Inter comes
      from Google Fonts here, the app self-hosts it. The photos are from Unsplash (credits at the end),
-     the drawn wood is made in the browser (canvas), the app's own birch SVGs are not loaded. -->
+     the drawn wood is made in the browser (canvas), the app's own birch SVGs are not loaded.
+     Second round the same day, after the owner tried the prototype (the section „Entschieden", quoted
+     there): A with the photos of the season is the favourite; on a phone the cards stand as far from the
+     edges as the search and the profile, no scrollbar in the margin, the credit in the ground with the
+     photographer's name, the photo darker at the top and a veil of the ground under the search once the
+     content runs beneath it; the onboarding lists all programs by faculty (degree to narrow, typing to
+     filter) and scrolls the semesters, its card one height in every step; the semester clock is one
+     progress bar of every week, the weeks around today wider; on a desktop the picture is 300 px set up
+     and 640 px on a first visit, whatever stands in it. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -65,6 +73,7 @@
   --device: #1b2130;
   --device-ring: rgba(15, 23, 42, .25);
   --shadow-device: 0 40px 90px -40px rgba(15, 23, 42, .55);
+  --scroll-shade: rgba(15, 23, 42, .1);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -87,6 +96,7 @@
     --wood: color-mix(in oklab, var(--text) 6%, var(--bg));
     --device-ring: rgba(255, 255, 255, .12);
     --shadow-device: 0 40px 90px -40px rgba(0, 0, 0, .9);
+    --scroll-shade: rgba(0, 0, 0, .5);
   }
 }
 :root[data-theme="dark"] {
@@ -109,6 +119,7 @@
   --wood: color-mix(in oklab, var(--text) 6%, var(--bg));
   --device-ring: rgba(255, 255, 255, .12);
   --shadow-device: 0 40px 90px -40px rgba(0, 0, 0, .9);
+  --scroll-shade: rgba(0, 0, 0, .5);
 }
 
 /* ---------- the desk ---------- */
@@ -244,7 +255,19 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .qs { margin: 0; padding-left: 22px; display: grid; gap: 10px; max-width: 900px; }
 .qs li { color: var(--text-2); }
 .qs li b { color: var(--text); font-weight: 620; }
+.qs li.done, .qs li.done b { color: var(--text-3); }
+kbd { font: 500 11px/1.35 var(--mono); color: var(--text-2); padding: 1px 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .credits { color: var(--text-3); font-size: 12px; display: grid; gap: 4px; }
+.dec-h { margin: 6px 0 -4px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); font-weight: 650; }
+.dec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.dec li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.dec li { background: var(--panel); border-radius: 12px; box-shadow: var(--shadow-panel); padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.dec h3 { margin: 0; font-size: 14.5px; font-weight: 660; letter-spacing: -.01em; }
+.dec h3 small { margin-left: 6px; font-size: 11px; font-weight: 650; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.dec q { display: block; color: var(--text-2); font-size: 13px; font-style: italic; text-wrap: pretty; }
+.dec q::before { content: "„"; } .dec q::after { content: "“"; }
+.dec p { margin: 0; font-size: 13.5px; text-wrap: pretty; }
+.pick .fav { display: inline-block; margin-left: 8px; font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); vertical-align: 1px; }
 .credits a { color: var(--text-2); }
 
 @media (max-width: 1100px) {
@@ -257,7 +280,7 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
   .picks { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 640px) {
-  .notes, .stagewrap.phone .notes, .blocks, .pics, .flow, .rules, .shotpair { grid-template-columns: minmax(0, 1fr); }
+  .notes, .stagewrap.phone .notes, .blocks, .pics, .flow, .rules, .shotpair, .dec { grid-template-columns: minmax(0, 1fr); }
   .stage, .stagewrap.phone .stage { padding: 12px; }
 }
 
@@ -311,7 +334,18 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
   .ap-tab[aria-current="page"] .ic { background: var(--invert); color: var(--on-invert); border-radius: 9px; padding: 3px 9px; width: 38px; height: 24px; box-sizing: border-box; }
   .ap-tab .badge { position: absolute; top: 0; left: calc(50% + 6px); min-width: 15px; height: 15px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 9.5px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--panel); }
   .ap-island { position: absolute; z-index: 40; top: 11px; left: 50%; width: 120px; height: 34px; margin-left: -60px; border-radius: 20px; background: #000; }
-  .ap-status { position: absolute; z-index: 39; top: 0; left: 0; right: 0; height: 48px; display: flex; justify-content: space-between; align-items: center; padding: 6px 34px 0 40px; font-weight: 640; font-size: 15px; color: var(--sky-ink, var(--text)); pointer-events: none; }
+  .ap-status { position: absolute; z-index: 39; top: 0; left: 0; right: 0; height: 48px; display: flex; justify-content: space-between; align-items: center; padding: 6px 22px 0; font-weight: 640; font-size: 15px; color: var(--sky-ink, var(--text)); pointer-events: none; transition: color .2s; }
+  .ap-status span { min-width: 72px; text-align: center; }
+  /* A phone shows no scrollbar beside the content (it overlays while one scrolls); in the prototype it stood in
+     the right margin and made the profile button look closer to the edge than the search (owner, 2026-10-20). */
+  .ap-body { scrollbar-width: none; }
+  .ap-body::-webkit-scrollbar { display: none; }
+  /* Under the status bar and the search, the page's ground as a veil on a layer above the content, once the
+     content runs under them (on a phone the app's crown carries this band): the time and the search never
+     stand on text (owner, 2026-10-20: „der fade … ein paar ebenen höher"). */
+  .ap-ptop::before { content: ""; position: absolute; z-index: -1; left: 0; right: 0; top: 0; bottom: -18px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - 18px), transparent); opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .ap.scrolled .ap-ptop::before { opacity: 1; }
+  .ap.scrolled .ap-status { color: var(--text); }
 }
 
 /* panels and rows, as the app has them */
@@ -370,14 +404,17 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .wk-col i.ch.on { opacity: .85; }
 
 /* the semester clock */
-.clock { display: grid; gap: 6px; }
-.clock-row { display: flex; gap: 3px; align-items: flex-end; height: 22px; }
-.clock-row i { flex: 1; height: 10px; border-radius: 3px; background: color-mix(in srgb, currentColor 22%, transparent); }
-.clock-row i.done { background: color-mix(in srgb, currentColor 65%, transparent); }
-.clock-row i.cur { height: 20px; background: currentColor; }
-.clock-row i.gap { flex: .6; background: none; border-bottom: 2px dotted color-mix(in srgb, currentColor 45%, transparent); border-radius: 0; height: 6px; }
-.clock-row i.ex { flex: 1.4; height: 10px; background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 40%, transparent) 0 3px, transparent 3px 6px); }
-.clock-cap { display: flex; justify-content: space-between; font-size: 11.5px; opacity: .8; font-variant-numeric: tabular-nums; }
+.clock { display: grid; gap: 7px; }
+/* Every week of the semester is a piece of one bar, from 05.10. to 31.03., the break and the exams
+   included; the week of today and three on either side are wider (owner, 2026-10-20). Filled up to today,
+   the running week up to the hour; at the end of the semester the bar is full. */
+.clock-row { display: flex; gap: 2px; align-items: center; height: 20px; }
+.clock-row i { --f: currentColor; --t: color-mix(in srgb, currentColor 26%, transparent); position: relative; flex: 1 1 0; min-width: 2px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, var(--f) var(--fill, 0%), var(--t) var(--fill, 0%)); }
+.clock-row i.pause, .clock-row i.free { --f: color-mix(in srgb, currentColor 58%, transparent); --t: color-mix(in srgb, currentColor 13%, transparent); }
+.clock-row i.cur { height: 16px; border-radius: 3px; --t: color-mix(in srgb, currentColor 36%, transparent); }
+.clock-row i.ex::after { content: ""; position: absolute; left: 50%; bottom: calc(100% + 3px); width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
+.clock-cap { display: flex; justify-content: space-between; gap: 12px; font-size: 11.5px; opacity: .85; font-variant-numeric: tabular-nums; }
+.clock-cap span { white-space: nowrap; }
 
 /* exams, study, bookmarks */
 .exl { display: grid; gap: 2px; padding: 2px 8px 10px; }
@@ -422,7 +459,15 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .welcome .x { border: 0; background: none; color: var(--text-3); padding: 4px; }
 
 /* ---------- the onboarding card (all concepts) ---------- */
-.ob { background: var(--panel); border-radius: 14px; box-shadow: var(--shadow-pop); padding: 22px 22px 18px; display: grid; gap: 14px; width: 100%; max-width: 560px; color: var(--text); text-align: left; }
+.ob { background: var(--panel); border-radius: 14px; box-shadow: var(--shadow-pop); padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 560px; height: var(--ob-h, auto); color: var(--text); text-align: left; }
+.ob > * { flex: none; }
+/* The card keeps its height in every step (owner, 2026-10-20: the box does not expand, it scrolls);
+   what is long scrolls inside it, with a shade at an end where more follows. */
+.ob > .ob-fill { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -10px; padding: 0 10px 2px; scrollbar-width: thin;
+  background: linear-gradient(var(--panel) 40%, transparent) top / 100% 18px no-repeat local, linear-gradient(transparent, var(--panel) 60%) bottom / 100% 18px no-repeat local, linear-gradient(var(--scroll-shade), transparent) top / 100% 8px no-repeat scroll, linear-gradient(transparent, var(--scroll-shade)) bottom / 100% 8px no-repeat scroll; }
+.ca-first .ob { --ob-h: 592px; }
+.cb-clearing .ob { --ob-h: 548px; }
+.mini .ob { --ob-h: 480px; }
 .ob-steps { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--text-3); font-weight: 600; }
 .ob-steps .s { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 4px; border-radius: 999px; background: var(--panel-2); border: 0; color: var(--text-3); font-weight: 600; font-size: 12px; }
 .ob-steps .s i { font-style: normal; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 10.5px; font-weight: 750; background: var(--panel-3); color: var(--text-2); }
@@ -433,15 +478,18 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .ob-steps .s.done span { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob h1 { margin: 0; font-size: 30px; line-height: 1.1; letter-spacing: -.035em; font-weight: 760; text-wrap: balance; }
 .ob .lede { margin: 0; color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.ob .lede b { color: var(--text); font-weight: 620; }
 .ob-field { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 14px; border-radius: 11px; background: var(--panel); box-shadow: 0 0 0 1.5px var(--text), 0 6px 20px -12px rgba(15, 23, 42, .4); }
 .ob-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 16.5px; color: var(--text); }
 .ob-field input::placeholder { color: var(--text-3); }
 .ob-field .ic { color: var(--text-2); }
-.ob-sugg { display: flex; flex-wrap: wrap; gap: 6px; }
-.ob-sugg button { border: 0; border-radius: 999px; padding: 6px 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; font-weight: 580; color: var(--text); }
-.ob-sugg button small { color: var(--text-3); font-weight: 500; margin-left: 4px; }
-.ob-sugg button:hover { background: var(--accent-soft); }
-.ob-list { display: grid; gap: 2px; max-height: 300px; overflow-y: auto; margin: -4px -6px 0; padding: 2px; }
+.ob-deg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--panel-3); overflow-x: auto; scrollbar-width: none; }
+.ob-deg button { flex: 1 0 auto; border: 0; background: none; border-radius: 7px; padding: 5px 9px; font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.ob-deg button small { color: var(--text-3); font-weight: 500; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.ob-deg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.ob-list { display: grid; gap: 1px; }
+.ob-grp { position: sticky; top: 0; z-index: 1; display: flex; gap: 8px; align-items: baseline; min-width: 0; padding: 10px 10px 5px; background: var(--panel); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.ob-grp span { text-transform: none; letter-spacing: 0; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-res { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; text-align: left; border: 0; background: none; padding: 9px 10px; border-radius: 9px; }
 .ob-res[aria-selected="true"], .ob-res:hover { background: var(--accent-soft); }
 .ob-res b { font-weight: 620; font-size: 14.5px; }
@@ -452,7 +500,6 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .ob-foot { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; font-size: 13px; color: var(--text-3); border-top: 1px solid var(--line); padding-top: 12px; }
 .ob-foot button { border: 0; background: none; padding: 2px 0; color: var(--text-2); font-weight: 600; font-size: 13px; display: inline-flex; gap: 5px; align-items: center; }
 .ob-foot button:hover { color: var(--text); }
-.ob-foot .safe { margin-left: auto; display: inline-flex; gap: 5px; align-items: center; }
 .ob-sems { display: grid; gap: 4px; }
 .ob-sem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; align-items: center; text-align: left; border: 0; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
 .ob-sem:hover { box-shadow: inset 0 0 0 1.5px var(--text-2); }
@@ -464,7 +511,8 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .ob-note { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--warn); background: var(--warn-soft); padding: 8px 10px; border-radius: 8px; }
 .ob-note.info { color: var(--text-2); background: var(--panel-2); }
 .ob-note .ic { width: 15px; height: 15px; margin-top: 1px; }
-.ob-mods { display: grid; gap: 2px; max-height: 290px; overflow-y: auto; margin: 0 -6px; padding: 0 2px; }
+.ob-mods { display: grid; gap: 2px; }
+.ob-fill .ob-note { margin: 2px 0 8px; }
 .ob-mod { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 9px; }
 .ob-mod:hover { background: var(--panel-2); }
 .ob-mod .box { width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--line-strong); display: grid; place-items: center; color: transparent; }
@@ -487,13 +535,21 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 @container ap (max-width: 700px) {
   .ob { padding: 18px 16px 14px; border-radius: 16px; }
   .ob h1 { font-size: 26px; }
-  .ob-steps .s.done span { max-width: 120px; }
-  .ob-list { max-height: 260px; }
+  .ob-steps .s.done span { max-width: 72px; }
+  .ob .lede { font-size: 13.5px; }
+  .ob-switch { padding: 8px 10px; }
+  .wide-only { display: none; }
+  .p-h { flex-wrap: wrap; row-gap: 2px; }
+  .p-h .sub { order: 3; flex-basis: 100%; }
+  .ob-deg button small { display: none; }
+  .ca-first .ob, .cb-clearing .ob { --ob-h: 584px; }
 }
 
 /* ---------- concept A: Heute (photo of the season over the day) ---------- */
 .ca { display: grid; gap: 8px; }
-.ca-hero { position: relative; border-radius: var(--r-panel); overflow: hidden; min-height: 300px; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: end; padding: 28px 28px 26px; color: #fff; background: #333; }
+/* The picture never moves (owner, 2026-10-20): 300 px set up, 640 px on a first visit, at every hour, in
+   every phase and every step of the onboarding; what stands in it is made to fit. */
+.ca-hero { position: relative; border-radius: var(--r-panel); overflow: hidden; height: 300px; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 24px; align-items: stretch; padding: 24px 24px 24px 28px; color: #fff; background: #333; }
 .ca-hero > img, .ca-hero > .shade { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .ca-hero > .shade { background: linear-gradient(90deg, rgba(8, 10, 14, .62), rgba(8, 10, 14, .18) 55%, rgba(8, 10, 14, .05)), linear-gradient(0deg, rgba(8, 10, 14, .42), transparent 55%); }
 .ca-hero.night > .shade { background: linear-gradient(90deg, rgba(6, 10, 30, .8), rgba(10, 16, 44, .55)), linear-gradient(0deg, rgba(4, 6, 18, .6), transparent 60%); }
@@ -502,33 +558,41 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .ca-greet { display: grid; gap: 8px; align-content: end; min-width: 0; }
 .ca-greet .eb { font-size: 12.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; opacity: .86; }
 .ca-greet h1 { margin: 0; font-size: 56px; line-height: 1; letter-spacing: -.045em; font-weight: 780; text-wrap: balance; }
-.ca-greet p { margin: 0; font-size: 16px; opacity: .92; max-width: 46ch; text-wrap: pretty; }
+.ca-greet p { margin: 0; font-size: 16px; line-height: 1.45; min-height: 2.9em; opacity: .92; max-width: 46ch; text-wrap: pretty; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ca-greet .clock { margin-top: 10px; max-width: 460px; color: #fff; }
-.ca-next { background: color-mix(in srgb, #fff 90%, transparent); color: #10151f; border-radius: 12px; padding: 16px 18px; display: grid; gap: 6px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 20px 40px -20px rgba(0, 0, 0, .5); }
+.ca-next { background: color-mix(in srgb, #fff 90%, transparent); color: #10151f; border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; min-height: 0; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 20px 40px -20px rgba(0, 0, 0, .5); }
 :root[data-theme="dark"] .ca-next { background: color-mix(in srgb, #12151c 86%, transparent); color: #eceff5; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ca-next { background: color-mix(in srgb, #12151c 86%, transparent); color: #eceff5; } }
 .ca-next .k { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .6; display: flex; justify-content: space-between; }
 .ca-next .when { display: flex; align-items: baseline; gap: 10px; }
 .ca-next .when b { font-size: 34px; font-weight: 760; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
 .ca-next .when span { font-weight: 650; color: var(--accent-ink); font-size: 15px; }
-.ca-next .what { font-weight: 640; font-size: 15.5px; line-height: 1.3; }
+.ca-next .what { font-weight: 640; font-size: 15.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ca-next .where { display: flex; gap: 6px; align-items: center; font-size: 13.5px; opacity: .8; }
-.ca-next .acts { display: flex; gap: 6px; margin-top: 6px; }
+.ca-next .acts { display: flex; gap: 6px; margin-top: auto; padding-top: 4px; }
+.ca-next > * { flex: none; }
 .ca-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 8px; align-items: start; }
 .ca-side { display: grid; gap: 8px; }
-.ca-credit { position: absolute !important; right: 10px; bottom: 6px; font-size: 10.5px; opacity: .7; }
-.ca-first { min-height: 520px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); align-items: center; }
+.ca-first { height: 640px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); align-items: center; }
 .ca-first .ca-aside { align-self: end; justify-self: end; text-align: right; display: grid; gap: 4px; max-width: 360px; }
 .ca-first .ca-aside b { font-size: 22px; letter-spacing: -.02em; font-weight: 720; }
 .ca-first .ca-aside span { opacity: .86; font-size: 14px; }
 @container ap (max-width: 700px) {
   .ca { gap: 10px; padding: 0 10px; }
-  .ca-hero { margin: 0 -10px; border-radius: 0 0 22px 22px; grid-template-columns: minmax(0, 1fr); padding: 112px 18px 18px; min-height: 0; gap: 16px; }
+  /* On a phone the cards stand 10 px from the edges, as the search and the profile above them; the
+     greeting's text aligns with the text inside the cards (owner, 2026-10-20). */
+  .ca-hero { margin: 0 -10px; border-radius: 0 0 22px 22px; grid-template-columns: minmax(0, 1fr); padding: 112px 10px 10px; height: auto; gap: 16px; }
+  .ca-greet { padding-inline: 16px; }
+  .ca-next { height: 236px; }
+  /* The photo darkens at the top, where the time, the search and the greeting stand on it. */
+  .ca-hero > .shade { background: linear-gradient(180deg, rgba(8, 10, 14, .72) 0, rgba(8, 10, 14, .54) 150px, rgba(8, 10, 14, .3) 62%, rgba(8, 10, 14, .42)); }
+  .ca-hero.night > .shade { background: linear-gradient(180deg, rgba(6, 10, 30, .88) 0, rgba(8, 12, 36, .68) 150px, rgba(8, 12, 36, .5) 62%, rgba(4, 6, 18, .62)); }
+  .ca-hero.dusk > .shade { background: linear-gradient(180deg, rgba(36, 12, 26, .78) 0, rgba(50, 20, 30, .56) 150px, rgba(60, 30, 30, .32) 62%, rgba(20, 8, 20, .5)); }
   .ca-greet h1 { font-size: 38px; }
   .ca-greet p { font-size: 14.5px; }
   .ca-cols { grid-template-columns: minmax(0, 1fr); }
   .ca-next .when b { font-size: 28px; }
-  .ca-first { padding-top: 112px; }
+  .ca-first { height: auto; padding-top: 112px; }
   .ca-first .ca-aside { display: none; }
   .ev { grid-template-columns: 62px 4px minmax(0, 1fr); padding: 9px 8px; }
   .ev .st { grid-column: 3; justify-self: start; margin-top: 4px; }
@@ -620,7 +684,7 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
 .tile.add .tile-b { gap: 4px; overflow-y: auto; }
 .tile.add button { display: flex; gap: 8px; align-items: center; text-align: left; border: 0; background: var(--panel); box-shadow: var(--shadow-panel); border-radius: 8px; padding: 7px 10px; font-size: 13px; font-weight: 600; color: var(--text); }
 .cc-ob { grid-column: span 2; grid-row: span 3; background: transparent; box-shadow: none; overflow: visible; }
-.cc-ob .ob { max-width: none; height: 100%; align-content: start; }
+.cc-ob .ob { max-width: none; --ob-h: 100%; }
 .ring { width: 92px; height: 92px; flex: none; }
 .ring circle { fill: none; stroke-width: 10; }
 @container ap (max-width: 700px) {
@@ -645,10 +709,10 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
   <header class="pg-head">
     <p class="eyebrow">Konzept · Startseite · 20. Oktober 2026</p>
     <h1>Die Startseite wird zur App: dein Tag vorne, dein Studium in drei Klicks eingerichtet</h1>
-    <p class="lead">Heute erklärt die Startseite, was Betula ist – auch wer sein Studium längst eingerichtet hat, sieht jeden Tag denselben Text, dieselben Zahlen und dieselben drei Schritte. Hier sind drei Konzepte für eine Startseite, die zeigt, was für dich gerade dran ist, ein Onboarding, das aus einem ersten Besuch in drei Klicks einen fertigen Stundenplan macht, und drei Wege zu mehr Bildern.</p>
+    <p class="lead">Heute erklärt die Startseite, was Betula ist – auch wer sein Studium längst eingerichtet hat, sieht jeden Tag denselben Text, dieselben Zahlen und dieselben drei Schritte. Hier sind drei Konzepte für eine Startseite, die zeigt, was für dich gerade dran ist, ein Onboarding, das aus einem ersten Besuch in drei Klicks einen fertigen Stundenplan macht, und drei Wege zu mehr Bildern. Die Rückmeldung vom selben Tag ist eingearbeitet: A mit den Fotos der Jahreszeit ist der Favorit, die Einrichtung zeigt alle Studiengänge, und die Bilder haben feste Höhen (<a href="#entschieden">Entschieden</a>).</p>
     <p class="quote"><b>Auftrag (20.10.):</b> „Anfangs ist das ja mehr so als Webseite entstanden, aber mittlerweile ist das Ganze eher so in Richtung App übergegangen. Also hätte ich gerne ein paar Konzepte, was man da zeigen könnte und welche Funktionalität da so sein könnte. Also zum Beispiel den Stundenplan für den Tag … Dazu hätte ich auch gerne ein kleines Onboarding … Natürlich soll es auch visuell ansprechend sein und gerne auch etwas mehr Bilder. Gerade auf dem PC haben wir ja quasi riesig viel Platz.“</p>
     <nav class="jump" aria-label="Abschnitte">
-      <a href="#prototyp">Prototyp</a><a href="#bausteine">Was sie zeigen kann</a><a href="#onboarding">Onboarding</a><a href="#bilder">Bilder</a><a href="#seite">Was aus dem Text wird</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Empfehlung</a><a href="#fragen">Fragen</a>
+      <a href="#prototyp">Prototyp</a><a href="#entschieden">Entschieden</a><a href="#bausteine">Was sie zeigen kann</a><a href="#onboarding">Onboarding</a><a href="#bilder">Bilder</a><a href="#seite">Was aus dem Text wird</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Empfehlung</a><a href="#fragen">Fragen</a>
     </nav>
   </header>
 
@@ -663,6 +727,31 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
       <div class="stage" id="stage"></div>
       <div class="notes" id="notes"></div>
     </div>
+  </section>
+
+
+  <section class="sec" id="entschieden">
+    <header>
+      <h2>Entschieden am 20.10.</h2>
+      <p>Nach dem Ausprobieren kam am selben Tag die Rückmeldung zum Prototyp: zur Handy-Ansicht, zur Einrichtung und zur Semesteruhr, und zum Bild am PC. Was daraus geworden ist, ist oben im Prototyp eingebaut und in den Abschnitten darunter nachgezogen.</p>
+    </header>
+    <ol class="dec">
+      <li><h3>A mit den Fotos der Jahreszeit ist der Favorit <small>Frage 2</small></h3><q>Also Option A mit den Jahreszeitenbildern ist ja mal der Hammer.</q><p>Fotos statt des gezeichneten Walds; A steht vorn und ist als Favorit markiert. B und C bleiben zum Vergleich im Prototyp.</p></li>
+      <li><h3>Feste Höhen für das Bild am PC</h3><q>Beim PC darf sich das hero banner nicht verschieben, sondern wir müssen größen wählen, so dass der Content rein passt und dann mit dem Budget arbeiten. Dabei würde ich aber bei eingerichtet weniger platz verwenden, als bei uneingerichtet.</q><p>Eingerichtet ist das Bild 300 px hoch, beim ersten Besuch 640 px – zu jeder Uhrzeit, in jeder Phase des Semesters und in jedem Schritt der Einrichtung. Was darin steht, ist dafür gemacht: der Satz zum Tag hat höchstens zwei Zeilen und nennt die Module bei ihren Kürzeln, „Als Nächstes“ ist so hoch wie das Bild, die Einrichtung ist eine Karte fester Höhe. Der Streifen nach der Einrichtung steht unter dem Bild, damit es nicht rutscht.</p></li>
+    </ol>
+    <p class="dec-h">Zur Handy-Ansicht</p>
+    <ol class="dec">
+      <li><h3>So breit wie die Suche</h3><q>Wenn man da auf einrichten geht, dann sieht das irgendwie missplaced aus mit der modul suche. Ich glaube da ist der beste way die elemente mit der gleichen breite, wie oben der suche zu machen.</q><p>Die Einrichtung, „Als Nächstes“ und alle Kästen stehen 10 px vom Rand, genau wie die Zeile aus Suche und Profil darüber. Gruß und Satz zum Tag fluchten mit dem Text in den Karten.</p></li>
+      <li><h3>Profil und Suche gleich weit vom Rand</h3><q>Der abstand von dem Profile ist zum rand anders als von der suche. Pass das mal an.</q><p>Rechts im Rand stand die Bildlaufleiste des Prototyps und ließ den Knopf näher am Rand wirken. Auf dem Handy ist sie jetzt unsichtbar wie auf einem echten Handy; Suche und Profil stehen links und rechts 10 px vom Rand, Uhrzeit und Symbole darüber gleich weit.</p></li>
+      <li><h3>Der Bildnachweis im Grund</h3><q>Der Foto unsplash text ist etwas unglücklich platziert das müsste nochmal behoben werden.</q><p>„Foto: Unsplash“ ist vom Bild verschwunden. Der Nachweis steht mit dem Namen im Grund am Ende der Seite („Foto: John Price, Unsplash“), wo auch Datenstand und Quelle stehen.</p></li>
+      <li><h3>Ein Schleier unter der Suche</h3><q>Oben unter die suche muss der fade vom bild ein paar ebenen höher, so dass sich der text besser absetzt.</q><p>Das Foto dunkelt oben ab, wo Uhrzeit, Suche und Gruß darauf stehen. Läuft der Inhalt beim Scrollen unter die Suche, legt sich der Grund der Seite als Schleier darüber, auf einer Ebene über dem Inhalt (wie die Krone der App auf dem Handy): Uhrzeit und Suche stehen nie mehr auf Text.</p></li>
+    </ol>
+    <p class="dec-h">Zur Einrichtung und zur Semesteruhr</p>
+    <ol class="dec">
+      <li><h3>Alle Studiengänge statt sechs</h3><q>Beim studium einrichten gibt es einen quick select für die studiengänge. Aber wir haben 160 studiengägne, da haben dann 90% der user nicht das drin, was sie interessiert.</q><p>Unter dem Feld steht die Liste aller 148 Studiengänge, nach Fakultät geordnet, zum Blättern. „Bachelor“, „Master“, „Lehramt“ und „Weitere“ grenzen sie ein, Tippen filtert sie (mit Tippfehlern). Ein Klick auf eine Zeile wählt; <kbd>↑</kbd> <kbd>↓</kbd> und <kbd>Enter</kbd> gehen auch.</p></li>
+      <li><h3>Die Semester scrollen</h3><q>Die Selection für die Semester auswahl sollte zum scrollen sein und nicht einfach komplett die box expandieren.</q><p>Zehn Jahre an Semestern stehen in einer Liste, die in der Karte scrollt; „Früher …“ ist weg. Die Karte ist in allen drei Schritten gleich hoch, auch die Module in Schritt 3 scrollen in ihr.</p></li>
+      <li><h3>Die Semesteruhr als Fortschrittsbalken</h3><q>Die Ansicht mit der Week progression ist wirklich sehr cool. Aber wir können da nicht ... verwenden, dann sagt die gar nichts aus. Ich würde eher vorschlagen die breite der dots anzupassen, so dass plus minus 3 von der aktuellen woche etwas breiter sind und dann die anderen halt dünner. Aber so dass das quasi eine progress bar ist. Also um so weiter rechts um so mehr progress und ganz rechts ist dann halt voll.</q><p>Jede Woche des Semesters ist ein Stück des Balkens, vom 05.10. bis zum 31.03., auch die Weihnachtspause und die Prüfungszeit (heller); keine Auslassung mehr. Die Woche von heute und je drei davor und danach sind breiter, die übrigen schmal. Gefüllt ist alles bis heute, die laufende Woche bis zur Stunde; nach dem 31.03. ist der Balken voll. Wochen mit einer Prüfung tragen einen Punkt.</p></li>
+    </ol>
   </section>
 
   <section class="sec" id="bausteine">
@@ -680,8 +769,8 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
     </header>
     <div class="flow" id="flow"></div>
     <div class="rules">
-      <div class="rule"><b>Die Startseite ist die Einrichtung</b><p>Wer nichts eingerichtet hat, sieht oben „Was studierst du?“ mit dem Feld darunter. Darunter steht, was ohne Einrichtung geht: die Suche, die Einstiege in den Katalog, die Studiengänge.</p><span class="who">Inhaberin, 28.09.: organisch, ohne Pop-up</span></div>
-      <div class="rule"><b>Ein Klick pro Schritt</b><p>Studiengang antippen, Beginn antippen, „Stundenplan anlegen“. Wer mag, wählt in Schritt 3 Module ab; nötig ist es nicht. Zurück geht jeder Schritt über seinen Chip oben.</p><span class="who">Inhaberin, 28.09.: „immer nur so ein Click pro Step“</span></div>
+      <div class="rule"><b>Die Startseite ist die Einrichtung</b><p>Wer nichts eingerichtet hat, sieht oben „Was studierst du?“ mit dem Feld darunter. Darunter steht, was ohne Einrichtung geht: die Suche, die Einstiege in den Katalog, die Studiengänge. Die Karte hat in jedem Schritt dieselbe Höhe; was lang ist, scrollt in ihr.</p><span class="who">Inhaberin, 28.09.: organisch, ohne Pop-up</span></div>
+      <div class="rule"><b>Ein Klick pro Schritt</b><p>Studiengang in der Liste antippen (oder tippen und <kbd>Enter</kbd>), Beginn antippen, „Stundenplan anlegen“. Wer mag, wählt in Schritt 3 Module ab; nötig ist es nicht. Zurück geht jeder Schritt über seinen Chip oben.</p><span class="who">Inhaberin, 28.09.: „immer nur so ein Click pro Step“</span></div>
       <div class="rule"><b>Voreinstellungen folgen dem üblichen Fall</b><p>Im Oktober steht „fange gerade an“ vorn, im April das Sommersemester. Die Module des Regelstudienplans sind angehakt, frühere Fachsemester werden als bestanden vorgemerkt (ein Schalter, später in „Mein Studium“ änderbar).</p><span class="who">CLAUDE.md: Defaults follow the usual case</span></div>
       <div class="rule"><b>Betula sagt nicht nein</b><p>Beginn vor der Prüfungsordnung, ein Fachsemester über der Regelstudienzeit, ein Studiengang ohne geprüften Plan: Es geht trotzdem, mit einem Hinweis daneben, was daran ungewöhnlich ist.</p><span class="who">Inhaberin, 18.10.</span></div>
       <div class="rule"><b>Überspringen und mitnehmen</b><p>„Erst mal umschauen“ klappt die Einrichtung zu einem Chip zusammen. „Schon eingerichtet? Profil übernehmen“ nimmt ein Profil als Datei oder einen geteilten Link von einem anderen Gerät (beides gibt es schon).</p><span class="who">Profile: folia/crates/profile</span></div>
@@ -692,7 +781,7 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
   <section class="sec" id="bilder">
     <header>
       <h2>Mehr Bilder</h2>
-      <p>Drei Wege, die sich nicht ausschließen. Am PC hat die Startseite neben dem Inhalt viel Platz – heute füllt ihn der Wald hinter jeder Seite in Grau. Die Konzepte geben dem Bild die erste Reihe.</p>
+      <p>Drei Wege, die sich nicht ausschließen. Am PC hat die Startseite neben dem Inhalt viel Platz – heute füllt ihn der Wald hinter jeder Seite in Grau. Die Konzepte geben dem Bild die erste Reihe. Gewählt sind am 20.10. die Fotos der Jahreszeit (A).</p>
     </header>
     <div class="pics">
       <article class="pic">
@@ -706,7 +795,7 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
           <img src="bilder/herbst.webp" alt="Birkenstämme mit orangem Herbstlaub" loading="lazy">
           <img src="bilder/winter.webp" alt="Verschneiter Birkenwald" loading="lazy">
         </div>
-        <div class="pic-body"><b>Fotos der Jahreszeit (A, C)</b><p>Birken in Frühling, Sommer, Herbst und Winter, in der Prüfungszeit Nebel. Fotos wirken sofort und warm, brauchen aber einen Nachweis (Unsplash-Lizenz, frei nutzbar) und kosten 150–350 kB je Bild; geladen wird nur das der Jahreszeit.</p></div>
+        <div class="pic-body"><b>Fotos der Jahreszeit (A, C) · gewählt</b><p>Birken in Frühling, Sommer, Herbst und Winter, in der Prüfungszeit Nebel. Fotos wirken sofort und warm. Die Unsplash-Lizenz erlaubt sie frei, ein Nachweis ist erwünscht und steht im Grund; 150–350 kB je Bild, geladen wird nur das der Jahreszeit.</p></div>
       </article>
       <article class="pic">
         <div class="strip" style="grid-template-columns: 1.6fr 1fr 1.6fr">
@@ -719,7 +808,7 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
     </div>
     <div class="shotpair">
       <figure class="shot" style="margin:0"><img src="bilder/canary-heute.webp" alt="Die Startseite auf canary am 20.10.2026: Text, Zahlen und drei Schritte" loading="lazy"><figcaption><b>Heute auf canary (1.41.1):</b> auch eingerichtet sieht man Text, Zahlen und drei abgehakte Schritte. Der Tag, die nächste Vorlesung, die Prüfungen – nichts davon steht auf der Startseite.</figcaption></figure>
-      <figure class="shot" style="margin:0"><div id="aftershot" style="aspect-ratio: 1440 / 900; position: relative; overflow: hidden; background: var(--wood)"></div><figcaption><b>Dieselbe Person mit Konzept B, gleiche Uhrzeit:</b> die Seite beginnt mit ihrem Tag. Was Betula ist, steht für neue Besucher in der Einrichtung und für Suchmaschinen auf „Über Betula“.</figcaption></figure>
+      <figure class="shot" style="margin:0"><div id="aftershot" style="aspect-ratio: 1440 / 900; position: relative; overflow: hidden; background: var(--wood)"></div><figcaption><b>Dieselbe Person mit Konzept A, am selben Mittag:</b> die Seite beginnt mit ihrem Tag. Was Betula ist, steht für neue Besucher in der Einrichtung und für Suchmaschinen auf „Über Betula“.</figcaption></figure>
     </div>
   </section>
 
@@ -754,21 +843,21 @@ table.cmp { border-collapse: collapse; width: 100%; min-width: 720px; font-size:
   </section>
 
   <section class="reco" id="empfehlung">
-    <h2>Empfehlung: A als Gerüst, B als Bild, C später</h2>
+    <h2>Empfehlung: A mit den Fotos der Jahreszeit, C später</h2>
     <ol>
       <li><b>Aufbau von A.</b> Der Tag zuerst: Gruß und Datum, die Semesteruhr, „Als Nächstes“ mit Raum, darunter heute als Liste, daneben die Woche, die Prüfungen, das Studium, die Merkliste. Abends rückt „Morgen“ nach vorn, in der Prüfungszeit die Prüfungen, in den Ferien „Wie liefen deine Prüfungen?“ und das nächste Semester.</li>
-      <li><b>Das Bild aus B.</b> Statt Fotos der gezeichnete Wald als Kopf, am PC über die ganze Breite, mit der Sonne über „jetzt“ und dem Tag als Weg. Er führt die eigene Birke weiter, kostet keinen Download und keine Lizenzfrage. Fotos höchstens beim ersten Besuch.</li>
-      <li><b>Die Einrichtung zuerst bauen.</b> Sie hilft sofort jedem neuen Besucher und braucht nur, was es schon gibt (Studiengang, Beginn, Import des Regelstudienplans). Danach „Heute“, dann die Lichtung.</li>
+      <li><b>Die Fotos der Jahreszeit</b> (entschieden am 20.10.). Fünf Fotos – Frühling, Sommer, Herbst, Winter und Nebel für die Prüfungszeit – kommen mit dem Build, geladen wird nur das eine. Das Bild hat feste Höhen: eingerichtet 300 px, beim ersten Besuch 640 px. Der Nachweis steht im Grund. Der gezeichnete Wald aus B ist damit vom Tisch.</li>
+      <li><b>Die Einrichtung zuerst bauen.</b> Sie hilft sofort jedem neuen Besucher und braucht nur, was es schon gibt (Studiengang, Beginn, Import des Regelstudienplans). Danach „Heute“ mit dem Foto.</li>
       <li><b>„Anpassen“ aus C später</b>, für die rechte Spalte (Kacheln ein- und ausblenden, je Profil). Erst wenn mehr Bausteine da sind, z. B. „Neu seit deinem letzten Besuch“.</li>
     </ol>
-    <p>Grob in Schritten: Einrichtung und <code>/ueber</code> (MINOR) · „Heute“ mit Woche, Prüfungen, Studium (MINOR) · die Lichtung am PC (MINOR) · Kleinigkeiten danach als PATCH.</p>
+    <p>Grob in Schritten: Einrichtung und <code>/ueber</code> (MINOR) · „Heute“ mit Foto, Woche, Prüfungen, Studium (MINOR) · Kleinigkeiten danach als PATCH.</p>
   </section>
 
   <section class="sec" id="fragen">
     <header><h2>Was noch zu entscheiden ist</h2></header>
     <ol class="qs">
       <li><b>Wohin mit dem Text für Suchmaschinen?</b> Vorschlag: <code>/ueber</code> mit allem von heute, verlinkt von der Startseite, aus dem Grund und aus der Einrichtung. Oder bleibt er beim ersten Besuch unter der Einrichtung stehen?</li>
-      <li><b>Fotos oder gezeichneter Wald – oder beides?</b> Etwa der Wald für jeden Tag und Fotos nur beim ersten Besuch.</li>
+      <li class="done"><b>Fotos oder gezeichneter Wald – oder beides?</b> Entschieden am 20.10.: die Fotos der Jahreszeit (A).</li>
       <li><b>Darf Cottbus ins Bild?</b> Die Stadt sicher; Gebäude der BTU wie das IKMZ könnten nach „offiziell“ aussehen.</li>
       <li><b>Frühere Fachsemester bei der Einrichtung als „bestanden“ vormerken?</b> Voreingestellt an (der übliche Fall), oder lieber als „geplant“, bis man selbst abhakt?</li>
       <li><b>Wählt man offene Übungsgruppen direkt auf der Startseite</b> (wie im Prototyp: „15:30 nehmen“) oder führt die Startseite nur in den Stundenplan?</li>
@@ -808,7 +897,6 @@ const BY = Object.fromEntries(PROGRAMS.map((p) => [p.s, p]));
 const FAC = { F1: "MINT", F2: "Umwelt und Naturwissenschaften", F3: "Maschinenbau, Elektro- und Energiesysteme", F4: "Humanwissenschaften", F5: "Wirtschaft, Recht und Gesellschaft", F6: "Architektur, Bauingenieurwesen und Stadtplanung", ZfRV: "Zentrum für Rechts- und Verwaltungswissenschaften" };
 const facName = (f) => FAC[f] || "fakultätsübergreifend";
 const progName = (p) => `${p.n} ${p.l}`.replace(" - dual ", " dual ");
-const POPULAR = ["bachelor-informatik-2008", "bachelor-wirtschaftsingenieurwesen-2023", "bachelor-maschinenbau-2021", "bachelor-architektur-2022", "bachelor-soziale-arbeit-2026", "bachelor-betriebswirtschaftslehre-2024"];
 
 const MOD = {
   EEG: { n: "Elektrische und elektronische Grundlagen der Informatik", id: 12107, c: "var(--m-eeg)", lp: 6 },
@@ -867,6 +955,8 @@ const DATES = [
 ];
 const TIMES = ["07:10", "12:40", "18:20", "23:30"];
 const PHOTO = { autumn: "bilder/herbst.webp", winter: "bilder/winter.webp", spring: "bilder/fruehling.webp", summer: "bilder/sommer.webp", fog: "bilder/nebel.webp" };
+// Who took them (Unsplash): the credit stands in the ground at the end of the page, not on the picture.
+const PHOTOG = { autumn: "John Price", winter: "Marek Okon", spring: "Ann", summer: "Elisa", fog: "Emma Waleij" };
 
 /* ============================================================================================
    State
@@ -875,7 +965,7 @@ const S = {
   c: "A", dev: "desk", visit: "set", date: "2026-10-20", time: "07:10",
   choice: { ...TAKEN }, welcome: null, results: {}, planned: false, dismissed: false,
   study: { prog: "bachelor-informatik-2008", fs: 1, passed: 0, planned: 32, start: "WiSe 2026/27" },
-  ob: { step: 1, q: "", hi: 0, prog: null, start: null, fs: 1, off: {}, past: true, more: false, skipped: false },
+  ob: { step: 1, q: "", hi: 0, kb: false, deg: "all", prog: null, start: null, fs: 1, off: {}, past: true },
   tiles: ["today", "season", "next", "exam", "week", "study", "marks", "places", "discover", "cal"], edit: false,
   scale: 1, theme: "",
 };
@@ -951,42 +1041,51 @@ const building = (r) => r.split("/")[0];
 
 function summary(M) {
   if (M.phase === "lecture") {
-    if (M.running) return `Gerade läuft ${M.running.k} ${M.running.m} in ${M.running.r}, noch ${M.running.b - M.now}${NB}Minuten.`;
-    if (M.next && !M.fixed.some((e) => e.st === "past")) return `Heute ${M.fixed.length} Termine, der erste um ${M.next.s} in ${M.next.r}.`;
-    if (M.next) return `Noch ${M.upcoming.length === 1 ? "ein Termin" : `${M.upcoming.length} Termine`} heute, als Nächstes um ${M.next.s} in ${M.next.r}.`;
-    const t = M.tomorrow.filter((e) => !e.choiceRow);
+    const r = M.running, x = M.next;
+    if (r) return `Gerade läuft ${kindShort[r.k]} ${r.m} in ${r.r}, noch ${r.b - M.now}${NB}Minuten.`;
+    if (x && !M.fixed.some((e) => e.st === "past")) return `Heute ${M.fixed.length} Termine, der erste um ${x.s} in ${x.r}.`;
+    if (x) return `Noch ${M.upcoming.length === 1 ? "ein Termin" : `${M.upcoming.length} Termine`}, als Nächstes um ${x.s} in ${x.r}.`;
     if (!M.tomorrowN) return "Heute ist geschafft.";
-    return t.length ? `Heute ist geschafft. ${dayWord(M)} ${t.length === 1 ? "ein Termin" : `${t.length} Termine`}, ab ${t[0].s} in ${t[0].r}.` : `Heute ist geschafft. ${dayWord(M)} nur Gruppen zur Wahl: ${M.tomorrow.map((e) => `${kindShort[e.k]} ${e.m}`).join(", ")}.`;
+    const t = M.tomorrow.filter((e) => !e.choiceRow);
+    return t.length ? `Heute ist geschafft. ${dayWord(M)} ${t.length === 1 ? "ein Termin" : `${t.length} Termine`}, ab ${t[0].s} in ${t[0].r}.` : `Heute ist geschafft. ${dayWord(M)} nur Gruppen zur Wahl.`;
   }
   if (M.phase === "break") {
     const t = M.tomorrow.filter((e) => !e.choiceRow);
-    return `Vorlesungsfrei bis So 03.01. Weiter geht’s am ${WDS[cal(M.tomorrowN).wd]} ${ddmm(M.tomorrowN)} um ${t[0].s}.`;
+    return `Vorlesungsfrei bis 03.01. Weiter am ${WDS[cal(M.tomorrowN).wd]} ${ddmm(M.tomorrowN)} um ${t[0].s}.`;
   }
   if (M.phase === "exams") {
     const x = M.exams[0];
-    return x ? `Prüfungszeit. ${days(x.days)[0].toUpperCase() + days(x.days).slice(1)}: ${MOD[x.m].n}, ${WDS[cal(x.n).wd]} ${ddmm(x.n)} um ${x.s}.` : "Prüfungszeit.";
+    return x ? `Prüfungszeit. ${days(x.days)[0].toUpperCase() + days(x.days).slice(1)}: ${x.m}, ${WDS[cal(x.n).wd]} ${ddmm(x.n)} um ${x.s}.` : "Prüfungszeit. Alle Prüfungen sind geschrieben.";
   }
-  if (M.phase === "off") return "Semesterferien. Die Prüfungen sind geschrieben – trag ein, wie sie liefen, und plane das Sommersemester.";
+  if (M.phase === "off") return "Semesterferien: Prüfungen eintragen, das Sommersemester planen.";
   return "Wochenende.";
 }
 
 /* ============================================================================================
    Widgets the concepts share
    ============================================================================================ */
+// Every week of the semester, from the start of the lectures to its end: the lectures, the break, the time
+// of the exams. One piece each (owner, 2026-10-20: no „…", it would say nothing).
+const SEM_START = D("2026-10-05"), SEM_END = D("2027-03-31");
+const SEM_WEEKS = [];
+for (let a = SEM_START; a <= SEM_END; a += 7) SEM_WEEKS.push({ a, b: a + 6, kind: a >= BREAK[0] && a <= BREAK[1] ? "pause" : a > LECT[1] ? "free" : "lecture", exam: EXAMS.some((x) => D(x.d) >= a && D(x.d) <= a + 6) });
 function clock(M) {
-  const cells = [];
-  for (let i = 0; i < 17; i++) {
-    if (i === 11) { cells.push(`<i class="gap" title="Weihnachtspause"></i>`); continue; }
-    if (i === 12) continue;
-    const cls = M.phase === "exams" || M.phase === "off" ? "done" : i < M.wi ? "done" : i === M.wi && M.phase !== "break" ? "cur" : "";
-    cells.push(`<i class="${cls}"></i>`);
-  }
-  cells.push(`<i class="ex" title="Prüfungen"></i>`);
-  const cap = M.phase === "lecture" || M.phase === "weekend" ? [`Woche ${M.lectureWeek} von 15 · ${M.abWeek}-Woche`, "Prüfungen ab Februar"]
-    : M.phase === "break" ? ["Weihnachtspause · 11 von 15 Wochen geschafft", "noch 4 Wochen bis Februar"]
-    : M.phase === "exams" ? ["Vorlesungszeit geschafft", `${M.exams.length} Prüfungen bis ${ddmm(M.exams.at(-1)?.n || M.n)}`]
-    : ["WiSe 2026/27 geschafft", "SoSe 2027 beginnt im April"];
-  return `<div class="clock" aria-label="Semesteruhr"><div class="clock-row">${cells.join("")}</div><div class="clock-cap"><span>${cap[0]}</span><span>${cap[1]}</span></div></div>`;
+  const n = M.n, part = M.now / 1440;
+  const cur = n < SEM_START || n > SEM_END ? -1 : Math.floor((n - SEM_START) / 7);
+  // Today's week and three on either side wider, the rest thin; once the semester is over, all alike and full.
+  const W = [3.2, 2.6, 2, 1.6];
+  const segs = SEM_WEEKS.map((w, i) => {
+    const fill = n > w.b ? 100 : n < w.a ? 0 : Math.round(((n - w.a + part) / 7) * 100);
+    const grow = cur < 0 ? 1 : W[Math.abs(i - cur)] ?? .75;
+    const title = `KW ${isoWeek(w.a)} · ${ddmm(w.a)}–${ddmm(w.b)}${w.kind === "pause" ? " · vorlesungsfrei" : w.kind === "free" ? " · vorlesungsfreie Zeit" : ""}${w.exam ? " · Prüfung" : ""}`;
+    return `<i class="${w.kind}${w.exam ? " ex" : ""}${i === cur ? " cur" : ""}" style="flex-grow:${grow};--fill:${fill}%" title="${title}"></i>`;
+  }).join("");
+  const last = EXAMS.at(-1), left = M.exams.length;
+  const cap = M.phase === "lecture" || M.phase === "weekend" ? [`Woche ${M.lectureWeek} von 15 · ${M.abWeek}-Woche`, `Prüfungen ${ddmm(D(EXAMS[0].d))}–${ddmm(D(last.d))}`]
+    : M.phase === "break" ? ["Weihnachtspause bis 03.01.", "11 von 15 Wochen geschafft"]
+    : M.phase === "exams" ? ["Prüfungszeit", left ? `noch ${left} ${left === 1 ? "Prüfung" : "Prüfungen"} bis ${ddmm(D(last.d))}` : "alle geschrieben"]
+    : ["WiSe 2026/27 geschafft", "SoSe 2027 ab April"];
+  return `<div class="clock" role="img" aria-label="Semester: ${cap[0]}, ${cap[1]}"><div class="clock-row">${segs}</div><div class="clock-cap"><span>${cap[0]}</span><span>${cap[1]}</span></div></div>`;
 }
 
 function evRow(e, M, { compact = false } = {}) {
@@ -1133,7 +1232,7 @@ function welcome(M) {
   if (!M.s.welcome || M.s.dismissed) return "";
   const w = M.s.welcome;
   const open = Object.keys(CH).filter((g) => !M.s.choice[g]).length;
-  return `<div class="welcome"><span class="ok">${ic("check", "s")}</span><div><b>Eingerichtet: ${esc(w.name)} · ${w.fs}.${NB}FS seit ${w.start}</b><small>${w.mods ? `${w.mods} ${w.mods === 1 ? "Modul" : "Module"}${w.ph ? ` und ${w.ph} ${w.ph === 1 ? "Platzhalter" : "Platzhalter"}` : ""} im Stundenplan` : "Stundenplan ohne Module"}${w.past ? ` · ${w.past}${NB}LP aus früheren Semestern als bestanden vorgemerkt` : ""}. Alles bleibt in diesem Browser.</small></div><span class="todo">${open ? `<button class="btn sm pri" type="button" data-act="scrollto" data-to="day">${ic("list-checks", "xs")} ${open} Übungsgruppen wählen</button>` : ""}<button class="btn sm" type="button">${ic("calendar-plus", "xs")} Kalender abonnieren</button><button class="btn sm" type="button">${ic("smartphone", "xs")} Als App installieren</button><button class="btn sm ghost" type="button" data-act="undo">${ic("rotate-ccw", "xs")} Rückgängig</button></span><button class="x" type="button" data-act="dismiss" aria-label="Schließen">${ic("x", "s")}</button></div>`;
+  return `<div class="welcome"><span class="ok">${ic("check", "s")}</span><div><b>Eingerichtet: ${esc(w.name)} · ${w.fs}.${NB}FS seit ${w.start}</b><small>${w.mods || w.ph ? `${[w.mods ? `${w.mods} ${w.mods === 1 ? "Modul" : "Module"}` : "", w.ph ? `${w.ph} Platzhalter` : ""].filter(Boolean).join(" und ")} im Stundenplan` : "Stundenplan ohne Module"}${w.past ? ` · ${w.past}${NB}LP aus früheren Semestern als bestanden vorgemerkt` : ""}. Alles bleibt in diesem Browser.</small></div><span class="todo">${open ? `<button class="btn sm pri" type="button" data-act="scrollto" data-to="day">${ic("list-checks", "xs")} ${open} Übungsgruppen wählen</button>` : ""}<button class="btn sm" type="button">${ic("calendar-plus", "xs")} Kalender abonnieren</button><button class="btn sm" type="button">${ic("smartphone", "xs")} Als App installieren</button><button class="btn sm ghost" type="button" data-act="undo">${ic("rotate-ccw", "xs")} Rückgängig</button></span><button class="x" type="button" data-act="dismiss" aria-label="Schließen">${ic("x", "s")}</button></div>`;
 }
 
 /* ============================================================================================
@@ -1149,7 +1248,7 @@ function lev(a, b) {
 }
 const WORDS = new Map(PROGRAMS.map((p) => [p.s, [...norm(`${p.n} ${p.l} ${p.po} ${facName(p.f)}`).split(" "), norm(p.l).replace(/ /g, ""), ...(p.s.startsWith("master") ? ["master"] : p.s.startsWith("bachelor") ? ["bachelor"] : [])]]));
 const NAMEW = new Map(PROGRAMS.map((p) => [p.s, new Set(norm(p.n).split(" "))]));
-function search(q) {
+function search(q, limit = 8) {
   const toks = norm(q).split(" ").filter(Boolean).map((t) => ALIAS[t] || t);
   if (!toks.length) return [];
   const out = [];
@@ -1169,7 +1268,7 @@ function search(q) {
     }
     if (sc) out.push([sc + (p.s.startsWith("bachelor") ? 0.3 : 0) + (p.plan.length ? 0.2 : 0) + (p.n.includes("dual") ? -0.2 : 0) - p.n.length / 300, p]);
   }
-  return out.sort((a, b) => b[0] - a[0]).slice(0, 8).map((x) => x[1]);
+  return out.sort((a, b) => b[0] - a[0]).slice(0, limit).map((x) => x[1]);
 }
 function mark(name, q) {
   let out = esc(name);
@@ -1181,8 +1280,17 @@ function mark(name, q) {
   return out;
 }
 
-const ALL = [...PROGRAMS].sort((a, b) => a.n.localeCompare(b.n, "de") || a.s.localeCompare(b.s));
-const obResults = (ob) => (ob.q ? search(ob.q) : ob.all ? ALL : []);
+// Every program under the field, by faculty (owner, 2026-10-20: a quick pick of six serves nobody among
+// 148 programs); the degree narrows the list, typing filters it.
+const DEG = [["all", "Alle"], ["bachelor", "Bachelor"], ["master", "Master"], ["lehramt", "Lehramt"], ["other", "Weitere"]];
+const degOf = (p) => (/^(bachelor|master|lehramt)-/.exec(p.s) || [0, "other"])[1];
+const DEG_N = Object.fromEntries(DEG.map(([k]) => [k, k === "all" ? PROGRAMS.length : PROGRAMS.filter((p) => degOf(p) === k).length]));
+const DEG_RANK = { bachelor: 0, master: 1, lehramt: 2, other: 3 };
+const FAC_ORDER = ["F1", "F2", "F3", "F4", "F5", "F6", "ZfRV"];
+const facRank = (f) => (FAC_ORDER.includes(f) ? FAC_ORDER.indexOf(f) : 99);
+const facHead = (f) => (/^F\d$/.test(f) ? `Fakultät ${f.slice(1)}` : f === "ZfRV" ? "ZfRV" : "Ohne Zuordnung");
+const GROUPED = [...PROGRAMS].sort((a, b) => facRank(a.f) - facRank(b.f) || a.n.localeCompare(b.n, "de") || DEG_RANK[degOf(a)] - DEG_RANK[degOf(b)] || b.poYear - a.poYear);
+const obResults = (ob) => { const list = ob.q.trim() ? search(ob.q, 40) : GROUPED; return ob.deg && ob.deg !== "all" ? list.filter((p) => degOf(p) === ob.deg) : list; };
 
 function planRows(p, fs) {
   const rows = [];
@@ -1207,7 +1315,7 @@ const KIND = { P: "Pflicht", W: "Wahlpflicht", F: "FÜS", A: "Abschlussarbeit", 
 
 function obSemesters(M) {
   const cur = M.sem.key;
-  const n = M.s.ob.more ? 20 : 8;
+  const n = 20;
   const list = [];
   for (let i = 0; i < n; i++) list.push({ key: cur - i, fs: i + 1 });
   return list;
@@ -1222,15 +1330,21 @@ function obCard(s, M, { mini = false } = {}) {
     [3, "Semester", ""],
   ].map(([i, label, val]) => `<button class="s ${ob.step === i ? "on" : ob.step > i ? "done" : ""}" type="button" data-act="ob-step" data-v="${i}" ${ob.step > i ? "" : "disabled"}><i>${ob.step > i ? "✓" : i}</i><span>${ob.step > i && val ? esc(val) : label}</span></button>`).join("");
   const steps = `<div class="ob-steps">${chips}</div>`;
-  const foot = `<div class="ob-foot"><button type="button" data-act="ob-skip">${ic("search", "xs")} Erst mal umschauen</button><button type="button">${ic("upload", "xs")} Schon eingerichtet? Profil übernehmen</button><span class="safe">${ic("leaf", "xs")} ohne Konto, bleibt im Browser</span></div>`;
+  const foot = `<div class="ob-foot"><button type="button" data-act="ob-skip">${ic("search", "xs")} Erst mal umschauen</button><button type="button" title="Schon eingerichtet? Ein Profil als Datei oder als Link von einem anderen Gerät übernehmen">${ic("upload", "xs")} Profil übernehmen</button></div>`;
 
   if (ob.step === 1) {
     const res = obResults(ob);
-    const list = ob.q || ob.all
-      ? res.length ? `<div class="ob-list" role="listbox" id="ob-list">${res.map((r, i) => `<button class="ob-res" type="button" role="option" aria-selected="${i === ob.hi}" data-act="ob-pick" data-v="${r.s}"><b>${mark(r.n, ob.q)}</b><span class="deg">${esc(r.l)}</span><small>${esc(r.po)} · ${r.m ? esc(r.m) : "ohne geprüften Plan"} · ${esc(facName(r.f))}</small></button>`).join("")}</div>`
-        : `<p class="ob-none">Nichts gefunden für „${esc(ob.q)}“. Versuch einen Teil des Namens, z. B. „Bau“ oder „Umwelt“ – oder <button type="button" class="btn sm ghost" data-act="ob-all">alle 148 ansehen</button>.</p>`
-      : `<div class="ob-sugg">${POPULAR.map((sl) => BY[sl]).filter(Boolean).map((r) => `<button type="button" data-act="ob-pick" data-v="${r.s}">${esc(r.n)}<small>${esc(r.l)}</small></button>`).join("")}<button type="button" data-act="ob-all">Alle 148 ${ic("chevron-right", "xs")}</button></div>`;
-    return `<div class="ob" data-ob>${steps}<h1>Was studierst du?</h1><p class="lede">Drei Klicks, dann steht hier jeden Tag dein Stundenplan, deine Prüfungen und wie weit du bist.</p><label class="ob-field">${ic("search")}<input id="ob-q" type="text" autocomplete="off" spellcheck="false" placeholder="z. B. Informatik oder WIng" value="${esc(ob.q)}" ${mini ? "tabindex=-1 readonly" : ""} aria-controls="ob-list"></label>${list}${foot}</div>`;
+    const typed = !!ob.q.trim();
+    const hi = typed || ob.kb ? ob.hi : -1;
+    let rows = "", lastF = null;
+    res.forEach((r, i) => {
+      if (!typed && r.f !== lastF) { lastF = r.f; rows += `<div class="ob-grp" role="presentation">${facHead(r.f)}<span>${esc(facName(r.f))}</span></div>`; }
+      rows += `<button class="ob-res" type="button" role="option" id="ob-o${i}" aria-selected="${i === hi}" data-act="ob-pick" data-v="${r.s}"><b>${mark(r.n, ob.q)}</b><span class="deg">${esc(r.l)}</span><small>${esc(r.po)} · ${r.m ? esc(r.m) : "ohne geprüften Plan"}${typed ? ` · ${esc(facName(r.f))}` : ""}</small></button>`;
+    });
+    const degName = (DEG.find(([k]) => k === ob.deg) || DEG[0])[1];
+    const fill = `<div class="ob-fill" id="ob-fill">${res.length ? `<div class="ob-list" role="listbox" id="ob-list" aria-label="Studiengänge">${rows}</div>` : `<p class="ob-none">Nichts gefunden für „${esc(ob.q)}“${ob.deg !== "all" ? ` unter „${degName}“` : ""}. Versuch einen Teil des Namens, z. B. „Bau“ oder „Umwelt“.</p>`}</div>`;
+    const deg = `<div class="ob-deg" role="group" aria-label="Abschluss">${DEG.map(([k, l]) => `<button type="button" data-act="ob-deg" data-v="${k}" aria-pressed="${(ob.deg || "all") === k}">${l}<small>${DEG_N[k]}</small></button>`).join("")}</div>`;
+    return `<div class="ob" data-ob>${steps}<h1>Was studierst du?</h1><p class="lede">In drei Klicks zu deinem Stundenplan. Ohne Konto, alles bleibt in diesem Browser.</p><label class="ob-field">${ic("search")}<input id="ob-q" type="text" autocomplete="off" spellcheck="false" placeholder="Studiengang suchen" value="${esc(ob.q)}" ${mini ? "tabindex=-1 readonly" : ""} aria-controls="ob-list" aria-label="Studiengang suchen"></label>${deg}${fill}${foot}</div>`;
   }
 
   if (ob.step === 2) {
@@ -1241,7 +1355,7 @@ function obCard(s, M, { mini = false } = {}) {
       const usual = fs === 1 && [10, 11, 4, 5].includes(M.c.m);
       return `<button class="ob-sem${usual ? " usual" : ""}" type="button" data-act="ob-start" data-v="${key}" data-fs="${fs}"><b>${semName(key)}</b><span class="fs">${fs}.${NB}<small>FS</small></span><small>${fs === 1 ? "Ich fange gerade an" : `jetzt im ${fs}. Fachsemester`}${notes.length ? ` · <span style="color:var(--warn)">${notes.join(", ")}</span>` : ""}</small></button>`;
     }).join("");
-    return `<div class="ob" data-ob>${steps}<h1>Seit wann studierst du ${esc(p.n)}?</h1><p class="lede">Daraus folgt dein Fachsemester. Ein Urlaubssemester oder ein Wechsel? Wähl das Fachsemester, in dem du jetzt bist – den Beginn rechnet Betula zurück.</p><div class="ob-sems">${sems}<button class="btn sm ghost" type="button" data-act="ob-more" style="justify-self:start">${s.ob.more ? "Weniger" : "Früher …"}</button></div>${foot}</div>`;
+    return `<div class="ob" data-ob>${steps}<h1>Seit wann studierst du?</h1><p class="lede">Daraus folgt dein Fachsemester. Nach einem Wechsel oder einem Urlaubssemester wähl das Fachsemester, in dem du jetzt bist.</p><div class="ob-fill" id="ob-fill"><div class="ob-sems">${sems}</div></div>${foot}</div>`;
   }
 
   // step 3
@@ -1257,8 +1371,8 @@ function obCard(s, M, { mini = false } = {}) {
   if (p.poYear && Math.floor(ob.start / 2) < p.poYear) notes.push(["warn", `Die PO ${p.poYear} ist jünger als dein Beginn (${semName(ob.start)}). Wer früher angefangen hat, studiert oft nach einer älteren Ordnung – die lässt sich später in „Mein Studium“ wählen. Für jetzt nimmt Betula diese.`]);
   if (p.rs && ob.fs > p.rs) notes.push(["warn", `Dein ${ob.fs}. Fachsemester liegt über der Regelstudienzeit von ${p.rs} Semestern. Kein Problem – „Mein Studium“ zeigt, was noch offen ist.`]);
   const mods = rows.map((r, i) => `<button class="ob-mod${r.linked ? "" : " ph"}" type="button" role="checkbox" aria-checked="${on(i)}" data-act="ob-mod" data-v="${i}"><span class="box">${ic("check", "xs")}</span><span style="min-width:0"><b>${esc(r.n)}</b><small>${KIND[r.k] || "Modul"}${r.linked ? "" : " · als Platzhalter, später wählen"}${r.span ? ` · ${esc(r.span)}` : ""}</small></span><span class="lp">${esc(r.lp || "–")}${NB}<small>LP</small></span></button>`).join("");
-  const pastSw = ob.fs > 1 && past.length ? `<button class="ob-switch" type="button" role="switch" aria-checked="${ob.past}" data-act="ob-past"><span class="sw"></span><span><b>${ob.fs === 2 ? "Das 1. Fachsemester" : `Fachsemester 1–${ob.fs - 1}`} als bestanden vormerken</b><small>${past.length} Module, ${pastLp}${NB}LP laut Plan · in „Mein Studium“ jederzeit änderbar</small></span></button>` : "";
-  return `<div class="ob" data-ob>${steps}<h1>Dein ${ob.fs}. Fachsemester</h1><p class="lede">Laut Regelstudienplan ${esc(progName(p))} (${esc(p.po)}) gehört das ins ${M.sem.name}. Abwählen, was du nicht belegst – oder einfach anlegen.</p>${notes.map(([k, t]) => `<div class="ob-note ${k === "info" ? "info" : ""}">${ic(k === "info" ? "info" : "triangle-alert")}<span>${t}</span></div>`).join("")}${rows.length ? `<div class="ob-mods">${mods}</div>` : ""}${pastSw}<div class="ob-actions"><button class="btn pri" type="button" data-act="ob-create">${ic("calendar-check-2", "s")} Stundenplan anlegen</button>${rows.length ? `<button class="btn ghost" type="button" data-act="ob-create" data-v="empty">Ohne Module weiter</button>` : ""}<span class="sum"><b>${sel.length}</b> ${sel.length === 1 ? "Modul" : "Module"} · <b>${lp}</b>${NB}LP</span></div></div>`;
+  const pastSw = ob.fs > 1 && past.length ? `<button class="ob-switch" type="button" role="switch" aria-checked="${ob.past}" data-act="ob-past"><span class="sw"></span><span><b>${ob.fs === 2 ? "Das 1. Fachsemester" : `Fachsemester 1–${ob.fs - 1}`} als bestanden vormerken</b><small>${past.length} Module, ${pastLp}${NB}LP · später in „Mein Studium“ änderbar</small></span></button>` : "";
+  return `<div class="ob" data-ob>${steps}<h1>Dein ${ob.fs}. Fachsemester</h1><p class="lede">${rows.length ? `Im ${M.sem.name} laut Regelstudienplan: <b>${sel.length} ${sel.length === 1 ? "Modul" : "Module"}, ${lp}${NB}LP</b>. Abwählen, was du nicht belegst.` : `Im ${M.sem.name}. Dein Stundenplan startet leer.`}</p><div class="ob-fill" id="ob-fill">${notes.map(([k, t]) => `<div class="ob-note ${k === "info" ? "info" : ""}">${ic(k === "info" ? "info" : "triangle-alert")}<span>${t}</span></div>`).join("")}${rows.length ? `<div class="ob-mods">${mods}</div>` : ""}</div>${pastSw}<div class="ob-actions"><button class="btn pri" type="button" data-act="ob-create">${ic("calendar-check-2", "s")} Stundenplan anlegen</button>${rows.length ? `<button class="btn ghost" type="button" data-act="ob-create" data-v="empty"><span>Ohne Module<span class="wide-only"> weiter</span></span></button>` : ""}</div></div>`;
 }
 
 /* ============================================================================================
@@ -1473,14 +1587,14 @@ function forestOpts(M, extra = {}) {
    Chrome around a concept
    ============================================================================================ */
 const MARK = `<svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="var(--text)"/><path d="M20 6.5c5.6 3.6 9.4 9.4 8.6 16.2-.6 5-4 8.8-8.6 11-4.6-2.2-8-6-8.6-11-.8-6.8 3-12.6 8.6-16.2Z" fill="var(--bg)"/><path d="M11 14.2h11.5v2.6H11zM17.5 19.6H30v2.6H17.5zM10.6 25h11.2v2.6H10.6zM18.6 30.2h8v2.4h-8z" fill="var(--text)"/><path d="M20 33.6v3.4" stroke="var(--bg)" stroke-width="1.6" stroke-linecap="round"/></svg>`;
-function chrome(inner, { glass = false, full = false, sky = null } = {}) {
+function chrome(inner, { glass = false, full = false, sky = null, credit = "" } = {}) {
   const navs = [["house", "Start", 0], ["layout-list", "Module", 0], ["graduation-cap", "Studium", 0], ["bookmark", "Merkliste", 3], ["calendar-days", "Stundenplan", 4]];
   const rail = `<nav class="ap-rail" aria-label="Bereiche"><span class="ap-mark">${MARK}</span>${navs.map(([n, l, b], i) => `<button class="ap-nav" type="button" title="${l}" ${i === 0 ? 'aria-current="page"' : ""}>${ic(n)}${b ? `<span class="badge">${b}</span>` : ""}</button>`).join("")}<span class="grow"></span><button class="ap-nav" type="button" title="Profil">${ic("user-round")}</button><button class="ap-nav" type="button" title="Dunkel" data-act="theme">${ic("moon")}</button></nav>`;
   const top = `<header class="ap-top"><span class="ap-word"><b>B<small>E</small>TU<small>LA</small></b><span>Modulkatalog · inoffiziell</span></span><span class="ap-search">${ic("search")}Modul, Nummer oder Thema suchen<kbd>Strg K</kbd></span></header>`;
-  const ptop = `<div class="ap-status"><span>${S.time.replace(/^0/, "")}</span><span>●●● ▮</span></div><div class="ap-island"></div><div class="ap-ptop"><span class="ap-search">${ic("search")}Modul, Nummer oder Thema</span><button class="pbtn" type="button" aria-label="Profil">${ic("user-round")}</button></div>`;
+  const ptop = `<div class="ap-status"><span>${S.time.replace(/^0/, "")}</span><span>●●●${NB}▮</span></div><div class="ap-island"></div><div class="ap-ptop"><span class="ap-search">${ic("search")}Modul, Nummer oder Thema</span><button class="pbtn" type="button" aria-label="Profil">${ic("user-round")}</button></div>`;
   const tabs = `<nav class="ap-tabs" aria-label="Bereiche">${navs.map(([n, l, b], i) => `<button class="ap-tab" type="button" ${i === 0 ? 'aria-current="page"' : ""}>${ic(n)}<span>${l}</span>${b ? `<span class="badge">${b}</span>` : ""}</button>`).join("")}</nav>`;
   const style = sky ? ` style="--sky-ink:${sky.ink};--path-ink:${sky.ink};--sun-glow:${sky.glow}"` : "";
-  return `<div class="ap${glass ? " ap-glass" : ""}${full ? " ap-full" : ""}"${style}>${rail}${top}${ptop}<div class="ap-body" id="ap-body">${inner}<footer class="ap-foot"><b>Betula</b><span>inoffiziell, gehört nicht zur BTU</span><span>Datenstand 20.10.2026 · WiSe 2026/27</span><span>Über Betula</span><span>Impressum</span><span>Datenschutz</span></footer></div>${tabs}</div>`;
+  return `<div class="ap${glass ? " ap-glass" : ""}${full ? " ap-full" : ""}"${style}>${rail}${top}${ptop}<div class="ap-body" id="ap-body">${inner}<footer class="ap-foot"><b>Betula</b><span>inoffiziell, gehört nicht zur BTU</span><span>Datenstand 20.10.2026 · WiSe 2026/27</span>${credit ? `<span>${credit}</span>` : ""}<span>Über Betula</span><span>Impressum</span><span>Datenschutz</span></footer></div>${tabs}</div>`;
 }
 
 /* ============================================================================================
@@ -1489,10 +1603,12 @@ function chrome(inner, { glass = false, full = false, sky = null } = {}) {
 function conceptA(s, M) {
   const sky = skyAt(M.now / 60, ...M.date.sun);
   const tone = sky.light < .15 ? "night" : sky.dusk && sky.light < .7 ? "dusk" : "";
-  const photo = M.phase === "exams" ? PHOTO.fog : PHOTO[M.season];
+  const key = M.phase === "exams" ? "fog" : M.season;
+  const photo = PHOTO[key];
+  const opts = { sky: { ink: "#ffffff", glow: sky.glow }, credit: `Foto: ${PHOTOG[key]}, Unsplash` };
   if (s.visit === "first") {
-    return chrome(`<div class="ca"><section class="ca-hero ca-first ${tone}"><img src="${photo}" alt=""><span class="shade"></span>${obCard(s, M)}<div class="ca-aside"><b>Alle Module und Studiengänge der BTU an einem Ort.</b><span>3.232 Module · 148 Studiengänge · 2.008 Termine im WiSe 2026/27. Inoffiziell, ohne Konto.</span></div><span class="ca-credit">Foto: Unsplash</span></section>
-      <section class="p" style="padding:14px 14px 12px"><div class="p-h" style="padding:0 2px 10px"><h2>Ohne Einrichtung</h2><span class="sub">Suchen und stöbern geht sofort</span><button class="lnk" type="button">Was ist Betula? ${ic("arrow-right", "xs")}</button></div>${ways()}</section></div>`);
+    return chrome(`<div class="ca"><section class="ca-hero ca-first ${tone}"><img src="${photo}" alt=""><span class="shade"></span>${obCard(s, M)}<div class="ca-aside"><b>Alle Module und Studiengänge der BTU an einem Ort.</b><span>3.232 Module · 148 Studiengänge · 2.008 Termine im WiSe 2026/27. Inoffiziell, ohne Konto.</span></div></section>
+      <section class="p" style="padding:14px 14px 12px"><div class="p-h" style="padding:0 2px 10px"><h2>Ohne Einrichtung</h2><span class="sub wide-only">Suchen und stöbern geht sofort</span><button class="lnk" type="button">Was ist Betula? ${ic("arrow-right", "xs")}</button></div>${ways()}</section></div>`, opts);
   }
   const side = M.phase === "off" ? pStudy(M) + pMarks() : M.phase === "exams" ? pStudy(M) + pMarks() : pWeek(M) + pExams(M) + pStudy(M) + pMarks();
   const main = M.phase === "off" ? `<div id="results">${pResults(M)}</div>${pNextSem(M)}`
@@ -1500,7 +1616,7 @@ function conceptA(s, M) {
     : M.phase === "break" ? pDay(M) + pTomorrow(M)
     : M.phase === "lecture" && M.dayOver ? pTomorrow(M) + `<div id="day">${pDay(M)}</div>`
     : `<div id="day">${pDay(M)}</div>${M.phase === "lecture" && M.h >= 17 ? pTomorrow(M) : ""}`;
-  return chrome(`<div class="ca">${welcome(M)}<section class="ca-hero ${tone}"><img src="${photo}" alt=""><span class="shade"></span><div class="ca-greet"><span class="eb">${longDate(M.n)} · KW ${isoWeek(M.n)}</span><h1>${M.greet}.</h1><p>${summary(M)}</p>${clock(M)}</div>${nextCard(M)}<span class="ca-credit">Foto: Unsplash</span></section><div class="ca-cols"><div class="ca-side">${main}</div><div class="ca-side">${side}</div></div><section class="p" style="padding:14px 14px 12px"><div class="p-h" style="padding:0 2px 10px"><h3>Entdecken</h3><span class="sub">Einstiege in den Katalog</span></div>${ways()}</section></div>`);
+  return chrome(`<div class="ca"><section class="ca-hero ${tone}"><img src="${photo}" alt=""><span class="shade"></span><div class="ca-greet"><span class="eb">${longDate(M.n)} · KW ${isoWeek(M.n)}</span><h1>${M.greet}.</h1><p>${summary(M)}</p>${clock(M)}</div>${nextCard(M)}</section>${welcome(M)}<div class="ca-cols"><div class="ca-side">${main}</div><div class="ca-side">${side}</div></div><section class="p" style="padding:14px 14px 12px"><div class="p-h" style="padding:0 2px 10px"><h3>Entdecken</h3><span class="sub">Einstiege in den Katalog</span></div>${ways()}</section></div>`, opts);
 }
 
 /* ============================================================================================
@@ -1612,22 +1728,24 @@ function tile(id, M, { ghost = "" } = {}) {
 function conceptC(s, M) {
   if (s.visit === "first") {
     const G = { today: "Hier steht dann dein Tag", next: "Die nächste Vorlesung mit Raum", exam: "Tage bis zur Prüfung", study: "Wie weit du bist", week: "Deine Woche", season: "Die Semesteruhr", marks: "Was du dir merkst", places: "Wo du heute bist" };
-    return chrome(`<div class="cc"><div class="cc-head"><div><h1>Willkommen bei Betula</h1><p>Alle Module und Studiengänge der BTU, inoffiziell und ohne Konto. Richte dein Studium ein, dann füllen sich die Kacheln.</p></div></div><div class="cc-grid"><article class="tile cc-ob">${obCard(s, M)}</article>${["today", "season", "next", "exam", "week", "study", "places"].map((id) => tile(id, M, { ghost: G[id] })).join("")}${tile("discover", M)}</div></div>`);
+    const credit = `Fotos: ${PHOTOG[M.phase === "exams" ? "fog" : M.season]} und Lina Herold, Unsplash`;
+    return chrome(`<div class="cc"><div class="cc-head"><div><h1>Willkommen bei Betula</h1><p>Alle Module und Studiengänge der BTU, inoffiziell und ohne Konto. Richte dein Studium ein, dann füllen sich die Kacheln.</p></div></div><div class="cc-grid"><article class="tile cc-ob">${obCard(s, M)}</article>${["today", "season", "next", "exam", "week", "study", "places"].map((id) => tile(id, M, { ghost: G[id] })).join("")}${tile("discover", M)}</div></div>`, { credit });
   }
   const shown = s.tiles.filter((id) => TILES[id]);
   const hidden = Object.keys(TILES).filter((id) => !shown.includes(id));
   const add = s.edit ? `<article class="tile add"><div class="tile-h">${ic("plus")}Kachel hinzufügen</div><div class="tile-b">${hidden.length ? hidden.map((id) => `<button type="button" data-act="tile-add" data-v="${id}">${ic(TILES[id].icon, "s")}${TILES[id].name}</button>`).join("") : `<span class="sub">Alle Kacheln sind zu sehen.</span>`}</div></article>` : "";
-  return chrome(`<div class="cc${s.edit ? " cc-edit" : ""}">${welcome(M) ? `<div style="padding-top:8px">${welcome(M)}</div>` : ""}<div class="cc-head"><div><h1>${M.greet}.</h1><p>${longDate(M.n)} · ${summary(M)}</p></div><div class="acts"><button class="btn sm${s.edit ? " ink" : ""}" type="button" data-act="edit">${ic(s.edit ? "check" : "sliders-horizontal", "xs")} ${s.edit ? "Fertig" : "Anpassen"}</button></div></div><div class="cc-grid">${shown.map((id) => tile(id, M)).join("")}${add}</div></div>`);
+  const credit = `Fotos: ${PHOTOG[M.phase === "exams" ? "fog" : M.season]} und Lina Herold, Unsplash`;
+  return chrome(`<div class="cc${s.edit ? " cc-edit" : ""}">${welcome(M) ? `<div style="padding-top:8px">${welcome(M)}</div>` : ""}<div class="cc-head"><div><h1>${M.greet}.</h1><p>${longDate(M.n)} · ${summary(M)}</p></div><div class="acts"><button class="btn sm${s.edit ? " ink" : ""}" type="button" data-act="edit">${ic(s.edit ? "check" : "sliders-horizontal", "xs")} ${s.edit ? "Fertig" : "Anpassen"}</button></div></div><div class="cc-grid">${shown.map((id) => tile(id, M)).join("")}${add}</div></div>`, { credit });
 }
 
 /* ============================================================================================
    The desk: controls, the device, the notes
    ============================================================================================ */
 const CONCEPTS = {
-  A: { name: "Heute", thesis: "Der Tag zuerst, darüber ein Foto der Jahreszeit.",
+  A: { name: "Heute", fav: "Favorit", thesis: "Der Tag zuerst, darüber ein Foto der Jahreszeit.",
     idea: "Die Startseite beginnt mit deinem Tag: ein breites Foto der Jahreszeit mit Datum, Gruß, einem Satz zum Tag und der Semesteruhr, rechts darauf „Als Nächstes“ mit Uhrzeit und Raum. Darunter heute als Liste, daneben die Woche, die Prüfungen, das Studium und die Merkliste.",
     shows: "Abends rückt „Morgen“ nach vorn, in der Weihnachtspause der Countdown zur Prüfung und der erste Termin danach, in der Prüfungszeit die Prüfungen, in den Ferien „Wie liefen deine Prüfungen?“ und das Sommersemester zum Einplanen. Offene Übungsgruppen stehen am Tag mit ihren Gruppen zum Antippen.",
-    pics: "Fotos von Birken in der Jahreszeit, in der Prüfungszeit Nebel; abends und nachts dunkler getönt. Vier bis fünf Fotos mit dem Build, geladen wird nur das eine.",
+    pics: "Fotos von Birken in der Jahreszeit, in der Prüfungszeit Nebel; abends und nachts dunkler getönt, auf dem Handy oben dunkler, wo Uhrzeit, Suche und Gruß stehen. Fünf Fotos mit dem Build, geladen wird nur das eine; der Nachweis steht mit dem Namen im Grund.",
     plus: ["Am schnellsten zu lesen: Uhrzeit, Raum, wie lange noch", "Nahe an Betula heute (Panels, Listen, Zeilen wie im Stundenplan)", "Fotos geben sofort Atmosphäre", "Handy und PC gleich aufgebaut"],
     minus: ["Fotos sind dem Scherenschnitt der Birke fremd", "Fotos kosten Ladezeit und brauchen Nachweis", "Am PC bleibt rechts eine Spalte von Karten – ordentlich, nicht besonders"],
     effort: [["Daten", "vorhanden"], ["Bauen", "mittel"], ["Bilder", "Auswahl, Lizenz"]] },
@@ -1648,7 +1766,7 @@ const CONCEPTS = {
 };
 
 function renderPicks() {
-  $("#picks").innerHTML = Object.entries(CONCEPTS).map(([k, c]) => `<button class="pick" type="button" data-pick="${k}" aria-pressed="${S.c === k}"><span class="pick-letter">${k}</span><span class="pick-name">${c.name}</span><span class="pick-thesis">${c.thesis}</span></button>`).join("");
+  $("#picks").innerHTML = Object.entries(CONCEPTS).map(([k, c]) => `<button class="pick" type="button" data-pick="${k}" aria-pressed="${S.c === k}"><span class="pick-letter">${k}</span><span class="pick-name">${c.name}${c.fav ? `<span class="fav">${c.fav}</span>` : ""}</span><span class="pick-thesis">${c.thesis}</span></button>`).join("");
   const seg = (name, key, list) => `<div class="ctl"><span>${name}</span><div class="seg">${list.map(([v, l, sub]) => `<button type="button" data-set="${key}" data-v="${v}" aria-pressed="${String(S[key]) === String(v)}">${l}${sub ? `<small>${sub}</small>` : ""}</button>`).join("")}</div></div>`;
   $("#ctls").innerHTML = seg("Gerät", "dev", [["desk", "Desktop"], ["phone", "Handy"]])
     + seg("Besuch", "visit", [["first", "Erster Besuch"], ["set", "Eingerichtet"]])
@@ -1659,7 +1777,7 @@ function renderPicks() {
 
 function renderNotes() {
   const c = CONCEPTS[S.c];
-  const tryit = S.visit === "first" ? "Tipp „wing“ oder „infomatik“ ins Feld, wähl einen Beginn und leg den Stundenplan an." : S.c === "C" ? "„Anpassen“ blendet Kacheln aus und ein. Datum und Uhrzeit oben ändern, was vorn steht." : "Datum und Uhrzeit oben ändern, was vorn steht. Am 01.04. lassen sich die Prüfungen eintragen.";
+  const tryit = S.visit === "first" ? "Blättere in der Liste oder tipp „wing“ oder „infomatik“, wähl einen Beginn und leg den Stundenplan an." : S.c === "C" ? "„Anpassen“ blendet Kacheln aus und ein. Datum und Uhrzeit oben ändern, was vorn steht." : "Datum und Uhrzeit oben ändern, was vorn steht. Am 01.04. lassen sich die Prüfungen eintragen.";
   $("#notes").innerHTML = `<div class="note wide"><p class="eyebrow">Konzept ${S.c} · ${c.name}</p><p class="big">${c.idea}</p><div class="effort">${c.effort.map(([k, v]) => `<span>${k}: <b>${v}</b></span>`).join("")}</div><p class="hint-try"><b>Ausprobieren:</b> ${tryit}</p></div>
     <div class="note"><h3>Was sie zeigt</h3><p>${c.shows}</p></div>
     <div class="note"><h3>Bilder</h3><p>${c.pics}</p></div>
@@ -1682,6 +1800,14 @@ function renderDevice() {
   S.keepScroll = false;
   layoutStage();
   paintAll($("#stage"));
+  // On a phone, once the content runs under the time and the search, they get the page's ground behind them.
+  const body = $("#ap-body");
+  if (body) {
+    const ap = body.parentElement;
+    const on = () => ap.classList.toggle("scrolled", body.scrollTop > 6);
+    body.addEventListener("scroll", on, { passive: true });
+    on();
+  }
 }
 
 function layoutStage() {
@@ -1715,17 +1841,26 @@ function render() {
 }
 
 /* ---------- what a click does ---------- */
-function obReset() { S.ob = { step: 1, q: "", hi: 0, prog: null, start: null, fs: 1, off: {}, past: true, more: false }; }
-function refreshResults() {
+function obReset() { S.ob = { step: 1, q: "", hi: 0, kb: false, deg: "all", prog: null, start: null, fs: 1, off: {}, past: true }; }
+function refreshResults({ top = false } = {}) {
   // Typing re-renders only the card's list, so the field keeps its focus and its caret.
   const card = $("#stage [data-ob]"); if (!card) return;
   const tmp = document.createElement("div");
   tmp.innerHTML = obCard(S, model(S));
   const fresh = tmp.firstElementChild;
-  const oldList = card.querySelector(".ob-list, .ob-sugg, .ob-none");
-  const newList = fresh.querySelector(".ob-list, .ob-sugg, .ob-none");
-  if (oldList && newList) oldList.replaceWith(newList);
-  else if (newList) card.querySelector(".ob-field").after(newList);
+  for (const sel of ["#ob-fill", ".ob-deg"]) { const o = card.querySelector(sel), n = fresh.querySelector(sel); if (o && n) o.replaceWith(n); }
+  const fill = card.querySelector("#ob-fill");
+  if (top && fill) fill.scrollTop = 0;
+  keepVisible(fill, card.querySelector('.ob-res[aria-selected="true"]'));
+}
+function keepVisible(box, el) {
+  // Scrolls only the list, never the page around it; the device is scaled, so rectangles are divided back.
+  if (!box || !el) return;
+  const k = box.getBoundingClientRect().height / box.offsetHeight || 1;
+  const head = box.querySelector(".ob-grp")?.offsetHeight || 0;
+  const y = (el.getBoundingClientRect().top - box.getBoundingClientRect().top) / k, h = el.offsetHeight;
+  if (y < head) box.scrollTop += y - head;
+  else if (y + h > box.clientHeight) box.scrollTop += y + h - box.clientHeight;
 }
 
 document.addEventListener("click", (ev) => {
@@ -1753,14 +1888,13 @@ document.addEventListener("click", (ev) => {
     case "tile-add": S.tiles.push(v); S.keepScroll = true; break;
     case "scrollto": { const el = $(`#stage #${t.dataset.to}`); if (el) el.scrollIntoView({ block: "start", behavior: "smooth" }); return; }
     case "theme": S.theme = document.documentElement.dataset.theme === "dark" || (!S.theme && matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark"; break;
-    case "ob-pick": S.ob.prog = v; S.ob.step = 2; S.ob.more = false; break;
-    case "ob-all": S.ob.q = ""; S.ob.all = true; S.ob.hi = 0; break;
+    case "ob-pick": S.ob.prog = v; S.ob.step = 2; break;
+    case "ob-deg": S.ob.deg = v; S.ob.hi = 0; refreshResults({ top: true }); return;
     case "ob-step": if (+v < S.ob.step) S.ob.step = +v; break;
-    case "ob-more": S.ob.more = !S.ob.more; S.keepScroll = true; break;
     case "ob-start": S.ob.start = +v; S.ob.fs = +t.dataset.fs; S.ob.step = 3; S.ob.off = {}; S.ob.past = true; break;
     case "ob-mod": S.ob.off[v] = !S.ob.off[v]; S.keepScroll = true; break;
     case "ob-past": S.ob.past = !S.ob.past; S.keepScroll = true; break;
-    case "ob-skip": S.ob.skipped = true; S.visit = "set"; S.welcome = null; break;
+    case "ob-skip": S.visit = "set"; S.welcome = null; break;
     case "ob-create": {
       const p = BY[S.ob.prog];
       const rows = planRows(p, S.ob.fs);
@@ -1780,14 +1914,21 @@ document.addEventListener("click", (ev) => {
 
 document.addEventListener("input", (ev) => {
   if (ev.target.id !== "ob-q") return;
-  S.ob.q = ev.target.value; S.ob.hi = 0; if (S.ob.q) S.ob.all = false; refreshResults();
+  S.ob.q = ev.target.value; S.ob.hi = 0; refreshResults({ top: true });
 });
 document.addEventListener("keydown", (ev) => {
   if (ev.target.id !== "ob-q") return;
   const res = obResults(S.ob);
-  if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { if (!res.length) return; ev.preventDefault(); S.ob.hi = (S.ob.hi + (ev.key === "ArrowDown" ? 1 : res.length - 1)) % res.length; refreshResults(); }
-  else if (ev.key === "Enter" && res[S.ob.hi]) { ev.preventDefault(); S.ob.prog = res[S.ob.hi].s; S.ob.step = 2; render(); const f = $("#stage .ob-sem.usual, #stage .ob-sem"); if (f) f.focus({ preventScroll: true }); }
-  else if (ev.key === "Escape") { S.ob.q = ""; ev.target.value = ""; refreshResults(); }
+  if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+    if (!res.length) return;
+    ev.preventDefault();
+    if (!S.ob.q.trim() && !S.ob.kb) { S.ob.kb = true; S.ob.hi = ev.key === "ArrowDown" ? 0 : res.length - 1; }
+    else S.ob.hi = (S.ob.hi + (ev.key === "ArrowDown" ? 1 : res.length - 1)) % res.length;
+    refreshResults();
+  } else if (ev.key === "Enter" && res[S.ob.hi] && (S.ob.q.trim() || S.ob.kb)) {
+    ev.preventDefault(); S.ob.prog = res[S.ob.hi].s; S.ob.step = 2; render();
+    const f = $("#stage .ob-sem.usual, #stage .ob-sem"); if (f) f.focus({ preventScroll: true });
+  } else if (ev.key === "Escape") { S.ob.q = ""; S.ob.kb = false; ev.target.value = ""; refreshResults({ top: true }); }
 });
 let rz;
 addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const before = S.scale; layoutStage(); if (Math.abs(before - S.scale) > .08) paintAll($("#stage")); paintStatic(); }, 120); });
@@ -1798,7 +1939,7 @@ const BLOCKS = [
   ["clock-3", "Als Nächstes", "Die nächste Veranstaltung groß: in wie vielen Minuten, wo, bis wann – und was danach kommt. Abends: der erste Termin morgen.", "wie „Heute“", "ok", "ABC"],
   ["list-checks", "Offene Gruppen", "Übungen und Praktika ohne gewählte Gruppe, am Tag mit den Gruppen dieses Tages zum Antippen („15:30 nehmen“).", "Wahlen des Stundenplans („3 Wahlen offen“)", "ok", "ABC"],
   ["triangle-alert", "Ausfälle und Raumwechsel", "„Fällt aus“ und „Raumwechsel“ an der Zeile des Tages, damit niemand vor einem leeren Hörsaal steht.", "„fällt aus am“ aus QIS (calendar/cancel.rs)", "ok", "AB"],
-  ["calendar-range", "Semesteruhr", "Woche 3 von 15, die Weihnachtspause, wann die Prüfungen beginnen.", "Vorlesungszeit und vorlesungsfreie Zeit", "ok", "ABC"],
+  ["calendar-range", "Semesteruhr", "Jede Woche des Semesters ein Stück eines Balkens, die Wochen um heute breiter; gefüllt bis heute, am Ende des Semesters voll. Dazu Woche 3 von 15 und die Prüfungen.", "Vorlesungszeit, vorlesungsfreie Zeit, Prüfungstermine", "ok", "ABC"],
   ["award", "Prüfungen", "Die nächsten Prüfungen mit Datum, Raum und den Tagen bis dahin; in der Prüfungszeit ganz vorn.", "Prüfungstermine aus QIS", "ok", "ABC"],
   ["graduation-cap", "Mein Studium", "Bestanden, geplant, offen; Studiengang und Fachsemester.", "„Mein Studium“", "ok", "ABC"],
   ["bookmark", "Merkliste", "Die zuletzt gemerkten Module und wo sie passen (FÜS-Platz, Regelstudienplan).", "Merkliste, Regelstudienplan", "ok", "ABC"],
@@ -1819,14 +1960,14 @@ function renderFlow() {
   const base = { ...S, c: "A", visit: "first", date: "2026-10-20", time: "07:10" };
   const M = model(base);
   const steps = [
-    ["Studiengang", "Tippen, auch mit Tippfehlern („infomatik“, „wing“); vorher stehen die häufigsten zur Wahl. Ein Klick macht ihn zu „Mein Studiengang“.", { step: 1, q: "infomatik", hi: 0 }],
-    ["Beginn", "Seit wann? Jede Zeile sagt das Fachsemester dazu; im Oktober steht „fange gerade an“ vorn. Ungewöhnliches geht, mit Hinweis.", { step: 2, prog: "bachelor-informatik-2008" }],
+    ["Studiengang", "Alle 148 in einer Liste nach Fakultät, „Bachelor“ oder „Master“ grenzt sie ein; Tippen filtert, auch mit Tippfehlern („infomatik“, „wing“). Ein Klick wählt.", { step: 1, q: "infomatik", hi: 0 }],
+    ["Beginn", "Seit wann? Zehn Jahre an Semestern scrollen in der Karte, jedes mit dem Fachsemester; im Oktober steht „fange gerade an“ vorn. Ungewöhnliches geht, mit Hinweis.", { step: 2, prog: "bachelor-informatik-2008" }],
     ["Semester", "Die Module des Regelstudienplans für dieses Fachsemester, angehakt; Wahlpflicht und FÜS als Platzhalter. Ein Klick legt den Stundenplan an.", { step: 3, prog: "bachelor-informatik-2008", start: M.sem.key, fs: 1 }],
     ["Fertig", "Der Tag steht da. Oben, was sich noch lohnt – offene Gruppen, Kalender, als App – und „Rückgängig“.", null],
   ];
   $("#flow").innerHTML = steps.map(([t, p, ob], i) => {
     let inner;
-    if (ob) inner = `<div class="ap" style="position:relative;inset:auto;background:none;overflow:visible">${obCard({ ...base, ob: { q: "", hi: 0, prog: null, start: null, fs: 1, off: {}, past: true, more: false, ...ob } }, M, { mini: true })}</div>`;
+    if (ob) inner = `<div class="ap" style="position:relative;inset:auto;background:none;overflow:visible">${obCard({ ...base, ob: { q: "", hi: 0, kb: false, deg: "all", prog: null, start: null, fs: 1, off: {}, past: true, ...ob } }, M, { mini: true })}</div>`;
     else {
       const s2 = { ...base, visit: "set", choice: {}, welcome: { name: "Informatik B.Sc.", fs: 1, start: "WiSe 2026/27", mods: 4, ph: 1, past: 0 } };
       const M2 = model(s2);
@@ -1852,7 +1993,7 @@ function paintStatic() {
   const box = $("#aftershot");
   if (box) {
     const w = box.clientWidth;
-    const s2 = { ...S, c: "B", dev: "desk", visit: "set", date: "2026-10-20", time: "12:40", choice: { ...TAKEN }, welcome: null, results: {}, study: { prog: "bachelor-informatik-2008", fs: 1, passed: 0, planned: 32, start: "WiSe 2026/27" } };
+    const s2 = { ...S, c: "A", dev: "desk", visit: "set", date: "2026-10-20", time: "12:40", choice: { ...TAKEN }, welcome: null, results: {}, study: { prog: "bachelor-informatik-2008", fs: 1, passed: 0, planned: 32, start: "WiSe 2026/27" } };
     box.innerHTML = `<div style="position:absolute;left:0;top:0;width:1440px;height:900px;transform:scale(${w / 1440});transform-origin:0 0;pointer-events:none" aria-hidden="true">${appHtml(s2, 1388)}</div>`;
     for (const cv of $$("canvas[data-forest]", box)) paintForest(cv, { ...JSON.parse(cv.dataset.forest), scale: w / 1440 });
   }
