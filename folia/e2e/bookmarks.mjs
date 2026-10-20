@@ -172,7 +172,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
 
   // On the module's page: under the heading and among the actions of the sidebar, one state.
   await page.evaluate(() => document.activeElement?.blur());
-  await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(onPage(".module-page .mark-toggle.mark-switch")));
+  await step("full page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/catalog/module/") && Boolean(onPage(".module-page .mark-toggle.mark-switch")));
   check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
   const onPage = await placement(page, ".module-page", ".module-grid > aside .section");
   check((onPage.beside || onPage.below) && onPage.edge <= 0.5, `on the module's page the switch is not at the right end of the line of the credits nor under it: ${JSON.stringify(onPage)}`);
@@ -438,7 +438,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   // module beside it, through the history.
   const catalogTab = () => page.getAttribute('.rail .nav[data-area="catalog"] >> visible=true', "href");
   const catalogBefore = await catalogTab();
-  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"] >> visible=true`); await page.waitForSelector(".detail h2 >> visible=true"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("f"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(onPage(".module-page h2")) && Boolean(onPage("#sidebar .toc.jumps")), marked[0]);
+  await step("preview, then full page", async () => { await page.click(`a.row[data-id="${marked[0]}"] >> visible=true`); await page.waitForSelector(".detail h2 >> visible=true"); await page.evaluate(() => document.activeElement?.blur()); await page.keyboard.press("v"); }, (id) => location.pathname === "/bookmarks" && location.search.includes(`open=${id}&full=1`) && Boolean(onPage(".module-page h2")) && Boolean(onPage("#sidebar .toc.jumps")), marked[0]);
   check(await page.evaluate(() => onPage('.rail .nav[data-area="bookmarks"]')?.getAttribute("aria-current") === "page"), "full page: the tab of the marked modules is not the current one");
   check((await catalogTab()) === catalogBefore, `full page: the catalog's tab leads to ${await catalogTab()} instead of ${catalogBefore}`);
   check(await page.evaluate(() => { const back = onPage('[data-action="back"]').getAttribute("href"); return back.startsWith("/bookmarks?") && back.includes("open=") && !back.includes("full="); }), "„Zurück“ of a module opened from the marked modules leads elsewhere");

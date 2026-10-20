@@ -3618,10 +3618,10 @@ html:not(.js) .plan-toggle { display: none; }
    up from behind it (the same day: „keinen schatten auf die navbar werfen"); over a module's sheet
    at the bottom of the screen; no ×, a finger swipes it down and away. Nothing of the page moves
    under it as a finger swipes it (`touch-action`). Dark in both themes (`--toast`). */
-.wait-note { position: fixed; z-index: 62; left: var(--rail); right: var(--gap); bottom: var(--gap); display: flex; align-items: center; min-height: 48px; overflow: hidden; container: wait-note / inline-size; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: wait-note-in .26s var(--ease); }
+.wait-note { position: fixed; z-index: 62; left: calc(var(--rail) + var(--gap)); right: var(--gap); bottom: var(--gap); display: flex; align-items: center; min-height: 48px; overflow: hidden; container: wait-note / inline-size; border-radius: 12px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13.5px; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .22s var(--ease), opacity .2s; animation: wait-note-in .26s var(--ease); }
 @keyframes wait-note-in { from { opacity: 0; transform: translateY(10px); } }
 .wait-note > :first-child { flex: 1 1 auto; min-width: 0; }
-@media (min-width: 901px) { :root:has(#content > .page-stage.front .work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--filters) + var(--gap)); } }
+@media (min-width: 901px) { :root:has(#content > .page-stage.front .work > :is(.filters, .sidebar)) .wait-note { left: calc(var(--rail) + var(--gap) + var(--filters) + var(--gap)); } }
 .wait-note[data-drag] { transition: none; }
 .wait-note.leaving { opacity: 0; pointer-events: none; transition: transform .2s cubic-bezier(.4, 0, 1, 1), opacity .2s; }
 .wait-note-close { flex: none; align-self: flex-end; display: grid; place-items: center; width: 34px; height: 40px; margin: 0 6px 4px 0; border: 0; border-radius: 9px; background: none; color: var(--on-toast); opacity: .72; cursor: pointer; -webkit-tap-highlight-color: transparent; }
