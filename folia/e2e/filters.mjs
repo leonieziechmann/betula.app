@@ -154,10 +154,15 @@ check(await page.evaluate(() => onPage("#filters").__same === true), "the filter
 
 // Esc closes the picker and nothing else: the preview stays.
 await step("open a preview", () => page.click("a.row >> visible=true >> nth=2"), () => location.search.includes("open=") && onPage(".detail h2"));
-await step("picker opens by keyboard", async () => { await page.focus("#pick-program >> visible=true"); await page.keyboard.press("ArrowDown"); }, () => document.activeElement?.id === "pick-program-search");
+// In the filters, a mode of the keyboard, ↓ goes on to the next filter, and Alt + ↓ opens the picker
+// (combobox.rs; folia/design/tastatur/konzept.html).
+await step("picker opens by keyboard", async () => { await page.focus("#pick-program >> visible=true"); await page.keyboard.press("Alt+ArrowDown"); }, () => document.activeElement?.id === "pick-program-search");
 check((await active()) === "Informatik", `picker: reopened at "${await active()}" instead of the selected program`);
 await step("picker: Esc closes it", () => page.keyboard.press("Escape"), () => !onPage(".combo-pop") && document.activeElement?.id === "pick-program");
 check((await param("open")) !== "", "picker: Esc also closed the module preview");
+// Esc in the filters leads out into the list (a mode of the keyboard: folia/design/tastatur/
+// konzept.html), the next one closes the module beside it.
+await step("Esc leaves the filters for the list", () => page.keyboard.press("Escape"), () => Boolean(document.activeElement?.closest(".rows")) && location.search.includes("open="));
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => !location.search.includes("open="));
 
@@ -204,14 +209,19 @@ await page.mouse.move(at(6), track.y + track.height / 2, { steps: 8 });
 await step("slider: letting go filters", () => page.mouse.up(), () => new URL(location.href).searchParams.get("ects_min") === "6");
 check((await page.inputValue('#filters input[name="ects_min"]')) === "6", "slider: the number field does not follow");
 await page.focus("#filters .slider input >> visible=true >> nth=1");
-await step("slider: arrow key on the upper thumb", () => page.keyboard.press("ArrowLeft"), () => new URL(location.href).searchParams.get("ects_max") === "29");
-// The upper thumb cannot pass the lower one.
+// − and + change a knob, the arrows go on from it (folia/design/tastatur/konzept.html; owner,
+// 2026-10-20: „Mach mal +- als inc und dec und die pfeiltasten für die navigation").
+await step("slider: − on the upper thumb", () => page.keyboard.press("-"), () => new URL(location.href).searchParams.get("ects_max") === "29");
+await page.keyboard.press("ArrowLeft");
+check((await page.evaluate(() => document.activeElement === allOnPage("#filters .slider input")[0])) && new URL(page.url()).searchParams.get("ects_max") === "29", "slider: ← on the upper thumb changed it instead of going to the lower one");
+// The upper thumb takes the lower one along where it passes it (the same concept: „Kommt ein Regler
+// über den anderen, nimmt er ihn mit").
 await page.mouse.move(at(29), track.y + track.height / 2);
 await page.mouse.down();
-await page.mouse.move(at(2), track.y + track.height / 2, { steps: 8 });
-await step("slider: thumbs do not cross", () => page.mouse.up(), () => new URL(location.href).searchParams.get("ects_max") === "6");
+await page.mouse.move(at(4), track.y + track.height / 2, { steps: 8 });
+await step("slider: a thumb takes the other along", () => page.mouse.up(), () => { const p = new URL(location.href).searchParams; return p.get("ects_max") === "4" && p.get("ects_min") === "4"; });
 await step("slider: typed numbers", async () => { await page.fill('#filters input[name="ects_max"] >> visible=true', "12"); await page.keyboard.press("Tab"); }, () => new URL(location.href).searchParams.get("ects_max") === "12");
-check((await page.textContent("#filters .fgroup:has(.slider) .flabel span >> visible=true")) === "6–12 LP", "slider: the summary does not say 6–12 LP");
+check((await page.textContent("#filters .fgroup:has(.slider) .flabel span >> visible=true")) === "4–12 LP", "slider: the summary does not say 4–12 LP");
 
 // ---- width of the panel: dragged, limited, remembered outside the URL
 const width = () => page.evaluate(() => Math.round(onPage("#filters").getBoundingClientRect().width));

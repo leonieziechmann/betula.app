@@ -36,7 +36,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `client/` | The browser app (WASM): `app` with feature `csr`, asking the data worker. Not a default workspace member (its `csr` would be unified with the server's `ssr`); built by `folia/scripts/build-client.sh` into `site/pkg`. |
 | `worker/` | The data worker (WASM, no Leptos) and its script: the catalog in sql.js, every question of the app's pages answered beside the page's thread; built with the client. |
 | `server/` | axum: snapshot client, HTML cache, the app's routes, `/api/db`, `/api/status`, `/healthz`, assets, the drawn cards. |
-| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 dashed and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `programs.mjs`, `bookmarks.mjs`, `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `selection.mjs` (several modules at once on the Merkliste: Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, „Module hinzufügen" with „Merkliste" by collection and search, the Gesamtplan's cell, the three tabs on a phone, the Stundenplan's „Aus der Merkliste" with „passt", the folded summer's, a collection taken over and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
+| `e2e/` | `crawl.mjs` (the server-rendered site, no browser), `spa.mjs` (the browser app: takeover, no page loads, preview, filters, the virtual list, search), `search.mjs` (the search of the catalog: typos, relevance, what is meant first and marked, a lecturer written another way, what the filters leave out, „Ähnliche Module“), `typing.mjs` (typing in the search: its questions in the data worker, how long the keys wait), `filters.mjs`, `module.mjs`, `courses.mjs` (a module held at two campuses: every course in its colour, Mein Studiengang's alone with „Auch zeigen", another program's highlighted, the Stundenplan's line naming the course), `choices.mjs` (a module's choices and extras: the exercises of HM T3 dashed and Mein Studiengang's taken with „Auch zeigen", the Aufbaukurs dotted, the groups of Musiktheorie, the 14 projects of Berufspraktische Profilierung in the list alone, the catalog's row; the Stundenplan with HM T3: the choice open, made with „✓" and opened again, „Zusatz", Bauingenieurwesen's exercise preselected and another taken in the panel), `programs.mjs`, `bookmarks.mjs`, `arrows.mjs` („Knopf mit Pfeil": a row's arrow beside its bookmark and ⇧M, S and N gone, M with Caps Lock, a module's arrows marked or not, ⇧P and „Einplanen in …" — at its switch beside the rail, a semester chosen, „Rückgängig" —, the planned arrow's menu, ⌘ on a Mac), `tastatur.mjs` (the keyboard of the catalog and of what is global, R24: ↓ into the list at the open module, F into the filters with their ring, „Esc zum Verlassen" and the lit section, Tab from section to section opening „Weitere Filter" and stopping at either end, the arrows across the filters, + − Entf at a chip and the bar that names them, the bubble „Finden" with its marks, a typo, Enter, Shift + Enter and Esc, the knobs of the credits — + − Bild ↓ Ende, one taking the other along, a digit's field, the arrows going on —, ← → at an option group, Esc out into the list, Tab round the content and back to its row, V and Enter on the open row in full, Ctrl + F6 from region to region, the rail as one stop, Esc in the search, ? and the overview with its switch for the single keys, „Strg + K" on a PC and „⌘K" on a Mac), `selection.mjs` (several modules at once on the Merkliste: Ctrl, Shift, drawn with the mouse, the keys, the bar's „Sammlung", „Einplanen", „Teilen" and „Entfernen" with „Rückgängig", a row's menu, a finger held on a phone), `share.mjs` („Weitergeben": a collection's „Teilen" with its head, „Link kopieren", „Notizen mitnehmen", the text with each module's link; its link on another device kept as a collection, again with the notes under „Anderer Name …", which refuses a name there is; the whole list for a third device with every collection and note; the selection's link of modules alone; nothing of it in a request), `everywhere.mjs` (the Merkliste from elsewhere: the tab's menu of its views, the catalog's „Gemerkt" per collection and „nicht in …", „Mein Studium"'s Wahlpflicht with the marked module first, „Module hinzufügen" with „Merkliste" by collection and search, the Gesamtplan's cell, the three tabs on a phone, the Stundenplan's „Aus der Merkliste" with „passt", the folded summer's, a collection taken over and „Rückgängig", nothing of it in a request), `phone.mjs` (the phone layout: the sheet, the pickers, the screen's keyboard, the list, a module's sheet from below, a tab held), `back.mjs` (Back on a phone as Android and an iPhone have it and on a wide screen: what lies over a page, the semester of „Mein Studium", the filters' draft, a module closed, a stack for each tab, the profile as a page of a while, a link from outside), `stages.mjs` (the tabs that stay built: a tab seen before in the next frame as it was left, scrolled as far, the title and the tags of the page in front), `achse.mjs` (a change of tab on a phone, the pages on an axis: a tap, Back to Start, taps on the way, a finger along the bar, the ground and the dots with their page, less motion, a wide screen), `swipe.mjs` (a row of the catalog and of the Merkliste swiped on a phone: „Merken", „Einplanen"), `plannote.mjs` („Einplanen" as concept E has it: the dialog for a study not set up, the note with ‹ ›, ← →, „Weitere Module auch nach …" and „Rückgängig", the arrow's menu — passed and back, moved, ⇧P and its keys, taken out —, a row swiped on a phone), `studyplan-phone.mjs` (the Stundenplan's week on a phone), `study.mjs` („Mein Studium": the first visit, the areas, the semester at the top of its box and the list of the semesters at its name, the box the catalog's list staying at the top, the rows as the catalog's with their status, the rows' menus, selecting several without boxes, adding, moving and taking out, the Gesamtplan, the views — the Regelstudienplan with „Einplanen" and „Rückgängig", „Wählen" into the Wahlpflicht and a module of a list planned —, the phone — its row of pages, the way back with the first move off the overview, the tab and the way back while the row flings, a module's sheet over a semester, the views as pages of their own, „Studiengang wechseln" with the screen's keyboard —, the Stundenplan's import), `home.mjs`, `snappy.mjs` (a click answering in the next frame, skeletons), `top.mjs` („Nach oben"), `languages.mjs` (the app in English, `docs/folia/i18n.md`), `profile.mjs` (the profiles and their page: a new profile's own keys, a switch here and in another tab, renaming, emptying and deleting with „Rückgängig“, the menu of the profiles at the rail's way and the phone's box with „Neues Profil“, the profile page on top of the list it was opened from and its arrow back to it, light, dark or the system's with the browser's chrome and the manifest, a profile as a file and back, the phone), `schema.mjs` (a local copy of the catalog of an older schema, with and without a network), `worker.mjs` (the data worker: no catalog on the page's thread, no blank moment at the takeover, one download for two tabs, a newer snapshot shown in place), `takeover.mjs` (nothing moves at the takeover: the server's page, the picture in front of the app and the app's page box for box, on a phone and a wide screen, at the top and scrolled down), `smoke-walk.js` + `run.mjs` (long program walk), `shot.mjs` (review screenshots). All use an installed Edge through `playwright-core`; without one, `node --import ./chromium.mjs <check>.mjs` runs a check in Playwright's Chromium or in the browser `SMOKE_BROWSER_PATH` names. |
 
 ### Routes (`folia/crates/routes/src/url.rs`)
 
@@ -3716,12 +3716,21 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   server renders them empty, and they are applied after the takeover, never during the first
   render; so do the passed modules of „Mein Studium".
 - **R10. Shortcuts are written next to their button** (`kbd`): Esc closes the filter sheet or the
-  module preview and, on a module's own page, goes back to where the visitor came from; `F` opens
-  the previewed module full screen; ↑/↓ move through the list (rows are links, so this is just
+  module preview and, on a module's own page, goes back to where the visitor came from; `V` opens
+  the previewed module full screen, and so does Enter on its row (until Folia 1.42.0 `F`, which
+  now leads into the filters: R24); ↑/↓ move through the list (rows are links, so this is just
   focus) and Enter opens the selected row; Ctrl+K or `/` jumps to the search; in the app `M` marks
   and `P` plans the module one is at, ← and → move it while the note of what it planned stands, and
   Esc puts the note away („„Einplanen" plans at once, and a note says where"). Every view is a real
-  history entry, so the browser's back always works too.
+  history entry, so the browser's back always works too. Keys are written as `folia_design::keys`
+  writes them (owner, 2026-10-20: „Mach das in general, dass kombis mit + zwischen den keys
+  angezeigt wird oder halt mit icon wie bei apple typisch"): a spec („V", „Esc", „Mod+K",
+  „Shift+Enter") becomes key caps, each key a cap with „+" between them on Windows and Linux
+  („Strg + K"), the Mac's signs in one cap on a Mac („⌘K", „⇧↩"); `ui::Shortcut` and `keys::Keys`
+  write both and the stylesheet shows the system's. Betula's single keys (F, V, M, P, /, ?, with
+  Shift as well) can be switched off (WCAG 2.1.4; `keys::LettersSwitch` in the overview of the
+  keys and on the profile page, `betula.letters.v1`, the root's `data-letters`): then they do
+  nothing, and their hints (`.k-letter`) are gone.
   No action is a key's alone (owner, 2026-10-20: „ein No-Go, dass Aktionen nur über Shortcuts
   erreichbar sind … das, was Betula selbst macht, soll als Komponente da sein, welche auch per
   Button bedient werden kann"): a key is a quicker way to a button or an entry of a menu that is
@@ -3904,6 +3913,61 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   a value is the browser's: make it only with the feature `csr` and leave it `None` on the
   server, as `Pending`'s own part and `nav::watch_size` do; what the server renders stays the
   same.
+- **R24. The keyboard is a system of regions** (folia/design/tastatur/konzept.html; owner,
+  2026-10-20: „Ja setzt das konzept jetzt mal in die tat um … Du kannst aber schon mal systeme
+  entwickeln, dass man das da dann auch einheitlich und zügiger implementieren kann"; Folia
+  1.42.0, the module catalog and what is global). A page says what its parts are, in attributes,
+  and enhance.js („the keyboard") gives them their keys; Rust only writes the markup and the keys a
+  control has itself. To make a page keyboard-ready:
+  - **Regions** (`data-region`): `nav` (the rail and a phone's bar, `chrome.rs`), `search` (the top
+    bar's form), `side` (a page's sidebar: the catalog's filters), `content` (the page's own part:
+    the catalog's `#catalog-scroll`). Ctrl + F6 goes from one to the next and round (Shift: back;
+    F6 alone stays the browser's), F leads into `side` (a sheet opens first), / and Ctrl + K into
+    the search, ↓ from the search and Esc from the search or the navigation into the content's
+    list.
+  - **A mode** (`data-mode` on a region; only the sidebar, owner, the same day: „Ich will nur die
+    sidebar (z.B. filter) mit label und rahmen hervorgehoben haben um das als mode zu
+    visualisieren bei dem rest soll das nicht passieren"): while the keyboard is in it, after a key
+    and until the mouse (the root's `data-kb`), it wears the black ring of a chosen tab and the tag
+    „Esc zum Verlassen" on it (fixed to the window, over the edge the page's scroll area cuts off).
+    Its parts are `data-section`s (`role="group"` with `aria-labelledby` or `aria-label`; `plain`
+    for its head, which is never lit and never where F lands): Tab goes to the start of the next
+    one (an option group at its chosen option), Shift + Tab to the one before, and at either end
+    the focus only nudges (`data-bump`) and a screen reader hears once in a while where it is and
+    the way out (the region's `aria-describedby`). The arrows go from control to control across the
+    sections, ↑ ↓ by where the controls stand (keeping the column), ← → in reading order; at an
+    option group (`role="radiogroup"`) ← → choose. A `<details>` section opens as the keyboard goes
+    past its head. The section with the keyboard is lit as the open row of a list is
+    (`data-kb-current`). Letters and digits typed open the green bubble „Finden": it marks what
+    matches (the CSS Custom Highlight API, nothing in the page changed), sections and options by
+    their names, forgives a typo as the catalog's search does but only where nothing matches as
+    typed (`folia_search::fuzzy::typos_at_start`, written again in JavaScript), and scrolls the
+    target into the middle once the typing rests; ↑ ↓ go from match to match, Enter sets a chip to
+    „mit" and Shift + Enter to „ohne", Tab only goes there, Esc goes back. A bar at the foot names
+    what no button carries, only at the control the keyboard is at (`.key-bar`: a chip + − Entf, an
+    option group ← →, a knob + − and the digits, the bubble ↑ ↓ Enter Shift + Enter). Esc or a click
+    leads out, into the content's list. A picker in a mode opens with Alt + ↓ or Enter
+    (`combobox.rs`); a field that stands for a control where the arrows go carries `data-kb-as`.
+  - **Stops** (`data-stop` with its axis, `x`, `y` or `xy`): a group that is one stop of the Tab
+    key (the rail, the list's rows, the heads of the columns, a module's buttons), entered where
+    the keyboard was last in it (a row known again by its `data-id`), else at the current one
+    (`aria-current`, `aria-selected`), else the first in view; its arrows go from one to the next.
+    A mode is one stop seen from outside, entered where the keyboard was last in it.
+  - **A cycle** (`data-cycle` on the content): Tab goes round within it, past the regions inside it
+    (owner, the same day: „so dass man mit n mal tab dann wieder beim content landet").
+  - **The keys of a control are its own**, in Rust: a chip's + − Entf (`Toggle::on_key`), the
+    knobs' + − Bild ↑ ↓ Pos1 Ende and a digit (`Credits`); what they take (`preventDefault`)
+    enhance.js leaves alone.
+  - **The overview** (`folia_shell::keys`): the rail's button „Tasten" and `?` open it, the group of
+    where the keyboard was first; a page with keys of its own adds its groups to `keys::groups` and
+    their rows to the shell's texts (`i18n/keys.rs`).
+  - **The list** is a list box (`Row`'s `position`: `role="option"`, its place, the open one
+    selected; its buttons beside the link are the mouse's and hidden from screen readers), and what
+    a screen reader hears when it changes is a status of the count outside it, not the whole list.
+    A row the page builds anew (a virtual list reordering its rows) gets the keyboard back by its
+    `data-id`.
+  Not yet: the commands (Ctrl + K as a palette), the keys of „Mein Studium", the Merkliste and the
+  Stundenplan, Shift + F10, Ctrl + C and Ctrl + Z in a list (steps 5 and 6 of the concept).
 
 ## 3. Running it
 
@@ -5049,6 +5113,29 @@ and keep their default, and so do the keys while a modal dialog is open. On Wind
 and keeps its own; Ctrl and Alt (AltGr) do nothing. On a Mac ⌃⌥, „⌃ + ⌥ + 1", while ⌥ or ⌘ with a
 digit do nothing; in English „Ctrl + Alt + 1". Where the app does not start, Ctrl+Alt+3 loads the
 page of „Studium".
+
+```bash
+cd e2e && node tastatur.mjs
+```
+
+drives the keyboard of the catalog and of what is global (R24, folia/design/tastatur/konzept.html)
+on a wide screen: ↓ with the keyboard nowhere goes to the open module's row, an option of a list
+box with its place; F goes to the program picker in the filters, which wear the black ring and
+„Esc zum Verlassen" and light the section; Tab goes from section to section, each once, opens
+„Weitere Filter" on its way, and at „Standort" and at „Zurücksetzen" stays in the filters with a
+nudge; ↓ from „Klausur" goes to „Hausarbeit", → on to „Vortrag", and the bar names + − Entf; +, −
+and Entf set „Vortrag" with, without and off; „engl" opens the bubble with 1/1, marks „Englisch"
+and Enter sets it, „vorlseung" is forgiven as „ähnlich" and Shift + Enter leaves „Vorlesung" out, Esc
+takes the keyboard back where the typing began; at the credits + makes 1, → goes to the upper knob,
+Bild ↓ makes 25, Ende at the lower knob takes the upper one along, a digit opens the field for the
+number and „12" Enter takes it, ↓ goes on and leaves the knob as it was; → at „Dauer" chooses
+„1 Semester"; Esc leads into the list and the ring goes; Tab goes round the content, never into
+the filters, and comes back to the row it left (also from the page's foot, far down the list);
+Enter on the open row and V open the module in full; Ctrl + F6 goes navigation, search, filters,
+content; the rail is one stop whose ↓ goes to the next tab, Tab leads to the search and Esc there
+into the list; ? opens the overview with „In der Liste" marked, its switch turns the single keys
+off, and then F does nothing and „F" is gone from the head of the filters. On Linux the search
+names „Strg + K", on a Mac „⌘K". On the synthetic catalog as on the real one.
 
 ## 5. Not done yet
 

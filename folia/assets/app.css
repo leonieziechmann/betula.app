@@ -362,7 +362,10 @@ span.js-only { display: contents; }
 
 /* ---------- frame ---------- */
 /* The view is as high as the window; less what shows of the ground (see „the birch"). */
-.main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap) var(--gap) var(--gap) 0; min-width: 0; height: 100vh; }
+/* As far from the rail as from the window's edges and from one panel to the next (owner,
+   2026-10-20: „die sidepane links zu nah an der nav bar ist und deswegen die border abgeschnitten
+   wird"). */
+.main { position: relative; grid-column: 2; grid-row: 1; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--gap); padding: var(--gap); min-width: 0; height: 100vh; }
 .topbar { display: flex; align-items: center; gap: var(--gap); height: 40px; }
 /* The way back of a page or of its step and the way to the profile page at the head, a phone's
    (chrome.rs `TopBack`, `ProfileButton`). */
@@ -469,7 +472,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    leaves lie on its edge, in the gap above it. As it stands here it lies after the view, and the
    window scrolls to it: so it follows the page on a phone. On a wide screen every page has its own
    at the end of its scroll area instead („one scroll area"). */
-.ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap) 0; min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
+.ground { position: relative; z-index: 1; grid-column: 2; grid-row: 2; margin: 0 var(--gap) var(--gap); min-height: var(--ground-h); border-radius: 12px; background: var(--ground); color: var(--ground-text); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ground-text) 6%, transparent); }
 .ground::before { content: ""; position: absolute; inset: 0; border-radius: inherit; background: var(--ground-root); -webkit-mask: url("/assets/birch/roots.svg") repeat-x left top; mask: url("/assets/birch/roots.svg") repeat-x left top; pointer-events: none; }
 .ground::after { content: ""; display: none; position: absolute; left: 0; right: 0; top: -12px; height: 24px; background: var(--crown); -webkit-mask: url("/assets/birch/litter.svg") repeat-x left top; mask: url("/assets/birch/litter.svg") repeat-x left top; pointer-events: none; }
 :root[data-season="autumn"] .ground::after { display: block; }
@@ -521,7 +524,9 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
    area has 1 px above and below the panels for their ring: they end where they ended before, 8 px
    above the window's edge; `100vh - 64px` is the height of a pinned panel (56 px above, 8 below). A
    sticky `top: 0` already stands inside the area's 1 px of padding. The scrollbar stands in the
-   8 px right of the page (`--bar`, its width, enhance.js), not beside them (owner, 2026-09-30). */
+   8 px right of the page (`--bar`, its width, enhance.js), not beside them (owner, 2026-09-30). The
+   8 px left of the page, between it and the rail, are the area's too (owner, 2026-10-20: the
+   panel's edge was cut off at the rail), so that what a panel draws around its edge shows. */
 .work > .ground { display: none; }
 .ground-cap { display: none; }
 @media (min-width: 901px) {
@@ -532,7 +537,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .work.flowing {
     display: grid; grid-template-columns: var(--filters) minmax(0, 1fr); grid-template-rows: max-content var(--ground-h);
     --pad-r: max(0px, calc(var(--gap) - var(--bar, 0px)));
-    height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)) -1px 0; padding: 1px var(--pad-r) 1px 0;
+    height: calc(100% + 2px); margin: -1px calc(-1 * var(--gap)); padding: 1px var(--pad-r) 1px var(--gap);
     overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: none; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
   }
   /* The page in front alone names the timeline the wood rises on: a name two pages give is no
@@ -546,7 +551,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     mask-image: linear-gradient(#000 0 0), radial-gradient(circle at 10px 10px, transparent 9.6px, #000 10.4px), radial-gradient(circle at 0 10px, transparent 9.6px, #000 10.4px);
     mask-origin: border-box, border-box, content-box; mask-clip: border-box;
     mask-size: 100% 100%, 10px 10px, 10px 10px; mask-repeat: no-repeat;
-    mask-position: 0 0, calc(var(--filters) + var(--gap) - 1px) 0, right -1px top -1px;
+    mask-position: 0 0, calc(var(--filters) + 2 * var(--gap) - 1px) 0, right -1px top -1px;
     mask-composite: subtract, add, add;
   }
   .work.flowing:focus { outline: none; }
@@ -603,7 +608,7 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* The ground as the end of the page, on a band in the wood's front colour from 8 px above it
      and across the whole area (to the scrollbar): over the pinned panels, under the ground. */
   .work.flowing > .ground { display: block; position: relative; z-index: 20; grid-column: 1 / -1; grid-row: 2; height: var(--ground-h); min-height: 0; margin: 0; }
-  .work.flowing::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 0; background: var(--wood-front); pointer-events: none; }
+  .work.flowing::after { content: ""; position: relative; z-index: 19; grid-column: 1 / -1; grid-row: 2; margin: calc(-1 * var(--gap)) calc(-1 * var(--pad-r)) 0 calc(-1 * var(--gap)); background: var(--wood-front); pointer-events: none; }
   /* Once the area stands still with the ground up (`data-rest`, enhance.js), the panels it cut off
      end where their content ends, 8 px above it, with round corners as the end of the list has
      (owner, 2026-10-04: „die Ecken abrunden, wenn der Footer oben ist"); while it moves they are
@@ -899,6 +904,95 @@ html:not(.js) .fit-chip { display: none; }
 .app .filter-actions .show { display: inline-flex; }
 .js .filter-actions { display: none; }
 .sheet-toggle, .sheet-close { display: none; }
+/* The head of the filters names the key that leads in (R10): „Filter F". */
+.panel-title { display: flex; align-items: center; gap: 8px; min-width: 0; margin-right: auto; }
+.panel-head .panel-title h2 { margin-right: 0; }
+.panel-title kbd { padding: 2px 6px; }
+/* The sections of the filters that are no group of their own (`catalog.rs`): a label and its
+   controls, in a group („Modulart", „Bereich" …) or in „Weitere Filter". */
+.fgroup:not(.more) > .fsub + .fsub { margin-top: 12px; }
+
+/* ---------- the keyboard (enhance.js „the keyboard"; folia/design/tastatur/konzept.html) ----------
+   Keys as Betula writes them (`folia_design::keys`): on a PC each key a cap with „+" between them,
+   on a Mac one cap of its signs (`.k-pc`, `.k-mac`). The single keys of Betula's own (`.k-letter`)
+   go with the switch that turns them off (`data-letters="off"`, WCAG 2.1.4). */
+.kk { display: inline-flex; align-items: center; white-space: nowrap; }
+i.plus, i.alt { font-style: normal; font-weight: 600; color: var(--text-3); font-size: 11px; }
+i.plus { margin: 0 3px; }
+i.alt { margin: 0 5px; }
+.ghost .kk { margin-left: 2px; }
+.ghost .kk kbd { padding: 2px 6px; }
+:root[data-letters="off"] .k-letter { display: none !important; }
+/* A mode with the keyboard in it (the filters): the black ring of a chosen tab, and on it the way
+   out, after a key only and until the mouse (`data-kb`; owner, 2026-10-20: „Ich will nur die
+   sidebar (z.B. filter) mit label und rahmen hervorgehoben haben um das als mode zu visualisieren").
+   The tag stands over the top edge, on the page itself (what scrolls the page cuts off whatever of
+   the panel stands above it), placed by enhance.js. */
+:root[data-kb] [data-mode]:focus-within { outline: 2px solid var(--invert); outline-offset: -1px; }
+.mode-tag { position: fixed; z-index: 30; top: 0; left: 0; display: none; align-items: center; gap: 5px; padding: 2px 8px 2px 7px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; pointer-events: none; }
+.mode-tag kbd { padding: 0 5px; background: color-mix(in srgb, var(--on-invert) 18%, transparent); color: inherit; box-shadow: none; font-size: 10.5px; }
+:root[data-kb] .mode-tag[data-on] { display: inline-flex; }
+/* The section with the keyboard is lit as the open row of a list is (owner, 2026-10-20: „mit der bg
+   color und dem Seitenstreifen"): its ground and the stripe in the accent, drawn around it without
+   moving anything (`--sec-t`, `--sec-b`: how far above and below). Of „Weitere Filter" its head. */
+/* No layer of its own (a picker's popup in it has to stand over the sections after it): the lit
+   ground lies under the section's content in the panel's layer. */
+[data-mode] [data-section] { position: relative; --sec-t: -6px; --sec-b: -6px; --sec-x: -10px; }
+[data-mode] .fgroup[data-section] { --sec-t: 3px; --sec-b: -7px; }
+[data-mode] details[data-section] > summary { position: relative; }
+:root[data-kb] [data-mode] [data-kb-current]:not(details)::before,
+:root[data-kb] [data-mode] details[data-kb-current] > summary::before { content: ""; position: absolute; z-index: -1; top: var(--sec-t); bottom: var(--sec-b); left: var(--sec-x); right: var(--sec-x); border-radius: var(--r-row); background: var(--panel-3); }
+:root[data-kb] [data-mode] [data-kb-current]:not(details)::after { content: ""; position: absolute; z-index: -1; left: calc(var(--sec-x) + 4px); top: calc(var(--sec-t) + 10px); bottom: calc(var(--sec-b) + 10px); width: 3px; border-radius: 3px; background: var(--accent); }
+:root[data-kb] [data-mode] details[data-kb-current] > summary { --sec-t: -5px; --sec-b: -5px; }
+:root[data-kb] [data-mode] [data-kb-current] .seg { background: color-mix(in oklab, var(--text) 9%, var(--panel)); }
+:root[data-kb] [data-mode] [data-kb-current] .slider::before { background: var(--line-strong); }
+/* At either end of a mode Tab and the arrows stop; the focus only nudges (no note: owner,
+   2026-10-20, „das checkt man auch selbst"). */
+[data-mode][data-bump="end"] :focus-visible { animation: kb-nudge-down .32s var(--ease); }
+[data-mode][data-bump="start"] :focus-visible { animation: kb-nudge-up .32s var(--ease); }
+@keyframes kb-nudge-down { 45% { transform: translateY(3px); } }
+@keyframes kb-nudge-up { 45% { transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { [data-mode][data-bump] :focus-visible { animation: none; } }
+/* Finding in a mode: a green bubble at the top right, which typing opens; what matches marked as
+   the search marks a module (a highlight of the text), the target outlined. */
+.find-bubble { position: absolute; z-index: 8; top: 50px; right: 10px; display: none; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 8px; background: var(--accent); color: var(--on-accent); font-size: 11.5px; font-weight: 600; box-shadow: var(--shadow-pop); }
+.find-bubble[data-on] { display: inline-flex; }
+.find-bubble input { width: 1.6ch; max-width: 18ch; height: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: 650 12px/1 var(--mono); outline: none; caret-color: currentColor; }
+.find-bubble input:focus-visible { outline: none; }
+.find-note { opacity: .8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.find-note:empty { display: none; }
+::highlight(find-hit) { background-color: var(--hit); }
+.chip[data-state="with"] .chip-label::highlight(find-hit) { background-color: color-mix(in srgb, #f0c14b 55%, transparent); }
+::highlight(find-like) { text-decoration: underline dotted 2px var(--warn); }
+[data-find-target=""] { outline: 2px dashed var(--accent); outline-offset: 2px; }
+/* The bar at the foot of a mode: only what no button carries, at the control the keyboard is at. */
+.key-bar { display: none; flex: none; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--panel-2); border-radius: 0 0 var(--r-panel) var(--r-panel); color: var(--text-2); font-size: 11.5px; }
+.key-bar > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.key-bar kbd { padding: 1px 5px; font-size: 10.5px; }
+:root[data-kb] [data-mode]:focus-within > .key-bar[data-on] { display: flex; }
+/* The field for a number above a knob of the credits, which a digit opens (catalog.rs `Credits`). */
+.slider .lp-edit { position: absolute; z-index: 7; bottom: calc(100% + 2px); left: clamp(32px, calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at, 0)), calc(100% - 32px)); transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 3px 7px 3px 3px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-pop), 0 0 0 2px var(--accent); color: var(--text-3); font-size: 11px; font-weight: 650; }
+.slider .lp-edit input { position: static; width: 36px; height: 22px; border: 0; border-radius: 5px; background: var(--panel-2); color: var(--text); font: 600 13px/1 var(--mono); text-align: center; appearance: auto; pointer-events: auto; outline: none; }
+/* The overview of the keys (folia/crates/shell/src/keys.rs): what they do everywhere and at the
+   page's places, where the keyboard was first; the switch for the single keys under them. */
+.st-dialog.keys-dialog { width: min(800px, calc(100vw - 48px)); }
+.keys-body { display: grid; gap: 18px; }
+.keys-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px 26px; align-items: start; }
+.keys-group h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
+.keys-here { padding: 1px 6px; border-radius: 5px; background: var(--accent); color: var(--on-accent); font-size: 10.5px; letter-spacing: .02em; text-transform: none; }
+.keys-group dl { display: grid; gap: 6px; margin: 0; }
+.keys-row { display: grid; grid-template-columns: minmax(104px, auto) minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: 13px; line-height: 1.4; }
+.keys-row dt { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 0; }
+.keys-row dt kbd { padding: 2px 6px; }
+.keys-row dd { margin: 0; color: var(--text-2); }
+.nav-combo::before { content: var(--nav-keys, ""); }
+.keys-letters { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.keys-letters .seg, .pf-setting .letters-seg { max-width: 260px; margin: 0; }
+.keys-letters-hint { color: var(--text-3); font-size: 12.5px; line-height: 1.5; }
+/* The rail's button for the overview: `?` beside it while the navigation's keys are held, as the
+   tabs show their digits. */
+.hold-key { display: none; }
+:root[data-nav-keys] .keys-btn .hold-key { position: absolute; left: calc(100% + 10px); top: 50%; display: block; padding: 4px 7px; white-space: nowrap; border-radius: var(--r-s); background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 11.5px; line-height: 1.25; transform: translateY(-50%); animation: nav-key-in .1s ease-out; }
 
 /* What stands above the rows scrolls with them (`List`): the note of a semester scrolls away, the
    heads of the columns stay at the top while the rows scroll under them (owner, 2026-09-23: the
@@ -3942,7 +4036,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .main { position: static; display: block; flex-grow: 1; height: auto; min-height: 100vh; min-height: 100lvh; margin: 0; padding: 0; }
   /* The crown carries the bar's frosted ground (see „the birch"), so the bar itself lets it through. */
   .topbar { position: sticky; top: 0; z-index: 21; height: auto; padding: 20px 12px 10px; }
-  .crumb, .top-end, kbd { display: none; }
+  .crumb, .top-end, kbd, .kk { display: none; }
   .dlg-close { width: 40px; height: 40px; padding: 0; justify-content: center; }
   .dlg-close-word { display: none; }
   .brand-phone { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }

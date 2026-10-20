@@ -141,8 +141,8 @@ const movedSince = (page, mark) => page.evaluate((mark) => {
   await page.waitForTimeout(700);
   await page.click(".vrow a.row >> nth=4");
   await page.waitForFunction(() => /[?&]open=/.test(location.search) && document.querySelector('.work > .detail [data-action="fullscreen"]'), null, { timeout: 8000 }).catch(() => problems.push("the module did not open beside the list again"));
-  await page.keyboard.press("f");
-  await page.waitForFunction(() => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page"), null, { timeout: 8000 }).catch(() => problems.push("F did not open the module's page"));
+  await page.keyboard.press("v");
+  await page.waitForFunction(() => location.pathname.startsWith("/catalog/module/") && document.querySelector(".module-page"), null, { timeout: 8000 }).catch(() => problems.push("V did not open the module's page"));
   await page.waitForTimeout(500);
   b = await button(page);
   check(!b.shown && !b.seen, `the module's page starts with the button of the list: ${JSON.stringify(b)}`);

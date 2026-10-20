@@ -207,6 +207,7 @@ td .same { color: var(--text-3); }
 .steps h3 { font-size: 15px; }
 .steps p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
 .steps .size { align-self: flex-start; margin-top: auto; padding: 1px 8px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12.5px; font-weight: 650; }
+.steps .size.done { margin-top: 0; background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1px var(--accent-line); }
 
 /* The questions. */
 .ask { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; counter-reset: ask; }
@@ -1225,13 +1226,13 @@ td .same { color: var(--text-3); }
     <h2 id="steps-title">In sieben Schritten</h2>
     <p class="lead">Jeder Schritt ist für sich nützlich. Der erste ändert keine Taste und hilft allen, auch mit Screenreader.</p>
     <ol class="steps">
-      <li><h3>Halte und Gruppen</h3><p>Ein Abschnitt der Filter, die Liste, die Knöpfe eines Moduls: je ein Halt. Gruppen mit Namen, die Liste als Listenfeld mit Position, Esc führt in die Liste, eine Meldung statt der Live-Region auf der Liste.</p><span class="size">mittel</span></li>
-      <li><h3>Bereiche sichtbar</h3><p>Der Rahmen mit dem Ausgang außerhalb der Liste, der unterlegte Abschnitt, die Leiste der Filter; Tab bleibt im Bereich (unten Schluss, im Inhalt rundherum); <kbd>F</kbd> in die Filter, <kbd>V</kbd> Vollbild, <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>F6</kbd></span>.</p><span class="size">mittel</span></li>
-      <li><h3>Filter per Tastatur</h3><p>Die Pfeile über alle Abschnitte, <kbd>−</kbd> <kbd>+</kbd> <kbd>Entf</kbd>, die Blase „Finden“ mit Markierung und den Tippfehlern der Suche (<code>folia_search::fuzzy</code>), das Feld am Regler.</p><span class="size">mittel</span></li>
-      <li><h3>Hilfe</h3><p>Der Knopf „Tasten“ und <kbd>?</kbd> mit den Tasten des Ortes, Halten zeigt alle Tasten, der Schalter für die einzelnen Tasten im Profil.</p><span class="size">klein</span></li>
+      <li><h3>Halte und Gruppen</h3><p>Ein Abschnitt der Filter, die Liste, die Knöpfe eines Moduls: je ein Halt. Gruppen mit Namen, die Liste als Listenfeld mit Position, Esc führt in die Liste, eine Meldung statt der Live-Region auf der Liste.</p><span class="size">mittel</span><span class="size done">umgesetzt in Folia 1.42.0</span></li>
+      <li><h3>Bereiche sichtbar</h3><p>Der Rahmen mit dem Ausgang außerhalb der Liste, der unterlegte Abschnitt, die Leiste der Filter; Tab bleibt im Bereich (unten Schluss, im Inhalt rundherum); <kbd>F</kbd> in die Filter, <kbd>V</kbd> Vollbild, <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>F6</kbd></span>.</p><span class="size">mittel</span><span class="size done">umgesetzt in Folia 1.42.0</span></li>
+      <li><h3>Filter per Tastatur</h3><p>Die Pfeile über alle Abschnitte, <kbd>−</kbd> <kbd>+</kbd> <kbd>Entf</kbd>, die Blase „Finden“ mit Markierung und den Tippfehlern der Suche (<code>folia_search::fuzzy</code>), das Feld am Regler.</p><span class="size">mittel</span><span class="size done">umgesetzt in Folia 1.42.0</span></li>
+      <li><h3>Hilfe</h3><p>Der Knopf „Tasten“ und <kbd>?</kbd> mit den Tasten des Ortes, Halten zeigt alle Tasten, der Schalter für die einzelnen Tasten im Profil.</p><span class="size">klein</span><span class="size done">zum Teil in Folia 1.42.0: Halten zeigt erst die Tasten der Navigation und ?</span></li>
       <li><h3>Befehle</h3><p>Der Knopf „Befehle“ und <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>K</kbd></span> mit Aktionen, Filtern, Modulen und Seiten, jede Zeile mit ihrer Taste.</p><span class="size">mittel</span></li>
       <li><h3>Die anderen Seiten</h3><p>„Mein Studium“, Merkliste und Stundenplan nach demselben Schema; <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>F10</kbd></span>, <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>C</kbd></span>, <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>Z</kbd></span> und <kbd>Entf</kbd> in jeder Liste. Der Knopf mit Pfeil kommt aus „Jede Taste hat einen Knopf“.</p><span class="size">groß</span></li>
-      <li><h3>Prüfen</h3><p>Eine Prüfung (<code>folia/e2e/tastatur.mjs</code>), die jede Seite nur mit der Tastatur durchgeht und die Halte zählt; dazu ein Durchgang mit NVDA und VoiceOver von Hand.</p><span class="size">klein</span></li>
+      <li><h3>Prüfen</h3><p>Eine Prüfung (<code>folia/e2e/tastatur.mjs</code>), die jede Seite nur mit der Tastatur durchgeht und die Halte zählt; dazu ein Durchgang mit NVDA und VoiceOver von Hand.</p><span class="size">klein</span><span class="size done">zum Teil in Folia 1.42.0: der Katalog, noch ohne den Durchgang von Hand</span></li>
     </ol>
   </section>
 

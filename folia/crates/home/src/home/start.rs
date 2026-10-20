@@ -193,7 +193,7 @@ pub fn StartPath() -> impl IntoView {
             <header class="block-head">
                 <h2 id="loslegen-titel">{home.start_heading}</h2>
                 <a class="ghost" href=t.path(url::CATALOG) data-action="search" title=home.search_now_title>
-                    <Icon name="search"/>{home.search_now}<Shortcut keys=t.common.search_shortcut/>
+                    <Icon name="search"/>{home.search_now}<Shortcut keys=folia_design::keys::SEARCH/>
                 </a>
                 <p>{home.start_lead}</p>
             </header>

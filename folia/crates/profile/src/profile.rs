@@ -558,6 +558,13 @@ fn Settings() -> impl IntoView {
                     }).collect_view()}
                 </div>
             </div>
+            // Betula's single keys (folia/design/tastatur/konzept.html, question 4), as in the
+            // overview of the keys (`folia_shell::keys`).
+            <div class="pf-setting">
+                <p class="label" id="pf-letters">{t.ui.letters}</p>
+                <folia_design::keys::LettersSwitch labelled_by="pf-letters"/>
+                <p class="pf-sub">{t.ui.letters_hint}</p>
+            </div>
         </section>
     }
 }

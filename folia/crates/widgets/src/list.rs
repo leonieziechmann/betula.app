@@ -177,6 +177,11 @@ pub fn Row(
     #[prop(optional, into)] selected: Option<Signal<bool>>,
     /// … and what a finger held still on it does (`crate::swipe`): the list selects it.
     #[prop(optional)] on_hold: Option<Callback<String>>,
+    /// Where the row stands in a list that is a list box (the catalog's; folia/design/tastatur/
+    /// konzept.html, „die Liste als Listenfeld mit Position"): its place from 1, and how many there
+    /// are. The row is an option of it then, the open one selected, and its buttons beside the link
+    /// are the mouse's (the keyboard has M and Shift + M), which a screen reader leaves out.
+    #[prop(optional)] position: Option<(usize, usize)>,
 ) -> impl IntoView {
     let t = i18n::t();
     let facts = Facts::of(Some(&row), t.locale);
@@ -216,7 +221,17 @@ pub fn Row(
     let is_selected = move || selected.is_some_and(|selected| selected.get());
     let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
     let link = view! {
-        <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
+        <a
+            class="row"
+            href=href
+            data-noscroll=""
+            data-id=row.id.clone()
+            aria-current=move || current.get().then_some("true")
+            role=position.map(|_| "option")
+            aria-posinset=position.map(|(at, _)| at.to_string())
+            aria-setsize=position.map(|(_, of)| of.to_string())
+            aria-selected=move || (position.is_some() && current.get()).then_some("true")
+        >
             <div class="t">
                 <b>{marked(&row.title, &marks.title)}{selected.map(|_| move || is_selected().then(|| view! { <span class="visually-hidden">{format!(" ({})", t.catalog.row_selected)}</span> }))}</b>
                 <small>
@@ -267,7 +282,7 @@ pub fn Row(
     };
     // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
     // stylesheet keeps its place at the end of the row, so nothing moves at the takeover.
-    let mark = APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row/> });
+    let mark = APP.then(|| view! { <MarkButton id=row.id.clone() title=row.title.clone() look=MarkLook::Row quiet=position.is_some()/> });
     match swipe {
         // What lies under the card comes while the row is swiped, before the card in the order of
         // the page, so the card covers it.
@@ -338,13 +353,14 @@ fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
 /// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,
 /// and the list of marked modules, whose tooltip says how it selects (`select`). ⇧M, which the
 /// tooltip names, is left out of the row (owner, 2026-10-20: „Sammlung sieht hier zu viel aus. Das
-/// sollte da weg."): its arrow beside the bookmark says it. The tooltip says ⌘ on a Mac.
+/// sollte da weg."): its arrow beside the bookmark says it. The tooltip says ⌘ on a Mac. M goes with
+/// the switch for single keys (`folia_design::keys::is_letter`, app.css `.k-letter`).
 #[component]
 pub fn ListKeys(#[prop(optional)] select: bool) -> impl IntoView {
     let t = i18n::t();
     let title = folia_design::ui::for_system(&if select { format!("{}. {}", t.catalog.keys_title, t.catalog.keys_select) } else { t.catalog.keys_title.to_string() });
     view! {
-        <span class="keys" title=title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span>
+        <span class="keys" title=title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}<span class="k-letter">" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span></span>
     }
 }
 /// Whether the phone layout is in use, kept up to date while the window changes its size. A list

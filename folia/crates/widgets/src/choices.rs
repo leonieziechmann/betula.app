@@ -158,6 +158,20 @@ impl Toggle {
         }
     }
 
+    /// What a key does at the chip (folia/design/tastatur/konzept.html, „Die Filter mit der
+    /// Tastatur"; owner, 2026-10-20): + wants the value, − leaves it out, Entf (or ⌫) switches it
+    /// off, and + or − once more switches it off again. A toggle without „ohne" takes − as off.
+    /// The space bar and Enter stay the click (`after`). `None` for any other key; the keys of the
+    /// number pad say „+" and „-" as well.
+    pub fn on_key(&self, key: &str, state: Tri) -> Option<Tri> {
+        match key {
+            "+" => Some(if state == Tri::With { Tri::Off } else { Tri::With }),
+            "-" if self.excludes => Some(if state == Tri::Without { Tri::Off } else { Tri::Without }),
+            "-" | "Delete" | "Backspace" => Some(Tri::Off),
+            _ => None,
+        }
+    }
+
     pub fn after(&self, state: Tri) -> Tri {
         match state {
             Tri::Off => Tri::With,
@@ -204,4 +218,28 @@ pub fn years_choices(locale: Locale) -> Vec<Choice> {
         Choice::new(t.catalog.even, |q| q.turnus.year_parity == Some(TurnusParity::Even), |q| q.turnus.year_parity = Some(TurnusParity::Even)),
         Choice::new(t.catalog.odd, |q| q.turnus.year_parity == Some(TurnusParity::Odd), |q| q.turnus.year_parity = Some(TurnusParity::Odd)),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The plus key wants, the minus key leaves out, Entf switches off, and plus or minus again
+    /// switches off; a toggle without „ohne" takes minus as off; other keys are not the chip's.
+    #[test]
+    fn the_keys_of_a_chip() {
+        let tri = Toggle::teaching_form(TeachingForm::Lecture);
+        assert_eq!(tri.on_key("+", Tri::Off), Some(Tri::With));
+        assert_eq!(tri.on_key("+", Tri::Without), Some(Tri::With));
+        assert_eq!(tri.on_key("+", Tri::With), Some(Tri::Off));
+        assert_eq!(tri.on_key("-", Tri::Off), Some(Tri::Without));
+        assert_eq!(tri.on_key("-", Tri::Without), Some(Tri::Off));
+        assert_eq!(tri.on_key("Delete", Tri::With), Some(Tri::Off));
+        assert_eq!(tri.on_key("Backspace", Tri::Without), Some(Tri::Off));
+        assert_eq!(tri.on_key(" ", Tri::Off), None);
+        assert_eq!(tri.on_key("a", Tri::Off), None);
+        let two = Toggle::show_not_offered();
+        assert_eq!(two.on_key("-", Tri::With), Some(Tri::Off));
+        assert_eq!(two.on_key("+", Tri::Off), Some(Tri::With));
+    }
 }
