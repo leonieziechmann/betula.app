@@ -26,13 +26,13 @@ use folia_routes::url::StudyplanUrl;
 use leptos::prelude::*;
 
 use folia_data::use_data;
-use folia_design::nav;
+use folia_design::nav::{self, room, Room};
 use folia_design::ui::Icon;
 use folia_stores::collections::Anchor;
 use folia_stores::myprogram::MyProgram;
 use folia_stores::studyplan::{move_targets, MenuAsk, Planning, Studyplan};
 
-use crate::collect::{viewport, FocusBack};
+use crate::collect::FocusBack;
 use crate::i18n::{self, Texts};
 use crate::list::phone_layout;
 
@@ -130,10 +130,11 @@ fn semesters(ask: &MenuAsk, floor: SemesterKey, start: Option<SemesterKey>, leav
 }
 
 /// Where a menu of `size` stands under the switch and its arrow (`at`): its right edge at theirs,
-/// above them where the window has no room below; never past the window's edges. In the middle,
-/// near the top, without them.
-fn place(at: Option<Anchor>, size: (f64, f64), view: (f64, f64)) -> (f64, f64) {
-    let ((width, height), (view_width, view_height)) = (size, view);
+/// above them where the window has no room below; never past the window's edges, nor under the
+/// rail (`Room`). In the middle, near the top, without them.
+fn place(at: Option<Anchor>, size: (f64, f64), room: Room) -> (f64, f64) {
+    let ((width, height), Room { left: rail, width: view_width, height: view_height }) = (size, room);
+    let least = rail + EDGE;
     let (left, top) = match at {
         Some(at) => {
             let below = at.bottom + 4.0;
@@ -142,16 +143,18 @@ fn place(at: Option<Anchor>, size: (f64, f64), view: (f64, f64)) -> (f64, f64) {
         }
         None => ((view_width - width) / 2.0, view_height * 0.12),
     };
-    (left.clamp(EDGE, (view_width - width - EDGE).max(EDGE)), top.clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
+    (left.clamp(least, (view_width - width - EDGE).max(least)), top.clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
 }
 
 /// Where the semesters stand beside the menu at `menu`, whose entry begins `entry_top` px from the
-/// window's top: right of it, left of it where there is no room; their first entry level with it.
-fn place_beside(menu: (f64, f64), entry_top: f64, size: (f64, f64), view: (f64, f64)) -> (f64, f64) {
-    let ((left, _), (width, height), (view_width, view_height)) = (menu, size, view);
+/// window's top: right of it, left of it where there is no room; their first entry level with it;
+/// never under the rail.
+fn place_beside(menu: (f64, f64), entry_top: f64, size: (f64, f64), room: Room) -> (f64, f64) {
+    let ((left, _), (width, height), Room { left: rail, width: view_width, height: view_height }) = (menu, size, room);
+    let least = rail + EDGE;
     let right = left + WIDTH;
     let x = if right - 2.0 + width <= view_width - EDGE { right - 2.0 } else { left + 2.0 - width };
-    (x.clamp(EDGE, (view_width - width - EDGE).max(EDGE)), (entry_top - PAD).clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
+    (x.clamp(least, (view_width - width - EDGE).max(least)), (entry_top - PAD).clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
 }
 
 fn height_of(entries: &[Entry]) -> f64 {
@@ -396,11 +399,11 @@ fn PlanMenu(ask: MenuAsk, planning: Planning) -> impl IntoView {
         }
     };
 
-    let view_size = viewport();
-    let height = height_of(&root).min(view_size.1 - 2.0 * EDGE);
+    let view_size = room();
+    let height = height_of(&root).min(view_size.height - 2.0 * EDGE);
     let (left, top) = place(ask.anchor, (WIDTH, height), view_size);
     let move_top = top + PAD + root.iter().take_while(|entry| entry.does != Does::Sub).map(Entry::height).sum::<f64>();
-    let sub_size = (SUB_WIDTH, height_of(&subs).min(view_size.1 - 2.0 * EDGE));
+    let sub_size = (SUB_WIDTH, height_of(&subs).min(view_size.height - 2.0 * EDGE));
     let (x, y) = place_beside((left, top), move_top, sub_size, view_size);
     let move_title = (t.planner.move_title)(&ask.what.title);
     let title = ask.what.title.clone();
@@ -479,11 +482,15 @@ mod tests {
 
     #[test]
     fn the_menu_stands_under_the_switch_and_the_semesters_beside_it() {
-        let view = (1440.0, 900.0);
+        let view = Room::window(1440.0, 900.0);
         let pair = Anchor { left: 900.0, top: 300.0, right: 1200.0, bottom: 332.0 };
         assert_eq!(place(Some(pair), (264.0, 200.0), view), (936.0, 336.0));
         assert_eq!(place(Some(Anchor { top: 800.0, bottom: 832.0, ..pair }), (264.0, 200.0), view), (936.0, 596.0), "above it at the window's bottom");
         assert_eq!(place_beside((936.0, 336.0), 378.0, (280.0, 300.0), view), (658.0, 372.0), "left of it at the right edge");
         assert_eq!(place_beside((300.0, 336.0), 378.0, (280.0, 300.0), view), (562.0, 372.0));
+        // Never under the rail.
+        let railed = Room { left: 52.0, ..view };
+        assert_eq!(place(Some(Anchor { left: 40.0, top: 300.0, right: 120.0, bottom: 332.0 }), (264.0, 200.0), railed).0, 60.0);
+        assert_eq!(place_beside((1150.0, 336.0), 378.0, (280.0, 300.0), Room { left: 52.0, width: 1300.0, height: 900.0 }).0, 872.0);
     }
 }

@@ -2428,6 +2428,10 @@
   document.addEventListener("visibilitychange", () => { if (document.hidden) { navSpent = false; navHide(); } });
 
   // ---- shortcuts (each is written next to its button) ----
+  // What lies over the page and has the keyboard to itself: a dialog, a menu, a question. A key
+  // pressed there is its own (a menu's entry shows the key it is), never one for the module behind
+  // it (M marked the module open beside the list while a menu had the focus).
+  const OVER = "dialog, [role=dialog], [role=menu], [role=alertdialog]";
   addEventListener("keydown", (e) => {
     // An open picker has the keyboard to itself (its Esc closes the picker, nothing else).
     if (e.target.closest?.(".combo[data-open]")) return;
@@ -2458,17 +2462,17 @@
       if (root.hasAttribute("data-layers") || root.hasAttribute("data-state") || modalOpen()) return;
       // The preview first; on a module's own page Esc goes back to where the visitor came from.
       (find('[data-action="close-detail"]') || find('[data-action="back"]'))?.click();
-    } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement)) {
+    } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement) && !e.target.closest?.(OVER)) {
       // Where its button is shown: a phone's sheet has none (app.css).
       const full = find('[data-action="fullscreen"]');
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); }
-    } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
+    } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
       // „Merken" for what the visitor is at: the row the keyboard is on, else the module that is
       // open (its preview, or its page). The buttons belong to the browser app.
       const row = document.activeElement?.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
-    } else if (plain && /^[sSnN]$/.test(e.key) && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog, [role=dialog], [role=menu], [role=alertdialog]")) {
+    } else if (plain && /^[sSnN]$/.test(e.key) && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
       // „Sammlung und Notiz" for what the visitor is at (folia/crates/widgets/src/collect.rs): the
       // row the keyboard is on, else the module that is open; N with the focus in the note. While
       // the note after marking stands S is its own (marknote.rs), for the module it names.
@@ -2484,7 +2488,7 @@
       e.preventDefault();
       const box = (row || mark.closest(".mark-pair") || mark).getBoundingClientRect();
       dispatchEvent(new CustomEvent("betula:collect", { detail: { id: mark.dataset.id, title: mark.dataset.title || "", note, left: box.left, top: box.top, right: box.right, bottom: box.bottom } }));
-    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog, [role=menu]")) {
+    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
       // it ambiguous which module is meant, so P waits there. What it planned the note at the
