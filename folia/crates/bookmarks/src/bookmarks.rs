@@ -50,7 +50,7 @@ use folia_design::stage::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
-use folia_stores::bookmarks::{ids_from_fragment, transfer_fragment, Bookmarks, BrokenLink, Mark, MarkButton, MarkLook, MAX_MARKS};
+use folia_stores::bookmarks::{brought_from_fragment, share_fragment, Bookmarks, BrokenLink, Brought, Mark, MarkButton, MarkLook, MAX_MARKS};
 use folia_stores::collections::{Anchor, Collections, Refused, Shelf};
 use folia_widgets::marknote::{Notice, Notices};
 use folia_stores::myprogram::{MineResolved, MyProgram};
@@ -393,7 +393,7 @@ pub fn BookmarksPage() -> impl IntoView {
             going.go(&next.path(), NavigateOptions { scroll: false, ..Default::default() });
         }
     });
-    let ui = CollUi { menu: RwSignal::new(None), naming: RwSignal::new(None), typed: RwSignal::new(String::new()), confirming: RwSignal::new(false), go };
+    let ui = CollUi { menu: RwSignal::new(None), naming: RwSignal::new(None), typed: RwSignal::new(String::new()), confirming: RwSignal::new(false), sharing: RwSignal::new(false), go };
 
     // Coming back to the list from a module's page — the module that filled the page here, or
     // its own page (a link on it) — the list shows the row the visitor left it at.
@@ -954,16 +954,35 @@ fn tags(url: &BookmarksUrl, program_set: bool, t: &'static Texts) -> Vec<(&'stat
 
 // ---- a list brought over from another device ----
 
-/// A list brought over from another device: it arrives in the fragment of the address
-/// (`/bookmarks#m=…`, see `bookmarks::transfer_fragment`), which no browser sends to a server.
-/// The page asks before it adds anything (a link must not fill somebody's list behind their
-/// back), and either answer takes the list out of the address and out of the history entry. A
-/// list whose check characters do not fit (a link cut short, a character typed wrong) is named,
-/// and nothing of it is offered.
+/// How a link's modules are kept.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Keep {
+    /// Marked, with the notes that came along: „Nur merken", „Hinzufügen".
+    Marked,
+    /// Marked, and in every collection the link brings (the link for another device).
+    Everything,
+    /// Marked, and in the collection of this name („Als Sammlung merken", „Zu ‚Für Lena‘
+    /// hinzufügen", „Anderer Name …").
+    Named(String),
+}
+
+/// A list brought by a link: it arrives in the fragment of the address (`/bookmarks#m=…`, see
+/// `bookmarks::share_fragment`), which no browser sends to a server. The page asks before it adds
+/// anything (a link must not fill somebody's list behind their back), and either answer takes the
+/// list out of the address and out of the history entry. A list whose check characters do not fit
+/// (a link cut short, a character typed wrong) is named, and nothing of it is offered.
+///
+/// What it offers follows what the link brings (folia/design/merken/oberflaeche.html, „Weitergeben
+/// und Ankommen"): modules alone „Hinzufügen"; a collection „Als Sammlung merken" or „Nur merken",
+/// and where a collection of its name is there „Zu ‚Für Lena‘ hinzufügen" or „Anderer Name …",
+/// which asks for one that is not; the link for another device every collection at once. Notes
+/// come along where a module has none. More than there is room for: the first that fit.
 #[component]
 fn Offer() -> impl IntoView {
     let t = i18n::t();
+    let b = &t.bookmarks;
     let bookmarks = Bookmarks::expect();
+    let collections = Collections::expect();
     let location = use_location();
     // The fragment as the browser has it. The router hears of it when a page is opened, not when
     // only the fragment changes (a link pasted into the address of the open list), so the page
@@ -983,58 +1002,160 @@ fn Offer() -> impl IntoView {
         });
         on_cleanup(move || handle.remove());
     });
-    let offered = Memo::new(move |_| ids_from_fragment(&fragment.get()));
+    let brought = Memo::new(move |_| brought_from_fragment(&fragment.get()));
+    // „Anderer Name …": the name typed, and whether it is one there is.
+    let naming = RwSignal::new(None::<String>);
+    let taken = RwSignal::new(false);
     let navigate = use_navigate();
-    let answered = Callback::new(move |add: bool| {
-        if let (true, Some(bookmarks), Ok(ids)) = (add, bookmarks, offered.get_untracked()) {
-            bookmarks.add_all(&ids);
+    let done = Callback::new(move |keep: Option<Keep>| {
+        if let (Some(keep), Some(bookmarks), Ok(brought)) = (keep, bookmarks, brought.get_untracked()) {
+            bookmarks.add_all(&brought.ids);
+            if let Some(collections) = collections {
+                let named: Vec<(String, Vec<String>)> = match keep {
+                    Keep::Marked => Vec::new(),
+                    Keep::Everything => brought.collections.clone(),
+                    Keep::Named(name) => vec![(name, brought.collections.first().map_or_else(|| brought.ids.clone(), |(_, ids)| ids.clone()))],
+                };
+                collections.update(|shelf| shelf.adopt(&named, &brought.notes, |id| bookmarks.is_marked_untracked(id)));
+            }
         }
+        naming.set(None);
+        taken.set(false);
         // The same page without the fragment, in the same history entry.
         fragment.set(String::new());
         let here = tabs::location_of(&location.pathname.get_untracked(), &location.search.get_untracked());
         navigate(&here, NavigateOptions { replace: true, scroll: false, ..Default::default() });
     });
+    let other_name = move || {
+        let name = folia_stores::collections::clean_name(&naming.get_untracked().unwrap_or_default());
+        if name.is_empty() {
+            return;
+        }
+        if collections.is_some_and(|collections| collections.with_untracked(|shelf| shelf.find(&name).is_some())) {
+            taken.set(true);
+            return;
+        }
+        done.run(Some(Keep::Named(name)));
+    };
     move || {
-        let ids = match offered.get() {
-            Ok(ids) if ids.is_empty() => return None,
-            Ok(ids) => ids,
+        let brought = match brought.get() {
+            Ok(brought) if brought.ids.is_empty() => return None,
+            Ok(brought) => brought,
             Err(BrokenLink) => {
                 return Some(
                     view! {
                         <div class="offer" role="status">
                             <Icon name="info"/>
                             <p>
-                                <b>{t.bookmarks.broken_link}" "</b>
-                                {t.bookmarks.broken_link_hint}
+                                <b>{b.broken_link}" "</b>
+                                {b.broken_link_hint}
                             </p>
-                            <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>{t.bookmarks.ok}</button>
+                            <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| done.run(None)>{b.ok}</button>
                         </div>
                     }
                     .into_any(),
                 )
             }
         };
-        let new = ids.iter().filter(|id| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(id))).count();
+        let all = brought.ids.len();
+        let new = brought.ids.iter().filter(|id| !bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(id))).count();
         // A link that brings more than the Merkliste has room for offers what fits
         // (oberflaeche.html, „Bei 256 ist Schluss": „Ein Link mit mehr bietet an, was passt").
         let room = bookmarks.map_or(new, Bookmarks::room);
         let fits = new.min(room);
+        let short = new > room;
+        let full = new > 0 && room == 0;
+        let room_line = move || if full { (b.none_fit)(MAX_MARKS) } else { (b.room_for)(room) };
+        let discard = move || view! { <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| done.run(None)>{b.discard}</button> };
+        let (head, line, answers) = match brought.collections.as_slice() {
+            // Modules alone, as before collections.
+            [] => {
+                let line = match new {
+                    0 => b.all_there.to_string(),
+                    _ if short => room_line(),
+                    n if n == all => b.add_question.to_string(),
+                    n => (b.some_missing)(n),
+                };
+                let answers = view! {
+                    {(fits > 0).then(|| view! { <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| done.run(Some(Keep::Marked))>{if short { (b.first_n)(fits) } else { b.add.to_string() }}</button> })}
+                    {if fits > 0 { discard().into_any() } else { view! { <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| done.run(None)>{b.ok}</button> }.into_any() }}
+                }
+                .into_any();
+                ((b.from_link)(all), line, answers)
+            }
+            // A collection's link: one collection that holds all of them.
+            [(name, members)] if members.len() == all => {
+                let name = name.clone();
+                let exists = collections.is_some_and(|collections| collections.with(|shelf| shelf.find(&name).is_some()));
+                let line = if full || short {
+                    room_line()
+                } else if exists {
+                    b.collection_exists.to_string()
+                } else if new < all {
+                    (b.already_marked)(all - new, all)
+                } else {
+                    String::new()
+                };
+                let answers = if naming.with(Option::is_some) {
+                    view! {
+                        <label class="offer-name">
+                            <span class="visually-hidden">{b.other_name_label}</span>
+                            <input type="text" id="offer-name" placeholder=b.other_name_label autocomplete="off" maxlength="60"
+                                prop:value=move || naming.get().unwrap_or_default()
+                                on:input=move |ev| { naming.set(Some(event_target_value(&ev))); taken.set(false); }
+                                on:keydown=move |ev: leptos::ev::KeyboardEvent| match ev.key().as_str() {
+                                    "Enter" => { ev.prevent_default(); other_name(); }
+                                    "Escape" => { ev.prevent_default(); ev.stop_propagation(); naming.set(None); taken.set(false); }
+                                    _ => {}
+                                }/>
+                            {move || taken.get().then(|| view! { <small class="warn">{b.name_taken}</small> })}
+                        </label>
+                        <button class="mini primary hit" type="button" id="offer-name-keep" on:click=move |_| other_name()>{b.keep_named}</button>
+                        <button class="mini hit" type="button" on:click=move |_| { naming.set(None); taken.set(false); }>{b.cancel}</button>
+                    }
+                    .into_any()
+                } else if exists {
+                    let into = name.clone();
+                    view! {
+                        <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| done.run(Some(Keep::Named(into.clone())))>{(b.add_to)(&name)}</button>
+                        <button class="mini hit" type="button" id="offer-other" on:click=move |_| {
+                            naming.set(Some(String::new()));
+                            request_animation_frame(|| nav::focus_by_id("offer-name"));
+                        }>{b.other_name}</button>
+                        {discard()}
+                    }
+                    .into_any()
+                } else {
+                    let into = name.clone();
+                    view! {
+                        <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| done.run(Some(Keep::Named(into.clone())))>{b.keep_collection}</button>
+                        <button class="mini hit" type="button" id="offer-only" on:click=move |_| done.run(Some(Keep::Marked))>{b.only_mark}</button>
+                        {discard()}
+                    }
+                    .into_any()
+                };
+                ((b.from_link_named)(&name, all), line, answers)
+            }
+            // The link for another device: every collection at once.
+            many => {
+                let line = if full || short { room_line() } else { (b.new_of)(new) };
+                let answers = view! {
+                    <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| done.run(Some(Keep::Everything))>{if short && fits > 0 { (b.first_n)(fits) } else { b.add.to_string() }}</button>
+                    {discard()}
+                }
+                .into_any();
+                ((b.from_link_many)(all, many.len()), line, answers)
+            }
+        };
         Some(
             view! {
                 <div class="offer" role="status">
                     <Icon name="bookmark"/>
                     <p>
-                        <b>{(t.bookmarks.from_link)(ids.len())}" "</b>
-                        {match new {
-                            0 => t.bookmarks.all_there.to_string(),
-                            _ if room == 0 => (t.bookmarks.none_fit)(MAX_MARKS),
-                            n if n > room => (t.bookmarks.room_for)(room),
-                            n if n == ids.len() => t.bookmarks.add_question.to_string(),
-                            n => (t.bookmarks.some_missing)(n),
-                        }}
+                        <b>{head}</b>
+                        {(!line.is_empty()).then(|| format!(" {line}"))}
                     </p>
-                    {(fits > 0).then(|| view! { <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| answered.run(true)>{t.bookmarks.add}</button> })}
-                    <button class="mini hit" type="button" id="offer-dismiss" on:click=move |_| answered.run(false)>{if fits > 0 { t.bookmarks.discard } else { t.bookmarks.ok }}</button>
+                    <span class="offer-answers">{answers}</span>
                 </div>
             }
             .into_any(),
@@ -1626,6 +1747,9 @@ struct CollUi {
     typed: RwSignal<String>,
     /// The menu of the whole list asks before it empties it.
     confirming: RwSignal<bool>,
+    /// A collection's menu shows „Teilen" (oberflaeche.html, „Weitergeben": „ein Menü mit drei
+    /// Zeilen").
+    sharing: RwSignal<bool>,
     /// Goes to a view of the list, keeping its filters and its order.
     go: Callback<CollectionView>,
 }
@@ -1996,6 +2120,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
     let close = move || {
         ui.menu.set(None);
         ui.confirming.set(false);
+        ui.sharing.set(false);
     };
     folia_shell::nav::layer_while(move || ui.menu.with(Option::is_some), close, folia_shell::nav::Kind::Over);
     // Its first entry has the focus as it opens, the arrows go on from there.
@@ -2032,7 +2157,67 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     (all.iter().find(|collection| collection.id == id).map(|collection| collection.name.clone()), at == Some(0), at.is_some_and(|at| at + 1 == all.len()))
                 });
                 let renamed = name?;
-                let mut entries = vec![Entry { icon: "pencil", label: b.rename.to_string(), hint: None, key: Some("F2"), danger: false, does: Callback::new(move |()| ui.rename(id, &renamed)) }];
+                if ui.sharing.get() {
+                    // „Teilen": its marked modules, with its name, and their notes where
+                    // „Notizen mitnehmen" is on.
+                    let ids: Vec<String> = bookmarks.map(Bookmarks::marks_untracked).unwrap_or_default().into_iter().map(|mark| mark.id).filter(|module| collections.with_untracked(|shelf| shelf.holds(id, module))).collect();
+                    let count = ids.len();
+                    let along = picking.notes_along;
+                    let head = (b.share_head)(Some(&renamed), count);
+                    let (linked, name) = (ids.clone(), renamed.clone());
+                    let copy_link = move |_| {
+                        let notes = if along.get_untracked() { collections.with_untracked(|shelf| notes_of(shelf, &linked)) } else { Vec::new() };
+                        let brought = Brought { ids: linked.clone(), collections: vec![(name.clone(), linked.clone())], notes };
+                        if let Some(link) = share_fragment(&brought).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS)))) {
+                            copy(&link);
+                            close();
+                            if let Some(notices) = notices {
+                                notices.say(Notice::Copied { link: true, count });
+                            }
+                        }
+                    };
+                    let text = data.with_untracked(|data| as_text(data.as_ref(), |module| ids.iter().any(|id| id == module), t));
+                    let copy_text = move |_| {
+                        copy(&text);
+                        close();
+                        if let Some(notices) = notices {
+                            notices.say(Notice::Copied { link: false, count });
+                        }
+                    };
+                    let label = head.clone();
+                    return Some(view! {
+                        <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
+                        <div class="st-pop root view-menu share-menu" role="menu" aria-label=label style=menu_style(at, 3.0 * MENU_ITEM + 9.0 + 12.0 + 26.0) on:keydown=keys>
+                            <p class="view-menu-head">{head}</p>
+                            <button class="st-pop-item" type="button" role="menuitem" disabled=count == 0 on:click=copy_link>
+                                <Icon name="link"/><span class="st-pop-label"><span>{b.copy_link}</span></span>
+                            </button>
+                            <button class="st-pop-item share-switch" type="button" role="menuitemcheckbox" aria-checked=move || if along.get() { "true" } else { "false" } on:click=move |_| along.update(|on| *on = !*on)>
+                                <span class="st-pop-label"><span>{b.notes_along}</span></span>
+                                <span class="collect-switch" aria-hidden="true"></span>
+                            </button>
+                            <hr/>
+                            <button class="st-pop-item" type="button" role="menuitem" disabled=count == 0 on:click=copy_text>
+                                <Icon name="copy"/><span class="st-pop-label"><span>{b.copy_text}</span></span>
+                            </button>
+                        </div>
+                    }.into_any());
+                }
+                let shown_name = renamed.clone();
+                let mut entries = vec![Entry { icon: "pencil", label: b.rename.to_string(), hint: None, key: Some("F2"), danger: false, does: Callback::new(move |()| ui.rename(id, &shown_name)) }];
+                entries.push(Entry {
+                    icon: "share-2",
+                    label: b.act_share.to_string(),
+                    hint: None,
+                    key: None,
+                    danger: false,
+                    does: Callback::new(move |()| {
+                        ui.sharing.set(true);
+                        request_animation_frame(|| {
+                            nav::focus_selector(".view-menu [role=menuitem]");
+                        });
+                    }),
+                });
                 if !first {
                     entries.push(Entry { icon: "arrow-up", label: b.move_up.to_string(), hint: None, key: None, danger: false, does: Callback::new(move |()| { collections.update(|shelf| shelf.shift(id, true)); close(); }) });
                 }
@@ -2083,8 +2268,17 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                         </div>
                     }.into_any());
                 }
-                let text = data.with_untracked(|data| as_text(data.as_ref(), bookmarks, t));
-                let link = transfer_fragment(&marks).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS))));
+                let text = data.with_untracked(|data| as_text(data.as_ref(), |id| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(id)), t));
+                // The link for another device takes everything along: the collections with their
+                // marked modules, and every note (konzept.html: „Das eigene Gerät bekommt alles").
+                let everything = collections.map(|collections| {
+                    collections.with_untracked(|shelf| {
+                        let held = shelf.collections().iter().map(|collection| (collection.name.clone(), marks.iter().filter(|id| shelf.holds(collection.id, id)).cloned().collect())).collect();
+                        (held, notes_of(shelf, &marks))
+                    })
+                });
+                let (held, notes) = everything.unwrap_or_default();
+                let link = share_fragment(&Brought { ids: marks.clone(), collections: held, notes }).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS))));
                 let mut entries = Vec::new();
                 if let Some(link) = link.filter(|_| count > 0) {
                     entries.push(Entry {
@@ -2207,17 +2401,25 @@ pub(crate) fn step_focus(by: i32) {
 
 /// The marked modules among `data` as text, for a note or a message: number, title, credits (in
 /// the page's language), one a line.
-fn as_text(data: Option<&BookmarksData>, bookmarks: Option<Bookmarks>, t: &'static Texts) -> String {
+fn as_text(data: Option<&BookmarksData>, keep: impl Fn(&str) -> bool, t: &'static Texts) -> String {
     let Some(data) = data else { return String::new() };
-    data.rows
-        .iter()
-        .filter(|row| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(&row.id)))
-        .map(|row| match row.credits {
-            Some(credits) => format!("{}\t{}\t{}", row.id, row.title, format::credits(Some(credits), t.locale)),
-            None => format!("{}\t{}", row.id, row.title),
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    data.rows.iter().filter(|row| keep(&row.id)).map(|row| module_line(&row.id, &row.title, row.credits, t)).collect::<Vec<_>>().join("\n")
+}
+
+/// A module as a line of a message (konzept.html, „Weitergeben": „Als Text für eine Nachricht:
+/// Nummer, Titel, LP und der Link zur Seite jedes Moduls, damit die Freundin nur tippen muss"):
+/// „11103 Analysis I · 8 LP · https://…/catalog/module/11103".
+pub(crate) fn module_line(id: &str, title: &str, credits: Option<f64>, t: &'static Texts) -> String {
+    let link = absolute(&t.path(&url::module_path(id)));
+    match credits {
+        Some(credits) => format!("{id} {title} · {} · {link}", format::credits(Some(credits), t.locale)),
+        None => format!("{id} {title} · {link}"),
+    }
+}
+
+/// The notes of `ids` that have one, as a link carries them.
+pub(crate) fn notes_of(shelf: &Shelf, ids: &[String]) -> Vec<(String, String)> {
+    ids.iter().filter_map(|id| shelf.note(id).map(|note| (id.clone(), note.to_string()))).collect()
 }
 
 #[cfg(test)]
