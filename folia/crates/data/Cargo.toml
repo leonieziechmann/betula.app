@@ -1,6 +1,6 @@
 [package]
 name = "folia-data"
-version = "1.41.1"
+version = "1.41.2"
 edition = "2021"
 description = "Where the pages of Betula's app ask for their data: on the server's thread or from the data worker"
 
