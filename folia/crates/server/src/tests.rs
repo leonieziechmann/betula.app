@@ -642,7 +642,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     assert!(!home.contains("day-welcome") && !home.contains("day-eyebrow") && !home.contains("class=\"day-ev"), "nothing of a visitor's day in the server's page, the skeleton's panels aside");
     let scroll_area = ["<div class=\"work flowing solo day-page\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo day-page\">"].iter().map(|area| home.matches(&format!("{area}<div class=\"page\">")).count()).sum::<usize>();
     assert!(!home.contains("id=\"sidebar\"") && home.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1 && woods(&home) == 1, "the start page has no frame");
-    assert_eq!(home.matches("class=\"photo-credit\"").count(), 5, "who took each photo, in the ground");
+    assert_eq!(home.matches("class=\"photo-credit\"").count(), 10, "who took each photo, in the page's ground and in the app's, which a phone shows");
     assert!(home.contains(&format!("href=\"{}\"", folia_routes::url::ABOUT)), "the start page links „Über Betula\"");
     // „Über Betula": what the start page said of Betula until concept A, whole. The map the snapshot
     // was opened with; what search engines, and the assistants that answer with them, read of

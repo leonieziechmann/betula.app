@@ -5923,9 +5923,14 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 /* Who took the photo, in the ground: the line of the photo shown. */
 .photo-credit { display: none; }
 .photo-credit a { color: inherit; }
-:root:not([data-season]) .photo-credit[data-photo="summer"], :root[data-season="spring"] .photo-credit[data-photo="spring"], :root[data-season="summer"] .photo-credit[data-photo="summer"], :root[data-season="autumn"] .photo-credit[data-photo="autumn"], :root[data-season="winter"] .photo-credit[data-photo="winter"] { display: inline; }
-.work:has(.day-photo.fog) .photo-credit { display: none; }
-.work:has(.day-photo.fog) .photo-credit[data-photo="fog"] { display: inline; }
+/* The line of the photo shown, while the start page is in front: in the page's own ground and in
+   the app's, which a phone shows under every page. */
+:root:not([data-season]):has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
+:root[data-season="spring"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="spring"],
+:root[data-season="summer"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="summer"],
+:root[data-season="autumn"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="autumn"],
+:root[data-season="winter"]:has(#content > .page-stage.front .day-photo:not(.fog)) .photo-credit[data-photo="winter"],
+:root:has(#content > .page-stage.front .day-photo.fog) .photo-credit[data-photo="fog"] { display: inline; }
 .ground-legal { flex-wrap: wrap; }
 
 @media (max-width: 900px) {
