@@ -1722,7 +1722,9 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`study::fits`) the plan's open rows of its Fachsemester, the Wiederholer of the semesters before
     it and what was still open of the Fachsemester before it, each one „+" from being planned here,
     only what the semester offers (owner, 2026-10-04: „Es darf nur vorgeschlagen werden, was in dem
-    Semester oder zuvor angeboten wurde … im SoSe soll kein WiSe modul angezeigt werden").
+    Semester oder zuvor angeboten wurde … im SoSe soll kein WiSe modul angezeigt werden"). Nothing of
+    it is under the rows on a phone either (owner, the same day: „Ja, auf dem Handy auch raus"); the
+    plans' `study::fits` stays for „Module hinzufügen", which shows none of it yet.
     *A row* is a module as the catalog's list has it (owner, 2026-10-19, on a phone: „das aussehen,
     von den Modulen im semesterplan zu weit von den modulen im Modulkatalog abweicht … Gestalte das
     so, das der aufbau komplett gleich ist. Also padding, margin, Titel, LP, und format von den
@@ -1814,16 +1816,11 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     no long task while it moves: what a page's coming to rest asks, 50–100 ms there, comes after,
     and a glide's frames take 30–50 ms there).
     While rows
-    are selected a finger selects, and the row does not move sideways. Under its rows what the plan
-    still has open for its Fachsemester and the semester offers, under a heading as the catalog's
-    semesters have one („Laut Regelstudienplan · 3. FS" and a line), each the catalog's card as the
-    semester's own rows (owner, 2026-10-19: „Es gibt keinen grund, dass der hintergrund anders sein
-    sollte"; until then open cards, a ring and no ground) with its number, area and credits and a
-    „+" where the bookmark is that plans it here (owner, 2026-10-05: „die module, die noch
-    vorgesehen sind, sollten auch als rows organisiert sein und nicht als fließtext"; where the open
-    rows of its Fachsemester are all of the other half of the year it says so, „Was noch offen ist,
-    wird im SoSe nicht angeboten."; a desktop had them beside it in „Passt in dieses Semester" until
-    2026-10-20); a long press selects a row, and the finger held on
+    are selected a finger selects, and the row does not move sideways. Nothing follows its rows
+    (owner, 2026-10-20: „Ja, auf dem Handy auch raus"; from 2026-10-05 until then what the plan
+    still had open for its Fachsemester and the semester offered, under „Laut Regelstudienplan · 3.
+    FS", each the catalog's card with a „+" where the bookmark is, as a desktop had it beside the
+    semester in „Passt in dieses Semester"); a long press selects a row, and the finger held on
     and drawn up or down selects every row it passes (the page does not scroll meanwhile), a tap on
     a row selects it or lets it go; the bar takes the tab bar's place over it (owner,
     2026-10-05: „Mach das mal so, dass die die navbar überdeckt"), and a menu is a sheet from below

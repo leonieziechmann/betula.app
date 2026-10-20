@@ -40,9 +40,10 @@
 //! (owner, 2026-10-05: „Mach das mal so, dass die die navbar überdeckt"). Under the rows one more,
 //! „Module hinzufügen"; an empty semester is a mark, „Noch keine Module" and „Module hinzufügen"
 //! right under it (owner, 2026-10-05: „keine Module sollte mit icon und gleich modul hinzufügen
-//! sein"). On a phone what the plan still has open for the semester follows, each a row of the
-//! catalog with a „+" where the bookmark is (`PlanRows`). The semester's own ⋯ in its head holds the
-//! rest: the Stundenplan, all of its rows selected, a semester of leave.
+//! sein"). Nothing of what the plan still has open follows them, on a phone neither (owner,
+//! 2026-10-20: „Ja, auf dem Handy auch raus"; until then a row of the catalog each with a „+"): that
+//! is „Module hinzufügen"'s. The semester's own ⋯ in its head holds the rest: the Stundenplan, all
+//! of its rows selected, a semester of leave.
 
 use std::collections::BTreeSet;
 use std::time::Duration;
@@ -323,7 +324,6 @@ pub(super) fn SemesterCard(ctx: StudyCtx, semester: SemesterKey) -> impl IntoVie
                     }}
                 </ul>
             </div>
-            <PlanRows ctx semester/>
         </article>
     }
 }
@@ -869,121 +869,12 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     .into_any()
 }
 
-/// A row of the plan not planned yet under a semester on a phone (`PlanRows`): a row of the catalog
-/// with its area and its credits.
-#[derive(Clone, Debug, PartialEq)]
-struct Fit {
-    pick: Pick,
-    name: String,
-    area: String,
-    tone: &'static str,
-    credits: Option<String>,
-}
-
-/// What the plan still has open for a semester's Fachsemester (`study::fits`): nothing the semester
-/// does not offer.
-#[derive(Clone, Debug, PartialEq)]
-struct Fits {
-    fs: Option<String>,
-    /// The plan's rows of its Fachsemester, open and offered.
-    plan: Vec<Fit>,
-    /// Where none are: whether what is open is not offered in the semester (rather than nothing
-    /// open at all).
-    unoffered: bool,
-}
-
-impl Fits {
-    fn of(ctx: StudyCtx, semester: SemesterKey, t: &Texts) -> Option<Self> {
-        let s = &t.study;
-        ctx.with_input(|input, ready| {
-            let fits = study::fits(input, &ready.study, &ready.lines, semester);
-            let credits = |suggestion: &study::Suggestion| suggestion.credits_text.as_ref().map(|text| folia_plans::plan::credits_in(text, t.locale)).or_else(|| suggestion.credits.map(|credits| n(credits, t)));
-            let fit = |suggestion: &study::Suggestion| Fit {
-                pick: suggestion.pick.clone(),
-                name: suggestion.name.clone(),
-                area: ready.area_name(suggestion.area, t),
-                tone: ready.tone(suggestion.area),
-                credits: credits(suggestion),
-            };
-            Fits { fs: fits.fs.map(s.fs), plan: fits.plan.iter().map(fit).collect(), unoffered: fits.rows > 0 && fits.open > 0 }
-        })
-    }
-}
-
 /// Adds `pick` to semester `s` at once, with a note to take it back.
 pub(super) fn add_pick(ctx: StudyCtx, s: SemesterKey, picks: Vec<Pick>, t: &'static Texts) {
     let note = (t.study.added)(picks.len());
     ctx.change_noted(Some(note), move |doc, input| {
         study::add(doc, input, s, &picks, now_secs());
     }, || {});
-}
-
-/// What the Regelstudienplan still has open for the semester's Fachsemester, under its rows on a
-/// phone (owner, 2026-10-05: „die module, die noch vorgesehen sind, sollten auch als rows
-/// organisiert sein und nicht als fließtext"): each a row of the catalog as the semester's own are
-/// (owner, 2026-10-19: „Es gibt keinen grund, dass der hintergrund anders sein sollte"), with its
-/// area and its credits, and a „+" where the catalog has the bookmark, which plans it here. Only
-/// what the semester offers (`Fits`); where what is open is not offered in it, a line says so. Not
-/// for a semester gone by. A desktop has none of it since „Passt in dieses Semester" beside the
-/// semester went (owner, 2026-10-20).
-#[component]
-fn PlanRows(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
-    let t = i18n::t();
-    let s = &t.study;
-    let past = Memo::new(move |_| ctx.with_ready(|ready| ready.study.semester(semester).is_none_or(|it| it.when == When::Past)).unwrap_or(true));
-    let fits = Memo::new(move |_| if past.get() { None } else { Fits::of(ctx, semester, t) });
-    let id = format!("st-plan-rows-{}", semester.key());
-    move || {
-        let fits = fits.get()?;
-        let fs = fits.fs.clone()?;
-        if fits.plan.is_empty() {
-            return fits.unoffered.then(|| view! { <p class="st-plan-note st-phone">{(s.fits_unoffered)(season_word(semester, t))}</p> }.into_any());
-        }
-        Some(
-            view! {
-                <section class="st-plan-rows st-phone" aria-labelledby=id.clone()>
-                    <h3 class="st-plan-label" id=id.clone()>{(s.fits_plan)(&fs)}</h3>
-                    <ul>{fits.plan.into_iter().map(|fit| view! { <PlanRow ctx semester fit/> }).collect_view()}</ul>
-                </section>
-            }
-            .into_any(),
-        )
-    }
-}
-
-/// A row of the plan not planned yet, as a row of the catalog: the module (the box opens it), its
-/// number and area, its credits, „+".
-#[component]
-fn PlanRow(ctx: StudyCtx, semester: SemesterKey, fit: Fit) -> impl IntoView {
-    let t = i18n::t();
-    let label = (t.study.plan_here)(&fit.name);
-    let pick = fit.pick.clone();
-    let code = match &fit.pick {
-        Pick::Module { id, .. } => Some(id.clone()),
-        Pick::Row { .. } => None,
-    };
-    let name = match fit.pick {
-        Pick::Module { id, .. } => view! { <a class="st-name st-open" href=move || module_href(ctx, &id, t) data-noscroll="" draggable="false">{fit.name}</a> }.into_any(),
-        Pick::Row { .. } => view! { <span class="st-name">{fit.name}</span> }.into_any(),
-    };
-    let opens = code.is_some();
-    view! {
-        <li class="st-prow row-wrap">
-            <div class="row" class:st-inert=!opens>
-                <div class="t">
-                    <b>{name}</b>
-                    <small>
-                        {code.map(|code| view! { <span class="mono">{code}</span> })}
-                        <span class="kind st-area"><i style=format!("background: {}", fit.tone)></i>{fit.area}</span>
-                    </small>
-                </div>
-                <span class="lp num">{fit.credits}<small>{t.common.credits_unit}</small></span>
-            </div>
-            <button class="st-status st-prow-add" type="button" aria-label=label.clone() title=label on:click=move |_| add_pick(ctx, semester, vec![pick.clone()], t)>
-                <Icon name="plus"/>
-            </button>
-        </li>
-    }
 }
 
 /// The page after the last semester: one more, as a semester of leave if the student says so.

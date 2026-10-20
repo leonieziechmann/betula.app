@@ -1281,7 +1281,9 @@ pub struct Fits {
 /// wird. Also im SoSe soll kein WiSe modul angezeigt werden"): of the plan's rows (`lines`, from
 /// `open_lines`) those of its Fachsemester and of the ones before, never of one after it, and the
 /// Wiederholer of the semesters before it; of all of them only what `s` offers. A row over two
-/// Fachsemester counts as one of `s`'s own where it is.
+/// Fachsemester counts as one of `s`'s own where it is. No page shows it since „Passt in dieses
+/// Semester" and the rows under a phone's semester went (owner, 2026-10-20: „Das möchte ich alles
+/// über Module hinzufügen später handeln"): it stays for „Module hinzufügen".
 pub fn fits(input: &Input, study: &Study, lines: &[Line], s: SemesterKey) -> Fits {
     let fs = fs_of(input.start, s, input.leave);
     // A semester of leave: the Fachsemester reached before it.
