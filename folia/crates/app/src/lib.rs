@@ -174,6 +174,12 @@ pub fn App() -> impl IntoView {
     // follows the store.
     Profiles::provide();
     Bookmarks::provide();
+    // The Merkliste's collections and notes, beside the marks (`folia_stores::collections`), the
+    // menu of a module's collections and note (`folia_widgets::collect`), and what the note after
+    // marking says besides a mark (`folia_widgets::marknote`).
+    folia_stores::collections::Collections::provide();
+    folia_stores::collections::Collecting::provide();
+    folia_widgets::marknote::Notices::provide();
     // What is typed into the search at the head on the Merkliste: it stays out of the address
     // (`folia_shell::search`).
     folia_shell::search::LocalSearch::provide();
@@ -222,6 +228,9 @@ pub fn App() -> impl IntoView {
             // What „Einplanen" did, and the dialog that sets up the study on the way.
             <PlanNote/>
             <PlanSetup/>
+            // What marking did, and the menu of a module's collections and note.
+            <folia_widgets::marknote::MarkNote/>
+            <folia_widgets::collect::CollectHost/>
         </Router>
     }
 }

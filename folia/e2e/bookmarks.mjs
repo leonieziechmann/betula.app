@@ -6,11 +6,15 @@
 // (order of marking in sections by its time, numbers, the order at the heads of the columns with
 // „Gemerkt" over the bookmarks, halves of the year, the search at the head searching the list and
 // never the address, with its line into the whole catalog, preview, a mark taken away stays on the
-// page dimmed, emptying with „Rückgängig"); „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Vollbild" of a
+// page dimmed, the menu of the whole list: copying it, the link for another device, emptying with
+// „Rückgängig" in the note at the bottom); collections („Sammlungen", step 2): made in the sidebar,
+// a view of the list with an address of its own, a name there never twice, a module put into one
+// from its switch's arrow with a note in Markdown, at its row and under its switches, deleted and
+// put back; the note after marking with its field; „Gemerkt" as a filter of the catalog; the rail's item as a tab; „Vollbild" of a
 // module opened from the marked modules in place, and „Zurück" from it; another tab of the same
 // browser; what the snapshot does not know; garbage in the storage.
-// Privacy: no request ever carries a marked id or what is typed into the Merkliste's search, and
-// server HTML shows nothing marked.
+// Privacy: no request ever carries a marked id, what is typed into the Merkliste's search, a
+// collection's name or a note, and server HTML shows nothing marked.
 // Phone: marking by touch, the filters and the orders in a sheet behind „Filter" that is a draft
 // until „N Module anzeigen", a tap on a marked module opens it in the list's place and „Zurück" returns.
 // Without the app: nothing of it shows without JavaScript, and with JavaScript the places are
@@ -66,7 +70,8 @@ const listIds = (page) => page.evaluate(() => [...allOnPage(".rows a.row")].map(
 // side by side, under „Einplanen", which stands there.
 const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const rect = (selector) => onPage(selector)?.getBoundingClientRect();
-  const [credits, mark, edge] = [`${root} .badges .badge.strong`, `${root} .mark-toggle.mark-switch`, body].map(rect);
+  // The switch with its arrow, once the module is marked (the pair).
+  const [credits, mark, edge] = [`${root} .badges .badge.strong`, `${root} .mark-pair`, body].map(rect);
   const plan = rect(`${root} .plan-toggle.mark-switch`) ?? mark;
   const inLine = mark.top >= plan.bottom ? plan : mark;
   const middle = (r) => (r.top + r.bottom) / 2;
@@ -135,6 +140,9 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.keyboard.press("m");
   check(JSON.stringify(await stored(page)) === JSON.stringify([ids[4], ids[2]]), `the newest mark is not first: ${await stored(page)}`);
   check(await page.evaluate((id) => document.activeElement === onPage(`a.row[data-id="${id}"]`), ids[4]), "marking by keyboard moved the focus");
+  // The note after marking: where the module went, as a field that opens the menu („Sammlung"
+  // while there is none).
+  check(await page.evaluate(() => document.querySelector(".wait-note .mark-toast-field")?.textContent.includes("Sammlung")), "the note after marking has no field for the collection");
 
   // In the preview: the switch under the heading, with M written on it; the row follows.
   await step("preview", () => page.click(`a.row[data-id="${ids[6]}"] >> visible=true`), () => Boolean(onPage(".detail .mark-toggle.mark-switch")));
@@ -253,22 +261,28 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   check(await page.evaluate((id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`).classList.contains("unmarked"), marked[1]), "closing the preview took the unmarked module off the page");
   await step("one click gives it back", () => page.click(`.row-wrap:has(a.row[data-id="${marked[1]}"]) > .mark-toggle >> visible=true`), () => allOnPage(".rows .row-wrap.unmarked").length === 0 && onPage(".list .count").textContent === "3");
 
-  // „Liste kopieren" hands the marked modules to the clipboard as text.
+  // The menu of the whole list (its ⋯ in the sidebar, a right click on „Alle"): „Als Text kopieren"
+  // hands the marked modules to the clipboard as text, and the note at the bottom says so.
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await step("copy the list", () => page.click('[data-action="copy-text"] >> visible=true'), () => onPage('[data-action="copy-text"] span').textContent === "Kopiert");
+  const listMenu = async () => {
+    await page.click('.coll-nav > div.coll-item:first-of-type > a >> visible=true', { button: "right" });
+    await page.waitForSelector(".view-menu [role=menuitem] >> visible=true", { timeout: 4000 });
+  };
+  await step("copy the list", async () => { await listMenu(); await page.click('.view-menu .st-pop-item:has-text("Als Text kopieren")'); }, () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Liste kopiert") && !document.querySelector(".view-menu"));
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   check(copied.split("\n").length === 3 && marked.every((id) => copied.includes(id)) && /\tLP|LP$/m.test(copied.replace(/\d+(,\d+)? /g, "")), `copied: ${JSON.stringify(copied)}`);
 
   // A list travels to another device in the fragment of a link, which no browser sends anywhere:
   // the other device asks before it adds anything, and the answer takes the ids out of the address.
   const carried = await stored(page);
-  await step("copy the link for another device", () => page.click('[data-action="copy-text"][data-absolute] >> visible=true'), () => onPage('[data-action="copy-text"][data-absolute] [data-label]').textContent === "Kopiert");
+  await listMenu();
+  check(await page.evaluate(() => Boolean(document.querySelector('.view-menu .st-pop-item:has(small)')?.textContent.includes("Link für ein anderes Gerät"))), "the link for another device lost its line in the menu");
+  await step("copy the link for another device", () => page.click('.view-menu .st-pop-item:has-text("Link für ein anderes Gerät")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Link kopiert"));
   const link = await page.evaluate(() => navigator.clipboard.readText());
   // The list as a code (pack/): characters an address carries as they are, the last two check the
   // rest, and the last one is a letter or a digit. Shorter than the ids one by one.
   const code = link.slice(`${base}/bookmarks#m=`.length);
   check(link.startsWith(`${base}/bookmarks#m=`) && /^[A-Za-z0-9._~-]*[A-Za-z0-9]$/.test(code) && code.length < carried.join(",").length, `the link for another device: ${link}`);
-  check(await page.evaluate(() => Boolean(onPage('[data-action="copy-text"][data-absolute] small')?.textContent)), "copying the link lost the second line of its action");
   {
     const elsewhere = await browser.newContext({ viewport: { width: 1500, height: 900 } });
     await elsewhere.addInitScript(ON_PAGE);
@@ -319,14 +333,47 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
     await elsewhere.close();
   }
 
-  // Emptying asks first and can be taken back.
+  // Emptying asks first (in the menu, the answer has the focus) and can be taken back in the note.
   const beforeEmptying = await stored(page);
-  await step("emptying asks first", () => page.click(".sidebar button.action:not(.mark-toggle) >> visible=true"), () => document.activeElement?.id === "clear-yes");
+  await step("emptying asks first", async () => { await listMenu(); await page.click('.view-menu .st-pop-item:has-text("Merkliste leeren")'); }, () => document.activeElement?.id === "clear-yes");
   check((await stored(page)).length === 3, "asking already emptied the list");
-  await step("emptied", () => page.keyboard.press("Enter"), () => onPage(".list .count").textContent === "0" && document.activeElement?.id === "clear-undo");
+  await step("emptied", () => page.keyboard.press("Enter"), () => onPage(".list .count").textContent === "0" && document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Merkliste geleert"));
   check((await badge(page)) === null && (await page.evaluate((key) => localStorage.getItem(key), KEY)) === null && (await page.evaluate(() => allOnPage(".rows .row-wrap.unmarked").length)) === 3, "an emptied list leaves something behind, or takes the rows away");
-  await step("„Rückgängig“ brings the marks back", () => page.click("#clear-undo >> visible=true"), () => onPage(".list .count").textContent === "3" && allOnPage(".rows .row-wrap.unmarked").length === 0);
+  await step("„Rückgängig“ brings the marks back", () => page.click(".wait-note .plan-toast-undo >> visible=true"), () => onPage(".list .count").textContent === "3" && allOnPage(".rows .row-wrap.unmarked").length === 0);
   check(beforeEmptying.length === 3 && JSON.stringify(await stored(page)) === JSON.stringify(beforeEmptying), `what came back: ${await stored(page)} instead of ${beforeEmptying}`);
+
+  // Collections (step 2, „Ordnen"; folia/design/merken/oberflaeche.html): made in the sidebar,
+  // where a name typed that is there opens that one; a view of the list with an address of its own.
+  const COLLECTIONS = "betula.collections.v1";
+  await step("a new collection", async () => { await page.click(".coll-nav .coll-item.add >> visible=true"); await page.waitForSelector(".coll-nav .coll-item.input input:focus"); await page.keyboard.type("Für Lena"); await page.keyboard.press("Enter"); }, () => /[?&]collection=\d+/.test(location.search) && onPage(".rows .state-title")?.textContent === "‚Für Lena‘ ist leer");
+  const lena = await page.evaluate(() => new URLSearchParams(location.search).get("collection"));
+  await step("a name there is never a second one", async () => { await page.click(".coll-nav .coll-item.add >> visible=true"); await page.waitForSelector(".coll-nav .coll-item.input input:focus"); await page.keyboard.type("für lena "); }, () => onPage(".coll-taken")?.textContent.includes("Gibt es schon"));
+  await page.keyboard.press("Escape");
+  await step("back to all of the list", () => page.click('.coll-nav > div.coll-item:first-of-type > a >> visible=true'), () => !location.search.includes("collection=") && allOnPage(".rows a.row").length === 3);
+  // The arrow of the module's switch opens the menu of its collections and its note, the field
+  // with the focus; each choice holds at once.
+  await step("the preview", () => page.click(`a.row[data-id="${marked[0]}"] >> visible=true`), () => Boolean(onPage(".detail .mark-more")));
+  await step("its arrow opens the menu", () => page.click(".detail .mark-more >> visible=true"), () => Boolean(document.activeElement?.closest?.(".collect-field")));
+  await step("into the collection", () => page.click('.collect-pop .collect-item:has-text("Für Lena")'), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-tag`)?.textContent === "Für Lena", marked[0]);
+  await page.click(".collect-pop .collect-note");
+  await page.keyboard.type("Lena **fragen**");
+  await page.waitForFunction((id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-note strong`)?.textContent === "fragen", marked[0], { timeout: 4000 }).catch(() => problems.push("the note does not show at its row"));
+  await page.keyboard.press("Escape");
+  check(await page.evaluate(() => !document.querySelector(".collect-pop")), "Esc does not close the menu");
+  check(await page.evaluate(() => onPage(".detail .module-note strong")?.textContent === "fragen" && onPage(".detail .mark-pair .mark-switch small")?.textContent === "Für Lena"), "the module does not show its collection and its note");
+  const shelf = await page.evaluate((key) => localStorage.getItem(key) || "", COLLECTIONS);
+  check(shelf.includes("\tFür Lena\n") && shelf.includes(`m\t${marked[0]}\t${lena}\n`) && shelf.includes(`n\t${marked[0]}\tLena **fragen**`), `what the store of the collections keeps: ${JSON.stringify(shelf)}`);
+  await page.keyboard.press("Escape");
+  // Its view: its own numbers, its rows without its own name.
+  await step("the collection's view", () => page.click(`.coll-nav a[href*="collection=${lena}"] >> visible=true`), () => allOnPage(".rows a.row").length === 1 && onPage(".list .count-label").textContent.includes("in Für Lena") && !onPage(".rows .row-tag"));
+  // The search at the head finds what the visitor keeps: the note.
+  await step("the search finds the note", async () => { await page.click(".coll-nav > div.coll-item:first-of-type > a >> visible=true"); await page.fill("#topsearch", "fragen"); }, (id) => allOnPage(".rows a.row").length === 1 && onPage(".rows a.row").dataset.id === id, marked[0]);
+  await page.fill("#topsearch", "");
+  // Deleting asks nothing: the modules stay marked, and the note after it puts it back.
+  await step("deleting the collection", async () => { await page.click(`.coll-nav a[href*="collection=${lena}"] >> visible=true`, { button: "right" }); await page.click('.view-menu .st-pop-item:has-text("Löschen")'); }, () => !onPage(".coll-nav a[href*='collection=']") && document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("‚Für Lena‘ gelöscht · 1 bleibt gemerkt"));
+  check((await stored(page)).length === 3, "deleting the collection took marks away");
+  await step("„Rückgängig“ puts it back", () => page.click(".wait-note .plan-toast-undo >> visible=true"), (id) => Boolean(onPage(".coll-nav a[href*='collection=']")) && onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-tag`)?.textContent === "Für Lena", marked[0]);
+  check(!requests.some((r) => r.includes("Lena") || r.includes("fragen") || r.includes(encodeURIComponent("Für"))), "a request carried a collection's name or a note");
 
   // The rail's item is a tab: it remembers how the list was left.
   await step("sorted, then away", () => page.click(".cols a.c-events >> visible=true"), () => location.search === "?sort=events");
@@ -435,12 +482,30 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.tap(`.row-wrap:has(a.row[data-id="${ids[3]}"]) > .mark-toggle >> visible=true`);
   check(await page.evaluate(() => onPage('.bottomnav .nav[data-area="bookmarks"] .nav-count')?.textContent === "2"), "phone: the bottom bar does not count");
 
+  // The note after marking, on a phone: its field opens the menu as a sheet from below, a draft
+  // until „Fertig" (let go, nothing of it stays and the note waits); „Fertig" keeps it and ends
+  // the note too (owner, 2026-10-19: „Wenn man bei dem Modal auf fertig klickt, dann ist der Prozess
+  // done und die Notification kann auch weg").
+  const SHELF = "betula.collections.v1";
+  const inSheet = async () => { await page.tap(".collect-sheet .collect-field input"); await page.keyboard.type("Für Lena"); await page.keyboard.press("Enter"); };
+  await step("phone: the note's field opens the sheet", () => page.tap(".wait-note .mark-toast-field >> visible=true"), () => document.querySelector("dialog.collect-sheet")?.open === true && !document.activeElement?.closest?.(".collect-field"));
+  await inSheet();
+  await page.waitForFunction(() => document.querySelector(".collect-sheet .collect-item.on")?.textContent.includes("Für Lena"), null, { timeout: 4000 }).catch(() => problems.push("phone: the sheet does not make the collection"));
+  check((await page.evaluate((key) => localStorage.getItem(key), SHELF)) === null, "phone: the sheet's draft was kept before „Fertig“");
+  await page.evaluate(() => document.querySelector("dialog.collect-sheet")?.close());
+  await page.waitForTimeout(400);
+  check((await page.evaluate((key) => localStorage.getItem(key), SHELF)) === null && (await page.evaluate(() => Boolean(document.querySelector(".wait-note.mark-note:not(.leaving)")))), "phone: a sheet let go kept something, or took the note along");
+  await step("phone: „Fertig“ keeps it and ends the note", async () => { await page.tap(".wait-note .mark-toast-field >> visible=true"); await inSheet(); await page.tap("#collect-done"); }, (key) => (localStorage.getItem(key) || "").includes("\tFür Lena\n") && !document.querySelector("dialog.collect-sheet") && !document.querySelector(".wait-note.mark-note:not(.leaving)"), SHELF);
+
   await step("phone: the bottom bar leads to the marked modules", () => page.tap('.bottomnav .nav[data-area="bookmarks"] >> visible=true'), () => location.pathname === "/bookmarks" && allOnPage(".rows a.row").length === 2);
+  // The collections are chips over the list, and a row names its own.
+  check(await page.evaluate(() => [...allOnPage(".coll-chips .coll-chip")].map((chip) => chip.textContent).includes("Für Lena1") && Boolean(onPage(".rows .row-tag"))), "phone: the collections are no chips over the list, or the row does not name its own");
   // The filters and the orders are a sheet behind „Filter" (folia/design/merken/oberflaeche.html),
   // closed until it is opened, and a draft: the list follows only „2 Module anzeigen".
   const layout = await page.evaluate(() => ({ closed: onPage("#sidebar").getBoundingClientRect().top >= innerHeight - 1, toggle: Boolean(onPage(".list-head .sheet-toggle")?.getClientRects().length), overflow: document.documentElement.scrollWidth > innerWidth }));
   check(layout.closed && layout.toggle && !layout.overflow, `phone: the sheet of the filters is not closed behind „Filter", or the page is wider than the screen: ${JSON.stringify(layout)}`);
-  await step("phone: „Filter“ opens the sheet", () => page.tap(".list-head .sheet-toggle >> visible=true"), () => onPage("#sidebar").classList.contains("open") && Boolean(onPage("#sidebar .order-list")?.getClientRects().length));
+  // (The page in front's: the catalog's slides away under it for half a second after the tab.)
+  await step("phone: „Filter“ opens the sheet", () => page.tap("#content > .page-stage.front .list-head .sheet-toggle"), () => onPage("#sidebar").classList.contains("open") && Boolean(onPage("#sidebar .order-list")?.getClientRects().length));
   await page.waitForTimeout(400);
   await step("phone: an order in the sheet is a draft", () => page.tap('#sidebar .order-list a:has-text("Leistungspunkte") >> visible=true'), () => location.search === "" && onPage('#sidebar .order-list a[aria-current="page"]')?.textContent.startsWith("Leistungspunkte") && onPage("#sidebar .filter-actions .show")?.textContent === "2 Module anzeigen");
   await step("phone: „2 Module anzeigen“ applies it", () => page.tap("#sidebar .filter-actions .show >> visible=true"), () => location.search === "?sort=ects" && !onPage("#sidebar").classList.contains("open"));

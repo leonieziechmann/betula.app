@@ -15,6 +15,12 @@
 //! A list whose items all begin with a label („(1)", „a)", „IV.", „3.1.") is one CommonMark can
 //! only write as bullets (it numbers with digits alone); its labels are its markers
 //! (`ListKind::Labels`).
+//!
+//! A visitor's own note on the Merkliste is read the same way and a little further (`note_blocks`,
+//! folia/design/merken/oberflaeche.html: „**fett**, *kursiv*, `Code`, Listen, Links"): `` `code` `` and
+//! `[links](…)` to the web or to an e-mail address (`http:`, `https:`, `mailto:` alone, never a
+//! script); an image (`![…](…)`) is a link to it, never loaded. Anything else stays text, HTML
+//! included: what a page sets of a note is text and the few elements the reader makes.
 
 /// A block of a text: a paragraph or a list.
 #[derive(Clone, Debug, PartialEq)]
@@ -53,11 +59,49 @@ pub enum Inline {
     Emphasis(Vec<Inline>),
     /// A line break the text keeps.
     Break,
+    /// Code, as it stands (a note's alone).
+    Code(String),
+    /// A link to the web or to an e-mail address, with its text (a note's alone).
+    Link { text: String, href: String },
+}
+
+/// What a text is: a module's, whose links and code stay text, or a visitor's own note.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Flavor {
+    #[default]
+    Module,
+    Note,
 }
 
 /// The blocks of a text.
 pub fn blocks(markdown: &str) -> Vec<Block> {
-    let mut reader = Reader::default();
+    read(markdown, Flavor::Module)
+}
+
+/// The blocks of a visitor's note: as `blocks`, with code and links.
+pub fn note_blocks(markdown: &str) -> Vec<Block> {
+    read(markdown, Flavor::Note)
+}
+
+/// A note as one line (what a row of the Merkliste shows of it, and what its search finds).
+pub fn note_plain(markdown: &str) -> String {
+    plain_blocks(&note_blocks(markdown)).split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// The first line of a note as a row shows it: the inlines of its first paragraph, or of the
+/// first item of a list it begins with.
+pub fn note_first(markdown: &str) -> Vec<Inline> {
+    fn first(blocks: &[Block]) -> Option<Vec<Inline>> {
+        blocks.iter().find_map(|block| match block {
+            Block::Paragraph(inlines) => Some(inlines.split(|inline| *inline == Inline::Break).next().unwrap_or_default().to_vec()),
+            Block::List(list) => list.items.iter().find_map(|item| first(&item.blocks)),
+        })
+    }
+    first(&note_blocks(markdown)).unwrap_or_default()
+}
+
+fn read(markdown: &str, flavor: Flavor) -> Vec<Block> {
+    let mut reader = Reader { flavor, ..Reader::default() };
     for line in markdown.lines() {
         reader.line(Line::new(line));
     }
@@ -97,6 +141,8 @@ fn plain_inlines(inlines: &[Inline]) -> String {
             Inline::Text(text) => text.clone(),
             Inline::Strong(inner) | Inline::Emphasis(inner) => plain_inlines(inner),
             Inline::Break => " ".to_string(),
+            Inline::Code(code) => code.clone(),
+            Inline::Link { text, .. } => text.clone(),
         })
         .collect()
 }
@@ -124,6 +170,7 @@ impl<'a> Line<'a> {
 /// to, each with the list it is an item of; a blank line ends a paragraph, not an item.
 #[derive(Default)]
 struct Reader<'a> {
+    flavor: Flavor,
     /// The text's blocks so far.
     blocks: Vec<Block>,
     /// The items open, the outermost first.
@@ -201,7 +248,7 @@ impl<'a> Reader<'a> {
 
     fn end_paragraph(&mut self) {
         let lines = std::mem::take(&mut self.paragraph);
-        let inlines = inlines(&lines);
+        let inlines = inlines(&lines, self.flavor);
         if !inlines.is_empty() {
             self.container().push(Block::Paragraph(inlines));
         }
@@ -281,41 +328,164 @@ enum Token {
     Run { length: usize, left: usize, open: bool, close: bool },
     Strong(Vec<Token>),
     Emphasis(Vec<Token>),
+    Code(String),
+    Link { text: String, href: String },
+}
+
+/// A part of a note's line: text the paragraph's rules read, or code or a link, which they do not.
+enum Segment<'a> {
+    Text(&'a str),
+    Code(String),
+    Link { text: String, href: String },
+}
+
+/// Where a link may lead: the web or an e-mail address, written without spaces or quotes. Never a
+/// script (`javascript:`), a file of this browser or a page's data.
+fn safe_href(href: &str) -> bool {
+    let lower = href.to_ascii_lowercase();
+    (lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:"))
+        && href.len() > "mailto:".len()
+        && !href.chars().any(|c| c.is_whitespace() || c.is_control() || matches!(c, '"' | '\'' | '<' | '>' | '`'))
+}
+
+/// The parts of a note's line: `` `code` `` (a run of backticks closed by a run as long) and
+/// `[text](href)` or `![text](href)` with a safe address, on the line; everything else is text, a
+/// backslash and the character after it kept together for the paragraph's rules.
+fn segments(line: &str) -> Vec<Segment<'_>> {
+    let mut out = Vec::new();
+    let (mut start, mut at) = (0, 0);
+    let bytes = line.as_bytes();
+    while let Some(&b) = bytes.get(at) {
+        match b {
+            b'\\' => {
+                at += 1;
+                at += line.get(at..).and_then(|rest| rest.chars().next()).map_or(0, char::len_utf8);
+            }
+            b'`' => {
+                let run = bytes.get(at..).map_or(0, |rest| rest.iter().take_while(|b| **b == b'`').count());
+                let after = at + run;
+                let close = line.get(after..).and_then(|rest| {
+                    let mut from = 0;
+                    loop {
+                        let found = rest.get(from..)?.find('`')? + from;
+                        let length = rest.get(found..)?.bytes().take_while(|b| *b == b'`').count();
+                        if length == run {
+                            return Some(found);
+                        }
+                        from = found + length;
+                    }
+                });
+                match close {
+                    Some(close) => {
+                        let inner = line.get(after..after + close).unwrap_or_default();
+                        // One space on both sides of code that has other characters is the code's frame.
+                        let code = match inner.strip_prefix(' ').and_then(|inner| inner.strip_suffix(' ')) {
+                            Some(trimmed) if !trimmed.trim().is_empty() => trimmed,
+                            _ => inner,
+                        };
+                        out.push(Segment::Text(line.get(start..at).unwrap_or_default()));
+                        out.push(Segment::Code(code.to_string()));
+                        at = after + close + run;
+                        start = at;
+                    }
+                    None => at = after,
+                }
+            }
+            b'[' | b'!' => {
+                let open = if b == b'!' { at + 1 } else { at };
+                let link = (bytes.get(open) == Some(&b'['))
+                    .then(|| line.get(open + 1..))
+                    .flatten()
+                    .and_then(|rest| {
+                        let middle = rest.find("](")?;
+                        let text = rest.get(..middle)?;
+                        let after = rest.get(middle + 2..)?;
+                        let end = after.find(')')?;
+                        let href = after.get(..end)?.trim();
+                        (!text.contains('[') && safe_href(href)).then(|| (text.to_string(), href.to_string(), open + 1 + middle + 2 + end + 1))
+                    });
+                match link {
+                    Some((text, href, end)) => {
+                        out.push(Segment::Text(line.get(start..at).unwrap_or_default()));
+                        let text = if text.trim().is_empty() { href.clone() } else { text };
+                        out.push(Segment::Link { text, href });
+                        at = end;
+                        start = at;
+                    }
+                    None => at += 1,
+                }
+            }
+            _ => at += line.get(at..).and_then(|rest| rest.chars().next()).map_or(1, char::len_utf8),
+        }
+    }
+    out.push(Segment::Text(line.get(start..).unwrap_or_default()));
+    out.retain(|segment| !matches!(segment, Segment::Text(text) if text.is_empty()));
+    out
 }
 
 /// The inlines of a paragraph's lines. A backslash at the end of a line breaks it, and so do two
 /// spaces, which go with any other white space there; else the line goes on after a space. A
 /// backslash before punctuation is the character itself.
-fn inlines(lines: &[&str]) -> Vec<Inline> {
+fn inlines(lines: &[&str], flavor: Flavor) -> Vec<Inline> {
     let mut tokens = Vec::new();
     for (n, line) in lines.iter().enumerate() {
         let last = n + 1 == lines.len();
-        let mut chars = line.chars().peekable();
+        let parts = match flavor {
+            Flavor::Module => vec![Segment::Text(line)],
+            Flavor::Note => segments(line),
+        };
+        // What follows each part: code or a link is as a letter to a run of „*" before it.
+        let next: Vec<Option<char>> = (0..parts.len())
+            .map(|p| match parts.get(p + 1) {
+                Some(Segment::Text(text)) => text.chars().next(),
+                Some(_) => Some('a'),
+                None => None,
+            })
+            .collect();
         // The character before the one at hand; a line's start counts as white space.
         let mut before = '\n';
         let mut broken = false;
-        while let Some(c) = chars.next() {
-            match c {
-                '\\' => match chars.next_if(char::is_ascii_punctuation) {
-                    Some(escaped) => {
-                        push_char(&mut tokens, escaped);
-                        before = escaped;
-                        continue;
-                    }
-                    None if chars.peek().is_none() && !last => broken = true,
-                    None => push_char(&mut tokens, '\\'),
-                },
-                '*' => {
-                    let mut length = 1;
-                    while chars.next_if_eq(&'*').is_some() {
-                        length += 1;
-                    }
-                    let after = chars.peek().copied().unwrap_or('\n');
-                    tokens.push(Token::Run { length, left: length, open: left_flanking(before, after), close: right_flanking(before, after) });
+        let count = parts.len();
+        for (p, part) in parts.into_iter().enumerate() {
+            let text = match part {
+                Segment::Text(text) => text,
+                Segment::Code(code) => {
+                    before = 'a';
+                    tokens.push(Token::Code(code));
+                    continue;
                 }
-                c => push_char(&mut tokens, c),
+                Segment::Link { text, href } => {
+                    before = 'a';
+                    tokens.push(Token::Link { text, href });
+                    continue;
+                }
+            };
+            let last_part = p + 1 == count;
+            let after_part = next.get(p).copied().flatten().unwrap_or('\n');
+            let mut chars = text.chars().peekable();
+            while let Some(c) = chars.next() {
+                match c {
+                    '\\' => match chars.next_if(char::is_ascii_punctuation) {
+                        Some(escaped) => {
+                            push_char(&mut tokens, escaped);
+                            before = escaped;
+                            continue;
+                        }
+                        None if chars.peek().is_none() && last_part && !last => broken = true,
+                        None => push_char(&mut tokens, '\\'),
+                    },
+                    '*' => {
+                        let mut length = 1;
+                        while chars.next_if_eq(&'*').is_some() {
+                            length += 1;
+                        }
+                        let after = chars.peek().copied().unwrap_or(after_part);
+                        tokens.push(Token::Run { length, left: length, open: left_flanking(before, after), close: right_flanking(before, after) });
+                    }
+                    c => push_char(&mut tokens, c),
+                }
+                before = c;
             }
-            before = c;
         }
         let mut spaces = 0;
         if let Some(Token::Text(text)) = tokens.last_mut().filter(|_| !broken) {
@@ -395,6 +565,8 @@ fn into_inlines(tokens: Vec<Token>) -> Vec<Inline> {
             Token::Break => Inline::Break,
             Token::Strong(inner) => Inline::Strong(into_inlines(inner)),
             Token::Emphasis(inner) => Inline::Emphasis(into_inlines(inner)),
+            Token::Code(code) => Inline::Code(code),
+            Token::Link { text, href } => Inline::Link { text, href },
         };
         match (inlines.last_mut(), inline) {
             (Some(Inline::Text(before)), Inline::Text(text)) => before.push_str(&text),
@@ -544,6 +716,34 @@ mod tests {
 
     fn text(s: &str) -> Inline {
         Inline::Text(s.to_string())
+    }
+
+    #[test]
+    fn a_note_has_code_and_links_and_nothing_else() {
+        let link = |text: &str, href: &str| Inline::Link { text: text.to_string(), href: href.to_string() };
+        let read = |s: &str| match note_blocks(s).into_iter().next() {
+            Some(Block::Paragraph(inlines)) => inlines,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(read("Lena `fragen` heute"), [text("Lena "), Inline::Code("fragen".into()), text(" heute")]);
+        assert_eq!(read("``a ` b`` und ` x `"), [Inline::Code("a ` b".into()), text(" und "), Inline::Code("x".into())]);
+        assert_eq!(read("Ein `offenes Ende"), [text("Ein `offenes Ende")]);
+        assert_eq!(read("Siehe [die Seite](https://www.b-tu.de/x?a=1) oder [Lena](mailto:lena@example.org)."), [text("Siehe "), link("die Seite", "https://www.b-tu.de/x?a=1"), text(" oder "), link("Lena", "mailto:lena@example.org"), text(".")]);
+        // An image is a link to it; a script, a file or a data address is no link at all.
+        assert_eq!(read("![Plan](https://example.org/p.png)"), [link("Plan", "https://example.org/p.png")]);
+        for odd in ["[x](javascript:alert(1))", "[x](file:///etc/passwd)", "[x](data:text/html,hi)", "[x](https://a b)", "[x](/catalog)"] {
+            assert!(!read(odd).iter().any(|inline| matches!(inline, Inline::Link { .. })), "{odd}");
+        }
+        // HTML stays text; emphasis goes around code and links.
+        assert_eq!(read("<b>fett</b>"), [text("<b>fett</b>")]);
+        assert_eq!(read("**`wichtig`**"), [Inline::Strong(vec![Inline::Code("wichtig".into())])]);
+        // A module's text keeps all of it as text.
+        assert_eq!(blocks("Siehe [die Seite](https://x.org) `a`"), [paragraph(vec![text("Siehe [die Seite](https://x.org) `a`")])]);
+        // The first line of a note, and the note as one line.
+        assert_eq!(note_first("- erst **Lena** fragen\n- dann anmelden"), [text("erst "), Inline::Strong(vec![text("Lena")]), text(" fragen")]);
+        assert_eq!(note_first("Zeile eins\\\nZeile zwei"), [text("Zeile eins")]);
+        assert_eq!(note_plain("**Lena** fragen\n\n- [Seite](https://x.org)\n- `code`"), "Lena fragen Seite · code");
+        assert!(note_first("").is_empty());
     }
 
     fn paragraph(inlines: Vec<Inline>) -> Block {

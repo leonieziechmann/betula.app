@@ -668,6 +668,8 @@ fn Heading(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
                 <MarkButton id=m.id.clone() title=m.title.clone() look=MarkLook::Hero/>
             </div>
         </div>
+        // The visitor's note of the module, under the switches (the browser app's alone).
+        {APP.then(|| view! { <crate::collect::ModuleNote id=m.id.clone() title=m.title.clone()/> })}
     }
 }
 

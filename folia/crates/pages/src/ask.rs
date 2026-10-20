@@ -174,7 +174,7 @@ ask!(
 ask!(
     /// The Merkliste: the marked modules in an order, under the visitor's filter of the list
     /// (`pages::bookmarks`).
-    BookmarksAsk { ids: Vec<String>, sort: BookmarkSort, descending: bool, query: CatalogQuery } -> BookmarksData, Lane::Page, |q, db, kept| crate::bookmarks(db, &q.ids, q.sort, q.descending, &q.query)
+    BookmarksAsk { ids: Vec<String>, sort: BookmarkSort, descending: bool, query: CatalogQuery, also: Vec<String> } -> BookmarksData, Lane::Page, |q, db, kept| crate::bookmarks(db, &q.ids, q.sort, q.descending, &q.query, &q.also)
 );
 ask!(
     /// Where the marked modules count in Mein Studiengang (`pages::bookmark_places`): the program by
@@ -297,8 +297,8 @@ mod tests {
         same(ModuleAsk { id: "11103".into() });
         same(ModuleAsk { id: "00000".into() });
         same(ProgramAsk { slug: "bachelor-informatik-2008".into() });
-        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into()], sort: BookmarkSort::Added, descending: false, query: CatalogQuery::default() });
-        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into(), "12330".into()], sort: BookmarkSort::Offer, descending: true, query: CatalogQuery { text: "Analysis".into(), ..Default::default() } });
+        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into()], sort: BookmarkSort::Added, descending: false, query: CatalogQuery::default(), also: Vec::new() });
+        same(BookmarksAsk { ids: vec!["11103".into(), "12104".into(), "12330".into()], sort: BookmarkSort::Offer, descending: true, query: CatalogQuery { text: "Analysis".into(), ..Default::default() }, also: vec!["12330".into()] });
         same(BookmarkPlacesAsk { ids: vec!["11103".into(), "12104".into(), "99999".into()], program: "bachelor-informatik-2008".into() });
         let key = SemesterKey::parse("2026W").unwrap();
         same(StudyplanAsk { key, ids: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), locale: Locale::De });

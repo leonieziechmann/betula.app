@@ -410,7 +410,7 @@ pub const DE: Texts = Texts {
             ),
             (
                 "Kann ich Betula auf mehreren Geräten nutzen?",
-                "Ja, ohne Konto. „Auf anderes Gerät übertragen“ kopiert einen Link, der deine Merkliste hinter dem „#“ der Adresse trägt, und diesen Teil schickt kein Browser an einen Server. Einen Stundenplan gibst du mit „Link zum Teilen kopieren“ weiter, an dein anderes Gerät oder an andere Studierende, die seine Module dann übernehmen können. Und ein Kalender-Abo zeigt deinen Plan auf jedem Gerät, auf dem dein Kalender läuft.",
+                "Ja, ohne Konto. „Link für ein anderes Gerät“ im Menü der Merkliste kopiert einen Link, der deine Merkliste hinter dem „#“ der Adresse trägt, und diesen Teil schickt kein Browser an einen Server. Einen Stundenplan gibst du mit „Link zum Teilen kopieren“ weiter, an dein anderes Gerät oder an andere Studierende, die seine Module dann übernehmen können. Und ein Kalender-Abo zeigt deinen Plan auf jedem Gerät, auf dem dein Kalender läuft.",
             ),
             (
                 "Funktioniert Betula ohne JavaScript?",
@@ -657,7 +657,7 @@ pub const EN: Texts = Texts {
             ),
             (
                 "Can I use Betula on several devices?",
-                "Yes, without an account. “Move to another device” copies a link that carries your saved modules behind the “#” of the address, and no browser sends that part to a server. You pass a timetable on with “Copy link to share”, to your other device or to other students, who can then add its modules to their own. And a calendar subscription shows your plan on every device your calendar runs on.",
+                "Yes, without an account. “Link for another device” in the menu of your saved modules copies a link that carries your saved modules behind the “#” of the address, and no browser sends that part to a server. You pass a timetable on with “Copy link to share”, to your other device or to other students, who can then add its modules to their own. And a calendar subscription shows your plan on every device your calendar runs on.",
             ),
             (
                 "Does Betula work without JavaScript?",

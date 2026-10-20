@@ -663,7 +663,11 @@ impl BookmarksData {
 /// fills before it asks: Mein Studiengang for „Zählt in meinem Studium" (`program`) and for the
 /// search's ranking, the modules that fit the Stundenplan (`fits_ids`). Everything else of it is
 /// left out, so that the marked modules' own conditions (all of them, offered or not) hold.
-pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descending: bool, filter: &CatalogQuery) -> Result<BookmarksData, DbError> {
+///
+/// `also`: the modules the browser found the text in among what it keeps of them (a note, the name
+/// of a collection), which the catalog does not know: listed with what the search found, under
+/// the other filters and in the list's order (the search's marks stay with its own).
+pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descending: bool, filter: &CatalogQuery, also: &[String]) -> Result<BookmarksData, DbError> {
     // What comes from a browser's storage is checked like what comes from a URL.
     let mut seen = std::collections::BTreeSet::new();
     let ids: Vec<String> = ids.iter().filter(|id| folia_model::ids::is_module_id(id) && seen.insert(id.as_str())).take(MAX_BOOKMARKS).cloned().collect();
@@ -718,6 +722,16 @@ pub fn bookmarks(db: &dyn Database, ids: &[String], sort: BookmarkSort, descendi
     };
 
     let mut rows = queries::catalog_page(db, &marked(None), 0, limit)?.rows;
+    let also: Vec<&String> = also.iter().filter(|id| ids.contains(id) && !rows.iter().any(|row| row.id == **id)).collect();
+    if !text.is_empty() && !also.is_empty() {
+        let found: BTreeMap<String, Option<folia_model::rows::SearchMarks>> = rows.iter().map(|row| (row.id.clone(), row.marks.clone())).collect();
+        let both: Vec<String> = found.keys().cloned().chain(also.into_iter().cloned()).collect();
+        let wider = CatalogQuery { only_ids: Some(both), text: String::new(), text_resolution: None, rank_program: None, ..marked(None) };
+        rows = queries::catalog_page(db, &wider, 0, limit)?.rows;
+        for row in &mut rows {
+            row.marks = found.get(&row.id).cloned().flatten();
+        }
+    }
     if by_marking {
         let place = |id: &str| ids.iter().position(|marked| marked == id).unwrap_or(usize::MAX);
         rows.sort_by_key(|row| place(&row.id));

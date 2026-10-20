@@ -785,7 +785,7 @@ fn the_marked_modules_page() {
     let ids = |data: &BookmarksData| data.rows.iter().map(|row| row.id.clone()).collect::<Vec<_>>();
 
     let none = CatalogQuery::default();
-    let data = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &none).unwrap();
+    let data = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &none, &[]).unwrap();
     assert_eq!(ids(&data), known, "the order of marking, and the module that is no longer offered stays on the list");
     assert_eq!(data.missing, vec!["99999999".to_string()]);
 
@@ -800,35 +800,44 @@ fn the_marked_modules_page() {
     assert!(!data.offered_in(Season::Winter, "99999999"));
 
     // Another order comes from the same query as the catalog's.
-    let by_credits = pages::bookmarks(&db, &marked, BookmarkSort::Credits, true, &none).unwrap();
+    let by_credits = pages::bookmarks(&db, &marked, BookmarkSort::Credits, true, &none, &[]).unwrap();
     let credits: Vec<f64> = by_credits.rows.iter().filter_map(|row| row.credits).collect();
     assert!(credits.windows(2).all(|pair| pair[0] >= pair[1]), "descending credits: {credits:?}");
     assert_eq!((by_credits.rows.len(), by_credits.missing.clone(), by_credits.winter.len()), (4, data.missing.clone(), data.winter.len()));
     // The order of marking turns round (the oldest first); the study's and the offer's sections,
     // which the page draws, keep the order of marking within them.
     let oldest_first: Vec<String> = known.iter().rev().cloned().collect();
-    assert_eq!(ids(&pages::bookmarks(&db, &marked, BookmarkSort::Added, true, &none).unwrap()), oldest_first);
+    assert_eq!(ids(&pages::bookmarks(&db, &marked, BookmarkSort::Added, true, &none, &[]).unwrap()), oldest_first);
     for sort in [BookmarkSort::Study, BookmarkSort::Offer] {
-        assert_eq!(ids(&pages::bookmarks(&db, &marked, sort, true, &none).unwrap()), known, "{sort:?}");
+        assert_eq!(ids(&pages::bookmarks(&db, &marked, sort, true, &none, &[]).unwrap()), known, "{sort:?}");
     }
 
     // The search at the head searches the marked modules as the catalog searches: by the title,
     // marked where it found them; what the snapshot does not know stays named.
     let title = by_credits.rows.iter().find(|row| row.id == winter[0]).map(|row| row.title.clone()).unwrap_or_default();
     let word = title.split_whitespace().max_by_key(|word| word.chars().count()).unwrap_or_default().to_string();
-    let found = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { text: word.clone(), ..Default::default() }).unwrap();
+    let found = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { text: word.clone(), ..Default::default() }, &[]).unwrap();
     assert!(found.rows.iter().any(|row| row.id == winter[0]), "„{word}\" finds {}", winter[0]);
     assert!(found.rows.iter().all(|row| known.contains(&row.id)), "nothing but marked modules");
     assert!(found.rows.iter().any(|row| row.marks.is_some()), "the rows say what the search found");
     assert_eq!(found.missing, data.missing);
+    // What a note or a collection's name found in the browser comes with it, without the search's
+    // marks and in the list's order; what is not marked does not.
+    let other = known.iter().find(|id| !found.rows.iter().any(|row| &row.id == *id)).cloned().unwrap();
+    let with_notes = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { text: word.clone(), ..Default::default() }, &[other.clone(), "99999".to_string()]).unwrap();
+    assert_eq!(with_notes.rows.len(), found.rows.len() + 1);
+    let place = |id: &str| marked.iter().position(|marked| marked == id);
+    assert!(with_notes.rows.windows(2).all(|pair| place(&pair[0].id) < place(&pair[1].id)), "in the order of marking");
+    assert!(with_notes.rows.iter().any(|row| row.id == other && row.marks.is_none()));
+    assert_eq!(with_notes.rows.iter().filter(|row| row.marks.is_some()).count(), found.rows.iter().filter(|row| row.marks.is_some()).count());
     // A filter of the catalog's, among the marked.
-    let english = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { languages: vec![folia_routes::filter::Language::English], ..Default::default() }).unwrap();
+    let english = pages::bookmarks(&db, &marked, BookmarkSort::Added, false, &CatalogQuery { languages: vec![folia_routes::filter::Language::English], ..Default::default() }, &[]).unwrap();
     assert!(english.rows.iter().all(|row| row.teaches_english == Some(true)), "only what is taught in English");
     assert_eq!(english.missing, data.missing);
 
     // Nothing marked: nothing listed, and no query that matches everything.
-    assert_eq!(pages::bookmarks(&db, &[], BookmarkSort::Added, false, &none).unwrap(), BookmarksData::default());
-    assert_eq!(pages::bookmarks(&db, &["1 OR 1=1".to_string()], BookmarkSort::Title, false, &none).unwrap(), BookmarksData::default());
+    assert_eq!(pages::bookmarks(&db, &[], BookmarkSort::Added, false, &none, &[]).unwrap(), BookmarksData::default());
+    assert_eq!(pages::bookmarks(&db, &["1 OR 1=1".to_string()], BookmarkSort::Title, false, &none, &[]).unwrap(), BookmarksData::default());
 }
 
 /// Where the marked modules count in Mein Studiengang (the Merkliste's „Nach Studium" and „Zählt in

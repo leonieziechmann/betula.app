@@ -133,6 +133,20 @@ pub struct RowStatus {
     pub semester: String,
 }
 
+/// What the visitor keeps of a module, where a row of the Merkliste shows it (oberflaeche.html, „Die
+/// Zeile"): the collections it is in, outlined after what Betula says of it (at most two by name,
+/// then „+1"; the one the list shows is left out), and the first line of its note, under the row
+/// as wide as the row.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RowMine {
+    pub collections: Vec<String>,
+    /// The note, whole: the row shows its first line, its Markdown drawn.
+    pub note: Option<String>,
+}
+
+/// How many of a module's collections a row names; the rest is „+1".
+const NAMED: usize = 2;
+
 /// A module as a row of a list: the catalog's, and the list of marked modules. The whole row is
 /// a link; the mark at its end is a button next to the link, not inside it.
 #[component]
@@ -156,6 +170,8 @@ pub fn Row(
     #[prop(optional)] swipe: bool,
     /// What „Mein Studium" says of the module, after what the catalog says of it (the Merkliste).
     #[prop(optional, into)] status: Option<Signal<Option<RowStatus>>>,
+    /// What the visitor keeps of it, after that (the Merkliste).
+    #[prop(optional, into)] mine: Option<Signal<RowMine>>,
 ) -> impl IntoView {
     let t = i18n::t();
     let facts = Facts::of(Some(&row), t.locale);
@@ -222,6 +238,14 @@ pub fn Row(
                             </span>
                         }
                     }))}
+                    {mine.map(|mine| move || {
+                        let names = mine.with(|mine| mine.collections.clone());
+                        let rest: Vec<String> = names.iter().skip(NAMED).cloned().collect();
+                        view! {
+                            {names.into_iter().take(NAMED).map(|name| view! { <span class="row-tag">{name}</span> }).collect_view()}
+                            {(!rest.is_empty()).then(|| view! { <span class="row-tag" title=rest.join(", ")>{format!("+{}", rest.len())}</span> })}
+                        }
+                    })}
                     {facts.narrow()}
                 </small>
             </div>
@@ -230,6 +254,9 @@ pub fn Row(
             {facts.trail()}
             {other}
             {lecturer}
+            {mine.map(|mine| move || mine.with(|mine| mine.note.clone()).map(|note| view! {
+                <small class="row-note" title=folia_model::text::note_plain(&note)><Icon name="pencil"/><span class="md">{folia_design::ui::note_line(&note)}</span></small>
+            }))}
         </a>
     };
     // Marking belongs to the browser app (R9, R15). The server leaves the button out and the
@@ -307,7 +334,7 @@ fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
 pub fn ListKeys() -> impl IntoView {
     let t = i18n::t();
     view! {
-        <span class="keys" title=t.catalog.keys_title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span>
+        <span class="keys" title=t.catalog.keys_title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}" "<kbd>"S"</kbd>" "{t.catalog.key_collect}</span>
     }
 }
 /// Whether the phone layout is in use, kept up to date while the window changes its size. A list

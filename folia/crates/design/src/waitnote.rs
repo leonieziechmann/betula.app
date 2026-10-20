@@ -128,6 +128,15 @@ pub fn WaitNote(
     /// A part that takes a finger swiped sideways.
     #[prop(optional_no_strip)]
     sideways: Option<Sideways>,
+    /// While true something the note opened lies over the page (the menu of the note after
+    /// marking, `folia_widgets::marknote`): nothing done there is moving on, and the note waits
+    /// behind it; once it is closed the note waits as after a change (`changed`).
+    #[prop(optional, into)]
+    held: Option<Signal<bool>>,
+    /// Once true the note goes, as if put away: what it offered is done (on a phone „Fertig" of
+    /// the menu it opened).
+    #[prop(optional, into)]
+    away: Option<Signal<bool>>,
     /// Classes of its own besides `wait-note`.
     #[prop(optional, into)]
     class: String,
@@ -148,7 +157,15 @@ pub fn WaitNote(
             came.set_value(clock());
         });
     }
-    let fresh = move || clock() - came.try_get_value().unwrap_or(f64::NEG_INFINITY) < GRACE;
+    // While held, nothing is moving on; let go, it waits as after a change.
+    let holding = move || held.is_some_and(|held| held.try_get_untracked().unwrap_or(false));
+    if let Some(held) = held {
+        Effect::new(move |_| {
+            held.track();
+            came.set_value(clock());
+        });
+    }
+    let fresh = move || holding() || clock() - came.try_get_value().unwrap_or(f64::NEG_INFINITY) < GRACE;
 
 
     // A finger: the part that takes it sideways follows (`Sideways::slide`), the note down
@@ -170,6 +187,15 @@ pub fn WaitNote(
         lowered.set(down);
         set_timeout(gone, LEAVING);
     };
+
+    // Done with: it goes.
+    if let Some(away) = away {
+        Effect::new(move |_| {
+            if away.get() {
+                leave();
+            }
+        });
+    }
 
     // Another page, module, filter or search.
     let location = i18n::use_location();

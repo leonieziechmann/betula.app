@@ -1,6 +1,6 @@
 [package]
 name = "folia-widgets"
-version = "1.34.0"
+version = "1.35.0"
 edition = "2021"
 description = "The widgets the pages of Betula's app share: a module's view, rows, chips, the week"
 
@@ -31,7 +31,7 @@ folia-timetable = { path = "../timetable" }
 folia-locale = { path = "../locale" }
 serde = { version = "1.0", features = ["derive"] }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location", "MediaQueryList", "Event", "EventTarget", "Element", "Node", "NodeList", "DomRect", "HtmlElement", "HtmlInputElement", "FocusOptions", "DomTokenList", "Storage", "ScrollIntoViewOptions", "ScrollLogicalPosition", "ResizeObserver", "ScrollToOptions", "ScrollBehavior", "MouseEvent", "HtmlAnchorElement", "Url", "Performance", "History", "PopStateEvent", "PopStateEventInit", "Blob", "BlobPropertyBag", "AddEventListenerOptions", "CustomEvent", "CustomEventInit", "HtmlTextAreaElement", "HtmlDialogElement", "Navigator", "Clipboard"] }
 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).

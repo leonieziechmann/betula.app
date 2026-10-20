@@ -566,6 +566,37 @@ impl BookmarkSort {
     }
 }
 
+/// Which part of the Merkliste a view shows (folia/design/merken/konzept.html: „Eine Sammlung ist
+/// eine Ansicht der Merkliste").
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum CollectionView {
+    #[default]
+    All,
+    /// „Ohne Sammlung": the marked modules in no collection.
+    Without,
+    /// A collection, by its number (`folia_stores::collections::Collection::id`).
+    Of(u32),
+}
+
+impl CollectionView {
+    /// `none`, a number; nonsense is all of the list.
+    pub fn parse(code: &str) -> Self {
+        match code.trim() {
+            "none" => CollectionView::Without,
+            number => number.parse::<u32>().ok().filter(|id| *id > 0).map_or(CollectionView::All, CollectionView::Of),
+        }
+    }
+
+    /// What the address says of it; nothing for all of the list.
+    pub fn code(self) -> Option<String> {
+        match self {
+            CollectionView::All => None,
+            CollectionView::Without => Some("none".to_string()),
+            CollectionView::Of(id) => Some(id.to_string()),
+        }
+    }
+}
+
 /// „Stand": what „Mein Studium" says of a marked module.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Stand {
@@ -731,6 +762,10 @@ impl LocalView for StudyUrl {
 /// `CatalogUrl`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BookmarksUrl {
+    /// Which part of the list the view shows: all of it, what is in no collection, or one
+    /// collection by its number (`collection=none`, `collection=3`). A view, not a filter: the
+    /// sidebar names it, and taking the filters away keeps it.
+    pub collection: CollectionView,
     /// Only what is offered in this half of the year.
     pub season: Option<Season>,
     pub sort: BookmarkSort,
@@ -764,6 +799,7 @@ impl BookmarksUrl {
         let sort = first("sort").and_then(|code| BookmarkSort::ALL.iter().copied().find(|sort| sort.code() == code)).unwrap_or_default();
         let (open, full) = local_from_pairs(&pairs);
         Self {
+            collection: first("collection").map_or(CollectionView::All, |code| CollectionView::parse(&code)),
             season: first("turnus").and_then(|code| Season::ALL.iter().copied().find(|season| season.code() == code)),
             sort,
             descending: first("desc").is_some(),
@@ -808,6 +844,9 @@ impl BookmarksUrl {
 
     pub fn path(&self) -> String {
         let mut out: Vec<(&str, String)> = Vec::new();
+        if let Some(code) = self.collection.code() {
+            out.push(("collection", code));
+        }
         if let Some(season) = self.season {
             out.push(("turnus", season.code().to_string()));
         }
@@ -1907,6 +1946,13 @@ mod tests {
         assert!(written.starts_with("/bookmarks?stand=planned&counts=1&") && written.ends_with("&open=11101"), "{written}");
         assert_eq!(BookmarksUrl::parse(written.split_once('?').map(|(_, query)| query).unwrap_or_default()), filtered);
         assert_eq!(filtered.filters_set(), 7);
+        // A collection is a view of the list, by its number, before everything else; not a filter.
+        let lena = BookmarksUrl::parse("turnus=winter&collection=3");
+        assert_eq!((lena.collection, lena.path().as_str(), lena.filters_set()), (CollectionView::Of(3), "/bookmarks?collection=3&turnus=winter", 1));
+        assert_eq!(BookmarksUrl::parse("collection=none").collection, CollectionView::Without);
+        for odd in ["collection=0", "collection=-1", "collection=lena", "collection="] {
+            assert_eq!(BookmarksUrl::parse(odd).collection, CollectionView::All, "{odd}");
+        }
         assert!(is_module_id("11101") && is_module_id("FÜS-1".replace('Ü', "U").as_str()));
         assert!(!is_module_id("") && !is_module_id("1 OR 1=1") && !is_module_id(&"9".repeat(33)) && !is_module_id("a\tb"));
     }

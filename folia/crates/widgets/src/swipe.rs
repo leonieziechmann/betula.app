@@ -120,12 +120,19 @@ struct Act {
 }
 
 impl Act {
-    /// „Merken" for a module that is not marked, else „Entfernen" from the Merkliste.
+    /// „Merken" for a module that is not marked, with where the default for new marks puts it („in
+    /// Für Lena", as the module's switch says it), else „Entfernen" from the Merkliste.
     fn mark(marked: bool, t: &'static Texts) -> Self {
         if marked {
             Act { icon: "bookmark-minus", word: t.marks.remove, line: Some(t.marks.from_list.to_string()), done_icon: "bookmark-minus", done: t.marks.removed, fills: false }
         } else {
-            Act { icon: "bookmark", word: t.marks.save, line: None, done_icon: "bookmark", done: t.marks.saved, fills: true }
+            let into = folia_stores::collections::Collections::expect().and_then(|collections| {
+                collections.with_untracked(|shelf| {
+                    let names: Vec<String> = shelf.standard()?.iter().filter_map(|id| shelf.collection(*id)).map(|collection| collection.name.clone()).collect();
+                    (!names.is_empty()).then(|| (t.marks.mark_into)(&names.join(", ")))
+                })
+            });
+            Act { icon: "bookmark", word: t.marks.save, line: into, done_icon: "bookmark", done: t.marks.saved, fills: true }
         }
     }
 
@@ -538,10 +545,10 @@ impl RowSwipe {
         let id = self.id.get_value();
         match side {
             Side::Mark => {
-                let (bookmarks, was) = (self.bookmarks, ground.marked);
+                let (bookmarks, was, title) = (self.bookmarks, ground.marked, self.title.get_value());
                 nav::after_paint(move || {
                     if let Some(bookmarks) = bookmarks.filter(|bookmarks| bookmarks.is_marked_untracked(&id) == was) {
-                        bookmarks.toggle(&id);
+                        bookmarks.flip(&id, &title);
                     }
                 });
             }
