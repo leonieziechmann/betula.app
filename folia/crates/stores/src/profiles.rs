@@ -63,7 +63,11 @@ const MAX_ID: u16 = 999;
 
 /// What a profile keeps, under the keys of the first profile (`key_of` makes another profile's):
 /// the Merkliste, the Stundenplan with „Mein Studium", the saved plans and „Mein Studiengang".
-pub const KEYS: [&str; 4] = [crate::bookmarks::STORAGE_KEY, crate::studyplan::STORAGE_KEY, crate::studyplan::SAVED_KEY, crate::myprogram::STORAGE_KEY];
+pub const KEYS: [&str; STORES] = [crate::bookmarks::STORAGE_KEY, crate::studyplan::STORAGE_KEY, crate::studyplan::SAVED_KEY, crate::myprogram::STORAGE_KEY, crate::collections::STORAGE_KEY];
+
+/// How many stores a profile has (`KEYS`): the Merkliste, the Stundenplan, its saved plans, „Mein
+/// Studiengang", and the Merkliste's collections and notes (since Folia 1.35.0).
+pub const STORES: usize = 5;
 
 /// What a profile keeps in a tab for the session alone (`sessionStorage`), under the keys of the
 /// first profile like `KEYS`: the Stundenplan's own program (`studyplan`). It is no part of a
@@ -363,7 +367,7 @@ impl Profiles {
         self.create_with(&name, &backup.texts)
     }
 
-    fn create_with(self, name: &str, texts: &[String; 4]) -> Option<u16> {
+    fn create_with(self, name: &str, texts: &[String; STORES]) -> Option<u16> {
         let (next, id) = self.registry.with_untracked(|registry| registry.with_new(name, crate::bookmarks::now()))?;
         // Its texts first, then the list: another tab that hears of the profile finds them. What a
         // profile of this number left behind (keys a browser would not remove) is overwritten.
@@ -495,7 +499,7 @@ fn load() -> Registry {
 }
 
 /// What profile `id` keeps, as this browser has it: the text of each of `KEYS`, empty for none.
-fn texts_of(id: u16) -> [String; 4] {
+fn texts_of(id: u16) -> [String; STORES] {
     KEYS.map(|key| nav::local_get(&key_of(key, id)).unwrap_or_default())
 }
 
@@ -505,7 +509,7 @@ pub struct Deleted {
     pub profile: Profile,
     /// Where it stood in the list.
     at: usize,
-    texts: [String; 4],
+    texts: [String; STORES],
     was_active: bool,
 }
 
@@ -513,7 +517,7 @@ pub struct Deleted {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Cleared {
     id: u16,
-    texts: [String; 4],
+    texts: [String; STORES],
 }
 
 /// Where a store of `KEYS` keeps its text: its key in the profile whose text it holds, which follows
@@ -560,6 +564,10 @@ impl Kept {
     /// The profile whose text the store holds. Tracked.
     pub(crate) fn profile(self) -> u16 {
         self.profile.get()
+    }
+
+    pub(crate) fn profile_untracked(self) -> u16 {
+        self.profile.get_untracked()
     }
 
     /// Calls `reload` whenever the store's text may have changed under it: another tab wrote it,
@@ -626,7 +634,7 @@ struct BackupFile {
 pub struct Backup {
     pub name: String,
     /// The text of each of `KEYS`.
-    pub texts: [String; 4],
+    pub texts: [String; STORES],
 }
 
 /// A file that is no backup this build reads.
@@ -680,6 +688,8 @@ fn checked(key: &str, text: &str) -> String {
         SavedPlans::restored(text).stored()
     } else if key == crate::myprogram::STORAGE_KEY {
         MineDoc::restored(text).stored()
+    } else if key == crate::collections::STORAGE_KEY {
+        crate::collections::checked(text)
     } else {
         String::new()
     }
@@ -700,14 +710,20 @@ pub struct Summary {
     pub saved: usize,
     /// „Mein Studiengang" as it was named when it was set, else its id.
     pub program: Option<String>,
+    /// The Merkliste's collections, and its modules with a note.
+    pub collections: usize,
+    pub notes: usize,
 }
 
 impl Summary {
-    fn of(texts: &[String; 4]) -> Self {
-        let [marks, plan, saved, mine] = texts;
+    fn of(texts: &[String; STORES]) -> Self {
+        let [marks, plan, saved, mine, shelf] = texts;
         let plan = PlanDoc::restored(plan);
         let mine = MineDoc::restored(mine);
+        let (collections, notes) = crate::collections::count(shelf);
         Summary {
+            collections,
+            notes,
             marked: crate::bookmarks::count(marks),
             planned: plan.modules.iter().map(|planned| planned.module_id.as_str()).collect::<BTreeSet<_>>().len(),
             semesters: plan.semesters().len(),
@@ -853,13 +869,13 @@ mod tests {
         let mut plan = PlanDoc::default();
         assert!(plan.plan(semester("2026W"), "12204", 1_758_391_200, None) && plan.pass(semester("2025W"), "11101"));
         let mine = MineDoc::restored("program\t079-82-2008\nname\tInformatik B.Sc. · PO 2008\nstart\t2025W\n");
-        let backup = Backup { name: "Zweitstudium".to_string(), texts: ["12204\t1758391200\n11101\t1758391100\n".to_string(), plan.stored(), String::new(), mine.stored()] };
+        let backup = Backup { name: "Zweitstudium".to_string(), texts: ["12204\t1758391200\n11101\t1758391100\n".to_string(), plan.stored(), String::new(), mine.stored(), "c\t1\tFür Lena\nm\t12204\t1\nn\t12204\tLena fragen\n".to_string()] };
         let file = backup.file();
         assert!(file.contains("\"betula\": \"profile\"") && file.contains("\"version\": 1"), "{file}");
         // An empty store is not written.
         assert!(!file.contains("saved.v1"), "{file}");
         assert_eq!(Backup::read(&file), Ok(backup.clone()));
-        assert_eq!(backup.summary(), Summary { marked: 2, planned: 1, semesters: 1, passed: 1, saved: 0, program: Some("Informatik B.Sc. · PO 2008".to_string()) });
+        assert_eq!(backup.summary(), Summary { marked: 2, planned: 1, semesters: 1, passed: 1, saved: 0, program: Some("Informatik B.Sc. · PO 2008".to_string()), collections: 1, notes: 1 });
         // A byte order mark in front, as an editor may write it.
         assert_eq!(Backup::read(&format!("\u{feff}{file}")), Ok(backup));
     }
@@ -873,10 +889,10 @@ mod tests {
         assert_eq!(Backup::read(&" ".repeat(MAX_BACKUP + 1)), Err(NoBackup::TooLarge));
         // What each store holds is read as the store reads it: ids that cannot be ids, a program
         // that cannot be one, stores it does not know, a name of several lines.
-        let odd = r#"{"betula":"profile","version":1,"name":"A\nB","extra":true,"stores":{"betula.bookmarks.v1":"<script>\t1\n12204\t5\n","betula.myprogram.v1":"program\t../../etc\n","betula.theme":"dark","betula.p2.bookmarks.v1":"11101\t1\n"}}"#;
+        let odd = r#"{"betula":"profile","version":1,"name":"A\nB","extra":true,"stores":{"betula.bookmarks.v1":"<script>\t1\n12204\t5\n","betula.myprogram.v1":"program\t../../etc\n","betula.theme":"dark","betula.p2.bookmarks.v1":"11101\t1\n","betula.collections.v1":"c\t1\tFür Lena\nm\t<script>\t1\nm\t12204\t1,7\n"}}"#;
         let read = Backup::read(odd).unwrap();
         assert_eq!(read.name, "A B");
-        assert_eq!(read.texts, ["12204\t5\n".to_string(), String::new(), String::new(), String::new()]);
+        assert_eq!(read.texts, ["12204\t5\n".to_string(), String::new(), String::new(), String::new(), "c\t1\tFür Lena\nm\t12204\t1\n".to_string()]);
         assert!(Backup::read(r#"{"betula":"profile","version":1}"#).unwrap().summary().is_empty());
     }
 }

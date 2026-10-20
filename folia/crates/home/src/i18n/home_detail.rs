@@ -232,7 +232,7 @@ pub const DE: Texts = Texts {
         title: "Kein Konto. Und trotzdem fehlt nichts.",
         lead: "Merkliste, Stundenplan, gespeicherte Pläne, Kalender-Abos und dein Studiengang funktionieren ohne Anmeldung, weil sie in deinem Browser liegen statt auf einem Server.",
         points: [
-            Point { title: "Auf andere Geräte", text: "„Auf anderes Gerät übertragen“ nimmt die Merkliste im Link mit. Der Teil hinter dem # erreicht nie einen Server." },
+            Point { title: "Auf andere Geräte", text: "„Link für ein anderes Gerät“ im Menü der Merkliste nimmt sie im Link mit. Der Teil hinter dem # erreicht nie einen Server." },
             Point { title: "Zum Teilen", text: "„Link zum Teilen kopieren“ gibt einen Stundenplan weiter; wer ihn öffnet, kann die Module übernehmen." },
             Point { title: "In jeden Kalender", text: "Als Abo für Apple Kalender, Google Kalender oder Outlook, das neue Termine selbst nachlädt." },
             Point { title: "Datensparsam gebaut", text: "Keine Analysedienste, keine Cookies, die dich wiedererkennen, nichts von fremden Servern. Der Server steht in Deutschland." },
@@ -406,7 +406,7 @@ pub const EN: Texts = Texts {
         title: "No account. And yet nothing is missing.",
         lead: "Saved modules, your timetable, saved plans, calendar subscriptions and your programme all work without signing up, because they live in your browser instead of on a server.",
         points: [
-            Point { title: "To other devices", text: "“Move to another device” carries your saved modules in a link. The part after the # never reaches a server." },
+            Point { title: "To other devices", text: "“Link for another device” in the menu of your saved modules carries them in a link. The part after the # never reaches a server." },
             Point { title: "To share", text: "“Copy link to share” passes a timetable on; whoever opens it can add its modules." },
             Point { title: "Into any calendar", text: "As a subscription for Apple Calendar, Google Calendar or Outlook that fetches new dates by itself." },
             Point { title: "Built to collect little", text: "No analytics, no cookies that recognise you, nothing from other servers. The server stands in Germany." },

@@ -8,11 +8,13 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod choices;
+pub mod collect;
 mod courses;
 pub mod finder;
 pub mod i18n;
 pub mod list;
 pub mod local;
+pub mod marknote;
 pub mod module;
 mod options;
 pub mod plannote;

@@ -57,7 +57,7 @@ const AUTHORITY_URL: &str = "https://www.lda.brandenburg.de/";
 const AUTHORITY_SITE: &str = "www.lda.brandenburg.de";
 
 /// When the privacy notice last changed: day, month, year.
-const PRIVACY_AS_OF: (u32, u32, i32) = (14, 10, 2026);
+const PRIVACY_AS_OF: (u32, u32, i32) = (20, 10, 2026);
 
 /// The language whose text counts. A page in any other language is a translation and links to
 /// the page in this one (`legal::Texts::translated`).

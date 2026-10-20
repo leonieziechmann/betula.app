@@ -49,7 +49,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 | `/programs?q=…&level=…&form=…&plan=1` | Program overview (current PO versions) by faculty (`ProgramsUrl`): the search of the top bar, degree (`bachelor`, `master`, `teaching`, `doctoral`, `other`), form of study (`dual`, `double`, `flexible`), only with a validated study plan |
 | `/study[?view=plan\|areas][&open=<id>][&full=1]` | „Mein Studium“ (`StudyUrl`, 2026-10-04): the visitor's study semester by semester, the first page of the Studium tab in the app (see „Mein Studium“ below). What is passed and planned lives in the browser; the address says only how it is shown: which view (`view`, 2026-10-14: `plan` the Regelstudienplan, `areas` the Wahlpflicht, none the semesters; on a phone each a page of its own that Back leaves), which module stands beside the page, and whether it fills it. The semester a phone's row shows rather than the overview is no part of the address since 2026-10-18 but the state of its entry of the history, which a reload, Back and Forward bring along and which writes no step („Back" below); from 2026-10-05 it was `plan=1`, a step after the overview, which is still read (and links the box „Studium planen" without JavaScript) and gives way to `/study` once the row is back at the overview; a desktop shows both at once. The server renders one stand-in for everybody, `noindex`, not in the sitemap |
 | `/programs/<slug>/plan\|areas\|my-plan[?variant=<n>][&area=<id>][&req=<n>][&open=<id>][&full=1]` | Program page (`ProgramUrl`); its views are switched in the sidebar: the Regelstudienplan (`plan`) and „Wahlpflicht & Bereiche“ (`areas`). „Mein Plan“ (`my-plan`, the visitor's, `noindex` and not in the sitemap, `ProgramTab::indexed`) took the place of „Alle Module“ on 2026-09-25 (the program's modules are its catalog, `/catalog?program=<slug>`, and `…/modules` is a 404) and became „Mein Studium“ on 2026-10-04: the views no longer list it, the app goes on from its address to `/study` in the same history entry, and the server's page there says so. Where a program has several study plans (one per study direction), `variant` says which one is shown; `area` is the area of „Wahlpflicht & Bereiche“ shown beside the page, `req` a row of the plan that names no module, `open` the module — they stand in the address (a shared link, the history) and the app renders them; the server's page ignores all but `variant` (it lays nothing beside itself: its module links lead to the module's page, its area links to the catalog narrowed down to the area, a row without a module is text), so they are no part of its cache key and its canonical address is the plain one. The plan of each further study direction is a page of its own (2026-09-26): `?variant=<n>` is its canonical address, listed in the sitemap, with the direction in its title; the first is the plain address, and a number past the last plan names the last. A module opened out of an area keeps it, so closing the module returns to it. `full=1` shows the module of `open` in full: the module's own page, in place, so that „Vollbild" stays in the programs area (its tab, its history, its „Zurück"); the canonical address of that view is the module's page. On a phone an area or a row of the plan picked is the page, and a module comes up as a sheet over the page or over what was picked (2026-10-06; until then `open` alone showed it in full there) |
-| `/bookmarks?turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
+| `/bookmarks?collection=…&turnus=…&stand=…&counts=1&lang=…&ects_min=…&campus=…&graded=yes&fits=…&sort=…&desc=1&open=<id>[&full=1]` | „Merkliste": the modules the visitor has marked (`BookmarksUrl`). The URL says how the list is shown (the view — a collection by its number, `none` for „Ohne Sammlung", never its name —, half of the year, „Stand", „Zählt in meinem Studium", the few of the catalog's filters it has under the catalog's names, the order — `added`, `study`, `offer`, `title`, `ects`, `events`, each turned round with `desc=1` —, the previewed module), never what is on it: the marks live in the browser, and so does what is typed into the search at the head on this page (`folia_shell::search::LocalSearch`, R20). `full=1` shows the module of `open` in full, in the list's place, as `full=1` does on a program's page (a local view, `folia/crates/widgets/src/local.rs`): „Vollbild" stays among the marked modules (their tab, their history, their „Zurück"); on a phone `open` is a sheet over the list (2026-10-06; until then it did what `full=1` does). The server renders an explanation, the same for everybody, `noindex` |
 | `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]` | The Stundenplan (`StudyplanUrl`): how the plan is shown, never what is in it (R20), with one exception: `share`, a semester of a plan handed on by a link (`folia_calendar::share`, owner 2026-09-26), which the page offers to take over. The server renders an explanation, `noindex`, the same for everybody; for a `share` code a page of its own, whose tags and picture name the plan's modules (a link preview runs no JavaScript) |
 | `/profile` | „Profil" (owner, 2026-10-14): the profiles of this browser and the active one's page — its name (renamed, deleted), „Mein Studiengang", what it keeps with the way to each and „Profil leeren", the settings every profile shares (light, dark or the system's; the language); in the sidebar the profiles (a click switches), „Neues Profil", and a profile kept as a file or made of one. What it shows lives in the browser; the address is the page and says nothing more. A page of a while: on a phone its arrow leads back to where the visitor was (2026-10-19). The server renders one stand-in for everybody, `noindex`, not in the sitemap („Profiles" below) |
 | `/impressum`, `/datenschutz` | The legal pages (`folia/crates/home/src/legal.rs`): the Impressum and the Datenschutzerklärung, final since 2026-09-25 (placeholders from 2026-09-21). Linked from the ground at the end of every page („The birch"; § 5 DDG: reachable at all times), on a phone all but the row of pages of „Mein Studium", which has no ground (owner, 2026-10-19): there they are a tab further, at the end of any other page. The privacy notice says what the software does — the edge's access log and its retention, Folia's log, what stays in the browser, the calendar feed, the gate's cookie, the lecturers' names (Art. 14 DSGVO) — and `legal.rs` names the source of each part: a change there is a change of the text. `legal::PLACEHOLDER` stays the switch `deploy/ship.sh` reads: true again, the pages are `noindex` and no instance open to everybody (`FOLIA_ACCESS_GATE` not `on`) ships |
@@ -478,10 +478,12 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     - **The search at the head searches the list** while the Merkliste is up, as it searches the
       programs on their overview: the catalog's search (`pages::bookmarks`, titles in both
       languages, numbers, abbreviations, lecturers, its typos corrected, the rows marked where it
-      found them), among the marked modules, the head saying „2 von 9 gemerkten". What is typed
-      never goes into an address or a request (R20; once the Merkliste has notes it may name what
-      only a note says): it lives in the page (`folia_shell::search::LocalSearch`), and the data
-      worker searches in the browser. Under what it found, or alone where it found nothing, a line
+      found them), among the marked modules, the head saying „2 von 9 gemerkten", and in what
+      the visitor keeps of them: the text of their notes and the names of their collections
+      (konzept.html: „„Lena“ findet, wobei „Lena fragen“ notiert ist"; the page finds those
+      itself and hands them to the data worker beside the text, `BookmarksAsk::also`). What is
+      typed never goes into an address or a request (R20): it lives in the page
+      (`folia_shell::search::LocalSearch`), and the data worker searches in the browser. Under what it found, or alone where it found nothing, a line
       leads into the whole catalog with the same text and says how many modules it finds there
       (konzept.html: „Der Weg in den ganzen Katalog bleibt eine Zeile").
     - **The order is at the heads of the columns,** as in the catalog (owner, 2026-10-19: „die
@@ -514,8 +516,39 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       „Filter" (its badge counts the filters and an order other than the first), and what is
       picked there is a draft, as in the catalog's sheet: „N Module anzeigen" applies it, any
       other way it goes throws it away.
-    - **The actions** stay in the sidebar: copy the list as text, the link for another device,
-      and empty it, which asks first and can be taken back („Rückgängig").
+    - **Collections** („Sammlungen", Folia 1.35.0; folia/design/merken/konzept.html, „Sammlungen
+      und Notizen", oberflaeche.html, „Die Seite"; owner, 2026-10-19: „Sammlungen“, „zwei Gruppen
+      gleichen Namens soll nicht erlaubt sein … Leere Gruppen sind aber gut"): what only the
+      visitor knows of the modules, ordered by them. A module is in any number of collections, or
+      in none; a collection may be empty, for good; every name is there once (case and the spaces
+      at its ends do not count: „für lena" is „Für Lena"). What is in a collection is marked:
+      putting a module into one marks it, taking it out leaves it on the Merkliste, taking its
+      mark away takes it out of all of them (with „Rückgängig"). Each collection is a view of the
+      list (`collection=<n>`, „Ohne Sammlung" `collection=none`), in which the search, the order
+      and the filters hold, with numbers of its own („3 in Für Lena · 22 LP"). On a wide screen
+      the sidebar begins with them — „Alle", „Ohne Sammlung" once there is a collection, each
+      collection with its number, the one shown dark, „+ Neue Sammlung", a field where Enter makes
+      one and opens it, and a name there says „Gibt es schon · Enter öffnet sie" —; on a phone they
+      are chips over the list, which scroll sideways, „+" makes one, and the sheet behind „Filter"
+      has the filters alone. A collection's menu (its ⋯ while pointed at or focused, a right
+      click; on a phone the chip held, or ⋯ in the head) renames it (F2), moves it up or down and
+      deletes it: deleting asks nothing, the modules stay marked, and the note at the bottom says
+      „‚Für Lena‘ gelöscht · 3 bleiben gemerkt" with „Rückgängig", and „Auch 2 entfernen" where
+      modules were in it alone. A row names a module's collections outlined after what the
+      catalog and „Mein Studium" say of it (two by name, then „+1"; the one the list shows not),
+      and the first line of its note under it, as wide as the row, its Markdown drawn and cut with
+      „…" (`list::RowMine`). An empty collection, „Ohne Sammlung" with everything in collections
+      and a collection that is not there (deleted, or a link from another browser) each say so.
+    - **The whole list has a menu as a collection does** (oberflaeche.html: „„Alle“ hat ein Menü
+      wie eine Sammlung"), in place of the sidebar's former „Aktionen": „Link für ein anderes
+      Gerät", „Als Text kopieren" (the note at the bottom says „Link kopiert", „Liste kopiert"),
+      „Merkliste leeren", which asks first, the answer with the focus, and is taken back with
+      „Rückgängig" in the note. What the list is kept in is said in its empty state; the whole of
+      it in the privacy notice and on the profile page.
+    - **Near the limit** (256 modules, owner, 2026-10-19: „Also 256 Module sind auch genug. Dann
+      gibt es einfach ein Limit, und man bekommt ne Meldung") the head of the whole list says
+      „248 / 256" from 240 marks on, from 250 in the warning's colour; nowhere else is a limit
+      seen. A link that brings more than fits offers what fits.
   - **A mark taken away on that page stays on the page,** dimmed, until the page is left: a slip
     is one click to undo, and the list does not jump under the pointer. Marking changes numbers,
     never the list: no query runs and the rows stay the same elements (each button reads the
@@ -537,7 +570,57 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     module's page leaves the module on the list, dimmed. A module's own page reached from there (a
     successor named on the page) belongs to the marked modules as well: its „Zurück" leads back
     (`Tabs::came_from`), and the catalog's tab still leads to its list.
-  - **To another device without a server in between:** „Auf anderes Gerät übertragen" copies a
+  - **The menu of a module's collections and its note** (`folia_widgets::collect`;
+    oberflaeche.html, „Ein Menü für Sammlung und Notiz"; owner, 2026-10-19: „mach einfach gleich
+    den Fokus in das Suchfeld", „Mach mal notizen mit md support, du brauchst kein visuellen
+    editor"): one menu wherever it opens — the field of the note after marking (below), the arrow
+    of a module's switch, **S** at a row or at the open module, **N** with the focus in the note
+    (`enhance.js` `betula:collect`). At its top a field with the focus (on a wide screen) that
+    filters the collections and makes one („‚mathe‘ anlegen"; a name there is that collection);
+    ↑ ↓ and Enter go through the rows, no digits. The collections with a check and how many
+    marked modules each holds, in their own order. „Standard für neue Merker" once the module is in
+    a collection: what is marked from then on goes into the same collections until it is
+    switched off, over a restart too (oberflaeche.html, question B); switched on in the menu it
+    follows what is chosen there, and a module in none says which default there is, with
+    „Aufheben". The note in Markdown under it, a field that grows: **bold**, *italic*, `code`,
+    lists and links; drawn safely (`folia_model::text::note_blocks`: links only to `http`,
+    `https` and `mailto`, opening in a new tab, a picture only a link and never loaded, HTML as
+    text). On a wide screen the menu stands at what opened it and each choice holds at once; Esc
+    or a click beside it closes it, the focus goes back. On a phone it is a sheet from below and a
+    draft (owner, 2026-10-19: „Wenn man das fenster so zu macht, dann werden die changes nicht
+    gespeichert"): „Fertig" at its foot, as wide as the sheet, keeps what was chosen and written
+    and ends the note it came from; swiped down, tapped beside or Back lets all of it go, a
+    collection made in it too; the field gets the focus only when tapped, and with the keyboard up
+    the sheet takes what the keyboard leaves. What gets a collection or a note there is marked,
+    without the default.
+  - **At the module** its switch says more (oberflaeche.html, „Am Modul"): marked, „Gemerkt"
+    carries the module's collections small, as „Einplanen" carries its semester, and an arrow of
+    its own opens the menu (42 px on a phone); not marked, where a default is set, „Merken · in
+    Für Lena" (a row swiped to mark says the same). The note stands under the switches, whole,
+    its Markdown drawn; the pencil, or a click beside a link, edits it.
+  - **The note after marking** (`folia_widgets::marknote`; oberflaeche.html, „Merken und der
+    Hinweis danach"; owner, 2026-10-19: „die option mit dem Feld auch mit abstand am besten") is a
+    note that waits for interaction in the frame of the note of „Einplanen", without its stepper:
+    a check, the module's name on a wide screen, the field that says where the module went —
+    „Ohne Sammlung", „Für Lena", „Wahlpflicht, Für Lena +1", a pin where the default put it
+    there, „Sammlung" with a plus while there is none — and „Rückgängig", which takes the mark
+    away with what the default gave it. A tap on the field, or S while it stands, opens the menu;
+    the note waits behind it (`WaitNote`'s `held`), and on a phone „Fertig" ends it (`away`).
+    „Entfernt" with „Rückgängig" brings a mark back with its collections and its note; a mark
+    taken away and given again in the same tab comes back as it was, at its place (a dimmed row
+    on the Merkliste „holt es zurück"). „Merkliste voll · 256 Module" with the way to it marks
+    nothing. One note stands at a time: it takes the place of the note of „Einplanen", and that
+    one takes its place (`Planning::hush`).
+  - **Kept beside the marks, in this browser alone:** the collections, the modules in them, the
+    notes, the default and the collections used last are a text of their own under
+    `betula.collections.v1` in each profile (`folia_stores::collections`), so that an older build
+    reads the marks as before and nothing moves (konzept.html: „Ein zweiter Schlüssel je
+    Profil … Kein MAJOR"). It is read like anything from outside: a name twice, a collection
+    that is not there, an id that is none, a number twice are dropped line by line, names and
+    notes are cut at their caps (60, 4,000 characters), 64 collections at most. What belongs to
+    a module that is no longer marked (an older tab unmarked it) goes with the next change. A
+    profile's file, „Profil leeren" and the profile page take it along.
+  - **To another device without a server in between:** „Link für ein anderes Gerät" copies a
     link to the list with the marked modules in its *fragment*, as a code (`/bookmarks#m=…`,
     `pack/`): the ids as a set of numbers, in ascending order, each as its distance from the one
     before, in characters an address carries as they are, and two check characters at the end.

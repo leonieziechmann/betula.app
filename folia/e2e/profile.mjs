@@ -248,7 +248,7 @@ const mark = async (page, id) => {
   const { page } = await open(context, "/en/profile");
   await page.waitForFunction(() => onPage(".pf-head h2")?.textContent === "Profile 1", null, { timeout: 8000 }).catch(() => problems.push("English: the first profile is not named"));
   const english = await page.evaluate(() => ({ side: onPage("#sidebar .panel-head h2")?.textContent, top: onPage(".topbar h1")?.textContent, rows: [...allOnPage(".pf-row-label")].map((label) => label.textContent), language: [...allOnPage('.pf-seg a[data-language]')].map((a) => a.getAttribute("href")) }));
-  check(english.side === "Profiles" && english.top === "Profile" && english.rows.join() === "Saved modules,Timetable,My studies,Saved plans" && english.language.join() === "/profile", `English: ${JSON.stringify(english)}`);
+  check(english.side === "Profiles" && english.top === "Profile" && english.rows.join() === "Saved modules,Collections and notes,Timetable,My studies,Saved plans" && english.language.join() === "/profile", `English: ${JSON.stringify(english)}`);
   await context.close();
 }
 

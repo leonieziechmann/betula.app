@@ -17,16 +17,54 @@
 //! is read like anything that comes from outside: ids that could not be ids are dropped (they end
 //! up in links and queries), a module counts once, and the list has an upper limit.
 
+use std::collections::BTreeSet;
+
 use folia_model::ids::is_module_id;
 use folia_pages::MAX_BOOKMARKS;
 use leptos::prelude::*;
 
+use crate::collections::{Anchor, Belongings, CollectAsk, Collecting, Collections};
 use crate::i18n;
 use crate::profiles::Kept;
 use folia_design::ui::{Icon, Shortcut};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.bookmarks.v1";
+
+/// How many modules can be marked (owner, 2026-10-19: „Also 256 Module sind auch genug. Dann gibt
+/// es einfach ein Limit, und man bekommt ne Meldung"). It holds when something is added: a list that
+/// holds more from before (read up to `MAX_BOOKMARKS`) stays as it is, and nothing is added to it.
+pub const MAX_MARKS: usize = 256;
+
+/// What marking or unmarking a module did, for the note that follows it (`MarkNote`) and its
+/// „Rückgängig".
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Toggled {
+    /// Marked, and put into the collections of the default for new marks (none without one).
+    Marked { into: BTreeSet<u32> },
+    /// Its mark taken away, with what it had beside it: „Rückgängig" puts all of it back.
+    Unmarked { mark: Mark, belongings: Belongings },
+    /// Not marked: the Merkliste holds `MAX_MARKS` modules already.
+    Full,
+}
+
+/// What emptying the Merkliste took away (`Bookmarks::clear`), for its „Rückgängig".
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Cleared {
+    pub marks: Vec<Mark>,
+    /// The modules' collections and notes, by module.
+    pub belongings: Vec<(String, Belongings)>,
+}
+
+/// The last mark given or taken away, for the note after it: the module, its title, what
+/// happened, and a number of its own, so that the same thing twice is two notes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Marked {
+    pub id: String,
+    pub title: String,
+    pub what: Toggled,
+    pub serial: u64,
+}
 
 /// A marked module and when it was marked (seconds since 1970; 0 if unknown).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -45,17 +83,35 @@ impl Marks {
     }
 
     /// Marks the module, or takes the mark away again. `true` if it is marked afterwards.
+    #[cfg(test)]
     fn toggle(&mut self, id: &str, now: u64) -> bool {
-        if self.contains(id) {
-            self.0.retain(|mark| mark.id != id);
-            return false;
+        matches!(self.flip(id, now), Flip::Marked)
+    }
+
+    /// Marks the module, or takes its mark away again; refuses a new mark where `MAX_MARKS` are
+    /// there.
+    fn flip(&mut self, id: &str, now: u64) -> Flip {
+        if let Some(at) = self.0.iter().position(|mark| mark.id == id) {
+            return Flip::Unmarked(self.0.remove(at));
         }
         if !is_module_id(id) {
-            return false;
+            return Flip::Refused;
+        }
+        if self.0.len() >= MAX_MARKS {
+            return Flip::Full;
         }
         self.0.insert(0, Mark { id: id.to_string(), at: now });
-        self.0.truncate(MAX_BOOKMARKS);
-        true
+        Flip::Marked
+    }
+
+    /// Puts a mark back where its time puts it (the „Rückgängig" of taking it away), before the
+    /// marks of the same second: it was the newest of them a moment ago.
+    fn put_back(&mut self, mark: Mark) {
+        if self.contains(&mark.id) || !is_module_id(&mark.id) {
+            return;
+        }
+        let at = self.0.iter().position(|kept| kept.at <= mark.at).unwrap_or(self.0.len());
+        self.0.insert(at, mark);
     }
 
     /// Adds the marks that are not there yet and keeps the newest first.
@@ -89,10 +145,33 @@ impl Marks {
     }
 }
 
+/// What `Marks::flip` did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Flip {
+    Marked,
+    Unmarked(Mark),
+    Full,
+    /// No id: nothing.
+    Refused,
+}
+
 /// The visitor's marked modules (the active profile's), shared through context. Empty on the
-/// server, always.
+/// server, always. The last mark given or taken away is kept beside them for the note after it
+/// (`last`), and what the marks taken away in this tab had (`Forgotten`), so that marking one again
+/// brings it back as it was.
 #[derive(Clone, Copy)]
-pub struct Bookmarks(RwSignal<Marks>, Kept);
+pub struct Bookmarks(RwSignal<Marks>, Kept, RwSignal<Option<Marked>>, StoredValue<Vec<Forgotten>>);
+
+/// A mark taken away in this tab, with its time and what it had (its collections, its note): marked
+/// again, the module comes back as it was (oberflaeche.html, „Die Zeile": a tap on the bookmark of a
+/// row dimmed on the Merkliste „holt es zurück"; a slip of M on a module's page loses nothing).
+/// Kept for the tab's life alone, by profile, never stored.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Forgotten {
+    profile: u16,
+    mark: Mark,
+    belongings: Belongings,
+}
 
 impl Bookmarks {
     /// Reads what this browser has stored for the active profile and provides the list. Another
@@ -100,7 +179,7 @@ impl Bookmarks {
     /// follows.
     pub fn provide() -> Self {
         let kept = Kept::of(STORAGE_KEY);
-        let bookmarks = Bookmarks(RwSignal::new(load(kept)), kept);
+        let bookmarks = Bookmarks(RwSignal::new(load(kept)), kept, RwSignal::new(None), StoredValue::new(Vec::new()));
         provide_context(bookmarks);
         kept.follow(move || {
             let stored = load(kept);
@@ -131,41 +210,219 @@ impl Bookmarks {
         self.0.with_untracked(|marks| marks.contains(id))
     }
 
+    /// Marks the module or takes its mark away, as `flip`. `true` if it is marked afterwards.
     pub fn toggle(self, id: &str) -> bool {
-        let mut marked = false;
-        self.0.update(|marks| marked = marks.toggle(id, now()));
-        self.save();
-        marked
+        matches!(self.flip(id, ""), Some(Toggled::Marked { .. }))
     }
 
-    /// Takes every mark away and hands back what was marked, for `restore`.
-    pub fn clear(self) -> Vec<Mark> {
-        let cleared = self.marks_untracked();
+    /// Marks the module or takes its mark away, with its collections and its note: a new mark goes
+    /// into the collections of the default for new marks, a mark taken away takes the module out
+    /// of its collections and its note with it (`collections::Shelf::forget`). What it did is the
+    /// last change (`last`), for the note after it; `title` is the module's, for that note. `None`
+    /// for what is no module id, which is never marked.
+    pub fn flip(self, id: &str, title: &str) -> Option<Toggled> {
+        let shelf = Collections::expect();
+        // Taken away in this tab before: back as it was, at its time, without the default.
+        if let Some(forgotten) = self.recall(id) {
+            let Forgotten { mark, belongings, .. } = forgotten;
+            self.0.update(|marks| marks.put_back(mark));
+            if let Some(shelf) = shelf {
+                shelf.update(|shelf| shelf.bring_back(id, &belongings));
+            }
+            self.save();
+            return Some(self.noted(id, title, Toggled::Marked { into: BTreeSet::new() }));
+        }
+        let mut flipped = Flip::Refused;
+        self.0.update(|marks| flipped = marks.flip(id, now()));
+        let what = match flipped {
+            Flip::Refused => return None,
+            Flip::Full => Toggled::Full,
+            Flip::Marked => Toggled::Marked { into: shelf.map(|shelf| shelf.update(|shelf| shelf.marked(id))).unwrap_or_default() },
+            Flip::Unmarked(mark) => {
+                let belongings = shelf.map(|shelf| shelf.update(|shelf| shelf.forget(id))).unwrap_or_default();
+                self.remember(mark.clone(), belongings.clone());
+                Toggled::Unmarked { mark, belongings }
+            }
+        };
+        if what != Toggled::Full {
+            self.save();
+        }
+        Some(self.noted(id, title, what))
+    }
+
+    /// Marks a module that is not marked, as it is: no default, no note after it (a collection
+    /// chosen for it, or a note written, `folia_widgets::collect`). Where the Merkliste is full the
+    /// note says so. Whether it is marked afterwards.
+    pub fn mark_quiet(self, id: &str, title: &str) -> bool {
+        if self.is_marked_untracked(id) {
+            return true;
+        }
+        if let Some(Forgotten { mark, .. }) = self.recall(id) {
+            self.0.update(|marks| marks.put_back(mark));
+            self.save();
+            return true;
+        }
+        let mut flipped = Flip::Refused;
+        self.0.update(|marks| flipped = marks.flip(id, now()));
+        match flipped {
+            Flip::Marked => {
+                self.save();
+                true
+            }
+            Flip::Full => {
+                self.noted(id, title, Toggled::Full);
+                false
+            }
+            Flip::Unmarked(mark) => {
+                // Marked meanwhile (another tab): as it was.
+                self.0.update(|marks| marks.put_back(mark));
+                true
+            }
+            Flip::Refused => false,
+        }
+    }
+
+    /// Keeps what a mark taken away had, for marking it again (`Forgotten`): the newest of each
+    /// module, at most as many as can be marked.
+    fn remember(self, mark: Mark, belongings: Belongings) {
+        let profile = self.1.profile_untracked();
+        self.3.update_value(|forgotten| {
+            forgotten.retain(|kept| kept.mark.id != mark.id);
+            forgotten.insert(0, Forgotten { profile, mark, belongings });
+            forgotten.truncate(MAX_MARKS);
+        });
+    }
+
+    /// What a module had when its mark was taken away in this tab, in this profile, if it is not
+    /// marked now and there is room for it; taken out of what is kept.
+    fn recall(self, id: &str) -> Option<Forgotten> {
+        if self.is_marked_untracked(id) || self.room_untracked() == 0 {
+            return None;
+        }
+        let profile = self.1.profile_untracked();
+        let mut found = None;
+        self.3.update_value(|forgotten| {
+            if let Some(at) = forgotten.iter().position(|kept| kept.profile == profile && kept.mark.id == id) {
+                found = Some(forgotten.remove(at));
+            }
+        });
+        found
+    }
+
+    /// Records a change as the last one, for the note after it, and hands it back.
+    fn noted(self, id: &str, title: &str, what: Toggled) -> Toggled {
+        let serial = self.2.with_untracked(|last| last.as_ref().map_or(0, |last| last.serial.wrapping_add(1)));
+        self.2.set(Some(Marked { id: id.to_string(), title: title.to_string(), what: what.clone(), serial }));
+        what
+    }
+
+    /// „Rückgängig" of a change (`flip`): a new mark taken away again, with the collections the
+    /// default put it into; a mark taken away put back where its time puts it, with its
+    /// collections and its note.
+    pub fn undo(self, change: &Marked) {
+        match &change.what {
+            Toggled::Marked { .. } => {
+                let mut taken = None;
+                self.0.update(|marks| {
+                    if let Some(at) = marks.0.iter().position(|mark| mark.id == change.id) {
+                        taken = Some(marks.0.remove(at));
+                    }
+                });
+                let belongings = Collections::expect().map(|shelf| shelf.update(|shelf| shelf.forget(&change.id))).unwrap_or_default();
+                if let Some(mark) = taken {
+                    self.remember(mark, belongings);
+                }
+            }
+            Toggled::Unmarked { mark, belongings } => {
+                self.0.update(|marks| marks.put_back(mark.clone()));
+                if let Some(shelf) = Collections::expect() {
+                    shelf.update(|shelf| shelf.bring_back(&change.id, belongings));
+                }
+            }
+            Toggled::Full => return,
+        }
+        self.save();
+    }
+
+    /// The last mark given or taken away (`flip`), for the note after it. Tracked.
+    pub fn last(self) -> Option<Marked> {
+        self.2.get()
+    }
+
+    /// How many more modules can be marked.
+    pub fn room(self) -> usize {
+        MAX_MARKS.saturating_sub(self.count())
+    }
+
+    fn room_untracked(self) -> usize {
+        MAX_MARKS.saturating_sub(self.0.with_untracked(|marks| marks.0.len()))
+    }
+
+    /// Takes every mark away, with the modules' collections and notes (the collections stay), and
+    /// hands back what was marked and what they had, for `restore`.
+    pub fn clear(self) -> Cleared {
+        let marks = self.marks_untracked();
         self.0.set(Marks::default());
         self.save();
-        cleared
+        let belongings = Collections::expect().map(|shelf| shelf.update(|shelf| shelf.forget_all())).unwrap_or_default();
+        Cleared { marks, belongings }
     }
 
-    /// Puts marks back (the „Rückgängig" of `clear`); what has been marked since stays.
-    pub fn restore(self, marks: Vec<Mark>) {
-        self.0.update(|current| current.merge(marks));
-        self.save();
-    }
-
-    /// Marks all of these now, in the order given (a list brought over from another device).
-    /// What is marked already keeps its place.
-    pub fn add_all(self, ids: &[String]) {
-        let now = now();
+    /// Takes these marks away, with the modules' collections and notes, and hands back what they
+    /// were, for `restore` (a collection deleted „Auch 2 entfernen", `folia_widgets::marknote`).
+    pub fn take_away(self, ids: &[String]) -> Cleared {
+        let mut marks = Vec::new();
         self.0.update(|current| {
-            let new: Vec<Mark> = ids.iter().filter(|id| is_module_id(id) && !current.contains(id)).map(|id| Mark { id: id.clone(), at: now }).collect();
-            current.0.splice(0..0, new);
-            current.0.truncate(MAX_BOOKMARKS);
+            current.0.retain(|mark| {
+                let taken = ids.contains(&mark.id);
+                if taken {
+                    marks.push(mark.clone());
+                }
+                !taken
+            });
         });
         self.save();
+        let belongings = Collections::expect().map(|shelf| shelf.update(|shelf| marks.iter().map(|mark| (mark.id.clone(), shelf.forget(&mark.id))).collect())).unwrap_or_default();
+        Cleared { marks, belongings }
+    }
+
+    /// Puts marks back (the „Rückgängig" of `clear`), with their collections and notes; what has
+    /// been marked since stays.
+    pub fn restore(self, cleared: Cleared) {
+        self.0.update(|current| current.merge(cleared.marks));
+        self.save();
+        if let Some(shelf) = Collections::expect() {
+            shelf.update(|shelf| {
+                for (module, belongings) in &cleared.belongings {
+                    shelf.bring_back(module, belongings);
+                }
+            });
+        }
+    }
+
+    /// Marks these now, in the order given (a list brought over from another device), as many as
+    /// there is room for (`MAX_MARKS`). What is marked already keeps its place. How many were
+    /// marked.
+    pub fn add_all(self, ids: &[String]) -> usize {
+        let now = now();
+        let mut added = 0;
+        self.0.update(|current| {
+            let room = MAX_MARKS.saturating_sub(current.0.len());
+            let new: Vec<Mark> = ids.iter().filter(|id| is_module_id(id) && !current.contains(id)).take(room).map(|id| Mark { id: id.clone(), at: now }).collect();
+            added = new.len();
+            current.0.splice(0..0, new);
+        });
+        self.save();
+        added
     }
 
     pub fn count(self) -> usize {
         self.0.with(|marks| marks.0.len())
+    }
+
+    /// The same without subscribing: for what is built once.
+    pub fn count_untracked(self) -> usize {
+        self.0.with_untracked(|marks| marks.0.len())
     }
 
     /// The marked modules, the newest first.
@@ -300,7 +557,13 @@ pub enum MarkLook {
 }
 
 /// The switch that marks a module. Same behaviour in every look; `M` presses the one that
-/// belongs to what the visitor is looking at (`enhance.js`, `data-action="mark"`).
+/// belongs to what the visitor is looking at (`enhance.js`, `data-action="mark"`, which finds the
+/// module by `data-id` for S and N as well).
+///
+/// At a module (`Hero`) it says more (folia/design/merken/oberflaeche.html, „Am Modul"): marked, it
+/// carries the module's collections small, as „Einplanen" carries its semester, and an arrow of its
+/// own opens the menu of its collections and its note (`collections::Collecting`); not marked, where
+/// a default for new marks is set, where the mark will go („Merken · in Für Lena").
 ///
 /// It is part of server HTML (unpressed, like for everybody) only where leaving it out would make
 /// the page jump when the app takes over; the stylesheet shows it once the app runs.
@@ -312,9 +575,12 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
         let id = id.clone();
         Memo::new(move |_| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(&id)))
     };
-    let toggle = move |_: leptos::ev::MouseEvent| {
-        if let Some(bookmarks) = bookmarks {
-            bookmarks.toggle(&id);
+    let toggle = {
+        let (id, title) = (id.clone(), title.clone());
+        move |_: leptos::ev::MouseEvent| {
+            if let Some(bookmarks) = bookmarks {
+                bookmarks.flip(&id, &title);
+            }
         }
     };
     let pressed = move || if marked.get() { "true" } else { "false" };
@@ -324,23 +590,81 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
         // In a list the row is the stop of the Tab key, as before there were marks; the keyboard
         // marks with M on the row (the head of the list says so).
         MarkLook::Row => view! {
-            <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
+            <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" data-id=id data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
                 <Icon name="bookmark"/>
             </button>
         }
         .into_any(),
-        MarkLook::Hero => view! {
-            <button class="mark-toggle mark-switch hit" type="button" data-action="mark" on:click=toggle aria-pressed=pressed title=hint>
-                <Icon name="bookmark"/><span>{label}</span><Shortcut keys="M"/>
-            </button>
+        MarkLook::Hero => {
+            let collections = Collections::expect();
+            // Under „Gemerkt" the module's collections; under „Merken" where the default puts it.
+            let small = {
+                let id = id.clone();
+                Memo::new(move |_| {
+                    let marked = marked.get();
+                    collections?.with(|shelf| {
+                        // Two by name, then how many more, as the note's field and the rows say it.
+                        let names = |ids: &mut dyn Iterator<Item = u32>| {
+                            let names: Vec<String> = ids.filter_map(|c| shelf.collection(c)).map(|c| c.name.clone()).collect();
+                            match names.as_slice() {
+                                [first, second, rest @ ..] if !rest.is_empty() => format!("{first}, {second} +{}", rest.len()),
+                                _ => names.join(", "),
+                            }
+                        };
+                        let said = if marked { names(&mut shelf.of(&id).into_iter()) } else { shelf.standard().map(|ids| names(&mut ids.iter().copied())).filter(|names| !names.is_empty()).map(|names| (t.marks.mark_into)(&names)).unwrap_or_default() };
+                        (!said.is_empty()).then_some(said)
+                    })
+                })
+            };
+            let collect = {
+                let (id, title) = (id.clone(), title.clone());
+                move |ev: leptos::ev::MouseEvent| {
+                    if let Some(collecting) = Collecting::expect() {
+                        collecting.open(CollectAsk { id: id.clone(), title: title.clone(), at: pair_of(&ev), note: false, from_note: None });
+                    }
+                }
+            };
+            view! {
+                <span class="mark-pair" class:split=move || marked.get()>
+                    <button class="mark-toggle mark-switch hit" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint>
+                        <Icon name="bookmark"/><span>{label}</span>{move || small.get().map(|small| view! { <small>{small}</small> })}<Shortcut keys="M"/>
+                    </button>
+                    {move || marked.get().then(|| {
+                        let collect = collect.clone();
+                        view! {
+                            <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect>
+                                <Icon name="chevron-down"/>
+                            </button>
+                        }
+                    })}
+                </span>
+            }
+            .into_any()
         }
-        .into_any(),
         MarkLook::Action => view! {
-            <button class="mark-toggle action" type="button" data-action="mark" on:click=toggle aria-pressed=pressed title=hint>
+            <button class="mark-toggle action" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint>
                 <Icon name="bookmark"/><span>{label}</span>
             </button>
         }
         .into_any(),
+    }
+}
+
+/// The box of the pair of a module's switch and its arrow, whose arrow was clicked: the menu stands
+/// under it.
+fn pair_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let arrow = ev.current_target()?.dyn_into::<web_sys::Element>().ok()?;
+        let pair = arrow.parent_element().unwrap_or(arrow);
+        let rect = pair.get_bounding_client_rect();
+        Some(Anchor { left: rect.left(), top: rect.top(), right: rect.right(), bottom: rect.bottom() })
+    }
+    #[cfg(not(feature = "csr"))]
+    {
+        let _ = ev;
+        None
     }
 }
 
@@ -363,6 +687,30 @@ mod tests {
         let mut since = Marks(vec![Mark { id: "13001".into(), at: 50 }, Mark { id: "12204".into(), at: 45 }]);
         since.merge(cleared);
         assert_eq!(since.0.iter().map(|mark| (mark.id.as_str(), mark.at)).collect::<Vec<_>>(), [("13001", 50), ("12204", 45), ("11101", 10)]);
+    }
+
+    #[test]
+    fn at_most_256_and_a_mark_taken_away_comes_back_in_its_place() {
+        let mut marks = Marks::default();
+        for n in 0..MAX_MARKS {
+            assert_eq!(marks.flip(&(10_000 + n).to_string(), n as u64), Flip::Marked);
+        }
+        // The 257th is refused, and nothing falls out.
+        assert_eq!(marks.flip("99999", 999), Flip::Full);
+        assert_eq!(marks.0.len(), MAX_MARKS);
+        // Taking one away makes room; what is no id is never marked.
+        let Flip::Unmarked(gone) = marks.flip("10100", 1000) else { panic!("10100 was marked") };
+        assert_eq!(gone, Mark { id: "10100".into(), at: 100 });
+        assert_eq!(marks.flip("no id", 1001), Flip::Refused);
+        // „Rückgängig": back where its time puts it, between the newer and the older marks.
+        marks.put_back(gone.clone());
+        let at = marks.0.iter().position(|mark| mark.id == "10100").unwrap();
+        assert_eq!((marks.0[at - 1].at, marks.0[at + 1].at), (101, 99));
+        marks.put_back(gone);
+        assert_eq!(marks.0.len(), MAX_MARKS, "not twice");
+        // A list that holds more from before is read as it is.
+        let long: String = (0..300).map(|n| format!("{}\t{n}\n", 10_000 + n)).collect();
+        assert_eq!(Marks::restored(&long).0.len(), 300);
     }
 
     fn owned(ids: &[&str]) -> Vec<String> {

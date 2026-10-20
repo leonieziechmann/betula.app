@@ -2467,6 +2467,18 @@
       const row = document.activeElement?.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
+    } else if (plain && /^[sSnN]$/.test(e.key) && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog, [role=dialog], [role=menu], [role=alertdialog]")) {
+      // „Sammlung und Notiz" for what the visitor is at (folia/crates/widgets/src/collect.rs): the
+      // row the keyboard is on, else the module that is open; N with the focus in the note. While
+      // the note after marking stands S is its own (marknote.rs), for the module it names.
+      const note = e.key === "n" || e.key === "N";
+      if (!note && find('.wait-note [data-action="collect"]')) return;
+      const row = document.activeElement?.closest?.(".row-wrap");
+      const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
+      if (!mark?.dataset.id) return;
+      e.preventDefault();
+      const box = (row || mark.closest(".mark-pair") || mark).getBoundingClientRect();
+      dispatchEvent(new CustomEvent("betula:collect", { detail: { id: mark.dataset.id, title: mark.dataset.title || "", note, left: box.left, top: box.top, right: box.right, bottom: box.bottom } }));
     } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
