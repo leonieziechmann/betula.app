@@ -321,8 +321,12 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
 // (2026-10-17). The page has to answer all the while, the list holds a few screens of rows at
 // most, and the module stands beside the list (a sheet on a phone) with its row in view and marked.
 {
-  // A module near the end of the unfiltered list, as the server's pages list it.
-  const pages = Number((await (await fetch(base + "/catalog")).text()).match(/class="pager".*?<span class="num">[^<]*?(\d+)<\/span>/s)?.[1] || 1);
+  // A module near the end of the unfiltered list, as the server's pages list it. Their markup
+  // without Leptos's `<!>`: a build in folia/ (`--cfg erase_components`) ends the pager's text in
+  // one („Seite 1 von 65<!>"), and the number of pages was not found but taken for 1, so that the
+  // module „far down" was one of the first page (the server's tests: `markup`).
+  const pages = Number((await (await fetch(base + "/catalog")).text()).replaceAll("<!>", "").match(/class="pager".*?<span class="num">[^<]*?(\d+)<\/span>/s)?.[1] || 0);
+  check(pages > 1, `far down: the server's list names ${pages} pages`);
   const far = await (await fetch(`${base}/catalog?page=${Math.ceil(pages * 0.9)}`)).text();
   const id = [...far.matchAll(/<a [^>]*>/g)].map(([a]) => a).filter((a) => a.includes('class="row"')).map((a) => a.match(/data-id="([^"]+)"/)?.[1])[25];
   check(id, `far down: no module on page ${Math.ceil(pages * 0.9)} of ${pages} of the catalog`);
