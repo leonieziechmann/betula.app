@@ -359,15 +359,15 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await step("back to all of the list", () => page.click('.coll-nav > div.coll-item:first-of-type > a >> visible=true'), () => !location.search.includes("collection=") && allOnPage(".rows a.row").length === 3);
   // The arrow of the module's switch opens the menu of its collections and its note, the field
   // with the focus; each choice holds at once.
-  await step("the preview", () => page.click(`a.row[data-id="${marked[0]}"] >> visible=true`), () => Boolean(onPage(".detail .mark-more")));
-  await step("its arrow opens the menu", () => page.click(".detail .mark-more >> visible=true"), () => Boolean(document.activeElement?.closest?.(".collect-field")));
+  await step("the preview", () => page.click(`a.row[data-id="${marked[0]}"] >> visible=true`), () => Boolean(onPage('.detail [data-action="collect"]')));
+  await step("its arrow opens the menu", () => page.click('.detail .hero [data-action="collect"] >> visible=true'), () => Boolean(document.activeElement?.closest?.(".collect-field")));
   await step("into the collection", () => page.click('.collect-pop .collect-item:has-text("Für Lena")'), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-tag`)?.textContent === "Für Lena", marked[0]);
   await page.click(".collect-pop .collect-note");
   await page.keyboard.type("Lena **fragen**");
   await page.waitForFunction((id) => onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-note strong`)?.textContent === "fragen", marked[0], { timeout: 4000 }).catch(() => problems.push("the note does not show at its row"));
   await page.keyboard.press("Escape");
   check(await page.evaluate(() => !document.querySelector(".collect-pop")), "Esc does not close the menu");
-  check(await page.evaluate(() => onPage(".detail .module-note strong")?.textContent === "fragen" && onPage(".detail .mark-pair .mark-switch small")?.textContent === "Für Lena"), "the module does not show its collection and its note");
+  check(await page.evaluate(() => onPage(".detail .module-note strong")?.textContent === "fragen" && onPage('.detail [data-action="mark"] small')?.textContent === "Für Lena"), "the module does not show its collection and its note");
   const shelf = await page.evaluate((key) => localStorage.getItem(key) || "", COLLECTIONS);
   check(shelf.includes("\tFür Lena\n") && shelf.includes(`m\t${marked[0]}\t${lena}\n`) && shelf.includes(`n\t${marked[0]}\tLena **fragen**`), `what the store of the collections keeps: ${JSON.stringify(shelf)}`);
   await page.keyboard.press("Escape");

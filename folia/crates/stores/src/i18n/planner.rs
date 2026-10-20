@@ -23,6 +23,16 @@ pub struct Texts {
     pub plan_hint: fn(&str) -> String,
     /// „3. FS": a student's semester of study, short, beside a semester.
     pub fs_short: fn(u8) -> String,
+    /// The arrow beside „Einplanen", not planned (folia/design/tasten/konzept.html, „Knopf mit
+    /// Pfeil"; `folia_widgets::planinto`): its name, its tooltip with its key, and the menu it opens
+    /// — „Einplanen in", each semester with whether the module is offered then (`offered`,
+    /// `not_offered`) and „jetzt" (`now`) as the menu of „Eingeplant" says them, a check where it is
+    /// planned, the semesters behind the student folded.
+    pub plan_more: &'static str,
+    pub plan_more_hint: &'static str,
+    pub plan_into: &'static str,
+    pub planned_there: &'static str,
+    pub earlier_semesters: &'static str,
     /// What a row swiped to the right uncovers on a module planned where it aims (`swipe.rs`):
     /// „Entfernen" …
     pub remove: &'static str,
@@ -155,6 +165,11 @@ pub const DE: Texts = Texts {
     plan_for_hint: |semester, name| format!("In {semester} einplanen, für „{name}“"),
     plan_hint: |semester| format!("In {semester} einplanen"),
     fs_short: |n| format!("{n}. FS"),
+    plan_more: "In ein anderes Semester",
+    plan_more_hint: "In ein anderes Semester (⇧P)",
+    plan_into: "Einplanen in",
+    planned_there: "eingeplant",
+    earlier_semesters: "Frühere Semester",
     remove: "Entfernen",
     out_of: |semester| format!("aus {semester}"),
     removed: "Entfernt",
@@ -245,6 +260,11 @@ pub const EN: Texts = Texts {
     plan_for_hint: |semester, name| format!("Plan for {semester}, for \u{201c}{name}\u{201d}"),
     plan_hint: |semester| format!("Plan for {semester}"),
     fs_short: |n| format!("{} sem.", folia_design::i18n::format::ordinal(i64::from(n))),
+    plan_more: "Into another semester",
+    plan_more_hint: "Into another semester (⇧P)",
+    plan_into: "Plan for",
+    planned_there: "planned",
+    earlier_semesters: "Earlier semesters",
     remove: "Remove",
     out_of: |semester| format!("from {semester}"),
     removed: "Removed",

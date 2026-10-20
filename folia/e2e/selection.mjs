@@ -125,9 +125,9 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   check(await page.evaluate((id) => document.activeElement?.dataset?.id === id, rows[3]), "the focus did not go along with Shift and ↓");
   await step("Shift and ↑ back lets go of the last", () => page.keyboard.press("Shift+ArrowUp"), (ids) => JSON.stringify([...allOnPage("#rows .row-wrap.is-selected a.row")].map((row) => row.dataset.id).sort()) === JSON.stringify([...ids].sort()), rows.slice(1, 3));
 
-  // S with rows selected: the menu of their collections, no note; a collection made there holds
+  // ⇧M with rows selected: the menu of their collections, no note; a collection made there holds
   // all of them.
-  await step("S opens the menu for the rows selected", () => page.keyboard.press("s"), () => !!document.querySelector(".collect-pop .collect-field input"));
+  await step("⇧M opens the menu for the rows selected", () => page.keyboard.press("Shift+M"), () => Boolean(document.activeElement?.closest?.(".collect-pop .collect-field")));
   check((await page.evaluate(() => document.querySelector(".collect-pop .collect-head")?.textContent)) === "2 Module", "the menu's head does not say how many");
   check(await page.evaluate(() => !document.querySelector(".collect-pop textarea, .collect-pop .collect-default")), "the menu for several has a note or a default");
   await page.keyboard.type("Wahlpflicht");
@@ -191,10 +191,10 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   check(/^Sammlung und Notiz/.test(entries[0]) && /^Auswählen\b/.test(entries[1]) && /^(Einplanen|Aus dem Plan nehmen)/.test(entries[2]) && /^Von der Merkliste entfernen/.test(entries[3]), `the row's menu: ${JSON.stringify(entries)}`);
   await step("„Auswählen\" in it selects the row", () => page.click(".pick-menu .st-pop-item >> nth=1"), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("is-selected"), rows[3]);
   await page.keyboard.press("Escape");
-  // The keys its entries show are those entries while it is open: S its „Sammlung und Notiz", M its
+  // The keys its entries show are those entries while it is open: ⇧M its „Sammlung und Notiz", M its
   // „Von der Merkliste entfernen" — for its row.
   await page.keyboard.press("Escape");
-  await step("S in the row's menu opens „Sammlung und Notiz\"", async () => { await page.click(row(rows, 2), { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".pick-menu")); await page.keyboard.press("s"); }, () => !document.querySelector(".pick-menu") && Boolean(document.activeElement?.closest?.(".collect-pop")));
+  await step("⇧M in the row's menu opens „Sammlung und Notiz\"", async () => { await page.click(row(rows, 2), { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".pick-menu")); await page.keyboard.press("Shift+M"); }, () => !document.querySelector(".pick-menu") && Boolean(document.activeElement?.closest?.(".collect-pop")));
   await page.keyboard.press("Escape");
   await step("M in the row's menu takes its mark away", async () => { await page.click(row(rows, 2), { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".pick-menu")); await page.keyboard.press("m"); }, (id) => !document.querySelector(".pick-menu") && onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("unmarked"), rows[2]);
   await step("„Rückgängig\" marks it again", () => page.click(".mark-note .plan-toast-undo"), () => !allOnPage("#rows .row-wrap.unmarked").length);

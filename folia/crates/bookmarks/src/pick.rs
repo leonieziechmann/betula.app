@@ -26,7 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use folia_calendar::semester::SemesterKey;
 use folia_data::use_data;
 use folia_design::nav;
-use folia_design::ui::Icon;
+use folia_design::ui::{Icon, KeysText};
 use folia_plans::study::{fs_of, Offer};
 use folia_routes::url;
 use folia_stores::bookmarks::{share_fragment, Bookmarks, Brought};
@@ -540,9 +540,10 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
                 close();
                 return;
             }
-            // A key an entry shows (S, M) is that entry while the menu is open, as it is at the row.
+            // A key an entry shows (M, ⇧M) is that entry while the menu is open, as it is at the row.
             key if key.chars().count() == 1 && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() => {
-                if !ev.repeat() && nav::click_selector(&format!(".pick-menu [data-key=\"{}\"]", key.to_uppercase())) {
+                let shown = if ev.shift_key() { format!("⇧{}", key.to_uppercase()) } else { key.to_uppercase() };
+                if !ev.repeat() && nav::click_selector(&format!(".pick-menu [data-key=\"{shown}\"]")) {
                     ev.prevent_default();
                     ev.stop_propagation();
                 }
@@ -580,14 +581,14 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
                     Part::Item(Item { icon, label, hint, note, now, key, danger, does }) => {
                         let with_hint = hint.is_some();
                         view! {
-                        <button class="st-pop-item" class:danger=danger class:with-hint=with_hint type="button" role="menuitem" data-key=key.filter(|key| key.chars().count() == 1) on:click=move |_| does.run(())>
+                        <button class="st-pop-item" class:danger=danger class:with-hint=with_hint type="button" role="menuitem" data-key=key.filter(|key| is_key(key)) on:click=move |_| does.run(())>
                             {icon.map(|icon| view! { <Icon name=icon/> })}
                             <span class="st-pop-label">
                                 <span>{label}{now.then(|| view! { " " <span class="st-now">{t.bookmarks.now}</span> })}</span>
                                 {hint.map(|hint| view! { <small>{hint}</small> })}
                             </span>
                             {note.map(|(text, class)| view! { <span class=format!("st-pop-note {class}")>{(class == "warn").then(|| view! { <Icon name="triangle-alert"/> })}{text}</span> })}
-                            {key.map(|key| view! { <kbd class="st-pop-key">{key}</kbd> })}
+                            {key.map(|key| view! { <kbd class="st-pop-key"><KeysText text=key/></kbd> })}
                         </button>
                         }
                         .into_any()
@@ -759,7 +760,14 @@ fn share_parts(picking: Picking, t: &'static Texts) -> Option<(String, Vec<Part>
     Some(((b.share_head)(None, count), parts))
 }
 
-/// A row's menu (oberflaeche.html, the row's right click): „Sammlung und Notiz …" (S),
+/// Whether what an entry shows beside it is a key it answers to: a letter, or Shift and a letter
+/// („⇧M"); „Strg Klick" is said, not pressed.
+fn is_key(shown: &str) -> bool {
+    let mut chars = shown.chars();
+    matches!((chars.next(), chars.next(), chars.next()), (Some(_), None, _) | (Some('⇧'), Some(_), None))
+}
+
+/// A row's menu (oberflaeche.html, the row's right click): „Sammlung und Notiz …" (⇧M),
 /// „Auswählen" or „Abwählen", „Einplanen" where its switch would plan it (or „Aus dem Plan
 /// nehmen"), and „Merken" or „Von der Merkliste entfernen" (M).
 fn row_parts(picking: Picking, id: &str, t: &'static Texts) -> Option<(String, Vec<Part>)> {
@@ -779,7 +787,7 @@ fn row_parts(picking: Picking, id: &str, t: &'static Texts) -> Option<(String, V
             hint: None,
             note: None,
             now: false,
-            key: Some("S"),
+            key: Some("⇧M"),
             danger: false,
             does: Callback::new(move |()| {
                 picking.menu.set(None);

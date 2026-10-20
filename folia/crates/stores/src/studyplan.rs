@@ -55,7 +55,7 @@ use folia_design::ui::{Icon, Shortcut};
 pub mod fit;
 mod planning;
 
-pub use planning::{planning_semester, MenuAsk, Note, NoteKind, Planning, Pressed, SetupAsk};
+pub use planning::{planning_semester, MenuAsk, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
@@ -400,10 +400,14 @@ pub enum PlanLook {
 /// every look; `P` presses the one of what the visitor is at (`enhance.js`,
 /// `data-action="plan"`). Where no study is set up, the dialog asks for it first.
 ///
-/// At a module (`Hero`) the switch planned has an arrow of its own, as „Gemerkt" has (owner,
-/// 2026-10-20: „damit man das nicht löschen und dann wieder merken muss, um was daran zu ändern"):
-/// its menu (`MenuAsk`) moves the module, marks it as passed, opens the Stundenplan or takes it
-/// out; ⇧P opens it (`enhance.js`, `data-action="plan-more"`).
+/// At a module (`Hero`) the switch has an arrow of its own, as „Merken" has, planned or not
+/// (folia/design/tasten/konzept.html, „Knopf mit Pfeil"; owner, 2026-10-20: „Ja bitte setze deine
+/// Vorschläge um"), which ⇧P opens as well (`enhance.js`, `data-action="plan-more"`). Planned, its
+/// menu (`MenuAsk`, `folia_widgets::planmenu`) moves the module, marks it as passed, opens the
+/// Stundenplan or takes it out (owner, the same day: „damit man das nicht löschen und dann wieder
+/// merken muss, um was daran zu ändern"); not planned, „Einplanen in …" (`PlanAsk`,
+/// `folia_widgets::planinto`) plans it into a semester chosen. In server HTML as well, so nothing
+/// moves when the app takes over.
 ///
 /// Part of server HTML like `MarkButton`: unpressed and aimed as for an empty plan, the same for
 /// everybody (R9), kept in its place but not shown until the app runs (`.plan-toggle`), so nothing
@@ -502,25 +506,27 @@ pub fn PlanButton(
     if look == PlanLook::Action {
         return switch.into_any();
     }
-    // The arrow, while the module is planned where the switch is pressed for: its menu.
+    // The arrow: planned, the menu of what is planned where the switch is pressed for; not planned,
+    // „Einplanen in …".
     let more = move |ev: leptos::ev::MouseEvent| {
         let Some(planning) = planning else { return };
-        let aim = aim.get_untracked();
         let what = Pressed { hint: hint.get_untracked(), ..base.clone() };
-        planning.open_menu(MenuAsk { what, at: aim.target, passed: aim.passed_here(), anchor: crate::bookmarks::pair_of(&ev) });
+        let anchor = crate::bookmarks::pair_of(&ev);
+        if pressed.get_untracked() {
+            let aim = aim.get_untracked();
+            planning.open_menu(MenuAsk { what, at: aim.target, passed: aim.passed_here(), anchor });
+        } else {
+            planning.open_into(PlanAsk { what, aim: aim.get_untracked(), at: anchor });
+        }
     };
-    let split = move || APP && pressed.get();
+    let more_label = move || if pressed.get() { t.planner.more } else { t.planner.plan_more };
+    let more_hint = move || if pressed.get() { t.planner.more_hint } else { t.planner.plan_more_hint };
     view! {
-        <span class="plan-pair" class:split=split>
+        <span class="plan-pair split">
             {switch}
-            {move || split().then(|| {
-                let more = more.clone();
-                view! {
-                    <button class="plan-more hit" type="button" data-action="plan-more" aria-label=t.planner.more title=t.planner.more_hint aria-haspopup="menu" on:click=more>
-                        <Icon name="chevron-down"/>
-                    </button>
-                }
-            })}
+            <button class="plan-more hit" type="button" data-action="plan-more" aria-label=more_label title=more_hint aria-haspopup="menu" on:click=more>
+                <Icon name="chevron-down"/>
+            </button>
         </span>
     }
     .into_any()
@@ -551,6 +557,11 @@ impl Aim {
     /// Where a press plans the module, or takes it out of.
     pub fn target(&self) -> SemesterKey {
         self.target
+    }
+
+    /// The other semesters the plan holds the module in: „Einplanen in …" checks them.
+    pub fn elsewhere(&self) -> &[SemesterKey] {
+        &self.elsewhere
     }
 
     /// The module is passed in the semester the switch is pressed for: its menu offers to take

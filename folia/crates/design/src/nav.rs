@@ -505,6 +505,29 @@ pub fn reveal_selector(selector: &str) -> bool {
     false
 }
 
+/// Moves the focus among what `selector` finds (the entries of a menu open): on from the one that
+/// has it, round; from outside them to the first (↓) or the last (↑).
+#[allow(unused_variables)]
+pub fn step_focus(selector: &str, by: i32) {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return };
+        let Ok(list) = document.query_selector_all(selector) else { return };
+        let items: Vec<web_sys::HtmlElement> = (0..list.length()).filter_map(|i| list.item(i)).filter_map(|node| node.dyn_into::<web_sys::HtmlElement>().ok()).collect();
+        if items.is_empty() {
+            return;
+        }
+        let active = document.active_element();
+        let at = items.iter().position(|item| active.as_ref().is_some_and(|active| active.is_same_node(Some(item))));
+        let count = items.len() as i32;
+        let to = at.map_or(if by > 0 { 0 } else { count - 1 }, |at| (at as i32 + by).rem_euclid(count));
+        if let Some(item) = usize::try_from(to).ok().and_then(|to| items.get(to)) {
+            let _ = item.focus();
+        }
+    }
+}
+
 /// Clicks what `selector` finds on the page in front (an entry of a menu whose key was pressed).
 /// `false` without it, and on the server.
 #[allow(unused_variables)]
