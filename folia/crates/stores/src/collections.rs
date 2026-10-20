@@ -276,6 +276,19 @@ impl Shelf {
         self.notes.get(module).map(String::as_str)
     }
 
+    /// What the visitor keeps of a module, as a search reads it: its note as plain text and the
+    /// names of its collections; nothing where it has neither.
+    pub fn kept_text(&self, module: &str) -> Option<String> {
+        let names: Vec<&str> = self.of(module).into_iter().filter_map(|collection| self.collection(collection)).map(|collection| collection.name.as_str()).collect();
+        let note = self.note(module).map(folia_model::text::note_plain);
+        (!names.is_empty() || note.is_some()).then(|| [note.unwrap_or_default(), names.join(" ")].join(" "))
+    }
+
+    /// The names of the collections a module is in, in their order, „Wahlpflicht, Für Lena".
+    pub fn names_of(&self, module: &str) -> String {
+        self.collections.iter().filter(|collection| self.holds(collection.id, module)).map(|collection| collection.name.as_str()).collect::<Vec<_>>().join(", ")
+    }
+
     /// Keeps a note; one of nothing but white space takes it away.
     pub fn set_note(&mut self, module: &str, note: &str) {
         if !is_module_id(module) {
@@ -674,6 +687,21 @@ mod tests {
         // What an older tab unmarked goes with the next change: only marked modules keep anything.
         shelf.keep_marked(|module| module == "12177");
         assert_eq!((shelf.of("14169"), shelf.note("14169"), shelf.of("12177")), (vec![], None, vec![witzig]));
+    }
+
+    #[test]
+    fn what_a_search_reads_and_the_names_of_a_module() {
+        let mut shelf = Shelf::default();
+        let (lena, witzig) = (shelf.create("Für Lena").unwrap(), shelf.create("Witzig").unwrap());
+        shelf.toggle_in("14169", witzig);
+        shelf.toggle_in("14169", lena);
+        shelf.set_note("14169", "**Lena** fragen");
+        // The note as plain text, then the collections; in the collections' order, not the clicks'.
+        assert_eq!(shelf.kept_text("14169").as_deref(), Some("Lena fragen Für Lena Witzig"));
+        assert_eq!(shelf.names_of("14169"), "Für Lena, Witzig");
+        shelf.set_note("12177", "nur eine Notiz");
+        assert_eq!((shelf.kept_text("12177").as_deref(), shelf.names_of("12177")), (Some("nur eine Notiz "), String::new()));
+        assert_eq!((shelf.kept_text("11103"), shelf.names_of("11103")), (None, String::new()));
     }
 
     #[test]

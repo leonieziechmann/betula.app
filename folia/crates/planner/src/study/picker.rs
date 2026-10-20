@@ -3,12 +3,16 @@
 //! a Fachsemester of the Regelstudienplan (its own, or any other: „Plan-Semester") with where each
 //! stands, the Wiederholer, and the catalog's search; each one ticked, „Einfügen" puts them in
 //! together. Nothing is refused: a module planned elsewhere moves here, one the semester does not
-//! offer is said so.
+//! offer is said so. Once something is marked, the Merkliste is a third source between the two
+//! (folia/design/merken/konzept.html, „Von überall"): its modules in the order of marking, by
+//! collection and search, each with what it means for the semester. Wherever the picker lists a
+//! marked module, it says so, with its collections.
 //!
 //! The Gesamtplan's cell (`CellDialog`) offers the modules of one area for one semester: the
-//! module tree's areas below it as filters, those offered then first, the others folded.
+//! module tree's areas below it as filters, those offered then first, the others folded; the
+//! marked ones of the area first in each.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use folia_calendar::semester::SemesterKey;
 use folia_model::rows::{CatalogRow, Prerequisite};
@@ -21,6 +25,8 @@ use leptos::prelude::*;
 use folia_data::use_ask;
 use folia_design::combobox::{ComboItem, Select};
 use folia_design::ui::Icon;
+use folia_stores::bookmarks::Bookmarks;
+use folia_stores::collections::{Collections, Shelf};
 
 use super::dialog::DialogHead;
 use super::focus::find_href;
@@ -29,6 +35,15 @@ use crate::i18n::{self, Texts};
 
 /// How many of the catalog's modules a search shows.
 const HITS: u64 = 40;
+
+/// Where „Module hinzufügen" takes its modules from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Source {
+    Plan,
+    /// The Merkliste: a tab once something is marked.
+    Marked,
+    Catalog,
+}
 
 /// One entry of the picker.
 #[derive(Clone, Debug, PartialEq)]
@@ -215,6 +230,21 @@ fn catalog_choices(ctx: StudyCtx, ready: &Ready, rows: &[CatalogRow], needs: &[P
     choices
 }
 
+/// The marked modules as the picker offers them for `s`, in the order of marking: what the semester
+/// offers first, then what it does not (with the note that says so), then what is passed or
+/// planned here already.
+fn marked_choices(ctx: StudyCtx, ready: &Ready, rows: &[CatalogRow], needs: &[Prerequisite], s: SemesterKey, t: &Texts) -> Vec<Choice> {
+    let mut choices: Vec<(bool, Choice)> = rows.iter().map(|row| Offer::of(row).offered(s)).zip(catalog_rows(ctx, ready, rows, needs, s, t)).collect();
+    choices.sort_by_key(|(offered, choice)| (choice.done.is_some(), !offered));
+    choices.into_iter().map(|(_, choice)| choice).collect()
+}
+
+/// What the Merkliste's search in the picker looks through: a module's titles and number, and
+/// what the visitor keeps of it (its note, the names of its collections).
+fn marked_text(row: &CatalogRow, shelf: &Shelf) -> String {
+    [Some(row.title.as_str()), row.title_de.as_deref(), row.title_en.as_deref(), Some(row.id.as_str())].into_iter().flatten().map(str::to_string).chain(shelf.kept_text(&row.id)).collect::<Vec<_>>().join(" ")
+}
+
 fn catalog_rows(ctx: StudyCtx, ready: &Ready, rows: &[CatalogRow], needs: &[Prerequisite], s: SemesterKey, t: &Texts) -> Vec<Choice> {
     let st = &t.study;
     let doc = ctx.plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
@@ -259,11 +289,14 @@ fn catalog_rows(ctx: StudyCtx, ready: &Ready, rows: &[CatalogRow], needs: &[Prer
         .collect()
 }
 
-/// A list of entries to tick.
+/// A list of entries to tick. A marked module says so, with its collections; in the Merkliste's
+/// own list (`from_marks`), where every one is, only these.
 #[component]
-fn ChoiceList(choices: Vec<Choice>, picked: RwSignal<Vec<(String, Pick, f64)>>) -> impl IntoView {
+fn ChoiceList(choices: Vec<Choice>, picked: RwSignal<Vec<(String, Pick, f64)>>, #[prop(optional)] from_marks: bool) -> impl IntoView {
     let t = i18n::t();
     let st = &t.study;
+    let bookmarks = Bookmarks::expect();
+    let collections = Collections::expect();
     view! {
         <ul class="st-choices">
             {choices.into_iter().map(|choice| {
@@ -283,6 +316,17 @@ fn ChoiceList(choices: Vec<Choice>, picked: RwSignal<Vec<(String, Pick, f64)>>) 
                 };
                 let credits = choice.credits_text.clone().map(|text| folia_plans::plan::credits_in(&text, t.locale)).or_else(|| choice.credits.map(|credits| n(credits, t))).map(|credits| (st.credits)(&credits));
                 let label = (st.select)(&choice.name);
+                let marked = match &choice.pick {
+                    Pick::Module { id, .. } if bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(id)) => {
+                        let names = collections.map(|collections| collections.with_untracked(|shelf| shelf.names_of(id))).unwrap_or_default();
+                        match (names.is_empty(), from_marks) {
+                            (true, true) => None,
+                            (true, false) => Some(view! { <span class="st-marked"><Icon name="bookmark"/>{st.marked}</span> }.into_any()),
+                            (false, _) => Some(view! { <span class="st-marked"><Icon name="bookmark"/><span class="visually-hidden">{format!("{}: ", st.marked)}</span>{names}</span> }.into_any()),
+                        }
+                    }
+                    _ => None,
+                };
                 view! {
                     <li class="st-choice-row" class:is-done=choice.done.is_some()>
                         {match choice.done.clone() {
@@ -297,6 +341,7 @@ fn ChoiceList(choices: Vec<Choice>, picked: RwSignal<Vec<(String, Pick, f64)>>) 
                             <div class="st-line"><span class="st-choice-name">{choice.name.clone()}</span><span class="st-lp">{credits}</span></div>
                             <div class="st-sub">
                                 <span class="st-area"><span class="st-dot" style=format!("--c: {}", choice.tone)></span>{choice.area.clone()}</span>
+                                {marked}
                                 {choice.done.clone().map(|done| view! { <span class="ok">{done}</span> })}
                                 {choice.notes.into_iter().map(|(class, text)| view! { <span class=class>{text}</span> }).collect_view()}
                                 {choice.find.map(|href| view! { <a href=t.path(&href) rel="nofollow">{st.choose_module}</a> })}
@@ -374,7 +419,7 @@ fn typed_search(text: RwSignal<String>) -> RwSignal<String> {
 pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, chosen: Vec<String>) -> impl IntoView {
     let t = i18n::t();
     let st = &t.study;
-    let in_catalog = RwSignal::new(catalog);
+    let source = RwSignal::new(if catalog { Source::Catalog } else { Source::Plan });
     // The Fachsemester of the semester, else the nearest; and how many the plan has.
     let fs_of = Memo::new(move |_| {
         ctx.with_ready(|ready| {
@@ -439,14 +484,68 @@ pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, cho
         hit_rows.with(|rows| ctx.with_ready(|ready| catalog_choices(ctx, ready, rows, &needs, semester, t)).unwrap_or_default())
     });
 
+    // The Merkliste: its modules, the newest first, asked for once its tab is opened. Which they
+    // are stays in the browser: the data worker answers from the local copy (R9).
+    let bookmarks = Bookmarks::expect();
+    let collections = Collections::expect();
+    let marked_ids = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<Vec<String>>()).unwrap_or_default());
+    let three = Memo::new(move |_| marked_ids.with(|ids| !ids.is_empty()));
+    let opened = Memo::new(move |before: Option<&bool>| before.copied().unwrap_or(false) || source.get() == Source::Marked);
+    let marked_rows = use_ask(move || {
+        let ids = marked_ids.get();
+        (opened.get() && !ids.is_empty()).then_some(StudyModulesAsk { ids })
+    });
+    let collection = RwSignal::new(None::<u32>);
+    let marked_search = RwSignal::new(String::new());
+    let shelf = Memo::new(move |_| collections.map(|collections| collections.with(Clone::clone)).unwrap_or_default());
+    // `None` until the data worker answers.
+    let marked_found = Memo::new(move |_| {
+        let text = marked_search.get();
+        let chosen = collection.get();
+        let order = marked_ids.get();
+        marked_rows.with(|answer| {
+            let modules = answer.as_ref()?.as_ref().ok()?;
+            let by_id: BTreeMap<&str, &CatalogRow> = modules.rows.iter().map(|row| (row.id.as_str(), row)).collect();
+            let rows: Vec<CatalogRow> = shelf.with(|shelf| {
+                order
+                    .iter()
+                    .filter_map(|id| by_id.get(id.as_str()).copied())
+                    .filter(|row| chosen.is_none_or(|chosen| shelf.holds(chosen, &row.id)))
+                    .filter(|row| text.trim().is_empty() || folia_search::matches(&marked_text(row, shelf), &text))
+                    .cloned()
+                    .collect()
+            });
+            Some(ctx.with_ready(|ready| marked_choices(ctx, ready, &rows, &modules.prerequisites, semester, t)).unwrap_or_default())
+        })
+    });
+    // A collection that is gone (deleted elsewhere) shows all of them again.
+    Effect::new(move |_| {
+        if let Some(chosen) = collection.get() {
+            if shelf.with(|shelf| shelf.collection(chosen).is_none()) {
+                collection.set(None);
+            }
+        }
+    });
+
     view! {
         <DialogHead ctx title=st.add_title sub=sub.get_untracked()/>
         <div class="st-dlg-bar">
             <div class="st-tabs" role="group">
-                <button type="button" aria-pressed=move || if in_catalog.get() { "false" } else { "true" } on:click=move |_| in_catalog.set(false)>{st.tab_plan}</button>
-                <button type="button" aria-pressed=move || if in_catalog.get() { "true" } else { "false" } on:click=move |_| in_catalog.set(true)>{st.tab_catalog}</button>
+                {move || {
+                    // With the Merkliste three tabs, their names short, so that they fit a phone
+                    // side by side.
+                    let three = three.get();
+                    let tab = move |which: Source, words: &'static str| view! {
+                        <button type="button" aria-pressed=move || if source.get() == which { "true" } else { "false" } on:click=move |_| source.set(which)>{words}</button>
+                    };
+                    view! {
+                        {tab(Source::Plan, if three { st.tab_plan_short } else { st.tab_plan })}
+                        {three.then(|| tab(Source::Marked, st.tab_marked))}
+                        {tab(Source::Catalog, if three { st.tab_catalog_short } else { st.tab_catalog })}
+                    }
+                }}
             </div>
-            {move || (!in_catalog.get() && fs_of.get().1 > 0).then(|| view! {
+            {move || (source.get() == Source::Plan && fs_of.get().1 > 0).then(|| view! {
                 <div class="st-inline">
                     <span class="label">{st.plan_semester}</span>
                     <Select
@@ -461,8 +560,8 @@ pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, cho
             })}
         </div>
         <div class="st-dlg-body st-pick">
-            {move || if in_catalog.get() {
-                view! {
+            {move || match source.get() {
+                Source::Catalog => view! {
                     <div class="st-search">
                         <label class="st-search-box">
                             <Icon name="search"/>
@@ -482,9 +581,38 @@ pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, cho
                             view! { <ChoiceList choices=found picked/> }.into_any()
                         }
                     }}
-                }.into_any()
-            } else {
-                view! {
+                }.into_any(),
+                Source::Marked => view! {
+                    {move || {
+                        let marked: BTreeSet<String> = marked_ids.get().into_iter().collect();
+                        shelf.with(|shelf| (!shelf.collections().is_empty()).then(|| {
+                            let chip = move |which: Option<u32>, words: String, count: usize| view! {
+                                <button type="button" aria-pressed=move || if collection.get() == which { "true" } else { "false" } on:click=move |_| collection.set(which)>{words}<span class="n">{count}</span></button>
+                            };
+                            view! {
+                                <div class="st-filters st-marked-chips" role="group" aria-label=st.collections>
+                                    {chip(None, st.all.to_string(), marked.len())}
+                                    {shelf.collections().iter().map(|kept| chip(Some(kept.id), kept.name.clone(), shelf.count_in(kept.id, |id| marked.contains(id)))).collect_view()}
+                                </div>
+                            }
+                        }))
+                    }}
+                    <div class="st-search">
+                        <label class="st-search-box">
+                            <Icon name="search"/>
+                            <input type="search" id="st-marked-search" placeholder=st.marked_search aria-label=st.marked_search prop:value=move || marked_search.get() on:input=move |ev| marked_search.set(event_target_value(&ev))/>
+                        </label>
+                    </div>
+                    {move || match marked_found.get() {
+                        None => ().into_any(),
+                        Some(found) if found.is_empty() => {
+                            let words = if marked_search.with(|text| text.trim().is_empty()) { st.collection_empty } else { st.no_hits };
+                            view! { <p class="st-sub st-pad">{words}</p> }.into_any()
+                        }
+                        Some(found) => view! { <ChoiceList choices=found picked from_marks=true/> }.into_any(),
+                    }}
+                }.into_any(),
+                Source::Plan => view! {
                     {move || {
                         let (plan, retakes, total) = lists.get();
                         view! {
@@ -500,7 +628,7 @@ pub(super) fn AddDialog(ctx: StudyCtx, semester: SemesterKey, catalog: bool, cho
                             })}
                         }
                     }}
-                }.into_any()
+                }.into_any(),
             }}
         </div>
         <PickFoot ctx semester picked/>
@@ -545,7 +673,7 @@ pub(super) fn CellDialog(ctx: StudyCtx, area: Option<usize>, semester: SemesterK
     let filter = RwSignal::new(None::<i64>);
     let text = RwSignal::new(String::new());
     let settled = typed_search(text);
-    let hits = use_ask(move || {
+    let asked = Memo::new(move |_| {
         let text = settled.get();
         let program = match scope.get() {
             Some((scope, _)) => Some(match filter.get() {
@@ -556,9 +684,26 @@ pub(super) fn CellDialog(ctx: StudyCtx, area: Option<usize>, semester: SemesterK
             None if text.trim().chars().count() >= 2 => None,
             None => return None,
         };
-        Some(CatalogRowsAsk { query: CatalogQuery { text, program, ..Default::default() }, offset: 0, limit: 200 })
+        Some(CatalogQuery { text, program, ..Default::default() })
     });
-    let rows = Memo::new(move |_| hits.with(|hits| hits.as_ref().and_then(|hits| hits.as_ref().ok()).map(|page| page.rows.clone()).unwrap_or_default()));
+    let hits = use_ask(move || asked.get().map(|query| CatalogRowsAsk { query, offset: 0, limit: 200 }));
+    // The marked modules of the area, asked for of their own, so that no limit of the list leaves
+    // one out (asked in the browser: R9).
+    let bookmarks = Bookmarks::expect();
+    let marked_ids = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<Vec<String>>()).unwrap_or_default());
+    let marked_hits = use_ask(move || {
+        let ids = marked_ids.get();
+        let query = asked.get()?;
+        let limit = ids.len() as u64;
+        (!ids.is_empty()).then_some(CatalogRowsAsk { query: CatalogQuery { only_ids: Some(ids), ..query }, offset: 0, limit })
+    });
+    // The marked first, then the rest.
+    let rows = Memo::new(move |_| {
+        let mut rows: Vec<CatalogRow> = marked_hits.with(|hits| hits.as_ref().and_then(|hits| hits.as_ref().ok()).map(|page| page.rows.clone()).unwrap_or_default());
+        let known: BTreeSet<String> = rows.iter().map(|row| row.id.clone()).collect();
+        hits.with(|hits| rows.extend(hits.as_ref().and_then(|hits| hits.as_ref().ok()).into_iter().flat_map(|page| page.rows.iter()).filter(|row| !known.contains(&row.id)).cloned()));
+        rows
+    });
     let needs = use_ask(move || {
         let ids: Vec<String> = rows.with(|rows| rows.iter().map(|row| row.id.clone()).collect());
         (!ids.is_empty()).then_some(StudyModulesAsk { ids })
@@ -586,10 +731,15 @@ pub(super) fn CellDialog(ctx: StudyCtx, area: Option<usize>, semester: SemesterK
                 .collect();
             let all = rows.with(|rows| catalog_choices(ctx, ready, rows, &needs, semester, t));
             let offered_ids: BTreeSet<String> = rows.with(|rows| rows.iter().filter(|row| Offer::of(row).offered(semester)).map(|row| row.id.clone()).collect());
-            let (offered, other): (Vec<Choice>, Vec<Choice>) = all.into_iter().filter(|choice| !lines.iter().any(|line| line.key == choice.key)).partition(|choice| match &choice.pick {
+            let (mut offered, mut other): (Vec<Choice>, Vec<Choice>) = all.into_iter().filter(|choice| !lines.iter().any(|line| line.key == choice.key)).partition(|choice| match &choice.pick {
                 Pick::Module { id, .. } => offered_ids.contains(id),
                 Pick::Row { .. } => true,
             });
+            // In each, the marked ones first (konzept.html, „Von überall"); what is done stays last.
+            let marked = marked_ids.with(|ids| ids.iter().cloned().collect::<BTreeSet<String>>());
+            let key = |choice: &Choice| (choice.done.is_some(), !matches!(&choice.pick, Pick::Module { id, .. } if marked.contains(id)));
+            offered.sort_by_key(key);
+            other.sort_by_key(key);
             (lines, offered, other)
         })
         .unwrap_or_default()

@@ -53,6 +53,10 @@ pub struct Texts {
     pub to_plan: &'static str,
     pub to_areas: &'static str,
     pub all_programs: &'static str,
+    /// The Merkliste's tab, held (folia/design/merken/oberflaeche.html, „Der Tab, lange
+    /// gedrückt"): the whole list and „Ohne Sammlung" before the collections.
+    pub all_marked: &'static str,
+    pub without_collection: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -92,6 +96,8 @@ pub const DE: Texts = Texts {
     to_plan: "Regelstudienplan",
     to_areas: "Wahlpflicht",
     all_programs: "Alle Studiengänge",
+    all_marked: "Alle gemerkten",
+    without_collection: "Ohne Sammlung",
 };
 
 pub const EN: Texts = Texts {
@@ -131,4 +137,6 @@ pub const EN: Texts = Texts {
     to_plan: "Standard study plan",
     to_areas: "Electives",
     all_programs: "All degree programmes",
+    all_marked: "All saved",
+    without_collection: "No collection",
 };

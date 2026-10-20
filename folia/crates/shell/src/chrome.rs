@@ -5,7 +5,7 @@
 //! hold besides their pages (`TabMenu`), the menu of the profiles (`ProfileMenu`), and what lets
 //! the memory of the tabs follow the router (`FollowTabs`).
 
-use folia_routes::url::{self, StudyUrl, StudyView};
+use folia_routes::url::{self, BookmarksUrl, CollectionView, StudyUrl, StudyView};
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
@@ -16,6 +16,7 @@ use crate::tabs::{Area, TabAgain, Tabs};
 use folia_design::nav;
 use folia_design::ui::{self, Icon};
 use folia_stores::bookmarks::Bookmarks;
+use folia_stores::collections::Collections;
 use folia_stores::myprogram::{program_name, MineResolved};
 use folia_stores::profiles::{Avatar, Profiles, MAX_NAME, MAX_PROFILES};
 use folia_stores::studyplan::Studyplan;
@@ -118,6 +119,9 @@ pub fn NavItems() -> impl IntoView {
     let plan = Studyplan::expect();
     let meta = folia_data::use_ask(|| APP.then_some(folia_pages::ask::MetaAsk {}));
     let semester = Memo::new(move |_| meta.with(|meta| meta.as_ref().and_then(|meta| meta.as_ref().ok()).and_then(|meta| meta.current_semester.as_deref().and_then(folia_calendar::semester::SemesterKey::parse))));
+    // Whether the visitor has a collection: the Merkliste's tab has a menu then.
+    let collections = Collections::expect();
+    let collected = Memo::new(move |_| collections.is_some_and(|collections| collections.with(|shelf| !shelf.collections().is_empty())));
     let planned = Memo::new(move |_| match (plan, semester.get()) {
         (Some(plan), Some(current)) => plan.count_in(current),
         (Some(plan), None) => plan.count(),
@@ -130,7 +134,8 @@ pub fn NavItems() -> impl IntoView {
         // The marked modules exist in the browser app only (R15). How many there are is known
         // there alone, so the number is never part of server HTML (R9). What the visitor keeps is
         // no page for a crawler (`seo`), here and in the Studienplan.
-        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
+        // Held, or its right click, it has a menu of the collections (`TabMenu`), once there is one.
+        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) data-hold=move || (APP && collected.get()).then_some("menu") rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
             <span class="ind">
                 <Icon name="bookmark"/>
                 <NavKey area=Area::Bookmarks/>
@@ -185,7 +190,9 @@ struct Held {
 /// [Rechts]klick funktionieren."): a menu at the tab, over the page. „Studium"'s leads to the
 /// Regelstudienplan and the Wahlpflicht of „Mein Studium" (where a program is chosen; owner,
 /// 2026-10-14, concept A: views of the study, with the student's stand in them) and to all
-/// programs. enhance.js hears
+/// programs. The Merkliste's, once there is a collection, to its views (folia/design/merken/
+/// oberflaeche.html, „Der Tab, lange gedrückt"): all of it, „Ohne Sammlung" and each collection,
+/// with how many marked modules each holds. enhance.js hears
 /// the long press of a finger and the right click and names the tab (`betula:tab-menu` on it,
 /// where `NavItems` marked it `data-hold="menu"`); a tap beside the menu, Esc, a way taken or
 /// another page closes it. The browser app's alone. (The catalog's tab, held on a phone, opens
@@ -237,17 +244,41 @@ pub fn TabMenu() -> impl IntoView {
         }
     });
     let close = move |_| held.set(None);
+    let bookmarks = Bookmarks::expect();
+    let collections = Collections::expect();
     move || {
         let at = held.get()?;
-        let ways = match at.area {
+        // Each way: its icon, its words, where it leads, how many it holds, whether a line is
+        // before it.
+        let ways: Vec<(&'static str, String, String, Option<usize>, bool)> = match at.area {
             Area::Programs => {
                 let mut ways = Vec::new();
                 if program.with(Option::is_some) {
-                    ways.push(("file-check-2", t.app.to_plan, StudyUrl::default().with_view(StudyView::Plan).path()));
-                    ways.push(("list-checks", t.app.to_areas, StudyUrl::default().with_view(StudyView::Choices).path()));
+                    ways.push(("file-check-2", t.app.to_plan.to_string(), StudyUrl::default().with_view(StudyView::Plan).path(), None, false));
+                    ways.push(("list-checks", t.app.to_areas.to_string(), StudyUrl::default().with_view(StudyView::Choices).path(), None, false));
                 }
-                ways.push(("graduation-cap", t.app.all_programs, url::PROGRAMS.to_string()));
+                ways.push(("graduation-cap", t.app.all_programs.to_string(), url::PROGRAMS.to_string(), None, false));
                 ways
+            }
+            Area::Bookmarks => {
+                let (Some(bookmarks), Some(collections)) = (bookmarks, collections) else { return None };
+                let marked: std::collections::BTreeSet<String> = bookmarks.marks_untracked().into_iter().map(|mark| mark.id).collect();
+                collections.with_untracked(|shelf| {
+                    if shelf.collections().is_empty() {
+                        return Vec::new();
+                    }
+                    let view = |collection: CollectionView| BookmarksUrl { collection, ..Default::default() }.path();
+                    let without = marked.iter().filter(|id| shelf.of(id).is_empty()).count();
+                    let mut ways = vec![
+                        ("bookmark", t.app.all_marked.to_string(), view(CollectionView::All), Some(marked.len()), false),
+                        ("", t.app.without_collection.to_string(), view(CollectionView::Without), Some(without), false),
+                    ];
+                    for (i, collection) in shelf.collections().iter().enumerate() {
+                        let count = shelf.count_in(collection.id, |id| marked.contains(id));
+                        ways.push(("tag", collection.name.clone(), view(CollectionView::Of(collection.id)), Some(count), i == 0));
+                    }
+                    ways
+                })
             }
             _ => Vec::new(),
         };
@@ -268,9 +299,14 @@ pub fn TabMenu() -> impl IntoView {
             <div class="tab-scrim" on:click=close on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); held.set(None) }></div>
             <nav class="tab-menu" class:on-bar=at.bar aria-label=label style=place>
                 {name.map(|name| view! { <p class="tab-menu-head">{name}</p> })}
-                {ways.into_iter().enumerate().map(|(i, (icon, words, href))| {
+                {ways.into_iter().enumerate().map(|(i, (icon, words, href, count, line))| {
                     let node = if i == 0 { first } else { NodeRef::new() };
-                    view! { <a class="tab-menu-way" href=t.path(&href) node_ref=node on:click=close><Icon name=icon/><span>{words}</span></a> }
+                    // A way without an icon keeps its place, so that the words stand in a line.
+                    let icon = if icon.is_empty() { view! { <span class="icon" aria-hidden="true"></span> }.into_any() } else { view! { <Icon name=icon/> }.into_any() };
+                    view! {
+                        {line.then(|| view! { <hr class="tab-menu-rule"/> })}
+                        <a class="tab-menu-way" href=t.path(&href) node_ref=node on:click=close>{icon}<span>{words}</span>{count.map(|count| view! { <span class="tab-menu-n num">{count}</span> })}</a>
+                    }
                 }).collect_view()}
             </nav>
         })

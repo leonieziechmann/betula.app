@@ -106,6 +106,18 @@ pub struct Texts {
     pub not_offered_too: &'static str,
     pub saved_only: &'static str,
     pub saved_without: &'static str,
+    /// The same about a part of the Merkliste (folia/design/merken/oberflaeche.html, „Katalog ·
+    /// Filter „Gemerkt""): those in no collection or not, those in a collection or not (the value
+    /// is its name; one this browser does not have by its number).
+    pub saved_no_collection: &'static str,
+    pub saved_not_no_collection: &'static str,
+    pub saved_in: fn(&str) -> String,
+    pub saved_not_in: fn(&str) -> String,
+    pub collection_numbered: fn(u32) -> String,
+    /// Under the chip: what its choices are for screen readers, all of them, those in none.
+    pub saved_which: &'static str,
+    pub saved_all: &'static str,
+    pub saved_none: &'static str,
 
     // ---- the list ----
     /// What the number above the list counts: the FÜS list of a program, its curriculum, or
@@ -382,6 +394,14 @@ pub const DE: Texts = Texts {
     not_offered_too: "auch nicht mehr angebotene",
     saved_only: "nur gemerkte",
     saved_without: "ohne gemerkte",
+    saved_no_collection: "ohne Sammlung",
+    saved_not_no_collection: "ohne gemerkte ohne Sammlung",
+    saved_in: |name| format!("in ‚{name}‘"),
+    saved_not_in: |name| format!("nicht in ‚{name}‘"),
+    collection_numbered: |id| format!("Sammlung {id}"),
+    saved_which: "Welche gemerkten",
+    saved_all: "Alle",
+    saved_none: "Ohne Sammlung",
 
     count_fues: "FÜS-Module dieses Studiengangs",
     count_curriculum: "Module im Curriculum",
@@ -606,6 +626,14 @@ pub const EN: Texts = Texts {
     not_offered_too: "including those no longer offered",
     saved_only: "saved only",
     saved_without: "without saved",
+    saved_no_collection: "no collection",
+    saved_not_no_collection: "without saved ones in no collection",
+    saved_in: |name| format!("in ‘{name}’"),
+    saved_not_in: |name| format!("not in ‘{name}’"),
+    collection_numbered: |id| format!("Collection {id}"),
+    saved_which: "Which saved modules",
+    saved_all: "All",
+    saved_none: "No collection",
 
     count_fues: "FÜS modules of this degree programme",
     count_curriculum: "modules in the curriculum",

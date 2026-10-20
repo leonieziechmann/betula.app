@@ -29,13 +29,14 @@ use folia_routes::filter::{
     CatalogQuery, ExamPart, FitIds, FitsFilter, KindFilter, Language, PlanSemesterFilter, ProgramRelation, ProgramScope,
     SortKey,
 };
-use folia_routes::url::{self, CatalogUrl, PAGE_SIZE, ProgramTab};
+use folia_routes::url::{self, CatalogUrl, CollectionView, PAGE_SIZE, ProgramTab};
 use leptos::prelude::*;
 use folia_design::stage::Title;
 use leptos_router::hooks::use_navigate;
 use leptos_router::NavigateOptions;
 
 use folia_stores::bookmarks::Bookmarks;
+use folia_stores::collections::Collections;
 use folia_design::combobox::{with_first, ClosePopups, ComboItem, Combobox};
 use folia_data::{use_ask, use_data, DataClient, DataError, Later, PageStatus, Semantic};
 use folia_design::format;
@@ -78,6 +79,7 @@ pub fn CatalogPage() -> impl IntoView {
     // the placeholder a module found here would fill, kept by every link of the list.
     let list_query = Memo::new(move |_| url.get().query);
     let bookmarks = Bookmarks::expect();
+    let collections = Collections::expect();
     let source = use_data();
     // What the finder switch makes of the filter: the modules that fit the Studienplan, worked
     // out here from the plan this browser keeps (the server's page has none, R9). Then the marks.
@@ -86,7 +88,7 @@ pub fn CatalogPage() -> impl IntoView {
     let (plan, mine) = (Studyplan::expect().filter(|_| APP), MyProgram::expect());
     let fit_source = source.clone().ok();
     let fitted = Memo::new(move |_| with_fits(list_query.get(), plan, mine, fit_source.as_ref(), t));
-    let asked = Memo::new(move |_| fitted.with(|fitted| fitted.failed.clone().map_or_else(|| Ok(with_mine(with_marks(fitted.query.clone(), bookmarks), mine)), Err)));
+    let asked = Memo::new(move |_| fitted.with(|fitted| fitted.failed.clone().map_or_else(|| Ok(with_mine(with_marks(fitted.query.clone(), bookmarks, collections), mine)), Err)));
     let fit_view = Memo::new(move |_| fitted.with(|fitted| fitted.view.clone()));
     let page = Memo::new(move |_| url.get().page);
     let open = Memo::new(move |_| url.get().open);
@@ -135,7 +137,7 @@ pub fn CatalogPage() -> impl IntoView {
                 return None;
             }
             let target = CatalogUrl::parse(search);
-            let marked = untrack(|| with_mine(with_marks(target.query.clone(), bookmarks), mine));
+            let marked = untrack(|| with_mine(with_marks(target.query.clone(), bookmarks, collections), mine));
             let fit = untrack(|| fit_ask(&marked, plan, mine));
             let (data, locale) = (data.clone(), crate::i18n::locale());
             Some(Box::pin(async move {
@@ -194,7 +196,7 @@ pub fn CatalogPage() -> impl IntoView {
     let summary_source = source.clone();
     let draft_facts = Memo::new(move |_| {
         let fitted = with_fits(counted.get()?, plan, mine, summary_source.as_ref().ok(), t);
-        let query = with_mine(with_marks(fitted.query, bookmarks), mine);
+        let query = with_mine(with_marks(fitted.query, bookmarks, collections), mine);
         summary_source.clone().and_then(|source| source.now(&CatalogSummaryAsk { query })).ok().map(|summary| Facts::of_summary(&summary))
     });
     let panel_facts = Memo::new(move |_| draft_facts.get().unwrap_or_else(|| facts.get()));
@@ -399,9 +401,18 @@ pub fn CatalogPage() -> impl IntoView {
 /// „Gemerkt" is a filter like any other, but what is marked lives in the browser: the URL says
 /// only whether the filter is on, and the query gets the ids here, where they never reach a link
 /// or the server (R20). Marking a module while the filter is on changes the list, and only then.
-fn with_marks(mut query: CatalogQuery, bookmarks: Option<Bookmarks>) -> CatalogQuery {
+/// About a collection (`marked_in`, folia/design/merken/oberflaeche.html, „Katalog · Filter
+/// „Gemerkt""), the ids are those the collection holds, or those in none; a collection this
+/// browser does not have holds none.
+fn with_marks(mut query: CatalogQuery, bookmarks: Option<Bookmarks>, collections: Option<Collections>) -> CatalogQuery {
     if let (Some(marked), Some(bookmarks)) = (query.marked, bookmarks) {
-        let ids: Vec<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
+        let mut ids: Vec<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
+        match (query.marked_in, collections) {
+            (CollectionView::All, _) => {}
+            (CollectionView::Without, Some(collections)) => collections.with(|shelf| ids.retain(|id| shelf.of(id).is_empty())),
+            (CollectionView::Of(collection), Some(collections)) => collections.with(|shelf| ids.retain(|id| shelf.holds(collection, id))),
+            (_, None) => ids.clear(),
+        }
         if marked {
             query.only_ids = Some(ids);
         } else {
@@ -615,7 +626,7 @@ fn SimilarModules(
 
 /// The active filters as removable tags: (group, value, the list without it), in the language of
 /// `t`. `areas` and `departments` name what the URL has as a number.
-fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department], t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
+fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department], collection_name: &dyn Fn(u32) -> Option<String>, t: &'static i18n::Texts) -> Vec<(String, String, CatalogUrl)> {
     let (q, c, locale) = (&current.query, &t.catalog, t.locale);
     let mut out: Vec<(String, String, CatalogUrl)> = Vec::new();
     let mut push = |group: &str, value: String, change: &dyn Fn(&mut CatalogQuery)| {
@@ -764,7 +775,18 @@ fn tags(current: &CatalogUrl, areas: &[CatalogArea], departments: &[Department],
         push(c.tag_status, c.not_offered_too.to_string(), &|q| q.offer = None);
     }
     if let Some(marked) = q.marked {
-        push(c.tag_bookmarks, if marked { c.saved_only } else { c.saved_without }.to_string(), &|q| q.marked = None);
+        let value = match (q.marked_in, marked) {
+            (CollectionView::All, true) => c.saved_only.to_string(),
+            (CollectionView::All, false) => c.saved_without.to_string(),
+            (CollectionView::Without, true) => c.saved_no_collection.to_string(),
+            (CollectionView::Without, false) => c.saved_not_no_collection.to_string(),
+            (CollectionView::Of(id), true) => (c.saved_in)(&collection_name(id).unwrap_or_else(|| (c.collection_numbered)(id))),
+            (CollectionView::Of(id), false) => (c.saved_not_in)(&collection_name(id).unwrap_or_else(|| (c.collection_numbered)(id))),
+        };
+        push(c.tag_bookmarks, value, &|q| {
+            q.marked = None;
+            q.marked_in = CollectionView::All;
+        });
     }
     out
 }
@@ -804,7 +826,12 @@ fn List(
     let going_url = Memo::new(move |_| going.filter(|going| going.change() == Some(Change::List)).and_then(|going| going.search_on(url::CATALOG)).map(|search| CatalogUrl::parse(&search)));
     let active = {
         let (current, areas, departments) = (current.clone(), data.areas.clone(), data.departments.clone());
-        Memo::new(move |_| tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments, t))
+        // A collection named in a tag by its name, which the address does not carry (R20).
+        let collections = Collections::expect();
+        Memo::new(move |_| {
+            let name = |id: u32| collections.and_then(|collections| collections.with(|shelf| shelf.collection(id).map(|collection| collection.name.clone())));
+            tags(&going_url.get().unwrap_or_else(|| current.clone()), &areas, &departments, &name, t)
+        })
     };
     let active_count = move || active.with(Vec::len);
     let fit_line = use_context::<Finder>();
@@ -1729,6 +1756,54 @@ fn Chip(
     }
 }
 
+/// Under „Gemerkt" while it is on, where there is a collection (folia/design/merken/oberflaeche.html,
+/// „Katalog · Filter „Gemerkt"": „Der Chip „Gemerkt" öffnet unter sich die Sammlungen, wie „Passt
+/// in meinen Stundenplan" seine Lehrformen"): which of the marked modules it is about — all of
+/// them, those in no collection, each collection —, with how many each holds; each a link to the
+/// list, which names the collection by its number alone (R20). Off „Gemerkt" it is about those not
+/// there: „nicht in Für Lena".
+#[component]
+fn MarkedViews(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>) -> impl IntoView {
+    let t = i18n::t();
+    let c = &t.catalog;
+    let bookmarks = Bookmarks::expect();
+    let collections = Collections::expect();
+    let views = Memo::new(move |_| {
+        let (Some(bookmarks), Some(collections)) = (bookmarks, collections) else { return Vec::new() };
+        let marked: std::collections::BTreeSet<String> = bookmarks.marks().into_iter().map(|mark| mark.id).collect();
+        collections.with(|shelf| {
+            if shelf.collections().is_empty() {
+                return Vec::new();
+            }
+            let mut views = vec![(CollectionView::All, c.saved_all.to_string(), marked.len()), (CollectionView::Without, c.saved_none.to_string(), marked.iter().filter(|id| shelf.of(id).is_empty()).count())];
+            views.extend(shelf.collections().iter().map(|collection| (CollectionView::Of(collection.id), collection.name.clone(), shelf.count_in(collection.id, |id| marked.contains(id)))));
+            views
+        })
+    });
+    move || {
+        let on = query.with(|q| q.marked.is_some());
+        let views = views.get();
+        (on && !views.is_empty()).then(|| {
+            view! {
+                <div class="marked-views" role="radiogroup" aria-label=c.saved_which>
+                    {views.into_iter().map(|(view, label, count)| view! {
+                        <a
+                            href=move || t.path(&target(query, open, fill, |q| q.marked_in = view))
+                            role="radio"
+                            rel="nofollow"
+                            draggable="false"
+                            data-noscroll=""
+                            aria-checked=move || if query.with(|q| q.marked_in == view) { "true" } else { "false" }
+                        >
+                            <span>{label}</span><span class="num">{count}</span>
+                        </a>
+                    }).collect_view()}
+                </div>
+            }
+        })
+    }
+}
+
 fn segmented(query: Memo<CatalogQuery>, open: Memo<Option<String>>, fill: Memo<Option<u32>>, label: &'static str, choices: Vec<Choice>, t: &'static i18n::Texts) -> impl IntoView {
     let links = choices
         .into_iter()
@@ -2163,8 +2238,19 @@ fn Filters(
                             {chip(t.catalog.fues_list, None, Toggle::flag(|q| q.fues, |q, value| q.fues = value))}
                             // Marking works in the browser app only, so the filter is there only
                             // (R15); without it the chip would promise what no link can keep.
-                            {APP.then(|| chip(t.catalog.saved_chip, Some("bookmark"), Toggle::flag(|q| q.marked, |q, value| q.marked = value)))}
+                            {APP.then(|| {
+                                // Switched off, it is about all of them again.
+                                let toggle = Toggle::flag(|q| q.marked, |q, value| {
+                                    q.marked = value;
+                                    if value.is_none() {
+                                        q.marked_in = CollectionView::All;
+                                    }
+                                });
+                                let opens = Collections::expect().is_some_and(|collections| collections.with_untracked(|shelf| !shelf.collections().is_empty()));
+                                view! { <Chip query open fill toggle label=t.catalog.saved_chip icon=Some("bookmark") opens/> }
+                            })}
                         </div>
+                        {APP.then(|| view! { <MarkedViews query open fill/> })}
                     </div>
 
                     <details class="fgroup more" open=more_open>
@@ -2404,13 +2490,30 @@ mod tests {
         assert_eq!(addressed(&query), switched_on(filter));
         // The tag names the semester and takes the switch away with the rest of the list kept.
         let current = CatalogUrl { query: switched_on(FitsFilter::all("2026W")), fill: Some(3), ..CatalogUrl::default() };
-        let found = tags(&current, &[], &[], &i18n::DE).into_iter().find(|(group, _, _)| group == "Passt in");
+        let found = tags(&current, &[], &[], &|_| None, &i18n::DE).into_iter().find(|(group, _, _)| group == "Passt in");
         let (_, value, without) = found.unwrap();
         assert_eq!((value.as_str(), without.path()), ("WiSe 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
         // In English the tag says the same in its words; the list it leads to is the same list.
-        let found = tags(&current, &[], &[], &i18n::EN).into_iter().find(|(group, _, _)| group == "Fits in");
+        let found = tags(&current, &[], &[], &|_| None, &i18n::EN).into_iter().find(|(group, _, _)| group == "Fits in");
         let (_, value, without) = found.unwrap();
         assert_eq!((value.as_str(), without.path()), ("Winter 2026/27", "/catalog?q=analysis&fill=p3".to_string()));
+    }
+
+    #[test]
+    fn the_tag_of_gemerkt_names_the_collection() {
+        let named = |id: u32| (id == 3).then(|| "Für Lena".to_string());
+        let tag = |marked: bool, marked_in: CollectionView, t: &'static i18n::Texts| {
+            let current = CatalogUrl { query: CatalogQuery { marked: Some(marked), marked_in, ..CatalogQuery::default() }, ..CatalogUrl::default() };
+            let (_, value, without) = tags(&current, &[], &[], &named, t).into_iter().find(|(group, ..)| group == "Merkliste" || group == "Saved").unwrap();
+            (value, without.path())
+        };
+        // Taking the tag away takes the collection with it.
+        assert_eq!(tag(true, CollectionView::Of(3), &i18n::DE), ("in ‚Für Lena‘".to_string(), "/catalog".to_string()));
+        assert_eq!(tag(false, CollectionView::Of(3), &i18n::DE).0, "nicht in ‚Für Lena‘");
+        assert_eq!(tag(true, CollectionView::Without, &i18n::DE).0, "ohne Sammlung");
+        // A collection this browser does not have is named by its number.
+        assert_eq!(tag(true, CollectionView::Of(7), &i18n::DE).0, "in ‚Sammlung 7‘");
+        assert_eq!(tag(false, CollectionView::Of(3), &i18n::EN).0, "not in ‘Für Lena’");
     }
 
     #[test]
