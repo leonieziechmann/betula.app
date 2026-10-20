@@ -29,15 +29,15 @@ use folia_design::nav;
 use folia_design::ui::Icon;
 use folia_plans::study::{fs_of, Offer};
 use folia_routes::url;
-use folia_stores::bookmarks::{transfer_fragment, Bookmarks};
-use folia_stores::collections::{Anchor, CollectAsk, Collecting};
+use folia_stores::bookmarks::{share_fragment, Bookmarks, Brought};
+use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections};
 use folia_stores::myprogram::MyProgram;
 use folia_stores::studyplan::{aim_now, PlanHint, Planning, Pressed, Studyplan};
 use folia_widgets::marknote::{Notice, Notices};
 use leptos::ev::{KeyboardEvent, MouseEvent, PointerEvent, TouchEvent};
 use leptos::prelude::*;
 
-use crate::bookmarks::{absolute, box_of, copy, menu_style_wide, step_focus, MENU_HINT, MENU_ITEM};
+use crate::bookmarks::{absolute, box_of, copy, menu_style_wide, module_line, notes_of, step_focus, MENU_HINT, MENU_ITEM};
 
 /// How wide the menus of the selection and of a row are on a wide screen: a semester with its
 /// Fachsemester, „jetzt" and „2 nicht angeboten" on one line.
@@ -153,6 +153,10 @@ pub(crate) struct Picking {
     /// The last press was a finger's: its long press (`contextmenu`) opens no menu.
     touched: StoredValue<bool>,
     pub menu: RwSignal<Option<PickMenu>>,
+    /// „Notizen mitnehmen" of „Teilen", here and in a collection's menu: off until switched on,
+    /// for as long as the page is open (oberflaeche.html: „Notizen bleiben zu Hause, außer du
+    /// nimmst sie mit").
+    pub notes_along: RwSignal<bool>,
     bookmarks: Option<Bookmarks>,
     /// What „Einplanen" aims with: the snapshot's current semester, the semester of each module's
     /// newest events, the hint of the list („Passt in meinen Stundenplan").
@@ -171,6 +175,7 @@ impl Picking {
             drawn: StoredValue::new(false),
             touched: StoredValue::new(false),
             menu: RwSignal::new(None),
+            notes_along: RwSignal::new(false),
             bookmarks: Bookmarks::expect(),
             current,
             newest,
@@ -490,18 +495,20 @@ struct Item {
     does: Callback<()>,
 }
 
-/// What a menu shows besides its entries: a line before an entry, a label over the next ones.
+/// What a menu shows besides its entries: a line before an entry, a label over the next ones, a
+/// switch.
 enum Part {
     Item(Item),
     Line,
     Label(&'static str),
+    Switch(&'static str, RwSignal<bool>),
 }
 
 impl Part {
     fn height(&self) -> f64 {
         match self {
             Part::Item(item) if item.hint.is_some() => MENU_HINT,
-            Part::Item(_) => MENU_ITEM,
+            Part::Item(_) | Part::Switch(..) => MENU_ITEM,
             Part::Line => 9.0,
             Part::Label(_) => 26.0,
         }
@@ -555,6 +562,13 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
                 {parts.into_iter().map(|part| match part {
                     Part::Line => view! { <hr/> }.into_any(),
                     Part::Label(text) => view! { <p class="pick-menu-label">{text}</p> }.into_any(),
+                    Part::Switch(label, on) => view! {
+                        <button class="st-pop-item share-switch" type="button" role="menuitemcheckbox" aria-checked=move || if on.get() { "true" } else { "false" } on:click=move |_| on.update(|on| *on = !*on)>
+                            <span class="st-pop-label"><span>{label}</span></span>
+                            <span class="collect-switch" aria-hidden="true"></span>
+                        </button>
+                    }
+                    .into_any(),
                     Part::Item(Item { icon, label, hint, note, now, key, danger, does }) => {
                         let with_hint = hint.is_some();
                         view! {
@@ -684,6 +698,7 @@ fn plan_parts(picking: Picking, earlier: bool, t: &'static Texts) -> Option<(Str
 fn share_parts(picking: Picking, t: &'static Texts) -> Option<(String, Vec<Part>)> {
     let b = &t.bookmarks;
     let notices = Notices::expect();
+    let collections = Collections::expect();
     let ids = picking.ids_untracked();
     if ids.is_empty() {
         return None;
@@ -697,32 +712,29 @@ fn share_parts(picking: Picking, t: &'static Texts) -> Option<(String, Vec<Part>
         }
     };
     let mut parts = Vec::new();
-    if let Some(link) = transfer_fragment(&ids).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS)))) {
-        parts.push(Part::Item(Item {
-            icon: Some("share-2"),
-            label: b.transfer.to_string(),
-            hint: Some(b.transfer_hint.to_string()),
-            note: None,
-            now: false,
-            key: None,
-            danger: false,
-            does: Callback::new(move |()| {
+    // The link of these modules, with their notes where „Notizen mitnehmen" is on: worked out as
+    // it is clicked, so that the switch counts.
+    let linked = ids.clone();
+    parts.push(Part::Item(Item {
+        icon: Some("link"),
+        label: b.copy_link.to_string(),
+        hint: None,
+        note: None,
+        now: false,
+        key: None,
+        danger: false,
+        does: Callback::new(move |()| {
+            let notes = if picking.notes_along.get_untracked() { collections.map(|collections| collections.with_untracked(|shelf| notes_of(shelf, &linked))).unwrap_or_default() } else { Vec::new() };
+            let brought = Brought { ids: linked.clone(), collections: Vec::new(), notes };
+            if let Some(link) = share_fragment(&brought).map(|fragment| absolute(&t.path(&format!("{}#{fragment}", url::BOOKMARKS)))) {
                 copy(&link);
                 done(true);
-            }),
-        }));
-    }
-    let text = ids
-        .iter()
-        .filter_map(|id| {
-            let row = picking.row(id)?;
-            Some(match row.credits {
-                Some(credits) => format!("{id}\t{}\t{}", row.title, format::credits(Some(credits), t.locale)),
-                None => format!("{id}\t{}", row.title),
-            })
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+            }
+        }),
+    }));
+    parts.push(Part::Switch(b.notes_along, picking.notes_along));
+    parts.push(Part::Line);
+    let text = ids.iter().filter_map(|id| picking.row(id).map(|row| module_line(id, &row.title, row.credits, t))).collect::<Vec<_>>().join("\n");
     parts.push(Part::Item(Item {
         icon: Some("copy"),
         label: b.copy_text.to_string(),
@@ -736,7 +748,7 @@ fn share_parts(picking: Picking, t: &'static Texts) -> Option<(String, Vec<Part>
             done(false);
         }),
     }));
-    Some(((b.share_n)(count), parts))
+    Some(((b.share_head)(None, count), parts))
 }
 
 /// A row's menu (oberflaeche.html, the row's right click): „Sammlung und Notiz …" (S),

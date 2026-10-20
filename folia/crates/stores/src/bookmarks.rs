@@ -23,7 +23,7 @@ use folia_model::ids::is_module_id;
 use folia_pages::MAX_BOOKMARKS;
 use leptos::prelude::*;
 
-use crate::collections::{Anchor, Belongings, CollectAsk, Collecting, Collections};
+use crate::collections::{clean_name, clean_note, name_key, Anchor, Belongings, CollectAsk, Collecting, Collections, MAX_COLLECTIONS};
 use crate::i18n;
 use crate::profiles::Kept;
 use folia_design::ui::{Icon, Shortcut};
@@ -493,7 +493,11 @@ const KIND: &str = "bookmarks";
 const VERSION: u8 = 1;
 
 /// The marked modules as a code carries them. A module id is five digits, so it travels as a
-/// number; an id that is none travels as it is.
+/// number; an id that is none travels as it is. Since Folia 1.39.0 a code also carries collections
+/// and notes (folia/design/merken/konzept.html, „Weitergeben"): a collection's link its name, the
+/// link for another device every collection, and the notes where they go along. They are fields
+/// at the end, empty in a code of only modules, so a code of before reads as it did and one of
+/// only modules is what it was (`folia_pack`'s rule for lasting codes).
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 struct Transfer {
     /// The ids that are numbers.
@@ -501,30 +505,78 @@ struct Transfer {
     numbers: Vec<u64>,
     /// Every other id (the catalog has none). Empty, this costs nothing: it ends the code.
     others: Vec<String>,
+    /// The collections: each its name and its modules, by their places in the list a reader
+    /// gets (`Transfer::ids`).
+    collections: Vec<Carried>,
+    /// The notes: the place of a module and its note.
+    notes: Vec<(u64, String)>,
+}
+
+/// A collection as a code carries it.
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+struct Carried {
+    name: String,
+    #[serde(with = "folia_pack::set")]
+    places: Vec<u64>,
+}
+
+/// What a link of the Merkliste brings: modules; a collection's link its name, the link for another
+/// device every collection, each with its modules; and the notes that go along, by module.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Brought {
+    pub ids: Vec<String>,
+    pub collections: Vec<(String, Vec<String>)>,
+    pub notes: Vec<(String, String)>,
+}
+
+impl Brought {
+    /// Only modules.
+    pub fn modules(ids: &[String]) -> Self {
+        Brought { ids: ids.to_vec(), ..Brought::default() }
+    }
 }
 
 impl Transfer {
-    fn of(ids: &[String]) -> Self {
+    fn of(brought: &Brought) -> Self {
         let mut transfer = Transfer::default();
-        for id in ids {
+        for id in &brought.ids {
             match id.parse::<u64>().ok().filter(|number| number.to_string() == *id) {
                 Some(number) => transfer.numbers.push(number),
                 None => transfer.others.push(id.clone()),
             }
         }
+        // The places as a reader sees them (`ids`): the numbers in ascending order, each once,
+        // then the others.
+        let mut numbers = transfer.numbers.clone();
+        numbers.sort_unstable();
+        numbers.dedup();
+        let order: Vec<String> = numbers.into_iter().map(|number| number.to_string()).chain(transfer.others.iter().cloned()).collect();
+        let place = |id: &str| order.iter().position(|known| known == id).and_then(|at| u64::try_from(at).ok());
+        transfer.collections = brought.collections.iter().map(|(name, ids)| Carried { name: name.clone(), places: ids.iter().filter_map(|id| place(id)).collect() }).collect();
+        transfer.notes = brought.notes.iter().filter_map(|(id, note)| Some((place(id)?, note.clone()))).collect();
         transfer
     }
 
-    /// The ids: the numbers in ascending order, then the others.
-    fn ids(self) -> Vec<String> {
-        self.numbers.into_iter().map(|number| number.to_string()).chain(self.others).collect()
+    /// What it brings: the ids (the numbers in ascending order, then the others), and the
+    /// collections and notes by them.
+    fn brought(self) -> Brought {
+        let ids: Vec<String> = self.numbers.into_iter().map(|number| number.to_string()).chain(self.others).collect();
+        let at = |place: u64| usize::try_from(place).ok().and_then(|place| ids.get(place)).cloned();
+        let collections = self.collections.into_iter().map(|carried| (carried.name, carried.places.into_iter().filter_map(at).collect())).collect();
+        let notes = self.notes.into_iter().filter_map(|(place, note)| Some((at(place)?, note))).collect();
+        Brought { ids, collections, notes }
     }
 }
 
-/// The fragment (without `#`) that carries these modules; `None` for a list longer than a code
-/// may be (thousands of ids that are no module numbers, which the catalog does not have).
+/// The fragment (without `#`) that carries what `brought` names; `None` for more than a code may
+/// hold (thousands of ids that are no module numbers, which the catalog does not have).
+pub fn share_fragment(brought: &Brought) -> Option<String> {
+    folia_pack::to_versioned_code(KIND, VERSION, &Transfer::of(brought)).ok().map(|code| format!("{TRANSFER}{code}"))
+}
+
+/// The fragment that carries these modules alone.
 pub fn transfer_fragment(ids: &[String]) -> Option<String> {
-    folia_pack::to_versioned_code(KIND, VERSION, &Transfer::of(ids)).ok().map(|code| format!("{TRANSFER}{code}"))
+    share_fragment(&Brought::modules(ids))
 }
 
 /// A fragment that carries a list, but not one that can be read: cut short, or a character of it
@@ -532,14 +584,17 @@ pub fn transfer_fragment(ids: &[String]) -> Option<String> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BrokenLink;
 
-/// The modules a fragment carries, checked like anything from outside. None for any other fragment.
-pub fn ids_from_fragment(fragment: &str) -> Result<Vec<String>, BrokenLink> {
+/// What a fragment brings, checked like anything from outside: module ids that are ids, each once,
+/// as many as a browser keeps; collections by a clean name, each once (`collections::name_key`),
+/// as many as there may be, with modules of the list; notes of modules of the list, clean, one
+/// each. Nothing for any other fragment.
+pub fn brought_from_fragment(fragment: &str) -> Result<Brought, BrokenLink> {
     let Some(code) = fragment.trim_start_matches('#').strip_prefix(TRANSFER) else {
-        return Ok(Vec::new());
+        return Ok(Brought::default());
     };
-    let listed = folia_pack::from_versioned_code::<Transfer>(KIND, VERSION, code.trim()).map_err(|_| BrokenLink)?.ids();
+    let raw = folia_pack::from_versioned_code::<Transfer>(KIND, VERSION, code.trim()).map_err(|_| BrokenLink)?.brought();
     let mut ids: Vec<String> = Vec::new();
-    for id in listed.into_iter().filter(|id| is_module_id(id)) {
+    for id in raw.ids.into_iter().filter(|id| is_module_id(id)) {
         if !ids.contains(&id) {
             ids.push(id);
         }
@@ -547,7 +602,40 @@ pub fn ids_from_fragment(fragment: &str) -> Result<Vec<String>, BrokenLink> {
             break;
         }
     }
-    Ok(ids)
+    let mut collections: Vec<(String, Vec<String>)> = Vec::new();
+    for (name, members) in raw.collections {
+        let name = clean_name(&name);
+        if name.is_empty() {
+            continue;
+        }
+        let members: Vec<String> = members.into_iter().filter(|id| ids.contains(id)).collect();
+        match collections.iter().position(|(known, _)| name_key(known) == name_key(&name)) {
+            Some(at) => {
+                if let Some((_, known)) = collections.get_mut(at) {
+                    for id in members {
+                        if !known.contains(&id) {
+                            known.push(id);
+                        }
+                    }
+                }
+            }
+            None if collections.len() < MAX_COLLECTIONS => collections.push((name, members)),
+            None => {}
+        }
+    }
+    let mut notes: Vec<(String, String)> = Vec::new();
+    for (id, note) in raw.notes {
+        let note = clean_note(&note);
+        if ids.contains(&id) && !note.is_empty() && !notes.iter().any(|(known, _)| *known == id) {
+            notes.push((id, note));
+        }
+    }
+    Ok(Brought { ids, collections, notes })
+}
+
+/// The modules a fragment carries, checked like anything from outside. None for any other fragment.
+pub fn ids_from_fragment(fragment: &str) -> Result<Vec<String>, BrokenLink> {
+    brought_from_fragment(fragment).map(|brought| brought.ids)
 }
 
 /// Where a mark button stands decides what it looks like.
@@ -747,6 +835,38 @@ mod tests {
     }
 
     #[test]
+    fn a_link_brings_collections_and_notes() {
+        let brought = Brought {
+            ids: owned(&["12204", "11101", "13849", "FUES-7"]),
+            collections: vec![("Für Lena".into(), owned(&["13849", "12204"])), ("Witzig".into(), owned(&["FUES-7"]))],
+            notes: vec![("11101".into(), "**früh** anmelden\n- Lena fragen".into())],
+        };
+        let there_and_back = |brought: &Brought| brought_from_fragment(&format!("#{}", share_fragment(brought).unwrap())).unwrap();
+        // In the order a reader gets the modules: the numbers ascending, then the others.
+        assert_eq!(
+            there_and_back(&brought),
+            Brought {
+                ids: owned(&["11101", "12204", "13849", "FUES-7"]),
+                collections: vec![("Für Lena".into(), owned(&["12204", "13849"])), ("Witzig".into(), owned(&["FUES-7"]))],
+                notes: vec![("11101".into(), "**früh** anmelden\n- Lena fragen".into())],
+            }
+        );
+        // A code of only modules is what it was, and one of before reads as it did.
+        assert_eq!(share_fragment(&Brought::modules(&owned(&["12204", "11101", "13849"]))).as_deref(), Some("m=PZsLKbA_QdJty"));
+        assert_eq!(brought_from_fragment("#m=PZsLKbA_QdJty").map(|brought| brought.collections.len() + brought.notes.len()), Ok(0));
+        // Checked like anything from outside: a name clean and there once (case does not count),
+        // none without one; modules of the list; a note clean, of the list, once.
+        let odd = Brought {
+            ids: owned(&["12204", "11101"]),
+            collections: vec![("  Für   Lena ".into(), owned(&["12204", "99999"])), ("für lena".into(), owned(&["11101"])), ("   ".into(), owned(&["12204"]))],
+            notes: vec![("12204".into(), "  \n ".into()), ("11101".into(), "eins".into()), ("11101".into(), "zwei".into()), ("13849".into(), "nicht dabei".into())],
+        };
+        let back = there_and_back(&odd);
+        assert_eq!(back.collections, vec![("Für Lena".to_string(), owned(&["12204", "11101"]))]);
+        assert_eq!(back.notes, vec![("11101".to_string(), "eins".to_string())]);
+    }
+
+    #[test]
     fn a_link_that_lost_or_changed_a_character_brings_nothing() {
         let fragment = transfer_fragment(&owned(&["12204", "11101", "13849", "12205"])).unwrap();
         let typed_wrong: String = fragment.char_indices().map(|(at, c)| if at == 6 { if c == 'x' { 'y' } else { 'x' } } else { c }).collect();
@@ -757,7 +877,7 @@ mod tests {
         };
         assert_ne!(swapped, fragment);
         // A code of a later layout than this build reads.
-        let later = format!("m={}", folia_pack::to_versioned_code(KIND, VERSION + 1, &Transfer::of(&owned(&["12204", "11101"]))).unwrap());
+        let later = format!("m={}", folia_pack::to_versioned_code(KIND, VERSION + 1, &Transfer::of(&Brought::modules(&owned(&["12204", "11101"])))).unwrap());
         for broken in [typed_wrong, swapped, fragment[..fragment.len() - 1].to_string(), format!("{fragment}A"), "m=".to_string(), "m=12204".to_string(), later] {
             assert_eq!(ids_from_fragment(&broken), Err(BrokenLink), "{broken}");
         }
