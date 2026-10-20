@@ -22,7 +22,7 @@ use leptos_router::path;
 use folia_bookmarks::bookmarks::BookmarksPage;
 use folia_catalog::catalog::CatalogPage;
 use folia_design::ui;
-use folia_home::home::{about::AboutPage, HomePage};
+use folia_home::home::{about::AboutPage, Credits, HomePage};
 use folia_home::legal::{ImprintPage, PrivacyPage};
 use folia_planner::study::StudyPage;
 use folia_planner::studyplan::StudyplanPage;
@@ -226,7 +226,9 @@ pub fn App() -> impl IntoView {
                     <ui::ToTop/>
                 </main>
             </div>
-            <Ground/>
+            // The ground a phone shows under every page; the start page's photo names who took it
+            // there too (the stylesheet shows the line while the start page is in front).
+            <Ground credit=ViewFn::from(|| view! { <Credits/> })/>
             <nav class="bottomnav" aria-label=t.app.navigation data-region="nav" data-stop="x"><NavItems/></nav>
             <TabMenu/>
             <ProfileSwitcher/>
