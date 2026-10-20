@@ -11,10 +11,26 @@
 // every window width (no column runs into another, no row taller than its name, the list where the
 // matrix has no room) → phone (the plan's rows as tall as their names, filters in a sheet, a subject
 // a row that folds open) → the overview without JavaScript.
-// Fails on a page load after takeover, a console error, or a step that does not show up.
+// Fails on a page load after takeover, a console error, or a step that does not show up. The
+// numbers of a program's modules are those of the snapshot the server serves (`/api/db`).
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { chromium } from "playwright-core";
 
 const base = (process.env.SMOKE_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
+// What the snapshot says of a program, read with the app's own sql.js: the BTU adds modules to a
+// program and takes them out, and the list of the FÜS changes every semester (2026-10-20:
+// Elektrotechnik B.Sc. had 84 modules, in the QIS tree and on the modules' pages alike, where this
+// check had pinned 85).
+const initSqlJs = createRequire(import.meta.url)("../assets/sql-wasm.js");
+const SQL = await initSqlJs({ locateFile: (file) => fileURLToPath(new URL(`../assets/${file}`, import.meta.url)) });
+const snapshot = new SQL.Database(new Uint8Array(await (await fetch(base + "/api/db")).arrayBuffer()));
+const programOf = (slug) => {
+  const statement = snapshot.prepare("SELECT curricular_modules, fues_modules FROM v_program WHERE slug = ?");
+  const row = statement.getAsObject([slug]);
+  statement.free();
+  return row;
+};
 const browser = await chromium.launch({ channel: process.env.SMOKE_BROWSER_CHANNEL || "msedge", headless: !process.env.SMOKE_HEADED });
 const problems = [];
 const timings = {};
@@ -167,7 +183,9 @@ const LINE = ".fx-desk a.prog-line";
       meta: document.querySelector(".prog-meta").innerText.replace(/\s+/g, " ").trim(),
     };
   });
-  check(head.facts.join(" | ") === "6 Semester | 180 LP | 85 Module | 131 FÜS-Module", `head: the numbers read ${head.facts.join(" | ")}`);
+  // Length and size are the validated plan's; the modules as many as the snapshot has.
+  const modules = programOf("bachelor-elektrotechnik-2022");
+  check(head.facts.join(" | ") === `6 Semester | 180 LP | ${modules.curricular_modules} Module | ${modules.fues_modules} FÜS-Module`, `head: the numbers read ${head.facts.join(" | ")}, the snapshot has ${JSON.stringify(modules)}`);
   check(head.facts.every((fact) => / /.test(fact)), "head: a number and its label are written without a space between them");
   check(head.out === 0, "head: a number stands outside its panel");
   check(head.crumbs.join() === "/programs,/programs?level=bachelor", `head: the path leads to ${head.crumbs.join(" ")}`);
