@@ -2118,13 +2118,19 @@
   // the ground cut off end above it with round corners, which the ground draws (owner, 2026-10-04);
   // the first scroll takes them away (owner, 2026-09-30: drawn along with the ground they looked
   // off). The heads of the list's columns stay under the list's head: its height is
-  // `--list-head-h`. The scrollbar's width is `--bar`: it stands in the gap right of the page.
+  // `--list-head-h`; „Mein Studium"'s semester is such a list in the page, under the overview
+  // (`LISTS`, app.css „Mein Studium"). The scrollbar's width is `--bar`: it stands in the gap right
+  // of the page.
   // A phone scrolls the window, and none of this applies there (app.css has all of it for wide
   // screens only): it measured every page as it was built, a layout in each of its frames, and gave
   // each new page `--bar` and `--cover`, which restyled the whole page once more; a quarter of what
   // a tab switch cost a phone. `--bar` there is the top bar's height, too, and `0px` on the page took
   // it from the skeleton of the rows (app.css, `.rows-pending`).
   const tiesWood = CSS.supports("animation-timeline: scroll()") && CSS.supports("timeline-scope: --page");
+  // The list of the area and its head: the catalog's and the Merkliste's, or „Mein Studium"'s
+  // semester (its rows `.st-rows`).
+  const LISTS = ":scope > .list, :scope > .page > .page-inner.study > .st-sems";
+  const LIST_HEADS = ":scope > .list > .list-head, :scope > .page > .page-inner.study > .st-sems .st-sem-head";
   let areaTimer = 0, areaFrame = 0, woodMoved = false, headSeen = null, covered = 0, coveredArea = null, areaOn = false;
   const headWatch = new ResizeObserver(([entry]) => {
     // Its height as drawn, with the fraction a scaled screen gives it: rounded, the heads of the
@@ -2165,7 +2171,7 @@
     const area = flowing();
     for (const prop of ["--bar", "--cover", "--list-head-h"]) area?.style.removeProperty(prop);
     area?.removeAttribute("data-rest");
-    area?.querySelector(":scope > .list.short")?.classList.remove("short");
+    area?.querySelector(LISTS)?.classList.remove("short");
     document.getElementById("to-top")?.style.removeProperty("--lift");
     covered = 0;
     coveredArea = null;
@@ -2175,7 +2181,7 @@
     areaFrame = 0;
     if (phone()) return;
     const area = flowing();
-    const head = area?.querySelector(":scope > .list > .list-head") ?? null;
+    const head = area?.querySelector(LIST_HEADS) ?? null;
     if (head !== headSeen) { headWatch.disconnect(); if (head) headWatch.observe(head); headSeen = head; }
     if (area) {
       const bar = area.offsetWidth - area.clientWidth;
@@ -2185,9 +2191,9 @@
     // A list short enough to stand whole above the ground is pinned like the filter panel: the
     // ground slides over its empty end and its rows stay where they are, as before. A longer one
     // flows with the page and its end comes before the ground.
-    const list = area?.querySelector(":scope > .list");
+    const list = area?.querySelector(LISTS);
     if (list) {
-      const rows = list.querySelector(".rows"), last = rows?.lastElementChild;
+      const rows = list.querySelector(".rows, .st-rows"), last = rows?.lastElementChild;
       const needs = last ? last.getBoundingClientRect().bottom - list.getBoundingClientRect().top + 12 : 0;
       const short = needs <= innerHeight - 64 - 208;
       if (list.classList.contains("short") !== short) list.classList.toggle("short", short);

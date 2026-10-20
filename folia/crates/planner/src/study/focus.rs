@@ -1,14 +1,20 @@
 //! One semester in focus (the mockup's concept A, owner 2026-10-04: „am sichersten … und am besten
-//! zwischen Handy und PC"): on a desktop the semester at the top of its box, its rows as the
-//! catalog's list has them and beside them what fits it (`Fits`); on a phone the semester as a page
-//! of its own, which ‹ › in its head or a swipe turn (`pager.rs`). Its head has ‹ › and its name,
-//! which a click turns into the list of every semester to go to directly (owner, 2026-10-19: „Dazu
-//! soll man aber auch auf das semester selbst klicken können, um eine selection (maybe combobox) zu
-//! bekommen"; `menu.rs`). Until then a desktop had a strip of every semester over it and a line with
-//! the switch of the views over that (the same day: „Das muss raus. Es verbraucht zu [viel] Platz
-//! und bietet wenig Mehrwert"): the sidebar switches the views. After the last semester comes a page
-//! that adds one (owner: „Wenn man bis zum Schluss ist, soll eine Page kommen, wo man dann ein neues
-//! Semester hinzufügen kann"), as a semester of leave if the student says so.
+//! zwischen Handy und PC"): on a desktop the semester at the top of its box, the box a list as the
+//! catalog's and the Merkliste's are (owner, 2026-10-20: „dass die box wo die module drin sind vom
+//! design angepasst werden an die anderen seiten"; app.css, „Mein Studium"): its head as theirs, the
+//! heads of the columns across it, both staying at the top, the box as tall as the page shows, so
+//! that it is the whole list once the overview has scrolled away („dass die untere box … sticky ist
+//! und dann wenn man ein wenig gescrolled hat, dass es auch eine volle liste ist"). Nothing beside
+//! it: „Passt in dieses Semester" went (the same day: „Das möchte ich alles über Module hinzufügen
+//! später handeln"). On a phone the semester is a page of its own, which ‹ › in its head or a swipe
+//! turn (`pager.rs`). Its head has ‹ › and its name, which a click turns into the list of every
+//! semester to go to directly (owner, 2026-10-19: „Dazu soll man aber auch auf das semester selbst
+//! klicken können, um eine selection (maybe combobox) zu bekommen"; `menu.rs`). Until then a desktop
+//! had a strip of every semester over it and a line with the switch of the views over that (the
+//! same day: „Das muss raus. Es verbraucht zu [viel] Platz und bietet wenig Mehrwert"): the sidebar
+//! switches the views. After the last semester comes a page that adds one (owner: „Wenn man bis zum
+//! Schluss ist, soll eine Page kommen, wo man dann ein neues Semester hinzufügen kann"), as a
+//! semester of leave if the student says so.
 //!
 //! A row is a module as the catalog's list shows it (owner, 2026-10-19: „Gestalte das so, das der
 //! aufbau komplett gleich ist. Also padding, margin, Titel, LP, und format von den Metadaten", and
@@ -74,18 +80,17 @@ pub(super) fn Focus(ctx: StudyCtx) -> impl IntoView {
         }
     });
     view! {
-        <section class="panel st-sems" aria-label=s.semesters>
-            <div class="st-focus">
-                {move || {
-                    let semester = focused.get()?;
-                    Some(if Some(semester) == end.get() {
-                        view! { <NewSemester ctx/> }.into_any()
-                    } else {
-                        view! { <SemesterCard ctx semester/> }.into_any()
-                    })
-                }}
-                {move || focused.get().filter(|semester| Some(*semester) != end.get()).map(|semester| view! { <Fits ctx semester/> })}
-            </div>
+        <section class="panel list st-sems" aria-label=s.semesters>
+            {move || {
+                let semester = focused.get()?;
+                Some(if Some(semester) == end.get() {
+                    view! { <NewSemester ctx/> }.into_any()
+                } else {
+                    view! { <SemesterCard ctx semester/> }.into_any()
+                })
+            }}
+            // The list's bottom edge where the scroll area cuts it off (app.css, „one scroll area").
+            <i class="list-cap" aria-hidden="true"></i>
         </section>
     }
 }
@@ -864,43 +869,28 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
     .into_any()
 }
 
-/// An entry of „Passt in dieses Semester": on a desktop its name and a line, on a phone a row of the
-/// catalog with its area and its credits.
+/// A row of the plan not planned yet under a semester on a phone (`PlanRows`): a row of the catalog
+/// with its area and its credits.
 #[derive(Clone, Debug, PartialEq)]
 struct Fit {
     pick: Pick,
     name: String,
-    line: String,
     area: String,
     tone: &'static str,
     credits: Option<String>,
 }
 
-/// What „Passt in dieses Semester" lists (`study::fits`): nothing of a Fachsemester after the
-/// semester's, nothing the semester does not offer.
+/// What the plan still has open for a semester's Fachsemester (`study::fits`): nothing the semester
+/// does not offer.
 #[derive(Clone, Debug, PartialEq)]
 struct Fits {
     fs: Option<String>,
-    /// The plan's rows of its Fachsemester, open and offered; where there are none, why.
+    /// The plan's rows of its Fachsemester, open and offered.
     plan: Vec<Fit>,
-    rest: Rest,
-    retakes: Vec<Fit>,
-    earlier: Vec<Fit>,
+    /// Where none are: whether what is open is not offered in the semester (rather than nothing
+    /// open at all).
+    unoffered: bool,
 }
-
-/// Why „Laut Regelstudienplan" lists nothing.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Rest {
-    /// The plan has nothing for the Fachsemester.
-    Nothing,
-    /// All of it is planned or passed.
-    Planned,
-    /// What is open is not offered in the semester.
-    Unoffered,
-}
-
-/// How many of what was open in the Fachsemester before „Passt in dieses Semester" lists.
-const EARLIER: usize = 4;
 
 impl Fits {
     fn of(ctx: StudyCtx, semester: SemesterKey, t: &Texts) -> Option<Self> {
@@ -908,33 +898,14 @@ impl Fits {
         ctx.with_input(|input, ready| {
             let fits = study::fits(input, &ready.study, &ready.lines, semester);
             let credits = |suggestion: &study::Suggestion| suggestion.credits_text.as_ref().map(|text| folia_plans::plan::credits_in(text, t.locale)).or_else(|| suggestion.credits.map(|credits| n(credits, t)));
-            let line = |suggestion: &study::Suggestion| {
-                [credits(suggestion).map(|credits| (s.credits)(&credits)), Some(ready.area_name(suggestion.area, t))].into_iter().flatten().collect::<Vec<_>>().join(" · ")
-            };
-            let fit = |suggestion: &study::Suggestion, also: Option<String>| Fit {
+            let fit = |suggestion: &study::Suggestion| Fit {
                 pick: suggestion.pick.clone(),
                 name: suggestion.name.clone(),
-                line: std::iter::once(line(suggestion)).chain(also).collect::<Vec<_>>().join(" · "),
                 area: ready.area_name(suggestion.area, t),
                 tone: ready.tone(suggestion.area),
                 credits: credits(suggestion),
             };
-            let rest = match (fits.rows, fits.open) {
-                (0, _) => Rest::Nothing,
-                (_, 0) => Rest::Planned,
-                _ => Rest::Unoffered,
-            };
-            let retakes = fits
-                .retakes
-                .iter()
-                .filter_map(|l| {
-                    let failed = l.failed_in?;
-                    let from = ready.fs_label(failed, t).unwrap_or_else(|| failed.short(t.locale));
-                    Some(fit(&l.suggestion, Some((s.from_fs)(&from))))
-                })
-                .collect();
-            let earlier = fits.earlier.iter().take(EARLIER).map(|l| fit(&l.suggestion, l.plan_fs.map(|plan| (s.plan_says)(&(s.fs)(plan))))).collect();
-            Fits { fs: fits.fs.map(s.fs), plan: fits.plan.iter().map(|suggestion| fit(suggestion, None)).collect(), rest, retakes, earlier }
+            Fits { fs: fits.fs.map(s.fs), plan: fits.plan.iter().map(fit).collect(), unoffered: fits.rows > 0 && fits.open > 0 }
         })
     }
 }
@@ -947,67 +918,14 @@ pub(super) fn add_pick(ctx: StudyCtx, s: SemesterKey, picks: Vec<Pick>, t: &'sta
     }, || {});
 }
 
-/// „Passt in dieses Semester": what the plan has open for its Fachsemester, the Wiederholer, what
-/// is still open of the Fachsemester before; of each only what the semester offers, each a click
-/// from being planned here. A desktop's.
-#[component]
-fn Fits(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
-    let t = i18n::t();
-    let s = &t.study;
-    let fits = Memo::new(move |_| Fits::of(ctx, semester, t));
-    let entry = move |fit: Fit| {
-        let label = (s.plan_here)(&fit.name);
-        let pick = fit.pick.clone();
-        view! {
-            <li class="st-fit">
-                <div>
-                    <p class="st-fit-name">{fit.name}</p>
-                    <p class="st-sub">{fit.line}</p>
-                </div>
-                <button class="icon-btn st-plus-btn hit" type="button" aria-label=label.clone() title=label on:click=move |_| add_pick(ctx, semester, vec![pick.clone()], t)><Icon name="plus"/></button>
-            </li>
-        }
-    };
-    view! {
-        <aside class="st-fits st-pc" aria-label=s.fits_title>
-            <h3>{s.fits_title}</h3>
-            {move || fits.get().map(|fits| view! {
-                {fits.fs.clone().map(|fs| view! {
-                    <div class="st-fits-part">
-                        <p class="label">{(s.fits_plan)(&fs)}</p>
-                        {match (fits.plan.is_empty(), fits.rest) {
-                            (false, _) => view! { <ul>{fits.plan.into_iter().map(entry).collect_view()}</ul> }.into_any(),
-                            (true, Rest::Planned) => view! { <p class="st-fits-done"><Icon name="check"/>{s.fits_all}</p> }.into_any(),
-                            (true, Rest::Unoffered) => view! { <p class="st-sub">{(s.fits_unoffered)(season_word(semester, t))}</p> }.into_any(),
-                            (true, Rest::Nothing) => view! { <p class="st-sub">{s.fits_nothing}</p> }.into_any(),
-                        }}
-                    </div>
-                })}
-                {(!fits.retakes.is_empty()).then(|| view! {
-                    <div class="st-fits-part">
-                        <p class="label">{s.retakes}</p>
-                        <ul>{fits.retakes.into_iter().map(entry).collect_view()}</ul>
-                    </div>
-                })}
-                {(!fits.earlier.is_empty()).then(|| view! {
-                    <div class="st-fits-part">
-                        <p class="label">{s.fits_earlier}</p>
-                        <ul>{fits.earlier.into_iter().map(entry).collect_view()}</ul>
-                    </div>
-                })}
-            })}
-            <button class="st-link" type="button" on:click=move |_| ctx.open(Dialog::Add { semester, catalog: true, chosen: Vec::new() })><Icon name="search"/>{s.search_catalog}</button>
-        </aside>
-    }
-}
-
 /// What the Regelstudienplan still has open for the semester's Fachsemester, under its rows on a
 /// phone (owner, 2026-10-05: „die module, die noch vorgesehen sind, sollten auch als rows
 /// organisiert sein und nicht als fließtext"): each a row of the catalog as the semester's own are
 /// (owner, 2026-10-19: „Es gibt keinen grund, dass der hintergrund anders sein sollte"), with its
 /// area and its credits, and a „+" where the catalog has the bookmark, which plans it here. Only
 /// what the semester offers (`Fits`); where what is open is not offered in it, a line says so. Not
-/// for a semester gone by. A desktop has them beside the semester („Passt in dieses Semester").
+/// for a semester gone by. A desktop has none of it since „Passt in dieses Semester" beside the
+/// semester went (owner, 2026-10-20).
 #[component]
 fn PlanRows(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
     let t = i18n::t();
@@ -1019,7 +937,7 @@ fn PlanRows(ctx: StudyCtx, semester: SemesterKey) -> impl IntoView {
         let fits = fits.get()?;
         let fs = fits.fs.clone()?;
         if fits.plan.is_empty() {
-            return (fits.rest == Rest::Unoffered).then(|| view! { <p class="st-plan-note st-phone">{(s.fits_unoffered)(season_word(semester, t))}</p> }.into_any());
+            return fits.unoffered.then(|| view! { <p class="st-plan-note st-phone">{(s.fits_unoffered)(season_word(semester, t))}</p> }.into_any());
         }
         Some(
             view! {

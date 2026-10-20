@@ -4520,13 +4520,59 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-card-state.done, .st-area-list b.done { color: var(--ok); }
 .st-card-state.over, .st-area-list b.over { color: color-mix(in oklab, var(--c) 75%, var(--text)); font-weight: 650; }
 
-/* The semesters: the one in focus at the top of its box, what fits it beside it (owner,
-   2026-10-19: „Die aktuelle Auswahl … kann dann nach ganz oben in die box wandern"; the strip of
-   every semester over it and the line with the switch of the views went: „Es verbraucht zu [viel]
-   Platz und bietet wenig Mehrwert"). */
-.st-sems { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; container: semesters / inline-size; }
-@container semesters (max-width: 900px) {
-  .st-sems .st-focus { grid-template-columns: minmax(0, 1fr); }
+/* The semesters on a desktop (focus.rs): the one in focus at the top of its box (owner, 2026-10-19:
+   „Die aktuelle Auswahl … kann dann nach ganz oben in die box wandern"; the strip of every semester
+   over it and the line with the switch of the views went: „Es verbraucht zu [viel] Platz und bietet
+   wenig Mehrwert"), the box a list as the catalog's and the Merkliste's are (owner, 2026-10-20:
+   „dass die box wo die module drin sind vom design angepasst werden an die anderen seiten"): no
+   room around it, its head as tall as theirs and the semester's name as large as their count, its
+   Fachsemester as their words after it („Oben im Titel von der box ist das spacing und die Font
+   soll auch angepasst werden"), with ‹ ›, the credits and ⋯ where they were; the heads of the
+   columns and the bar of the rows selected across the box, the rows under them as the list's;
+   nothing beside it („Passt in dieses Semester" went the same day). How it stays at the top: „one
+   scroll area", „Mein Studium". */
+.st-sems > .st-card-sem { flex: 1 0 auto; }
+.st-sems .st-sem-head { min-height: 60px; padding: 8px 16px 12px; gap: 10px; }
+.st-sems .st-sem-head > .st-turn:first-child { margin-left: -7px; }
+.st-sems .st-sem-head > .st-turn:last-child { margin-right: -4px; }
+.st-sems .st-sem-title { gap: 4px 10px; }
+.st-sems .st-sem-name { gap: 4px 10px; }
+.st-sems .st-sem-name h2 { font-size: 22px; letter-spacing: -.035em; line-height: 1; }
+.st-sems .st-sem-fs { margin: 0; font-size: 14px; font-weight: 520; }
+.st-sems .st-table > .st-rows { padding: 0 8px 12px; }
+.st-sems .st-table > .st-selbar { height: var(--cols); padding: 0 6px 0 23px; border-radius: 0; border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line); box-shadow: none; }
+/* In the one scroll area (above) the box is the catalog's list under the overview (the same day:
+   „dass die untere box mit der studiengangsliste sticky ist und dann wenn man ein wenig gescrolled
+   hat, dass es auch eine volle liste ist"): at least as tall as the area shows, so that once the
+   overview has scrolled away it is the whole list; its head stays at the top, the heads of the
+   columns (or the bar of the rows selected) under it (--list-head-h, enhance.js), its bottom edge
+   where the area cuts it off, and its round corners at the top let the page behind show (the
+   area's mask, as for the list; the page ends 1 px left of the area's right edge). A semester
+   short enough to stand whole above the ground is pinned as the catalog's short list is
+   (`.short`, enhance.js): the page reaches through the ground's row, with room at its end for the
+   ground to slide over the box's empty end, and the box stays at the top meanwhile. */
+@media (min-width: 901px) {
+  .work.flowing:has(> .page > .page-inner.study > .st-sems) {
+    mask-image: linear-gradient(#000 0 0), radial-gradient(circle at 10px 10px, transparent 9.6px, #000 10.4px), radial-gradient(circle at 0 10px, transparent 9.6px, #000 10.4px);
+    mask-origin: border-box, border-box, content-box; mask-clip: border-box;
+    mask-size: 100% 100%, 10px 10px, 10px 10px; mask-repeat: no-repeat;
+    mask-position: 0 0, calc(var(--filters) + var(--gap) - 1px) 0, right 0 top -1px;
+    mask-composite: subtract, add, add;
+  }
+  .page-inner.study > .st-sems { min-height: calc(100vh - 64px); overflow: visible; }
+  html.js .st-sems .st-sem-head { position: sticky; top: -1px; z-index: 6; min-height: 61px; margin: -1px -1px 0; border: 1px solid var(--ring-b); border-bottom: 0; border-radius: calc(var(--r-panel) + 1px) calc(var(--r-panel) + 1px) 0 0; background: var(--panel); }
+  html.js .st-sems .st-table > :is(.cols, .st-selbar) { position: sticky; top: calc(var(--list-head-h, 1px) - 1px); z-index: 4; }
+  .page-inner.study > .st-sems > .list-cap {
+    position: sticky; bottom: -1px; z-index: 5; display: block; height: 10px; margin: -9px -1px -1px; pointer-events: none;
+    background:
+      radial-gradient(circle at 10px 0, transparent 8.6px, var(--ring-w) 9.3px, var(--ring-w) 9.7px, var(--wood-front) 10.4px) left top / 10px 10px no-repeat,
+      radial-gradient(circle at 0 0, transparent 8.6px, var(--ring-w) 9.3px, var(--ring-w) 9.7px, var(--wood-front) 10.4px) right top / 10px 10px no-repeat,
+      linear-gradient(var(--ring-w), var(--ring-w)) center bottom / calc(100% - 20px) 1px no-repeat;
+  }
+  .work.flowing.framed > .page:has(> .page-inner.study > .st-sems.short) { grid-row: 1 / 3; }
+  .page-inner.study:has(> .st-sems.short)::after { content: ""; height: var(--ground-h); }
+  .page-inner.study > .st-sems.short { position: sticky; top: 0; height: calc(100vh - 64px); min-height: 0; padding-bottom: var(--cover, 0px); }
+  .work.flowing[data-rest]:has(> .page > .page-inner.study > .st-sems.short) > .ground > .cap-list { display: block; left: calc(var(--filters) + var(--gap) - 1px); right: 0; }
 }
 .st-sems-head { display: flex; align-items: center; gap: 12px; }
 .st-sems-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
@@ -4540,7 +4586,6 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .st-load > span { flex-basis: 0; }
 .st-load > span:first-child { background: var(--st-passed); }
 .st-col-head .heavy ~ .st-load > span:first-child { background: #c98a1a; }
-.st-focus { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 20px; align-items: start; }
 .st-card-sem { min-width: 0; display: flex; flex-direction: column; }
 .st-sem-head { display: flex; align-items: center; gap: 6px; padding-bottom: 10px; }
 .st-turn, .st-sem-more { flex: none; width: 34px; height: 34px; }
@@ -4573,9 +4618,8 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
    its end, where the catalog has the bookmark, its status. While rows are selected the bar of them
    takes the place of the heads, as tall as they are, so that no row moves. */
 .st-table { display: flex; flex-direction: column; container: list / inline-size; }
-.st-table > .cols { height: 36px; padding: 0 50px 0 15px; }
+.st-table > .cols { height: var(--cols, 35px); }
 .st-rows { list-style: none; margin: 0; padding: 0; }
-.st-table > .st-rows { padding-top: 4px; }
 @media (min-width: 901px) { :where(.st-rows > .st-row:nth-child(even of .st-row)) > .row { background: var(--row-shade); } }
 /* The box is the module's button (owner, 2026-10-19: „Es soll die gesamte modulbox als button
    funktionieren"): its link (`.st-open`, focus.rs) reaches over all of it, its name no link of its
@@ -4681,18 +4725,7 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 /* The semester shown, in the list of them: a check at its end. */
 .st-pop-item > .icon.st-pop-current { color: var(--accent-ink); }
 .st-pop hr { height: 0; margin: 4px 6px; border: 0; border-top: 1px solid var(--line); }
-.st-fits { display: flex; flex-direction: column; gap: 14px; padding: 14px 14px 16px; border-radius: var(--r-panel); background: var(--panel-2); }
-.st-fits h3 { margin: 0; font-size: 13.5px; font-weight: 700; }
-.st-fits .label, .st-dlg .label, .st-setup .label { display: block; margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
-.st-fits ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.st-fit { display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 10px; border-radius: 8px; background: var(--panel); box-shadow: 0 0 0 1px var(--line); }
-.st-fit > div { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.st-fit-name { margin: 0; font-size: 13px; font-weight: 600; }
-.st-fit .st-sub { margin: 0; font-size: 12px; }
-.st-plus-btn { flex: none; width: 30px; height: 30px; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
-.st-plus-btn .icon { width: 15px; height: 15px; }
-.st-fits-done { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 13px; font-weight: 600; color: var(--ok); }
-.st-fits-done .icon { width: 15px; height: 15px; }
+.st-dlg .label, .st-setup .label { display: block; margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2); }
 .st-new-body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px 8px 24px; text-align: center; }
 .st-new-icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); }
 .st-new-title { margin: 0; font-size: 16px; font-weight: 700; }
