@@ -2490,10 +2490,14 @@
       // button of their own. The keyboard on another row of the list than the open one would make
       // it ambiguous which module is meant, so P waits there. What it planned the note at the
       // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs). With Shift, its
-      // arrow: the semesters to choose from (folia/crates/widgets/src/planmenu.rs).
+      // arrow (folia/design/tasten/konzept.html): planned, the menu of what is planned
+      // (planmenu.rs), else „Einplanen in …" (planinto.rs); P as such where there is no arrow.
       const row = document.activeElement?.closest?.(".row-wrap");
-      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find(e.shiftKey ? '.hero [data-action="plan-more"]' : '.hero [data-action="plan"]');
-      if (plan) { e.preventDefault(); plan.click(); }
+      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
+      const more = e.shiftKey && plan?.closest(".plan-pair")?.querySelector('[data-action="plan-more"]');
+      // The arrow has the focus, as after a click on it: the menu gives it back there.
+      if (more) { e.preventDefault(); more.focus({ preventScroll: true }); more.click(); }
+      else if (plan) { e.preventDefault(); plan.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");

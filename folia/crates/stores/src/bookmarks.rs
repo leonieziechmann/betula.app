@@ -758,7 +758,7 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
 }
 
 /// The box of the pair of a module's switch and its arrow, whose arrow was clicked (at a row, the
-/// row's): the menu stands under it.
+/// row's): the menu stands under it. „Einplanen"'s arrow as well (`studyplan::PlanButton`).
 pub(crate) fn pair_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
     #[cfg(feature = "csr")]
     {

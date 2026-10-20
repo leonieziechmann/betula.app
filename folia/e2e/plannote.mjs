@@ -17,7 +17,8 @@
 // stands over the bottom bar, as wide, under it and flat; a tap on the semester's half and a finger
 // swiped over it move the module, the semester under the finger stays as the switch comes over it,
 // a finger swipes the note down and away, and a long scroll, a tap elsewhere or a module opened puts
-// it away; planned from a module's sheet, the note goes down with the sheet as it closes. On a wide
+// it away; planned from a module's sheet, the note goes down with the sheet as it closes. Planned,
+// the switch's arrow opens its menu: passed and back, moved, ⇧P and the keys, taken out. On a wide
 // screen the note is in order: the check and the name at the left, the semester, „Rückgängig" and ×
 // at the right, the switch a row over all of it lined up with them; on a small one nothing of it
 // over anything else, the module named where there is room.
@@ -442,6 +443,90 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
     check(removed?.removed?.whole && removed.removed.text.endsWith("entfernt") && !removed.hits.length && !removed.out.length, `${at}: „entfernt" not whole (${JSON.stringify(removed && { removed: removed.removed, hits: removed.hits, out: removed.out })})`);
     await context.close();
   }
+}
+
+// ---------- the arrow beside „Eingeplant" (owner, 2026-10-20) ----------
+// Planned, the switch has an arrow of its own, as „Gemerkt" has; its menu marks the module as
+// passed and takes that back, moves it to another semester, opens the Stundenplan and takes it
+// out, each with the note and „Rückgängig"; ⇧P opens it, the arrow keys go through it and into the
+// semesters, Esc goes back step by step to the arrow.
+{
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await context.addInitScript(() => sessionStorage.setItem("betula.plan.asked", "1"));
+  const page = await context.newPage();
+  watch(page);
+  await open(page, "11112");
+  const ARROW = ".detail .hero .plan-more";
+  // Not planned, the arrow is there as well (folia/design/tasten/konzept.html, „Knopf mit Pfeil"):
+  // „Einplanen in …" (planinto.rs), e2e/arrows.mjs walks it.
+  check((await page.getAttribute(ARROW, "aria-label").catch(() => null)) === "In ein anderes Semester", "not planned: the arrow is not the one of „Einplanen in …“");
+  await page.click(SWITCH);
+  await page.waitForSelector(ARROW, { state: "visible", timeout: 3000 }).catch(() => problems.push("planned: no arrow"));
+  await page.waitForFunction((key) => (localStorage.getItem(key) || "").includes("\t11112\t"), STORE, { timeout: 4000 }).catch(() => {});
+  const [at] = await plannedIn(page, "11112");
+  const passedIn = () => page.evaluate((key) => (localStorage.getItem(key) || "").split("\n").map((l) => l.split("\t")).filter((f) => f[0] === "d" && f[2] === "11112").map((f) => f[1]), STORE);
+  const menu = () => page.evaluate(() => ({
+    entries: [...document.querySelectorAll(".plan-menu.root [role=menuitem]")].map((e) => e.textContent.trim()),
+    focus: document.activeElement?.id || document.activeElement?.className || null,
+    sub: [...document.querySelectorAll(".plan-menu.sub [role=menuitem]")].map((e) => e.textContent.trim()),
+  }));
+
+  // „Als bestanden markieren": the note says so, the switch's small line too, „Rückgängig" takes it back.
+  await page.click(ARROW);
+  await page.waitForSelector(".plan-menu.root", { timeout: 2000 }).catch(() => problems.push("the arrow opens no menu"));
+  let seen = await menu();
+  check(JSON.stringify(seen.entries) === JSON.stringify(["Als bestanden markieren", "Verschieben nach", "Im Stundenplan öffnen", "Entfernen"]) && seen.focus === "plan-menu-passed", `the menu: ${JSON.stringify(seen)}`);
+  await page.click("#plan-menu-passed");
+  await page.waitForFunction(() => !document.querySelector(".plan-menu"), null, { timeout: 2000 }).catch(() => problems.push("„Als bestanden markieren“ leaves the menu open"));
+  await page.waitForFunction((sel) => document.querySelector(sel)?.querySelector("small")?.textContent.endsWith("bestanden"), SWITCH, { timeout: 3000 }).catch(() => {});
+  check(JSON.stringify(await passedIn()) === JSON.stringify([at]), `passed: ${JSON.stringify(await passedIn())}, not ${at}`);
+  check((await switchSays(page)).line.endsWith("· bestanden") || (await switchSays(page)).line.endsWith("bestanden"), `passed: the switch says ${JSON.stringify(await switchSays(page))}`);
+  check((await note(page))?.said?.includes("als bestanden markiert"), `passed: the note says ${JSON.stringify((await note(page))?.said)}`);
+  await page.click(".plan-toast-undo");
+  await page.waitForFunction((key) => !(localStorage.getItem(key) || "").split("\n").some((l) => l.startsWith("d\t")), STORE, { timeout: 3000 }).catch(() => problems.push("„Rückgängig“ leaves the module passed"));
+
+  // „Verschieben nach ›": the semesters beside the menu, „jetzt" at the current one; the last moves it there.
+  await page.click(ARROW);
+  await page.hover("#plan-menu-move");
+  await page.waitForSelector(".plan-menu.sub", { timeout: 2000 }).catch(() => problems.push("„Verschieben nach“ opens no semesters"));
+  seen = await menu();
+  const plus = (key, n) => { let [y, w] = [Number(key.slice(0, 4)), key[4] === "W"]; for (let i = 0; i < n; i++) [y, w] = w ? [y + 1, false] : [y, true]; return `${y}${w ? "W" : "S"}`; };
+  // Without the one it is in; whether each offers it (a winter module).
+  const short = (key) => (key.endsWith("W") ? `WiSe ${key.slice(2, 4)}/` : `SoSe ${key.slice(2, 4)}`);
+  check(seen.sub.length >= 4 && !seen.sub.some((label) => label.startsWith(short(at))) && seen.sub.every((label) => label.endsWith(label.startsWith("WiSe") ? "angeboten" : "nicht angeboten")), `the semesters: ${JSON.stringify(seen.sub)}`);
+  const boxes = await page.evaluate(() => [".plan-menu.root", ".plan-menu.sub"].map((s) => document.querySelector(s).getBoundingClientRect().toJSON()));
+  check(boxes[1].left >= boxes[0].right - 4 || boxes[1].right <= boxes[0].left + 4, `the semesters do not stand beside the menu: ${JSON.stringify(boxes)}`);
+  await page.click(".plan-menu.sub [role=menuitem]:last-child");
+  const later = plus(at, 3);
+  await waitPlanned(page, "11112", [later], "moved with the menu");
+  await noteThere(page, "moved with the menu");
+  check((await switchSays(page)).pressed === "true", `moved: the switch is not pressed where it is now (${JSON.stringify(await switchSays(page))})`);
+  check((await note(page))?.line?.includes("verschoben"), `moved: the note says ${JSON.stringify(await note(page))}`);
+
+  // ⇧P opens it, the keys go through it and into the semesters, Esc back step by step.
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Shift+P");
+  await page.waitForSelector(".plan-menu.root", { timeout: 2000 }).catch(() => problems.push("⇧P opens no menu"));
+  await page.waitForTimeout(100);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowRight");
+  await page.waitForTimeout(100);
+  seen = await menu();
+  check(seen.sub.length > 0 && (await page.evaluate(() => Boolean(document.activeElement?.closest(".plan-menu.sub")))), `→ does not go into the semesters: ${JSON.stringify(seen)}`);
+  await page.keyboard.press("Escape");
+  check((await page.evaluate(() => document.activeElement?.id)) === "plan-menu-move" && !(await page.$(".plan-menu.sub")), "Esc does not go back from the semesters to „Verschieben nach“");
+  await page.keyboard.press("Escape");
+  check(!(await page.$(".plan-menu")) && (await page.evaluate(() => document.activeElement?.classList.contains("plan-more"))), "Esc does not close the menu back to the arrow");
+  check(JSON.stringify(await plannedIn(page, "11112")) === JSON.stringify([later]), "the keys changed the plan");
+
+  // „Entfernen": out, the note says so, the arrow goes.
+  await page.click(ARROW);
+  await page.click("#plan-menu-remove");
+  await waitPlanned(page, "11112", [], "taken out with the menu");
+  check(await page.evaluate((sel) => document.activeElement === document.querySelector(sel), SWITCH), "taken out: the focus is not on the switch");
+  check((await note(page))?.said?.includes("entfernt"), `taken out: the note says ${JSON.stringify(await note(page))}`);
+  await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("aria-label") === "In ein anderes Semester", ARROW, { timeout: 2000 }).catch(() => problems.push("taken out: the arrow is not the one of „Einplanen in …“ again"));
+  await context.close();
 }
 
 // ---------- a phone ----------

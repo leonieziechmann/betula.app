@@ -6,10 +6,11 @@
 //   „Sammlung und Notiz" for the row, where a collection chosen marks the module. ⇧M at a row the
 //   same; S and N do nothing any more; M with Caps Lock (no Shift) marks.
 // - A module's „Merken" has its arrow unmarked as well; ⇧M opens it at the open module.
-// - „Einplanen"'s arrow and ⇧P: „Einplanen in" with the semesters, „jetzt" at the current one, each
-//   saying whether it offers the module; one chosen plans it there and the note says so; another
-//   chosen then moves it, „verschoben", and „Rückgängig" puts it back. Esc closes the menu, the
-//   focus back at the arrow.
+// - „Einplanen"'s arrow and ⇧P, the module not planned: „Einplanen in" with the semesters, „jetzt"
+//   at the current one, each saying whether it offers the module, under the switch beside the
+//   rail; Esc closes it, the focus back at the arrow. One chosen plans the module there and the
+//   note says so; „Rückgängig" takes it out again. Planned, the same arrow opens the menu of what
+//   is planned (plannote.mjs has its entries).
 // - On a Mac Strg is ⌘: the search's key, the tooltip of the Merkliste's keys.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -104,37 +105,45 @@ await step("⇧M at the module opens „Sammlung und Notiz\"", () => page.keyboa
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => !document.querySelector(".collect-pop"));
 await page.evaluate(() => document.activeElement?.blur());
-await step("⇧P opens „Einplanen in\"", () => page.keyboard.press("Shift+P"), () => allOnPage(".plan-menu [role=menuitemradio]").length >= 4 && Boolean(document.activeElement?.closest?.(".plan-menu")));
+await step("⇧P opens „Einplanen in\"", () => page.keyboard.press("Shift+P"), () => allOnPage(".plan-into [role=menuitemradio]").length >= 4 && Boolean(document.activeElement?.closest?.(".plan-into")));
 const menu = await page.evaluate(() => ({
-  head: document.querySelector(".plan-menu .view-menu-head")?.textContent,
-  now: [...document.querySelectorAll(".plan-menu [role=menuitemradio]")].filter((item) => item.querySelector(".st-now")).length,
-  notes: [...document.querySelectorAll(".plan-menu [role=menuitemradio] .st-pop-note")].map((note) => note.textContent.trim()),
-  earlier: [...document.querySelectorAll(".plan-menu [role=menuitem]")].some((item) => item.textContent.includes("Frühere Semester")),
+  head: document.querySelector(".plan-into .view-menu-head")?.textContent,
+  now: [...document.querySelectorAll(".plan-into [role=menuitemradio]")].filter((item) => item.querySelector(".st-now")).length,
+  notes: [...document.querySelectorAll(".plan-into [role=menuitemradio] .st-pop-note")].map((note) => note.textContent.trim()),
+  checked: document.querySelectorAll('.plan-into [aria-checked="true"]').length,
+  earlier: [...document.querySelectorAll(".plan-into [role=menuitem]")].some((item) => item.textContent.includes("Frühere Semester")),
 }));
-check(menu.head === "Einplanen in" && menu.now === 1 && menu.notes.every((note) => /^(angeboten|nicht angeboten)$/.test(note)) && menu.earlier, `„Einplanen in": ${JSON.stringify(menu)}`);
-const second = await page.evaluate(() => document.querySelectorAll(".plan-menu [role=menuitemradio]")[1]?.dataset.semester);
-await step("a semester chosen plans the module there", async () => { await page.click(`.plan-menu [data-semester="${second}"]`); }, () => !document.querySelector(".plan-menu") && /eingeplant/.test(document.querySelector(".planning-note")?.textContent || ""));
-await page.waitForTimeout(300);
-check(JSON.stringify(await plannedIn(ids[3])) === JSON.stringify([second]), `planned in: ${JSON.stringify(await plannedIn(ids[3]))} instead of ${second}`);
-await step("its arrow again: the semester checked", () => page.click('.detail .hero [data-action="plan-more"]'), (s) => document.querySelector(`.plan-menu [data-semester="${s}"]`)?.getAttribute("aria-checked") === "true", second);
-const third = await page.evaluate(() => document.querySelectorAll(".plan-menu [role=menuitemradio]")[2]?.dataset.semester);
-await step("another chosen moves it", () => page.click(`.plan-menu [data-semester="${third}"]`), () => /verschoben/.test(document.querySelector(".planning-note")?.textContent || ""));
-await page.waitForTimeout(300);
-check(JSON.stringify(await plannedIn(ids[3])) === JSON.stringify([third]), `moved to: ${JSON.stringify(await plannedIn(ids[3]))} instead of ${third}`);
-await step("„Rückgängig\" puts it back", () => page.click(".planning-note .plan-toast-undo"), () => !document.querySelector(".planning-note:not(.leaving) .plan-toast-undo") || true);
-await page.waitForTimeout(500);
-check(JSON.stringify(await plannedIn(ids[3])) === JSON.stringify([second]), `after „Rückgängig": ${JSON.stringify(await plannedIn(ids[3]))} instead of ${second}`);
-await step("Esc closes the menu, the focus back at the arrow", async () => { await page.click('.detail .hero [data-action="plan-more"]'); await page.waitForFunction(() => document.activeElement?.closest?.(".plan-menu")); await page.keyboard.press("Escape"); }, () => !document.querySelector(".plan-menu") && document.activeElement?.dataset.action === "plan-more");
+check(menu.head === "Einplanen in" && menu.now === 1 && menu.notes.every((note) => /^(angeboten|nicht angeboten)$/.test(note)) && menu.checked === 0 && menu.earlier, `„Einplanen in": ${JSON.stringify(menu)}`);
+await step("Esc closes the menu, the focus back at the arrow", () => page.keyboard.press("Escape"), () => !document.querySelector(".plan-into") && document.activeElement?.dataset.action === "plan-more");
 // The menu stands beside the rail, under the switch.
 const placed = await page.evaluate(() => {
   document.querySelector('.detail .hero [data-action="plan-more"]').click();
   return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => {
-    const menu = document.querySelector(".plan-menu")?.getBoundingClientRect();
+    const menu = document.querySelector(".plan-into")?.getBoundingClientRect();
     const pair = document.querySelector(".detail .hero .plan-pair")?.getBoundingClientRect();
-    done(menu && pair ? { right: Math.round(menu.right - pair.right), top: Math.round(menu.top - pair.bottom) } : null);
+    const rail = document.querySelector("aside.rail")?.getBoundingClientRect();
+    done(menu && pair ? { right: Math.round(menu.right - pair.right), top: Math.round(menu.top - pair.bottom), clear: !rail || menu.left >= rail.right } : null);
   })));
 });
-check(placed && Math.abs(placed.right) <= 1 && placed.top >= 0 && placed.top <= 8, `the menu at its switch: ${JSON.stringify(placed)}`);
+check(placed && Math.abs(placed.right) <= 1 && placed.top >= 0 && placed.top <= 8 && placed.clear, `the menu at its switch: ${JSON.stringify(placed)}`);
+await page.waitForFunction(() => document.activeElement?.closest?.(".plan-into"));
+const second = await page.evaluate(() => document.querySelectorAll(".plan-into [role=menuitemradio]")[1]?.dataset.semester);
+await step("a semester chosen plans the module there", () => page.click(`.plan-into [data-semester="${second}"]`), () => !document.querySelector(".plan-into") && /eingeplant/.test(document.querySelector(".planning-note")?.textContent || ""));
+await page.waitForTimeout(300);
+check(JSON.stringify(await plannedIn(ids[3])) === JSON.stringify([second]), `planned in: ${JSON.stringify(await plannedIn(ids[3]))} instead of ${second}`);
+await step("„Rückgängig\" takes it out again", () => page.click(".planning-note .plan-toast-undo"), (id) => !(localStorage.getItem("betula.studyplan.v1") || "").split("\n").some((line) => line.split("\t")[0] === "m" && line.split("\t")[2] === id), ids[3]);
+await page.waitForFunction(() => onPage('.detail .hero [data-action="plan"]')?.getAttribute("aria-pressed") === "false", null, { timeout: 4000 }).catch(() => problems.push("„Rückgängig\" leaves „Eingeplant\""));
+await step("chosen again: planned there", async () => {
+  await page.click('.detail .hero [data-action="plan-more"]');
+  await page.waitForFunction(() => document.activeElement?.closest?.(".plan-into"));
+  await page.click(`.plan-into [data-semester="${second}"]`);
+}, () => onPage('.detail .hero [data-action="plan"]')?.getAttribute("aria-pressed") === "true");
+await page.waitForTimeout(300);
+// Planned, the arrow is the menu of what is planned.
+await step("planned, the arrow opens the menu of what is planned", () => page.click('.detail .hero [data-action="plan-more"]'), () => Boolean(document.querySelector(".plan-menu.root #plan-menu-move")) && !document.querySelector(".plan-into"));
+check((await page.evaluate(() => onPage('.detail .hero [data-action="plan-more"]')?.getAttribute("aria-label"))) === "Semester und bestanden", "the planned arrow's label is not „Semester und bestanden\"");
+await page.keyboard.press("Escape");
+await page.waitForFunction(() => !document.querySelector(".plan-menu"), null, { timeout: 2000 }).catch(() => problems.push("Esc leaves the menu of what is planned open"));
 await page.keyboard.press("Escape");
 await context.close();
 

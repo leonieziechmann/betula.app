@@ -29,7 +29,9 @@
 //! that move it and „Rückgängig" (owner, 2026-10-18, concept E of
 //! folia/design/einplanen/oberflaeche.html: „Also ich liebe Option E, das ist mit Abstand die
 //! eleganteste"). Where no study is set up, a dialog sets it up and plans the module in one
-//! (`planning::SetupAsk`, `fit`).
+//! (`planning::SetupAsk`, `fit`). Planned, the switch at a module has an arrow of its own, as
+//! „Gemerkt" has (owner, 2026-10-20): its menu moves the module to another semester, marks it as
+//! passed, opens the Stundenplan or takes it out (`planning::MenuAsk`, `folia_widgets::planmenu`).
 
 use std::collections::BTreeSet;
 
@@ -53,7 +55,7 @@ use folia_design::ui::{Icon, Shortcut};
 pub mod fit;
 mod planning;
 
-pub use planning::{planning_semester, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
+pub use planning::{planning_semester, MenuAsk, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
@@ -398,10 +400,14 @@ pub enum PlanLook {
 /// every look; `P` presses the one of what the visitor is at (`enhance.js`,
 /// `data-action="plan"`). Where no study is set up, the dialog asks for it first.
 ///
-/// At a module (`Hero`) its arrow (folia/design/tasten/konzept.html, „Knopf mit Pfeil"; owner,
-/// 2026-10-20: „Ja bitte setze deine Vorschläge um"), which ⇧P opens as well
-/// (`data-action="plan-more"`): the semesters it can go to (`PlanAsk`, `folia_widgets::planmenu`),
-/// in server HTML as well, so nothing moves when the app takes over.
+/// At a module (`Hero`) the switch has an arrow of its own, as „Merken" has, planned or not
+/// (folia/design/tasten/konzept.html, „Knopf mit Pfeil"; owner, 2026-10-20: „Ja bitte setze deine
+/// Vorschläge um"), which ⇧P opens as well (`enhance.js`, `data-action="plan-more"`). Planned, its
+/// menu (`MenuAsk`, `folia_widgets::planmenu`) moves the module, marks it as passed, opens the
+/// Stundenplan or takes it out (owner, the same day: „damit man das nicht löschen und dann wieder
+/// merken muss, um was daran zu ändern"); not planned, „Einplanen in …" (`PlanAsk`,
+/// `folia_widgets::planinto`) plans it into a semester chosen. In server HTML as well, so nothing
+/// moves when the app takes over.
 ///
 /// Part of server HTML like `MarkButton`: unpressed and aimed as for an empty plan, the same for
 /// everybody (R9), kept in its place but not shown until the app runs (`.plan-toggle`), so nothing
@@ -445,9 +451,9 @@ pub fn PlanButton(
     // What the last click said, until the plan it writes after the next frame has it.
     let said = RwSignal::new(None::<bool>);
     let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| aim.with(|aim| aim.pressed)));
-    let title_more = title.clone();
+    let base = Pressed { id: id.clone(), title, current, offer, newest, hint: None };
     let toggle = {
-        let what = Pressed { id: id.clone(), title, current, offer, newest, hint: None };
+        let what = base.clone();
         move |_: leptos::ev::MouseEvent| {
             let (Some(plan), Some(planning)) = (plan, planning) else { return };
             let was = pressed.get_untracked();
@@ -473,38 +479,57 @@ pub fn PlanButton(
         let said = said.get();
         aim.with(|aim| tooltip_text(aim, said.unwrap_or(aim.pressed), t))
     };
-    match look {
+    let (class, words) = match look {
         PlanLook::Hero => {
             // The app's alone: where a session plans depends on the day (R9).
             let note = move || APP.then(|| aim.with(|aim| hero_note(aim, start.get(), t))).map(|note| view! { <small>{note}</small> });
-            let what = Pressed { id: id.clone(), title: title_more, current, offer, newest, hint: None };
-            let more = move |ev: leptos::ev::MouseEvent| {
-                let Some(planning) = planning else { return };
-                let aim = Aim { pressed: pressed.get_untracked(), ..aim.get_untracked() };
-                planning.open_menu(PlanAsk { what: Pressed { hint: hint.get_untracked(), ..what.clone() }, aim, at: crate::bookmarks::pair_of(&ev) });
-            };
-            view! {
-                <span class="mark-pair split plan-pair">
-                    <button class="plan-toggle mark-switch hit" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
-                        {icon}<span>{label}</span>{note}<Shortcut keys="P"/>
-                    </button>
-                    <button class="mark-more plan-more hit" type="button" data-action="plan-more" aria-haspopup="menu" aria-label=t.planner.plan_more title=t.planner.plan_more_hint on:click=more>
-                        <Icon name="chevron-down"/>
-                    </button>
-                </span>
-            }
-            .into_any()
+            ("plan-toggle mark-switch hit", view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
         }
         PlanLook::Action => {
             let line = move || aim.with(|aim| semester_line(aim, start.get(), t));
-            view! {
-                <button class="plan-toggle action" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
-                    {icon}<span>{label}<small>{line}</small></span>
-                </button>
-            }
-            .into_any()
+            ("plan-toggle action", view! { <span>{label}<small>{line}</small></span> }.into_any())
         }
+    };
+    let switch = view! {
+        <button
+            class=class
+            type="button"
+            data-action="plan"
+            on:click=toggle
+            aria-pressed=pressed_attr
+            aria-busy=busy
+            title=tip
+        >
+            {icon}{words}
+        </button>
+    };
+    if look == PlanLook::Action {
+        return switch.into_any();
     }
+    // The arrow: planned, the menu of what is planned where the switch is pressed for; not planned,
+    // „Einplanen in …".
+    let more = move |ev: leptos::ev::MouseEvent| {
+        let Some(planning) = planning else { return };
+        let what = Pressed { hint: hint.get_untracked(), ..base.clone() };
+        let anchor = crate::bookmarks::pair_of(&ev);
+        if pressed.get_untracked() {
+            let aim = aim.get_untracked();
+            planning.open_menu(MenuAsk { what, at: aim.target, passed: aim.passed_here(), anchor });
+        } else {
+            planning.open_into(PlanAsk { what, aim: aim.get_untracked(), at: anchor });
+        }
+    };
+    let more_label = move || if pressed.get() { t.planner.more } else { t.planner.plan_more };
+    let more_hint = move || if pressed.get() { t.planner.more_hint } else { t.planner.plan_more_hint };
+    view! {
+        <span class="plan-pair split">
+            {switch}
+            <button class="plan-more hit" type="button" data-action="plan-more" aria-label=more_label title=more_hint aria-haspopup="menu" on:click=more>
+                <Icon name="chevron-down"/>
+            </button>
+        </span>
+    }
+    .into_any()
 }
 
 /// What a plan button aims at: from the plan, the page's hint and the module's semesters.
@@ -519,6 +544,8 @@ pub struct Aim {
     fill: Option<(u32, String)>,
     /// The other semesters the plan holds the module in.
     elsewhere: Vec<SemesterKey>,
+    /// The semester the module is passed in (`PlanDoc::passed`), wherever that is.
+    passed: Option<SemesterKey>,
 }
 
 impl Aim {
@@ -530,6 +557,17 @@ impl Aim {
     /// Where a press plans the module, or takes it out of.
     pub fn target(&self) -> SemesterKey {
         self.target
+    }
+
+    /// The other semesters the plan holds the module in: „Einplanen in …" checks them.
+    pub fn elsewhere(&self) -> &[SemesterKey] {
+        &self.elsewhere
+    }
+
+    /// The module is passed in the semester the switch is pressed for: its menu offers to take
+    /// that back (`folia_widgets::planmenu`).
+    pub fn passed_here(&self) -> bool {
+        self.pressed && self.passed == Some(self.target)
     }
 }
 
@@ -558,7 +596,7 @@ fn aim_of(id: &str, current: SemesterKey, base: SemesterKey, newest: Option<Seme
     };
     let target = planned_at.unwrap_or(target);
     let elsewhere = doc.planned_in(id).into_iter().filter(|semester| *semester != target).collect();
-    Aim { target, pressed: planned_at.is_some(), fill, elsewhere }
+    Aim { target, pressed: planned_at.is_some(), fill, elsewhere, passed: doc.passed_in(id) }
 }
 
 /// How long a placeholder's name may be in the button's small line; the tooltip has it whole.
@@ -593,9 +631,18 @@ fn fill_text(aim: &Aim, t: &'static Texts) -> Option<String> {
 }
 
 /// „geplant: SoSe 2027" when the plan holds the module in other semesters as well, the semesters
-/// as `label` names them.
+/// as `label` names them; „bestanden: SoSe 2025" for the one it is passed in, which is said apart
+/// („bestanden" alone where it is the semester the switch is pressed for).
 fn elsewhere_text(aim: &Aim, label: impl Fn(SemesterKey) -> String, t: &'static Texts) -> Option<String> {
-    (!aim.elsewhere.is_empty()).then(|| (t.planner.planned_in)(&aim.elsewhere.iter().map(|semester| label(*semester)).collect::<Vec<_>>().join(", ")))
+    let planned: Vec<String> = aim.elsewhere.iter().filter(|semester| Some(**semester) != aim.passed).map(|semester| label(*semester)).collect();
+    let passed = match aim.passed {
+        Some(_) if aim.passed_here() => Some(t.planner.passed.to_string()),
+        Some(semester) => Some((t.planner.passed_at)(&label(semester))),
+        None => None,
+    };
+    let planned = (!planned.is_empty()).then(|| (t.planner.planned_in)(&planned.join(", ")));
+    let parts: Vec<String> = [passed, planned].into_iter().flatten().collect();
+    (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
 /// The semester a press plans into, as `label` names it; the one the module is planned in with its
@@ -647,11 +694,15 @@ pub fn swipe_words(aim: &Aim, t: &'static Texts) -> (&'static str, String, &'sta
 }
 
 /// What a click does to the plan, after the next frame: takes the module out of the semester it
-/// was pressed for; else plans it in, for the hint's placeholder — which a module planned there
-/// already only starts counting for.
+/// was pressed for, and what was passed of it there, as „Entfernen" in „Mein Studium" does; else
+/// plans it in, for the hint's placeholder — which a module planned there already only starts
+/// counting for.
 fn toggle_in(doc: &mut PlanDoc, id: &str, aim: &Aim, was_pressed: bool, only_its_events: &[u32], at: u64) {
     if was_pressed {
         doc.unplan(aim.target, id, only_its_events);
+        if doc.passed_in(id) == Some(aim.target) {
+            doc.unpass(id);
+        }
         return;
     }
     match aim.fill.as_ref().map(|(pid, _)| *pid) {
@@ -660,6 +711,57 @@ fn toggle_in(doc: &mut PlanDoc, id: &str, aim: &Aim, was_pressed: bool, only_its
             doc.plan(aim.target, id, at, fills);
         }
     }
+}
+
+/// Moves a planned module from `from` to `to` (the note's ‹ ›, „Verschieben nach" in the switch's
+/// menu), with when it was planned and what was passed of it there, as „Mein Studium" moves an
+/// entry; a placeholder of another semester no longer counts it. Whether it is in `to` then.
+pub fn move_in(doc: &mut PlanDoc, id: &str, from: SemesterKey, to: SemesterKey) -> bool {
+    if from == to {
+        return doc.is_planned(to, id);
+    }
+    let passed_here = doc.passed_in(id) == Some(from);
+    doc.move_to(from, to, id);
+    // A placeholder counts what is planned into its own semester alone.
+    let fills = doc.modules.iter().find(|m| m.semester == to && m.module_id == id).and_then(|m| m.fills);
+    if fills.is_some_and(|pid| doc.placeholders.iter().any(|p| p.pid == pid && p.semester != to)) {
+        doc.set_fills(to, id, None);
+    }
+    if passed_here && doc.is_planned(to, id) {
+        doc.pass(to, id);
+    }
+    doc.is_planned(to, id)
+}
+
+/// Marks a module as passed in semester `s`, or takes the mark away (`passed`); whether the plan
+/// holds that.
+pub fn pass_in(doc: &mut PlanDoc, id: &str, s: SemesterKey, passed: bool) -> bool {
+    if passed {
+        doc.pass(s, id) || doc.passed_in(id) == Some(s)
+    } else {
+        doc.unpass(id);
+        true
+    }
+}
+
+/// The semesters the switch's menu offers to move a module to (`folia_widgets::planmenu`): from
+/// `floor` (the first Fachsemester, `Planning::floor`) or the semester it is in, if earlier, to three
+/// after the later of it and the current one, or to the end of the study where that is later;
+/// without the one it is in.
+pub fn move_targets(at: SemesterKey, current: SemesterKey, floor: SemesterKey, until: Option<SemesterKey>) -> Vec<SemesterKey> {
+    let first = floor.min(at);
+    let ahead = at.max(current).plus(3).unwrap_or(at.max(current));
+    let last = until.map_or(ahead, |until| until.max(ahead));
+    let mut semesters = Vec::new();
+    let mut s = first;
+    while s <= last && semesters.len() < 40 {
+        if s != at {
+            semesters.push(s);
+        }
+        let Some(next) = s.plus(1) else { break };
+        s = next;
+    }
+    semesters
 }
 
 /// What tells which events of `id` no other module of the plan has (`events_alone`): the rows of
@@ -892,6 +994,68 @@ mod tests {
         assert_eq!(tooltip_text(&fill, false, &EN), "Plan for Winter 2026/27, for \u{201c}Fachübergreifendes Studium\u{201d} · planned: Summer 2027 (P)");
     }
 
+    /// The switch's arrow (owner, 2026-10-20): a module passed says so in the small line, where it
+    /// is planned and elsewhere; moved, its passed mark goes along; taken out, the mark of that
+    /// semester with it.
+    #[test]
+    fn the_switch_says_what_is_passed_and_its_menu_moves_it_along() {
+        let now = key("2026W");
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(now, "12330", 1, None));
+        let plain = aim_of("12330", now, now, Some(now), offer(None), None, &doc);
+        assert!(!plain.passed_here());
+        assert!(pass_in(&mut doc, "12330", now, true) && pass_in(&mut doc, "12330", now, true), "passed twice is passed");
+        let passed = aim_of("12330", now, now, Some(now), offer(None), None, &doc);
+        assert!(passed.passed_here());
+        assert_eq!(hero_note(&passed, Some(key("2022W")), &DE), "WiSe 26/27 · 9. FS · bestanden");
+        assert_eq!(hero_note(&passed, None, &EN), "WS 26/27 · passed");
+        assert_eq!(semester_line(&passed, None, &DE), "WiSe 2026/27 · bestanden");
+        // Moved into a semester behind the student, the mark goes along; the switch plans a
+        // retake where the session plans, and says where it was passed.
+        assert!(move_in(&mut doc, "12330", now, key("2026S")));
+        assert_eq!((doc.passed_in("12330"), doc.is_planned(now, "12330")), (Some(key("2026S")), false));
+        let behind = aim_of("12330", now, now, Some(now), offer(None), None, &doc);
+        assert!(!behind.pressed() && !behind.passed_here());
+        assert_eq!(hero_note(&behind, None, &DE), "WiSe 26/27 · bestanden: SoSe 26");
+        assert_eq!(tooltip_text(&behind, false, &DE), "In WiSe 2026/27 einplanen · bestanden: SoSe 2026 (P)");
+        // Planned in another semester besides: „geplant" names that one alone.
+        assert!(doc.plan(key("2027S"), "12330", 2, None));
+        let both = aim_of("12330", now, now, Some(now), offer(None), None, &doc);
+        assert_eq!(hero_note(&both, None, &DE), "SoSe 27 · bestanden: SoSe 26");
+        assert!(doc.plan(key("2027W"), "12330", 3, None));
+        let three = aim_of("12330", now, now, Some(now), offer(None), None, &doc);
+        assert_eq!(hero_note(&three, None, &DE), "SoSe 27 · bestanden: SoSe 26 · geplant: WiSe 27/28");
+        // Taken out where it is passed: the mark goes with it, as „Entfernen" in „Mein Studium".
+        let there = Aim { target: key("2026S"), pressed: true, fill: None, elsewhere: Vec::new(), passed: doc.passed_in("12330") };
+        toggle_in(&mut doc, "12330", &there, true, &[], 9);
+        assert_eq!((doc.passed_in("12330"), doc.is_planned(key("2026S"), "12330")), (None, false));
+        // Taken out elsewhere, the mark stays.
+        assert!(pass_in(&mut doc, "12330", key("2027W"), true));
+        let elsewhere = Aim { target: key("2027S"), pressed: true, fill: None, elsewhere: Vec::new(), passed: doc.passed_in("12330") };
+        toggle_in(&mut doc, "12330", &elsewhere, true, &[], 10);
+        assert_eq!(doc.passed_in("12330"), Some(key("2027W")));
+        assert!(pass_in(&mut doc, "12330", key("2027W"), false) && doc.passed_in("12330").is_none());
+        // Moved where a placeholder of another semester counted it: it counts for nothing there.
+        let mut filled = PlanDoc::default();
+        filled.placeholders.push(placeholder(3, "2026W", "Fachübergreifendes Studium"));
+        assert!(filled.plan(now, "12330", 1, Some(3)));
+        assert!(move_in(&mut filled, "12330", now, key("2027S")));
+        assert!(filled.fillers(3).is_empty() && filled.is_planned(key("2027S"), "12330"));
+    }
+
+    /// The semesters the menu moves to: from the first Fachsemester to three after the later of
+    /// where it is and now, or the end of the study; the one it is in left out.
+    #[test]
+    fn the_menu_moves_to_the_semesters_of_the_study() {
+        let keys = |list: &[&str]| list.iter().map(|text| key(text)).collect::<Vec<_>>();
+        let now = key("2026W");
+        assert_eq!(move_targets(now, now, key("2025W"), None), keys(&["2025W", "2026S", "2027S", "2027W", "2028S"]));
+        assert_eq!(move_targets(key("2027W"), now, key("2026W"), Some(key("2029S"))), keys(&["2026W", "2027S", "2028S", "2028W", "2029S"]));
+        // Planned before the first Fachsemester: from there.
+        assert_eq!(move_targets(key("2025S"), now, now, None).first(), Some(&key("2025W")));
+        assert_eq!(move_targets(key("2024W"), now, now, None).first(), Some(&key("2025S")));
+    }
+
     #[test]
     fn a_swiped_row_says_what_the_swipe_does() {
         let now = key("2026W");
@@ -929,7 +1093,7 @@ mod tests {
         assert_eq!(doc.fillers(3).iter().map(|m| (m.module_id.as_str(), m.at)).collect::<Vec<_>>(), [("12330", 7)]);
         assert!(aim_of("12330", now, now, Some(now), offer(None), Some(&hint), &doc).pressed);
         // Without a hint, a click on what is planned elsewhere does not touch what it counts for.
-        let aim = Aim { target: now, pressed: false, fill: None, elsewhere: Vec::new() };
+        let aim = Aim { target: now, pressed: false, fill: None, elsewhere: Vec::new(), passed: None };
         toggle_in(&mut doc, "12330", &aim, false, &[], 9);
         assert_eq!(doc.fillers(3).len(), 1);
         // Pressed: out of the semester, with what the semester hid of its own events.

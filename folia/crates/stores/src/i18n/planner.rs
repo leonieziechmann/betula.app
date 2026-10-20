@@ -1,6 +1,7 @@
 //! Texts of the Stundenplan's store and of „Einplanen" on other pages (`studyplan.rs`): its switch
-//! beside „Merken" and in the sidebar of a module's page, a row swiped to the right, the note of
-//! what it did (`studyplan/planning.rs`) and the dialog that sets up the study on the way
+//! beside „Merken" and in the sidebar of a module's page, the menu at its arrow
+//! (`folia_widgets::planmenu`), a row swiped to the right, the note of what it did
+//! (`studyplan/planning.rs`) and the dialog that sets up the study on the way
 //! (`folia_widgets::plansetup`).
 
 pub struct Texts {
@@ -22,16 +23,14 @@ pub struct Texts {
     pub plan_hint: fn(&str) -> String,
     /// „3. FS": a student's semester of study, short, beside a semester.
     pub fs_short: fn(u8) -> String,
-    /// The arrow beside the switch (folia/design/tasten/konzept.html, „Knopf mit Pfeil"): its name,
-    /// its tooltip with its key, and the menu it opens — „Einplanen in", each semester with whether
-    /// the module is offered then, „jetzt" at the current one, a check where it is planned, the
-    /// semesters behind the student folded.
+    /// The arrow beside „Einplanen", not planned (folia/design/tasten/konzept.html, „Knopf mit
+    /// Pfeil"; `folia_widgets::planinto`): its name, its tooltip with its key, and the menu it opens
+    /// — „Einplanen in", each semester with whether the module is offered then (`offered`,
+    /// `not_offered`) and „jetzt" (`now`) as the menu of „Eingeplant" says them, a check where it is
+    /// planned, the semesters behind the student folded.
     pub plan_more: &'static str,
     pub plan_more_hint: &'static str,
     pub plan_into: &'static str,
-    pub offered: &'static str,
-    pub not_offered: &'static str,
-    pub now: &'static str,
     pub planned_there: &'static str,
     pub earlier_semesters: &'static str,
     /// What a row swiped to the right uncovers on a module planned where it aims (`swipe.rs`):
@@ -41,6 +40,29 @@ pub struct Texts {
     pub out_of: fn(&str) -> String,
     /// … and „Entfernt" once it is done (a module planned by the swipe says `planned`).
     pub removed: &'static str,
+    /// „bestanden" in the switch's small line where the module is passed in the semester it is
+    /// planned in, „bestanden: SoSe 25" where it is passed in another.
+    pub passed: &'static str,
+    pub passed_at: fn(&str) -> String,
+
+    /// The arrow beside „Eingeplant" (`folia_widgets::planmenu`): its name for screen readers, its
+    /// tooltip with its shortcut …
+    pub more: &'static str,
+    pub more_hint: &'static str,
+    /// … the menu's entries, worded as the rows' menus of „Mein Studium" word them: passed or no
+    /// longer …
+    pub mark_passed: &'static str,
+    pub unmark_passed: &'static str,
+    /// … „Verschieben nach ›", its submenu's title with the module's name, and in it each semester
+    /// with „jetzt" at the current one, whether it offers the module, and „Urlaubssemester" …
+    pub move_to: &'static str,
+    pub move_title: fn(&str) -> String,
+    pub now: &'static str,
+    pub offered: &'static str,
+    pub not_offered: &'static str,
+    pub leave: &'static str,
+    /// … the Stundenplan of the semester.
+    pub in_timetable: &'static str,
 
     /// The note after a module was planned: what happened, under the semester („eingeplant",
     /// „verschoben" once moved with the arrows) …
@@ -60,6 +82,9 @@ pub struct Texts {
     /// „Datenbanken entfernt": a module taken out, after its title (which gives way where the note
     /// is narrow, the word never).
     pub note_removed: &'static str,
+    /// „Datenbanken als bestanden markiert", or „nicht mehr als bestanden markiert", the same way.
+    pub note_passed: &'static str,
+    pub note_unpassed: &'static str,
 
     /// The dialog for a study not set up: „Datenbanken einplanen" (the module's title) …
     pub setup_title: fn(&str) -> String,
@@ -143,14 +168,25 @@ pub const DE: Texts = Texts {
     plan_more: "In ein anderes Semester",
     plan_more_hint: "In ein anderes Semester (⇧P)",
     plan_into: "Einplanen in",
-    offered: "angeboten",
-    not_offered: "nicht angeboten",
-    now: "jetzt",
     planned_there: "eingeplant",
     earlier_semesters: "Frühere Semester",
     remove: "Entfernen",
     out_of: |semester| format!("aus {semester}"),
     removed: "Entfernt",
+    passed: "bestanden",
+    passed_at: |semester| format!("bestanden: {semester}"),
+
+    more: "Semester und bestanden",
+    more_hint: "Semester ändern, als bestanden markieren (⇧P)",
+    mark_passed: "Als bestanden markieren",
+    unmark_passed: "Bestanden zurücknehmen",
+    move_to: "Verschieben nach",
+    move_title: |name| format!("„{name}“ verschieben nach"),
+    now: "jetzt",
+    offered: "angeboten",
+    not_offered: "nicht angeboten",
+    leave: "Urlaubssemester",
+    in_timetable: "Im Stundenplan öffnen",
 
     note_planned: "eingeplant",
     note_moved: "verschoben",
@@ -161,6 +197,8 @@ pub const DE: Texts = Texts {
     keep_for: "Weitere Module auch nach",
     keep_hint: "Für diese Sitzung: „Einplanen“ plant auch die nächsten Module in dieses Semester",
     note_removed: "entfernt",
+    note_passed: "als bestanden markiert",
+    note_unpassed: "nicht mehr als bestanden markiert",
 
     setup_title: |title| format!("{title} einplanen"),
     setup_lead: "Richte dabei dein Studium ein, dann stehen Fachsemester dabei.",
@@ -225,14 +263,25 @@ pub const EN: Texts = Texts {
     plan_more: "Into another semester",
     plan_more_hint: "Into another semester (⇧P)",
     plan_into: "Plan for",
-    offered: "offered",
-    not_offered: "not offered",
-    now: "now",
     planned_there: "planned",
     earlier_semesters: "Earlier semesters",
     remove: "Remove",
     out_of: |semester| format!("from {semester}"),
     removed: "Removed",
+    passed: "passed",
+    passed_at: |semester| format!("passed: {semester}"),
+
+    more: "Semester and passed",
+    more_hint: "Change the semester, mark as passed (⇧P)",
+    mark_passed: "Mark as passed",
+    unmark_passed: "Remove passed mark",
+    move_to: "Move to",
+    move_title: |name| format!("Move \u{201c}{name}\u{201d} to"),
+    now: "now",
+    offered: "offered",
+    not_offered: "not offered",
+    leave: "Semester of leave",
+    in_timetable: "Open in the timetable",
 
     note_planned: "planned",
     note_moved: "moved",
@@ -243,6 +292,8 @@ pub const EN: Texts = Texts {
     keep_for: "Plan further modules for",
     keep_hint: "For this session: \u{201c}Plan\u{201d} puts the next modules into this semester as well",
     note_removed: "removed",
+    note_passed: "marked as passed",
+    note_unpassed: "no longer marked as passed",
 
     setup_title: |title| format!("Plan {title}"),
     setup_lead: "Set up your studies on the way, and your semesters of study show with the plan.",
