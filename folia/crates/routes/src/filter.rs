@@ -11,6 +11,8 @@ use folia_model::labels::{Campus, ExamForm, Labelled, ModuleKind, OfferStatus, T
 use folia_search::Resolution;
 use serde::{Deserialize, Serialize};
 
+use crate::url::CollectionView;
+
 /// Which modules of a program to list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProgramRelation {
@@ -306,6 +308,11 @@ pub struct CatalogQuery {
     /// `only_ids` / `without_ids` before it asks. Where nothing filled them, „only marked"
     /// matches nothing: a page that does not know the marks must not answer as if there were none.
     pub marked: Option<bool>,
+    /// Which of the marked modules „Gemerkt" is about (folia/design/merken/oberflaeche.html,
+    /// „Katalog · Filter „Gemerkt""): all of them, those in no collection, or one collection, which
+    /// the URL names by its number alone (`collection=3`; its name stays in the browser, R20). Only
+    /// with `marked`: the browser fills the ids of that part.
+    pub marked_in: CollectionView,
     /// Keep modules whose mandatory prerequisites are all in this set of passed modules.
     pub prerequisites_met_by: Option<Vec<String>>,
     pub sort: SortKey,

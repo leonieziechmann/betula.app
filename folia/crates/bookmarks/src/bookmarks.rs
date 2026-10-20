@@ -162,7 +162,7 @@ pub fn BookmarksPage() -> impl IntoView {
         if text.is_empty() {
             return Vec::new();
         }
-        shelf.with(|shelf| ids.with(|ids| ids.iter().filter(|id| kept_text(shelf, id).is_some_and(|kept| folia_search::matches(&kept, &text))).cloned().collect()))
+        shelf.with(|shelf| ids.with(|ids| ids.iter().filter(|id| shelf.kept_text(id).is_some_and(|kept| folia_search::matches(&kept, &text))).cloned().collect()))
     });
 
     // „Mein Studiengang", while the catalog knows it in this PO: what „Nach Studium" orders by and
@@ -786,14 +786,6 @@ fn keeps(data: &BookmarksData, row: &CatalogRow, url: &BookmarksUrl, known: &Kno
     let stand = except == Some(Facet::Stand) || url.stand.is_none_or(|stand| stand_of(known.statuses.get(&row.id)) == stand);
     let counts = except == Some(Facet::Counts) || !url.counts || counts_in_study(row, known.places);
     season && stand && counts
-}
-
-/// What the visitor keeps of a module as one text, for the search: its note and the names of its
-/// collections. `None` for a module of neither.
-fn kept_text(shelf: &Shelf, id: &str) -> Option<String> {
-    let names: Vec<&str> = shelf.of(id).into_iter().filter_map(|collection| shelf.collection(collection)).map(|collection| collection.name.as_str()).collect();
-    let note = shelf.note(id).map(folia_model::text::note_plain);
-    (!names.is_empty() || note.is_some()).then(|| [note.unwrap_or_default(), names.join(" ")].join(" "))
 }
 
 /// Whether a module is in the part of the list the view shows: all of it, what is in no

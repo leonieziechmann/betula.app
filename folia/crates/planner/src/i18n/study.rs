@@ -299,6 +299,16 @@ pub struct Texts {
     pub cell_open: fn(&str) -> String,
     pub all: &'static str,
     pub not_offered_group: fn(&str, usize) -> String,
+    /// The Merkliste as a source: the three tabs' short names (with three they have to fit a
+    /// phone side by side), its search, its collections, a collection with nothing in it, and what
+    /// marks a module of the Merkliste in any list („gemerkt", then its collections).
+    pub tab_plan_short: &'static str,
+    pub tab_marked: &'static str,
+    pub tab_catalog_short: &'static str,
+    pub marked_search: &'static str,
+    pub collections: &'static str,
+    pub collection_empty: &'static str,
+    pub marked: &'static str,
 
     // What a module asks for.
     /// „empfiehlt", „setzt voraus" before the list.
@@ -580,6 +590,13 @@ pub const DE: Texts = Texts {
     cell_open: |n| format!("Offen: {n}\u{a0}LP"),
     all: "Alle",
     not_offered_group: |semester, n| format!("Im {semester} nicht angeboten ({n})"),
+    tab_plan_short: "Regelstudienplan",
+    tab_marked: "Merkliste",
+    tab_catalog_short: "Katalog",
+    marked_search: "In der Merkliste suchen",
+    collections: "Sammlungen",
+    collection_empty: "In dieser Sammlung ist noch nichts.",
+    marked: "gemerkt",
 
     recommends: |list| format!("empfiehlt {list}"),
     requires: |list| format!("setzt voraus {list}"),
@@ -843,6 +860,13 @@ pub const EN: Texts = Texts {
     cell_open: |n| format!("Open: {n}\u{a0}CP"),
     all: "All",
     not_offered_group: |semester, n| format!("Not offered in {semester} ({n})"),
+    tab_plan_short: "Study plan",
+    tab_marked: "Saved",
+    tab_catalog_short: "Catalogue",
+    marked_search: "Search your saved modules",
+    collections: "Collections",
+    collection_empty: "Nothing in this collection yet.",
+    marked: "saved",
 
     recommends: |list| format!("recommends {list}"),
     requires: |list| format!("requires {list}"),
