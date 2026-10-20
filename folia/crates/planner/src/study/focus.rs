@@ -582,6 +582,31 @@ fn extend(ctx: StudyCtx, s: SemesterKey, order: &[String], key: &str) {
     });
 }
 
+/// Shift and ↑ or ↓ at row `key` (`by`, ±1; oberflaeche.html of the Merkliste: „Neu, für beide
+/// Listen"): the row it goes to, taken in going away from where the range began (`anchor`), the
+/// row left let go of coming back towards it.
+fn step(ctx: StudyCtx, s: SemesterKey, order: &[String], key: &str, by: isize) -> Option<String> {
+    let here = order.iter().position(|other| other == key)?;
+    let next = here.checked_add_signed(by).filter(|next| *next < order.len())?;
+    let to = order.get(next)?.clone();
+    ctx.selection.update(|selection| {
+        if selection.semester != Some(s) {
+            *selection = Selection { semester: Some(s), ..Selection::default() };
+        }
+        if !selection.keys.contains(key) || selection.anchor.as_ref().is_none_or(|anchor| !selection.keys.contains(anchor)) {
+            selection.keys.insert(key.to_string());
+            selection.anchor = Some(key.to_string());
+        }
+        let anchor = selection.anchor.as_ref().and_then(|anchor| order.iter().position(|other| other == anchor)).unwrap_or(here);
+        if next.abs_diff(anchor) > here.abs_diff(anchor) {
+            selection.keys.insert(to.clone());
+        } else {
+            selection.keys.remove(key);
+        }
+    });
+    Some(to)
+}
+
 /// How long a finger is held on a row before it selects it.
 const HOLD: Duration = Duration::from_millis(450);
 
@@ -736,11 +761,24 @@ fn ItemRow(ctx: StudyCtx, semester: SemesterKey, key: String, order: Memo<Vec<St
         }
     };
     // The space bar on the box selects the row or lets it go (Enter opens it, or does what a click
-    // does while rows are selected).
+    // does while rows are selected); Shift and ↑ ↓ take in the next row (`step`).
     let keys = move |ev: KeyboardEvent| {
-        if ev.key() == " " && dom::on_open(&ev) {
-            ev.prevent_default();
-            toggle(ctx, semester, &key.get_value());
+        if !dom::on_open(&ev) || ev.ctrl_key() || ev.meta_key() || ev.alt_key() {
+            return;
+        }
+        let by = match ev.key().as_str() {
+            " " if !ev.shift_key() => {
+                ev.prevent_default();
+                toggle(ctx, semester, &key.get_value());
+                return;
+            }
+            "ArrowDown" if ev.shift_key() => 1,
+            "ArrowUp" if ev.shift_key() => -1,
+            _ => return,
+        };
+        ev.prevent_default();
+        if let Some(to) = step(ctx, semester, &order.get_untracked(), &key.get_value(), by) {
+            dom::focus_row(&to);
         }
     };
     // A right click opens the row's menu where the pointer is; a long press of a finger does not.

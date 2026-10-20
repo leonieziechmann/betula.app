@@ -16,7 +16,8 @@
 //! - The Merkliste full: „Merkliste voll · 256 Module", the way to it; nothing was marked.
 //! - Others in the same frame (`Notices`): a collection deleted („‚Für Lena‘ gelöscht · 3 bleiben
 //!   gemerkt", „Auch 2 entfernen" where modules were in it alone), the Merkliste emptied, a link
-//!   or the list copied.
+//!   or the list copied; of the rows selected on the Merkliste, „3 Module entfernt" and „3
+//!   eingeplant · in WiSe 26/27", each with „Rückgängig" for all of them.
 //!
 //! One note stands at a time: this one takes the place of the note of „Einplanen", and that one
 //! takes this one's (`Planning::hush`).
@@ -29,7 +30,7 @@ use folia_design::waitnote::WaitNote;
 use folia_routes::url;
 use folia_stores::bookmarks::{Bookmarks, Cleared, Marked, Toggled, MAX_MARKS};
 use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections, Deleted};
-use folia_stores::studyplan::Planning;
+use folia_stores::studyplan::{Planning, PlannedMany, Studyplan};
 
 use crate::i18n::{self, Texts};
 
@@ -43,6 +44,11 @@ pub enum Notice {
     Cleared(Cleared),
     /// Copied: a link for another device, or the list as text, of so many modules.
     Copied { link: bool, count: usize },
+    /// The rows selected taken away: what „Rückgängig" puts back.
+    Removed(Cleared),
+    /// The rows selected planned: where they went, and „Rückgängig" for all of them (the plan before
+    /// and after it, boxed).
+    Planned(Box<PlannedMany>),
 }
 
 /// The notices said, the newest with a number of its own, shared through context.
@@ -247,6 +253,44 @@ fn NoteView(what: Shown, bookmarks: Bookmarks, gone: Callback<()>) -> impl IntoV
             }
             .into_any()
         }
+        Shown::Notice(_, Notice::Removed(cleared)) => {
+            let said = (m.removed_many)(cleared.marks.len());
+            let undo = move || bookmarks.restore(cleared.clone());
+            view! {
+                <WaitNote on_gone=gone away=Signal::derive(move || done.get()) class="mark-note">
+                    <div class="mark-toast">
+                        <span class="plan-toast-mark out" aria-hidden="true"><Icon name="bookmark-minus"/></span>
+                        <span class="mark-toast-said">{said}</span>
+                        <span class="mark-toast-gap"></span>
+                        {end_of(t, done, undo)}
+                    </div>
+                </WaitNote>
+            }
+            .into_any()
+        }
+        Shown::Notice(_, Notice::Planned(planned)) => {
+            let said = planned_words(&planned, t);
+            let plan = Studyplan::expect();
+            let undo = (!planned.into.is_empty()).then(|| {
+                let undo = move || {
+                    if let Some(plan) = plan {
+                        plan.undo_many((*planned).clone());
+                    }
+                };
+                end_of(t, done, undo)
+            });
+            view! {
+                <WaitNote on_gone=gone away=Signal::derive(move || done.get()) class="mark-note">
+                    <div class="mark-toast">
+                        <span class="plan-toast-mark" aria-hidden="true"><Icon name="calendar-check-2"/></span>
+                        <span class="mark-toast-said">{said}</span>
+                        <span class="mark-toast-gap"></span>
+                        {undo}
+                    </div>
+                </WaitNote>
+            }
+            .into_any()
+        }
         Shown::Notice(_, Notice::Copied { link, count }) => view! {
             <WaitNote on_gone=gone class="mark-note">
                 <div class="mark-toast">
@@ -290,7 +334,7 @@ fn MarkedNote(marked: Marked, into: std::collections::BTreeSet<u32>, bookmarks: 
         let (id, title) = (marked.id.clone(), marked.title.clone());
         move || {
             let Some(collecting) = collecting else { return };
-            collecting.open(CollectAsk { id: id.clone(), title: title.clone(), at: rect_of(button), note: false, from_note: Some(serial) });
+            collecting.open(CollectAsk { id: id.clone(), title: title.clone(), more: Vec::new(), at: rect_of(button), note: false, from_note: Some(serial) });
         }
     };
     // S while the note stands: its menu (the note's own key, as ← and → are the note of
@@ -347,6 +391,24 @@ fn MarkedNote(marked: Marked, into: std::collections::BTreeSet<u32>, bookmarks: 
             </div>
         </WaitNote>
     }
+}
+
+/// What the note says of modules planned at once: „3 eingeplant · in WiSe 26/27", „3 eingeplant ·
+/// 2 in WiSe 26/27, 1 in SoSe 27", what was planned there already („1 war schon geplant"), or that
+/// all of them were.
+fn planned_words(planned: &PlannedMany, t: &'static Texts) -> String {
+    let m = &t.marks;
+    let places = planned.by_semester();
+    let mut said = match places.as_slice() {
+        [] => return m.all_planned.to_string(),
+        [(semester, _)] => format!("{} · {}", (m.n_planned)(planned.into.len()), (m.planned_in)(&semester.short(t.locale))),
+        many => format!("{} · {}", (m.n_planned)(planned.into.len()), many.iter().map(|(semester, n)| (m.n_in)(*n, &semester.short(t.locale))).collect::<Vec<_>>().join(", ")),
+    };
+    if planned.there > 0 {
+        said.push_str(" · ");
+        said.push_str(&(m.planned_before)(planned.there));
+    }
+    said
 }
 
 /// S, plain, not where a field, a menu or a dialog has the keys.

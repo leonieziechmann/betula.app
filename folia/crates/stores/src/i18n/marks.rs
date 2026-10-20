@@ -53,10 +53,22 @@ pub struct Texts {
     pub copied_link: &'static str,
     pub copied_text: &'static str,
     pub copied_what: fn(usize) -> String,
+    /// The rows selected on the Merkliste taken away: „3 Module entfernt".
+    pub removed_many: fn(usize) -> String,
+    /// The rows selected planned (folia/design/merken/konzept.html, „Ein Hinweis sagt, wohin"):
+    /// „3 eingeplant", where („in WiSe 26/27", or „2 in WiSe 26/27" each), what was planned there
+    /// already („1 war schon geplant"), and that all of them were.
+    pub n_planned: fn(usize) -> String,
+    pub planned_in: fn(&str) -> String,
+    pub n_in: fn(usize, &str) -> String,
+    pub planned_before: fn(usize) -> String,
+    pub all_planned: &'static str,
 
     // ---- the menu of a module's collections and note ----
     /// The menu's name for screen readers, on a phone its sheet's head is the module.
     pub menu_title: &'static str,
+    /// Its head for several modules: „3 Module".
+    pub n_modules: fn(usize) -> String,
     /// The field at its top, which has the focus: it filters the collections and makes one.
     pub search_or_create: &'static str,
     /// „‚mathe‘ anlegen": a collection of the name typed, where none has it.
@@ -109,8 +121,15 @@ pub const DE: Texts = Texts {
     copied_link: "Link kopiert",
     copied_text: "Liste kopiert",
     copied_what: |n| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") },
+    removed_many: |n| if n == 1 { "1 Modul entfernt".to_string() } else { format!("{n} Module entfernt") },
+    n_planned: |n| format!("{n} eingeplant"),
+    planned_in: |semester| format!("in {semester}"),
+    n_in: |n, semester| format!("{n} in {semester}"),
+    planned_before: |n| if n == 1 { "1 war schon geplant".to_string() } else { format!("{n} waren schon geplant") },
+    all_planned: "Schon alle geplant",
 
     menu_title: "Sammlung und Notiz",
+    n_modules: |n| if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") },
     search_or_create: "Sammlung suchen oder anlegen",
     create: |name| format!("‚{name}‘ anlegen"),
     no_collection_yet: "Noch keine Sammlung. Tippe einen Namen.",
@@ -154,8 +173,15 @@ pub const EN: Texts = Texts {
     copied_link: "Link copied",
     copied_text: "List copied",
     copied_what: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
+    removed_many: |n| if n == 1 { "1 module removed".to_string() } else { format!("{n} modules removed") },
+    n_planned: |n| format!("{n} planned"),
+    planned_in: |semester| format!("for {semester}"),
+    n_in: |n, semester| format!("{n} for {semester}"),
+    planned_before: |n| if n == 1 { "1 was planned already".to_string() } else { format!("{n} were planned already") },
+    all_planned: "All planned already",
 
     menu_title: "Collection and note",
+    n_modules: |n| if n == 1 { "1 module".to_string() } else { format!("{n} modules") },
     search_or_create: "Find or create a collection",
     create: |name| format!("Create ‘{name}’"),
     no_collection_yet: "No collection yet. Type a name.",

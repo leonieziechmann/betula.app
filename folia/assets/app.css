@@ -1203,6 +1203,37 @@ button.coll-item.add:hover { background: var(--row-hover); }
 .view-menu-ask { margin: 0 0 10px; color: var(--text); font-size: 13.5px; font-weight: 600; }
 .view-menu-answers { display: flex; justify-content: flex-end; gap: 8px; }
 .st-pop-item > kbd { margin-left: auto; }
+/* Several at once on the Merkliste (folia/crates/bookmarks/src/pick.rs; oberflaeche.html, „Mehrere
+   auswählen"), as in „Mein Studium": a row selected is tinted in the accent, lined with it and
+   hatched, under the pointer too; a mouse drawn over the rows selects them, so they select no
+   words, and a finger held on one is no link to the browser. */
+.row-wrap.is-selected > .row, .row-wrap.is-selected:hover > .row {
+  background-color: color-mix(in srgb, var(--accent) 11%, var(--panel));
+  background-image: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 13%, transparent) 0 1.5px, transparent 1.5px 7px);
+  box-shadow: inset 0 0 0 1.5px var(--accent-line);
+}
+#bookmarks-scroll .rows .row-wrap > .row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* The bar of the rows selected, in the place of the heads of the columns: as tall and as wide, in
+   the accent's tint, staying under the head of the list as they do. */
+@media (min-width: 901px) {
+  .list > .pick-bar { height: var(--cols); padding: 0 6px 0 23px; border-radius: 0; border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line); box-shadow: none; }
+  html.js .work.flowing > .list > .pick-bar { position: sticky; top: calc(var(--list-head-h, 1px) - 1px); z-index: 4; }
+}
+.pick-bar .st-selbar-count { white-space: nowrap; }
+/* A label over entries of a menu of the selection („Alle in", „Frühere Semester"). */
+.pick-menu-label { margin: 8px 10px 3px; font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+@media (max-width: 900px) {
+  /* On a phone the bar is over the tab bar (`.st-selbar`): the number in a chip of its own, the
+     actions their icons over their words. */
+  .pick-bar { gap: 0; }
+  .pick-bar .st-selbar-count { flex: none; display: grid; place-items: center; min-width: 34px; height: 34px; margin: 0 4px 0 2px; padding: 0 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-ink); font-size: 14px; font-weight: 750; }
+  .pick-bar .pick-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pick-bar > .st-act { flex: 1 1 0; min-width: 0; padding: 0 2px; font-size: 10.5px; }
+  .pick-bar > .st-act > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .pick-bar > .st-act-close { flex: none; width: 40px; }
+  .pick-bar > .st-grow { display: none; }
+  .row-wrap.is-selected > .row, .row-wrap.is-selected:hover > .row { box-shadow: inset 0 0 0 1.5px var(--accent-line), var(--shadow-panel); }
+}
 @media (max-width: 900px) {
   .sidebar .coll-nav { display: none; }
   .coll-chips { display: flex; gap: 6px; overflow-x: auto; margin: 0 0 2px; padding: 10px 16px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }

@@ -23,6 +23,8 @@
 //!   Studium", „Zählt in meinem Studium", „Passt in meinen Stundenplan", and four of the catalog's,
 //!   folded (owner, 2026-10-19: „hier reichen ein paar, die wirklich relevant sind"). Each says how
 //!   many it holds. On a phone their sheet is a draft that only „N Module anzeigen" applies.
+//! - Several rows at once (`pick`), selected as in „Mein Studium": a bar in the place of the heads
+//!   of the columns with their collections, „Einplanen", „Teilen" and „Entfernen".
 //! - A module whose mark is taken away here stays where it is, dimmed, until the page is left:
 //!   a slip is one click to undo, and the list does not jump under the pointer.
 //! - Marking and unmarking change numbers, never the list: they need no query, and the rows (and
@@ -38,7 +40,7 @@ use folia_calendar::day::Day;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Labelled, ModuleKind, TurnusSeason};
 use folia_model::rows::CatalogRow;
-use folia_pages::ask::{BookmarkPlacesAsk, BookmarksAsk, CatalogSummaryAsk, FitAsk, MetaAsk, ModuleAsk};
+use folia_pages::ask::{BookmarkPlacesAsk, BookmarksAsk, CatalogSummaryAsk, FitAsk, MetaAsk, ModuleAsk, NewestSemestersAsk};
 use folia_pages::{BookmarksData, Place};
 use folia_plans::studyplan::PlanDoc;
 use folia_routes::filter::{CatalogQuery, FitIds, FitsFilter, Language};
@@ -68,11 +70,12 @@ use folia_shell::skeleton::{AppStandin, DetailSkeleton};
 use folia_shell::tabs::{self, Area, Tabs};
 use folia_shell::frame::ErrorState;
 use folia_design::ui::{Hit, Icon, ToggleLink};
+use crate::pick::{self, Listed, PickBar, PickMenus, PickRow, Picking};
 
 /// Whether this build is the browser app: only there is anything marked.
 const APP: bool = cfg!(feature = "csr");
 
-const ROWS_ID: &str = "rows";
+pub(crate) const ROWS_ID: &str = "rows";
 /// From how many marks the head of the whole list says how near the limit it is, and from how many
 /// as a warning (`MAX_MARKS`).
 const LIMIT_SHOWN: u64 = 240;
@@ -197,6 +200,20 @@ pub fn BookmarksPage() -> impl IntoView {
     // „Einplanen" of a row aims at the semester the list is checked against.
     let hint = Memo::new(move |_| fits.with(|fits| fits.as_ref().and_then(|fits| SemesterKey::parse(&fits.semester))).map(|semester| PlanHint { semester: Some(semester), fill: None }));
     provide_context(Finder { view: fit_view, hint });
+
+    // Several at once (`pick`): the rows selected, and what „Einplanen" of them aims with — the
+    // semester of each marked module's newest events, asked once for the whole list.
+    let newest_source = source.clone().ok();
+    let newest = Memo::new(move |before: Option<&BTreeMap<String, SemesterKey>>| {
+        let ids = ids.get();
+        match newest_source.as_ref().map(|source| source.now(&NewestSemestersAsk { ids })) {
+            Some(Ok(found)) => found.into_iter().collect(),
+            Some(Err(error)) if error.is_pending() => before.cloned().unwrap_or_default(),
+            _ => BTreeMap::new(),
+        }
+    });
+    let picking = Picking::new(current, newest, hint);
+    pick::page_keys(picking);
 
     // „Nach Studium" needs Mein Studiengang; without it „Modul" orders by the title, as the
     // catalog's „Modul" does without a program (folia/design/merken/oberflaeche.html, C).
@@ -426,14 +443,15 @@ pub fn BookmarksPage() -> impl IntoView {
                         match listing.get() {
                             Err(error) => view! { <ErrorState error/> }.into_any(),
                             Ok(listing) => view! {
-                                <List listing here sort program_set=program.with_untracked(Option::is_some) statuses open=marked phone shelf ui/>
+                                <List listing here sort program_set=program.with_untracked(Option::is_some) statuses open=marked phone shelf ui picking/>
                             }
                             .into_any(),
                         }
                     }}
                     <i class="list-cap" aria-hidden="true"></i>
                 </section>
-                <ViewMenu ui here=shown_url data=sidebar_data/>
+                <ViewMenu ui here=shown_url data=sidebar_data picking phone/>
+                <PickMenus picking/>
                 {move || {
                     match going_open.get() {
                         Some(None) => return ().into_any(),
@@ -1055,6 +1073,8 @@ fn List(
     /// The visitor's collections and notes: what each row says of them, the view's name.
     shelf: Memo<Shelf>,
     ui: CollUi,
+    /// The rows selected (`pick`).
+    picking: Picking,
 ) -> impl IntoView {
     let t = i18n::t();
     let bookmarks = Bookmarks::expect();
@@ -1068,6 +1088,15 @@ fn List(
     let has_rows = listing.count() > 0;
     let Listing { parts, missing, text, filtering } = listing;
     let searching = !text.is_empty();
+
+    // The list as the selection reads it; what has left it is let go of.
+    let mut listed = Listed::default();
+    for row in parts.iter().flat_map(|part| &part.rows) {
+        listed.order.push(row.id.clone());
+        listed.rows.insert(row.id.clone(), PickRow { title: row.title.clone(), credits: row.credits, offer: folia_plans::study::Offer::of(row) });
+    }
+    picking.list(listed);
+    Effect::new(move |_| picking.keep_listed());
 
     let credits: Vec<(String, Option<f64>)> = parts.iter().flat_map(|part| &part.rows).map(|row| (row.id.clone(), row.credits)).chain(missing.iter().map(|id| (id.clone(), None))).collect();
     let numbers = Memo::new(move |_| marked_numbers(bookmarks, &credits));
@@ -1083,14 +1112,33 @@ fn List(
     // … eleganter"): a click on another one orders by it, its first way; a second turns it round.
     // „Modul" is the study's order with Mein Studiengang, else the title's.
     let module_order = if program_set { BookmarkSort::Study } else { BookmarkSort::Title };
-    let head = |orders: &'static [BookmarkSort], first: BookmarkSort, text: &'static str, class: &'static str| {
-        let on = orders.contains(&sort);
-        let next = if on { BookmarksUrl { sort, descending: !here.descending, ..here.clone() } } else { BookmarksUrl { sort: first, descending: false, ..here.clone() } };
-        let down = first.first_down() != (on && here.descending);
-        let arrow = on.then_some(if down { " ↓" } else { " ↑" });
-        view! { <a class=class href=move || t.path(&next.with_open(open.get().as_deref()).path()) data-noscroll="" aria-current=on.then_some("true")>{text}{arrow}</a> }
+    let head = {
+        let here = here.clone();
+        move |orders: &'static [BookmarkSort], first: BookmarkSort, text: &'static str, class: &'static str| {
+            let on = orders.contains(&sort);
+            let next = if on { BookmarksUrl { sort, descending: !here.descending, ..here.clone() } } else { BookmarksUrl { sort: first, descending: false, ..here.clone() } };
+            let down = first.first_down() != (on && here.descending);
+            let arrow = on.then_some(if down { " ↓" } else { " ↑" });
+            view! { <a class=class href=move || t.path(&next.with_open(open.get().as_deref()).path()) data-noscroll="" aria-current=on.then_some("true")>{text}{arrow}</a> }
+        }
     };
-    let module_head = head(if program_set { &[BookmarkSort::Study, BookmarkSort::Title] } else { &[BookmarkSort::Title, BookmarkSort::Study] }, module_order, t.catalog.col_module, "c-module");
+    // The heads of the columns, and in their place the bar of the rows selected (`pick`): as tall,
+    // so that no row moves when it comes.
+    let cols = move || {
+        let module_head = head(if program_set { &[BookmarkSort::Study, BookmarkSort::Title] } else { &[BookmarkSort::Title, BookmarkSort::Study] }, module_order, t.catalog.col_module, "c-module");
+        view! {
+            <div class="cols label">
+                {module_head}
+                <span class="c-resp">{t.catalog.col_responsible}</span>
+                <span class="c-exam">{t.catalog.exam}</span>
+                {head(&[BookmarkSort::Credits], BookmarkSort::Credits, t.common.credits_unit, "c-lp")}
+                {head(&[BookmarkSort::Offer], BookmarkSort::Offer, t.catalog.turnus, "c-turnus")}
+                <span class="c-lang">{t.catalog.col_language}</span>
+                {head(&[BookmarkSort::Events], BookmarkSort::Events, t.catalog.dates, "c-events")}
+                {head(&[BookmarkSort::Added], BookmarkSort::Added, t.bookmarks.col_marked, "c-marked")}
+            </div>
+        }
+    };
 
     let tags = tags(&here, program_set, t);
     // How many filters are set: the badge of the phone's „Filter" counts them, and an order other
@@ -1126,7 +1174,13 @@ fn List(
             });
             let shaded = index % 2 == 1;
             index += 1;
-            views.push(view! { <Row row preview current phone with_program=false dim_unmarked=true shaded swipe=true status mine/> }.into_any());
+            // Selected or not: one memo a row (R5); a finger held still on it selects it.
+            let selected = {
+                let id = row.id.clone();
+                Memo::new(move |_| picking.picked.with(|picked| picked.ids.contains(&id)))
+            };
+            let on_hold = Callback::new(move |id: String| picking.hold(id));
+            views.push(view! { <Row row preview current phone with_program=false dim_unmarked=true shaded swipe=true status mine selected on_hold/> }.into_any());
         }
     }
 
@@ -1149,7 +1203,7 @@ fn List(
                     }}
                 </span>
                 <div class="list-tools">
-                    {has_rows.then(|| view! { <ListKeys/> })}
+                    {has_rows.then(|| view! { <ListKeys select=true/> })}
                     // On a phone the menu of what the list shows: the collection's, else the whole
                     // list's (on a wide screen they are in the sidebar).
                     {any_marked.then(|| {
@@ -1181,19 +1235,24 @@ fn List(
             // The finder against a semester without dates: nothing could be checked.
             {move || fit_line.and_then(|finder| finder.view.with(|view| view.line.clone())).map(|line| view! { <p class="hint fit-line">{line}</p> })}
         </div>
-        {has_rows.then(|| view! {
-            <div class="cols label">
-                {module_head}
-                <span class="c-resp">{t.catalog.col_responsible}</span>
-                <span class="c-exam">{t.catalog.exam}</span>
-                {head(&[BookmarkSort::Credits], BookmarkSort::Credits, t.common.credits_unit, "c-lp")}
-                {head(&[BookmarkSort::Offer], BookmarkSort::Offer, t.catalog.turnus, "c-turnus")}
-                <span class="c-lang">{t.catalog.col_language}</span>
-                {head(&[BookmarkSort::Events], BookmarkSort::Events, t.catalog.dates, "c-events")}
-                {head(&[BookmarkSort::Added], BookmarkSort::Added, t.bookmarks.col_marked, "c-marked")}
-            </div>
+        {has_rows.then(|| {
+            let selecting = Memo::new(move |_| picking.any());
+            move || if selecting.get() { view! { <PickBar picking/> }.into_any() } else { cols().into_any() }
         })}
-        <div class="rows scroll" id=ROWS_ID>
+        <div
+            class="rows scroll"
+            id=ROWS_ID
+            on:pointerdown=move |ev: leptos::ev::PointerEvent| picking.down(&ev, phone.get_untracked())
+            on:pointermove=move |ev: leptos::ev::PointerEvent| picking.moved(&ev)
+            on:pointerup=move |_| picking.end()
+            on:pointercancel=move |_| picking.end()
+            on:touchmove=move |ev: leptos::ev::TouchEvent| picking.touch_move(&ev)
+            on:click=move |ev: leptos::ev::MouseEvent| picking.click(&ev)
+            on:contextmenu=move |ev: leptos::ev::MouseEvent| picking.context(&ev)
+            on:keydown=move |ev: leptos::ev::KeyboardEvent| picking.keys(&ev)
+            // A row's link is not dragged away: a mouse drawn over the rows selects them.
+            on:dragstart=move |ev: leptos::ev::DragEvent| ev.prevent_default()
+        >
             {(!any_marked).then(|| view! {
                 <div class="state">
                     <p class="state-title">{t.bookmarks.empty_title}</p>
@@ -1588,7 +1647,7 @@ impl CollUi {
 }
 
 /// The box of the element an event was heard on.
-fn box_of(ev: &leptos::ev::Event) -> Option<Anchor> {
+pub(crate) fn box_of(ev: &leptos::ev::Event) -> Option<Anchor> {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;
@@ -1883,16 +1942,17 @@ struct Entry {
 }
 
 /// The sizes of a menu on a wide screen (app.css `.st-pop`), to place it before it is drawn.
-const MENU_WIDTH: f64 = 248.0;
-const MENU_ITEM: f64 = 36.0;
-const MENU_HINT: f64 = 50.0;
+pub(crate) const MENU_WIDTH: f64 = 248.0;
+pub(crate) const MENU_ITEM: f64 = 36.0;
+pub(crate) const MENU_HINT: f64 = 50.0;
 const MENU_EDGE: f64 = 8.0;
 
-/// Where a menu of `height` stands for what opened it at `at` in a window of `view`: under it, its
-/// right edge at that one's, above it where there is no room below; never past the window's edges.
-fn menu_place(at: Anchor, height: f64, view: (f64, f64)) -> (f64, f64) {
+/// Where a menu `wide` px wide and `height` tall stands for what opened it at `at` in a window of
+/// `view`: under it, its right edge at that one's, above it where there is no room below; never
+/// past the window's edges.
+fn menu_place(at: Anchor, wide: f64, height: f64, view: (f64, f64)) -> (f64, f64) {
     let (width, window) = view;
-    let left = (at.right - MENU_WIDTH).clamp(MENU_EDGE, (width - MENU_WIDTH - MENU_EDGE).max(MENU_EDGE));
+    let left = (at.right - wide).clamp(MENU_EDGE, (width - wide - MENU_EDGE).max(MENU_EDGE));
     let below = at.bottom + 4.0;
     let top = if below + height <= window - MENU_EDGE { below } else { (at.top - 4.0 - height).max(MENU_EDGE) };
     (left, top)
@@ -1910,7 +1970,7 @@ fn viewport() -> (f64, f64) {
 }
 
 /// Copies a text into the clipboard (a click's: the browser lets it).
-fn copy(text: &str) {
+pub(crate) fn copy(text: &str) {
     #[cfg(feature = "csr")]
     if let Some(window) = web_sys::window() {
         let _ = window.navigator().clipboard().write_text(text);
@@ -1920,7 +1980,7 @@ fn copy(text: &str) {
 }
 
 /// The address of this site a path of it becomes.
-fn absolute(path: &str) -> String {
+pub(crate) fn absolute(path: &str) -> String {
     #[cfg(feature = "csr")]
     if let Some(origin) = web_sys::window().and_then(|window| window.location().origin().ok()) {
         return format!("{origin}{path}");
@@ -1935,7 +1995,7 @@ fn absolute(path: &str) -> String {
 /// „Rückgängig" and to take away those that were in it alone. The list's: the link for another
 /// device, the list as text, „Merkliste leeren", which asks.
 #[component]
-fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksData>>) -> impl IntoView {
+fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksData>>, picking: Picking, phone: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
     let b = &t.bookmarks;
     let bookmarks = Bookmarks::expect();
@@ -2084,6 +2144,18 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 entries
             }
         };
+        // On a phone, whose bar of the rows selected has no room for it, „Alle auswählen" heads the
+        // menu of what the list shows (oberflaeche.html: „„Alle auswählen" nimmt, was die Liste
+        // gerade zeigt").
+        let shown = match (of, here.with_untracked(|url| url.collection)) {
+            (Some(id), CollectionView::Of(viewed)) => id == viewed,
+            (None, CollectionView::All | CollectionView::Without) => true,
+            _ => false,
+        };
+        let mut entries = entries;
+        if shown && phone.get_untracked() && picking.can_select_all() {
+            entries.insert(0, Entry { icon: "list-checks", label: b.select_all.to_string(), hint: None, key: None, danger: false, does: Callback::new(move |()| { close(); picking.select_all(); }) });
+        }
         let title = match of {
             Some(id) => collections.and_then(|collections| collections.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone()))).unwrap_or_default(),
             None => t.bookmarks.title.to_string(),
@@ -2108,13 +2180,18 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
 }
 
 /// The style that puts a menu of `height` where it stands for `at`.
-fn menu_style(at: Anchor, height: f64) -> String {
-    let (left, top) = menu_place(at, height, viewport());
-    format!("--x:{left:.0}px;--y:{top:.0}px;--w:{MENU_WIDTH:.0}px")
+pub(crate) fn menu_style(at: Anchor, height: f64) -> String {
+    menu_style_wide(at, MENU_WIDTH, height)
+}
+
+/// The same for a menu `wide` px wide.
+pub(crate) fn menu_style_wide(at: Anchor, wide: f64, height: f64) -> String {
+    let (left, top) = menu_place(at, wide, height, viewport());
+    format!("--x:{left:.0}px;--y:{top:.0}px;--w:{wide:.0}px")
 }
 
 /// Moves the focus among the entries of the menu open: on from the one that has it, round.
-fn step_focus(by: i32) {
+pub(crate) fn step_focus(by: i32) {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;

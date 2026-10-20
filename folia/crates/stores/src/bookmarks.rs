@@ -369,7 +369,9 @@ impl Bookmarks {
     }
 
     /// Takes these marks away, with the modules' collections and notes, and hands back what they
-    /// were, for `restore` (a collection deleted „Auch 2 entfernen", `folia_widgets::marknote`).
+    /// were, for `restore` (a collection deleted „Auch 2 entfernen", `folia_widgets::marknote`; the
+    /// rows selected on the Merkliste). Each is kept as a mark taken away by its switch is: marked
+    /// again in this tab, a module gets back what it had.
     pub fn take_away(self, ids: &[String]) -> Cleared {
         let mut marks = Vec::new();
         self.0.update(|current| {
@@ -382,7 +384,11 @@ impl Bookmarks {
             });
         });
         self.save();
-        let belongings = Collections::expect().map(|shelf| shelf.update(|shelf| marks.iter().map(|mark| (mark.id.clone(), shelf.forget(&mark.id))).collect())).unwrap_or_default();
+        let belongings: Vec<(String, Belongings)> = Collections::expect().map(|shelf| shelf.update(|shelf| marks.iter().map(|mark| (mark.id.clone(), shelf.forget(&mark.id))).collect())).unwrap_or_default();
+        for mark in marks.iter().rev() {
+            let had = belongings.iter().find(|(id, _)| *id == mark.id).map(|(_, had)| had.clone()).unwrap_or_default();
+            self.remember(mark.clone(), had);
+        }
         Cleared { marks, belongings }
     }
 
@@ -620,7 +626,7 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
                 let (id, title) = (id.clone(), title.clone());
                 move |ev: leptos::ev::MouseEvent| {
                     if let Some(collecting) = Collecting::expect() {
-                        collecting.open(CollectAsk { id: id.clone(), title: title.clone(), at: pair_of(&ev), note: false, from_note: None });
+                        collecting.open(CollectAsk { id: id.clone(), title: title.clone(), more: Vec::new(), at: pair_of(&ev), note: false, from_note: None });
                     }
                 }
             };

@@ -774,6 +774,20 @@ pub struct Place {
     pub order: i64,
 }
 
+/// The semester of the newest teaching events of each of `ids` that has any (as a module's page
+/// reads it from its Termine, `folia_widgets::module::semesters_of`), by module: where „Einplanen"
+/// aims a module whose turnus says no season, or that is taught where its turnus says it is not
+/// (`folia_stores::studyplan::target_semester`). A module without teaching events is left out.
+pub fn newest_semesters(db: &dyn Database, ids: &[String]) -> Result<Vec<(String, SemesterKey)>, DbError> {
+    let mut newest: BTreeMap<String, SemesterKey> = BTreeMap::new();
+    for row in folia_query::teaching_semesters(db, ids)? {
+        let Some(key) = SemesterKey::parse(&row.semester_key) else { continue };
+        let at = newest.entry(row.module_id).or_insert(key);
+        *at = (*at).max(key);
+    }
+    Ok(newest.into_iter().collect())
+}
+
 /// Where the marked modules `ids` count in the program `slug` (Mein Studiengang): in its
 /// curriculum, else in its own list of FÜS modules. A module in neither has no place; a program
 /// the snapshot does not know has none at all. In the order of `ids`.

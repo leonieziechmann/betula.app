@@ -33,8 +33,12 @@
 //!
 //! The finger is read as along the bottom bar (`enhance.js`): the first move past `SLOP` decides —
 //! sideways the card is the finger's, up or down the page scrolls (`touch-action: pan-y`), and a
-//! swipe is no tap. Its moves are the row's alone (a quick one left to Chromium ends in a fling of
-//! nothing, and the next tap only stops that fling); a flick is measured by the events' own times.
+//! swipe is no tap. A finger held still on the row for `HOLD_SELECT` is neither (oberflaeche.html,
+//! „Lange drücken ist kein Wischen: Der Finger hält erst still"): where the list selects (the
+//! Merkliste, `on_hold`), the row is the list's then, which draws the selection on under the
+//! finger, and lifting it is no tap. Its moves are the row's alone (a quick one left to Chromium
+//! ends in a fling of nothing, and the next tap only stops that fling); a flick is measured by the
+//! events' own times.
 //! A mouse (a narrow window) drags the card the same way. The card moves inside its own place
 //! (app.css: the row clips it, and draws the card's ring and shadow while it does), so it never
 //! reaches past the page's edge, which would let the page scroll sideways; the row's bookmark goes
@@ -78,6 +82,9 @@ const HOLD: Duration = Duration::from_millis(300);
 const GLIDE: Duration = Duration::from_millis(380);
 /// How long after a swipe a click on its row is the swipe's end and not a tap (ms).
 const NO_TAP: f64 = 400.0;
+/// How long a finger is held still on a row before the list selects it, as in „Mein Studium"
+/// (`folia_planner::study::focus`).
+const HOLD_SELECT: Duration = Duration::from_millis(450);
 
 /// A side of the card: what it uncovers going to the left (the mark, at the right edge) and to the
 /// right (the plan, at the left edge).
@@ -227,6 +234,12 @@ pub struct RowSwipe {
     /// How many times a finger took the card: what was timed for it before (its hold, its rest)
     /// is left undone once another finger has it.
     turn: StoredValue<u32>,
+    /// Where the list selects: what a finger held still on the row does, with the module's id.
+    hold: Option<Callback<String>>,
+    /// The finger's time until it is held (`HOLD_SELECT`), and the finger whose hold it was: its
+    /// lifting is no tap.
+    holding: StoredValue<Option<TimeoutHandle>>,
+    held: StoredValue<Option<i32>>,
 }
 
 impl RowSwipe {
@@ -255,6 +268,22 @@ impl RowSwipe {
             done: RwSignal::new(false),
             ground: RwSignal::new(None),
             turn: StoredValue::new(0),
+            hold: None,
+            holding: StoredValue::new(None),
+            held: StoredValue::new(None),
+        }
+    }
+
+    /// A finger held still on the row does `hold` (the list selects the row) instead of being a
+    /// tap or a swipe.
+    pub fn on_hold(self, hold: Option<Callback<String>>) -> Self {
+        Self { hold, ..self }
+    }
+
+    /// The hold's time is over or was none.
+    fn unhold(self) {
+        if let Some(handle) = self.holding.try_update_value(Option::take).flatten() {
+            handle.clear();
         }
     }
 
@@ -266,6 +295,8 @@ impl RowSwipe {
     /// A finger (or the mouse's button) comes down on the row: watched until it moves.
     pub fn down(self, ev: PointerEvent) {
         self.finger.set_value(None);
+        self.unhold();
+        self.held.set_value(None);
         // A new touch: its click is a tap.
         self.swiped.set_value(f64::NEG_INFINITY);
         // A card on its way back is watched as one at rest: the finger takes it where it is.
@@ -273,7 +304,29 @@ impl RowSwipe {
             return;
         }
         let (x, y) = (f64::from(ev.client_x()), f64::from(ev.client_y()));
-        self.finger.set_value(Some(Finger { id: ev.pointer_id(), x, y, taken: false, pull: 0.0, at: ev.time_stamp(), speed: 0.0, width: 0.0, from: 0.0 }));
+        let pointer = ev.pointer_id();
+        self.finger.set_value(Some(Finger { id: pointer, x, y, taken: false, pull: 0.0, at: ev.time_stamp(), speed: 0.0, width: 0.0, from: 0.0 }));
+        // Held still long enough, the finger is the list's: it selects the row.
+        if let Some(hold) = self.hold {
+            let handle = set_timeout_with_handle(
+                move || {
+                    self.holding.try_set_value(None);
+                    let still = self.finger.try_get_value().flatten().is_some_and(|finger| finger.id == pointer && !finger.taken);
+                    if !still {
+                        return;
+                    }
+                    self.finger.set_value(None);
+                    self.held.set_value(Some(pointer));
+                    #[cfg(feature = "csr")]
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.navigator().vibrate_with_duration(8);
+                    }
+                    hold.run(self.id.get_value());
+                },
+                HOLD_SELECT,
+            );
+            self.holding.set_value(handle.ok());
+        }
         // What the plan's side needs is asked now, so that it is there by the time the finger has
         // moved far enough to take the card (`read`).
         if let (Some(_), Some(source)) = (self.plan, self.source.get_value()) {
@@ -297,6 +350,8 @@ impl RowSwipe {
             if dx.abs() < SLOP && dy.abs() < SLOP {
                 return;
             }
+            // Moved before it was held: a swipe or a scroll, no selection.
+            self.unhold();
             // The first move past the slop decides: along the row the finger has the card, else
             // the page scrolls.
             match (dx.abs() > dy.abs()).then(|| self.take(finger.id)).flatten() {
@@ -317,6 +372,13 @@ impl RowSwipe {
     }
 
     pub fn up(self, ev: PointerEvent) {
+        self.unhold();
+        // Lifted after its hold: the selection's, no tap.
+        if self.held.get_value() == Some(ev.pointer_id()) {
+            self.held.set_value(None);
+            self.swiped.set_value(ev.time_stamp() + NO_TAP);
+            return;
+        }
         if self.finger.get_value().is_some_and(|finger| finger.id == ev.pointer_id()) {
             self.let_go(Some((f64::from(ev.client_x()), ev.time_stamp())));
         }
@@ -324,6 +386,11 @@ impl RowSwipe {
 
     /// The browser took the finger (a scroll, a pinch, a gesture of the system): nothing is done.
     pub fn cancel(self, ev: PointerEvent) {
+        self.unhold();
+        if self.held.get_value() == Some(ev.pointer_id()) {
+            self.held.set_value(None);
+            return;
+        }
         if self.finger.get_value().is_some_and(|finger| finger.id == ev.pointer_id()) {
             self.let_go(None);
         }
