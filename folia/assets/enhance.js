@@ -2434,9 +2434,10 @@
     // The filter toggles are links that act as switches: the space bar flips them, too.
     if (e.key === " " && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // Only where arrows have no other job: not in fields, not in the filter panel.
+      // Only where arrows have no other job: not in fields, not in the filter panel, not in a menu
+      // (which moves its own focus and says so by `preventDefault`; the focus it moved is in it).
       const active = document.activeElement;
-      const free = !typing(active) && !active?.closest?.("#filters");
+      const free = !e.defaultPrevented && !typing(active) && !active?.closest?.("#filters") && !active?.closest?.('[role="menu"]');
       if (free && moveInList(e.key === "ArrowDown" ? 1 : -1)) { e.preventDefault(); return; }
     }
     const hit = e.key === "ArrowLeft" || e.key === "ArrowRight" ? resizerOf(e.target) : null;
