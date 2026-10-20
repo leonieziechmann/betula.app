@@ -81,6 +81,10 @@ const share = await sender.page.evaluate(() => ({
   items: [...document.querySelectorAll(".share-menu .st-pop-item")].map((item) => `${item.querySelector(".st-pop-label > span")?.textContent}${item.getAttribute("role") === "menuitemcheckbox" ? `:${item.getAttribute("aria-checked")}` : ""}`),
 }));
 check(share.head === `${LENA} · 2 Module` && share.items.join("|") === "Link kopieren|Notizen mitnehmen:false|Als Text kopieren", `the share menu: ${JSON.stringify(share)}`);
+// The keys go through it, the switch among the entries.
+await sender.page.waitForFunction(() => document.activeElement?.closest(".share-menu"), null, { timeout: 2000 }).catch(() => {});
+await sender.step("↓ to the switch", () => sender.page.keyboard.press("ArrowDown"), () => document.activeElement?.getAttribute("role") === "menuitemcheckbox");
+await sender.step("↓ past it", () => sender.page.keyboard.press("ArrowDown"), () => document.activeElement?.textContent.includes("Als Text kopieren"));
 await sender.step("Als Text kopieren", () => sender.page.click('.share-menu .st-pop-item:has-text("Als Text kopieren")'), () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Liste kopiert") && !document.querySelector(".view-menu"));
 const text = await clipboard(sender.page);
 const lines = text.split("\n");

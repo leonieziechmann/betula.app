@@ -1085,8 +1085,11 @@ fn Offer() -> impl IntoView {
             }
             // A collection's link: one collection that holds all of them.
             [(name, members)] if members.len() == all => {
+                // A collection of that name here is named as it is here („für lena" from the
+                // link, „Für Lena" here).
+                let there = collections.and_then(|collections| collections.with(|shelf| shelf.find(name).and_then(|id| shelf.collection(id).map(|collection| collection.name.clone()))));
+                let exists = there.is_some();
                 let name = name.clone();
-                let exists = collections.is_some_and(|collections| collections.with(|shelf| shelf.find(&name).is_some()));
                 let line = if full || short {
                     room_line()
                 } else if exists {
@@ -1114,10 +1117,10 @@ fn Offer() -> impl IntoView {
                         <button class="mini hit" type="button" on:click=move |_| { naming.set(None); taken.set(false); }>{b.cancel}</button>
                     }
                     .into_any()
-                } else if exists {
+                } else if let Some(there) = there {
                     let into = name.clone();
                     view! {
-                        <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| done.run(Some(Keep::Named(into.clone())))>{(b.add_to)(&name)}</button>
+                        <button class="mini primary hit" type="button" id="offer-add" on:click=move |_| done.run(Some(Keep::Named(into.clone())))>{(b.add_to)(&there)}</button>
                         <button class="mini hit" type="button" id="offer-other" on:click=move |_| {
                             naming.set(Some(String::new()));
                             request_animation_frame(|| nav::focus_by_id("offer-name"));
@@ -2382,7 +2385,8 @@ pub(crate) fn step_focus(by: i32) {
     {
         use wasm_bindgen::JsCast;
         let Some(document) = web_sys::window().and_then(|window| window.document()) else { return };
-        let Ok(list) = document.query_selector_all(".view-menu [role=menuitem]") else { return };
+        // The entries and the switches among them („Notizen mitnehmen").
+        let Ok(list) = document.query_selector_all(".view-menu :is([role=menuitem], [role=menuitemcheckbox])") else { return };
         let items: Vec<web_sys::HtmlElement> = (0..list.length()).filter_map(|i| list.item(i)).filter_map(|node| node.dyn_into::<web_sys::HtmlElement>().ok()).collect();
         if items.is_empty() {
             return;
