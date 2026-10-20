@@ -2975,6 +2975,11 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   (`--ob-h`).
 - **What stays in the browser** (R20): nothing new. The setup writes „Mein Studiengang" and the
   Stundenplan as their pages do; „Erst mal umschauen" lasts the visit.
+- **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
+  a semester by its name, „Anderes Fachsemester", the switch with „an", „Studium anlegen", „Ohne
+  Module weiter", „Erst mal umschauen", „Profil übernehmen", „Was ist Betula?"), the buttons of the
+  photo and of the note of a study set up under „Dein Tag", the ways into the catalog under
+  „Entdecken" („Ohne Einrichtung" on a first visit).
 
 `node folia/e2e/home.mjs` drives it: the server's page, the three steps (the picker, the six
 semesters, a Fachsemester out of range said, a row unticked), „Studium anlegen" (the plan and the

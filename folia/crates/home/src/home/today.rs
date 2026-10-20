@@ -158,7 +158,8 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
     });
 
     view! {
-        <section class=move || format!("day-hero {}{}", light.get().class(), if fog.get() { " fog" } else { "" }) aria-label=t.today.your_day>
+        // Its buttons are commands of „Befehle" (R25) under „Dein Tag", as the note of a study set up.
+        <section class=move || format!("day-hero {}{}", light.get().class(), if fog.get() { " fog" } else { "" }) aria-label=t.today.your_day data-commands=t.today.your_day>
             <div class="day-photo" class:fog=move || fog.get() aria-hidden="true"></div>
             <div class="day-shade" aria-hidden="true"></div>
             <div class="day-greet">
@@ -437,7 +438,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                 <div class="day-next">
                     <span class="k"><span>{tt.your_study}</span></span>
                     <span class="what">{tt.not_set_up}</span>
-                    <span class="acts"><button type="button" class="btn primary sm" on:click=move |_| on_setup.run(())><Icon name="graduation-cap"/>{tt.set_up_study}</button></span>
+                    <span class="acts"><button type="button" class="btn primary sm" on:click=move |_| on_setup.run(()) data-command=""><Icon name="graduation-cap"/>{tt.set_up_study}</button></span>
                 </div>
             }
             .into_any();
@@ -448,7 +449,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                 <div class="day-next">
                     <span class="k"><span>{tt.timetable}</span><span>{ctx.key.get().map(|key| key.label(t.locale))}</span></span>
                     <span class="what">{tt.plan_empty_card}</span>
-                    <span class="acts"><a class="btn primary sm" href=t.path(&import) rel="nofollow"><Icon name="calendar-plus"/>{tt.take_semester}</a></span>
+                    <span class="acts"><a class="btn primary sm" href=t.path(&import) rel="nofollow" data-command=""><Icon name="calendar-plus"/>{tt.take_semester}</a></span>
                 </div>
             }
             .into_any();
@@ -474,8 +475,8 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                             <span class="where"><Icon name="map-pin"/><span>{place}{clash.map(|clash| format!(" · {clash}"))}</span></span>
                             {after.map(|after| view! { <span class="where dim">{(tt.after)(&time(after.from), &short_of(after), after.room.as_deref())}</span> })}
                             <span class="acts">
-                                {module_link(entry).map(|href| view! { <a class="btn sm" href=href>{tt.module}</a> })}
-                                <a class="btn sm" href=t.path(url::STUDYPLAN)>{tt.timetable}</a>
+                                {module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> })}
+                                <a class="btn sm" href=t.path(url::STUDYPLAN) data-command="">{tt.timetable}</a>
                             </span>
                         </div>
                     }
@@ -493,7 +494,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                                 <span class="when"><b>{time(first.from)}</b><span>{first.room.clone().unwrap_or_default()}</span></span>
                                 <span class="what">{format!("{} · {}", first.kind, first.title)}</span>
                                 <span class="where"><Icon name="clock-3"/><span>{(tt.termine_until)(firm.len().max(1), &time(last.to))}</span></span>
-                                <span class="acts"><a class="btn sm" href=t.path(url::STUDYPLAN)>{tt.timetable}</a></span>
+                                <span class="acts"><a class="btn sm" href=t.path(url::STUDYPLAN) data-command="">{tt.timetable}</a></span>
                             </div>
                         }
                         .into_any());
@@ -510,8 +511,8 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
                         <span class="what">{exam.title.clone()}</span>
                         <span class="where"><Icon name="map-pin"/><span>{[exam.from.zip(exam.to).map(|(from, to)| format!("{}–{}", day::clock(from), day::clock(to))), exam.room.clone()].into_iter().flatten().collect::<Vec<_>>().join(" · ")}</span></span>
                         <span class="acts">
-                            {module_link(exam).map(|href| view! { <a class="btn sm" href=href>{tt.module}</a> })}
-                            <a class="btn sm" href=exams_href>{tt.all_exams}</a>
+                            {module_link(exam).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> })}
+                            <a class="btn sm" href=exams_href data-command="">{tt.all_exams}</a>
                         </span>
                     </div>
                 }
@@ -537,7 +538,7 @@ fn StudyCard(ctx: Ctx) -> impl IntoView {
                 <span class="k"><span>{tt.your_study}</span><span>{fs.map(|fs| (tt.after_fs)(fs))}</span></span>
                 <span class="when"><b>{format::number(passed, t.locale)}</b><span>{(tt.of_credits)(&format::number(total, t.locale))}</span></span>
                 <span class="what">{if passed > 0.0 { String::new() } else { tt.nothing_passed.to_string() }}</span>
-                <span class="acts"><a class="btn sm" href=t.path(url::STUDY)>{tt.enter_results}</a></span>
+                <span class="acts"><a class="btn sm" href=t.path(url::STUDY) data-command="">{tt.enter_results}</a></span>
             </div>
         }
     }
@@ -618,15 +619,15 @@ fn Welcome(welcome: RwSignal<Option<Done>>) -> impl IntoView {
         welcome.get().map(|done| {
             let passed = done.passed.map(|credits| format::number(credits, t.locale));
             view! {
-                <div class="day-welcome" role="status">
+                <div class="day-welcome" role="status" data-commands=tt.your_day>
                     <span class="day-welcome-ok" aria-hidden="true"><Icon name="check"/></span>
                     <div>
                         <b>{(tt.set_up)(&done.program, done.fs, &done.start.label(t.locale))}</b>
                         <small>{(tt.set_up_detail)(done.modules, done.placeholders, passed.as_deref())}" "{tt.stays_here}</small>
                     </div>
                     <span class="day-welcome-acts">
-                        <a class="btn sm" href=t.path(url::STUDYPLAN)><Icon name="calendar-plus"/>{tt.to_timetable}</a>
-                        <button type="button" class="btn sm ghost" on:click=undo><Icon name="rotate-ccw"/>{tt.undo}</button>
+                        <a class="btn sm" href=t.path(url::STUDYPLAN) data-command=""><Icon name="calendar-plus"/>{tt.to_timetable}</a>
+                        <button type="button" class="btn sm ghost" on:click=undo data-command=""><Icon name="rotate-ccw"/>{tt.undo}</button>
                     </span>
                     <button type="button" class="icon-btn day-welcome-x" aria-label=tt.close on:click=move |_| welcome.set(None)><Icon name="x"/></button>
                 </div>
@@ -913,7 +914,7 @@ fn GuestPanel(on_setup: Callback<()>) -> impl IntoView {
         <section class="panel day-panel day-guest">
             <header class="day-head"><h2>{tt.your_study}</h2></header>
             <p class="day-empty-line">{tt.guest}</p>
-            <p class="day-guest-acts"><button type="button" class="btn primary" on:click=move |_| on_setup.run(())><Icon name="graduation-cap"/>{tt.set_up_study}</button></p>
+            <p class="day-guest-acts"><button type="button" class="btn primary" on:click=move |_| on_setup.run(()) data-command=""><Icon name="graduation-cap"/>{tt.set_up_study}</button></p>
         </section>
     }
 }
@@ -933,7 +934,7 @@ pub fn Discover(home: Signal<Option<HomeData>>, #[prop(optional)] first: bool) -
         let tiles = ways.iter().zip(counts.iter().map(Some).chain(std::iter::repeat(None))).filter(|(way, _)| way.season.is_none() || way.season == season).map(|(way, count)| {
             let href = t.path(&folia_routes::url::CatalogUrl { query: way.query.clone(), ..Default::default() }.path());
             view! {
-                <a class=format!("day-way {}", way.tint) href=href rel="nofollow">
+                <a class=format!("day-way {}", way.tint) href=href rel="nofollow" data-command=way.label>
                     <span class="day-way-i"><Icon name=way.icon/></span>
                     <span class="day-way-t"><b>{way.label}</b><small>{way.hint}</small></span>
                     <span class="day-way-n num">{count.map(|count| format::count(*count, t.locale))}</span>
@@ -942,14 +943,14 @@ pub fn Discover(home: Signal<Option<HomeData>>, #[prop(optional)] first: bool) -
         }).collect_view();
         let (head, sub) = if first { (tt.without_setup, tt.without_setup_sub) } else { (tt.discover, tt.discover_sub) };
         view! {
-            <section class="panel day-discover" id="entdecken">
+            <section class="panel day-discover" id="entdecken" data-commands=head>
                 <header class="day-head">
                     <h2>{head}</h2><span class="sub">{sub}</span>
                     {first.then(|| view! { <a class="ghost" href=t.path(url::ABOUT)>{tt.what_is_betula}<Icon name="arrow-right"/></a> })}
                 </header>
                 <div class="day-ways">
                     {tiles}
-                    <a class="day-way t-sun" href=t.path(url::PROGRAMS)>
+                    <a class="day-way t-sun" href=t.path(url::PROGRAMS) data-command=tt.all_programs>
                         <span class="day-way-i"><Icon name="graduation-cap"/></span>
                         <span class="day-way-t"><b>{tt.all_programs}</b><small>{faculties.map(|n| (tt.faculties)(n))}</small></span>
                         <span class="day-way-n num">{programs.map(|n| format::count(n, t.locale))}</span>

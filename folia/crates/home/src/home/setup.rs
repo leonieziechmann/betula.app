@@ -380,9 +380,9 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
     let foot = move || {
         view! {
             <div class="ob-foot">
-                <button type="button" class="ob-link" title=s.look_around_title on:click=move |_| on_look.run(())><Icon name="search"/>{s.look_around}</button>
-                <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title><Icon name="upload"/>{s.take_profile}</a>
-                <a class="ob-link ob-about" href=t.path(url::ABOUT)>{t.today.what_is_betula}<Icon name="arrow-right"/></a>
+                <button type="button" class="ob-link" title=s.look_around_title on:click=move |_| on_look.run(()) data-command=""><Icon name="search"/>{s.look_around}</button>
+                <a class="ob-link" href=t.path(url::PROFILE) rel="nofollow" title=s.take_profile_title data-command=""><Icon name="upload"/>{s.take_profile}</a>
+                <a class="ob-link ob-about" href=t.path(url::ABOUT) data-command="">{t.today.what_is_betula}<Icon name="arrow-right"/></a>
             </div>
         }
     };
@@ -435,8 +435,9 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                             notes.push((s.before_po)(&po_year.map(|year| year.to_string()).unwrap_or_default()));
                         }
                         let what = if fs == 1 { s.starting.to_string() } else { (s.now_in)(fs) };
+                        let command = format!("{} · {what}", key.label(t.locale));
                         view! {
-                            <button type="button" class="ob-sem" class:usual=usual == Some(key) on:click=move |_| choose_start(key)>
+                            <button type="button" class="ob-sem" class:usual=usual == Some(key) on:click=move |_| choose_start(key) data-command=command>
                                 <b>{key.label(t.locale)}</b>
                                 <span class="ob-fs num">{fs}"."<small>{s.fs_short}</small></span>
                                 <small class="ob-sem-what">{what}{(!notes.is_empty()).then(|| view! { " · "<span class="ob-warn">{notes.join(", ")}</span> })}</small>
@@ -450,6 +451,7 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                 <span class="ob-num">
                     <input
                         id="ob-fs"
+                        data-command=s.other_fs
                         type="number"
                         inputmode="numeric"
                         min="1"
@@ -529,20 +531,21 @@ pub fn SetupCard(now: Signal<Option<SemesterKey>>, faculties: Signal<Option<Coun
                 </div>
             </div>
             {(fs > 1 && has_plan).then(|| view! {
-                <button type="button" class="ob-switch" role="switch" aria-checked=move || past.get().to_string() on:click=move |_| past.update(|on| *on = !*on)>
+                <button type="button" class="ob-switch" role="switch" aria-checked=move || past.get().to_string() on:click=move |_| past.update(|on| *on = !*on) data-command=s.past_switch data-command-state=move || past.get().then_some(s.switch_on)>
                     <span class="ob-toggle" aria-hidden="true"></span>
                     <span><b>{s.past_switch}</b><small>{(s.past_detail)(earlier.len(), &format::number(earlier_credits, t.locale), fs - 1)}</small></span>
                 </button>
             })}
             <div class="ob-actions">
-                {has_plan.then(|| view! { <button type="button" class="btn ghost ob-without" on:click=move |_| create(false)>{s.without_modules}</button> })}
-                <button type="button" class="btn primary ob-create" on:click=move |_| create(true)><Icon name="check"/>{s.create}</button>
+                {has_plan.then(|| view! { <button type="button" class="btn ghost ob-without" on:click=move |_| create(false) data-command="">{s.without_modules}</button> })}
+                <button type="button" class="btn primary ob-create" on:click=move |_| create(true) data-command=""><Icon name="check"/>{s.create}</button>
             </div>
         }
     };
 
     view! {
-        <div class="ob" data-step=move || step.get().to_string()>
+        // Its commands for „Befehle" (R25), under „Studium einrichten".
+        <div class="ob" data-step=move || step.get().to_string() data-commands=t.today.set_up_study>
             <nav class="ob-chips" aria-label=s.steps_label>{chips}</nav>
             {move || match step.get() {
                 1 => step_one().into_any(),

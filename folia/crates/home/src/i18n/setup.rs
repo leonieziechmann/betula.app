@@ -58,6 +58,8 @@ pub struct Texts {
     pub no_plan: &'static str,
     pub beyond_plan: fn(u8) -> String,
     pub past_switch: &'static str,
+    /// What „Befehle" says of the switch while it is on (R25).
+    pub switch_on: &'static str,
     /// „4 Module, 28 LP aus FS 1", „aus FS 1–2".
     pub past_detail: fn(usize, &str, u8) -> String,
     pub past_none: &'static str,
@@ -108,6 +110,7 @@ pub const DE: Texts = Texts {
     no_plan: "Für diesen Studiengang hat Betula keinen geprüften Regelstudienplan. Dein Stundenplan startet leer; Module planst du aus dem Katalog.",
     beyond_plan: |last| format!("Der Regelstudienplan endet mit dem {last}. Fachsemester. Dein Stundenplan startet leer."),
     past_switch: "Bisherige Module als bestanden markieren",
+    switch_on: "an",
     past_detail: |modules, credits, last| match last {
         1 => format!("{modules} {}, {credits}\u{a0}LP aus FS\u{a0}1", if modules == 1 { "Modul" } else { "Module" }),
         last => format!("{modules} {}, {credits}\u{a0}LP aus FS\u{a0}1–{last}", if modules == 1 { "Modul" } else { "Module" }),
@@ -160,6 +163,7 @@ pub const EN: Texts = Texts {
     no_plan: "Betula has no checked standard study plan for this programme. Your timetable starts empty; you plan modules from the catalogue.",
     beyond_plan: |last| format!("The standard study plan ends with semester {last}. Your timetable starts empty."),
     past_switch: "Mark earlier modules as passed",
+    switch_on: "on",
     past_detail: |modules, credits, last| match last {
         1 => format!("{modules} {}, {credits}\u{a0}ECTS of semester\u{a0}1", if modules == 1 { "module" } else { "modules" }),
         last => format!("{modules} {}, {credits}\u{a0}ECTS of semesters\u{a0}1–{last}", if modules == 1 { "module" } else { "modules" }),
