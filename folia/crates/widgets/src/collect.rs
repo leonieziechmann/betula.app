@@ -183,7 +183,7 @@ fn ask_of(ev: &leptos::web_sys::Event) -> Option<CollectAsk> {
 }
 
 /// The window's width and height.
-fn viewport() -> (f64, f64) {
+pub(crate) fn viewport() -> (f64, f64) {
     #[cfg(feature = "csr")]
     {
         let size = web_sys::window().and_then(|window| Some((window.inner_width().ok()?.as_f64()?, window.inner_height().ok()?.as_f64()?)));
@@ -196,10 +196,10 @@ fn viewport() -> (f64, f64) {
 /// What had the focus when the menu opened: it gets it back when the menu closes, if it is still
 /// on the page.
 #[derive(Clone, Copy)]
-struct FocusBack(StoredValue<Option<send_wrapper::SendWrapper<leptos::web_sys::HtmlElement>>>);
+pub(crate) struct FocusBack(StoredValue<Option<send_wrapper::SendWrapper<leptos::web_sys::HtmlElement>>>);
 
 impl FocusBack {
-    fn take() -> Self {
+    pub(crate) fn take() -> Self {
         #[cfg(feature = "csr")]
         {
             use wasm_bindgen::JsCast;
@@ -210,7 +210,7 @@ impl FocusBack {
         FocusBack(StoredValue::new(None))
     }
 
-    fn give(self) {
+    pub(crate) fn give(self) {
         #[cfg(feature = "csr")]
         if let Some(element) = self.0.try_update_value(Option::take).flatten() {
             if element.is_connected() {

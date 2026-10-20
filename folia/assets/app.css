@@ -1281,15 +1281,17 @@ button.coll-item.add:hover { background: var(--row-hover); }
 /* A module's switch for marking, in the preview and on its page (`MarkButton`, oberflaeche.html,
    „Am Modul"): marked, it carries the module's collections small, as „Einplanen" carries its
    semester, and an arrow of its own, which opens the menu of its collections and its note; not
-   marked, where a default for new marks is set, „in Für Lena". The arrow is a part of the switch,
-   42 px wide on a phone for a thumb; not marked there is none. */
-.switches > .mark-pair { flex: none; display: inline-flex; align-items: stretch; min-width: 0; max-width: 100%; }
-.mark-pair > .mark-switch { flex: 1 1 auto; min-width: 0; }
-.mark-pair.split > .mark-switch { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+   marked, where a default for new marks is set, „in Für Lena". „Eingeplant" has an arrow of its own
+   as well (`PlanButton`; owner, 2026-10-20), whose menu moves the module, marks it as passed, opens
+   the Stundenplan or takes it out (planmenu.rs). The arrow is a part of its switch, 42 px wide on a
+   phone for a thumb; not marked, not planned there is none. */
+:is(.mark-pair, .plan-pair) { display: inline-flex; align-items: stretch; min-width: 0; max-width: 100%; }
+:is(.mark-pair, .plan-pair) > .mark-switch { flex: 1 1 auto; min-width: 0; }
+:is(.mark-pair, .plan-pair).split > .mark-switch { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .mark-switch > small { min-width: 0; max-width: 16em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; opacity: .8; }
-.mark-more { --hit-y: 5px; --hit-r: 4px; flex: none; display: grid; place-items: center; width: 30px; min-height: 32px; padding: 0; border: 0; border-radius: 0 var(--r-ctl) var(--r-ctl) 0; background: var(--invert); color: var(--on-invert); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 22%, transparent); cursor: pointer; }
-.mark-more > .icon { width: 15px; height: 15px; }
-@media (hover: hover) { .mark-more:hover { background: color-mix(in srgb, var(--invert) 86%, var(--on-invert)); } }
+:is(.mark-more, .plan-more) { --hit-y: 5px; --hit-r: 4px; flex: none; display: grid; place-items: center; width: 30px; min-height: 32px; padding: 0; border: 0; border-radius: 0 var(--r-ctl) var(--r-ctl) 0; background: var(--invert); color: var(--on-invert); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 22%, transparent); cursor: pointer; }
+:is(.mark-more, .plan-more) > .icon { width: 15px; height: 15px; }
+@media (hover: hover) { :is(.mark-more, .plan-more):hover { background: color-mix(in srgb, var(--invert) 86%, var(--on-invert)); } }
 /* The visitor's note of the module, under its switches, whole, its Markdown drawn; the pencil, or
    a click beside a link, edits it. */
 .module-note { display: flex; align-items: flex-start; gap: 6px; margin-top: 10px; padding: 8px 11px 9px 6px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; }
@@ -1303,7 +1305,7 @@ button.coll-item.add:hover { background: var(--row-hover); }
 .note-prose blockquote { margin: 0; padding-left: 9px; border-left: 2px solid var(--line-strong); color: var(--text-2); }
 @media (max-width: 900px) {
   .mark-pair > .mark-switch { justify-content: center; }
-  .mark-more { width: 42px; min-height: 44px; }
+  :is(.mark-more, .plan-more) { width: 42px; min-height: 44px; }
   .mark-pair > .mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
   .mark-pair > .mark-switch:has(> small) > .icon { grid-row: span 2; }
   .mark-pair > .mark-switch:has(> small) > span:first-of-type { line-height: 19px; }
@@ -1311,28 +1313,38 @@ button.coll-item.add:hover { background: var(--row-hover); }
   .module-note { margin-top: 12px; font-size: 14.5px; }
 }
 /* The line under a module's heading, in the preview and on the module's page (`.hero-line`,
-   markup: div.hero-line > p.badges > span.badge… + div.switches > button.plan-toggle +
-   button.mark-toggle): the badges (credits, turnus, language) on the left, and at its right end
-   „Einplanen" and „Merken", switches with their shortcuts, as tall as the toggles of the filter
-   panel. Where the line has room the two stand side by side; where it has not they stand one
-   over the other, and the badges have the rest of the line and wrap in it (owner, 2026-09-26:
-   the pair taking a line of its own under the badges made the heading jump about). The badges
-   keep the width of their one line while that leaves room for the stack (flex-grow 0); the
-   switches take what is left (flex-basis 0) and wrap in it, so they are side by side exactly
-   where both fit. Where the stack does not fit beside the badges, the switches keep its width,
-   their automatic minimum, and the badges give way. A label keeps its width, so a switch does
-   not change its size when „Merken" becomes „Gemerkt", and both are as wide, so the stack is
-   straight. */
-.hero-line { display: flex; align-items: flex-start; gap: 6px; margin-top: 12px; }
-/* The badges stand on the middle of the switches (26px in 32px), a line of them beside each
-   switch of the stack. A badge wider than their column (the narrowest preview has 176px for „jedes
-   Semester (ungerade Jahre)") breaks into two lines rather than push the stack out. */
-.hero-line > .badges { margin-top: 0; padding: 3px 0; align-items: center; row-gap: 12px; }
+   markup: div.hero-line > p.badges > span.badge… + div.switches > span.plan-pair > button.plan-toggle
+   + span.mark-pair > button.mark-toggle, each with its arrow while it is on): the badges (credits,
+   turnus, language) on the left, and „Einplanen" and „Merken", switches with their shortcuts, as
+   tall as the toggles of the filter panel. They stand the first way that fits (owner, 2026-10-20:
+   „wenn die nicht mehr in eine reihe passen mit den metadaten, dass die erstmal nebeneinander in
+   ihrer eigenen reihe sind (jeweils 50% platz). Und wenn das auch nicht mehr passt, dann
+   untereinander mit voller breite"):
+   1. at the right end of the badges' line, side by side, each as wide as what it says;
+   2. on a line of their own under the badges, half of it each;
+   3. one over the other, each the whole line.
+   The line wraps by what the switches say: their basis is their width side by side, so they leave
+   the badges' line exactly where they do not fit beside the badges whole. Beside them the badges
+   take what is left (their grow outweighs the switches' by far, so the switches stay as wide as
+   they are); on a line of their own the switches take all of it. Each switch is at least as wide as
+   what it says and at most the line (fit-content). Beside the badges it starts from 0, so each is as
+   wide as it is; on their own line from half of it, so both are half where both fit in a half, and
+   one over the other where either does not. Which of the two the switches have tells their width
+   (100%) against the line's (100cqi, the line is the container): on a line of their own it is all
+   of it but the switches' end, beside the badges far less. A label keeps its width, so a switch
+   does not change its size when „Merken" becomes „Gemerkt". */
+.hero-line { container: hero-line / inline-size; --switches-end: 6px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 6px; margin-top: 12px; }
+/* The badges stand on the middle of the switches (26px in 32px). A badge wider than the line (the
+   narrowest preview has 176px for „jedes Semester (ungerade Jahre)") breaks into two lines. */
+.hero-line > .badges { flex: 100000 1 auto; min-width: 0; margin-top: 0; padding: 3px 0; align-items: center; row-gap: 6px; }
 .hero-line > .badges > .badge { padding-top: 3px; padding-bottom: 3px; line-height: 1.25; white-space: normal; }
 /* Its right edge is the right edge of what stands under the heading (the body of a module is
    inset by 20px, the heading of the preview by 14px and that of the page by 18px). */
-.hero-line > .switches { flex: 1 1 0; margin-right: 6px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
-.module-page > .hero .hero-line > .switches { margin-right: 2px; }
+.hero-line > .switches { flex: 1 1 auto; min-width: 0; margin-right: var(--switches-end); display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: stretch; gap: 6px; }
+.switches > :is(.plan-pair, .mark-pair) { flex: 1 1 clamp(0px, calc(50% - 3px - (100cqi - var(--switches-end) - 100%) * 1000), calc(50% - 3px)); min-width: fit-content; }
+/* What a switch says stands in its middle where it is wider than that. */
+.switches .mark-switch { justify-content: center; }
+.module-page > .hero .hero-line { --switches-end: 2px; }
 html:not(.js) .hero-line > .switches { display: none; }
 html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 .mark-switch { --hit-y: 5px; --hit-x: 4px; min-height: 32px; padding: 0 7px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-weight: 600; font-size: 13.5px; transition: background .12s, color .12s, box-shadow .12s, transform .12s; }
@@ -1347,8 +1359,8 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
    placeholder it plans for, the other semesters the module is planned in) is its small line: one
    line that gives way first. The two are 6px apart, side by side or one over the other: towards
    each other their areas meet in the middle. */
-.switches > .mark-toggle { flex: none; --hit-l: 3px; --hit-t: 3px; }
-.switches > .plan-toggle { min-width: 0; --hit-r: 3px; --hit-b: 3px; }
+.mark-pair > .mark-toggle { --hit-l: 3px; --hit-t: 3px; }
+.plan-pair > .plan-toggle { --hit-r: 3px; --hit-b: 3px; }
 .plan-toggle.mark-switch > span:first-of-type { flex: none; }
 .plan-toggle.mark-switch > small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; opacity: .8; }
 @media (min-width: 901px) {
@@ -1367,16 +1379,17 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 }
 /* On a phone the pair takes a line of its own under the badges and fills it, each switch half of
    it with its content in the middle (owner, 2026-09-27: kept at the line's right end, the two
-   stood oddly under the badges). The small line is the switch's second line, in the switch's
-   height: it has more room there than beside the label. It gives way on that line instead of
-   breaking the pair, so nothing moves when the app adds it (R15). */
+   stood oddly under the badges), and one over the other, the whole line each, where a half is too
+   narrow for a label (owner, 2026-10-20). The small line is the switch's second line, in the
+   switch's height: it has more room there than beside the label. It gives way on that line instead
+   of breaking the pair, so nothing moves when the app adds it (R15). */
 @media (max-width: 900px) {
-  .hero-line { flex-wrap: wrap; row-gap: 10px; }
+  .hero-line { row-gap: 10px; }
   .hero-line > .badges { padding: 0; row-gap: 6px; }
-  .hero-line > .switches { flex-basis: 100%; flex-wrap: nowrap; }
+  .hero-line > .switches { flex-basis: 100%; }
   /* Half each: a basis of half the line less half the gap, not 0, so that neither grows nor
-     shrinks by its padding (the pair of „Merken" and its arrow has none of its own). */
-  .switches > .plan-toggle, .switches > .mark-toggle, .switches > .mark-pair { flex: 1 1 calc(50% - 3px); justify-content: center; }
+     shrinks by its padding; at least what it says without its small line, which gives way. */
+  .switches > :is(.plan-pair, .mark-pair) { flex: 1 1 calc(50% - 3px); min-width: auto; }
   .plan-toggle.mark-switch > span:first-of-type { min-width: 77px; }
   .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
   .plan-toggle.mark-switch:has(> small) > .icon { grid-row: span 2; }

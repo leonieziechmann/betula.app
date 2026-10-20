@@ -745,8 +745,8 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
 }
 
 /// The box of the pair of a module's switch and its arrow, whose arrow was clicked: the menu stands
-/// under it.
-fn pair_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
+/// under it. „Einplanen"'s arrow as well (`studyplan::PlanButton`).
+pub(crate) fn pair_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;

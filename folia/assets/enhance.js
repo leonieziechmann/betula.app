@@ -2484,14 +2484,18 @@
       e.preventDefault();
       const box = (row || mark.closest(".mark-pair") || mark).getBoundingClientRect();
       dispatchEvent(new CustomEvent("betula:collect", { detail: { id: mark.dataset.id, title: mark.dataset.title || "", note, left: box.left, top: box.top, right: box.right, bottom: box.bottom } }));
-    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog")) {
+    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.("dialog, [role=menu]")) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
       // it ambiguous which module is meant, so P waits there. What it planned the note at the
-      // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs).
+      // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs). ⇧P opens the
+      // menu at the arrow of a module planned (planmenu.rs), and plans as P where there is none.
       const row = document.activeElement?.closest?.(".row-wrap");
       const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
-      if (plan) { e.preventDefault(); plan.click(); }
+      const more = e.shiftKey && plan?.closest(".plan-pair")?.querySelector('[data-action="plan-more"]');
+      // The arrow has the focus, as after a click on it: the menu gives it back there.
+      if (more) { e.preventDefault(); more.focus({ preventScroll: true }); more.click(); }
+      else if (plan) { e.preventDefault(); plan.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();
       const search = document.getElementById("topsearch");

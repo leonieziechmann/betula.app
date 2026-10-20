@@ -134,45 +134,54 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
 }
 
 // ---------- „Einplanen" beside „Merken" ----------
-// Datenbanken (12330) has four badges, which leave the preview no room for the pair side by side:
-// there the two stand one over the other beside them, and on a phone they take a line of their
-// own and fill it, half each (owner, 2026-09-27). A plan in another semester and the finder's
-// placeholder make the switch say more.
+// The two stand the first way that fits (owner, 2026-10-20): at the right end of the badges' line,
+// side by side; on a line of their own under the badges, half each; one over the other, the whole
+// line each. Datenbanken (12330) has four badges, which leave the preview no room for the two
+// beside them: there they take a line of their own. On a phone they always do, half each (owner,
+// 2026-09-27). A plan in another semester and the finder's placeholder make the switch say more;
+// planned, „Eingeplant" has an arrow, whose menu moves the module and marks it as passed
+// (plannote.mjs).
 {
   const PLAN = "m\t2027S\t12330\t1790000000\t\np\t3\t2026W\t079-82-2008\t17\t1-1\t6\tfues\t\tFachübergreifendes Studium\n";
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const pair = (page, root, body) => page.evaluate(([root, body]) => {
     const line = onPage(`${root} .hero-line`);
-    // „Merken" with its arrow, once the module is marked (the pair, `MarkButton`).
-    const [plan, mark, edge] = [line.querySelector(".plan-toggle"), line.querySelector(".mark-pair") ?? line.querySelector(".mark-toggle"), onPage(body)].map((el) => el.getBoundingClientRect());
+    // Each switch with its arrow, while it has one (the pairs, `PlanButton` and `MarkButton`).
+    const [plan, mark, edge] = [line.querySelector(".plan-pair"), line.querySelector(".mark-pair"), onPage(body)].map((el) => el.getBoundingClientRect());
     const badges = [...line.querySelectorAll(".badges > .badge")].map((el) => el.getBoundingClientRect());
     const middle = (r) => (r.top + r.bottom) / 2;
     return {
       together: Math.abs(middle(plan) - middle(mark)),
       gap: mark.left - plan.right,
-      // One over the other: „Merken" 6px under „Einplanen", their right edges in line.
+      // One over the other: „Merken" 6px under „Einplanen", both as wide.
       under: mark.top - plan.bottom,
-      aligned: Math.abs(mark.right - plan.right),
+      aligned: Math.abs(mark.right - plan.right) + Math.abs(mark.left - plan.left),
       edge: Math.abs(mark.right - edge.right),
       // Right of every badge, „Einplanen" on the middle of the credits; or under all of them.
       beside: plan.left >= Math.max(...badges.map((b) => b.right)) + 6 && Math.abs(middle(plan) - middle(badges[0])) <= 0.5,
       below: plan.top >= Math.max(...badges.map((b) => b.bottom)),
       // On a line of their own the two fill it: „Einplanen" starts where the badges start, and
-      // both are as wide.
+      // side by side both are as wide.
       fill: Math.abs(plan.left - badges[0].left),
       halves: Math.abs(plan.width - mark.width),
       tab: Boolean(line.querySelector(".plan-toggle").compareDocumentPosition(line.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
       note: line.querySelector(".plan-toggle > small")?.checkVisibility() ? line.querySelector(".plan-toggle > small").textContent : null,
       label: line.querySelector(".plan-toggle > span").textContent,
+      labelWidth: line.querySelector(".plan-toggle > span").getBoundingClientRect().width,
       width: plan.width,
     };
   }, [root, body]);
   const sideBySide = (seen) => seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5;
   const stacked = (seen) => Math.abs(seen.under - 6) <= 0.5 && seen.aligned <= 0.5;
-  // Beside the badges on a wide screen, never on a line of their own; under them on a phone,
-  // filling that line.
-  const filled = (seen) => seen.below && sideBySide(seen) && seen.fill <= 0.5 && seen.halves <= 0.5;
-  const expect = (where, seen, onPhone = false) => check((sideBySide(seen) || stacked(seen)) && seen.edge <= 0.5 && (onPhone ? filled(seen) : seen.beside) && seen.tab, `${where}: „Einplanen" and „Merken" are not one pair at the right end${onPhone ? ", filling their line" : ""}, in order: ${JSON.stringify(seen)}`);
+  // The three ways: beside the badges; on a line of their own, half each; one over the other.
+  const way = (seen) => {
+    if (seen.beside && sideBySide(seen)) return "beside";
+    if (seen.below && seen.fill <= 0.5 && sideBySide(seen) && seen.halves <= 0.5) return "halves";
+    if (seen.below && seen.fill <= 0.5 && stacked(seen)) return "stacked";
+    return null;
+  };
+  // On a phone never beside the badges.
+  const expect = (where, seen, onPhone = false) => check(way(seen) && !(onPhone && way(seen) === "beside") && seen.edge <= 0.5 && seen.tab, `${where}: „Einplanen" and „Merken" stand none of the three ways at the right end${onPhone ? " under the badges" : ""}, in order: ${JSON.stringify(seen)}`);
   const preview = ["#preview", "#preview .dbody .section"];
   const onPage = [".module-page", ".module-grid > aside .section"];
 
@@ -181,12 +190,15 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
     await page.waitForSelector("#preview .plan-toggle >> visible=true", { timeout: 8000 }).catch(() => problems.push(`preview at ${width}px: no „Einplanen"`));
     const before = await pair(page, ...preview);
     expect(`preview at ${width}px`, before);
-    check(stacked(before), `preview at ${width}px: the four badges leave no room for the pair side by side, and yet the two do not stand one over the other: ${JSON.stringify(before)}`);
+    check(way(before) === "halves", `preview at ${width}px: the four badges leave no room for the two beside them, and yet they do not take a line of their own, half each: ${JSON.stringify(before)}`);
     if (width === 1500) {
       await page.evaluate(() => document.activeElement?.blur());
       await step("„Einplanen“ plans", () => page.click("#preview .plan-toggle >> visible=true"), () => onPage("#preview .plan-toggle").getAttribute("aria-pressed") === "true" && !onPage("#preview .plan-toggle").hasAttribute("aria-busy"));
       const pressed = await pair(page, ...preview);
-      check(pressed.label === "Eingeplant" && Math.abs(pressed.width - before.width) < 0.5, `„Einplanen“ changes its width when pressed: ${before.width} → ${JSON.stringify(pressed)}`);
+      // The label keeps its width. With its arrow „Eingeplant" needs more than half the line: the
+      // two stand one over the other then.
+      check(pressed.label === "Eingeplant" && Math.abs(pressed.labelWidth - before.labelWidth) < 0.5 && way(pressed) === "stacked", `„Einplanen“ changes its label's width when pressed, or the two do not stand one over the other: ${JSON.stringify(before)} → ${JSON.stringify(pressed)}`);
+      check(await page.evaluate(() => Boolean(onPage("#preview .plan-pair.split > .plan-more"))), "„Eingeplant“ has no arrow");
       await step("and a second click takes it out", () => page.click("#preview .plan-toggle >> visible=true"), () => onPage("#preview .plan-toggle").getAttribute("aria-pressed") === "false" && !localStorage.getItem("betula.studyplan.v1"));
     }
     await step("full page", () => page.click('#preview [data-action="fullscreen"] >> visible=true'), () => location.pathname === "/catalog/module/12330" && onPage(".module-page .plan-toggle"));

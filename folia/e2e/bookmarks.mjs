@@ -65,18 +65,23 @@ const stored = (page) => page.evaluate((key) => (localStorage.getItem(key) || ""
 const badge = (page) => page.evaluate(() => onPage('.rail .nav[data-area="bookmarks"] .nav-count')?.textContent ?? null);
 const pressed = (page, selector) => page.evaluate((s) => onPage(s)?.getAttribute("aria-pressed") ?? null, selector);
 const listIds = (page) => page.evaluate(() => [...allOnPage(".rows a.row")].map((row) => row.dataset.id));
-// Where the switch „Merken" of a module's heading stands: at the right end of the line of the
-// credits, where the content under the heading ends, or, where the line has no room for the pair
-// side by side, under „Einplanen", which stands there.
+// Where the switch „Merken" of a module's heading stands: where the content under the heading
+// ends, after „Einplanen" — at the right end of the line of the credits, or, where that line has no
+// room for the two, under the badges on a line of their own (owner, 2026-10-20; module.mjs checks
+// the three ways).
 const placement = (page, root, body) => page.evaluate(([root, body]) => {
   const rect = (selector) => onPage(selector)?.getBoundingClientRect();
   // The switch with its arrow, once the module is marked (the pair).
   const [credits, mark, edge] = [`${root} .badges .badge.strong`, `${root} .mark-pair`, body].map(rect);
-  const plan = rect(`${root} .plan-toggle.mark-switch`) ?? mark;
-  const inLine = mark.top >= plan.bottom ? plan : mark;
+  const plan = rect(`${root} .plan-pair`) ?? mark;
   const middle = (r) => (r.top + r.bottom) / 2;
-  const badges = [...allOnPage(`${root} .badges > .badge`)].map((badge) => badge.getBoundingClientRect().right);
-  return { sameLine: Math.abs(middle(credits) - middle(inLine)), edge: Math.abs(mark.right - edge.right), afterBadges: Math.min(plan.left, mark.left) - Math.max(...badges), height: mark.height };
+  const badges = [...allOnPage(`${root} .badges > .badge`)].map((badge) => badge.getBoundingClientRect());
+  return {
+    beside: Math.abs(middle(credits) - middle(plan)) <= 0.5 && Math.min(plan.left, mark.left) - Math.max(...badges.map((badge) => badge.right)) >= 6,
+    below: Math.min(plan.top, mark.top) >= Math.max(...badges.map((badge) => badge.bottom)),
+    edge: Math.abs(mark.right - edge.right),
+    height: mark.height,
+  };
 }, [root, body]);
 
 // ---------- desktop ----------
@@ -148,15 +153,16 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await step("preview", () => page.click(`a.row[data-id="${ids[6]}"] >> visible=true`), () => Boolean(onPage(".detail .mark-toggle.mark-switch")));
   check((await pressed(page, ".detail .mark-toggle.mark-switch")) === "false", "the preview of an unmarked module shows it marked");
   check(await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch kbd")?.textContent === "M"), "the shortcut is not written on the switch");
-  // In the line of the credits, at its right end (or under „Einplanen" there).
+  // At the right end of the line of the credits, or under the badges where it has no room.
   const placed = await placement(page, ".detail", ".detail .dbody .section");
-  check(placed.sameLine <= 0.5 && placed.edge <= 0.5 && placed.afterBadges >= 6 && placed.height >= 32, `the switch is not at the right end of the line of the credits: ${JSON.stringify(placed)}`);
+  check((placed.beside || placed.below) && placed.edge <= 0.5 && placed.height >= 32, `the switch is not at the right end of the line of the credits nor under it: ${JSON.stringify(placed)}`);
   await page.evaluate(() => document.activeElement?.blur());
-  const widthBefore = await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch").getBoundingClientRect().width);
+  // The label keeps its width (the switch itself makes room for its arrow where it has half the line).
+  const widthBefore = await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch > span").getBoundingClientRect().width);
   await step("M marks the previewed module", () => page.keyboard.press("m"), () => onPage(".detail .mark-toggle.mark-switch").getAttribute("aria-pressed") === "true");
   check((await pressed(page, `.row-wrap:has(a.row[data-id="${ids[6]}"]) > .mark-toggle`)) === "true", "the row does not follow the preview");
   check(await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch").textContent.includes("Gemerkt")), "the switch does not say „Gemerkt“");
-  check(Math.abs((await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch").getBoundingClientRect().width)) - widthBefore) < 0.5, "the switch changes its width when pressed");
+  check(Math.abs((await page.evaluate(() => onPage(".detail .mark-toggle.mark-switch > span").getBoundingClientRect().width)) - widthBefore) < 0.5, "the switch's label changes its width when pressed");
   check((await badge(page)) === "3", `three marks, the rail says ${await badge(page)}`);
   // The focused row wins over the preview: M acts where the keyboard is.
   await page.focus(`a.row[data-id="${ids[8]}"] >> visible=true`);
@@ -169,7 +175,7 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && Boolean(onPage(".module-page .mark-toggle.mark-switch")));
   check((await pressed(page, ".module-page .mark-toggle.mark-switch")) === "true" && (await pressed(page, ".sidebar .action.mark-toggle")) === "true", "the module's page does not know the mark");
   const onPage = await placement(page, ".module-page", ".module-grid > aside .section");
-  check(onPage.sameLine <= 0.5 && onPage.edge <= 0.5, `on the module's page the switch is not at the right end of the line of the credits: ${JSON.stringify(onPage)}`);
+  check((onPage.beside || onPage.below) && onPage.edge <= 0.5, `on the module's page the switch is not at the right end of the line of the credits nor under it: ${JSON.stringify(onPage)}`);
   await step("the sidebar's action takes the mark away", () => page.click(".sidebar .action.mark-toggle >> visible=true"), () => onPage(".module-page .mark-toggle.mark-switch").getAttribute("aria-pressed") === "false" && onPage(".sidebar .action.mark-toggle").textContent.includes("Merken"));
   await step("and M gives it back", () => page.keyboard.press("m"), () => onPage(".sidebar .action.mark-toggle").getAttribute("aria-pressed") === "true");
 
