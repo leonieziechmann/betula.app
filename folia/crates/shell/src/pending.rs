@@ -62,7 +62,10 @@ pub const PAUSE_MS: f64 = 1000.0;
 /// The page whose frame a skeleton shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Shape {
+    /// The start page: the set-up, or the visitor's day.
     Home,
+    /// „Über Betula".
+    About,
     Catalog,
     Module,
     Programs,
@@ -82,6 +85,8 @@ impl Shape {
     fn of(path: &str) -> Self {
         if path == url::HOME {
             Shape::Home
+        } else if path == url::ABOUT {
+            Shape::About
         } else if path == url::CATALOG {
             Shape::Catalog
         } else if path.starts_with("/catalog/module/") {
@@ -755,7 +760,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             let (slug, tab) = program(to_path)?;
             program_change(&ProgramUrl::parse(&slug, tab, from_search), &ProgramUrl::parse(&slug, tab, to_search), phone)
         }
-        Shape::Home | Shape::Module | Shape::Profile | Shape::Text => None,
+        Shape::Home | Shape::About | Shape::Module | Shape::Profile | Shape::Text => None,
     }
 }
 

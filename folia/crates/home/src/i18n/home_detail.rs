@@ -1,4 +1,4 @@
-//! Texts of „Betula im Detail", the chapters at the end of the start page (`pages/home/detail.rs`):
+//! Texts of „Betula im Detail", the chapters at the end of „Über Betula" (`home/detail.rs`):
 //! a chapter per feature, each a name, a headline, a line under it and four points, and the words
 //! of its picture. Where a picture shows a part of the app (a button, a filter, a chip), the page
 //! takes its words from that part's own group (`catalog`, `studyplan_export` …), so that they are
@@ -93,7 +93,7 @@ pub struct Texts {
     pub to_privacy: &'static str,
     /// What the tour quotes of the other areas, as they name it themselves (keep in step with
     /// `program::in_catalog`, `studyplan_head::week_a`, `clashes_per_week`, `studyplan_share`
-    /// and `studyplan_export`): the start page knows no feature's texts but its own.
+    /// and `studyplan_export`): „Über Betula" knows no feature's texts but its own.
     pub quoted_in_catalog: &'static str,
     pub quoted_week_a: &'static str,
     pub quoted_one_clash_per_week: &'static str,

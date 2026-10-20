@@ -1,6 +1,6 @@
 [package]
 name = "folia-home"
-version = "1.43.0"
+version = "1.44.0"
 edition = "2021"
 description = "The start page of Betula and the legal pages"
 
@@ -36,6 +36,8 @@ web-sys = { version = "0.3", optional = true, features = ["Window", "Document", 
 [dev-dependencies]
 # The tests that look a program up in a real snapshot (`FOLIA_TEST_SNAPSHOT`).
 folia-model = { path = "../model", features = ["sqlite"] }
+# The timetables of the start page's tests (`model::tests`).
+folia-timetable = { path = "../timetable", features = ["fixtures"] }
 
 [lints.clippy]
 unwrap_used = "deny"

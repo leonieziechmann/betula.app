@@ -31,13 +31,10 @@ mod tests {
                 (answer(3, &home.for_studies), quoted(t.catalog.area)),
                 (answer(4, &home.for_studies), quoted(t.catalog.confirmed)),
                 (answer(7, &home.about_betula), quoted(t.myprogram.mine)),
-                (home.step_program.text, quoted(t.myprogram.mine)),
             ];
             for (text, label) in pairs {
                 assert!(text.contains(&label), "{locale:?}: {label} is not in: {text}");
             }
-            // The first step is the button of the first panel, under the same name.
-            assert_eq!(home.step_program.title, home.choose_program, "{locale:?}");
         }
     }
 

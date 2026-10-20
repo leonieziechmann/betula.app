@@ -150,7 +150,7 @@ for (const slow of [1, 4]) {
   }, slow);
   await watch(page, "the rail: start" + tag, click(page, '.rail a.nav[data-area="home"]'), {
     feedback: () => document.querySelector('.rail a.nav[data-area="home"]')?.getAttribute("aria-current") === "page",
-    result: () => location.pathname === "/" && document.querySelector(".home-hero h1"),
+    result: () => location.pathname === "/" && document.querySelector(".day-hero h1"),
     skeleton: true,
   }, slow);
   // The Stundenplan: the tab and the title in the first frame, the frame of the plan as its

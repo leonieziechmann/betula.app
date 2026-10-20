@@ -2130,7 +2130,7 @@ html.js:not(.mine) .program-pick .if-choose { display: inline; }
 html.js:not(.mine) .program-pick .if-all { display: none; }
 /* There, with the picker's chevron at its end and the picker's room, so that nothing moves when
    the app puts the picker in its place. */
-.intro-actions .program-pick .combo-chevron, .start-btn.program-pick .combo-chevron { width: 16px; height: 16px; color: var(--text-3); }
+.intro-actions .program-pick .combo-chevron { width: 16px; height: 16px; color: var(--text-3); }
 html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .intro-actions .pick-combo .combo-trigger { width: auto; min-height: 46px; gap: 8px; padding: 0 14px 0 18px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 14.5px; font-weight: 620; }
 .intro-actions .pick-combo .combo-trigger:hover { background: var(--panel-2); }
@@ -2159,68 +2159,6 @@ html.js:not(.mine) .intro-actions .program-pick { padding-right: 14px; }
 .tree-figures dd { order: -1; margin: 0; color: var(--text); font-size: 22px; font-weight: 700; line-height: 1.15; letter-spacing: -.03em; }
 .tree-figures dt { color: var(--text-2); font-size: 13px; font-weight: 580; }
 .tree-figures dt small { margin-left: 5px; color: var(--text-3); font-size: 12px; font-weight: 500; }
-
-/* The way in for a first visit (home/start.rs): three steps, one under the other on a narrow page
-   and side by side on a wide one, joined through their marks by a line, as a path. Each has one
-   button (owner, 2026-09-28: one click a step) and names where the navigation keeps it, as chips
-   with the rail's icon and name. The next step's button wears the accent; a step done wears a
-   tick, the line from it to the next one turns green, and what was done stands in place of the
-   chips. Only words and colours follow the visitor, never a height. */
-.start-steps { display: grid; grid-template-columns: minmax(0, 1fr); margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); --track: var(--line-strong); --track-done: color-mix(in srgb, var(--accent) 60%, transparent); }
-.start-step { --mark-x: 40px; --mark-y: 34px; position: relative; min-width: 0; display: grid; grid-template-columns: 32px minmax(0, 1fr); align-content: start; gap: 4px 14px; padding: 18px 24px 20px; }
-.start-step > * { grid-column: 2; min-width: 0; }
-/* The line through the marks: to the one before (::before) and on to the next (::after). */
-.start-step::before, .start-step::after { content: ""; position: absolute; left: calc(var(--mark-x) - 1px); width: 2px; background: var(--track); }
-.start-step::before { top: 0; height: var(--mark-y); }
-.start-step::after { top: var(--mark-y); bottom: 0; }
-.start-step:first-child::before, .start-step:last-child::after { content: none; }
-.start-step.is-done::after, .start-step.is-done + .start-step::before { background: var(--track-done); }
-.start-step .start-mark { grid-column: 1; grid-row: 1; position: relative; z-index: 1; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 5px var(--panel); }
-.start-mark b { font-size: 14px; font-weight: 680; }
-.start-mark .icon { width: 17px; height: 17px; stroke-width: 2.6; }
-.start-step.is-next .start-mark { background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 5px var(--panel); }
-.start-step.is-done .start-mark { background: var(--accent-soft); color: var(--accent-ink); box-shadow: inset 0 0 0 1.5px var(--accent-line), 0 0 0 5px var(--panel); }
-/* The heading on the middle of its mark, the rest under the heading. */
-.start-step h3 { grid-row: 1; min-height: 32px; display: flex; align-items: center; margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.015em; }
-.start-step p { color: var(--text-2); font-size: 13.5px; line-height: 1.5; max-width: 62ch; text-wrap: pretty; }
-/* The step's one button (a link, or the picker of „Studiengang wählen"); the next step's in the accent. */
-.start-act { display: flex; margin-top: 10px; }
-.start-btn, .start-act .pick-combo .combo-trigger { width: auto; min-height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13.5px; font-weight: 620; text-decoration: none; transition: background .12s, filter .12s; }
-.start-btn:hover, .start-act .pick-combo .combo-trigger:hover { background: var(--panel-2); text-decoration: none; }
-.start-btn .icon, .start-act .pick-combo .combo-trigger > .icon:first-child { width: 16px; height: 16px; color: var(--text-2); }
-.start-act .pick-combo .combo-value.placeholder { color: inherit; }
-.start-step.is-next .start-btn, .start-step.is-next .pick-combo .combo-trigger { background: var(--accent); box-shadow: none; color: var(--on-accent); }
-.start-step.is-next .start-btn:hover, .start-step.is-next .pick-combo .combo-trigger:hover { background: var(--accent); filter: brightness(1.08); }
-.start-step.is-next .start-btn .icon, .start-step.is-next .pick-combo .combo-trigger .icon { color: inherit; }
-/* Where the navigation keeps the step, and its items as the rail shows them; once the step is
-   done, what was done in their place, on the same line. (A `span` of the items can be `.js-only`,
-   whose `display: contents` would leave no box: hence the longer selector.) */
-.start-step .start-where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: 24px; margin-top: 10px; color: var(--text-3); font-size: 12.5px; }
-.start-where .start-place { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-weight: 580; }
-.start-place .icon { width: 14px; height: 14px; }
-.start-state a, .start-state > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; color: var(--text); font-weight: 620; text-decoration: none; }
-.start-state a:hover { text-decoration: underline; }
-.start-state a > span, .start-state > span > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.start-state .icon { flex: none; width: 15px; height: 15px; color: var(--accent-ink); }
-.start-state a > .icon:last-child { color: var(--text-3); }
-/* For those who want to read first: the ways to the sections that explain Betula. */
-.start-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 10px 16px 12px 24px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 13px; }
-.start-foot > span { margin-right: 6px; }
-.start-foot a { display: inline-flex; align-items: center; gap: 2px; min-height: 34px; padding: 0 6px 0 10px; border-radius: var(--r-ctl); color: var(--text-2); font-weight: 580; text-decoration: none; }
-.start-foot a:hover { background: var(--panel-3); color: var(--text); text-decoration: none; }
-.start-foot .icon { width: 15px; height: 15px; color: var(--text-3); }
-/* Side by side: the mark over the heading, the line through the marks across the row, and the
-   button and the chips of each on the same lines as the others'. */
-@container home (min-width: 900px) {
-  .start-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .start-step { --mark-y: 36px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr auto auto; gap: 6px; padding: 20px 24px 22px; }
-  .start-step > * { grid-column: 1; }
-  .start-step .start-mark { grid-row: 1; margin-bottom: 8px; }
-  .start-step h3 { grid-row: 2; min-height: 0; }
-  .start-step::before, .start-step::after { top: calc(var(--mark-y) - 1px); bottom: auto; width: auto; height: 2px; }
-  .start-step::before { left: 0; width: var(--mark-x); }
-  .start-step::after { left: var(--mark-x); right: 0; }
-}
 
 /* The wood behind every page (`ground::Wood`; owner, 2026-09-29: „so ein Scherenschnitt, der auch
    grau nur etwas dunkler wie der Hintergrund ist und nur etwas Struktur hinzufügt", then „bring den
@@ -4494,11 +4432,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
   .block-head { padding: 16px 8px 12px 16px; }
   .rowlink { height: 60px; padding: 0 12px 0 16px; }
   .ability { padding-left: 16px; padding-right: 16px; }
-  .start-step { --mark-x: 32px; padding-left: 16px; padding-right: 16px; }
   .intro-actions .pick-combo { flex: 1 1 auto; }
   .intro-actions .pick-combo .combo-trigger { width: 100%; min-height: 50px; justify-content: center; }
   .intro-actions .pick-combo .combo-value { flex: 0 1 auto; }
-  .start-foot { padding-left: 16px; padding-right: 8px; }
   .faq summary { padding-left: 16px; }
   .faq details p { padding: 0 16px 16px; }
   .soon-line { padding: 14px 16px 16px; }
@@ -5722,3 +5658,319 @@ a.st-rsp-name:hover { text-decoration: underline; }
    of the installed app keeps the fade that takes it away without enhance.js (.launch). */
 @media (prefers-reduced-motion: reduce) { *:not(.wood, .launch), *::before, *::after { animation: none !important; transition: none !important; } }
 @media print { .rail, .topbar, .filters, .bottomnav, .pager, .crown, .ground, .to-top, .wood { display: none !important; } body { display: block; background: #fff; } .main { height: auto; display: block; } }
+
+/* ---------- the start page: the day and the setup (concept A, 2026-10-20) ----------
+   folia/design/startseite/konzepte.html; home/mod.rs, today.rs, setup.rs. The day begins with a
+   photo of the season (birches; fog while the exams run), 300 px high with a study set up and 640 px
+   with the setup on a first visit, at every hour and in every step (owner, 2026-10-20: „Beim PC darf
+   sich das hero banner nicht verschieben"). The stylesheet picks the season's photo by the head
+   script's `data-season`, so only one is fetched and the server's page is the same for everybody.
+   On a phone the photo reaches up under the search, and once the page is scrolled a dark veil lies
+   under the search (`data-veil`). */
+:root { --veil: rgba(12, 16, 26, .34); --veil-top: rgba(12, 16, 26, .8); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --veil: rgba(0, 0, 0, .5); --veil-top: rgba(0, 0, 0, .8); } }
+:root[data-theme="dark"] { --veil: rgba(0, 0, 0, .5); --veil-top: rgba(0, 0, 0, .8); }
+.day { container: day / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; display: grid; gap: var(--gap); align-content: start; }
+@media (min-width: 901px) { .day-page .page { overflow-x: hidden; } }
+/* The server writes the setup and the day's skeleton; the head script's `mine` says which shows. */
+.day-first-wrap, .day-sk-wrap { display: contents; }
+html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
+
+.day-hero { position: relative; isolation: isolate; overflow: hidden; height: 300px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); gap: 24px; padding: 24px 24px 24px 28px; border-radius: var(--r-panel); background: #3d4147; color: #fff; box-shadow: var(--shadow-panel); }
+.day-photo, .day-shade { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.day-photo { background: #4b5056 url("/assets/season/summer.webp") center / cover no-repeat; }
+:root[data-season="spring"] .day-photo { background-image: url("/assets/season/spring.webp"); }
+:root[data-season="autumn"] .day-photo { background-image: url("/assets/season/autumn.webp"); }
+:root[data-season="winter"] .day-photo { background-image: url("/assets/season/winter.webp"); }
+:root .day-photo.fog { background-image: url("/assets/season/fog.webp"); }
+.day-shade { background: linear-gradient(90deg, rgba(8, 10, 14, .62), rgba(8, 10, 14, .18) 55%, rgba(8, 10, 14, .05)), linear-gradient(0deg, rgba(8, 10, 14, .42), transparent 55%); }
+.day-hero.night .day-shade { background: linear-gradient(90deg, rgba(6, 10, 30, .8), rgba(10, 16, 44, .55)), linear-gradient(0deg, rgba(4, 6, 18, .6), transparent 60%); }
+.day-hero.dusk .day-shade { background: linear-gradient(90deg, rgba(40, 14, 30, .62), rgba(80, 40, 30, .2) 60%), linear-gradient(0deg, rgba(20, 8, 20, .5), transparent 55%); }
+.day-greet { display: grid; gap: 8px; align-content: end; min-width: 0; }
+.day-eyebrow { font-size: 12.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; opacity: .86; }
+.day-greet h1 { font-size: 56px; line-height: 1; letter-spacing: -.045em; font-weight: 780; text-wrap: balance; }
+/* Two lines at most, and room for both whatever it says: nothing under it moves. */
+.day-line { font-size: 16px; line-height: 1.45; min-height: 2.9em; max-width: 46ch; opacity: .92; text-wrap: pretty; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* The semester clock (clock.rs): a piece per week, the running one wider and filling to the hour,
+   the break's weeks hollow, the exams one hatched bar that opens into its weeks while they run. */
+.day-clock { display: grid; gap: 6px; max-width: 460px; margin-top: 10px; color: #fff; }
+.day-clock-row { display: flex; align-items: flex-end; gap: 3px; height: 22px; }
+.day-clock-row > i { position: relative; flex: 1 1 0; min-width: 3px; height: 10px; border-radius: 3px; background: color-mix(in srgb, currentColor 22%, transparent); }
+.day-clock-row > i.done { background: color-mix(in srgb, currentColor 65%, transparent); }
+.day-clock-row > i.pause { background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, currentColor 34%, transparent); }
+.day-clock-row > i.pause.done { background: color-mix(in srgb, currentColor 34%, transparent); box-shadow: none; }
+.day-clock-row > i.ex, .day-clock-row > i.exw { background: repeating-linear-gradient(135deg, color-mix(in srgb, currentColor 40%, transparent) 0 3px, transparent 3px 6px); }
+.day-clock-row > i.ex { flex-grow: 1.4; }
+.day-clock-row > i.ex.done, .day-clock-row > i.exw.done { background: color-mix(in srgb, currentColor 65%, transparent); }
+.day-clock-row > i.cur { flex-grow: 3.4; height: 20px; background: linear-gradient(90deg, currentColor var(--fill, 0%), color-mix(in srgb, currentColor 30%, transparent) var(--fill, 0%)); box-shadow: none; }
+.day-clock-row > i.dot::after { content: ""; position: absolute; left: 50%; bottom: calc(100% + 3px); width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
+.day-clock-cap { display: flex; justify-content: space-between; gap: 12px; font-size: 11.5px; opacity: .85; font-variant-numeric: tabular-nums; }
+.day-clock-cap span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The card beside the greeting: what comes next, as high as the picture. */
+.day-next { display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; padding: 16px 18px; border-radius: 12px; background: color-mix(in srgb, #fff 90%, transparent); color: #10151f; box-shadow: 0 20px 40px -20px rgba(0, 0, 0, .5); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .day-next { background: color-mix(in srgb, #12151c 86%, transparent); color: #eceff5; } }
+:root[data-theme="dark"] .day-next { background: color-mix(in srgb, #12151c 86%, transparent); color: #eceff5; }
+.day-next > * { flex: none; }
+.day-next .k { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .6; }
+.day-next .when { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.day-next .when b { font-size: 34px; font-weight: 760; letter-spacing: -.03em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.day-next .when span { color: var(--accent-ink); font-size: 15px; font-weight: 650; white-space: nowrap; }
+.day-next .what { font-size: 15.5px; font-weight: 640; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.day-next .where { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13.5px; opacity: .8; }
+.day-next .where > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.day-next .where.dim { opacity: .6; }
+.day-next .where .icon { flex: none; width: 15px; height: 15px; }
+.day-next .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 4px; }
+.day .btn.sm { min-height: 34px; padding: 0 12px; gap: 6px; font-size: 13px; border-radius: var(--r-s); }
+.day .btn.sm:not(.primary):not(.ghost) { background: var(--panel); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.day .btn.sm .icon { width: 15px; height: 15px; }
+.day .btn.ghost { background: none; color: var(--text-2); }
+.day .btn.ghost:hover { background: var(--panel-3); color: var(--text); }
+.day-next .btn.sm:not(.primary) { background: color-mix(in srgb, var(--panel) 70%, transparent); }
+
+/* A first visit: the setup on the taller picture, the mark and the name beside it. */
+.day-first { height: 640px; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); align-items: center; }
+.day-first .day-shade { background: radial-gradient(ellipse 42% 52% at 73% 46%, rgba(8, 10, 14, .52), rgba(8, 10, 14, 0) 72%), linear-gradient(90deg, rgba(8, 10, 14, .5), rgba(8, 10, 14, .2) 45%, rgba(8, 10, 14, .28)); }
+.day-brand { align-self: stretch; min-width: 0; display: grid; grid-template-rows: 1fr auto; justify-items: center; padding: 8px 0; color: #fff; text-align: center; }
+.day-brand-mark { align-self: center; display: grid; justify-items: center; gap: 18px; }
+.day-brand-logo .mark { width: 96px; height: 96px; filter: drop-shadow(0 14px 30px rgba(0, 0, 0, .35)); }
+.day-brand .wordmark { font-size: 84px; color: #fff; text-shadow: 0 6px 36px rgba(0, 0, 0, .3); }
+.day-brand-tag { font-size: 16px; font-weight: 560; letter-spacing: .02em; opacity: .9; }
+.day-brand-say { display: grid; gap: 4px; max-width: 440px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, .28); }
+.day-brand-say b { font-size: 19px; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
+.day-brand-say > span { font-size: 13.5px; opacity: .86; }
+@container day (max-width: 1100px) { .day-first { grid-template-columns: minmax(0, 560px); justify-content: start; } .day-brand { display: none; } }
+
+/* The setup's card (setup.rs): as high in every step; what is long scrolls inside it. */
+.ob { --ob-h: 592px; height: var(--ob-h); width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; padding: 22px 22px 18px; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); }
+.ob > * { flex: none; }
+.ob-chips { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.ob-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 9px 3px 4px; border-radius: 999px; background: var(--panel-2); color: var(--text-3); font-size: 12px; font-weight: 600; }
+.ob-chip[disabled] { cursor: default; }
+.ob-chip i { flex: none; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--panel-3); color: var(--text-2); font-size: 10.5px; font-style: normal; font-weight: 750; }
+.ob-chip i .icon { width: 11px; height: 11px; stroke-width: 3; }
+.ob-chip > span:last-child { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-chip.on { flex: none; background: var(--accent-soft); color: var(--text); }
+.ob-chip.on i { background: var(--accent); color: var(--on-accent); }
+.ob-chip.done { color: var(--text-2); }
+.ob-chip.done i { background: var(--text-2); color: var(--panel); }
+.ob-chip.done:hover { color: var(--text); background: var(--panel-3); }
+.ob-title { font-size: 30px; line-height: 1.1; letter-spacing: -.035em; font-weight: 760; text-wrap: balance; }
+.ob-lede { color: var(--text-2); font-size: 14.5px; text-wrap: pretty; }
+.ob .combo-trigger { min-height: 50px; padding: 0 12px 0 14px; font-size: 15.5px; text-decoration: none; color: var(--text); }
+.ob .combo-trigger:hover { text-decoration: none; }
+.ob-art { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 12px; padding: 6px 2px 4px; overflow: hidden; color: var(--text-2); font-size: 13px; }
+.ob-dots { display: grid; grid-template-columns: repeat(auto-fill, 11px); gap: 4px; }
+.ob-dots i, .ob-key i { background: var(--fac, var(--text-3)); }
+.ob-dots i { width: 11px; height: 11px; border-radius: 3px; }
+.fac-4 { --fac: var(--fac-4); } .fac-5 { --fac: var(--fac-5); } .fac-6 { --fac: var(--fac-6); } .fac-0 { --fac: var(--text-3); }
+.ob-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.ob-key span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ob-key i { width: 8px; height: 8px; border-radius: 2px; }
+.ob-key b { color: var(--text); font-weight: 650; }
+.ob-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; }
+.ob-link { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; color: var(--text-2); font-weight: 600; font-size: 13px; text-decoration: none; }
+.ob-link:hover { color: var(--text); text-decoration: none; }
+.ob-link .icon { width: 14px; height: 14px; }
+.ob-about { margin-left: auto; color: var(--accent-ink); }
+.ob-fill { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -10px; padding: 0 10px 2px; scrollbar-width: thin; }
+.ob-sems { display: grid; gap: 4px; }
+.ob-sem { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; align-items: center; padding: 6px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; }
+.ob-sem:hover { box-shadow: inset 0 0 0 1.5px var(--text-2); }
+.ob-sem.usual { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.ob-sem b { font-size: 14.5px; font-weight: 640; }
+.ob-sem-what { grid-column: 1; color: var(--text-2); font-size: 12.5px; }
+.ob-warn { color: var(--warn); }
+.ob-fs { grid-row: span 2; font-size: 14px; font-weight: 720; }
+.ob-fs small { margin-left: 2px; color: var(--text-3); font-weight: 560; }
+.ob-custom { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: -6px; padding: 7px 8px 7px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ob-custom label { flex: 1 1 auto; color: var(--text-2); font-size: 13.5px; font-weight: 600; }
+.ob-num { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 13px; font-weight: 600; }
+.ob-num input { width: 60px; height: 34px; padding: 0 8px; border: 0; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: inherit; font-size: 14px; font-weight: 650; text-align: center; }
+.ob-num input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.ob-custom .btn { min-height: 34px; padding: 0 14px; font-size: 13px; }
+.ob-note { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 12.5px; }
+.ob-note.info { background: var(--panel-2); color: var(--text-2); }
+.ob-note .icon { flex: none; width: 15px; height: 15px; margin-top: 1px; }
+.ob-fill .ob-note { margin: 2px 0 8px; }
+.ob-plans { display: flex; flex-wrap: wrap; gap: 6px; }
+.ob-plan { min-height: 30px; padding: 0 10px; border-radius: 999px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.ob-plan[aria-checked="true"] { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.ob-mods { display: grid; gap: 2px; }
+.ob-mod { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 9px; text-align: left; }
+.ob-mod:hover { background: var(--panel-2); }
+.ob-box { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--line-strong); color: transparent; }
+.ob-box .icon { width: 14px; height: 14px; stroke-width: 3; }
+.ob-mod[aria-checked="true"] .ob-box { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+.ob-mod-text { min-width: 0; }
+.ob-mod-text b { display: block; font-size: 14px; font-weight: 600; }
+.ob-mod-text small { color: var(--text-2); font-size: 12px; }
+.ob-mod.ph .ob-mod-text b { color: var(--text-2); font-weight: 560; }
+.ob-lp { font-size: 13.5px; font-weight: 650; white-space: nowrap; }
+.ob-lp small { margin-left: 3px; color: var(--text-3); font-weight: 500; }
+.ob-switch { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; }
+.ob-toggle { position: relative; width: 36px; height: 22px; border-radius: 11px; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ob-toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: left .15s var(--ease); }
+.ob-switch[aria-checked="true"] .ob-toggle { background: var(--accent); box-shadow: none; }
+.ob-switch[aria-checked="true"] .ob-toggle::after { left: 17px; }
+.ob-switch b { display: block; font-size: 13.5px; font-weight: 620; }
+.ob-switch small { color: var(--text-2); font-size: 12px; }
+/* A confirming action stands right in Betula, flush with the edge (owner, 2026-10-20). */
+.ob-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.ob-actions .btn.ghost { background: none; color: var(--accent-ink); }
+.ob-actions .btn.ghost:hover { background: var(--panel-2); }
+
+/* The note after the setup. */
+.day-welcome { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+.day-welcome > div { flex: 1 1 260px; min-width: 0; }
+.day-welcome b { display: block; font-weight: 650; }
+.day-welcome small { color: var(--text-2); }
+.day-welcome-ok { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); }
+.day-welcome-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-welcome-x { width: 34px; height: 34px; }
+
+/* The panels under the picture: today and the next day on the left, the rest on the right. */
+.day-cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.day-col { display: grid; gap: var(--gap); min-width: 0; }
+.day-panel { min-width: 0; }
+.day-head { display: flex; align-items: center; gap: 10px; padding: 12px 8px 6px 16px; }
+.day-head h2 { font-size: 15px; font-weight: 660; letter-spacing: -.01em; white-space: nowrap; }
+.day-head .sub { min-width: 0; overflow: hidden; color: var(--text-3); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.day-head .ghost { margin-left: auto; flex: none; color: var(--accent-ink); }
+.day-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 620; white-space: nowrap; }
+.day-chip .icon { width: 12px; height: 12px; }
+.day-chip.warn { background: var(--warn-soft); color: var(--warn); }
+.day-chip.acc { background: var(--accent-soft); color: var(--accent-ink); }
+.day-chip.ink { background: var(--invert); color: var(--on-invert); }
+.day-list { display: grid; gap: 2px; padding: 2px 8px 10px; }
+.day-ev { position: relative; display: grid; grid-template-columns: 62px 4px minmax(0, 1fr) auto; align-items: center; gap: 0 12px; padding: 9px 10px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
+.day-ev:hover { background: var(--row-hover); text-decoration: none; }
+.day-ev-t { color: var(--text-2); font-size: 13px; line-height: 1.25; }
+.day-ev-t b { display: block; color: var(--text); font-size: 15px; font-weight: 650; }
+.day-ev-bar { align-self: stretch; border-radius: 3px; background: var(--tint); }
+.day-ev-w { min-width: 0; }
+.day-ev-w b { display: block; overflow: hidden; font-size: 14.5px; font-weight: 600; letter-spacing: -.005em; text-overflow: ellipsis; white-space: nowrap; }
+.day-ev-w small { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--text-2); font-size: 12.5px; }
+.day-ev-w small .icon { width: 13px; height: 13px; color: var(--text-3); }
+.day-ev-st { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.day-ev.past { opacity: .45; }
+.day-ev.now { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.day-ev.now .day-ev-t b { color: var(--accent-ink); }
+.day-ev.open .day-ev-bar { background: repeating-linear-gradient(180deg, var(--tint) 0 5px, transparent 5px 8px); }
+.day-ev.cancelled .day-ev-w b { text-decoration: line-through; color: var(--text-2); }
+.day-nowline { display: flex; align-items: center; gap: 8px; margin: 2px 0 2px 2px; color: var(--accent-ink); font-size: 11.5px; font-weight: 700; }
+.day-nowline::after { content: ""; flex: 1; height: 2px; border-radius: 2px; background: var(--accent); opacity: .6; }
+.day-empty { display: grid; gap: 4px; padding: 10px 16px 20px; color: var(--text-2); }
+.day-empty b { color: var(--text); font-size: 16px; font-weight: 650; }
+.day-empty-line { padding: 4px 16px 16px; color: var(--text-2); font-size: 13.5px; }
+.day-wk { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 4px 16px 14px; }
+.day-wk-d { display: grid; gap: 4px; }
+.day-wk-d > span { display: flex; justify-content: space-between; color: var(--text-3); font-size: 11.5px; font-weight: 620; }
+.day-wk-d.today > span { color: var(--accent-ink); }
+.day-wk-col { position: relative; height: 92px; overflow: hidden; border-radius: 7px; background: var(--panel-2); }
+.day-wk-d.today .day-wk-col { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.day-wk-col i { position: absolute; left: 3px; right: 3px; border-radius: 3px; background: var(--tint); opacity: .85; }
+.day-wk-col i.open { opacity: .35; }
+.day-wk-col i.exam { background: repeating-linear-gradient(135deg, var(--tint) 0 3px, transparent 3px 6px); }
+.day-exl, .day-bml { display: grid; gap: 2px; padding: 2px 8px 10px; }
+.day-ex { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
+.day-ex:hover, .day-bm:hover { background: var(--row-hover); text-decoration: none; }
+.day-ex-d { padding: 5px 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); line-height: 1.1; text-align: center; }
+.day-ex-d b { display: block; font-size: 18px; font-weight: 720; }
+.day-ex-d small { color: var(--text-3); font-size: 10.5px; font-weight: 650; text-transform: uppercase; }
+.day-ex-w { min-width: 0; }
+.day-ex-w b, .day-bm b { display: block; overflow: hidden; font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.day-ex-w small, .day-bm small { color: var(--text-2); font-size: 12px; }
+.day-ex-in { color: var(--text-2); font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.day-ex.soon .day-ex-in { color: var(--warn); }
+.day-prog { display: grid; gap: 8px; padding: 4px 16px 16px; }
+.day-prog-fig { display: flex; align-items: baseline; gap: 6px; }
+.day-prog-fig b { font-size: 26px; font-weight: 760; letter-spacing: -.03em; }
+.day-prog-fig span { color: var(--text-2); font-size: 13px; }
+.day-prog-bar { display: flex; height: 8px; overflow: hidden; border-radius: 4px; background: var(--panel-3); }
+.day-prog-bar i { display: block; height: 100%; }
+.day-prog-key { display: flex; flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 12px; }
+.day-prog-key i { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; }
+.day-prog .passed { background: var(--text-2); }
+.day-prog .planned { background: color-mix(in oklab, var(--text) 24%, var(--panel)); }
+.day-prog .open { background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.day-bm { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px; padding: 8px; border-radius: var(--r-row); color: var(--text); text-decoration: none; }
+.day-bm > .icon { width: 15px; height: 15px; color: var(--text); fill: currentColor; }
+.day-bm > span { min-width: 0; }
+.day-guest-acts { padding: 0 16px 16px; }
+.day-discover { padding: 0 14px 14px; }
+.day-discover .day-head { padding-left: 2px; padding-right: 0; }
+.day-ways { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.day-way { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r-panel); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-decoration: none; }
+.day-way:hover { background: var(--panel-2); text-decoration: none; }
+.day-way-i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: color-mix(in oklch, var(--tint) 14%, var(--panel)); color: var(--tint); }
+.day-way-t { min-width: 0; }
+.day-way-t b { display: block; font-size: 13.5px; font-weight: 620; }
+.day-way-t small { color: var(--text-3); font-size: 12px; }
+.day-way-n { font-size: 14px; font-weight: 700; }
+@container day (max-width: 1080px) { .day-ways { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container day (max-width: 980px) { .day-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* The day's skeleton (the server's page for a visitor with a program kept). */
+.day-hero-sk .day-greet { align-content: end; gap: 12px; }
+.day-sk-light { background: rgba(255, 255, 255, .22); }
+.day-next-sk { background: color-mix(in srgb, #fff 18%, transparent); }
+.day-panel-sk { height: 240px; }
+.day-panel-sk.tall { height: 420px; }
+
+/* Who took the photo, in the ground: the line of the photo shown. */
+.photo-credit { display: none; }
+.photo-credit a { color: inherit; }
+:root:not([data-season]) .photo-credit[data-photo="summer"], :root[data-season="spring"] .photo-credit[data-photo="spring"], :root[data-season="summer"] .photo-credit[data-photo="summer"], :root[data-season="autumn"] .photo-credit[data-photo="autumn"], :root[data-season="winter"] .photo-credit[data-photo="winter"] { display: inline; }
+.work:has(.day-photo.fog) .photo-credit { display: none; }
+.work:has(.day-photo.fog) .photo-credit[data-photo="fog"] { display: inline; }
+.ground-legal { flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  /* The photo reaches up under the search, full width, its lower corners round; the greeting
+     stands in line with the text of the cards. */
+  .day { gap: 10px; }
+  .day-hero { height: auto; grid-template-columns: minmax(0, 1fr); gap: 16px; margin: calc(-1 * var(--bar)) -12px 0; padding: calc(var(--bar) + 34px) 12px 12px; border-radius: 0 0 22px 22px; box-shadow: none; }
+  .day-greet { padding-inline: 16px; }
+  .day-greet h1 { font-size: 38px; }
+  .day-line { font-size: 14.5px; }
+  .day-shade { background: linear-gradient(180deg, rgba(8, 10, 14, .72) 0, rgba(8, 10, 14, .54) 150px, rgba(8, 10, 14, .3) 62%, rgba(8, 10, 14, .42)); }
+  .day-hero.night .day-shade { background: linear-gradient(180deg, rgba(6, 10, 30, .88) 0, rgba(8, 12, 36, .68) 150px, rgba(8, 12, 36, .5) 62%, rgba(4, 6, 18, .62)); }
+  .day-hero.dusk .day-shade { background: linear-gradient(180deg, rgba(36, 12, 26, .78) 0, rgba(50, 20, 30, .56) 150px, rgba(60, 30, 30, .32) 62%, rgba(20, 8, 20, .5)); }
+  .day-next { height: 236px; }
+  .day-next .when b { font-size: 28px; }
+  .day-first { height: auto; }
+  .day-first .day-shade { background: linear-gradient(180deg, rgba(8, 10, 14, .72) 0, rgba(8, 10, 14, .4) 160px, rgba(8, 10, 14, .3)); }
+  .day-brand { display: none; }
+  .ob { --ob-h: 584px; max-width: none; padding: 18px 16px 14px; border-radius: 16px; }
+  .ob-title { font-size: 26px; }
+  .ob-lede { font-size: 13.5px; }
+  .ob-switch { padding: 8px 10px; }
+  .ob-about { margin-left: 0; }
+  .ob-actions { flex-direction: column; align-items: stretch; gap: 2px; }
+  .ob-actions .ob-create { order: -1; min-height: 46px; }
+  .ob-actions .ob-without { align-self: center; }
+  .day-cols { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .day-col { gap: 10px; }
+  .day-ev { grid-template-columns: 54px 4px minmax(0, 1fr); padding: 9px 8px; }
+  .day-ev-st { grid-column: 3; justify-content: flex-start; margin-top: 4px; }
+  .day-ev-t b { font-size: 14px; }
+  .day-head { flex-wrap: wrap; row-gap: 2px; }
+  .day-head .sub { order: 3; flex-basis: 100%; }
+  .day-ways { grid-template-columns: minmax(0, 1fr); }
+  .day-discover { padding: 0 10px 10px; }
+  .day-hero-sk { min-height: 520px; }
+  /* Over the photo the bar at the top is clear: no frosted ground, no leaves. Once the page is
+     scrolled (`data-veil`), a dark veil lies under the search over what runs beneath it, see-through
+     and a little blurred, darkest under the time (owner, 2026-10-20: „nicht zu 100% opaque … im
+     light und dark mode das ein wenig abzudunkeln … dass sich die Elemente von einander abheben"). */
+  :root:has(#content > .page-stage.front .day-hero) .crown { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :root:has(#content > .page-stage.front .day-hero) .crown::after { opacity: 0; }
+  /* The veil is the crown's first layer in place of the leaves, reaching 34 px below the bar: the
+     bar keeps its box whether the veil lies or not, so nothing moves where the app takes over a
+     page scrolled already. */
+  :root:has(#content > .page-stage.front .day-hero) .crown::before { height: calc(100% + 34px); padding: 0; background: linear-gradient(180deg, var(--veil-top) 0, var(--veil) 30px, color-mix(in srgb, var(--veil) 72%, transparent) 70%, transparent); -webkit-mask: linear-gradient(#000 calc(100% - 46px), transparent); mask: linear-gradient(#000 calc(100% - 46px), transparent); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); opacity: 0; transition: opacity .2s; }
+  :root[data-veil]:has(#content > .page-stage.front .day-hero) .crown::before { opacity: 1; }
+}
