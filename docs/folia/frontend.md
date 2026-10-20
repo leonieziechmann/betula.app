@@ -3236,10 +3236,12 @@ matters most — „organisch ohne Popup, einfach intuitiv". (The way in went wi
   `.start-path`, `.start-steps`, `.start-step`, `.start-mark`, `.start-btn` and so on.
 
 `node folia/e2e/about.mjs` (`home.mjs` until 2026-10-20) checks the page without a sidebar, the
-birch of the figures and the wood behind it (at 1920 px the column 1600 px wide in the middle, the
-masks drawn and sized for it), a pick in the first panel's picker (its button „Alle Studiengänge"
-then, no page load); the server test that there is no sidebar, the link of „Studiengang wählen",
-the trunk and the wood (and that no branch and no step of the way in is left).
+birch of the figures and the wood behind it (at 1920 px the column 1600 px wide in the middle of
+the page, its gaps measured inside the 8 px the page keeps from the rail and from the window's
+edge; the masks drawn and sized for it, their middle under its), a pick in the first panel's
+picker (its button „Alle Studiengänge" then, no page load); the server test that there is no
+sidebar, the link of „Studiengang wählen", the trunk and the wood (and that no branch and no step
+of the way in is left).
 
 ### The birch: crown and ground (2026-09-25)
 
@@ -4188,7 +4190,11 @@ way to them. It is for working on the code: the bundle that ships (`build-client
 on 6 500 pages (every address of the sitemap and 1 100 lists and filters found on them):
 
 - The server's HTML carries more of Leptos's markers (`<!>`, `<!--<() />-->`): 2–5 % of a page,
-  about 1 % gzipped. Without its comments every page is the same, byte for byte.
+  about 1 % gzipped. Without its comments every page is the same, byte for byte. With the flag the
+  children of every element are one erased list, which ends in `<!>` (`<span
+  class="mono">11112<!></span>`, without it `<span class="mono">11112</span>`), so the server's
+  tests match a page without the markers (`markup`, `folia/crates/server/src/tests.rs`); the
+  browser app does not hydrate, and none of them is anything to it.
 - Every reactive closure costs an `Arc<Mutex<_>>` and a call through a vtable. A page not yet
   in the cache renders in 8.8 ms instead of 8.0 ms (median of 250, debug builds).
 - What compiles with the flag need not compile without it: the types it erases are deeper there,
@@ -5169,23 +5175,24 @@ sections and links agree, no two links of a subject read the same, nothing cut o
 sidebar); filters as links that keep focus and sidebar, the search keeping the filters; a jump to
 a faculty without a history entry; the views of a program in the sidebar; on a phone the filters
 in a sheet; and the filter links without JavaScript. On a program's page: the numbers of the head
-(and that none of them leaves its panel), one study plan per study direction (no module twice, the
-first semester at 30 LP, semester columns of equal width), switching the direction through the
-URL, a module opening beside the page (its row marked, the panel not lying over the table) and
-closing again, „Vollbild" in place (`full=1`, the programs tab still current, the module's
-sidebar) and back to the program without a new history entry, Esc leaving the program instead of
-reopening the module, an area beside the page with its modules (and a module picked out of it
-coming back to the area), a requirement of the plan with its numbers and its ways on, the
-catalog's tab unchanged by a module seen in full screen out of a program, matrix and list with
-the choice remembered in this browser only, the plan at every width of the window (no cell out of
-its column, no row taller than its name, the list where the matrix has no room), the areas as
-groups of rows with the sidebar leading to each of them without a history entry, „Mein Plan"
-leading to all of the program's modules in the catalog (as many as the head counts), and on a
-phone the plan as a list without a switch, its rows as tall as their names (Informatik B.Sc.,
-„Art" and „Bereich" given way), and a page that does not scroll sideways, a module coming up as a
-sheet over the page with one history entry (over „Mein Studium", „Alle Studiengänge" and Start,
-which the first use of a page come from outside lays under it) and its × going back a step, an
-area becoming the page and a module picked out of it leading back to the area.
+(its modules and FÜS modules as many as the snapshot the server serves counts, `/api/db`: the BTU
+adds modules and takes them away; none of the numbers leaving its panel), one study plan per study
+direction (no module twice, the first semester at 30 LP, semester columns of equal width),
+switching the direction through the URL, a module opening beside the page (its row marked, the
+panel not lying over the table) and closing again, „Vollbild" in place (`full=1`, the programs tab
+still current, the module's sidebar) and back to the program without a new history entry, Esc
+leaving the program instead of reopening the module, an area beside the page with its modules (and
+a module picked out of it coming back to the area), a requirement of the plan with its numbers and
+its ways on, the catalog's tab unchanged by a module seen in full screen out of a program, matrix
+and list with the choice remembered in this browser only, the plan at every width of the window (no
+cell out of its column, no row taller than its name, the list where the matrix has no room), the
+areas as groups of rows with the sidebar leading to each of them without a history entry, „Mein
+Plan" leading to all of the program's modules in the catalog (as many as the head counts), and on a
+phone the plan as a list without a switch, its rows as tall as their names (Informatik B.Sc., „Art"
+and „Bereich" given way), and a page that does not scroll sideways, a module coming up as a sheet
+over the page with one history entry (over „Mein Studium", „Alle Studiengänge" and Start, which the
+first use of a page come from outside lays under it) and its × going back a step, an area becoming
+the page and a module picked out of it leading back to the area.
 
 ```bash
 cd e2e && GATE_PASSWORD=… node gate.mjs http://127.0.0.1:8086

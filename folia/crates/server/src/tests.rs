@@ -223,6 +223,18 @@ async fn request(router: &Router, path: &str, headers: &[(&str, &str)]) -> (Stat
     (parts.status, parts.headers, body)
 }
 
+/// A page as the tests match its markup: without Leptos's markers, the empty comments (`<!>`,
+/// `<!--<() />-->`) by which hydration would tell its nodes apart. How many a page carries depends
+/// on the build: with `--cfg erase_components` (every build in folia/, `.cargo/config.toml`) the
+/// children of every element are one erased list, which ends in `<!>` —
+/// `<span class="mono">11112<!></span>` where what ships (Nix, without the flag) writes
+/// `<span class="mono">11112</span>`. Without its comments a page is the same in both
+/// (docs/folia/frontend.md §3, „Build times"), and the browser app does not hydrate: it renders
+/// anew (`folia-client`), so no marker is part of what a page says.
+fn markup(body: Vec<u8>) -> String {
+    String::from_utf8(body).unwrap().replace("<!--<() />-->", "").replace("<!>", "")
+}
+
 /// A form sent to the server, the way the login page sends its own.
 async fn post(router: &Router, path: &str, headers: &[(&str, &str)], form: &str) -> (StatusCode, HeaderMap, String) {
     let mut request = Request::builder().method("POST").uri(path).header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
@@ -530,7 +542,7 @@ async fn the_head_names_the_module_for_short_beside_its_number() {
     );
     let (id, own) = pair.first().and_then(|pair| pair.split_once(' ')).expect("a program that calls a module otherwise");
     let (status, _, body) = request(&router, &format!("/catalog/module/{id}"), &[]).await;
-    let html = String::from_utf8(body).unwrap();
+    let html = markup(body);
     let head = html.split("<span class=\"ids\">").nth(1).and_then(|rest| rest.split("</div>").next()).unwrap_or_default();
     assert_eq!(status, StatusCode::OK);
     assert!(head.starts_with(&format!("<span class=\"mono\">{id}</span>")), "{head}");
@@ -569,7 +581,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
 
     // Pages render from the snapshot, are cached, and revalidate without rendering.
     let (status, headers, body) = request(&router, "/catalog?form=exercise&turnus=winter&status=all", &[]).await;
-    let html = String::from_utf8(body).unwrap();
+    let html = markup(body);
     assert_eq!((status, headers["x-cache"].to_str().unwrap()), (StatusCode::OK, "miss"));
     assert_eq!(headers[header::CACHE_CONTROL], "public, no-cache", "a page of the old build must not outlive a deploy in the browser");
     let expected = {
@@ -578,7 +590,7 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
         folia_query::catalog_count(&db, &url.query).unwrap()
     };
     assert!(expected > 100);
-    assert!(html.replace("<!>", "").contains(&format!("class=\"count num\">{}</span>", folia_design::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
+    assert!(html.contains(&format!("class=\"count num\">{}</span>", folia_design::format::count(expected, folia_locale::Locale::De))), "the header shows the exact total {expected}");
     let etag = headers[header::ETAG].to_str().unwrap().to_string();
     // The same filter written differently is the same page.
     let (_, headers, _) = request(&router, "/catalog?status=all&turnus=winter&form=exercise&q=", &[]).await;
