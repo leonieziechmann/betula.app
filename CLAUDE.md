@@ -38,6 +38,16 @@ kaputt machen, obwohl der total valid ist."):
   erlaubt sein."): what takes real work for a rare case may wait; what only a limit stands in the
   way of is allowed.
 
+No action is a key's alone (owner, 2026-10-20: „Außerdem finde ich, dass es ein no go ist, dass
+aktionen nur über shortcuts erreichbar sind. Ich möchte entweder etablierte konzepte, wie ctrl+c
+und ctrl+v, die keine visuellen hints brauchen. Aber das was betula selbst macht soll als komponent
+da sein, welches auch per button bedient werden kann."):
+
+- Everything Betula does is there as a component one clicks or taps (a button, an entry of a
+  menu); a key is a quicker way to it, never the only one.
+- What every program does by a key (Ctrl+C, Ctrl+V, Esc, Enter, the arrows, F2, Entf) needs no
+  visible hint; Betula's own keys are named beside their button or entry.
+
 ## Versions
 
 Folia, Radix and Cortex each have a version by SemVer, and every change raises the version of

@@ -540,6 +540,14 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
                 close();
                 return;
             }
+            // A key an entry shows (S, M) is that entry while the menu is open, as it is at the row.
+            key if key.chars().count() == 1 && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() => {
+                if !ev.repeat() && nav::click_selector(&format!(".pick-menu [data-key=\"{}\"]", key.to_uppercase())) {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                }
+                return;
+            }
             _ => return,
         };
         ev.prevent_default();
@@ -572,7 +580,7 @@ pub(crate) fn PickMenus(picking: Picking) -> impl IntoView {
                     Part::Item(Item { icon, label, hint, note, now, key, danger, does }) => {
                         let with_hint = hint.is_some();
                         view! {
-                        <button class="st-pop-item" class:danger=danger class:with-hint=with_hint type="button" role="menuitem" on:click=move |_| does.run(())>
+                        <button class="st-pop-item" class:danger=danger class:with-hint=with_hint type="button" role="menuitem" data-key=key.filter(|key| key.chars().count() == 1) on:click=move |_| does.run(())>
                             {icon.map(|icon| view! { <Icon name=icon/> })}
                             <span class="st-pop-label">
                                 <span>{label}{now.then(|| view! { " " <span class="st-now">{t.bookmarks.now}</span> })}</span>

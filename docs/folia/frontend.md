@@ -539,9 +539,19 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       are chips over the list, which scroll sideways, „+" makes one, and the sheet behind „Filter"
       has the filters alone. A collection's menu (its ⋯ while pointed at or focused, a right
       click; on a phone the chip held, or ⋯ in the head) renames it (F2), shares it („Teilen",
-      since 1.39.0: its link with its name, below), moves it up or down and deletes it: deleting asks nothing, the modules stay marked, and the note at the bottom says
+      since 1.39.0: its link with its name, below), moves it up or down and deletes it (Entf):
+      „Löschen" chosen asks nothing, the modules stay marked, and the note at the bottom says
       „‚Für Lena‘ gelöscht · 3 bleiben gemerkt" with „Rückgängig", and „Auch 2 entfernen" where
-      modules were in it alone. A row names a module's collections outlined after what the
+      modules were in it alone. Its key asks first (since 1.39.2; owner, 2026-10-20: „einen
+      Delete-Shortcut …, wo man dann aber nochmal gefragt wird"): Entf (on a Mac ⌫ as well) at the
+      collection in the sidebar, or in its open menu, puts the question where the menu stands —
+      „‚Für Lena‘ löschen?", „Die 3 Module darin bleiben gemerkt.", „Löschen" with the focus,
+      „Abbrechen"; F2 in the open menu renames as at the collection. The menu (and its question)
+      gives the focus back to what opened it as it closes, or, the collection deleted, to the view
+      the sidebar shows. No menu stands under the rail: the menus fixed to the window (the
+      Merkliste's, „Sammlung und Notiz", those of „Mein Studium") stay right of it on a wide
+      screen (`folia_design::nav::room`; owner, 2026-10-20: a collection's ⋯ in a narrow sidebar
+      had put its menu behind the rail). A row names a module's collections outlined after what the
       catalog and „Mein Studium" say of it (two by name, then „+1"; the one the list shows not),
       and the first line of its note under it, as wide as the row, its Markdown drawn and cut with
       „…" (`list::RowMine`). An empty collection, „Ohne Sammlung" with everything in collections
@@ -560,7 +570,10 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
       one clicked, a mouse pressed on a row and drawn onto others selects them (begun on a selected
       row it lets them go; a row's link is not dragged away), and a row's right click has a menu of
       its own: „Sammlung und Notiz …" (S), „Auswählen" or „Abwählen", „Einplanen" where its switch
-      would plan it (or „Aus dem Plan nehmen"), „Merken" or „Von der Merkliste entfernen" (M). On a
+      would plan it (or „Aus dem Plan nehmen"), „Merken" or „Von der Merkliste entfernen" (M); while
+      it is open, S and M are those entries for its row (since 1.39.2). A key pressed in any menu,
+      dialog or question is its own: F, M, P, S and N never reach the module open behind it (before
+      1.39.2 M marked that module from a menu, `enhance.js`, `OVER`). On a
       phone a finger held still on a row for 450 ms selects it (`folia_widgets::swipe`, `on_hold`:
       held is no swipe, and lifting it no tap), and drawn on, the rows under it; a swipe stays a
       swipe. While rows are selected a click or a tap selects or lets go. Keys, new for both lists
@@ -3648,6 +3661,13 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   and `P` plans the module one is at, ← and → move it while the note of what it planned stands, and
   Esc puts the note away („„Einplanen" plans at once, and a note says where"). Every view is a real
   history entry, so the browser's back always works too.
+  No action is a key's alone (owner, 2026-10-20: „ein No-Go, dass Aktionen nur über Shortcuts
+  erreichbar sind … das, was Betula selbst macht, soll als Komponente da sein, welche auch per
+  Button bedient werden kann"): a key is a quicker way to a button or an entry of a menu that is
+  there. What every program does (Ctrl+C and Ctrl+V, Esc, Enter, the arrows, F2, Entf) needs no
+  hint; Betula's own keys are written next to their button or entry. The head of a list names
+  ↑ ↓, Enter and M; S and N its tooltip alone (owner, the same day: „Sammlung sieht hier zu viel
+  aus").
   The tabs of the navigation are a digit away (owner, 2026-10-16: „wenn man ctrl/alt drückt sollen
   dann die shortcuts bei den nav items angezeigt werden. Wichtig ist, dass … so übliche shortcuts,
   wie ctrl+c/s/p usw. weiter funktionieren"): 1 the start page, 2 the modules, 3 „Studium",

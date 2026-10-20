@@ -191,6 +191,13 @@ const planned = (page) => page.evaluate((key) => (localStorage.getItem(key) || "
   check(/^Sammlung und Notiz/.test(entries[0]) && /^Auswählen\b/.test(entries[1]) && /^(Einplanen|Aus dem Plan nehmen)/.test(entries[2]) && /^Von der Merkliste entfernen/.test(entries[3]), `the row's menu: ${JSON.stringify(entries)}`);
   await step("„Auswählen\" in it selects the row", () => page.click(".pick-menu .st-pop-item >> nth=1"), (id) => onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("is-selected"), rows[3]);
   await page.keyboard.press("Escape");
+  // The keys its entries show are those entries while it is open: S its „Sammlung und Notiz", M its
+  // „Von der Merkliste entfernen" — for its row.
+  await page.keyboard.press("Escape");
+  await step("S in the row's menu opens „Sammlung und Notiz\"", async () => { await page.click(row(rows, 2), { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".pick-menu")); await page.keyboard.press("s"); }, () => !document.querySelector(".pick-menu") && Boolean(document.activeElement?.closest?.(".collect-pop")));
+  await page.keyboard.press("Escape");
+  await step("M in the row's menu takes its mark away", async () => { await page.click(row(rows, 2), { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".pick-menu")); await page.keyboard.press("m"); }, (id) => !document.querySelector(".pick-menu") && onPage(`.row-wrap:has(a.row[data-id="${id}"])`)?.classList.contains("unmarked"), rows[2]);
+  await step("„Rückgängig\" marks it again", () => page.click(".mark-note .plan-toast-undo"), () => !allOnPage("#rows .row-wrap.unmarked").length);
 
   // Nothing of it leaves the browser: no request carries the marks or what is selected, none goes
   // elsewhere, and the address never says what is selected.

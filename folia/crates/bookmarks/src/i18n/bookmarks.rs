@@ -129,6 +129,12 @@ pub struct Texts {
     pub move_up: &'static str,
     pub move_down: &'static str,
     pub delete: &'static str,
+    /// The key beside „Löschen" (Entf; the Mac's ⌫ does it as well), and what it asks first (owner,
+    /// 2026-10-20: „einen Delete-Shortcut …, wo man dann aber nochmal gefragt wird"): „‚Für Lena‘
+    /// löschen?", what stays.
+    pub delete_key: &'static str,
+    pub delete_question: fn(&str) -> String,
+    pub delete_keeps: fn(usize) -> String,
     /// What the head of the list says after the number in a view: „in Für Lena", „ohne Sammlung".
     pub in_collection: fn(&str) -> String,
     pub without_label: &'static str,
@@ -297,6 +303,9 @@ pub const DE: Texts = Texts {
     move_up: "Nach oben",
     move_down: "Nach unten",
     delete: "Löschen",
+    delete_key: "Entf",
+    delete_question: |name| format!("‚{name}‘ löschen?"),
+    delete_keeps: |n| if n == 1 { "Das Modul darin bleibt gemerkt.".to_string() } else { format!("Die {n} Module darin bleiben gemerkt.") },
     in_collection: |name| format!("in {name}"),
     without_label: "ohne Sammlung",
     empty_collection: |name| format!("‚{name}‘ ist leer"),
@@ -446,6 +455,9 @@ pub const EN: Texts = Texts {
     move_up: "Move up",
     move_down: "Move down",
     delete: "Delete",
+    delete_key: "Del",
+    delete_question: |name| format!("Delete ‘{name}’?"),
+    delete_keeps: |n| if n == 1 { "Its module stays saved.".to_string() } else { format!("Its {n} modules stay saved.") },
     in_collection: |name| format!("in {name}"),
     without_label: "in no collection",
     empty_collection: |name| format!("‘{name}’ is empty"),
