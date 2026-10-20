@@ -22,7 +22,7 @@ use folia_model::rows::{
 };
 use folia_model::rows_detail::{
     AreaNode, AreaPlacement, ChoiceFamily, ChoiceOption, Counterpart, DateCount, DateRow, Document, EventDate, Lecturer,
-    LecturerName, ModuleAbbrev, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry,
+    LecturerName, ModuleAbbrev, ModuleSemester, ModuleSws, ModuleTeachingForm, Plan, PlanEntry, PlanPlace, PlanTotal, PlanTotalEntry,
     ProgramAbbrev, ProgramDepartmentCount, ProgramLink, ProgramPlanEntry, ProgramPlanTotal, ProgramPlanTotalEntry,
     ProgramVersion, Successor, TextItem, TrackProgram,
 };
@@ -469,6 +469,23 @@ pub fn module_schedule(db: &dyn Database, module_id: &str) -> Result<Vec<EventDa
              AND semester_key IS NOT NULL {EVENT_ORDER}"
         ),
         &[Value::from(module_id)],
+    )
+}
+
+/// The semesters each of `module_ids` has teaching events in, a row per module and semester, as
+/// `module_schedule` has them (one without a semester left out): where a module's newest is read
+/// from for many modules at once.
+pub fn teaching_semesters(db: &dyn Database, module_ids: &[String]) -> Result<Vec<ModuleSemester>, DbError> {
+    let ids = id_json(module_ids);
+    if ids == NO_IDS {
+        return Ok(Vec::new());
+    }
+    fetch(
+        db,
+        "teaching_semesters",
+        "SELECT DISTINCT module_id, semester_key FROM v_module_schedule \
+         WHERE module_id IN (SELECT value FROM json_each(?)) AND semester_key IS NOT NULL ORDER BY module_id, semester_key",
+        &[Value::from(ids)],
     )
 }
 

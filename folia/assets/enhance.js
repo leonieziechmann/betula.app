@@ -2473,6 +2473,10 @@
       // the note after marking stands S is its own (marknote.rs), for the module it names.
       const note = e.key === "n" || e.key === "N";
       if (!note && find('.wait-note [data-action="collect"]')) return;
+      // With rows selected (the Merkliste's bar, folia/crates/bookmarks/src/pick.rs) S is the bar's
+      // „Sammlung", for all of them.
+      const bar = !note && find('.pick-bar [data-action="collect"]');
+      if (bar) { e.preventDefault(); bar.click(); return; }
       const row = document.activeElement?.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
       if (!mark?.dataset.id) return;
