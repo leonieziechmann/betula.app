@@ -148,7 +148,7 @@ const LINE = ".fx-desk a.prog-line";
   await step("tab: Module returns to the filtered list", () => page.click('.rail a[data-area="catalog"]'), () => location.pathname === "/catalog" && location.search.includes("turnus=winter"));
   check((await tab("catalog")) === "/catalog", "tabs: on the list the own tab is not the plain list");
 
-  await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".home .home-hero"));
+  await step("home", () => page.click('.rail a[href="/"]'), () => location.pathname === "/" && document.querySelector(".day .day-hero"));
   check((await box(page, "#content > .page-stage.front #sidebar")) === null, "home: a sidebar beside the start page (owner, 2026-09-28: none)");
   await context.close();
 }

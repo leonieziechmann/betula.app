@@ -108,7 +108,7 @@ impl Key {
     /// is on the stage of its own.
     pub fn of(path: &str, from: Key) -> Self {
         match Page::of(path) {
-            Page::Profile | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
+            Page::About | Page::Profile | Page::Imprint | Page::Privacy | Page::NotFound => Key::Other,
             Page::Module if from.area().is_some_and(Area::shows_in_place) => from,
             _ => Key::of_area(Area::of(path)),
         }
@@ -119,6 +119,8 @@ impl Key {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
     Home,
+    /// `/about`, „Über Betula".
+    About,
     Catalog,
     /// `/catalog/module/:id`
     Module,
@@ -142,6 +144,7 @@ impl Page {
         let segments: Vec<&str> = path.split('/').filter(|segment| !segment.is_empty()).collect();
         match segments.as_slice() {
             [] => Page::Home,
+            ["about"] => Page::About,
             ["catalog"] => Page::Catalog,
             ["catalog", "module", _] => Page::Module,
             ["programs"] => Page::Programs,
@@ -703,6 +706,7 @@ mod tests {
     #[test]
     fn the_page_of_a_path() {
         assert_eq!(Page::of("/"), Page::Home);
+        assert_eq!(Page::of("/about"), Page::About);
         assert_eq!(Page::of("/catalog"), Page::Catalog);
         assert_eq!(Page::of("/catalog/"), Page::Catalog);
         assert_eq!(Page::of("/catalog/module/11103"), Page::Module);
@@ -733,7 +737,7 @@ mod tests {
         assert_eq!(Key::of("/catalog/module/11103", Key::Studyplan), Key::Studyplan);
         assert_eq!(Key::of("/catalog/module/11103", Key::Other), Key::Catalog);
         assert_eq!((Key::of("/study", Key::Home), Key::of("/programs/x/plan", Key::Catalog)), (Key::Programs, Key::Programs));
-        assert_eq!((Key::of("/profile", Key::Catalog), Key::of("/impressum", Key::Home), Key::of("/nichts", Key::Home)), (Key::Other, Key::Other, Key::Other));
+        assert_eq!((Key::of("/profile", Key::Catalog), Key::of("/impressum", Key::Home), Key::of("/nichts", Key::Home), Key::of("/about", Key::Home)), (Key::Other, Key::Other, Key::Other, Key::Other));
     }
 
     #[test]

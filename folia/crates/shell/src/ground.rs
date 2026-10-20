@@ -38,9 +38,12 @@ pub fn Wood() -> impl IntoView {
 /// the window; under the row of pages of „Mein Studium" on a phone there is none (owner,
 /// 2026-10-19: a swipe from down in the ground went wrong, „Der hat da eh keinen Mehrwert";
 /// app.css `.st-pager`). It holds what belongs at the bottom of a site — who is behind it, the legal pages,
-/// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is.
+/// the versions of Folia and Radix (the roots: Radix brings the data) and how fresh the data is,
+/// and „Über Betula" before the legal pages (concept A: what the start page said of Betula moved
+/// there). A page may add a line of its own to the facts (`credit`: the start page names who took
+/// its photo).
 #[component]
-pub fn Ground() -> impl IntoView {
+pub fn Ground(#[prop(optional, into)] credit: Option<ViewFn>) -> impl IntoView {
     let t = i18n::t();
     // The data's facts, once they are there: the rest of the ground stands from the first frame.
     let facts = use_ask(|| Some(GroundAsk {}));
@@ -63,6 +66,7 @@ pub fn Ground() -> impl IntoView {
                     <p class="ground-note">{t.ground.note}</p>
                 </div>
                 <nav class="ground-legal" aria-label=t.ground.legal>
+                    <a href=t.path(url::ABOUT)>{t.ground.about}</a>
                     <a href=t.path(url::IMPRINT)>{t.ground.imprint}</a>
                     <a href=t.path(url::PRIVACY)>{t.ground.privacy}</a>
                 </nav>
@@ -75,6 +79,7 @@ pub fn Ground() -> impl IntoView {
                 <p>
                     {move || changed().map(|date| view! { <span>{(t.ground.data_of)(&date)}</span> })}
                     {move || semester().map(|label| view! { <span>{label}</span> })}
+                    {credit.map(|credit| credit.run())}
                     <a href=seo::UNIVERSITY_URL rel="noopener">{t.ground.source}<Icon name="arrow-up-right"/></a>
                 </p>
             </div>

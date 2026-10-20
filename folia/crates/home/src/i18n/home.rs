@@ -1,7 +1,9 @@
-//! Texts of the start page (`pages/home/mod.rs`), in the order of the page: what search engines
-//! read, the first panel, the way in for a first visit (`pages/home/start.rs`), the pictures and
-//! the map, the ways into the catalog, what Betula does, and the questions. „Betula im Detail" at
-//! the end has a group of its own (`home_detail`).
+//! Texts of „Über Betula" (`home/about.rs`), what the start page said until concept A, in the
+//! order of the page: what search engines read, the first panel, the pictures and the map, the
+//! ways into the catalog, what Betula does, and the questions. „Betula im Detail" at the end has a
+//! group of its own (`home_detail`). The start page's own words are `today` and `setup`; its
+//! description and title for search engines are still these (`description`, `seo_title`), and so
+//! are the ways into the catalog it shows under „Entdecken".
 //!
 //! Everything here says what the app really does, and says it plainly (owner, 2026-09-28: the page
 //! is what search engines and the assistants built on them know of Betula; comparing it with other
@@ -14,6 +16,11 @@ pub struct Texts {
     pub description: &'static str,
     /// Its title for link previews (the tab shows the site's own title, `app::default_title`).
     pub seo_title: &'static str,
+    /// „Über Betula" (`about.rs`), where this text stands since concept A: its name in the tab,
+    /// its title for link previews and its description.
+    pub about_title: &'static str,
+    pub about_seo_title: &'static str,
+    pub about_description: &'static str,
     /// Other names of the site, as the structured data gives them („Betula Modulkatalog").
     pub alternate_names: [&'static str; 2],
     /// What it takes to run Betula, as the structured data of the app says it
@@ -37,38 +44,6 @@ pub struct Texts {
     pub figure_faculties: &'static str,
     pub figure_dates: &'static str,
     pub in_semester: fn(&str) -> String,
-
-    // The way in for a first visit
-    /// „So legst du los", and the line under it.
-    pub start_heading: &'static str,
-    pub start_lead: &'static str,
-    /// The way straight into the search at the top (its title says the keys).
-    pub search_now: &'static str,
-    pub search_now_title: &'static str,
-    /// The three steps, in the order a semester is planned, each with one button. The first one's
-    /// is „Studiengang wählen" or „Alle Studiengänge" (`choose_program`, `all_programs`).
-    pub step_program: Step,
-    pub step_modules: Step,
-    pub step_timetable: Step,
-    /// The second step's button: the catalog of „Mein Studiengang", else the whole catalog.
-    pub mine_modules: &'static str,
-    pub to_catalog: &'static str,
-    /// The third step's button: the Stundenplan with the Regelstudienplan of „Mein Studiengang"
-    /// ready to take over, else the Stundenplan.
-    pub take_semester: &'static str,
-    pub to_timetable: &'static str,
-    /// What a step the visitor has done says in place of where the navigation keeps it: the
-    /// program, „5 Module gemerkt", „8 Module eingeplant".
-    pub marked: fn(usize) -> String,
-    pub planned: fn(usize) -> String,
-    /// For screen readers, before the name of a step that is done.
-    pub step_done: &'static str,
-    /// „Jederzeit unter": before the item of the navigation that keeps a step.
-    pub step_where: &'static str,
-    /// „Erst einmal verstehen, was Betula ist?", before the ways to the sections that say so.
-    pub learn_first: &'static str,
-    /// The name of the steps together, for screen readers.
-    pub steps_label: &'static str,
 
     // The pictures
     /// What the pictures are, for screen readers: „Karussell", „Bild" (`aria-roledescription`).
@@ -184,12 +159,6 @@ pub struct Slide {
     pub action: &'static str,
 }
 
-/// A step of the way in: its name, and in a line what it does.
-pub struct Step {
-    pub title: &'static str,
-    pub text: &'static str,
-}
-
 /// A way into the catalog: its name, and what it lists.
 pub struct Entry {
     pub label: &'static str,
@@ -212,6 +181,9 @@ pub struct Faq {
 pub const DE: Texts = Texts {
     description: "Alle Module und Studiengänge der BTU Cottbus-Senftenberg an einem Ort: durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, dein Stundenplan mit Kalender-Abo. Kostenlos, ohne Konto, auch offline. Inoffiziell, mit Link zum Original.",
     seo_title: "Betula · Modulkatalog für die BTU Cottbus-Senftenberg",
+    about_title: "Über Betula",
+    about_seo_title: "Über Betula · der inoffizielle Modulkatalog für die BTU Cottbus-Senftenberg",
+    about_description: "Was Betula ist und kann: alle Module und Studiengänge der BTU Cottbus-Senftenberg durchsuchen und filtern, Regelstudienpläne aus den Prüfungsordnungen, ein Stundenplan mit Kalender-Abo. Kostenlos, ohne Konto, auch offline und ohne JavaScript. Mit Fragen und Antworten.",
     alternate_names: ["Betula Modulkatalog", "Modulkatalog BTU Cottbus-Senftenberg (inoffiziell)"],
     browser_requirements: "Läuft in jedem aktuellen Browser, auch ohne JavaScript. Mit JavaScript lädt die App den Katalog als SQLite-Datenbank in den Browser (WebAssembly), antwortet ohne Ladezeiten und funktioniert offline.",
 
@@ -226,33 +198,6 @@ pub const DE: Texts = Texts {
     figure_faculties: "Fakultäten",
     figure_dates: "Termine",
     in_semester: |semester| format!("im {semester}"),
-
-    start_heading: "So legst du los",
-    start_lead: "Drei Schritte, jeder ein Klick. Wer nur ein bestimmtes Modul sucht, tippt Titel oder Nummer oben in die Suche.",
-    search_now: "Direkt suchen",
-    search_now_title: "Springt in die Suche oben (Strg+K oder /)",
-    step_program: Step {
-        title: "Studiengang wählen",
-        text: "Einmal als „Mein Studiengang“ gewählt, sind Katalog und Stundenplan auf ihn eingestellt.",
-    },
-    step_modules: Step {
-        title: "Module finden und merken",
-        text: "Filter für Turnus, Prüfung oder Sprache; das Lesezeichen setzt ein Modul auf deine Merkliste.",
-    },
-    step_timetable: Step {
-        title: "Stundenplan bauen",
-        text: "Ein ganzes Fachsemester übernehmen, Überschneidungen sehen, alles in den Kalender holen.",
-    },
-    mine_modules: "Module deines Studiengangs",
-    to_catalog: "Zum Katalog",
-    take_semester: "Fachsemester übernehmen",
-    to_timetable: "Zum Stundenplan",
-    marked: |n| if n == 1 { "1 Modul gemerkt".to_string() } else { format!("{n} Module gemerkt") },
-    planned: |n| if n == 1 { "1 Modul eingeplant".to_string() } else { format!("{n} Module eingeplant") },
-    step_done: "Erledigt: ",
-    step_where: "Jederzeit unter",
-    learn_first: "Erst einmal verstehen, was Betula ist?",
-    steps_label: "Die drei Schritte",
 
     carousel: "Karussell",
     slide: "Bild",
@@ -461,6 +406,9 @@ pub const DE: Texts = Texts {
 pub const EN: Texts = Texts {
     description: "Every module and degree programme of BTU Cottbus-Senftenberg in one place: search and filter, standard study plans from the examination regulations, your timetable with a calendar subscription. Free, no account, works offline. Unofficial, with a link to the original.",
     seo_title: "Betula · Module catalogue for BTU Cottbus-Senftenberg",
+    about_title: "About Betula",
+    about_seo_title: "About Betula · the unofficial module catalogue for BTU Cottbus-Senftenberg",
+    about_description: "What Betula is and does: search and filter every module and degree programme of BTU Cottbus-Senftenberg, standard study plans from the examination regulations, a timetable with a calendar subscription. Free, no account, works offline and without JavaScript. With questions and answers.",
     alternate_names: ["Betula module catalogue", "Module catalogue of BTU Cottbus-Senftenberg (unofficial)"],
     browser_requirements: "Runs in any current browser, also without JavaScript. With JavaScript the app loads the catalogue into the browser as an SQLite database (WebAssembly), answers without loading times and works offline.",
 
@@ -475,33 +423,6 @@ pub const EN: Texts = Texts {
     figure_faculties: "Faculties",
     figure_dates: "Dates",
     in_semester: |semester| format!("in {semester}"),
-
-    start_heading: "How to get started",
-    start_lead: "Three steps, one click each. Looking for one particular module? Type its title or number into the search at the top.",
-    search_now: "Search now",
-    search_now_title: "Jumps into the search at the top (Ctrl+K or /)",
-    step_program: Step {
-        title: "Choose a degree programme",
-        text: "Chosen once as “My programme”, it sets up the catalogue and your timetable.",
-    },
-    step_modules: Step {
-        title: "Find and save modules",
-        text: "Filters for semester, assessment or language; the bookmark puts a module on your saved list.",
-    },
-    step_timetable: Step {
-        title: "Build your timetable",
-        text: "Take over a whole semester of your plan, see clashes, get it all into your calendar.",
-    },
-    mine_modules: "Modules of your programme",
-    to_catalog: "To the catalogue",
-    take_semester: "Take over a semester",
-    to_timetable: "To the timetable",
-    marked: |n| if n == 1 { "1 module saved".to_string() } else { format!("{n} modules saved") },
-    planned: |n| if n == 1 { "1 module planned".to_string() } else { format!("{n} modules planned") },
-    step_done: "Done: ",
-    step_where: "Always under",
-    learn_first: "Want to understand what Betula is first?",
-    steps_label: "The three steps",
 
     carousel: "carousel",
     slide: "slide",

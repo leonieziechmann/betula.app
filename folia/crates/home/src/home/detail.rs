@@ -1,9 +1,9 @@
-//! „Betula im Detail", the end of the start page. Owner, 2026-09-28: the first version was one long
-//! text — „das ist so langweilig und einfach nur eine wall of text. Mach das mal so, dass es für
-//! normale User auch interessant zu betrachten ist, während das Betula-Theme nicht gebrochen
-//! wird." So a panel names the chapters, and each chapter is a panel of its own: its name in its
-//! tint over a headline, a line under it and four points, and beside them a picture made of the
-//! app's own parts, not a drawing of them:
+//! „Betula im Detail", the end of „Über Betula" (until concept A, of the start page). Owner,
+//! 2026-09-28: the first version was one long text — „das ist so langweilig und einfach nur eine
+//! wall of text. Mach das mal so, dass es für normale User auch interessant zu betrachten ist,
+//! während das Betula-Theme nicht gebrochen wird." So a panel names the chapters, and each
+//! chapter is a panel of its own: its name in its tint over a headline, a line under it and four
+//! points, and beside them a picture made of the app's own parts, not a drawing of them:
 //!
 //! - the way from four questions to the one module page,
 //! - the filter panel laid out as a board, its chips in the panel's look, with an example chosen

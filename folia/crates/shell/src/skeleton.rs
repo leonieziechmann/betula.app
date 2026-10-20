@@ -180,7 +180,33 @@ fn frame(shape: Shape) -> AnyView {
                 </div>
             </div>
         }.into_any()),
-        Shape::Home => framed(Side::Toc(4), view! {
+        // The start page as its server's page has it (folia-home, `HomePage`): the set-up's picture
+        // for a browser without a program, the day's for one that keeps one (`html.mine`).
+        Shape::Home => solo("day-page", view! {
+            <div class="page-inner day">
+                <div class="day-first-wrap">
+                    <section class="day-hero day-first day-hero-sk">
+                        <div class="day-photo"></div>
+                        <div class="day-shade"></div>
+                        <div class="ob ob-sk panel sk-sweep"></div>
+                    </section>
+                </div>
+                <div class="day-sk-wrap">
+                    <section class="day-hero day-hero-sk">
+                        <div class="day-photo"></div>
+                        <div class="day-shade"></div>
+                        <div class="day-greet">{bar("sk-w2 day-sk-light")}{bar("sk-w4 sk-big day-sk-light")}{bar("sk-w5 day-sk-light")}</div>
+                        <div class="day-next day-next-sk"></div>
+                    </section>
+                    <div class="day-cols">
+                        <div class="day-col day-main"><div class="panel sk-sweep day-panel-sk tall"></div></div>
+                        <div class="day-col"><div class="panel sk-sweep day-panel-sk"></div><div class="panel sk-sweep day-panel-sk"></div></div>
+                    </div>
+                </div>
+            </div>
+        }.into_any()),
+        // „Über Betula": what the start page said of Betula, its figures, the stage of pictures.
+        Shape::About => solo("", view! {
             <div class="page-inner">
                 <div class="panel sk-sweep sk-home">
                     <div class="sk-block">
@@ -226,6 +252,17 @@ fn framed(side: Side, page: AnyView) -> AnyView {
                 <div class="panel-head">{bar("sk-w3 sk-tall")}</div>
                 <div class="body">{sidebar}</div>
             </div>
+            <div class="page">{page}</div>
+        </div>
+    }
+    .into_any()
+}
+
+/// A page without a sidebar (the start page, „Über Betula"), in the frame such a page has
+/// (`.work.flowing.solo`).
+fn solo(class: &'static str, page: AnyView) -> AnyView {
+    view! {
+        <div class=format!("work flowing solo sk-frame {class}")>
             <div class="page">{page}</div>
         </div>
     }
