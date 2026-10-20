@@ -7,9 +7,9 @@
 //!
 //! The page (owner, mockup of 2026-10-04): an overview first, what is passed, planned and open in
 //! all and by area (`overview.rs`), then the semesters. On a desktop one semester stands in focus,
-//! its name the way to any other, with what fits it beside it (`focus.rs`, the view „Semester"), or
-//! the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"), which the sidebar switches
-//! between (`side.rs`). A phone has one row of pages the
+//! its name the way to any other, in a box that is a list as the catalog's (`focus.rs`, the view
+//! „Semester"), or the whole plan as areas × semesters (`grid.rs`, „Gesamtplan"), which the sidebar
+//! switches between (`side.rs`). A phone has one row of pages the
 //! browser scrolls under a finger or by ‹ › (`pager.rs`): the semesters that are over, the overview
 //! with the program and its ways (`phone.rs`), the current semester and the ones to come. The
 //! semesters begin empty: „Module hinzufügen" (`picker.rs`) offers the rows of a Fachsemester of

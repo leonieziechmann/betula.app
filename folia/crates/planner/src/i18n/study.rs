@@ -239,20 +239,15 @@ pub struct Texts {
     pub leave_note: &'static str,
     pub remove_semester: &'static str,
 
-    // „Passt in dieses Semester".
-    pub fits_title: &'static str,
+    // What the plan has open for a semester (on a phone under it, `focus::PlanRows`; „Module
+    // hinzufügen").
     pub fits_plan: fn(&str) -> String,
-    pub fits_all: &'static str,
     pub fits_nothing: &'static str,
     /// „Was noch offen ist, wird im SoSe nicht angeboten.": the plan's rows of the Fachsemester
     /// left open are all of the other half of the year.
     pub fits_unoffered: fn(&str) -> String,
     pub retakes: &'static str,
-    /// „Aus früheren Fachsemestern": the plan's rows of the Fachsemester before, still open.
-    pub fits_earlier: &'static str,
-    pub search_catalog: &'static str,
     pub plan_here: fn(&str) -> String,
-    pub from_fs: fn(&str) -> String,
 
     // A semester more.
     pub new_semester: &'static str,
@@ -543,16 +538,11 @@ pub const DE: Texts = Texts {
     leave_note: "zählt nicht als Fachsemester",
     remove_semester: "Semester entfernen",
 
-    fits_title: "Passt in dieses Semester",
     fits_plan: |fs| format!("Laut Regelstudienplan · {fs}"),
-    fits_all: "Alles eingeplant",
     fits_nothing: "Für dieses Fachsemester sieht der Plan nichts vor.",
     fits_unoffered: |season| format!("Was noch offen ist, wird im {season} nicht angeboten."),
     retakes: "Wiederholer",
-    fits_earlier: "Aus früheren Fachsemestern",
-    search_catalog: "Im Katalog suchen",
     plan_here: |name| format!("{name} hier einplanen"),
-    from_fs: |fs| format!("aus {fs}"),
 
     new_semester: "Neues Semester",
     after: |semester| format!("nach {semester}"),
@@ -813,16 +803,11 @@ pub const EN: Texts = Texts {
     leave_note: "does not count as a semester of study",
     remove_semester: "Remove semester",
 
-    fits_title: "Fits this semester",
     fits_plan: |fs| format!("Standard study plan · {fs}"),
-    fits_all: "All planned",
     fits_nothing: "The plan has nothing for this semester of study.",
     fits_unoffered: |season| format!("What is still open is not offered in {season}."),
     retakes: "Retakes",
-    fits_earlier: "From earlier semesters of study",
-    search_catalog: "Search the catalogue",
     plan_here: |name| format!("Plan {name} here"),
-    from_fs: |fs| format!("from {fs}"),
 
     new_semester: "New semester",
     after: |semester| format!("after {semester}"),
