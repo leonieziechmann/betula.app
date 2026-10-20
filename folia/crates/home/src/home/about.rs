@@ -143,8 +143,9 @@ pub fn AboutPage() -> impl IntoView {
     let queries: Vec<CatalogQuery> = entries.iter().map(|entry| entry.query.clone()).chain([detail::example()]).collect();
     let asked = use_ask(move || Some(HomeAsk { entries: queries.clone() }));
     let map = use_context::<ProgramMapHandle>().map(|handle| handle.0);
-    // The page, once its answer is there (the shell holds the page before it meanwhile).
-    move || asked.get().map(|loaded| {
+    // The page, once its answer is there (the shell holds the page before it meanwhile); its title
+    // at once, so that the tab does not name the site meanwhile.
+    let page = move || asked.get().map(|loaded| {
     let entries = self::entries(t);
     let (status, map) = (status.clone(), map.clone());
     // „Betula im Detail" says how many of the current programs have a checked plan, and how many
@@ -188,7 +189,6 @@ pub fn AboutPage() -> impl IntoView {
     // the ground at its end (app.css „one scroll area"). The wood (`ground::Wood`) stands still
     // behind it.
     view! {
-        <Title text=t.home.about_title/>
         <div class="work flowing solo" id="page-scroll" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
         <div class="page home-page"><div class="page-inner home">
         <Seo title=t.home.about_seo_title description=t.home.about_description path=url::ABOUT data/>
@@ -248,7 +248,8 @@ pub fn AboutPage() -> impl IntoView {
         <folia_shell::ground::Ground/>
         </div>
     }
-    })
+    });
+    view! { <Title text=t.home.about_title/>{page} }
 }
 
 /// The first panel, flat: what this is and the two ways in on the left, and a birch down its
