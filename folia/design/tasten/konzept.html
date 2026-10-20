@@ -1,0 +1,409 @@
+<title>Betula Tasten und Knöpfe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Keys and buttons: a rule and a pattern (owner, 2026-10-20, after the menu of a collection had a
+     delete key added: „Außerdem finde ich, dass es ein no go ist, dass aktionen nur über shortcuts
+     erreichbar sind. Ich möchte entwerder etablierte konzepte, wie ctrl+c und ctrl+v, die keine
+     visuellen hints brauchen. Aber das was betula selbst macht soll als komponent da sein, welches
+     auch per button bedient werden kann. Hier könnte man sich mal überlegen ob wir allgemein ein
+     weiteres button pattern einführen. Z.B. shift+M um den weiteren kontext davon aufzurufen."; and
+     on the head of the list: „Sammlung sieht hier zu viel aus. Das solte da weg."). The rule as it
+     is written in CLAUDE.md and docs/folia/frontend.md (R10); where Betula's keys stand without a
+     button, from an audit of every key handler of Folia 1.39.1 (assets/enhance.js and the
+     components); the pattern proposed for it, the button with an arrow, M and ⇧M, P and ⇧P; three
+     ways for a row; what the keys show; four questions. The mocks are drawn in Betula's tokens and
+     sizes (folia/assets/app.css: .mark-switch, .mark-more, .st-pop, the rows of folia_widgets::list). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column to read, the mocks on Betula's grey ground at their real sizes; the decision
+   at the end. Betula's own tokens (app.css), light and dark. */
+:root {
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4; --panel: #ffffff; --panel-2: #f6f7f8; --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08); --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f; --text-2: #4b5565; --text-3: #8790a0;
+  --invert: #161b26; --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149); --accent-ink: oklch(.46 .07 149); --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  --warn: #8f5a0a; --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e; --no-soft: color-mix(in srgb, #b3261e 7%, var(--panel));
+  --ok: #0b7f58; --ok-soft: color-mix(in srgb, #0b7f58 10%, var(--panel));
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --wood: color-mix(in oklab, var(--text) 5%, var(--bg));
+  --toast: var(--invert); --on-toast: var(--on-invert);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 12px 40px -10px rgba(15, 23, 42, .28);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.74 .08 149);
+    --warn: #f0b861; --no: #f2867d; --ok: #5fcf9f;
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --wood: color-mix(in oklab, var(--text) 4%, var(--bg));
+    --toast: #232938; --on-toast: #eceff5;
+    --shadow-lift: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -16px rgba(0, 0, 0, .6);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 14px 40px -10px rgba(0, 0, 0, .7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.74 .08 149);
+  --warn: #f0b861; --no: #f2867d; --ok: #5fcf9f;
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --wood: color-mix(in oklab, var(--text) 4%, var(--bg));
+  --toast: #232938; --on-toast: #eceff5;
+  --shadow-lift: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -16px rgba(0, 0, 0, .6);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 14px 40px -10px rgba(0, 0, 0, .7);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 450 15px/1.55 var(--font); letter-spacing: -.006em; -webkit-font-smoothing: antialiased; }
+.page { max-width: 920px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 56px; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.08; font-weight: 750; letter-spacing: -.028em; text-wrap: balance; }
+h2 { font-size: 22px; line-height: 1.25; font-weight: 700; letter-spacing: -.016em; text-wrap: balance; }
+h3 { font-size: 15px; font-weight: 650; letter-spacing: -.008em; }
+p, li { max-width: 68ch; }
+.muted { color: var(--text-2); }
+.small { font-size: 13.5px; }
+section { display: grid; gap: 18px; min-width: 0; }
+.eyebrow { font: 600 12px/1 var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--accent-ink); }
+kbd, .k { font: 500 11px/1 var(--mono); color: var(--text-2); padding: 3px 6px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); white-space: nowrap; display: inline-block; vertical-align: 1px; }
+ul.plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.nb { white-space: nowrap; }
+
+/* the head */
+.intro { display: grid; gap: 18px; }
+.lede { font-size: 17px; line-height: 1.55; color: var(--text-2); max-width: 62ch; }
+.quote { margin: 0; padding: 14px 18px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); font-size: 14.5px; color: var(--text-2); display: grid; gap: 6px; }
+.quote p { max-width: none; }
+.quote cite { font-style: normal; font-size: 12.5px; color: var(--text-3); }
+.done { display: grid; gap: 10px; padding: 16px 18px; border-radius: var(--r-panel); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent); }
+.done h3 { color: var(--accent-ink); }
+.done ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+
+/* the rule */
+.rules { counter-reset: rule; display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.rules li::before { content: counter(rule); font: 650 13px/1 var(--mono); color: var(--accent-ink); }
+
+/* tables */
+.table-wrap { overflow-x: auto; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13.5px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+th { font-size: 11.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); background: var(--panel-2); }
+tr:last-child td { border-bottom: 0; }
+td.key { white-space: nowrap; }
+.verdict { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.verdict.ok { color: var(--ok); background: var(--ok-soft); }
+.verdict.gap { color: var(--no); background: var(--no-soft); }
+
+/* the mocks: Betula's parts at their sizes, on its ground */
+.stage { background: var(--wood); border-radius: 12px; padding: 22px; display: grid; gap: 18px; min-width: 0; overflow-x: auto; }
+.stage-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 28px; }
+.label { font: 600 11.5px/1 var(--font); letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
+.col { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.switches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sw { min-height: 32px; padding: 0 7px 0 10px; border-radius: var(--r-ctl); display: inline-flex; align-items: center; gap: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font: 600 13.5px/1 var(--font); white-space: nowrap; }
+.sw > b { font-weight: 600; min-width: 62px; }
+.sw > small { font-size: 12px; font-weight: 500; opacity: .8; }
+.sw kbd { padding: 2px 6px; }
+.sw.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.sw.on kbd { color: var(--on-invert); background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; }
+.pair { display: inline-flex; align-items: stretch; position: relative; }
+.pair > .sw { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.more { width: 30px; min-height: 32px; display: grid; place-items: center; border-radius: 0 var(--r-ctl) var(--r-ctl) 0; background: var(--panel); color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line-strong); margin-left: -1px; }
+.more .i { width: 15px; height: 15px; }
+.pair > .sw.on + .more { background: var(--invert); color: var(--on-invert); box-shadow: inset 1px 0 0 color-mix(in srgb, var(--on-invert) 22%, transparent); margin-left: 0; }
+.more.new { box-shadow: inset 0 0 0 1px var(--line-strong), 0 0 0 2px var(--accent); }
+.tip { position: absolute; top: calc(100% + 8px); right: -6px; padding: 5px 9px; border-radius: 6px; background: var(--toast); color: var(--on-toast); font: 500 12px/1.3 var(--font); white-space: nowrap; box-shadow: 0 6px 18px -8px rgba(0, 0, 0, .5); }
+.tip::before { content: ""; position: absolute; right: 16px; top: -4px; width: 8px; height: 8px; background: var(--toast); transform: rotate(45deg); }
+.with-tip { padding-bottom: 38px; }
+
+/* a menu (.st-pop) */
+.pop { width: 280px; max-width: 100%; padding: 6px; border-radius: 12px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); display: grid; gap: 0; font-size: 13.5px; }
+.pop-head { padding: 7px 10px 6px; font-size: 12.5px; font-weight: 650; color: var(--text-2); display: flex; justify-content: space-between; gap: 8px; }
+.pop-field { margin: 2px 4px 6px; height: 34px; border-radius: 8px; box-shadow: inset 0 0 0 1.5px var(--accent); display: flex; align-items: center; padding: 0 10px; color: var(--text-3); font-size: 13px; }
+.item { min-height: 36px; padding: 0 10px; border-radius: 8px; display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.item.focus { background: var(--row-hover); }
+.item .i { color: var(--text-2); }
+.item .check { color: var(--accent-ink); }
+.item .grow { flex: 1; min-width: 0; display: grid; }
+.item small { font-size: 12px; color: var(--text-3); font-weight: 450; line-height: 1.3; }
+.item.with-hint { min-height: 46px; }
+.chip { font-size: 11.5px; font-weight: 600; padding: 2px 7px; border-radius: 99px; white-space: nowrap; }
+.chip.ok { color: var(--ok); background: var(--ok-soft); }
+.chip.warn { color: var(--warn); background: var(--warn-soft); }
+.chip.now { color: var(--accent-ink); background: var(--accent-soft); }
+.pop hr { border: 0; height: 1px; background: var(--line); margin: 4px 6px; }
+.pop-note { margin: 2px 4px 4px; min-height: 58px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 8px 10px; color: var(--text-3); font-size: 13px; }
+.fold { color: var(--text-3); font-size: 12.5px; padding: 6px 10px; }
+
+/* a row of the list (folia_widgets::list) */
+.rows { display: grid; gap: 2px; padding: 6px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); min-width: 560px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 54px 92px 40px 66px; align-items: center; gap: 12px; padding: 8px 10px; border-radius: var(--r-row); font-size: 13.5px; }
+.row.hover { background: var(--row-hover); }
+.row .t { display: grid; min-width: 0; }
+.row .t b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .t small { font: 500 11.5px/1.3 var(--mono); color: var(--text-3); }
+.row .lp b { font-weight: 650; }
+.row .lp small { color: var(--text-3); font-size: 11px; margin-left: 2px; }
+.row .lang { font-size: 11.5px; font-weight: 650; color: var(--text-2); background: var(--panel-2); border-radius: 5px; padding: 3px 6px; justify-self: start; }
+.row .end { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.bm { width: 28px; height: 28px; display: grid; place-items: center; color: var(--text-2); border-radius: 7px; }
+.bm.on .i { fill: currentColor; color: var(--text); }
+.down { width: 22px; height: 28px; display: grid; place-items: center; color: var(--text-2); border-radius: 6px; }
+.down .i { width: 14px; height: 14px; }
+.down.quiet { color: var(--text-3); opacity: .6; }
+.down.shown { background: color-mix(in oklab, var(--text) 8%, transparent); color: var(--text); }
+.dots { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--text-2); background: color-mix(in oklab, var(--text) 8%, transparent); }
+
+/* the three ways at a row */
+.options { display: grid; gap: 16px; }
+.option { display: grid; gap: 12px; padding: 18px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); min-width: 0; }
+.option.picked { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-lift); }
+.option-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.option-head .letter { font: 700 13px/1 var(--mono); color: var(--accent-ink); }
+.badge { font-size: 11.5px; font-weight: 650; padding: 3px 8px; border-radius: 99px; color: var(--on-accent); background: var(--accent); }
+.option .stage { padding: 14px; }
+
+/* keys table */
+.pairs td:nth-child(2), .pairs td:nth-child(3) { white-space: nowrap; }
+
+/* questions */
+.questions { counter-reset: q; display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.questions li { counter-increment: q; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 16px 18px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); max-width: none; }
+.questions li::before { content: counter(q); width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font: 650 13px/1 var(--mono); color: var(--on-invert); background: var(--invert); }
+.questions .q { display: grid; gap: 6px; min-width: 0; }
+.reco { font-size: 13.5px; color: var(--accent-ink); font-weight: 600; }
+footer { font-size: 12.5px; color: var(--text-3); border-top: 1px solid var(--line); padding-top: 18px; }
+
+@media (max-width: 640px) {
+  .page { gap: 44px; padding-block: 28px 56px; }
+  .stage { padding: 16px; }
+  .with-tip { padding-bottom: 44px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="i-plan" viewBox="0 0 24 24"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/><path d="M15 10H9"/></symbol>
+</svg>
+
+<main class="page">
+  <header class="intro">
+    <p class="eyebrow">Folia · Konzept · 20. Oktober 2026</p>
+    <h1>Jede Taste hat einen Knopf</h1>
+    <p class="lede">Was Betula selbst tut, ist ein Knopf, den man klicken oder tippen kann. Eine Taste ist der schnellere Weg dorthin, nie der einzige. Hier steht, wo das heute fehlt, und ein Muster, das es schließt: der Knopf mit Pfeil, dazu M und ⇧M.</p>
+    <blockquote class="quote">
+      <p>„Außerdem finde ich, dass es ein No-Go ist, dass Aktionen nur über Shortcuts erreichbar sind. Ich möchte entweder etablierte Konzepte, wie Strg+C und Strg+V, die keine visuellen Hints brauchen. Aber das, was Betula selbst macht, soll als Komponente da sein, welche auch per Button bedient werden kann. Hier könnte man sich mal überlegen, ob wir allgemein ein weiteres Button-Pattern einführen. Z.&nbsp;B. Shift+M, um den weiteren Kontext davon aufzurufen.“</p>
+      <cite>Owner, 20.10.2026</cite>
+    </blockquote>
+    <div class="done">
+      <h3>Schon umgesetzt, Folia 1.39.2</h3>
+      <ul>
+        <li>„S Sammlung“ steht nicht mehr im Kopf der Liste.</li>
+        <li>Entf an einer Sammlung fragt erst. „Löschen“ in ihrem Menü zeigt die Taste, wie „Umbenennen“ F2.</li>
+        <li>Kein Menü öffnet sich mehr unter der Leiste links.</li>
+        <li>Tasten in einem offenen Menü gehören dem Menü. Vorher merkte M dort das Modul dahinter; im Menü einer Zeile tun S und M jetzt, was daneben steht.</li>
+        <li>Die Regel steht in CLAUDE.md und in der Doku des Frontends (R10).</li>
+      </ul>
+    </div>
+  </header>
+
+  <section aria-labelledby="regel">
+    <h2 id="regel">Die Regel</h2>
+    <ol class="rules">
+      <li><p>Alles, was Betula tut, ist ein Knopf oder ein Eintrag in einem Menü. Die Taste ist eine Abkürzung dorthin.</p></li>
+      <li><p>Was jedes Programm per Taste kann, braucht keinen Hinweis: <kbd>Strg C</kbd> und <span class="nb"><kbd>Strg V</kbd>,</span> <span class="nb"><kbd>Esc</kbd>,</span> <span class="nb"><kbd>Enter</kbd>,</span> die Pfeile, Strg-Klick und Shift-Klick zum Auswählen, <kbd>F2</kbd> zum Umbenennen, <kbd>Entf</kbd> zum Löschen.</p></li>
+      <li><p>Betulas eigene Tasten stehen an ihrem Knopf oder Eintrag, als kleines Tastenzeichen. Eine Zeile voller Hinweise braucht es dafür nicht.</p></li>
+    </ol>
+  </section>
+
+  <section aria-labelledby="heute">
+    <h2 id="heute">Wo es heute fehlt</h2>
+    <p class="muted">Alle Tasten von Folia 1.39.1, gezählt in <code>enhance.js</code> und den Komponenten. Hier stehen Betulas eigene; die etablierten folgen darunter.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Taste</th><th>Tut</th><th>Knopf dafür heute</th><th>Befund</th></tr></thead>
+        <tbody>
+          <tr><td class="key"><kbd>M</kbd></td><td>Merken</td><td>Das Lesezeichen an jeder Zeile, „Merken“ am Modul</td><td><span class="verdict ok">da</span></td></tr>
+          <tr><td class="key"><kbd>P</kbd></td><td>Einplanen</td><td>„Einplanen“ am Modul</td><td><span class="verdict ok">da</span></td></tr>
+          <tr><td class="key"><kbd>F</kbd></td><td>Vollbild</td><td>„Vollbild“ an der Vorschau</td><td><span class="verdict ok">da</span></td></tr>
+          <tr><td class="key"><kbd>Alt 1</kbd> … <kbd>5</kbd></td><td>Zu einem Tab</td><td>Die Tabs selbst; die Ziffern erscheinen beim Halten</td><td><span class="verdict ok">da</span></td></tr>
+          <tr><td class="key"><kbd>←</kbd> <kbd>→</kbd></td><td>Früher, später (im Hinweis nach dem Einplanen)</td><td>‹ und › im Hinweis</td><td><span class="verdict ok">da</span></td></tr>
+          <tr><td class="key"><kbd>S</kbd></td><td>Sammlung und Notiz</td><td>Am Modul der Pfeil, aber nur, wenn es schon gemerkt ist. An der Zeile nichts; in der Merkliste nur der Rechtsklick.</td><td><span class="verdict gap">fehlt</span></td></tr>
+          <tr><td class="key"><kbd>N</kbd></td><td>Dasselbe Menü, in der Notiz</td><td>Der Stift am Modul, aber nur, wenn es schon eine Notiz gibt. An der Zeile nichts. Kein Tastenzeichen irgendwo.</td><td><span class="verdict gap">fehlt</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small muted">Etabliert und ohne Hinweis in Ordnung: <span class="nb"><kbd>Esc</kbd>,</span> <span class="nb"><kbd>Enter</kbd>,</span> <span class="nb"><kbd>↑</kbd> <kbd>↓</kbd>,</span> <kbd>Strg K</kbd> und <kbd>/</kbd> für die Suche, Leertaste, Shift+↑↓, Strg-Klick, Shift-Klick und <kbd>Strg A</kbd> zum Auswählen, <span class="nb"><kbd>F2</kbd>,</span> <span class="nb"><kbd>Entf</kbd>.</span> Ihre Aktionen haben Knöpfe: die Leiste der Auswahl, das ⋯ einer Sammlung (beim Zeigen und mit dem Fokus, dazu der Rechtsklick).</p>
+    <p class="small muted">Zwei Kleinigkeiten nebenbei: „Strg K“ und „Strg Klick“ stehen auch auf dem Mac, dort heißt es ⌘. Und die Startseite verspricht „Jedes Kürzel steht neben seinem Knopf“; für S und N stimmt das erst mit dem Muster unten.</p>
+  </section>
+
+  <section aria-labelledby="muster">
+    <h2 id="muster">Das Muster: Knopf mit Pfeil</h2>
+    <p>Eine Aktion tut sofort das Übliche, ohne zu fragen. Was man dabei wählen kann, liegt hinter dem Pfeil daneben. Die Taste tut die Aktion, Umschalt und dieselbe Taste öffnen den Pfeil. Am Modul gibt es das schon halb: „Gemerkt“ hat seinen Pfeil, sobald das Modul gemerkt ist.</p>
+    <div class="stage" role="img" aria-label="Die Knöpfe am Modul heute und als Vorschlag: Einplanen und Merken, jeweils mit Pfeil">
+      <div class="stage-row">
+        <div class="col">
+          <span class="label">Heute, nicht gemerkt</span>
+          <div class="switches">
+            <span class="sw"><svg class="i"><use href="#i-plan"/></svg><b>Einplanen</b><small>WiSe 26/27</small><kbd>P</kbd></span>
+            <span class="sw"><svg class="i"><use href="#i-bookmark"/></svg><b>Merken</b><kbd>M</kbd></span>
+          </div>
+        </div>
+        <div class="col">
+          <span class="label">Heute, gemerkt</span>
+          <div class="switches">
+            <span class="pair"><span class="sw on"><svg class="i" style="fill: currentColor"><use href="#i-bookmark"/></svg><b>Gemerkt</b><small>Grundlagen</small><kbd>M</kbd></span><span class="more"><svg class="i"><use href="#i-down"/></svg></span></span>
+          </div>
+        </div>
+      </div>
+      <div class="stage-row with-tip">
+        <div class="col">
+          <span class="label">Vorschlag: jeder Knopf mit Pfeil</span>
+          <div class="switches">
+            <span class="pair"><span class="sw"><svg class="i"><use href="#i-plan"/></svg><b>Einplanen</b><small>WiSe 26/27</small><kbd>P</kbd></span><span class="more new"><svg class="i"><use href="#i-down"/></svg></span></span>
+            <span class="pair"><span class="sw"><svg class="i"><use href="#i-bookmark"/></svg><b>Merken</b><kbd>M</kbd></span><span class="more new"><svg class="i"><use href="#i-down"/></svg></span><span class="tip">Sammlung und Notiz (⇧M)</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="pairs">
+        <thead><tr><th>Knopf</th><th>Taste</th><th>Pfeil</th><th>Der Pfeil zeigt</th></tr></thead>
+        <tbody>
+          <tr><td>Merken / Gemerkt</td><td><kbd>M</kbd></td><td><kbd>⇧M</kbd></td><td>„Sammlung und Notiz“: die Sammlungen zum Anhaken, das Feld für eine neue, die Notiz. Eine Sammlung anhaken merkt das Modul; das gilt schon heute.</td></tr>
+          <tr><td>Einplanen / Eingeplant</td><td><kbd>P</kbd></td><td><kbd>⇧P</kbd></td><td>Die Semester ab jetzt, jedes mit Fachsemester und ob das Modul dann angeboten wird; frühere eingeklappt. Wie „Einplanen“ der Auswahl in der Merkliste, für ein Modul.</td></tr>
+          <tr><td>Vollbild</td><td><kbd>F</kbd></td><td>–</td><td>Nichts zu wählen, also kein Pfeil.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="stage" role="img" aria-label="Die beiden Menüs hinter den Pfeilen: Sammlung und Notiz, und die Semester von Einplanen">
+      <div class="stage-row">
+        <div class="col">
+          <span class="label">⇧M oder der Pfeil an „Merken“</span>
+          <div class="pop">
+            <div class="pop-head"><span>Analysis I</span><span>Sammlung und Notiz</span></div>
+            <div class="pop-field">Sammlung suchen oder anlegen</div>
+            <div class="item"><svg class="i check"><use href="#i-check"/></svg><span class="grow">Grundlagen</span></div>
+            <div class="item"><span style="width: 16px"></span><span class="grow">Für Lena</span></div>
+            <div class="item"><span style="width: 16px"></span><span class="grow">Wahlpflicht</span></div>
+            <hr>
+            <div class="pop-note">Notiz, gern mit Markdown</div>
+          </div>
+        </div>
+        <div class="col">
+          <span class="label">⇧P oder der Pfeil an „Einplanen“</span>
+          <div class="pop">
+            <div class="pop-head"><span>Analysis I</span><span>Einplanen in</span></div>
+            <div class="item with-hint focus"><span class="grow"><span>WiSe 26/27 <span class="chip now">jetzt</span></span><small>3. Fachsemester</small></span><span class="chip ok">angeboten</span></div>
+            <div class="item with-hint"><span class="grow"><span>SoSe 27</span><small>4. Fachsemester</small></span><span class="chip warn">nicht angeboten</span></div>
+            <div class="item with-hint"><span class="grow"><span>WiSe 27/28</span><small>5. Fachsemester</small></span><span class="chip ok">angeboten</span></div>
+            <div class="item with-hint"><span class="grow"><span>SoSe 28</span><small>6. Fachsemester</small></span><span class="chip warn">nicht angeboten</span></div>
+            <hr>
+            <div class="fold">Frühere Semester ›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Warum ein Pfeil und kein Halten</h3>
+    <p>Von 1.18 bis 1.22 öffnete Halten (die Maus auf dem Knopf, P gehalten, ein Finger) oder Shift+P die Semester von „Einplanen“. Das sah man nicht, und es ist wieder weg („irgendwie ist das keine gute Option“). Der Pfeil ist ein eigener Knopf, den man sieht und anklickt. Der Hinweis nach dem Einplanen mit ‹ › bleibt der schnelle Weg; der Pfeil ist für den, der vorher wählen will. Auch ein Semester, das das Modul nicht anbietet, ist wählbar; der Hinweis daneben sagt es.</p>
+
+    <h3>Umschalt</h3>
+    <ul class="plain small">
+      <li>Gezählt wird die Umschalttaste, nicht der Großbuchstabe: Mit der Feststelltaste bleibt M das Merken. Heute tut Shift+M dasselbe wie M; das ändert sich.</li>
+      <li>In Listen heißt Umschalt schon „Bereich“ (Shift+↑↓, Shift-Klick). Das betrifft Pfeile und Klicks, keine Buchstaben; es beißt sich nicht.</li>
+      <li>Sind Zeilen ausgewählt, öffnet ⇧M „Sammlung“ für alle, wie der Knopf in der Leiste der Auswahl.</li>
+      <li>S und N fallen weg. ⇧M öffnet dasselbe Menü, die Notiz ist darin einen Tab entfernt; an ihrem Stift am Modul steht dann keine Taste mehr.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="zeile">
+    <h2 id="zeile">An der Zeile</h2>
+    <p>Im Katalog und in der Merkliste endet jede Zeile mit dem Lesezeichen, dem Knopf von M. Wohin kommt sein Pfeil, ⇧M? Drei Wege, jeder an derselben Zeile gezeigt, auf die man gerade zeigt.</p>
+    <div class="options">
+      <article class="option picked">
+        <div class="option-head"><span class="letter">A</span><h3>Pfeil beim Zeigen</h3><span class="badge">Empfehlung</span></div>
+        <p class="small">Neben dem Lesezeichen erscheint ⌄, wenn man auf die Zeile zeigt oder sie den Fokus hat, so wie das ⋯ einer Sammlung. In Ruhe sieht die Liste aus wie heute. Am Handy führt die Zeile zum Modul, dort steht der Pfeil am Knopf. Der Pfeil gehört zu dem Knopf, dessen Kontext er öffnet, an der Zeile wie am Modul.</p>
+        <div class="stage">
+          <div class="rows">
+            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+            <div class="row hover"><span class="t"><b>Analysis I</b><small>11103</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down shown"><svg class="i"><use href="#i-down"/></svg></span></span></div>
+            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+          </div>
+        </div>
+      </article>
+      <article class="option">
+        <div class="option-head"><span class="letter">B</span><h3>Pfeil immer</h3></div>
+        <p class="small">⌄ steht an jeder Zeile, leise in Grau. Man findet ihn, ohne zu zeigen, und am Tablet ohne Maus. Dafür trägt jede Zeile ein Zeichen mehr, auch die vielen, die man nur überfliegt.</p>
+        <div class="stage">
+          <div class="rows">
+            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down quiet"><svg class="i"><use href="#i-down"/></svg></span></span></div>
+            <div class="row hover"><span class="t"><b>Analysis I</b><small>11103</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down shown"><svg class="i"><use href="#i-down"/></svg></span></span></div>
+            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down quiet"><svg class="i"><use href="#i-down"/></svg></span></span></div>
+          </div>
+        </div>
+      </article>
+      <article class="option">
+        <div class="option-head"><span class="letter">C</span><h3>⋯ an der Zeile</h3></div>
+        <p class="small">Beim Zeigen erscheint ⋯ mit dem Menü der Zeile, dem vom Rechtsklick: „Sammlung und Notiz …“, „Auswählen“, „Einplanen“, „Merken“. Ein Knopf für alles an der Zeile. ⇧M hätte dann keinen eigenen Knopf, sondern einen Eintrag darin, einen Klick weiter.</p>
+        <div class="stage">
+          <div class="rows">
+            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+            <div class="row hover"><span class="t"><b>Analysis I</b><small>11103</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="dots"><svg class="i"><use href="#i-dots"/></svg></span><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
+            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="hinweise">
+    <h2 id="hinweise">Was die Tasten zeigen</h2>
+    <ul class="plain">
+      <li><p><b>Kopf der Liste:</b> „<kbd>↑</kbd> <kbd>↓</kbd> wählen · <kbd>Enter</kbd> öffnen · <kbd>M</kbd> merken“, wie seit 1.39.2. ⇧M kommt dort nicht dazu.</p></li>
+      <li><p><b>Am Knopf:</b> das Tastenzeichen wie heute, <kbd>M</kbd> und <kbd>P</kbd>. Der Pfeil trägt keins, damit der Knopf schmal bleibt; sein Tooltip sagt „Sammlung und Notiz (⇧M)“ und „In ein anderes Semester (⇧P)“.</p></li>
+      <li><p><b>In Menüs:</b> die Taste neben dem Eintrag, <kbd>F2</kbd>, <kbd>Entf</kbd>, und an „Sammlung und Notiz …“ <kbd>⇧M</kbd> statt S.</p></li>
+      <li><p><b>Auf dem Mac:</b> <kbd>⌘K</kbd> und ⌘-Klick statt Strg.</p></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="fragen">
+    <h2 id="fragen">Zu entscheiden</h2>
+    <ol class="questions">
+      <li><div class="q"><h3>⇧M öffnet „Sammlung und Notiz“, S und N fallen weg?</h3><p class="small muted">Eine Taste weniger zu lernen, und ⇧M ist dort, wo M ist.</p><p class="reco">Empfehlung: ja.</p></div></li>
+      <li><div class="q"><h3>„Einplanen“ bekommt seinen Pfeil, ⇧P die Semester?</h3><p class="small muted">Die sichtbare Form des alten Shift+P. Der Hinweis nach P mit ‹ › bleibt.</p><p class="reco">Empfehlung: ja.</p></div></li>
+      <li><div class="q"><h3>An der Zeile: A, B oder C?</h3><p class="small muted">A hält die Liste ruhig und macht den Pfeil zum selben Paar wie am Modul.</p><p class="reco">Empfehlung: A.</p></div></li>
+      <li><div class="q"><h3>⌘ statt Strg auf dem Mac, gleich mit?</h3><p class="small muted">„Strg K“ und „Strg Klick“ stimmen auf dem Mac nicht.</p><p class="reco">Empfehlung: ja.</p></div></li>
+    </ol>
+  </section>
+
+  <footer>Grundlage: jede Taste von Folia 1.39.1 in <code>folia/assets/enhance.js</code> und den Komponenten, gezählt am 20.10.2026. Die Knöpfe, Menüs und Zeilen sind in Betulas Farben und Größen gezeichnet (<code>folia/assets/app.css</code>); Module und Sammlungen sind Beispiele.</footer>
+</main>
