@@ -3,6 +3,8 @@
 pub mod home;
 pub mod home_detail;
 pub mod legal;
+pub mod setup;
+pub mod today;
 
 pub use folia_design::i18n::{app_path, locale, of_address, use_location, Locale};
 
@@ -22,7 +24,9 @@ folia_design::texts! {
     planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
     seo = folia_shell::i18n::seo,
+    setup = crate::i18n::setup,
     timetable_data = folia_timetable::i18n,
+    today = crate::i18n::today,
     ui = folia_design::i18n::ui,
     week = folia_widgets::i18n::week,
 }

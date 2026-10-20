@@ -261,6 +261,7 @@ pub fn files() -> Router<AppState> {
         .route(folia_app::FAVICON, get(api::favicon))
         .route(folia_app::FONT, get(api::font))
         .route("/assets/shots/{file}", get(api::showcase_shot))
+        .route("/assets/season/{file}", get(api::season_photo))
         .route("/assets/birch/{file}", get(api::birch))
         .route(folia_app::ENHANCE_SCRIPT, get(api::enhance_script))
         .route(folia_app::BOOT_SCRIPT, get(api::boot_script))

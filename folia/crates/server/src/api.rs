@@ -225,7 +225,7 @@ pub fn sitemap_paths(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>
 }
 
 /// The pages of the sitemap as paths of the app (without a language), in its order: the three
-/// entrances, every current program with its views (the plan of each further study direction
+/// entrances and „Über Betula", every current program with its views (the plan of each further study direction
 /// after the first's), every module.
 pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>, folia_model::DbError> {
     use folia_routes::url::{ProgramTab, ProgramUrl};
@@ -242,7 +242,7 @@ pub fn sitemap_pages(snapshot: &crate::snapshot::Snapshot) -> Result<Vec<String>
         });
     })?;
     let (modules, programs) = listed?;
-    let mut paths = vec![folia_routes::url::HOME.to_string(), folia_routes::url::CATALOG.to_string(), folia_routes::url::PROGRAMS.to_string()];
+    let mut paths = vec![folia_routes::url::HOME.to_string(), folia_routes::url::ABOUT.to_string(), folia_routes::url::CATALOG.to_string(), folia_routes::url::PROGRAMS.to_string()];
     for (program, plans) in &programs {
         for tab in ProgramTab::ALL.iter().copied().filter(|tab| tab.indexed()) {
             paths.push(folia_routes::url::program_path(&program.slug, tab));
@@ -503,6 +503,21 @@ pub async fn showcase_shot(State(state): State<AppState>, Path(file): Path<Strin
         "module-dark.webp" => include_bytes!("../../../assets/shots/module-dark.webp"),
         "module-phone.webp" => include_bytes!("../../../assets/shots/module-phone.webp"),
         "module-phone-dark.webp" => include_bytes!("../../../assets/shots/module-phone-dark.webp"),
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    asset(&state, &uri, &headers, "image/webp", body).await
+}
+
+/// `GET /assets/season/<name>.webp`: the photos over the start page (concept A), birches in each
+/// season and fog for the time of the exams (`folia_home::home::photo`). Embedded like every other
+/// asset; a browser fetches the one the stylesheet names for the date.
+pub async fn season_photo(State(state): State<AppState>, Path(file): Path<String>, uri: Uri, headers: HeaderMap) -> Response {
+    let body: &'static [u8] = match file.as_str() {
+        "spring.webp" => include_bytes!("../../../assets/season/spring.webp"),
+        "summer.webp" => include_bytes!("../../../assets/season/summer.webp"),
+        "autumn.webp" => include_bytes!("../../../assets/season/autumn.webp"),
+        "winter.webp" => include_bytes!("../../../assets/season/winter.webp"),
+        "fog.webp" => include_bytes!("../../../assets/season/fog.webp"),
         _ => return StatusCode::NOT_FOUND.into_response(),
     };
     asset(&state, &uri, &headers, "image/webp", body).await

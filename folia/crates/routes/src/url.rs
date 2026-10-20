@@ -63,6 +63,9 @@ use crate::filter::{
 pub use folia_model::ids::{is_module_id, is_program_id};
 
 pub const HOME: &str = "/";
+/// „Über Betula": what the start page said of Betula before it began with the visitor's day
+/// (concept A, owner 2026-10-20), for new visitors and for search engines.
+pub const ABOUT: &str = "/about";
 pub const CATALOG: &str = "/catalog";
 pub const PROGRAMS: &str = "/programs";
 /// „Merkliste": the modules the visitor has marked. The list itself lives in the browser.

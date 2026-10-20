@@ -23,12 +23,12 @@ const PROGRAM = "/programs/bachelor-informatik-2008";
 // only the app shows (a module's bookmark, „Einplanen") keeps its room on the server's page and is
 // not measured; nor are the regions the server can only stand in for (a filter panel, the
 // visitor's own pages) or draw otherwise for search engines (a study plan as a list).
-const BOXES = [".crown", ".topbar", ".search", ".top-profile", ".rail", ".main", ".content", ".work", ".ground", ".ground-top", ".ground-foot", ".bottomnav", "h1", ".home-hero", ".intro-actions > *", ".start-step", ".summary", ".faccs", ".facc", ".prog-head", ".module-page > .hero", ".list-head", ".row"];
+const BOXES = [".crown", ".topbar", ".search", ".top-profile", ".rail", ".main", ".content", ".work", ".ground", ".ground-top", ".ground-foot", ".bottomnav", "h1", ".day-hero", ".ob", ".ob-chip", ".day-discover", ".home-hero", ".intro-actions > *", ".summary", ".faccs", ".facc", ".prog-head", ".module-page > .hero", ".list-head", ".row"];
 const ROWS = 12;
 const SCENES = [
-  { device: "phone", paths: ["/", "/catalog", "/programs", PROGRAM, "/catalog/module/11101", "/impressum"] },
+  { device: "phone", paths: ["/", "/about", "/catalog", "/programs", PROGRAM, "/catalog/module/11101", "/impressum"] },
   { device: "phone", paths: ["/", "/catalog"], scroll: 1500 },
-  { device: "desktop", paths: ["/", "/catalog", PROGRAM, "/impressum"] },
+  { device: "desktop", paths: ["/", "/about", "/catalog", PROGRAM, "/impressum"] },
   { device: "desktop", paths: ["/", "/catalog", "/impressum"], scroll: 600 },
 ];
 const DEVICES = {

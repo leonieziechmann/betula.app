@@ -629,21 +629,37 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, _, body) = request(&router, "/", &[]).await;
     let home = String::from_utf8(body).unwrap();
     assert!(head(&home).contains("href=\"https://catalog.example/\" rel=\"canonical\"") && !head(&home).contains("noindex"));
-    assert!(home.contains("class=\"map map-wide\"") && home.contains("class=\"map map-tall\""), "the landing page draws the map the snapshot was opened with");
-    // What search engines, and the assistants that answer with them, read of Betula itself: the
-    // app with its abilities, the questions, and „Betula im Detail" with every filter (2026-09-28).
-    assert!(home.contains("\"@type\":\"WebApplication\"") && home.contains("\"@type\":\"FAQPage\""), "the start page's structured data");
-    assert!(home.contains("id=\"im-detail\"") && home.matches("class=\"panel feature t-").count() == 8 && home.matches("class=\"bgroup").count() == 12, "the start page's „Betula im Detail\"");
-    // No sidebar (owner, 2026-09-28): the page is one scroll area without a frame (`#page-scroll`,
-    // app.css „one scroll area"), its attributes in either order as the wood's. The way in for a
-    // first visit: three steps, the first the next one, since the server knows nothing of the
-    // visitor (R9); „Studiengang wählen" there and in the first panel a link to all programs (the
-    // picker is the app's); the figures on a birch; the wood behind the page, and no branches out
-    // of the panels any more.
-    let scroll_area = ["<div class=\"work flowing solo\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo\">"].iter().map(|area| home.matches(&format!("{area}<div class=\"page home-page\">")).count()).sum::<usize>();
-    assert!(!home.contains("id=\"sidebar\"") && home.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1, "the start page has no frame");
-    assert!(home.contains("id=\"loslegen\"") && home.matches("class=\"start-step ").count() + home.matches("class=\"start-step\"").count() == 3 && home.matches("is-next").count() == 1 && !home.contains("is-done"), "the start page's way in");
-    assert!(["home-program", "start-program"].iter().all(|id| home.contains(&format!("<a id=\"{id}\" href=\"/programs\""))) && home.matches("program-pick\"").count() == 2 && home.contains("<dl class=\"tree-figures\">") && home.contains("class=\"hero-trunk\"") && woods(&home) == 1 && !home.contains("class=\"branch"), "the start page's buttons, figures and wood");
+    // The start page (concept A, owner 2026-10-20): the server knows nothing of the visitor (R9),
+    // so it writes the setup's first step, whose „Studiengang wählen" is a link to all programs
+    // until the app's picker takes its place, and the day's skeleton beside it, which the
+    // stylesheet shows instead where the head script found a program kept (`html.mine`). No frame
+    // (`#page-scroll`, its attributes in either order as the wood's), the wood behind it, and in
+    // the ground who took the photo of each season.
+    assert!(home.contains("\"@type\":\"WebSite\"") && !home.contains("\"@type\":\"FAQPage\""), "the start page's structured data: the site and its search");
+    assert!(home.contains("class=\"day-first-wrap\"") && home.contains("class=\"day-sk-wrap\"") && home.matches("class=\"ob\"").count() == 1, "the start page's setup and the day's skeleton");
+    let pick = home.split("id=\"ob-program\"").next().and_then(|before| before.rsplit('<').next()).unwrap_or_default().to_string() + home.split("id=\"ob-program\"").nth(1).and_then(|after| after.split('>').next()).unwrap_or_default();
+    assert!(pick.starts_with("a ") && pick.contains("href=\"/programs\"") && pick.contains("class=\"combo-trigger\""), "the setup's „Studiengang wählen\" leads to all programs: <{pick}>");
+    assert!(!home.contains("day-welcome") && !home.contains("day-eyebrow") && !home.contains("class=\"day-ev"), "nothing of a visitor's day in the server's page, the skeleton's panels aside");
+    let scroll_area = ["<div class=\"work flowing solo day-page\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo day-page\">"].iter().map(|area| home.matches(&format!("{area}<div class=\"page\">")).count()).sum::<usize>();
+    assert!(!home.contains("id=\"sidebar\"") && home.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1 && woods(&home) == 1, "the start page has no frame");
+    assert_eq!(home.matches("class=\"photo-credit\"").count(), 5, "who took each photo, in the ground");
+    assert!(home.contains(&format!("href=\"{}\"", folia_routes::url::ABOUT)), "the start page links „Über Betula\"");
+    // „Über Betula": what the start page said of Betula until concept A, whole. The map the snapshot
+    // was opened with; what search engines, and the assistants that answer with them, read of
+    // Betula itself: the app with its abilities, the questions, and „Betula im Detail" with every
+    // filter (2026-09-28). No sidebar (owner, 2026-09-28); „Studiengang wählen" in the first panel
+    // a link to all programs (the picker is the app's); the figures on a birch; the wood behind the
+    // page, and no branches out of the panels any more.
+    let (status, _, body) = request(&router, folia_routes::url::ABOUT, &[]).await;
+    let about = String::from_utf8(body).unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert!(head(&about).contains("href=\"https://catalog.example/about\" rel=\"canonical\"") && !head(&about).contains("noindex"), "{}", head(&about));
+    assert!(about.contains("class=\"map map-wide\"") && about.contains("class=\"map map-tall\""), "„Über Betula\" draws the map the snapshot was opened with");
+    assert!(about.contains("\"@type\":\"WebApplication\"") && about.contains("\"@type\":\"FAQPage\"") && !about.contains("\"@type\":\"WebSite\""), "„Über Betula\"'s structured data");
+    assert!(about.contains("id=\"im-detail\"") && about.matches("class=\"panel feature t-").count() == 8 && about.matches("class=\"bgroup").count() == 12, "„Betula im Detail\"");
+    let scroll_area = ["<div class=\"work flowing solo\" id=\"page-scroll\">", "<div id=\"page-scroll\" class=\"work flowing solo\">"].iter().map(|area| about.matches(&format!("{area}<div class=\"page home-page\">")).count()).sum::<usize>();
+    assert!(!about.contains("id=\"sidebar\"") && about.matches("id=\"page-scroll\"").count() == 1 && scroll_area == 1, "„Über Betula\" has no frame");
+    assert!(about.contains("<a id=\"home-program\" href=\"/programs\"") && about.matches("program-pick\"").count() == 1 && about.contains("<dl class=\"tree-figures\">") && about.contains("class=\"hero-trunk\"") && woods(&about) == 1 && !about.contains("class=\"branch") && !about.contains("start-step"), "„Über Betula\"'s button, figures and wood");
     // Impressum and Datenschutz: linked from the ground at the end of every page, the start page's
     // included (`legal_pages_are_one_step_from_every_page`), indexed once they are final
     // (deploy/ship.sh keeps an instance open to everybody from shipping while `PLACEHOLDER` is true).
@@ -803,6 +819,14 @@ async fn snapshots_come_over_http_and_bad_ones_are_rejected() {
     let (_, headers, body) = request(&router, "/assets/birch/summer-crown.svg", &[("accept-encoding", "gzip, br")]).await;
     assert_eq!(headers[header::CONTENT_ENCODING], "br");
     assert_eq!(crate::encoding::unbrotli(&body).as_deref(), crate::birch::file("summer-crown.svg").map(str::as_bytes));
+    // The photos over the start page, one per season and the fog of the exams: WebP as it is
+    // (compressed already), asked for again every time as the birch is; nothing else under them.
+    for photo in ["spring", "summer", "autumn", "winter", "fog"] {
+        let (status, headers, body) = request(&router, &format!("/assets/season/{photo}.webp"), &[("accept-encoding", "br")]).await;
+        assert_eq!((status, headers[header::CONTENT_TYPE].to_str().unwrap(), headers[header::CACHE_CONTROL].to_str().unwrap()), (StatusCode::OK, "image/webp", revalidate), "{photo}");
+        assert!(headers.get(header::CONTENT_ENCODING).is_none() && body.starts_with(b"RIFF"), "{photo}");
+    }
+    assert_eq!(request(&router, "/assets/season/office.webp", &[]).await.0, StatusCode::NOT_FOUND);
     // A module and a program have their own picture: named in the head with the site's outside
     // address, drawn on the first request, kept after that, and answered with 304 to its ETag.
     assert!(module.contains("content=\"https://catalog.example/cards/module/11101.png\"") && !module.contains("/assets/og.png"), "{module}");
@@ -1248,7 +1272,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     assert!(!robots_allow(example, "Googlebot", "/index.php") && robots_allow(example, "Googlebot", "/index.php?x=1"));
     assert!(!robots_allow(example, "Googlebot", "/fish.html") && robots_allow(example, "Googlebot", "/fish/salmon/1") && robots_allow(example, "Googlebot", "/Fish"));
 
-    for page in ["/", "/en", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/profile", "/en/profile", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
+    for page in ["/", "/en", "/about", "/en/about", "/catalog", "/catalog?page=2", "/catalog?page=24", "/en/catalog?page=2", "/catalog/module/11101", "/programs", "/programs/x/plan?variant=2", "/bookmarks", "/studyplan", "/studyplan?share=x", "/profile", "/en/profile", "/calendar/x.ics", "/en/calendar/x.ics", "/cards/module/11101.png", "/sitemap.xml"] {
         assert!(robots_allow(&robots, "Googlebot", page), "{page}: {robots}");
     }
     for view in ["/catalog?turnus=winter", "/catalog?turnus=winter&page=2", "/catalog?sort=title", "/catalog?q=analysis", "/catalog?page=2&open=11101", "/en/catalog?form=lecture", "/en/catalog?page=2&sort=ects", "/programs?level=master", "/en/programs?plan=1", "/bookmarks?turnus=winter", "/api/db", "/api/status"] {
@@ -1279,6 +1303,7 @@ async fn crawlers_are_led_to_pages_and_kept_out_of_views() {
     };
     let mut pages = vec![
         "/".to_string(),
+        "/about".to_string(),
         "/catalog".to_string(),
         "/catalog?page=2".to_string(),
         "/catalog?turnus=winter".to_string(),
@@ -1401,7 +1426,7 @@ async fn a_page_rendered_beside_others_keeps_its_title() {
         let db = NativeDatabase::open(&snapshot_file()).unwrap();
         folia_query::programs(&db).unwrap().into_iter().filter(|p| p.is_latest_po).map(|p| p.slug).take(2).collect()
     };
-    let mut pages: Vec<String> = ["/", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
+    let mut pages: Vec<String> = ["/", "/about", "/en/about", "/catalog", "/catalog?turnus=winter", "/en/catalog?page=2", "/catalog/module/11101", "/catalog/module/00000", "/programs", "/bookmarks", "/studyplan", "/study", "/impressum", "/en/datenschutz"]
         .into_iter()
         .map(String::from)
         .collect();
