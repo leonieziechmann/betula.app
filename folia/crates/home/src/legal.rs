@@ -431,8 +431,8 @@ mod tests {
         }
         let privacy = |locale| article(Legal::Privacy, &i18n::texts(locale).legal).to_html().replace("<!>", "");
         let (de, en) = (privacy(Locale::De), privacy(Locale::En));
-        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 14. Oktober 2026"), "{de}");
-        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 14 October 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
+        assert!(de.contains("<h1>Datenschutzerklärung</h1>") && de.contains("Stand: 20. Oktober 2026"), "{de}");
+        assert!(en.contains("<h1>Privacy policy</h1>") && en.contains("As of 20 October 2026") && en.contains(">Datenschutzerklärung</a>"), "{en}");
         assert!(en.contains("Art. 6(1)(f) GDPR (DSGVO)") && !en.contains("Rechtsgrundlage"), "{en}");
     }
 }
