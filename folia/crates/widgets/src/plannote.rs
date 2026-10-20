@@ -10,7 +10,8 @@
 //! switch, and while the session plans into a semester chosen so it stands in every note, to switch
 //! it off where it is seen (the same day: „die Option mit, die nächsten Module auch in das Semester
 //! planen ist genial. Aber das Design von der Box muss vielleicht nochmal etwas angepasst werden").
-//! A module taken out says so, with „Rückgängig".
+//! A module taken out says so, with „Rückgängig", and one marked as passed in the switch's menu
+//! (`planmenu`) or no longer.
 //!
 //! The semester and its arrows are one control (the same day, of a phone: „Erstmal müssen die Links
 //! und rechts Buttons virtuell über den komplette text da gehen, also wenn man auf der rechten Seite
@@ -67,6 +68,22 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
         </div>
     };
     match first.kind {
+        // Marked as passed in the switch's menu, or no longer: said as „entfernt" is.
+        NoteKind::Passed { passed, .. } => view! {
+            <WaitNote on_gone=gone changed class="planning-note">
+                <div class="plan-toast out">
+                    <div class="plan-toast-main">
+                        <span class="plan-toast-mark" class:out=!passed aria-hidden="true"><Icon name=if passed { "circle-check-big" } else { "rotate-ccw" }/></span>
+                        <span class="plan-toast-said">
+                            <span class="plan-toast-said-name">{first.what.title.clone()}</span>
+                            <span class="plan-toast-said-what">" "{if passed { t.planner.note_passed } else { t.planner.note_unpassed }}</span>
+                        </span>
+                    </div>
+                    {end}
+                </div>
+            </WaitNote>
+        }
+        .into_any(),
         NoteKind::Removed { .. } => view! {
             <WaitNote on_gone=gone changed class="planning-note">
                 <div class="plan-toast out">
