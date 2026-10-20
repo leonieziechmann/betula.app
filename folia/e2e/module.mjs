@@ -143,7 +143,8 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const pair = (page, root, body) => page.evaluate(([root, body]) => {
     const line = onPage(`${root} .hero-line`);
-    const [plan, mark, edge] = [line.querySelector(".plan-toggle"), line.querySelector(".mark-toggle"), onPage(body)].map((el) => el.getBoundingClientRect());
+    // „Merken" with its arrow, once the module is marked (the pair, `MarkButton`).
+    const [plan, mark, edge] = [line.querySelector(".plan-toggle"), line.querySelector(".mark-pair") ?? line.querySelector(".mark-toggle"), onPage(body)].map((el) => el.getBoundingClientRect());
     const badges = [...line.querySelectorAll(".badges > .badge")].map((el) => el.getBoundingClientRect());
     const middle = (r) => (r.top + r.bottom) / 2;
     return {

@@ -211,9 +211,41 @@ fn inlines_view(inlines: Vec<Inline>) -> AnyView {
             Inline::Strong(inner) => view! { <strong>{inlines_view(inner)}</strong> }.into_any(),
             Inline::Emphasis(inner) => view! { <em>{inlines_view(inner)}</em> }.into_any(),
             Inline::Break => view! { <br/> }.into_any(),
+            Inline::Code(code) => view! { <code>{code}</code> }.into_any(),
+            // A note's link leads away from Betula: in a tab of its own, telling the page it opens
+            // nothing of this one.
+            Inline::Link { text, href } => view! { <a href=href target="_blank" rel="noopener noreferrer nofollow">{text}</a> }.into_any(),
         })
         .collect_view()
         .into_any()
+}
+
+/// A visitor's note on a module of the Merkliste, which is Markdown (`text::note_blocks`): its
+/// paragraphs, lists, strong and emphasized words, code and links, nothing else (HTML stays text,
+/// an image is a link to it).
+#[component]
+pub fn NoteProse(text: String) -> impl IntoView {
+    view! { <div class="prose note-prose">{blocks_view(text::note_blocks(&text))}</div> }
+}
+
+/// The first line of a note, as a row shows it (it stands in the row's link, so its links are
+/// text there).
+pub fn note_line(note: &str) -> AnyView {
+    fn flat(inlines: Vec<Inline>) -> AnyView {
+        inlines
+            .into_iter()
+            .map(|inline| match inline {
+                Inline::Text(text) => text.into_any(),
+                Inline::Strong(inner) => view! { <strong>{flat(inner)}</strong> }.into_any(),
+                Inline::Emphasis(inner) => view! { <em>{flat(inner)}</em> }.into_any(),
+                Inline::Break => " ".into_any(),
+                Inline::Code(code) => view! { <code>{code}</code> }.into_any(),
+                Inline::Link { text, .. } => view! { <span class="note-link">{text}</span> }.into_any(),
+            })
+            .collect_view()
+            .into_any()
+    }
+    flat(text::note_first(note))
 }
 
 /// A two-state toggle that is a link to the page with the other state: the same look and the

@@ -20,6 +20,10 @@ pub struct Texts {
     pub all_there: &'static str,
     pub add_question: &'static str,
     pub some_missing: fn(usize) -> String,
+    /// More than the Merkliste has room for: how many of them fit, or that none does (the value is
+    /// the limit).
+    pub room_for: fn(usize) -> String,
+    pub none_fit: fn(usize) -> String,
     pub add: &'static str,
     pub discard: &'static str,
 
@@ -87,6 +91,35 @@ pub struct Texts {
     pub module_numbered: fn(&str) -> String,
     pub not_in_catalog_row: &'static str,
 
+    // ---- collections: the views of the list (folia/design/merken/oberflaeche.html, „Die Seite") ----
+    /// „Sammlungen": the sidebar's first group, on a phone the chips over the list.
+    pub collections: &'static str,
+    /// „Neue Sammlung", what its field says while empty and what it is for screen readers.
+    pub new_collection: &'static str,
+    pub collection_name: &'static str,
+    pub new_collection_name: &'static str,
+    /// A name typed that a collection has: making it opens that one; renaming to it is refused.
+    pub taken_open: &'static str,
+    pub taken: &'static str,
+    /// The menus: of a collection („Menü von ‚Für Lena‘"), of the whole list, the ⋯ that opens one.
+    pub collection_menu: fn(&str) -> String,
+    pub list_menu: &'static str,
+    pub more: &'static str,
+    pub rename: &'static str,
+    pub move_up: &'static str,
+    pub move_down: &'static str,
+    pub delete: &'static str,
+    /// What the head of the list says after the number in a view: „in Für Lena", „ohne Sammlung".
+    pub in_collection: fn(&str) -> String,
+    pub without_label: &'static str,
+    /// An empty collection, „Ohne Sammlung" with nothing in it, a collection that is not there.
+    pub empty_collection: fn(&str) -> String,
+    pub empty_collection_hint: &'static str,
+    pub nothing_without: &'static str,
+    pub nothing_without_hint: &'static str,
+    pub no_such_collection: &'static str,
+    pub no_such_collection_hint: &'static str,
+
     // ---- the sidebar: on a phone the sheet behind „Filter" ----
     /// „Angeboten im": the choice between every half of the year, the winter and the summer.
     pub offered_in: &'static str,
@@ -98,21 +131,19 @@ pub struct Texts {
     pub counts: &'static str,
     /// „Ordnung": the orders, on a phone in the sheet (on a wide screen the heads of the columns).
     pub order: &'static str,
-    pub actions: &'static str,
-    pub copy_list: &'static str,
+
+    // ---- the menu of the whole list (oberflaeche.html: „„Alle“ hat ein Menü wie eine Sammlung") ----
+    /// The list as text, for a note or a message.
+    pub copy_text: &'static str,
     /// The link for another device: its tooltip, its label and the line under it.
     pub transfer_title: &'static str,
     pub transfer: &'static str,
     pub transfer_hint: &'static str,
-    /// Emptying the list: done (with „Rückgängig" beside it), the question and its answers, the
-    /// action.
-    pub cleared: &'static str,
-    pub clear_question: &'static str,
+    /// Emptying the list: the question and its answers, the entry.
+    pub clear_question: fn(usize) -> String,
     pub clear_yes: &'static str,
     pub cancel: &'static str,
     pub clear: &'static str,
-    /// Where the list lives.
-    pub storage_hint: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -126,6 +157,8 @@ pub const DE: Texts = Texts {
     all_there: "Alles davon steht schon auf deiner Merkliste.",
     add_question: "Auf deine Merkliste setzen?",
     some_missing: |n| format!("{} davon fehlen auf deiner Merkliste. Hinzufügen?", if n == 1 { "Eins".to_string() } else { n.to_string() }),
+    room_for: |n| if n == 1 { "Eins davon passt noch auf deine Merkliste. Hinzufügen?".to_string() } else { format!("{n} davon passen noch auf deine Merkliste. Hinzufügen?") },
+    none_fit: |max| format!("Deine Merkliste ist voll: {max} Module."),
     add: "Hinzufügen",
     discard: "Verwerfen",
 
@@ -175,23 +208,43 @@ pub const DE: Texts = Texts {
     module_numbered: |id| format!("Modul {id}"),
     not_in_catalog_row: "steht nicht (mehr) im Modulkatalog der BTU",
 
+    collections: "Sammlungen",
+    new_collection: "Neue Sammlung",
+    collection_name: "Name der Sammlung",
+    new_collection_name: "Name der neuen Sammlung",
+    taken_open: "Gibt es schon · Enter öffnet sie",
+    taken: "Gibt es schon",
+    collection_menu: |name| format!("Menü von ‚{name}‘"),
+    list_menu: "Menü der Merkliste",
+    more: "Mehr",
+    rename: "Umbenennen",
+    move_up: "Nach oben",
+    move_down: "Nach unten",
+    delete: "Löschen",
+    in_collection: |name| format!("in {name}"),
+    without_label: "ohne Sammlung",
+    empty_collection: |name| format!("‚{name}‘ ist leer"),
+    empty_collection_hint: "Module kommen über „Sammlung“ im Hinweis nach dem Merken hierher, oder am Modul über den Pfeil neben „Gemerkt“.",
+    nothing_without: "Alles steht in Sammlungen",
+    nothing_without_hint: "Jedes gemerkte Modul steht in mindestens einer Sammlung.",
+    no_such_collection: "Diese Sammlung gibt es nicht",
+    no_such_collection_hint: "Vielleicht ist sie gelöscht, oder der Link kommt aus einem anderen Browser: Sammlungen liegen nur in dem Browser, in dem sie angelegt wurden.",
+
     offered_in: "Angeboten im",
     all: "Alle",
     stand: "Stand",
     my_study: "Mein Studium",
     counts: "Zählt in meinem Studium",
     order: "Ordnung",
-    actions: "Aktionen",
-    copy_list: "Liste kopieren",
+
+    copy_text: "Als Text kopieren",
     transfer_title: "Der Link trägt die Merkliste hinter dem #: dieser Teil einer Adresse wird nie an einen Server gesendet",
-    transfer: "Auf anderes Gerät übertragen",
-    transfer_hint: "Link kopieren und dort öffnen",
-    cleared: "Geleert",
-    clear_question: "Alle Merker entfernen?",
+    transfer: "Link für ein anderes Gerät",
+    transfer_hint: "Kopieren und dort öffnen",
+    clear_question: |n| if n == 1 { "Den Merker entfernen?".to_string() } else { format!("Alle {n} Merker entfernen?") },
     clear_yes: "Leeren",
     cancel: "Abbrechen",
     clear: "Merkliste leeren",
-    storage_hint: "Die Merkliste liegt nur in diesem Browser: kein Konto, und nichts davon erreicht den Server. Ein anderes Gerät hat seine eigene; der Link zum Übertragen bringt sie dorthin.",
 };
 
 pub const EN: Texts = Texts {
@@ -205,6 +258,8 @@ pub const EN: Texts = Texts {
     all_there: "All of them are among your saved modules already.",
     add_question: "Add them to your saved modules?",
     some_missing: |n| if n == 1 { "One of them is missing from your saved modules. Add it?".to_string() } else { format!("{n} of them are missing from your saved modules. Add them?") },
+    room_for: |n| if n == 1 { "One of them still fits among your saved modules. Add it?".to_string() } else { format!("{n} of them still fit among your saved modules. Add them?") },
+    none_fit: |max| format!("Your saved modules are full: {max} modules."),
     add: "Add",
     discard: "Discard",
 
@@ -254,21 +309,41 @@ pub const EN: Texts = Texts {
     module_numbered: |id| format!("Module {id}"),
     not_in_catalog_row: "is not (or no longer) in BTU's module catalogue",
 
+    collections: "Collections",
+    new_collection: "New collection",
+    collection_name: "Name of the collection",
+    new_collection_name: "Name of the new collection",
+    taken_open: "Exists already · Enter opens it",
+    taken: "Exists already",
+    collection_menu: |name| format!("Menu of ‘{name}’"),
+    list_menu: "Menu of your saved modules",
+    more: "More",
+    rename: "Rename",
+    move_up: "Move up",
+    move_down: "Move down",
+    delete: "Delete",
+    in_collection: |name| format!("in {name}"),
+    without_label: "in no collection",
+    empty_collection: |name| format!("‘{name}’ is empty"),
+    empty_collection_hint: "Modules come here by “Collection” in the note after saving, or at a module by the arrow beside “Saved”.",
+    nothing_without: "Everything is in collections",
+    nothing_without_hint: "Every saved module is in at least one collection.",
+    no_such_collection: "This collection does not exist",
+    no_such_collection_hint: "Perhaps it was deleted, or the link comes from another browser: collections live only in the browser they were made in.",
+
     offered_in: "Offered in",
     all: "All",
     stand: "Status",
     my_study: "My studies",
     counts: "Counts in my studies",
     order: "Order",
-    actions: "Actions",
-    copy_list: "Copy list",
+
+    copy_text: "Copy as text",
     transfer_title: "The link carries your saved modules after the #: this part of an address is never sent to a server",
-    transfer: "Move to another device",
-    transfer_hint: "Copy the link and open it there",
-    cleared: "Cleared",
-    clear_question: "Remove all saved modules?",
+    transfer: "Link for another device",
+    transfer_hint: "Copy it and open it there",
+    clear_question: |n| if n == 1 { "Remove the saved module?".to_string() } else { format!("Remove all {n} saved modules?") },
     clear_yes: "Clear",
     cancel: "Cancel",
     clear: "Clear saved modules",
-    storage_hint: "Your saved modules live in this browser only: no account, and none of it reaches the server. Another device has its own list; the transfer link brings yours there.",
 };

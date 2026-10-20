@@ -66,6 +66,9 @@ pub struct Texts {
     // ---- what the profile keeps ----
     pub kept_heading: &'static str,
     pub bookmarks: &'static str,
+    /// The Merkliste's collections and notes, and what the row says without either.
+    pub collections: &'static str,
+    pub no_collections: &'static str,
     pub studyplan: &'static str,
     pub study: &'static str,
     pub saved_plans: &'static str,
@@ -112,6 +115,9 @@ pub struct Texts {
     pub n_marked: fn(usize) -> String,
     pub n_planned: fn(usize) -> String,
     pub n_plans: fn(usize) -> String,
+    /// „3 Sammlungen", „2 Notizen": the Merkliste's collections and notes a file holds.
+    pub n_collections: fn(usize) -> String,
+    pub n_notes: fn(usize) -> String,
     pub file_question: &'static str,
     pub file_take: &'static str,
     /// A file that makes no profile, and why.
@@ -175,6 +181,8 @@ pub const DE: Texts = Texts {
 
     kept_heading: "In diesem Profil",
     bookmarks: "Merkliste",
+    collections: "Sammlungen und Notizen",
+    no_collections: "keine",
     studyplan: "Stundenplan",
     study: "Mein Studium",
     saved_plans: "Gespeicherte Pläne",
@@ -217,6 +225,8 @@ pub const DE: Texts = Texts {
     n_marked: |n| if n == 1 { "1 gemerktes Modul".to_string() } else { format!("{n} gemerkte Module") },
     n_planned: |n| format!("{n} {} geplant", module_de(n)),
     n_plans: |n| if n == 1 { "1 gespeicherter Plan".to_string() } else { format!("{n} gespeicherte Pläne") },
+    n_collections: |n| if n == 1 { "1 Sammlung".to_string() } else { format!("{n} Sammlungen") },
+    n_notes: |n| if n == 1 { "1 Notiz".to_string() } else { format!("{n} Notizen") },
     file_question: "Als neues Profil anlegen?",
     file_take: "Anlegen",
     file_unreadable: "Diese Datei ist keine Sicherung eines Profils von Betula.",
@@ -269,6 +279,8 @@ pub const EN: Texts = Texts {
 
     kept_heading: "In this profile",
     bookmarks: "Saved modules",
+    collections: "Collections and notes",
+    no_collections: "none",
     studyplan: "Timetable",
     study: "My studies",
     saved_plans: "Saved plans",
@@ -311,6 +323,8 @@ pub const EN: Texts = Texts {
     n_marked: |n| if n == 1 { "1 saved module".to_string() } else { format!("{n} saved modules") },
     n_planned: |n| format!("{n} {} planned", module_en(n)),
     n_plans: |n| if n == 1 { "1 saved plan".to_string() } else { format!("{n} saved plans") },
+    n_collections: |n| if n == 1 { "1 collection".to_string() } else { format!("{n} collections") },
+    n_notes: |n| if n == 1 { "1 note".to_string() } else { format!("{n} notes") },
     file_question: "Create it as a new profile?",
     file_take: "Create",
     file_unreadable: "This file is not a backup of a Betula profile.",

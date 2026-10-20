@@ -733,7 +733,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             let (from, to) = (BookmarksUrl::parse(from_search), BookmarksUrl::parse(to_search));
             if let Some(change) = local_change(&from, &to, Change::Column(Shape::Bookmarks)) {
                 Some(change)
-            } else if (from.season, from.sort, from.descending, from.stand, from.counts) != (to.season, to.sort, to.descending, to.stand, to.counts) || from.filter != to.filter {
+            } else if (from.collection, from.season, from.sort, from.descending, from.stand, from.counts) != (to.collection, to.season, to.sort, to.descending, to.stand, to.counts) || from.filter != to.filter {
                 Some(Change::Column(Shape::Bookmarks))
             } else if from.open != to.open {
                 Some(Change::Preview)
@@ -1110,6 +1110,7 @@ mod tests {
         assert_eq!(change("/bookmarks", "", "/bookmarks", "stand=planned", false), Some(Change::Column(Shape::Bookmarks)));
         assert_eq!(change("/bookmarks", "counts=1", "/bookmarks", "counts=1&lang=en", true), Some(Change::Column(Shape::Bookmarks)));
         assert_eq!(change("/bookmarks", "lang=en", "/bookmarks", "lang=en&q=x", false), None);
+        assert_eq!(change("/bookmarks", "", "/bookmarks", "collection=3", false), Some(Change::Column(Shape::Bookmarks)));
         // „Mein Studium": another page, the module beside it, and the module filling it.
         assert_eq!(change("/programs", "", "/study", "", false), Some(Change::Page(Shape::Study)));
         assert_eq!(change("/study", "", "/study", "open=11103", false), Some(Change::Aside));

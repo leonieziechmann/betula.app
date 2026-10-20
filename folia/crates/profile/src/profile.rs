@@ -366,11 +366,14 @@ fn Kept(note: RwSignal<Option<Note>>) -> impl IntoView {
     let saved = Saved::open();
     // Each number a memo of its own (R5).
     let marked = Memo::new(move |_| bookmarks.map_or(0, Bookmarks::count));
+    // The Merkliste's collections and notes (`folia_stores::collections`).
+    let shelf = folia_stores::collections::Collections::expect();
+    let kept = Memo::new(move |_| shelf.map_or((0, 0), |shelf| shelf.with(|shelf| (shelf.collections().len(), shelf.notes_count()))));
     let planned = Memo::new(move |_| plan.map_or((0, 0), |plan| (plan.count(), plan.with(|doc| doc.semesters().len()))));
     let passed = Memo::new(move |_| plan.map_or(0, |plan| plan.with(|doc| doc.passed.len())));
     let plans = Memo::new(move |_| saved.with(|saved| saved.plans.len()));
     let program = Memo::new(move |_| mine.is_some_and(|mine| mine.with(|doc| doc.program.is_some() || doc.start.is_some())));
-    let empty = Memo::new(move |_| marked.get() == 0 && planned.get().0 == 0 && passed.get() == 0 && plans.get() == 0 && !program.get());
+    let empty = Memo::new(move |_| marked.get() == 0 && kept.get() == (0, 0) && planned.get().0 == 0 && passed.get() == 0 && plans.get() == 0 && !program.get());
 
     let confirming = RwSignal::new(false);
     // Another profile: the question was about the one before.
@@ -414,6 +417,12 @@ fn Kept(note: RwSignal<Option<Note>>) -> impl IntoView {
             <h2 id="pf-kept"><Icon name="database"/>{p.kept_heading}</h2>
             <div class="pf-rows">
                 {row("bookmark", p.bookmarks, url::BOOKMARKS, Signal::derive(move || format::modules(i64::try_from(marked.get()).unwrap_or(i64::MAX), t.locale)))}
+                {row("tag", p.collections, url::BOOKMARKS, Signal::derive(move || match kept.get() {
+                    (0, 0) => p.no_collections.to_string(),
+                    (collections, 0) => (p.n_collections)(collections),
+                    (0, notes) => (p.n_notes)(notes),
+                    (collections, notes) => format!("{} · {}", (p.n_collections)(collections), (p.n_notes)(notes)),
+                }))}
                 {row("calendar-range", p.studyplan, url::STUDYPLAN, Signal::derive(move || {
                     let (modules, semesters) = planned.get();
                     (p.planned)(modules, semesters)
@@ -818,8 +827,8 @@ fn read_file(input: NodeRef<leptos::html::Input>, offer: RwSignal<Option<Result<
     });
 }
 
-/// „12 gemerkte Module, 8 Module geplant, Informatik B.Sc. · PO 2008.": what a backup holds, in a
-/// line.
+/// „12 gemerkte Module, 3 Sammlungen, 8 Module geplant, Informatik B.Sc. · PO 2008.": what a backup
+/// holds, in a line.
 fn summary_line(summary: &Summary, t: &Texts) -> String {
     let p = &t.profile;
     if summary.is_empty() {
@@ -828,6 +837,12 @@ fn summary_line(summary: &Summary, t: &Texts) -> String {
     let mut parts = Vec::new();
     if summary.marked > 0 {
         parts.push((p.n_marked)(summary.marked));
+    }
+    if summary.collections > 0 {
+        parts.push((p.n_collections)(summary.collections));
+    }
+    if summary.notes > 0 {
+        parts.push((p.n_notes)(summary.notes));
     }
     if summary.planned > 0 {
         parts.push((p.n_planned)(summary.planned));
@@ -938,8 +953,8 @@ mod tests {
         for t in [&i18n::DE, &i18n::EN] {
             assert_eq!(summary_line(&Summary::default(), t), t.profile.file_empty);
         }
-        let summary = Summary { marked: 12, planned: 8, semesters: 2, passed: 1, saved: 0, program: Some("Informatik B.Sc. · PO 2008".to_string()) };
-        assert_eq!(summary_line(&summary, &i18n::DE), "12 gemerkte Module, 8 Module geplant, 1 Modul bestanden, Informatik B.Sc. · PO 2008.");
-        assert_eq!(summary_line(&summary, &i18n::EN), "12 saved modules, 8 modules planned, 1 module passed, Informatik B.Sc. · PO 2008.");
+        let summary = Summary { marked: 12, planned: 8, semesters: 2, passed: 1, saved: 0, program: Some("Informatik B.Sc. · PO 2008".to_string()), collections: 3, notes: 1 };
+        assert_eq!(summary_line(&summary, &i18n::DE), "12 gemerkte Module, 3 Sammlungen, 1 Notiz, 8 Module geplant, 1 Modul bestanden, Informatik B.Sc. · PO 2008.");
+        assert_eq!(summary_line(&summary, &i18n::EN), "12 saved modules, 3 collections, 1 note, 8 modules planned, 1 module passed, Informatik B.Sc. · PO 2008.");
     }
 }

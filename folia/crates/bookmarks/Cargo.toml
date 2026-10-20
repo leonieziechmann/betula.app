@@ -27,6 +27,7 @@ folia-model = { path = "../model" }
 folia-pages = { path = "../pages" }
 folia-plans = { path = "../plans" }
 folia-routes = { path = "../routes" }
+folia-search = { path = "../search" }
 folia-timetable = { path = "../timetable" }
 serde = { version = "1.0", features = ["derive"] }
 wasm-bindgen = { version = "0.2", optional = true }

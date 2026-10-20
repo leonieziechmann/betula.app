@@ -347,6 +347,14 @@ impl Planning {
         }
     }
 
+    /// Another note takes the place of this one's, whatever it says (the note after marking,
+    /// `folia_widgets::marknote`): one note stands at a time.
+    pub fn hush(self) {
+        if self.note.with_untracked(Option::is_some) {
+            self.note.set(None);
+        }
+    }
+
     fn next_turn(self) -> u32 {
         let turn = self.turns.get_value().wrapping_add(1);
         self.turns.set_value(turn);
