@@ -16,8 +16,8 @@
      Third round, on the look: the ring black, finding in a green bubble instead of a field, the section
      with the keyboard as an open row (ground and stripe), the bar only with what is unusual, no note at
      the ends, and every combination with „+" and Shift (on the Mac its signs: ⌘K, ⇧↩).
-     Fourth: + and − change a knob, the arrows go on there as everywhere; the ring says only „Esc zum
-     Verlassen" (the search's nothing), and around the search only that ring.
+     Fourth: + and − change a knob, the arrows go on there as everywhere; only the sidebar wears the ring
+     and „Esc zum Verlassen" (it is the mode), search and navigation only their focus, the search one ring.
      What happens today was measured on canary (Folia 1.39.1) and betula.app (Folia 1.0.3) on 2026-10-20 and
      read from enhance.js, catalog.rs, combobox.rs, pick.rs, study/menu.rs, study/focus.rs, nav.rs.
      The prototype's 33 modules are the public catalog's search „daten" on betula.app that day (numbers,
@@ -288,8 +288,9 @@ td .same { color: var(--text-3); }
 .bx-head h2 { font-size: 13.5px; font-weight: 700; }
 .bx-ghost { margin-left: auto; border: 0; background: transparent; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: var(--r-s); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
 .bx-ghost:hover { background: var(--row-hover); color: var(--text); }
-/* A region away from the list: its ring, and on the ring the way back („Esc zum Verlassen“); the key
-   that leads in stands at the region's head. The list and the module beside it are home: no ring. */
+/* The sidebar is the one mode: its ring, and on the ring the way back („Esc zum Verlassen“); the key
+   that leads in stands at its head. Search and navigation show their focus only; the list and the
+   module beside it are home: no ring. */
 .bx-region-tag { position: absolute; z-index: 6; top: -9px; left: 10px; display: none; align-items: center; gap: 5px; padding: 2px 8px 2px 7px; border-radius: 6px; background: var(--invert); color: var(--on-invert); font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; pointer-events: none; }
 .bx-region-tag .sep { opacity: .6; }
 .bx-region-tag kbd { padding: 0 5px; background: color-mix(in srgb, var(--on-invert) 18%, transparent); color: inherit; box-shadow: none; font-size: 10.5px; }
@@ -297,8 +298,6 @@ td .same { color: var(--text-3); }
 .bx-region-tag:empty { display: none !important; }
 .bx .bx-search input:focus-visible { outline: none; }
 .bx[data-show-rings] .bx-panel[data-region="filter"][data-active] { box-shadow: 0 0 0 2px var(--invert), var(--shadow-lift); }
-.bx[data-show-rings] .bx-search[data-active] { box-shadow: 0 0 0 2px var(--invert); }
-.bx[data-show-rings] .bx-rail[data-active]::before { content: ""; position: absolute; inset: 4px 6px; border-radius: 12px; box-shadow: 0 0 0 2px var(--invert); pointer-events: none; }
 .bx-keys { display: none; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 7px 10px; border-top: 1px solid var(--line); background: var(--panel-2); border-radius: 0 0 var(--r-panel) var(--r-panel); color: var(--text-2); font-size: 11.5px; }
 .bx-keys span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .bx-keys kbd { padding: 1px 5px; font-size: 10.5px; }
@@ -736,18 +735,18 @@ td .same { color: var(--text-3); }
       <ol>
         <li><span><b>Was man kennt, gilt.</b> Tab, die Pfeile, Enter, die Leertaste, Esc, Strg + C und Strg + Z tun, was sie überall tun. Betula nimmt dem Browser keine Taste weg.</span></li>
         <li><span><b>Tab springt, die Pfeile gehen überallhin.</b> Ein Abschnitt der Filter, die Liste, eine Leiste von Knöpfen ist je ein Halt für Tab; die Pfeile gehen von Element zu Element, in den Filtern auch über die Abschnitte hinweg. Tab bleibt im Bereich: In den Filtern ist unten Schluss, im Inhalt geht es rundherum.</span></li>
-        <li><span><b>Ein Modus ist ein Ort, den man sieht.</b> Zu Hause ist man in der Liste, ohne Rahmen. <kbd>F</kbd> springt in die Filter, <kbd>/</kbd> in die Suche; dort trägt der Bereich einen Rahmen, und der sagt, wie man zurückkommt: „Esc zum Verlassen“. <kbd>Esc</kbd> führt immer zurück in die Liste.</span></li>
+        <li><span><b>Ein Modus ist ein Ort, den man sieht.</b> Zu Hause ist man in der Liste, ohne Rahmen. <kbd>F</kbd> springt in die Filter, und nur die Seitenleiste trägt dann einen Rahmen, der sagt, wie man zurückkommt: „Esc zum Verlassen“. <kbd>/</kbd> führt in die Suche, die nur ihren Fokus zeigt. <kbd>Esc</kbd> führt immer zurück in die Liste.</span></li>
         <li><span><b>Jede Taste hat ihren Knopf.</b> <kbd>M</kbd> merkt, <kbd>P</kbd> plant ein, was gerade den Fokus hat, und mit Shift öffnet dieselbe Taste den Pfeil daneben: <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>M</kbd></span> Sammlung und Notiz, <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>P</kbd></span> das Semester. In den Filtern findet Tippen einen Filter oder einen Abschnitt, auch mit Tippfehler, und Enter setzt ihn. Abschalten kann man die Buchstaben auch.</span></li>
         <li><span><b>Was keine Taste hat, hat einen Namen.</b> „Befehle“ im Suchfeld oder <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>K</kbd></span>: ein Modul, einen Filter, eine Seite oder eine Aktion tippen, Enter. Jede Zeile zeigt ihre Taste, so lernt man sie nebenbei. <kbd>?</kbd> zeigt alle Tasten des Ortes.</span></li>
         <li><span><b>Für alle gleich.</b> Es ist das Schema, das Screenreader von guten Seiten kennen: Bereiche als Landmarken, Gruppen mit Namen, Pfeile in Gruppen, und jede Änderung wird angesagt. Kein zweiter Modus, keine Einstellung, auch nicht am Rechner einer Freundin.</span></li>
       </ol>
-      <p class="who">Ein Konzept zum Besprechen; gebaut ist davon nichts. Es folgt der Regel vom 20.10., dass keine Aktion nur über eine Taste geht (CLAUDE.md), und übernimmt dafür den Knopf mit Pfeil aus „Jede Taste hat einen Knopf“ (<code>folia/design/tasten</code>). Was heute ist, wurde am 20.10. auf Canary (Folia 1.39.1 und 1.39.2) und betula.app (Folia 1.0.3) gemessen; „Was sich ändert“ steht auf Canary 1.41.0. Die drei Rückmeldungen zum Prototyp vom selben Tag, zur Bedienung, zum Aussehen und zu Regler und Rahmen, sind eingearbeitet (<a href="#entschieden">Entschieden</a>). Neun Fragen sind offen, jede mit einer Empfehlung, drei sind entschieden (<a href="#offen">Offen</a>).</p>
+      <p class="who">Ein Konzept zum Besprechen; gebaut ist davon nichts. Es folgt der Regel vom 20.10., dass keine Aktion nur über eine Taste geht (CLAUDE.md), und übernimmt dafür den Knopf mit Pfeil aus „Jede Taste hat einen Knopf“ (<code>folia/design/tasten</code>). Was heute ist, wurde am 20.10. auf Canary (Folia 1.39.1 und 1.39.2) und betula.app (Folia 1.0.3) gemessen; „Was sich ändert“ steht auf Canary 1.41.0. Die Rückmeldungen zum Prototyp vom selben Tag, zur Bedienung, zum Aussehen und zu Regler und Rahmen, sind eingearbeitet (<a href="#entschieden">Entschieden</a>). Neun Fragen sind offen, jede mit einer Empfehlung, drei sind entschieden (<a href="#offen">Offen</a>).</p>
     </aside>
   </header>
 
   <section class="block" id="probieren" aria-labelledby="try-title">
     <h2 id="try-title">Zum Ausprobieren: der Katalog mit der Tastatur</h2>
-    <p class="lead">Ein Katalog wie in Betula, mit den 33 Modulen, die die Suche „daten“ am 20.10. findet, und ihren echten Filterwerten. Klick in die Liste; dann geht alles mit der Tastatur. Die Liste ist das Zuhause und trägt keinen Rahmen; außerhalb zeigt ein Rahmen, wo man ist und wie man zurückkommt. Was sich nach dem Ausprobieren am 20.10. geändert hat, steht unter <a href="#entschieden">Entschieden</a>.</p>
+    <p class="lead">Ein Katalog wie in Betula, mit den 33 Modulen, die die Suche „daten“ am 20.10. findet, und ihren echten Filterwerten. Klick in die Liste; dann geht alles mit der Tastatur. Die Liste ist das Zuhause und trägt keinen Rahmen; nur in den Filtern zeigt ein Rahmen, dass man dort ist und wie man zurückkommt. Was sich nach dem Ausprobieren am 20.10. geändert hat, steht unter <a href="#entschieden">Entschieden</a>.</p>
     <ul class="points">
       <li><b>In die Filter:</b> <kbd>F</kbd>. Tippen öffnet eine grüne Blase und findet einen Filter oder einen Abschnitt, auch mit Tippfehler: <kbd>e</kbd> <kbd>n</kbd> <kbd>Enter</kbd> setzt „Englisch“, <kbd>k</kbd> <kbd>l</kbd> <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>Enter</kbd></span> „ohne Klausur“. <kbd>Tab</kbd> springt von Abschnitt zu Abschnitt, die Pfeile gehen überallhin, die <kbd>Leertaste</kbd> schaltet mit, ohne, aus, <kbd>+</kbd> und <kbd>−</kbd> gleich mit und ohne. Am Regler ändern <kbd>+</kbd> und <kbd>−</kbd> den Wert, oder man tippt die Zahl; die Pfeile gehen dort weiter wie überall. Hinaus führt nur <kbd>Esc</kbd> (oder ein Klick in die Liste); unten ist für Tab Schluss.</li>
       <li><b>In der Liste:</b> <kbd>↑</kbd> <kbd>↓</kbd> wählen, <kbd>Enter</kbd> öffnet daneben und ein zweites Mal im Vollbild, <kbd>M</kbd> merkt und <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>M</kbd></span> öffnet „Sammlung und Notiz“, <kbd>P</kbd> plant ein und <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>P</kbd></span> wählt das Semester, <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>F10</kbd></span> öffnet das Menü der Zeile. <kbd>Tab</kbd> geht rundherum: Spaltenköpfe, Liste, das Modul daneben, und wieder von vorn.</li>
@@ -764,7 +763,6 @@ td .same { color: var(--text-3); }
     <div class="try-scroll">
       <div class="bx" id="bx" role="group" aria-label="Prototyp: Betulas Katalog">
         <nav class="bx-rail" data-region="nav" aria-label="Navigation">
-          <span class="bx-region-tag" id="bx-tag-nav"></span>
           <div class="bx-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2.5c-3.6 3.4-6 7.3-6 10.7a6 6 0 0 0 5.2 5.95V22h1.6v-2.85A6 6 0 0 0 18 13.2c0-3.4-2.4-7.3-6-10.7Zm.8 14.9v-4.1l2.3-2.3-1.1-1.1-1.2 1.2V7.5h-1.6v4.6l-1.2-1.2-1.1 1.1 2.3 2.3v3.1a4.4 4.4 0 0 1-3.5-4.2c0-2.5 1.6-5.5 4.4-8.4 2.8 2.9 4.4 5.9 4.4 8.4a4.4 4.4 0 0 1-4.7 4.2Z"/></svg></div>
           <div class="bx-tabs">
             <button type="button" class="bx-tab" data-tab="home" aria-label="Start" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg></button>
@@ -778,7 +776,6 @@ td .same { color: var(--text-3); }
         <div class="bx-top">
           <p class="bx-pagetitle" id="bx-pagetitle">Module</p>
           <div class="bx-search" data-region="search" role="search">
-            <span class="bx-region-tag" id="bx-tag-search"></span>
             <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
             <input id="bx-q" type="text" placeholder="Modul, Nummer oder Thema suchen" aria-label="Modul, Nummer oder Thema suchen" autocomplete="off" spellcheck="false">
             <span class="kh" id="bx-q-kbd"><kbd>/</kbd></span>
@@ -859,8 +856,9 @@ td .same { color: var(--text-3); }
     <h3 class="dec-h">Zum Regler und zum Rahmen</h3>
     <ol class="decided">
       <li><h3><kbd>+</kbd> und <kbd>−</kbd> am Regler</h3><q>Ok nur ein kleiner change nochmal am slider. Mach mal +- als inc und dec und die pfeiltasten für die navigation. Das aktuelle ist super unintuituv.</q><p><kbd>+</kbd> und <kbd>−</kbd> ändern den Wert um eins, <kbd>Bild ↑</kbd> <kbd>Bild ↓</kbd> um fünf, eine Ziffer öffnet das Feld. Die Pfeile gehen wie überall: <kbd>←</kbd> <kbd>→</kbd> vom einen Regler zum anderen und zu den Filtern daneben, <kbd>↑</kbd> <kbd>↓</kbd> zu den Abschnitten darüber und darunter.</p></li>
-      <li><h3>Die Suche: ein Rahmen, kein Hinweis</h3><q>Aber bei der suche muss die notiz da raus. Das ist auch intuitiv verständlich, dass man mit enter oder esc da wieder raus kommt. Und da ist noch so ein doubble border problem. Zeig mal nur die gößere border an, das fühlt sich mehr zusammenhängend an.</q><p>Um die Suche liegt nur noch der große Rahmen um Feld und „Befehle“, ohne Hinweis und ohne den Fokusring des Felds darin.</p></li>
-      <li><h3>Nur „Esc zum Verlassen“ <small>Frage 11</small></h3><q>Ja und bei dem Filter steht halt filter über filter. Ich glaube esc zum verlassen reicht da.</q><p>Auf dem Rahmen steht nur noch der Weg hinaus; der Name steht am Kopf des Bereichs. An der Navigation ebenso.</p></li>
+      <li><h3>Die Suche: ein Rahmen, kein Hinweis</h3><q>Aber bei der suche muss die notiz da raus. Das ist auch intuitiv verständlich, dass man mit enter oder esc da wieder raus kommt. Und da ist noch so ein doubble border problem. Zeig mal nur die gößere border an, das fühlt sich mehr zusammenhängend an.</q><p>Um die Suche liegt nur noch ein Ring um Feld und „Befehle“, ohne Hinweis und ohne den Fokusring des Felds darin; seit der letzten Rückmeldung ist es ihr gewöhnlicher Fokus (unten).</p></li>
+      <li><h3>Nur „Esc zum Verlassen“</h3><q>Ja und bei dem Filter steht halt filter über filter. Ich glaube esc zum verlassen reicht da.</q><p>Auf dem Rahmen der Filter steht nur noch der Weg hinaus; der Name steht am Kopf des Bereichs.</p></li>
+      <li><h3>Rahmen und Name nur an der Seitenleiste <small>Frage 11</small></h3><q>Also lass uns das bitte umdrehen. Ich will nur die sidebar (z.B. filter) mit label und rahmen hervorgehoben haben um das als mode zu visualisieren bei dem rest soll das nicht passieren.</q><p>Nur die Seitenleiste ist ein Modus: Sie allein trägt den schwarzen Rahmen und „Esc zum Verlassen“. Navigation und Suche zeigen nur ihren gewöhnlichen Fokus, die Suche ihren einen Ring um Feld und „Befehle“.</p></li>
     </ol>
   </section>
 
@@ -943,7 +941,7 @@ td .same { color: var(--text-3); }
 
   <section class="block" id="bereiche" aria-labelledby="regions-title">
     <h2 id="regions-title">Bereiche statt Modi</h2>
-    <p class="lead">Vim hat Modi: Dieselbe Taste tut je nach Modus etwas anderes, und welcher gilt, sieht man kaum. Betula übernimmt davon die Idee, dass eine Taste je nach Ort Verschiedenes tut, und macht den Ort sichtbar. <b>Ein Modus ist bei Betula ein Bereich der Seite.</b> Zu Hause ist man in der Liste, und sie trägt keinen Rahmen; geht man in die Filter, die Suche oder die Navigation, trägt der Bereich einen, und auf ihm steht, wie man zurückkommt.</p>
+    <p class="lead">Vim hat Modi: Dieselbe Taste tut je nach Modus etwas anderes, und welcher gilt, sieht man kaum. Betula übernimmt davon die Idee, dass eine Taste je nach Ort Verschiedenes tut, und macht den Ort sichtbar. <b>Ein Modus ist bei Betula ein Bereich der Seite.</b> Zu Hause ist man in der Liste, und sie trägt keinen Rahmen. Der eine Modus ist die Seitenleiste: Geht man in die Filter, tragen sie einen Rahmen, und auf ihm steht, wie man zurückkommt. Suche und Navigation sind Stellen, an denen man kurz ist, und zeigen nur ihren Fokus.</p>
     <div class="vs">
       <div>
         <h3>Vim</h3>
@@ -959,7 +957,7 @@ td .same { color: var(--text-3); }
         <h3>Betula</h3>
         <div class="vimbar" aria-hidden="true" style="background:var(--panel-2);color:var(--text-2)"><span class="m" style="background:var(--invert);color:var(--on-invert)">Esc zum Verlassen</span><span><kbd>Leertaste</kbd> mit/ohne</span><span class="q" style="color:var(--text-3)"><kbd>↑</kbd> <kbd>↓</kbd> überall</span></div>
         <ul class="points">
-          <li>Der Modus ist <b>der Bereich, in dem der Fokus steht</b>: Filter, Liste, Modul, Suche, Navigation. Die Liste ist das Zuhause und trägt keinen Rahmen; die anderen tragen einen, mit dem Weg zurück: „Esc zum Verlassen“.</li>
+          <li>Der Modus ist <b>der Bereich, in dem der Fokus steht</b>: Filter, Liste, Modul, Suche, Navigation. Die Liste ist das Zuhause und trägt keinen Rahmen; die Seitenleiste trägt einen, mit dem Weg zurück: „Esc zum Verlassen“.</li>
           <li>Buchstaben tun, was <b>zum Bereich</b> passt: In den Filtern öffnen sie die Blase „Finden“, in der Liste handeln sie an der Zeile. Was sie tun, steht an den Knöpfen, in den Filtern unten im Bereich.</li>
           <li><kbd>Esc</kbd> führt <b>immer zurück in die Liste</b>, und die Zeile von vorher hat wieder die Tastatur. Von dort ist alles einen Sprung entfernt.</li>
           <li>Wer neu ist, braucht nichts zu wissen: Tab, Pfeile, Enter und die Maus tun, was sie überall tun.</li>
@@ -979,7 +977,7 @@ td .same { color: var(--text-3); }
     </figure>
     <h3>Woran man sieht, wo man ist</h3>
     <ul class="points">
-      <li><b>Ein Rahmen nur außerhalb des Zuhauses.</b> Filter, Suche und Navigation tragen ihn, solange sie die Tastatur haben. Oben auf ihm steht nur, wie man herauskommt: „Esc zum Verlassen“; an der Suche nichts, denn dass Enter und Esc dort hinausführen, versteht man von selbst. Der Name und die Taste, die hineinführt, stehen am Kopf des Bereichs („Filter F“, „/“ im Suchfeld), und um die Suche liegt nur dieser eine Rahmen, ohne den Fokusring des Felds darin. Liste und Modul tragen keinen: Dort wirkte ein Rahmen wie etwas Vorübergehendes, das man mit Esc schließen will (<a href="#entschieden">20.10.</a>).</li>
+      <li><b>Ein Rahmen nur um die Seitenleiste.</b> Die Filter (auf den anderen Seiten ihre Seitenleiste) sind der eine Modus: Solange sie die Tastatur haben, tragen sie einen schwarzen Rahmen, und oben auf ihm steht nur, wie man herauskommt: „Esc zum Verlassen“. Der Name und die Taste, die hineinführt, stehen am Kopf („Filter F“). Suche und Navigation tragen keinen Rahmen, nur ihren gewöhnlichen Fokus; um die Suche ist das ein Ring um Feld und „Befehle“, ohne den Fokusring des Felds darin. Liste und Modul tragen keinen: Dort wirkte ein Rahmen wie etwas Vorübergehendes, das man mit Esc schließen will (<a href="#entschieden">20.10.</a>).</li>
       <li><b>Der Abschnitt mit der Tastatur sieht aus wie eine geöffnete Zeile:</b> grau unterlegt, links ein Streifen. In den Filtern sieht man so, in welchem Abschnitt man ist, auch wenn die Pfeile über seine Grenzen gehen.</li>
       <li><b>Tab bleibt im Bereich.</b> Aus den Filtern führt Tab nicht in die Liste: Oben und unten ist Schluss; das merkt man, eine Notiz braucht es nicht. Im Inhalt geht Tab rundherum, Shift + Tab braucht man nicht. Hinaus führen Esc, ein Klick, die Sprungtasten und <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>F6</kbd></span>.</li>
       <li><b>Eine Leiste nur für das Ungewöhnliche.</b> In den Filtern nennt sie an ihrem Fuß, was ein Chip nicht selbst tragen kann und was man sonst nirgends kennt: <kbd>+</kbd> mit, <kbd>−</kbd> ohne, <kbd>Entf</kbd> aus; an einer Optionsgruppe <kbd>←</kbd> <kbd>→</kbd>, am Regler <kbd>+</kbd> <kbd>−</kbd> und die Ziffern, beim Finden <kbd>↑</kbd> <kbd>↓</kbd>, <kbd>Enter</kbd> und <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>Enter</kbd></span>. Tab, die Pfeile und die Leertaste stehen dort nicht. In der Liste und am Modul stehen die Tasten an den Knöpfen und im Kopf der Liste („↑ ↓ wählen · Enter öffnen · M merken“, wie seit 1.39.2). Eine Zeile voller Hinweise braucht es nicht.</li>
@@ -1243,7 +1241,7 @@ td .same { color: var(--text-3); }
     <ol class="ask">
       <li data-done><h3><kbd>F</kbd> für die Filter?</h3><p>Auf betula.app ist <kbd>F</kbd> seit 1.0.3 das Vollbild.</p><p class="rec done">Ja („ich liebe den Ansatz, dass man mit F den filter öffnet“, 20.10.). Das Vollbild bekommt <kbd>V</kbd> und Enter auf dem offenen Modul, und „Vollbild V“ steht an seinem Knopf.</p></li>
       <li><h3><span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>K</kbd></span>: die Befehle oder das Suchfeld?</h3><p>Heute führt <span class="kk"><kbd>Strg</kbd><i class="plus">+</i><kbd>K</kbd></span> ins Suchfeld, und das Suchfeld zeigt „Strg + K“.</p><p class="rec">Die Befehle, die auch Module finden; <kbd>/</kbd> bleibt das Suchfeld und steht darin. So tut Strg + K weiter, was man kennt (ein Modul finden), und kann mehr.</p></li>
-      <li><h3>Der Rahmen und die Leiste der Filter nur bei Tastatur?</h3><p>Entschieden ist am 20.10., dass Liste und Modul keinen Rahmen tragen. Offen ist, ob Filter, Suche und Navigation ihn auch zeigen, wenn man mit der Maus hineinklickt. Über der Liste steht seit 1.39.2 „↑ ↓ wählen · Enter öffnen · M merken“.</p><p class="rec">Nur ab der ersten Taste bis zur Maus. Wer klickt, verlässt die Filter mit einem Klick und braucht den Hinweis auf Esc nicht. Die Leiste gibt es nur in den Filtern, wo die Chips ihre Tasten nicht tragen können; der Kopf der Liste bleibt, wie er seit 1.39.2 ist.</p></li>
+      <li><h3>Der Rahmen und die Leiste der Filter nur bei Tastatur?</h3><p>Entschieden ist am 20.10., dass Liste und Modul keinen Rahmen tragen. Offen ist, ob die Filter ihn auch zeigen, wenn man mit der Maus hineinklickt. Über der Liste steht seit 1.39.2 „↑ ↓ wählen · Enter öffnen · M merken“.</p><p class="rec">Nur ab der ersten Taste bis zur Maus. Wer klickt, verlässt die Filter mit einem Klick und braucht den Hinweis auf Esc nicht. Die Leiste gibt es nur in den Filtern, wo die Chips ihre Tasten nicht tragen können; der Kopf der Liste bleibt, wie er seit 1.39.2 ist.</p></li>
       <li><h3>Einzelne Tasten abschaltbar, und an als Standard?</h3><p>WCAG 2.1.4 verlangt einen Schalter für Tasten aus einem einzelnen Zeichen.</p><p class="rec">Ja, im Profil und in der Übersicht (<kbd>?</kbd>), an als Standard; erst einschalten muss man sie nur bei 2 der 29 untersuchten Apps (Gmail, ClickUp). Aus heißt: F, /, ?, M, P, V (auch mit Shift) tun nichts und stehen nirgends; Strg + K, Tab, Pfeile, Enter und Esc bleiben, und jeder Knopf sowieso.</p></li>
       <li><h3>„Ohne“ mit einer eigenen Taste?</h3><p>Heute schaltet die Leertaste aus → mit → ohne, wie der Klick.</p><p class="rec">Ja: die Leertaste bleibt wie der Klick, dazu <kbd>−</kbd> für ohne, <kbd>+</kbd> für mit und <kbd>Entf</kbd> für aus, und der Tooltip des Chips nennt sie.</p></li>
       <li data-done><h3>Tippen in den Filtern findet einen Filter?</h3><p>In den Filtern gibt es sonst nichts zu tippen.</p><p class="rec done">Ja, in einer Blase „Finden“, die mit dem ersten Buchstaben erscheint („Geniale idee aber die UX ist noch schlecht umgesetzte“, „Es braucht keine Suchbar“, 20.10.): markiert wie die Suche, ein Textfeld wie jedes, mit den Abschnitten und „Weitere Filter“, Tippfehler wie die Suche nur ohne genauen Treffer, der Treffer rollt gedämpft ins Bild (<a href="#filter">Die Filter</a>).</p></li>
@@ -1251,7 +1249,7 @@ td .same { color: var(--text-3); }
       <li><h3>Die Navigation als ein Halt?</h3><p>Heute ist jeder Tab der Navigation ein Halt, dazu Logo, Profil und das Licht.</p><p class="rec">Ja: Tab kommt einmal hinein, <kbd>↑</kbd> <kbd>↓</kbd> wählen den Tab, wie bei Registerkarten.</p></li>
       <li><h3><kbd>B</kbd> für „bestanden“ in „Mein Studium“?</h3><p>Heute steht „Als bestanden markieren“ im Menü der Zeile.</p><p class="rec">Erst einmal nur im Menü, mit <span class="kk"><kbd>Shift</kbd><i class="plus">+</i><kbd>F10</kbd></span> erreichbar. Wenn es am Ende eines Semesters oft gebraucht wird, bekommt es <kbd>B</kbd> und steht dann am Menüeintrag.</p></li>
       <li><h3>Ein Hinweis nach dem Klick?</h3><p>Wer mit der Maus merkt, liest „Geht auch mit M“.</p><p class="rec">Ja, einmal je Taste und dann nie wieder; mit den einzelnen Tasten abschaltbar.</p></li>
-      <li data-done><h3>Ein Rahmen auch um Suche und Navigation?</h3><p>Die erste Rückmeldung vom 20.10. galt den Filtern und dem Inhalt. Suche und Navigation liegen wie die Filter außerhalb des Zuhauses.</p><p class="rec done">Ja, derselbe Rahmen („Ich finde den prinzipiell gut“, 20.10.); an der Suche ohne Hinweis und nur er, ohne den Ring des Felds darin, an der Navigation mit „Esc zum Verlassen“. Tab geht dort weiter wie gewohnt: aus der Navigation in die Suche, aus „Befehle“ in die Filter. Festgehalten wird nur in den Filtern.</p></li>
+      <li data-done><h3>Ein Rahmen auch um Suche und Navigation?</h3><p>Die erste Rückmeldung vom 20.10. galt den Filtern und dem Inhalt. Suche und Navigation liegen wie die Filter außerhalb des Zuhauses.</p><p class="rec done">Nein: Rahmen und Name nur an der Seitenleiste, sie ist der Modus („Ich will nur die sidebar (z.B. filter) mit label und rahmen hervorgehoben haben“, 20.10.). Suche und Navigation zeigen ihren gewöhnlichen Fokus. Tab geht dort weiter wie gewohnt: aus der Navigation in die Suche, aus „Befehle“ in die Filter. Festgehalten wird nur in den Filtern.</p></li>
       <li><h3>Die Reihenfolge der Schritte?</h3><p>Sieben Schritte, unabhängig voneinander nützlich.</p><p class="rec">Schritt 1 zuerst: Er hilft allen und ändert keine Taste. Dann 2 und 3 zusammen, dann 4; die Befehle (5) unabhängig davon.</p></li>
     </ol>
         <h3 style="margin-top:22px">Quellen</h3>
@@ -1603,17 +1601,14 @@ function setRegion(r) {
   for (const el of $$("[data-region]", bx)) el.toggleAttribute("data-active", el.dataset.region === r);
   updateKeys();
 }
-// The ring of a region away from the list says how to get back, not how one got there; the key
-// that leads in stands at the region's head („Filter F“, „/“ in the search). The list and the
-// module beside it are home: no ring, nothing to close (owner, 2026-10-20).
-// Only the way out stands on it, the name is at the region's head (owner, 2026-10-20: „bei dem Filter
-// steht halt filter über filter. Ich glaube esc zum verlassen reicht da“); the search's ring says
-// nothing („Das ist auch intuitiv verständlich, dass man mit enter oder esc da wieder raus kommt“).
+// The ring says how to get back, not how one got there; the key that leads in stands at the head
+// („Filter F“). The list and the module beside it are home: no ring, nothing to close.
+// Only the sidebar is a mode and wears a ring and a name (owner, 2026-10-20: „Ich will nur die sidebar
+// (z.B. filter) mit label und rahmen hervorgehoben haben um das als mode zu visualisieren bei dem rest
+// soll das nicht passieren“); the name says only the way out, the region's own name is at its head
+// („bei dem Filter steht halt filter über filter. Ich glaube esc zum verlassen reicht da“).
 function regionTags() {
-  const exit = `${kb("Esc")}zum Verlassen`;
-  $("#bx-tag-nav").innerHTML = exit;
-  $("#bx-tag-search").innerHTML = "";
-  $("#bx-tag-filter").innerHTML = exit;
+  $("#bx-tag-filter").innerHTML = `${kb("Esc")}zum Verlassen`;
   $("#bx-q-kbd").innerHTML = kc(S.ctrlK === "search" ? "Mod+K" : "/");
   $("#bx-legend").innerHTML = `${kb("↑", "↓")} wählen ${kb("Enter")} öffnen ${kb("M")} merken`;
   const ck = $("#bx-cmd-kbd");
