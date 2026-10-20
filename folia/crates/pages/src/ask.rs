@@ -219,6 +219,11 @@ ask!(
     }
 );
 ask!(
+    /// How each of `ids` would sit in the plan of `key` (`crate::fit_lines`): the Stundenplan's
+    /// „Aus der Merkliste", „passt" or with what it overlaps.
+    FitLinesAsk { key: SemesterKey, others: Vec<String>, program: Option<String>, ids: Vec<String>, selection: Selection, locale: Locale } -> Vec<(String, Option<crate::Sits>)>, Lane::Page, |q, db, kept| crate::fit_lines(db, q.key, &q.others, q.program.as_deref(), &q.ids, &q.selection, q.locale)
+);
+ask!(
     /// What a shared plan's code names.
     SharedPlanAsk { plan: SharedPlan, locale: Locale } -> Option<SharedPlanData>, Lane::Page, |q, db, kept| crate::shared_plan(db, &q.plan, q.locale)
 );
@@ -274,7 +279,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
     dispatch!(
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
         ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
-        OverlayAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
+        OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
     )
 }
 
@@ -309,6 +314,7 @@ mod tests {
         let key = SemesterKey::parse("2026W").unwrap();
         same(StudyplanAsk { key, ids: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), locale: Locale::De });
         same(PlanRowsAsk { key, own: vec!["12104".into()], others: vec!["12107".into()] });
+        same(FitLinesAsk { key, others: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), ids: vec!["11103".into(), "12104".into()], selection: Default::default(), locale: Locale::De });
         same(StudyModulesAsk { ids: vec!["12204".into(), "12339".into(), "00000".into()] });
         same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
         same(MetaAsk {});
