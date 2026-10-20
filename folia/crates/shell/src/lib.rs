@@ -5,7 +5,7 @@
 //! (`pending`, `skeleton`), the tabs' pages kept built on stages of their own (`stage`), the way
 //! back (`nav`), the ground under every page (`ground`), the languages (`languages`),
 //! the text of a page that searches itself and keeps it out of its address (`search`), the
-//! overview of the keys (`keys`), what search engines read (`seo`), the launch screens of iOS (`launch`) and what the document
+//! overview of the keys (`keys`), „Befehle" (`commands`), what search engines read (`seo`), the launch screens of iOS (`launch`) and what the document
 //! links (`document`). Above the design, the data and the stores, below the widgets and the
 //! features: it knows no page of its own (docs/folia/folia-refactor.md §7.4).
 
@@ -14,6 +14,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic))]
 
 pub mod chrome;
+pub mod commands;
 pub mod document;
 pub mod frame;
 pub mod ground;

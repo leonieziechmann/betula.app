@@ -127,15 +127,16 @@ pub fn NavItems() -> impl IntoView {
         (Some(plan), None) => plan.count(),
         (None, _) => 0,
     });
+    // Each a command of „Gehe zu" with its keys (`crate::commands`).
     view! {
-        <a class="nav" data-area="home" data-key=Area::Home.key() href=t.path(url::HOME) on:click=tap(Area::Home) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/><NavKey area=Area::Home/></span>{t.app.home}</a>
-        <a class="nav" data-area="catalog" data-key=Area::Catalog.key() href=move || href(Area::Catalog) on:click=tap(Area::Catalog) data-hold=APP.then_some("filters") data-list=catalog_list title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/><NavKey area=Area::Catalog/></span>{t.app.modules}</a>
-        <a class="nav" data-area="programs" data-key=Area::Programs.key() href=move || href(Area::Programs) on:click=tap(Area::Programs) data-hold=APP.then_some("menu") title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/><NavKey area=Area::Programs/></span>{t.app.study}</a>
+        <a class="nav" data-area="home" data-key=Area::Home.key() data-command=t.app.home data-command-group="go" data-command-keys=format!("Nav+{}", Area::Home.key()) href=t.path(url::HOME) on:click=tap(Area::Home) title=t.app.home aria-current=move || current(Area::Home)><span class="ind"><Icon name="house"/><NavKey area=Area::Home/></span>{t.app.home}</a>
+        <a class="nav" data-area="catalog" data-key=Area::Catalog.key() data-command=t.app.modules data-command-group="go" data-command-keys=format!("Nav+{}", Area::Catalog.key()) href=move || href(Area::Catalog) on:click=tap(Area::Catalog) data-hold=APP.then_some("filters") data-list=catalog_list title=t.app.modules aria-current=move || current(Area::Catalog)><span class="ind"><Icon name="layout-list"/><NavKey area=Area::Catalog/></span>{t.app.modules}</a>
+        <a class="nav" data-area="programs" data-key=Area::Programs.key() data-command=t.app.study data-command-group="go" data-command-keys=format!("Nav+{}", Area::Programs.key()) href=move || href(Area::Programs) on:click=tap(Area::Programs) data-hold=APP.then_some("menu") title=t.app.programs aria-current=move || current(Area::Programs)><span class="ind"><Icon name="graduation-cap"/><NavKey area=Area::Programs/></span>{t.app.study}</a>
         // The marked modules exist in the browser app only (R15). How many there are is known
         // there alone, so the number is never part of server HTML (R9). What the visitor keeps is
         // no page for a crawler (`seo`), here and in the Studienplan.
         // Held, or its right click, it has a menu of the collections (`TabMenu`), once there is one.
-        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) data-hold=move || (APP && collected.get()).then_some("menu") rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
+        <a class="nav js-only" data-area="bookmarks" data-key=Area::Bookmarks.key() data-command=t.app.bookmarks data-command-group="go" data-command-keys=format!("Nav+{}", Area::Bookmarks.key()) href=move || href(Area::Bookmarks) on:click=tap(Area::Bookmarks) data-hold=move || (APP && collected.get()).then_some("menu") rel="nofollow" title=t.app.bookmarks aria-current=move || current(Area::Bookmarks)>
             <span class="ind">
                 <Icon name="bookmark"/>
                 <NavKey area=Area::Bookmarks/>
@@ -149,7 +150,7 @@ pub fn NavItems() -> impl IntoView {
         // The Studienplan lives in the browser app alone, like the Merkliste (R15), and so does the
         // number of its modules (R9). The number is a memo of its own: most changes of the plan
         // (a hidden Termin, a move) leave it as it is.
-        <a class="nav js-only" data-area="studyplan" data-key=Area::Studyplan.key() href=move || href(Area::Studyplan) on:click=tap(Area::Studyplan) rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
+        <a class="nav js-only" data-area="studyplan" data-key=Area::Studyplan.key() data-command=t.app.studyplan data-command-group="go" data-command-keys=format!("Nav+{}", Area::Studyplan.key()) href=move || href(Area::Studyplan) on:click=tap(Area::Studyplan) rel="nofollow" title=t.app.studyplan aria-current=move || current(Area::Studyplan)>
             <span class="ind">
                 <Icon name="calendar-range"/>
                 <NavKey area=Area::Studyplan/>
@@ -378,6 +379,10 @@ pub fn ProfileButton(
             aria-expanded=move || opens.then(|| if open() { "true" } else { "false" })
             inert=move || away.get()
             data-hold=APP.then_some("profiles")
+            // A command of „Gehe zu" (`crate::commands`), by its name or the profile's.
+            data-command=t.app.profile
+            data-command-group="go"
+            data-command-words=label
             node_ref=node
             on:pointerenter=move |ev| {
                 if let Some(menu) = menu {
@@ -1075,8 +1080,9 @@ pub fn TopBar() -> impl IntoView {
                     <form class="search" role="search" method="get" action=t.path(action) data-live-search="" data-region="search">
                         <Icon name="search"/>
                         <label class="visually-hidden" for="topsearch">{label}</label>
-                        <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input/>
+                        <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input data-command=t.commands.search_field data-command-group="go" data-command-keys=folia_design::keys::SEARCH/>
                         <ui::Shortcut keys=folia_design::keys::SEARCH/>
+                        <crate::commands::CommandsButton/>
                     </form>
                 }
             }}

@@ -259,6 +259,7 @@ pub fn ToggleLink(
     /// A number shown at the right end.
     #[prop(optional)] count: Option<usize>,
 ) -> impl IntoView {
+    let name = label.clone();
     view! {
         <a
             class="chip"
@@ -269,6 +270,9 @@ pub fn ToggleLink(
             data-noscroll=""
             data-state=move || if on.get() { "with" } else { "off" }
             aria-checked=move || if on.get() { "true" } else { "false" }
+            // A command of „Befehle" (folia_shell::commands), named by its group where that names it.
+            data-command=name
+            data-command-state=move || on.get().then_some(crate::i18n::t().ui.with)
         >
             <span class="box"><Icon name="check"/><Icon name="x"/></span>
             <span class="chip-label">{label}</span>

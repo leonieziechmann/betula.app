@@ -213,7 +213,7 @@ function startData() {
   // the browser is idle. The first search then answers as fast as the next ones; the worker makes
   // it once per snapshot, when no question is waiting.
   const prepare = () => { if (!failed) worker.postMessage({ type: "prepare" }); };
-  document.addEventListener("focusin", (e) => { if (e.target.matches?.('input[type="search"], form[data-live-search] input')) prepare(); });
+  document.addEventListener("focusin", (e) => { if (e.target.matches?.('input[type="search"], form[data-live-search] input, [data-prepares-search]')) prepare(); });
   if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
     if ("requestIdleCallback" in window) requestIdleCallback(prepare, { timeout: 3000 });
     else setTimeout(prepare, 500);

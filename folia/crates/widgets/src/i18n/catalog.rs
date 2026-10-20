@@ -142,6 +142,8 @@ pub struct Texts {
     pub show_all: &'static str,
     pub none_found_title: &'static str,
     pub reset_all: &'static str,
+    /// What an option chosen is in „Befehle" (folia_shell::commands): „gewählt".
+    pub chosen: &'static str,
     /// The heads of the columns („Spr." is the language, short).
     pub col_module: &'static str,
     pub col_responsible: &'static str,
@@ -431,6 +433,7 @@ pub const DE: Texts = Texts {
     show_all: "Alle Module zeigen",
     none_found_title: "Keine Module gefunden",
     reset_all: "Alle Filter zurücksetzen",
+    chosen: "gewählt",
     col_module: "Modul",
     col_responsible: "Verantwortlich",
     col_language: "Spr.",
@@ -667,6 +670,7 @@ pub const EN: Texts = Texts {
     show_all: "Show all modules",
     none_found_title: "No modules found",
     reset_all: "Reset all filters",
+    chosen: "chosen",
     col_module: "Module",
     col_responsible: "Responsible",
     col_language: "Lang.",

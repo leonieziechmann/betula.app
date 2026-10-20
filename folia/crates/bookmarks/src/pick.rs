@@ -158,6 +158,8 @@ pub(crate) struct Picking {
     /// nimmst sie mit").
     pub notes_along: RwSignal<bool>,
     bookmarks: Option<Bookmarks>,
+    /// The note at the foot that says what was taken away, with „Rückgängig".
+    notices: Option<Notices>,
     /// What „Einplanen" aims with: the snapshot's current semester, the semester of each module's
     /// newest events, the hint of the list („Passt in meinen Stundenplan").
     current: Memo<Option<SemesterKey>>,
@@ -177,6 +179,7 @@ impl Picking {
             menu: RwSignal::new(None),
             notes_along: RwSignal::new(false),
             bookmarks: Bookmarks::expect(),
+            notices: Notices::expect(),
             current,
             newest,
             hint,
@@ -192,6 +195,21 @@ impl Picking {
         let keeps = self.listed.with_value(|listed| self.picked.with_untracked(|picked| picked.ids.iter().all(|id| listed.rows.contains_key(id))));
         if !keeps {
             self.picked.update(|picked| self.listed.with_value(|listed| picked.ids.retain(|id| listed.rows.contains_key(id))));
+        }
+    }
+
+    /// Takes `ids` off the Merkliste, as „Entfernen" of the bar does, and lets go of the selection:
+    /// the note at the foot says so and has „Rückgängig" (the rows stay, dimmed, `List`).
+    pub fn remove(self, ids: Vec<String>) {
+        let Some(bookmarks) = self.bookmarks else { return };
+        let marked: Vec<String> = ids.into_iter().filter(|id| bookmarks.is_marked_untracked(id)).collect();
+        self.clear();
+        if marked.is_empty() {
+            return;
+        }
+        let cleared = bookmarks.take_away(&marked);
+        if let Some(notices) = self.notices {
+            notices.say(Notice::Removed(cleared));
         }
     }
 
@@ -385,6 +403,15 @@ impl Picking {
                 self.toggle(&id);
                 return;
             }
+            // Entf (⌫ on a Mac) at a row: it, or the rows selected, off the Merkliste, with
+            // „Rückgängig" (folia/design/tastatur/konzept.html, „Die anderen Seiten": „Entf mit
+            // „Rückgängig“"), as „Entfernen" of the bar.
+            "Delete" | "Backspace" if !ev.shift_key() && !ev.repeat() => {
+                ev.prevent_default();
+                let ids = if self.any_untracked() { self.ids_untracked() } else { vec![id] };
+                self.remove(ids);
+                return;
+            }
             "ArrowDown" if ev.shift_key() => 1,
             "ArrowUp" if ev.shift_key() => -1,
             _ => return,
@@ -414,8 +441,6 @@ pub(crate) fn PickBar(picking: Picking) -> impl IntoView {
     let t = i18n::t();
     let b = &t.bookmarks;
     let collecting = Collecting::expect();
-    let notices = Notices::expect();
-    let bookmarks = Bookmarks::expect();
     let summary = Memo::new(move |_| {
         let ids = picking.picked.with(|picked| picked.ids.clone());
         let credits: f64 = ids.iter().filter_map(|id| picking.row(id).and_then(|row| row.credits)).sum();
@@ -428,21 +453,10 @@ pub(crate) fn PickBar(picking: Picking) -> impl IntoView {
         let Some((first, more)) = ids.split_first() else { return };
         collecting.open(CollectAsk { id: first.clone(), title: (t.marks.n_modules)(ids.len()), more: more.to_vec(), at: box_of(&ev), note: false, from_note: None });
     };
-    let remove = move |_| {
-        let ids = picking.ids_untracked();
-        let Some(bookmarks) = bookmarks else { return };
-        let marked: Vec<String> = ids.into_iter().filter(|id| bookmarks.is_marked_untracked(id)).collect();
-        picking.clear();
-        if marked.is_empty() {
-            return;
-        }
-        let cleared = bookmarks.take_away(&marked);
-        if let Some(notices) = notices {
-            notices.say(Notice::Removed(cleared));
-        }
-    };
+    let remove = move |_| picking.remove(picking.ids_untracked());
     view! {
-        <div class="st-selbar pick-bar" role="toolbar" aria-label=b.selection>
+        // Its buttons are commands of „Befehle" (folia_shell::commands) while rows are selected.
+        <div class="st-selbar pick-bar" role="toolbar" aria-label=b.selection data-commands=b.selection>
             <span class="st-selbar-count" aria-live="polite">
                 <span class="pick-n num">{move || summary.get().0}</span>
                 <span class="pick-words">{move || {
@@ -452,30 +466,30 @@ pub(crate) fn PickBar(picking: Picking) -> impl IntoView {
                     view! { {words}<span class="st-long">{format!(" · {}", format::credits(Some(credits), t.locale))}</span> }
                 }}</span>
             </span>
-            <button class="st-act st-pc" type="button" id="pick-all" title=b.select_all aria-label=b.select_all disabled=move || all_in.get() on:click=move |_| picking.select_all()>
+            <button class="st-act st-pc" type="button" id="pick-all" title=b.select_all aria-label=b.select_all data-command="" data-command-icon="list-checks" disabled=move || all_in.get() on:click=move |_| picking.select_all()>
                 <Icon name="list-checks"/>
                 <span class="st-long">{b.select_all}</span>
             </button>
             <span class="st-grow"></span>
-            <button class="st-act" type="button" id="pick-collect" data-action="collect" aria-haspopup="dialog" title=t.marks.collect_hint on:click=collect>
+            <button class="st-act" type="button" id="pick-collect" data-action="collect" aria-haspopup="dialog" title=t.marks.collect_hint data-command=b.act_collect data-command-keys="Shift+M" on:click=collect>
                 <Icon name="tag"/>
                 <span>{b.act_collect}</span>
                 <Icon name="chevron-down" class="st-pc"/>
             </button>
-            <button class="st-act" type="button" id="pick-plan" aria-haspopup="menu" on:click=move |ev: MouseEvent| picking.menu.set(box_of(&ev).map(|at| PickMenu::Plan { at, earlier: false }))>
+            <button class="st-act" type="button" id="pick-plan" aria-haspopup="menu" data-command=t.planner.plan on:click=move |ev: MouseEvent| picking.menu.set(box_of(&ev).map(|at| PickMenu::Plan { at, earlier: false }))>
                 <Icon name="calendar-plus"/>
                 <span>{t.planner.plan}</span>
                 <Icon name="chevron-down" class="st-pc"/>
             </button>
-            <button class="st-act" type="button" id="pick-share" aria-haspopup="menu" on:click=move |ev: MouseEvent| picking.menu.set(box_of(&ev).map(|at| PickMenu::Share { at }))>
+            <button class="st-act" type="button" id="pick-share" aria-haspopup="menu" data-command=b.act_share on:click=move |ev: MouseEvent| picking.menu.set(box_of(&ev).map(|at| PickMenu::Share { at }))>
                 <Icon name="share-2"/>
                 <span>{b.act_share}</span>
             </button>
-            <button class="st-act danger" type="button" id="pick-remove" on:click=remove>
+            <button class="st-act danger" type="button" id="pick-remove" on:click=remove data-command=t.marks.remove data-command-keys="Del">
                 <Icon name="trash-2"/>
                 <span>{t.marks.remove}</span>
             </button>
-            <button class="icon-btn st-act-close hit" type="button" aria-label=b.clear_selection title=b.clear_selection on:click=move |_| picking.clear()>
+            <button class="icon-btn st-act-close hit" type="button" aria-label=b.clear_selection title=b.clear_selection on:click=move |_| picking.clear() data-command="" data-command-keys="Esc">
                 <Icon name="x"/>
             </button>
         </div>

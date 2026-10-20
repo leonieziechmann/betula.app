@@ -410,9 +410,13 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await page.waitForTimeout(300);
   check((await stored(page)).length === markedBefore && (await page.evaluate(() => Boolean(document.querySelector(".view-menu")))), "M in a collection's menu marked the module behind it, or closed the menu");
   await page.keyboard.press("Escape");
-  // The module opened for it closes again (Esc, with the menu gone and the focus back at its collection).
+  // The module opened for it closes again (Esc, with the menu gone and the focus back at its
+  // collection): the sidebar is a mode of the keyboard (docs/folia/frontend.md R24), which the first
+  // Esc leaves into the list, and the next closes the module.
   if (opened) {
     await page.waitForFunction(() => !document.querySelector(".view-menu") && !document.activeElement?.closest?.(".view-menu"));
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.activeElement?.closest?.("#sidebar"), null, { timeout: 2000 }).catch(() => problems.push("Esc in the sidebar did not lead out of it"));
     await page.keyboard.press("Escape");
     await page.waitForFunction(() => !onPage('.detail [data-action="mark"]'), null, { timeout: 4000 }).catch(() => problems.push("the module opened for the check does not close"));
   }

@@ -194,6 +194,7 @@ pub fn App() -> impl IntoView {
     ProfileMenu::provide();
     // The overview of the keys, which the rail's button and `?` open (`folia_shell::keys`).
     folia_shell::keys::KeysOpen::provide();
+    folia_shell::commands::CommandsOpen::provide();
     // Where „Einplanen" plans in this tab's session, its note and its question for the study
     // (`studyplan::Planning`), after the Studienplan and „Mein Studiengang".
     Planning::provide();
@@ -230,6 +231,7 @@ pub fn App() -> impl IntoView {
             <TabMenu/>
             <ProfileSwitcher/>
             <folia_shell::keys::KeysHelp/>
+            <folia_shell::commands::CommandPalette/>
             // What „Einplanen" did, the dialog that sets up the study on the way, and the menu at
             // the arrow of a module planned.
             <PlanNote/>

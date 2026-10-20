@@ -459,13 +459,14 @@ pub fn ModulePanel(
             <div class="scroll" data-keep-scroll="detail">
                 // Its buttons are one stop of the Tab key, ← and → go from one to the next
                 // (enhance.js, „the keyboard": `data-stop`); its text another, whose arrows scroll.
-                <header class="hero" data-stop="x">
+                // Its commands in „Befehle" (folia_shell::commands): „Für „Analysis I“".
+                <header class="hero" data-stop="x" data-commands=(t.ui.commands_for)(&data.module.title)>
                     <div class="hero-top">
                         // Closing it leaves the page where it is (on a phone the window is what scrolls).
                         <a class="icon-btn back" href=close_href.clone() data-noscroll="" aria-label=t.module.close_preview><Icon name="arrow-left"/></a>
                         <ModuleIds id=id.clone() abbrev/>
                         // Not on a phone, where the panel is a sheet that goes all up (app.css).
-                        <a class="ghost full-view" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="V"/></a>
+                        <a class="ghost full-view" href=full_href data-action="fullscreen" title=t.module.full_view_title data-command=t.common.full_view data-command-keys="V"><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="V"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" data-back=back data-noscroll="" title=t.module.close_preview_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     <Heading data=data.clone() hint/>
@@ -514,19 +515,22 @@ fn Sidebar(data: ModuleData, hint: Signal<Option<PlanHint>>) -> impl IntoView {
     let t = i18n::t();
     let source_url = data.module.source_url.clone();
     let (id, title) = (data.module.id.clone(), data.module.title.clone());
+    let commands = (t.ui.commands_for)(&title);
     view! {
-        <nav class="toc jumps" aria-label=t.module.on_this_page>
+        // Its sections and actions are commands of „Befehle" (folia_shell::commands); the sections
+        // found by typing.
+        <nav class="toc jumps" aria-label=t.module.on_this_page data-commands=t.module.on_this_page data-commands-typed="">
             <p class="flabel label">{t.module.on_this_page}</p>
             {sections(&data, t).into_iter().map(|(anchor, heading)| view! {
-                <a href=format!("#{anchor}") data-action="jump">{heading}</a>
+                <a href=format!("#{anchor}") data-action="jump" data-command="">{heading}</a>
             }).collect_view()}
         </nav>
-        <div class="fgroup actions">
+        <div class="fgroup actions" data-commands=commands>
             <p class="flabel label">{t.module.actions}</p>
             <MarkButton id title look=MarkLook::Action/>
             {plan_button(&data, hint, PlanLook::Action)}
-            <JsOnly><a class="action" href="#" data-action="copy-link"><Icon name="share-2"/><span>{t.module.copy_link}</span></a></JsOnly>
-            {source_url.map(|href| view! { <a class="action" href=href rel="noopener"><Icon name="arrow-up-right"/>{t.module.original_at_btu}</a> })}
+            <JsOnly><a class="action" href="#" data-action="copy-link" data-command=""><Icon name="share-2"/><span>{t.module.copy_link}</span></a></JsOnly>
+            {source_url.map(|href| view! { <a class="action" href=href rel="noopener" data-command=""><Icon name="arrow-up-right"/>{t.module.original_at_btu}</a> })}
         </div>
     }
 }
@@ -568,7 +572,7 @@ pub fn ModuleFull(
                     noindex=noindex
                 />
                 <article class="module-page">
-                    <header class="panel hero">
+                    <header class="panel hero" data-commands=(t.ui.commands_for)(&data.module.title)>
                         <div class="hero-top">
                             <BackLink area=back_area to=back_to/>
                             <ModuleIds id=data.module.id.clone() abbrev/>

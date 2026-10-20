@@ -989,6 +989,49 @@ i.alt { margin: 0 5px; }
 .keys-letters { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 .keys-letters .seg, .pf-setting .letters-seg { max-width: 260px; margin: 0; }
 .keys-letters-hint { color: var(--text-3); font-size: 12.5px; line-height: 1.5; }
+/* „Befehle" (folia/crates/shell/src/commands.rs; folia/design/tastatur/konzept.html, „Befehle"): the
+   button at the end of the search field, behind a line as the field's own part, and the dialog near
+   the top of the window, a field over the list of what it finds, as the command palettes of other
+   programs are. No phone has the button: there are no keys, and every command is a tap away. */
+.cmd-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 30px; margin-right: -3px; padding: 0 6px 0 10px; border: 0; border-left: 1px solid var(--line-strong); border-radius: 0 8px 8px 0; background: none; color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.cmd-btn .icon { width: 15px; height: 15px; }
+.cmd-btn kbd { padding: 2px 6px; }
+@media (hover: hover) { .cmd-btn:hover { background: var(--row-hover); color: var(--text); } }
+.cmd-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (max-width: 1100px) { .cmd-btn-label { display: none; } }
+@media (max-width: 900px) { .cmd-btn { display: none; } }
+.cmd-dialog { position: fixed; inset: 12vh 0 auto; width: min(640px, calc(100vw - 32px)); max-width: none; max-height: min(560px, 76vh); margin: 0 auto; padding: 0; border: 0; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); overflow: hidden; }
+.cmd-dialog[open] { display: flex; flex-direction: column; animation: dialog-in .22s var(--spring); }
+.cmd-dialog::backdrop { background: rgba(10, 12, 17, .42); }
+.cmd-dialog[open]::backdrop { animation: fade-in .16s ease-out; }
+.cmd-box { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.cmd-field { flex: none; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--text-3); }
+.cmd-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; color: var(--text); font: inherit; font-size: 16px; }
+.cmd-field input::placeholder { color: var(--text-3); }
+.cmd-list { flex: 0 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 4px 8px 8px; scroll-padding: 34px 0 8px; }
+.cmd-list:empty { display: none; }
+.cmd-heading { padding: 10px 10px 4px; color: var(--text-3); font-size: 10.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmd-opt { position: relative; display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 6px 10px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+.cmd-opt[aria-selected="true"] { background: var(--row-hover); }
+.cmd-opt[aria-selected="true"]::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--accent); }
+.cmd-icon { flex: none; display: inline-grid; place-items: center; width: 18px; color: var(--text-3); }
+.cmd-icon .icon { width: 16px; height: 16px; }
+.cmd-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-sub { flex: none; color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cmd-keys { flex: none; display: inline-flex; align-items: center; }
+.cmd-keys kbd { padding: 2px 6px; }
+.cmd-none { margin: 0; padding: 14px 18px; color: var(--text-2); font-size: 13.5px; }
+.cmd-finds { flex: none; padding: 2px 8px 6px; }
+.cmd-finds p:not(.cmd-heading) { display: flex; align-items: center; gap: 10px; margin: 0; padding: 4px 10px; color: var(--text-3); font-size: 13px; }
+.cmd-finds .icon { width: 16px; height: 16px; }
+.cmd-foot { flex: none; display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 9px 16px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 12px; }
+.cmd-foot > span { display: inline-flex; align-items: center; gap: 4px; }
+.cmd-foot kbd { padding: 1px 5px; font-size: 10.5px; }
+.cmd-foot > span > :last-of-type:is(kbd, .kk) { margin-right: 3px; }
+/* „Geht auch mit M": a note at the foot of the window a moment after a command ran by its name. */
+.cmd-taught { position: fixed; z-index: 70; left: 50%; bottom: 24px; margin: 0; padding: 8px 14px; border-radius: 10px; background: var(--toast); color: var(--on-toast); box-shadow: var(--toast-ring), var(--shadow-pop); font-size: 13px; font-weight: 600; transform: translate(-50%, 12px); opacity: 0; pointer-events: none; transition: opacity .18s, transform .22s var(--ease); }
+.cmd-taught.on { opacity: 1; transform: translate(-50%, 0); }
+.cmd-taught:empty { visibility: hidden; }
 /* The rail's button for the overview: `?` beside it while the navigation's keys are held, as the
    tabs show their digits. */
 .hold-key { display: none; }

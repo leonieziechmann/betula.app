@@ -1864,6 +1864,15 @@
   // (Safari before 14 has no `addEventListener` on a media query; there the chrome waits for a page load.)
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", (e) => { if (!root.dataset.theme) paintChrome(e.matches); });
 
+  // Betula's single keys on or off (folia/crates/design/src/keys.rs, `LettersSwitch`): kept by this
+  // browser, read by the script in the head before the page is drawn.
+  const setLetters = (off) => {
+    try { if (off) localStorage.setItem("betula.letters.v1", "off"); else localStorage.removeItem("betula.letters.v1"); } catch {}
+    if (off) root.dataset.letters = "off";
+    else delete root.dataset.letters;
+    dispatchEvent(new Event("betula:letters"));
+  };
+
   document.addEventListener("click", (e) => {
     const target = e.target.closest("[data-action]");
     switch (target?.dataset.action) {
@@ -1876,16 +1885,9 @@
         // Light, dark or the system's, as the profile page offers them (folia/crates/profile).
         setTheme(target.dataset.themeValue);
         break;
-      case "letters-set": {
-        // Betula's single keys on or off (folia/crates/design/src/keys.rs, `LettersSwitch`): kept by
-        // this browser, read by the script in the head before the page is drawn.
-        const off = target.dataset.lettersValue === "off";
-        try { if (off) localStorage.setItem("betula.letters.v1", "off"); else localStorage.removeItem("betula.letters.v1"); } catch {}
-        if (off) root.dataset.letters = "off";
-        else delete root.dataset.letters;
-        dispatchEvent(new Event("betula:letters"));
+      case "letters-set":
+        setLetters(target.dataset.lettersValue === "off");
         break;
-      }
       case "sheet-open":
         e.preventDefault();
         openSheet();
@@ -3215,6 +3217,16 @@
     search.select();
     return true;
   };
+  // What „Befehle" asks of this script (folia/crates/shell/src/commands.rs, `betula:act`, its detail
+  // „<action> <value>"): what the switches and the keys do here — light or dark, the single keys,
+  // into the filters (F) or the search (/).
+  document.addEventListener("betula:act", (e) => {
+    const [action, value] = String(e.detail || "").split(" ");
+    if (action === "theme-set") setTheme(value);
+    else if (action === "letters-set") setLetters(value === "off");
+    else if (action === "go" && value === "side") intoSide();
+    else if (action === "go" && value === "search") intoSearch();
+  });
   const intoRegion = (region) => {
     if (region.name === "side") return intoSide();
     if (region.name === "search") return intoSearch();
@@ -3366,7 +3378,15 @@
       const full = find('[data-action="fullscreen"]');
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); return; }
     }
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") { e.preventDefault(); intoSearch(); return; }
+    // Ctrl + K: „Befehle" (folia/crates/shell/src/commands.rs), whose button stands in the search
+    // field; before the app runs, the search itself.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      const commands = appRuns() && find('[data-action="commands"]');
+      if (commands) commands.click();
+      else intoSearch();
+      return;
+    }
     // Betula's single keys: only where nothing is typed, and only while they are on.
     if (!plain || texty(el) || !lettersOn()) return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
