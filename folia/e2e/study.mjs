@@ -38,7 +38,8 @@
 //   as far apart as from the screen's edge: no ground under the row, on none of its pages (owner,
 //   2026-10-19), the Regelstudienplan and all programs with theirs, the dots fixed over
 //   the tab bar on the page's frosted ground, no box and no legend, an empty semester a mark and
-//   „Module hinzufügen", the plan's rows each with a „+"; ‹ › scroll smoothly, past the overview
+//   „Module hinzufügen" and nothing of the plan's open rows under it (owner, 2026-10-20), what it
+//   puts in with its note over the dots and „Rückgängig"; ‹ › scroll smoothly, past the overview
 //   from the current semester to the one before; a finger moves the row and a short pull goes
 //   back, a semester swiped to from the end of another, which ends above the dots, shows from its
 //   head, and one scrolled while the row moves stays as scrolled, up or down, with nothing of the
@@ -77,6 +78,8 @@ const FILLED = [
   "p\t1\t2025W\t079-82-2008\t17\t1-1\t6\tfues\t\tFachübergreifendes Studium",
   "p\t2\t2026S\t079-82-2008\t10\t2-2\t4\telective\t\tProseminar oder Praktikum",
 ].join("\n") + "\n";
+// Six modules planned into SoSe 2027, none beyond what its area asks.
+const LATER = ["12202", "12204", "12214", "11213", "11102", "11104"].map((id, i) => `m\t2027S\t${id}\t${i + 1}\t\t`).join("\n") + "\n";
 
 const takeover = (page) => page.waitForFunction(() => window.__betulaApp === true, null, { timeout: 120000 }).catch(() => problems.push("the browser app never took over"));
 // Where the parts of the study's card are (owner, 2026-10-16: „Wenn man eine aktion macht, wie
@@ -508,7 +511,8 @@ if (current !== "2026W") {
 // ---------- 3: a phone ----------
 {
   const { page, step, seed, context } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, "/");
-  await seed([[MINE, THIRD], [PLAN, FILLED]]);
+  // SoSe 2027 longer than the screen, to be scrolled to its end and swiped from there (below).
+  await seed([[MINE, THIRD], [PLAN, FILLED + LATER]]);
   await step("the bottom bar", () => page.tap('.bottomnav a.nav[data-area="programs"]'), () => location.pathname === "/study" && document.querySelector(".st-planbox"));
   const landing = await page.evaluate(() => ({
     sideways: document.documentElement.scrollWidth - innerWidth,
@@ -662,7 +666,8 @@ if (current !== "2026W") {
   check(JSON.stringify(await dock()) === JSON.stringify(docked), "the dots move with the page");
   await page.evaluate(() => window.scrollTo(0, 0));
   // An empty semester: a mark and „Module hinzufügen" (owner, 2026-10-05: „keine Module sollte mit
-  // icon und gleich modul hinzufügen sein"); what the plan has open for it as rows, each a „+".
+  // icon und gleich modul hinzufügen sein"); nothing of what the plan has open under it (owner,
+  // 2026-10-20: „Ja, auf dem Handy auch raus"): that is „Module hinzufügen"'s.
   const empty = await page.evaluate((HERE) => {
     const card = document.querySelector(`${HERE} .st-card-sem`);
     return {
@@ -670,20 +675,18 @@ if (current !== "2026W") {
       words: card.querySelector(".st-empty p")?.textContent,
       add: card.querySelector(".st-empty .st-empty-add")?.textContent.trim(),
       addrow: card.querySelectorAll(".st-addrow").length,
-      label: card.querySelector(".st-plan-rows .st-plan-label")?.textContent,
-      plan: [...card.querySelectorAll(".st-plan-rows .st-prow")].map((row) => ({ name: row.querySelector(".st-name")?.textContent, lp: row.querySelector(".lp")?.textContent.trim(), plus: Math.round(row.querySelector(".st-prow-add").getBoundingClientRect().height), card: getComputedStyle(row.querySelector(".row")).backgroundColor !== "rgba(0, 0, 0, 0)" })),
+      rows: card.querySelectorAll(".row").length,
+      after: card.lastElementChild?.matches(".st-table"),
     };
   }, HERE);
-  check(empty.icon && empty.words === "Noch keine Module" && empty.add === "Module hinzufügen" && empty.addrow === 0 && empty.label === "Laut Regelstudienplan · 3. FS"
-    && empty.plan.length >= 3 && empty.plan.every((row) => row.name && row.lp && row.plus >= 44 && row.card), `an empty semester on a phone: ${JSON.stringify(empty)}`);
-  const first = empty.plan[0]?.name;
-  await step("a row of the plan planned", () => page.tap(`${HERE} .st-prow >> nth=0 >> .st-prow-add`), (first) => {
-    const card = document.querySelector(".st-pager > .st-slot:not([inert]) .st-card-sem");
-    return [...card.querySelectorAll(".st-row .st-name")].map((name) => name.textContent).join() === first && !card.querySelector(".st-empty") && ![...card.querySelectorAll(".st-prow .st-name")].some((name) => name.textContent === first);
-  }, first);
+  check(empty.icon && empty.words === "Noch keine Module" && empty.add === "Module hinzufügen" && empty.addrow === 0 && empty.rows === 0 && empty.after, `an empty semester on a phone: ${JSON.stringify(empty)}`);
+  // „Module hinzufügen" puts the plan's third semester in; the note of the change stands over the
+  // dots, and its „Rückgängig" takes it back.
+  await step("Module hinzufügen on a phone", () => page.tap(`${HERE} .st-empty-add`), () => document.querySelector(".st-dialog[open] .st-choices") && !document.querySelector("#st-insert")?.disabled);
+  await step("Einfügen on a phone", () => page.tap("#st-insert"), () => !document.querySelector(".st-dialog[open]") && document.querySelectorAll(".st-pager > .st-slot:not([inert]) .st-row").length > 0 && document.querySelector(".st-undo"));
   const undo = await page.evaluate(() => { const box = document.querySelector(".st-undo").getBoundingClientRect(); return Math.round(document.querySelector(".st-dock .st-dots").getBoundingClientRect().top - box.bottom); });
   check(undo >= 4, `the note of the change is not over the dots: ${undo}`);
-  await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), (first) => document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && document.querySelector(".st-pager > .st-slot:not([inert]) .st-prow .st-name")?.textContent === first, first);
+  await step("Rückgängig on a phone", () => page.tap(".st-undo .mini"), () => document.querySelector(".st-pager > .st-slot:not([inert]) .st-empty") && !document.querySelector(".st-pager > .st-slot:not([inert]) .st-row"));
   // ‹ scrolls the row to the semester before, smoothly, as a finger would: past the overview, which
   // lies between the current semester and the one before.
   await watch();
