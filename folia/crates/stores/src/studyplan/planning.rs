@@ -20,6 +20,9 @@
 //!   taking it out and planning it anew — moved to another semester (`move_planned`), marked as
 //!   passed or no longer (`set_passed`), taken out (`remove`); each says so in the note, with
 //!   „Rückgängig".
+//! - The same arrow beside „Einplanen" (`PlanAsk`, `folia_widgets::planinto`; owner, 2026-10-20:
+//!   „Ja bitte setze deine Vorschläge um"): „Einplanen in …", a semester chosen plans the module
+//!   there (`place`), with the note as after a click.
 //! - The question for the study (`SetupAsk`): where no Studienbeginn is stored and the session has
 //!   not put the question aside („Ohne Studium einplanen"), „Einplanen" opens a dialog that sets the
 //!   study up and plans the module in one (`folia_widgets::plansetup`; owner, 2026-10-18: „so dass
