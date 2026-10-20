@@ -99,13 +99,13 @@ pub fn clean_name(name: &str) -> String {
 }
 
 /// What two names that are the same name share: the clean name in small letters.
-fn name_key(name: &str) -> String {
+pub(crate) fn name_key(name: &str) -> String {
     clean_name(name).to_lowercase()
 }
 
 /// A note as it is kept: at most `MAX_NOTE` characters, its line breaks as `\n`; empty for one of
 /// nothing but white space.
-fn clean_note(note: &str) -> String {
+pub(crate) fn clean_note(note: &str) -> String {
     let note = note.replace("\r\n", "\n").replace('\r', "\n");
     if note.trim().is_empty() {
         return String::new();
@@ -282,6 +282,41 @@ impl Shelf {
         let names: Vec<&str> = self.of(module).into_iter().filter_map(|collection| self.collection(collection)).map(|collection| collection.name.as_str()).collect();
         let note = self.note(module).map(folia_model::text::note_plain);
         (!names.is_empty() || note.is_some()).then(|| [note.unwrap_or_default(), names.join(" ")].join(" "))
+    }
+
+    /// What a link brought, kept (folia/design/merken/oberflaeche.html, „Weitergeben und Ankommen"):
+    /// each collection under its name — one of that name takes the modules in, else a new one is
+    /// made while there is room —, with those of its modules `marked` says are marked; and the notes
+    /// of marked modules that have none (a note kept here is never written over). How many
+    /// collections were made.
+    pub fn adopt(&mut self, collections: &[(String, Vec<String>)], notes: &[(String, String)], marked: impl Fn(&str) -> bool) -> usize {
+        let mut made = 0;
+        for (name, modules) in collections {
+            let id = match self.find(name) {
+                Some(id) => id,
+                None => match self.create(name) {
+                    Ok(id) => {
+                        made += 1;
+                        id
+                    }
+                    Err(_) => continue,
+                },
+            };
+            for module in modules.iter().filter(|module| marked(module)) {
+                if self.holds(id, module) {
+                    continue;
+                }
+                let mut ids: BTreeSet<u32> = self.of(module).into_iter().collect();
+                ids.insert(id);
+                self.set_in(module, &ids);
+            }
+        }
+        for (module, note) in notes {
+            if marked(module) && self.note(module).is_none() {
+                self.set_note(module, note);
+            }
+        }
+        made
     }
 
     /// The names of the collections a module is in, in their order, „Wahlpflicht, Für Lena".
@@ -702,6 +737,23 @@ mod tests {
         shelf.set_note("12177", "nur eine Notiz");
         assert_eq!((shelf.kept_text("12177").as_deref(), shelf.names_of("12177")), (Some("nur eine Notiz "), String::new()));
         assert_eq!((shelf.kept_text("11103"), shelf.names_of("11103")), (None, String::new()));
+    }
+
+    #[test]
+    fn what_a_link_brought_is_kept() {
+        let mut shelf = Shelf::default();
+        let lena = shelf.create("Für Lena").unwrap();
+        shelf.toggle_in("12204", lena);
+        shelf.set_note("11101", "meine");
+        let brought = [("für lena".to_string(), vec!["11101".to_string(), "13849".to_string()]), ("Witzig".to_string(), vec!["12204".to_string()])];
+        let notes = [("11101".to_string(), "von Lena".to_string()), ("12204".to_string(), "auch".to_string()), ("13849".to_string(), "nicht gemerkt".to_string())];
+        // „für lena" is „Für Lena": it takes them in; „Witzig" is made.
+        assert_eq!(shelf.adopt(&brought, &notes, |module| module != "13849"), 1);
+        let witzig = shelf.find("Witzig").unwrap();
+        assert_eq!((shelf.of("11101"), shelf.of("12204")), (vec![lena], vec![lena, witzig]));
+        assert!(shelf.of("13849").is_empty(), "only what is marked");
+        // A note kept here stays; one where there was none comes.
+        assert_eq!((shelf.note("11101"), shelf.note("12204"), shelf.note("13849")), (Some("meine"), Some("auch"), None));
     }
 
     #[test]

@@ -26,6 +26,26 @@ pub struct Texts {
     pub none_fit: fn(usize) -> String,
     pub add: &'static str,
     pub discard: &'static str,
+    /// A collection's link (folia/design/merken/oberflaeche.html, „Weitergeben und Ankommen"):
+    /// „Für Lena · 3 Module aus einem Link." (its name, how many), „1 davon schon gemerkt." (how
+    /// many of how many), „Die Sammlung gibt es schon."; the link for another device: „46 Module in 4
+    /// Sammlungen aus einem Link." and „12 davon neu.".
+    pub from_link_named: fn(&str, usize) -> String,
+    pub already_marked: fn(usize, usize) -> String,
+    pub collection_exists: &'static str,
+    pub from_link_many: fn(usize, usize) -> String,
+    pub new_of: fn(usize) -> String,
+    /// The answers: „Als Sammlung merken", „Nur merken", „Zu ‚Für Lena‘ hinzufügen", „Anderer
+    /// Name …" with its field's name, its answer and „Gibt es schon", and „Die ersten 8 merken"
+    /// where not all of them fit.
+    pub keep_collection: &'static str,
+    pub only_mark: &'static str,
+    pub add_to: fn(&str) -> String,
+    pub other_name: &'static str,
+    pub other_name_label: &'static str,
+    pub keep_named: &'static str,
+    pub name_taken: &'static str,
+    pub first_n: fn(usize) -> String,
 
     // ---- the list ----
     /// What the number above the list counts: „gemerkte Module", „gemerkte Module im Winter";
@@ -144,6 +164,11 @@ pub struct Texts {
     pub clear_yes: &'static str,
     pub cancel: &'static str,
     pub clear: &'static str,
+    /// „Teilen" of a collection and of the rows selected (oberflaeche.html, „Weitergeben"): its
+    /// head („Für Lena · 3 Module", „3 Module"), „Link kopieren", „Notizen mitnehmen".
+    pub share_head: fn(Option<&str>, usize) -> String,
+    pub copy_link: &'static str,
+    pub notes_along: &'static str,
 
     // ---- several at once (oberflaeche.html, „Mehrere auswählen"), as in „Mein Studium" ----
     /// The bar of the rows selected: its name for screen readers, „3 ausgewählt", „· ausgewählt"
@@ -195,6 +220,23 @@ pub const DE: Texts = Texts {
     none_fit: |max| format!("Deine Merkliste ist voll: {max} Module."),
     add: "Hinzufügen",
     discard: "Verwerfen",
+    from_link_named: |name, n| if n == 1 { format!("{name} · 1 Modul aus einem Link.") } else { format!("{name} · {n} Module aus einem Link.") },
+    already_marked: |marked, all| match marked {
+        _ if marked == all => "Alle davon schon gemerkt.".to_string(),
+        1 => "1 davon schon gemerkt.".to_string(),
+        n => format!("{n} davon schon gemerkt."),
+    },
+    collection_exists: "Die Sammlung gibt es schon.",
+    from_link_many: |n, collections| format!("{} in {} aus einem Link.", if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") }, if collections == 1 { "1 Sammlung".to_string() } else { format!("{collections} Sammlungen") }),
+    new_of: |n| if n == 0 { "Alle davon schon gemerkt.".to_string() } else { format!("{n} davon neu.") },
+    keep_collection: "Als Sammlung merken",
+    only_mark: "Nur merken",
+    add_to: |name| format!("Zu ‚{name}‘ hinzufügen"),
+    other_name: "Anderer Name …",
+    other_name_label: "Name der Sammlung",
+    keep_named: "Merken",
+    name_taken: "Gibt es schon",
+    first_n: |n| if n == 1 { "Das erste merken".to_string() } else { format!("Die ersten {n} merken") },
 
     count_label: |n, season| match (n, season) {
         (1, None) => "gemerktes Modul".to_string(),
@@ -279,6 +321,15 @@ pub const DE: Texts = Texts {
     clear_yes: "Leeren",
     cancel: "Abbrechen",
     clear: "Merkliste leeren",
+    share_head: |name, n| {
+        let modules = if n == 1 { "1 Modul".to_string() } else { format!("{n} Module") };
+        match name {
+            Some(name) => format!("{name} · {modules}"),
+            None => modules,
+        }
+    },
+    copy_link: "Link kopieren",
+    notes_along: "Notizen mitnehmen",
 
     selection: "Auswahl",
     n_selected: |n| format!("{n} ausgewählt"),
@@ -318,6 +369,23 @@ pub const EN: Texts = Texts {
     none_fit: |max| format!("Your saved modules are full: {max} modules."),
     add: "Add",
     discard: "Discard",
+    from_link_named: |name, n| if n == 1 { format!("{name} · 1 module from a link.") } else { format!("{name} · {n} modules from a link.") },
+    already_marked: |marked, all| match marked {
+        _ if marked == all => "All of them saved already.".to_string(),
+        1 => "1 of them saved already.".to_string(),
+        n => format!("{n} of them saved already."),
+    },
+    collection_exists: "The collection exists already.",
+    from_link_many: |n, collections| format!("{} in {} from a link.", if n == 1 { "1 module".to_string() } else { format!("{n} modules") }, if collections == 1 { "1 collection".to_string() } else { format!("{collections} collections") }),
+    new_of: |n| if n == 0 { "All of them saved already.".to_string() } else { format!("{n} of them new.") },
+    keep_collection: "Save as collection",
+    only_mark: "Just save",
+    add_to: |name| format!("Add to ‘{name}’"),
+    other_name: "Other name …",
+    other_name_label: "Name of the collection",
+    keep_named: "Save",
+    name_taken: "Exists already",
+    first_n: |n| if n == 1 { "Save the first one".to_string() } else { format!("Save the first {n}") },
 
     count_label: |n, season| match (n, season) {
         (1, None) => "saved module".to_string(),
@@ -402,6 +470,15 @@ pub const EN: Texts = Texts {
     clear_yes: "Clear",
     cancel: "Cancel",
     clear: "Clear saved modules",
+    share_head: |name, n| {
+        let modules = if n == 1 { "1 module".to_string() } else { format!("{n} modules") };
+        match name {
+            Some(name) => format!("{name} · {modules}"),
+            None => modules,
+        }
+    },
+    copy_link: "Copy link",
+    notes_along: "Include notes",
 
     selection: "Selection",
     n_selected: |n| format!("{n} selected"),

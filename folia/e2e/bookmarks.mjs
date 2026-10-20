@@ -270,7 +270,8 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   };
   await step("copy the list", async () => { await listMenu(); await page.click('.view-menu .st-pop-item:has-text("Als Text kopieren")'); }, () => document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("Liste kopiert") && !document.querySelector(".view-menu"));
   const copied = await page.evaluate(() => navigator.clipboard.readText());
-  check(copied.split("\n").length === 3 && marked.every((id) => copied.includes(id)) && /\tLP|LP$/m.test(copied.replace(/\d+(,\d+)? /g, "")), `copied: ${JSON.stringify(copied)}`);
+  // Each module a line of a message: its number, title, credits and the link to its page.
+  check(copied.split("\n").length === 3 && marked.every((id) => copied.includes(`/catalog/module/${id}`)) && copied.split("\n").every((line) => /^\d{5} .+ · (\d+(,\d+)? LP · )?https?:\/\/\S+\/catalog\/module\/\d{5}$/.test(line)), `copied: ${JSON.stringify(copied)}`);
 
   // A list travels to another device in the fragment of a link, which no browser sends anywhere:
   // the other device asks before it adds anything, and the answer takes the ids out of the address.
