@@ -477,7 +477,7 @@ pub(super) fn PlanModulePanel(ctx: PlanCtx) -> impl IntoView {
                     // „Schließen" says it, and a phone has no room for both beside „Modul ansehen".
                     <div class="hero-top">
                         <ModuleIds id=Signal::derive(id) abbrev=Signal::derive(move || head.with(|head| head.as_ref().and_then(|head| head.abbrev.clone())))/>
-                        <a class="ghost" href=full data-action="fullscreen" title=t.studyplan_aside.full_title><Icon name="maximize-2"/>{t.studyplan_aside.full}<Shortcut keys="F"/></a>
+                        <a class="ghost" href=full data-action="fullscreen" title=t.studyplan_aside.full_title><Icon name="maximize-2"/>{t.studyplan_aside.full}<Shortcut keys="V"/></a>
                         <a class="ghost" href=close data-action="close-detail" data-back=back data-noscroll="" title=t.studyplan_aside.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     {heading}

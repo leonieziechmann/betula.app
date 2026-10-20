@@ -15,8 +15,6 @@ pub struct Texts {
     pub tagline: &'static str,
     /// The unit of credits: „LP" (Leistungspunkte).
     pub credits_unit: &'static str,
-    /// The keys of the search shortcut as the keyboard labels them.
-    pub search_shortcut: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -30,7 +28,6 @@ pub const DE: Texts = Texts {
     to_programs: "Zu den Studiengängen",
     tagline: "Modulkatalog · inoffiziell",
     credits_unit: "LP",
-    search_shortcut: "Strg K",
 };
 
 pub const EN: Texts = Texts {
@@ -44,5 +41,4 @@ pub const EN: Texts = Texts {
     to_programs: "To the degree programmes",
     tagline: "Module catalogue · unofficial",
     credits_unit: "CP",
-    search_shortcut: "Ctrl K",
 };

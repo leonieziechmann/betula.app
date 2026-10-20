@@ -23,6 +23,12 @@ pub struct Texts {
     /// „Zurück (Esc)".
     pub back_title: &'static str,
     pub to_top: &'static str,
+    /// The switch for Betula's single keys (`keys::LettersSwitch`): its name, its two choices, and
+    /// what it does.
+    pub letters: &'static str,
+    pub letters_on: &'static str,
+    pub letters_off: &'static str,
+    pub letters_hint: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -45,6 +51,10 @@ pub const DE: Texts = Texts {
     resize_preview: "Breite der Vorschau ändern (Pfeiltasten, Doppelklick setzt zurück)",
     back_title: "Zurück (Esc)",
     to_top: "Nach oben",
+    letters: "Einzelne Tasten",
+    letters_on: "An",
+    letters_off: "Aus",
+    letters_hint: "F, V, M, P, / und ? (auch mit Shift) wirken ohne Strg. Aus, tun sie nichts und stehen nirgends; Strg + K, Tab, die Pfeile, Enter und Esc bleiben, und jeder Knopf sowieso. Für Spracheingabe und wer sich vertippt.",
 };
 
 pub const EN: Texts = Texts {
@@ -67,4 +77,8 @@ pub const EN: Texts = Texts {
     resize_preview: "Change the width of the preview (arrow keys; a double click resets it)",
     back_title: "Back (Esc)",
     to_top: "Back to top",
+    letters: "Single keys",
+    letters_on: "On",
+    letters_off: "Off",
+    letters_hint: "F, V, M, P, / and ? (with Shift as well) work without Ctrl. Off, they do nothing and are shown nowhere; Ctrl + K, Tab, the arrows, Enter and Esc stay, and every button anyway. For voice input and for typos.",
 };

@@ -189,7 +189,9 @@ fn NoteView(planning: Planning, plan: Studyplan, mine: Option<MyProgram>) -> imp
 /// ← and → while the note of a module planned stands: the module a semester earlier or later, as
 /// its arrows; the note's own keys (`WaitNote`'s `on_key`), `true` where it took one. Not where the
 /// keys mean something else — in a field, a picker, a menu, a slider, at a panel's handle, in a
-/// dialog, or where the page took the key already —, which is the student moving on.
+/// dialog, or where the page took the key already (the filters, whose arrows go from filter to
+/// filter: enhance.js) —, which is the student moving on. The rows of the catalog's list are
+/// options of a list box, whose ← and → are the note's (`folia_widgets::list::Row`).
 fn arrows(ev: &KeyboardEvent, go: impl Fn(i32)) -> bool {
     use leptos::wasm_bindgen::JsCast;
     if ev.default_prevented() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.shift_key() {
@@ -201,7 +203,7 @@ fn arrows(ev: &KeyboardEvent, go: impl Fn(i32)) -> bool {
         _ => return false,
     };
     let target = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok());
-    let elsewhere = "input, textarea, select, [contenteditable], [role=slider], [role=tab], [role=menu], [role=menuitem], [role=listbox], [role=option], .combo, [data-action^='resize-'], dialog";
+    let elsewhere = "input, textarea, select, [contenteditable], [role=slider], [role=tab], [role=menu], [role=menuitem], .combo, [data-action^='resize-'], dialog";
     if target.is_some_and(|target| target.closest(elsewhere).ok().flatten().is_some()) {
         return false;
     }

@@ -50,6 +50,7 @@ use folia_shell::skeleton::{self, DetailSkeleton, FiltersStandin, RowsSkeleton};
 use folia_stores::studyplan::{PlanHint, Studyplan};
 use folia_shell::tabs::{self, Tabs};
 use folia_shell::frame::ErrorState;
+use folia_design::keys::Keys;
 use folia_design::ui::{Hit, Icon};
 use folia_widgets::choices::{duration_choices, years_choices, Choice, Held, Toggle, Tri};
 use folia_widgets::finder::{finder_on, finder_text, FitView, Finder, FINDER_KEY};
@@ -308,7 +309,18 @@ pub fn CatalogPage() -> impl IntoView {
         <Title text=title/>
         // The page's one scroll area (app.css, „one scroll area"): the filter panel and the module
         // beside the list are pinned in it, the list and the ground after it scroll.
-        <div class="work flowing" id=SCROLL_ID data-keep-scroll="rows" class:no-detail=move || open.get().is_none()>
+        //
+        // It is the page's content region, round which Tab goes (enhance.js, „the keyboard";
+        // owner, 2026-10-20: „so dass man mit n mal tab dann wieder beim content landet"): the heads
+        // of the columns, the list, the module beside it, its text, the ground, and the heads again.
+        // The filters in it are a region of their own.
+        <div class="work flowing" id=SCROLL_ID data-keep-scroll="rows" data-region="content" data-cycle="" class:no-detail=move || open.get().is_none()>
+            // What a screen reader hears when the list changes: how many modules it holds, once
+            // (folia/design/tastatur/konzept.html: „eine Meldung statt der Live-Region auf der Liste").
+            // Outside the list, which every new filter builds anew, so that it is heard.
+            <p class="visually-hidden" role="status">
+                {move || list.with(|list| list.as_ref().ok().map(|(current, data)| format!("{} {}", format::count(data.page.total, t.locale), count_words(data, &current.query, t))))}
+            </p>
             // The unfiltered list is a page of the site on each of its pages, with an address of its
             // own: the pages are how a crawler reaches every module, those that no program's page
             // links included, and a page that is not listed is one whose links a search engine
@@ -609,7 +621,7 @@ fn SimilarModules(
         {move || due.get().then(|| found.get()).flatten().filter(|rows| !rows.is_empty()).map(|rows| {
             let base = current.clone();
             view! {
-                <section class="similar">
+                <section class="similar" data-stop="y">
                     <h2 class="sem">{t.catalog.similar}</h2>
                     {rows.into_iter().enumerate().map(|(index, row)| {
                         let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
@@ -814,12 +826,7 @@ fn List(
     let start_page = current.page.min(pages_total);
     let with_program = data.program.is_some();
     let unknown_program = q.program.is_some() && !with_program;
-    let label = match (&data.program, q.program.as_ref().map(|s| s.relation)) {
-        (Some(_), Some(ProgramRelation::Fues)) => t.catalog.count_fues,
-        (Some(_), _) => t.catalog.count_curriculum,
-        _ if total == 1 => t.catalog.count_one,
-        _ => t.catalog.count_many,
-    };
+    let label = count_words(&data, &q, t);
     // The tags are those of the filter on its way (`pending`) as soon as it is clicked, so that the
     // head of the list has its height before the rows come.
     let going = Pending::expect();
@@ -914,7 +921,8 @@ fn List(
     // for two rows).
     let head = view! {
         {plan_note(data.semester_plan.as_ref(), &current, open, t)}
-        <div class="cols label" id=HEAD_ID>
+        // The heads that sort: one stop of the Tab key, ← and → from one to the next (enhance.js).
+        <div class="cols label" id=HEAD_ID role="toolbar" aria-label=t.catalog.sort_label data-stop="x">
             {sort_link(if with_program && !searching { SortKey::Default } else { SortKey::Title }, t.catalog.col_module, "")}
             <span class="c-resp">{t.catalog.col_responsible}</span>
             <span class="c-exam">{t.catalog.exam}</span>
@@ -945,7 +953,7 @@ fn List(
     // Another filter on its way: the rows it replaces stand as a skeleton (`pending`).
     let waiting = move || going.is_some_and(|p| p.waits(Change::List));
     view! {
-        <section class="panel list" aria-live="polite" data-pending=move || waiting().then_some("")>
+        <section class="panel list" data-pending=move || waiting().then_some("")>
             <div class="list-head" id=TOP_ID>
                 <div class="count-row">
                     <span class="count num">{format::count(total, t.locale)}</span>
@@ -976,6 +984,17 @@ fn List(
             // The list's bottom edge where the scroll area cuts it off (app.css, „one scroll area").
             <i class="list-cap" aria-hidden="true"></i>
         </section>
+    }
+}
+
+/// What the count at the head of the list counts: the modules of the program's curriculum or of
+/// its FÜS list, a module, modules.
+fn count_words(data: &CatalogData, query: &CatalogQuery, t: &'static i18n::Texts) -> &'static str {
+    match (&data.program, query.program.as_ref().map(|s| s.relation)) {
+        (Some(_), Some(ProgramRelation::Fues)) => t.catalog.count_fues,
+        (Some(_), _) => t.catalog.count_curriculum,
+        _ if data.page.total == 1 => t.catalog.count_one,
+        _ => t.catalog.count_many,
     }
 }
 
@@ -1077,12 +1096,15 @@ fn PlainRows(
             {states}
             // A page holds an even number of rows (`PAGE_SIZE`), so its first row is shaded as
             // in the app's whole list.
-            {rows.into_iter().enumerate().map(|(index, row)| {
-                let (target, id) = (row.id.clone(), row.id.clone());
-                let preview = Signal::derive(move || url::module_path(&target));
-                let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
-                view! { <Row row preview current phone with_program shaded=index % 2 == 1/> }
-            }).collect_view()}
+            // One stop of the Tab key, as the app's list is (enhance.js, `data-stop`).
+            <div class="chunk" data-stop="y">
+                {rows.into_iter().enumerate().map(|(index, row)| {
+                    let (target, id) = (row.id.clone(), row.id.clone());
+                    let preview = Signal::derive(move || url::module_path(&target));
+                    let current = Signal::derive(move || open.get().as_deref() == Some(id.as_str()));
+                    view! { <Row row preview current phone with_program shaded=index % 2 == 1/> }
+                }).collect_view()}
+            </div>
             {(pages_total > 1).then(|| view! {
                 <nav class="pager" aria-label=t.catalog.pages>
                     {(start_page > 1).then(|| pager_link(current.with_page(start_page - 1), "prev", t.common.back, open, t))}
@@ -1512,6 +1534,26 @@ fn VirtualRows(
         }
     });
 
+    // The keyboard coming back to a row that went off the rendered part of the list (enhance.js,
+    // „the keyboard": Tab round the content passes the page's foot, at the list's end): the list
+    // scrolls the row's place, which the keyboard writes on it (`data-reveal-at`), into the middle,
+    // and the keyboard takes it there.
+    {
+        let (follow, alive) = (follow.clone(), alive.clone());
+        Effect::new(move |_| {
+            let (follow, alive) = (follow.clone(), alive.clone());
+            let handle = window_event_listener_untyped("betula:reveal-row", move |_| {
+                let Some(vlist) = document().get_element_by_id(VLIST_ID) else { return };
+                let at = vlist.get_attribute("data-reveal-at").and_then(|at| at.parse::<usize>().ok());
+                let _ = vlist.remove_attribute("data-reveal-at");
+                let Some(index) = at.filter(|index| *index < total && alive.load(Ordering::Relaxed)) else { return };
+                let viewport = nav::list_viewport(SCROLL_ID, HEADS, VLIST_ID).map(|(_, viewport)| viewport).unwrap_or(0.0);
+                nav::scroll_list_to(SCROLL_ID, HEADS, VLIST_ID, (offset_of(index) - (viewport - estimate()) / 2.0).max(0.0));
+                follow();
+            });
+            on_cleanup(move || handle.remove());
+        });
+    }
     let row_at = move |index: usize| loaded.with(|loaded| loaded.get(&(index / per_page + 1)).and_then(|rows| rows.get(index % per_page)).cloned());
     let base_rows = current.clone();
     let going = Pending::expect();
@@ -1520,7 +1562,9 @@ fn VirtualRows(
             {head}
             {move || going.is_some_and(|p| p.waits(Change::List)).then(|| view! { <RowsSkeleton/> })}
             {states}
-            <div class="vlist" id=VLIST_ID style=move || { layout.track(); format!("--list-h:{:.3}px", offset_of(total)) }>
+            // A list box (its rows options with their places), and one stop of the Tab key, whose ↑ and
+            // ↓ go from row to row (enhance.js, „the keyboard": `data-stop`).
+            <div class="vlist" id=VLIST_ID role="listbox" aria-label=t.catalog.rows_label data-stop="y" data-reveal="" style=move || { layout.track(); format!("--list-h:{:.3}px", offset_of(total)) }>
                 <For each=move || { let (first, end) = window.get(); first..end } key=|index| *index children=move |index: usize| {
                     let base = base_rows.clone();
                     let top = move || {
@@ -1534,13 +1578,16 @@ fn VirtualRows(
                     };
                     // A row whose page could not be loaded stands there as a skeleton, which is
                     // not measured (no `data-i`): it keeps the place the row is taken to have.
+                    // The row of this place as a memo: another page loaded leaves the rows that are
+                    // there as they are (built anew, a row took the keyboard's focus with it).
+                    let this = Memo::new(move |_| row_at(index));
                     view! {
-                        {move || match row_at(index) {
+                        {move || match this.get() {
                             Some(row) => {
                                 let (base, target, id) = (base.clone(), row.id.clone(), row.id.clone());
                                 let preview = Signal::derive(move || base.with_page(page.get()).with_open(Some(&target)).path());
                                 let current = Signal::derive(move || marked.get().as_deref() == Some(id.as_str()));
-                                view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true/></div> }.into_any()
+                                view! { <div class="vrow" data-i=index style=top><Row row preview current phone with_program shaded=index % 2 == 1 swipe=true position=(index + 1, total)/></div> }.into_any()
                             }
                             None => view! { <div class="vrow vfill-row" class:odd=index % 2 == 1 style=skeleton_top aria-hidden="true">{skeleton::fill()}</div> }.into_any(),
                         }}
@@ -1678,6 +1725,11 @@ fn changed(query: Memo<CatalogQuery>, change: impl FnOnce(&mut CatalogQuery)) ->
 
 /// A toggle: a link to the list with the next state of its value. The small box on its left
 /// shows the state (empty, ticked, crossed), so that it reads as a switch and not as a button.
+/// How the filter panel applies a change that is no link followed (a picker's choice, a key at a
+/// chip, the credits): at once on a wide screen, into the draft in a phone's sheet (`Filters`).
+#[derive(Clone, Copy)]
+struct FilterGo(Callback<CatalogQuery>);
+
 #[component]
 fn Chip(
     query: Memo<CatalogQuery>,
@@ -1707,6 +1759,7 @@ fn Chip(
     let why = toggle.held.as_ref().map(|(_, why)| *why);
     let held_by = toggle.held.clone();
     let held = Memo::new(move |_| held_by.as_ref().is_some_and(|(held, _)| query.with(|q| held(q))));
+    let keyed = toggle.clone();
     // The link reads the filter itself and not `state` or `held`. A closure that reads a memo
     // derived from `query` before `query` misses a change of `query` whenever the derived value
     // stays the same (reactive_graph 0.2.14 does not mark the observer that made a memo
@@ -1723,11 +1776,34 @@ fn Chip(
         })))
     };
     let name = label.clone();
+    // + − Entf at the chip (`Toggle::on_key`; folia/design/tastatur/konzept.html): the state the key
+    // asks for, at once, as the panel's other changes go (`FilterGo`); a held chip stays.
+    let go = use_context::<FilterGo>();
+    let on_key = move |ev: leptos::ev::KeyboardEvent| {
+        if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.default_prevented() {
+            return;
+        }
+        let now = query.with_untracked(|q| (keyed.read)(q));
+        let Some(next) = keyed.on_key(&ev.key(), now) else { return };
+        ev.prevent_default();
+        let held = keyed.held.as_ref().is_some_and(|(held, _)| query.with_untracked(|q| held(q)));
+        if held || next == now {
+            return;
+        }
+        if let Some(FilterGo(go)) = go {
+            let write = keyed.write.clone();
+            go.run(changed(query, |q| write(q, next)));
+        }
+    };
+    // Its tooltip names the keys after what a click does.
+    let keys = (t.catalog.chip_keys)(&folia_design::keys::text_here("Del"));
     view! {
         <a
             class="chip"
             class:fit-chip=finder
             href=href
+            on:keydown=on_key
+            data-tri=excludes.then_some("")
             aria-disabled=move || held.get().then_some("true")
             role="checkbox"
             rel="nofollow"
@@ -1741,11 +1817,11 @@ fn Chip(
                 _ => name.clone(),
             }
             title=move || match (held.get(), state.get(), excludes) {
-                (true, _, _) => why,
-                (false, Tri::Off, true) => Some(t.catalog.chip_off),
-                (false, Tri::With, true) => Some(t.catalog.chip_with),
-                (false, Tri::Without, _) => Some(t.catalog.chip_without),
-                _ => title,
+                (true, _, _) => why.map(str::to_string),
+                (false, Tri::Off, true) => Some(format!("{}. {keys}", t.catalog.chip_off)),
+                (false, Tri::With, true) => Some(format!("{}. {keys}", t.catalog.chip_with)),
+                (false, Tri::Without, _) => Some(format!("{}. {keys}", t.catalog.chip_without)),
+                _ => title.map(str::to_string),
             }
         >
             <span class="box"><Icon name="check"/><Icon name="x"/></span>
@@ -1871,6 +1947,7 @@ fn Filters(
         ev.prevent_default();
         draft.set(Some(CatalogUrl::parse(search).query));
     };
+    provide_context(FilterGo(go));
     let close_popups = RwSignal::new(0u32);
     provide_context(ClosePopups(close_popups));
 
@@ -1922,7 +1999,8 @@ fn Filters(
         .into_any()
     };
 
-    let program_part = move || {
+    // The program's lists, under its picker, in its section.
+    let program_lists = move || {
         program.get().map(|_| {
             let relation = |relation: ProgramRelation, label: &'static str, count: Signal<Option<u64>>| Choice {
                 count: Some(count),
@@ -1940,6 +2018,15 @@ fn Filters(
                     },
                 )
             };
+            segmented(query, open, fill, t.catalog.list, vec![
+                relation(ProgramRelation::Curricular, t.catalog.curriculum, Signal::derive(move || facts.with(|f| f.curricular_total))),
+                // „FÜS" is the BTU's name, the same in every language (docs/folia/i18n.md).
+                relation(ProgramRelation::Fues, "FÜS", Signal::derive(move || facts.with(|f| f.fues_total))),
+            ], t)
+        })
+    };
+    let program_part = move || {
+        program.get().map(|_| {
             let kind = |kind: KindFilter| {
                 Toggle::new(
                     move |q| match &q.program {
@@ -1983,8 +2070,10 @@ fn Filters(
                 }));
                 all.push(semester_choice("?".to_string(), Some(t.catalog.unplaced), Some(PlanSemesterFilter::Unstated)));
                 view! {
-                    <div class="flabel label">{t.catalog.plan_semesters}</div>
-                    {segmented(query, open, fill, t.catalog.plan_semester, all, t)}
+                    <div class="fsub" data-section="" role="group" aria-labelledby="fl-semester">
+                        <div class="flabel label" id="fl-semester">{t.catalog.plan_semesters}</div>
+                        {segmented(query, open, fill, t.catalog.plan_semester, all, t)}
+                    </div>
                 }
                 .into_any()
             };
@@ -2023,23 +2112,22 @@ fn Filters(
                         .into_any()
                     };
                     view! {
-                        <div class="flabel label">{t.catalog.area}</div>
-                        {picker}
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-area">
+                            <div class="flabel label" id="fl-area">{t.catalog.area}</div>
+                            {picker}
+                        </div>
                     }
                 })
             };
             view! {
-                {segmented(query, open, fill, t.catalog.list, vec![
-                    relation(ProgramRelation::Curricular, t.catalog.curriculum, Signal::derive(move || facts.with(|f| f.curricular_total))),
-                    // „FÜS" is the BTU's name, the same in every language (docs/folia/i18n.md).
-                    relation(ProgramRelation::Fues, "FÜS", Signal::derive(move || facts.with(|f| f.fues_total))),
-                ], t)}
                 <div class="fgroup">
-                    <div class="flabel label">{t.catalog.module_kind}</div>
-                    <div class="chips">
-                        {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
-                            .iter().map(|k| chip(k.label(t.locale), None, kind(KindFilter::Stated(*k)))).collect_view()}
-                        {chip(t.catalog.not_stated, None, kind(KindFilter::Unstated))}
+                    <div class="fsub" data-section="" role="group" aria-labelledby="fl-kind">
+                        <div class="flabel label" id="fl-kind">{t.catalog.module_kind}</div>
+                        <div class="chips">
+                            {[ModuleKind::Compulsory, ModuleKind::Elective, ModuleKind::Thesis, ModuleKind::Internship]
+                                .iter().map(|k| chip(k.label(t.locale), None, kind(KindFilter::Stated(*k)))).collect_view()}
+                            {chip(t.catalog.not_stated, None, kind(KindFilter::Unstated))}
+                        </div>
                     </div>
                     {area_part}
                     {semester_part}
@@ -2181,57 +2269,67 @@ fn Filters(
     view! {
         // `data-draft`: on a phone what is picked in the sheet is a draft, which only „Module
         // anzeigen" applies (`enhance.js`).
-        <aside class="panel filters" id="filters" aria-label=t.catalog.filters data-draft="" on:click=into_draft>
+        // The filters are the page's side region and a mode of the keyboard (enhance.js, „the
+        // keyboard"; folia/design/tastatur/konzept.html): F leads in, Tab goes from section to
+        // section and stays, the arrows go from filter to filter, typing finds one, Esc leads out
+        // to the list (`data-region`, `data-mode`, `data-section`). A screen reader hears the way
+        // out with the panel's name.
+        <aside class="panel filters" id="filters" aria-label=t.catalog.filters aria-describedby="filters-leave" aria-keyshortcuts="F" data-region="side" data-mode="" data-draft="" on:click=into_draft>
+            <span class="visually-hidden" id="filters-leave">{t.catalog.filters_leave}</span>
             <form on:submit=move |ev| ev.prevent_default()>
-                <div class="panel-head">
-                    <h2>{t.catalog.filters}</h2>
+                <div class="panel-head" data-section="plain">
+                    // The key that leads in, at the head (R10): F.
+                    <div class="panel-title"><h2>{t.catalog.filters}</h2><span class="js-only" aria-hidden="true"><Keys spec="F"/></span></div>
                     <a class="ghost hit" style=Hit::y(7.0).style() href=move || t.path(&CatalogUrl { open: open.get(), ..Default::default() }.path()) data-noscroll=""><Icon name="rotate-ccw"/>{t.common.reset}</a>
                     <a class="icon-btn sheet-close" href="#" data-action="sheet-close" aria-label=t.catalog.close_filters><Icon name="x"/></a>
                 </div>
                 <div class="body scroll" data-keep-scroll="filters" on:scroll=move |_| close_popups.update(|n| *n = n.wrapping_add(1))>
-                    {program_picker}
+                    <div class="fsection" data-section="" role="group" aria-label=t.catalog.program>
+                        {program_picker}
+                        {program_lists}
+                    </div>
                     {program_part}
 
                     // Next to the semesters of the plan (owner, 2026-09-23): a module without
                     // published dates probably does not take place.
-                    <div class="fgroup">
-                        <div class="flabel label">{t.catalog.dates}</div>
+                    <div class="fgroup" data-section="" role="group" aria-labelledby="fl-dates">
+                        <div class="flabel label" id="fl-dates">{t.catalog.dates}</div>
                         <div class="chips">
                             {chip(t.catalog.confirmed, Some("calendar-check-2"), Toggle::flag(|q| q.scheduled, |q, value| q.scheduled = value))}
                             {finder_chip}
                         </div>
                         {finder_options}
                     </div>
-                    <div class="fgroup">
-                        <div class="flabel label">{t.catalog.offered_in}<span class="legend"><i class="box with"><Icon name="check"/></i>{t.catalog.with}<i class="box without"><Icon name="x"/></i>{t.catalog.without}</span></div>
+                    <div class="fgroup" data-section="" role="group" aria-labelledby="fl-offered">
+                        <div class="flabel label" id="fl-offered">{t.catalog.offered_in}<span class="legend" aria-hidden="true"><i class="box with"><Icon name="check"/></i>{t.catalog.with}<i class="box without"><Icon name="x"/></i>{t.catalog.without}</span></div>
                         <div class="chips">
                             {chip(t.catalog.winter_chip, Some("snowflake"), Toggle::turnus(|f| (f.winter, f.not_winter), |f| (&mut f.winter, &mut f.not_winter)))}
                             {chip(t.catalog.summer_chip, Some("sun"), Toggle::turnus(|f| (f.summer, f.not_summer), |f| (&mut f.summer, &mut f.not_summer)))}
                             {chip(t.catalog.irregular_chip, Some("shuffle"), Toggle::turnus(|f| (f.irregular, f.not_irregular), |f| (&mut f.irregular, &mut f.not_irregular)))}
                         </div>
                     </div>
-                    <div class="fgroup">
-                        <div class="flabel label">{t.catalog.teaching_form}</div>
+                    <div class="fgroup" data-section="" role="group" aria-labelledby="fl-form">
+                        <div class="flabel label" id="fl-form">{t.catalog.teaching_form}</div>
                         <div class="chips">
                             {[TeachingForm::Lecture, TeachingForm::Exercise, TeachingForm::Seminar, TeachingForm::Practical, TeachingForm::Project, TeachingForm::Excursion]
                                 .iter().map(|form| chip(form.label(t.locale), None, Toggle::teaching_form(*form))).collect_view()}
                         </div>
                     </div>
-                    <div class="fgroup">
-                        <div class="flabel label">{t.catalog.exam}</div>
+                    <div class="fgroup" data-section="" role="group" aria-labelledby="fl-exam">
+                        <div class="flabel label" id="fl-exam">{t.catalog.exam}</div>
                         <div class="chips">
                             {ExamPart::ALL.iter().map(|part| chip(part.short_label(t.locale), None, Toggle::exam_part(*part))).collect_view()}
                         </div>
                     </div>
                     <Credits query go/>
-                    <div class="fgroup">
-                        <div class="flabel label">{t.catalog.language}</div>
+                    <div class="fgroup" data-section="" role="group" aria-labelledby="fl-language">
+                        <div class="flabel label" id="fl-language">{t.catalog.language}</div>
                         <div class="chips">
                             {Language::ALL.iter().map(|language| chip(language.label(t.locale), None, Toggle::language(*language))).collect_view()}
                         </div>
                     </div>
-                    <div class="fgroup">
-                        <div class="flabel label">{t.catalog.properties}</div>
+                    <div class="fgroup" data-section="" role="group" aria-labelledby="fl-properties">
+                        <div class="flabel label" id="fl-properties">{t.catalog.properties}</div>
                         <div class="chips">
                             {chip(t.catalog.graded_chip, None, Toggle::flag(|q| q.graded, |q, value| q.graded = value))}
                             {chip(t.catalog.limited_chip, None, Toggle::flag(|q| q.limited, |q, value| q.limited = value))}
@@ -2253,34 +2351,46 @@ fn Filters(
                         {APP.then(|| view! { <MarkedViews query open fill/> })}
                     </div>
 
-                    <details class="fgroup more" open=more_open>
+                    // A section of its own, whose sections are those inside it: Tab, ↓ or → past
+                    // its head, or a filter found in it, opens it (enhance.js).
+                    <details class="fgroup more" data-section="" open=more_open>
                         <summary class="label">{t.catalog.more_filters}</summary>
-                        <div class="flabel label">{t.catalog.lecturers}</div>
-                        {lecturer_picker}
-                        {move || {
-                            let names = chosen_lecturers.get();
-                            (!names.is_empty()).then(|| view! {
-                                <div class="people">{names.into_iter().map(person).collect_view()}</div>
-                                <p class="hint people-hint"><span><b>"+"</b>{t.catalog.people_any}</span><span><b>"×"</b>{t.catalog.people_none}</span></p>
-                            })
-                        }}
-                        <div class="flabel label">{t.catalog.department}</div>
-                        {department_picker}
-                        <div class="flabel label">{t.catalog.duration}</div>
-                        {segmented(query, open, fill, t.catalog.duration, duration_choices(t.locale), t)}
-                        <div class="flabel label">{t.catalog.years_only}</div>
-                        {segmented(query, open, fill, t.catalog.years, years_choices(t.locale), t)}
-                        <div class="flabel label">{t.catalog.location}</div>
-                        <div class="chips">
-                            {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
-                                .iter().map(|campus| chip(campus.label(t.locale), None, Toggle::campus(*campus))).collect_view()}
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-lecturers">
+                            <div class="flabel label" id="fl-lecturers">{t.catalog.lecturers}</div>
+                            {lecturer_picker}
+                            {move || {
+                                let names = chosen_lecturers.get();
+                                (!names.is_empty()).then(|| view! {
+                                    <div class="people">{names.into_iter().map(person).collect_view()}</div>
+                                    <p class="hint people-hint"><span><b>"+"</b>{t.catalog.people_any}</span><span><b>"×"</b>{t.catalog.people_none}</span></p>
+                                })
+                            }}
                         </div>
-                        <p class="hint">{t.catalog.location_hint}</p>
-                        {move || program.get().is_none().then(|| view! {
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-department">
+                            <div class="flabel label" id="fl-department">{t.catalog.department}</div>
+                            {department_picker}
+                        </div>
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-duration">
+                            <div class="flabel label" id="fl-duration">{t.catalog.duration}</div>
+                            {segmented(query, open, fill, t.catalog.duration, duration_choices(t.locale), t)}
+                        </div>
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-years">
+                            <div class="flabel label" id="fl-years">{t.catalog.years_only}</div>
+                            {segmented(query, open, fill, t.catalog.years, years_choices(t.locale), t)}
+                        </div>
+                        <div class="fsub" data-section="" role="group" aria-labelledby="fl-location">
+                            <div class="flabel label" id="fl-location">{t.catalog.location}</div>
                             <div class="chips">
-                                {chip(t.catalog.show_not_offered, None, Toggle::show_not_offered())}
+                                {[Campus::Zentralcampus, Campus::Sachsendorf, Campus::Senftenberg]
+                                    .iter().map(|campus| chip(campus.label(t.locale), None, Toggle::campus(*campus))).collect_view()}
                             </div>
-                        })}
+                            <p class="hint">{t.catalog.location_hint}</p>
+                            {move || program.get().is_none().then(|| view! {
+                                <div class="chips">
+                                    {chip(t.catalog.show_not_offered, None, Toggle::show_not_offered())}
+                                </div>
+                            })}
+                        </div>
                     </details>
                 </div>
                 <div class="filter-actions">
@@ -2294,6 +2404,14 @@ fn Filters(
 
 /// Credits: a slider with two thumbs for the usual range, and the two numbers next to it for
 /// exact values (they also are what a plain form submits).
+///
+/// By the keyboard (folia/design/tastatur/konzept.html; owner, 2026-10-20: „Mach mal +- als inc und
+/// dec und die pfeiltasten für die navigation"): + and − move a knob by one, Bild ↑ and Bild ↓ by
+/// five, Pos1 and Ende to the ends; the arrows go on from filter to filter as everywhere in the
+/// panel (enhance.js). A digit opens a small field above the knob for the number („dazu sollte es
+/// der slider auch unterstützen einfach zahlen per Tastatur einzutragen"): Enter or leaving it takes
+/// it, Esc leaves the knob as it was. A knob that comes over the other takes it along instead of
+/// stopping at it, by the keys and by the mouse.
 #[component]
 fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoView {
     let t = i18n::t();
@@ -2310,13 +2428,137 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
         high.set(now_high);
     });
 
-    let dragged = move |ev: &leptos::ev::Event, lower: bool| {
-        let value = event_target_value(ev).parse::<f64>().unwrap_or(0.0);
-        let value = if lower { value.min(high.get_untracked()) } else { value.max(low.get_untracked()) };
-        // The thumb may not pass the other one: put it back where it is allowed to be.
-        event_target::<leptos::web_sys::HtmlInputElement>(ev).set_value(&value.to_string());
-        if lower { low.set(value) } else { high.set(value) }
-        value
+    // One knob to `value`, the other along where it passed it.
+    let place = move |lower: bool, value: f64| {
+        let value = value.clamp(0.0, CREDITS_MAX);
+        let (mut a, mut b) = (low.get_untracked(), high.get_untracked());
+        if lower {
+            a = value;
+            b = b.max(a);
+        } else {
+            b = value;
+            a = a.min(b);
+        }
+        low.set(a);
+        high.set(b);
+    };
+    // Into the filter: the knob that moved, and the other where it was taken along (a number typed
+    // beyond the slider's end stays as it is otherwise).
+    let apply = move |lower: bool| {
+        let (a, b) = (low.get_untracked(), high.get_untracked());
+        go.run(changed(query, |q| {
+            let pushed = if lower { q.credits_max.unwrap_or(CREDITS_MAX) < a } else { q.credits_min.unwrap_or(0.0) > b };
+            if lower || pushed {
+                q.credits_min = (a > 0.0).then_some(a);
+            }
+            if !lower || pushed {
+                q.credits_max = (b < CREDITS_MAX).then_some(b);
+            }
+        }))
+    };
+    let dragged = move |ev: &leptos::ev::Event, lower: bool| place(lower, event_target_value(ev).parse::<f64>().unwrap_or(0.0));
+
+    // The field above a knob a digit opens: which knob, and the digit it starts with.
+    let editing = RwSignal::new(None::<(bool, String)>);
+    let knob_key = move |ev: leptos::ev::KeyboardEvent, lower: bool| {
+        if ev.ctrl_key() || ev.meta_key() || ev.alt_key() || ev.default_prevented() {
+            return;
+        }
+        let now = if lower { low.get_untracked() } else { high.get_untracked() };
+        let key = ev.key();
+        let next = match key.as_str() {
+            "+" => now + 1.0,
+            "-" => now - 1.0,
+            "PageUp" => now + 5.0,
+            "PageDown" => now - 5.0,
+            "Home" => 0.0,
+            "End" => CREDITS_MAX,
+            digit if digit.len() == 1 && digit.bytes().all(|b| b.is_ascii_digit()) => {
+                ev.prevent_default();
+                editing.set(Some((lower, key.clone())));
+                return;
+            }
+            _ => return,
+        };
+        ev.prevent_default();
+        if (next.clamp(0.0, CREDITS_MAX) - now).abs() < f64::EPSILON {
+            return;
+        }
+        place(lower, next);
+        apply(lower);
+    };
+    // A number typed: as it is, also past the slider's end (owner, 2026-10-18: Betula does not
+    // say no); 0 below and the slider's end above mean no limit, as the knobs at the ends do. The
+    // other limit goes along where the number passed it.
+    let typed_into = move |lower: bool, text: &str| {
+        let Ok(value) = text.trim().parse::<f64>() else { return };
+        go.run(changed(query, |q| {
+            let max = |value: f64| (value < CREDITS_MAX).then_some(value);
+            let min = |value: f64| (value > 0.0).then_some(value);
+            if lower {
+                q.credits_min = min(value);
+                if q.credits_max.is_some_and(|b| b < value) {
+                    q.credits_max = max(value);
+                }
+            } else {
+                q.credits_max = if value > CREDITS_MAX { Some(value) } else { max(value) };
+                if q.credits_min.is_some_and(|a| a > value) {
+                    q.credits_min = min(value);
+                }
+            }
+        }))
+    };
+    let knob_id = |lower: bool| if lower { "credits-low" } else { "credits-high" };
+    // Leaves the field: what it holds into the filter (`take`), the keyboard back at its knob.
+    let leave = move |lower: bool, text: Option<String>| {
+        if editing.get_untracked().is_none() {
+            return;
+        }
+        editing.set(None);
+        if let Some(text) = text {
+            typed_into(lower, &text);
+        }
+    };
+    let edit_key = move |ev: leptos::ev::KeyboardEvent, lower: bool| {
+        let field = event_target::<leptos::web_sys::HtmlInputElement>(&ev);
+        match ev.key().as_str() {
+            "Enter" => leave(lower, Some(field.value())),
+            "Escape" => leave(lower, None),
+            _ => return,
+        }
+        ev.prevent_default();
+        nav::focus_by_id(knob_id(lower));
+    };
+    let editor = move || {
+        editing.get().map(|(lower, first)| {
+            let field = NodeRef::<leptos::html::Input>::new();
+            request_animation_frame(move || {
+                if let Some(field) = field.get_untracked() {
+                    let _ = field.focus();
+                    let end = field.value().len() as u32;
+                    let _ = field.set_selection_range(end, end);
+                }
+            });
+            let at = if lower { low.get_untracked() } else { high.get_untracked() } / CREDITS_MAX;
+            let label = format!("{}, {}", if lower { t.catalog.credits_min } else { t.catalog.credits_max }, t.catalog.credits_number);
+            view! {
+                <span class="lp-edit" style=format!("--at:{at:.4}")>
+                    // The arrows go on from its knob, as everywhere in the panel (enhance.js,
+                    // `data-kb-as`), and leaving it takes the number.
+                    <input node_ref=field type="text" inputmode="numeric" maxlength="3" autocomplete="off" spellcheck="false" aria-label=label value=first data-kb-as=knob_id(lower)
+                        on:input=move |ev| {
+                            let field = event_target::<leptos::web_sys::HtmlInputElement>(&ev);
+                            let digits: String = field.value().chars().filter(char::is_ascii_digit).take(3).collect();
+                            if digits != field.value() {
+                                field.set_value(&digits);
+                            }
+                        }
+                        on:keydown=move |ev| edit_key(ev, lower)
+                        on:blur=move |ev| leave(lower, Some(event_target_value(&ev)))/>
+                    <span>{t.common.credits_unit}</span>
+                </span>
+            }
+        })
     };
     let typed = move |ev: &leptos::ev::Event| event_target_value(ev).trim().replace(',', ".").parse::<f64>().ok().filter(|n| n.is_finite() && *n >= 0.0);
     let number = move |value: f64| format::number(value, t.locale);
@@ -2329,22 +2571,25 @@ fn Credits(query: Memo<CatalogQuery>, go: Callback<CatalogQuery>) -> impl IntoVi
     };
 
     view! {
-        <div class="fgroup credits">
-            <div class="flabel label">{t.catalog.credit_points}<span>{summary}</span></div>
+        <div class="fgroup credits" data-section="" role="group" aria-labelledby="fl-credits">
+            <div class="flabel label" id="fl-credits">{t.catalog.credit_points}<span>{summary}</span></div>
             <div
                 class="slider js-only"
                 style=move || format!("--from:{:.4};--to:{:.4}", low.get() / CREDITS_MAX, high.get() / CREDITS_MAX)
                 // Both thumbs at the right end: the lower one has to be the one on top.
                 data-low-on-top=move || (low.get() > CREDITS_MAX / 2.0).then_some("")
             >
-                <input type="range" min="0" max="30" step="1" aria-label=t.catalog.credits_min
+                <input type="range" id="credits-low" min="0" max="30" step="1" aria-label=t.catalog.credits_min
                     value=start_low.to_string() prop:value=move || low.get().to_string()
-                    on:input=move |ev| { dragged(&ev, true); }
-                    on:change=move |ev| { let value = dragged(&ev, true); go.run(changed(query, |q| q.credits_min = (value > 0.0).then_some(value))) }/>
-                <input type="range" min="0" max="30" step="1" aria-label=t.catalog.credits_max
+                    on:input=move |ev| dragged(&ev, true)
+                    on:change=move |_| apply(true)
+                    on:keydown=move |ev| knob_key(ev, true)/>
+                <input type="range" id="credits-high" min="0" max="30" step="1" aria-label=t.catalog.credits_max
                     value=start_high.to_string() prop:value=move || high.get().to_string()
-                    on:input=move |ev| { dragged(&ev, false); }
-                    on:change=move |ev| { let value = dragged(&ev, false); go.run(changed(query, |q| q.credits_max = (value < CREDITS_MAX).then_some(value))) }/>
+                    on:input=move |ev| dragged(&ev, false)
+                    on:change=move |_| apply(false)
+                    on:keydown=move |ev| knob_key(ev, false)/>
+                {editor}
             </div>
             // Each mark sits exactly under the place of the knob for its value.
             <div class="scale js-only" aria-hidden="true">

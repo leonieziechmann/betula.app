@@ -325,10 +325,11 @@ impl Hit {
     }
 }
 
-/// A shortcut written next to its control (R10), as the system says it (`KeysText`).
+/// A shortcut written next to its control (R10), as the system writes it: a spec of
+/// `crate::keys` („V", „Esc", „Mod+K"), as key caps (`keys::Keys`).
 #[component]
 pub fn Shortcut(keys: &'static str) -> impl IntoView {
-    view! { <JsOnly><kbd><KeysText text=keys/></kbd></JsOnly> }
+    view! { <JsOnly><crate::keys::Keys spec=keys/></JsOnly> }
 }
 
 /// What a text that names Strg says on a Mac (owner, 2026-10-20: „⌘ statt Strg auf dem Mac"):
@@ -375,16 +376,22 @@ pub fn KeysText(text: &'static str) -> impl IntoView {
 /// The same for a tooltip, which no stylesheet can choose: the browser app's says the Mac's on a
 /// Mac (a tooltip takes no room, so it may differ from the server's).
 pub fn for_system(text: &str) -> String {
-    #[cfg(feature = "csr")]
-    {
-        let mac = web_sys::window().and_then(|window| window.document()).and_then(|document| document.document_element()).is_some_and(|root| root.class_list().contains("mac"));
-        if mac {
-            if let Some(mac) = mac_keys(text) {
-                return mac;
-            }
+    if is_mac() {
+        if let Some(mac) = mac_keys(text) {
+            return mac;
         }
     }
     text.to_string()
+}
+
+/// Whether the browser app runs on a Mac (`html.mac`, which the head script sets); never on the
+/// server, whose page is the same for everybody (R9).
+pub fn is_mac() -> bool {
+    #[cfg(feature = "csr")]
+    let mac = web_sys::window().and_then(|window| window.document()).and_then(|document| document.document_element()).is_some_and(|root| root.class_list().contains("mac"));
+    #[cfg(not(feature = "csr"))]
+    let mac = false;
+    mac
 }
 
 /// The way out of a dialog (owner, 2026-10-16: „Neben Close steht kein esc, das sollte einheitlich,

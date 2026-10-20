@@ -4,7 +4,8 @@
 //! (`tabs`), a click answered in the next frame with the page before held until its data is there
 //! (`pending`, `skeleton`), the tabs' pages kept built on stages of their own (`stage`), the way
 //! back (`nav`), the ground under every page (`ground`), the languages (`languages`),
-//! the text of a page that searches itself and keeps it out of its address (`search`), what search engines read (`seo`), the launch screens of iOS (`launch`) and what the document
+//! the text of a page that searches itself and keeps it out of its address (`search`), the
+//! overview of the keys (`keys`), what search engines read (`seo`), the launch screens of iOS (`launch`) and what the document
 //! links (`document`). Above the design, the data and the stores, below the widgets and the
 //! features: it knows no page of its own (docs/folia/folia-refactor.md §7.4).
 
@@ -17,6 +18,7 @@ pub mod document;
 pub mod frame;
 pub mod ground;
 pub mod i18n;
+pub mod keys;
 pub mod languages;
 pub mod launch;
 pub mod nav;

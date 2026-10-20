@@ -237,10 +237,15 @@ pub fn Combobox(
         let show = show.clone();
         move |_: MouseEvent| if open.get_untracked() { hide(true) } else { show() }
     };
+    // ↑ and ↓ open it, Alt + ↓ as well. In a mode of the keyboard (the catalog's filters, where the
+    // arrows go from filter to filter: enhance.js, „the keyboard") only Alt + ↓ and Enter do, as
+    // a select of the system has it.
     let on_trigger_key = {
         let show = show.clone();
         move |ev: KeyboardEvent| {
-            if matches!(ev.key().as_str(), "ArrowDown" | "ArrowUp") && !open.get_untracked() {
+            let arrow = matches!(ev.key().as_str(), "ArrowDown" | "ArrowUp");
+            let in_mode = ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).and_then(|element| element.closest("[data-mode]").ok().flatten()).is_some();
+            if arrow && !open.get_untracked() && (ev.alt_key() || !in_mode) {
                 ev.prevent_default();
                 show();
             }

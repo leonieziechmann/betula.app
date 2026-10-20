@@ -310,6 +310,19 @@ pub struct Texts {
     pub chip_off: &'static str,
     pub chip_with: &'static str,
     pub chip_without: &'static str,
+    /// After those, the keys of a chip (folia/design/tastatur/konzept.html): + with, − without,
+    /// and the key that switches it off as the system calls it (Entf, ⌫).
+    pub chip_keys: fn(&str) -> String,
+    /// The field for a number that a digit opens above a knob of the credits: its name after the
+    /// knob's („Leistungspunkte mindestens, Zahl").
+    pub credits_number: &'static str,
+    /// What a screen reader hears of the filters, which hold the keyboard (Tab stays in them):
+    /// the way out.
+    pub filters_leave: &'static str,
+    /// The name of the list of modules as a list box, for screen readers.
+    pub rows_label: &'static str,
+    /// The name of the heads of the columns, which sort the list, as a bar of tools.
+    pub sort_label: &'static str,
     /// The credit slider: all credits, its name, its ends and the fields beside it.
     pub credits_all: &'static str,
     pub credit_points: &'static str,
@@ -540,6 +553,11 @@ pub const DE: Texts = Texts {
     chip_off: "Klick: nur mit · zweiter Klick: ohne",
     chip_with: "Nur mit. Noch ein Klick schließt aus",
     chip_without: "Ausgeschlossen. Ein Klick hebt das auf",
+    chip_keys: |off| format!("Tasten: + mit, − ohne, {off} aus"),
+    credits_number: "Zahl",
+    filters_leave: "Escape führt zur Liste",
+    rows_label: "Module",
+    sort_label: "Sortieren",
     credits_all: "alle",
     credit_points: "Leistungspunkte",
     credits_min: "Leistungspunkte mindestens",
@@ -775,6 +793,11 @@ pub const EN: Texts = Texts {
     chip_off: "Click: only with · second click: without",
     chip_with: "Only with. One more click excludes",
     chip_without: "Excluded. One click undoes it",
+    chip_keys: |off| format!("Keys: + with, − without, {off} off"),
+    credits_number: "number",
+    filters_leave: "Escape leads to the list",
+    rows_label: "Modules",
+    sort_label: "Sort",
     credits_all: "all",
     credit_points: "Credit points",
     credits_min: "Credit points, at least",

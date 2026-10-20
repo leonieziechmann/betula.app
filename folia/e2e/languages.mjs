@@ -53,7 +53,7 @@ await step("the catalogue in English", async () => {}, () => document.querySelec
 
 await step("a filter", () => page.click('#filters a.chip:has-text("Winter")'), () => location.pathname === "/en/catalog" && location.search.includes("turnus=winter"));
 await step("a preview", () => page.click("a.row >> nth=2"), () => location.pathname === "/en/catalog" && location.search.includes("open=") && document.querySelector(".detail h2"));
-await step("F opens the module's page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/en/catalog/module/") && document.querySelector(".module-page"));
+await step("V opens the module's page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/en/catalog/module/") && document.querySelector(".module-page"));
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/en/catalog" && document.querySelector(".rows"));
 await step("my studies", () => page.click('.rail a.nav[data-area="programs"]'), () => location.pathname === "/en/study" && document.querySelector(".st-setup h1")?.textContent === "Set up your studies once");
 await step("the programmes", () => page.click('#sidebar a[href="/en/programs"]'), () => location.pathname === "/en/programs" && document.querySelector(".page"));

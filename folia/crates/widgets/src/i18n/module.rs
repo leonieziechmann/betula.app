@@ -56,6 +56,8 @@ pub struct Texts {
     pub not_found_hint: &'static str,
     /// The preview's name, for screen readers.
     pub preview: &'static str,
+    /// The module's text beside the list, a stop of the Tab key whose arrows scroll it.
+    pub body_label: &'static str,
     /// The arrow back in the preview's head, for screen readers, and the tooltips of „Vollbild"
     /// and „Schließen" with their shortcuts.
     pub close_preview: &'static str,
@@ -306,8 +308,9 @@ pub const DE: Texts = Texts {
     not_found: "Modul nicht gefunden",
     not_found_hint: "Dieses Modul steht nicht (mehr) im Modulkatalog der BTU.",
     preview: "Modulvorschau",
+    body_label: "Beschreibung",
     close_preview: "Vorschau schließen",
-    full_view_title: "Als ganze Seite öffnen (F)",
+    full_view_title: "Als ganze Seite öffnen (V)",
     close_preview_title: "Vorschau schließen (Esc)",
     abbrev: "Kürzel",
 
@@ -482,8 +485,9 @@ pub const EN: Texts = Texts {
     not_found: "Module not found",
     not_found_hint: "This module is not (or no longer) in BTU's module catalogue.",
     preview: "Module preview",
+    body_label: "Description",
     close_preview: "Close preview",
-    full_view_title: "Open as a full page (F)",
+    full_view_title: "Open as a full page (V)",
     close_preview_title: "Close preview (Esc)",
     abbrev: "Abbreviation",
 

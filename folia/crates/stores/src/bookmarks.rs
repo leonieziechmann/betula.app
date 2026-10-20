@@ -665,7 +665,16 @@ pub enum MarkLook {
 /// It is part of server HTML (unpressed, like for everybody) only where leaving it out would make
 /// the page jump when the app takes over; the stylesheet shows it once the app runs.
 #[component]
-pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: MarkLook) -> impl IntoView {
+pub fn MarkButton(
+    #[prop(into)] id: String,
+    #[prop(into)] title: String,
+    look: MarkLook,
+    /// At a row of a list box (`folia_widgets::list::Row`'s `position`): the buttons are the
+    /// mouse's, which a screen reader leaves out (a list box holds options alone); the keyboard has
+    /// M and Shift + M at the row.
+    #[prop(optional)]
+    quiet: bool,
+) -> impl IntoView {
     let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let marked = {
@@ -696,10 +705,10 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
                 }
             };
             view! {
-                <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
+                <button class="mark-toggle icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
                     <Icon name="bookmark"/>
                 </button>
-                <button class="row-more icon-btn" type="button" tabindex="-1" data-action="collect" data-id=id aria-haspopup="dialog" aria-label=(t.marks.collect_title)(&title) title=t.marks.collect_hint on:click=collect>
+                <button class="row-more icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="collect" data-id=id aria-haspopup="dialog" aria-label=(t.marks.collect_title)(&title) title=t.marks.collect_hint on:click=collect>
                     <Icon name="chevron-down"/>
                 </button>
             }
