@@ -11,6 +11,8 @@ pub struct Texts {
     /// The button in the rail that opens it: its name, and its tooltip with its key.
     pub button: &'static str,
     pub button_title: &'static str,
+    /// Its command in „Befehle" (`crate::commands`).
+    pub all: &'static str,
     /// The mark at the group of where the keyboard was.
     pub here: &'static str,
     pub everywhere: &'static str,
@@ -21,6 +23,11 @@ pub struct Texts {
     pub filters_rows: &'static [Row],
     pub module: &'static str,
     pub module_rows: &'static [Row],
+    /// The Merkliste's list and its sidebar (the collections and the filters).
+    pub marked: &'static str,
+    pub marked_rows: &'static [Row],
+    pub sidebar: &'static str,
+    pub sidebar_rows: &'static [Row],
 }
 
 pub const DE: Texts = Texts {
@@ -28,10 +35,12 @@ pub const DE: Texts = Texts {
     lead: "Jede Taste hat ihren Knopf; die Tasten sind der schnellere Weg dorthin.",
     button: "Tasten",
     button_title: "Alle Tasten (?)",
+    all: "Alle Tasten zeigen",
     here: "Hier",
     everywhere: "Überall",
     everywhere_rows: &[
-        (&["/", "Mod+K"], "Suchfeld"),
+        (&["Mod+K"], "Befehle: eine Aktion, ein Filter, ein Modul, eine Seite"),
+        (&["/"], "Suchfeld"),
         (&["Mod+F6"], "nächster Bereich: Navigation, Suche, Filter, Inhalt"),
         (&["Nav"], "Start, Module, Studium, Merkliste, Stundenplan; gehalten zeigen sie die Tasten"),
         (&["Esc"], "einen Schritt zurück, dann zur Liste"),
@@ -67,6 +76,29 @@ pub const DE: Texts = Texts {
         (&["Tab"], "die Knöpfe, der Text, dann wieder die Spalten"),
         (&["Esc"], "schließen"),
     ],
+    marked: "In der Merkliste",
+    marked_rows: &[
+        (&["↑", "↓"], "wählen"),
+        (&["Enter"], "öffnen, ein zweites Mal im Vollbild"),
+        (&["M"], "merken, nicht mehr merken"),
+        (&["Shift+M"], "Sammlung und Notiz"),
+        (&["P"], "einplanen"),
+        (&["Space"], "auswählen"),
+        (&["Shift+↑", "Shift+↓"], "mehrere auswählen"),
+        (&["Del"], "von der Merkliste nehmen, mit „Rückgängig“"),
+        (&["F"], "in die Sammlungen und Filter"),
+    ],
+    sidebar: "In den Sammlungen und Filtern",
+    sidebar_rows: &[
+        (&["Tab"], "nächster Abschnitt; oben und unten ist Schluss"),
+        (&["↑", "↓"], "von Sammlung zu Sammlung, von Filter zu Filter"),
+        (&["Enter"], "die Sammlung zeigen"),
+        (&["F2"], "die Sammlung umbenennen"),
+        (&["Del"], "die Sammlung löschen (fragt vorher)"),
+        (&["Space"], "einen Filter an und aus"),
+        (&["a–z"], "Sammlungen und Filter finden"),
+        (&["Esc"], "zurück zur Liste"),
+    ],
 };
 
 pub const EN: Texts = Texts {
@@ -74,10 +106,12 @@ pub const EN: Texts = Texts {
     lead: "Every key has its button; the keys are the quicker way there.",
     button: "Keys",
     button_title: "All keys (?)",
+    all: "Show all keys",
     here: "Here",
     everywhere: "Everywhere",
     everywhere_rows: &[
-        (&["/", "Mod+K"], "search field"),
+        (&["Mod+K"], "commands: an action, a filter, a module, a page"),
+        (&["/"], "search field"),
         (&["Mod+F6"], "next region: navigation, search, filters, content"),
         (&["Nav"], "Home, Modules, Studies, Saved, Timetable; held, they show the keys"),
         (&["Esc"], "one step back, then to the list"),
@@ -112,5 +146,28 @@ pub const EN: Texts = Texts {
         (&["←", "→"], "from button to button"),
         (&["Tab"], "the buttons, the text, then the columns again"),
         (&["Esc"], "close"),
+    ],
+    marked: "In the saved modules",
+    marked_rows: &[
+        (&["↑", "↓"], "select"),
+        (&["Enter"], "open, a second time as a full page"),
+        (&["M"], "save, unsave"),
+        (&["Shift+M"], "collection and note"),
+        (&["P"], "plan"),
+        (&["Space"], "select"),
+        (&["Shift+↑", "Shift+↓"], "select several"),
+        (&["Del"], "take off the saved modules, with “Undo”"),
+        (&["F"], "into the collections and filters"),
+    ],
+    sidebar: "In the collections and filters",
+    sidebar_rows: &[
+        (&["Tab"], "next section; it stops at the top and the bottom"),
+        (&["↑", "↓"], "from collection to collection, from filter to filter"),
+        (&["Enter"], "show the collection"),
+        (&["F2"], "rename the collection"),
+        (&["Del"], "delete the collection (asks first)"),
+        (&["Space"], "a filter on and off"),
+        (&["a–z"], "find collections and filters"),
+        (&["Esc"], "back to the list"),
     ],
 };

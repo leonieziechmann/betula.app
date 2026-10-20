@@ -301,6 +301,19 @@ pub fn similar(db: &dyn Database, query: &CatalogQuery, hits: &[String], limit: 
     Ok(hits.iter().filter_map(|id| rows.remove(id)).filter(|row| titles.insert(row.title.clone())).take(limit).collect())
 }
 
+/// The modules „Befehle" (`folia_shell::commands`) finds for `text`: the first `limit` rows of the
+/// catalog's search without a filter, in its order, the text searched as the list would search it
+/// (`search::resolve`: its typos corrected, or the modules with the most of its words, where it
+/// finds nothing as typed). Nothing for a text of no letter or digit.
+pub fn command_modules(db: &dyn Database, text: &str, limit: u64) -> Result<Vec<CatalogRow>, DbError> {
+    let text = text.trim();
+    if !text.chars().any(char::is_alphanumeric) || limit == 0 {
+        return Ok(Vec::new());
+    }
+    let query = CatalogQuery { text: text.to_string(), text_resolution: Some(search::resolve(db, text)?), ..Default::default() };
+    Ok(queries::catalog_page(db, &query, 0, limit)?.rows)
+}
+
 /// What a filter means before a row of the list is read (`catalog` and `catalog_summary`).
 struct CatalogScope {
     program: Option<Program>,

@@ -1231,6 +1231,7 @@ dependencies = [
  "folia-design",
  "folia-pages",
  "folia-routes",
+ "folia-search",
  "folia-stores",
  "leptos",
  "leptos_meta",

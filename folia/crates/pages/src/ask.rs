@@ -245,6 +245,11 @@ ask!(
     CatalogRowsAsk { query: CatalogQuery, offset: u64, limit: u64 } -> folia_model::rows::CatalogPage, Lane::Page, |q, db, kept| folia_query::catalog_page(db, &q.query, q.offset, q.limit)
 );
 ask!(
+    /// The modules „Befehle" finds for what was typed (`crate::command_modules`): the catalog's
+    /// best matches, its typos forgiven as the search forgives them, at most `limit`.
+    CommandModulesAsk { text: String, limit: u64 } -> Vec<folia_model::rows::CatalogRow>, Lane::Typing, |q, db, kept| crate::command_modules(db, &q.text, q.limit)
+);
+ask!(
     /// Where a module stands in a list (0-based), `None` where the list does not hold it.
     CatalogPositionAsk { query: CatalogQuery, id: String } -> Option<u64>, Lane::Page, |q, db, kept| folia_query::catalog_position(db, &q.query, &q.id)
 );
@@ -279,7 +284,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
     dispatch!(
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
         ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
-        OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CatalogPositionAsk, PlanRowsAsk,
+        OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CommandModulesAsk, CatalogPositionAsk, PlanRowsAsk,
     )
 }
 
@@ -318,6 +323,7 @@ mod tests {
         same(StudyModulesAsk { ids: vec!["12204".into(), "12339".into(), "00000".into()] });
         same(PlanSourceAsk { program_id: "079-82-2008".into(), locale: Locale::De });
         same(MetaAsk {});
+        same(CommandModulesAsk { text: "algoritmen".into(), limit: 6 });
         same(CounterpartAsk { program_id: "079-82-2008".into() });
         assert_eq!(answer_json("NoSuchAsk", "{}", &open(), &mut Kept::default()), None);
     }

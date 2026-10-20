@@ -114,6 +114,12 @@ pub struct Texts {
     // ---- collections: the views of the list (folia/design/merken/oberflaeche.html, „Die Seite") ----
     /// „Sammlungen": the sidebar's first group, on a phone the chips over the list.
     pub collections: &'static str,
+    /// The sidebar as a command of „Gehe zu" (folia_shell::commands), which F leads into, and what a
+    /// screen reader hears in it: how to leave it.
+    pub sidebar: &'static str,
+    pub sidebar_leave: &'static str,
+    /// What a collection is named after in „Befehle": „Sammlung: Für Lena".
+    pub collection: &'static str,
     /// „Neue Sammlung", what its field says while empty and what it is for screen readers.
     pub new_collection: &'static str,
     pub collection_name: &'static str,
@@ -291,6 +297,9 @@ pub const DE: Texts = Texts {
     not_in_catalog_row: "steht nicht (mehr) im Modulkatalog der BTU",
 
     collections: "Sammlungen",
+    sidebar: "Sammlungen und Filter",
+    sidebar_leave: "Escape führt zur Liste",
+    collection: "Sammlung",
     new_collection: "Neue Sammlung",
     collection_name: "Name der Sammlung",
     new_collection_name: "Name der neuen Sammlung",
@@ -443,6 +452,9 @@ pub const EN: Texts = Texts {
     not_in_catalog_row: "is not (or no longer) in BTU's module catalogue",
 
     collections: "Collections",
+    sidebar: "Collections and filters",
+    sidebar_leave: "Escape leads to the list",
+    collection: "Collection",
     new_collection: "New collection",
     collection_name: "Name of the collection",
     new_collection_name: "Name of the new collection",

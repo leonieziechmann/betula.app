@@ -692,6 +692,8 @@ pub fn MarkButton(
     let pressed = move || if marked.get() { "true" } else { "false" };
     let hint = move || if marked.get() { t.marks.saved_hint } else { t.marks.save_hint };
     let label = move || if marked.get() { t.marks.saved } else { t.marks.save };
+    // As a command of „Befehle" (folia_shell::commands): what a click does now, with its keys.
+    let command = move || if marked.get() { t.marks.unsave } else { t.marks.save };
     match look {
         // In a list the row is the stop of the Tab key, as before there were marks; the keyboard
         // marks with M on the row (the head of the list says so), and ⇧M is the arrow.
@@ -705,10 +707,10 @@ pub fn MarkButton(
                 }
             };
             view! {
-                <button class="mark-toggle icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
+                <button class="mark-toggle icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint data-command=command data-command-keys="M">
                     <Icon name="bookmark"/>
                 </button>
-                <button class="row-more icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="collect" data-id=id aria-haspopup="dialog" aria-label=(t.marks.collect_title)(&title) title=t.marks.collect_hint on:click=collect>
+                <button class="row-more icon-btn" type="button" tabindex="-1" aria-hidden=quiet.then_some("true") data-action="collect" data-id=id aria-haspopup="dialog" aria-label=(t.marks.collect_title)(&title) title=t.marks.collect_hint on:click=collect data-command=t.marks.collect data-command-keys="Shift+M" data-command-icon="layers">
                     <Icon name="chevron-down"/>
                 </button>
             }
@@ -747,10 +749,10 @@ pub fn MarkButton(
             // app takes over (R15).
             view! {
                 <span class="mark-pair split">
-                    <button class="mark-toggle mark-switch hit" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint>
+                    <button class="mark-toggle mark-switch hit" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
                         <Icon name="bookmark"/><span>{label}</span>{move || small.get().map(|small| view! { <small>{small}</small> })}<Shortcut keys="M"/>
                     </button>
-                    <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect>
+                    <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect data-command=t.marks.collect data-command-keys="Shift+M" data-command-icon="layers">
                         <Icon name="chevron-down"/>
                     </button>
                 </span>
@@ -758,7 +760,7 @@ pub fn MarkButton(
             .into_any()
         }
         MarkLook::Action => view! {
-            <button class="mark-toggle action" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint>
+            <button class="mark-toggle action" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint data-command=command data-command-keys="M">
                 <Icon name="bookmark"/><span>{label}</span>
             </button>
         }

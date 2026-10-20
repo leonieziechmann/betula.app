@@ -9,14 +9,21 @@
 //! A key is written as its spec: the keys of a combination joined by „+", each as it is named —
 //! `Mod+K`, `Shift+Enter`, `Esc`, `F`, `?`, `↑`. `Mod` is Strg (Ctrl in English) or ⌘, `Del` Entf
 //! or ⌫, `Home` and `End` Pos1 and Ende, `PgUp` and `PgDn` Bild ↑ and Bild ↓; a key not named
-//! here is written as it is („F6", „0–9"). A spec of a single „+" is the plus key.
+//! here is written as it is („F6", „0–9"). A spec of a single „+" is the plus key. `Nav+1` is the
+//! navigation's keys before a digit, which differ by system and are written by the stylesheet
+//! (`--nav-keys`, enhance.js; `.nav-combo`).
 
 use leptos::prelude::*;
 
 use crate::i18n::{self, Locale};
 
-/// The search's keys (`ui::Shortcut` in the search field, on the start page).
-pub const SEARCH: &str = "Mod+K";
+/// The search's key (`ui::Shortcut` in the search field, on the start page; folia/design/tastatur/
+/// konzept.html, question 2: „/ bleibt das Suchfeld und steht darin").
+pub const SEARCH: &str = "/";
+
+/// The keys of the commands (`folia_shell::commands`: „Befehle" in the search field), which find
+/// modules as well.
+pub const COMMANDS: &str = "Mod+K";
 
 /// What a key is called on a PC in a language, and on a Mac (where the sign is the same in every
 /// language).
@@ -83,7 +90,12 @@ pub fn is_letter(spec: &str) -> bool {
 /// are written where they differ, and the stylesheet shows the one of the system. A single key of
 /// Betula's own carries `k-letter`, which the switch for single keys hides.
 #[component]
-pub fn Keys(spec: &'static str) -> impl IntoView {
+pub fn Keys(#[prop(into)] spec: String) -> impl IntoView {
+    let spec = spec.as_str();
+    // The navigation's keys before a digit: what they are the stylesheet writes (`.nav-combo`).
+    if let Some(digit) = spec.strip_prefix("Nav+") {
+        return view! { <kbd class="nav-combo">{digit.to_string()}</kbd> }.into_any();
+    }
     let locale = i18n::locale();
     let pc = names(spec, locale, false);
     let mac = names(spec, locale, true).concat();

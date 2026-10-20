@@ -17,6 +17,8 @@ pub struct Texts {
     /// What a click does, as the switch's tooltip (its shortcut follows): take the module out of
     /// the semester (the value) …
     pub unplan_hint: fn(&str) -> String,
+    /// The switch as a command of „Befehle" while the module is planned: „Aus dem Plan nehmen".
+    pub unplan: &'static str,
     /// … plan it there for a placeholder (semester, placeholder's name) …
     pub plan_for_hint: fn(&str, &str) -> String,
     /// … and plan it there.
@@ -162,6 +164,7 @@ pub const DE: Texts = Texts {
     for_placeholder: |name| format!("für „{name}“"),
     planned_in: |semesters| format!("geplant: {semesters}"),
     unplan_hint: |semester| format!("Eingeplant in {semester}. Noch einmal nimmt das Modul aus dem Plan"),
+    unplan: "Aus dem Plan nehmen",
     plan_for_hint: |semester, name| format!("In {semester} einplanen, für „{name}“"),
     plan_hint: |semester| format!("In {semester} einplanen"),
     fs_short: |n| format!("{n}. FS"),
@@ -257,6 +260,7 @@ pub const EN: Texts = Texts {
     for_placeholder: |name| format!("for \u{201c}{name}\u{201d}"),
     planned_in: |semesters| format!("planned: {semesters}"),
     unplan_hint: |semester| format!("Planned for {semester}. Once more removes the module from the plan"),
+    unplan: "Remove from the plan",
     plan_for_hint: |semester, name| format!("Plan for {semester}, for \u{201c}{name}\u{201d}"),
     plan_hint: |semester| format!("Plan for {semester}"),
     fs_short: |n| format!("{} sem.", folia_design::i18n::format::ordinal(i64::from(n))),
