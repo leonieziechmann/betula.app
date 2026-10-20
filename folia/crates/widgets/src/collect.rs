@@ -38,6 +38,7 @@ use std::collections::BTreeSet;
 
 use leptos::prelude::*;
 
+use folia_design::nav::{room, Room};
 use folia_design::ui::Icon;
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::collections::{Anchor, CollectAsk, Collecting, Collections, Refused, Shelf};
@@ -63,13 +64,14 @@ struct Placed {
 
 /// Under what opened it, its right edge at that one's, while there is room below; over it where
 /// there is more room above (the note after marking, at the window's bottom). Never past the
-/// window's edges. Without an anchor in the middle, near the top.
-fn place(at: Option<Anchor>, view: (f64, f64)) -> Placed {
-    let (width, height) = view;
+/// window's edges, nor under the rail. Without an anchor in the middle, near the top.
+fn place(at: Option<Anchor>, room: Room) -> Placed {
+    let Room { left: rail, width, height } = room;
+    let least = rail + EDGE;
     let Some(at) = at else {
-        return Placed { left: ((width - WIDTH) / 2.0).max(EDGE), top: Some((height * 0.12).round()), bottom: None, most: (height * 0.76).round() };
+        return Placed { left: ((width - WIDTH) / 2.0).max(least), top: Some((height * 0.12).round()), bottom: None, most: (height * 0.76).round() };
     };
-    let left = (at.right - WIDTH).clamp(EDGE, (width - WIDTH - EDGE).max(EDGE));
+    let left = (at.right - WIDTH).clamp(least, (width - WIDTH - EDGE).max(least));
     let below = height - at.bottom - 4.0 - EDGE;
     let above = at.top - 4.0 - EDGE;
     if below >= ROOM_BELOW || below >= above {
@@ -182,17 +184,6 @@ fn ask_of(ev: &leptos::web_sys::Event) -> Option<CollectAsk> {
     }
 }
 
-/// The window's width and height.
-fn viewport() -> (f64, f64) {
-    #[cfg(feature = "csr")]
-    {
-        let size = web_sys::window().and_then(|window| Some((window.inner_width().ok()?.as_f64()?, window.inner_height().ok()?.as_f64()?)));
-        size.unwrap_or((1280.0, 800.0))
-    }
-    #[cfg(not(feature = "csr"))]
-    (1280.0, 800.0)
-}
-
 /// What had the focus when the menu opened: it gets it back when the menu closes, if it is still
 /// on the page.
 #[derive(Clone, Copy)]
@@ -230,7 +221,7 @@ fn CollectPop(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
     let t = i18n::t();
     let Some(collections) = Collections::expect() else { return ().into_any() };
     let back = FocusBack::take();
-    let placed = place(ask.at, viewport());
+    let placed = place(ask.at, room());
     let close = Callback::new(move |()| {
         collecting.close();
         back.give();
@@ -778,7 +769,7 @@ fn box_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
 mod tests {
     use super::*;
 
-    const VIEW: (f64, f64) = (1440.0, 900.0);
+    const VIEW: Room = Room::window(1440.0, 900.0);
 
     fn at(left: f64, top: f64, right: f64, bottom: f64) -> Option<Anchor> {
         Some(Anchor { left, top, right, bottom })
@@ -792,8 +783,9 @@ mod tests {
         // Over the note at the window's bottom.
         let over = place(at(700.0, 840.0, 900.0, 880.0), VIEW);
         assert_eq!((over.left, over.top, over.bottom, over.most), (600.0, None, Some(64.0), 828.0));
-        // Never past the left edge.
+        // Never past the left edge, nor under the rail.
         assert_eq!(place(at(0.0, 100.0, 120.0, 130.0), VIEW).left, EDGE);
+        assert_eq!(place(at(60.0, 100.0, 280.0, 130.0), Room { left: 52.0, ..VIEW }).left, 60.0);
         // Without an anchor in the middle.
         assert_eq!(place(None, VIEW).left, 570.0);
     }

@@ -158,8 +158,6 @@ pub struct Texts {
     pub key_move: &'static str,
     pub key_open: &'static str,
     pub key_save: &'static str,
-    /// S: the menu of the module's collections and note.
-    pub key_collect: &'static str,
     /// Where the list selects (the Merkliste): what its keys add to the tooltip, and a row
     /// selected for screen readers („ausgewählt", after its title).
     pub keys_select: &'static str,
@@ -430,7 +428,6 @@ pub const DE: Texts = Texts {
     key_move: "wählen",
     key_open: "öffnen",
     key_save: "merken",
-    key_collect: "Sammlung",
     keys_select: "Strg und Klick, Shift mit Klick oder den Pfeiltasten und Ziehen über Zeilen wählen mehrere aus, Strg A alle",
     row_selected: "ausgewählt",
     filters: "Filter",
@@ -662,7 +659,6 @@ pub const EN: Texts = Texts {
     key_move: "select",
     key_open: "open",
     key_save: "save",
-    key_collect: "collection",
     keys_select: "Ctrl and click, Shift with a click or the arrow keys and dragging over rows select several, Ctrl A all",
     row_selected: "selected",
     filters: "Filters",

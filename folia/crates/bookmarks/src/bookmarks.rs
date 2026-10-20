@@ -1868,7 +1868,8 @@ fn NameField(ui: CollUi, chip: bool) -> impl IntoView {
 /// The views of the list on a wide screen, at the top of the sidebar (oberflaeche.html, „Am
 /// Rechner", 1): „Alle", „Ohne Sammlung" once there is a collection, each collection with its
 /// number, „+ Neue Sammlung". The one shown is dark. A collection's ⋯ (on hover or focus, and a right
-/// click) opens its menu, F2 renames it; „Alle" has a menu of its own.
+/// click) opens its menu, F2 renames it, Entf (⌫ on a Mac) asks whether to delete it; „Alle" has a
+/// menu of its own.
 #[component]
 fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> impl IntoView {
     let t = i18n::t();
@@ -1892,9 +1893,22 @@ fn CollectionsNav(ui: CollUi, views: Memo<Views>, here: Memo<BookmarksUrl>) -> i
         };
         let renamed = name.clone();
         let keys = move |ev: leptos::ev::KeyboardEvent| {
-            if let (CollectionView::Of(id), "F2") = (view, ev.key().as_str()) {
-                ev.prevent_default();
-                ui.rename(id, &renamed);
+            let CollectionView::Of(id) = view else { return };
+            match ev.key().as_str() {
+                "F2" => {
+                    ev.prevent_default();
+                    ui.rename(id, &renamed);
+                }
+                // What „Löschen" in its menu does, asked first: a key is soon pressed (owner,
+                // 2026-10-20: „wo man dann aber nochmal gefragt wird"). The question stands where
+                // the menu would, its „Löschen" with the focus.
+                "Delete" | "Backspace" if !ev.repeat() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() => {
+                    ev.prevent_default();
+                    ui.sharing.set(false);
+                    ui.confirming.set(true);
+                    ui.menu.set(box_of(&ev).map(|at| (Some(id), at)));
+                }
+                _ => {}
             }
         };
         view! {
@@ -2066,26 +2080,15 @@ pub(crate) const MENU_ITEM: f64 = 36.0;
 pub(crate) const MENU_HINT: f64 = 50.0;
 const MENU_EDGE: f64 = 8.0;
 
-/// Where a menu `wide` px wide and `height` tall stands for what opened it at `at` in a window of
-/// `view`: under it, its right edge at that one's, above it where there is no room below; never
-/// past the window's edges.
-fn menu_place(at: Anchor, wide: f64, height: f64, view: (f64, f64)) -> (f64, f64) {
-    let (width, window) = view;
-    let left = (at.right - wide).clamp(MENU_EDGE, (width - wide - MENU_EDGE).max(MENU_EDGE));
+/// Where a menu `wide` px wide and `height` tall stands for what opened it at `at` in the `room`
+/// of the window: under it, its right edge at that one's, above it where there is no room below;
+/// never past the window's edges, nor under the rail.
+fn menu_place(at: Anchor, wide: f64, height: f64, room: nav::Room) -> (f64, f64) {
+    let least = room.left + MENU_EDGE;
+    let left = (at.right - wide).clamp(least, (room.width - wide - MENU_EDGE).max(least));
     let below = at.bottom + 4.0;
-    let top = if below + height <= window - MENU_EDGE { below } else { (at.top - 4.0 - height).max(MENU_EDGE) };
+    let top = if below + height <= room.height - MENU_EDGE { below } else { (at.top - 4.0 - height).max(MENU_EDGE) };
     (left, top)
-}
-
-/// The window's width and height.
-fn viewport() -> (f64, f64) {
-    #[cfg(feature = "csr")]
-    {
-        let size = web_sys::window().and_then(|window| Some((window.inner_width().ok()?.as_f64()?, window.inner_height().ok()?.as_f64()?)));
-        size.unwrap_or((1280.0, 800.0))
-    }
-    #[cfg(not(feature = "csr"))]
-    (1280.0, 800.0)
 }
 
 /// Copies a text into the clipboard (a click's: the browser lets it).
@@ -2109,10 +2112,12 @@ pub(crate) fn absolute(path: &str) -> String {
 
 /// The menu of a collection, or of the whole list (oberflaeche.html, „Sammlungen verwalten"; „Was
 /// eine Sammlung betrifft, steht in ihrem Menü"): on a wide screen at what opened it, on a phone a
-/// sheet from below (app.css `.st-pop`). A collection's: „Umbenennen" (F2), „Nach oben", „Nach
-/// unten", „Löschen" — which asks nothing, its modules stay marked, and the note after it offers
-/// „Rückgängig" and to take away those that were in it alone. The list's: the link for another
-/// device, the list as text, „Merkliste leeren", which asks.
+/// sheet from below (app.css `.st-pop`). A collection's: „Umbenennen" (F2), „Teilen", „Nach oben",
+/// „Nach unten", „Löschen" (Entf) — which, chosen, asks nothing: its modules stay marked, and the
+/// note after it offers „Rückgängig" and to take away those that were in it alone; its key asks
+/// first, here and at the collection in the sidebar (owner, 2026-10-20). The list's: the link for
+/// another device, the list as text, „Merkliste leeren", which asks. The focus goes back to what
+/// opened it when it closes and leaves the focus nowhere.
 #[component]
 fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksData>>, picking: Picking, phone: RwSignal<bool>) -> impl IntoView {
     let t = i18n::t();
@@ -2126,6 +2131,22 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
         ui.sharing.set(false);
     };
     folia_shell::nav::layer_while(move || ui.menu.with(Option::is_some), close, folia_shell::nav::Kind::Over);
+    // What had the focus as it opened (a collection in the sidebar, its ⋯) has it back as it closes,
+    // where nothing else took it (Esc, „Abbrechen", a click beside it); where that is gone (its
+    // collection deleted), the view the sidebar shows.
+    let opener = StoredValue::new(None::<send_wrapper::SendWrapper<leptos::web_sys::HtmlElement>>);
+    Effect::new(move |was: Option<bool>| {
+        let open = ui.menu.with(Option::is_some);
+        match (was.unwrap_or(false), open) {
+            (false, true) => opener.set_value(focused()),
+            (true, false) => {
+                let back = opener.try_update_value(Option::take).flatten();
+                request_animation_frame(move || focus_back(back));
+            }
+            _ => {}
+        }
+        open
+    });
     // Its first entry has the focus as it opens, the arrows go on from there.
     Effect::new(move |_| {
         if ui.menu.with(Option::is_some) {
@@ -2144,6 +2165,25 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 close();
                 return;
             }
+            // The keys its entries show, of a collection's menu: F2 renames it, Entf (⌫) asks
+            // whether to delete it — once: in the question the key does nothing more.
+            key @ ("F2" | "Delete" | "Backspace") => {
+                let Some((Some(id), _)) = ui.menu.get_untracked() else { return };
+                ev.prevent_default();
+                ev.stop_propagation();
+                if key == "F2" {
+                    let name = collections.and_then(|collections| collections.with_untracked(|shelf| shelf.collection(id).map(|collection| collection.name.clone())));
+                    if let Some(name) = name {
+                        close();
+                        ui.rename(id, &name);
+                    }
+                } else if !ui.confirming.get_untracked() && !ev.repeat() && !ev.ctrl_key() && !ev.meta_key() && !ev.alt_key() {
+                    ui.sharing.set(false);
+                    ui.confirming.set(true);
+                    request_animation_frame(|| nav::focus_by_id("delete-yes"));
+                }
+                return;
+            }
             _ => return,
         };
         ev.prevent_default();
@@ -2160,6 +2200,36 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                     (all.iter().find(|collection| collection.id == id).map(|collection| collection.name.clone()), at == Some(0), at.is_some_and(|at| at + 1 == all.len()))
                 });
                 let renamed = name?;
+                // „Löschen": its modules stay marked; the note after it offers „Rückgängig", and to
+                // take away those that were in it alone („Auch 2 entfernen").
+                let delete = Callback::new(move |()| {
+                    close();
+                    let Some(deleted) = collections.update(|shelf| shelf.delete(id)) else { return };
+                    let alone: Vec<String> = collections.with_untracked(|shelf| deleted.modules.iter().filter(|module| shelf.of(module).is_empty() && bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(module))).cloned().collect());
+                    if let Some(notices) = notices {
+                        notices.say(Notice::Deleted { deleted, alone, taken: None });
+                    }
+                    if here.with_untracked(|url| url.collection == CollectionView::Of(id)) {
+                        ui.go.run(CollectionView::All);
+                    }
+                });
+                if ui.confirming.get() {
+                    // Its key asked: „‚Für Lena‘ löschen?", what stays, „Löschen" with the focus.
+                    let kept = bookmarks.map(Bookmarks::marks_untracked).unwrap_or_default().iter().filter(|mark| collections.with_untracked(|shelf| shelf.holds(id, &mark.id))).count();
+                    let question = (b.delete_question)(&renamed);
+                    let label = question.clone();
+                    let height = 2.0 * MENU_ITEM + 60.0 + if kept > 0 { 18.0 } else { 0.0 };
+                    return Some(view! {
+                        <div class="st-pop-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close()></div>
+                        <div class="st-pop root view-menu ask" role="alertdialog" aria-label=label style=menu_style(at, height) on:keydown=keys>
+                            <p class="view-menu-ask">{question}{(kept > 0).then(|| view! { <small>{(b.delete_keeps)(kept)}</small> })}</p>
+                            <div class="view-menu-answers">
+                                <button class="mini danger hit" type="button" role="menuitem" id="delete-yes" on:click=move |_| delete.run(())>{b.delete}</button>
+                                <button class="mini hit" type="button" role="menuitem" on:click=move |_| close()>{b.cancel}</button>
+                            </div>
+                        </div>
+                    }.into_any());
+                }
                 if ui.sharing.get() {
                     // „Teilen": its marked modules, with its name, and their notes where
                     // „Notizen mitnehmen" is on.
@@ -2227,25 +2297,7 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
                 if !last {
                     entries.push(Entry { icon: "arrow-down", label: b.move_down.to_string(), hint: None, key: None, danger: false, does: Callback::new(move |()| { collections.update(|shelf| shelf.shift(id, false)); close(); }) });
                 }
-                entries.push(Entry {
-                    icon: "trash-2",
-                    label: b.delete.to_string(),
-                    hint: None,
-                    key: None,
-                    danger: true,
-                    does: Callback::new(move |()| {
-                        close();
-                        let Some(deleted) = collections.update(|shelf| shelf.delete(id)) else { return };
-                        // The modules that were in it alone, still marked: „Auch 2 entfernen".
-                        let alone: Vec<String> = collections.with_untracked(|shelf| deleted.modules.iter().filter(|module| shelf.of(module).is_empty() && bookmarks.is_some_and(|bookmarks| bookmarks.is_marked_untracked(module))).cloned().collect());
-                        if let Some(notices) = notices {
-                            notices.say(Notice::Deleted { deleted, alone, taken: None });
-                        }
-                        if here.with_untracked(|url| url.collection == CollectionView::Of(id)) {
-                            ui.go.run(CollectionView::All);
-                        }
-                    }),
-                });
+                entries.push(Entry { icon: "trash-2", label: b.delete.to_string(), hint: None, key: Some(b.delete_key), danger: true, does: delete });
                 entries
             }
             None => {
@@ -2368,6 +2420,49 @@ fn ViewMenu(ui: CollUi, here: Memo<BookmarksUrl>, data: Memo<Option<BookmarksDat
     }
 }
 
+/// The element that has the focus, if one has it (not the page's body).
+fn focused() -> Option<send_wrapper::SendWrapper<leptos::web_sys::HtmlElement>> {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let document = web_sys::window()?.document()?;
+        let active = document.active_element()?.dyn_into::<web_sys::HtmlElement>().ok()?;
+        let body = document.body()?;
+        (!active.is_same_node(Some(&body))).then(|| send_wrapper::SendWrapper::new(active))
+    }
+    #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// Gives the focus back to `back` as a menu closes, where the focus is nowhere (the menu took it
+/// with it); where `back` is gone, to the view the sidebar shows, then to its first.
+fn focus_back(back: Option<send_wrapper::SendWrapper<leptos::web_sys::HtmlElement>>) {
+    #[cfg(feature = "csr")]
+    {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else { return };
+        let lost = match (document.active_element(), document.body()) {
+            (Some(active), Some(body)) => active.is_same_node(Some(&body)),
+            (None, _) => true,
+            _ => false,
+        };
+        if !lost {
+            return;
+        }
+        // On a page in front only: one behind keeps its own focus for when it comes back.
+        if let Some(back) = back.filter(|back| back.is_connected() && back.closest(".page-stage:not(.front)").ok().flatten().is_none()) {
+            let options = web_sys::FocusOptions::new();
+            options.set_prevent_scroll(true);
+            let _ = back.focus_with_options(&options);
+            return;
+        }
+        if !nav::focus_selector(".coll-nav a[aria-current=page]") {
+            nav::focus_selector(".coll-nav a");
+        }
+    }
+    #[cfg(not(feature = "csr"))]
+    let _ = back;
+}
+
 /// The style that puts a menu of `height` where it stands for `at`.
 pub(crate) fn menu_style(at: Anchor, height: f64) -> String {
     menu_style_wide(at, MENU_WIDTH, height)
@@ -2375,7 +2470,7 @@ pub(crate) fn menu_style(at: Anchor, height: f64) -> String {
 
 /// The same for a menu `wide` px wide.
 pub(crate) fn menu_style_wide(at: Anchor, wide: f64, height: f64) -> String {
-    let (left, top) = menu_place(at, wide, height, viewport());
+    let (left, top) = menu_place(at, wide, height, nav::room());
     format!("--x:{left:.0}px;--y:{top:.0}px;--w:{wide:.0}px")
 }
 
@@ -2454,6 +2549,22 @@ mod tests {
         assert_eq!(Status::Passed(before).stand(), Stand::Passed);
         // Without the current semester known, the last semester it is planned in.
         assert_eq!(Status::of(&doc, "11103", None), Some(Status::Planned(later)));
+    }
+
+    /// Under what opened it, its right edge at that one's; on a wide screen never under the rail
+    /// (owner, 2026-10-20: a collection's ⋯ in a narrow sidebar put its menu behind it).
+    #[test]
+    fn a_menu_stays_out_from_under_the_rail() {
+        let dots = Anchor { left: 268.0, top: 200.0, right: 296.0, bottom: 228.0 };
+        let window = nav::Room::window(1100.0, 800.0);
+        assert_eq!(menu_place(dots, MENU_WIDTH, 160.0, window), (48.0, 232.0));
+        assert_eq!(menu_place(dots, MENU_WIDTH, 160.0, nav::Room { left: 52.0, ..window }), (60.0, 232.0));
+        // Room enough beside the rail: right under the ⋯ as before.
+        let wide = Anchor { left: 400.0, right: 428.0, ..dots };
+        assert_eq!(menu_place(wide, MENU_WIDTH, 160.0, nav::Room { left: 52.0, ..window }).0, 180.0);
+        // Above it at the window's bottom.
+        let low = Anchor { top: 740.0, bottom: 768.0, ..wide };
+        assert_eq!(menu_place(low, MENU_WIDTH, 160.0, nav::Room { left: 52.0, ..window }), (180.0, 576.0));
     }
 
     #[test]

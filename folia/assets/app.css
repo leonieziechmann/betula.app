@@ -1209,6 +1209,8 @@ button.coll-item.add:hover { background: var(--row-hover); }
 /* The menu of the whole list asks before it empties it: the question and its answers in its place. */
 .view-menu.ask { padding: 12px; }
 .view-menu-ask { margin: 0 0 10px; color: var(--text); font-size: 13.5px; font-weight: 600; }
+/* What stays, under the question (a collection's: „Die 2 Module darin bleiben gemerkt."). */
+.view-menu-ask small { display: block; margin-top: 3px; color: var(--text-2); font-size: 12.5px; font-weight: 450; }
 .view-menu-answers { display: flex; justify-content: flex-end; gap: 8px; }
 .st-pop-item > kbd { margin-left: auto; }
 /* „Teilen" of a collection and of the rows selected (bookmarks.rs `ViewMenu`, pick.rs

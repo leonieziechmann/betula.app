@@ -165,12 +165,12 @@ fn height_of(entries: &[Entry]) -> f64 {
     2.0 * PAD + entries.iter().map(Entry::height).sum::<f64>()
 }
 
-/// Where a menu of `size` (width, height) stands for `anchor` in a window of `view`: its left and
-/// top edge. Under a button, its right edge at the button's, and above it where there is no room
-/// below; at the pointer to the right and below it, to the left and above where there is no room.
-/// Never past the window's edges.
-pub(super) fn place(anchor: Anchor, size: (f64, f64), view: (f64, f64)) -> (f64, f64) {
-    let ((width, height), (view_width, view_height)) = (size, view);
+/// Where a menu of `size` (width, height) stands for `anchor` in the `room` of the window: its left
+/// and top edge. Under a button, its right edge at the button's, and above it where there is no
+/// room below; at the pointer to the right and below it, to the left and above where there is no
+/// room. Never past the window's edges, nor under the rail.
+pub(super) fn place(anchor: Anchor, size: (f64, f64), room: nav::Room) -> (f64, f64) {
+    let ((width, height), nav::Room { left: rail, width: view_width, height: view_height }) = (size, room);
     let (left, top) = match anchor {
         Anchor::Button(button) | Anchor::Under(button) => {
             let below = button.bottom + 4.0;
@@ -180,17 +180,19 @@ pub(super) fn place(anchor: Anchor, size: (f64, f64), view: (f64, f64)) -> (f64,
         }
         Anchor::Point(x, y) => (if x + width <= view_width - EDGE { x } else { x - width }, if y + height <= view_height - EDGE { y } else { y - height }),
     };
-    (left.clamp(EDGE, (view_width - width - EDGE).max(EDGE)), top.clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
+    let least = rail + EDGE;
+    (left.clamp(least, (view_width - width - EDGE).max(least)), top.clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
 }
 
 /// Where a submenu of `size` stands beside the menu at `menu`, whose entry begins `entry_top` px
 /// from the window's top: right of the menu, left of it where there is no room; its first entry
-/// level with the entry.
-pub(super) fn place_beside(menu: (f64, f64), entry_top: f64, size: (f64, f64), view: (f64, f64)) -> (f64, f64) {
-    let ((left, _), (width, height), (view_width, view_height)) = (menu, size, view);
+/// level with the entry. Not under the rail either.
+pub(super) fn place_beside(menu: (f64, f64), entry_top: f64, size: (f64, f64), room: nav::Room) -> (f64, f64) {
+    let ((left, _), (width, height), nav::Room { left: rail, width: view_width, height: view_height }) = (menu, size, room);
     let right = left + WIDTH;
     let x = if right - 2.0 + width <= view_width - EDGE { right - 2.0 } else { left + 2.0 - width };
-    (x.clamp(EDGE, (view_width - width - EDGE).max(EDGE)), (entry_top - PAD).clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
+    let least = rail + EDGE;
+    (x.clamp(least, (view_width - width - EDGE).max(least)), (entry_top - PAD).clamp(EDGE, (view_height - height - EDGE).max(EDGE)))
 }
 
 /// Opens the menu `what` under the button the event was heard on; the focus goes back there.
@@ -643,8 +645,8 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
     // is (with the focus and the pointer where they are).
     move || {
         let (at, content) = shown.get()?;
-        let view_size = dom::viewport();
-        let height = height_of(&content.entries).min(view_size.1 - 2.0 * EDGE);
+        let view_size = nav::room();
+        let height = height_of(&content.entries).min(view_size.height - 2.0 * EDGE);
         let width = content.width;
         let (left, top) = place(at, (width, height), view_size);
         let entries = content.entries.clone();
@@ -652,7 +654,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
             let open = sub.get()?;
             let Some(Does::Sub(title, sub_entries)) = entries.get(open).map(|entry| entry.does.clone()) else { return None };
             let entry_top = top + PAD + entries.get(..open).unwrap_or_default().iter().map(Entry::height).sum::<f64>();
-            let size = (WIDTH, height_of(&sub_entries).min(view_size.1 - 2.0 * EDGE));
+            let size = (WIDTH, height_of(&sub_entries).min(view_size.height - 2.0 * EDGE));
             let (x, y) = place_beside((left, top), entry_top, size, view_size);
             let label = title.clone();
             Some(view! {
@@ -678,7 +680,7 @@ pub(super) fn MenuHost(ctx: StudyCtx) -> impl IntoView {
 mod tests {
     use super::*;
 
-    const VIEW: (f64, f64) = (1440.0, 900.0);
+    const VIEW: nav::Room = nav::Room::window(1440.0, 900.0);
 
     fn button(left: f64, top: f64) -> Anchor {
         Anchor::Button(Rect { left, top, right: left + 32.0, bottom: top + 32.0 })
@@ -691,6 +693,7 @@ mod tests {
         assert_eq!(place(button(900.0, 300.0), (264.0, 200.0), VIEW), (668.0, 336.0));
         assert_eq!(place(button(900.0, 800.0), (264.0, 200.0), VIEW), (668.0, 596.0), "above the button");
         assert_eq!(place(button(100.0, 300.0), (264.0, 200.0), VIEW).0, 8.0, "not past the left edge");
+        assert_eq!(place(button(100.0, 300.0), (264.0, 200.0), nav::Room { left: 52.0, ..VIEW }).0, 60.0, "not under the rail");
         assert_eq!(place(Anchor::Point(500.0, 400.0), (264.0, 200.0), VIEW), (500.0, 400.0));
         // The list of the semesters under the name of the one shown: their left edges flush.
         assert_eq!(place(Anchor::Under(Rect { left: 400.0, top: 300.0, right: 560.0, bottom: 332.0 }), (340.0, 200.0), VIEW), (400.0, 336.0));
