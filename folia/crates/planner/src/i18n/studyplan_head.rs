@@ -24,6 +24,17 @@ pub struct Texts {
     pub take_marked: fn(usize) -> String,
     /// … and its note, with „Rückgängig": „3 gemerkte Module übernommen".
     pub marked_taken: fn(usize) -> String,
+    /// The list's collections („Sammlungen", for a screen reader), „Alle", its search, „passt"
+    /// beside a module that fits the plan, „Im WiSe 2026/27 nicht angeboten · 2" over what the
+    /// semester does not offer and „nur SoSe" at one of them, and what a search that finds nothing
+    /// says.
+    pub collections: &'static str,
+    pub all: &'static str,
+    pub search_marked: &'static str,
+    pub fits: &'static str,
+    pub unoffered_in: fn(&str, usize) -> String,
+    pub only_in: fn(&str) -> String,
+    pub nothing_found: &'static str,
     /// „Noch keine Termine": in the middle of the week with nothing planned …
     pub no_dates: &'static str,
     /// … and „Zum Katalog", the way to the catalog's modules that fit the week.
@@ -124,6 +135,13 @@ pub const DE: Texts = Texts {
         1 => "1 gemerktes Modul übernommen".to_string(),
         n => format!("{n} gemerkte Module übernommen"),
     },
+    collections: "Sammlungen",
+    all: "Alle",
+    search_marked: "In der Merkliste suchen",
+    fits: "passt",
+    unoffered_in: |semester, n| format!("Im {semester} nicht angeboten · {n}"),
+    only_in: |season| format!("nur {season}"),
+    nothing_found: "Nichts gefunden.",
     no_dates: "Noch keine Termine",
     to_catalog: "Zum Katalog",
 
@@ -190,6 +208,13 @@ pub const EN: Texts = Texts {
         1 => "1 saved module added".to_string(),
         n => format!("{n} saved modules added"),
     },
+    collections: "Collections",
+    all: "All",
+    search_marked: "Search your saved modules",
+    fits: "fits",
+    unoffered_in: |semester, n| format!("Not offered in {semester} · {n}"),
+    only_in: |season| format!("{season} only"),
+    nothing_found: "Nothing found.",
     no_dates: "No dates yet",
     to_catalog: "To the catalogue",
 

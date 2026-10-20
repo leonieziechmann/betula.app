@@ -1,8 +1,10 @@
 //! The top of the Stundenplan: its head („Stundenplan WiSe 2026/27" and the numbers under it), the
 //! exams that collide as red alerts, the one quiet line of overlaps per week, open choices and what
-//! is hidden (opened, a line each), the marked modules that could still be planned, what the empty
-//! week says in its middle, and the one muted line under the calendar that says what the page
-//! derived rather than read (R12). Owner's redesign of 2026-09-25: no stack of cards, numbers
+//! is hidden (opened, a line each), the marked modules that could still be planned (by collection
+//! and search, each with „passt" or what it overlaps with, what the semester does not offer folded
+//! with why; folia/design/merken/konzept.html, „Von überall"), what the empty week says in its
+//! middle, and the one muted line under the calendar that says what the page derived rather than
+//! read (R12). Owner's redesign of 2026-09-25: no stack of cards, numbers
 //! first. The planned modules are a list of their own beside the week (`modules.rs`).
 //!
 //! Every part reads the memos of `PlanCtx` it needs. Where a part needs two things, it takes them
@@ -19,8 +21,9 @@ use folia_calendar::select::TownChoice;
 use folia_model::labels::Labelled;
 use folia_calendar::semester::SemesterKey;
 use folia_model::labels::{Campus, Code, Rhythm};
-use folia_pages::ask::BookmarksAsk;
-use folia_pages::{BookmarksData, StudyplanData};
+use folia_model::labels::OfferStatus;
+use folia_pages::ask::{BookmarksAsk, FitLinesAsk};
+use folia_pages::{BookmarksData, Sits, StudyplanData};
 use folia_plans::studyplan::PlanDoc;
 use folia_routes::filter::{CatalogQuery, ProgramScope};
 use folia_routes::url::{BookmarkSort, CatalogUrl, PlanView, Season};
@@ -31,6 +34,7 @@ use folia_timetable::views::short_title;
 use leptos::prelude::*;
 
 use folia_stores::bookmarks::Bookmarks;
+use folia_stores::collections::Collections;
 use folia_design::format;
 use crate::i18n::{self, Locale};
 use folia_stores::myprogram::MineResolved;
@@ -210,14 +214,35 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
 
 // ---------- the Merkliste ----------
 
-/// The marked modules offered in `key`'s half of the year and not planned into it, in the order
-/// of the Merkliste: number and title.
-fn offered(data: &BookmarksData, key: SemesterKey, planned: &[String]) -> Vec<(String, String)> {
-    let season = if key.winter { Season::Winter } else { Season::Summer };
+/// A marked module the semester shown could still take: its number, its title, and why the
+/// semester does not offer it (`None`: it does).
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct MarkedModule {
+    pub id: String,
+    pub title: String,
+    pub unoffered: Option<String>,
+}
+
+/// The marked modules not planned into `key`, in the order of the Merkliste, each with why
+/// `key`'s half of the year does not offer it, where it does not: no longer offered, only in the
+/// other half („nur SoSe"), or the turnus the catalog states („unregelmäßig").
+fn not_planned(data: &BookmarksData, key: SemesterKey, planned: &[String], t: &'static i18n::Texts) -> Vec<MarkedModule> {
+    let (season, other) = if key.winter { (Season::Winter, Season::Summer) } else { (Season::Summer, Season::Winter) };
     data.rows
         .iter()
-        .filter(|row| data.offered_in(season, &row.id) && !planned.contains(&row.id))
-        .map(|row| (row.id.clone(), row.title.clone()))
+        .filter(|row| !planned.contains(&row.id))
+        .map(|row| {
+            let unoffered = (!data.offered_in(season, &row.id)).then(|| {
+                if row.offer_status.known() == Some(OfferStatus::NotOffered) {
+                    OfferStatus::NotOffered.label(t.locale).to_string()
+                } else if data.offered_in(other, &row.id) {
+                    (t.studyplan_head.only_in)(if key.winter { t.format.summer_short } else { t.format.winter_short })
+                } else {
+                    format::turnus(row.turnus_season.as_ref(), row.turnus_parity.as_ref(), t.locale)
+                }
+            });
+            MarkedModule { id: row.id.clone(), title: row.title.clone(), unoffered }
+        })
         .collect()
 }
 
@@ -226,9 +251,11 @@ fn offered(data: &BookmarksData, key: SemesterKey, planned: &[String]) -> Vec<(S
 /// only what follows it is shown.
 pub(super) const FROM_MARKED: &str = "Merkliste: ";
 
-/// The marked modules the semester shown could still take (`offered`), for the page's two ways to
-/// plan them: the empty week's „übernehmen" and the list's „Aus der Merkliste". One memo for both.
-pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
+/// The marked modules the semester shown could still take (`not_planned`), for the page's two
+/// ways to plan them: the empty week's „übernehmen" (what the semester offers) and the list's „Aus
+/// der Merkliste". One memo for both.
+pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<MarkedModule>> {
+    let t = i18n::t();
     let bookmarks = Bookmarks::expect();
     let marked = Memo::new(move |_| bookmarks.map(|bookmarks| bookmarks.marks().into_iter().map(|mark| mark.id).collect::<Vec<_>>()).unwrap_or_default());
     let loaded = Memo::new(move |before| {
@@ -242,19 +269,50 @@ pub(super) fn marked_offered(ctx: PlanCtx) -> Memo<Vec<(String, String)>> {
     // The semester and what is planned into it, from the semester's data (its ids are the plan's).
     Memo::new(move |_| {
         ctx.data.with(|data| match data {
-            Ok(data) => loaded.with(|marked| marked.as_ref().map(|marked| offered(marked, data.key, &data.ids)).unwrap_or_default()),
+            Ok(data) => loaded.with(|marked| marked.as_ref().map(|marked| not_planned(marked, data.key, &data.ids, t)).unwrap_or_default()),
             Err(_) => Vec::new(),
         })
     })
 }
 
+/// Plans `ids` into the semester shown at once, after the next frame (R21), with the note
+/// „3 gemerkte Module übernommen" and its „Rückgängig"; a semester the plan holds no more of takes
+/// what fits, in the order given. `busy` answers the click at once.
+fn take_marked(ctx: PlanCtx, ids: Vec<String>, busy: RwSignal<bool>, t: &'static i18n::Texts) {
+    let Some(plan) = ctx.plan else { return };
+    if ids.is_empty() || busy.get_untracked() {
+        return;
+    }
+    busy.set(true);
+    let (key, undo) = (ctx.key.get_untracked(), ctx.undo);
+    nav::after_paint(move || {
+        let (taken, before) = plan.update(|doc| {
+            let before = doc.clone();
+            let at = now_secs();
+            (ids.iter().filter(|id| doc.plan(key, id, at, None)).count(), before)
+        });
+        if taken > 0 {
+            let _ = undo.try_set(Some((marked_note(taken, t), before)));
+        }
+        let _ = busy.try_set(false);
+    });
+}
+
 /// „Aus der Merkliste (n)": the marked modules this semester could still take (`list`,
-/// `marked_offered`), closed until asked, each with „Einplanen"; and after the empty week's
-/// „übernehmen", its note and „Rückgängig". A past semester has it too, as it has „+ Modul": a plan
-/// taken over from a later Fachsemester fills its first semesters with what was taken.
+/// `marked_offered`), closed until asked (folia/design/merken/konzept.html, „Von überall": „nach
+/// Sammlung und Suche; zuerst, was das Semester anbietet, mit „passt“ oder „überschneidet sich
+/// mit …“; danach, was es nicht anbietet, mit dem Grund; „3 gemerkte übernehmen“ auch für eine
+/// Sammlung"): the collections as chips with how many each holds of these, a search, what the
+/// semester offers each with how it sits in the plan (`pages::fit_lines`, asked once the list is
+/// open, in the browser: R9) and „Einplanen", all of them shown at once „übernehmen", and folded
+/// what the semester does not offer, each with why and „Einplanen" all the same (nothing is
+/// refused: the plan says what is unusual). After an „übernehmen", its note and „Rückgängig". A
+/// past semester has it too, as it has „+ Modul": a plan taken over from a later Fachsemester
+/// fills its first semesters with what was taken.
 #[component]
-pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> impl IntoView {
+pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
+    let h = &t.studyplan_head;
     let any = Memo::new(move |_| list.with(|list| !list.is_empty()));
     let note = Memo::new(move |_| ctx.undo.with(|undo| undo.as_ref().and_then(|(note, _)| note.strip_prefix(FROM_MARKED).map(str::to_string))));
     let restoring = RwSignal::new(false);
@@ -276,6 +334,111 @@ pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> 
     // list. The write takes the module out of this set again, so wherever the list offers it next
     // (another semester, or this one after it was taken out) it can be planned once more.
     let planning = RwSignal::new(BTreeSet::<String>::new());
+    let busy = RwSignal::new(false);
+
+    // What the visitor keeps of the modules, the collection chosen, what is typed: the page's
+    // alone, never an address's or a request's (R20).
+    let collections = Collections::expect();
+    let shelf = Memo::new(move |_| collections.map(|collections| collections.with(Clone::clone)).unwrap_or_default());
+    let collection = RwSignal::new(None::<u32>);
+    let search = RwSignal::new(String::new());
+    let open = RwSignal::new(false);
+    let unoffered_open = RwSignal::new(false);
+    // A collection that is gone, or holds none of these any more, shows all of them again.
+    Effect::new(move |_| {
+        if let Some(chosen) = collection.get() {
+            let held = shelf.with(|shelf| list.with(|list| list.iter().any(|module| shelf.holds(chosen, &module.id))));
+            if !held {
+                collection.set(None);
+            }
+        }
+    });
+    let shown = Memo::new(move |_| {
+        let (chosen, text) = (collection.get(), search.get());
+        shelf.with(|shelf| {
+            list.with(|list| {
+                list.iter()
+                    .filter(|module| chosen.is_none_or(|chosen| shelf.holds(chosen, &module.id)))
+                    .filter(|module| text.trim().is_empty() || folia_search::matches(&format!("{} {} {}", module.title, module.id, shelf.kept_text(&module.id).unwrap_or_default()), &text))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+        })
+    });
+    let offered = Memo::new(move |_| shown.with(|shown| shown.iter().filter(|module| module.unoffered.is_none()).cloned().collect::<Vec<_>>()));
+    let unoffered = Memo::new(move |_| shown.with(|shown| shown.iter().filter(|module| module.unoffered.is_some()).cloned().collect::<Vec<_>>()));
+
+    // How each module the semester offers would sit in the plan, once the list is open: one
+    // question for all of them, kept while the next is on its way.
+    let asked = Memo::new(move |_| {
+        if !open.get() {
+            return None;
+        }
+        let ids: Vec<String> = list.with(|list| list.iter().filter(|module| module.unoffered.is_none()).map(|module| module.id.clone()).collect());
+        let (key, others, program) = ctx.wanted.get();
+        let selection = ctx.selection.with(|(at, selection)| (*at == key).then(|| selection.clone()))?;
+        (!ids.is_empty()).then_some(FitLinesAsk { key, others, program, ids, selection, locale: t.locale })
+    });
+    let fits = Memo::new(move |before: Option<&BTreeMap<String, Option<Sits>>>| {
+        let Some(ask) = asked.get() else { return BTreeMap::new() };
+        let Some(now) = ctx.source.with_value(|source| source.as_ref().map(|source| source.now(&ask))) else { return BTreeMap::new() };
+        folia_pages::ask::unless_pending(now, before, |answer| answer.map(|lines| lines.into_iter().collect()).unwrap_or_default())
+    });
+
+    let row = move |module: MarkedModule| {
+        let MarkedModule { id, title, unoffered } = module;
+        let busy = Memo::new({
+            let id = id.clone();
+            move |_| planning.with(|planning| planning.contains(&id))
+        });
+        let plan_it = {
+            let id = id.clone();
+            move |_| {
+                let Some(plan) = ctx.plan else { return };
+                if busy.get_untracked() {
+                    return;
+                }
+                planning.update(|planning| {
+                    planning.insert(id.clone());
+                });
+                let key = ctx.key.get_untracked();
+                let id = id.clone();
+                plan.update_after_paint(move |doc| {
+                    doc.plan(key, &id, now_secs(), None);
+                    // The pages hear of the write in the same pass as of this, so a planned
+                    // module leaves the list without a flash of „Einplanen"; one the plan
+                    // refused (a full semester) is offered again.
+                    planning.update(|planning| {
+                        planning.remove(&id);
+                    });
+                });
+            }
+        };
+        let sits = {
+            let id = id.clone();
+            move || match fits.with(|fits| fits.get(&id).cloned().flatten()) {
+                Some(Sits::Fits) => view! { <small class="sp-fit ok"><Icon name="check"/>{h.fits}</small> }.into_any(),
+                Some(Sits::FitsWith(text)) => view! { <small class="sp-fit">{text}</small> }.into_any(),
+                Some(Sits::Clashes(text)) => view! { <small class="sp-fit warn"><Icon name="triangle-alert"/><span>{text}</span></small> }.into_any(),
+                None => ().into_any(),
+            }
+        };
+        let label = format!("{title} · {}", h.plan);
+        view! {
+            <li data-id=id.clone()>
+                <span class="sp-marked-t">
+                    <b>{title}</b>
+                    {match unoffered {
+                        Some(why) => view! { <small class="sp-fit">{why}</small> }.into_any(),
+                        None => sits.into_any(),
+                    }}
+                </span>
+                <button class="mini" type="button" aria-label=label aria-busy=move || busy.get().then_some("true") on:click=plan_it>
+                    {move || if busy.get() { h.planned } else { h.plan }}
+                </button>
+            </li>
+        }
+    };
 
     let taken = move || {
         note.get().map(|note| {
@@ -288,61 +451,71 @@ pub(super) fn FromBookmarks(ctx: PlanCtx, list: Memo<Vec<(String, String)>>) -> 
             }
         })
     };
-    let open = move || {
+    let chips = move || {
+        let ids: Vec<String> = list.with(|list| list.iter().map(|module| module.id.clone()).collect());
+        shelf.with(|shelf| {
+            // The collections that hold any of these, each with how many.
+            let counted: Vec<(u32, String, usize)> = shelf.collections().iter().map(|kept| (kept.id, kept.name.clone(), ids.iter().filter(|id| shelf.holds(kept.id, id)).count())).filter(|(.., count)| *count > 0).collect();
+            (!counted.is_empty()).then(|| {
+                let chip = move |which: Option<u32>, words: String, count: usize| view! {
+                    <button type="button" aria-pressed=move || if collection.get() == which { "true" } else { "false" } on:click=move |_| collection.set(which)>{words}<span class="n">{count}</span></button>
+                };
+                view! {
+                    <div class="st-filters sp-marked-chips" role="group" aria-label=h.collections>
+                        {chip(None, h.all.to_string(), ids.len())}
+                        {counted.into_iter().map(|(id, name, count)| chip(Some(id), name, count)).collect_view()}
+                    </div>
+                }
+            })
+        })
+    };
+    let body = move || {
+        open.get().then(|| {
+            let semester = ctx.key.with(|key| key.label(t.locale));
+            view! {
+                {chips}
+                <label class="sp-marked-search">
+                    <Icon name="search"/>
+                    <input type="search" placeholder=h.search_marked aria-label=h.search_marked prop:value=move || search.get() on:input=move |ev| search.set(event_target_value(&ev))/>
+                </label>
+                <ul class="sp-marked-list">
+                    <For each=move || offered.get() key=|module| module.id.clone() children=row/>
+                </ul>
+                {move || {
+                    let ids: Vec<String> = offered.with(|offered| offered.iter().map(|module| module.id.clone()).collect());
+                    (ids.len() > 1).then(|| {
+                        let count = ids.len();
+                        view! { <button class="mini sp-take" type="button" aria-busy=move || busy.get().then_some("true") on:click=move |_| take_marked(ctx, ids.clone(), busy, t)>{take_marked_label(count, t)}</button> }
+                    })
+                }}
+                {move || {
+                    let count = unoffered.with(Vec::len);
+                    (count > 0).then(|| view! {
+                        <button class="sp-marked-fold" type="button" aria-expanded=move || if unoffered_open.get() { "true" } else { "false" } on:click=move |_| unoffered_open.update(|open| *open = !*open)>
+                            <Icon name="chevron-right"/>{(h.unoffered_in)(&semester, count)}
+                        </button>
+                        {move || unoffered_open.get().then(|| view! {
+                            <ul class="sp-marked-list">
+                                <For each=move || unoffered.get() key=|module| module.id.clone() children=row/>
+                            </ul>
+                        })}
+                    })
+                }}
+                {move || (shown.with(Vec::is_empty)).then(|| view! { <p class="sp-marked-none">{h.nothing_found}</p> })}
+            }
+        })
+    };
+    let section = move || {
         any.get().then(|| {
             view! {
-                <details class="sp-marked">
-                    <summary>{move || (t.studyplan_head.from_bookmarks)(list.with(Vec::len))}</summary>
-                    <ul>
-                        <For
-                            each=move || list.get()
-                            key=|(id, _)| id.clone()
-                            children=move |(id, title): (String, String)| {
-                                let busy = Memo::new({
-                                    let id = id.clone();
-                                    move |_| planning.with(|planning| planning.contains(&id))
-                                });
-                                let plan_it = {
-                                    let id = id.clone();
-                                    move |_| {
-                                        let Some(plan) = ctx.plan else { return };
-                                        if busy.get_untracked() {
-                                            return;
-                                        }
-                                        planning.update(|planning| {
-                                            planning.insert(id.clone());
-                                        });
-                                        let key = ctx.key.get_untracked();
-                                        let id = id.clone();
-                                        plan.update_after_paint(move |doc| {
-                                            doc.plan(key, &id, now_secs(), None);
-                                            // The pages hear of the write in the same pass as of
-                                            // this, so a planned module leaves the list without a
-                                            // flash of „Einplanen"; one the plan refused (a full
-                                            // semester) is offered again.
-                                            planning.update(|planning| {
-                                                planning.remove(&id);
-                                            });
-                                        });
-                                    }
-                                };
-                                view! {
-                                    <li>
-                                        <span class="mono">{id}</span>
-                                        <span>{title}</span>
-                                        <button class="mini" type="button" aria-busy=move || busy.get().then_some("true") on:click=plan_it>
-                                            {move || if busy.get() { t.studyplan_head.planned } else { t.studyplan_head.plan }}
-                                        </button>
-                                    </li>
-                                }
-                            }
-                        />
-                    </ul>
+                <details class="sp-marked" on:toggle=move |ev| open.set(event_target::<leptos::web_sys::Element>(&ev).has_attribute("open"))>
+                    <summary><Icon name="bookmark"/>{move || (h.from_bookmarks)(list.with(Vec::len))}</summary>
+                    {body}
                 </details>
             }
         })
     };
-    view! { {taken}{open} }
+    view! { {taken}{section} }
 }
 
 // ---------- nothing planned yet ----------
@@ -364,35 +537,14 @@ fn marked_note(count: usize, t: &i18n::Texts) -> String {
 /// answers at once and the plan follows after the next frame (R21); the note and its „Rückgängig"
 /// stand where the list offers the Merkliste (`FromBookmarks`).
 #[component]
-pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> impl IntoView {
+pub(super) fn NothingPlanned(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
     let resolved = MineResolved::expect();
-    let count = Memo::new(move |_| marked.with(Vec::len));
+    // What the semester offers of them: the empty week takes these.
+    let offered = Memo::new(move |_| marked.with(|marked| marked.iter().filter(|module| module.unoffered.is_none()).map(|module| module.id.clone()).collect::<Vec<_>>()));
+    let count = Memo::new(move |_| offered.with(Vec::len));
     let busy = RwSignal::new(false);
-    let take = move |_| {
-        let Some(plan) = ctx.plan else { return };
-        if busy.get_untracked() {
-            return;
-        }
-        let ids: Vec<String> = marked.with_untracked(|marked| marked.iter().map(|(id, _)| id.clone()).collect());
-        if ids.is_empty() {
-            return;
-        }
-        busy.set(true);
-        let (key, undo) = (ctx.key.get_untracked(), ctx.undo);
-        nav::after_paint(move || {
-            let (taken, before) = plan.update(|doc| {
-                let before = doc.clone();
-                let at = now_secs();
-                // A semester the plan holds no more of takes what fits, in the Merkliste's order.
-                (ids.iter().filter(|id| doc.plan(key, id, at, None)).count(), before)
-            });
-            if taken > 0 {
-                let _ = undo.try_set(Some((marked_note(taken, t), before)));
-            }
-            let _ = busy.try_set(false);
-        });
-    };
+    let take = move |_| take_marked(ctx, offered.get_untracked(), busy, t);
     let catalog = move || t.path(&add_module_href(resolved, ctx.key.get()));
     view! {
         <div class="sp-empty">
@@ -1540,9 +1692,11 @@ mod tests {
             summer: vec!["12330".into()],
             missing: Vec::new(),
         };
-        // Offered in the winter and not planned into it; the summer's own in a summer.
-        assert_eq!(offered(&data, key("2026W"), &["12104".to_string()]), vec![("11103".to_string(), "Modul 11103".to_string())]);
-        assert_eq!(offered(&data, key("2027S"), &[]), vec![("12330".to_string(), "Modul 12330".to_string())]);
+        // What is not planned into the semester, in the Merkliste's order: what its half of the
+        // year offers, and the rest with why not.
+        let marked = |id: &str, unoffered: Option<&str>| MarkedModule { id: id.into(), title: format!("Modul {id}"), unoffered: unoffered.map(str::to_string) };
+        assert_eq!(not_planned(&data, key("2026W"), &["12104".to_string()], &DE), vec![marked("11103", None), marked("12330", Some("nur SoSe"))]);
+        assert_eq!(not_planned(&data, key("2027S"), &[], &DE), vec![marked("11103", Some("nur WiSe")), marked("12330", None), marked("12104", Some("nur WiSe"))]);
         // The empty week takes them over at once, and says how many it took.
         assert_eq!((take_marked_label(1, &DE), take_marked_label(3, &DE)), ("1 gemerktes Modul übernehmen".to_string(), "3 gemerkte Module übernehmen".to_string()));
         assert_eq!((marked_note(1, &DE), marked_note(3, &DE)), ("Merkliste: 1 gemerktes Modul übernommen".to_string(), "Merkliste: 3 gemerkte Module übernommen".to_string()));

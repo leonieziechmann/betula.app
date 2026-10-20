@@ -71,7 +71,7 @@ use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_design::ui::Icon;
 use folia_widgets::week::{slot_buttons, GridSlot, SlotButton, WeekGrid};
-use super::head::{hue, kind_word, tone_at, NothingPlanned};
+use super::head::{hue, kind_word, tone_at, MarkedModule, NothingPlanned};
 use super::PlanCtx;
 
 /// Where this browser tab remembers the link the visitor last left a view by (`Place`).
@@ -94,7 +94,7 @@ type Picked = (Option<String>, Option<RowKey>);
 /// shown and of A and B weeks in the head (`AllSwitch`, `WeekSwitch`; on a phone the weeks are the
 /// carousel's tabs).
 #[component]
-pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<(String, String)>>) -> impl IntoView {
+pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
     let base = base_of(ctx);
     let picked = picked_of(ctx);
