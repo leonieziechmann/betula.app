@@ -26,7 +26,7 @@ case "${1:-}" in
   *) echo "usage: $0 [--watch | sizes] [-- server flags]" >&2; exit 2 ;;
 esac
 
-# Where cargo builds (scripts/build-cache.sh may point it outside the checkout).
+# Where cargo builds (a config file or CARGO_TARGET_DIR may point it outside the checkout).
 TARGET_DIR=$(cargo metadata --format-version 1 --no-deps 2>/dev/null \
   | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p' | tr -s '\134' '/')
 [ -n "$TARGET_DIR" ] || TARGET_DIR="${CARGO_TARGET_DIR:-target}"

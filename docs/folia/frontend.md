@@ -3911,9 +3911,10 @@ cargo run -p folia-server
 ```
 
 The first of them builds the browser app into `site/pkg` (needs the `wasm32-unknown-unknown`
-target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache); without it the site simply
-stays server-rendered. `--dev` builds it with the `wasm-dev` profile and the flags of
-`.cargo/config.toml` (`--cfg erase_components`, see „Build times"), and keeps the names of its
+target and `wasm-bindgen` 0.2.128, which Trunk keeps in its cache; in the cloud the prebuild
+installs both, „Build times"); without it the site simply stays server-rendered. `--dev` builds it
+with the `wasm-dev` profile and the flags of `folia/.cargo/config.toml` (`--cfg
+erase_components`, see „Build times"), and keeps the names of its
 functions for the debugger; leave it off to build the bundle that ships, as Nix builds it,
 without them. Which one you want is a question of minutes:
 
@@ -3931,39 +3932,53 @@ from develop that day, 33.8 MB with them, 29.0 MB of them names, and 4.7 MB with
 
 ### Build times
 
-The workspace is around 20 000 lines of Rust on 339 crates, and most of `folia-app` is Leptos
-views (384 `view!` macros). What that costs on a laptop with six cores (Ryzen 5 PRO 4650U, twelve
-threads, 16 GB), measured 2026-09-23:
+Owner, 2026-10-20: „ich arbeite jetzt fast ausschließlich in der cloud, wo sich keine
+inkrementellen compile files geteilt werden", and: „wie man die entwicklungs compile zeit für
+cloud runner reduzieren kann". Measured that day in a cloud session (Anthropic's VM: four vCPUs,
+16 GB, Ubuntu 24.04, rustc 1.97, which links with `rust-lld`), `cargo build` in `folia/`, every
+edit a real one (a string grows by a character):
 
-| | without `erase_components` | with it (since 2026-09-23) |
+| | without `erase_components` | with it |
 |---|---|---|
-| cold build, empty cache | 5 min 21 s | 3 min 24 s |
-| new worktree: fork the main checkout's cache, then build | 19 s + 2 min 46 s | 19 s + 57 s |
-| edit a page in `app/` (the catalog's filter panel), `cargo build` | 19 s | 10 s |
-| edit `folia/crates/design/src/ui.rs`, `cargo build` | 14 s | 9 s |
-| edit `server/`, `cargo build` | 19 s | 6 s |
-| edit a page, `folia/scripts/build-client.sh --dev` | 15 s | 11 s |
-| `cargo build` with nothing to do | 0.9 s | 0.9 s |
+| cold build, empty `target/` | 5 min 8 s | 3 min 8 s |
+| edit a page of the catalog (`folia-catalog`) | 18 s | 8 s |
+| edit a page of the Stundenplan (`folia-planner`) | 21 s | 12 s |
+| edit `folia/crates/design/src/ui.rs` | 29 s | 18 s |
+| edit `folia-server` | 26 s | 5 s |
+| the version bump that ends a branch (the 13 crates at the app's version) | 3 min 51 s | 1 min 18 s |
+| nothing to do | 0.6 s | 0.6 s |
+| `target/` after the build | 7.0 GB | 3.4 GB |
+| the debug server | 1.4 GB | 226 MB |
 
-The edits are real ones: a string grows by a character. An edit that keeps every length the same
-(a digit for a digit) costs the server 8 s instead of 19 s without the flag, and the rest a
-second less, so measuring with such an edit flatters.
+With the flag, the browser app's first dev build (`build-client.sh --dev`: its dependencies for
+`wasm32-unknown-unknown`) takes 2 min 55 s more, the first `cargo test --no-run` 1 min 34 s, and
+the three leave 12 GB in `target/`. Most of a cold build is the workspace's own crates, the
+Leptos views and the server that renders them: by `cargo build --timings` the longest path of a
+cold build ends in `folia-widgets`, `folia-planner` and `folia-server`, 22, 39 and 14 s with the
+flag, 69, 107 and 76 s without it.
+
+The version bump costs what it costs because a package's version is part of the identity of its
+units (`-C metadata`, the names of its artefacts and of its incremental session): a crate whose
+version changes is compiled from nothing, not incrementally, and the 13 crates at the app's
+version change together. (Measured as well: the server's version alone, and the shell's
+`VERSION` with it, 13 s. Which crates carry the version is the owner's rule, CLAUDE.md.)
 
 **`--cfg erase_components`.** Leptos gives every view a type of its own: an element is a type with
 its attributes and children, a component's `impl IntoView` the whole tree below it. rustc infers
-these types in one frontend thread for all of `folia-app`, and instantiates the code that renders
-them in `folia-server` and again in `folia-client`. With the flag, Leptos erases the type of every
+these types in one frontend thread per crate, and instantiates the code that renders them in
+`folia-server` and again in `folia-client`. With the flag, Leptos erases the type of every
 component and every list of children (`AnyView`; the documentation is at `src/lib.rs:264` of
-leptos 0.8.20), and little is left to infer or to instantiate. From the fork's first build:
-`folia-app` 96 s → 35 s (its frontend 67 s → 23 s), `folia-server` 61 s → 13 s; the debug server
-binary is 137 MB instead of 1.2 GB, the browser app of `--dev` 7.4 MB instead of 29 MB.
+leptos 0.8.20, and leptos asks its macros for the same through
+`[target.'cfg(erase_components)'.dependencies]`), and little is left to infer or to instantiate.
 
-It is a flag for rustc and not a feature, so it is one of the flags `folia/scripts/build-cache.sh`
-writes into `.cargo/config.toml`, for the host and for `wasm32-unknown-unknown`, and base and
-forks are built with it alike. It is for working on the code: the bundle that ships
-(`build-client.sh` without `--dev`) is built without the flags of that file, and Nix never sees
-it. What the two builds do differently, checked on 6 500 pages (every address of the sitemap and
-1 100 lists and filters found on them):
+It is a flag for rustc and not a feature, so it stands in `folia/.cargo/config.toml`, which every
+cargo command in `folia/` reads, for the host and for `wasm32-unknown-unknown` alike. Its table is
+`[target.'cfg(all())']` and not `build.rustflags`: cargo joins the flags of every target table
+that matches, so a machine's own (a linker) are added to it, where `build.rustflags` would give
+way to them. It is for working on the code: the bundle that ships (`build-client.sh` without
+`--dev`) is built without the flags of that file, and Nix never sees it (`flake.nix` builds from
+`Cargo.toml`, `Cargo.lock`, `crates/` and `assets/`). What the two builds do differently, checked
+on 6 500 pages (every address of the sitemap and 1 100 lists and filters found on them):
 
 - The server's HTML carries more of Leptos's markers (`<!>`, `<!--<() />-->`): 2–5 % of a page,
   about 1 % gzipped. Without its comments every page is the same, byte for byte.
@@ -3973,80 +3988,81 @@ it. What the two builds do differently, checked on 6 500 pages (every address of
   and so closer to `recursion_limit`. Nix builds without it, and `deploy/ship.sh` builds with Nix
   before it ships anything, so such a failure stops a release instead of slipping into one. To
   see it earlier: `CARGO_ENCODED_RUSTFLAGS= cargo build` (every dependency once more, in the
-  same cache).
+  same `target/`).
 
-A change of the flags is a change of every unit's fingerprint: after one, `setup` and `prime` in
-the main checkout, or every fork builds all 415 units again.
+A change of the flags is a change of every unit's fingerprint: after one, everything is built
+again.
 
-Every checkout gets its own build cache, and a new worktree starts from a copy of the main
-checkout's:
+**In the cloud.** Every session is a VM of its own, made from the cloud environment's snapshot:
+the repository as it was cloned when the snapshot was taken, brought to the session's branch by
+`git fetch` and `git checkout` (which touch only the files that differ, so cargo takes what is
+unchanged for built), and whatever the environment's setup script wrote. Nothing one session
+builds reaches another. Two things start the builds early:
 
-```bash
-git config core.hooksPath folia/scripts/hooks   # once per clone: git does not carry it along
-bash folia/scripts/build-cache.sh setup         # in the main checkout, and after `rustup update`
-bash folia/scripts/build-cache.sh prime         # in the main checkout, after a merge into develop
-bash folia/scripts/build-cache.sh gc            # drop the caches of worktrees that are gone
+- **`.claude/hooks/prebuild.sh`**, the SessionStart hook of `.claude/settings.json`. In a cloud
+  session (`CLAUDE_CODE_REMOTE=true`; anywhere else it does nothing) it returns at once and
+  leaves the prebuild running in the background, at the lowest priority: the
+  `wasm32-unknown-unknown` target and `wasm-bindgen` at the version of `folia/Cargo.lock` (the
+  release's binary, checked against the sha256 in the script: a second instead of two minutes of
+  `cargo install`), Go's toolchain and modules, then in `folia/` `cargo build` and the browser
+  app's dev build, then Radix and Cortex with their tests compiled. From nothing that is about six
+  minutes, Go aside, while the session reads; its log is `/tmp/prebuild.log`. A cargo command of
+  the session that builds into the directory of a running step (the same profile and target)
+  waits for its lock („Blocking waiting for file lock on build directory") and then finds that
+  work done; the browser app's build holds up no build of the server. `cargo test --no-run` is
+  not one of the steps: it builds into `target/debug` as `cargo build` does, and a `cargo build`
+  of the session waited 84 s for it with nothing left to do, in the very minutes in which the
+  first edits are built. The first `cargo test` of a session takes its 1 min 34 s instead.
+- **The setup script of the cloud environment** (claude.ai/code, the environment's settings,
+  „Setup script"). It runs once, and what it leaves is kept in the environment's snapshot for
+  about seven days, if it finishes within about five minutes:
+
+  ```bash
+  #!/bin/bash
+  cd /home/user/betula.app 2>/dev/null && bash .claude/hooks/prebuild.sh setup
+  exit 0
+  ```
+
+  `setup` is the same prebuild in the foreground, stopped after 240 s (`PREBUILD_BUDGET`) so that
+  the snapshot is made: the tools, Go's toolchain and modules, and the cold `cargo build`, which
+  fits; what the budget leaves (the rest of the browser app, Go's builds) the hook builds in the
+  session. A session from such a snapshot should then find every dependency built, and compile
+  the workspace's crates its branch changed, incrementally, except after a version bump: the
+  snapshot keeps `folia/target` beside the clone, and the checkout leaves the files that did not
+  change with the times they had (this session's repository was cloned at 07:34 and brought to its
+  branch at 10:13; what did not change still says 07:34). The first session after the setup script
+  is in place confirms it: `ls folia/target` before anything is built.
+
+Go's modules and its toolchain come from `storage.googleapis.com`, where `proxy.golang.org` sends
+them. The agent proxy of a session puts a network secret of the environment for `*.googleapis.com`
+on those requests too, and while that secret fails, every one of them fails with it (`502`,
+„injection failed", 2026-10-20), Google's fonts in the drawings of `folia/design` as well: give
+such a secret the one host it is for (Gemini: `generativelanguage.googleapis.com`). The setup
+script runs before the agent proxy and is not concerned.
+
+**What it replaces.** Until 2026-10-20 `folia/scripts/build-cache.sh` gave every git worktree of
+a workstation a build cache of its own, forked from the main checkout's with every dependency
+built, and a hook of git (`folia/scripts/hooks/post-checkout`) forked it for every new worktree:
+on the laptop of 2026-09-23 a new worktree's first build took 19 s + 57 s instead of 3 min 24 s.
+In the cloud none of it applies — a fresh clone has no main checkout to fork from, and git does not
+carry `core.hooksPath` along — and the one thing of it that pays everywhere, the flag, is in
+`folia/.cargo/config.toml` now. The `.cargo/config.toml` the script wrote at the top of a checkout
+can go; it is git-ignored, so a machine's own settings may stand there, such as the linker of
+Windows: the toolchain ships `rust-lld`, but `gcc`, the linker driver of `x86_64-pc-windows-gnu`,
+finds it only when pointed at the toolchain's `gcc-ld` shims (19 s instead of 24 s per rebuild on
+that laptop; `<sysroot>` is what `rustc --print sysroot` says):
+
+```toml
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-Clink-arg=-fuse-ld=lld", "-Clink-arg=-B<sysroot>/lib/rustlib/x86_64-pc-windows-gnu/bin/gcc-ld"]
 ```
 
-The main checkout builds into `target/base`; `setup` in a worktree copies it to
-`target/wt-<worktree>` and points the worktree there. The copy carries the 339 dependencies, so
-only `folia-catalog`, `folia-app` and `folia-server` compile — once, after which every edit is
-incremental. The fork is 1.9 GB and takes 19 s (base holds the tests' and the browser app's
-dependencies too); after its first build a worktree's cache is about 4.7 GB, which is why `gc`
-exists. Before it did, `target/` had grown to 140 GB across fifteen caches of branches long
-merged. Each cache records which worktree it belongs to, and `gc` drops it once that directory
-is gone, so the caches follow the worktrees and not `git worktree list` (which still lists a
-worktree under its old path after the repository has moved, until `git worktree repair`).
-
-A worktree inside the main checkout (`.claude/worktrees/<name>`) takes its flags from the main
-checkout's `.cargo/config.toml` and writes only its target directory into its own. Cargo reads
-the config files of every directory above the one it runs in and joins their lists; written into
-both, the flags stood there twice, no unit of the fork matched, and the first build of such a
-worktree took 5 min 20 s instead of 2 min 46 s (until 2026-09-23).
-
-A new worktree needs none of these commands. `git worktree add` runs
-`folia/scripts/hooks/post-checkout` with the null commit as the previous HEAD, and the hook runs
-`setup` before `git worktree add` returns (16 s longer) and `gc` in the background after it —
-deleting a gone worktree's cache takes Windows half a minute per 2 GB, and nothing needs to wait
-for that. Branch switches and file checkouts leave the hook at its first line, and it never makes
-the checkout fail: a worktree without its cache is slower, not broken. Because `gc` may run while
-another worktree is being forked, `setup` records a cache's owner before it copies anything, or
-`gc` would take the half-copied cache for an orphan.
-
-What does not work, measured, so it is not tried again:
-
-- **One cache for all worktrees.** rustc keeps one incremental session per crate, and worktrees
-  building into the same target directory overwrite each other's. Alternating edits between
-  two of them cost 202 s, 196 s, 202 s instead of 14 s each.
-- **Reusing the workspace crates on a fork.** The incremental session records absolute paths and
-  is worthless at any other path, so it is left out of the copy together with the executables.
-  Cargo's `trim-paths`, which would change that, is nightly-only.
-- **Backdating the sources of a new worktree** so cargo takes the copied artefacts for its own.
-  The first build then takes 2 s, but the first edit 198 s, because there is no incremental
-  session to build on: the three minutes move, they do not go away. And cargo compares
-  timestamps, never contents, so a file that differs from what the cache was built from but
-  looks older would silently leave its old code in the binary. `setup` does the opposite: it
-  touches every workspace source after the fork, so nothing in the copy can pass for current.
-- **Measuring with `CARGO_INCREMENTAL=0`.** The variable is part of every unit's fingerprint:
-  all 356 units of the cache are built again (5 min), and the cache holds them twice.
-
-What is left of the 57 s: `folia-catalog` 10 s, `folia-app` 35 s (23 s of it one frontend
-thread), `folia-server` 13 s. **`folia-app` in crates** (one per layer and per page, so that the
-pages compile side by side) was measured on top of the flag and not taken for now: the first
-build 57 s → 51 s, an edit in a page 10 s → 8 s, the same edit in the browser app 11 s → 6.3 s,
-but an edit in `ui` 9 s → 12.5 s (every page and the shell compile again), rustc's frontends
-23 s → 49 s in all, and the bundle that ships 3.6 % larger gzipped. Without the flag it is worth
-more (the first build 166 s → 128 s). The split is the branch `claude/web-tier-compile-time-0a192a`.
-
-`setup` also writes the linker into `.cargo/config.toml`: the toolchain ships `rust-lld`, but
-`gcc` — the linker driver on `x86_64-pc-windows-gnu` — only finds it when pointed at the
-toolchain's `gcc-ld` shims. That is 24 s against 19 s on every rebuild, and a minute and a quarter
-on a cold one. The linker is a path on this machine, so the file is generated and not in git; and
-one script writes the flags of base and forks because they must be built with the same ones, or
-the copy is of no use.
-
-With the cache outside the checkout, `folia/scripts/build-client.sh` asks `cargo metadata` where the
-bundle landed instead of assuming `target/`.
+Measured with the worktree caches and not taken, so it is not tried again: one target directory
+for several checkouts (they overwrite each other's incremental sessions: 200 s per switch instead
+of 14 s), and sources backdated so that copied artefacts pass for current (the first edit then
+takes the three minutes, and a file that differs but looks older leaves its old code in the
+binary). `CARGO_INCREMENTAL=0` is part of every unit's fingerprint: measuring with it builds
+everything again.
 
 Open `http://127.0.0.1:8080`. The server fetches the snapshot over HTTP into `web-data/` and
 keeps serving the last good one when Radix is away, also after a restart.
@@ -4212,8 +4228,8 @@ change in `client/` builds the browser app, one in `server/` the server, one in 
 or `pack/` both, and the server is restarted. The browser app is built while the old server still
 answers; the server is stopped before it is built, because Windows does not let a build overwrite
 a running `folia.exe`. What does not build is said, and the next change is waited for. An edit of
-`server/` answers with the new build in 12 s here (four cores, without the flags of
-`folia/scripts/build-cache.sh`). The page cache is not warmed (`FOLIA_WARM_CACHE=off`): the warm-up
+`server/` is built again in 5 s in the cloud (`cargo build`, „Build times"). The page cache is not
+warmed (`FOLIA_WARM_CACHE=off`): the warm-up
 renders all 5,000 pages after every start, and here every restart is one.
 
 What is tested while working on it is not what ships: the stylesheet and the scripts minified,
