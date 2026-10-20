@@ -85,6 +85,39 @@ pub(super) fn row_nearest(y: f64) -> Option<String> {
     None
 }
 
+/// The focus to the box of the semester's row `key` (`.st-open`), brought into view where it is
+/// not: Shift and ↑ ↓ go on from row to row (`focus::step`). Only rows on the screen count, as in
+/// `row_nearest`.
+#[allow(unused_variables)]
+pub(super) fn focus_row(key: &str) {
+    #[cfg(feature = "csr")]
+    {
+        let (width, _) = viewport();
+        let row = folia_design::stage::select_all(".st-card-sem .st-row[data-key]").into_iter().find(|row| {
+            let r = row.get_bounding_client_rect();
+            r.width() > 0.0 && r.left() >= -1.0 && r.right() <= width + 1.0 && row.get_attribute("data-key").as_deref() == Some(key)
+        });
+        let Some(open) = row.and_then(|row| row.query_selector(".st-open").ok().flatten()).and_then(|open| open.dyn_into::<web_sys::HtmlElement>().ok()) else { return };
+        let options = web_sys::FocusOptions::new();
+        options.set_prevent_scroll(true);
+        let _ = open.focus_with_options(&options);
+        let place = web_sys::ScrollIntoViewOptions::new();
+        place.set_block(web_sys::ScrollLogicalPosition::Nearest);
+        open.scroll_into_view_with_scroll_into_view_options(&place);
+    }
+}
+
+/// Whether the keys of an event are a field's (what they type; Ctrl A there selects its text).
+#[allow(unused_variables)]
+pub(super) fn typing(ev: &leptos::ev::Event) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        ev.target().and_then(|target| target.dyn_into::<web_sys::Element>().ok()).is_some_and(|target| target.closest("input, textarea, select, [contenteditable], dialog, [role=dialog], [role=menu]").ok().flatten().is_some())
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
 /// Holds on to the pointer for the element the event was heard on: its moves come there while the
 /// button is down, wherever it goes.
 #[allow(unused_variables)]

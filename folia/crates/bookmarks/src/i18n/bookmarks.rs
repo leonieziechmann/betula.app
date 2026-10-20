@@ -144,6 +144,40 @@ pub struct Texts {
     pub clear_yes: &'static str,
     pub cancel: &'static str,
     pub clear: &'static str,
+
+    // ---- several at once (oberflaeche.html, „Mehrere auswählen"), as in „Mein Studium" ----
+    /// The bar of the rows selected: its name for screen readers, „3 ausgewählt", „· ausgewählt"
+    /// after a row's title for screen readers, „Alle auswählen", letting go of them.
+    pub selection: &'static str,
+    pub n_selected: fn(usize) -> String,
+    pub is_selected: &'static str,
+    pub select_all: &'static str,
+    pub clear_selection: &'static str,
+    /// Its actions „Sammlung" and „Teilen" (its menu's head „3 Module teilen"); the head of
+    /// „Einplanen"'s menu („3 Module einplanen").
+    pub act_collect: &'static str,
+    pub act_share: &'static str,
+    pub share_n: fn(usize) -> String,
+    pub plan_n: fn(usize) -> String,
+    /// „Einplanen"'s menu: each where its own „Einplanen" aims …
+    pub each_aimed: &'static str,
+    /// … or all into one semester, under „Alle in": whether the modules are offered there
+    /// („angeboten", „nicht angeboten", „2 nicht angeboten"), „jetzt", and the semesters behind the
+    /// student, folded.
+    pub all_into: &'static str,
+    pub offered: &'static str,
+    pub not_offered: &'static str,
+    pub n_not_offered: fn(usize) -> String,
+    pub now: &'static str,
+    pub earlier_semesters: &'static str,
+    /// A row's menu (its right click): „Auswählen" or „Abwählen", „Aus dem Plan nehmen" where
+    /// „Einplanen" would take the module out, „Von der Merkliste entfernen".
+    pub select: &'static str,
+    pub deselect: &'static str,
+    /// What selects a row without its menu, beside „Auswählen" (R10).
+    pub select_key: &'static str,
+    pub unplan: &'static str,
+    pub unmark: &'static str,
 }
 
 pub const DE: Texts = Texts {
@@ -245,6 +279,28 @@ pub const DE: Texts = Texts {
     clear_yes: "Leeren",
     cancel: "Abbrechen",
     clear: "Merkliste leeren",
+
+    selection: "Auswahl",
+    n_selected: |n| format!("{n} ausgewählt"),
+    is_selected: "ausgewählt",
+    select_all: "Alle auswählen",
+    clear_selection: "Auswahl aufheben",
+    act_collect: "Sammlung",
+    act_share: "Teilen",
+    share_n: |n| if n == 1 { "1 Modul teilen".to_string() } else { format!("{n} Module teilen") },
+    plan_n: |n| if n == 1 { "1 Modul einplanen".to_string() } else { format!("{n} Module einplanen") },
+    each_aimed: "Jedes in sein Semester",
+    all_into: "Alle in",
+    offered: "angeboten",
+    not_offered: "nicht angeboten",
+    n_not_offered: |n| format!("{n} nicht angeboten"),
+    now: "jetzt",
+    earlier_semesters: "Frühere Semester",
+    select: "Auswählen",
+    deselect: "Abwählen",
+    select_key: "Strg Klick",
+    unplan: "Aus dem Plan nehmen",
+    unmark: "Von der Merkliste entfernen",
 };
 
 pub const EN: Texts = Texts {
@@ -346,4 +402,26 @@ pub const EN: Texts = Texts {
     clear_yes: "Clear",
     cancel: "Cancel",
     clear: "Clear saved modules",
+
+    selection: "Selection",
+    n_selected: |n| format!("{n} selected"),
+    is_selected: "selected",
+    select_all: "Select all",
+    clear_selection: "Clear selection",
+    act_collect: "Collection",
+    act_share: "Share",
+    share_n: |n| if n == 1 { "Share 1 module".to_string() } else { format!("Share {n} modules") },
+    plan_n: |n| if n == 1 { "Plan 1 module".to_string() } else { format!("Plan {n} modules") },
+    each_aimed: "Each into its semester",
+    all_into: "All into",
+    offered: "offered",
+    not_offered: "not offered",
+    n_not_offered: |n| format!("{n} not offered"),
+    now: "now",
+    earlier_semesters: "Earlier semesters",
+    select: "Select",
+    deselect: "Deselect",
+    select_key: "Ctrl click",
+    unplan: "Take out of the plan",
+    unmark: "Remove from saved modules",
 };

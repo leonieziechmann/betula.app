@@ -235,6 +235,19 @@ fn every_query_runs_against_the_snapshot() {
     assert_eq!(study.rows.len() + study.missing.len(), asking.len());
     assert!(queries::modules_prerequisites(&db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
 
+    // The semester of each module's newest events, many at once (`newest_semesters`, „Einplanen"
+    // of the rows selected on the Merkliste): as each module's own Termine have it; nothing of
+    // what is no module id.
+    let taught = column(&db.inner, "SELECT module_id FROM v_module_schedule WHERE semester_key IS NOT NULL GROUP BY module_id ORDER BY module_id LIMIT 3");
+    assert_eq!(taught.len(), 3);
+    let newest = crate::newest_semesters(&db, &[taught.clone(), vec!["1 OR 1=1".to_string()]].concat()).unwrap();
+    assert_eq!(newest.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>(), taught);
+    for (id, key) in &newest {
+        let own = queries::module_schedule(&db, id).unwrap().iter().filter_map(|date| folia_calendar::semester::SemesterKey::parse(&date.semester_key)).max();
+        assert_eq!(own, Some(*key), "{id}");
+    }
+    assert!(queries::teaching_semesters(&db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
+
     // Every `pub fn` of folia-query must have run above, and the search's statements and `meta`.
     let functions = |source: &'static str| -> Vec<&'static str> {
         source.lines().filter_map(|line| line.strip_prefix("pub fn ")).filter_map(|rest| rest.split(['(', '<']).next()).collect()

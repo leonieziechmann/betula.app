@@ -496,12 +496,16 @@ pub struct Anchor {
 
 /// The menu of a module's collections and note asked for (oberflaeche.html, „Ein Menü für
 /// Sammlung und Notiz"): one menu wherever it opens — the note after marking, the switch of a
-/// module, the keys S and N at a row or at the open module. `folia_widgets::collect` shows it.
+/// module, the keys S and N at a row or at the open module; and for the rows selected on the
+/// Merkliste (`more`), with their collections alone. `folia_widgets::collect` shows it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CollectAsk {
     pub id: String,
-    /// The module's title: the head of the menu.
+    /// The module's title: the head of the menu; for several „3 Module".
     pub title: String,
+    /// The other modules it is for besides `id` (the rows selected on the Merkliste): a check where
+    /// all of them are in a collection, a dash where some are; no note, no default.
+    pub more: Vec<String>,
     /// What opened it, where a wide screen puts the menu; `None`: in the middle, near the top.
     pub at: Option<Anchor>,
     /// The note has the focus, not the field (N, a click on the note at the module).
@@ -509,6 +513,18 @@ pub struct CollectAsk {
     /// Opened from the note after marking (`turn`: that note's mark): on a phone „Fertig" ends the
     /// note as well, and the note waits while the menu is open.
     pub from_note: Option<u64>,
+}
+
+impl CollectAsk {
+    /// The modules it is for: `id` and the others.
+    pub fn modules(&self) -> Vec<String> {
+        std::iter::once(self.id.clone()).chain(self.more.iter().filter(|other| **other != self.id).cloned()).collect()
+    }
+
+    /// Whether it is for several modules.
+    pub fn many(&self) -> bool {
+        self.more.iter().any(|other| *other != self.id)
+    }
 }
 
 /// The menu open, shared through context: one at a time, over the page.

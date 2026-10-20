@@ -160,6 +160,91 @@ impl Studyplan {
     pub fn selection(self, s: SemesterKey, town: TownChoice) -> Selection {
         self.0.with(|doc| doc.selection(s, town))
     }
+
+    /// Plans several modules at once (`plan_picks`: the rows selected on the Merkliste), after
+    /// the next frame (R21); `then` hears what was done, for the note and its „Rückgängig".
+    pub fn plan_many(self, picks: Vec<(String, SemesterKey)>, current: SemesterKey, moves: bool, then: impl FnOnce(PlannedMany) + 'static) {
+        nav::after_paint(move || {
+            let done = self.update(|doc| {
+                let before = doc.clone();
+                let (into, there) = plan_picks(doc, &picks, current, moves, now());
+                PlannedMany { into, there, before, after: doc.clone() }
+            });
+            then(done);
+        });
+    }
+
+    /// „Rückgängig" of `plan_many`: the plan as it was, while it is what that made of it; changed
+    /// besides (another tab), what it planned is taken out again and what it moved goes back.
+    pub fn undo_many(self, planned: PlannedMany) {
+        self.update_after_paint(move |doc| {
+            if *doc == planned.after {
+                *doc = planned.before;
+                return;
+            }
+            for (id, to, from) in &planned.into {
+                doc.unplan(*to, id, &[]);
+                let was = from.and_then(|from| planned.before.modules.iter().find(|m| m.semester == from && m.module_id == *id));
+                if let Some(was) = was {
+                    doc.plan(was.semester, id, was.at, was.fills);
+                }
+            }
+        });
+    }
+}
+
+/// Modules planned at once (`Studyplan::plan_many`): what went where (and, moved, where from),
+/// how many were planned where they were to go already, and the plan before and after, for
+/// „Rückgängig".
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PlannedMany {
+    pub into: Vec<(String, SemesterKey, Option<SemesterKey>)>,
+    pub there: usize,
+    before: PlanDoc,
+    after: PlanDoc,
+}
+
+impl PlannedMany {
+    /// How many went into each semester, the semesters in their order.
+    pub fn by_semester(&self) -> Vec<(SemesterKey, usize)> {
+        let mut counts: std::collections::BTreeMap<SemesterKey, usize> = std::collections::BTreeMap::new();
+        for (_, to, _) in &self.into {
+            *counts.entry(*to).or_default() += 1;
+        }
+        counts.into_iter().collect()
+    }
+}
+
+/// Plans each of `picks` into its semester (konzept.html, „Mehrere auf einmal": „jedes dorthin,
+/// wohin sein „Einplanen" zielt, oder alle in ein Semester"): one planned there already stays and
+/// is counted; with `moves` (all into one semester) a module planned in a semester from `current`
+/// on moves there, its time and what it counts for with it, while one planned only behind the
+/// student is planned anew, as the switch plans a retake. What was planned, where and from where,
+/// and how many were there already.
+pub fn plan_picks(doc: &mut PlanDoc, picks: &[(String, SemesterKey)], current: SemesterKey, moves: bool, at: u64) -> (Vec<(String, SemesterKey, Option<SemesterKey>)>, usize) {
+    let mut into = Vec::new();
+    let mut there = 0;
+    for (id, to) in picks {
+        if doc.is_planned(*to, id) {
+            there += 1;
+            continue;
+        }
+        let from = if moves { doc.planned_in(id).into_iter().filter(|s| *s >= current).min() } else { None };
+        match from {
+            Some(from) => {
+                doc.move_to(from, *to, id);
+                if doc.is_planned(*to, id) {
+                    into.push((id.clone(), *to, Some(from)));
+                }
+            }
+            None => {
+                if doc.plan(*to, id, at, None) {
+                    into.push((id.clone(), *to, None));
+                }
+            }
+        }
+    }
+    (into, there)
 }
 
 /// The first profile's key of the saved plans; another profile's has its number in it.
@@ -874,6 +959,36 @@ mod tests {
                 extra: false,
             },
         }
+    }
+
+    /// konzept.html, „Mehrere auf einmal": each where it aims, or all into one semester; what is
+    /// there already stays and is counted, what is planned ahead moves along, a retake is planned
+    /// anew.
+    #[test]
+    fn several_modules_are_planned_at_once() {
+        let now = key("2026W");
+        let mut doc = PlanDoc::default();
+        assert!(doc.plan(key("2027S"), "12104", 7, Some(3)));
+        assert!(doc.plan(key("2025W"), "11103", 5, None));
+        assert!(doc.plan(key("2026W"), "13566", 9, None));
+        // Each into its own semester: what is planned there already stays.
+        let mut each = doc.clone();
+        let picks = vec![("13566".to_string(), now), ("14642".to_string(), key("2027S")), ("bad id".to_string(), now)];
+        let (into, there) = plan_picks(&mut each, &picks, now, false, 42);
+        assert_eq!((into, there), (vec![("14642".to_string(), key("2027S"), None)], 1));
+        // All into the summer: the one planned ahead in the winter moves there, the retake from a
+        // semester behind is planned anew, and the one in the summer already stays.
+        let mut all = doc.clone();
+        let summer = key("2027S");
+        let picks: Vec<(String, SemesterKey)> = ["13566", "11103", "12104"].iter().map(|id| (id.to_string(), summer)).collect();
+        let (into, there) = plan_picks(&mut all, &picks, now, true, 42);
+        assert_eq!(into, vec![("13566".to_string(), summer, Some(now)), ("11103".to_string(), summer, None)]);
+        assert_eq!(there, 1);
+        assert!(!all.is_planned(now, "13566") && all.is_planned(summer, "13566"));
+        assert_eq!(all.modules.iter().find(|m| m.semester == summer && m.module_id == "13566").map(|m| m.at), Some(9));
+        assert!(all.is_planned(key("2025W"), "11103") && all.is_planned(summer, "11103"));
+        let planned = PlannedMany { into, there, before: doc.clone(), after: all.clone() };
+        assert_eq!(planned.by_semester(), vec![(summer, 2)]);
     }
 
     #[test]

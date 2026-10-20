@@ -327,6 +327,11 @@ impl StudyCtx {
         .flatten()
     }
 
+    /// The same without subscribing: for what a key decides.
+    pub fn focused_untracked(self) -> Option<SemesterKey> {
+        untrack(|| self.focused())
+    }
+
     pub fn open(self, dialog: Dialog) {
         self.dialog.set(Some(dialog));
     }
@@ -573,11 +578,23 @@ pub fn StudyPage() -> impl IntoView {
     folia_shell::nav::layer_while(move || ctx.selection.with(|selection| !selection.keys.is_empty()), move || ctx.selection.set(Selection::default()), folia_shell::nav::Kind::Over);
     folia_shell::nav::layer_while(move || ctx.menu.with(Option::is_some), move || ctx.menu.set(None), folia_shell::nav::Kind::Over);
     // Escape closes the menu open, wherever the focus is; else it lets go of the rows selected,
-    // where no dialog takes it first. Where Back's watcher has the newest of them, it does.
+    // where no dialog takes it first. Where Back's watcher has the newest of them, it does. Ctrl
+    // or ⌘ and A selects every row of the semester in view (oberflaeche.html of the Merkliste:
+    // „Strg A nimmt alle sichtbaren"), not in a field, where it is the field's.
     // Only the page in front: a page kept built behind (`folia_design::stage`) takes no key.
     let in_front = folia_design::stage::front();
     Effect::new(move |_| {
         let handle = window_event_listener(leptos::ev::keydown, move |ev| {
+            if (ev.ctrl_key() || ev.meta_key()) && !ev.alt_key() && !ev.shift_key() && ev.key().eq_ignore_ascii_case("a") {
+                let shown = ctx.url.with_untracked(|url| url.view == StudyView::Semesters);
+                let free = shown && !ev.default_prevented() && in_front.get_untracked() && ctx.menu.with_untracked(Option::is_none) && ctx.dialog.with_untracked(Option::is_none) && !dom::typing(&ev);
+                let semester = ctx.focused_untracked().filter(|semester| untrack(|| ctx.with_ready(|ready| ready.study.semester(*semester).is_some_and(|semester| !semester.items.is_empty()))).unwrap_or(false));
+                if let Some(semester) = semester.filter(|_| free) {
+                    ev.prevent_default();
+                    menu::act(ctx, menu::Act::SelectAll(semester), i18n::t());
+                }
+                return;
+            }
             if ev.key() != "Escape" || ev.default_prevented() || folia_shell::nav::watched() || !in_front.get_untracked() {
                 return;
             }

@@ -172,6 +172,11 @@ pub fn Row(
     #[prop(optional, into)] status: Option<Signal<Option<RowStatus>>>,
     /// What the visitor keeps of it, after that (the Merkliste).
     #[prop(optional, into)] mine: Option<Signal<RowMine>>,
+    /// Where the list selects (the Merkliste, as „Mein Studium"): whether the row is selected,
+    /// hatched in the accent …
+    #[prop(optional, into)] selected: Option<Signal<bool>>,
+    /// … and what a finger held still on it does (`crate::swipe`): the list selects it.
+    #[prop(optional)] on_hold: Option<Callback<String>>,
 ) -> impl IntoView {
     let t = i18n::t();
     let facts = Facts::of(Some(&row), t.locale);
@@ -207,12 +212,13 @@ pub fn Row(
     });
     let fit_note = move || fit_note.and_then(|note| note.get()).map(|(text, quiet)| view! { <span class="flag fit-note" class:neutral=quiet>{text}</span> });
     let offer = folia_plans::study::Offer::of(&row);
-    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.title.clone(), offer, finder.map(|finder| finder.hint), phone));
+    let swipe = (APP && swipe).then(|| RowSwipe::new(row.id.clone(), row.title.clone(), offer, finder.map(|finder| finder.hint), phone).on_hold(on_hold));
+    let is_selected = move || selected.is_some_and(|selected| selected.get());
     let unmarked = move || unmarked.is_some_and(|unmarked| unmarked.get());
     let link = view! {
         <a class="row" href=href data-noscroll="" data-id=row.id.clone() aria-current=move || current.get().then_some("true")>
             <div class="t">
-                <b>{marked(&row.title, &marks.title)}</b>
+                <b>{marked(&row.title, &marks.title)}{selected.map(|_| move || is_selected().then(|| view! { <span class="visually-hidden">{format!(" ({})", t.catalog.row_selected)}</span> }))}</b>
                 <small>
                     <span class="mono">{marked(&row.id, &marks.id)}</span>
                     // What the query names of it marked as in the title: one sign for what the
@@ -270,6 +276,7 @@ pub fn Row(
                 class="row-wrap swipes"
                 class:shaded=shaded
                 class:unmarked=unmarked
+                class:is-selected=is_selected
                 node_ref=swipe.wrap()
                 data-swipe=move || swipe.phase_attr()
                 data-side=move || swipe.side_attr()
@@ -291,7 +298,7 @@ pub fn Row(
         }
         .into_any(),
         None => view! {
-            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked>
+            <div class="row-wrap" class:shaded=shaded class:unmarked=unmarked class:is-selected=is_selected>
                 {link}
                 {mark}
             </div>
@@ -329,12 +336,13 @@ fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
 }
 
 /// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,
-/// and the list of marked modules.
+/// and the list of marked modules, whose tooltip says how it selects (`select`).
 #[component]
-pub fn ListKeys() -> impl IntoView {
+pub fn ListKeys(#[prop(optional)] select: bool) -> impl IntoView {
     let t = i18n::t();
+    let title = if select { format!("{}. {}", t.catalog.keys_title, t.catalog.keys_select) } else { t.catalog.keys_title.to_string() };
     view! {
-        <span class="keys" title=t.catalog.keys_title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}" "<kbd>"S"</kbd>" "{t.catalog.key_collect}</span>
+        <span class="keys" title=title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}" "<kbd>"S"</kbd>" "{t.catalog.key_collect}</span>
     }
 }
 /// Whether the phone layout is in use, kept up to date while the window changes its size. A list

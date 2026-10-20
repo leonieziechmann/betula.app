@@ -29,6 +29,10 @@
 //!
 //! What goes into a collection, or gets a note, is marked (konzept.html: „In eine Sammlung tun
 //! merkt ein Modul"), without the default for new marks: what is chosen here is what it gets.
+//!
+//! For the rows selected on the Merkliste (`CollectAsk::more`) the same menu holds their
+//! collections alone (oberflaeche.html, „Drei ausgewählte"): a check where all of them are in, a
+//! dash where some are, and a tap on the dash puts all of them in; no note, no default.
 
 use std::collections::BTreeSet;
 
@@ -103,6 +107,14 @@ impl Work {
         }
     }
 
+    /// The same without subscribing: what the menu starts from, and what a click decides.
+    fn with_untracked<R>(self, f: impl FnOnce(&Shelf) -> R) -> R {
+        match self {
+            Work::Live(collections) => collections.with_untracked(f),
+            Work::Draft(draft) => draft.with_untracked(f),
+        }
+    }
+
     fn change(self, f: impl FnOnce(&mut Shelf)) {
         match self {
             Work::Live(collections) => collections.update(f),
@@ -161,7 +173,7 @@ fn ask_of(ev: &leptos::web_sys::Event) -> Option<CollectAsk> {
             _ => None,
         };
         let note = get("note").is_some_and(|note| note.as_bool() == Some(true));
-        Some(CollectAsk { id, title, at, note, from_note: None })
+        Some(CollectAsk { id, title, more: Vec::new(), at, note, from_note: None })
     }
     #[cfg(not(feature = "csr"))]
     {
@@ -231,10 +243,10 @@ fn CollectPop(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
             close.run(());
         }
     };
-    let title = ask.title.clone();
+    let label = format!("{} · {}", if ask.many() { t.marks.collection } else { t.marks.menu_title }, ask.title);
     view! {
         <div class="collect-shade" on:mousedown=|ev: leptos::ev::MouseEvent| ev.prevent_default() on:click=move |_| close.run(()) on:contextmenu=move |ev: leptos::ev::MouseEvent| { ev.prevent_default(); close.run(()); }></div>
-        <div class="collect-pop" role="dialog" aria-label=format!("{} · {}", t.marks.menu_title, title) style=placed.style() on:keydown=keys>
+        <div class="collect-pop" role="dialog" aria-label=label style=placed.style() on:keydown=keys>
             <p class="collect-head">{ask.title.clone()}</p>
             <CollectBody ask work=Work::Live(collections) phone=false close/>
         </div>
@@ -275,15 +287,15 @@ fn CollectSheet(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
         }
     });
     let close = Callback::new(move |()| shut());
-    let (id, title) = (ask.id.clone(), ask.title.clone());
+    let (modules, title, many) = (ask.modules(), ask.title.clone(), ask.many());
     let from_note = ask.from_note;
     let done = move |_| {
         let now = draft.get_untracked();
-        // What the module gets makes it marked; where the Merkliste is full the note says so, and
+        // What a module gets makes it marked; where the Merkliste is full the note says so, and
         // it gets nothing.
-        let marked = !now.keeps(&id) || bookmarks.is_some_and(|bookmarks| bookmarks.mark_quiet(&id, &title));
-        if marked {
-            collections.update(|shelf| adopt(shelf, &before, &now, &id));
+        let marked: Vec<String> = modules.iter().filter(|id| !now.keeps(id) || bookmarks.is_some_and(|bookmarks| bookmarks.mark_quiet(id, &title))).cloned().collect();
+        if !marked.is_empty() {
+            collections.update(|shelf| adopt(shelf, &before, &now, &marked, !many));
         }
         if let Some(serial) = from_note {
             collecting.end_note(serial);
@@ -305,7 +317,7 @@ fn CollectSheet(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
         // `autofocus` on the dialog itself: it takes the focus as it opens, not its field, so that the
         // screen's keyboard does not cover the collections at once (oberflaeche.html: „Das Feld
         // bekommt den Fokus erst beim Antippen").
-        <dialog class="st-dialog collect-sheet" data-sheet="" autofocus=true tabindex="-1" node_ref=node aria-label=format!("{} · {}", t.marks.menu_title, ask.title) on:close=move |_| collecting.close() on:click=on_backdrop>
+        <dialog class="st-dialog collect-sheet" data-sheet="" autofocus=true tabindex="-1" node_ref=node aria-label=format!("{} · {}", if ask.many() { t.marks.collection } else { t.marks.menu_title }, ask.title) on:close=move |_| collecting.close() on:click=on_backdrop>
             <div class="st-dlg">
                 <header class="st-dlg-head collect-sheet-head">
                     <b>{ask.title.clone()}</b>
@@ -322,10 +334,11 @@ fn CollectSheet(ask: CollectAsk, collecting: Collecting) -> impl IntoView {
     .into_any()
 }
 
-/// What the phone's draft adds to the shelf for module `id` (`before`: the shelf when the sheet
-/// opened): the collections made in it (by name: one made meanwhile elsewhere of the same name is
-/// that one), the module's collections and note, the default where it changed.
-fn adopt(shelf: &mut Shelf, before: &Shelf, draft: &Shelf, id: &str) {
+/// What the phone's draft adds to the shelf for the modules `ids` (`before`: the shelf when the
+/// sheet opened): the collections made in it (by name: one made meanwhile elsewhere of the same
+/// name is that one), the modules' collections; for one module (`whole`) its note, and the default
+/// where it changed.
+fn adopt(shelf: &mut Shelf, before: &Shelf, draft: &Shelf, ids: &[String], whole: bool) {
     let mut mapped: Vec<(u32, u32)> = Vec::new();
     for collection in draft.collections() {
         let same = before.collection(collection.id).is_some_and(|was| was.name == collection.name) && shelf.collection(collection.id).is_some();
@@ -343,31 +356,70 @@ fn adopt(shelf: &mut Shelf, before: &Shelf, draft: &Shelf, id: &str) {
         }
     }
     let map = |ids: &mut dyn Iterator<Item = u32>| -> BTreeSet<u32> { ids.filter_map(|draft_id| mapped.iter().find(|(from, _)| *from == draft_id).map(|(_, to)| *to)).collect() };
-    let into = map(&mut draft.of(id).into_iter());
-    shelf.set_in(id, &into);
-    shelf.set_note(id, draft.note(id).unwrap_or_default());
-    if draft.standard() != before.standard() {
+    for id in ids {
+        let into = map(&mut draft.of(id).into_iter());
+        shelf.set_in(id, &into);
+        if whole {
+            shelf.set_note(id, draft.note(id).unwrap_or_default());
+        }
+    }
+    if whole && draft.standard() != before.standard() {
         let standard = draft.standard().map(|ids| map(&mut ids.iter().copied()));
         shelf.set_standard(standard.as_ref());
+    }
+}
+
+/// How much of what the menu is for a collection holds: all of it (a check), some of the modules
+/// (a dash), none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    All,
+    Some,
+    None,
+}
+
+impl Held {
+    fn of(shelf: &Shelf, collection: u32, modules: &[String]) -> Self {
+        let inside = modules.iter().filter(|module| shelf.holds(collection, module)).count();
+        match inside {
+            0 => Held::None,
+            n if n == modules.len() => Held::All,
+            _ => Held::Some,
+        }
+    }
+
+    /// `aria-checked`.
+    fn aria(self) -> &'static str {
+        match self {
+            Held::All => "true",
+            Held::Some => "mixed",
+            Held::None => "false",
+        }
     }
 }
 
 /// A row of the menu the keys can be on: a collection, or „anlegen".
 #[derive(Clone, Debug, PartialEq)]
 enum Line {
-    Collection { id: u32, name: String, count: usize, on: bool },
+    Collection { id: u32, name: String, count: usize, held: Held },
     Create(String),
 }
 
 /// What the menu shows below its field for what is typed: the collections whose names have it, and
-/// „‚…‘ anlegen" where no collection has that name.
-fn lines_of(shelf: &Shelf, module: &str, typed: &str, marked: impl Fn(&str) -> bool) -> Vec<Line> {
+/// „‚…‘ anlegen" where no collection has that name. Each says how many marked modules it holds
+/// (the menu's own counted, marked or not) and how much of the menu's it holds.
+fn lines_of(shelf: &Shelf, modules: &[String], typed: &str, marked: impl Fn(&str) -> bool) -> Vec<Line> {
     let typed = folia_stores::collections::clean_name(typed);
     let mut lines: Vec<Line> = shelf
         .collections()
         .iter()
         .filter(|collection| typed.is_empty() || folia_search::matches(&collection.name, &typed))
-        .map(|collection| Line::Collection { id: collection.id, name: collection.name.clone(), count: shelf.count_in(collection.id, |other| other == module || marked(other)), on: shelf.holds(collection.id, module) })
+        .map(|collection| Line::Collection {
+            id: collection.id,
+            name: collection.name.clone(),
+            count: shelf.count_in(collection.id, |other| modules.iter().any(|module| module == other) || marked(other)),
+            held: Held::of(shelf, collection.id, modules),
+        })
         .collect();
     if !typed.is_empty() && shelf.find(&typed).is_none() {
         lines.push(Line::Create(typed));
@@ -375,37 +427,52 @@ fn lines_of(shelf: &Shelf, module: &str, typed: &str, marked: impl Fn(&str) -> b
     lines
 }
 
+/// Puts the modules into a collection (`into`), or takes them out of it.
+fn put_in(shelf: &mut Shelf, modules: &[String], collection: u32, into: bool) {
+    for module in modules {
+        let mut ids: BTreeSet<u32> = shelf.of(module).into_iter().collect();
+        if into {
+            ids.insert(collection);
+        } else {
+            ids.remove(&collection);
+        }
+        shelf.set_in(module, &ids);
+    }
+}
+
 /// The field, the collections, the default and the note: the same on a wide screen and in the
-/// phone's sheet.
+/// phone's sheet. For several modules the collections alone.
 #[component]
 fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) -> impl IntoView {
     let t = i18n::t();
     let m = &t.marks;
     let bookmarks = Bookmarks::expect();
+    // The modules it is for: one, or the rows selected (`many`: their collections alone).
+    let modules = StoredValue::new(ask.modules());
+    let many = ask.many();
     let CollectAsk { id, title, note: note_first, .. } = ask;
     let typed = RwSignal::new(String::new());
     // The row the keys are on: with something typed the first, else none until an arrow.
     let active = RwSignal::new(None::<usize>);
     let refused = RwSignal::new(false);
-    let lines = {
-        let id = id.clone();
-        Memo::new(move |_| {
-            let typed = typed.get();
-            work.with(|shelf| lines_of(shelf, &id, &typed, |other| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(other))))
-        })
-    };
+    let lines = Memo::new(move |_| {
+        let typed = typed.get();
+        modules.with_value(|modules| work.with(|shelf| lines_of(shelf, modules, &typed, |other| bookmarks.is_some_and(|bookmarks| bookmarks.is_marked(other)))))
+    });
     Effect::new(move |_| {
         let typed = typed.get();
         active.set((!typed.trim().is_empty()).then_some(0));
         refused.set(false);
     });
 
-    // On a wide screen what the menu does holds at once, and marks the module first; a phone's
-    // draft marks it with „Fertig".
+    // On a wide screen what the menu does holds at once, and marks the modules first (whether one
+    // of them is marked then; where the Merkliste is full the note says so); a phone's draft marks
+    // them with „Fertig".
     let marked_first = {
-        let (id, title) = (id.clone(), title.clone());
+        let title = title.clone();
         move || match work {
-            Work::Live(_) => bookmarks.is_some_and(|bookmarks| bookmarks.mark_quiet(&id, &title)),
+            // Each of them, not only up to the first marked.
+            Work::Live(_) => modules.with_value(|modules| modules.iter().filter(|module| bookmarks.is_some_and(|bookmarks| bookmarks.mark_quiet(module, &title))).count() > 0),
             Work::Draft(_) => true,
         }
     };
@@ -414,12 +481,16 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
         let id = id.clone();
         move || work.with(|shelf| shelf.of(&id).into_iter().collect::<BTreeSet<u32>>())
     };
-    let following = RwSignal::new({
-        let now = module_set.clone();
-        work.with(|shelf| shelf.standard().cloned()).is_some_and(|standard| !standard.is_empty() && standard == now())
+    let module_set_now = {
+        let id = id.clone();
+        move || work.with_untracked(|shelf| shelf.of(&id).into_iter().collect::<BTreeSet<u32>>())
+    };
+    let following = RwSignal::new(!many && {
+        let now = module_set_now.clone();
+        work.with_untracked(|shelf| shelf.standard().cloned()).is_some_and(|standard| !standard.is_empty() && standard == now())
     });
     let follow = {
-        let module_set = module_set.clone();
+        let module_set = module_set_now.clone();
         move || {
             if following.get_untracked() {
                 let now = module_set();
@@ -430,20 +501,20 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
             }
         }
     };
+    // A collection switched: out of it where all of the modules are in it, else all of them into
+    // it (a tap on the dash takes in the rest).
     let toggle = {
-        let (id, marked_first, follow) = (id.clone(), marked_first.clone(), follow.clone());
+        let (marked_first, follow) = (marked_first.clone(), follow.clone());
         move |collection: u32| {
             if !marked_first() {
                 return;
             }
-            work.change(|shelf| {
-                shelf.toggle_in(&id, collection);
-            });
+            work.change(|shelf| modules.with_value(|modules| put_in(shelf, modules, collection, Held::of(shelf, collection, modules) != Held::All)));
             follow();
         }
     };
     let create = {
-        let (id, marked_first, follow) = (id.clone(), marked_first.clone(), follow.clone());
+        let (marked_first, follow) = (marked_first.clone(), follow.clone());
         move |name: String| {
             if !marked_first() {
                 return;
@@ -456,11 +527,7 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
                 }
                 Err(Refused::Empty) => return,
             };
-            work.change(|shelf| {
-                let mut ids: BTreeSet<u32> = shelf.of(&id).into_iter().collect();
-                ids.insert(made);
-                shelf.set_in(&id, &ids);
-            });
+            work.change(|shelf| modules.with_value(|modules| put_in(shelf, modules, made, true)));
             follow();
             typed.set(String::new());
         }
@@ -574,7 +641,7 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
     // The note: as it is when the menu opens, then as it is typed.
     let note_text = {
         let id = id.clone();
-        work.with(|shelf| shelf.note(&id).map(str::to_string)).unwrap_or_default()
+        work.with_untracked(|shelf| shelf.note(&id).map(str::to_string)).unwrap_or_default()
     };
     let write_note = {
         let (id, marked_first) = (id.clone(), marked_first.clone());
@@ -598,9 +665,13 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
         let choose = choose.clone();
         let is_active = move || !phone && active.get() == Some(at);
         match line.clone() {
-            Line::Collection { name, count, on, .. } => view! {
-                <button class="collect-item" class:on=on class:act=is_active type="button" role="menuitemcheckbox" aria-checked=if on { "true" } else { "false"} on:click=move |_| choose(line.clone()) on:pointermove=move |_| if !phone { active.set(Some(at)) }>
-                    <span class="collect-check">{on.then(|| view! { <Icon name="check"/> })}</span>
+            Line::Collection { name, count, held, .. } => view! {
+                <button class="collect-item" class:on=held == Held::All class:part=held == Held::Some class:act=is_active type="button" role="menuitemcheckbox" aria-checked=held.aria() on:click=move |_| choose(line.clone()) on:pointermove=move |_| if !phone { active.set(Some(at)) }>
+                    <span class="collect-check">{match held {
+                        Held::All => Some(view! { <Icon name="check"/> }.into_any()),
+                        Held::Some => Some(view! { <Icon name="minus"/> }.into_any()),
+                        Held::None => None,
+                    }}</span>
                     <span class="collect-name">{name}</span>
                     <span class="collect-count num">{count}</span>
                 </button>
@@ -644,10 +715,12 @@ fn CollectBody(ask: CollectAsk, work: Work, phone: bool, close: Callback<()>) ->
                 }}
                 {move || refused.get().then(|| view! { <p class="collect-empty warn">{m.collections_full}</p> })}
             </div>
-            {standard_row}
-            <div class="collect-sep"></div>
-            <p class="collect-label label">{m.note}</p>
-            <textarea class="collect-note" node_ref=note_field rows="2" placeholder=m.note_placeholder aria-label=m.note_label maxlength="4000" prop:value=note_text on:input=write_note on:keydown=note_keys></textarea>
+            {(!many).then(|| view! {
+                {standard_row}
+                <div class="collect-sep"></div>
+                <p class="collect-label label">{m.note}</p>
+                <textarea class="collect-note" node_ref=note_field rows="2" placeholder=m.note_placeholder aria-label=m.note_label maxlength="4000" prop:value=note_text on:input=write_note on:keydown=note_keys></textarea>
+            })}
         </div>
     }
 }
@@ -670,7 +743,7 @@ pub fn ModuleNote(#[prop(into)] id: String, #[prop(into)] title: String) -> impl
             return;
         }
         if let Some(collecting) = Collecting::expect() {
-            collecting.open(CollectAsk { id: id.clone(), title: title.clone(), at: box_of(&ev), note: true, from_note: None });
+            collecting.open(CollectAsk { id: id.clone(), title: title.clone(), more: Vec::new(), at: box_of(&ev), note: true, from_note: None });
         }
     };
     move || {
@@ -733,16 +806,44 @@ mod tests {
         shelf.toggle_in("11103", lena);
         shelf.toggle_in("12204", lena);
         let names = |lines: &[Line]| lines.iter().map(|line| match line { Line::Collection { name, .. } => name.clone(), Line::Create(name) => format!("+{name}") }).collect::<Vec<_>>();
+        let one = ["11103".to_string()];
         // Nothing typed: every collection, with the module's check and how many marked ones it has.
-        let all = lines_of(&shelf, "11103", "", |module| module == "12204");
+        let all = lines_of(&shelf, &one, "", |module| module == "12204");
         assert_eq!(names(&all), ["Für Lena", "Wahlpflicht"]);
-        assert_eq!(all.first(), Some(&Line::Collection { id: lena, name: "Für Lena".into(), count: 2, on: true }));
+        assert_eq!(all.first(), Some(&Line::Collection { id: lena, name: "Für Lena".into(), count: 2, held: Held::All }));
         // „lena" finds „Für Lena", and offers to make „lena" after it.
-        assert_eq!(names(&lines_of(&shelf, "11103", "lena", |_| true)), ["Für Lena", "+lena"]);
+        assert_eq!(names(&lines_of(&shelf, &one, "lena", |_| true)), ["Für Lena", "+lena"]);
         // A name there is that collection, never a second one.
-        assert_eq!(names(&lines_of(&shelf, "11103", " für lena ", |_| true)), ["Für Lena"]);
-        assert_eq!(names(&lines_of(&shelf, "11103", "mathe", |_| true)), ["+mathe"]);
+        assert_eq!(names(&lines_of(&shelf, &one, " für lena ", |_| true)), ["Für Lena"]);
+        assert_eq!(names(&lines_of(&shelf, &one, "mathe", |_| true)), ["+mathe"]);
         let _ = wahl;
+    }
+
+    /// oberflaeche.html, „Drei ausgewählte": a check where all of them are in, a dash where some
+    /// are; a tap on the dash takes in the rest, one on the check takes all of them out.
+    #[test]
+    fn several_modules_see_where_all_or_some_of_them_are() {
+        let mut shelf = Shelf::default();
+        let lena = shelf.create("Für Lena").unwrap();
+        let wahl = shelf.create("Wahlpflicht").unwrap();
+        let witzig = shelf.create("Witzig").unwrap();
+        for module in ["11103", "12204", "13849"] {
+            shelf.toggle_in(module, wahl);
+        }
+        shelf.toggle_in("11103", lena);
+        let three: Vec<String> = ["11103", "12204", "13849"].iter().map(|id| id.to_string()).collect();
+        let held = |shelf: &Shelf| lines_of(shelf, &three, "", |_| false).into_iter().filter_map(|line| match line { Line::Collection { held, .. } => Some(held), Line::Create(_) => None }).collect::<Vec<_>>();
+        assert_eq!(held(&shelf), [Held::Some, Held::All, Held::None]);
+        // The dash: all of them in.
+        let into = Held::of(&shelf, lena, &three) != Held::All;
+        put_in(&mut shelf, &three, lena, into);
+        assert_eq!(held(&shelf), [Held::All, Held::All, Held::None]);
+        // The check: all of them out; the others' collections stay.
+        let into = Held::of(&shelf, wahl, &three) != Held::All;
+        put_in(&mut shelf, &three, wahl, into);
+        assert_eq!(held(&shelf), [Held::All, Held::None, Held::None]);
+        assert_eq!(shelf.of("12204"), [lena]);
+        let _ = witzig;
     }
 
     #[test]
@@ -758,7 +859,7 @@ mod tests {
         let mut shelf = before.clone();
         let witzig = shelf.create("Witzig").unwrap();
         assert_eq!(witzig, mathe);
-        adopt(&mut shelf, &before, &draft, "11103");
+        adopt(&mut shelf, &before, &draft, &["11103".to_string()], true);
         let made = shelf.find("Mathe").unwrap();
         assert_ne!(made, witzig);
         assert_eq!(shelf.of("11103"), [lena, made]);

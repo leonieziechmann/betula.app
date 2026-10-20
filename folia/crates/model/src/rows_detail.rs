@@ -236,6 +236,20 @@ impl FromRow for DateRow {
     }
 }
 
+/// A semester a module has teaching events in (`v_module_schedule`): what its newest is read from
+/// where many modules are asked at once.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModuleSemester {
+    pub module_id: String,
+    pub semester_key: String,
+}
+
+impl FromRow for ModuleSemester {
+    fn from_row(row: &Row<'_>) -> Result<Self, DbError> {
+        Ok(Self { module_id: row.text("module_id")?, semester_key: row.text("semester_key")? })
+    }
+}
+
 /// How many dated rows of a semester share a rhythm and a date range: what the lecture period,
 /// its breaks and the A/B weeks are read from (`timetable::facts`), since no source states them.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
