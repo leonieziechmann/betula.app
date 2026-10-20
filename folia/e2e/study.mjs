@@ -15,9 +15,10 @@
 //   the first semester's rows, highlighted and hatched, and „×" lets go; a row's menu at its
 //   status marks it as passed (counted, the row in its place, the focus back on its status); a
 //   press drawn over three rows selects them, the bar marks them and „Rückgängig" takes it back;
-//   „Module hinzufügen" puts the plan's third semester in; the Stundenplan's tab counts it; what
-//   fits the third, a winter, and the fourth, a summer: nothing of a Fachsemester after it, nothing
-//   of the other half of the year; a module moved by its menu's „Verschieben nach ›" and taken back,
+//   „Module hinzufügen" puts the plan's third semester in; the Stundenplan's tab counts it; the
+//   semester's box a list as the catalog's, nothing beside it (owner, 2026-10-20), its head and the
+//   heads of its columns at the top when scrolled down, the box as tall as the area shows; a module
+//   moved by its menu's „Verschieben nach ›" and taken back,
 //   removed and taken back; two rows selected by Ctrl and a click, moved by the bar, and back; a
 //   right click opens a row's menu, the semester's ⋯ selects all of it, Escape lets go; an area's
 //   dialog; a module beside the page by its name and by its row, in full and back; the
@@ -339,19 +340,34 @@ if (current !== "2026W") {
   check(Number(count) === planned.length && planned.length === ticked && ticked >= 2, `the Stundenplan's tab counts ${count}, the current semester holds ${planned.length} of ${ticked} ticked`);
   check(planned.some((line) => line.startsWith("m\t2026W\t11787\t")), "Theoretische Informatik is not in the current semester");
 
-  // „Passt in dieses Semester": of its Fachsemester and the ones before, what the semester offers;
-  // the Wiederholer of the first winter in a winter, those of the summer in a summer.
-  const fits = () => page.evaluate(() => ({
-    names: [...document.querySelectorAll(".st-fits .st-fit-name")].map((name) => name.textContent),
-    lines: [...document.querySelectorAll(".st-fits .st-fit .st-sub")].map((line) => line.textContent),
-    warn: document.querySelectorAll(".st-fits .st-chip.warn").length,
-  }));
-  const winter = await fits();
-  check(winter.names.includes("Programmierpraktikum") && !winter.names.includes("Digitaltechnik") && winter.warn === 0 && !winter.lines.some((line) => /im ([4-9]|1\d)\. FS/.test(line)), `what fits the third semester, a winter: ${JSON.stringify(winter)}`);
-  await step("SoSe 27", () => pick(page, "SoSe 27"), () => document.querySelector(".st-card-sem h2")?.textContent === "SoSe 2027");
-  const summer = await fits();
-  check(summer.names.includes("Digitaltechnik") && !summer.names.includes("Programmierpraktikum") && summer.warn === 0 && !summer.lines.some((line) => /im ([5-9]|1\d)\. FS/.test(line)), `what fits the fourth semester, a summer: ${JSON.stringify(summer)}`);
-  await step("back to now", () => pick(page, "WiSe 26/27"), () => document.querySelector(".st-card-sem h2")?.textContent === "WiSe 2026/27");
+  // The semester's box is a list as the catalog's (owner, 2026-10-20: „dass die box wo die module
+  // drin sind vom design angepasst werden an die anderen seiten"): nothing beside it („Passt in
+  // dieses Semester" went), its head as tall as the list's and its name as large as the count, the
+  // heads of the columns across it, right under the head; scrolled down, its head stays at the top
+  // with the heads of the columns under it, and the box is as tall as the area shows („dass die
+  // untere box … sticky ist und dann wenn man ein wenig gescrolled hat, dass es auch eine volle
+  // liste ist").
+  const box = () => page.evaluate(() => {
+    const area = document.querySelector("#content > .page-stage.front > .work.flowing");
+    const list = area.querySelector(".st-sems"), head = list.querySelector(".st-sem-head"), cols = list.querySelector(".st-table > .cols");
+    const [a, l, h, c] = [area, list, head, cols].map((el) => el.getBoundingClientRect());
+    return {
+      beside: document.querySelectorAll(".st-fits, .st-sems aside").length,
+      head: Math.round(h.height),
+      name: getComputedStyle(head.querySelector("h2")).fontSize,
+      across: [c.left - l.left, l.right - c.right].map(Math.round).join(),
+      under: Math.round(c.top - h.bottom),
+      top: Math.round(h.top - a.top),
+      tall: l.height >= innerHeight - 64 - 1,
+    };
+  });
+  const look = await box();
+  check(look.beside === 0 && look.head === 61 && look.name === "22px" && look.across === "0,0" && look.under === 0 && look.tall, `the semester's box is not the catalog's list: ${JSON.stringify(look)}`);
+  await page.evaluate(() => { document.querySelector("#content > .page-stage.front > .work.flowing").scrollTop = 1000; });
+  await page.waitForTimeout(300);
+  const scrolled = await box();
+  check(Math.abs(scrolled.top) <= 1 && scrolled.under === 0 && scrolled.tall, `scrolled down, the semester's box is not the whole list: ${JSON.stringify(scrolled)}`);
+  await page.evaluate(() => { document.querySelector("#content > .page-stage.front > .work.flowing").scrollTop = 0; });
 
   // A module's menu: „Verschieben nach ›" to the next winter, and back; removed, and back.
   const menu = '.st-card-sem .st-row:has(.st-name:text-is("Theoretische Informatik")) .st-status';
@@ -411,10 +427,11 @@ if (current !== "2026W") {
   // A module beside the page, in full, and back.
   await step("a module beside it", () => page.click('.st-card-sem a.st-name:text-is("Theoretische Informatik")'), () => location.search === "?open=11787" && document.querySelector("#preview .hero .mono")?.textContent.trim() === "11787");
   const other = await page.evaluate(() => [...document.querySelectorAll(".st-card-sem .st-row")].findIndex((row) => row.querySelector("a.st-name") && row.querySelector("a.st-name").textContent !== "Theoretische Informatik"));
-  // A click on a row beside its name (at its credits) opens its module too: the whole box is its
-  // button (owner, 2026-10-19).
-  const credits = await middle(page, `.st-card-sem .st-row >> nth=${other} >> .lp`);
-  await step("another by its row", () => page.mouse.click(credits.x, credits.y), () => /^\?open=\d+$/.test(location.search) && location.search !== "?open=11787");
+  // A click on a row beside its name (at its number) opens its module too: the whole box is its
+  // button (owner, 2026-10-19). Not at its credits: with the box across the page (owner,
+  // 2026-10-20) they lie under the module beside it, as the catalog's do.
+  const number = await middle(page, `.st-card-sem .st-row >> nth=${other} >> .mono`);
+  await step("another by its row", () => page.mouse.click(number.x, number.y), () => /^\?open=\d+$/.test(location.search) && location.search !== "?open=11787");
   await step("Theoretische Informatik again", () => page.click('.st-card-sem a.st-name:text-is("Theoretische Informatik")'), () => location.search === "?open=11787" && document.querySelector("#preview .hero .mono")?.textContent.trim() === "11787");
   await step("Vollbild", () => page.click('#preview [data-action="fullscreen"]'), () => location.search === "?open=11787&full=1" && document.querySelector(".module-page"));
   check((await page.getAttribute('.rail a[data-area="programs"]', "aria-current")) === "page", "the module in full left the Studium tab");
