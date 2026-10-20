@@ -412,14 +412,15 @@ fn planned_words(planned: &PlannedMany, t: &'static Texts) -> String {
 }
 
 /// ⇧M (Shift, not the letter's case: Caps Lock's M is M), not where a field, a menu or a dialog has
-/// the keys.
+/// the keys. A row of the catalog's list, an option of a list box, is no such place
+/// (`folia_widgets::list::Row`); a picker's options are in the picker (`.combo`).
 fn is_shift_m(ev: &KeyboardEvent) -> bool {
     use leptos::wasm_bindgen::JsCast;
     if ev.default_prevented() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || !ev.shift_key() || !matches!(ev.key().as_str(), "m" | "M") {
         return false;
     }
     let target = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok());
-    let elsewhere = "input, textarea, select, [contenteditable], [role=menu], [role=menuitem], [role=listbox], [role=option], [role=dialog], .combo, dialog";
+    let elsewhere = "input, textarea, select, [contenteditable], [role=menu], [role=menuitem], [role=dialog], .combo, dialog";
     !target.is_some_and(|target| target.closest(elsewhere).ok().flatten().is_some())
 }
 

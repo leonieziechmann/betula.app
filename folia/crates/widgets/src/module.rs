@@ -457,18 +457,20 @@ pub fn ModulePanel(
     view! {
         <section class="panel detail is-module" class:aside=docked id="preview" aria-label=t.module.preview>
             <div class="scroll" data-keep-scroll="detail">
-                <header class="hero">
+                // Its buttons are one stop of the Tab key, ← and → go from one to the next
+                // (enhance.js, „the keyboard": `data-stop`); its text another, whose arrows scroll.
+                <header class="hero" data-stop="x">
                     <div class="hero-top">
                         // Closing it leaves the page where it is (on a phone the window is what scrolls).
                         <a class="icon-btn back" href=close_href.clone() data-noscroll="" aria-label=t.module.close_preview><Icon name="arrow-left"/></a>
                         <ModuleIds id=id.clone() abbrev/>
                         // Not on a phone, where the panel is a sheet that goes all up (app.css).
-                        <a class="ghost full-view" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="F"/></a>
+                        <a class="ghost full-view" href=full_href data-action="fullscreen" title=t.module.full_view_title><Icon name="maximize-2"/>{t.common.full_view}<Shortcut keys="V"/></a>
                         <a class="ghost" href=close_href data-action="close-detail" data-back=back data-noscroll="" title=t.module.close_preview_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
                     </div>
                     <Heading data=data.clone() hint/>
                 </header>
-                <div class="dbody">
+                <div class="dbody" tabindex="0" role="document" aria-label=t.module.body_label>
                     <Side data=data.clone() program=program/>
                     <Main data=data.clone()/>
                     <DataClient data=data.clone()/>

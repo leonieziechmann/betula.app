@@ -1,10 +1,11 @@
 // Small behaviours shared by the pages of the site and the browser app. The site works without this
 // file (it is links); before the app has taken over (`window.__betulaApp`) panels keep their scroll
 // position across page loads, and a link followed while the app is starting waits for it. In both
-// modes: the shortcuts (Esc closes the preview or leaves the module page, F opens the previewed
-// module full screen, Ctrl+K or "/" jumps to the search, Alt and a digit — Ctrl and Alt off Windows —
-// goes to a tab of the navigation; in the app M marks the module the visitor is at and P plans it
-// into the Studienplan), the theme switch, the filter sheet (and a page's
+// modes: the keyboard (the regions of a page, the filters as a mode, the stops of Tab, and the keys
+// of Betula's own: Esc closes the preview or leaves the module page, F leads into the filters, V
+// opens the previewed module full screen, Ctrl+K or "/" jumps to the search, Alt and a digit — Ctrl
+// and Alt off Windows — goes to a tab of the navigation; in the app M marks the module the visitor
+// is at and P plans it into the Studienplan), the theme switch, the filter sheet (and a page's
 // dialogs where a phone shows them as sheets), the swipe along the phone's bottom bar from tab to
 // tab, the widths of the filter panel and the module preview (dragged, kept in localStorage), the
 // room the panels make for the ground at the end of a page, and the way back to the top of a page
@@ -1875,6 +1876,16 @@
         // Light, dark or the system's, as the profile page offers them (folia/crates/profile).
         setTheme(target.dataset.themeValue);
         break;
+      case "letters-set": {
+        // Betula's single keys on or off (folia/crates/design/src/keys.rs, `LettersSwitch`): kept by
+        // this browser, read by the script in the head before the page is drawn.
+        const off = target.dataset.lettersValue === "off";
+        try { if (off) localStorage.setItem("betula.letters.v1", "off"); else localStorage.removeItem("betula.letters.v1"); } catch {}
+        if (off) root.dataset.letters = "off";
+        else delete root.dataset.letters;
+        dispatchEvent(new Event("betula:letters"));
+        break;
+      }
       case "sheet-open":
         e.preventDefault();
         openSheet();
@@ -2059,20 +2070,6 @@
     root.style.removeProperty(hit.edge.prop);
     try { localStorage.removeItem(hit.edge.key); } catch {}
   });
-
-  // ---- the list by keyboard: arrows move through the rows, Enter opens the focused one ----
-  // Rows are links, so moving the focus is all it takes: Enter then follows the link natively.
-  function moveInList(step) {
-    const rows = findAll(".rows a.row");
-    if (!rows.length) return false;
-    const active = document.activeElement;
-    let index = rows.indexOf(active);
-    if (index < 0) index = rows.findIndex((row) => row.getAttribute("aria-current") === "true");
-    const next = index < 0 ? (step > 0 ? 0 : rows.length - 1) : Math.min(rows.length - 1, Math.max(0, index + step));
-    rows[next].focus({ preventScroll: true });
-    rows[next].scrollIntoView({ block: "nearest" });
-    return true;
-  }
 
   // ---- a table of contents follows the page (`<nav data-spy>`, the start page) ----
   // The section whose top has passed the upper part of the scroller is the one the page is at; at
@@ -2433,22 +2430,905 @@
   addEventListener("blur", () => { navSpent = false; navHide(); });
   document.addEventListener("visibilitychange", () => { if (document.hidden) { navSpent = false; navHide(); } });
 
-  // ---- shortcuts (each is written next to its button) ----
+  // ---- the keyboard (folia/design/tastatur/konzept.html; docs/folia/frontend.md R24) ----
+  // Betula's keys as a system: a page says what its parts are, and the keys follow from that.
+  //
+  // - `data-region` names a page's regions: `nav` (the rail, a phone's bar), `search`, `side` (a
+  //   page's sidebar, the catalog's filters) and `content`. Ctrl + F6 goes from one to the next
+  //   (with Shift back; F6 alone stays the browser's), F into `side`, / and Ctrl + K into the
+  //   search, Esc out of the others into the content.
+  // - `data-mode` makes a region a mode (owner, 2026-10-20: „Ich will nur die sidebar (z.B. filter)
+  //   mit label und rahmen hervorgehoben haben um das als mode zu visualisieren bei dem rest soll das
+  //   nicht passieren"): while the keyboard is in it, it wears a black ring and „Esc zum Verlassen"
+  //   (after a key only, until the mouse: `data-kb` on the root), Tab goes from `data-section` to
+  //   section and stops at either end (the focus only nudges, a screen reader hears it once), the
+  //   arrows go from control to control across the sections (↑ ↓ by where they stand, keeping the
+  //   column; ← → in reading order; an option group's ← → choose), letters typed find a filter (a
+  //   green bubble), the section with the keyboard is lit as the open row of a list is, and a bar
+  //   at its foot names the keys of the control that no button can carry. Esc or a click leads out.
+  // - `data-stop` makes a group one stop of the Tab key (the rail, the list's rows, the heads of the
+  //   columns, a module's buttons): Tab comes in where the keyboard was last in it (else at the
+  //   current one, else the first in view) and leaves past it; the arrows of its axis (`x` ← →,
+  //   `y` ↑ ↓) go from one to the next. A mode is one stop as well, seen from outside.
+  // - `data-cycle` makes Tab go round within a region (the catalog's content: owner, 2026-10-20: „so
+  //   dass man mit n mal tab dann wieder beim content landet"), past the regions inside it.
+  // - `data-kb-as` lets a control stand for another where the arrows go (the field a digit opens
+  //   above a knob of the credits stands for its knob).
+  // What a control does with a key itself (a chip's + − Entf, a knob's + − and digits, a picker's
+  // keys: Rust) it takes (`defaultPrevented`), and that key is not looked at here. Betula's single
+  // keys (F, V, M, P, /, ?, with Shift too) can be switched off (`data-letters="off"`, WCAG 2.1.4,
+  // `folia_design::keys::LettersSwitch`); typing in a mode finds all the same, as it only works there.
+  const KB = {
+    de: {
+      leave: (key) => `${key}zum Verlassen`,
+      find: "Finden:",
+      findIn: (name) => `${name} durchsuchen`,
+      none: "nichts",
+      like: "ähnlich",
+      noneSaid: "Nichts heißt so",
+      likeSaid: "Ähnlich: ",
+      of: (n, m) => `${n} von ${m}`,
+      section: (name) => `Abschnitt ${name}`,
+      end: "Ende.",
+      start: "Anfang.",
+      opened: (name) => `${name} aufgeklappt`,
+      bar: {
+        chip3: [["+", "mit"], ["−", "ohne"], ["Del", "aus"]],
+        chip2: [["+", "an"], ["Del", "aus"]],
+        radio: [["← →", "wählen"]],
+        slider: [["+", "mehr"], ["−", "weniger"], ["0–9", "Zahl"]],
+        find: [["↑ ↓", "Treffer"], ["Enter", "mit"], ["Shift+Enter", "ohne"]],
+      },
+      names: { Mod: "Strg", Ctrl: "Strg", Del: "Entf", Home: "Pos1", End: "Ende", PgUp: "Bild ↑", PgDn: "Bild ↓", Space: "Leertaste" },
+    },
+    en: {
+      leave: (key) => `${key}to leave`,
+      find: "Find:",
+      findIn: (name) => `Search ${name}`,
+      none: "nothing",
+      like: "similar",
+      noneSaid: "Nothing is called that",
+      likeSaid: "Similar: ",
+      of: (n, m) => `${n} of ${m}`,
+      section: (name) => `Section ${name}`,
+      end: "End.",
+      start: "Start.",
+      opened: (name) => `${name} opened`,
+      bar: {
+        chip3: [["+", "with"], ["−", "without"], ["Del", "off"]],
+        chip2: [["+", "on"], ["Del", "off"]],
+        radio: [["← →", "choose"]],
+        slider: [["+", "more"], ["−", "less"], ["0–9", "number"]],
+        find: [["↑ ↓", "matches"], ["Enter", "with"], ["Shift+Enter", "without"]],
+      },
+      names: { Mod: "Ctrl", Ctrl: "Ctrl", Del: "Del", Home: "Home", End: "End", PgUp: "Page ↑", PgDn: "Page ↓", Space: "Space" },
+    },
+  };
+  const kb = () => (language().prefix === "/en" ? KB.en : KB.de);
+  const onMac = () => root.classList.contains("mac");
+  const MAC_SIGNS = { Mod: "⌘", Ctrl: "⌃", Alt: "⌥", Shift: "⇧", Enter: "↩", Del: "⌫", Home: "fn ←", End: "fn →", PgUp: "fn ↑", PgDn: "fn ↓" };
+  const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  // Keys as Betula writes them (`folia_design::keys`, the same rules): on a PC each key a cap with
+  // „+" between them (Strg + K, Shift + Enter), on a Mac one cap of its signs (⌘K, ⇧↩).
+  const capNames = (spec) => (spec === "+" || !spec.includes("+") ? [spec] : spec.split("+")).map((k) => (onMac() && MAC_SIGNS[k]) || kb().names[k] || k);
+  const caps = (spec) => {
+    const keys = capNames(spec);
+    if (keys.length === 1) return `<kbd>${escHtml(keys[0])}</kbd>`;
+    if (onMac()) return `<kbd>${escHtml(keys.join(""))}</kbd>`;
+    return `<span class="kk">${keys.map((k) => `<kbd>${escHtml(k)}</kbd>`).join('<i class="plus">+</i>')}</span>`;
+  };
+  const lettersOn = () => root.dataset.letters !== "off";
+  // A field one types into; a knob of the credits is none (its arrows go on, as everywhere in a mode).
+  const texty = (el) => typing(el) && el.type !== "range";
+
+  // What a screen reader is told that the screen shows otherwise (the end of the filters, what the
+  // bubble found): one region for the page, polite.
+  let liveEl = null;
+  let liveTimer = 0;
+  const say = (text) => {
+    if (!liveEl) {
+      liveEl = document.createElement("div");
+      liveEl.className = "visually-hidden";
+      liveEl.setAttribute("role", "status");
+      document.body.append(liveEl);
+    }
+    clearTimeout(liveTimer);
+    liveEl.textContent = "";
+    liveTimer = setTimeout(() => { liveEl.textContent = text; }, 60);
+  };
+
+  // What the Tab key stops at.
+  const TABBABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex]';
+  const shown = (el) => (el.checkVisibility ? el.checkVisibility({ visibilityProperty: true }) : el.getClientRects().length > 0);
+  const tabbable = (el) => el.tabIndex >= 0 && !el.disabled && !el.closest("[inert]") && (el.tagName !== "SUMMARY" || el.parentElement?.tagName === "DETAILS") && shown(el);
+  const tabbables = (scope) => [...scope.querySelectorAll(TABBABLE)].filter(tabbable);
+  // The page's own parts: the stage in front, and what stands around the stages (the rail, the bar
+  // at the top), not a page kept behind.
+  const onPage = (el) => !el.closest("#content > .page-stage:not(.front)");
+  const regionOf = (el) => el?.closest?.("[data-region]") || null;
+  const regionName = (el) => {
+    const region = regionOf(el);
+    return region ? region.dataset.region : null;
+  };
+  const modeOf = (el) => el?.closest?.("[data-mode]") || null;
+  // A control that stands for another where the arrows go (`data-kb-as`).
+  const asEl = (el) => (el?.dataset?.kbAs && document.getElementById(el.dataset.kbAs)) || el;
+
+  // ---- groups that are one stop of the Tab key ----
+  const groupOf = (el) => el?.closest?.("[data-stop], [data-mode]") || null;
+  const lastIn = new WeakMap(); // a group → where the keyboard was last in it
+  const lastPlace = new WeakMap(); // a group → the place of that in a virtual list (`data-i`)
+  // Seen: its middle is on the screen and not under something that stays in front of it (the
+  // sticky heads of a list's columns).
+  const inView = (el) => {
+    const r = el.getBoundingClientRect();
+    const x = r.left + Math.min(r.width / 2, 24);
+    const y = r.top + r.height / 2;
+    if (y < 0 || y > innerHeight || x < 0 || x > innerWidth) return false;
+    const there = document.elementFromPoint(x, y);
+    return !there || el === there || el.contains(there);
+  };
+  const itemsOf = (group) => tabbables(group).filter((el) => el.closest("[data-stop], [data-mode]") === group);
+  // Where the keyboard was last in a group, also where the list built that row anew.
+  const lastOf = (group) => {
+    let last = lastIn.get(group);
+    if (last && !last.isConnected && last.dataset?.id) last = group.querySelector(`[data-id="${CSS.escape(last.dataset.id)}"]`);
+    return last && last.isConnected && group.contains(last) && tabbable(last) ? last : null;
+  };
+  const entryOf = (group) => {
+    if (group.hasAttribute("data-mode")) return modeEntry(group);
+    const last = lastOf(group);
+    if (last) return last;
+    const items = itemsOf(group);
+    return items.find((el) => el.matches('[aria-current="true"], [aria-current="page"], [aria-selected="true"]') && inView(el))
+      || items.find((el) => el.matches('[aria-current="true"], [aria-current="page"], [aria-selected="true"]'))
+      || items.find(inView) || items[0] || null;
+  };
+  // The stops of Tab in `scope`, in order: each group once, at its entry; past the regions inside
+  // `scope` where it asks (`skip`).
+  const stopsIn = (scope, skip) => {
+    const out = [];
+    const seen = new Set();
+    for (const el of tabbables(scope)) {
+      if (!onPage(el)) continue;
+      if (skip) {
+        const region = regionOf(el);
+        if (region && region !== scope && scope.contains(region)) continue;
+      }
+      const group = groupOf(el);
+      if (group && group !== scope && scope.contains(group)) {
+        if (seen.has(group)) continue;
+        seen.add(group);
+        const entry = entryOf(group);
+        if (entry) out.push(entry);
+      } else out.push(el);
+    }
+    return out;
+  };
+  // Where `el` stands among `stops`: itself, its group's entry, or between the two stops around it.
+  const placeIn = (stops, el) => {
+    const at = stops.indexOf(el);
+    if (at >= 0) return at;
+    const group = groupOf(el);
+    const byGroup = group ? stops.findIndex((s) => groupOf(s) === group) : -1;
+    if (byGroup >= 0) return byGroup;
+    const after = stops.findIndex((s) => el.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return (after < 0 ? stops.length : after) - 0.5;
+  };
+  // Focus without the browser's own scroll; what scrolls brings it into view, a row of a list as
+  // far as needed.
+  const focusOn = (el, how = "nearest") => {
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    if (el.closest("[data-mode]")) inBand(el);
+    // What is seen stays where it is: a scroll moves a virtual list's rows, and the focus with them.
+    else if (!inView(el)) el.scrollIntoView?.({ block: how, inline: "nearest" });
+  };
+
+  // Into a group where the keyboard was last in it, also where that went off a virtual list's
+  // rendered part (`data-reveal`: the list scrolls the row's place, `data-i`, into view on
+  // `betula:reveal-row`, catalog.rs `VirtualRows`); else at `el`.
+  const enter = (el) => {
+    const group = el?.closest?.("[data-stop]");
+    const last = group && lastIn.get(group);
+    const place = last && !last.isConnected && group.hasAttribute("data-reveal") ? lastPlace.get(group) : null;
+    if (place == null || !last.dataset.id) return focusOn(el);
+    group.setAttribute("data-reveal-at", place);
+    dispatchEvent(new Event("betula:reveal-row"));
+    let tries = 0;
+    const again = () => {
+      const row = group.isConnected && group.querySelector(`[data-id="${CSS.escape(last.dataset.id)}"]`);
+      if (row && tabbable(row)) return focusOn(row);
+      if (++tries < 20) requestAnimationFrame(again);
+      else focusOn(el);
+    };
+    requestAnimationFrame(again);
+  };
+
+  // ---- the keyboard's use: the ring, the lit section and the bar only after a key ----
+  // Whether the keyboard was in use before this key (the mode showed as one): Esc leaves a mode only
+  // then; after the mouse it is the page's as ever (it closes the module beside the list).
+  let kbWas = false;
+  addEventListener("keydown", (e) => {
+    kbWas = root.hasAttribute("data-kb");
+    if (!MODIFIERS.has(e.key) && !kbWas) root.setAttribute("data-kb", "");
+  }, true);
+  addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "" && root.hasAttribute("data-kb")) root.removeAttribute("data-kb");
+  }, true);
+
+  // ---- a mode ----
+  const modeName = (mode) => mode.getAttribute("aria-label") || "";
+  // The parts the engine adds to a mode: the bar at its foot (the bubble comes with the first
+  // letter typed).
+  const modeParts = (mode) => {
+    let bar = mode.querySelector(":scope > .key-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "key-bar";
+      bar.setAttribute("aria-hidden", "true");
+      mode.append(bar);
+    }
+    return { bar };
+  };
+  // The tag on the ring, over the mode's top edge: on the page itself, since what scrolls the page
+  // (the catalog's one scroll area) cuts off whatever of the panel stands above it; placed where
+  // the mode is, there while the keyboard is in it (and only after a key: app.css, `data-kb`).
+  let tagEl = null;
+  const placeTag = () => {
+    const mode = modeOf(document.activeElement);
+    if (!tagEl) {
+      tagEl = document.createElement("span");
+      tagEl.className = "mode-tag";
+      tagEl.setAttribute("aria-hidden", "true");
+      document.body.append(tagEl);
+    }
+    if (!mode || !shown(mode)) return tagEl.removeAttribute("data-on");
+    tagEl.innerHTML = kb().leave(caps("Esc"));
+    const r = mode.getBoundingClientRect();
+    tagEl.style.left = `${Math.round(r.left + 10)}px`;
+    tagEl.style.top = `${Math.round(r.top - 9)}px`;
+    tagEl.setAttribute("data-on", "");
+  };
+  addEventListener("resize", placeTag);
+  const sectionOf = (el) => el?.closest?.("[data-section]") || null;
+  // A section is entered at its start: its first control, an option group at its chosen option.
+  const sectionEntry = (section) => {
+    const first = tabbables(section).find((el) => sectionOf(el) === section);
+    if (!first) return null;
+    const group = first.closest('[role="radiogroup"]');
+    return (group && [...group.querySelectorAll('[role="radio"][aria-checked="true"]')].find(tabbable)) || first;
+  };
+  const sectionsOf = (mode) => [...mode.querySelectorAll("[data-section]")].filter((s) => shown(s) && sectionEntry(s));
+  // Where F lands: where the keyboard was last in the mode, never its head („Zurücksetzen"); else at
+  // the start of its first section.
+  const modeEntry = (mode) => {
+    const last = lastOf(mode);
+    if (last && sectionOf(last)?.dataset.section !== "plain") return last;
+    const first = sectionsOf(mode).find((s) => s.dataset.section !== "plain");
+    return first ? sectionEntry(first) : null;
+  };
+  // What scrolls in a mode, and the band of it the keyboard stays in: 20 % off either edge.
+  const modeScroller = (el, mode) => {
+    for (let at = el.parentElement; at && at !== mode; at = at.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(at).overflowY) && at.scrollHeight > at.clientHeight) return at;
+    }
+    return null;
+  };
+  const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const inBand = (el) => {
+    const mode = modeOf(el);
+    const box = mode && modeScroller(el, mode);
+    if (!box) return el.scrollIntoView?.({ block: "nearest" });
+    const b = box.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.top >= b.top + b.height * 0.2 && r.bottom <= b.bottom - b.height * 0.2) return;
+    const top = Math.max(0, Math.min(box.scrollHeight - box.clientHeight, box.scrollTop + (r.top + r.height / 2) - (b.top + b.height / 2)));
+    box.scrollTo({ top, behavior: calm() ? "auto" : "smooth" });
+  };
+  // „Weitere Filter" open as the keyboard goes past their head, or finds something in them.
+  const openMore = (details) => {
+    if (!details || details.open) return false;
+    details.open = true;
+    say(kb().opened(details.querySelector(":scope > summary")?.textContent.trim() || ""));
+    return true;
+  };
+  // At either end the focus only nudges; a screen reader hears once in a while where it is and the
+  // way out (owner, 2026-10-20: no note, „das checkt man auch selbst").
+  let bumpTimer = 0;
+  let bumpSaid = 0;
+  const bump = (mode, where) => {
+    mode.removeAttribute("data-bump");
+    void mode.offsetWidth;
+    mode.setAttribute("data-bump", where);
+    clearTimeout(bumpTimer);
+    bumpTimer = setTimeout(() => mode.removeAttribute("data-bump"), 400);
+    const now = performance.now();
+    if (now - bumpSaid > 3000) {
+      bumpSaid = now;
+      const way = document.getElementById(mode.getAttribute("aria-describedby") || "")?.textContent || "";
+      say(`${where === "end" ? kb().end : kb().start} ${way}`.trim());
+    }
+  };
+  // Tab: the start of the next section (Shift: of the one before); none past either end. Past the
+  // head of „Weitere Filter" they open.
+  const sectionTab = (e, mode, el) => {
+    e.preventDefault();
+    const back = e.shiftKey;
+    const from = asEl(el);
+    const here = sectionOf(from);
+    if (!back && here?.matches("details") && from.tagName === "SUMMARY") openMore(here);
+    const sections = sectionsOf(mode);
+    const at = sections.indexOf(here);
+    const next = sections[at + (back ? -1 : 1)];
+    if (at < 0 || !next) return bump(mode, back ? "start" : "end");
+    focusOn(sectionEntry(next));
+  };
+  // The rows of a mode, top to bottom, as they stand (chips that wrap, the two knobs of the
+  // credits); an option group is a row of its own.
+  const rowsOf = (mode) => {
+    const rows = [];
+    let row = null;
+    let top = null;
+    for (const el of tabbables(mode)) {
+      // The bubble and a field that stands for a control (the number above a knob) are no row.
+      if (el.closest(".find-bubble") || el.dataset.kbAs) continue;
+      const t = el.getBoundingClientRect().top;
+      if (row && Math.abs(t - top) <= 6) row.push(el);
+      else {
+        row = [el];
+        rows.push(row);
+        top = t;
+      }
+    }
+    return rows;
+  };
+  // Where a control is across: a knob of the credits where its knob is, else its middle.
+  const xOf = (el) => {
+    const r = el.getBoundingClientRect();
+    if (el.type === "range") {
+      const min = +el.min || 0;
+      const max = +el.max || 100;
+      const at = (+el.value - min) / (max - min || 1);
+      return r.left + r.height / 2 + (r.width - r.height) * at;
+    }
+    return r.left + r.width / 2;
+  };
+  const chosenIn = (row) => row.find((el) => el.getAttribute("aria-checked") === "true") || row[0];
+  const radioRow = (row) => row.every((el) => el.getAttribute("role") === "radio" && el.closest('[role="radiogroup"]') === row[0].closest('[role="radiogroup"]'));
+  let stickyX = null;
+  let movingV = false;
+  // ↑ ↓: the control in the row above or below nearest where the keyboard came from across.
+  const moveV = (mode, el, dir) => {
+    const from = asEl(el);
+    if (dir > 0 && from.tagName === "SUMMARY" && openMore(from.parentElement)) {
+      const first = sectionsOf(from.parentElement).find((s) => s !== from.parentElement);
+      return focusOn(first ? sectionEntry(first) : null);
+    }
+    const rows = rowsOf(mode);
+    const at = rows.findIndex((row) => row.includes(from));
+    const row = rows[at + dir];
+    if (at < 0) return;
+    if (!row) return bump(mode, dir > 0 ? "end" : "start");
+    const x = stickyX ?? xOf(from);
+    const to = radioRow(row) ? chosenIn(row) : row.slice().sort((a, b) => Math.abs(xOf(a) - x) - Math.abs(xOf(b) - x))[0];
+    movingV = true;
+    focusOn(to);
+    movingV = false;
+    stickyX = x;
+  };
+  // ← →: the control before or after in reading order; an option group counts once, at its choice.
+  const moveH = (mode, el, dir) => {
+    const from = asEl(el);
+    if (dir > 0 && from.tagName === "SUMMARY" && openMore(from.parentElement)) {
+      const first = sectionsOf(from.parentElement).find((s) => s !== from.parentElement);
+      return focusOn(first ? sectionEntry(first) : null);
+    }
+    const order = [];
+    for (const row of rowsOf(mode)) {
+      for (const one of row) {
+        if (sectionOf(one)?.dataset.section === "plain") continue;
+        const group = one.getAttribute("role") === "radio" && one.closest('[role="radiogroup"]');
+        if (group && one !== from && (one.getAttribute("aria-checked") !== "true")) continue;
+        if (group && order.some((o) => o.closest('[role="radiogroup"]') === group)) continue;
+        order.push(one);
+      }
+    }
+    const at = order.indexOf(from);
+    if (at < 0) return;
+    const to = order[at + dir];
+    if (!to) return bump(mode, dir > 0 ? "end" : "start");
+    focusOn(to);
+  };
+  // An option group: ← → choose the one before or after (owner, 2026-10-20: „links rechts option
+  // auswählen und hoch und runter für prev/next element"), Pos1 and Ende the first and the last.
+  const radioKey = (e, el) => {
+    const group = el.closest('[role="radiogroup"]');
+    if (!group) return false;
+    const radios = [...group.querySelectorAll('[role="radio"]')].filter(tabbable);
+    const at = radios.indexOf(el);
+    const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: radios.length - 1 }[e.key];
+    if (to === undefined) return false;
+    e.preventDefault();
+    const next = radios[Math.max(0, Math.min(radios.length - 1, to))];
+    if (next && next !== el) {
+      next.focus({ preventScroll: true });
+      next.click();
+    }
+    return true;
+  };
+
+  // ---- finding in a mode: a green bubble, which typing opens (owner, 2026-10-20: „Es braucht keine
+  // Suchbar … Hier könnte man wieder zu dem Suchblob zurück gehen, da könnte man über grün
+  // nachdenken") ----
+  // It is a text field like any other (⌫, Ctrl + ⌫), but no stop of Tab. What matches is marked as
+  // the search marks a module (a highlight of the text, nothing in the page changed), the best match
+  // is outlined and, once the typing rests, scrolled into the middle of the panel. It finds the
+  // sections and „Weitere Filter" too, whose filters it opens. A typo is forgiven as the catalog's
+  // search forgives it (`folia_search::fuzzy::typos_at_start`: from four letters one, from eight two,
+  // the first letter right), but only where nothing matches as typed.
+  const FIND = { mode: null, el: null, input: null, note: null, hits: [], at: -1, fuzzy: false, origin: null, timer: 0 };
+  const fold = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss");
+  // A text folded as the search folds it, and where each folded character came from.
+  const folded = (s) => {
+    let n = "";
+    const at = [];
+    for (let i = 0; i < s.length; i++) for (const c of fold(s[i])) { n += c; at.push(i); }
+    return { n, at };
+  };
+  const editDistance = (a, b) => {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+    }
+    return d[a.length][b.length];
+  };
+  const typosAtStart = (q, w) => {
+    if (q.length < 4 || q[0] !== w[0]) return false;
+    const allowed = q.length >= 8 ? 2 : 1;
+    let best = Infinity;
+    for (const len of [q.length - 1, q.length, q.length + 1]) if (len <= w.length) best = Math.min(best, editDistance(q, w.slice(0, len)));
+    return best >= 1 && best <= allowed;
+  };
+  // The text of a label as it reads, without what is in its children (a count, a legend), and the
+  // text nodes it is made of, to mark in.
+  const labelText = (lab) => {
+    const own = [...lab.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim());
+    const nodes = own.length ? own : [...lab.childNodes].filter((n) => n.nodeType === 3);
+    let text = "";
+    const parts = [];
+    for (const node of nodes) {
+      parts.push({ node, from: text.length });
+      text += node.textContent;
+    }
+    return { text, parts };
+  };
+  // What can be found in a mode: its sections by their names, its chips and options by theirs.
+  const findables = (mode) => {
+    const out = [];
+    const reachable = (el) => shown(el) || !!el.closest("details:not([open])");
+    for (const section of mode.querySelectorAll('[data-section]:not([data-section="plain"])')) {
+      if (!reachable(section)) continue;
+      const lab = section.tagName === "DETAILS" ? section.querySelector(":scope > summary") : document.getElementById(section.getAttribute("aria-labelledby") || "");
+      const { text, parts } = lab ? labelText(lab) : { text: section.getAttribute("aria-label") || "", parts: [] };
+      if (text.trim()) out.push({ kind: section.tagName === "DETAILS" ? "more" : "section", el: section, text, parts });
+    }
+    for (const el of mode.querySelectorAll('[role="checkbox"], [role="radio"]')) {
+      if (!reachable(el)) continue;
+      const lab = el.querySelector(".chip-label, .seg-label") || el.querySelector("span:not(.num):not(.box):not(.icon)");
+      if (!lab) continue;
+      const { text, parts } = labelText(lab);
+      if (text.trim()) out.push({ kind: el.getAttribute("role") === "radio" ? "radio" : "chip", el, text, parts });
+    }
+    return out;
+  };
+  // How a target matches the words typed: each word has to match one of its words. 0 its first word
+  // starts so, 1 another word does, 2 a part of a word, 3 the start of a word with a typo (asked for
+  // only where nothing matches with 0 to 2). With the stretches of its text that matched.
+  const matchOf = (target, words, typos) => {
+    const { n, at } = folded(target.text);
+    const its = [...n.matchAll(/[\p{L}\p{N}]+/gu)].map((m) => ({ w: m[0], i: m.index }));
+    let tier = 0;
+    const ranges = [];
+    for (const q of words) {
+      let best = null;
+      its.forEach(({ w, i }, k) => {
+        let hit = null;
+        if (w.startsWith(q)) hit = { tier: k ? 1 : 0, a: i, b: i + q.length };
+        else if (w.includes(q)) { const p = i + w.indexOf(q); hit = { tier: 2, a: p, b: p + q.length }; }
+        else if (typos && typosAtStart(q, w)) hit = { tier: 3, a: i, b: i + w.length };
+        if (hit && (!best || hit.tier < best.tier)) best = hit;
+      });
+      if (!best) return null;
+      tier = Math.max(tier, best.tier);
+      ranges.push([at[best.a], at[best.b - 1] + 1]);
+    }
+    return { tier, ranges };
+  };
+  const HIGHLIGHTS = typeof CSS !== "undefined" && CSS.highlights && typeof Highlight === "function";
+  const markHits = () => {
+    if (!HIGHLIGHTS) return;
+    const hit = [];
+    const like = [];
+    for (const h of FIND.hits) {
+      for (const [a, b] of h.ranges) {
+        for (const { node, from } of h.parts) {
+          const s = Math.max(a, from) - from;
+          const e = Math.min(b, from + node.textContent.length) - from;
+          if (e <= s) continue;
+          const range = new Range();
+          range.setStart(node, s);
+          range.setEnd(node, e);
+          (h.tier === 3 ? like : hit).push(range);
+        }
+      }
+    }
+    CSS.highlights.set("find-hit", new Highlight(...hit));
+    CSS.highlights.set("find-like", new Highlight(...like));
+  };
+  const unmark = () => {
+    if (HIGHLIGHTS) { CSS.highlights.delete("find-hit"); CSS.highlights.delete("find-like"); }
+    for (const el of document.querySelectorAll("[data-find-target]")) el.removeAttribute("data-find-target");
+  };
+  // The control a match leads to: a chip or an option itself, a section's start.
+  const targetOf = (h) => (!h ? null : h.kind === "section" ? sectionEntry(h.el) : h.kind === "more" ? h.el.querySelector(":scope > summary") : h.el);
+  const showFind = ({ scroll = false } = {}) => {
+    const h = FIND.hits[FIND.at];
+    if (h && h.el.closest("details:not([open])")) openMore(h.el.closest("details:not([open])"));
+    unmark();
+    markHits();
+    const target = h ? h.el : null;
+    if (target) target.setAttribute("data-find-target", h.kind === "section" || h.kind === "more" ? "section" : "");
+    lightSection(h ? (h.kind === "section" ? h.el : sectionOf(h.el)) : sectionOf(FIND.origin));
+    const q = FIND.input.value.trim();
+    FIND.note.textContent = !q ? "" : !FIND.hits.length ? kb().none : `${FIND.fuzzy ? `${kb().like} · ` : ""}${FIND.at + 1}/${FIND.hits.length}`;
+    FIND.input.style.width = `${Math.max(1, FIND.input.value.length) + 0.6}ch`;
+    if (scroll && target) {
+      clearTimeout(FIND.timer);
+      // The scroll waits until the typing rests, so that two targets do not toss the panel about.
+      FIND.timer = setTimeout(() => inBand(target), 220);
+    }
+  };
+  const sayFind = () => {
+    if (!FIND.input.value.trim()) return;
+    const h = FIND.hits[FIND.at];
+    if (!h) return say(kb().noneSaid);
+    const what = h.kind === "section" ? kb().section(h.text.trim()) : h.text.trim();
+    const state = h.kind === "chip" ? h.el.getAttribute("aria-label") || "" : "";
+    say(`${FIND.fuzzy ? kb().likeSaid : ""}${state && state !== what ? state : what}, ${kb().of(FIND.at + 1, FIND.hits.length)}`);
+  };
+  const runFind = () => {
+    const words = [...fold(FIND.input.value).matchAll(/[\p{L}\p{N}]+/gu)].map((m) => m[0]);
+    let hits = [];
+    FIND.fuzzy = false;
+    if (words.length) {
+      const all = findables(FIND.mode);
+      for (const t of all) { const m = matchOf(t, words, false); if (m) hits.push({ ...t, ...m }); }
+      if (!hits.length) {
+        for (const t of all) { const m = matchOf(t, words, true); if (m) hits.push({ ...t, ...m }); }
+        FIND.fuzzy = hits.length > 0;
+      }
+    }
+    FIND.hits = hits;
+    FIND.at = hits.reduce((best, h, i) => (best < 0 || h.tier < hits[best].tier ? i : best), -1);
+    showFind({ scroll: true });
+    sayFind();
+    updateBar();
+  };
+  const bubbleOf = (mode) => {
+    let bubble = mode.querySelector(":scope > .find-bubble");
+    if (!bubble) {
+      bubble = document.createElement("div");
+      bubble.className = "find-bubble";
+      bubble.innerHTML = `<span aria-hidden="true"></span><input type="text" tabindex="-1" autocomplete="off" spellcheck="false"><span class="find-note" aria-hidden="true"></span>`;
+      mode.append(bubble);
+      const input = bubble.querySelector("input");
+      input.addEventListener("input", runFind);
+      input.addEventListener("blur", () => closeFind(false));
+    }
+    bubble.firstChild.textContent = kb().find;
+    bubble.querySelector("input").setAttribute("aria-label", kb().findIn(modeName(mode)));
+    return bubble;
+  };
+  const typeInto = (mode, ch) => {
+    const bubble = bubbleOf(mode);
+    if (!bubble.hasAttribute("data-on")) {
+      FIND.origin = document.activeElement;
+      bubble.setAttribute("data-on", "");
+    }
+    Object.assign(FIND, { mode, el: bubble, input: bubble.querySelector("input"), note: bubble.querySelector(".find-note") });
+    FIND.input.focus({ preventScroll: true });
+    FIND.input.value = ch;
+    FIND.input.setSelectionRange(ch.length, ch.length);
+    runFind();
+  };
+  // The bubble goes when the keyboard leaves it: back where the typing began (`back`), or wherever
+  // the keyboard went.
+  let closing = false;
+  const closeFind = (back) => {
+    if (!FIND.el || closing) return;
+    closing = true;
+    const { el, origin, mode } = FIND;
+    clearTimeout(FIND.timer);
+    el.removeAttribute("data-on");
+    FIND.input.value = "";
+    FIND.hits = [];
+    FIND.at = -1;
+    unmark();
+    FIND.el = null;
+    if (back) focusOn(origin && origin.isConnected && tabbable(origin) ? origin : modeEntry(mode));
+    closing = false;
+    updateBar();
+  };
+  // Enter sets what it found (a chip: with; Shift + Enter: without; again: off), chooses an option,
+  // or goes into a section; the keyboard goes there. Tab only goes there.
+  const actOnFind = (shift) => {
+    const h = FIND.hits[FIND.at];
+    const to = targetOf(h);
+    // Nothing found: the bubble stays, with what was typed.
+    if (!h || !to) return;
+    closeFind(false);
+    if (h.kind === "more") {
+      openMore(h.el);
+      const first = sectionsOf(h.el).find((s) => s !== h.el);
+      return focusOn(first ? sectionEntry(first) : to);
+    }
+    focusOn(to);
+    if (h.kind === "chip") to.dispatchEvent(new KeyboardEvent("keydown", { key: shift ? "-" : "+", bubbles: true, cancelable: true }));
+    else if (h.kind === "radio" && to.getAttribute("aria-checked") !== "true") to.click();
+  };
+  const findKey = (e) => {
+    const q = FIND.input.value.trim();
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      if (!q) {
+        const { mode, origin } = FIND;
+        closeFind(true);
+        return origin && moveV(mode, origin, dir);
+      }
+      if (FIND.hits.length < 2) return;
+      FIND.at = (FIND.at + dir + FIND.hits.length) % FIND.hits.length;
+      showFind({ scroll: true });
+      sayFind();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      actOnFind(e.shiftKey);
+    } else if (e.key === "Tab") {
+      const to = targetOf(FIND.hits[FIND.at]);
+      if (to && !e.shiftKey) {
+        e.preventDefault();
+        closeFind(false);
+        return focusOn(to);
+      }
+      const { mode } = FIND;
+      closeFind(true);
+      sectionTab(e, mode, document.activeElement);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeFind(true);
+    }
+  };
+
+  // ---- the bar at the foot of a mode: only what no button can carry (owner, 2026-10-20: „Da muss
+  // nur das ungewöhnliche rein") ----
+  const barKind = (el) => {
+    if (!el) return null;
+    if (el === FIND.input && FIND.el) return "find";
+    const control = asEl(el);
+    if (control.getAttribute("role") === "checkbox" && control.classList.contains("chip")) return control.hasAttribute("data-tri") ? "chip3" : "chip2";
+    if (control.getAttribute("role") === "radio") return "radio";
+    if (control.type === "range") return "slider";
+    return null;
+  };
+  const updateBar = () => {
+    const el = document.activeElement;
+    const mode = modeOf(el);
+    for (const bar of document.querySelectorAll(".key-bar[data-on]")) if (!mode || !mode.contains(bar)) bar.removeAttribute("data-on");
+    if (!mode) return;
+    const { bar } = modeParts(mode);
+    const kind = barKind(el);
+    const keys = kind && kb().bar[kind];
+    bar.innerHTML = keys ? keys.map(([k, w]) => `<span>${k.split(" ").map(caps).join("")}${escHtml(w)}</span>`).join("") : "";
+    bar.toggleAttribute("data-on", !!keys);
+  };
+  // The section with the keyboard, lit as the open row of a list (owner, 2026-10-20: „mit der bg
+  // color und dem Seitenstreifen").
+  const lightSection = (section) => {
+    for (const lit of document.querySelectorAll("[data-kb-current]")) if (lit !== section) lit.removeAttribute("data-kb-current");
+    if (section && section.dataset.section !== "plain") section.setAttribute("data-kb-current", "");
+  };
+
+  // Where the keyboard was last, and by what it is known again where the page builds it anew (a row
+  // of a list, by its module): a key pressed with the focus fallen to the page goes on from there.
+  let lastAt = null;
+  // Only while the keyboard is in use: a click beside the rows lets the focus go, as it should.
+  const recover = () => {
+    const now = document.activeElement;
+    if ((now && now !== document.body) || !lastAt || !lastAt.id || !root.hasAttribute("data-kb")) return;
+    // The element itself where the page only moved it (a virtual list reordering its rows), else
+    // its successor in its group, or where the page built the group anew.
+    const scope = lastAt.group?.isConnected ? lastAt.group : stage() || document;
+    const again = lastAt.el.isConnected && tabbable(lastAt.el) ? lastAt.el : [...scope.querySelectorAll(`[data-id="${CSS.escape(lastAt.id)}"]`)].find((el) => el.tagName === lastAt.el.tagName && tabbable(el));
+    if (again) again.focus({ preventScroll: true });
+  };
+  // A focus that falls to the page as the page moves or builds its element anew is taken back a
+  // moment later.
+  addEventListener("focusout", (e) => {
+    if (!e.relatedTarget && e.target?.dataset?.id) for (const ms of [30, 120, 400]) setTimeout(recover, ms);
+  });
+  addEventListener("focusin", (e) => {
+    const el = e.target;
+    lastAt = { el, group: el.closest?.("[data-stop], [data-mode]") || null, id: el.dataset?.id || null };
+    if (!movingV) stickyX = null;
+    const group = groupOf(el);
+    if (group && el !== FIND.input) {
+      lastIn.set(group, asEl(el));
+      lastPlace.set(group, el.closest?.("[data-i]")?.dataset.i ?? null);
+    }
+    // A group inside a mode remembers where it was too (the mode itself is the group above).
+    const mode = modeOf(el);
+    placeTag();
+    if (mode) {
+      modeParts(mode);
+      if (!FIND.el) lightSection(sectionOf(asEl(el)));
+      if (el !== FIND.input && !el.closest(".lp-edit")) lastIn.set(mode, el);
+    } else lightSection(null);
+    updateBar();
+  });
+  addEventListener("focusout", (e) => {
+    if (!modeOf(e.relatedTarget) && !FIND.el) lightSection(null);
+    if (!e.relatedTarget) setTimeout(() => { updateBar(); placeTag(); }, 0);
+  });
+
+  // ---- going between regions ----
+  const regionsNow = () => ["nav", "search", "side", "content"].map((name) => ({ name, el: findAll(`[data-region="${name}"]`).find((r) => onPage(r) && shown(r)) || (name === "content" ? stage() : null) })).filter((r) => r.el);
+  // Into the content: its list where the keyboard was last in it, else its first stop. Where a page
+  // names no content region (`strict`), none.
+  const contentHome = (strict) => {
+    const content = find('[data-region="content"]') || (strict ? null : stage());
+    if (!content) return null;
+    const list = [...content.querySelectorAll('[data-stop="y"]')].find((g) => !g.closest("[data-mode]") && shown(g) && itemsOf(g).length);
+    // An empty list: the first way on in the content, not a panel's handle.
+    return (list && entryOf(list)) || stopsIn(content, true).find((s) => s.getAttribute("role") !== "separator") || null;
+  };
+  const sideRegion = () => findAll('[data-region="side"]').find(onPage) || null;
+  const intoSide = () => {
+    const side = sideRegion();
+    if (!side) return false;
+    if (phone() ? !side.classList.contains("open") : !shown(side)) {
+      // A phone's or a narrow window's sheet: open it first.
+      const open = findAll('[data-action="sheet-open"]').find(shown);
+      if (!open) return false;
+      open.click();
+      requestAnimationFrame(() => requestAnimationFrame(() => focusOn(modeEntry(side))));
+      return true;
+    }
+    focusOn(modeEntry(side));
+    return true;
+  };
+  const intoSearch = () => {
+    const search = document.getElementById("topsearch");
+    if (!search) return false;
+    search.focus();
+    search.select();
+    return true;
+  };
+  const intoRegion = (region) => {
+    if (region.name === "side") return intoSide();
+    if (region.name === "search") return intoSearch();
+    if (region.name === "content") return enter(contentHome(false)), true;
+    const entry = region.el.matches("[data-stop]") ? entryOf(region.el) : stopsIn(region.el, false)[0];
+    return focusOn(entry), true;
+  };
+  const cycleRegions = (dir) => {
+    const regions = regionsNow();
+    const here = regionName(document.activeElement);
+    const at = regions.findIndex((r) => r.name === here);
+    const next = regions[((at < 0 ? (dir > 0 ? -1 : 0) : at) + dir + regions.length) % regions.length];
+    if (next) intoRegion(next);
+  };
+
+  // ---- Tab ----
+  const tabKey = (e) => {
+    const el = document.activeElement;
+    if (!el || el === document.body || e.ctrlKey || e.metaKey || e.altKey) return;
+    const mode = modeOf(el);
+    if (mode) return sectionTab(e, mode, el);
+    const cycle = el.closest("[data-cycle]");
+    if (cycle && onPage(cycle)) {
+      const stops = stopsIn(cycle, true);
+      if (!stops.length) return;
+      e.preventDefault();
+      const at = placeIn(stops, el);
+      const n = stops.length;
+      const next = e.shiftKey ? stops[(Math.ceil(at) - 1 + n) % n] : stops[(Math.floor(at) + 1) % n];
+      return enter(next);
+    }
+    // Elsewhere as the browser goes, but past a group at once and into one where it was last.
+    const stops = stopsIn(document.body, false);
+    const at = placeIn(stops, el);
+    const next = e.shiftKey ? stops[Math.ceil(at) - 1] : stops[Math.floor(at) + 1];
+    const group = groupOf(el);
+    if (!next || (!group && !groupOf(next))) return;
+    e.preventDefault();
+    enter(next);
+  };
+
+  // ---- the arrows in a group that is one stop ----
+  const groupKey = (e, el) => {
+    const group = el.closest("[data-stop]");
+    if (!group || modeOf(group)) return false;
+    const axis = group.dataset.stop;
+    const y = axis.includes("y") && (e.key === "ArrowDown" || e.key === "ArrowUp");
+    // ← and → go to the note of a module planned while it stands (folia/crates/widgets/src/plannote.rs).
+    const x = axis.includes("x") && (e.key === "ArrowRight" || e.key === "ArrowLeft") && !document.querySelector(".planning-note");
+    if (!x && !y) return false;
+    const items = itemsOf(group);
+    const at = items.indexOf(el);
+    const to = items[at + (e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1)];
+    e.preventDefault();
+    if (to) focusOn(to);
+    return true;
+  };
+
+  // ---- keys ----
   // What lies over the page and has the keyboard to itself: a dialog, a menu, a question. A key
-  // pressed there is its own (a menu's entry shows the key it is), never one for the module behind
-  // it (M marked the module open beside the list while a menu had the focus).
+  // pressed there is its own (a menu's entry shows the key it is), never one for the page behind.
   const OVER = "dialog, [role=dialog], [role=menu], [role=alertdialog]";
   addEventListener("keydown", (e) => {
+    if (e.isComposing) return;
+    recover();
+    const el = document.activeElement || document.body;
     // An open picker has the keyboard to itself (its Esc closes the picker, nothing else).
     if (e.target.closest?.(".combo[data-open]")) return;
+    if (FIND.el && e.target === FIND.input) return findKey(e);
     // The filter toggles are links that act as switches: the space bar flips them, too.
     if (e.key === " " && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
-    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // Only where arrows have no other job: not in fields, not in the filter panel, not in a menu
-      // (which moves its own focus and says so by `preventDefault`; the focus it moved is in it).
-      const active = document.activeElement;
-      const free = !e.defaultPrevented && !typing(active) && !active?.closest?.("#filters") && !active?.closest?.('[role="menu"]');
-      if (free && moveInList(e.key === "ArrowDown" ? 1 : -1)) { e.preventDefault(); return; }
+    const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
+    const over = !!e.target.closest?.(OVER) || modalOpen();
+    // Ctrl + F6: the next region (Shift: the one before). F6 alone stays the browser's.
+    if (e.key === "F6" && (e.ctrlKey || e.metaKey) && !e.altKey && !over) { e.preventDefault(); return cycleRegions(e.shiftKey ? -1 : 1); }
+    if (e.defaultPrevented || over) return;
+    if (e.key === "Tab") return tabKey(e);
+    const mode = modeOf(el);
+    const arrow = /^Arrow/.test(e.key) && plain && !e.shiftKey;
+    // In a mode: the arrows from control to control (in a field of numbers ↑ and ↓ as well, whose
+    // ← → move in the text), Pos1 and Ende in a section, Esc out, letters find.
+    const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+    if (mode && (!texty(el) || (arrow && vertical && (el.type === "number" || el.dataset?.kbAs)))) {
+      if (arrow) {
+        if (el.getAttribute("role") === "radio" && (e.key === "ArrowLeft" || e.key === "ArrowRight") && radioKey(e, el)) return;
+        e.preventDefault();
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") return moveV(mode, el, e.key === "ArrowDown" ? 1 : -1);
+        return moveH(mode, el, e.key === "ArrowRight" ? 1 : -1);
+      }
+      if ((e.key === "Home" || e.key === "End") && plain) {
+        if (el.getAttribute("role") === "radio" && radioKey(e, el)) return;
+        const section = sectionOf(el);
+        const all = section ? tabbables(section).filter((c) => sectionOf(c) === section) : [];
+        if (all.length) { e.preventDefault(); return focusOn(e.key === "Home" ? all[0] : all[all.length - 1]); }
+      }
+      if (plain && e.key === "Escape" && kbWas) { e.preventDefault(); return enter(contentHome(false)); }
+      // Typing finds, from wherever the keyboard is in the mode; only there, so it needs no switch.
+      if (plain && e.key.length === 1 && /[\p{L}\p{N}]/u.test(e.key)) { e.preventDefault(); return typeInto(mode, e.key); }
+    }
+    if (mode && plain && e.key === "Escape" && texty(el) && kbWas) {
+      // A field in the mode (the numbers of the credits): Esc leaves the field and the mode.
+      e.preventDefault();
+      return enter(contentHome(false));
+    }
+    if (arrow && !mode && !texty(el) && groupKey(e, el)) return;
+    // With the keyboard nowhere (a click beside the rows), ↑ and ↓ go into the list.
+    if (vertical && arrow && (el === document.body || el === document.documentElement)) {
+      const home = contentHome(true);
+      if (home && home.closest('[data-stop="y"]')) { e.preventDefault(); return enter(home); }
+    }
+    // In the search: ↓ into the list (owner's concept: „↓ in die Liste").
+    if (e.key === "ArrowDown" && plain && el.id === "topsearch") {
+      const home = contentHome(true);
+      if (home && home.closest('[data-stop="y"]')) { e.preventDefault(); return enter(home); }
     }
     const hit = e.key === "ArrowLeft" || e.key === "ArrowRight" ? resizerOf(e.target) : null;
     if (hit) {
@@ -2458,21 +3338,60 @@
       if (panel) setWidth(hit.edge, panel.getBoundingClientRect().width + step);
       return;
     }
-    const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
     if (plain && e.key === "Escape") {
       // One Esc, one thing: nothing it closes here goes on as a close request to a watcher.
       if (filters()?.classList.contains("open")) { e.preventDefault(); closeSheet(); return; }
-      if (typing(document.activeElement)) { document.activeElement.blur(); return; }
+      // The search and the navigation: back into the content (the list where it was).
+      const region = regionName(el);
+      if ((region === "search" || region === "nav") && !root.hasAttribute("data-layers")) {
+        const home = contentHome(true);
+        if (home) { e.preventDefault(); return enter(home); }
+      }
+      if (typing(el)) { el.blur(); return; }
       // What lies over the page (a menu, the selection, a dialog: folia/crates/shell/src/nav.rs)
       // takes this Esc itself; the module beside the page waits for the next one.
-      if (root.hasAttribute("data-layers") || root.hasAttribute("data-state") || modalOpen()) return;
+      if (root.hasAttribute("data-layers") || root.hasAttribute("data-state")) return;
       // The preview first; on a module's own page Esc goes back to where the visitor came from.
-      (find('[data-action="close-detail"]') || find('[data-action="back"]'))?.click();
-    } else if (plain && (e.key === "f" || e.key === "F") && !typing(document.activeElement) && !e.target.closest?.(OVER)) {
-      // Where its button is shown: a phone's sheet has none (app.css).
+      // The keyboard goes back to the row of the module that was open.
+      const close = find('[data-action="close-detail"]');
+      if (close && el.closest?.("#preview")) {
+        const row = find('.rows a.row[aria-current="true"]');
+        if (row) row.focus({ preventScroll: true });
+      }
+      (close || find('[data-action="back"]'))?.click();
+      return;
+    }
+    // Enter on the row whose module is open: the module in full (Enter opened it beside the list).
+    if (e.key === "Enter" && plain && !e.shiftKey && el.matches?.('a.row[aria-current="true"]')) {
+      const full = find('[data-action="fullscreen"]');
+      if (full?.getClientRects().length) { e.preventDefault(); full.click(); return; }
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") { e.preventDefault(); intoSearch(); return; }
+    // Betula's single keys: only where nothing is typed, and only while they are on.
+    if (!plain || texty(el) || !lettersOn()) return;
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (e.key === "/") { e.preventDefault(); intoSearch(); return; }
+    if (e.key === "?") {
+      const button = find('[data-action="keys"]');
+      if (!button) return;
+      e.preventDefault();
+      const region = regionName(el);
+      const from = region === "side" ? "side" : el.closest?.("#preview") ? "module" : region === "content" ? "list" : region || "";
+      button.setAttribute("data-from", from);
+      button.click();
+      return;
+    }
+    if (key === "f" && !e.shiftKey) {
+      if (intoSide()) e.preventDefault();
+      return;
+    }
+    if (key === "v" && !e.shiftKey) {
+      // „Vollbild" where its button is shown: a phone's sheet has none (app.css).
       const full = find('[data-action="fullscreen"]');
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); }
-    } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
+      return;
+    }
+    if (key === "m" && appRuns()) {
       // „Merken" for what the visitor is at: the row the keyboard is on, else the module that is
       // open (its preview, or its page). The buttons belong to the browser app. With Shift, its
       // arrow (folia/design/tasten/konzept.html, „Knopf mit Pfeil"): „Sammlung und Notiz"
@@ -2483,32 +3402,29 @@
         // „Sammlung", for all of them.
         if (find('.wait-note [data-action="collect"]')) return;
         const bar = find('.pick-bar [data-action="collect"]');
-        const row = document.activeElement?.closest?.(".row-wrap");
+        const row = el.closest?.(".row-wrap");
         const more = bar || (row ? row.querySelector('[data-action="collect"]') : find('.hero [data-action="collect"]'));
         if (more) { e.preventDefault(); more.click(); }
         return;
       }
-      const row = document.activeElement?.closest?.(".row-wrap");
+      const row = el.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
-    } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
+      return;
+    }
+    if (key === "p" && appRuns()) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
       // it ambiguous which module is meant, so P waits there. What it planned the note at the
       // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs). With Shift, its
       // arrow (folia/design/tasten/konzept.html): planned, the menu of what is planned
       // (planmenu.rs), else „Einplanen in …" (planinto.rs); P as such where there is no arrow.
-      const row = document.activeElement?.closest?.(".row-wrap");
+      const row = el.closest?.(".row-wrap");
       const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
       const more = e.shiftKey && plan?.closest(".plan-pair")?.querySelector('[data-action="plan-more"]');
       // The arrow has the focus, as after a click on it: the menu gives it back there.
       if (more) { e.preventDefault(); more.focus({ preventScroll: true }); more.click(); }
       else if (plan) { e.preventDefault(); plan.click(); }
-    } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
-      e.preventDefault();
-      const search = document.getElementById("topsearch");
-      search?.focus();
-      search?.select();
     }
   });
 

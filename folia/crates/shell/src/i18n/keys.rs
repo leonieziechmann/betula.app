@@ -1,0 +1,116 @@
+//! Texts of the overview of the keys (`crate::keys`): its head, its groups and their rows. A row is
+//! the keys (specs of `folia_design::keys`, several are alternatives; `Nav` is the navigation's
+//! keys and a digit, as the system has them) and what they do.
+
+/// A row of the overview: its keys and its words.
+pub type Row = (&'static [&'static str], &'static str);
+
+pub struct Texts {
+    pub title: &'static str,
+    pub lead: &'static str,
+    /// The button in the rail that opens it: its name, and its tooltip with its key.
+    pub button: &'static str,
+    pub button_title: &'static str,
+    /// The mark at the group of where the keyboard was.
+    pub here: &'static str,
+    pub everywhere: &'static str,
+    pub everywhere_rows: &'static [Row],
+    pub list: &'static str,
+    pub list_rows: &'static [Row],
+    pub filters: &'static str,
+    pub filters_rows: &'static [Row],
+    pub module: &'static str,
+    pub module_rows: &'static [Row],
+}
+
+pub const DE: Texts = Texts {
+    title: "Tasten",
+    lead: "Jede Taste hat ihren Knopf; die Tasten sind der schnellere Weg dorthin.",
+    button: "Tasten",
+    button_title: "Alle Tasten (?)",
+    here: "Hier",
+    everywhere: "Überall",
+    everywhere_rows: &[
+        (&["/", "Mod+K"], "Suchfeld"),
+        (&["Mod+F6"], "nächster Bereich: Navigation, Suche, Filter, Inhalt"),
+        (&["Nav"], "Start, Module, Studium, Merkliste, Stundenplan; gehalten zeigen sie die Tasten"),
+        (&["Esc"], "einen Schritt zurück, dann zur Liste"),
+        (&["?"], "diese Übersicht"),
+    ],
+    list: "In der Liste",
+    list_rows: &[
+        (&["↑", "↓"], "wählen"),
+        (&["Enter"], "öffnen, ein zweites Mal im Vollbild"),
+        (&["V"], "Vollbild"),
+        (&["M"], "merken"),
+        (&["Shift+M"], "Sammlung und Notiz"),
+        (&["P"], "einplanen"),
+        (&["Shift+P"], "in ein Semester einplanen"),
+        (&["Tab"], "Spalten, Liste, Modul, Fuß, rundherum"),
+        (&["F"], "in die Filter"),
+    ],
+    filters: "In den Filtern",
+    filters_rows: &[
+        (&["Tab"], "nächster Abschnitt; oben und unten ist Schluss"),
+        (&["↑", "↓", "←", "→"], "von Filter zu Filter"),
+        (&["Space"], "mit · ohne · aus"),
+        (&["+", "−"], "mit, ohne"),
+        (&["Del"], "aus"),
+        (&["a–z"], "Filter und Abschnitte finden"),
+        (&["Enter", "Shift+Enter"], "beim Finden: mit, ohne"),
+        (&["0–9"], "am Regler: die Zahl"),
+        (&["Esc"], "zurück zur Liste"),
+    ],
+    module: "Im Modul",
+    module_rows: &[
+        (&["←", "→"], "von Knopf zu Knopf"),
+        (&["Tab"], "die Knöpfe, der Text, dann wieder die Spalten"),
+        (&["Esc"], "schließen"),
+    ],
+};
+
+pub const EN: Texts = Texts {
+    title: "Keys",
+    lead: "Every key has its button; the keys are the quicker way there.",
+    button: "Keys",
+    button_title: "All keys (?)",
+    here: "Here",
+    everywhere: "Everywhere",
+    everywhere_rows: &[
+        (&["/", "Mod+K"], "search field"),
+        (&["Mod+F6"], "next region: navigation, search, filters, content"),
+        (&["Nav"], "Home, Modules, Studies, Saved, Timetable; held, they show the keys"),
+        (&["Esc"], "one step back, then to the list"),
+        (&["?"], "this overview"),
+    ],
+    list: "In the list",
+    list_rows: &[
+        (&["↑", "↓"], "select"),
+        (&["Enter"], "open, a second time as a full page"),
+        (&["V"], "full page"),
+        (&["M"], "save"),
+        (&["Shift+M"], "collection and note"),
+        (&["P"], "plan"),
+        (&["Shift+P"], "plan into a semester"),
+        (&["Tab"], "columns, list, module, foot, and round"),
+        (&["F"], "into the filters"),
+    ],
+    filters: "In the filters",
+    filters_rows: &[
+        (&["Tab"], "next section; it stops at the top and the bottom"),
+        (&["↑", "↓", "←", "→"], "from filter to filter"),
+        (&["Space"], "with · without · off"),
+        (&["+", "−"], "with, without"),
+        (&["Del"], "off"),
+        (&["a–z"], "find filters and sections"),
+        (&["Enter", "Shift+Enter"], "while finding: with, without"),
+        (&["0–9"], "at the slider: the number"),
+        (&["Esc"], "back to the list"),
+    ],
+    module: "In the module",
+    module_rows: &[
+        (&["←", "→"], "from button to button"),
+        (&["Tab"], "the buttons, the text, then the columns again"),
+        (&["Esc"], "close"),
+    ],
+};

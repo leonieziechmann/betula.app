@@ -39,6 +39,7 @@ use folia_design::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
 use folia_widgets::choices::{duration_choices, years_choices, Choice, Toggle, Tri};
 use folia_shell::seo;
+use folia_design::keys::Keys;
 use folia_design::ui::{Icon, KeysText, KindBadge, Mark};
 use folia_widgets::week::{GridSlot, WeekGrid};
 
@@ -381,7 +382,7 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
     view! {
         <input class="board-all" type="checkbox" id="alle-filter"/>
         <div class="board">
-            {group(c.tag_search.to_string(), view! { <span class="mock-field typed"><Icon name="search"/><span>{h.search_example}</span><kbd><KeysText text=t.common.search_shortcut/></kbd></span> }.into_any(), Some(h.search), true)}
+            {group(c.tag_search.to_string(), view! { <span class="mock-field typed"><Icon name="search"/><span>{h.search_example}</span><Keys spec=folia_design::keys::SEARCH/></span> }.into_any(), Some(h.search), true)}
             {group(c.program.to_string(), view! {
                 {field("graduation-cap", h.program_typed.to_string(), true)}
                 <span class="mock-hit"><Icon name="check"/>{h.program_found}</span>
@@ -620,7 +621,7 @@ fn devices(t: &'static Texts) -> impl IntoView {
             <figure class="screen phone">{shots("module-phone", t.home_detail.phone_alt, 720, 960)}</figure>
         </div>
         <p class="device-keys">
-            <kbd><KeysText text=t.common.search_shortcut/></kbd><kbd>"↑"</kbd><kbd>"↓"</kbd><kbd>"Enter"</kbd><kbd>"M"</kbd><kbd>"F"</kbd><kbd>"Esc"</kbd>
+            <Keys spec=folia_design::keys::SEARCH/><kbd>"↑"</kbd><kbd>"↓"</kbd><kbd>"Enter"</kbd><kbd>"M"</kbd><kbd>"F"</kbd><kbd>"Esc"</kbd>
             <span class="badge"><Icon name="languages"/>"DE · EN"</span>
             <span class="badge"><Icon name="sun"/><Icon name="moon"/></span>
         </p>

@@ -190,6 +190,8 @@ pub fn App() -> impl IntoView {
     TopBack::provide();
     // The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`).
     ProfileMenu::provide();
+    // The overview of the keys, which the rail's button and `?` open (`folia_shell::keys`).
+    folia_shell::keys::KeysOpen::provide();
     // Where „Einplanen" plans in this tab's session, its note and its question for the study
     // (`studyplan::Planning`), after the Studienplan and „Mein Studiengang".
     Planning::provide();
@@ -222,9 +224,10 @@ pub fn App() -> impl IntoView {
                 </main>
             </div>
             <Ground/>
-            <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
+            <nav class="bottomnav" aria-label=t.app.navigation data-region="nav" data-stop="x"><NavItems/></nav>
             <TabMenu/>
             <ProfileSwitcher/>
+            <folia_shell::keys::KeysHelp/>
             // What „Einplanen" did, the dialog that sets up the study on the way, and the menu at
             // the arrow of a module planned.
             <PlanNote/>

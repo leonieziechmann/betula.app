@@ -16,7 +16,7 @@ pub struct Texts {
     /// The panel's name for screen readers: „Modul im Plan".
     pub panel: &'static str,
     /// The link to the module's whole page: its tooltip with its key („Als ganze Seite öffnen
-    /// (F)") and its text („Modul ansehen").
+    /// (V)") and its text („Modul ansehen").
     pub full_title: &'static str,
     pub full: &'static str,
     /// The tooltip of „Schließen", with its key: „Schließen (Esc)".
@@ -141,7 +141,7 @@ pub struct Texts {
 
 pub const DE: Texts = Texts {
     panel: "Modul im Plan",
-    full_title: "Als ganze Seite öffnen (F)",
+    full_title: "Als ganze Seite öffnen (V)",
     full: "Modul ansehen",
     close_title: "Schließen (Esc)",
     not_in_catalog: "Nicht im Modulkatalog.",
@@ -223,7 +223,7 @@ pub const DE: Texts = Texts {
 
 pub const EN: Texts = Texts {
     panel: "Module in the plan",
-    full_title: "Open as a full page (F)",
+    full_title: "Open as a full page (V)",
     full: "View module",
     close_title: "Close (Esc)",
     not_in_catalog: "Not in the module catalogue.",

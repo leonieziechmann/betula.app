@@ -1,7 +1,7 @@
 // Checks the browser app: after it has taken over, nothing loads a page again.
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node spa.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
 // Walks: catalog → preview (floats, list keeps its width) → resize by dragging → filter → Esc →
-// preview → F (full page) → Esc (back) → virtual list (the scrollbar has the whole length, only a
+// preview → V (full page) → Esc (back) → virtual list (the scrollbar has the whole length, only a
 // slice is rendered, the URL follows the position) → arrow keys and Enter → programs search.
 // Fails on a page load after takeover, a console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -51,7 +51,7 @@ await step("open preview", () => page.click("a.row >> visible=true >> nth=6"), (
 const kept = await page.evaluate(() => onPage("#catalog-scroll").scrollTop);
 if (kept < 250) problems.push(`open preview: the list scrolled back to ${kept}`);
 if ((await listWidth()) !== widthBefore) problems.push(`open preview: the list was resized from ${widthBefore} to ${await listWidth()}`);
-for (const hint of ["F", "Esc"]) {
+for (const hint of ["V", "Esc"]) {
   if (!(await page.evaluate((key) => [...allOnPage(".detail .hero-top kbd")].some((k) => k.textContent === key), hint))) problems.push(`the preview does not show the shortcut ${hint}`);
 }
 // The number at the head of a module, and beside it its abbreviation (owner, 2026-10-19), here
@@ -81,7 +81,7 @@ if (!(await page.evaluate(() => Boolean(onPage(".detail h2"))))) problems.push("
 await step("escape closes the preview", () => page.keyboard.press("Escape"), () => !location.search.includes("open=") && !onPage(".detail"));
 await step("open preview again", () => page.click("a.row >> visible=true >> nth=1"), () => Boolean(onPage(".detail h2")));
 if ((await previewWidth()) !== dragged) problems.push(`the preview forgot its width: ${await previewWidth()}px instead of ${dragged}px`);
-await step("F opens the full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && onPage(".module-page"));
+await step("V opens the full page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/catalog/module/") && onPage(".module-page"));
 if (!(await page.evaluate(() => [...allOnPage(".module-page .hero-top kbd")].some((k) => k.textContent === "Esc")))) problems.push("the module page does not show the shortcut Esc");
 if (!numberAndAbbrev(await headChips(".module-page"))) problems.push(`the module page's head names no number and abbreviation: ${JSON.stringify(await headChips(".module-page"))}`);
 await step("Esc goes back to the list", () => page.keyboard.press("Escape"), () => location.pathname === "/catalog" && location.search.includes("open=") && onPage(".rows"));

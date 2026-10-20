@@ -317,10 +317,14 @@ pub fn TabMenu() -> impl IntoView {
 pub fn Rail() -> impl IntoView {
     let t = i18n::t();
     view! {
-        <aside class="rail">
+        // The navigation is a region of the keyboard and one stop of the Tab key, whose ↑ and ↓ go
+        // from one of its buttons to the next (enhance.js, „the keyboard"; folia/design/tastatur/
+        // konzept.html, question 8).
+        <aside class="rail" data-region="nav" data-stop="y">
             <a class="logo hit" href=t.path(url::HOME) aria-label=t.app.logo_label><ui::Mark/></a>
             <nav aria-label=t.app.main_navigation><NavItems/></nav>
             <div class="rail-end">
+                <crate::keys::KeysButton/>
                 <ProfileButton/>
                 <button class="icon-btn theme-toggle js-only" type="button" data-action="theme" aria-label=t.app.theme_toggle>
                     <Icon name="moon" class="icon-moon"/><Icon name="sun" class="icon-sun"/>
@@ -1068,11 +1072,11 @@ pub fn TopBar() -> impl IntoView {
                 };
                 view! {
                     <div class="crumb" class:brand=home>{heading}</div>
-                    <form class="search" role="search" method="get" action=t.path(action) data-live-search="">
+                    <form class="search" role="search" method="get" action=t.path(action) data-live-search="" data-region="search">
                         <Icon name="search"/>
                         <label class="visually-hidden" for="topsearch">{label}</label>
                         <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input/>
-                        <ui::Shortcut keys=t.common.search_shortcut/>
+                        <ui::Shortcut keys=folia_design::keys::SEARCH/>
                     </form>
                 }
             }}

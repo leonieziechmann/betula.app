@@ -67,7 +67,7 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   await step("preview", () => page.click(`a.row[data-id="${id}"]`), () => Boolean(onPage(".detail h2")));
   const previewOrder = await order(page, ".detail");
   const filters = await page.evaluate(() => { const r = onPage("#filters").getBoundingClientRect(); return [r.left, r.width, r.top]; });
-  await step("full page", () => page.keyboard.press("f"), () => location.pathname.startsWith("/catalog/module/") && onPage(".module-page h2") && onPage("#sidebar"));
+  await step("full page", () => page.keyboard.press("v"), () => location.pathname.startsWith("/catalog/module/") && onPage(".module-page h2") && onPage("#sidebar"));
   const sidebar = await page.evaluate(() => { const r = onPage("#sidebar").getBoundingClientRect(); return [r.left, r.width, r.top]; });
   check(JSON.stringify(sidebar) === JSON.stringify(filters), `the sidebar is not where the filter panel was: ${sidebar} instead of ${filters}`);
   check(JSON.stringify(await order(page, ".module-page")) === JSON.stringify(previewOrder), `the page and the preview differ in order: ${await order(page, ".module-page")} / ${previewOrder}`);
