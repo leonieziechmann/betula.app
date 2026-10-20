@@ -7,8 +7,10 @@
 // the bookmark; „Module hinzufügen" has three tabs with short names (on a phone side by side), a
 // marked module of the plan's tab says so with its collections, „Merkliste" lists the marked modules
 // by collection and search, what is ticked in one tab is ticked in the other, „Einfügen" plans them;
-// the Gesamtplan's cell lists the area's marked module first. Nothing of the marks, the names of the
-// collections or what is typed is in a request.
+// the Gesamtplan's cell lists the area's marked module first. The Stundenplan's „Aus der Merkliste":
+// what the winter offers each with how it sits in the plan, the summer's folded with „nur SoSe", a
+// search, a collection, „2 gemerkte Module übernehmen" and „Rückgängig". Nothing of the marks, the
+// names of the collections or what is typed is in a request.
 // Needs a snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { chromium } from "playwright-core";
@@ -198,6 +200,49 @@ await page.keyboard.press("Escape");
 const leaks = requests.filter((r) => marked.some((id) => r.includes(id)) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes(KANDIDATEN) || r.includes("Lenachen") || r.includes(typed.slice(0, 5)) || r.includes("zzzqqq"));
 check(leaks.length === 0, `the marks, a collection or the search went into a request: ${leaks.slice(0, 3).join(" | ")}`);
 await context.close();
+
+// ---------- the Stundenplan's „Aus der Merkliste" ----------
+// The first semester's four modules planned into WiSe 2026/27; marked: Analysis I and Theoretische
+// Informatik, both of the winter, in „Kandidatenkiste", and Algorithmieren und Programmieren, a
+// summer's, in „Für Lenachen".
+{
+  const { context, page, go, step, requests } = await open({ viewport: { width: 1440, height: 900 } });
+  await go("/catalog");
+  const fs1 = ["12104", "12107", "12102", "11112"].map((id) => `m\t2026W\t${id}\t1790000000\t`).join("\n") + "\n";
+  const [analysis, theory, programming] = ["11103", ti, "12101"];
+  await page.evaluate(([key, shelf, plan, fs1, ids, now, kandidaten, lena]) => {
+    localStorage.setItem(key, ids.map((id, i) => `${id}\t${now - i * 60}\n`).join(""));
+    localStorage.setItem(shelf, `c\t1\t${kandidaten}\nc\t2\t${lena}\nm\t${ids[0]}\t1\nm\t${ids[1]}\t1\nm\t${ids[2]}\t2\n`);
+    localStorage.setItem(plan, fs1);
+  }, [KEY, SHELF, PLAN, fs1, [analysis, theory, programming], now, KANDIDATEN, LENA]);
+  requests.length = 0;
+  await go("/studyplan");
+  await page.waitForFunction(() => document.querySelector(".sp-marked > summary")?.textContent === "Aus der Merkliste (3)", null, { timeout: 20000 }).catch(() => problems.push("the Stundenplan does not offer the three marked modules"));
+  const lis = (selector = ".sp-marked-list li") => page.evaluate((selector) => [...document.querySelectorAll(`.sp-marked ${selector}`)].map((li) => ({ id: li.dataset.id, fit: li.querySelector(".sp-fit")?.textContent ?? null, kind: li.querySelector(".sp-fit")?.className ?? null })), selector);
+  await step("Aus der Merkliste", () => page.click(".sp-marked > summary"), (n) => document.querySelectorAll(".sp-marked[open] .sp-marked-list li").length === n, 2);
+  const chips = await page.evaluate(() => [...document.querySelectorAll(".sp-marked-chips button")].map((b) => `${b.firstChild.textContent} ${b.querySelector(".n")?.textContent}${b.getAttribute("aria-pressed") === "true" ? "*" : ""}`));
+  check(JSON.stringify(chips) === JSON.stringify(["Alle 3*", `${KANDIDATEN} 2`, `${LENA} 1`]), `the collections of „Aus der Merkliste“: ${JSON.stringify(chips)}`);
+  // How each sits in the plan, once the list is open: „passt", or what it overlaps with.
+  await page.waitForFunction((id) => document.querySelector(`.sp-marked li[data-id="${id}"] .sp-fit`), analysis, { timeout: 8000 }).catch(() => {});
+  const offered = await lis();
+  timings.fits = offered.map((li) => `${li.id}: ${li.fit}`).join(" | ");
+  check(same(offered.map((li) => li.id), [analysis, theory]), `what the winter offers: ${JSON.stringify(offered)}`);
+  check(offered.some((li) => /sp-fit (ok|warn)/.test(li.kind || "") && /^(passt|Überschneidet sich mit: .+)$/.test(li.fit || "")), `no module says how it sits in the plan: ${JSON.stringify(offered)}`);
+  // What the winter does not offer, folded, with why.
+  const fold = await page.evaluate(() => document.querySelector(".sp-marked .sp-marked-fold")?.textContent);
+  check(fold === "Im WiSe 2026/27 nicht angeboten · 1", `the fold: ${fold}`);
+  await step("what the winter does not offer", () => page.click(".sp-marked .sp-marked-fold"), (id) => document.querySelector(`.sp-marked li[data-id="${id}"] .sp-fit`)?.textContent === "nur SoSe", programming);
+  // The search, then a collection, then all of it at once.
+  await step("the search of „Aus der Merkliste“", () => page.fill(".sp-marked-search input", "theoret"), (id) => [...document.querySelectorAll(".sp-marked li")].map((li) => li.dataset.id).join() === id, theory);
+  await page.fill(".sp-marked-search input", "");
+  await step(`the collection ${KANDIDATEN}`, () => page.click(`.sp-marked-chips button:has-text("${KANDIDATEN}")`), () => document.querySelectorAll(".sp-marked li").length === 2 && !document.querySelector(".sp-marked .sp-marked-fold"));
+  check((await page.evaluate(() => document.querySelector(".sp-marked .sp-take")?.textContent)) === "2 gemerkte Module übernehmen", "no „2 gemerkte Module übernehmen“ for the collection");
+  await step("übernehmen", () => page.click(".sp-marked .sp-take"), ([key, ids]) => ids.every((id) => (localStorage.getItem(key) || "").includes(`m\t2026W\t${id}\t`)) && document.querySelector(".sp-marked-note")?.textContent.includes("2 gemerkte Module übernommen") && document.querySelector(".sp-marked > summary")?.textContent === "Aus der Merkliste (1)", [PLAN, [analysis, theory]]);
+  await step("Rückgängig the take", () => page.click(".sp-marked-note .mini"), ([key, ids]) => ids.every((id) => !(localStorage.getItem(key) || "").includes(`\t${id}\t`)) && document.querySelector(".sp-marked > summary")?.textContent === "Aus der Merkliste (3)", [PLAN, [analysis, theory]]);
+  const leaks = requests.filter((r) => [analysis, theory, programming].some((id) => r.includes(id)) || r.includes(KANDIDATEN) || r.includes(encodeURIComponent(KANDIDATEN)) || r.includes("Lenachen") || r.includes("theoret"));
+  check(leaks.length === 0, `the Stundenplan's Merkliste went into a request: ${leaks.slice(0, 3).join(" | ")}`);
+  await context.close();
+}
 
 // ---------- a phone: the three tabs side by side ----------
 {

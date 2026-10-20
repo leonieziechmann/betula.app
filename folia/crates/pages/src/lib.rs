@@ -1283,21 +1283,74 @@ pub struct OverlaySlot {
 /// and the plan holds other modules in it). Its lines are in the language of `plan`
 /// (`StudyplanData::locale`), whose semester name they carry.
 pub fn overlay(db: &dyn Database, plan: &StudyplanData, module_id: &str, selection: &Selection) -> Result<Overlay, DbError> {
+    let data = plan_with(db, plan, module_id)?;
+    let table = data.timetable(selection);
+    Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id, data.locale))
+}
+
+/// `plan` with the module `module_id` in it: its own three single-id queries (and the lists of
+/// the plan's program it is on).
+fn plan_with(db: &dyn Database, plan: &StudyplanData, module_id: &str) -> Result<StudyplanData, DbError> {
     let id = [module_id.to_string()];
     let semester = plan.key.key();
     let listed = match plan.program.as_deref() {
         Some(program) => queries::modules_choice_listed(db, &id, &semester, program)?,
         None => Vec::new(),
     };
-    let data = plan.with_module(
+    Ok(plan.with_module(
         module_id,
         queries::modules_schedule(db, &id, &semester)?,
         queries::modules_exams(db, &id, &semester)?,
         queries::modules_teaching_sws(db, &id)?,
         (queries::modules_choices(db, &id, &semester)?, listed),
-    );
-    let table = data.timetable(selection);
-    Ok(overlay_of(&table, &data.titles(), &data.slot_names(), &data.label, module_id, data.locale))
+    ))
+}
+
+/// How a module would sit in the plan of its semester: what its overlay says under its week
+/// (`Overlay::line`), and what the Stundenplan's „Aus der Merkliste" says beside each module
+/// (folia/design/merken/konzept.html, „Von überall": „mit „passt“ oder „überschneidet sich mit
+/// …“").
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Sits {
+    /// Nothing of it meets the plan.
+    Fits,
+    /// Only some options of its own choices are free: „Passt mit Übung Do 13:45".
+    FitsWith(String),
+    /// A hard clash: „Überschneidet sich mit: Analysis I (Di 09:15)".
+    Clashes(String),
+}
+
+/// How each of `ids` that `others` does not hold would sit in the plan of `key` that `others` make
+/// (named by `program`, as `selection` shows it), in their order; `None` for one without a Termin
+/// with a time to compare. One plan for all of them, then each module's own three queries, as a
+/// module's overlay asks them (`overlay`).
+pub fn fit_lines(db: &dyn Database, key: SemesterKey, others: &[String], program: Option<&str>, ids: &[String], selection: &Selection, locale: Locale) -> Result<Vec<(String, Option<Sits>)>, DbError> {
+    let plan = studyplan_in(db, key, others, program, locale)?;
+    let mut out = Vec::new();
+    for id in checked_ids(ids).into_iter().filter(|id| !others.contains(id)) {
+        let data = plan_with(db, &plan, &id)?;
+        let table = data.timetable(selection);
+        let titles = data.titles();
+        let own = |event: &Event| event.modules.contains(&id);
+        let title = |module: &str| titles.get(module).cloned().unwrap_or_else(|| module.to_string());
+        let sits = sits_of(&table, &own, &title, data.locale);
+        out.push((id.clone(), sits));
+    }
+    Ok(out)
+}
+
+/// How the module whose events `own` picks sits among the others of `t`; `None` without a shown
+/// Termin of its own with a time to compare.
+fn sits_of(t: &Timetable, own: &dyn Fn(&Event) -> bool, title: &dyn Fn(&str) -> String, locale: Locale) -> Option<Sits> {
+    let timed = t
+        .events
+        .iter()
+        .filter(|event| event.hidden.is_none() && own(event))
+        .any(|event| event.rows.iter().any(|row| row.hidden.is_none() && row.from.is_some() && held(row)));
+    timed.then(|| match clash_line(t, own, title, locale) {
+        Some(text) => Sits::Clashes(text),
+        None => choice_line(t, own, locale).map_or(Sits::Fits, Sits::FitsWith),
+    })
 }
 
 /// How many modules the clash line names before it counts the rest („+2").
@@ -1333,14 +1386,10 @@ fn overlay_of(t: &Timetable, titles: &BTreeMap<String, String>, names: &BTreeMap
     }
     planned.sort_by_key(|slot| (slot.day, slot.from, slot.to));
 
-    let timed = t
-        .events
-        .iter()
-        .filter(|event| event.hidden.is_none() && own(event))
-        .any(|event| event.rows.iter().any(|row| row.hidden.is_none() && row.from.is_some() && held(row)));
-    let line = timed.then(|| match clash_line(t, &own, &title, locale) {
-        Some(text) => (true, text),
-        None => (false, choice_line(t, &own, locale).unwrap_or_else(|| (folia_plans::i18n::texts(locale).fits_plan)(label))),
+    let line = sits_of(t, &own, &title, locale).map(|sits| match sits {
+        Sits::Clashes(text) => (true, text),
+        Sits::FitsWith(text) => (false, text),
+        Sits::Fits => (false, (folia_plans::i18n::texts(locale).fits_plan)(label)),
     });
 
     let mut warnings: Vec<&ExamWarning> =
@@ -2071,6 +2120,34 @@ mod studyplan_tests {
         let slots: BTreeSet<&str> = overlay.planned.iter().map(|slot| slot.module.as_str()).collect();
         assert_eq!(slots, fs1);
         assert!(overlay.planned.iter().all(|slot| slot.short == plan.slot_names()[&slot.module]));
+    }
+
+    /// The Stundenplan's „Aus der Merkliste": for each module the plan does not hold, what its
+    /// overlay says, against one plan for all of them, in their order; a planned module and an id
+    /// that is none are no question.
+    #[test]
+    fn fit_lines_say_what_each_overlay_says() {
+        let (db, is_pinned, key) = snapshot("fit_lines_say_what_each_overlay_says");
+        let selection = sachsendorf_hidden();
+        let asked = ids(&["11103", "12104", "11787", "1 OR 1=1", "11454"]);
+        let lines = fit_lines(&db, key, &ids(&FS1), None, &asked, &selection, Locale::De).unwrap();
+        assert_eq!(lines.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["11103", "11787", "11454"]);
+        let plan = studyplan(&db, key, &ids(&FS1), Locale::De).unwrap();
+        for (id, sits) in &lines {
+            let said = sits.clone().map(|sits| match sits {
+                Sits::Clashes(text) => (true, text),
+                Sits::FitsWith(text) => (false, text),
+                Sits::Fits => (false, (folia_plans::i18n::texts(Locale::De).fits_plan)(&plan.label)),
+            });
+            assert_eq!(said, overlay(&db, &plan, id, &selection).unwrap().line, "{id}");
+        }
+        if !is_pinned {
+            return;
+        }
+        // Analysis I meets 12107's Tuesday lecture; Grundlagen der Rechnernetze has no Termin.
+        let clash = "Überschneidet sich mit: Elektrische und elektronische Grundlagen der Informatik (Di 09:15)";
+        assert_eq!(lines[0].1, Some(Sits::Clashes(clash.to_string())));
+        assert_eq!(lines[2].1, None);
     }
 
     /// What avoids an exam overlap, as the pinned snapshot has it: the module's own earlier sitting
