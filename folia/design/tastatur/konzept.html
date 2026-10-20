@@ -8,6 +8,11 @@
      das für visuall impared people funktioniert"; then: „Ich will nur ein konzept gerne mit visualisierungen,
      so dass wir uns darüber unterhalten können, was gut funktioniert und was nicht. Und vlt ein paar prototypen,
      wie zum beispiel filter navigation."). Design only.
+     Second round the same day, after the owner tried the prototype (the section „Entschieden", quoted there):
+     the ring says the way out („Esc zum Verlassen"), the list and the module wear none; in the filters Tab
+     goes from section to section and the arrows everywhere, out only by Esc or a click; the knobs take
+     ← → and a field for a number; „Filter finden" marks, forgives typos as folia_search::fuzzy does and
+     scrolls when the typing rests; Tab goes round the content.
      What happens today was measured on canary (Folia 1.39.1) and betula.app (Folia 1.0.3) on 2026-10-20 and
      read from enhance.js, catalog.rs, combobox.rs, pick.rs, study/menu.rs, study/focus.rs, nav.rs.
      The prototype's 33 modules are the public catalog's search „daten" on betula.app that day (numbers,
@@ -17,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: the thesis and its six sentences, then the prototype to try at once, what is wrong today, the
+/* Layout: the thesis and its six sentences, then the prototype to try at once, what was decided, what is wrong today, the
    three layers, regions instead of modes, the filters, the list and the module, the other pages, where the
    keys are written, the commands, the same for everybody, the keyboard, what changes, deliberately not,
    the steps and the open questions. Tokens: Betula's own (light, then dark); three more for the layers. */
@@ -34,6 +39,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
   --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
   --warn: #a35a00; --warn-soft: color-mix(in srgb, #d97706 11%, var(--panel));
+  --hit: color-mix(in srgb, #e0a91b 30%, transparent); --sec-tint: color-mix(in srgb, var(--accent) 7%, transparent);
   --no: #c2410c; --no-soft: color-mix(in srgb, #c2410c 9%, var(--panel));
   --lay-1: oklch(.55 .045 255); --lay-3: oklch(.62 .12 68);
   --lay-1-soft: color-mix(in srgb, var(--lay-1) 13%, var(--panel));
@@ -58,6 +64,7 @@
     --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
     --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
     --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+    --hit: color-mix(in srgb, #f0c14b 26%, transparent); --sec-tint: color-mix(in srgb, var(--accent) 12%, transparent);
     --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
     --lay-1: oklch(.74 .05 255); --lay-3: oklch(.78 .11 75);
     --lay-1-soft: color-mix(in srgb, var(--lay-1) 16%, var(--panel));
@@ -80,6 +87,7 @@
   --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
   --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
   --warn: #f2b45c; --warn-soft: color-mix(in srgb, #f2b45c 12%, var(--panel));
+  --hit: color-mix(in srgb, #f0c14b 26%, transparent); --sec-tint: color-mix(in srgb, var(--accent) 12%, transparent);
   --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
   --lay-1: oklch(.74 .05 255); --lay-3: oklch(.78 .11 75);
   --lay-1-soft: color-mix(in srgb, var(--lay-1) 16%, var(--panel));
@@ -199,6 +207,17 @@ td .same { color: var(--text-3); }
 .ask p { margin-top: 6px; color: var(--text-2); font-size: 14px; max-width: 92ch; text-wrap: pretty; }
 .ask .rec { display: block; margin-top: 8px; padding: 9px 12px; border-radius: 9px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--text); font-size: 14px; text-wrap: pretty; }
 .ask .rec::before { content: "Empfehlung"; display: inline-block; margin-right: 10px; color: var(--accent-ink); font-size: 11px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.ask li[data-done] { background: transparent; }
+.ask .rec.done { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.ask .rec.done::before { content: "Entschieden"; color: inherit; opacity: .72; }
+
+/* What was decided on 20.10.: the words, and what became of them. */
+.decided { margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.decided li { padding: 14px 16px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-panel); min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.decided h3 { font-size: 15px; }
+.decided h3 small { margin-left: 6px; color: var(--text-3); font-size: 12.5px; font-weight: 600; }
+.decided q { display: block; quotes: "„" "“"; padding-left: 11px; border-left: 3px solid var(--accent-line); color: var(--text-2); font-size: 13.5px; text-wrap: pretty; }
+.decided p { color: var(--text); font-size: 14px; text-wrap: pretty; }
 .src { margin-top: 14px; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
 .src li { margin-top: 4px; }
 
@@ -256,25 +275,34 @@ td .same { color: var(--text-3); }
 .bx-head h2 { font-size: 13.5px; font-weight: 700; }
 .bx-ghost { margin-left: auto; border: 0; background: transparent; display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border-radius: var(--r-s); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
 .bx-ghost:hover { background: var(--row-hover); color: var(--text); }
-/* The region that has the keyboard: its ring, its name with its jump key, its keys at its foot. */
-.bx-region-tag { position: absolute; z-index: 6; top: -9px; left: 10px; display: none; align-items: center; gap: 6px; padding: 2px 8px 2px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; pointer-events: none; }
+/* A region away from the list: its ring, and on the ring the way back („Esc zum Verlassen“); the key
+   that leads in stands at the region's head. The list and the module beside it are home: no ring. */
+.bx-region-tag { position: absolute; z-index: 6; top: -9px; left: 10px; display: none; align-items: center; gap: 5px; padding: 2px 8px 2px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; pointer-events: none; transform-origin: left center; }
+.bx-region-tag .sep, .bx-endnote .sep { opacity: .65; }
 .bx-region-tag kbd { padding: 0 5px; background: color-mix(in srgb, var(--on-accent) 22%, transparent); color: inherit; box-shadow: none; font-size: 10.5px; }
 .bx[data-show-rings] [data-region][data-active] > .bx-region-tag { display: inline-flex; }
-.bx[data-show-rings] .bx-panel[data-active] { box-shadow: 0 0 0 2px var(--accent), var(--shadow-lift); }
+.bx[data-show-rings] .bx-panel[data-region="filter"][data-active] { box-shadow: 0 0 0 2px var(--accent), var(--shadow-lift); }
 .bx[data-show-rings] .bx-search[data-active] { box-shadow: 0 0 0 2px var(--accent); }
 .bx[data-show-rings] .bx-rail[data-active]::before { content: ""; position: absolute; inset: 4px 6px; border-radius: 12px; box-shadow: 0 0 0 2px var(--accent); pointer-events: none; }
 .bx-keys { display: none; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 7px 10px; border-top: 1px solid var(--line); background: var(--panel-2); border-radius: 0 0 var(--r-panel) var(--r-panel); color: var(--text-2); font-size: 11.5px; }
 .bx-keys span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .bx-keys kbd { padding: 1px 5px; font-size: 10.5px; }
-.bx[data-show-rings] .bx-panel[data-active] > .bx-keys { display: flex; }
-.bx-keys-float { position: absolute; z-index: 7; left: 0; top: calc(100% + 6px); display: none; flex-wrap: wrap; gap: 4px 10px; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); box-shadow: var(--shadow-pop); color: var(--text-2); font-size: 11.5px; white-space: nowrap; }
-.bx-keys-float span { display: inline-flex; align-items: center; gap: 4px; }
-.bx-keys-float kbd { padding: 1px 5px; font-size: 10.5px; }
-.bx[data-show-rings] [data-active] > .bx-keys-float { display: flex; }
-.bx-rail .bx-keys-float { left: calc(100% + 6px); top: 6px; flex-direction: column; align-items: flex-start; }
+.bx[data-show-rings] .bx-panel[data-region="filter"][data-active] > .bx-keys { display: flex; }
+/* At either end of the filters Tab and the arrows stop: the way out on the ring jumps, a note says it. */
+.bx-panel[data-bump] > .bx-region-tag { animation: bx-pulse .55s var(--ease); }
+@keyframes bx-pulse { 0%, 100% { transform: none; } 40% { transform: scale(1.14); } }
+.bx-panel[data-bump="end"] :focus-visible { animation: bx-nudge-down .32s var(--ease); }
+.bx-panel[data-bump="start"] :focus-visible { animation: bx-nudge-up .32s var(--ease); }
+@keyframes bx-nudge-down { 45% { transform: translateY(3px); } }
+@keyframes bx-nudge-up { 45% { transform: translateY(-3px); } }
+.bx-endnote { position: absolute; z-index: 6; left: 10px; right: 10px; bottom: 8px; width: fit-content; margin-inline: auto; display: none; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 5px; padding: 5px 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; font-weight: 650; text-align: center; box-shadow: var(--shadow-pop); pointer-events: none; }
+.bx-endnote[data-on] { display: inline-flex; }
+.bx-endnote kbd { padding: 0 5px; font-size: 10px; background: color-mix(in srgb, var(--on-invert) 16%, transparent); box-shadow: none; color: inherit; }
+@media (prefers-reduced-motion: reduce) { .bx-panel[data-bump] > .bx-region-tag, .bx-panel[data-bump] :focus-visible { animation: none; } }
 
 /* Filters, as Betula draws them. */
-.bx-fgroup { padding: 9px 10px 10px; border-radius: 8px; }
+.bx-fgroup { padding: 9px 10px 10px; border-radius: 8px; transition: background-color .15s var(--ease); }
+.bx-fgroup[data-current] { background: var(--sec-tint); }
 .bx-fgroup + .bx-fgroup { border-top: 1px solid var(--line); }
 .bx-flabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; font-size: 10.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); }
 .bx-flabel .legend { display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-weight: 550; font-size: 10.5px; }
@@ -311,9 +339,23 @@ td .same { color: var(--text-3); }
 .bx-more { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; background: transparent; padding: 2px 0; color: var(--text-3); font-size: 10.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .bx-more svg { transition: transform .15s var(--ease); }
 .bx-more[aria-expanded="true"] svg { transform: rotate(45deg); }
-.bx-find { position: absolute; z-index: 5; top: 50px; right: 10px; display: none; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 7px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; font-weight: 600; box-shadow: var(--shadow-pop); }
-.bx-find[data-on] { display: inline-flex; }
-.bx-find b { font-family: var(--mono); font-weight: 600; }
+/* „Filter finden“: what matches is marked as Betula's search marks a module, the target is outlined. */
+#bx-fscroll { overflow-x: hidden; border-top: 1px solid var(--line); }
+.bx-findbar { display: flex; align-items: center; gap: 7px; margin: 8px 10px; height: 32px; padding: 0 8px 0 9px; border-radius: var(--r-ctl); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-3); }
+.bx-findbar:focus-within { box-shadow: inset 0 0 0 2px var(--accent); }
+.bx-findbar input { flex: 1 1 auto; min-width: 0; height: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; outline: none; }
+.bx-findbar input::placeholder { color: var(--text-3); }
+.bx .bx-findbar input:focus-visible, .bx .bx-lpedit input:focus-visible { outline: none; }
+.bx-fq-note { flex: none; color: var(--text-3); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bx-fq-note[data-fuzzy] { color: var(--warn); }
+.bx-fgroup mark { background: var(--hit); color: inherit; border-radius: 3px; padding: 0 1px; margin: 0 -1px; }
+.bx-chip[data-state="with"] mark { background: color-mix(in srgb, #f0c14b 50%, transparent); }
+.bx-fgroup mark.fz { background: transparent; text-decoration: underline dotted 2px; text-decoration-color: var(--warn); text-underline-offset: 3px; }
+.bx-target:not(.bx-fgroup) { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.bx-fgroup.bx-target { box-shadow: inset 3px 0 0 var(--accent); }
+/* The field for a number above a knob of the credits. */
+.bx-lpedit { position: absolute; z-index: 7; bottom: calc(100% + 2px); display: flex; align-items: center; gap: 4px; transform: translateX(-50%); padding: 3px 7px 3px 3px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-pop), 0 0 0 2px var(--accent); color: var(--text-3); font-size: 11px; font-weight: 650; }
+.bx-lpedit input { width: 30px; height: 22px; border: 0; border-radius: 5px; background: var(--panel-2); color: var(--text); font: 600 13px/1 var(--mono); text-align: center; outline: none; }
 
 /* The list. */
 .bx-listhead { display: flex; align-items: baseline; gap: 8px; min-height: 44px; padding: 10px 12px 8px 14px; }
@@ -323,6 +365,14 @@ td .same { color: var(--text-3); }
 .bx-listhead .tags span { padding: 1px 7px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 11px; font-weight: 600; }
 .bx-cols { display: grid; grid-template-columns: minmax(0, 1fr) 92px 46px 82px 34px 30px; gap: 8px; padding: 6px 12px 6px 15px; border-block: 1px solid var(--line); background: var(--panel-2); color: var(--text-3); font-size: 10px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
 .bx-cols .r { text-align: right; }
+.bx-cols .bx-sorth { display: inline-flex; align-items: center; gap: 3px; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.bx-cols .bx-sorth.r { justify-content: flex-end; }
+.bx-sorth svg.i { width: 11px; height: 11px; opacity: 0; transition: transform .15s var(--ease); }
+.bx-sorth:hover { color: var(--text); }
+.bx-sorth:hover svg.i { opacity: .5; }
+.bx-sorth[data-dir="up"], .bx-sorth[data-dir="down"] { color: var(--text); }
+.bx-sorth[data-dir="up"] svg.i, .bx-sorth[data-dir="down"] svg.i { opacity: 1; }
+.bx-sorth[data-dir="down"] svg.i { transform: rotate(180deg); }
 .bx-rows { padding: 4px 6px 8px; outline: none; }
 .bx-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 92px 46px 82px 34px 30px; gap: 8px; align-items: center; min-height: 46px; padding: 5px 6px 5px 9px; border-radius: var(--r-row); cursor: pointer; }
 .bx-row:nth-child(even) { background: color-mix(in oklab, var(--text) 2%, var(--panel)); }
@@ -492,8 +542,8 @@ td .same { color: var(--text-3); }
 .vs > div.us { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
 .vs h3 { font-size: 15px; }
 .vs .points { margin-top: 10px; }
-.vimbar { margin-top: 12px; display: flex; align-items: center; gap: 0; border-radius: 6px; overflow: hidden; background: #1d2230; color: #c8d0e0; font: 500 12px/1 var(--mono); }
-.vimbar span { padding: 6px 8px; }
+.vimbar { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 0; border-radius: 6px; overflow: hidden; background: #1d2230; color: #c8d0e0; font: 500 12px/1 var(--mono); }
+.vimbar span { padding: 6px 8px; white-space: nowrap; }
 .vimbar .m { background: #2c3446; color: #8a93a8; }
 .vimbar .q { margin-left: auto; color: #6b7488; }
 .map { margin-top: 18px; display: grid; grid-template-columns: 44px 1.05fr 1.6fr 1.2fr; grid-template-rows: 40px 200px; gap: 8px; padding: 12px; border-radius: 14px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
@@ -512,7 +562,7 @@ td .same { color: var(--text-3); }
 .map .lines i:nth-child(2) { width: 80%; }
 .map .lines i:nth-child(3) { width: 60%; }
 .map .on { box-shadow: 0 0 0 2px var(--accent), var(--shadow-lift); }
-.map .on::after { content: "hat die Tastatur"; position: absolute; top: -9px; left: 10px; padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 10.5px; font-weight: 700; }
+.map .on::after { content: "Filter · Esc zum Verlassen"; position: absolute; top: -9px; left: 10px; padding: 1px 7px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 10.5px; font-weight: 700; }
 .map-cap { margin-top: 10px; color: var(--text-3); font-size: 13px; text-wrap: pretty; }
 
 /* Filter keys as a schema: Tab between groups, arrows inside. */
@@ -528,6 +578,28 @@ td .same { color: var(--text-3); }
 .fs-chips span.x { background: var(--no-soft); color: var(--no); text-decoration: line-through; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--no) 45%, transparent); }
 .fs-tab { position: absolute; left: -36px; top: 6px; display: grid; place-items: center; width: 26px; height: 20px; border-radius: 5px; background: var(--lay-1-soft); color: var(--lay-1); font: 600 9.5px/1 var(--mono); }
 .fs-arrows { position: absolute; right: 6px; top: 6px; color: var(--accent-ink); font: 600 11px/1 var(--mono); }
+.fs-panel.on { padding: 20px 46px 12px 44px; box-shadow: 0 0 0 2px var(--accent), var(--shadow-lift); }
+.fs-ring { position: absolute; top: -9px; left: 12px; display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 6px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.fs-ring kbd, .fs-end kbd { padding: 0 5px; font-size: 10px; background: color-mix(in srgb, var(--on-accent) 22%, transparent); color: inherit; box-shadow: none; }
+.fs-find { position: relative; display: flex; align-items: center; gap: 2px; margin-bottom: 6px; height: 28px; padding: 0 8px; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 2px var(--accent); font: 500 12.5px/1 var(--mono); color: var(--text); }
+.fs-find i { width: 1.5px; height: 14px; background: var(--text); }
+.fs-find .fs-cnt { margin-left: auto; color: var(--text-3); font-size: 11px; }
+.fs-group.cur { background: var(--sec-tint); box-shadow: 0 0 0 6px var(--sec-tint); border-radius: 3px; }
+.fs-group.cur > p { color: var(--accent-ink); }
+.fs-chips span.t { outline: 2px dashed var(--accent); outline-offset: 1px; }
+.fs-chips mark { background: var(--hit); color: inherit; border-radius: 3px; padding: 0 1px; margin: 0 -1px; }
+.fs-range { position: relative; height: 18px; margin: 0 8px; }
+.fs-range::before { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 3px; border-radius: 3px; background: var(--text); }
+.fs-range i { position: absolute; top: 2px; width: 15px; height: 15px; margin-left: -7.5px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 2px var(--text); }
+.fs-range i.a { left: 0; }
+.fs-range i.b { left: 100%; }
+.fs-end { display: flex; justify-content: center; margin-top: 8px; }
+.fs-end span { display: inline-block; text-align: center; padding: 3px 9px; border-radius: 7px; background: var(--invert); color: var(--on-invert); font-size: 11.5px; font-weight: 650; }
+.fs-vline { position: absolute; right: 18px; top: 74px; bottom: 64px; border-left: 2px dashed var(--accent-line); }
+.fs-vline::before, .fs-vline::after { position: absolute; left: -7px; color: var(--accent-ink); font: 700 12px/1 var(--mono); }
+.fs-vline::before { content: "↑"; top: -16px; }
+.fs-vline::after { content: "↓"; bottom: -16px; }
+.stop.lab { width: auto; padding: 0 8px; display: inline-grid; place-items: center; color: var(--text-2); font-size: 11px; font-weight: 650; }
 .fs-keys { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 14px; align-items: baseline; font-size: 14px; }
 .fs-keys dt { white-space: nowrap; }
 .fs-keys dd { color: var(--text-2); text-wrap: pretty; }
@@ -608,6 +680,7 @@ td .same { color: var(--text-3); }
 }
 @media (max-width: 700px) {
   .block { padding: 18px 16px; }
+  .decided { grid-template-columns: minmax(0, 1fr); }
   .finds, .cols2, .vs, .cols3 { grid-template-columns: minmax(0, 1fr); }
   .not, .steps { grid-template-columns: minmax(0, 1fr); }
   .ladder { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -637,32 +710,32 @@ td .same { color: var(--text-3); }
 <main class="page">
   <header class="intro">
     <div>
-      <p class="kicker">Betula · Tastatur · 20.10.2026</p>
+      <p class="kicker">Betula · Tastatur · 20.10.2026 · zweite Runde</p>
       <h1>Tasten wie überall, Bereiche statt Modi, und jede Taste steht dran</h1>
-      <p class="lead">Betula soll sich ganz mit der Tastatur bedienen lassen, ohne dass man vorher etwas lernen muss. Dieses Blatt schlägt dafür ein Schema vor, für alle gleich, auch mit Screenreader. Was man von anderen Programmen kennt, gilt auch hier. Was darüber hinausgeht, gehört zu einem Bereich, den man sieht: den Filtern, der Liste, dem Modul. Der Bereich mit der Tastatur trägt einen Rahmen und seinen Namen, und jede Taste ist der schnellere Weg zu einem Knopf, der da ist und an dem sie steht. Was keine eigene Taste hat, findet man mit seinem Namen in den Befehlen. Gleich darunter steht ein Katalog zum Ausprobieren.</p>
+      <p class="lead">Betula soll sich ganz mit der Tastatur bedienen lassen, ohne dass man vorher etwas lernen muss. Dieses Blatt schlägt dafür ein Schema vor, für alle gleich, auch mit Screenreader. Was man von anderen Programmen kennt, gilt auch hier. Was darüber hinausgeht, gehört zu einem Bereich, den man sieht: den Filtern, der Liste, dem Modul. Zu Hause ist man in der Liste; außerhalb zeigt ein Rahmen, wo man ist und wie man zurückkommt. Jede Taste ist der schnellere Weg zu einem Knopf, der da ist und an dem sie steht. Was keine eigene Taste hat, findet man mit seinem Namen in den Befehlen. Gleich darunter steht ein Katalog zum Ausprobieren.</p>
       <blockquote class="quote">„Standard nutzer vom PC/Mac, sollen so viel <b>intuitives oder allgemein gelerntes wissen mitnehmen können</b> … Für nicht absolut basic konzepte möchte ich die regel einbringen, dass es <b>ein visuelles element gibt, dass das verhalten und den shortcut verknüpft</b> … wenn man doch mal etwas öfter macht ist es sehr nice, wenn man sich darauf verlassen kann, dass man <b>dem pc nur sagt was zu tun ist</b> … Das können wir auf keinen fall so wie in vim umsetzen, weil man da <b>absolut kein feedback bekommt, in welchem modus man gerade ist</b> … Am liebsten hätte ich etwas, <b>was bei allen gleich funktioniert</b>, so dass die personen auch bei freunden am PC mal was machen können.“</blockquote>
-      <nav class="toc" aria-label="Inhalt"><a href="#probieren">Ausprobieren</a><a href="#heute">Heute</a><a href="#ebenen">Drei Ebenen</a><a href="#bereiche">Bereiche</a><a href="#filter">Filter</a><a href="#liste">Liste und Modul</a><a href="#seiten">Andere Seiten</a><a href="#sichtbar">Wo die Tasten stehen</a><a href="#befehle">Befehle</a><a href="#alle">Für alle</a><a href="#belegung">Belegung</a><a href="#aenderungen">Was sich ändert</a><a href="#nicht">Bewusst nicht</a><a href="#schritte">Schritte</a><a href="#offen">Offen</a></nav>
+      <nav class="toc" aria-label="Inhalt"><a href="#probieren">Ausprobieren</a><a href="#entschieden">Entschieden</a><a href="#heute">Heute</a><a href="#ebenen">Drei Ebenen</a><a href="#bereiche">Bereiche</a><a href="#filter">Filter</a><a href="#liste">Liste und Modul</a><a href="#seiten">Andere Seiten</a><a href="#sichtbar">Wo die Tasten stehen</a><a href="#befehle">Befehle</a><a href="#alle">Für alle</a><a href="#belegung">Belegung</a><a href="#aenderungen">Was sich ändert</a><a href="#nicht">Bewusst nicht</a><a href="#schritte">Schritte</a><a href="#offen">Offen</a></nav>
     </div>
     <aside class="rules" aria-labelledby="short-title">
       <p class="kicker" id="short-title">In sechs Sätzen</p>
       <ol>
         <li><span><b>Was man kennt, gilt.</b> Tab, die Pfeile, Enter, die Leertaste, Esc, Strg C und Strg Z tun, was sie überall tun. Betula nimmt dem Browser keine Taste weg.</span></li>
-        <li><span><b>Tab springt, Pfeile wählen.</b> Eine Filtergruppe, die Liste, eine Leiste von Knöpfen ist je ein Halt für Tab; darin wählen die Pfeile. Bis zur ersten Zeile sind es 18 Halte statt 45, und aus der Liste kommt man wieder heraus.</span></li>
-        <li><span><b>Ein Modus ist ein Ort, den man sieht.</b> Filter, Liste und Modul sind Bereiche. Der Bereich mit der Tastatur trägt einen Rahmen und seinen Namen mit seiner Taste. <kbd>F</kbd> springt in die Filter, <kbd>/</kbd> in die Suche, <kbd>Esc</kbd> immer zurück in die Liste.</span></li>
-        <li><span><b>Jede Taste hat ihren Knopf.</b> <kbd>M</kbd> merkt, <kbd>P</kbd> plant ein, was gerade den Fokus hat, und mit Umschalt öffnet dieselbe Taste den Pfeil daneben: <kbd>⇧M</kbd> Sammlung und Notiz, <kbd>⇧P</kbd> das Semester. In den Filtern findet Tippen einen Filter. Abschalten kann man die Buchstaben auch.</span></li>
+        <li><span><b>Tab springt, die Pfeile gehen überallhin.</b> Ein Abschnitt der Filter, die Liste, eine Leiste von Knöpfen ist je ein Halt für Tab; die Pfeile gehen von Element zu Element, in den Filtern auch über die Abschnitte hinweg. Tab bleibt im Bereich: In den Filtern ist unten Schluss, im Inhalt geht es rundherum.</span></li>
+        <li><span><b>Ein Modus ist ein Ort, den man sieht.</b> Zu Hause ist man in der Liste, ohne Rahmen. <kbd>F</kbd> springt in die Filter, <kbd>/</kbd> in die Suche; dort trägt der Bereich einen Rahmen, und der sagt, wie man zurückkommt: „Esc zum Verlassen“. <kbd>Esc</kbd> führt immer zurück in die Liste.</span></li>
+        <li><span><b>Jede Taste hat ihren Knopf.</b> <kbd>M</kbd> merkt, <kbd>P</kbd> plant ein, was gerade den Fokus hat, und mit Umschalt öffnet dieselbe Taste den Pfeil daneben: <kbd>⇧M</kbd> Sammlung und Notiz, <kbd>⇧P</kbd> das Semester. In den Filtern findet Tippen einen Filter oder einen Abschnitt, auch mit Tippfehler, und Enter setzt ihn. Abschalten kann man die Buchstaben auch.</span></li>
         <li><span><b>Was keine Taste hat, hat einen Namen.</b> „Befehle“ im Suchfeld oder <kbd>Strg</kbd> <kbd>K</kbd>: ein Modul, einen Filter, eine Seite oder eine Aktion tippen, Enter. Jede Zeile zeigt ihre Taste, so lernt man sie nebenbei. <kbd>?</kbd> zeigt alle Tasten des Ortes.</span></li>
         <li><span><b>Für alle gleich.</b> Es ist das Schema, das Screenreader von guten Seiten kennen: Bereiche als Landmarken, Gruppen mit Namen, Pfeile in Gruppen, und jede Änderung wird angesagt. Kein zweiter Modus, keine Einstellung, auch nicht am Rechner einer Freundin.</span></li>
       </ol>
-      <p class="who">Ein Konzept zum Besprechen; gebaut ist davon nichts. Es folgt der Regel vom 20.10., dass keine Aktion nur über eine Taste geht (CLAUDE.md), und übernimmt dafür den Knopf mit Pfeil aus „Jede Taste hat einen Knopf“ (<code>folia/design/tasten</code>). Was heute ist, wurde am 20.10. auf Canary (Folia 1.39.1 und 1.39.2) und betula.app (Folia 1.0.3) gemessen. Elf Fragen sind offen, jede mit einer Empfehlung (<a href="#offen">Offen</a>).</p>
+      <p class="who">Ein Konzept zum Besprechen; gebaut ist davon nichts. Es folgt der Regel vom 20.10., dass keine Aktion nur über eine Taste geht (CLAUDE.md), und übernimmt dafür den Knopf mit Pfeil aus „Jede Taste hat einen Knopf“ (<code>folia/design/tasten</code>). Was heute ist, wurde am 20.10. auf Canary (Folia 1.39.1 und 1.39.2) und betula.app (Folia 1.0.3) gemessen. Die zweite Runde nimmt die Rückmeldung zum Prototyp vom selben Tag auf (<a href="#entschieden">Entschieden</a>). Zehn Fragen sind offen, jede mit einer Empfehlung, zwei sind entschieden (<a href="#offen">Offen</a>).</p>
     </aside>
   </header>
 
   <section class="block" id="probieren" aria-labelledby="try-title">
     <h2 id="try-title">Zum Ausprobieren: der Katalog mit der Tastatur</h2>
-    <p class="lead">Ein Katalog wie in Betula, mit den 33 Modulen, die die Suche „daten“ am 20.10. findet, und ihren echten Filterwerten. Klick hinein oder geh mit <kbd>Tab</kbd> hinein; dann geht alles mit der Tastatur. Der Rahmen zeigt, welcher Bereich die Tastatur hat, die Leiste an seinem Fuß, was die Tasten dort tun.</p>
+    <p class="lead">Ein Katalog wie in Betula, mit den 33 Modulen, die die Suche „daten“ am 20.10. findet, und ihren echten Filterwerten. Klick in die Liste; dann geht alles mit der Tastatur. Die Liste ist das Zuhause und trägt keinen Rahmen; außerhalb zeigt ein Rahmen, wo man ist und wie man zurückkommt. Zweite Runde, nach dem Ausprobieren am 20.10.: was sich geändert hat, steht unter <a href="#entschieden">Entschieden</a>.</p>
     <ul class="points">
-      <li><b>In die Filter:</b> <kbd>F</kbd>, dann <kbd>Tab</kbd> von Gruppe zu Gruppe, die Pfeile in der Gruppe, die <kbd>Leertaste</kbd> schaltet mit, ohne, aus. Tippen findet einen Filter: <kbd>k</kbd><kbd>l</kbd> springt zu „Klausur“. <kbd>Esc</kbd> führt zurück in die Liste, die Zeile von vorher hat wieder die Tastatur.</li>
-      <li><b>In der Liste:</b> <kbd>↑</kbd> <kbd>↓</kbd> wählen, <kbd>Enter</kbd> öffnet daneben und ein zweites Mal im Vollbild, <kbd>M</kbd> merkt und <kbd>⇧</kbd> <kbd>M</kbd> öffnet „Sammlung und Notiz“, <kbd>P</kbd> plant ein und <kbd>⇧</kbd> <kbd>P</kbd> wählt das Semester, <kbd>Umschalt</kbd> <kbd>F10</kbd> öffnet das Menü der Zeile. Jede dieser Tasten hat ihren Knopf: das Lesezeichen, „Merken“ und „Einplanen“ mit ihrem Pfeil am Modul.</li>
+      <li><b>In die Filter:</b> <kbd>F</kbd>. Tippen findet einen Filter oder einen Abschnitt, auch mit Tippfehler: <kbd>e</kbd> <kbd>n</kbd> <kbd>Enter</kbd> setzt „Englisch“, <kbd>k</kbd> <kbd>l</kbd> <kbd>⇧</kbd> <kbd>Enter</kbd> „ohne Klausur“. <kbd>Tab</kbd> springt von Abschnitt zu Abschnitt, die Pfeile gehen überallhin, die <kbd>Leertaste</kbd> schaltet mit, ohne, aus. Am Regler ändern <kbd>←</kbd> <kbd>→</kbd> den Wert, oder man tippt die Zahl. Hinaus führt nur <kbd>Esc</kbd> (oder ein Klick in die Liste); unten ist für Tab Schluss.</li>
+      <li><b>In der Liste:</b> <kbd>↑</kbd> <kbd>↓</kbd> wählen, <kbd>Enter</kbd> öffnet daneben und ein zweites Mal im Vollbild, <kbd>M</kbd> merkt und <kbd>⇧</kbd> <kbd>M</kbd> öffnet „Sammlung und Notiz“, <kbd>P</kbd> plant ein und <kbd>⇧</kbd> <kbd>P</kbd> wählt das Semester, <kbd>Umschalt</kbd> <kbd>F10</kbd> öffnet das Menü der Zeile. <kbd>Tab</kbd> geht rundherum: Spaltenköpfe, Liste, das Modul daneben, und wieder von vorn.</li>
       <li><b>Überall:</b> <kbd>Strg</kbd> <kbd>K</kbd> (am Mac <kbd>⌘</kbd> <kbd>K</kbd>) öffnet die Befehle, wie der Knopf „Befehle“ im Suchfeld, <kbd>/</kbd> das Suchfeld, <kbd>?</kbd> alle Tasten (der Knopf mit der Tastatur unten in der Leiste links), <kbd>Strg</kbd> <kbd>F6</kbd> den nächsten Bereich. Wer die Tasten der Navigation hält (<kbd>Alt</kbd> unter Windows, <kbd>⌃</kbd> <kbd>⌥</kbd> am Mac, <kbd>Strg</kbd> <kbd>Alt</kbd> unter Linux), sieht alle Tasten auf dem Bildschirm.</li>
     </ul>
     <div class="try-head">
@@ -672,7 +745,7 @@ td .same { color: var(--text-3); }
       <span class="opt">Tasten wie auf <span class="seg" role="group" aria-label="Betriebssystem"><button type="button" data-set="os" data-val="win" aria-pressed="false">Windows</button><button type="button" data-set="os" data-val="mac" aria-pressed="false">Mac</button><button type="button" data-set="os" data-val="linux" aria-pressed="false">Linux</button></span></span>
       <span class="seg"><button type="button" id="bx-show-tips" aria-pressed="false">Alle Tasten zeigen</button></span>
     </div>
-    <p class="try-small">Der Prototyp ist für einen Rechner mit Tastatur gebaut. Auf einem schmalen Bildschirm lässt er sich zur Seite schieben.</p>
+    <p class="try-small">Der Prototyp ist für einen Rechner mit Tastatur gebaut; auf einem schmalen Bildschirm lässt er sich zur Seite schieben. Tab bleibt darin wie im Konzept in seinem Bereich; aus dem Prototyp hinaus geht es mit der Maus oder mit <kbd>Strg</kbd> <kbd>F6</kbd> über den letzten Bereich hinaus.</p>
     <div class="try-scroll">
       <div class="bx" id="bx" role="group" aria-label="Prototyp: Betulas Katalog">
         <nav class="bx-rail" data-region="nav" aria-label="Navigation">
@@ -686,7 +759,6 @@ td .same { color: var(--text-3); }
             <button type="button" class="bx-tab" data-tab="plan" aria-label="Stundenplan" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></button>
           </div>
           <div class="bx-railend"><button type="button" class="bx-tab" id="bx-help-rail" aria-label="Tasten" title="Alle Tasten (?)" tabindex="-1"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button></div>
-          <div class="bx-keys-float" aria-hidden="true"></div>
         </nav>
         <div class="bx-top">
           <p class="bx-pagetitle" id="bx-pagetitle">Module</p>
@@ -696,34 +768,30 @@ td .same { color: var(--text-3); }
             <input id="bx-q" type="text" placeholder="Modul, Nummer oder Thema suchen" aria-label="Modul, Nummer oder Thema suchen" autocomplete="off" spellcheck="false">
             <kbd id="bx-q-kbd">/</kbd>
             <button type="button" class="bx-cmdbtn" id="bx-cmd-btn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 8 4 4-4 4M12 16h7"/></svg>Befehle<kbd id="bx-cmd-kbd">Strg K</kbd></button>
-            <div class="bx-keys-float" aria-hidden="true"></div>
           </div>
         </div>
         <div class="bx-main">
-          <section class="bx-panel" data-region="filter" id="bx-filter" aria-labelledby="bx-f-title">
-            <span class="bx-region-tag">Filter <kbd>F</kbd></span>
-            <div class="bx-head"><h3 class="bx-h" id="bx-f-title">Filter</h3><kbd class="bx-jump" title="F springt hierher">F</kbd><span class="bx-find" id="bx-find" aria-hidden="true"></span><button type="button" class="bx-ghost" id="bx-reset" data-ctl="reset"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Zurücksetzen</button></div>
+          <section class="bx-panel" data-region="filter" id="bx-filter" aria-labelledby="bx-f-title" aria-describedby="bx-f-desc">
+            <span class="bx-region-tag" id="bx-tag-filter"></span>
+            <span class="vh" id="bx-f-desc">Escape führt zur Liste</span>
+            <div class="bx-head"><h3 class="bx-h" id="bx-f-title">Filter</h3><kbd class="bx-jump" title="F springt hierher">F</kbd><button type="button" class="bx-ghost" id="bx-reset" data-ctl="reset"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Zurücksetzen</button></div>
+            <div class="bx-findbar"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="bx-fq" type="text" placeholder="Filter finden: einfach tippen" aria-label="Filter finden" autocomplete="off" spellcheck="false"><span class="bx-fq-note" id="bx-fq-note" aria-hidden="true"></span></div>
             <div class="bx-scroll" id="bx-fscroll"></div>
+            <div class="bx-endnote" id="bx-endnote" aria-hidden="true"></div>
             <div class="bx-keys" aria-hidden="true"></div>
           </section>
           <section class="bx-panel bx-listp-wrap" data-region="list" id="bx-listp" aria-labelledby="bx-l-title">
-            <span class="bx-region-tag">Module <kbd>Esc</kbd></span>
             <div class="bx-listhead"><span class="n" id="bx-count">33</span><span class="w" id="bx-l-title">Module</span><span class="tags" id="bx-tags"></span><span class="bx-legend" aria-hidden="true"><kbd>↑</kbd><kbd>↓</kbd> wählen <kbd>Enter</kbd> öffnen <kbd>M</kbd> merken</span></div>
-            <div class="bx-cols" aria-hidden="true"><span>Modul</span><span>Prüfung</span><span class="r">LP</span><span>Turnus</span><span>Spr.</span><span></span></div>
+            <div class="bx-cols" id="bx-sort" role="toolbar" aria-label="Sortieren"><button type="button" class="bx-sorth" data-sort="t" tabindex="0">Modul<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button><span aria-hidden="true">Prüfung</span><button type="button" class="bx-sorth r" data-sort="lp" tabindex="-1">LP<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button><span aria-hidden="true">Turnus</span><span aria-hidden="true">Spr.</span><span aria-hidden="true"></span></div>
             <div class="bx-scroll"><div class="bx-rows" id="bx-rows" role="listbox" aria-label="Module" tabindex="-1"></div></div>
             <div class="bx-stub" id="bx-full" hidden tabindex="-1"></div>
-            <div class="bx-keys" aria-hidden="true"></div>
           </section>
           <section class="bx-panel bx-stubpage" data-region="list" id="bx-stub" hidden tabindex="-1" aria-label="Seite">
-            <span class="bx-region-tag">Inhalt <kbd>Esc</kbd></span>
             <div id="bx-stub-body"></div>
-            <div class="bx-keys" aria-hidden="true"></div>
           </section>
           <section class="bx-panel bx-detail" data-region="detail" id="bx-detail" hidden aria-label="Modul">
-            <span class="bx-region-tag">Modul</span>
             <div class="bx-hero"><div class="ids" id="bx-d-ids"></div><h3 id="bx-d-title"></h3><div class="bx-badges" id="bx-d-badges"></div><div class="bx-tools" id="bx-d-tools" role="toolbar" aria-label="Aktionen"></div></div>
             <div class="bx-scroll"><div class="bx-body" id="bx-dbody" tabindex="0" role="document" aria-label="Beschreibung"></div></div>
-            <div class="bx-keys" aria-hidden="true"></div>
           </section>
         </div>
         <div class="bx-toast" id="bx-toast"></div>
@@ -749,19 +817,40 @@ td .same { color: var(--text-3); }
   </section>
 
 
+  <section class="block" id="entschieden" aria-labelledby="decided-title">
+    <h2 id="decided-title">Entschieden am 20.10.</h2>
+    <p class="lead">Nach dem Ausprobieren kam am 20.10. eine Rückmeldung zu den Filtern und zum Inhalt. Was daraus geworden ist, ist oben im Prototyp eingebaut und in den Abschnitten darunter nachgezogen.</p>
+    <ol class="decided">
+      <li><h3><kbd>F</kbd> führt in die Filter <small>Frage 1</small></h3><q>ich liebe den Ansatz, dass man mit F den filter öffnet und dass dieser dann markiert ist. Das erklärt sehr gut, dass man sich jetzt im Filterbefindet.</q><p><kbd>F</kbd> bleibt die Taste für die Filter, das Vollbild bekommt <kbd>V</kbd>.</p></li>
+      <li><h3>Der Rahmen nennt den Ausgang</h3><q>Aber ich würde das noch so anpassen, dass dann bei der outline nicht steht mit welcher taste das geöffnet wurde, sondern wie man da wieder raus kommt. Also esc zum verlassen oder so.</q><p>Auf dem Rahmen steht „Filter · Esc zum Verlassen“, ebenso an der Suche und der Navigation. „F“ steht weiter am Kopf der Filter.</p></li>
+      <li><h3>Kein Rahmen um das Zuhause <small>Frage 3, zum Teil</small></h3><q>Hier finde ich die Outline ehrlicher weise störend. Denn es erzeugt das Gefühl von etwas temporären und ich habe mehrfach versucht das zu schließen per esc. Die Lösung dafür ist einfach, dass der Content modus der default ist, welcher nicht extra hervorgehoben ist.</q><p>Liste und Modul tragen keinen Rahmen und keinen Namen mehr; die Zeile mit der Tastatur hat ihren Fokusring wie jedes Element.</p></li>
+      <li><h3>Tab für Abschnitte, Pfeile für alles</h3><q>Sich schnell mit tab zwischen sections bewegen, welche dann auch insgesamt dezent hervorgehoben werden und dann aber man noch voll mit den Pfeiltasten navigieren kann.</q><p>Tab springt an den Anfang des nächsten Abschnitts, und der Abschnitt mit der Tastatur ist leicht unterlegt. Die Pfeile gehen von Filter zu Filter durch das ganze Panel.</p></li>
+      <li><h3>Aus den Filtern nur mit Esc oder Klick</h3><q>Aktuell ist das ja so, dass man per tab im content landen kann das ist total desorientierend. Dann lieber unten stuck sein.</q><p>Oben und unten ist für Tab und die Pfeile Schluss. Der Ausgang auf dem Rahmen springt kurz, eine Notiz sagt „Ende der Filter · Esc zum Verlassen“, ein Screenreader hört es einmal.</p></li>
+      <li><h3>Der Regler</h3><q>links und rechts für die Einstellung verwenden kann und hoch und runter für den change zwischen den handles und den nächsten/vorherigen Elementen. Dazu sollte es der slider auch unterstützen einfach zahlen per Tastatur einzutragen, so dass sich darüber ein kleines input Feld öffnet.</q><p><kbd>←</kbd> <kbd>→</kbd> ändern den Wert, <kbd>↑</kbd> <kbd>↓</kbd> gehen vom unteren zum oberen Regler und weiter, eine Ziffer öffnet ein Feld darüber. Kommt ein Regler über den anderen, nimmt er ihn mit, statt anzuhalten.</p></li>
+      <li><h3>Optionen: <kbd>←</kbd> <kbd>→</kbd> wählen, <kbd>↑</kbd> <kbd>↓</kbd> weiter</h3><q>Bei den Auswahlen wo man (drei/mehrere) optionen hat finde ich das pattern links rechts option auswählen und hoch und runter für prev/next element super.</q><p>So bei „Dauer“, und überall, wo eine Optionsgruppe in einer Leiste steht.</p></li>
+      <li><h3>Tippen findet, in einem Feld <small>Frage 6</small></h3><q>Geniale idee aber die UX ist noch schlecht umgesetzte. Als erstes sollte markiert, wie bei der suche was jetzt genau bei den Feldern gefunden wurde. […] spelling correction ähnlich zur suche. Zeige das aber nur an, wenn es keinen besseren match gibt. […] mit scroll animation […] Aber wende debouncing an</q><p>Das Feld „Filter finden“ oben im Panel: markiert wie die Suche, <kbd>⌫</kbd> und <kbd>Strg</kbd> <kbd>⌫</kbd> wie in jedem Feld, findet auch Abschnitte, verzeiht Tippfehler wie die Suche, aber nur ohne genauen Treffer, und rollt den Treffer mit 20 % Abstand ins Bild, wenn das Tippen ruht.</p></li>
+      <li><h3>„Weitere Filter“ gehen von selbst auf</h3><q>Weitere filter automatish ausklappen, wenn man weiter tab/pfeiltasten drückt. Außerdem bei der a-z search auch mit darin suchen.</q><p>Tab, <kbd>↓</kbd> oder <kbd>→</kbd> über „Weitere Filter“ hinaus klappen sie auf, ein Treffer darin auch.</p></li>
+      <li><h3>Tab im Inhalt rundherum</h3><q>Tab für focus auf side pane finde ich gut aber da sollte es cyclen, so dass man mit n mal tab dann wieder beim content landet. So dass man nicht shift tab drücken muss.</q><p>Spaltenköpfe, Liste, die Knöpfe und der Text des Moduls, und wieder von vorn; in Betula gehört der Fuß der Seite dazu.</p></li>
+    </ol>
+  </section>
+
   <section class="block" id="heute" aria-labelledby="today-title">
     <h2 id="today-title">Was heute schiefgeht</h2>
     <p class="lead">Betula kann schon einiges mit der Tastatur. Auf betula.app gibt es <kbd>↑</kbd> <kbd>↓</kbd> und <kbd>Enter</kbd> in der Liste, <kbd>M</kbd>, <kbd>P</kbd>, <kbd>F</kbd> und <kbd>Esc</kbd>, dazu <kbd>Strg</kbd> <kbd>K</kbd> und <kbd>/</kbd> für die Suche. Canary hat <kbd>S</kbd>, <kbd>N</kbd>, die Tasten der Navigation, Menüs mit Pfeilen und Auswählen mit <kbd>Umschalt</kbd> dazubekommen. Ein Ganzes ist es noch nicht. Gemessen am 20.10. auf Canary, im Katalog:</p>
-    <figure class="strip" aria-label="Halte von Tab bis zur ersten Zeile, heute und im Konzept">
+    <figure class="strip" aria-label="Halte von Tab, heute und im Konzept">
       <div class="strip-row">
         <p><b>Heute: 45 Tabs</b>bis zur ersten Zeile, und aus der Liste nicht heraus</p>
         <div class="stops"><span class="stop " title="Zum Inhalt springen"></span><span class="stop nav" title="Betula, zur Startseite"></span><span class="stop nav" title="Start"></span><span class="stop nav" title="Module"></span><span class="stop nav" title="Studium"></span><span class="stop nav" title="Merkliste"></span><span class="stop nav" title="Stundenplan"></span><span class="stop nav" title="Profil"></span><span class="stop nav" title="Hell oder dunkel"></span><span class="stop search" title="Suchfeld"></span><span class="stop filter" title="Zurücksetzen"></span><span class="stop filter" title="Studiengang"></span><span class="stop filter" title="Bestätigt"></span><span class="stop filter" title="Passt in meinen Stundenplan"></span><span class="stop filter" title="Winter"></span><span class="stop filter" title="Sommer"></span><span class="stop filter" title="Unregelmäßig"></span><span class="stop filter" title="Vorlesung"></span><span class="stop filter" title="Übung"></span><span class="stop filter" title="Seminar"></span><span class="stop filter" title="Praktikum"></span><span class="stop filter" title="Projekt"></span><span class="stop filter" title="Exkursion"></span><span class="stop filter" title="Klausur"></span><span class="stop filter" title="Mündlich"></span><span class="stop filter" title="Hausarbeit"></span><span class="stop filter" title="Vortrag"></span><span class="stop filter" title="Projekt"></span><span class="stop filter" title="Praktisch"></span><span class="stop filter" title="LP mindestens (Regler)"></span><span class="stop filter" title="LP höchstens (Regler)"></span><span class="stop filter" title="LP mindestens (Feld)"></span><span class="stop filter" title="LP höchstens (Feld)"></span><span class="stop filter" title="Deutsch"></span><span class="stop filter" title="Englisch"></span><span class="stop filter" title="Benotet"></span><span class="stop filter" title="Begrenzte Plätze"></span><span class="stop filter" title="FÜS-Liste"></span><span class="stop filter" title="Gemerkt"></span><span class="stop filter" title="Weitere Filter"></span><span class="stop " title="Griff der Breite"></span><span class="stop " title="Spaltenkopf Modul"></span><span class="stop " title="Spaltenkopf LP"></span><span class="stop " title="Spaltenkopf Termine"></span><span class="stop list">Zeile 1</span><span class="stop rows"></span><span class="stop out">nach 600 Tabs noch in der Liste</span></div>
       </div>
       <div class="strip-row">
-        <p><b>Konzept: 18 Tabs</b>oder <kbd>F</kbd> und <kbd>Esc</kbd>, je eine Taste</p>
-        <div class="stops"><span class="stop " title="Zum Inhalt springen"></span><span class="stop nav" title="Navigation (↑ ↓ wählen den Tab, dazu Profil, Licht, Tasten)"></span><span class="stop search" title="Suchfeld"></span><span class="stop search" title="Befehle"></span><span class="stop filter" title="Zurücksetzen"></span><span class="stop filter" title="Studiengang"></span><span class="stop filter" title="Termine"></span><span class="stop filter" title="Angeboten im"></span><span class="stop filter" title="Lehrform"></span><span class="stop filter" title="Prüfung"></span><span class="stop filter" title="LP mindestens"></span><span class="stop filter" title="LP höchstens"></span><span class="stop filter" title="Sprache"></span><span class="stop filter" title="Eigenschaften"></span><span class="stop filter" title="Weitere Filter"></span><span class="stop " title="Griff der Breite"></span><span class="stop " title="Spaltenköpfe (← → wählt, Enter sortiert)"></span><span class="stop list">Liste</span><span class="stop ok">Tab: das Modul daneben</span><span class="stop ok">F und Esc: je 1 Taste</span></div>
+        <p><b>Konzept: 17 Tabs von oben</b>durch Navigation, Suche und Filter, dann ist Schluss; in die Liste führt <kbd>Esc</kbd></p>
+        <div class="stops"><span class="stop " title="Zum Inhalt springen (Enter: in die Liste)"></span><span class="stop nav" title="Navigation (↑ ↓ wählen den Tab, dazu Profil, Licht, Tasten)"></span><span class="stop search" title="Suchfeld"></span><span class="stop search" title="Befehle"></span><span class="stop filter" title="Zurücksetzen"></span><span class="stop filter" title="Filter finden"></span><span class="stop filter" title="Studiengang"></span><span class="stop filter" title="Termine"></span><span class="stop filter" title="Angeboten im"></span><span class="stop filter" title="Lehrform"></span><span class="stop filter" title="Prüfung"></span><span class="stop filter" title="Leistungspunkte"></span><span class="stop filter" title="Sprache"></span><span class="stop filter" title="Eigenschaften"></span><span class="stop filter" title="Weitere Filter (gehen von selbst auf)"></span><span class="stop filter" title="Dauer"></span><span class="stop filter" title="Standort"></span><span class="stop ok">Schluss · Esc führt in die Liste</span></div>
       </div>
-      <figcaption class="strip-key"><span><i class="stop"></i>Sprunglink, Griff der Breite, Spaltenköpfe</span><span><i class="stop nav"></i>Navigation</span><span><i class="stop search"></i>Suche</span><span><i class="stop filter"></i>Filter</span></figcaption>
+      <div class="strip-row">
+        <p><b>Im Inhalt: rundherum</b>nach fünf Tabs wieder an derselben Stelle</p>
+        <div class="stops"><span class="stop lab">Spaltenköpfe</span><span class="stop list">Liste</span><span class="stop lab">Modul: Knöpfe</span><span class="stop lab">Modul: Text</span><span class="stop lab">Fuß der Seite</span><span class="stop ok">↺ wieder die Spaltenköpfe</span></div>
+      </div>
+      <figcaption class="strip-key"><span><i class="stop"></i>Sprunglink, Griff der Breite, Spaltenköpfe, das Modul, der Fuß</span><span><i class="stop nav"></i>Navigation</span><span><i class="stop search"></i>Suche</span><span><i class="stop filter"></i>Filter</span></figcaption>
     </figure>
     <ul class="finds">
       <li><b>Tab hält an jedem Chip.</b> Von den 45 Tabs bis zur ersten Zeile gehen 8 an die Navigation und 30 an die Filter: jeder der 23 Chips einzeln, dazu die vier Felder der Leistungspunkte, „Studiengang“, „Zurücksetzen“ und „Weitere Filter“.</li>
@@ -783,10 +872,10 @@ td .same { color: var(--text-3); }
       <div class="layer l1">
         <p class="n"><span>1</span><span class="kicker">Für alle, ohne Lernen</span></p>
         <h3>Wie überall</h3>
-        <p class="does">Tab geht von <b>Halt zu Halt</b>, die Pfeile <b>in einer Gruppe</b>, Enter öffnet, die Leertaste schaltet, Esc geht einen Schritt zurück. So bedient man jede gute Seite, auch mit Screenreader.</p>
+        <p class="does">Tab geht von <b>Halt zu Halt</b>, die Pfeile <b>von Element zu Element</b>, Enter öffnet, die Leertaste schaltet, Esc geht einen Schritt zurück. So bedient man jede gute Seite, auch mit Screenreader.</p>
         <ul>
           <li><span><kbd>Tab</kbd> <kbd>Umschalt</kbd> <kbd>Tab</kbd></span><span>nächster, voriger Halt</span></li>
-          <li><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></span><span>in der Gruppe wählen</span></li>
+          <li><span><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></span><span>wählen, in den Filtern überallhin</span></li>
           <li><span><kbd>Enter</kbd> <kbd>Leertaste</kbd></span><span>öffnen, schalten</span></li>
           <li><span><kbd>Esc</kbd></span><span>einen Schritt zurück</span></li>
           <li><span><kbd>Strg</kbd> <kbd>C</kbd> <kbd>Z</kbd> <kbd>A</kbd></span><span>kopieren, rückgängig, alle</span></li>
@@ -796,7 +885,7 @@ td .same { color: var(--text-3); }
       <div class="layer l2">
         <p class="n"><span>2</span><span class="kicker">Für alle, die öfter kommen</span></p>
         <h3>Bereiche</h3>
-        <p class="does">Eine Taste springt <b>in einen Bereich</b>, Esc führt <b>zurück in die Liste</b>. Der Bereich zeigt, dass er die Tastatur hat und welche Tasten in ihm gelten.</p>
+        <p class="does">Eine Taste springt <b>in einen Bereich</b>, Esc führt <b>zurück in die Liste</b>. Der Bereich zeigt, dass man in ihm ist und wie man wieder herauskommt.</p>
         <ul>
           <li><span><kbd>F</kbd></span><span>in die Filter</span></li>
           <li><span><kbd>/</kbd></span><span>ins Suchfeld</span></li>
@@ -824,7 +913,7 @@ td .same { color: var(--text-3); }
 
   <section class="block" id="bereiche" aria-labelledby="regions-title">
     <h2 id="regions-title">Bereiche statt Modi</h2>
-    <p class="lead">Vim hat Modi: Dieselbe Taste tut je nach Modus etwas anderes, und welcher gilt, sieht man kaum. Betula übernimmt davon die Idee, dass eine Taste je nach Ort Verschiedenes tut, und macht den Ort sichtbar. <b>Ein Modus ist bei Betula ein Bereich der Seite</b>, und der Bereich mit der Tastatur trägt einen Rahmen.</p>
+    <p class="lead">Vim hat Modi: Dieselbe Taste tut je nach Modus etwas anderes, und welcher gilt, sieht man kaum. Betula übernimmt davon die Idee, dass eine Taste je nach Ort Verschiedenes tut, und macht den Ort sichtbar. <b>Ein Modus ist bei Betula ein Bereich der Seite.</b> Zu Hause ist man in der Liste, und sie trägt keinen Rahmen; geht man in die Filter, die Suche oder die Navigation, trägt der Bereich einen, und auf ihm steht, wie man zurückkommt.</p>
     <div class="vs">
       <div>
         <h3>Vim</h3>
@@ -838,10 +927,10 @@ td .same { color: var(--text-3); }
       </div>
       <div class="us">
         <h3>Betula</h3>
-        <div class="vimbar" aria-hidden="true" style="background:var(--panel-2);color:var(--text-2)"><span class="m" style="background:var(--accent);color:var(--on-accent)">Filter F</span><span><kbd>Leertaste</kbd> mit · ohne · aus</span><span class="q" style="color:var(--text-3)"><kbd>Esc</kbd> zur Liste</span></div>
+        <div class="vimbar" aria-hidden="true" style="background:var(--panel-2);color:var(--text-2)"><span class="m" style="background:var(--accent);color:var(--on-accent)">Filter · Esc zum Verlassen</span><span><kbd>Leertaste</kbd> mit/ohne</span><span class="q" style="color:var(--text-3)"><kbd>↑</kbd> <kbd>↓</kbd> überall</span></div>
         <ul class="points">
-          <li>Der Modus ist <b>der Bereich, in dem der Fokus steht</b>: Filter, Liste, Modul, Suche, Navigation. Man sieht ihn am Rahmen und an seinem Namen mit seiner Taste.</li>
-          <li>Buchstaben tun, was <b>zum Bereich</b> passt: In den Filtern finden sie einen Filter, in der Liste handeln sie an der Zeile. Was sie tun, steht an den Knöpfen, in den Filtern unten im Bereich.</li>
+          <li>Der Modus ist <b>der Bereich, in dem der Fokus steht</b>: Filter, Liste, Modul, Suche, Navigation. Die Liste ist das Zuhause und trägt keinen Rahmen; die anderen tragen einen, mit dem Weg zurück: „Esc zum Verlassen“.</li>
+          <li>Buchstaben tun, was <b>zum Bereich</b> passt: In den Filtern schreiben sie ins Feld „Filter finden“, in der Liste handeln sie an der Zeile. Was sie tun, steht an den Knöpfen, in den Filtern unten im Bereich.</li>
           <li><kbd>Esc</kbd> führt <b>immer zurück in die Liste</b>, und die Zeile von vorher hat wieder die Tastatur. Von dort ist alles einen Sprung entfernt.</li>
           <li>Wer neu ist, braucht nichts zu wissen: Tab, Pfeile, Enter und die Maus tun, was sie überall tun.</li>
         </ul>
@@ -852,63 +941,80 @@ td .same { color: var(--text-3); }
       <div class="map" aria-hidden="true">
         <div class="m-rail"><i></i><i></i><i></i><i></i><i></i><i></i></div>
         <div class="m-search"><span class="ttl" style="flex:1">Suche <kbd>/</kbd></span></div>
-        <div class="m-filter"><p class="ttl">Seitenleiste <kbd>F</kbd></p><p>Im Katalog die Filter, sonst „Ansichten“, „Sammlungen“, „Anpassen“. Tab von Gruppe zu Gruppe, Pfeile darin, Tippen findet.</p></div>
-        <div class="m-list on"><p class="ttl">Inhalt <kbd>Esc</kbd></p><p>Die Liste, das Semester, die Woche. Hierher führt Esc von überall, auf die Zeile von vorher.</p><div class="lines"><i></i><i></i><i></i></div></div>
-        <div class="m-detail"><p class="ttl">Modul daneben <kbd>Enter</kbd></p><p>Enter öffnet es, die Zeile behält die Tastatur. Tab führt hinein, Esc schließt es.</p><div class="lines"><i></i><i></i><i></i></div></div>
+        <div class="m-filter on"><p class="ttl">Seitenleiste <kbd>F</kbd></p><p>Im Katalog die Filter, sonst „Ansichten“, „Sammlungen“, „Anpassen“. Tab von Abschnitt zu Abschnitt, die Pfeile überallhin, Tippen findet; unten ist Schluss.</p></div>
+        <div class="m-list"><p class="ttl">Inhalt <kbd>Esc</kbd></p><p>Das Zuhause, ohne Rahmen: die Liste, das Semester, die Woche. Hierher führt Esc von überall, auf die Zeile von vorher. Tab geht rundherum.</p><div class="lines"><i></i><i></i><i></i></div></div>
+        <div class="m-detail"><p class="ttl">Modul daneben <kbd>Enter</kbd></p><p>Enter öffnet es, die Zeile behält die Tastatur. Es gehört zum Inhalt: Tab führt hinein und wieder zur Liste, Esc schließt es.</p><div class="lines"><i></i><i></i><i></i></div></div>
       </div>
       <figcaption class="map-cap">Links die Navigation (<kbd>Alt</kbd> <kbd>1</kbd>–<kbd>5</kbd>, am Mac <kbd>⌃⌥</kbd>). Weil jede Seite dieselben Bereiche hat, gelten <kbd>F</kbd>, <kbd>/</kbd> und <kbd>Esc</kbd> überall gleich. <kbd>Strg</kbd> <kbd>F6</kbd> und <kbd>Umschalt</kbd> <kbd>Strg</kbd> <kbd>F6</kbd> gehen die Bereiche der Reihe nach durch, wie in Outlook im Web und in Teams. <kbd>F6</kbd> allein bleibt beim Browser, der damit in seine Adressleiste springt; Microsoft nimmt in seinen Web-Apps deshalb Strg F6 statt F6.</figcaption>
     </figure>
-    <h3>Woran man sieht, welcher Bereich die Tastatur hat</h3>
+    <h3>Woran man sieht, wo man ist</h3>
     <ul class="points">
-      <li><b>Ein Rahmen</b> in der Akzentfarbe um das ganze Panel, und oben sein Name mit seiner Taste („Filter F“).</li>
+      <li><b>Ein Rahmen nur außerhalb des Zuhauses.</b> Filter, Suche und Navigation tragen ihn, solange sie die Tastatur haben, und oben auf ihm steht, wie man herauskommt: „Filter · Esc zum Verlassen“. Die Taste, die hineinführt, steht am Kopf des Bereichs („Filter F“, „/“ im Suchfeld). Liste und Modul tragen keinen: Dort wirkte ein Rahmen wie etwas Vorübergehendes, das man mit Esc schließen will (<a href="#entschieden">20.10.</a>).</li>
+      <li><b>Der Abschnitt mit der Tastatur ist leicht unterlegt.</b> In den Filtern sieht man so, in welchem Abschnitt man ist, auch wenn die Pfeile über seine Grenzen gehen.</li>
+      <li><b>Tab bleibt im Bereich.</b> Aus den Filtern führt Tab nicht in die Liste: Oben und unten ist Schluss, der Ausgang auf dem Rahmen springt kurz, und eine Notiz sagt ihn. Im Inhalt geht Tab rundherum, Umschalt Tab braucht man nicht. Hinaus führen Esc, ein Klick, die Sprungtasten und <kbd>Strg</kbd> <kbd>F6</kbd>.</li>
       <li><b>Eine Leiste nur, wo eine Taste keinen Knopf hat.</b> In den Filtern nennt sie an ihrem Fuß <kbd>Leertaste</kbd> mit · ohne · aus, <kbd>−</kbd> ohne und das Tippen, an einem Regler die Ziffern; ein Chip kann diese Tasten nicht selbst tragen. In der Liste und am Modul stehen die Tasten an den Knöpfen und im Kopf der Liste („↑ ↓ wählen · Enter öffnen · M merken“, wie seit 1.39.2). Eine Zeile voller Hinweise braucht es nicht.</li>
       <li><b>Sprünge, wo Tab nicht hinkommt.</b> Safari am Mac erreicht mit Tab ohne Einstellung nur Eingabefelder und Auswahllisten, keine Knöpfe und Links (mit <kbd>⌥</kbd> <kbd>Tab</kbd> alles). Wer am Mac Safari nutzt, für den sind <kbd>F</kbd>, <kbd>/</kbd> und <kbd>Esc</kbd> darum mehr als eine Abkürzung. Ob die Halte mit eigenem <code>tabindex</code> dort erreichbar sind, prüft Schritt 7.</li>
-      <li><b>Nur, wenn die Tastatur bedient wird.</b> Rahmen, Name und die Leiste der Filter kommen mit der ersten Taste und gehen mit der Maus, wie der Fokusring (<code>:focus-visible</code>). Wer nur klickt, sieht davon nichts (<a href="#offen">Frage 3</a>).</li>
+      <li><b>Nur, wenn die Tastatur bedient wird.</b> Der Rahmen mit dem Ausgang und die Leiste der Filter kommen mit der ersten Taste und gehen mit der Maus, wie der Fokusring (<code>:focus-visible</code>). Wer nur klickt, sieht davon nichts (<a href="#offen">Frage 3</a>).</li>
       <li><b>Esc als Weg nach Hause.</b> Liegt etwas über der Seite (ein Menü, ein Dialog, die Auswahl), schließt Esc das zuerst, wie heute (nav.rs). Danach führt es aus jedem Bereich in die Liste, und in der Liste schließt es das Modul daneben.</li>
     </ul>
   </section>
 
   <section class="block" id="filter" aria-labelledby="filter-title">
     <h2 id="filter-title">Die Filter mit der Tastatur</h2>
-    <p class="lead">Die Filter bedient man im Katalog am häufigsten, und mit der Tastatur sind sie heute am langsamsten. Im Konzept ist jede Gruppe ein Halt: Tab springt von Gruppe zu Gruppe, die Pfeile wählen darin, und wer weiß, was er will, tippt es. Im Prototyp oben ist das alles bedienbar.</p>
+    <p class="lead">Die Filter bedient man im Katalog am häufigsten, und mit der Tastatur sind sie heute am langsamsten. Im Konzept geht beides, was man beim Ausprobieren versucht: Tab springt von Abschnitt zu Abschnitt, und die Pfeile gehen von Filter zu Filter durch das ganze Panel. Was man schon weiß, tippt man. Hinaus führen nur <kbd>Esc</kbd> und ein Klick in die Liste. Im Prototyp oben ist das alles bedienbar.</p>
     <div class="fschema">
-      <figure class="fs-panel" aria-label="Schema: drei Gruppen der Filter">
-        <div class="fs-group"><span class="fs-tab">Tab</span><span class="fs-arrows">← →</span><p>Angeboten im</p><div class="fs-chips"><span>Winter</span><span>Sommer</span><span style="grid-column:1/-1">Unregelmäßig</span></div></div>
-        <div class="fs-group"><span class="fs-tab">Tab</span><span class="fs-arrows">← →</span><p>Lehrform</p><div class="fs-chips"><span class="w">Vorlesung</span><span>Übung</span><span>Seminar</span><span>Praktikum</span></div></div>
-        <div class="fs-group"><span class="fs-tab">Tab</span><span class="fs-arrows">↑ ↓</span><p>Prüfung</p><div class="fs-chips"><span class="f">Klausur</span><span>Mündlich</span><span>Hausarbeit</span><span class="x">Vortrag</span></div></div>
-        <p class="note" style="margin-top:6px">Schwarz: mit. Rot, durchgestrichen: ohne. Grüner Rand: die Tastatur.</p>
+      <figure class="fs-panel on" aria-label="Schema: die Filter mit dem Feld „Filter finden“">
+        <span class="fs-ring">Filter · <kbd>Esc</kbd> zum Verlassen</span>
+        <div class="fs-find"><span class="fs-tab">Tab</span>kl<i></i><span class="fs-cnt">1 / 1</span></div>
+        <div class="fs-group"><span class="fs-tab">Tab</span><p>Lehrform</p><div class="fs-chips"><span class="w">Vorlesung</span><span>Übung</span><span>Seminar</span><span>Praktikum</span></div></div>
+        <div class="fs-group cur"><span class="fs-tab">Tab</span><p>Prüfung</p><div class="fs-chips"><span class="t"><mark>Kl</mark>ausur</span><span>Mündlich</span><span>Hausarbeit</span><span class="x">Vortrag</span></div></div>
+        <div class="fs-group"><span class="fs-tab">Tab</span><p>Leistungspunkte</p><div class="fs-range"><i class="a"></i><i class="b"></i></div></div>
+        <div class="fs-group"><span class="fs-tab">Tab</span><p>Weitere Filter +</p></div>
+        <p class="fs-end"><span>Ende der Filter · <kbd>Esc</kbd> zum Verlassen</span></p>
+        <span class="fs-vline" aria-hidden="true"></span>
+        <p class="note" style="margin-top:10px">Schwarz: mit. Rot, durchgestrichen: ohne. Gestrichelt: was Enter trifft. Unterlegt: der Abschnitt mit der Tastatur. Rechts: die Pfeile, über alle Abschnitte.</p>
       </figure>
       <dl class="fs-keys">
-        <dt class="sec">Hinein und zurück</dt>
-        <dt><kbd>F</kbd></dt><dd>springt in die Filter, auf den Filter, an dem man zuletzt war</dd>
-        <dt><kbd>Esc</kbd></dt><dd>zurück in die Liste, auf die Zeile von vorher</dd>
-        <dt><kbd>Tab</kbd></dt><dd>nächste Gruppe, <kbd>Umschalt</kbd> <kbd>Tab</kbd> vorige; jede Gruppe merkt sich ihren Chip</dd>
-        <dt class="sec">In einer Gruppe</dt>
-        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>voriger, nächster Chip in Lesereihenfolge; <kbd>↑</kbd> <kbd>↓</kbd> der Chip darüber, darunter; <kbd>Pos1</kbd> <kbd>Ende</kbd> erster, letzter</dd>
+        <dt class="sec">Hinein und hinaus</dt>
+        <dt><kbd>F</kbd></dt><dd>springt in die Filter, auf den Filter, an dem man zuletzt war, beim ersten Mal ins Feld „Filter finden“</dd>
+        <dt><kbd>Esc</kbd></dt><dd>zurück in die Liste, auf die Zeile von vorher; steht im Feld Text, leert Esc ihn zuerst. Ein Klick in die Liste geht auch.</dd>
+        <dt>Schluss</dt><dd>Tab und die Pfeile führen nicht hinaus. Oben und unten ist Schluss: Der Ausgang auf dem Rahmen springt kurz, eine Notiz sagt „Ende der Filter · Esc zum Verlassen“, ein Screenreader hört es einmal.</dd>
+        <dt class="sec">Bewegen</dt>
+        <dt><kbd>Tab</kbd></dt><dd>an den Anfang des nächsten Abschnitts, <kbd>Umschalt</kbd> <kbd>Tab</kbd> des vorigen; der Abschnitt mit der Tastatur ist leicht unterlegt</dd>
+        <dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>der Filter darüber, darunter, über die Abschnitte hinweg; die Spalte bleibt, wie in einer Tabelle</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>voriger, nächster Filter in Lesereihenfolge; <kbd>Pos1</kbd> <kbd>Ende</kbd> erster, letzter im Abschnitt</dd>
+        <dt>Weitere Filter</dt><dd>gehen von selbst auf, wenn Tab oder ein Pfeil darüber hinaus will</dd>
+        <dt class="sec">Schalten</dt>
         <dt><kbd>Leertaste</kbd></dt><dd>wie ein Klick: <b>aus → mit → ohne → aus</b>, so wie die Chips heute schalten</dd>
         <dt><kbd>−</kbd> <kbd>+</kbd></dt><dd>gleich <b>ohne</b> oder <b>mit</b> (nochmal: aus); <kbd>Entf</kbd> aus</dd>
         <dt class="sec">Finden</dt>
-        <dt><kbd>a</kbd>–<kbd>z</kbd></dt><dd>Tippen springt zu dem Filter, der so heißt, auch in „Weitere Filter“, das dann aufgeht: „kla“ zu Klausur, „eng“ zu Englisch, „prü“ zur Gruppe Prüfung. Oben im Panel steht, was getippt ist.</dd>
+        <dt>Tippen</dt><dd>schreibt ins Feld „Filter finden“ oben im Panel, von jedem Filter aus. Es ist ein Textfeld wie jedes: <kbd>⌫</kbd>, <kbd>Strg</kbd> <kbd>⌫</kbd>, markieren, einfügen.</dd>
+        <dt>Treffer</dt><dd>markiert wie ein Treffer der Suche, in den Filtern und in den Namen der Abschnitte („prü“: Prüfung), auch in „Weitere Filter“, die dann aufgehen. Der beste ist gestrichelt umrandet und sein Abschnitt unterlegt. Er rollt mit 20 % Abstand oben und unten ins Bild, aber erst, wenn das Tippen kurz ruht (220 ms), damit zwei ähnliche Treffer das Panel nicht hin und her werfen.</dd>
+        <dt>Tippfehler</dt><dd>wie die Suche des Katalogs (<code>folia_search::fuzzy</code>: ab vier Buchstaben einer, ab acht zwei, der erste Buchstabe stimmt), aber nur, wenn nichts genau passt; dann steht „ähnlich“ im Feld. „klasur“ findet Klausur; wer „klausur“ schreibt, sieht nur Klausur.</dd>
+        <dt><kbd>↓</kbd> <kbd>↑</kbd></dt><dd>nächster, voriger Treffer</dd>
+        <dt><kbd>Enter</kbd></dt><dd>setzt ihn auf <b>mit</b>, <kbd>Umschalt</kbd> <kbd>Enter</kbd> auf <b>ohne</b> (nochmal: aus), und die Tastatur geht hin, wie in den Befehlen; <kbd>Tab</kbd> geht nur hin</dd>
         <dt class="sec">Was keine Chips hat</dt>
-        <dt>Studiengang</dt><dd><kbd>Enter</kbd> oder <kbd>↓</kbd> öffnet die Liste mit Suche, wie heute: tippen, <kbd>↓</kbd>, <kbd>Enter</kbd></dd>
-        <dt>Leistungspunkte</dt><dd>zwei Regler: <kbd>←</kbd> <kbd>→</kbd> um 1, <kbd>Bild ↑</kbd> <kbd>Bild ↓</kbd> um 5, eine Zahl tippen setzt sie („6“)</dd>
-        <dt>Dauer, Jahre</dt><dd>eine Optionsgruppe: <kbd>←</kbd> <kbd>→</kbd> wählt</dd>
+        <dt>Studiengang</dt><dd><kbd>Enter</kbd> öffnet die Liste mit Suche, wie heute: tippen, <kbd>↓</kbd>, <kbd>Enter</kbd></dd>
+        <dt>Leistungspunkte</dt><dd>zwei Regler: <kbd>←</kbd> <kbd>→</kbd> um 1, <kbd>Bild ↑</kbd> <kbd>Bild ↓</kbd> um 5; <kbd>↑</kbd> <kbd>↓</kbd> vom unteren zum oberen und weiter. Eine Ziffer öffnet ein Feld über dem Regler: „12“, <kbd>Enter</kbd> (<kbd>Esc</kbd> verwirft). Kommt einer über den anderen, nimmt er ihn mit, statt anzuhalten.</dd>
+        <dt>Dauer</dt><dd>eine Optionsgruppe: <kbd>←</kbd> <kbd>→</kbd> wählt, <kbd>↑</kbd> <kbd>↓</kbd> gehen weiter</dd>
         <dt class="sec">Was man hört</dt>
-        <dt>Fokus</dt><dd>„Prüfung, Gruppe · Klausur, Kontrollkästchen, nicht aktiviert“</dd>
-        <dt>Leertaste</dt><dd>einen Moment später: „Klausur: mit. 20 Module.“</dd>
+        <dt>Hinein</dt><dd>„Filter, Bereich, Escape führt zur Liste“</dd>
+        <dt>Tippen</dt><dd>einen Moment später: „Klausur, Prüfung, nicht aktiviert, 1 von 1“</dd>
+        <dt>Enter</dt><dd>„Klausur: mit. 20 Module.“</dd>
       </dl>
     </div>
-    <p class="note"><b>Warum Gruppen, und nicht ein langer Weg mit den Pfeilen.</b> So beschreiben es die ARIA Authoring Practices (Tab zwischen den Bausteinen einer Seite, Pfeile darin), so kennen es Screenreader, und Microsofts Richtlinien sagen seit langem, dass Pfeile eine Gruppe nicht verlassen. Linear wollte seine Filter „100% via the keyboard“ bedienbar machen und lässt dafür den Namen tippen; GitHub schlägt beim Tippen Filter vor. Für mit und ohne gibt es kaum ein Vorbild: GitHub schließt ein Label mit Alt und Klick aus. Darum hat „ohne“ hier eine eigene Taste, und sie steht im Tooltip des Chips.</p>
+    <p class="note"><b>Warum beides.</b> Die ARIA Authoring Practices sehen Tab zwischen den Bausteinen einer Seite und die Pfeile darin vor; daran halten sich Tab und die Abschnitte. Beim Ausprobieren ging der erste Griff aber zu den Pfeilen („Ich habe intuitiv versucht mich komplett durch den filter per Pfeiltasten zu bewegen“, 20.10.). Darum gehen sie überallhin, wie in einem Raster; im Lesemodus eines Screenreaders gehören die Pfeile ohnehin ihm. Am Regler weicht das von der APG ab, nach der <kbd>↑</kbd> <kbd>↓</kbd> den Wert ändern: Er liegt waagrecht, <kbd>←</kbd> <kbd>→</kbd> ändern ihn, <kbd>↑</kbd> <kbd>↓</kbd> gehen weiter, und seine Beschreibung sagt es (<code>aria-description</code>). Für das Finden gibt es Vorbilder: Linear wollte seine Filter „100% via the keyboard“ bedienbar machen und lässt dafür den Namen tippen, GitHub schlägt beim Tippen Filter vor, und Baymard rät bei langen Listen von Filterwerten zu einer Suche darin. Für mit und ohne gibt es kaum eines: GitHub schließt ein Label mit Alt und Klick aus. Darum hat „ohne“ eine eigene Taste, und sie steht im Tooltip des Chips.</p>
   </section>
 
   <section class="block" id="liste" aria-labelledby="list-title">
     <h2 id="list-title">Die Liste und das Modul</h2>
-    <p class="lead">Die Liste ist der Ort, an den Esc zurückführt. Sie ist ein einziger Halt; darin wählen die Pfeile, und die Buchstaben handeln an der Zeile, die die Tastatur hat.</p>
+    <p class="lead">Die Liste ist das Zuhause, an das Esc zurückführt, und trägt keinen Rahmen. Sie ist ein einziger Halt; darin wählen die Pfeile, und die Buchstaben handeln an der Zeile, die die Tastatur hat. Tab geht im Inhalt rundherum: die Spaltenköpfe, die Liste, das Modul daneben, in Betula noch der Fuß der Seite, und wieder von vorn.</p>
     <div class="cols2">
       <div>
         <h3>In der Liste</h3>
         <ul class="points">
           <li><kbd>↑</kbd> <kbd>↓</kbd> wählen wie heute, <kbd>Pos1</kbd> <kbd>Ende</kbd> die erste und letzte Zeile, <kbd>Bild ↑</kbd> <kbd>Bild ↓</kbd> eine Seite.</li>
+          <li><kbd>Tab</kbd> führt zu den Knöpfen des Moduls daneben, wenn es offen ist, sonst zu den Spaltenköpfen. Die sind ein Halt: <kbd>←</kbd> <kbd>→</kbd> wählt die Spalte, <kbd>Enter</kbd> sortiert (auf, ab, wie der Katalog).</li>
           <li><kbd>Enter</kbd> öffnet das Modul daneben, die Zeile behält die Tastatur: <kbd>↓</kbd> <kbd>Enter</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> blättert durch die Module. <kbd>Enter</kbd> auf dem offenen Modul zeigt es im Vollbild.</li>
           <li><kbd>M</kbd> merken, <kbd>P</kbd> einplanen, <kbd>V</kbd> Vollbild: an der Zeile mit der Tastatur, sonst am offenen Modul, wie <kbd>M</kbd> heute. Mit Umschalt öffnet dieselbe Taste den Pfeil neben dem Knopf: <kbd>⇧M</kbd> „Sammlung und Notiz“, <kbd>⇧P</kbd> die Semester, auch die, die das Modul nicht anbieten (mit dem Hinweis daneben). S und N fallen dafür weg, wie „Jede Taste hat einen Knopf“ vorschlägt.</li>
           <li><kbd>Umschalt</kbd> <kbd>F10</kbd> oder die Menütaste öffnet das Menü der Zeile mit allen Aktionen und ihren Tasten, wie der Rechtsklick in der Merkliste und in „Mein Studium“. Im Katalog ist das neu.</li>
@@ -919,7 +1025,7 @@ td .same { color: var(--text-3); }
       <div>
         <h3>Im Modul daneben</h3>
         <ul class="points">
-          <li><kbd>Tab</kbd> aus der Liste führt zu seinen Knöpfen, die eine Leiste sind (<kbd>←</kbd> <kbd>→</kbd>), noch ein <kbd>Tab</kbd> in den Text (<kbd>↑</kbd> <kbd>↓</kbd> blättern). <kbd>Umschalt</kbd> <kbd>Tab</kbd> führt zurück zur Zeile.</li>
+          <li><kbd>Tab</kbd> aus der Liste führt zu seinen Knöpfen, die eine Leiste sind (<kbd>←</kbd> <kbd>→</kbd>), noch ein <kbd>Tab</kbd> in den Text (<kbd>↑</kbd> <kbd>↓</kbd> blättern), und weiter wieder zu den Spaltenköpfen und in die Liste. Tab geht rundherum, Umschalt Tab braucht man nicht („so dass man nicht shift tab drücken muss“, 20.10.). In Betula gehört der Fuß der Seite (Impressum, Datenschutz, die Version) mit in die Runde.</li>
           <li><kbd>P</kbd>, <kbd>M</kbd> und <kbd>V</kbd> gelten auch hier, und an den Knöpfen steht es: „Einplanen P“ und „Merken M“ mit ihrem Pfeil, dessen Tooltip ⇧P und ⇧M nennt, „Vollbild V“, „Schließen Esc“.</li>
           <li><kbd>Esc</kbd> schließt es, und die Zeile hat wieder die Tastatur.</li>
           <li>Was eingeplant ist, sagt die Notiz am Fuß, und <kbd>←</kbd> <kbd>→</kbd> wählen ein anderes Semester, wie heute auf Canary. Auch eines, das das Modul nicht anbietet: Dann steht das dabei („dort nicht angeboten“), und es bleibt dort, wenn man es so will.</li>
@@ -931,7 +1037,7 @@ td .same { color: var(--text-3); }
 
   <section class="block" id="seiten" aria-labelledby="pages-title">
     <h2 id="pages-title">Die anderen Seiten</h2>
-    <p class="lead">Jede Seite hat dieselben Bereiche, darum gilt dasselbe Schema überall: <kbd>F</kbd> in die Seitenleiste, <kbd>Esc</kbd> in den Inhalt, Tab und Pfeile wie im Katalog. Was eine Seite darüber hinaus braucht:</p>
+    <p class="lead">Jede Seite hat dieselben Bereiche, darum gilt dasselbe Schema überall: <kbd>F</kbd> in die Seitenleiste, <kbd>Esc</kbd> in den Inhalt, Tab und Pfeile wie im Katalog. Tab bleibt im Bereich: In der Seitenleiste ist unten Schluss, im Inhalt geht es rundherum. Was eine Seite darüber hinaus braucht:</p>
     <div class="tablewrap">
       <table class="stack">
         <thead><tr><th>Seite</th><th>Seitenleiste (F)</th><th>Inhalt (Esc)</th><th>Eigene Tasten</th></tr></thead>
@@ -946,7 +1052,7 @@ td .same { color: var(--text-3); }
         </tbody>
       </table>
     </div>
-    <p class="note">Am Handy bleibt alles, wie es ist. Mit einer Tastatur am Tablet gelten dieselben Tasten; Rahmen und Leisten erscheinen auch dort erst mit der ersten Taste.</p>
+    <p class="note">Am Handy bleibt alles, wie es ist. Mit einer Tastatur am Tablet gelten dieselben Tasten; der Rahmen und die Leiste der Filter erscheinen auch dort erst mit der ersten Taste.</p>
   </section>
 
   <section class="block" id="sichtbar" aria-labelledby="visible-title">
@@ -954,7 +1060,7 @@ td .same { color: var(--text-3); }
     <p class="lead">Zwei Regeln vom 20.10. bestimmen das. Aus der Anfrage: Was nicht ganz grundlegend ist, hat ein Element, das Verhalten und Taste verbindet, Häufiges direkt sichtbar, Seltenes im Kontextmenü. Und aus CLAUDE.md: Alles, was Betula tut, ist ein Knopf oder ein Menüeintrag, eine Taste ist der schnellere Weg dorthin, nie der einzige; was jedes Programm per Taste kann (Strg C, Strg V, Esc, Enter, die Pfeile, F2, Entf), braucht keinen Hinweis. Daraus werden sechs Orte, vom häufigsten zum seltensten.</p>
     <div class="ladder">
       <div class="rung"><div class="eg"><span class="eg-btn">Merken <kbd>M</kbd> <span style="color:var(--text-3)">⌄</span></span></div><h3>Am Knopf</h3><p>Häufige Aktionen tragen ihre Taste, wie heute „Merken M“; der Pfeil daneben nennt ⇧M in seinem Tooltip.</p></div>
-      <div class="rung"><div class="eg"><span class="eg-btn">Filter <kbd>F</kbd></span></div><h3>Am Bereich</h3><p>Jeder Bereich nennt die Taste, die in ihn springt: „Filter F“ an seinem Kopf, „/“ im Suchfeld.</p></div>
+      <div class="rung"><div class="eg"><span class="eg-btn">Filter <kbd>F</kbd></span></div><h3>Am Bereich</h3><p>Jeder Bereich nennt an seinem Kopf die Taste, die in ihn springt („Filter F“, „/“ im Suchfeld), und sein Rahmen, wie man wieder herauskommt („Esc zum Verlassen“).</p></div>
       <div class="rung"><div class="eg"><span class="eg-bar"><span><kbd>Leertaste</kbd> mit · ohne · aus</span><span><kbd>−</kbd> ohne</span></span></div><h3>Wo kein Knopf ist</h3><p>Nur in den Filtern: Die Leiste an ihrem Fuß nennt die Tasten der Chips, solange die Tastatur dort ist.</p></div>
       <div class="rung"><div class="eg"><div class="eg-menu"><div>Merken <kbd>M</kbd></div><div>Sammlung … <kbd>S</kbd></div><div>Link kopieren <kbd>Strg C</kbd></div></div></div><h3>Im Menü</h3><p>Seltenes steht im Menü, die Taste rechts, wie in jedem Programm. Rechtsklick oder <kbd>Umschalt</kbd> <kbd>F10</kbd>.</p></div>
       <div class="rung"><div class="eg"><span class="eg-tip">Ohne Klausur <kbd>−</kbd></span></div><h3>Im Tooltip</h3><p>Wer mit der Maus auf einem Knopf stehen bleibt oder mit Tab hinkommt, sieht seine Taste im Tooltip.</p></div>
@@ -995,8 +1101,8 @@ td .same { color: var(--text-3); }
         <thead><tr><th>Wer will …</th><th>mit Screenreader</th><th>ohne</th></tr></thead>
         <tbody>
           <tr><td>in die Filter</td><td data-label="mit Screenreader">zum Bereich „Filter“ mit den Tasten des Screenreaders (<kbd>D</kbd> bei NVDA, <kbd>R</kbd> bei JAWS, der Rotor bei VoiceOver), oder <kbd>Strg</kbd> <kbd>F6</kbd></td><td data-label="ohne"><kbd>F</kbd></td></tr>
-          <tr><td>durch die Filter</td><td data-label="mit Screenreader"><kbd>Tab</kbd> von Gruppe zu Gruppe, jede mit ihrem Namen („Prüfung, Gruppe“), oder lesen: <kbd>X</kbd> springt bei NVDA zum nächsten Kontrollkästchen</td><td data-label="ohne"><kbd>Tab</kbd>, die Pfeile, tippen</td></tr>
-          <tr><td>einen Filter setzen</td><td data-label="mit Screenreader"><kbd>Leertaste</kbd>; Betula sagt einmal „Klausur: mit. 20 Module.“</td><td data-label="ohne"><kbd>Leertaste</kbd>, <kbd>−</kbd></td></tr>
+          <tr><td>durch die Filter</td><td data-label="mit Screenreader"><kbd>Tab</kbd> von Abschnitt zu Abschnitt, jeder mit seinem Namen („Prüfung, Gruppe“), oder lesen: <kbd>X</kbd> springt bei NVDA zum nächsten Kontrollkästchen. Schneller: tippen, was man sucht; das Feld „Filter finden“ sagt den Treffer an („Klausur, Prüfung, nicht aktiviert, 1 von 1“)</td><td data-label="ohne"><kbd>Tab</kbd>, die Pfeile, tippen</td></tr>
+          <tr><td>einen Filter setzen</td><td data-label="mit Screenreader"><kbd>Leertaste</kbd>, im Feld <kbd>Enter</kbd>; Betula sagt einmal „Klausur: mit. 20 Module.“</td><td data-label="ohne"><kbd>Leertaste</kbd>, <kbd>−</kbd>, im Feld <kbd>Enter</kbd></td></tr>
           <tr><td>zurück zur Liste</td><td data-label="mit Screenreader"><kbd>Esc</kbd>, oder zum Bereich „Module“</td><td data-label="ohne"><kbd>Esc</kbd></td></tr>
           <tr><td>durch die Liste</td><td data-label="mit Screenreader">die Pfeile: „Datenbanken, 12330, 6 LP, jedes Semester, Deutsch, 14 von 33“</td><td data-label="ohne"><kbd>↑</kbd> <kbd>↓</kbd></td></tr>
           <tr><td>merken, einplanen</td><td data-label="mit Screenreader"><kbd>M</kbd>, <kbd>P</kbd> in der Liste, oder <kbd>Umschalt</kbd> <kbd>F10</kbd> und das Menü der Zeile</td><td data-label="ohne"><kbd>M</kbd>, <kbd>P</kbd></td></tr>
@@ -1009,7 +1115,9 @@ td .same { color: var(--text-3); }
     <ul class="points">
       <li><b>Bereiche als Landmarken</b> mit Namen: die Navigation, die Suche, „Filter“, „Module“ als Hauptinhalt, „Modul Datenbanken“. Ein Screenreader springt mit seinen eigenen Tasten dorthin.</li>
       <li><b>Gruppen mit Namen</b> (<code>role="group"</code>, <code>aria-labelledby</code>): „Prüfung“ und „Lehrform“ werden hörbar, und die beiden „Projekt“ lassen sich unterscheiden. Ein ausgeschlossener Wert heißt „ohne Klausur“, wie heute.</li>
-      <li><b>Ein Halt je Gruppe</b> mit wanderndem Tabindex. Im Lesemodus liest der Screenreader trotzdem jeden Chip.</li>
+      <li><b>Ein Halt je Abschnitt;</b> Tab kommt an seinen Anfang. Im Lesemodus liest der Screenreader trotzdem jeden Chip.</li>
+      <li><b>Festhalten nur mit Ausweg</b> (WCAG 2.1.2): Tab führt aus den Filtern nicht hinaus, Esc schon. Das steht am Rahmen, der Bereich beschreibt es (<code>aria-describedby</code>: „Escape führt zur Liste“), und am Ende sagt Betula es einmal. Die Landmarken des Screenreaders führen ohnehin überallhin. Im Inhalt geht Tab rundherum; hinaus führen dort die Sprungtasten und <kbd>Strg</kbd> <kbd>F6</kbd>, in die Adressleiste <kbd>F6</kbd> des Browsers.</li>
+      <li><b>Die Regler sagen, wie sie gehen</b> (<code>aria-description</code>): Pfeil links und rechts ändern den Wert, eine Ziffer öffnet ein Feld, Pfeil hoch und runter gehen weiter. Das weicht von der APG ab, die ↑ ↓ den Wert ändern lässt, und gilt so in allen Filtern.</li>
       <li><b>Die Liste als Listenfeld mit Position</b> (<code>role="listbox"</code>, <code>aria-setsize</code>, <code>aria-posinset</code>, auch für die Zeilen, die die virtuelle Liste noch nicht gebaut hat): „14 von 3.232“.</li>
       <li><b>Eine Meldung statt der ganzen Liste:</b> eine Zeile mit <code>role="status"</code> sagt nach einer Änderung einmal, was geschehen ist, sobald das Tippen kurz ruht. Das <code>aria-live</code> auf der Liste fällt weg.</li>
       <li><b>Einzelne Tasten abschaltbar</b> (WCAG 2.1.4), im Profil und in der Übersicht. Dann tun F, /, ?, M, P und V nichts, auch mit Umschalt, und Strg K, Tab, die Pfeile, Enter und Esc gehen weiter, die Knöpfe sowieso. 12 der 30 untersuchten Apps lassen ihre Tasten ganz abschalten, GitHub und Miro nur die einzelnen.</li>
@@ -1042,12 +1150,12 @@ td .same { color: var(--text-3); }
 
   <section class="block" id="aenderungen" aria-labelledby="change-title">
     <h2 id="change-title">Was sich ändert</h2>
-    <p class="lead">Was nur auf Canary ist, darf sich frei ändern; was auf betula.app ist, nur mit Grund. Auf betula.app ändern sich drei Dinge, die man merkt: Tab hält seltener, <kbd>F</kbd> führt in die Filter statt ins Vollbild, und <kbd>Strg</kbd> <kbd>K</kbd> öffnet die Befehle statt das Suchfeld. Alles andere kommt dazu.</p>
+    <p class="lead">Was nur auf Canary ist, darf sich frei ändern; was auf betula.app ist, nur mit Grund. Auf betula.app ändern sich drei Dinge, die man merkt: Tab hält seltener und bleibt im Bereich, <kbd>F</kbd> führt in die Filter statt ins Vollbild, und <kbd>Strg</kbd> <kbd>K</kbd> öffnet die Befehle statt das Suchfeld. Alles andere kommt dazu.</p>
     <div class="tablewrap">
       <table class="stack">
         <thead><tr><th>Taste</th><th>betula.app (1.0.3)</th><th>Canary (1.39.2)</th><th>Konzept</th><th>Warum</th></tr></thead>
         <tbody>
-          <tr><td><kbd>Tab</kbd></td><td data-label="betula.app">jeder Chip, jede Zeile ein Halt</td><td data-label="Canary"><span class="same">dasselbe</span></td><td data-label="Konzept"><span class="tag prod">ändert betula.app</span> eine Gruppe, die Liste, eine Leiste: je ein Halt</td><td data-label="Warum">18 statt 45 Halte bis zur Liste, und aus der Liste wieder heraus</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td data-label="betula.app">jeder Chip, jede Zeile ein Halt</td><td data-label="Canary"><span class="same">dasselbe</span></td><td data-label="Konzept"><span class="tag prod">ändert betula.app</span> ein Abschnitt, die Liste, eine Leiste: je ein Halt; Tab bleibt im Bereich (in den Filtern ist unten Schluss, im Inhalt geht es rundherum)</td><td data-label="Warum">statt 45 Halten bis zur ersten Zeile: <kbd>Esc</kbd>; aus der Liste kommt man wieder heraus, und man landet nie unverhofft in einem anderen Bereich (20.10.)</td></tr>
           <tr><td><kbd>F</kbd></td><td data-label="betula.app">Vollbild</td><td data-label="Canary"><span class="same">dasselbe</span></td><td data-label="Konzept"><span class="tag prod">ändert betula.app</span> in die Filter</td><td data-label="Warum">die Filter braucht man viel öfter; F heißt deutsch und englisch so; Linear, GitLab, Trello, Bitbucket nehmen F dafür (<a href="#offen">Frage 1</a>)</td></tr>
           <tr><td><kbd>V</kbd></td><td data-label="betula.app">–</td><td data-label="Canary">–</td><td data-label="Konzept"><span class="tag new">neu</span> Vollbild, auch Enter auf dem offenen Modul</td><td data-label="Warum">für das Vollbild, das F abgibt</td></tr>
           <tr><td><kbd>Strg</kbd> <kbd>K</kbd></td><td data-label="betula.app">ins Suchfeld</td><td data-label="Canary"><span class="same">dasselbe</span></td><td data-label="Konzept"><span class="tag prod">ändert betula.app</span> die Befehle, die auch Module finden; dazu der Knopf „Befehle“ im Suchfeld</td><td data-label="Warum">so ist es in 11 von 29 Apps; ein Modul findet Strg K weiter (<a href="#offen">Frage 2</a>)</td></tr>
@@ -1057,6 +1165,7 @@ td .same { color: var(--text-3); }
           <tr><td><kbd>M</kbd> <kbd>P</kbd></td><td data-label="betula.app">merken, einplanen (P nur am offenen Modul)</td><td data-label="Canary">dazu <kbd>←</kbd> <kbd>→</kbd> in der Notiz</td><td data-label="Konzept"><span class="tag stay">bleibt</span> P auch an der Zeile mit der Tastatur</td><td data-label="Warum">eine Regel für alle Buchstaben: die Zeile, sonst das offene Modul</td></tr>
           <tr><td><kbd>⇧M</kbd> <kbd>⇧P</kbd></td><td data-label="betula.app">–</td><td data-label="Canary">⇧P öffnet seit 1.40.0 den Pfeil an „Eingeplant“; ⇧M tut, was M tut</td><td data-label="Konzept"><span class="tag new">neu</span> der Pfeil an „Merken“ (Sammlung und Notiz) und an „Einplanen“ (die Semester)</td><td data-label="Warum">der Knopf mit Pfeil aus „Jede Taste hat einen Knopf“</td></tr>
           <tr><td><kbd>S</kbd> <kbd>N</kbd></td><td data-label="betula.app">–</td><td data-label="Canary">Sammlung und Notiz, Notiz</td><td data-label="Konzept"><span class="tag canary">ändert Canary</span> fallen weg, ⇧M öffnet dasselbe</td><td data-label="Warum">ihre Aktion hat an der Zeile keinen Knopf; ⇧M liegt bei M</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> in den Filtern</td><td data-label="betula.app">–</td><td data-label="Canary">–</td><td data-label="Konzept"><span class="tag new">neu</span> überallhin, über die Abschnitte; am Regler <kbd>←</kbd> <kbd>→</kbd> der Wert, <kbd>↑</kbd> <kbd>↓</kbd> weiter</td><td data-label="Warum">beim Ausprobieren der erste Griff (20.10.)</td></tr>
           <tr><td><kbd>Leertaste</kbd></td><td data-label="betula.app">Chip: aus → mit → ohne</td><td data-label="Canary">dazu Zeile auswählen (Merkliste, Studium)</td><td data-label="Konzept"><span class="tag canary">ergänzt</span> dazu <kbd>−</kbd> ohne, <kbd>+</kbd> mit, <kbd>Entf</kbd> aus</td><td data-label="Warum">„ohne“ ohne zweimal Drücken</td></tr>
           <tr><td><kbd>Alt</kbd> <kbd>1</kbd>–<kbd>5</kbd></td><td data-label="betula.app">–</td><td data-label="Canary">die Tabs, Anzeige beim Halten (16.10.)</td><td data-label="Konzept"><span class="tag canary">ergänzt</span> Halten zeigt alle Tasten</td><td data-label="Warum">ein Griff für alles, was man sucht</td></tr>
           <tr><td><kbd>Umschalt</kbd> <kbd>F10</kbd></td><td data-label="betula.app">–</td><td data-label="Canary">– (Rechtsklick in Merkliste, Studium)</td><td data-label="Konzept"><span class="tag new">neu</span> das Menü jeder Zeile</td><td data-label="Warum">die Taste von Windows für das Kontextmenü</td></tr>
@@ -1065,7 +1174,7 @@ td .same { color: var(--text-3); }
           <tr><td><kbd>Strg</kbd> <kbd>C</kbd> <kbd>Z</kbd></td><td data-label="betula.app">Browser</td><td data-label="Canary">Browser</td><td data-label="Konzept"><span class="tag new">neu</span> Zeile kopieren, Rückgängig; nicht in Feldern und nicht bei markiertem Text</td><td data-label="Warum">was man von überall kennt</td></tr>
           <tr><td><kbd>Strg</kbd> <kbd>A</kbd></td><td data-label="betula.app">Browser</td><td data-label="Canary">alle Zeilen (Merkliste, Studium)</td><td data-label="Konzept"><span class="tag stay">bleibt</span></td><td data-label="Warum"></td></tr>
           <tr><td><kbd>Entf</kbd> <kbd>F2</kbd></td><td data-label="betula.app">–</td><td data-label="Canary">an einer Sammlung: löschen (fragt erst), umbenennen</td><td data-label="Konzept"><span class="tag canary">ergänzt</span> Entf auch: herausnehmen (Merkliste, Studium), am Chip: aus</td><td data-label="Warum">Entf ist in 11 von 29 Apps das Löschen</td></tr>
-          <tr><td><kbd>a</kbd>–<kbd>z</kbd> in den Filtern</td><td data-label="betula.app">–</td><td data-label="Canary">–</td><td data-label="Konzept"><span class="tag new">neu</span> einen Filter finden</td><td data-label="Warum">wie Tippen in jeder Liste, über alle Gruppen</td></tr>
+          <tr><td><kbd>a</kbd>–<kbd>z</kbd> in den Filtern</td><td data-label="betula.app">–</td><td data-label="Canary">–</td><td data-label="Konzept"><span class="tag new">neu</span> das Feld „Filter finden“: Filter und Abschnitte, markiert, Tippfehler wie die Suche; Enter setzt</td><td data-label="Warum">wie Tippen in jeder Liste; Baymard rät bei vielen Filterwerten zu einer Suche darin</td></tr>
         </tbody>
       </table>
     </div>
@@ -1087,9 +1196,9 @@ td .same { color: var(--text-3); }
     <h2 id="steps-title">In sieben Schritten</h2>
     <p class="lead">Jeder Schritt ist für sich nützlich. Der erste ändert keine Taste und hilft allen, auch mit Screenreader.</p>
     <ol class="steps">
-      <li><h3>Halte und Gruppen</h3><p>Eine Filtergruppe, die Liste, die Knöpfe eines Moduls: je ein Halt. Gruppen mit Namen, die Liste als Listenfeld mit Position, Esc führt in die Liste, eine Meldung statt der Live-Region auf der Liste.</p><span class="size">mittel</span></li>
-      <li><h3>Bereiche sichtbar</h3><p>Rahmen und Name des Bereichs mit der Tastatur, die Leiste der Filter; <kbd>F</kbd> in die Filter, <kbd>V</kbd> Vollbild, <kbd>Strg</kbd> <kbd>F6</kbd>.</p><span class="size">mittel</span></li>
-      <li><h3>Filter per Tastatur</h3><p>Pfeile in der Gruppe, <kbd>−</kbd> <kbd>+</kbd> <kbd>Entf</kbd>, Tippen findet einen Filter, Ziffern im Regler.</p><span class="size">klein</span></li>
+      <li><h3>Halte und Gruppen</h3><p>Ein Abschnitt der Filter, die Liste, die Knöpfe eines Moduls: je ein Halt. Gruppen mit Namen, die Liste als Listenfeld mit Position, Esc führt in die Liste, eine Meldung statt der Live-Region auf der Liste.</p><span class="size">mittel</span></li>
+      <li><h3>Bereiche sichtbar</h3><p>Der Rahmen mit dem Ausgang außerhalb der Liste, der unterlegte Abschnitt, die Leiste der Filter; Tab bleibt im Bereich (unten Schluss, im Inhalt rundherum); <kbd>F</kbd> in die Filter, <kbd>V</kbd> Vollbild, <kbd>Strg</kbd> <kbd>F6</kbd>.</p><span class="size">mittel</span></li>
+      <li><h3>Filter per Tastatur</h3><p>Die Pfeile über alle Abschnitte, <kbd>−</kbd> <kbd>+</kbd> <kbd>Entf</kbd>, das Feld „Filter finden“ mit Markierung und den Tippfehlern der Suche (<code>folia_search::fuzzy</code>), das Feld am Regler.</p><span class="size">mittel</span></li>
       <li><h3>Hilfe</h3><p>Der Knopf „Tasten“ und <kbd>?</kbd> mit den Tasten des Ortes, Halten zeigt alle Tasten, der Schalter für die einzelnen Tasten im Profil.</p><span class="size">klein</span></li>
       <li><h3>Befehle</h3><p>Der Knopf „Befehle“ und <kbd>Strg</kbd> <kbd>K</kbd> mit Aktionen, Filtern, Modulen und Seiten, jede Zeile mit ihrer Taste.</p><span class="size">mittel</span></li>
       <li><h3>Die anderen Seiten</h3><p>„Mein Studium“, Merkliste und Stundenplan nach demselben Schema; <kbd>Umschalt</kbd> <kbd>F10</kbd>, <kbd>Strg</kbd> <kbd>C</kbd>, <kbd>Strg</kbd> <kbd>Z</kbd> und <kbd>Entf</kbd> in jeder Liste. Der Knopf mit Pfeil kommt aus „Jede Taste hat einen Knopf“.</p><span class="size">groß</span></li>
@@ -1099,18 +1208,19 @@ td .same { color: var(--text-3); }
 
   <section class="block" id="offen" aria-labelledby="open-title">
     <h2 id="open-title">Noch offen</h2>
-    <p class="lead">Jede Frage hat eine Empfehlung. Im Prototyp lassen sich 2, 3 und 4 umschalten. Was „Jede Taste hat einen Knopf“ fragt (⇧M und ⇧P, wohin der Pfeil an der Zeile kommt, ⌘ am Mac), wird dort entschieden; dieses Blatt nimmt dessen Empfehlungen an.</p>
+    <p class="lead">Jede offene Frage hat eine Empfehlung; 1 und 6 sind am 20.10. entschieden. Im Prototyp lassen sich 2, 3 und 4 umschalten. Was „Jede Taste hat einen Knopf“ fragt (⇧M und ⇧P, wohin der Pfeil an der Zeile kommt, ⌘ am Mac), wird dort entschieden; dieses Blatt nimmt dessen Empfehlungen an.</p>
     <ol class="ask">
-      <li><h3><kbd>F</kbd> für die Filter?</h3><p>Auf betula.app ist <kbd>F</kbd> seit 1.0.3 das Vollbild.</p><p class="rec">Ja. Die Filter braucht man viel öfter als das Vollbild, „Filter“ heißt deutsch und englisch so, und Linear, GitLab, Trello und Bitbucket nehmen F dafür. Das Vollbild bekommt <kbd>V</kbd> und Enter auf dem offenen Modul, und „Vollbild V“ steht an seinem Knopf.</p></li>
+      <li data-done><h3><kbd>F</kbd> für die Filter?</h3><p>Auf betula.app ist <kbd>F</kbd> seit 1.0.3 das Vollbild.</p><p class="rec done">Ja („ich liebe den Ansatz, dass man mit F den filter öffnet“, 20.10.). Das Vollbild bekommt <kbd>V</kbd> und Enter auf dem offenen Modul, und „Vollbild V“ steht an seinem Knopf.</p></li>
       <li><h3><kbd>Strg</kbd> <kbd>K</kbd>: die Befehle oder das Suchfeld?</h3><p>Heute führt <kbd>Strg</kbd> <kbd>K</kbd> ins Suchfeld, und das Suchfeld zeigt „Strg K“.</p><p class="rec">Die Befehle, die auch Module finden; <kbd>/</kbd> bleibt das Suchfeld und steht darin. So tut Strg K weiter, was man kennt (ein Modul finden), und kann mehr.</p></li>
-      <li><h3>Rahmen, Name und die Leiste der Filter nur bei Tastatur?</h3><p>Seit 1.39.2 steht über der Liste „↑ ↓ wählen · Enter öffnen · M merken“ („Sammlung sieht hier zu viel aus“).</p><p class="rec">Ja, ab der ersten Taste bis zur Maus. Eine Leiste gibt es nur in den Filtern, wo die Chips ihre Tasten nicht tragen können; der Kopf der Liste bleibt, wie er seit 1.39.2 ist.</p></li>
+      <li><h3>Der Rahmen und die Leiste der Filter nur bei Tastatur?</h3><p>Entschieden ist am 20.10., dass Liste und Modul keinen Rahmen tragen. Offen ist, ob Filter, Suche und Navigation ihn auch zeigen, wenn man mit der Maus hineinklickt. Über der Liste steht seit 1.39.2 „↑ ↓ wählen · Enter öffnen · M merken“.</p><p class="rec">Nur ab der ersten Taste bis zur Maus. Wer klickt, verlässt die Filter mit einem Klick und braucht den Hinweis auf Esc nicht. Die Leiste gibt es nur in den Filtern, wo die Chips ihre Tasten nicht tragen können; der Kopf der Liste bleibt, wie er seit 1.39.2 ist.</p></li>
       <li><h3>Einzelne Tasten abschaltbar, und an als Standard?</h3><p>WCAG 2.1.4 verlangt einen Schalter für Tasten aus einem einzelnen Zeichen.</p><p class="rec">Ja, im Profil und in der Übersicht (<kbd>?</kbd>), an als Standard; erst einschalten muss man sie nur bei 2 der 29 untersuchten Apps (Gmail, ClickUp). Aus heißt: F, /, ?, M, P, V (auch mit Umschalt) tun nichts und stehen nirgends; Strg K, Tab, Pfeile, Enter und Esc bleiben, und jeder Knopf sowieso.</p></li>
       <li><h3>„Ohne“ mit einer eigenen Taste?</h3><p>Heute schaltet die Leertaste aus → mit → ohne, wie der Klick.</p><p class="rec">Ja: die Leertaste bleibt wie der Klick, dazu <kbd>−</kbd> für ohne, <kbd>+</kbd> für mit und <kbd>Entf</kbd> für aus, und der Tooltip des Chips nennt sie.</p></li>
-      <li><h3>Tippen in den Filtern findet einen Filter?</h3><p>In den Filtern gibt es sonst nichts zu tippen.</p><p class="rec">Ja, über alle Gruppen und „Weitere Filter“, mit der Anzeige des Getippten oben im Panel. Baymard rät bei langen Listen von Filterwerten zu einer Suche darin; die Filter des Katalogs haben zusammen mehr als 30 Werte.</p></li>
+      <li data-done><h3>Tippen in den Filtern findet einen Filter?</h3><p>In den Filtern gibt es sonst nichts zu tippen.</p><p class="rec done">Ja, in einem Feld „Filter finden“ oben im Panel („Geniale idee aber die UX ist noch schlecht umgesetzte“, 20.10.): markiert wie die Suche, ein Textfeld wie jedes, mit den Abschnitten und „Weitere Filter“, Tippfehler wie die Suche nur ohne genauen Treffer, der Treffer rollt gedämpft ins Bild (<a href="#filter">Die Filter</a>).</p></li>
       <li><h3><kbd>Strg</kbd> <kbd>F6</kbd> für die Bereiche?</h3><p>Windows-Programme gehen mit F6 von Bereich zu Bereich; im Browser führt F6 aber in die Adressleiste. Microsoft nimmt in Outlook im Web und Teams darum Strg F6.</p><p class="rec">Ja, Strg F6 wie Outlook im Web, und F6 bleibt beim Browser. Am Mac braucht F6 meist <kbd>fn</kbd>; dort reichen <kbd>F</kbd>, <kbd>/</kbd> und <kbd>Esc</kbd>.</p></li>
       <li><h3>Die Navigation als ein Halt?</h3><p>Heute ist jeder Tab der Navigation ein Halt, dazu Logo, Profil und das Licht.</p><p class="rec">Ja: Tab kommt einmal hinein, <kbd>↑</kbd> <kbd>↓</kbd> wählen den Tab, wie bei Registerkarten.</p></li>
       <li><h3><kbd>B</kbd> für „bestanden“ in „Mein Studium“?</h3><p>Heute steht „Als bestanden markieren“ im Menü der Zeile.</p><p class="rec">Erst einmal nur im Menü, mit <kbd>Umschalt</kbd> <kbd>F10</kbd> erreichbar. Wenn es am Ende eines Semesters oft gebraucht wird, bekommt es <kbd>B</kbd> und steht dann am Menüeintrag.</p></li>
       <li><h3>Ein Hinweis nach dem Klick?</h3><p>Wer mit der Maus merkt, liest „Geht auch mit M“.</p><p class="rec">Ja, einmal je Taste und dann nie wieder; mit den einzelnen Tasten abschaltbar.</p></li>
+      <li><h3>Ein Rahmen auch um Suche und Navigation?</h3><p>Die Rückmeldung vom 20.10. galt den Filtern und dem Inhalt. Suche und Navigation liegen wie die Filter außerhalb des Zuhauses.</p><p class="rec">Ja, derselbe Rahmen mit „Esc zum Verlassen“, damit jeder Ort außerhalb der Liste gleich aussieht. Tab geht dort weiter wie gewohnt: aus der Navigation in die Suche, aus „Befehle“ in die Filter. Festgehalten wird nur in den Filtern.</p></li>
       <li><h3>Die Reihenfolge der Schritte?</h3><p>Sieben Schritte, unabhängig voneinander nützlich.</p><p class="rec">Schritt 1 zuerst: Er hilft allen und ändert keine Taste. Dann 2 und 3 zusammen, dann 4; die Befehle (5) unabhängig davon.</p></li>
     </ol>
         <h3 style="margin-top:22px">Quellen</h3>
@@ -1202,7 +1312,7 @@ const platform = navigator.userAgentData?.platform || navigator.platform || "";
 const S = {
   tri: {}, lp: [0, 30], dauer: "any", program: 0, q: "",
   open: null, focusId: null, marked: new Set(), planned: new Map(), notes: new Map(), inColl: new Map(),
-  moreOpen: false, rove: {}, lastFilter: null, region: null, tab: "catalog",
+  moreOpen: false, rove: {}, lastFilter: null, region: null, tab: "catalog", sort: { key: null, dir: 1 },
   letters: true, rings: "kbd", ctrlK: "palette", os: /mac|iphone|ipad/i.test(platform) ? "mac" : /^win/i.test(platform) ? "win" : "linux",
   kbd: false, undo: [], visible: [],
 };
@@ -1253,24 +1363,30 @@ const tipsEl = $("#bx-tips");
 function chipHTML(c) {
   return `<button type="button" class="bx-chip" role="checkbox" id="bx-c-${c.k}" data-k="${c.k}" aria-checked="false" tabindex="-1"${c.wide ? ' style="grid-column:1/-1"' : ""}><span class="bx-box">${svg("check", "yes")}${svg("x", "no")}</span>${c.icon ? svg(c.icon) : ""}<span class="lbl">${esc(c.label)}</span></button>`;
 }
+// Rebuilding the filters („Weitere Filter“ opening) keeps the keyboard where it was, without the
+// focus falling out of the region for a moment.
+let rebuilding = false;
 function renderFilters() {
+  const had = fscroll.contains(document.activeElement) ? document.activeElement.id : null;
+  rebuilding = true;
   let h = `<div class="bx-fgroup" data-group="program"><div class="bx-flabel"><span id="bx-gl-program">Studiengang</span></div><button type="button" class="bx-picker" id="bx-program" data-ctl="picker" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="bx-gl-program bx-program-val">${svg("cap")}<span class="lbl" id="bx-program-val"></span>${svg("updown")}</button></div>`;
   for (const g of GROUPS) {
     if (g.inMore && !S.moreOpen) continue;
     if (g.more) {
-      h += `<div class="bx-fgroup" data-group="more"><button type="button" class="bx-more" id="bx-more" data-ctl="more" aria-expanded="${S.moreOpen}">Weitere Filter ${svg("plus")}</button></div>`;
+      h += `<div class="bx-fgroup" data-group="more"><button type="button" class="bx-more" id="bx-more" data-ctl="more" aria-expanded="${S.moreOpen}"><span class="lbl">Weitere Filter</span>${svg("plus")}</button></div>`;
       continue;
     }
     if (g.range) {
+      const how = "Pfeil links und rechts ändern den Wert, eine Ziffer öffnet ein Feld für die Zahl, Pfeil hoch und runter gehen weiter";
       h += `<div class="bx-fgroup" role="group" aria-labelledby="bx-gl-lp" data-group="lp"><div class="bx-flabel"><span id="bx-gl-lp">Leistungspunkte</span><span class="bx-lpsay" id="bx-lpsay"></span></div>
         <div class="bx-range" id="bx-range"><span class="track"></span><span class="fill" id="bx-lpfill"></span>
-        <button type="button" class="bx-thumb" role="slider" id="bx-lp0" data-ctl="thumb" data-i="0" aria-label="Leistungspunkte mindestens" aria-valuemin="0" aria-valuemax="30"></button>
-        <button type="button" class="bx-thumb" role="slider" id="bx-lp1" data-ctl="thumb" data-i="1" aria-label="Leistungspunkte höchstens" aria-valuemin="0" aria-valuemax="30"></button></div>
+        <button type="button" class="bx-thumb" role="slider" id="bx-lp0" data-ctl="thumb" data-i="0" aria-label="Leistungspunkte mindestens" aria-description="${how}" aria-valuemin="0" aria-valuemax="30" tabindex="0"></button>
+        <button type="button" class="bx-thumb" role="slider" id="bx-lp1" data-ctl="thumb" data-i="1" aria-label="Leistungspunkte höchstens" aria-description="${how}" aria-valuemin="0" aria-valuemax="30" tabindex="-1"></button></div>
         <div class="bx-ticks" aria-hidden="true"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span><span>30+</span></div></div>`;
       continue;
     }
     if (g.seg) {
-      h += `<div class="bx-fgroup" data-group="${g.id}"><div class="bx-flabel"><span id="bx-gl-${g.id}">${esc(g.label)}</span></div><div class="bx-seg" role="radiogroup" aria-labelledby="bx-gl-${g.id}">${g.seg.map(([v, l]) => `<button type="button" role="radio" data-ctl="radio" data-v="${v}" aria-checked="false" tabindex="-1">${esc(l)}</button>`).join("")}</div></div>`;
+      h += `<div class="bx-fgroup" data-group="${g.id}"><div class="bx-flabel"><span id="bx-gl-${g.id}">${esc(g.label)}</span></div><div class="bx-seg" role="radiogroup" aria-labelledby="bx-gl-${g.id}">${g.seg.map(([v, l]) => `<button type="button" role="radio" id="bx-dauer-${v}" data-ctl="radio" data-v="${v}" aria-checked="false" aria-description="Pfeil links und rechts wählen, Pfeil hoch und runter gehen weiter" tabindex="-1"><span class="lbl">${esc(l)}</span></button>`).join("")}</div></div>`;
       continue;
     }
     const legend = g.legend ? `<span class="legend" aria-hidden="true"><span class="bx-box" style="background:var(--invert);box-shadow:none;color:var(--on-invert)">${svg("check", "yes").replace('class="yes"', 'class="yes" style="display:block"')}</span>mit <span class="bx-box" style="background:var(--no);box-shadow:none;color:var(--panel)">${svg("x", "no").replace('class="no"', 'class="no" style="display:block"')}</span>ohne</span>` : "";
@@ -1278,6 +1394,9 @@ function renderFilters() {
   }
   fscroll.innerHTML = h;
   syncFilters();
+  applyFind();
+  if (had) document.getElementById(had)?.focus({ preventScroll: true });
+  rebuilding = false;
 }
 function triOf(k) { return S.tri[k] || "off"; }
 function syncFilters() {
@@ -1286,7 +1405,7 @@ function syncFilters() {
     el.dataset.state = st;
     el.setAttribute("aria-checked", st === "with" ? "true" : st === "without" ? "mixed" : "false");
     el.setAttribute("aria-label", st === "without" ? `ohne ${c.label}` : c.label);
-    el.title = st === "off" ? "Leertaste: mit" : st === "with" ? "Leertaste: ohne" : "Leertaste: aus";
+    el.title = st === "off" ? "Leertaste: mit · −: ohne" : st === "with" ? "Leertaste: ohne" : "Leertaste: aus";
   }
   // One stop per group: the chip last at, else the first.
   for (const grp of $$('.bx-fgroup[role="group"]', fscroll)) {
@@ -1308,7 +1427,15 @@ function syncFilters() {
     $("#bx-lpsay").textContent = a === 0 && b >= 30 ? "alle" : a === b ? `genau ${a}` : `${a} bis ${b >= 30 ? "30+" : b}`;
   }
   const pv = $("#bx-program-val"); if (pv) pv.textContent = PROGRAMS[S.program];
-  for (const grp of $$(".bx-fgroup", fscroll)) grp.toggleAttribute("data-current", !!grp.contains(document.activeElement));
+  syncCurrent();
+}
+// The section with the keyboard is quietly underlaid; while typing in „Filter finden“, the section
+// of what it targets.
+function syncCurrent() {
+  const a = document.activeElement;
+  const hit = a?.id === "bx-fq" ? FQ.hits[FQ.at] : null;
+  const cur = hit ? hit.t.lab()?.closest(".bx-fgroup") || hit.t.el()?.closest(".bx-fgroup") : bx.contains(a) ? a.closest(".bx-fgroup") : null;
+  for (const g of $$(".bx-fgroup", fscroll)) g.toggleAttribute("data-current", g === cur);
 }
 
 function passes(m) {
@@ -1340,6 +1467,9 @@ function rowHTML(m, i, n) {
 function renderList() {
   const hadFocus = rowsEl.contains(document.activeElement);
   const list = MODS.filter(passes);
+  const { key, dir } = S.sort;
+  if (key === "t") list.sort((a, b) => dir * a.t.localeCompare(b.t, "de"));
+  if (key === "lp") list.sort((a, b) => dir * (a.lp - b.lp));
   S.visible = list;
   $("#bx-count").textContent = list.length;
   $("#bx-l-title").textContent = list.length === 1 ? "Modul" : "Module";
@@ -1424,9 +1554,14 @@ function setRegion(r) {
   for (const el of $$("[data-region]", bx)) el.toggleAttribute("data-active", el.dataset.region === r);
   updateKeys();
 }
+// The ring of a region away from the list says how to get back, not how one got there; the key
+// that leads in stands at the region's head („Filter F“, „/“ in the search). The list and the
+// module beside it are home: no ring, nothing to close (owner, 2026-10-20).
 function regionTags() {
-  $("#bx-tag-nav").innerHTML = `Navigation ${kb(K.nav() + " 1–5")}`;
-  $("#bx-tag-search").innerHTML = `Suche ${kb("/")}${S.ctrlK === "search" ? kb(K.ctrl() + " K") : ""}`;
+  const exit = `<span class="sep" aria-hidden="true">·</span>${kb("Esc")}zum Verlassen`;
+  $("#bx-tag-nav").innerHTML = `Navigation${exit}`;
+  $("#bx-tag-search").innerHTML = `Suche${exit}`;
+  $("#bx-tag-filter").innerHTML = `Filter${exit}`;
   $("#bx-q-kbd").textContent = S.ctrlK === "search" ? `${K.ctrl()} K` : "/";
   const ck = $("#bx-cmd-kbd");
   ck.textContent = S.ctrlK === "palette" ? `${K.ctrl()} K` : "";
@@ -1435,42 +1570,47 @@ function regionTags() {
 function ctlOf(el) {
   if (!el) return null;
   if (el.matches?.(".bx-chip")) return "chip";
+  if (el.id === "bx-fq") return "find";
+  if (el.id === "bx-lpin") return "lpedit";
+  if (el.matches?.(".bx-sorth")) return "sort";
   return el.dataset?.ctl || (el.matches?.(".bx-row") ? "row" : el.matches?.("#bx-q") ? "search" : el.matches?.(".bx-tab") ? "tab" : el.closest?.("#bx-d-tools") ? "tool" : el.matches?.("#bx-dbody") ? "body" : el.matches?.("#bx-reset") ? "reset" : el.matches?.("#bx-rows") ? "rows" : el.matches?.("#bx-stub") ? "stub" : el.matches?.("#bx-cmd-btn") ? "cmdbtn" : el.matches?.("#bx-help-rail") ? "help" : null);
 }
 function keysFor(el) {
   const c = ctlOf(el);
   const L = S.letters;
-  const typeFind = ["a–z", "Filter finden"];
+  const find = ["a–z", "Filter finden"];
+  const sec = ["Tab", "nächster Abschnitt"];
   const out = {
     tab: [["↑ ↓", "Tab wählen"], ["Enter", "öffnen"], [K.nav() + " 1–5", "direkt"], ["Esc", "zur Liste"]],
     search: [["Tippen", "sucht"], ["↓", "in die Liste"], ["Enter", "erstes öffnen"], ["Esc", "zur Liste"]],
-    reset: [["Enter", "alle Filter aus"], ["Tab", "weiter"], typeFind, ["Esc", "zur Liste"]],
-    picker: [["Enter", "Liste öffnen"], ["Tab", "nächste Gruppe"], typeFind, ["Esc", "zur Liste"]],
-    chip: [["← → ↑ ↓", "wählen"], ["Leertaste", "mit · ohne · aus"], ["−", "ohne"], [K.del(), "aus"], ["Tab", "nächste Gruppe"], typeFind, ["Esc", "zur Liste"]],
-    thumb: [["← →", "−1 / +1"], ["Bild ↑ ↓", "±5"], ["0–9", "Zahl tippen"], ["Tab", "weiter"], ["Esc", "zur Liste"]],
-    radio: [["← →", "wählen"], ["Tab", "weiter"], typeFind, ["Esc", "zur Liste"]],
-    more: [["Enter", S.moreOpen ? "zuklappen" : "aufklappen"], ["Tab", "weiter"], typeFind, ["Esc", "zur Liste"]],
-    row: [["↑ ↓", "wählen"], ["Enter", el?.dataset?.id && el.dataset.id === S.open ? "Vollbild" : "öffnen"], ...(L ? [["M", "merken"], ["⇧M", "Sammlung und Notiz"], ["P", "einplanen"], ["⇧P", "Semester wählen"], ["V", "Vollbild"]] : []), [K.menu(), "Menü"], ...(L ? [["F", "Filter"], ["?", "alle Tasten"]] : [[K.ctrl() + " K", "Befehle"]])],
-    cmdbtn: [["Enter", "Befehle öffnen"], ["Tab", "weiter"], ["Esc", "zur Liste"]],
+    find: FQ.q ? [["↓ ↑", "nächster Treffer"], ["Enter", "mit"], [K.shift() + " Enter", "ohne"], ["Tab", "hin, ohne zu schalten"], ["Esc", "leeren"]]
+      : [["Tippen", "findet Filter und Abschnitte"], ["↓", "zu den Filtern"], sec],
+    reset: [["Enter", "alle Filter aus"], ["↓", "zum Finden"], sec],
+    picker: [["Enter", "Liste öffnen"], ["Pfeile", "weiter"], sec, find],
+    chip: [["Pfeile", "überallhin"], sec, ["Leertaste", "mit · ohne · aus"], ["−", "ohne"], [K.del(), "aus"], find],
+    thumb: [["← →", "−1 / +1"], ["↑ ↓", "weiter"], ["0–9", "Zahl eingeben"], sec],
+    lpedit: [["0–9", "Zahl"], ["Enter", "übernehmen"], ["Esc", "abbrechen"]],
+    radio: [["← →", "wählen"], ["↑ ↓", "weiter"], sec],
+    more: [["Enter", S.moreOpen ? "zuklappen" : "aufklappen"], ["↓ · Tab", S.moreOpen ? "hinein" : "aufklappen und hinein"], find],
+    sort: [["← →", "Spalte"], ["Enter", "sortieren"], ["↓", "in die Liste"], ["Tab", "weiter, rundherum"]],
+    row: [["↑ ↓", "wählen"], ["Enter", el?.dataset?.id && el.dataset.id === S.open ? "Vollbild" : "öffnen"], ...(L ? [["M", "merken"], ["⇧M", "Sammlung und Notiz"], ["P", "einplanen"], ["⇧P", "Semester wählen"], ["V", "Vollbild"]] : []), [K.menu(), "Menü"], ["Tab", "weiter, rundherum"], ...(L ? [["F", "Filter"], ["?", "alle Tasten"]] : [[K.ctrl() + " K", "Befehle"]])],
+    cmdbtn: [["Enter", "Befehle öffnen"], ["Tab", "in die Filter"], ["Esc", "zur Liste"]],
     help: [["Enter", "alle Tasten"], ["↑ ↓", "Tab wählen"], ["Esc", "zur Liste"]],
     rows: [...(L ? [["F", "Filter"], ["/", "Suche"]] : [[K.ctrl() + " K", "Befehle"]]), ["Tab", "weiter"]],
     tool: [["← →", "wählen"], ["Enter", "ausführen"], ...(L ? [["P · ⇧P", "einplanen, Semester"], ["M · ⇧M", "merken, Sammlung"], ["V", "Vollbild"]] : []), ["Tab", "zum Text"], ["Esc", "schließen"]],
-    body: [["↑ ↓", "blättern"], ...(L ? [["M · ⇧M", "merken, Sammlung"], ["P · ⇧P", "einplanen, Semester"], ["V", "Vollbild"]] : []), ["Esc", "schließen"]],
+    body: [["↑ ↓", "blättern"], ...(L ? [["M · ⇧M", "merken, Sammlung"], ["P · ⇧P", "einplanen, Semester"], ["V", "Vollbild"]] : []), ["Tab", "weiter, rundherum"], ["Esc", "schließen"]],
     stub: [["Esc", "zurück zu den Modulen"], [K.nav() + " 2", "Module"]],
   };
   return out[c] || [];
 }
-// The bar at a region's foot names only keys that have no button of their own: those of the filters
-// (a chip cannot carry Leertaste, − and Entf). The list's head and the buttons name the rest.
-const BAR = new Set(["chip", "thumb", "radio", "picker", "more", "reset"]);
+// The bar at the foot of the filters names only keys that have no button of their own (a chip
+// cannot carry Leertaste, − and Entf); Esc stands on the ring. The list's head and the buttons
+// name the rest.
+const BAR = new Set(["chip", "thumb", "radio", "picker", "more", "reset", "find", "lpedit"]);
 function updateKeys() {
   const el = document.activeElement;
   const keys = bx.contains(el) && BAR.has(ctlOf(el)) ? keysFor(el) : [];
-  const html = keys.map(([k, w]) => `<span>${kb(k)}${esc(w)}</span>`).join("");
-  for (const bar of $$(".bx-keys, .bx-keys-float", bx)) {
-    const r = bar.closest("[data-region]")?.dataset.region;
-    bar.innerHTML = r === S.region ? html : "";
-  }
+  $("#bx-filter > .bx-keys").innerHTML = keys.map(([k, w]) => `<span>${kb(k)}${esc(w)}</span>`).join("");
 }
 
 // Focus targets.
@@ -1479,24 +1619,45 @@ function focusList() {
   const row = rowEl(S.focusId) || $(".bx-row", rowsEl);
   (row || rowsEl).focus();
 }
-function filterControls() {
-  return $$(".bx-chip, .bx-picker, .bx-thumb, .bx-more, .bx-seg button", fscroll).filter((el) => el.tabIndex === 0 || el.matches(".bx-picker, .bx-thumb, .bx-more"));
-}
+// F lands where one was last in the filters (never on „Zurücksetzen“), else in „Filter finden“.
 function focusFilter() {
-  if (S.tab !== "catalog") { goTab(2); }
+  if (S.tab !== "catalog") { goTab(2, true); }
   const last = S.lastFilter && document.getElementById(S.lastFilter);
-  if (last && fscroll.contains(last)) { last.focus(); return; }
-  const first = $('.bx-fgroup[data-group="termine"] .bx-chip', fscroll);
-  first?.focus();
+  focusCtl(last && $("#bx-filter").contains(last) ? last : fq);
 }
 function focusSearch() { const q = $("#bx-q"); q.focus(); q.select(); }
 function focusDetail() { const b = $('#bx-d-tools [tabindex="0"]') || $("#bx-d-tools button"); b?.focus(); }
 function focusNav() { $('.bx-tab[tabindex="0"]', bx)?.focus(); }
+// Strg F6: the regions in order. In Betula it goes round as the browser's F6 does; in this page it
+// leaves the prototype after the last region and before the first, so it is never a trap here.
 function cycleRegion(dir) {
-  const order = ["nav", "search", "filter", "list", ...(S.open && S.tab === "catalog" ? ["detail"] : [])].filter((r) => S.tab === "catalog" || r !== "filter");
-  const at = Math.max(0, order.indexOf(S.region || "list"));
-  const next = order[(at + dir + order.length) % order.length];
-  ({ nav: focusNav, search: focusSearch, filter: focusFilter, list: focusList, detail: focusDetail })[next]();
+  const order = ["nav", "search", ...(S.tab === "catalog" ? ["filter"] : []), "content"];
+  const here = S.region === "list" || S.region === "detail" ? "content" : S.region;
+  const j = order.indexOf(here) + dir;
+  if (j >= order.length || (j < 0 && here)) { leaveProto(j < 0 ? -1 : 1); return; }
+  ({ nav: focusNav, search: focusSearch, filter: focusFilter, content: focusList })[order[Math.max(0, j)]]();
+}
+function leaveProto(dir) {
+  const to = dir > 0 ? $("#t1 .go") : $("#bx-show-tips");
+  to?.focus();
+  say(dir > 0 ? "Aus dem Prototyp hinaus, zu den Aufgaben" : "Aus dem Prototyp hinaus, zu den Schaltern darüber", "focus");
+}
+// The content goes round with Tab: the column heads, the list, the module's buttons, its text, and
+// again the heads (owner, 2026-10-20: „mit n mal tab dann wieder beim content landet“). In Betula the
+// ground of the page (Impressum, Datenschutz, the version) is part of the round.
+function contentStops() {
+  if (S.tab !== "catalog") return [$("#bx-stub")];
+  const st = [$('#bx-sort [tabindex="0"]'), rowEl(S.focusId) || $(".bx-row", rowsEl) || rowsEl];
+  if (S.open) st.push($('#bx-d-tools [tabindex="0"]') || $("#bx-d-tools .bx-btn"), $("#bx-dbody"));
+  return st.filter(Boolean);
+}
+function tabContent(e, el) {
+  e.preventDefault();
+  const st = contentStops();
+  const i = S.tab !== "catalog" ? 0 : el.closest("#bx-sort") ? 0 : el.closest("#bx-rows") ? 1 : el.closest("#bx-d-tools") ? 2 : el.closest("#bx-dbody") ? 3 : 1;
+  const next = st[(i + (e.shiftKey ? -1 : 1) + st.length) % st.length];
+  if (next.matches(".bx-row")) { S.focusId = next.dataset.id; next.scrollIntoView({ block: "nearest" }); }
+  next.focus();
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -1514,8 +1675,14 @@ function setTri(k, st) {
   changed(st === "with" ? `${c.label}: mit` : st === "without" ? `Ohne ${c.label}` : `${c.label}: aus`);
 }
 function cycle(k) { const st = triOf(k); setTri(k, st === "off" ? "with" : st === "with" ? "without" : "off"); }
-function resetFilters() {
+function resetFilters({ undoable = false } = {}) {
+  const was = { tri: { ...S.tri }, lp: [...S.lp], dauer: S.dauer, program: S.program, q: S.q };
+  const any = Object.keys(was.tri).length || was.lp[0] > 0 || was.lp[1] < 30 || was.dauer !== "any" || was.program || was.q;
   S.tri = {}; S.lp = [0, 30]; S.dauer = "any"; S.program = 0; S.q = ""; $("#bx-q").value = "";
+  if (undoable && any) {
+    pushUndo("Zurücksetzen", () => { Object.assign(S, { tri: was.tri, lp: was.lp, dauer: was.dauer, program: was.program, q: was.q }); $("#bx-q").value = was.q; changed("Filter wieder da"); });
+    toast("Alle Filter aus", []);
+  }
   changed("Alle Filter aus");
 }
 function openModule(id, { focusRow = true } = {}) {
@@ -1935,9 +2102,9 @@ function openHelp() {
     <div class="here" style="margin-top:10px"><h4 style="margin-top:0">Hier: ${esc(where)}</h4>${dl(here.length ? here : [["Tab", "zum nächsten Halt"]])}</div>
     <div class="cols">
       <div><h4>Überall</h4>${dl([[K.ctrl() + " K", "Befehle: alles mit Namen"], ["/", "Suchfeld"], ["F", "Filter"], ["Esc", "einen Schritt zurück, dann zur Liste"], [K.ctrl() + " F6", "nächster Bereich"], [K.nav() + " 1–5", "Start, Module, Studium, Merkliste, Stundenplan"], ["?", "diese Übersicht"], [K.ctrl() + " Z", "Rückgängig"]])}</div>
-      <div><h4>In der Liste</h4>${dl([["↑ ↓", "wählen"], ["Enter", "öffnen, nochmal: Vollbild"], ["M", "merken"], ["⇧M", "Sammlung und Notiz"], ["P", "einplanen"], ["⇧P", "in ein Semester"], ["V", "Vollbild"], [K.menu(), "Menü der Zeile"], [K.ctrl() + " C", "Zeile kopieren"]])}</div>
-      <div><h4>In den Filtern</h4>${dl([["Tab", "nächste Gruppe"], ["← → ↑ ↓", "in der Gruppe"], ["Leertaste", "mit · ohne · aus"], ["− / +", "ohne / mit"], [K.del(), "aus"], ["a–z", "Filter finden"]])}</div>
-      <div><h4>Im Modul</h4>${dl([["Tab", "Knöpfe, dann Text"], ["P · M · V", "einplanen, merken, Vollbild"], ["⇧P · ⇧M", "der Pfeil daneben"], ["Esc", "schließen, zurück zur Zeile"]])}</div>
+      <div><h4>In der Liste</h4>${dl([["↑ ↓", "wählen"], ["Enter", "öffnen, nochmal: Vollbild"], ["M", "merken"], ["⇧M", "Sammlung und Notiz"], ["P", "einplanen"], ["⇧P", "in ein Semester"], ["V", "Vollbild"], [K.menu(), "Menü der Zeile"], [K.ctrl() + " C", "Zeile kopieren"], ["Tab", "Spalten, Liste, Modul, rundherum"]])}</div>
+      <div><h4>In den Filtern</h4>${dl([["Tab", "nächster Abschnitt; oben und unten ist Schluss"], ["Pfeile", "überallhin, über die Abschnitte"], ["Leertaste", "mit · ohne · aus"], ["− / +", "ohne / mit"], [K.del(), "aus"], ["Tippen", "Filter und Abschnitte finden"], ["Enter · ⇧ Enter", "beim Finden: mit · ohne"], ["Regler", "← → Wert, ↑ ↓ weiter, 0–9 Zahl"], ["Esc", "verlassen, zurück zur Liste"]])}</div>
+      <div><h4>Im Modul</h4>${dl([["Tab", "Knöpfe, Text, dann wieder die Spalten"], ["P · M · V", "einplanen, merken, Vollbild"], ["⇧P · ⇧M", "der Pfeil daneben"], ["Esc", "schließen, zurück zur Zeile"]])}</div>
     </div>
     <label><input type="checkbox" id="bx-help-letters"${S.letters ? " checked" : ""}> Einzelne Tasten ohne ${esc(K.ctrl())} (F, /, ?, M, P, V, mit Umschalt ⇧M und ⇧P)</label>
     <p class="note" style="margin-top:6px">Ausgeschaltet bleiben ${esc(K.ctrl())} K, Tab, die Pfeile, Enter und Esc; alles geht weiter, nur ohne einzelne Buchstaben (für Spracheingabe, WCAG 2.1.4).</p></div>`;
@@ -1984,12 +2151,11 @@ function showTips() {
   at($("#bx-cmd-btn"), S.ctrlK === "palette" ? `${K.ctrl()} K` : "Befehle", "top");
   if (S.tab === "catalog") {
     at($(".bx-jump", bx), "F", "right");
-    at($("#bx-l-title"), "Esc", "right");
+    at(fq, "a–z", "inside", -4);
+    at($("#bx-lp1"), "0–9", "top");
     const row = document.activeElement?.closest?.(".bx-row") || rowEl(S.focusId);
     if (row) at(row, "Enter · M · ⇧M · P · ⇧P · V", "inside", -40);
-    for (const btn of $$("#bx-d-tools .bx-btn", bx)) at(btn, btn.querySelector("kbd")?.textContent || "", "top");
-    const firstLabel = $(".bx-fgroup[role=group] .bx-flabel", fscroll);
-    if (firstLabel) at(firstLabel, "a–z findet", "inside", 0);
+    for (const btn of $$("#bx-d-tools .bx-btn", bx)) { const k = btn.querySelector("kbd")?.textContent; if (k) at(btn, k, "top"); }
   }
 
   tipsEl.innerHTML = tips.join("");
@@ -2051,90 +2217,404 @@ function goTab(n, quiet) {
 // Keys.
 // ---------------------------------------------------------------------------------------------------
 const isTyping = (el) => el?.matches?.("input:not([type=checkbox]), textarea, [contenteditable=true]");
-let ta = { buf: "", t: 0 }, findTimer = 0;
-function filterTargets() {
-  const out = [];
+const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const MODKEYS = ["Alt", "Control", "Meta", "Shift", "AltGraph", "CapsLock"];
+
+// ---------------------------------------------------------------------------------------------------
+// „Filter finden“: the field at the top of the filters. A letter typed anywhere in the filters lands
+// in it, and it is a text field like any other (⌫, Strg ⌫, selecting). What matches is marked as the
+// search marks a module; the best match is the target, outlined, and scrolls into the middle of the
+// panel once the typing rests. It finds sections too, and the filters in „Weitere Filter“, which then
+// opens. A typo is forgiven as the catalog's search forgives it (folia_search::fuzzy: from four
+// letters one, from eight two, the first letter right), but only when nothing matches as typed.
+// ---------------------------------------------------------------------------------------------------
+const fq = $("#bx-fq");
+const fqNote = $("#bx-fq-note");
+const FQ = { q: "", hits: [], at: -1, fuzzy: false };
+const TARGETS = (() => {
+  const out = [{ kind: "section", sec: "program", label: "Studiengang", lab: () => $("#bx-gl-program"), el: () => $("#bx-program") }];
   for (const g of GROUPS) {
-    if (g.more) { out.push({ label: g.label, el: () => $("#bx-more"), more: false }); continue; }
     const inMore = !!g.inMore;
-    const first = () => g.range ? $("#bx-lp0") : g.seg ? $('.bx-seg [tabindex="0"]', fscroll) : $(`.bx-fgroup[data-group="${g.id}"] .bx-chip[tabindex="0"]`, fscroll);
-    out.push({ label: g.label, el: first, more: inMore });
-    for (const c of g.chips || []) out.push({ label: c.label, el: () => $(`#bx-c-${c.k}`), more: inMore });
+    if (g.more) { out.push({ kind: "more", sec: "more", label: "Weitere Filter", lab: () => $("#bx-more .lbl"), el: () => $("#bx-more") }); continue; }
+    out.push({ kind: "section", sec: g.id, label: g.label, kw: g.range ? "lp ects credits" : "", inMore, lab: () => $(`#bx-gl-${g.id}`), el: () => entryOf(g.id) });
+    for (const c of g.chips || []) out.push({ kind: "chip", sec: g.id, k: c.k, label: c.label, group: g.label, inMore, lab: () => $(`#bx-c-${c.k} .lbl`), el: () => $(`#bx-c-${c.k}`) });
+    for (const [v, l] of g.seg || []) out.push({ kind: "radio", sec: g.id, v, label: l, group: g.label, inMore, lab: () => $(`#bx-dauer-${v} .lbl`), el: () => $(`#bx-dauer-${v}`) });
   }
-  out.splice(1, 0, { label: "Studiengang", el: () => $("#bx-program"), more: false });
   return out;
+})();
+// A text folded as the search folds it, and for each of its characters where it came from.
+function folded(s) {
+  let n = "";
+  const at = [];
+  for (let i = 0; i < s.length; i++) for (const c of norm(s[i])) { n += c; at.push(i); }
+  return { n, at };
 }
-function typeFind(ch) {
-  const now = performance.now();
-  const fresh = now - ta.t > 900;
-  ta.buf = fresh ? ch : ta.buf + ch;
-  ta.t = now;
-  const q = norm(ta.buf);
-  const targets = filterTargets();
-  const cur = document.activeElement;
-  let at = targets.findIndex((t) => t.el() === cur);
-  const repeatChar = q.length > 1 && [...q].every((c) => c === q[0]);
-  const start = fresh || repeatChar ? at + 1 : Math.max(0, at);
-  const order = [...targets.slice(start), ...targets.slice(0, start)];
-  const needle = repeatChar ? q[0] : q;
-  let hit = order.find((t) => norm(t.label).startsWith(needle)) || order.find((t) => norm(t.label).split(/[\s-]+/).some((w) => w.startsWith(needle)));
-  const find = $("#bx-find");
-  if (hit) {
-    if (hit.more && !S.moreOpen) { S.moreOpen = true; renderFilters(); }
-    const el = hit.el();
-    el?.focus();
-    find.innerHTML = `Finden: <b>${esc(ta.buf)}</b>`;
-  } else find.innerHTML = `Finden: <b>${esc(ta.buf)}</b> · nichts`;
-  find.setAttribute("data-on", "");
-  clearTimeout(findTimer);
-  findTimer = setTimeout(() => find.removeAttribute("data-on"), 1300);
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)));
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
 }
-function moveChip(el, key) {
-  const grp = el.closest(".bx-fgroup");
-  const chips = $$(".bx-chip", grp);
-  const i = chips.indexOf(el);
-  let j = i;
-  if (key === "ArrowRight") j = Math.min(chips.length - 1, i + 1);
-  else if (key === "ArrowLeft") j = Math.max(0, i - 1);
-  else if (key === "Home") j = 0;
-  else if (key === "End") j = chips.length - 1;
-  else {
-    const r = el.getBoundingClientRect(), cx = r.left + r.width / 2;
-    const cands = chips.filter((c) => { const q = c.getBoundingClientRect(); return key === "ArrowDown" ? q.top > r.top + 4 : q.bottom < r.bottom - 4; });
-    if (cands.length) {
-      const rowTop = key === "ArrowDown" ? Math.min(...cands.map((c) => c.getBoundingClientRect().top)) : Math.max(...cands.map((c) => c.getBoundingClientRect().top));
-      const row = cands.filter((c) => Math.abs(c.getBoundingClientRect().top - rowTop) < 4);
-      row.sort((a, b) => Math.abs(a.getBoundingClientRect().left + a.offsetWidth / 2 - cx) - Math.abs(b.getBoundingClientRect().left + b.offsetWidth / 2 - cx));
-      j = chips.indexOf(row[0]);
+function typosAtStart(q, w) {
+  if (q.length < 4 || q[0] !== w[0]) return null;
+  const allowed = q.length >= 8 ? 2 : 1;
+  let best = Infinity;
+  for (const len of [q.length - 1, q.length, q.length + 1]) if (len <= w.length) best = Math.min(best, editDistance(q, w.slice(0, len)));
+  return best >= 1 && best <= allowed ? best : null;
+}
+// How a target matches: every word typed has to match one of its words. 0 its first word starts so,
+// 1 another word does, 2 a part of a word, 3 the start of a word with a typo (only asked for when
+// nothing matches with 0 to 2).
+function hitOf(t, words, typos) {
+  const { n, at } = folded(t.label);
+  const tw = [...n.matchAll(/[\p{L}\p{N}]+/gu)].map((m) => ({ w: m[0], i: m.index }));
+  let tier = 0;
+  const ranges = [];
+  for (const q of words) {
+    let best = null;
+    tw.forEach(({ w, i }, k) => {
+      let h = null;
+      if (w.startsWith(q)) h = { tier: k ? 1 : 0, a: i, b: i + q.length };
+      else if (w.includes(q)) { const p = i + w.indexOf(q); h = { tier: 2, a: p, b: p + q.length }; }
+      else if (typos && typosAtStart(q, w)) h = { tier: 3, a: i, b: i + w.length };
+      if (h && (!best || h.tier < best.tier)) best = h;
+    });
+    if (!best && t.kw && t.kw.split(" ").some((k) => k.startsWith(q))) { tier = Math.max(tier, 1); continue; }
+    if (!best) return null;
+    tier = Math.max(tier, best.tier);
+    ranges.push([at[best.a], at[best.b - 1] + 1]);
+  }
+  return { tier, ranges };
+}
+function markHTML(s, ranges, fz) {
+  let out = "", pos = 0;
+  for (const [a, b] of ranges.slice().sort((x, y) => x[0] - y[0])) {
+    if (a < pos) continue;
+    out += `${esc(s.slice(pos, a))}<mark${fz ? ' class="fz"' : ""}>${esc(s.slice(a, b))}</mark>`;
+    pos = b;
+  }
+  return out + esc(s.slice(pos));
+}
+const targetEl = (h) => (!h ? null : h.t.kind === "section" ? h.t.lab()?.closest(".bx-fgroup") : h.t.el());
+function runFind() {
+  const words = [...norm(fq.value).matchAll(/[\p{L}\p{N}]+/gu)].map((m) => m[0]);
+  FQ.q = words.join(" ");
+  FQ.fuzzy = false;
+  let hits = [];
+  if (words.length) {
+    for (const t of TARGETS) { const h = hitOf(t, words, false); if (h) hits.push({ t, ...h }); }
+    if (!hits.length) {
+      for (const t of TARGETS) { const h = hitOf(t, words, true); if (h) hits.push({ t, ...h }); }
+      FQ.fuzzy = hits.length > 0;
     }
   }
-  if (j !== i) { chips[j].focus(); return true; }
-  return false;
+  FQ.hits = hits;
+  FQ.at = hits.reduce((best, h, i) => (best < 0 || h.tier < hits[best].tier ? i : best), -1);
+  applyFind({ scroll: true });
+  announceTarget();
+  updateKeys();
 }
-let digit = { buf: "", t: 0 };
+let scrollTimer = 0;
+function applyFind({ scroll = false } = {}) {
+  const hit = FQ.hits[FQ.at];
+  if (hit?.t.inMore && !S.moreOpen) {
+    S.moreOpen = true;
+    renderFilters();
+    say("Weitere Filter aufgeklappt", "live");
+    if (scroll) scheduleScroll();
+    return;
+  }
+  for (const t of TARGETS) { const lab = t.lab(); if (lab?.hasAttribute("data-marked")) { lab.textContent = t.label; lab.removeAttribute("data-marked"); } }
+  for (const el of $$(".bx-target", bx)) el.classList.remove("bx-target");
+  for (const h of FQ.hits) {
+    const lab = h.t.lab();
+    if (!lab || !h.ranges.length) continue;
+    lab.innerHTML = markHTML(h.t.label, h.ranges, h.tier === 3);
+    lab.setAttribute("data-marked", "");
+  }
+  targetEl(hit)?.classList.add("bx-target");
+  fqNote.textContent = !FQ.q ? "" : !FQ.hits.length ? "nichts" : `${FQ.fuzzy ? "ähnlich · " : ""}${FQ.at + 1} / ${FQ.hits.length}`;
+  fqNote.toggleAttribute("data-fuzzy", FQ.fuzzy);
+  syncCurrent();
+  if (scroll && hit) scheduleScroll();
+}
+// The scroll waits until the typing rests, so two similar targets do not toss the panel up and down.
+function scheduleScroll() {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => band(targetEl(FQ.hits[FQ.at])), 220);
+}
+function announceTarget() {
+  if (!FQ.q) return;
+  const h = FQ.hits[FQ.at];
+  if (!h) { announce("Kein Filter heißt so"); return; }
+  const st = h.t.kind === "chip" ? `, ${{ off: "nicht aktiviert", with: "mit", without: "ohne" }[triOf(h.t.k)]}` : h.t.kind === "radio" && S.dauer === h.t.v ? ", gewählt" : "";
+  const what = h.t.kind === "section" ? `Abschnitt ${h.t.label}` : h.t.kind === "more" ? "Weitere Filter" : `${h.t.label}, ${h.t.group}${st}`;
+  announce(`${FQ.fuzzy ? "Ähnlich: " : ""}${what}, ${FQ.at + 1} von ${FQ.hits.length}`);
+}
+function clearFind() {
+  if (!fq.value && !FQ.hits.length) return;
+  fq.value = "";
+  FQ.q = ""; FQ.hits = []; FQ.at = -1; FQ.fuzzy = false;
+  clearTimeout(scrollTimer);
+  applyFind();
+}
+function typeInto(ch) {
+  fq.focus({ preventScroll: true });
+  fq.value = ch;
+  fq.setSelectionRange(ch.length, ch.length);
+  runFind();
+}
+fq.addEventListener("input", runFind);
+function findKey(e) {
+  const h = FQ.hits[FQ.at];
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (!FQ.q) { moveV(fq, e.key === "ArrowDown" ? 1 : -1); return; }
+    if (FQ.hits.length < 2) return;
+    FQ.at = (FQ.at + (e.key === "ArrowDown" ? 1 : -1) + FQ.hits.length) % FQ.hits.length;
+    applyFind({ scroll: true });
+    announceTarget();
+    return;
+  }
+  if (e.key === "Enter") { e.preventDefault(); if (h) actOnTarget(h, e.shiftKey); return; }
+  if (e.key === "Tab") { if (h && !e.shiftKey) { e.preventDefault(); goToTarget(h); } else tabFilter(e, fq); return; }
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (fq.value) { clearFind(); updateKeys(); say("Filter finden, leer", "live"); } else leaveFilter();
+  }
+}
+// Enter sets what is found, as the commands do (Enter: mit, Umschalt Enter: ohne, and again: aus), and
+// the keyboard goes there; Tab only goes there.
+function actOnTarget(h, shift) {
+  const t = h.t;
+  clearFind();
+  if (t.kind === "chip") {
+    const st = triOf(t.k);
+    setTri(t.k, shift ? (st === "without" ? "off" : "without") : st === "with" ? "off" : "with");
+    focusCtl($(`#bx-c-${t.k}`));
+  } else if (t.kind === "radio") {
+    S.dauer = t.v;
+    changed(`Dauer: ${t.label}`);
+    focusCtl($(`#bx-dauer-${t.v}`));
+  } else if (t.kind === "more") {
+    setMore(true);
+    focusCtl(entryOf("dauer"));
+  } else if (t.sec === "program") { focusCtl($("#bx-program")); openPicker(); }
+  else focusCtl(entryOf(t.sec));
+}
+function goToTarget(h) {
+  const el = h.t.kind === "more" ? $("#bx-more") : h.t.kind === "section" ? entryOf(h.t.sec) : h.t.el();
+  clearFind();
+  focusCtl(el);
+}
+function leaveFilter() { clearFind(); closeLpEdit(false, false); focusList(); }
+
+// ---------------------------------------------------------------------------------------------------
+// Moving in the filters: Tab from section to section, the arrows from control to control across the
+// sections (owner, 2026-10-20: both). Out only with Esc or a click; at the top and at the bottom Tab
+// and the arrows stop, and the ring says the way out. Scrolling keeps what has the keyboard 20 % off
+// the edges.
+// ---------------------------------------------------------------------------------------------------
+function band(el, smooth = true) {
+  if (!el || !fscroll.contains(el)) return;
+  const box = fscroll.getBoundingClientRect(), r = el.getBoundingClientRect();
+  const lo = box.top + box.height * 0.2, hi = box.bottom - box.height * 0.2;
+  if (r.top >= lo && r.bottom <= hi) return;
+  const top = Math.max(0, Math.min(fscroll.scrollHeight - fscroll.clientHeight, fscroll.scrollTop + (r.top + r.height / 2) - (box.top + box.height / 2)));
+  fscroll.scrollTo({ top, behavior: smooth && !reducedMotion() ? "smooth" : "auto" });
+}
+let vMoving = false, stickyX = null;
+function focusCtl(el, keepX = false) {
+  if (!el) return;
+  vMoving = keepX;
+  el.focus({ preventScroll: true });
+  vMoving = false;
+  band(el);
+}
+const SEC_ORDER = () => ["reset", "find", ...$$(".bx-fgroup", fscroll).map((g) => g.dataset.group)];
+function secOf(el) { return el?.id === "bx-reset" ? "reset" : el?.id === "bx-fq" ? "find" : el?.closest?.(".bx-fgroup")?.dataset.group || null; }
+// Tab lands at the start of a section (in an option group on the chosen option), so a section is
+// always entered the same way, whatever the arrows passed on the way.
+function entryOf(sec) {
+  if (sec === "reset") return $("#bx-reset");
+  if (sec === "find") return fq;
+  const g = $(`.bx-fgroup[data-group="${sec}"]`, fscroll);
+  if (!g) return null;
+  return $('.bx-seg [aria-checked="true"]', g) || $(".bx-picker, .bx-thumb, .bx-more, .bx-chip, .bx-seg button", g);
+}
+function setMore(open, { auto = false } = {}) {
+  if (S.moreOpen === open) return;
+  S.moreOpen = open;
+  renderFilters();
+  announce(open ? (auto ? "Weitere Filter aufgeklappt: Dauer und Standort" : "Weitere Filter aufgeklappt") : "Weitere Filter zugeklappt", true);
+}
+function tabFilter(e, el) {
+  e.preventDefault();
+  const dir = e.shiftKey ? -1 : 1;
+  const here = secOf(el);
+  if (dir > 0 && here === "more" && !S.moreOpen) setMore(true, { auto: true });
+  const secs = SEC_ORDER();
+  const j = secs.indexOf(here) + dir;
+  if (j < 0 || j >= secs.length) { bump(dir > 0 ? "end" : "start"); return; }
+  focusCtl(entryOf(secs[j]));
+}
+// The rows of the filters, top to bottom: the two knobs of the credits are a row each (↑ ↓ go from the
+// one to the other), an option group is one row.
+function fRows() {
+  const rows = [[$("#bx-reset")], [fq]];
+  for (const g of $$(".bx-fgroup", fscroll)) {
+    if (g.dataset.group === "lp") { rows.push([$("#bx-lp0")], [$("#bx-lp1")]); continue; }
+    const seg = $(".bx-seg", g);
+    if (seg) { rows.push($$("button", seg)); continue; }
+    let row = [], top = null;
+    for (const c of $$(".bx-picker, .bx-chip, .bx-more", g)) {
+      const t = c.getBoundingClientRect().top;
+      if (top !== null && Math.abs(t - top) > 4) { rows.push(row); row = []; }
+      row.push(c);
+      top = t;
+    }
+    if (row.length) rows.push(row);
+  }
+  return rows;
+}
+// The field „Filter finden“ counts with its whole bar, so ↓ from it goes down the middle.
+const centerX = (el) => { const q = (el === fq ? el.parentElement : el).getBoundingClientRect(); return q.left + q.width / 2; };
+const checkedOf = (row) => row.find((b) => b.getAttribute("aria-checked") === "true") || row[0];
+function moveV(el, dir) {
+  if (dir > 0 && el.id === "bx-more" && !S.moreOpen) { setMore(true, { auto: true }); focusCtl(entryOf("dauer")); return; }
+  const rows = fRows();
+  const i = rows.findIndex((r) => r.includes(el));
+  if (i < 0) return;
+  const j = i + dir;
+  if (j < 0 || j >= rows.length) { bump(dir > 0 ? "end" : "start"); return; }
+  const x = stickyX ?? centerX(el);
+  const row = rows[j];
+  const to = row[0].matches(".bx-seg button") ? checkedOf(row) : row.slice().sort((a, b) => Math.abs(centerX(a) - x) - Math.abs(centerX(b) - x))[0];
+  focusCtl(to, true);
+  stickyX = x;
+}
+// ← → outside a knob or an option group: the previous and next control in reading order.
+function moveH(el, dir) {
+  if (dir > 0 && el.id === "bx-more" && !S.moreOpen) { setMore(true, { auto: true }); focusCtl(entryOf("dauer")); return; }
+  const order = fRows().slice(2).flatMap((row) => (row[0].matches(".bx-seg button") ? [checkedOf(row)] : row));
+  const i = order.indexOf(el);
+  if (i < 0) return;
+  const j = i + dir;
+  if (j < 0 || j >= order.length) { bump(dir > 0 ? "end" : "start"); return; }
+  focusCtl(order[j]);
+}
+let bumpTimer = 0, bumpSaid = 0;
+function bump(where) {
+  const p = $("#bx-filter");
+  p.removeAttribute("data-bump");
+  void p.offsetWidth;
+  p.setAttribute("data-bump", where);
+  const note = $("#bx-endnote");
+  note.innerHTML = `${where === "end" ? "Ende" : "Anfang"} der Filter<span class="sep" aria-hidden="true">·</span>${kb("Esc")}zum Verlassen`;
+  note.setAttribute("data-on", "");
+  clearTimeout(bumpTimer);
+  bumpTimer = setTimeout(() => { p.removeAttribute("data-bump"); note.removeAttribute("data-on"); }, 1700);
+  const now = performance.now();
+  if (now - bumpSaid > 3000) { announce(`${where === "end" ? "Ende" : "Anfang"} der Filter. Escape führt zur Liste.`, true); bumpSaid = now; }
+}
+
+// The knobs of the credits: ← → change the value, ↑ ↓ go on (owner, 2026-10-20), a digit opens a small
+// field above the knob. One knob pushes the other along instead of stopping at it.
+function setLp(i, v) {
+  v = Math.max(0, Math.min(30, v));
+  const before = S.lp.join();
+  S.lp[i] = v;
+  let pushed = "";
+  if (i === 0 && S.lp[1] < v) { S.lp[1] = v; pushed = `, höchstens mitgenommen auf ${v >= 30 ? "30 und mehr" : v}`; }
+  if (i === 1 && S.lp[0] > v) { S.lp[0] = v; pushed = `, mindestens mitgenommen auf ${v}`; }
+  if (S.lp.join() === before) return;
+  changed(`${i ? `Leistungspunkte höchstens ${v >= 30 ? "30 und mehr" : v}` : `Leistungspunkte mindestens ${v}`}${pushed}`);
+}
 function thumbKey(e, el) {
-  const i = +el.dataset.i;
-  let [a, b] = S.lp;
-  let v = i ? b : a;
-  const k = e.key;
-  if (k === "ArrowLeft" || k === "ArrowDown") v -= 1;
-  else if (k === "ArrowRight" || k === "ArrowUp") v += 1;
+  const i = +el.dataset.i, k = e.key;
+  let v = S.lp[i];
+  if (/^[0-9]$/.test(k) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openLpEdit(el, k); return true; }
+  if (k === "ArrowLeft") v -= 1;
+  else if (k === "ArrowRight") v += 1;
   else if (k === "PageDown") v -= 5;
   else if (k === "PageUp") v += 5;
-  else if (k === "Home") v = i ? a : 0;
-  else if (k === "End") v = i ? 30 : b;
-  else if (/^[0-9]$/.test(k)) {
-    const now = performance.now();
-    digit.buf = now - digit.t < 800 ? digit.buf + k : k; digit.t = now;
-    v = Math.min(30, +digit.buf);
-  } else return false;
+  else if (k === "Home") v = 0;
+  else if (k === "End") v = 30;
+  else return false;
   e.preventDefault();
-  v = Math.max(i ? a : 0, Math.min(i ? 30 : b, v));
-  S.lp[i] = v;
-  changed(i ? `Leistungspunkte höchstens ${v >= 30 ? "30 und mehr" : v}` : `Leistungspunkte mindestens ${v}`);
+  setLp(i, v);
   el.focus();
   return true;
 }
+let lpEdit = null;
+function openLpEdit(th, first) {
+  closeLpEdit(false, false);
+  const i = +th.dataset.i;
+  const box = document.createElement("div");
+  box.className = "bx-lpedit";
+  box.style.left = `clamp(16px, ${th.style.left}, calc(100% - 16px))`;
+  box.innerHTML = `<input id="bx-lpin" type="text" inputmode="numeric" maxlength="2" autocomplete="off" aria-label="${i ? "Leistungspunkte höchstens" : "Leistungspunkte mindestens"}, Zahl"><span>LP</span>`;
+  $("#bx-range").append(box);
+  const inp = $("#bx-lpin", box);
+  inp.value = first;
+  lpEdit = { th, i, box, inp };
+  inp.addEventListener("input", () => { inp.value = inp.value.replace(/\D/g, "").slice(0, 2); });
+  inp.addEventListener("blur", () => { if (lpEdit?.inp === inp) closeLpEdit(true, false); });
+  inp.focus();
+  inp.setSelectionRange(inp.value.length, inp.value.length);
+}
+function closeLpEdit(apply, focusBack = true) {
+  if (!lpEdit) return;
+  const { th, i, box, inp } = lpEdit;
+  lpEdit = null;
+  if (apply && inp.value !== "") setLp(i, +inp.value);
+  if (focusBack) th.focus();
+  box.remove();
+}
+function lpKey(e) {
+  const th = lpEdit?.th;
+  if (!th) return;
+  if (e.key === "Enter") { e.preventDefault(); closeLpEdit(true); return; }
+  if (e.key === "Escape") { e.preventDefault(); closeLpEdit(false); return; }
+  if (e.key === "Tab") { closeLpEdit(true); tabFilter(e, th); return; }
+  if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); closeLpEdit(true); moveV(th, e.key === "ArrowDown" ? 1 : -1); }
+}
+// An option group: ← → choose (owner, 2026-10-20), ↑ ↓ go on.
+function radioKey(e, el) {
+  const btns = $$(".bx-seg button", fscroll);
+  const i = btns.indexOf(el);
+  let j;
+  if (e.key === "ArrowRight") j = Math.min(btns.length - 1, i + 1);
+  else if (e.key === "ArrowLeft") j = Math.max(0, i - 1);
+  else if (e.key === "Home") j = 0;
+  else if (e.key === "End") j = btns.length - 1;
+  else return false;
+  e.preventDefault();
+  if (j !== i) { S.dauer = btns[j].dataset.v; changed(`Dauer: ${btns[j].textContent}`); focusCtl(btns[j]); }
+  return true;
+}
+function filterKey(e, el) {
+  const c = ctlOf(el);
+  const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
+  if (e.key === "Tab") return tabFilter(e, el);
+  if (c === "thumb" && thumbKey(e, el)) return;
+  if (c === "radio" && radioKey(e, el)) return;
+  if (c === "picker" && e.altKey && e.key === "ArrowDown") { e.preventDefault(); openPicker(); return; }
+  if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.altKey) { e.preventDefault(); moveV(el, e.key === "ArrowDown" ? 1 : -1); return; }
+  if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.altKey && c !== "reset") { e.preventDefault(); moveH(el, e.key === "ArrowRight" ? 1 : -1); return; }
+  if (c === "chip") {
+    const k = el.dataset.k;
+    if (e.key === "Home" || e.key === "End") { e.preventDefault(); const chips = $$(".bx-chip", el.closest(".bx-fgroup")); focusCtl(e.key === "Home" ? chips[0] : chips[chips.length - 1]); return; }
+    if (e.key === "-" || e.code === "NumpadSubtract") { e.preventDefault(); setTri(k, triOf(k) === "without" ? "off" : "without"); return; }
+    if (e.key === "+" || e.code === "NumpadAdd") { e.preventDefault(); setTri(k, triOf(k) === "with" ? "off" : "with"); return; }
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); setTri(k, "off"); return; }
+  }
+  // Typing finds, from wherever the keyboard is in the filters; only there, so it needs no switch.
+  if (plain && e.key.length === 1 && /[\p{L}\p{N}]/u.test(e.key)) { e.preventDefault(); typeInto(e.key); }
+}
+
 function navKey(e) {
   const tabs = $$(".bx-tab", bx);
   const i = tabs.indexOf(document.activeElement);
@@ -2186,35 +2666,33 @@ function detailKey(e, el) {
   if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && toastMode === "plan") { e.preventDefault(); movePlan(e.key === "ArrowRight" ? 1 : -1); return; }
   if (m && plain && S.letters) actionKey(e, m);
 }
-function filterKey(e, el) {
-  const c = ctlOf(el);
-  const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
-  if (c === "chip") {
-    const k = el.dataset.k;
-    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) { e.preventDefault(); moveChip(el, e.key); return; }
-    if (e.key === "-" || e.key === "Subtract" || e.code === "NumpadSubtract") { e.preventDefault(); setTri(k, triOf(k) === "without" ? "off" : "without"); return; }
-    if (e.key === "+" || e.code === "NumpadAdd") { e.preventDefault(); setTri(k, triOf(k) === "with" ? "off" : "with"); return; }
-    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); setTri(k, "off"); return; }
+// The heads of the columns: one stop, ← → choose, Enter sorts (up, down, as the catalog has it).
+function sortKey(e, el) {
+  const hs = $$("#bx-sort .bx-sorth");
+  const i = hs.indexOf(el);
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); const t = hs[(i + (e.key === "ArrowRight" ? 1 : -1) + hs.length) % hs.length]; hs.forEach((x) => (x.tabIndex = x === t ? 0 : -1)); t.focus(); return; }
+  if (e.key === "ArrowDown") { e.preventDefault(); focusList(); }
+}
+function sortBy(key) {
+  const s = S.sort;
+  S.sort = s.key !== key ? { key, dir: 1 } : s.dir === 1 ? { key, dir: -1 } : { key: null, dir: 1 };
+  renderList();
+  syncSort();
+  const name = key === "t" ? "Modul" : "Leistungspunkte";
+  announce(S.sort.key ? `Sortiert nach ${name}, ${S.sort.dir === 1 ? "aufsteigend" : "absteigend"}` : "Sortiert wie der Katalog", true);
+}
+function syncSort() {
+  for (const b of $$("#bx-sort .bx-sorth")) {
+    const on = S.sort.key === b.dataset.sort;
+    b.dataset.dir = on ? (S.sort.dir === 1 ? "up" : "down") : "";
+    b.setAttribute("aria-label", `${b.dataset.sort === "t" ? "Modul" : "Leistungspunkte"}, ${on ? (S.sort.dir === 1 ? "aufsteigend sortiert" : "absteigend sortiert") : "nicht sortiert"}`);
   }
-  if (c === "thumb" && thumbKey(e, el)) return;
-  if (c === "radio") {
-    const btns = $$(".bx-seg button", fscroll);
-    const i = btns.indexOf(el);
-    let j = -1;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") j = Math.min(btns.length - 1, i + 1);
-    if (e.key === "ArrowLeft" || e.key === "ArrowUp") j = Math.max(0, i - 1);
-    if (j >= 0) { e.preventDefault(); if (j !== i) { S.dauer = btns[j].dataset.v; changed(`Dauer: ${btns[j].textContent}`); $$(".bx-seg button", fscroll)[j].focus(); } return; }
-  }
-  if (c === "picker" && (e.key === "ArrowDown" || (e.altKey && e.key === "ArrowDown"))) { e.preventDefault(); openPicker(); return; }
-  if (plain && e.key.length === 1 && /\p{L}/u.test(e.key)) { e.preventDefault(); typeFind(e.key); }
 }
 
 bx.addEventListener("keydown", (e) => {
   if (e.isComposing) return;
-  if (!["Alt", "Control", "Meta", "Shift", "AltGraph", "CapsLock"].includes(e.key)) { S.kbd = true; syncRings(); taskKey(e); }
-  if (["Alt", "Control", "Meta", "Shift", "AltGraph", "CapsLock"].includes(e.key)) return;
-  // Finding a filter by typing goes on while letters come; any other key starts it anew.
-  if (!(e.key.length === 1 && /\p{L}/u.test(e.key))) ta.t = 0;
+  if (MODKEYS.includes(e.key)) return;
+  S.kbd = true; syncRings(); taskKey(e);
   const t = e.target;
   // The digits of the navigation, while its keys are held.
   if (navHeld(e) && /^Digit[1-5]$/.test(e.code)) { e.preventDefault(); if (!e.repeat) { closePop(false); if (pal) closePalette(false); goTab(+e.code.slice(5)); } return; }
@@ -2225,17 +2703,20 @@ bx.addEventListener("keydown", (e) => {
   if (popState?.kind === "picker") return pickerKey(e);
   if (popState?.kind === "note") return noteKey(e);
   if (tipsSticky && e.key === "Escape") { e.preventDefault(); hideTips(); return; }
-  if (!$("#bx-full").hidden) { if (e.key === "Escape") { e.preventDefault(); closeFull(); } return; }
+  if (!$("#bx-full").hidden) { if (e.key === "Escape") { e.preventDefault(); closeFull(); } else if (e.key === "Tab") e.preventDefault(); return; }
   const mod = e.ctrlKey || e.metaKey;
   if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") { e.preventDefault(); if (S.ctrlK === "palette") openPalette(); else focusSearch(); return; }
   if (mod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "z" && !isTyping(t)) { e.preventDefault(); undo(); return; }
   if (e.key === "F6" && mod) { e.preventDefault(); cycleRegion(e.shiftKey ? -1 : 1); return; }
+  if (t.id === "bx-lpin") return lpKey(e);
+  if (t.id === "bx-fq") return findKey(e);
+  const r = regionOf(t);
   if (e.key === "Escape") {
     e.preventDefault();
-    const r = regionOf(t);
     if (S.tab !== "catalog") { goTab(2); return; }
     if (r === "detail") { closeDetail(true); return; }
     if (r === "list") { if (S.open) closeDetail(true); else if (toastEl.hasAttribute("data-on")) hideToast(); return; }
+    if (r === "filter") { leaveFilter(); return; }
     focusList();
     return;
   }
@@ -2247,15 +2728,16 @@ bx.addEventListener("keydown", (e) => {
     return;
   }
   const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
-  const r = regionOf(t);
   if (plain && S.letters) {
     if (e.key === "/") { e.preventDefault(); focusSearch(); return; }
     if (e.key === "?") { e.preventDefault(); openHelp(); return; }
     if ((e.key === "f" || e.key === "F") && r !== "filter") { e.preventDefault(); focusFilter(); return; }
   }
   if (r === "nav") return navKey(e);
+  if (r === "search") { if (e.key === "Tab" && !e.shiftKey && t.id === "bx-cmd-btn") { e.preventDefault(); focusFilter(); } return; }
   if (r === "filter") return filterKey(e, t);
-  if (r === "list") return listKey(e, t.closest(".bx-row") || t);
+  if (e.key === "Tab" && (r === "list" || r === "detail")) return tabContent(e, t);
+  if (r === "list") return t.closest("#bx-sort") ? sortKey(e, t) : listKey(e, t.closest(".bx-row") || t);
   if (r === "detail") return detailKey(e, t);
 });
 
@@ -2272,11 +2754,13 @@ bx.addEventListener("click", (e) => {
   if (e.target.closest("#bx-cmd-btn")) { openPalette(); return; }
   const tab = e.target.closest(".bx-tab[data-tab]");
   if (tab) { goTab(TABS.findIndex(([id]) => id === tab.dataset.tab) + 1); return; }
-  if (e.target.closest("#bx-reset")) { resetFilters(); return; }
-  if (e.target.closest("#bx-more")) { S.moreOpen = !S.moreOpen; renderFilters(); $("#bx-more").focus(); announce(S.moreOpen ? "Weitere Filter aufgeklappt" : "Weitere Filter zugeklappt", true); return; }
+  if (e.target.closest("#bx-reset")) { resetFilters({ undoable: true }); return; }
+  if (e.target.closest("#bx-more")) { setMore(!S.moreOpen); $("#bx-more").focus({ preventScroll: true }); return; }
   if (e.target.closest("#bx-program")) { openPicker(); return; }
   const radio = e.target.closest(".bx-seg button");
-  if (radio) { S.dauer = radio.dataset.v; changed(`Dauer: ${radio.textContent}`); $$(".bx-seg button", fscroll).find((b) => b.dataset.v === S.dauer)?.focus(); return; }
+  if (radio) { S.dauer = radio.dataset.v; changed(`Dauer: ${radio.textContent}`); $(`#bx-dauer-${S.dauer}`)?.focus(); return; }
+  const head = e.target.closest(".bx-sorth");
+  if (head) { $$("#bx-sort .bx-sorth").forEach((x) => (x.tabIndex = x === head ? 0 : -1)); sortBy(head.dataset.sort); return; }
   const row = e.target.closest(".bx-row");
   if (row) { S.focusId = row.dataset.id; $$(".bx-row", rowsEl).forEach((x) => (x.tabIndex = x === row ? 0 : -1)); openModule(row.dataset.id); return; }
   const tool = e.target.closest("#bx-d-tools .bx-btn");
@@ -2284,7 +2768,6 @@ bx.addEventListener("click", (e) => {
     const m = BYID.get(S.open);
     S.rove.tools = tool.dataset.act;
     ({ plan: () => plan(m, true), "plan-more": () => openSemesters(m), mark: () => toggleMark(m, true), "mark-more": () => openCollections(m), full: () => fullView(m), close: () => closeDetail(true) })[tool.dataset.act]?.();
-    return;
   }
 });
 bx.addEventListener("contextmenu", (e) => {
@@ -2304,9 +2787,8 @@ bx.addEventListener("pointerdown", (e) => {
   const range = $("#bx-range").getBoundingClientRect();
   const i = +th.dataset.i;
   const move = (ev) => {
-    let v = Math.round(((ev.clientX - range.left) / range.width) * 30);
-    v = Math.max(i ? S.lp[0] : 0, Math.min(i ? 30 : S.lp[1], v));
-    if (v !== S.lp[i]) { S.lp[i] = v; changed(i ? `Leistungspunkte höchstens ${v}` : `Leistungspunkte mindestens ${v}`); $(`#bx-lp${i}`).focus(); }
+    const v = Math.round(((ev.clientX - range.left) / range.width) * 30);
+    if (v !== S.lp[i]) { setLp(i, v); $(`#bx-lp${i}`).focus(); }
   };
   const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
   window.addEventListener("pointermove", move);
@@ -2319,19 +2801,22 @@ let lastRegion = null, lastGroup = null;
 bx.addEventListener("focusin", (e) => {
   const t = e.target;
   const r = regionOf(t);
+  if (!vMoving) stickyX = null;
   setRegion(r);
-  if (r === "filter" && fscroll.contains(t)) {
-    S.lastFilter = t.id || null;
+  if (r === "filter") {
+    if (t.id && t.id !== "bx-reset" && t.id !== "bx-lpin") S.lastFilter = t.id;
     const grp = t.closest(".bx-fgroup");
     if (grp && t.matches(".bx-chip")) S.rove[grp.dataset.group] = t.dataset.k;
+    if (t.matches(".bx-thumb")) { for (const th of $$(".bx-thumb", fscroll)) th.tabIndex = th === t ? 0 : -1; }
     syncFilters();
-  }
+  } else if (fq.value) clearFind();
   if (t.matches(".bx-row")) S.focusId = t.dataset.id;
+  if (rebuilding) { updateKeys(); return; }
   // The words, roughly as NVDA has them.
   const parts = [];
-  if (r && r !== lastRegion) parts.push(r === "nav" ? "Navigation" : r === "search" ? "Suche" : r === "filter" ? "Filter, Bereich" : r === "list" ? (S.tab === "catalog" ? "Module, Liste" : "Inhalt") : `${detail.getAttribute("aria-label")}, Bereich`);
-  const grp = t.closest?.('.bx-fgroup[role="group"], .bx-seg, #bx-d-tools');
-  const gname = grp ? (grp.id === "bx-d-tools" ? "Aktionen, Symbolleiste" : `${$(`#${grp.getAttribute("aria-labelledby")}`)?.textContent || ""}, ${grp.matches(".bx-seg") ? "Optionsgruppe" : "Gruppe"}`) : null;
+  if (r && r !== lastRegion) parts.push(r === "nav" ? "Navigation" : r === "search" ? "Suche" : r === "filter" ? "Filter, Bereich, Escape führt zur Liste" : r === "list" ? (S.tab === "catalog" ? "Module, Liste" : "Inhalt") : `${detail.getAttribute("aria-label")}, Bereich`);
+  const grp = t.closest?.('.bx-fgroup[role="group"], .bx-seg, #bx-d-tools, #bx-sort');
+  const gname = grp ? (grp.id === "bx-d-tools" ? "Aktionen, Symbolleiste" : grp.id === "bx-sort" ? "Sortieren, Symbolleiste" : `${$(`#${grp.getAttribute("aria-labelledby")}`)?.textContent || ""}, ${grp.matches(".bx-seg") ? "Optionsgruppe" : "Gruppe"}`) : null;
   if (gname && grp !== lastGroup) parts.push(gname);
   lastRegion = r; lastGroup = grp;
   parts.push(describe(t));
@@ -2340,6 +2825,7 @@ bx.addEventListener("focusin", (e) => {
   updateKeys();
 });
 bx.addEventListener("focusout", (e) => {
+  if (rebuilding) return;
   if (!bx.contains(e.relatedTarget)) { setRegion(null); lastRegion = null; lastGroup = null; for (const g of $$(".bx-fgroup", fscroll)) g.removeAttribute("data-current"); }
 });
 function describe(t) {
@@ -2348,6 +2834,9 @@ function describe(t) {
   if (t.matches(".bx-seg button")) { const all = $$(".bx-seg button", fscroll); return `${t.textContent}, Optionsschalter, ${t.getAttribute("aria-checked") === "true" ? "aktiviert" : "nicht aktiviert"}, ${all.indexOf(t) + 1} von ${all.length}`; }
   if (t.matches(".bx-row")) return `${t.getAttribute("aria-label")}, ${t.getAttribute("aria-posinset")} von ${t.getAttribute("aria-setsize")}`;
   if (t.matches("#bx-q")) return `Modul, Nummer oder Thema suchen, Eingabefeld${t.value ? ", " + t.value : ", leer"}`;
+  if (t.matches("#bx-fq")) return `Filter finden, Eingabefeld${t.value ? ", " + t.value : ", leer"}`;
+  if (t.matches("#bx-lpin")) return `${t.getAttribute("aria-label")}, Eingabefeld, ${t.value}`;
+  if (t.matches(".bx-sorth")) return `${t.getAttribute("aria-label")}, Schalter`;
   if (t.matches("#bx-help-rail")) return "Tasten, Schalter";
   if (t.matches("#bx-cmd-btn")) return `Befehle, Schalter${S.ctrlK === "palette" ? ", " + K.ctrl() + " K" : ""}`;
   if (t.matches(".bx-tab")) return `${t.getAttribute("aria-label")}, Link${t.hasAttribute("aria-current") ? ", aktuelle Seite" : ""}`;
@@ -2390,7 +2879,6 @@ function checkTasks() {
   const card = $(`#${running.id}`);
   card.dataset.state = "done";
   $(".res", card).textContent = `Geschafft mit ${running.keys} Tasten. ${def.today}`;
-  ta.t = 0;
   $(".go", card).textContent = "Nochmal";
   announce(`Aufgabe geschafft mit ${running.keys} Tasten`, true);
   running = null;
@@ -2434,6 +2922,7 @@ renderFilters();
 renderList();
 renderDetail();
 regionTags();
+syncSort();
 syncRings();
 })();
 
@@ -2480,7 +2969,7 @@ const C = {
     "7": ["l2", "Mit Umschalt ist das „/“: springt ins Suchfeld. Betula liest das Zeichen, nicht die Taste, darum geht es auf jeder Tastatur."],
     "ß": ["l2", "Mit Umschalt ist das „?“: die Übersicht aller Tasten des Ortes, mit dem Schalter für die einzelnen Tasten."],
     "1": ["l2", `Mit ${NAV}: Start.`], "2": ["l2", `Mit ${NAV}: Module.`], "3": ["l2", `Mit ${NAV}: Studium.`], "4": ["l2", `Mit ${NAV}: Merkliste.`], "5": ["l2", `Mit ${NAV}: Stundenplan.`],
-    Tab: ["l1", "Zum nächsten Halt: eine Gruppe, die Liste, eine Leiste von Knöpfen. Umschalt Tab zurück."],
+    Tab: ["l1", "Zum nächsten Halt: ein Abschnitt, die Liste, eine Leiste von Knöpfen. Tab bleibt im Bereich; Umschalt Tab zurück."],
     F: ["l2", "Springt in die Filter (die Seitenleiste), auf den Filter, an dem man zuletzt war. Abschaltbar mit den einzelnen Tasten."],
     Enter: ["l1", "Öffnen, ausführen."],
     Space: ["l1", "An oder aus; einen Chip schalten, eine Zeile auswählen."],
@@ -2512,18 +3001,20 @@ const C = {
     Left: ["l1", "Steht die Notiz von „Einplanen“: ein Semester früher."], Right: ["l1", "Steht die Notiz von „Einplanen“: ein Semester später."],
     Home: ["l1", "Erste Zeile."], End: ["l1", "Letzte Zeile."], PgUp: ["l1", "Eine Seite hoch."], PgDn: ["l1", "Eine Seite runter."],
     Del: ["l1", "Aus der Merkliste oder dem Semester nehmen, mit Rückgängig."],
-    F10: ["l1", "Mit Umschalt: das Menü der Zeile."], Menu: ["l1", "Das Menü der Zeile."], Tab: ["l1", "Weiter ins Modul daneben, dann hinaus."],
+    F10: ["l1", "Mit Umschalt: das Menü der Zeile."], Menu: ["l1", "Das Menü der Zeile."], Tab: ["l1", "Rundherum: die Spaltenköpfe, die Liste, das Modul daneben (Knöpfe, Text), der Fuß der Seite, und wieder von vorn."],
   },
   filter: {
-    Space: ["l1", "Wie ein Klick: aus → mit → ohne → aus."], Enter: ["l1", "Wie die Leertaste; am Studiengang: die Liste öffnen."],
+    Space: ["l1", "Wie ein Klick: aus → mit → ohne → aus."],
+    Enter: ["l1", "Wie die Leertaste. Im Feld „Filter finden“: den Treffer auf mit, mit Umschalt auf ohne; am Studiengang: die Liste öffnen."],
     "-": ["l3", "Ohne: schließt diesen Wert aus (nochmal: aus)."], "+": ["l3", "Mit (nochmal: aus)."],
-    Del: ["l1", "Aus."], Backspace: ["l1", "Aus."],
-    Tab: ["l1", "Nächste Gruppe; die Gruppe merkt sich ihren Chip."],
-    Up: ["l1", "Der Chip darüber; im Regler +1."], Down: ["l1", "Der Chip darunter; im Regler −1."], Left: ["l1", "Voriger Chip; im Regler −1."], Right: ["l1", "Nächster Chip; im Regler +1."],
-    Home: ["l1", "Erster Chip der Gruppe; im Regler das Minimum."], End: ["l1", "Letzter Chip der Gruppe; im Regler das Maximum."],
-    PgUp: ["l1", "Im Regler +5."], PgDn: ["l1", "Im Regler −5."],
-    Escape: ["l2", "Zurück in die Liste, auf die Zeile von vorher."],
-    ...Object.fromEntries("0123456789".split("").map((d) => [d, ["l3", "Im Regler der Leistungspunkte: die Zahl tippen („6“, „12“)."]])),
+    Del: ["l1", "Aus."], Backspace: ["l1", "Aus; im Feld „Filter finden“ wie in jedem Feld, mit Strg ein Wort."],
+    Tab: ["l1", "An den Anfang des nächsten Abschnitts. Unten und oben ist Schluss: Hinaus führt Esc."],
+    Up: ["l1", "Der Filter darüber, über die Abschnitte hinweg; am Regler zum unteren; im Feld: voriger Treffer."], Down: ["l1", "Der Filter darunter, über die Abschnitte hinweg, in „Weitere Filter“ hinein; am Regler zum oberen und weiter; im Feld: nächster Treffer."],
+    Left: ["l1", "Voriger Filter in Lesereihenfolge; am Regler −1; in der Optionsgruppe: wählen."], Right: ["l1", "Nächster Filter in Lesereihenfolge; am Regler +1; in der Optionsgruppe: wählen."],
+    Home: ["l1", "Erster Filter im Abschnitt; am Regler 0."], End: ["l1", "Letzter Filter im Abschnitt; am Regler 30 und mehr."],
+    PgUp: ["l1", "Am Regler +5."], PgDn: ["l1", "Am Regler −5."],
+    Escape: ["l2", "Zurück in die Liste, auf die Zeile von vorher. Steht im Feld „Filter finden“ Text, leert Esc ihn zuerst."],
+    ...Object.fromEntries("0123456789".split("").map((d) => [d, ["l3", "Am Regler: öffnet das Feld für die Zahl („12“, Enter). Sonst ins Feld „Filter finden“."]])),
   },
   ctrl: {
     K: ["l2", `${CTRL} K: die Befehle: ein Modul, ein Filter, eine Seite, eine Aktion, mit Namen. Heute führt ${CTRL} K ins Suchfeld (Frage 2).`],
@@ -2538,7 +3029,7 @@ const C = {
     F6: ["l2", "Nächster Bereich; mit Umschalt der vorige (Outlook im Web und Teams halten es so)."],
   },
 };
-for (const l of letters) if (!C.filter[l]) C.filter[l] = ["l3", "Tippen findet einen Filter: „k“ „l“ springt zu „Klausur“, „p“ „r“ „ü“ zur Gruppe „Prüfung“."];
+for (const l of letters) if (!C.filter[l]) C.filter[l] = ["l3", "Schreibt ins Feld „Filter finden“: „k“ „l“ findet Klausur, „p“ „r“ „ü“ den Abschnitt Prüfung, „klasur“ ähnlich auch. Enter setzt den Treffer."];
 const CTX_LABEL = { all: "Überall", list: "In der Liste", filter: "In den Filtern", ctrl: `Mit ${CTRL}` };
 let ctx = "all";
 const capOf = new Map();
@@ -2569,7 +3060,7 @@ function paint() {
 const SHORT = {
   all: { Escape: "zurück", F6: "Strg: Ber.", F10: "Menü", "7": "Suche", "ß": "Tasten", Tab: "Halt", F: "Filter", Enter: "öffnen", Space: "an/aus", Del: "raus", Menu: "Menü", Alt: mac ? "Strg" : "halten", Ctrl: mac ? "" : "", Win: mac ? "Tabs" : "", AltGr: "Zeichen", Caps: "SR", Ins: "SR", "1": "Tab", "2": "Tab", "3": "Tab", "4": "Tab", "5": "Tab", F1: "Browser", F5: "Browser", F7: "Browser", F11: "Browser", F12: "Browser" },
   list: { M: "merken ⇧", S: "frei", N: "frei", P: "planen ⇧", V: "Vollbild", Enter: "öffnen", Space: "wählen", Escape: "schließen", Del: "raus", Left: "Semester", Right: "Semester", F: "Filter" },
-  filter: { "-": "ohne", "+": "mit", Space: "mit/ohne", Del: "aus", Backspace: "aus", Tab: "Gruppe", Escape: "Liste", Enter: "schalten" },
+  filter: { "-": "ohne", "+": "mit", Space: "mit/ohne", Del: "aus", Backspace: "aus", Tab: "Abschnitt", Escape: "Liste", Enter: "setzen", Up: "überall", Down: "überall", Left: "überall", Right: "überall" },
   ctrl: { F6: "Bereich", K: "Befehle", Z: "zurück", C: "kopieren", A: "alle", V: "einfügen", X: "ausschn.", F: "Browser", L: "Browser", T: "Browser", W: "Browser", N: "Browser", D: "Browser", P: "Browser", S: "Browser", R: "Browser" },
 };
 function shortOf(k, d) {
@@ -2577,7 +3068,8 @@ function shortOf(k, d) {
   if (s !== undefined) return s;
   if (ctx === "filter" && /^[A-ZÄÖÜ]$/.test(k)) return "finden";
   if (ctx === "filter" && /^[0-9]$/.test(k)) return "Zahl";
-  if (d[0] === "tabu") return "Browser";
+  // A key that is someone else's keeps its owner in every context: the screen reader's, the system's.
+  if (d[0] === "tabu") return SHORT.all[k] || (/System/.test(d[1]) ? "System" : "Browser");
   return "";
 }
 function show(key) {
