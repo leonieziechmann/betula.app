@@ -2468,33 +2468,31 @@
       if (full?.getClientRects().length) { e.preventDefault(); full.click(); }
     } else if (plain && (e.key === "m" || e.key === "M") && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
       // „Merken" for what the visitor is at: the row the keyboard is on, else the module that is
-      // open (its preview, or its page). The buttons belong to the browser app.
+      // open (its preview, or its page). The buttons belong to the browser app. With Shift, its
+      // arrow (folia/design/tasten/konzept.html, „Knopf mit Pfeil"): „Sammlung und Notiz"
+      // (folia/crates/widgets/src/collect.rs). Shift, not the letter's case: with Caps Lock M marks.
+      if (e.shiftKey) {
+        // While the note after marking stands, its field is the arrow (marknote.rs has the key);
+        // with rows selected (the Merkliste's bar, folia/crates/bookmarks/src/pick.rs) the bar's
+        // „Sammlung", for all of them.
+        if (find('.wait-note [data-action="collect"]')) return;
+        const bar = find('.pick-bar [data-action="collect"]');
+        const row = document.activeElement?.closest?.(".row-wrap");
+        const more = bar || (row ? row.querySelector('[data-action="collect"]') : find('.hero [data-action="collect"]'));
+        if (more) { e.preventDefault(); more.click(); }
+        return;
+      }
       const row = document.activeElement?.closest?.(".row-wrap");
       const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
       if (mark) { e.preventDefault(); mark.click(); }
-    } else if (plain && /^[sSnN]$/.test(e.key) && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
-      // „Sammlung und Notiz" for what the visitor is at (folia/crates/widgets/src/collect.rs): the
-      // row the keyboard is on, else the module that is open; N with the focus in the note. While
-      // the note after marking stands S is its own (marknote.rs), for the module it names.
-      const note = e.key === "n" || e.key === "N";
-      if (!note && find('.wait-note [data-action="collect"]')) return;
-      // With rows selected (the Merkliste's bar, folia/crates/bookmarks/src/pick.rs) S is the bar's
-      // „Sammlung", for all of them.
-      const bar = !note && find('.pick-bar [data-action="collect"]');
-      if (bar) { e.preventDefault(); bar.click(); return; }
-      const row = document.activeElement?.closest?.(".row-wrap");
-      const mark = row ? row.querySelector('[data-action="mark"]') : find('.hero [data-action="mark"]');
-      if (!mark?.dataset.id) return;
-      e.preventDefault();
-      const box = (row || mark.closest(".mark-pair") || mark).getBoundingClientRect();
-      dispatchEvent(new CustomEvent("betula:collect", { detail: { id: mark.dataset.id, title: mark.dataset.title || "", note, left: box.left, top: box.top, right: box.right, bottom: box.bottom } }));
     } else if (plain && (e.key === "p" || e.key === "P") && !typing(document.activeElement) && appRuns() && !e.target.closest?.(OVER)) {
       // „Einplanen" for the module that is open (its preview, or its page); rows have no plan
       // button of their own. The keyboard on another row of the list than the open one would make
       // it ambiguous which module is meant, so P waits there. What it planned the note at the
-      // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs).
+      // bottom says, whose ← and → move it (folia/crates/widgets/src/plannote.rs). With Shift, its
+      // arrow: the semesters to choose from (folia/crates/widgets/src/planmenu.rs).
       const row = document.activeElement?.closest?.(".row-wrap");
-      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find('.hero [data-action="plan"]');
+      const plan = row && !row.querySelector('[aria-current="true"]') ? null : find(e.shiftKey ? '.hero [data-action="plan-more"]' : '.hero [data-action="plan"]');
       if (plan) { e.preventDefault(); plan.click(); }
     } else if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") || (plain && e.key === "/" && !typing(document.activeElement))) {
       e.preventDefault();

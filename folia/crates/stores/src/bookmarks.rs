@@ -651,13 +651,16 @@ pub enum MarkLook {
 }
 
 /// The switch that marks a module. Same behaviour in every look; `M` presses the one that
-/// belongs to what the visitor is looking at (`enhance.js`, `data-action="mark"`, which finds the
-/// module by `data-id` for S and N as well).
+/// belongs to what the visitor is looking at (`enhance.js`, `data-action="mark"`).
+///
+/// Beside it at a module and at a row its arrow (folia/design/tasten/konzept.html, „Knopf mit
+/// Pfeil"; owner, 2026-10-20: „Ja bitte setze deine Vorschläge um"): „Sammlung und Notiz"
+/// (`collections::Collecting`), which ⇧M opens as well (`data-action="collect"`); a collection chosen
+/// there marks the module. At a row it shows while the row is pointed at or has the focus.
 ///
 /// At a module (`Hero`) it says more (folia/design/merken/oberflaeche.html, „Am Modul"): marked, it
-/// carries the module's collections small, as „Einplanen" carries its semester, and an arrow of its
-/// own opens the menu of its collections and its note (`collections::Collecting`); not marked, where
-/// a default for new marks is set, where the mark will go („Merken · in Für Lena").
+/// carries the module's collections small, as „Einplanen" carries its semester; not marked, where a
+/// default for new marks is set, where the mark will go („Merken · in Für Lena").
 ///
 /// It is part of server HTML (unpressed, like for everybody) only where leaving it out would make
 /// the page jump when the app takes over; the stylesheet shows it once the app runs.
@@ -682,13 +685,26 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
     let label = move || if marked.get() { t.marks.saved } else { t.marks.save };
     match look {
         // In a list the row is the stop of the Tab key, as before there were marks; the keyboard
-        // marks with M on the row (the head of the list says so).
-        MarkLook::Row => view! {
-            <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" data-id=id data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
-                <Icon name="bookmark"/>
-            </button>
+        // marks with M on the row (the head of the list says so), and ⇧M is the arrow.
+        MarkLook::Row => {
+            let collect = {
+                let (id, title) = (id.clone(), title.clone());
+                move |ev: leptos::ev::MouseEvent| {
+                    if let Some(collecting) = Collecting::expect() {
+                        collecting.open(CollectAsk { id: id.clone(), title: title.clone(), more: Vec::new(), at: pair_of(&ev), note: false, from_note: None });
+                    }
+                }
+            };
+            view! {
+                <button class="mark-toggle icon-btn" type="button" tabindex="-1" data-action="mark" data-id=id.clone() data-title=title.clone() on:click=toggle aria-pressed=pressed aria-label=(t.marks.save_title)(&title) title=hint>
+                    <Icon name="bookmark"/>
+                </button>
+                <button class="row-more icon-btn" type="button" tabindex="-1" data-action="collect" data-id=id aria-haspopup="dialog" aria-label=(t.marks.collect_title)(&title) title=t.marks.collect_hint on:click=collect>
+                    <Icon name="chevron-down"/>
+                </button>
+            }
+            .into_any()
         }
-        .into_any(),
         MarkLook::Hero => {
             let collections = Collections::expect();
             // Under „Gemerkt" the module's collections; under „Merken" where the default puts it.
@@ -718,19 +734,16 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
                     }
                 }
             };
+            // The arrow is there marked or not, in server HTML as well, so nothing moves when the
+            // app takes over (R15).
             view! {
-                <span class="mark-pair" class:split=move || marked.get()>
+                <span class="mark-pair split">
                     <button class="mark-toggle mark-switch hit" type="button" data-action="mark" data-id=id data-title=title on:click=toggle aria-pressed=pressed title=hint>
                         <Icon name="bookmark"/><span>{label}</span>{move || small.get().map(|small| view! { <small>{small}</small> })}<Shortcut keys="M"/>
                     </button>
-                    {move || marked.get().then(|| {
-                        let collect = collect.clone();
-                        view! {
-                            <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect>
-                                <Icon name="chevron-down"/>
-                            </button>
-                        }
-                    })}
+                    <button class="mark-more hit" type="button" data-action="collect" aria-label=t.marks.collect title=t.marks.collect_hint aria-haspopup="dialog" on:click=collect>
+                        <Icon name="chevron-down"/>
+                    </button>
                 </span>
             }
             .into_any()
@@ -744,9 +757,9 @@ pub fn MarkButton(#[prop(into)] id: String, #[prop(into)] title: String, look: M
     }
 }
 
-/// The box of the pair of a module's switch and its arrow, whose arrow was clicked: the menu stands
-/// under it.
-fn pair_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
+/// The box of the pair of a module's switch and its arrow, whose arrow was clicked (at a row, the
+/// row's): the menu stands under it.
+pub(crate) fn pair_of(ev: &leptos::ev::MouseEvent) -> Option<Anchor> {
     #[cfg(feature = "csr")]
     {
         use wasm_bindgen::JsCast;

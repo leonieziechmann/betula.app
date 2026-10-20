@@ -17,6 +17,7 @@ pub mod local;
 pub mod marknote;
 pub mod module;
 mod options;
+pub mod planmenu;
 pub mod plannote;
 pub mod plansetup;
 pub mod swipe;

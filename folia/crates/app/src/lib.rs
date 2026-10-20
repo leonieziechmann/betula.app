@@ -228,6 +228,7 @@ pub fn App() -> impl IntoView {
             // What „Einplanen" did, and the dialog that sets up the study on the way.
             <PlanNote/>
             <PlanSetup/>
+            <folia_widgets::planmenu::PlanMenuHost/>
             // What marking did, and the menu of a module's collections and note.
             <folia_widgets::marknote::MarkNote/>
             <folia_widgets::collect::CollectHost/>

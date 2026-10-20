@@ -88,6 +88,19 @@ struct Undo {
     after: PlanDoc,
 }
 
+/// „Einplanen in …" asked for (folia/design/tasten/konzept.html, „Knopf mit Pfeil"): the arrow
+/// beside a module's switch, or ⇧P at the module. The semesters it can go to, each with whether the
+/// module is offered then; `folia_widgets::planmenu` shows it, `Planning::place` does what is
+/// chosen.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanAsk {
+    pub what: Pressed,
+    /// Where the switch aims as the arrow is clicked: where the module is planned, when it is.
+    pub aim: Aim,
+    /// The box of the switch and its arrow, where a wide screen puts the menu.
+    pub at: Option<crate::collections::Anchor>,
+}
+
 /// „Einplanen" pressed where no study is set up: the dialog that sets it up and plans the module.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SetupAsk {
@@ -109,6 +122,8 @@ pub struct Planning {
     asked: RwSignal<bool>,
     note: RwSignal<Option<Note>>,
     setup: RwSignal<Option<SetupAsk>>,
+    /// The menu of the semesters asked for (`PlanAsk`).
+    menu: RwSignal<Option<PlanAsk>>,
     undo: StoredValue<Option<Undo>>,
     /// The press „Rückgängig" took back before its plan was written: that write is left out.
     undone: StoredValue<u32>,
@@ -124,6 +139,7 @@ impl Planning {
             asked: RwSignal::new(nav::session_get(ASKED_KEY).is_some()),
             note: RwSignal::new(None),
             setup: RwSignal::new(None),
+            menu: RwSignal::new(None),
             undo: StoredValue::new(None),
             undone: StoredValue::new(0),
             turns: StoredValue::new(0),
@@ -136,6 +152,7 @@ impl Planning {
                 if before.is_some_and(|before| before != profile) {
                     planning.note.set(None);
                     planning.setup.set(None);
+                    planning.menu.set(None);
                     planning.undo.set_value(None);
                 }
                 profile
@@ -202,6 +219,71 @@ impl Planning {
             return false;
         }
         self.write(plan, source, what, aim, then);
+        true
+    }
+
+    /// The menu of the semesters, for the module of `ask` (another one open goes).
+    pub fn open_menu(self, ask: PlanAsk) {
+        self.menu.set(Some(ask));
+    }
+
+    /// The menu asked for. Tracked.
+    pub fn menu(self) -> Option<PlanAsk> {
+        self.menu.get()
+    }
+
+    pub fn close_menu(self) {
+        if self.menu.with_untracked(Option::is_some) {
+            self.menu.set(None);
+        }
+    }
+
+    /// A semester chosen in the menu (`PlanAsk`): the module planned into `to`, or moved there from
+    /// where its switch says it is planned, and the note says so as after a click — with ‹ ›, and
+    /// „Rückgängig" (owner, 2026-10-20: „Ja bitte setze deine Vorschläge um"). Where it is planned
+    /// there already nothing changes; where no study is set up, the dialog asks first, the module
+    /// at `to`. `true` where the plan changes.
+    pub fn place(self, plan: Studyplan, what: Pressed, aim: Aim, to: SemesterKey) -> bool {
+        self.close_menu();
+        let from = aim.pressed.then_some(aim.target);
+        if from == Some(to) {
+            return false;
+        }
+        if from.is_none() && self.asks_first() {
+            let turn = self.next_turn();
+            self.note.set(None);
+            self.setup.set(Some(SetupAsk { turn, what, target: to, fill: None }));
+            return false;
+        }
+        let turn = self.next_turn();
+        self.note.set(Some(Note { turn, shown: turn, what: what.clone(), kind: NoteKind::Planned { at: to, stepped: from.is_some() } }));
+        self.undo.set_value(None);
+        let id = what.id;
+        nav::after_paint(move || {
+            if self.undone.try_get_value() == Some(turn) {
+                return;
+            }
+            let (before, after) = plan.update(|doc| {
+                let before = doc.clone();
+                match from {
+                    Some(from) => {
+                        doc.move_to(from, to, &id);
+                        // A placeholder counts what is planned into its own semester alone (`step`).
+                        let fills = doc.modules.iter().find(|m| m.semester == to && m.module_id == id).and_then(|m| m.fills);
+                        if fills.is_some_and(|pid| doc.placeholders.iter().any(|p| p.pid == pid && p.semester != to)) {
+                            doc.set_fills(to, &id, None);
+                        }
+                    }
+                    None => {
+                        doc.plan(to, &id, now(), None);
+                    }
+                }
+                (before, doc.clone())
+            });
+            if self.note.with_untracked(|note| note.as_ref().is_some_and(|note| note.turn == turn)) {
+                self.undo.set_value(Some(Undo { turn, before, after }));
+            }
+        });
         true
     }
 

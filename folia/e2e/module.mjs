@@ -143,8 +143,9 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
   const pair = (page, root, body) => page.evaluate(([root, body]) => {
     const line = onPage(`${root} .hero-line`);
-    // „Merken" with its arrow, once the module is marked (the pair, `MarkButton`).
-    const [plan, mark, edge] = [line.querySelector(".plan-toggle"), line.querySelector(".mark-pair") ?? line.querySelector(".mark-toggle"), onPage(body)].map((el) => el.getBoundingClientRect());
+    // Each switch with its arrow (folia/design/tasten/konzept.html, „Knopf mit Pfeil"): the pair of
+    // „Einplanen" (`PlanButton`) and that of „Merken" (`MarkButton`).
+    const [plan, mark, edge, toggle] = [line.querySelector(".plan-pair") ?? line.querySelector(".plan-toggle"), line.querySelector(".mark-pair:not(.plan-pair)") ?? line.querySelector(".mark-toggle"), onPage(body), line.querySelector(".plan-toggle")].map((el) => el.getBoundingClientRect());
     const badges = [...line.querySelectorAll(".badges > .badge")].map((el) => el.getBoundingClientRect());
     const middle = (r) => (r.top + r.bottom) / 2;
     return {
@@ -164,7 +165,7 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
       tab: Boolean(line.querySelector(".plan-toggle").compareDocumentPosition(line.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
       note: line.querySelector(".plan-toggle > small")?.checkVisibility() ? line.querySelector(".plan-toggle > small").textContent : null,
       label: line.querySelector(".plan-toggle > span").textContent,
-      width: plan.width,
+      width: toggle.width,
     };
   }, [root, body]);
   const sideBySide = (seen) => seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5;

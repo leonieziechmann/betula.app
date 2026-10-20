@@ -22,6 +22,8 @@ pub struct Texts {
     /// The switch of a marked module, at its arrow: the menu of its collections and its note.
     pub collect: &'static str,
     pub collect_hint: &'static str,
+    /// The arrow beside a row's bookmark, for screen readers: „Sammlung und Notiz zu Analysis I".
+    pub collect_title: fn(&str) -> String,
     /// Under „Merken" where a default for new marks is set: where the next mark goes („in Für
     /// Lena"; the value is the collections' names).
     pub mark_into: fn(&str) -> String,
@@ -103,7 +105,8 @@ pub const DE: Texts = Texts {
     removed: "Entfernt",
 
     collect: "Sammlung und Notiz",
-    collect_hint: "Sammlung und Notiz (S)",
+    collect_hint: "Sammlung und Notiz (⇧M)",
+    collect_title: |title| format!("Sammlung und Notiz zu {title}"),
     mark_into: |names| format!("in {names}"),
     without_collection: "Ohne Sammlung",
     collection: "Sammlung",
@@ -140,7 +143,7 @@ pub const DE: Texts = Texts {
     note: "Notiz",
     note_placeholder: "Notiz, gern mit Markdown",
     note_label: "Notiz (Markdown)",
-    edit_note: "Notiz bearbeiten (N)",
+    edit_note: "Notiz bearbeiten",
     done: "Fertig",
 };
 
@@ -155,7 +158,8 @@ pub const EN: Texts = Texts {
     removed: "Removed",
 
     collect: "Collection and note",
-    collect_hint: "Collection and note (S)",
+    collect_hint: "Collection and note (⇧M)",
+    collect_title: |title| format!("Collection and note for {title}"),
     mark_into: |names| format!("into {names}"),
     without_collection: "No collection",
     collection: "Collection",
@@ -192,6 +196,6 @@ pub const EN: Texts = Texts {
     note: "Note",
     note_placeholder: "Note, Markdown welcome",
     note_label: "Note (Markdown)",
-    edit_note: "Edit note (N)",
+    edit_note: "Edit note",
     done: "Done",
 };

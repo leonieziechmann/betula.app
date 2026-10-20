@@ -39,7 +39,7 @@ use folia_design::format;
 use crate::i18n::{self, home_detail::Chapter as Words, Texts};
 use folia_widgets::choices::{duration_choices, years_choices, Choice, Toggle, Tri};
 use folia_shell::seo;
-use folia_design::ui::{Icon, KindBadge, Mark};
+use folia_design::ui::{Icon, KeysText, KindBadge, Mark};
 use folia_widgets::week::{GridSlot, WeekGrid};
 
 /// The browser app (`csr`): only there do the board's chips switch, and count what they choose.
@@ -152,7 +152,7 @@ fn Feature(
                 {figure}
                 <ul class="points">
                     {words.points.iter().zip(look.points).map(|(point, icon)| view! {
-                        <li><Icon name=icon/><div><b>{point.title}</b><p>{point.text}</p></div></li>
+                        <li><Icon name=icon/><div><b>{point.title}</b><p><KeysText text=point.text/></p></div></li>
                     }).collect_view()}
                 </ul>
                 {link.map(|(words, path)| view! { <a class="ghost feature-link" href=t.path(path) rel=folia_shell::seo::nofollow(path)>{words}<Icon name="chevron-right"/></a> })}
@@ -381,7 +381,7 @@ fn board(t: &'static Texts, example_count: Option<u64>) -> impl IntoView {
     view! {
         <input class="board-all" type="checkbox" id="alle-filter"/>
         <div class="board">
-            {group(c.tag_search.to_string(), view! { <span class="mock-field typed"><Icon name="search"/><span>{h.search_example}</span><kbd>{t.common.search_shortcut}</kbd></span> }.into_any(), Some(h.search), true)}
+            {group(c.tag_search.to_string(), view! { <span class="mock-field typed"><Icon name="search"/><span>{h.search_example}</span><kbd><KeysText text=t.common.search_shortcut/></kbd></span> }.into_any(), Some(h.search), true)}
             {group(c.program.to_string(), view! {
                 {field("graduation-cap", h.program_typed.to_string(), true)}
                 <span class="mock-hit"><Icon name="check"/>{h.program_found}</span>
@@ -620,7 +620,7 @@ fn devices(t: &'static Texts) -> impl IntoView {
             <figure class="screen phone">{shots("module-phone", t.home_detail.phone_alt, 720, 960)}</figure>
         </div>
         <p class="device-keys">
-            <kbd>{t.common.search_shortcut}</kbd><kbd>"↑"</kbd><kbd>"↓"</kbd><kbd>"Enter"</kbd><kbd>"M"</kbd><kbd>"F"</kbd><kbd>"Esc"</kbd>
+            <kbd><KeysText text=t.common.search_shortcut/></kbd><kbd>"↑"</kbd><kbd>"↓"</kbd><kbd>"Enter"</kbd><kbd>"M"</kbd><kbd>"F"</kbd><kbd>"Esc"</kbd>
             <span class="badge"><Icon name="languages"/>"DE · EN"</span>
             <span class="badge"><Icon name="sun"/><Icon name="moon"/></span>
         </p>

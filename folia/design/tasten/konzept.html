@@ -171,7 +171,7 @@ td.key { white-space: nowrap; }
 .down .i { width: 14px; height: 14px; }
 .down.quiet { color: var(--text-3); opacity: .6; }
 .down.shown { background: color-mix(in oklab, var(--text) 8%, transparent); color: var(--text); }
-.dots { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--text-2); background: color-mix(in oklab, var(--text) 8%, transparent); }
+.dots { width: 22px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--text-2); background: color-mix(in oklab, var(--text) 8%, transparent); }
 
 /* the three ways at a row */
 .options { display: grid; gap: 16px; }
@@ -214,13 +214,17 @@ footer { font-size: 12.5px; color: var(--text-3); border-top: 1px solid var(--li
 
 <main class="page">
   <header class="intro">
-    <p class="eyebrow">Folia · Konzept · 20. Oktober 2026</p>
+    <p class="eyebrow">Folia · Konzept · 20. Oktober 2026 · entschieden</p>
     <h1>Jede Taste hat einen Knopf</h1>
     <p class="lede">Was Betula selbst tut, ist ein Knopf, den man klicken oder tippen kann. Eine Taste ist der schnellere Weg dorthin, nie der einzige. Hier steht, wo das heute fehlt, und ein Muster, das es schließt: der Knopf mit Pfeil, dazu M und ⇧M.</p>
     <blockquote class="quote">
       <p>„Außerdem finde ich, dass es ein No-Go ist, dass Aktionen nur über Shortcuts erreichbar sind. Ich möchte entweder etablierte Konzepte, wie Strg+C und Strg+V, die keine visuellen Hints brauchen. Aber das, was Betula selbst macht, soll als Komponente da sein, welche auch per Button bedient werden kann. Hier könnte man sich mal überlegen, ob wir allgemein ein weiteres Button-Pattern einführen. Z.&nbsp;B. Shift+M, um den weiteren Kontext davon aufzurufen.“</p>
       <cite>Owner, 20.10.2026</cite>
     </blockquote>
+    <div class="done">
+      <h3>Entschieden und umgesetzt, Folia 1.40.0</h3>
+      <p class="small">„Ja bitte setze deine Vorschläge um. Ich bin mit allen d'accord.“ (Owner, 20.10.2026) Alle vier Empfehlungen unten: ⇧M statt S und N, der Pfeil an „Einplanen“ mit ⇧P, an der Zeile A, ⌘ auf dem Mac. An der Zeile steht der Pfeil links vom Lesezeichen, damit die Zeile in Ruhe bleibt, wie sie war.</p>
+    </div>
     <div class="done">
       <h3>Schon umgesetzt, Folia 1.39.2</h3>
       <ul>
@@ -354,9 +358,9 @@ footer { font-size: 12.5px; color: var(--text-3); border-top: 1px solid var(--li
         <p class="small">Neben dem Lesezeichen erscheint ⌄, wenn man auf die Zeile zeigt oder sie den Fokus hat, so wie das ⋯ einer Sammlung. In Ruhe sieht die Liste aus wie heute. Am Handy führt die Zeile zum Modul, dort steht der Pfeil am Knopf. Der Pfeil gehört zu dem Knopf, dessen Kontext er öffnet, an der Zeile wie am Modul.</p>
         <div class="stage">
           <div class="rows">
-            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
-            <div class="row hover"><span class="t"><b>Analysis I</b><small>11103</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down shown"><svg class="i"><use href="#i-down"/></svg></span></span></div>
-            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="down" style="visibility: hidden"></span><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
+            <div class="row hover"><span class="t"><b>Analysis I</b><small>11103</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="down shown"><svg class="i"><use href="#i-down"/></svg></span><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
+            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="down" style="visibility: hidden"></span><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
           </div>
         </div>
       </article>
@@ -376,9 +380,9 @@ footer { font-size: 12.5px; color: var(--text-3); border-top: 1px solid var(--li
         <p class="small">Beim Zeigen erscheint ⋯ mit dem Menü der Zeile, dem vom Rechtsklick: „Sammlung und Notiz …“, „Auswählen“, „Einplanen“, „Merken“. Ein Knopf für alles an der Zeile. ⇧M hätte dann keinen eigenen Knopf, sondern einen Eintrag darin, einen Klick weiter.</p>
         <div class="stage">
           <div class="rows">
-            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+            <div class="row"><span class="t"><b>Lineare Algebra I</b><small>11104</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="down" style="visibility: hidden"></span><span class="bm"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
             <div class="row hover"><span class="t"><b>Analysis I</b><small>11103</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Winter</span><span class="lang">DE</span><span class="end"><span class="dots"><svg class="i"><use href="#i-dots"/></svg></span><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
-            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span><span class="down" style="visibility: hidden"></span></span></div>
+            <div class="row"><span class="t"><b>Theoretische Informatik</b><small>11787</small></span><span class="lp"><b>8</b><small>LP</small></span><span>Sommer</span><span class="lang">DE</span><span class="end"><span class="down" style="visibility: hidden"></span><span class="bm on"><svg class="i"><use href="#i-bookmark"/></svg></span></span></div>
           </div>
         </div>
       </article>
@@ -396,12 +400,12 @@ footer { font-size: 12.5px; color: var(--text-3); border-top: 1px solid var(--li
   </section>
 
   <section aria-labelledby="fragen">
-    <h2 id="fragen">Zu entscheiden</h2>
+    <h2 id="fragen">Entschieden</h2>
     <ol class="questions">
-      <li><div class="q"><h3>⇧M öffnet „Sammlung und Notiz“, S und N fallen weg?</h3><p class="small muted">Eine Taste weniger zu lernen, und ⇧M ist dort, wo M ist.</p><p class="reco">Empfehlung: ja.</p></div></li>
-      <li><div class="q"><h3>„Einplanen“ bekommt seinen Pfeil, ⇧P die Semester?</h3><p class="small muted">Die sichtbare Form des alten Shift+P. Der Hinweis nach P mit ‹ › bleibt.</p><p class="reco">Empfehlung: ja.</p></div></li>
-      <li><div class="q"><h3>An der Zeile: A, B oder C?</h3><p class="small muted">A hält die Liste ruhig und macht den Pfeil zum selben Paar wie am Modul.</p><p class="reco">Empfehlung: A.</p></div></li>
-      <li><div class="q"><h3>⌘ statt Strg auf dem Mac, gleich mit?</h3><p class="small muted">„Strg K“ und „Strg Klick“ stimmen auf dem Mac nicht.</p><p class="reco">Empfehlung: ja.</p></div></li>
+      <li><div class="q"><h3>⇧M öffnet „Sammlung und Notiz“, S und N fallen weg?</h3><p class="small muted">Eine Taste weniger zu lernen, und ⇧M ist dort, wo M ist.</p><p class="reco">Entschieden: ja.</p></div></li>
+      <li><div class="q"><h3>„Einplanen“ bekommt seinen Pfeil, ⇧P die Semester?</h3><p class="small muted">Die sichtbare Form des alten Shift+P. Der Hinweis nach P mit ‹ › bleibt.</p><p class="reco">Entschieden: ja.</p></div></li>
+      <li><div class="q"><h3>An der Zeile: A, B oder C?</h3><p class="small muted">A hält die Liste ruhig und macht den Pfeil zum selben Paar wie am Modul.</p><p class="reco">Entschieden: A.</p></div></li>
+      <li><div class="q"><h3>⌘ statt Strg auf dem Mac, gleich mit?</h3><p class="small muted">„Strg K“ und „Strg Klick“ stimmen auf dem Mac nicht.</p><p class="reco">Entschieden: ja.</p></div></li>
     </ol>
   </section>
 

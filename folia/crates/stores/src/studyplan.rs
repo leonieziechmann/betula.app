@@ -53,7 +53,7 @@ use folia_design::ui::{Icon, Shortcut};
 pub mod fit;
 mod planning;
 
-pub use planning::{planning_semester, Note, NoteKind, Planning, Pressed, SetupAsk};
+pub use planning::{planning_semester, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
 pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
@@ -398,6 +398,11 @@ pub enum PlanLook {
 /// every look; `P` presses the one of what the visitor is at (`enhance.js`,
 /// `data-action="plan"`). Where no study is set up, the dialog asks for it first.
 ///
+/// At a module (`Hero`) its arrow (folia/design/tasten/konzept.html, „Knopf mit Pfeil"; owner,
+/// 2026-10-20: „Ja bitte setze deine Vorschläge um"), which ⇧P opens as well
+/// (`data-action="plan-more"`): the semesters it can go to (`PlanAsk`, `folia_widgets::planmenu`),
+/// in server HTML as well, so nothing moves when the app takes over.
+///
 /// Part of server HTML like `MarkButton`: unpressed and aimed as for an empty plan, the same for
 /// everybody (R9), kept in its place but not shown until the app runs (`.plan-toggle`), so nothing
 /// moves at the takeover (R15). A click flips the button at once and writes the plan after the
@@ -440,6 +445,7 @@ pub fn PlanButton(
     // What the last click said, until the plan it writes after the next frame has it.
     let said = RwSignal::new(None::<bool>);
     let pressed = Memo::new(move |_| said.get().unwrap_or_else(|| aim.with(|aim| aim.pressed)));
+    let title_more = title.clone();
     let toggle = {
         let what = Pressed { id: id.clone(), title, current, offer, newest, hint: None };
         move |_: leptos::ev::MouseEvent| {
@@ -467,29 +473,37 @@ pub fn PlanButton(
         let said = said.get();
         aim.with(|aim| tooltip_text(aim, said.unwrap_or(aim.pressed), t))
     };
-    let (class, words) = match look {
+    match look {
         PlanLook::Hero => {
             // The app's alone: where a session plans depends on the day (R9).
             let note = move || APP.then(|| aim.with(|aim| hero_note(aim, start.get(), t))).map(|note| view! { <small>{note}</small> });
-            ("plan-toggle mark-switch hit", view! { <span>{label}</span>{note}<Shortcut keys="P"/> }.into_any())
+            let what = Pressed { id: id.clone(), title: title_more, current, offer, newest, hint: None };
+            let more = move |ev: leptos::ev::MouseEvent| {
+                let Some(planning) = planning else { return };
+                let aim = Aim { pressed: pressed.get_untracked(), ..aim.get_untracked() };
+                planning.open_menu(PlanAsk { what: Pressed { hint: hint.get_untracked(), ..what.clone() }, aim, at: crate::bookmarks::pair_of(&ev) });
+            };
+            view! {
+                <span class="mark-pair split plan-pair">
+                    <button class="plan-toggle mark-switch hit" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
+                        {icon}<span>{label}</span>{note}<Shortcut keys="P"/>
+                    </button>
+                    <button class="mark-more plan-more hit" type="button" data-action="plan-more" aria-haspopup="menu" aria-label=t.planner.plan_more title=t.planner.plan_more_hint on:click=more>
+                        <Icon name="chevron-down"/>
+                    </button>
+                </span>
+            }
+            .into_any()
         }
         PlanLook::Action => {
             let line = move || aim.with(|aim| semester_line(aim, start.get(), t));
-            ("plan-toggle action", view! { <span>{label}<small>{line}</small></span> }.into_any())
+            view! {
+                <button class="plan-toggle action" type="button" data-action="plan" on:click=toggle aria-pressed=pressed_attr aria-busy=busy title=tip>
+                    {icon}<span>{label}<small>{line}</small></span>
+                </button>
+            }
+            .into_any()
         }
-    };
-    view! {
-        <button
-            class=class
-            type="button"
-            data-action="plan"
-            on:click=toggle
-            aria-pressed=pressed_attr
-            aria-busy=busy
-            title=tip
-        >
-            {icon}{words}
-        </button>
     }
 }
 
