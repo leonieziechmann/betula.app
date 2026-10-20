@@ -225,9 +225,11 @@ pub fn App() -> impl IntoView {
             <nav class="bottomnav" aria-label=t.app.navigation><NavItems/></nav>
             <TabMenu/>
             <ProfileSwitcher/>
-            // What „Einplanen" did, and the dialog that sets up the study on the way.
+            // What „Einplanen" did, the dialog that sets up the study on the way, and the menu at
+            // the arrow of a module planned.
             <PlanNote/>
             <PlanSetup/>
+            <folia_widgets::planmenu::PlanMenuHost/>
             // What marking did, and the menu of a module's collections and note.
             <folia_widgets::marknote::MarkNote/>
             <folia_widgets::collect::CollectHost/>
