@@ -230,6 +230,7 @@ pub fn App() -> impl IntoView {
             <PlanNote/>
             <PlanSetup/>
             <folia_widgets::planmenu::PlanMenuHost/>
+            <folia_widgets::planinto::PlanIntoHost/>
             // What marking did, and the menu of a module's collections and note.
             <folia_widgets::marknote::MarkNote/>
             <folia_widgets::collect::CollectHost/>

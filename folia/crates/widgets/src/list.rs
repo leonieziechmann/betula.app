@@ -336,13 +336,13 @@ fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
 }
 
 /// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,
-/// and the list of marked modules, whose tooltip says how it selects (`select`). S and N, which
-/// the tooltip names, are left out of the row (owner, 2026-10-20: „Sammlung sieht hier zu viel
-/// aus. Das sollte da weg.").
+/// and the list of marked modules, whose tooltip says how it selects (`select`). ⇧M, which the
+/// tooltip names, is left out of the row (owner, 2026-10-20: „Sammlung sieht hier zu viel aus. Das
+/// sollte da weg."): its arrow beside the bookmark says it. The tooltip says ⌘ on a Mac.
 #[component]
 pub fn ListKeys(#[prop(optional)] select: bool) -> impl IntoView {
     let t = i18n::t();
-    let title = if select { format!("{}. {}", t.catalog.keys_title, t.catalog.keys_select) } else { t.catalog.keys_title.to_string() };
+    let title = folia_design::ui::for_system(&if select { format!("{}. {}", t.catalog.keys_title, t.catalog.keys_select) } else { t.catalog.keys_title.to_string() });
     view! {
         <span class="keys" title=title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span>
     }

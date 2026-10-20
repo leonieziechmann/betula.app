@@ -20,6 +20,9 @@
 //!   taking it out and planning it anew — moved to another semester (`move_planned`), marked as
 //!   passed or no longer (`set_passed`), taken out (`remove`); each says so in the note, with
 //!   „Rückgängig".
+//! - The same arrow beside „Einplanen" (`PlanAsk`, `folia_widgets::planinto`; owner, 2026-10-20:
+//!   „Ja bitte setze deine Vorschläge um"): „Einplanen in …", a semester chosen plans the module
+//!   there (`place`), with the note as after a click.
 //! - The question for the study (`SetupAsk`): where no Studienbeginn is stored and the session has
 //!   not put the question aside („Ohne Studium einplanen"), „Einplanen" opens a dialog that sets the
 //!   study up and plans the module in one (`folia_widgets::plansetup`; owner, 2026-10-18: „so dass
@@ -110,6 +113,19 @@ pub struct MenuAsk {
     pub anchor: Option<Anchor>,
 }
 
+/// „Einplanen in …" asked for (folia/design/tasten/konzept.html, „Knopf mit Pfeil"; owner,
+/// 2026-10-20: „Ja bitte setze deine Vorschläge um"): the same arrow, or ⇧P, at a module not planned.
+/// The semesters it can go to, each with whether the module is offered then; `folia_widgets::
+/// planinto` shows it, `Planning::place` does what is chosen.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlanAsk {
+    pub what: Pressed,
+    /// Where the switch aims as the arrow is clicked.
+    pub aim: Aim,
+    /// The box of the switch and its arrow, where a wide screen puts the menu.
+    pub at: Option<Anchor>,
+}
+
 /// „Einplanen" pressed where no study is set up: the dialog that sets it up and plans the module.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SetupAsk {
@@ -132,6 +148,8 @@ pub struct Planning {
     note: RwSignal<Option<Note>>,
     setup: RwSignal<Option<SetupAsk>>,
     menu: RwSignal<Option<MenuAsk>>,
+    /// „Einplanen in …" asked for (`PlanAsk`).
+    into: RwSignal<Option<PlanAsk>>,
     undo: StoredValue<Option<Undo>>,
     /// The press „Rückgängig" took back before its plan was written: that write is left out.
     undone: StoredValue<u32>,
@@ -148,6 +166,7 @@ impl Planning {
             note: RwSignal::new(None),
             setup: RwSignal::new(None),
             menu: RwSignal::new(None),
+            into: RwSignal::new(None),
             undo: StoredValue::new(None),
             undone: StoredValue::new(0),
             turns: StoredValue::new(0),
@@ -161,6 +180,7 @@ impl Planning {
                     planning.note.set(None);
                     planning.setup.set(None);
                     planning.menu.set(None);
+                    planning.into.set(None);
                     planning.undo.set_value(None);
                 }
                 profile
@@ -227,6 +247,57 @@ impl Planning {
             return false;
         }
         self.write(plan, source, what, aim, then);
+        true
+    }
+
+    /// „Einplanen in …", for the module of `ask` (another one open goes).
+    pub fn open_into(self, ask: PlanAsk) {
+        self.into.set(Some(ask));
+    }
+
+    /// „Einplanen in …" asked for. Tracked.
+    pub fn into_menu(self) -> Option<PlanAsk> {
+        self.into.get()
+    }
+
+    pub fn close_into(self) {
+        if self.into.with_untracked(Option::is_some) {
+            self.into.set(None);
+        }
+    }
+
+    /// A semester chosen in „Einplanen in …" (`PlanAsk`): the module planned into `to`, and the note
+    /// says so as after a click — with ‹ ›, and „Rückgängig" (owner, 2026-10-20: „Ja bitte setze
+    /// deine Vorschläge um"). Where no study is set up, the dialog asks first, the module at `to`;
+    /// a semester the module is planned in already changes nothing. `true` where the plan changes.
+    pub fn place(self, plan: Studyplan, what: Pressed, to: SemesterKey) -> bool {
+        self.close_into();
+        if plan.with_untracked(|doc| doc.is_planned(to, &what.id)) {
+            return false;
+        }
+        if self.asks_first() {
+            let turn = self.next_turn();
+            self.note.set(None);
+            self.setup.set(Some(SetupAsk { turn, what, target: to, fill: None }));
+            return false;
+        }
+        let turn = self.next_turn();
+        self.note.set(Some(Note { turn, shown: turn, what: what.clone(), kind: NoteKind::Planned { at: to, stepped: false } }));
+        self.undo.set_value(None);
+        let id = what.id;
+        nav::after_paint(move || {
+            if self.undone.try_get_value() == Some(turn) {
+                return;
+            }
+            let (before, after) = plan.update(|doc| {
+                let before = doc.clone();
+                doc.plan(to, &id, now(), None);
+                (before, doc.clone())
+            });
+            if self.note.with_untracked(|note| note.as_ref().is_some_and(|note| note.turn == turn)) {
+                self.undo.set_value(Some(Undo { turn, before, after }));
+            }
+        });
         true
     }
 

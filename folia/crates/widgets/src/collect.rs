@@ -1,8 +1,8 @@
 //! The menu of a module's collections and note (folia/design/merken/oberflaeche.html, „Ein Menü für
 //! Sammlung und Notiz"): one menu wherever it opens — the field of the note after marking
-//! (`marknote`), the arrow of a module's switch, S and N at a row or at the open module
-//! (`enhance.js`, `betula:collect`). The store says which module it is for
-//! (`folia_stores::collections::Collecting`); this host shows it.
+//! (`marknote`), the arrow of a module's switch and the one beside a row's bookmark, ⇧M at a row or
+//! at the open module (`enhance.js` presses that arrow; folia/design/tasten/konzept.html). The store
+//! says which module it is for (`folia_stores::collections::Collecting`); this host shows it.
 //!
 //! - At its top the field, which filters the collections as it is typed into and makes one where
 //!   none has the name (owner, 2026-10-19: „mach einfach gleich den Fokus in das Suchfeld"; no
@@ -138,15 +138,6 @@ impl Work {
 pub fn CollectHost() -> impl IntoView {
     let Some(collecting) = Collecting::expect() else { return ().into_any() };
     let phone = phone_layout();
-    // S and N at a row or at the open module (`enhance.js`): the module, its title, where it is.
-    Effect::new(move |_| {
-        let handle = window_event_listener_untyped("betula:collect", move |ev| {
-            if let Some(ask) = ask_of(&ev) {
-                collecting.open(ask);
-            }
-        });
-        on_cleanup(move || handle.remove());
-    });
     // A new menu is drawn anew; one asked again for the same module stays as it is.
     let asked = Memo::new(move |_| collecting.asked());
     (move || {
@@ -154,34 +145,6 @@ pub fn CollectHost() -> impl IntoView {
         Some(if phone.get_untracked() { view! { <CollectSheet ask collecting/> }.into_any() } else { view! { <CollectPop ask collecting/> }.into_any() })
     })
     .into_any()
-}
-
-/// The menu asked for by `betula:collect` (`enhance.js`): `detail` has the module's `id` and
-/// `title`, `note` for N, and the box of what it is for.
-fn ask_of(ev: &leptos::web_sys::Event) -> Option<CollectAsk> {
-    #[cfg(feature = "csr")]
-    {
-        use wasm_bindgen::JsCast;
-        let detail = ev.dyn_ref::<web_sys::CustomEvent>()?.detail();
-        let get = |key: &str| web_sys::js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str(key)).ok();
-        let id = get("id")?.as_string()?;
-        if !folia_model::ids::is_module_id(&id) {
-            return None;
-        }
-        let title = get("title").and_then(|title| title.as_string()).unwrap_or_else(|| id.clone());
-        let number = |key: &str| get(key).and_then(|value| value.as_f64());
-        let at = match (number("left"), number("top"), number("right"), number("bottom")) {
-            (Some(left), Some(top), Some(right), Some(bottom)) => Some(Anchor { left, top, right, bottom }),
-            _ => None,
-        };
-        let note = get("note").is_some_and(|note| note.as_bool() == Some(true));
-        Some(CollectAsk { id, title, more: Vec::new(), at, note, from_note: None })
-    }
-    #[cfg(not(feature = "csr"))]
-    {
-        let _ = ev;
-        None
-    }
 }
 
 /// What had the focus when the menu opened: it gets it back when the menu closes, if it is still

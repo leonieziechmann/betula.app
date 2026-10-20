@@ -457,7 +457,9 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   watch(page);
   await open(page, "11112");
   const ARROW = ".detail .hero .plan-more";
-  check(!(await page.$(ARROW)), "the arrow is there before the module is planned");
+  // Not planned, the arrow is there as well (folia/design/tasten/konzept.html, „Knopf mit Pfeil"):
+  // „Einplanen in …" (planinto.rs), e2e/arrows.mjs walks it.
+  check((await page.getAttribute(ARROW, "aria-label").catch(() => null)) === "In ein anderes Semester", "not planned: the arrow is not the one of „Einplanen in …“");
   await page.click(SWITCH);
   await page.waitForSelector(ARROW, { state: "visible", timeout: 3000 }).catch(() => problems.push("planned: no arrow"));
   await page.waitForFunction((key) => (localStorage.getItem(key) || "").includes("\t11112\t"), STORE, { timeout: 4000 }).catch(() => {});
@@ -523,7 +525,7 @@ const settled = (page) => page.waitForFunction(() => { const el = document.query
   await waitPlanned(page, "11112", [], "taken out with the menu");
   check(await page.evaluate((sel) => document.activeElement === document.querySelector(sel), SWITCH), "taken out: the focus is not on the switch");
   check((await note(page))?.said?.includes("entfernt"), `taken out: the note says ${JSON.stringify(await note(page))}`);
-  await page.waitForFunction((sel) => !document.querySelector(sel), ARROW, { timeout: 2000 }).catch(() => problems.push("taken out: the arrow stays"));
+  await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("aria-label") === "In ein anderes Semester", ARROW, { timeout: 2000 }).catch(() => problems.push("taken out: the arrow is not the one of „Einplanen in …“ again"));
   await context.close();
 }
 

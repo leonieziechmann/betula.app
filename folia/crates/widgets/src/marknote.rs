@@ -337,12 +337,12 @@ fn MarkedNote(marked: Marked, into: std::collections::BTreeSet<u32>, bookmarks: 
             collecting.open(CollectAsk { id: id.clone(), title: title.clone(), more: Vec::new(), at: rect_of(button), note: false, from_note: Some(serial) });
         }
     };
-    // S while the note stands: its menu (the note's own key, as ← and → are the note of
-    // „Einplanen"'s), not where a field or a menu has the keys.
+    // ⇧M while the note stands: its menu (the note's own key, as ← and → are the note of
+    // „Einplanen"'s; the field is the arrow of what M did), not where a field or a menu has the keys.
     let on_key = {
         let open = open.clone();
         Callback::new(move |ev: KeyboardEvent| {
-            if !is_key_s(&ev) {
+            if !is_shift_m(&ev) {
                 return false;
             }
             ev.prevent_default();
@@ -411,10 +411,11 @@ fn planned_words(planned: &PlannedMany, t: &'static Texts) -> String {
     said
 }
 
-/// S, plain, not where a field, a menu or a dialog has the keys.
-fn is_key_s(ev: &KeyboardEvent) -> bool {
+/// ⇧M (Shift, not the letter's case: Caps Lock's M is M), not where a field, a menu or a dialog has
+/// the keys.
+fn is_shift_m(ev: &KeyboardEvent) -> bool {
     use leptos::wasm_bindgen::JsCast;
-    if ev.default_prevented() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || !matches!(ev.key().as_str(), "s" | "S") {
+    if ev.default_prevented() || ev.ctrl_key() || ev.meta_key() || ev.alt_key() || !ev.shift_key() || !matches!(ev.key().as_str(), "m" | "M") {
         return false;
     }
     let target = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok());

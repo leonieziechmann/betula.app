@@ -325,10 +325,66 @@ impl Hit {
     }
 }
 
-/// A shortcut written next to its control (R10).
+/// A shortcut written next to its control (R10), as the system says it (`KeysText`).
 #[component]
 pub fn Shortcut(keys: &'static str) -> impl IntoView {
-    view! { <JsOnly><kbd>{keys}</kbd></JsOnly> }
+    view! { <JsOnly><kbd><KeysText text=keys/></kbd></JsOnly> }
+}
+
+/// What a text that names Strg says on a Mac (owner, 2026-10-20: „⌘ statt Strg auf dem Mac"):
+/// „Strg K" and „Strg+K" are „⌘K", „Strg Klick" „⌘ Klick", „Ctrl A" „⌘A". `None` where it names no
+/// Strg.
+pub fn mac_keys(text: &str) -> Option<String> {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    let mut changed = false;
+    while let Some(at) = [rest.find("Strg"), rest.find("Ctrl")].into_iter().flatten().min() {
+        let (before, from) = rest.split_at(at);
+        out.push_str(before);
+        out.push('⌘');
+        changed = true;
+        let after = from.get(4..).unwrap_or_default();
+        let mut chars = after.chars();
+        // A key right after it („Strg+K", „Strg K") joins the sign; a word („Strg Klick") keeps
+        // its space.
+        rest = match (chars.next(), chars.next(), chars.next()) {
+            (Some('+' | ' '), Some(key), next) if !next.is_some_and(char::is_alphanumeric) => {
+                out.push(key);
+                after.get(1 + key.len_utf8()..).unwrap_or_default()
+            }
+            _ => after,
+        };
+    }
+    changed.then(|| {
+        out.push_str(rest);
+        out
+    })
+}
+
+/// A text that names Strg as a PC and as a Mac say it: both are written, and the stylesheet shows
+/// the one of the system (`html.mac`, which the head script sets before the page is drawn), so
+/// nothing changes when the app takes over.
+#[component]
+pub fn KeysText(text: &'static str) -> impl IntoView {
+    match mac_keys(text) {
+        Some(mac) => view! { <span class="k-pc">{text}</span><span class="k-mac">{mac}</span> }.into_any(),
+        None => text.into_any(),
+    }
+}
+
+/// The same for a tooltip, which no stylesheet can choose: the browser app's says the Mac's on a
+/// Mac (a tooltip takes no room, so it may differ from the server's).
+pub fn for_system(text: &str) -> String {
+    #[cfg(feature = "csr")]
+    {
+        let mac = web_sys::window().and_then(|window| window.document()).and_then(|document| document.document_element()).is_some_and(|root| root.class_list().contains("mac"));
+        if mac {
+            if let Some(mac) = mac_keys(text) {
+                return mac;
+            }
+        }
+    }
+    text.to_string()
 }
 
 /// The way out of a dialog (owner, 2026-10-16: „Neben Close steht kein esc, das sollte einheitlich,
@@ -432,5 +488,22 @@ mod tests {
             assert!(html.contains(part), "{part}\nin {html}");
         }
         assert!(prose("Text", None).starts_with(r#"<div class="prose">"#));
+    }
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    /// Strg is ⌘ on a Mac: a key right after it joins the sign, a word keeps its space.
+    #[test]
+    fn strg_on_a_mac() {
+        assert_eq!(mac_keys("Strg K").as_deref(), Some("⌘K"));
+        assert_eq!(mac_keys("Strg+K sucht, ↑ und ↓ wählen").as_deref(), Some("⌘K sucht, ↑ und ↓ wählen"));
+        assert_eq!(mac_keys("Strg Klick").as_deref(), Some("⌘ Klick"));
+        assert_eq!(mac_keys("Strg und Klick, Shift mit Klick …, Strg A alle").as_deref(), Some("⌘ und Klick, Shift mit Klick …, ⌘A alle"));
+        assert_eq!(mac_keys("Ctrl click").as_deref(), Some("⌘ click"));
+        assert_eq!(mac_keys("Ctrl K").as_deref(), Some("⌘K"));
+        assert_eq!(mac_keys("Esc"), None);
     }
 }
