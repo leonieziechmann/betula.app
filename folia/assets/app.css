@@ -1323,27 +1323,37 @@ button.coll-item.add:hover { background: var(--row-hover); }
    1. at the right end of the badges' line, side by side, each as wide as what it says;
    2. on a line of their own under the badges, half of it each;
    3. one over the other, each the whole line.
-   The line wraps by what the switches say: their basis is their width side by side, so they leave
-   the badges' line exactly where they do not fit beside the badges whole. Beside them the badges
-   take what is left (their grow outweighs the switches' by far, so the switches stay as wide as
-   they are); on a line of their own the switches take all of it. Each switch is at least as wide as
-   what it says and at most the line (fit-content). Beside the badges it starts from 0, so each is as
-   wide as it is; on their own line from half of it, so both are half where both fit in a half, and
-   one over the other where either does not. Which of the two the switches have tells their width
-   (100%) against the line's (100cqi, the line is the container): on a line of their own it is all
-   of it but the switches' end, beside the badges far less. A label keeps its width, so a switch
-   does not change its size when „Merken" becomes „Gemerkt". */
-.hero-line { container: hero-line / inline-size; --switches-end: 6px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 6px; margin-top: 12px; }
+   Which way it is follows from the line's width alone, never from a click (the same day: „das darf
+   auch auf keinen fall springen, wenn man einen knopf anklickt, weil dann ja mehr angezeigt wird.
+   Der Einzige punkt, wann es springen darf, ist wenn man das window rezised"): a switch is as wide as
+   `--pair` whatever it shows — pressed or not, with its arrow or without, whatever its small line
+   says —, at most the line. Beside the badges each is that wide; on their own line half of it each
+   where a half holds that, else one over the other. The badges, which no click changes, decide
+   whether the two fit beside them: the switches' basis is the two side by side, so they leave the
+   badges' line exactly where they do not fit there. Beside them the badges take what is left (their
+   grow outweighs the switches' by far); on a line of their own the switches take all of it. Which
+   of the two the switches have tells their width (100%) against the line's (100cqi, the line is the
+   container): on a line of their own it is all of it but the switches' end, beside the badges far
+   less; half of it is the basis of each switch only there. */
+.hero-line { container: hero-line / inline-size; --switches-end: 6px; --pair: 18rem; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 6px; margin-top: 12px; }
 /* The badges stand on the middle of the switches (26px in 32px). A badge wider than the line (the
    narrowest preview has 176px for „jedes Semester (ungerade Jahre)") breaks into two lines. */
 .hero-line > .badges { flex: 100000 1 auto; min-width: 0; margin-top: 0; padding: 3px 0; align-items: center; row-gap: 6px; }
 .hero-line > .badges > .badge { padding-top: 3px; padding-bottom: 3px; line-height: 1.25; white-space: normal; }
 /* Its right edge is the right edge of what stands under the heading (the body of a module is
    inset by 20px, the heading of the preview by 14px and that of the page by 18px). */
-.hero-line > .switches { flex: 1 1 auto; min-width: 0; margin-right: var(--switches-end); display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: stretch; gap: 6px; }
-.switches > :is(.plan-pair, .mark-pair) { flex: 1 1 clamp(0px, calc(50% - 3px - (100cqi - var(--switches-end) - 100%) * 1000), calc(50% - 3px)); min-width: fit-content; }
-/* What a switch says stands in its middle where it is wider than that. */
-.switches .mark-switch { justify-content: center; }
+.hero-line > .switches { flex: 1 1 calc(2 * var(--pair) + 6px); min-width: 0; margin-right: var(--switches-end); display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: stretch; gap: 6px; }
+.switches > :is(.plan-pair, .mark-pair) { flex: 1 1 clamp(min(var(--pair), 100%), calc(50% - 3px - (100cqi - var(--switches-end) - 100%) * 1000), calc(50% - 3px)); min-width: min(var(--pair), 100%); }
+/* In a switch nothing moves when it is pressed: the room of its arrow is kept while it has none,
+   its label stands at its start, its shortcut at its end, and what it says small takes what is
+   between them and gives way. */
+.switches > :not(.split) > .mark-switch { padding-right: 37px; }
+.switches .mark-switch > small { text-align: left; }
+@media (min-width: 901px) {
+  .switches .mark-switch > small { flex: 1 1 auto; max-width: none; }
+  .switches .mark-switch kbd { margin-left: auto; }
+  .switches .plan-toggle.mark-switch:has(> small) { grid-template-columns: auto auto minmax(0, 1fr) auto; }
+}
 .module-page > .hero .hero-line { --switches-end: 2px; }
 html:not(.js) .hero-line > .switches { display: none; }
 html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
@@ -1364,18 +1374,14 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 .plan-toggle.mark-switch > span:first-of-type { flex: none; }
 .plan-toggle.mark-switch > small { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 500; opacity: .8; }
 @media (min-width: 901px) {
-  /* The small line has a column of its own, which the switch's smallest width leaves out: one over
-     the other, the two are as narrow as without it, and it takes what the line leaves. Side by
-     side only where it fits whole. Its gap is inside the column (::before), so that an empty
-     column adds none. */
+  /* The small line has a column of its own, which takes what the label and the shortcut leave and
+     gives way (`.switches` above). Its gap is inside the column (::before), so that an empty column
+     adds none. */
   .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto auto minmax(0, max-content) auto; gap: 0; }
   .plan-toggle.mark-switch:has(> small) > .icon { margin-right: 8px; }
   .plan-toggle.mark-switch:has(> small) > small { grid-column: 3; }
   .plan-toggle.mark-switch:has(> small) > small::before { content: ""; padding-left: 8px; }
   .plan-toggle.mark-switch:has(> small) kbd { grid-column: 4; margin-left: 8px; }
-  /* On a module's page its sidebar says that under „Einplanen": the switch keeps the width the
-     server gave it, so the line does not break anew at the takeover (R15). */
-  .module-page > .hero .plan-toggle.mark-switch > small { display: none; }
 }
 /* On a phone the pair takes a line of its own under the badges and fills it, each switch half of
    it with its content in the middle (owner, 2026-09-27: kept at the line's right end, the two
@@ -1386,10 +1392,16 @@ html:not(.js) .hero-line > .badges { padding: 0; row-gap: 6px; }
 @media (max-width: 900px) {
   .hero-line { row-gap: 10px; }
   .hero-line > .badges { padding: 0; row-gap: 6px; }
+  .hero-line { --pair: 10rem; }
   .hero-line > .switches { flex-basis: 100%; }
   /* Half each: a basis of half the line less half the gap, not 0, so that neither grows nor
-     shrinks by its padding; at least what it says without its small line, which gives way. */
-  .switches > :is(.plan-pair, .mark-pair) { flex: 1 1 calc(50% - 3px); min-width: auto; }
+     shrinks by its padding; one over the other where a half is narrower than `--pair`. */
+  .switches > :is(.plan-pair, .mark-pair) { flex: 1 1 calc(50% - 3px); }
+  .switches > :not(.split) > .mark-switch { padding-right: 58px; }
+  /* Its icon and words a block of one width in its middle, whatever the words: the label over what
+     it says small, which gives way. */
+  .hero-line .switches .mark-switch { display: inline-grid; grid-template-columns: auto minmax(0, 6.5em); justify-content: center; align-content: center; gap: 0 8px; }
+  .hero-line .switches .mark-switch > .icon { grid-row: span 2; }
   .plan-toggle.mark-switch > span:first-of-type { min-width: 77px; }
   .plan-toggle.mark-switch:has(> small) { display: inline-grid; grid-template-columns: auto minmax(0, max-content); justify-content: center; gap: 0 8px; align-content: center; }
   .plan-toggle.mark-switch:has(> small) > .icon { grid-row: span 2; }

@@ -458,8 +458,14 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     untereinander mit voller breite"): side by side at the right end of the badges' line, each as
     wide as what it says; on a line of their own under the badges, half each; one over the other,
     the whole line each (app.css `.hero-line`; before, from 2026-09-26, they stood one over the
-    other at the line's end). On a phone the two always have a line of their own, half each (owner,
-    2026-09-27), one over the other where a half is too narrow for a label; among the actions of the module
+    other at the line's end). Which way follows from the line's width alone, never from a click
+    (the same day: „das darf auch auf keinen fall springen, wenn man einen knopf anklickt, weil dann
+    ja mehr angezeigt wird. Der Einzige punkt, wann es springen darf, ist wenn man das window
+    rezised"): each switch is as wide as `--pair` (18rem, on a phone 10rem) whatever it shows, the
+    room of its arrow kept while it has none, its label at its start and its key at its end, and
+    what it says small takes what is between them and gives way. On a phone the two always have a
+    line of their own, half each (owner, 2026-09-27), one over the other where a half is narrower
+    than that; among the actions of the module
     page's sidebar, which stays in view while the page scrolls; and on a phone by swiping the
     module's row in the catalog or in the Merkliste to the left (below). All of them show one
     state.

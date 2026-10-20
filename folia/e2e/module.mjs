@@ -136,7 +136,9 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
 // ---------- „Einplanen" beside „Merken" ----------
 // The two stand the first way that fits (owner, 2026-10-20): at the right end of the badges' line,
 // side by side; on a line of their own under the badges, half each; one over the other, the whole
-// line each. Datenbanken (12330) has four badges, which leave the preview no room for the two
+// line each — by the line's width alone: nothing of it moves when a switch is pressed, its arrow
+// comes and it says more (the same day: „Der Einzige punkt, wann es springen darf, ist wenn man das
+// window rezised"). Datenbanken (12330) has four badges, which leave the preview no room for the two
 // beside them: there they take a line of their own. On a phone they always do, half each (owner,
 // 2026-09-27). A plan in another semester and the finder's placeholder make the switch say more;
 // planned, „Eingeplant" has an arrow, whose menu moves the module and marks it as passed
@@ -167,10 +169,13 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
       tab: Boolean(line.querySelector(".plan-toggle").compareDocumentPosition(line.querySelector(".mark-toggle")) & Node.DOCUMENT_POSITION_FOLLOWING),
       note: line.querySelector(".plan-toggle > small")?.checkVisibility() ? line.querySelector(".plan-toggle > small").textContent : null,
       label: line.querySelector(".plan-toggle > span").textContent,
-      labelWidth: line.querySelector(".plan-toggle > span").getBoundingClientRect().width,
       width: plan.width,
+      // Where everything stands, to tell whether a click moved anything.
+      boxes: [plan, mark, ...[".plan-toggle > .icon", ".plan-toggle > span", ".plan-toggle kbd", ".mark-toggle > .icon", ".mark-toggle > span", ".mark-toggle kbd"].map((s) => line.querySelector(s).getBoundingClientRect())].map((r) => [r.left, r.top, r.width, r.height].map(Math.round)),
     };
   }, [root, body]);
+  // The same boxes, but for the rounding of a fraction of a pixel.
+  const still = (a, b) => a.length === b.length && a.every((box, i) => box.every((v, j) => Math.abs(v - b[i][j]) <= 1));
   const sideBySide = (seen) => seen.together <= 0.5 && Math.abs(seen.gap - 6) <= 0.5;
   const stacked = (seen) => Math.abs(seen.under - 6) <= 0.5 && seen.aligned <= 0.5;
   // The three ways: beside the badges; on a line of their own, half each; one over the other.
@@ -188,17 +193,23 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
   for (const width of [960, 1100, 1500]) {
     const { page, step, context } = await open({ viewport: { width, height: 900 } }, "/catalog?q=datenbanken&open=12330");
     await page.waitForSelector("#preview .plan-toggle >> visible=true", { timeout: 8000 }).catch(() => problems.push(`preview at ${width}px: no „Einplanen"`));
+    // Once the fonts are there and the preview has come in.
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForFunction(() => document.querySelector("#preview")?.getAnimations({ subtree: true }).every((a) => a.playState !== "running"), null, { timeout: 3000 }).catch(() => {});
     const before = await pair(page, ...preview);
     expect(`preview at ${width}px`, before);
-    check(way(before) === "halves", `preview at ${width}px: the four badges leave no room for the two beside them, and yet they do not take a line of their own, half each: ${JSON.stringify(before)}`);
+    check(way(before) !== "beside", `preview at ${width}px: the four badges leave no room for the two beside them, and yet they do not take a line of their own: ${JSON.stringify(before)}`);
     if (width === 1500) {
       await page.evaluate(() => document.activeElement?.blur());
       await step("„Einplanen“ plans", () => page.click("#preview .plan-toggle >> visible=true"), () => onPage("#preview .plan-toggle").getAttribute("aria-pressed") === "true" && !onPage("#preview .plan-toggle").hasAttribute("aria-busy"));
       const pressed = await pair(page, ...preview);
-      // The label keeps its width. With its arrow „Eingeplant" needs more than half the line: the
-      // two stand one over the other then.
-      check(pressed.label === "Eingeplant" && Math.abs(pressed.labelWidth - before.labelWidth) < 0.5 && way(pressed) === "stacked", `„Einplanen“ changes its label's width when pressed, or the two do not stand one over the other: ${JSON.stringify(before)} → ${JSON.stringify(pressed)}`);
       check(await page.evaluate(() => Boolean(onPage("#preview .plan-pair.split > .plan-more"))), "„Eingeplant“ has no arrow");
+      // Its arrow came and it says more, and nothing moved: the switches, their icons, labels and keys.
+      check(pressed.label === "Eingeplant" && still(pressed.boxes, before.boxes), `„Einplanen“ pressed moved something: ${JSON.stringify(before.boxes)} → ${JSON.stringify(pressed.boxes)}`);
+      await step("„Merken“ marks", () => page.click("#preview .mark-toggle >> visible=true"), () => Boolean(onPage("#preview .mark-pair.split > .mark-more")));
+      const marked = await pair(page, ...preview);
+      check(still(marked.boxes, before.boxes), `„Merken“ pressed moved something: ${JSON.stringify(before.boxes)} → ${JSON.stringify(marked.boxes)}`);
+      await page.click("#preview .mark-toggle >> visible=true");
       await step("and a second click takes it out", () => page.click("#preview .plan-toggle >> visible=true"), () => onPage("#preview .plan-toggle").getAttribute("aria-pressed") === "false" && !localStorage.getItem("betula.studyplan.v1"));
     }
     await step("full page", () => page.click('#preview [data-action="fullscreen"] >> visible=true'), () => location.pathname === "/catalog/module/12330" && onPage(".module-page .plan-toggle"));
@@ -253,7 +264,7 @@ const order = (page, root) => page.evaluate((selector) => [...allOnPage(`${selec
     check(side === "WiSe 2026/27 · für „Fachübergreifendes Studium“ · geplant: SoSe 2027", `the module's page with a plan (${where}): the sidebar says ${side}`);
     // The switch's small line, on a phone its second line: where it plans first (the semester the
     // page means), then the placeholder.
-    check(where === "phone" ? seen.below && seen.note?.startsWith("WiSe 26/27 · für „Fach") : seen.note === null, `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);
+    check((where !== "phone" || seen.below) && seen.note?.startsWith("WiSe 26/27 · für „Fach"), `the module's page with a plan (${where}): the switch says ${JSON.stringify(seen)}`);
     const hero = await page.evaluate(() => onPage(".module-page > .hero").getBoundingClientRect().height);
     const before = await server(options, path);
     check(Math.abs(hero - before) < 0.5, `the module's page with a plan (${where}): the heading is ${before}px before the takeover and ${hero}px after`);
