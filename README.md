@@ -98,8 +98,6 @@ radix/radix serve-snapshot --addr 127.0.0.1:8090
 ```
 
 ```bash
-git config core.hooksPath folia/scripts/hooks   # once per clone: new worktrees set themselves up
-bash folia/scripts/build-cache.sh setup         # once in the main checkout: its build cache and flags
 bash folia/scripts/dev.sh --watch               # the browser app and the server, built again on every change
 ```
 
@@ -115,9 +113,10 @@ endpoint. Flags, endpoints, log events and checks: `docs/folia/frontend.md`. `ca
 `FOLIA_TEST_SNAPSHOT=snapshot/catalog.db` (`docs/folia/frontend.md` §4 has the commands and names it
 for `serve-snapshot`). `folia/scripts/build-client.sh` without `--dev` builds the
 bundle that ships.
-A new worktree forks the main checkout's build cache as `git worktree add` creates it, so only
-the workspace's own crates compile; what that costs and how the caches are kept and dropped:
-`docs/folia/frontend.md` §3.
+Every build while working on it takes the flags of `folia/.cargo/config.toml` (`--cfg
+erase_components`: in the cloud a cold build takes 3 minutes instead of 5), and a cloud session
+starts building in the background as it opens (`.claude/hooks/prebuild.sh`); what builds cost and
+how the cloud environment keeps them: `docs/folia/frontend.md` §3.
 
 ### Credentials
 

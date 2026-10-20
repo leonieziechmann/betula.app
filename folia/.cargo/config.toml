@@ -1,0 +1,15 @@
+# The flags of every build while working on Folia — cargo build, cargo test, cargo clippy,
+# scripts/build-client.sh --dev — on every machine, in the cloud as well (docs/folia/frontend.md
+# §3, „Build times").
+#
+# --cfg erase_components: Leptos without the types of the components. On the cloud's four
+# processors a cold build takes 3 min 8 s instead of 5 min 8 s, an edit of the server 5 s instead
+# of 26 s, and the debug server is 226 MB instead of 1.4 GB.
+#
+# What ships is built without it: Nix does not see this file (flake.nix builds from Cargo.toml,
+# Cargo.lock, crates/ and assets/), and scripts/build-client.sh without --dev empties the flags.
+# A target table and not build.rustflags: Cargo joins the flags of every target table that
+# matches, so a machine's own (a linker in ~/.cargo/config.toml) are added to these instead of
+# replacing them.
+[target.'cfg(all())']
+rustflags = ["--cfg=erase_components"]

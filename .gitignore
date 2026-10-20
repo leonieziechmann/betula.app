@@ -55,9 +55,9 @@ config.yaml
 .env
 node_modules/
 
-# Machine-local cargo settings (folia/scripts/build-cache.sh)
+# Cargo settings of one machine, such as a linker that is a path there. The flags every build of
+# Folia shares are folia/.cargo/config.toml, which is in git.
 /.cargo/config.toml
-/folia/.cargo/config.toml
 
 # The models of the semantic search (deploy/models.lock, deploy/ship-models.sh)
 /models/
