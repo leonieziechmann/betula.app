@@ -79,6 +79,10 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await page.click("#ob-program >> visible=true");
   await page.waitForSelector("#ob-program-search >> visible=true");
   await page.keyboard.type("Informatik");
+  // The picker lists the programs once the data worker has answered for them (`ProgramsAsk`), and
+  // Enter takes nothing from a list still empty: Enter once its first entry is the program typed
+  // (on the cloud's debug build an Enter right after the typing came first in four runs of five).
+  await page.waitForFunction(() => /^Informatik/.test(onPage("#ob-program-option-0")?.textContent.trim() ?? ""), null, { timeout: 10000 }).catch(() => failures.push("the picker does not list Informatik first"));
   await page.keyboard.press("Enter");
   await page.waitForFunction(() => onPage(".ob")?.dataset.step === "2", null, { timeout: 5000 }).catch(() => failures.push("a pick does not lead to the second step"));
   // Step 2: the six semesters back from the current one, the first the usual start, and a field
