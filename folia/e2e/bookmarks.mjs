@@ -374,6 +374,51 @@ const placement = (page, root, body) => page.evaluate(([root, body]) => {
   await step("deleting the collection", async () => { await page.click(`.coll-nav a[href*="collection=${lena}"] >> visible=true`, { button: "right" }); await page.click('.view-menu .st-pop-item:has-text("Löschen")'); }, () => !onPage(".coll-nav a[href*='collection=']") && document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("‚Für Lena‘ gelöscht · 1 bleibt gemerkt"));
   check((await stored(page)).length === 3, "deleting the collection took marks away");
   await step("„Rückgängig“ puts it back", () => page.click(".wait-note .plan-toast-undo >> visible=true"), (id) => Boolean(onPage(".coll-nav a[href*='collection=']")) && onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-tag`)?.textContent === "Für Lena", marked[0]);
+  // Its key asks first (owner, 2026-10-20: „einen Delete-Shortcut …, wo man dann aber nochmal
+  // gefragt wird"): Entf at the collection in the sidebar, the question where its menu would stand,
+  // „Löschen" with the focus; Esc keeps it, and the focus goes back to the collection.
+  const lenaLink = `.coll-nav a[href*="collection=${lena}"] >> visible=true`;
+  await page.focus(lenaLink);
+  await step("Entf asks", () => page.keyboard.press("Delete"), () => document.querySelector(".view-menu.ask .view-menu-ask")?.textContent.startsWith("‚Für Lena‘ löschen?") && document.activeElement?.id === "delete-yes");
+  check(await page.evaluate(() => document.querySelector(".view-menu.ask .view-menu-ask small")?.textContent === "Das Modul darin bleibt gemerkt."), "the question does not say what stays");
+  await step("Esc keeps it", () => page.keyboard.press("Escape"), (lena) => !document.querySelector(".view-menu") && document.activeElement?.matches?.(`.coll-nav a[href*="collection=${lena}"]`), lena);
+  // Its menu shows the key beside „Löschen", and the key asks there as well; F2 there renames.
+  await step("its menu shows the key", () => page.click(lenaLink, { button: "right" }), () => [...document.querySelectorAll(".view-menu .st-pop-item")].some((item) => item.textContent.includes("Löschen") && item.querySelector("kbd")?.textContent === "Entf") && Boolean(document.activeElement?.closest?.(".view-menu")));
+  await step("Entf in the menu asks", () => page.keyboard.press("Delete"), () => document.activeElement?.id === "delete-yes" && Boolean(document.querySelector(".view-menu.ask")));
+  await step("„Abbrechen“ keeps it", () => page.click('.view-menu.ask button:has-text("Abbrechen")'), (lena) => !document.querySelector(".view-menu") && Boolean(onPage(`.coll-nav a[href*="collection=${lena}"]`)), lena);
+  await step("F2 in the menu renames", async () => { await page.click(lenaLink, { button: "right" }); await page.waitForFunction(() => document.activeElement?.closest?.(".view-menu")); await page.keyboard.press("F2"); }, () => document.activeElement?.matches?.(".coll-nav .coll-item.input input") && document.activeElement.value === "Für Lena");
+  await page.keyboard.press("Escape");
+  // Entf, then Enter: gone as by the click, the note after it the same; the focus on the view shown.
+  await page.focus(lenaLink);
+  await step("Entf and Enter delete it", async () => { await page.keyboard.press("Delete"); await page.waitForFunction(() => document.activeElement?.id === "delete-yes", null, { timeout: 4000 }); await page.keyboard.press("Enter"); }, () => !onPage(".coll-nav a[href*='collection=']") && document.querySelector(".wait-note .mark-toast-said")?.textContent.includes("‚Für Lena‘ gelöscht · 1 bleibt gemerkt") && document.activeElement?.matches?.(".coll-nav a[aria-current=page]"));
+  check((await stored(page)).length === 3, "deleting by its key took marks away");
+  await step("„Rückgängig“ puts it back again", () => page.click(".wait-note .plan-toast-undo >> visible=true"), (id) => Boolean(onPage(".coll-nav a[href*='collection=']")) && onPage(`.row-wrap:has(a.row[data-id="${id}"]) .row-tag`)?.textContent === "Für Lena", marked[0]);
+  // No key in a menu reaches the module behind it: M there marked the module open beside the list.
+  const opened = !(await page.evaluate(() => Boolean(onPage('.detail [data-action="mark"]'))));
+  if (opened) await page.click(`a.row[data-id="${marked[0]}"] >> visible=true`, { position: { x: 24, y: 12 } });
+  await page.waitForFunction(() => Boolean(onPage('.detail [data-action="mark"]')), null, { timeout: 4000 }).catch(() => problems.push("no module open beside the list"));
+  const markedBefore = (await stored(page)).length;
+  await page.click(lenaLink, { button: "right" });
+  await page.waitForFunction(() => document.activeElement?.closest?.(".view-menu"));
+  await page.keyboard.press("m");
+  await page.waitForTimeout(300);
+  check((await stored(page)).length === markedBefore && (await page.evaluate(() => Boolean(document.querySelector(".view-menu")))), "M in a collection's menu marked the module behind it, or closed the menu");
+  await page.keyboard.press("Escape");
+  // The module opened for it closes again (Esc, with the menu gone and the focus back at its collection).
+  if (opened) {
+    await page.waitForFunction(() => !document.querySelector(".view-menu") && !document.activeElement?.closest?.(".view-menu"));
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !onPage('.detail [data-action="mark"]'), null, { timeout: 4000 }).catch(() => problems.push("the module opened for the check does not close"));
+  }
+  // The menu never stands under the rail (owner, 2026-10-20), the sidebar at its narrowest.
+  await page.evaluate(() => document.documentElement.style.setProperty("--w-filters", "232px"));
+  await step("its ⋯ in a narrow sidebar", async () => { await page.hover(lenaLink); await page.click(`.coll-nav .coll-item:has(> a[href*="collection=${lena}"]) > .coll-more >> visible=true`); }, () => {
+    const menu = document.querySelector(".view-menu")?.getBoundingClientRect();
+    const rail = document.querySelector("aside.rail").getBoundingClientRect();
+    return Boolean(menu) && menu.left >= rail.right + 8 - 0.5 && Boolean(document.activeElement?.closest?.(".view-menu"));
+  });
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => document.documentElement.style.removeProperty("--w-filters"));
   check(!requests.some((r) => r.includes("Lena") || r.includes("fragen") || r.includes(encodeURIComponent("Für"))), "a request carried a collection's name or a note");
 
   // The rail's item is a tab: it remembers how the list was left.

@@ -193,6 +193,40 @@ pub fn width_of(id: &str) -> Option<f64> {
     None
 }
 
+/// The part of the window a menu fixed to it may take, in CSS pixels: from `left` — past the rail
+/// on a wide screen, which is drawn over the page (owner, 2026-10-20: a collection's menu went
+/// under it, „Positionier das einfach so, dass es nicht dahinter kommen kann") — to the window's
+/// right edge (`width`), from its top to `height`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Room {
+    pub left: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Room {
+    /// A window `width` × `height` with nothing over its left edge: a phone, the server, a test.
+    pub const fn window(width: f64, height: f64) -> Self {
+        Room { left: 0.0, width, height }
+    }
+}
+
+/// The room of the window as it is now: its size, and where the rail ends (the rail is not drawn on
+/// a phone). On the server 1280 × 800 without a rail.
+pub fn room() -> Room {
+    #[cfg(feature = "csr")]
+    {
+        let Some(window) = web_sys::window() else { return Room::window(1280.0, 800.0) };
+        let width = window.inner_width().ok().and_then(|width| width.as_f64()).unwrap_or(1280.0);
+        let height = window.inner_height().ok().and_then(|height| height.as_f64()).unwrap_or(800.0);
+        let rail = window.document().and_then(|document| document.query_selector("aside.rail").ok().flatten()).map(|rail| rail.get_bounding_client_rect());
+        let left = rail.filter(|rect| rect.width() > 0.0).map_or(0.0, |rect| rect.right().clamp(0.0, width));
+        Room { left, width, height }
+    }
+    #[cfg(not(feature = "csr"))]
+    Room::window(1280.0, 800.0)
+}
+
 /// Where the popup of a picker goes. On a computer it is fixed to the window, so no panel clips
 /// it: under its button, or above it when there is more room. On a phone it opens in place, under
 /// its button, and spans what the picker stands in (`inset`): a dialog, a sheet, a panel.
@@ -465,6 +499,21 @@ pub fn reveal_selector(selector: &str) -> bool {
         let options = web_sys::ScrollIntoViewOptions::new();
         options.set_block(web_sys::ScrollLogicalPosition::Center);
         element.scroll_into_view_with_scroll_into_view_options(&options);
+        true
+    }
+    #[cfg(not(feature = "csr"))]
+    false
+}
+
+/// Clicks what `selector` finds on the page in front (an entry of a menu whose key was pressed).
+/// `false` without it, and on the server.
+#[allow(unused_variables)]
+pub fn click_selector(selector: &str) -> bool {
+    #[cfg(feature = "csr")]
+    {
+        use wasm_bindgen::JsCast;
+        let Some(element) = crate::stage::select(selector).and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok()) else { return false };
+        element.click();
         true
     }
     #[cfg(not(feature = "csr"))]

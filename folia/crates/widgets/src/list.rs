@@ -336,13 +336,15 @@ fn marked(text: &str, spans: &[(u32, u32)]) -> Vec<AnyView> {
 }
 
 /// The keys of a list as its head names them (`enhance.js` does what they say): the catalog's,
-/// and the list of marked modules, whose tooltip says how it selects (`select`).
+/// and the list of marked modules, whose tooltip says how it selects (`select`). S and N, which
+/// the tooltip names, are left out of the row (owner, 2026-10-20: „Sammlung sieht hier zu viel
+/// aus. Das sollte da weg.").
 #[component]
 pub fn ListKeys(#[prop(optional)] select: bool) -> impl IntoView {
     let t = i18n::t();
     let title = if select { format!("{}. {}", t.catalog.keys_title, t.catalog.keys_select) } else { t.catalog.keys_title.to_string() };
     view! {
-        <span class="keys" title=title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}" "<kbd>"S"</kbd>" "{t.catalog.key_collect}</span>
+        <span class="keys" title=title><kbd>"↑"</kbd><kbd>"↓"</kbd>" "{t.catalog.key_move}" "<kbd>"Enter"</kbd>" "{t.catalog.key_open}" "<kbd>"M"</kbd>" "{t.catalog.key_save}</span>
     }
 }
 /// Whether the phone layout is in use, kept up to date while the window changes its size. A list

@@ -33,15 +33,11 @@ fn rect(element: &web_sys::Element) -> Rect {
     Rect { left: r.left(), top: r.top(), right: r.right(), bottom: r.bottom() }
 }
 
-/// The window's width and height.
-pub(super) fn viewport() -> (f64, f64) {
-    #[cfg(feature = "csr")]
-    {
-        let size = web_sys::window().and_then(|window| Some((window.inner_width().ok()?.as_f64()?, window.inner_height().ok()?.as_f64()?)));
-        size.unwrap_or((1280.0, 800.0))
-    }
-    #[cfg(not(feature = "csr"))]
-    (1280.0, 800.0)
+/// The window's width and height (the rows on the screen; a menu takes `folia_design::nav::room`).
+#[cfg(feature = "csr")]
+fn viewport() -> (f64, f64) {
+    let size = web_sys::window().and_then(|window| Some((window.inner_width().ok()?.as_f64()?, window.inner_height().ok()?.as_f64()?)));
+    size.unwrap_or((1280.0, 800.0))
 }
 
 /// The key of the semester's row under the point (`.st-row[data-key]`), if a row is there.
