@@ -239,15 +239,9 @@ pub struct Texts {
     pub leave_note: &'static str,
     pub remove_semester: &'static str,
 
-    // What the plan has open for a semester (on a phone under it, `focus::PlanRows`; „Module
-    // hinzufügen").
-    pub fits_plan: fn(&str) -> String,
+    // What the plan has open for a semester („Module hinzufügen").
     pub fits_nothing: &'static str,
-    /// „Was noch offen ist, wird im SoSe nicht angeboten.": the plan's rows of the Fachsemester
-    /// left open are all of the other half of the year.
-    pub fits_unoffered: fn(&str) -> String,
     pub retakes: &'static str,
-    pub plan_here: fn(&str) -> String,
 
     // A semester more.
     pub new_semester: &'static str,
@@ -538,11 +532,8 @@ pub const DE: Texts = Texts {
     leave_note: "zählt nicht als Fachsemester",
     remove_semester: "Semester entfernen",
 
-    fits_plan: |fs| format!("Laut Regelstudienplan · {fs}"),
     fits_nothing: "Für dieses Fachsemester sieht der Plan nichts vor.",
-    fits_unoffered: |season| format!("Was noch offen ist, wird im {season} nicht angeboten."),
     retakes: "Wiederholer",
-    plan_here: |name| format!("{name} hier einplanen"),
 
     new_semester: "Neues Semester",
     after: |semester| format!("nach {semester}"),
@@ -803,11 +794,8 @@ pub const EN: Texts = Texts {
     leave_note: "does not count as a semester of study",
     remove_semester: "Remove semester",
 
-    fits_plan: |fs| format!("Standard study plan · {fs}"),
     fits_nothing: "The plan has nothing for this semester of study.",
-    fits_unoffered: |season| format!("What is still open is not offered in {season}."),
     retakes: "Retakes",
-    plan_here: |name| format!("Plan {name} here"),
 
     new_semester: "New semester",
     after: |semester| format!("after {semester}"),
