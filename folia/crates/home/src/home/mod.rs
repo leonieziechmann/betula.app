@@ -222,9 +222,11 @@ fn TodaySkeleton() -> impl IntoView {
 }
 
 /// Who took the photo, in the ground: one line per photo, the stylesheet shows the one shown
-/// (`data-season`, and the fog while the exams run).
+/// (`data-season`, and the fog while the exams run), and only while the start page is in front.
+/// In the page's own ground, which a wide screen shows, and in the app's (`folia_app`), which a
+/// phone shows under every page.
 #[component]
-fn Credits() -> impl IntoView {
+pub fn Credits() -> impl IntoView {
     let t = i18n::t();
     Photo::ALL
         .map(|photo| {

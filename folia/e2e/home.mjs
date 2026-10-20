@@ -49,7 +49,8 @@ const stored = (page) => page.evaluate(() => ({
 const html = await (await fetch(base + "/")).text();
 check(/<a (?=[^>]*\bid="ob-program")(?=[^>]*\bhref="\/programs")[^>]*class="combo-trigger"/.test(html), "server HTML: „Studiengang wählen\" of the setup does not lead to the programs");
 check(html.includes('class="day-first-wrap"') && html.includes('class="day-sk-wrap"'), "server HTML: not the setup and the day's skeleton");
-check(html.includes('"@type":"WebSite"') && (html.match(/class="photo-credit"/g) || []).length === 5, "server HTML: no WebSite data, or not who took each photo");
+// (Who took each photo stands in the page's ground and in the app's, which a phone shows.)
+check(html.includes('"@type":"WebSite"') && (html.match(/class="photo-credit"/g) || []).length === 10, "server HTML: no WebSite data, or not who took each photo");
 check(!html.includes("day-welcome") && !html.includes('class="day-ev'), "server HTML: something of a visitor's day");
 check(html.includes('href="/about"') && html.includes('href="/impressum"') && html.includes('href="/datenschutz"'), "server HTML: „Über Betula\" or the legal pages are not linked");
 
@@ -158,6 +159,14 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await page.waitForTimeout(500);
   check(!(await crown()).veil, "phone: the veil stays at the top");
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "phone: the start page scrolls sideways");
+  // The ground a phone shows (the app's, under every page) names who took the photo shown.
+  const credit = await page.evaluate(() => [...document.querySelectorAll("body > .ground .photo-credit")].filter((line) => line.checkVisibility()).map((line) => line.dataset.photo));
+  check(credit.length === 1, `phone: the ground does not name who took the photo: ${JSON.stringify(credit)}`);
+  // Not under another page.
+  await page.click('.bottomnav a[data-area="catalog"]');
+  await page.waitForFunction(() => location.pathname === "/catalog", null, { timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  check(await page.evaluate(() => [...document.querySelectorAll(".photo-credit")].every((line) => !line.checkVisibility())), "phone: the photo's credit stays under another page");
   await context.close();
 }
 

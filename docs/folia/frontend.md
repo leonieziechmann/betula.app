@@ -2959,7 +2959,8 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   the exams run. The shade over it follows the light in Cottbus: a night's blue from 40 minutes
   before sunrise back and from 50 after sunset on, warm around them (`photo::light`; sunrise and
   sunset by NOAA's approximation). The ground names who took the photo shown („Foto: John Price,
-  Unsplash"; `Ground`'s `credit`, a line per photo, the stylesheet shows one). The Cottbus set of
+  Unsplash"; `Ground`'s `credit`, a line per photo, the stylesheet shows one while the start page
+  is in front), in the page's own ground and in the app's, which a phone shows under every page. The Cottbus set of
   the concepts (`design/startseite/bilder/cottbus-*.webp`) is an option not taken yet.
 - **A phone**: the photo reaches up under the search, the bar over it clear (no frosted ground, no
   leaves); once the page is scrolled a dark veil lies under the search, see-through and a little
