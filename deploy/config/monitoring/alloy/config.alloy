@@ -342,6 +342,14 @@ loki.process "dpkg" {
 loki.process "apt" {
   forward_to = [loki.write.loki.receiver]
 
+  // The file starts with a blank line, and one separates the runs. Alone, before the first
+  // "Start-Date:", it would become an entry of its own, timestamped "now": Loki then refuses the
+  // older runs that follow in the same stream ("entry too far behind").
+  stage.drop {
+    expression          = "^\\s*$"
+    drop_counter_reason = "blank"
+  }
+
   stage.multiline {
     firstline     = "^Start-Date:"
     max_wait_time = "3s"

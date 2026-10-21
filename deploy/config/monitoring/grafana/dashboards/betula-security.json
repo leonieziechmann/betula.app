@@ -2322,7 +2322,7 @@
                       },
                       "spec": {
                         "editorMode": "code",
-                        "expr": "{job=\"packages\"}",
+                        "expr": "{job=\"packages\"} |~ `\\S`",
                         "legendFormat": "",
                         "queryType": "range",
                         "maxLines": 500
