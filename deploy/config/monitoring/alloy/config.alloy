@@ -176,6 +176,229 @@ loki.process "journal" {
   }
 }
 
+// ---------------------------------------------------------------- host files (security)
+//
+// Three things the journal does not have, read from the host root at /rootfs (dashboard
+// "Security"). Every stream gets a label path = the file on the host, without /rootfs.
+//
+//   job="fail2ban"   /var/log/fail2ban.log: Found / Ban / Unban. fail2ban writes its own file,
+//                    not the journal. Holds the addresses of ssh clients, 30 days like sshd's.
+//   job="packages"   /var/log/dpkg.log (install, upgrade, remove, purge) and
+//                    /var/log/apt/history.log (one entry per apt run; "Requested-By:" = by hand).
+//   job="hostfiles"  files that decide who gets in and what starts by itself: accounts, sudo,
+//                    sshd, authorized_keys, cron, systemd units, PAM, ld.so.preload, shell start
+//                    files, ufw's rules. Alloy tails them like logs: an appended line arrives as
+//                    one line, a file that is replaced or shrinks arrives whole once more, and a
+//                    new file (a new cron job, unit or key file) arrives whole. A first start
+//                    with empty positions ships every file once, as a baseline. Never list a
+//                    file with secrets here (/etc/shadow, /etc/gshadow, private keys, credstore).
+//
+// The first two parse the time of the line, and lines older than Loki accepts (7 days,
+// reject_old_samples_max_age in loki.yml) are dropped instead of being refused: a first start
+// reads both files from the beginning.
+
+local.file_match "fail2ban" {
+  path_targets = [{"__path__" = "/rootfs/var/log/fail2ban.log", "job" = "fail2ban"}]
+  sync_period  = "30s"
+}
+
+local.file_match "dpkg" {
+  path_targets = [{"__path__" = "/rootfs/var/log/dpkg.log", "job" = "packages"}]
+  sync_period  = "30s"
+}
+
+local.file_match "apt" {
+  path_targets = [{"__path__" = "/rootfs/var/log/apt/history.log", "job" = "packages"}]
+  sync_period  = "30s"
+}
+
+// Symbolic links with an absolute target (/usr/lib/...) point into the container, not into
+// /rootfs, so they cannot be read here and are excluded; their targets belong to packages.
+local.file_match "hostfiles" {
+  path_targets = [
+    {"__path__" = "/rootfs/etc/{passwd,group,sudoers,crontab,ld.so.preload,environment,hosts,bash.bashrc,profile}", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/sudoers.d/*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/ssh/sshd_config", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/ssh/sshd_config.d/*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/root/.ssh/authorized_keys*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/home/*/.ssh/authorized_keys*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/{root,home/*}/{.bashrc,.profile,.bash_profile,.bash_login,.bash_logout}", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/profile.d/*", "__path_exclude__" = "/rootfs/etc/profile.d/{70-systemd-shell-extra.sh,80-systemd-osc-context.sh,debuginfod.csh,debuginfod.sh}", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/cron.{d,hourly,daily,weekly,monthly}/*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/var/spool/cron/crontabs/*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/systemd/system/*.{service,timer,socket,path}", "__path_exclude__" = "/rootfs/etc/systemd/system/{chronyd,dbus-org.freedesktop.resolve1,syslog,vmtoolsd}.service", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/systemd/system/*.d/*.conf", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/pam.d/*", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/ufw/{user,user6}.rules", "job" = "hostfiles"},
+    {"__path__" = "/rootfs/etc/docker/daemon.json", "job" = "hostfiles"},
+  ]
+  sync_period = "30s"
+}
+
+loki.source.file "fail2ban" {
+  targets    = local.file_match.fail2ban.targets
+  forward_to = [loki.process.fail2ban.receiver]
+}
+
+loki.source.file "dpkg" {
+  targets    = local.file_match.dpkg.targets
+  forward_to = [loki.process.dpkg.receiver]
+}
+
+loki.source.file "apt" {
+  targets    = local.file_match.apt.targets
+  forward_to = [loki.process.apt.receiver]
+}
+
+loki.source.file "hostfiles" {
+  targets    = local.file_match.hostfiles.targets
+  forward_to = [loki.process.hostfiles.receiver]
+}
+
+// 2026-10-21 17:03:15,678 fail2ban.actions        [938]: NOTICE  [sshd] Ban 1.2.3.4
+loki.process "fail2ban" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.regex {
+    source     = "filename"
+    expression = "^/rootfs(?P<path>/.+)$"
+  }
+
+  stage.regex {
+    expression = "^(?P<ts>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}) \\S+\\s+\\[\\d+\\]: (?P<level>[A-Z]+)"
+  }
+
+  stage.timestamp {
+    source   = "ts"
+    format   = "2006-01-02 15:04:05,000"
+    location = "Europe/Berlin"
+  }
+
+  stage.drop {
+    older_than          = "160h"
+    drop_counter_reason = "older_than_loki_accepts"
+  }
+
+  stage.template {
+    source   = "level"
+    template = "{{ if eq .Value \"NOTICE\" }}info{{ else if eq .Value \"WARNING\" }}warn{{ else }}{{ ToLower .Value }}{{ end }}"
+  }
+
+  stage.labels {
+    values = {path = ""}
+  }
+
+  stage.structured_metadata {
+    values = {level = ""}
+  }
+
+  stage.label_drop {
+    values = ["filename"]
+  }
+}
+
+// dpkg.log: "2026-10-15 06:36:48 upgrade openssh-server:amd64 <old> <new>"; only the actions,
+// not the status/trigproc/configure lines that dpkg writes around each of them.
+loki.process "dpkg" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.drop {
+    expression          = "^\\S+ \\S+ (status|startup|trigproc|configure|conffile) "
+    drop_counter_reason = "dpkg_bookkeeping"
+  }
+
+  stage.regex {
+    source     = "filename"
+    expression = "^/rootfs(?P<path>/.+)$"
+  }
+
+  stage.regex {
+    expression = "^(?P<ts>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}) "
+  }
+
+  stage.timestamp {
+    source   = "ts"
+    format   = "2006-01-02 15:04:05"
+    location = "Europe/Berlin"
+  }
+
+  stage.drop {
+    older_than          = "160h"
+    drop_counter_reason = "older_than_loki_accepts"
+  }
+
+  stage.labels {
+    values = {path = ""}
+  }
+
+  stage.label_drop {
+    values = ["filename"]
+  }
+}
+
+// history.log: one entry per apt run, from "Start-Date:" to "End-Date:" (two spaces between date
+// and time). Unattended upgrades say "Commandline: /usr/bin/unattended-upgrade"; a run by hand
+// or by a script under sudo has "Requested-By: <user> (<uid>)".
+loki.process "apt" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.multiline {
+    firstline     = "^Start-Date:"
+    max_wait_time = "3s"
+    max_lines     = 500
+  }
+
+  stage.regex {
+    source     = "filename"
+    expression = "^/rootfs(?P<path>/.+)$"
+  }
+
+  stage.regex {
+    expression = "^Start-Date: (?P<day>\\d{4}-\\d{2}-\\d{2})\\s+(?P<time>\\d{2}:\\d{2}:\\d{2})"
+  }
+
+  stage.template {
+    source   = "ts"
+    template = "{{ .day }} {{ .time }}"
+  }
+
+  stage.timestamp {
+    source   = "ts"
+    format   = "2006-01-02 15:04:05"
+    location = "Europe/Berlin"
+  }
+
+  stage.drop {
+    older_than          = "160h"
+    drop_counter_reason = "older_than_loki_accepts"
+  }
+
+  stage.labels {
+    values = {path = ""}
+  }
+
+  stage.label_drop {
+    values = ["filename"]
+  }
+}
+
+loki.process "hostfiles" {
+  forward_to = [loki.write.loki.receiver]
+
+  stage.regex {
+    source     = "filename"
+    expression = "^/rootfs(?P<path>/.+)$"
+  }
+
+  stage.labels {
+    values = {path = ""}
+  }
+
+  stage.label_drop {
+    values = ["filename"]
+  }
+}
+
 loki.write "loki" {
   endpoint {
     url = "http://monitoring_loki:3100/loki/api/v1/push"

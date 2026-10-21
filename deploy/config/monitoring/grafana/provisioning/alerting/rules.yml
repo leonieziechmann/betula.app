@@ -1032,6 +1032,7 @@ groups:
         panelId: 2
         labels:
           severity: critical
+          area: security
         annotations:
           summary: Unexpected successful SSH login
           description: "sshd accepted a login that is not \"publickey for deploy\": a password login, root, or another user. After the hardening none of these can happen. Logs dashboard: source journal, filter \"Accepted\". Then: last -a, and check /etc/ssh/sshd_config.d/."
@@ -1101,9 +1102,385 @@ groups:
         panelId: 2
         labels:
           severity: critical
+          area: security
         annotations:
           summary: "systemd reports a failed unit: ssh, fail2ban, ufw, docker or containerd"
           description: "Check systemctl --failed and journalctl -u <unit>. Without fail2ban or ufw the host is still key-only, but no longer protected as designed."
+      # Files that decide who gets in or what runs as root (Alloy, job="hostfiles"): a change that
+      # nobody planned is the first trace of a compromise. Every line Alloy ships is a change: an
+      # appended line, or the whole file when it was replaced or is new. Expected exactly once: after
+      # Alloy starts with empty positions (first deploy, a new alloy-data volume), as a baseline.
+      - uid: betula-security-access-file-changed
+        title: "A file that grants access changed (authorized_keys, sudoers, sshd, ld.so.preload, crontab)"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum by (path) (count_over_time({job=\"hostfiles\", path=~`/root/\\.ssh/.+|/home/[^/]+/\\.ssh/.+|/etc/sudoers|/etc/sudoers\\.d/.+|/etc/ssh/sshd_config\\.d/.+|/etc/ld\\.so\\.preload|/var/spool/cron/crontabs/.+`} [10m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-security
+        panelId: 33
+        labels:
+          severity: critical
+          area: security
+        annotations:
+          summary: "A file that decides who gets in or what runs as root changed"
+          description: "Alloy saw new content in {{ $labels.path }}: an added line, or the whole file because it was replaced or is new. None of these files changes in normal operation; 10-base.sh and 20-ssh-lockdown.sh change them only when deploy/vps/files differs. Security dashboard: row Privileges and changes, panel Content of changed files. Then on the server: sudo ls -la the file, sudo cat it, and journalctl around that time (sudo, ssh). Expected once after Alloy starts with empty positions (its first run ships every file as a baseline)."
+      # The other watched files (accounts, PAM, cron scripts, systemd units in /etc, shell start
+      # files, ufw's rules, Docker's daemon.json, sshd_config): package updates and the setup scripts
+      # change them now and then, so a warning, which the dashboard shows next to the package and
+      # sudo log of the same minutes.
+      - uid: betula-security-host-file-changed
+        title: "A watched host file changed (accounts, PAM, cron, systemd units, shell start files, ufw)"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum by (path) (count_over_time({job=\"hostfiles\", path!~`/root/\\.ssh/.+|/home/[^/]+/\\.ssh/.+|/etc/sudoers|/etc/sudoers\\.d/.+|/etc/ssh/sshd_config\\.d/.+|/etc/ld\\.so\\.preload|/var/spool/cron/crontabs/.+`} [10m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-security
+        panelId: 33
+        labels:
+          severity: warning
+          area: security
+        annotations:
+          summary: "A watched host file changed"
+          description: "Alloy saw new content in {{ $labels.path }}. Expected after a package update (unattended-upgrades replaces PAM files, cron scripts or sshd_config), after 10-base.sh, 30-docker.sh or 60-canary.sh, and when a user or group is added. Otherwise look at it: Security dashboard, row Privileges and changes, with Package changes and sudo commands of the same minutes beside it."
+      # Only deploy uses sudo here (its key, NOPASSWD; the canary agent runs as deploy). sudo-rs logs
+      # "deploy :  PWD=... ; USER=root ; COMMAND=..." for every command; a line of another account,
+      # or a refused one ("NOT in sudoers", "incorrect password attempt"), never happens in normal
+      # operation.
+      - uid: betula-security-sudo-unexpected
+        title: "sudo by someone other than deploy, or a refused sudo"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum(count_over_time({job=\"journal\"} |~ `COMMAND=|NOT in sudoers|incorrect password attempt|authentication failure` |~ `sudo|COMMAND=` !~ `^deploy : [^;]*PWD=` [10m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-security
+        panelId: 30
+        labels:
+          severity: critical
+          area: security
+        annotations:
+          summary: "sudo was used by an account other than deploy, or refused"
+          description: "Only deploy (key login, NOPASSWD) and the canary agent (as deploy) use sudo on this server. A sudo line of another account, or an incorrect password / not in sudoers line, means somebody works on the host who should not. Security dashboard: panel sudo commands; then journalctl _COMM=sudo --since -1h and the ssh logins of the same time."
+      # apt runs that a person asked for ("Requested-By: deploy (1001)" in /var/log/apt/history.log);
+      # the daily unattended-upgrades runs have no such line. Expected while 10-base.sh,
+      # 30-docker.sh or 60-canary.sh run; anything else is somebody installing tools on the host.
+      - uid: betula-security-apt-by-hand
+        title: "Packages were installed, upgraded or removed by hand"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum(count_over_time({job=\"packages\", path=\"/var/log/apt/history.log\"} |= `Requested-By:` [10m]))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-security
+        panelId: 34
+        labels:
+          severity: warning
+          area: security
+        annotations:
+          summary: "apt changed packages on a person's request"
+          description: "apt writes Requested-By: when a person (or a script run with sudo) ran it; unattended-upgrades does not. Expected while 10-base.sh, 30-docker.sh or 60-canary.sh run. Otherwise: Security dashboard, panel Package changes, shows what was installed."
+  - orgId: 1
+    name: betula-security-slow
+    folder: Betula alerts
+    interval: "5m"   # each evaluation reads 30 days of sshd lines (about 10 s in Loki)
+    rules:
+
+      # The deploy key is the one way in, and it looks the same whoever holds it: the network it comes
+      # from is what tells a stolen key from the owner. IPv4 by its first two numbers, IPv6 by its
+      # first three groups, compared with every successful login of the 30 days before (as far as
+      # Loki keeps the journal). Fires for a new home address of the provider, too: hence a warning.
+      - uid: betula-security-ssh-new-network
+        title: "SSH login from a network not seen in the last 30 days"
+        condition: C
+        data:
+          - refId: A
+            queryType: instant
+            datasourceUid: loki
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: A
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: "sum by (net, user) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` | regexp `Accepted \\S+ for (?P<user>\\S+) from (?P<net>\\d+\\.\\d+|[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+)[.:]` [15m])) unless on (net) sum by (net) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` | regexp `from (?P<net>\\d+\\.\\d+|[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+)[.:]` [30d] offset 15m))"
+              queryType: instant
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: B
+              type: reduce
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              settings:
+                mode: dropNN
+          - refId: C
+            datasourceUid: __expr__
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              refId: C
+              type: threshold
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              conditions:
+                - type: query
+                  evaluator:
+                    type: gt
+                    params: [0]
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    type: last
+                    params: []
+        for: "0s"
+        noDataState: OK
+        execErrState: KeepLast
+        dashboardUid: betula-security
+        panelId: 21
+        labels:
+          severity: warning
+          area: security
+        annotations:
+          summary: "SSH login from a network that has not logged in for 30 days"
+          description: "{{ $labels.user }} logged in from {{ $labels.net }}.x.x (IPv4: the first two numbers; IPv6: the first three groups), a network without any successful login in the 30 days before. Fine if that was you (a new place, a new address from the provider, a VPN). If not: the deploy key is in somebody else's hands. Security dashboard: panel Successful SSH logins; then rotate the key (deploy/README.md, section 5)."
   - orgId: 1
     name: betula-cortex
     folder: Betula alerts

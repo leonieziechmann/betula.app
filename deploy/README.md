@@ -170,6 +170,24 @@ Why this order, and what can go wrong:
   in `config/monitoring/loki-rules`, and writes them to Prometheus, which keeps them like every
   metric (15 days, `config/monitoring/prometheus.yml`). Its charts begin with the first count; there
   is no history from before.
+- The dashboard "Security" (`betula-security.json`, since 2026-10-21): who gets in (sshd's logins
+  with user, key fingerprint and source, refused attempts, networks that logged in for the first time
+  in 30 days), what changes on the host (sudo commands, watched files, packages, boots and power
+  events), fail2ban and the port filter, the web side (scanner probes, logins to Grafana and canary's
+  gate, the busiest clients and user agents) and the host's behaviour (CPU outside the site's
+  services, traffic out, containers started by hand, kernel events). On top, the rules with the label
+  `area=security` and their state. Besides the journal it reads three streams Alloy takes from the
+  host root (`config/monitoring/alloy/config.alloy`, „host files"): `{job="fail2ban"}`
+  (`/var/log/fail2ban.log`, fail2ban does not write to the journal), `{job="packages"}` (`dpkg.log`
+  and apt's `history.log`) and `{job="hostfiles"}`: files that decide who gets in and what starts by
+  itself (accounts, sudoers, sshd, `authorized_keys`, cron, systemd units in `/etc`, PAM,
+  `ld.so.preload`, shell start files, ufw's rules, `daemon.json`), tailed like logs. An appended line
+  arrives as that line, a file that is replaced or new arrives whole; a file changed in place to the
+  same size is not seen. Alloy's first start with empty positions (a new `alloy-data` volume) ships
+  every watched file once as a baseline, and the two file rules fire once for it. The scanner probes
+  are counted every minute by Loki's ruler (`config/monitoring/loki-rules/fake/security.yml`, numbers
+  only) and kept 15 days. The row „Web" reads Traefik's access log itself and is collapsed: a day
+  answers within seconds, a week may time out.
 
 ## 3. Changing something later
 
@@ -423,7 +441,8 @@ docker service logs --since 1h cortex_b 2>&1 | grep -E 'leader\.|replica\.'   # 
 ```
 
 Loki keeps the long-term copy (Grafana > dashboard "Logs"; labels `stack`, `service`, `container`
-for containers, `job="journal"` and `unit` for the host). Traefik logs through the journald driver,
+for containers, `job="journal"` and `unit` for the host; `job="fail2ban"`, `job="packages"` and
+`job="hostfiles"` with `path` for the host files of the dashboard "Security"). Traefik logs through the journald driver,
 so its lines, the access log with visitors' addresses, are in the host journal as well (7 days,
 section 9); `docker service logs edge_traefik` reads them from there.
 
@@ -452,14 +471,15 @@ at `https://betula.app/`.
 |---|---|---|
 | Traefik access log -> the host journal (the service logs through the journald driver, `stacks/edge.yml`) | client IP and port, URL with query string, user agent, time | **7 days** (`MaxRetentionSec` + `MaxFileSec` in `vps/files/journald-betula.conf`), earlier when the journal reaches 500 MB |
 | the same lines in Loki, stream `{service="edge_traefik"}` | same | **7 days** (`retention_stream` in `config/monitoring/loki.yml`) |
-| sshd, fail2ban and the port filter in the journal; rsyslog copies to `/var/log/auth.log` | addresses of ssh clients and of dropped packets | journal 500 MB / 7 days; Loki 30 days; `auth.log` per logrotate |
+| sshd and the port filter in the journal; rsyslog copies to `/var/log/auth.log` | addresses of ssh clients and of dropped packets | journal 500 MB / 7 days; Loki 30 days; `auth.log` per logrotate |
+| fail2ban's own log `/var/log/fail2ban.log`, and its copy in Loki, stream `{job="fail2ban"}` | addresses of ssh clients fail2ban counted or banned | file: 4 weeks (logrotate, weekly); Loki 30 days |
 | Grafana's own log in Loki | address of whoever logs in to Grafana | 30 days |
 | fail2ban database | banned addresses | 8 days |
 
 Folia's own log keeps paths (no addresses) 30 days in Loki, except `/calendar/…`, which it writes as
 `/calendar/….ics`. Traefik logs full paths with the client address, 7 days in Loki and 7 days in the
 host journal; a subscribed calendar appears there on every poll (Google about daily). What Loki's
-ruler counts from these lines for the dashboard "Visitors" (`config/monitoring/loki-rules`) reaches
+ruler counts from these lines for the dashboards "Visitors" and "Security" (`config/monitoring/loki-rules`) reaches
 Prometheus as numbers only, without addresses, user agents or calendar codes. Alloy ships the
 journal without the lines of containers (`loki.relabel "journal"`), or Traefik's would be kept 30
 days as `{job="journal"}`. Not in Docker's local log files, which only rotate by size: Traefik's
@@ -523,6 +543,15 @@ purpose, silence them for that long).
 Critical alerts repeat every 4 hours, warnings daily (`policies.yml`). Expected once during the first
 bring-up: "SSH login that is not the deploy key", if the last root login was less than 15 minutes
 before the monitoring stack started.
+
+The security rules carry the label `area=security` and are listed with their state on top of the
+dashboard "Security": an ssh login that is not the deploy key, a failed ssh/fail2ban/ufw/docker
+unit, a changed file that grants access (`authorized_keys`, sudoers, `sshd_config.d`,
+`ld.so.preload`, crontabs: critical) or another watched host file (warning), sudo by an account
+other than deploy or a refused sudo (critical), apt run on a person's request (warning; expected
+while 10-base.sh, 30-docker.sh or 60-canary.sh run) and an ssh login from a network without a login
+in the 30 days before (warning; also a new address of your provider). Expected once: the two file
+rules, when Alloy ships its baseline (section 2).
 
 ## 12. Canary follows master
 
