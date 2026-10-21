@@ -1,0 +1,5030 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "betula-security"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "query": {
+            "kind": "DataQuery",
+            "group": "grafana",
+            "version": "v0",
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "spec": {}
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "builtIn": true,
+          "legacyOptions": {
+            "type": "dashboard"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Crosshair",
+    "description": "Who gets into the server, what changes on it, what knocks at its doors. Sources: the host journal (sshd, sudo, kernel, systemd), fail2ban's log, dpkg/apt, watched host files, Traefik's access log and counters, cAdvisor. Provisioned from deploy/config/monitoring/grafana/dashboards - edit there.",
+    "editable": true,
+    "elements": {
+      "panel-1": {
+        "kind": "Panel",
+        "spec": {
+          "id": 1,
+          "title": "Security checks",
+          "description": "The alert rules of the security area (label area=security) and their state, green or not. They are visible here with or without a notification channel; with one (deploy/README.md, section 11) they also reach you.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "alertlist",
+            "version": "",
+            "spec": {
+              "options": {
+                "alertInstanceLabelFilter": "{area=\"security\"}",
+                "alertName": "",
+                "dashboardAlerts": false,
+                "datasource": "-- Grafana --",
+                "groupBy": [],
+                "groupMode": "default",
+                "maxItems": 20,
+                "showInactiveAlerts": true,
+                "sortOrder": 3,
+                "stateFilter": {
+                  "error": true,
+                  "firing": true,
+                  "noData": true,
+                  "normal": true,
+                  "pending": true,
+                  "recovering": true
+                },
+                "viewMode": "list"
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "id": 2,
+          "title": "SSH logins, deploy key",
+          "description": "Successful logins with the deploy key (yours and the automation's: every ssh command is one login).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |= `Accepted publickey for deploy ` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "blue"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "id": 3,
+          "title": "SSH logins, anything else",
+          "description": "Successful logins that are not the deploy key: root, a password, another account. Impossible after the hardening, so anything above 0 is an incident.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` !~ `Accepted publickey for deploy ` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "id": 4,
+          "title": "SSH logins from new networks",
+          "description": "Networks (IPv4: first two numbers, IPv6: first three groups) that logged in within the time range and in none of the 30 days before. Your provider's new address shows up here too; an unknown one means the key is elsewhere.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count(sum by (net) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` | regexp `from (?P<net>\\d+\\.\\d+|[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+)[.:]` [$__range])) unless on (net) sum by (net) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` | regexp `from (?P<net>\\d+\\.\\d+|[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+)[.:]` [30d] offset $__range))) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "orange"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "id": 5,
+          "title": "Failed SSH attempts",
+          "description": "Unknown users, root, keys that do not fit: the background noise of port 22. fail2ban and sshd's penalties deal with it.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Invalid user |not allowed because|Connection closed by authenticating user|Failed (?:password|publickey|none) for|maximum authentication attempts` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "text"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "id": 6,
+          "title": "fail2ban bans",
+          "description": "Addresses fail2ban banned (5 failures in 10 minutes: 1 hour, doubling up to a week).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"fail2ban\"} |~ `\\] (?:Restore )?Ban ` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "text"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "id": 7,
+          "title": "sudo commands",
+          "description": "Commands run as root through sudo, by you over ssh or by the canary agent. Who ran what: row Privileges and changes.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"journal\"} |= `COMMAND=` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "text"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-8": {
+        "kind": "Panel",
+        "spec": {
+          "id": 8,
+          "title": "Watched files changed",
+          "description": "Number of watched host files with new content (authorized_keys, sudoers, sshd, cron, systemd units, PAM, accounts, ...). Package updates change some of them; see row Privileges and changes.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count(sum by (path) (count_over_time({job=\"hostfiles\"} [$__range]))) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "orange"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-9": {
+        "kind": "Panel",
+        "spec": {
+          "id": 9,
+          "title": "Package actions",
+          "description": "Packages installed, upgraded or removed (dpkg). Daily security updates are normal.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"packages\", path=\"/var/log/dpkg.log\"} [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "text"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-10": {
+        "kind": "Panel",
+        "spec": {
+          "id": 10,
+          "title": "Web: scanner probes",
+          "description": "Requests for things this site does not have (.env, .git, WordPress, PHP, admin consoles, ../). Counted every minute by Loki's ruler (config/monitoring/loki-rules/fake/security.yml), so it starts with the first count.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(sum_over_time(betula:security_http_probes:1m[$__range])) or vector(0)",
+                        "instant": true,
+                        "legendFormat": "__auto",
+                        "range": false
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "text"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-11": {
+        "kind": "Panel",
+        "spec": {
+          "id": 11,
+          "title": "Failed logins: Grafana + gate",
+          "description": "Refused logins on grafana.betula.app (the form) and wrong passwords at canary's closed-testing gate.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "(sum(count_over_time({service=\"monitoring_grafana\"} |= `client=auth.client.form` |= `Failed to authenticate` [$__range])) or vector(0)) + (sum(count_over_time({service=~\"canary.*_folia\"} |= `\"access.denied\"` [$__range])) or vector(0))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "orange"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-12": {
+        "kind": "Panel",
+        "spec": {
+          "id": 12,
+          "title": "Kernel security events",
+          "description": "Packets the Docker port filter dropped, AppArmor denials, segfaults, out-of-memory kills, general protection faults.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"journal\", unit=\"kernel\"} |~ `betula-docker-block|UFW BLOCK|apparmor=\"DENIED\"|segfault at|Out of memory|oom-kill|general protection|Lockdown` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "green"
+                      },
+                      {
+                        "value": 1,
+                        "color": "orange"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-13": {
+        "kind": "Panel",
+        "spec": {
+          "id": 13,
+          "title": "Boots",
+          "description": "Kernel starts. Expected: the automatic reboot at 04:30 after a kernel or libc update. Any other time: see Boots, power and failed units.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(count_over_time({job=\"journal\", unit=\"kernel\"} |= `Linux version` [$__range])) or vector(0)",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "stat",
+            "version": "",
+            "spec": {
+              "options": {
+                "colorMode": "value",
+                "graphMode": "none",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                  "calcs": [
+                    "lastNotNull"
+                  ],
+                  "fields": "",
+                  "values": false
+                },
+                "textMode": "value",
+                "wideLayout": true,
+                "showPercentChange": false,
+                "text": {
+                  "titleSize": 13,
+                  "valueSize": 32
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "decimals": 0,
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": null,
+                        "color": "blue"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "thresholds"
+                  },
+                  "noValue": "0"
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-20": {
+        "kind": "Panel",
+        "spec": {
+          "id": 20,
+          "title": "SSH: logins and attempts",
+          "description": "What sshd logged, by kind. Logins with the deploy key are yours and the automation's; everything else is the internet knocking. \"login: other\" must never appear.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (kind) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} | regexp `(?P<kind>Accepted publickey for deploy |Accepted \\S+ for |Invalid user |User root from|not allowed because|Connection closed by authenticating user|Failed (?:password|publickey|none) for|maximum authentication attempts|srclimit_penalise|drop connection|Timeout before authentication|Unable to negotiate)` | label_format kind=`{{ if eq .kind \"Accepted publickey for deploy \" }}login: deploy key{{ else if hasPrefix \"Accepted\" .kind }}login: other{{ else if eq .kind \"Invalid user \" }}unknown user{{ else if eq .kind \"User root from\" }}root (refused){{ else if eq .kind \"not allowed because\" }}user not allowed{{ else if eq .kind \"srclimit_penalise\" }}penalty{{ else if eq .kind \"drop connection\" }}dropped by penalty{{ else if eq .kind \"Timeout before authentication\" }}timeout{{ else if eq .kind \"Unable to negotiate\" }}no common algorithm{{ else if .kind }}authentication failed{{ end }}` | kind!=`` [$__auto]))",
+                        "legendFormat": "{{kind}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "login: deploy key"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "login: other"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "unknown user"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "root (refused)"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "yellow",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "penalty"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "dropped by penalty"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "dark-purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-21": {
+        "kind": "Panel",
+        "spec": {
+          "id": 21,
+          "title": "Successful SSH logins",
+          "description": "Who logged in, how, with which key and from where, in the time range. Every row should be deploy with the fingerprint of your deploy key (ssh-keygen -lf ~/.ssh/<key>.pub on the workstation), from a place you know.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (user, method, source, key) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for ` | regexp `Accepted (?P<method>\\S+) for (?P<user>\\S+) from (?P<source>\\S+) port \\d+ ssh2(?:: \\S+ (?P<key>SHA256:\\S+))?` [$__range]))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "user": 0,
+                        "source": 1,
+                        "method": 2,
+                        "key": 3,
+                        "logins": 4
+                      },
+                      "renameByName": {
+                        "Value": "logins"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "logins"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "user"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "method"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 90
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "logins"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 70
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-22": {
+        "kind": "Panel",
+        "spec": {
+          "id": 22,
+          "title": "Addresses with the most failed attempts",
+          "description": "Sources of unknown users, refused root logins and keys that did not fit, in the time range.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "topk(15, sum by (source) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Invalid user |not allowed because|Connection closed by authenticating user` | regexp `(?P<source>\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})` [$__range])))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "source": 0,
+                        "attempts": 1
+                      },
+                      "renameByName": {
+                        "Value": "attempts"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "attempts"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-23": {
+        "kind": "Panel",
+        "spec": {
+          "id": 23,
+          "title": "User names tried",
+          "description": "Which accounts the bots guess. Only deploy may log in (AllowUsers), and only with its key.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "topk(15, sum by (user) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Invalid user |not allowed because` | regexp `(?:Invalid user |User )(?P<user>\\S*) from` [$__range])))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "user": 0,
+                        "attempts": 1
+                      },
+                      "renameByName": {
+                        "Value": "attempts"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "attempts"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-24": {
+        "kind": "Panel",
+        "spec": {
+          "id": 24,
+          "title": "SSH log: logins and refusals",
+          "description": "sshd's lines about logins (Accepted, with the key's fingerprint) and refused attempts, newest first. Everything else of sshd: dashboard Logs.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `Accepted \\S+ for |Invalid user |not allowed because|Failed (?:password|publickey|none) for|authenticating user|maximum authentication attempts`",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 500
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "logs",
+            "version": "",
+            "spec": {
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": false,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-30": {
+        "kind": "Panel",
+        "spec": {
+          "id": 30,
+          "title": "sudo commands",
+          "description": "Every command run through sudo: who (always deploy), from where (an ssh session or the canary agent), as whom, what. The rule \"sudo by someone other than deploy, or a refused sudo\" watches the same lines.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{job=\"journal\"} |= `COMMAND=` | regexp `^(?P<user>\\S+) :\\s+(?:(?P<problem>[^;]*?) ; )?PWD=(?P<pwd>[^;]*) ; USER=(?P<as>[^;]*) ; COMMAND=(?P<command>.*)` | label_format from=`{{ if eq .unit \"session.scope\" }}ssh session{{ else if eq .unit \"betula-canary.service\" }}canary agent{{ else }}{{ .unit }}{{ end }}`",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 500
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "extractFields",
+                  "spec": {
+                    "options": {
+                      "format": "auto",
+                      "keepTime": false,
+                      "replace": false,
+                      "source": "labels"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "container": true,
+                        "id": true,
+                        "job": true,
+                        "labelTypes": true,
+                        "labels": true,
+                        "level": true,
+                        "service_name": true,
+                        "tsNs": true,
+                        "detected_level": true,
+                        "service": true,
+                        "stack": true,
+                        "unit_": true,
+                        "__error__": true,
+                        "__error_details__": true,
+                        "line": true,
+                        "Line": true,
+                        "unit": true
+                      },
+                      "includeByName": {},
+                      "indexByName": {
+                        "Time": 0,
+                        "from": 1,
+                        "user": 2,
+                        "as": 3,
+                        "problem": 4,
+                        "pwd": 5,
+                        "command": 6,
+                        "Line": 7
+                      },
+                      "renameByName": {
+                        "Line": "line"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "Time"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Time"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 160
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "from"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 110
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "user"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 80
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "as"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 60
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "problem"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 120
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "pwd"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 150
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-31": {
+        "kind": "Panel",
+        "spec": {
+          "id": 31,
+          "title": "sudo commands over time",
+          "description": "By where they came from. The canary agent runs every two minutes and uses sudo only when it deploys.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (from) (count_over_time({job=\"journal\"} |= `COMMAND=` | label_format from=`{{ if eq .unit \"session.scope\" }}ssh session{{ else if eq .unit \"betula-canary.service\" }}canary agent{{ else }}{{ .unit }}{{ end }}` [$__auto]))",
+                        "legendFormat": "{{from}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ssh session"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "blue",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "canary agent"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-32": {
+        "kind": "Panel",
+        "spec": {
+          "id": 32,
+          "title": "Watched files with new content",
+          "description": "Lines Alloy shipped per file in the time range: an appended line, or the whole file when it was replaced or is new. The first start of Alloy ships every file once as a baseline.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (path) (count_over_time({job=\"hostfiles\"} [$__range]))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "path": 0,
+                        "lines": 1
+                      },
+                      "renameByName": {
+                        "Value": "lines"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "lines"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-33": {
+        "kind": "Panel",
+        "spec": {
+          "id": 33,
+          "title": "Content of changed files",
+          "description": "What the changed files say now (an appended line, or the file whole). Watched: accounts, sudoers, sshd, authorized_keys, cron, systemd units in /etc, PAM, ld.so.preload, shell start files, ufw's rules, Docker's daemon.json (config/monitoring/alloy/config.alloy).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{job=\"hostfiles\"}",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 2000
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "extractFields",
+                  "spec": {
+                    "options": {
+                      "format": "auto",
+                      "keepTime": false,
+                      "replace": false,
+                      "source": "labels"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "container": true,
+                        "id": true,
+                        "job": true,
+                        "labelTypes": true,
+                        "labels": true,
+                        "level": true,
+                        "service_name": true,
+                        "tsNs": true,
+                        "detected_level": true,
+                        "service": true,
+                        "stack": true,
+                        "unit_": true,
+                        "__error__": true,
+                        "__error_details__": true
+                      },
+                      "includeByName": {},
+                      "indexByName": {
+                        "Time": 0,
+                        "path": 1,
+                        "Line": 2
+                      },
+                      "renameByName": {
+                        "Line": "line"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "Time"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Time"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 160
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "path"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 260
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-34": {
+        "kind": "Panel",
+        "spec": {
+          "id": 34,
+          "title": "Package changes",
+          "description": "dpkg's installs, upgrades and removals, and apt's runs (Commandline, Requested-By when a person or a script under sudo ran it).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{job=\"packages\"} |~ `\\S`",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 500
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "logs",
+            "version": "",
+            "spec": {
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-35": {
+        "kind": "Panel",
+        "spec": {
+          "id": 35,
+          "title": "Boots, power and failed units",
+          "description": "Kernel starts, power-key events (the provider's panel or maintenance: the VM gets an ACPI power-off), shutdowns, and systemd units that failed.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{job=\"journal\", unit=~\"kernel|init.scope|systemd-logind.service\"} |~ `Linux version|Power key pressed|System is powering down|System is rebooting|Powering off|Rebooting|Failed with result|Startup finished`",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 300
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "logs",
+            "version": "",
+            "spec": {
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": true,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-40": {
+        "kind": "Panel",
+        "spec": {
+          "id": 40,
+          "title": "fail2ban: matches, bans, unbans",
+          "description": "Found = a failed attempt fail2ban counted; Ban after 5 within 10 minutes (1 hour, doubling for repeat offenders up to a week).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (action) (count_over_time({job=\"fail2ban\"} | regexp `\\] (?P<action>Found|Ban|Unban|Restore Ban|Increase Ban) ` [$__auto]))",
+                        "legendFormat": "{{action}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Ban"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Unban"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Found"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-41": {
+        "kind": "Panel",
+        "spec": {
+          "id": 41,
+          "title": "Most banned addresses",
+          "description": "Bans per address in the time range (repeat offenders return after each ban).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "topk(15, sum by (source) (count_over_time({job=\"fail2ban\"} | regexp `\\] (?:Restore )?Ban (?P<source>\\S+)` [$__range])))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "source": 0,
+                        "bans": 1
+                      },
+                      "renameByName": {
+                        "Value": "bans"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "bans"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-42": {
+        "kind": "Panel",
+        "spec": {
+          "id": 42,
+          "title": "sshd: penalties per source",
+          "description": "sshd's own short-term limiter (PerSourcePenalties): a source that misbehaves is refused for a while, before fail2ban's long bans.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (kind) (count_over_time({job=\"journal\", unit=~\"ssh.*|session.*\"} |~ `srclimit_penalise|drop connection|refused connection` | regexp `(?P<kind>srclimit_penalise|drop connection|refused connection)` | label_format kind=`{{ if eq .kind \"srclimit_penalise\" }}penalty given{{ else }}connection refused (penalty){{ end }}` [$__auto]))",
+                        "legendFormat": "{{kind}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-43": {
+        "kind": "Panel",
+        "spec": {
+          "id": 43,
+          "title": "Kernel: security event lines",
+          "description": "Docker port filter drops ([betula-docker-block], only for ports a container published besides 80/443), AppArmor denials, segfaults, OOM kills.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{job=\"journal\", unit=\"kernel\"} |~ `betula-docker-block|UFW BLOCK|apparmor=\"DENIED\"|segfault at|Out of memory|oom-kill|general protection|Lockdown`",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 300
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "logs",
+            "version": "",
+            "spec": {
+              "options": {
+                "dedupStrategy": "none",
+                "enableLogDetails": true,
+                "prettifyLogMessage": false,
+                "showCommonLabels": false,
+                "showLabels": false,
+                "showTime": true,
+                "sortOrder": "Descending",
+                "wrapLogMessage": true
+              },
+              "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-50": {
+        "kind": "Panel",
+        "spec": {
+          "id": 50,
+          "title": "Refused and failed requests by router",
+          "description": "401 = canary's gate or Grafana without a session, 403 = forbidden, 405 = wrong method, 429 = rate limit, 5xx = the application failed. Traefik's own counters.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (router, code) (rate(traefik_router_requests_total{code=~\"401|403|405|429|5..\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{router}} {{code}}",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "mean",
+                    "max"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "reqps",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 20,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-51": {
+        "kind": "Panel",
+        "spec": {
+          "id": 51,
+          "title": "Scanner probes by target",
+          "description": "What the probes were after: secrets and backups (.env, .git, .aws, dumps), WordPress, PHP, path traversal, admin consoles and devices.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (kind) (sum_over_time(betula:security_http_probes:1m[$__interval]))",
+                        "instant": false,
+                        "legendFormat": "{{kind}}",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {
+                "interval": "1m"
+              }
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "secrets and backups"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "path traversal"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "purple",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-52": {
+        "kind": "Panel",
+        "spec": {
+          "id": 52,
+          "title": "Scanner probes by host and answer",
+          "description": "A 2xx answer to a probe for secrets is worth a look (a 200 for a WordPress path on canary's gate page is not).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (host, kind, status) (sum_over_time(betula:security_http_probes:1m[$__range]))",
+                        "instant": true,
+                        "legendFormat": "",
+                        "range": false,
+                        "format": "table"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "host": 0,
+                        "kind": 1,
+                        "status": 2,
+                        "requests": 3
+                      },
+                      "renameByName": {
+                        "Value": "requests"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "requests"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-53": {
+        "kind": "Panel",
+        "spec": {
+          "id": 53,
+          "title": "Busiest clients",
+          "description": "Requests per address in the time range, from Traefik's access log (Loki keeps it 7 days). Heavy: up to a day answers within seconds, a week may time out. 172.30.1.1 = every IPv6 client (docker-proxy), see deploy/README.md section 1.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "topk(15, sum by (ClientHost) (count_over_time({service=\"edge_traefik\"} |= `\"ClientHost\"` | json ClientHost [$__range])))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "ClientHost": 0,
+                        "requests": 1
+                      },
+                      "renameByName": {
+                        "Value": "requests"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "requests"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ClientHost"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 200
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-54": {
+        "kind": "Panel",
+        "spec": {
+          "id": 54,
+          "title": "Busiest user agents",
+          "description": "Requests per user agent in the time range (same source and cost as the table beside it).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "topk(15, sum by (ua) (count_over_time({service=\"edge_traefik\"} |= `\"ClientHost\"` | json ua=`[\"request_User-Agent\"]` [$__range])))",
+                        "legendFormat": "",
+                        "queryType": "instant"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "labelsToFields",
+                  "spec": {
+                    "options": {
+                      "mode": "columns"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "merge",
+                  "spec": {
+                    "options": {}
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "Time": true
+                      },
+                      "indexByName": {
+                        "ua": 0,
+                        "requests": 1
+                      },
+                      "renameByName": {
+                        "Value": "requests"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "requests"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "decimals": 0,
+                  "noValue": "-",
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-55": {
+        "kind": "Panel",
+        "spec": {
+          "id": 55,
+          "title": "Probe requests",
+          "description": "The single requests behind the probe counts (as long as Loki keeps the access log, 7 days): client, answer, method, host and path, user agent.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "{service=\"edge_traefik\"} |~ `\"RequestPath\":\"[^\"]*(/\\.env|/\\.git|/\\.aws|/\\.ssh|/\\.vscode|\\.DS_Store|/backup|\\.sql|\\.bak|/wp-|wordpress|/xmlrpc|\\.php|phpmyadmin|/vendor/|\\.\\./|%2e%2e|/etc/passwd|/cgi-bin|/actuator|/server-status|/solr|/jenkins|/druid|/swagger|/HNAP1|/boaform)` | json client=\"ClientHost\", status=\"DownstreamStatus\", ua=`[\"request_User-Agent\"]`, method=\"RequestMethod\", host=\"RequestHost\", path=\"RequestPath\" | line_format `{{.method}} {{.host}}{{.path}}`",
+                        "legendFormat": "",
+                        "queryType": "range",
+                        "maxLines": 500
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "extractFields",
+                  "spec": {
+                    "options": {
+                      "format": "auto",
+                      "keepTime": false,
+                      "replace": false,
+                      "source": "labels"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {
+                        "container": true,
+                        "id": true,
+                        "job": true,
+                        "labelTypes": true,
+                        "labels": true,
+                        "level": true,
+                        "service_name": true,
+                        "tsNs": true,
+                        "detected_level": true,
+                        "service": true,
+                        "stack": true,
+                        "unit_": true,
+                        "__error__": true,
+                        "__error_details__": true,
+                        "ClientHost": true,
+                        "DownstreamStatus": true,
+                        "method": true,
+                        "host": true,
+                        "path": true,
+                        "RequestHost": true
+                      },
+                      "includeByName": {},
+                      "indexByName": {
+                        "Time": 0,
+                        "client": 1,
+                        "status": 2,
+                        "ua": 3,
+                        "Line": 4
+                      },
+                      "renameByName": {
+                        "Line": "line"
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "table",
+            "version": "",
+            "spec": {
+              "options": {
+                "cellHeight": "sm",
+                "footer": {
+                  "show": false
+                },
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "Time"
+                  }
+                ]
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "custom": {
+                    "align": "auto",
+                    "cellOptions": {
+                      "type": "auto"
+                    },
+                    "filterable": true,
+                    "inspect": true
+                  }
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "Time"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 160
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "client"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 130
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "status"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 60
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ua"
+                    },
+                    "properties": [
+                      {
+                        "id": "custom.width",
+                        "value": 260
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-56": {
+        "kind": "Panel",
+        "spec": {
+          "id": 56,
+          "title": "Logins: Grafana and canary's gate",
+          "description": "POST /login on grafana.betula.app by answer (Traefik's log; 10 per minute and address, then 429, and Grafana locks a name after 5 failures), and the closed-testing gate of canary (Folia's events access.granted / access.denied).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (count_over_time({service=\"edge_traefik\"} |= `\"RequestHost\":\"grafana.betula.app\"` |= `\"RequestPath\":\"/login\"` |= `\"RequestMethod\":\"POST\"` | json status=\"DownstreamStatus\" | label_format result=`Grafana: {{ if eq .status \"200\" }}logged in{{ else if eq .status \"429\" }}rate limited{{ else }}refused ({{ .status }}){{ end }}` [$__auto]))",
+                        "legendFormat": "{{result}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (result) (count_over_time({service=~\"canary.*_folia\"} |~ `\"access\\.(granted|denied)\"` | json event | label_format result=`canary gate: {{ if eq .event \"access.granted\" }}password right{{ else }}password wrong{{ end }}` [$__auto]))",
+                        "legendFormat": "{{result}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": ".*refused.*|.*wrong.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": ".*rate limited.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "orange",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byRegexp",
+                      "options": ".*logged in.*|.*right.*"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "green",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-60": {
+        "kind": "Panel",
+        "spec": {
+          "id": 60,
+          "title": "CPU per service, and outside containers",
+          "description": "A coin miner or a stuck process shows up as CPU that does not belong to the site's usual work. \"outside containers\" = the host's own processes (sshd, dockerd, apt, ...).",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (service) (rate(container_cpu_usage_seconds_total{service!=\"\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{service}}",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum(rate(container_cpu_usage_seconds_total{id=\"/\"}[$__rate_interval])) - sum(rate(container_cpu_usage_seconds_total{service!=\"\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "outside containers",
+                        "range": true
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "mean",
+                    "max"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "percentunit",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 20,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-61": {
+        "kind": "Panel",
+        "spec": {
+          "id": 61,
+          "title": "Host network: in and out",
+          "description": "All traffic of the host's interface (out below the line). Data leaving the server shows up as \"out\" without a matching rise in visitors.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "8 * sum(rate(container_network_receive_bytes_total{id=\"/\", interface!~\"lo|docker.*|br-.*|veth.*|vx-.*|ov-.*\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "in",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "-8 * sum(rate(container_network_transmit_bytes_total{id=\"/\", interface!~\"lo|docker.*|br-.*|veth.*|vx-.*|ov-.*\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "out",
+                        "range": true
+                      }
+                    },
+                    "refId": "B",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "mean",
+                    "max"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "bps",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 20,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-62": {
+        "kind": "Panel",
+        "spec": {
+          "id": 62,
+          "title": "Sent per service",
+          "description": "Bytes each service sends. Traefik sends the site to visitors and Radix and Cortex talk to the university; a service that suddenly sends a lot is worth a look.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "8 * sum by (service) (rate(container_network_transmit_bytes_total{service!=\"\"}[$__rate_interval]))",
+                        "instant": false,
+                        "legendFormat": "{{service}}",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "mean",
+                    "max"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "bps",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 20,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      },
+      "panel-63": {
+        "kind": "Panel",
+        "spec": {
+          "id": 63,
+          "title": "Running containers by stack",
+          "description": "Containers outside the swarm stacks (\"started by hand\") are the build and export steps of a deploy, for a minute or two. Anything that stays is not ours.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "prometheus"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "count by (stack) (label_replace(container_last_seen{container!=\"\"}, \"stack\", \"started by hand\", \"stack\", \"\"))",
+                        "instant": false,
+                        "legendFormat": "{{stack}}",
+                        "range": true
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "lastNotNull",
+                    "max"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "none",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "line",
+                    "fillOpacity": 20,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": [
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "started by hand"
+                    },
+                    "properties": [
+                      {
+                        "id": "color",
+                        "value": {
+                          "fixedColor": "red",
+                          "mode": "fixed"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "panel-64": {
+        "kind": "Panel",
+        "spec": {
+          "id": 64,
+          "title": "Kernel security events by kind",
+          "description": "From the kernel's log: port filter drops, AppArmor denials, segfaults, OOM kills.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "loki",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "loki"
+                      },
+                      "spec": {
+                        "editorMode": "code",
+                        "expr": "sum by (kind) (count_over_time({job=\"journal\", unit=\"kernel\"} |~ `betula-docker-block|UFW BLOCK|apparmor=\"DENIED\"|segfault at|Out of memory|oom-kill|general protection|Lockdown` | regexp `(?P<kind>betula-docker-block|UFW BLOCK|apparmor=\"DENIED\"|segfault at|Out of memory|oom-kill|general protection|Lockdown)` [$__auto]))",
+                        "legendFormat": "{{kind}}",
+                        "queryType": "range"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "",
+            "spec": {
+              "options": {
+                "legend": {
+                  "displayMode": "list",
+                  "placement": "bottom",
+                  "showLegend": true,
+                  "calcs": [
+                    "sum"
+                  ]
+                },
+                "tooltip": {
+                  "mode": "multi",
+                  "sort": "desc"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "short",
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "drawStyle": "bars",
+                    "fillOpacity": 70,
+                    "lineWidth": 1,
+                    "showPoints": "never",
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "normal"
+                    }
+                  },
+                  "min": 0
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "RowsLayout",
+      "spec": {
+        "rows": [
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "",
+              "hideHeader": true,
+              "collapse": false,
+              "layout": {
+                "kind": "AutoGridLayout",
+                "spec": {
+                  "maxColumnCount": 1,
+                  "columnWidthMode": "custom",
+                  "columnWidth": 600,
+                  "rowHeightMode": "custom",
+                  "rowHeight": 250,
+                  "fillScreen": false,
+                  "items": [
+                    {
+                      "kind": "AutoGridLayoutItem",
+                      "spec": {
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-1"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "At a glance (time range of the dashboard)",
+              "collapse": false,
+              "layout": {
+                "kind": "RowsLayout",
+                "spec": {
+                  "rows": [
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 4,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 230,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 110,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-2"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-3"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-4"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-5"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-6"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-7"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-8"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-9"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-10"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-11"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-12"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-13"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "SSH: who gets in",
+              "collapse": false,
+              "layout": {
+                "kind": "RowsLayout",
+                "spec": {
+                  "rows": [
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 300,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-20"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 280,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-21"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 330,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-22"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-23"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 380,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-24"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Privileges and changes on the host",
+              "collapse": false,
+              "layout": {
+                "kind": "RowsLayout",
+                "spec": {
+                  "rows": [
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 320,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-31"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-32"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 380,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-30"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 420,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-33"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 420,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 380,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-34"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-35"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "fail2ban and firewall",
+              "collapse": false,
+              "layout": {
+                "kind": "RowsLayout",
+                "spec": {
+                  "rows": [
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 300,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-40"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-42"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 340,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-41"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-43"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Web: probes, logins, busiest clients (reads Traefik's access log: open when needed)",
+              "collapse": true,
+              "layout": {
+                "kind": "RowsLayout",
+                "spec": {
+                  "rows": [
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 320,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-50"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-51"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 320,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-56"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-52"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 380,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-53"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-54"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 400,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-55"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "kind": "RowsLayoutRow",
+            "spec": {
+              "title": "Host behaviour: CPU, traffic, containers, kernel",
+              "collapse": false,
+              "layout": {
+                "kind": "RowsLayout",
+                "spec": {
+                  "rows": [
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 320,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-60"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-61"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 2,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 380,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 320,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-62"
+                                  }
+                                }
+                              },
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-63"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "kind": "RowsLayoutRow",
+                      "spec": {
+                        "title": "",
+                        "hideHeader": true,
+                        "collapse": false,
+                        "layout": {
+                          "kind": "AutoGridLayout",
+                          "spec": {
+                            "maxColumnCount": 1,
+                            "columnWidthMode": "custom",
+                            "columnWidth": 600,
+                            "rowHeightMode": "custom",
+                            "rowHeight": 280,
+                            "fillScreen": false,
+                            "items": [
+                              {
+                                "kind": "AutoGridLayoutItem",
+                                "spec": {
+                                  "element": {
+                                    "kind": "ElementReference",
+                                    "name": "panel-64"
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "links": [
+      {
+        "title": "Betula",
+        "type": "dashboards",
+        "icon": "external link",
+        "tooltip": "",
+        "tags": [
+          "betula"
+        ],
+        "asDropdown": false,
+        "targetBlank": false,
+        "includeVars": false,
+        "keepTime": true
+      }
+    ],
+    "liveNow": false,
+    "preload": false,
+    "tags": [
+      "betula",
+      "security"
+    ],
+    "timeSettings": {
+      "timezone": "browser",
+      "from": "now-24h",
+      "to": "now",
+      "autoRefresh": "5m",
+      "autoRefreshIntervals": [
+        "1m",
+        "5m",
+        "15m",
+        "1h"
+      ],
+      "hideTimepicker": false,
+      "weekStart": "monday",
+      "fiscalYearStartMonth": 0
+    },
+    "title": "Security",
+    "variables": []
+  }
+}
