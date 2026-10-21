@@ -1,0 +1,26 @@
+# Recording rule of Loki's ruler for the dashboard "Security": requests that look for things this
+# site does not have (secrets in .env or .git, WordPress, PHP, admin consoles, path traversal),
+# counted from Traefik's access log every minute and stored in Prometheus (15 days instead of the
+# access log's 7). Counts only: no address, user agent or path leaves Loki. The dashboard's tables
+# of single requests read the access log itself, as long as Loki keeps it.
+#
+# The window ends 30 seconds before the evaluation (offset), so that lines still on their way from
+# Traefik through Alloy are counted in the next minute's window instead of in none.
+#
+# host: the four names of this server, everything else (the bare address, made-up names) "other".
+# kind: what the request was after, from the first pattern its path matches.
+groups:
+  - name: security-1m
+    interval: 1m
+    rules:
+      - record: betula:security_http_probes:1m
+        expr: |
+          sum by (host, status, kind) (count_over_time(
+            {service="edge_traefik"}
+            |~ `"RequestPath":"[^"]*(/\.env|/\.git|/\.aws|/\.ssh|/\.vscode|\.DS_Store|/backup|\.sql|\.bak|/wp-|wordpress|/xmlrpc|\.php|phpmyadmin|/vendor/|\.\./|%2e%2e|/etc/passwd|/cgi-bin|/actuator|/server-status|/solr|/jenkins|/druid|/swagger|/HNAP1|/boaform)`
+            | regexp `"RequestPath":"[^"]*?(?P<probe>/\.env|/\.git|/\.aws|/\.ssh|/\.vscode|\.DS_Store|/backup|\.sql|\.bak|/wp-|wordpress|/xmlrpc|\.php|phpmyadmin|/vendor/|\.\./|%2e%2e|/etc/passwd|/cgi-bin|/actuator|/server-status|/solr|/jenkins|/druid|/swagger|/HNAP1|/boaform)`
+            | json host="RequestHost", status="DownstreamStatus"
+            | label_format host=`{{ if eq .host "betula.app" "www.betula.app" "canary.betula.app" "grafana.betula.app" }}{{ .host }}{{ else }}other{{ end }}`
+            | label_format kind=`{{ if eq .probe "/.env" "/.git" "/.aws" "/.ssh" "/.vscode" ".DS_Store" "/backup" ".sql" ".bak" }}secrets and backups{{ else if eq .probe "/wp-" "wordpress" "/xmlrpc" }}WordPress{{ else if eq .probe ".php" "phpmyadmin" "/vendor/" }}PHP{{ else if eq .probe "../" "%2e%2e" "/etc/passwd" }}path traversal{{ else }}admin consoles and devices{{ end }}`
+            | keep host, status, kind
+            [1m] offset 30s))
