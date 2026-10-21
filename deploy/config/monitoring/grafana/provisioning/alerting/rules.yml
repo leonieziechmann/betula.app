@@ -1253,7 +1253,7 @@ groups:
           area: security
         annotations:
           summary: "A watched host file changed"
-          description: "Alloy saw new content in {{ $labels.path }}. Expected after a package update (unattended-upgrades replaces PAM files, cron scripts or sshd_config), after 10-base.sh, 30-docker.sh or 60-canary.sh, and when a user or group is added. Otherwise look at it: Security dashboard, row Privileges and changes, with Package changes and sudo commands of the same minutes beside it."
+          description: "Alloy saw new content in {{ $labels.path }}. Expected after a package update (unattended-upgrades replaces PAM files, cron scripts or sshd_config), now and then at a boot (cloud-init rewrote /etc/hosts and sshd_config at the boot of 2026-10-08), after 10-base.sh, 30-docker.sh or 60-canary.sh, and when a user or group is added. Otherwise look at it: Security dashboard, row Privileges and changes, with Package changes and sudo commands of the same minutes beside it."
       # Only deploy uses sudo here (its key, NOPASSWD; the canary agent runs as deploy). sudo-rs logs
       # "deploy :  PWD=... ; USER=root ; COMMAND=..." for every command; a line of another account,
       # or a refused one ("NOT in sudoers", "incorrect password attempt"), never happens in normal

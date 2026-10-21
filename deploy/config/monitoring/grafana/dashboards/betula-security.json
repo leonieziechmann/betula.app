@@ -1311,7 +1311,7 @@
         "spec": {
           "id": 21,
           "title": "Successful SSH logins",
-          "description": "Who logged in, how, with which key and from where, in the time range. Every row should be the deploy key (SHA256:Ct0+R4HS...) from a place you know.",
+          "description": "Who logged in, how, with which key and from where, in the time range. Every row should be deploy with the fingerprint of your deploy key (ssh-keygen -lf ~/.ssh/<key>.pub on the workstation), from a place you know.",
           "links": [],
           "data": {
             "kind": "QueryGroup",

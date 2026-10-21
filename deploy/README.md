@@ -547,7 +547,8 @@ before the monitoring stack started.
 The security rules carry the label `area=security` and are listed with their state on top of the
 dashboard "Security": an ssh login that is not the deploy key, a failed ssh/fail2ban/ufw/docker
 unit, a changed file that grants access (`authorized_keys`, sudoers, `sshd_config.d`,
-`ld.so.preload`, crontabs: critical) or another watched host file (warning), sudo by an account
+`ld.so.preload`, crontabs: critical) or another watched host file (warning; package updates, the
+setup scripts and now and then cloud-init at a boot change some of them), sudo by an account
 other than deploy or a refused sudo (critical), apt run on a person's request (warning; expected
 while 10-base.sh, 30-docker.sh or 60-canary.sh run) and an ssh login from a network without a login
 in the 30 days before (warning; also a new address of your provider). Expected once: the two file
