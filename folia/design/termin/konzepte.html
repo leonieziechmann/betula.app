@@ -1,0 +1,1687 @@
+<title>Termin-Konzepte</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Concepts for a Termin's own view (owner, 2026-10-24: „Hey klar, das braucht noch ein paar
+     einzelansichten für die termine. Aktuell, wenn man drauf klickt, landet man ja entweder bei qis
+     oder halt im stundenplan. Aber eigentlich möchte man noch relativ häufig eine detailansicht vom
+     Termin haben … Auf dem Handy kann das definitiv ein modal sein. Aber ich glaube, es sollte auch
+     eine Seite dafür geben. Erstelle mal ein paar Konzepte wie man das anzeigen kann."). What a tap
+     on a Termin does today (Folia 1.44.3, read from the code, two screenshots in bilder/); what one
+     date of a Termin can show, block by block, and where each block comes from; four ways to show it
+     (A–D), each working on a phone and a desktop over the start page or the Stundenplan, each with a
+     page of its own; the address; a comparison, a recommendation and questions. The data is real:
+     Informatik B.Sc., 1. FS, WiSe 2026/27 at the Zentralcampus as betula.app's snapshot had it on
+     2026-10-21, the Termine keyed as folia-calendar's RowKey keys them (148304-e4bf3); the clock
+     stands at Wednesday 04.11.2026, 08:40 (KW 45, an A week), the day QIS moves the Übung of
+     Mathematik IT-1 from HG/0.17 to LG1A/304. Tokens are Betula's (folia/assets/app.css); Inter
+     comes from Google Fonts here, the app self-hosts it; the photo of the start page is a drawn
+     stand-in. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a review desk. The brief and the rules, a bar that stays at the top (which Termin, which
+   page lies under it), what a tap does today, what a Termin shows, then one panel per concept with
+   a phone and a desktop that work, the address, the comparison, the recommendation and the
+   questions. Tokens: Betula's own (light, then dark), the modules' colours of the Stundenplan, the
+   wood the devices lie on, and a drawn photo for the start page. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --row-hover: color-mix(in oklab, var(--text) 5.2%, var(--panel));
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --ok: #0b7f58;
+  --warn: #8f5a0a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --warn-line: color-mix(in srgb, #c98a1a 42%, transparent);
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 8%, var(--panel));
+  --no-line: color-mix(in srgb, #b3261e 30%, transparent);
+  --m-eeg: oklch(.64 .12 70);
+  --m-evs: oklch(.55 .07 245);
+  --m-mit: oklch(.56 .08 185);
+  --m-pp: oklch(.53 .1 300);
+  --backdrop: rgba(10, 12, 17, .42);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line), 0 14px 44px -12px rgba(15, 23, 42, .3);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-ctl: 9px; --r-row: 7px; --r-s: 5px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --wood: color-mix(in oklab, var(--text) 7%, var(--bg));
+  --device: #1b2130;
+  --device-ring: rgba(15, 23, 42, .25);
+  --shadow-device: 0 34px 70px -38px rgba(15, 23, 42, .6);
+  --photo-ink: #ffffff;
+  --photo: linear-gradient(180deg, rgba(12, 14, 18, .5), rgba(12, 14, 18, .18) 38%, rgba(12, 14, 18, .5)),
+    repeating-linear-gradient(90deg, transparent 0 38px, rgba(238, 234, 224, .62) 38px 50px, transparent 50px 118px, rgba(232, 228, 216, .42) 118px 125px, transparent 125px 196px, rgba(240, 236, 226, .55) 196px 214px, transparent 214px 260px),
+    radial-gradient(120% 90% at 70% 10%, #b98a45, transparent 60%),
+    linear-gradient(160deg, #7a6440, #9a7444 35%, #5d5440 70%, #3b3a33);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --ok: #4fd1a1;
+    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel)); --warn-line: color-mix(in srgb, #f0b861 38%, transparent);
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel)); --no-line: color-mix(in srgb, #ff8f85 32%, transparent);
+    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300);
+    --backdrop: rgba(0, 0, 0, .55);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+    --seg-shadow: 0 0 0 1px var(--line);
+    --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+    --device-ring: rgba(255, 255, 255, .12);
+    --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --row-hover: color-mix(in oklab, var(--text) 6.5%, var(--panel));
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --ok: #4fd1a1;
+  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel)); --warn-line: color-mix(in srgb, #f0b861 38%, transparent);
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel)); --no-line: color-mix(in srgb, #ff8f85 32%, transparent);
+  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300);
+  --backdrop: rgba(0, 0, 0, .55);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --shadow-pop: 0 0 0 1px var(--line-strong), 0 16px 48px -8px rgba(0, 0, 0, .8);
+  --seg-shadow: 0 0 0 1px var(--line);
+  --wood: color-mix(in oklab, var(--text) 5.5%, var(--bg));
+  --device-ring: rgba(255, 255, 255, .12);
+  --shadow-device: 0 34px 70px -38px rgba(0, 0, 0, .9);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+code { font: 500 .88em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 64ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 10px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules li span { min-width: 0; }
+
+/* The settings: a bar that stays at the top, under the phone's status bar. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.setbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-panel); }
+.setbar .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.setbar .kicker { font-size: 10.5px; }
+.seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.seg button { height: 30px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.seg button small { font-weight: 500; color: var(--text-3); }
+.seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.setbar .jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 2px; }
+.setbar .jump a { padding: 6px 9px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+.setbar .jump a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section of the brief. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 110px; }
+.sec h2, .reco h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec .sub { margin-top: 8px; max-width: 76ch; color: var(--text-2); text-wrap: pretty; }
+.sec .sub + .sub { margin-top: 8px; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.scroll { overflow-x: auto; margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+thead th { border-top: 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+tbody th { font-weight: 620; color: var(--text); }
+td { color: var(--text-2); }
+td b { color: var(--text); font-weight: 620; }
+.t-today { min-width: 760px; }
+.t-today tbody th { width: 21%; }
+.t-today td:nth-child(2) { width: 42%; }
+
+/* Today, in two screenshots. */
+.shots { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; align-items: start; }
+.shots figure { margin: 0; min-width: 0; }
+.shots img { display: block; width: 100%; max-width: 100%; height: auto; border-radius: 10px; box-shadow: var(--shadow-panel); background: var(--panel-2); }
+.shots .tall img { border-radius: 22px; }
+.shots figcaption { margin-top: 8px; font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+.shots figcaption b { color: var(--text); font-weight: 620; }
+
+/* What a Termin shows: the page drawn at its size, the blocks beside it. */
+.anat { display: grid; grid-template-columns: 410px minmax(0, 1fr); gap: 28px 36px; margin-top: 20px; align-items: start; }
+.paper { position: sticky; top: 120px; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; }
+.paper .app { height: auto; overflow: visible; background: var(--panel); }
+.blocks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; }
+.blocks li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; }
+.blocks .n { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font-size: 12px; font-weight: 700; }
+.blocks h3 { font-size: 15px; }
+.blocks p { margin-top: 2px; color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.src { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; font-size: 12px; color: var(--text-3); }
+.src span { padding: 1px 7px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font: 500 11.5px var(--mono); }
+.src span.derived { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font-family: var(--font); font-weight: 600; }
+.blocks li.not .n { background: var(--panel-3); color: var(--text-3); }
+.paper .tm { padding-left: 46px; }
+.paper .tm-head, .paper .tm-alert, .paper .tm-place, .paper .tm-facts, .paper .tm-acts, .paper .tm-sec { position: relative; }
+.anat-n { position: absolute; left: -36px; top: 0; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font: 700 11.5px/1 var(--font); }
+.tm-alert > .anat-n { top: 8px; left: -36px; }
+.tm-sec > .anat-n { top: 12px; }
+.tm-head > .anat-n { top: 6px; }
+
+/* A concept. */
+.concept { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; scroll-margin-top: 110px; }
+.c-head { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px 18px; align-items: start; padding: 22px 24px 14px; }
+.c-tag { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--invert); color: var(--on-invert); font-size: 17px; font-weight: 760; }
+.c-head h2 { font-size: 22px; letter-spacing: -.018em; font-weight: 720; }
+.c-head h2 small { margin-left: 8px; font-size: 12px; font-weight: 650; color: var(--accent-ink); letter-spacing: .02em; white-space: nowrap; }
+.c-head p { margin-top: 4px; max-width: 80ch; color: var(--text-2); text-wrap: pretty; }
+.c-ctl { padding: 0 24px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.c-ctl .kicker { font-size: 10.5px; }
+.c-reset { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.c-reset:hover { background: var(--panel-3); color: var(--text); }
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 312px; gap: 26px; align-items: start; padding: 26px 24px; background: var(--wood); }
+.c-notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 28px; padding: 18px 24px 22px; }
+.c-notes h3 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.c-notes ul { margin: 8px 0 0; padding-left: 18px; font-size: 14px; color: var(--text-2); }
+.c-notes li + li { margin-top: 4px; }
+.c-notes li b { color: var(--text); font-weight: 620; }
+
+/* The devices: a window and a phone, each a screen of its own size, scaled to fit (--s). */
+.device { margin: 0; min-width: 0; }
+.device figcaption { margin-top: 10px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px 8px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+.addr { max-width: 100%; padding: 2px 8px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font: 500 11.5px/1.6 var(--mono); overflow-wrap: anywhere; }
+.fit { position: relative; width: 100%; height: calc(var(--h) * var(--s, 1) * 1px); }
+.screen { position: absolute; left: 0; top: 0; width: calc(var(--w) * 1px); height: calc(var(--h) * 1px); transform: scale(var(--s, 1)); transform-origin: 0 0; overflow: hidden; }
+.desk .fit { --w: 1280; --h: 800; }
+.desk .frame { border-radius: 12px; background: var(--device); padding: 0 6px 6px; box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.desk .chrome { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; min-width: 0; }
+.desk .chrome i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255, 255, 255, .22); flex: none; }
+.desk .chrome .url { margin-left: 10px; min-width: 0; padding: 2px 10px; border-radius: 5px; background: rgba(255, 255, 255, .08); color: rgba(255, 255, 255, .72); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk .screen { border-radius: 6px; }
+.phone .fit { --w: 390; --h: 844; }
+.phone .frame { padding: 9px; border-radius: 48px; background: var(--device); box-shadow: var(--shadow-device), 0 0 0 1px var(--device-ring); }
+.phone .screen { border-radius: 39px; }
+
+/* ---------- Betula inside the devices ---------- */
+.app { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-size: 13.5px; line-height: 1.45; text-align: left; }
+.app svg.i { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.app kbd { display: inline-block; padding: 0 5px; border-radius: var(--r-s); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3); font: 500 10.5px/18px var(--mono); }
+.app button { cursor: pointer; }
+.app .mono { font-family: var(--mono); }
+.scr { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+.scr::-webkit-scrollbar, .sheet-body::-webkit-scrollbar, .ppage-body::-webkit-scrollbar { display: none; }
+
+/* The desktop's frame: the rail, the top bar with the search, the page. */
+.d-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 12px; z-index: 3; }
+.d-rail .logo { width: 38px; height: 38px; border-radius: 11px; background: var(--invert); color: var(--on-invert); display: grid; place-items: center; margin-bottom: 10px; }
+.d-rail .logo svg.i { width: 20px; height: 20px; }
+.d-rail .ri { position: relative; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; color: var(--text-2); }
+.d-rail .ri.on { background: var(--invert); color: var(--on-invert); }
+.d-rail .ri svg.i { width: 18px; height: 18px; }
+.badge { position: absolute; top: 2px; right: 1px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--invert); color: var(--on-invert); box-shadow: 0 0 0 2px var(--bg); font-size: 9.5px; font-weight: 700; line-height: 15px; text-align: center; }
+.d-rail .ri.on .badge { background: var(--panel); color: var(--text); }
+.d-rail .fill { flex: 1; }
+.d-top { position: absolute; left: 52px; right: 0; top: 0; height: 56px; display: flex; align-items: center; gap: 18px; padding: 0 20px; z-index: 3; }
+.d-top .brand { min-width: 268px; font-size: 18px; font-weight: 780; letter-spacing: -.02em; }
+.d-top .brand small { margin-left: 6px; font-size: 12.5px; font-weight: 500; letter-spacing: 0; color: var(--text-3); }
+.search { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-3); font-size: 14px; }
+.d-top .search { width: 560px; }
+.d-top .search .cmd { margin-left: auto; display: flex; align-items: center; gap: 5px; padding-left: 12px; box-shadow: inset 1px 0 0 var(--line); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.d-main { position: absolute; left: 60px; right: 8px; top: 60px; bottom: 8px; overflow-y: auto; overflow-x: hidden; border-radius: var(--r-panel); scrollbar-width: none; }
+.d-main::-webkit-scrollbar { display: none; }
+
+/* The phone's frame: the status bar, the bar at the foot. */
+.p-status { position: absolute; left: 0; right: 0; top: 0; height: 47px; z-index: 60; display: flex; align-items: center; justify-content: space-between; padding: 8px 30px 0 36px; color: var(--text); font-size: 15.5px; font-weight: 650; pointer-events: none; font-variant-numeric: tabular-nums; }
+.p-status.on-photo { color: var(--photo-ink); }
+.p-status .bat { display: flex; gap: 6px; align-items: center; }
+.p-status .bat i { display: block; width: 24px; height: 12px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px currentColor; position: relative; }
+.p-status .bat i::after { content: ""; position: absolute; inset: 2.5px 6px 2.5px 2.5px; border-radius: 2px; background: currentColor; }
+.p-nav { position: absolute; left: 10px; right: 10px; bottom: 12px; height: 64px; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; padding: 6px; border-radius: 22px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-pop); }
+.p-nav span { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 16px; color: var(--text-2); font-size: 10.5px; font-weight: 560; }
+.p-nav span svg.i { width: 20px; height: 20px; }
+.p-nav span.on { background: var(--invert); color: var(--on-invert); }
+.p-nav .badge { top: 3px; right: 16px; }
+.p-top { display: flex; gap: 8px; padding: 54px 12px 0; }
+.p-top .search { flex: 1; height: 46px; font-size: 15px; }
+.p-top .me { width: 46px; height: 46px; border-radius: var(--r-ctl); display: grid; place-items: center; background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text); }
+
+/* The start page: the photo with the day, the card of what comes next, the day, the week, the exams. */
+.photo { position: relative; background: var(--photo); color: var(--photo-ink); }
+.h-kick { font-size: 12.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; opacity: .92; }
+.h-greet { margin-top: 4px; font-size: 40px; line-height: 1.04; font-weight: 800; letter-spacing: -.035em; }
+.h-say { margin-top: 6px; font-size: 15px; opacity: .95; }
+.clock { margin-top: 16px; }
+.clock .weeks { display: flex; gap: 3px; align-items: flex-end; }
+.clock .weeks i { flex: 1 1 0; height: 9px; border-radius: 3px; background: rgba(255, 255, 255, .78); }
+.clock .weeks i.fut { background: rgba(255, 255, 255, .3); }
+.clock .weeks i.brk { background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .55); }
+.clock .weeks i.now { flex: 3 1 0; height: 16px; background: linear-gradient(90deg, #fff 42%, rgba(255, 255, 255, .4) 42%); }
+.clock .weeks i.ex { flex: 2.6 1 0; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .6) 0 3px, transparent 3px 6px); }
+.clock .lbl { margin-top: 6px; display: flex; justify-content: space-between; font-size: 11.5px; opacity: .92; }
+.next { display: block; width: 100%; padding: 16px 18px 16px; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--panel) 93%, transparent); box-shadow: var(--shadow-pop); color: var(--text); text-align: left; }
+.next:hover { background: var(--panel); }
+.next .k { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.next .k .soon { color: var(--accent-ink); }
+.next .big { margin-top: 8px; display: flex; align-items: baseline; gap: 10px; }
+.next .big b { font-size: 34px; line-height: 1; font-weight: 780; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.next .big span { font: 700 16px var(--mono); color: var(--accent-ink); }
+.next .what { margin-top: 8px; font-size: 15.5px; font-weight: 650; line-height: 1.3; }
+.next .ch { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.next .cur-ring { box-shadow: var(--shadow-pop), 0 0 0 2px var(--text); }
+.next.cur { box-shadow: var(--shadow-pop), 0 0 0 2px var(--text); }
+.card { border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); padding: 14px 14px 12px; }
+.card-h { display: flex; align-items: baseline; gap: 8px; padding: 2px 4px 8px; }
+.card-h b { font-size: 16px; font-weight: 700; }
+.card-h small { color: var(--text-3); font-size: 12.5px; }
+.card-h .go { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--accent-ink); font-size: 13px; font-weight: 600; }
+.card-h .go svg.i { width: 14px; height: 14px; }
+.drow { display: grid; grid-template-columns: 50px 4px minmax(0, 1fr) auto; gap: 0 12px; align-items: start; width: 100%; padding: 9px 6px; border: 0; border-radius: 9px; background: none; color: var(--text); text-align: left; }
+.drow:hover { background: var(--row-hover); }
+.drow .tt { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.drow .tt small { display: block; color: var(--text-3); font-size: 13px; font-weight: 500; }
+.drow .bar { align-self: stretch; border-radius: 2px; background: var(--mc); }
+.drow .tx { min-width: 0; }
+.drow .tx b { display: block; font-size: 14px; font-weight: 640; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drow .tx small { display: flex; align-items: center; gap: 5px; margin-top: 2px; color: var(--text-2); font-size: 12.5px; }
+.drow .tx small svg.i { width: 13px; height: 13px; color: var(--text-3); }
+.drow .tx small s { color: var(--text-3); }
+.drow .chip { align-self: center; }
+.drow.cur, .exrow.cur { background: var(--row-hover); box-shadow: inset 0 0 0 1.5px var(--text); }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 620; white-space: nowrap; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.no { background: var(--no-soft); color: var(--no); }
+.chip.ok { background: var(--accent-soft); color: var(--accent-ink); }
+.empty { padding: 4px 6px 6px; color: var(--text-2); font-size: 13.5px; }
+.mweek { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 0 2px; }
+.mweek .dh { display: flex; justify-content: space-between; padding: 0 2px 4px; font-size: 11.5px; font-weight: 650; color: var(--text-2); }
+.mweek .dh small { color: var(--text-3); font-weight: 500; }
+.mweek .col { display: flex; flex-direction: column; gap: 4px; min-height: 96px; padding: 6px 5px; border-radius: 9px; background: var(--panel-2); }
+.mweek .col.past { opacity: .55; }
+.mweek .col.today { box-shadow: inset 0 0 0 1.5px var(--accent-line); }
+.mweek .bb { display: block; width: 100%; height: 9px; padding: 0; border: 0; border-radius: 3px; background: var(--mc); }
+.mweek .bb.cancel { background: repeating-linear-gradient(135deg, var(--mc) 0 3px, transparent 3px 6px); }
+.mweek .bb:hover { outline: 2px solid var(--text); outline-offset: 1px; }
+.mweek .bb.cur { outline: 2px solid var(--text); outline-offset: 1px; }
+.exrow { display: grid; grid-template-columns: 50px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; padding: 8px 6px; border: 0; border-radius: 9px; background: none; color: var(--text); text-align: left; }
+.exrow:hover { background: var(--row-hover); }
+.dt { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); line-height: 1; }
+.dt b { font-size: 19px; font-weight: 760; font-variant-numeric: tabular-nums; }
+.dt small { margin-top: -10px; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.exrow .tx { min-width: 0; }
+.exrow .tx b { display: block; font-size: 14px; font-weight: 640; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exrow .tx small { color: var(--text-2); font-size: 12.5px; }
+.exrow .in { font-size: 13px; font-weight: 640; color: var(--text-2); white-space: nowrap; }
+
+/* The Stundenplan's week: the plan of a week, A and B side by side. */
+.sp-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sp-head h2 { font-size: 20px; font-weight: 740; letter-spacing: -.02em; }
+.sp-head h2 span { color: var(--text-3); font-weight: 600; }
+.sp-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--panel-3); }
+.sp-seg span { height: 28px; padding: 0 11px; display: grid; place-items: center; border-radius: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.sp-seg span.on { background: var(--panel); color: var(--text); box-shadow: var(--seg-shadow); }
+.sp-sub { margin-top: 4px; color: var(--text-2); font-size: 13px; }
+.wk { position: relative; display: grid; grid-template-columns: 30px repeat(5, minmax(0, 1fr)); margin-top: 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); padding: 4px 6px 8px 0; }
+.wk .dn { padding: 6px 0 8px; text-align: center; color: var(--text-2); font-size: 12px; font-weight: 650; }
+.wk .hrs { position: relative; grid-column: 1; }
+.wk .hrs span { position: absolute; right: 6px; translate: 0 -50%; color: var(--text-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.wk .col { position: relative; border-left: 1px solid var(--line); background-image: repeating-linear-gradient(180deg, var(--line) 0 1px, transparent 1px var(--hh)); }
+.slot { position: absolute; top: calc(var(--t) * 1px); height: calc(var(--d) * 1px); left: calc(var(--lane) * 100% / var(--lanes) + 2px); width: calc(100% / var(--lanes) - 4px); display: block; padding: 4px 6px; overflow: hidden; border: 0; border-radius: 6px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 55%, transparent), inset 3px 0 0 var(--mc); color: var(--text); font-size: 10.5px; line-height: 1.28; text-align: left; }
+.slot b { display: block; font-size: 11px; font-weight: 720; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot span { display: block; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot .ab { position: absolute; top: 3px; right: 4px; padding: 0 4px; border-radius: 4px; background: var(--panel); color: var(--text-2); font-size: 9.5px; font-weight: 700; }
+.slot.once { box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 55%, transparent); background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--mc) 18%, var(--panel)) 0 6px, color-mix(in oklab, var(--mc) 9%, var(--panel)) 6px 12px); }
+.slot:hover { filter: brightness(.97); }
+.slot.cur { z-index: 2; box-shadow: inset 3px 0 0 var(--mc), 0 0 0 2px var(--text); }
+.p-week .wk { margin: 10px 8px 0; padding-right: 4px; }
+.p-week .slot { padding: 3px 4px; font-size: 9.5px; }
+.p-week .slot b { font-size: 10px; white-space: normal; }
+.p-week .slot .ab { display: none; }
+.mods { display: flex; flex-direction: column; gap: 2px; }
+.mods .m { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 10px; border-radius: 8px; }
+.mods .m b { font-size: 13.5px; font-weight: 640; line-height: 1.3; }
+.mods .m small { display: flex; align-items: center; gap: 6px; color: var(--text-3); font: 500 11.5px var(--mono); }
+.mods .m .lp { grid-row: 1 / span 2; grid-column: 2; font-weight: 720; font-size: 15px; }
+.mods .m .lp small { font: 500 11px var(--font); color: var(--text-3); display: inline; }
+.abbr { display: inline-flex; align-items: center; height: 19px; padding: 0 6px; border-radius: 5px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 2px 0 0 var(--mc); color: var(--text); font: 600 10.5px var(--mono); }
+
+/* ---------- The Termin: one building block in every size ---------- */
+.tm { display: flex; flex-direction: column; gap: 14px; padding: 4px 18px 22px; }
+.tm-head { display: flex; flex-direction: column; gap: 4px; }
+.tm-top { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.tm-mod { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: color-mix(in oklab, var(--mc) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--mc) 45%, transparent); color: var(--text); font: 600 11.5px var(--mono); }
+.tm-mod i { width: 8px; height: 8px; border-radius: 50%; background: var(--mc); }
+.tm-kind { min-width: 0; color: var(--text-2); font-size: 13px; font-weight: 560; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-tools { margin-left: auto; display: flex; gap: 4px; align-items: center; flex: none; }
+.ib { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); }
+.ib:hover { background: var(--panel-3); }
+.ib[disabled] { opacity: .35; cursor: default; }
+.ib.x { width: 34px; height: 34px; border-radius: 50%; background: var(--panel-3); box-shadow: none; }
+.tb { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--text-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.tb:hover { background: var(--row-hover); color: var(--text); }
+.tb svg.i { width: 15px; height: 15px; }
+.tm-title { margin-top: 2px; font-size: 21px; line-height: 1.18; letter-spacing: -.022em; font-weight: 740; }
+.tm-sub { color: var(--text-2); font-size: 13px; }
+.tm-when { margin-top: 6px; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -.005em; }
+.tm-rel { color: var(--text-2); font-size: 13px; }
+.tm-rel .soon { color: var(--accent-ink); font-weight: 650; }
+.tm-rel .live { color: var(--no); font-weight: 650; }
+.tm-alert { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; padding: 11px 12px; border-radius: 10px; background: var(--warn-soft); box-shadow: inset 0 0 0 1px var(--warn-line); color: var(--text); font-size: 13.5px; }
+.tm-alert > svg.i { margin-top: 2px; color: var(--warn); width: 17px; height: 17px; }
+.tm-alert b { font-weight: 680; }
+.tm-alert p { margin-top: 3px; color: var(--text-2); font-size: 12.5px; text-wrap: pretty; }
+.tm-alert.no { background: var(--no-soft); box-shadow: inset 0 0 0 1px var(--no-line); }
+.tm-alert.no > svg.i { color: var(--no); }
+.tm-alert.info { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.tm-alert.info > svg.i { color: var(--text-3); }
+.tm-place { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: center; }
+.tm-place .room { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; font: 700 26px/1.1 var(--mono); letter-spacing: -.015em; }
+.tm-place .room s { font-size: 14px; font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+.tm-place p { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.tm-place p svg.i { width: 14px; height: 14px; color: var(--text-3); }
+.mini { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border: 0; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.mini:hover { background: var(--row-hover); }
+.mini svg.i { width: 13px; height: 13px; }
+.tm-facts { margin: 0; display: grid; gap: 9px; }
+.tm-facts > div { display: grid; grid-template-columns: 102px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.tm-facts dt { font-size: 10.5px; font-weight: 680; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.tm-facts dd { margin: 0; min-width: 0; font-size: 13.5px; }
+.tm-facts dd small { display: block; color: var(--text-3); font-size: 12px; }
+.tm-facts dd .mini { margin-top: 6px; }
+.opts { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.opt { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 2px 9px; align-items: center; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; color: var(--text); }
+.opt:hover { background: var(--row-hover); }
+.opt .rd { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.opt[aria-checked="true"] .rd { box-shadow: inset 0 0 0 5px var(--accent); }
+.opt b { font-size: 12.5px; font-weight: 640; font-variant-numeric: tabular-nums; }
+.opt small { grid-column: 2; color: var(--text-3); font-size: 11.5px; }
+.opt .fitn { grid-row: 1 / span 2; grid-column: 3; }
+.tm-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 620; white-space: nowrap; }
+.btn:hover { background: var(--row-hover); }
+.btn svg.i { width: 15px; height: 15px; }
+.btn.primary { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.btn.primary:hover { background: color-mix(in oklab, var(--invert) 88%, var(--panel)); }
+.btn kbd { margin-left: 2px; }
+.tm-sec { padding-top: 14px; border-top: 1px solid var(--line); }
+.tm-sec h4 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-2); }
+.tm-sec h4 small { font-size: 12px; font-weight: 520; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.tm-sec > p { margin-top: 8px; color: var(--text-2); font-size: 13px; text-wrap: pretty; }
+.tm-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 36px; border: 0; border-radius: 9px; background: var(--panel-2); color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.tm-more svg.i { width: 15px; height: 15px; }
+/* The day around it. */
+.dayl { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+.dayl .it { display: grid; grid-template-columns: 52px 3px minmax(0, 1fr); gap: 10px; align-items: start; width: 100%; padding: 7px 6px; border: 0; border-radius: 8px; background: none; color: var(--text); text-align: left; font-size: 13px; }
+.dayl button.it:hover { background: var(--row-hover); }
+.dayl .it .t { font-weight: 620; font-variant-numeric: tabular-nums; line-height: 1.35; }
+.dayl .it .t small { display: block; color: var(--text-3); font-weight: 500; font-size: 12px; }
+.dayl.ex .it { grid-template-columns: 70px 3px minmax(0, 1fr); }
+.dayl.ex .gap { padding-left: 99px; }
+.dayl .it .bar { align-self: stretch; border-radius: 2px; background: var(--mc); }
+.dayl .it .w { min-width: 0; }
+.dayl .it .w small { display: block; color: var(--text-2); font-size: 12px; }
+.dayl .it.me { background: var(--row-hover); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.dayl .it.gone { color: var(--text-3); }
+.dayl .it.gone .w b { text-decoration: line-through; }
+.dayl .gap, .dayl .now { padding: 1px 6px 1px 81px; color: var(--text-3); font-size: 12px; }
+.dayl .now { color: var(--no); font-weight: 650; }
+/* Every date of the Termin. */
+.days { margin-top: 10px; display: grid; gap: 6px; }
+.days .mo { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; }
+.days .mo > span { font-size: 11.5px; font-weight: 650; color: var(--text-3); }
+.days .ds { display: flex; flex-wrap: wrap; gap: 5px; }
+.dc { position: relative; min-width: 34px; height: 30px; padding: 0 6px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); font: 620 12.5px var(--font); font-variant-numeric: tabular-nums; }
+.dc:hover { box-shadow: inset 0 0 0 1px var(--text-3); }
+.dc.past { background: transparent; color: var(--text-3); }
+.dc.today::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.dc.room { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.dc.cancel, .dc.brk { color: var(--text-3); text-decoration: line-through; background: repeating-linear-gradient(135deg, var(--panel-2) 0 4px, transparent 4px 8px); box-shadow: inset 0 0 0 1px var(--line); }
+.dc.sel { background: var(--invert); color: var(--on-invert); box-shadow: none; text-decoration: none; }
+.dc.sel.today::after { background: var(--on-invert); }
+.legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--text-3); font-size: 11.5px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.legend i.room { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.legend i.brk { background: repeating-linear-gradient(135deg, var(--panel-3) 0 2px, transparent 2px 4px); }
+.legend i.today { background: var(--accent); box-shadow: none; width: 6px; height: 6px; border-radius: 50%; }
+/* The module and its exam. */
+.modc { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.modc b { display: block; font-size: 14px; font-weight: 650; line-height: 1.3; }
+.modc > div small { display: flex; align-items: center; gap: 6px; margin-top: 3px; color: var(--text-3); font: 500 11.5px var(--mono); }
+.exl { grid-column: 1 / -1; display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: center; width: 100%; padding: 8px; border: 0; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; }
+.exl:hover { background: var(--row-hover); }
+.exl .dt { background: var(--panel); }
+.exl b { font-size: 13.5px; }
+.exl small { display: block; color: var(--text-2); font-size: 12px; }
+.qnote { margin-top: 8px; padding: 10px 12px; border-radius: 9px; background: var(--panel-2); color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
+.qnote q { quotes: "„" "“"; }
+/* The page: the same block in two columns. */
+.tm.page { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px 40px; padding: 22px 34px 40px; }
+.tm.page > .tm-head { grid-column: 1 / -1; }
+.tm.page .tm-title { font-size: 28px; }
+.tm.page .tm-when { font-size: 18px; }
+.tm .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.tm.page .col + .col > .tm-sec:first-child { padding-top: 0; border-top: 0; }
+.crumb { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; font-weight: 600; }
+.crumb button { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 8px 0 4px; border: 0; border-radius: 7px; background: none; color: var(--accent-ink); font-weight: 600; }
+.crumb button:hover { background: var(--row-hover); }
+
+/* Over the page: shade, sheet, panel, card, page, dialog. */
+.shade { position: absolute; inset: 0; z-index: 40; width: 100%; padding: 0; border: 0; background: var(--backdrop); animation: fade .2s var(--ease); cursor: default; }
+.catch { position: absolute; inset: 0; z-index: 40; width: 100%; padding: 0; border: 0; background: transparent; cursor: default; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 41; display: flex; flex-direction: column; background: var(--panel); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-pop); transition: top .3s var(--ease), border-radius .3s var(--ease); animation: rise .28s var(--ease); }
+.sheet.half { top: 318px; }
+.sheet.full { top: 0; border-radius: 0; padding-top: 44px; }
+.sheet.day { top: 58px; }
+.grab { flex: none; position: relative; display: block; width: 100%; height: 22px; padding: 0; border: 0; background: none; }
+.grab::before { content: ""; position: absolute; left: 50%; top: 8px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--line-strong); }
+.sheet-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-bottom: 30px; }
+.dpanel { position: absolute; top: 62px; right: 10px; bottom: 10px; width: 430px; z-index: 41; display: flex; flex-direction: column; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); animation: slide-l .26s var(--ease); }
+.dpanel .sheet-body { padding-top: 10px; }
+.ppage { position: absolute; inset: 0; z-index: 41; display: flex; flex-direction: column; background: var(--panel); animation: push .26s var(--ease); }
+.ppage.up { animation: rise .3s var(--ease); }
+.ppage-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 50px 10px 8px; border-bottom: 1px solid var(--line); background: var(--panel); }
+.ppage-bar .ttl { min-width: 0; flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.2; }
+.ppage-bar .ttl b { font-size: 14.5px; font-weight: 700; }
+.ppage-bar .ttl small { color: var(--text-3); font-size: 12px; }
+.ppage-bar .back { display: inline-flex; align-items: center; gap: 2px; height: 34px; padding: 0 8px 0 2px; border: 0; border-radius: 8px; background: none; color: var(--accent-ink); font-size: 15px; font-weight: 600; }
+.ppage-body { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; padding-top: 12px; }
+.pcard { position: absolute; left: 8px; right: 8px; bottom: 10px; z-index: 41; border-radius: 26px; background: var(--panel); box-shadow: var(--shadow-pop); animation: rise .24s var(--ease); }
+.pcard .grab { height: 18px; }
+.pop { position: absolute; z-index: 41; width: 360px; border-radius: 12px; background: var(--panel); box-shadow: var(--shadow-pop); animation: fade .16s var(--ease); }
+.kcard { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 16px; }
+.kcard .tm-title { font-size: 18px; }
+.kcard .tm-when { margin-top: 2px; font-size: 15px; }
+.kline { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13.5px; }
+.kline .room { font: 700 18px var(--mono); }
+.kline small { color: var(--text-2); font-size: 12.5px; }
+.kline .lead { color: var(--text-2); }
+.kacts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.kacts .btn { min-height: 40px; }
+.dlg { position: absolute; left: 50%; top: 50%; z-index: 41; width: 1000px; height: 680px; translate: -50% -50%; display: grid; grid-template-rows: auto minmax(0, 1fr); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; animation: fade .2s var(--ease); }
+.dlg-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px 22px; border-bottom: 1px solid var(--line); }
+.dlg-head .tt { min-width: 0; flex: 1; }
+.dlg-head .tt b { display: block; font-size: 18px; font-weight: 730; letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dlg-head .tt small { color: var(--text-2); font-size: 13px; }
+.dlg-body { display: grid; grid-template-columns: 340px minmax(0, 1fr); min-height: 0; }
+.dlg-body > .ser-wrap { border-right: 1px solid var(--line); }
+.dlg-body .sheet-body, .ser-wrap { position: relative; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.dpage { position: absolute; left: 60px; right: 8px; top: 60px; bottom: 8px; z-index: 30; overflow-y: auto; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); animation: fade .2s var(--ease); scrollbar-width: thin; }
+.dpage .crumb { padding: 16px 30px 0; }
+.dpage.split { display: grid; grid-template-columns: 360px minmax(0, 1fr); overflow: hidden; }
+.dpage.split > .ser-wrap, .dpage.split > .day-wrap { border-right: 1px solid var(--line); overflow-y: auto; }
+.dpage.split > .sheet-body { overflow-y: auto; }
+/* C: the series as a list. */
+.ser { margin: 0; padding: 4px 10px 20px; list-style: none; }
+.ser .mh { padding: 14px 8px 6px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.ser .r { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 9px 8px; border: 0; border-radius: 9px; background: none; color: var(--text); text-align: left; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.ser .r:hover { background: var(--row-hover); }
+.ser .r .d { font-weight: 650; }
+.ser .r .w { min-width: 0; color: var(--text-2); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ser .r.past { color: var(--text-3); }
+.ser .r.past .w { color: var(--text-3); }
+.ser .r.cancel .d, .ser .r.brk .d { text-decoration: line-through; color: var(--text-3); }
+.ser .r.sel { background: var(--invert); color: var(--on-invert); }
+.ser .r.sel .w { color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
+.ser .r.sel .chip { background: color-mix(in srgb, var(--on-invert) 16%, transparent); color: var(--on-invert); }
+.ser .open { margin: 6px 0 10px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel), inset 4px 0 0 var(--mc); }
+.ser .open .tm { padding: 14px 16px 16px 18px; gap: 12px; }
+.ser .brkrow { padding: 8px 8px 8px 94px; color: var(--text-3); font-size: 12.5px; }
+.ser-foot { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; padding: 10px 12px 28px; border-top: 1px solid var(--line); background: var(--panel); }
+.ser-foot .btn { min-height: 42px; }
+.ser-head { padding: 14px 18px 4px; }
+.ser-head .tm-top { min-height: 0; }
+.ser-head h3 { margin-top: 6px; font-size: 19px; line-height: 1.2; letter-spacing: -.02em; font-weight: 740; }
+.ser-head p { margin-top: 4px; color: var(--text-2); font-size: 13px; }
+/* D: the day as a list. */
+.dhead { display: flex; align-items: center; gap: 8px; padding: 2px 14px 10px; }
+.dhead .tt { flex: 1; min-width: 0; text-align: center; line-height: 1.2; }
+.dhead .tt b { display: block; font-size: 17px; font-weight: 730; letter-spacing: -.015em; }
+.dhead .tt small { color: var(--text-3); font-size: 12.5px; }
+.dlist { margin: 0; padding: 0 12px 24px; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.dlist .now { display: flex; align-items: center; gap: 8px; padding: 2px 4px; color: var(--no); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dlist .now::after { content: ""; flex: 1; height: 2px; border-radius: 1px; background: var(--no); }
+.dlist .gap { display: flex; align-items: center; gap: 6px; padding: 2px 6px 2px 66px; color: var(--text-3); font-size: 12.5px; }
+.dlist .gap svg.i { width: 14px; height: 14px; }
+.dlist .row { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 12px; align-items: start; width: 100%; padding: 11px 12px; border: 0; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--mc); color: var(--text); text-align: left; }
+.dlist .row:hover { background: var(--row-hover); }
+.dlist .row .t { font-weight: 680; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.dlist .row .t small { display: block; color: var(--text-3); font-weight: 500; }
+.dlist .row b { display: block; font-size: 14px; font-weight: 650; }
+.dlist .row small { color: var(--text-2); font-size: 12.5px; }
+.dlist .row.gone b { text-decoration: line-through; color: var(--text-3); }
+.dlist .row.sel { background: var(--invert); color: var(--on-invert); box-shadow: inset 4px 0 0 var(--mc); }
+.dlist .row.sel small, .dlist .row.sel .t small { color: color-mix(in srgb, var(--on-invert) 72%, transparent); }
+.dlist .open { border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel), inset 4px 0 0 var(--mc); }
+.dlist .open .tm { padding: 12px 16px 16px 18px; gap: 12px; }
+.dlist .end { padding: 6px 6px 2px 66px; color: var(--text-3); font-size: 12.5px; }
+.dpanel .dhead { padding-top: 12px; }
+
+/* A note in the device that goes away by itself. */
+.toast { position: absolute; z-index: 70; left: 50%; bottom: 92px; translate: -50% 0; width: max-content; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: 12px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-pop); font-size: 13px; animation: rise .22s var(--ease); }
+.desk-app .toast { bottom: 24px; }
+@keyframes rise { from { transform: translateY(24px); opacity: 0; } }
+@keyframes push { from { transform: translateX(30px); opacity: 0; } }
+@keyframes slide-l { from { transform: translateX(24px); opacity: 0; } }
+@keyframes fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .app *, .app { animation: none !important; transition: none !important; } }
+
+/* The address. */
+.addrs { margin-top: 18px; display: grid; gap: 10px; }
+.addrs > div { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 6px 22px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.addrs code { display: inline-block; font-size: 13px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.addrs b { display: block; margin-bottom: 4px; font-weight: 650; }
+.addrs p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+
+/* Comparison, recommendation, questions. */
+.t-cmp { min-width: 820px; }
+.t-cmp tbody th { width: 19%; }
+.t-cmp td { width: 20%; }
+.reco { padding: 24px; border-radius: 16px; background: var(--invert); color: var(--on-invert); box-shadow: var(--shadow-panel); scroll-margin-top: 110px; }
+.reco p { margin-top: 10px; max-width: 80ch; color: color-mix(in srgb, var(--on-invert) 82%, transparent); text-wrap: pretty; }
+.reco p b { color: var(--on-invert); }
+.reco ol { margin: 14px 0 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; max-width: 86ch; color: color-mix(in srgb, var(--on-invert) 82%, transparent); }
+.reco ol b { color: var(--on-invert); font-weight: 650; }
+.reco code { background: color-mix(in srgb, var(--on-invert) 12%, transparent); color: var(--on-invert); }
+.qs { margin: 16px 0 0; padding: 0; list-style: none; counter-reset: q; display: grid; gap: 12px; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 12px; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.qs li::before { content: counter(q); grid-row: 1 / span 2; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); font-size: 13px; font-weight: 700; }
+.qs b { font-weight: 650; }
+.qs p { color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.qs p em { font-style: normal; color: var(--accent-ink); font-weight: 600; }
+.nots { margin: 14px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--text-2); }
+.nots b { color: var(--text); font-weight: 620; }
+.foot { color: var(--text-3); font-size: 13px; text-align: center; }
+
+@media (max-width: 1080px) {
+  .stage { grid-template-columns: minmax(0, 1fr) 280px; }
+  .anat { grid-template-columns: 380px minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .stage { grid-template-columns: minmax(0, 1fr); padding: 22px 16px; }
+  .stage .phone { order: -1; justify-self: center; width: min(340px, 100%); }
+  .c-head { padding: 18px 16px 12px; }
+  .c-ctl { padding: 0 16px 14px; }
+  .c-notes { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 20px; }
+  .anat { grid-template-columns: minmax(0, 1fr); }
+  .paper { position: static; max-width: 410px; width: 100%; justify-self: center; }
+  .shots { grid-template-columns: minmax(0, 1fr); }
+  .shots .tall { max-width: 320px; justify-self: center; }
+  .sec { padding: 20px 16px 22px; }
+  .addrs > div { grid-template-columns: minmax(0, 1fr); }
+  .setbar .jump { margin-left: 0; }
+  .reco { padding: 20px 16px; }
+}
+@media (max-width: 560px) {
+  .setbar { flex-wrap: nowrap; overflow-x: auto; gap: 12px; padding: 8px 10px; scrollbar-width: none; }
+  .setbar::-webkit-scrollbar { display: none; }
+  .setbar .group, .seg { flex-wrap: nowrap; flex: none; }
+  .setbar .jump { display: none; }
+  .seg button small { display: none; }
+  .seg button { padding: 0 9px; font-size: 12.5px; }
+}
+</style>
+
+<div class="page">
+  <header class="intro">
+    <div>
+      <p class="kicker">Betula · Konzepte · 24.10.2026</p>
+      <h1>Ein Tipp auf einen Termin zeigt den Termin</h1>
+      <p class="lead">Heute führt ein Termin ins Modul oder nach QIS, und was nur an diesem Tag gilt, bleibt unterwegs liegen. Hier sind vier Wege, den Termin selbst zu zeigen: am Handy als Modal über der Seite, am Rechner daneben, und jedes Mal mit einer eigenen Seite, die man teilen und neu laden kann. Die Prototypen funktionieren: tippe einen Termin an. Die Daten sind echt, Informatik B.Sc. im 1. FS, WiSe 2026/27, wie betula.app sie am 21.10. hatte. Die Uhr steht auf Mittwoch, 04.11.2026, 08:40. An dem Tag ist die Übung in Diskreter Mathematik laut QIS in LG1A/304 statt in HG/0.17.</p>
+      <p class="quote">„Aktuell, wenn man drauf klickt, landet man ja entweder bei qis oder halt im stundenplan. Aber eigentlich möchte man noch relativ häufig eine <b>detailansicht vom Termin</b> haben … Auf dem Handy kann das <b>definitiv ein modal</b> sein. Aber ich glaube, es sollte auch <b>eine Seite dafür</b> geben.“</p>
+    </div>
+    <aside class="rules" aria-labelledby="rules-title">
+      <p class="kicker" id="rules-title">Was alle Konzepte gemeinsam haben</p>
+      <ol>
+        <li><span><b>Ein Tipp öffnet den Termin,</b> überall: Startseite, Stundenplan, Prüfungen, Modulseite. Modul, Stundenplan und QIS sind Knöpfe darin.</span></li>
+        <li><span><b>Erst der Tag, dann die Reihe.</b> Was nur an diesem Datum gilt, steht oben in Worten: anderer Raum, fällt aus, vorlesungsfrei.</span></li>
+        <li><span><b>Jeder Termin hat eine Seite</b> unter einer Adresse, die auf jedem Gerät dasselbe zeigt: <code>/event/148304-e4bf3/2026-11-04</code>.</span></li>
+        <li><span><b>Nur was die Daten wissen.</b> Jede Zeile kommt aus QIS oder folgt daraus; QIS' eigene Worte stehen mit „laut QIS“ da.</span></li>
+        <li><span><b>Alles ist ein Knopf.</b> ‹ › blättern zum vorigen und nächsten Datum, auch mit ← →; Esc schließt. Betulas eigene Tasten stehen neben ihrem Knopf.</span></li>
+      </ol>
+    </aside>
+  </header>
+
+  <nav class="setbar" aria-label="Einstellungen">
+    <div class="group"><span class="kicker">Termin</span>
+      <div class="seg" role="group" aria-label="Termin">
+        <button type="button" data-set="ex" data-v="raum" aria-pressed="true">Raum geändert <small>MIT1</small></button>
+        <button type="button" data-set="ex" data-v="vl" aria-pressed="false">Vorlesung <small>EvS</small></button>
+        <button type="button" data-set="ex" data-v="ab" aria-pressed="false">B-Woche <small>EEG</small></button>
+        <button type="button" data-set="ex" data-v="exam" aria-pressed="false">Prüfung <small>MIT1</small></button>
+      </div>
+    </div>
+    <div class="group"><span class="kicker">Darunter</span>
+      <div class="seg" role="group" aria-label="Seite darunter">
+        <button type="button" data-set="under" data-v="home" aria-pressed="true">Startseite</button>
+        <button type="button" data-set="under" data-v="week" aria-pressed="false">Stundenplan</button>
+      </div>
+    </div>
+    <div class="jump"><a href="#heute">Heute</a><a href="#inhalt">Inhalt</a><a href="#a">A</a><a href="#b">B</a><a href="#c">C</a><a href="#d">D</a><a href="#adresse">Adresse</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Empfehlung</a><a href="#fragen">Fragen</a></div>
+  </nav>
+
+  <section class="sec" id="heute" aria-labelledby="heute-title">
+    <h2 id="heute-title">Heute: das Modul oder QIS</h2>
+    <p class="sub">So steht es in Folia 1.44.3 (auf canary und develop). Für einen einzelnen Termin gibt es keine Ansicht und keine Adresse. Am nächsten kommt ihm das Modul neben dem Stundenplan: es zeigt alle Termine des Moduls und markiert einen, aber nicht das Datum.</p>
+    <div class="scroll">
+      <table class="t-today">
+        <thead><tr><th scope="col">Wo</th><th scope="col">Ein Tipp führt</th><th scope="col">Was dabei verloren geht</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Startseite · „Als Nächstes“</th><td>Die Karte selbst ist kein Link. <b>„Modul ansehen“</b> öffnet den Stundenplan mit dem Modul daneben, <b>„Stundenplan“</b> den Stundenplan.</td><td>Welcher Termin es war: das Modul öffnet oben, keiner ist markiert.</td></tr>
+          <tr><th scope="row">Startseite · „Heute“, „Am Montag“</th><td>Jede Zeile öffnet den Stundenplan mit dem Modul daneben, <code>/studyplan?open=11112</code>.</td><td>Das Datum und sein Hinweis. „findet in LG1A/304 statt“ steht an der Zeile, im Modul nicht mehr.</td></tr>
+          <tr><th scope="row">Startseite · „Diese Woche“</th><td>Nichts. Die Balken sind ein Bild; nur „Woche →“ führt in den Stundenplan.</td><td>Welcher Balken was ist.</td></tr>
+          <tr><th scope="row">Startseite · „Prüfungen“</th><td>Den Stundenplan in der Ansicht Prüfungen, das Modul daneben.</td><td>Welche Prüfung; ihre Uhrzeit steht dort in einer Zeile unter vielen.</td></tr>
+          <tr><th scope="row">Stundenplan · Woche, Liste, Alle Termine, Prüfungen</th><td>Das Modul daneben, am Handy als Sheet; der Termin darin markiert, <code>&amp;row=148304-e4bf3</code>.</td><td>Was nur an diesem Datum gilt. Ausfallgrund und Raumhinweis stehen nur im Tooltip und in „Alle Termine“.</td></tr>
+          <tr><th scope="row">Modulseite · Termine, Prüfungstermine</th><td><b>QIS</b>, im selben Tab.</td><td>Betula selbst. Die Ausfälle fragt die Modulseite gar nicht ab.</td></tr>
+          <tr><th scope="row">Modulseite · Wochenbild</th><td>Klappt die Zeile des Termins in der Liste darunter auf.</td><td>Nichts; das bleibt.</td></tr>
+          <tr><th scope="row">Kalender, .ics und Abo</th><td>Der Link jedes Eintrags führt nach QIS.</td><td>Betulas Sicht auf den Termin.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="shots">
+      <figure><img src="bilder/heute-stundenplan.webp" width="1100" height="844" alt="Der Stundenplan am Rechner, rechts das Modul Mathematik IT-1 mit seinen Terminen: unter Übung „Mi 04.11. 09:15–10:45 · LG1A/304 · einmalig“ und darunter „Mi 09:15–10:45 · HG/0.17 · A/B, 14 Termine · 1 fällt aus“." loading="lazy"><figcaption><b>Am Rechner:</b> ein Tipp auf die Übung öffnet das ganze Modul. Dass die Übung am 04.11. umzieht, steht da in zwei Zeilen, „einmalig“ in LG1A/304 und „1 fällt aus“ in HG/0.17. Zusammensetzen muss man es selbst.</figcaption></figure>
+      <figure class="tall"><img src="bilder/heute-sheet.webp" width="780" height="1688" alt="Der Stundenplan am Handy, das Modul Mathematik IT-1 als Sheet von unten, halb hoch." loading="lazy"><figcaption><b>Am Handy:</b> dasselbe Modul als Sheet von unten, halb hoch. Das Muster gibt es also schon; nur zeigt es ein Modul, keinen Termin.</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="sec" id="inhalt" aria-labelledby="inhalt-title">
+    <h2 id="inhalt-title">Was ein Termin zeigt</h2>
+    <p class="sub">Ein Termin ist bei Betula eine Zeile aus QIS: „Mi 09:15–10:45, wöchentlich, 07.10.–27.01., HG/0.17“, mit einem Schlüssel, der bleibt, wenn QIS Zeilen umstellt (<code>148304-e4bf3</code>). Ein Datum ist ein Tag davon. Die Ansicht zeigt das Datum und darunter den Termin, zu dem es gehört. In allen vier Konzepten ist es derselbe Baustein, nur anders groß und anders gerahmt.</p>
+    <p class="sub">Alles darin steht in den Daten oder folgt aus ihnen. Was nicht drinsteht, steht auch hier nicht: kein Lageplan, keine Etage, keine Wegzeit, keine Anmeldung.</p>
+    <div class="anat">
+      <div class="paper" id="anat-paper"><div class="app" id="anat-app"></div></div>
+      <ol class="blocks" id="anat-list"></ol>
+    </div>
+  </section>
+
+  <section class="concept" id="a" aria-labelledby="a-title" data-concept="a">
+    <header class="c-head">
+      <span class="c-tag">A</span>
+      <div><h2 id="a-title">Sheet, das zur Seite wird <small>Empfehlung</small></h2><p>Ein Baustein in drei Größen, wie das Modul heute. Am Handy kommt der Termin als Sheet von unten, halb hoch, mit dem, was man unterwegs braucht: wann, wo, was heute anders ist, wer. Hochgezogen füllt er den Bildschirm und ist die Seite, mit allen Daten, dem Tag und dem Modul. Am Rechner steht derselbe Baustein neben der Woche oder der Startseite; „Ganze Seite“ öffnet ihn groß.</p></div>
+    </header>
+    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand A" data-steps="a"></div><button type="button" class="c-reset" data-reset="a">Zurücksetzen</button></div>
+    <div class="stage">
+      <figure class="device desk" data-c="a" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
+      <figure class="device phone" data-c="a" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
+    </div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: das Sheet halb hoch, am Rechner der Termin daneben.</li><li>Am Griff hochziehen oder „Alles zeigen“: ganz hoch, die Seite. Herunterziehen, × oder daneben tippen: zu.</li><li>‹ › oder ← →: das vorige und das nächste Datum, ohne zu schließen.</li><li>„Ganze Seite“ <b>V</b> am Rechner, wie „Modul ansehen“.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Nichts Neues zu lernen.</b> Halb, ganz, daneben und groß sind die vier Zustände des Moduls.</li><li>Halb hoch reicht für die Frage unterwegs, „wo muss ich hin?“; der Rest liegt einen Wisch entfernt.</li><li>Die Adresse trägt den Termin vom ersten Tipp an: Neuladen und Zurück tun, was man erwartet.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Am Rechner nimmt der Termin der Woche 430 px, wie das Modul heute.</li><li>Halb hoch muss es auswählen; ein langer Hinweis aus QIS rückt den Raum nach unten.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="b" aria-labelledby="b-title" data-concept="b">
+    <header class="c-head">
+      <span class="c-tag">B</span>
+      <div><h2 id="b-title">Karte, dann Seite</h2><p>Erst eine kurze Karte, alles andere auf einer Seite. Am Handy kommt eine Karte von unten, nur so hoch wie ihr Inhalt: Zeit, Raum, was anders ist, wer, und „Details“. Am Rechner steht dieselbe Karte am angetippten Termin, wie in einem Kalender; die Woche bewegt sich nicht. „Details“ öffnet die Seite, am Handy von rechts, am Rechner an Stelle der Seite darunter.</p></div>
+    </header>
+    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand B" data-steps="b"></div><button type="button" class="c-reset" data-reset="b">Zurücksetzen</button></div>
+    <div class="stage">
+      <figure class="device desk" data-c="b" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
+      <figure class="device phone" data-c="b" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
+    </div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: die Karte. Daneben tippen oder Esc: weg.</li><li>„Details“: die Seite des Termins, mit Zurück.</li><li>Die Karte ist eine Ebene und steht in keiner Adresse; die Seite hat eine.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Der schnellste Blick.</b> Am Rechner bleibt die Woche ganz, am Handy die Seite fast ganz sichtbar.</li><li>Die Seite kann großzügig sein: zwei Spalten, alle Daten, das Modul.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Zwei Schritte bis zu den Daten der Reihe und zum Hinweis aus QIS.</li><li>Zwei Dinge zu bauen und gleich zu halten, Karte und Seite.</li><li>Die Karte deckt am Rechner Termine daneben zu; am Handy führt „Details“ weg von der Seite darunter.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="c" aria-labelledby="c-title" data-concept="c">
+    <header class="c-head">
+      <span class="c-tag">C</span>
+      <div><h2 id="c-title">Die Reihe</h2><p>Der Termin als ein Datum seiner Reihe. Ein Tipp öffnet alle Daten von Oktober bis Januar als Liste, das angetippte offen darin: vorbei, heute, Ausfälle und Raumwechsel in Worten, die Weihnachtspause als Lücke, am Ende die Prüfung. Am Handy ist das ein Vollbild, das von unten kommt; am Rechner ein Dialog mit der Reihe links und dem Datum rechts.</p></div>
+    </header>
+    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand C" data-steps="c"></div><button type="button" class="c-reset" data-reset="c">Zurücksetzen</button></div>
+    <div class="stage">
+      <figure class="device desk" data-c="c" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
+      <figure class="device phone" data-c="c" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
+    </div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: die Reihe, das Datum offen und in der Mitte.</li><li>Ein anderes Datum antippen: es geht auf. „Früher“, „Heute“, „Später“ oder ← →.</li><li>Am Rechner: „Ganze Seite“ <b>V</b> macht aus dem Dialog die Seite.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Beantwortet, was QIS verstreut:</b> fällt etwas aus, wie oft noch, wann zum letzten Mal.</li><li>Änderungen fallen in der Liste auf, auch die kommenden.</li><li>Eine Adresse für die ganze Reihe, gut zum Teilen: „unsere Übung“.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Für den schnellen Blick zu schwer: ein Vollbild, um einen Raum zu lesen.</li><li>Am Rechner verdeckt der Dialog die Woche ganz.</li><li>Der Tag drumherum fehlt: was davor und danach ist.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="concept" id="d" aria-labelledby="d-title" data-concept="d">
+    <header class="c-head">
+      <span class="c-tag">D</span>
+      <div><h2 id="d-title">Der Tag</h2><p>Der Termin in seinem Tag. Ein Tipp öffnet den ganzen Tag als Liste, der angetippte Termin offen darin; davor und danach die anderen, dazwischen die Pausen und wo man als Nächstes hinmuss. ‹ › blättern zum Tag davor und danach. Am Handy ein Sheet fast ganz hoch, am Rechner der Tag neben der Woche.</p></div>
+    </header>
+    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand D" data-steps="d"></div><button type="button" class="c-reset" data-reset="d">Zurücksetzen</button></div>
+    <div class="stage">
+      <figure class="device desk" data-c="d" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
+      <figure class="device phone" data-c="d" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
+    </div>
+    <div class="c-notes">
+      <div><h3>So geht es</h3><ul><li>Tipp auf einen Termin: sein Tag, er selbst offen.</li><li>Einen anderen Termin des Tages antippen: er geht auf, der vorige zu.</li><li>‹ ›: der Tag davor und danach. „Seite“ zeigt Tag und Termin nebeneinander.</li></ul></div>
+      <div><h3>Gut</h3><ul><li><b>Beantwortet den Morgen:</b> wohin danach, reicht die Pause, wann ist Schluss.</li><li>Passt zu „Als Nächstes“ und „Heute“ auf der Startseite.</li></ul></div>
+      <div><h3>Schwächer</h3><ul><li>Doppelt sich mit „Heute“ und dem Tag im Stundenplan.</li><li>Die Reihe tritt zurück: Ausfälle in drei Wochen sieht man nicht.</li><li>Von der Modulseite oder einer Prüfung im März aus sagt der Tag wenig.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="sec" id="adresse" aria-labelledby="adresse-title">
+    <h2 id="adresse-title">Die Adresse</h2>
+    <p class="sub">Betulas Pfade sind englisch, <code>/catalog</code>, <code>/studyplan</code>, und unter <code>/en/…</code> dieselben. Der Schlüssel des Termins ist der, den Betula schon hat: die Veranstaltung aus QIS und fünf Zeichen für die Zeile. Er steht in Abo-Codes und Kalender-UIDs und ändert sich nicht, wenn QIS Zeilen umstellt.</p>
+    <div class="addrs">
+      <div><p><b>Die Seite eines Datums</b><code>/event/148304-e4bf3/2026-11-04</code></p><p>Was „Link kopieren“ kopiert und was man teilt. Auf jedem Gerät dieselbe Seite. Ohne JavaScript rendert sie der Server ganz.</p></div>
+      <div><p><b>Die Seite eines Termins</b><code>/event/148304-e4bf3</code></p><p>Das nächste Datum offen, nach dem letzten das letzte. Gut für Konzept C und für Links, die ein Semester lang halten.</p></div>
+      <div><p><b>Über einer Seite</b><code>/studyplan?termin=148304-e4bf3&amp;on=2026-11-04</code></p><p>A und D: am Handy das Sheet, am Rechner daneben, wie <code>open=</code> beim Modul. Schließen nimmt den Eintrag zurück, Neuladen bringt das Sheet wieder.</p></div>
+      <div><p><b>Eine Ebene</b><span class="addr">keine Adresse</span></p><p>B's Karte ist wie ein Menü: weder in der Adresse noch im Verlauf. Zurück schließt sie auf Android, Esc am Rechner.</p></div>
+      <div><p><b>Im Kalender</b><code>URL:https://betula.app/event/148304-e4bf3/2026-11-04</code></p><p>Heute zeigt der Link jedes Eintrags nach QIS. Künftig zur Seite des Datums; QIS ist dort ein Knopf.</p></div>
+      <div><p><b>Was es nicht mehr gibt</b><code>/event/148304-e4bf3/2026-11-05</code></p><p>Kein „Nicht gefunden“. Die Seite sagt, dass der Termin an dem Tag nicht stattfindet, und zeigt die Daten davor und danach. Ist der Termin aus QIS verschwunden, sagt sie das und verlinkt das Modul.</p></div>
+    </div>
+  </section>
+
+  <section class="sec" id="vergleich" aria-labelledby="cmp-title">
+    <h2 id="cmp-title">Vergleich</h2>
+    <div class="scroll">
+      <table class="t-cmp">
+        <thead><tr><th scope="col"></th><th scope="col">A Sheet, das zur Seite wird</th><th scope="col">B Karte, dann Seite</th><th scope="col">C Die Reihe</th><th scope="col">D Der Tag</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Am Handy</th><td>Sheet halb hoch, hochgezogen die Seite</td><td>Karte so hoch wie ihr Inhalt</td><td>Vollbild von unten</td><td>Sheet fast ganz hoch</td></tr>
+          <tr><th scope="row">Am Rechner</th><td>daneben, wie das Modul</td><td>Karte am Termin</td><td>Dialog in der Mitte</td><td>der Tag daneben</td></tr>
+          <tr><th scope="row">Ohne weiteren Tipp sichtbar</th><td><b>Tag, Raum, was anders ist, wer, Knöpfe</b></td><td>Zeit, Raum, was anders ist</td><td>jedes Datum, eins offen</td><td>der Tag, ein Termin offen</td></tr>
+          <tr><th scope="row">Bis zu allen Daten der Reihe</th><td>ein Wisch</td><td>zwei Tipps</td><td><b>sofort</b></td><td>„Seite“, dann scrollen</td></tr>
+          <tr><th scope="row">Bis zu davor und danach</th><td>ein Wisch</td><td>zwei Tipps</td><td>fehlt</td><td><b>sofort</b></td></tr>
+          <tr><th scope="row">Woche bleibt sichtbar (Rechner)</th><td>ja, schmaler</td><td><b>ja, ganz</b></td><td>nein</td><td>ja, schmaler</td></tr>
+          <tr><th scope="row">Adresse ab dem ersten Tipp</th><td><b>ja</b></td><td>erst die Seite</td><td><b>ja</b></td><td><b>ja</b></td></tr>
+          <tr><th scope="row">Zu bauen</th><td><b>ein Baustein, Sheet und Panel gibt es</b></td><td>Karte, Popover und Seite</td><td>Liste der Reihe, Dialog</td><td>Tagesliste, Blättern nach Tagen</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="reco" id="empfehlung" aria-labelledby="reco-title">
+    <h2 id="reco-title">Empfehlung: A, mit der Reihe aus C und dem Tag aus D</h2>
+    <p><b>A ist das Modul-Sheet, das Betula schon hat, nur für einen Termin.</b> Halb hoch beantwortet es die Frage unterwegs, ganz hoch ist es die Seite, am Rechner steht es daneben und „Ganze Seite“ macht es groß. C und D sind darin keine eigenen Ansichten, sondern zwei Abschnitte: „Alle Termine“ als Kalenderstreifen, in dem ein Tipp das Datum wechselt, und „An diesem Tag“ mit davor, danach und der Pause. B's Karte braucht es dann nicht, das halbe Sheet ist schon die Karte.</p>
+    <ol>
+      <li><b>Die Seite</b> <code>/event/&lt;termin&gt;/&lt;datum&gt;</code> mit dem Baustein: Kopf, was an diesem Tag gilt, Raum, wer, Knöpfe, der Tag, alle Termine, Hinweis aus QIS, Modul und Prüfung. Der Server rendert sie ganz, die App übernimmt.</li>
+      <li><b>Derselbe Baustein über der Seite:</b> <code>?termin=…&amp;on=…</code> auf Startseite, Stundenplan und Modulseite; am Handy das Sheet des Moduls mit seinen Griffen, am Rechner das Panel daneben.</li>
+      <li><b>Jeder Termin öffnet ihn:</b> „Als Nächstes“ als Ganzes, die Zeilen von Heute und Morgen, die Balken der Woche, die Prüfungen; im Stundenplan Woche, Liste, Alle Termine und Prüfungen; auf der Modulseite jede Zeile. QIS wird ein Knopf im Termin. Aus der Woche des Stundenplans, die kein Datum hat, öffnet sich das nächste Datum.</li>
+      <li><b>Kalender:</b> der Link jedes Eintrags in .ics und Abo zeigt auf die Seite des Datums.</li>
+      <li><b>Prüfen:</b> <code>e2e/termin.mjs</code> öffnet, blättert, lädt neu, geht zurück, am Handy und am Rechner; die Seite auch ohne JavaScript.</li>
+    </ol>
+    <p>Gebaut ist das eine neue Funktion, also Folia MINOR. Radix bleibt, wie es ist; für „für wen“ (Frage 5) reicht eine Abfrage in Folia.</p>
+  </section>
+
+  <section class="sec" id="fragen" aria-labelledby="fragen-title">
+    <h2 id="fragen-title">Fragen, mit Vorschlag</h2>
+    <ol class="qs">
+      <li><b>Was öffnet ein Tipp auf einen Slot im Stundenplan?</b><p>Heute das Modul, mit Wahl, Ausblenden und Entfernen. <em>Vorschlag:</em> den Termin; das Modul liegt einen Tipp entfernt, auf seinem Kürzel im Kopf und unter „Modul ansehen“. Die Haken an den Slots zum Wählen bleiben, wo sie sind.</p></li>
+      <li><b>Ausfall plus Einzeltermin zur selben Zeit: ein Raumwechsel?</b><p>QIS streicht die Übung am 04.11. in HG/0.17 („findet in LG1A/304 statt“) und führt den Tag einzeln in LG1A/304. Heute stehen dafür zwei Zeilen da. <em>Vorschlag:</em> wo eine Veranstaltung an einem gestrichenen Datum zur selben Uhrzeit einen Einzeltermin hat, ist es ein Raumwechsel, und der Termin sagt es in einem Satz.</p></li>
+      <li><b>Soll der Kalender auf Betula zeigen?</b><p>Der Link jedes Eintrags im Abo führt heute nach QIS. <em>Vorschlag:</em> auf die Seite des Datums; dort ist QIS ein Knopf, und Ausfälle stehen schon drin.</p></li>
+      <li><b>Englisch oder deutsch im Pfad?</b><p><em>Vorschlag:</em> <code>/event/…</code>, wie die anderen Pfade englisch; deutsch wäre <code>/termin/…</code>.</p></li>
+      <li><b>„Für wen“ zeigen?</b><p>QIS listet je Veranstaltung, für welche Studiengänge und Semester sie ist. Radix hat das in der Sicht <code>v_event_program</code>, Folia fragt sie nicht ab. <em>Vorschlag:</em> eine Zeile „laut QIS für Informatik B.Sc., 1. Semester“; dafür reicht eine Abfrage, Radix ändert sich nicht.</p></li>
+      <li><b>Eigene Notizen an einem Termin?</b><p>Wie die Notiz an einem gemerkten Modul: „Laptop mitbringen“. <em>Vorschlag:</em> später, wenn jemand danach fragt; es ist der erste Zustand, der an einem Datum hängt.</p></li>
+      <li><b>Sollen Suchmaschinen die Seiten finden?</b><p>Es gäbe zehntausende, und jedes Semester neue. <em>Vorschlag:</em> <code>noindex</code> für alle Termine; die Modulseiten tragen die Termine schon und sind im Index.</p></li>
+    </ol>
+    <h3 style="margin-top: 22px">Bewusst nicht</h3>
+    <ul class="nots">
+      <li><b>Lageplan, Etage, Wegzeit:</b> nichts davon steht in den Daten. Der Termin sagt Gebäude und Standort und, wenn das Gebäude wechselt, dass es wechselt.</li>
+      <li><b>Teilnehmerzahl, Sprache der Veranstaltung, Lehrende je Veranstaltung:</b> stehen in keiner Sicht von Radix. Gezeigt werden die Leitung der Zeile und die Verantwortlichen des Moduls.</li>
+      <li><b>Erinnerungen:</b> Betula schickt nichts; dafür ist das Kalender-Abo da.</li>
+    </ul>
+  </section>
+
+  <p class="foot">Daten: betula.app, Stand 21.10.2026 · Folia 1.44.3 · Entwurf, nichts davon ist gebaut.</p>
+</div>
+
+<script>
+"use strict";
+// ---------- what the prototypes run on: Informatik B.Sc., 1. FS, WiSe 2026/27 ----------
+const NOW_ISO = "2026-11-04"; // a Wednesday, KW 45, an A week
+const NOW_MIN = 8 * 60 + 40; // 08:40
+const MODS = {
+  EEG: { id: "12107", title: "Elektrische und elektronische Grundlagen der Informatik", lp: 6, c: "eeg", resp: "Dr.-Ing. habil. Herglotz, Christian Josef", form: "Modulabschlussprüfung (MAP)", exam: "Klausur, 120 Minuten", pre: null },
+  EvS: { id: "12104", title: "Entwicklung von Softwaresystemen", lp: 8, c: "evs", resp: "Prof. Dr. rer. nat. Lambers, Leen", form: "Voraussetzung + Modulabschlussprüfung (MAP)", exam: "Klausur, 120 min.", pre: "erfolgreiche Bearbeitung von Übungsblättern (75 Punkte müssen erreicht werden)" },
+  MIT1: { id: "11112", title: "Mathematik IT-1 (Diskrete Mathematik)", lp: 8, c: "mit", resp: "Prof. Dr. rer. nat. habil. Köhler, Ekkehard", form: "Voraussetzung + Modulabschlussprüfung (MAP)", exam: "Klausur, 90 min.", pre: "erfolgreiche Bearbeitung von Hausaufgaben" },
+  PP: { id: "12102", title: "Programmierpraktikum", lp: 4, c: "pp", resp: "Prof. Dr. rer. nat. habil. Hofstedt, Petra", form: "Continuous Assessment (MCA)", exam: "drei Übungsblätter und drei praktische Programmiertests", pre: null },
+};
+// The rows at the Zentralcampus as QIS lists them: key (RowKey), module, event, number, type, weekday, start, end,
+// rhythm, first and last date, room, room as QIS names it, campus, who leads it, QIS's remark, the dates QIS cancels.
+const RAW = [
+  ["148097-1bcd7", "EEG", "148097", "120413", "Prüfung", 4, "11:00", "13:00", "single", "2027-02-11", "2027-02-11", "GHS", "Großer Hörsaal - Großer Hörsaal - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148134-b869a", "EEG", "148134", "120410", "Vorlesung", 2, "07:30", "09:00", "week_a", "2026-10-06", "2027-01-26", "ZHG/HS.B", "Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148134-179fe", "EEG", "148134", "120410", "Vorlesung", 2, "09:15", "10:45", "weekly", "2026-10-06", "2027-01-26", "ZHG/HS.B", "Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148135-462ed", "EEG", "148135", "120411", "Übung", 2, "07:30", "09:00", "week_b", "2026-10-13", "2027-01-19", "ZHG/HS.B", "Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148369-aaf38", "EvS", "148369", "120611", "Übung", 1, "15:30", "17:00", "weekly", "2026-10-12", "2027-01-25", "HG/0.20", "Hauptgebäude - HG 0.20 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148369-a4d12", "EvS", "148369", "120611", "Übung", 1, "17:30", "19:00", "weekly", "2026-10-12", "2027-01-25", "ZHG/SEM.1", "Zentrales Hörsaalgebäude - Seminarraum 1 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148369-6bb8d", "EvS", "148369", "120611", "Übung", 2, "15:30", "17:00", "weekly", "2026-10-06", "2027-01-26", "HG/2.44", "Hauptgebäude - HG 2.44 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148369-f09d2", "EvS", "148369", "120611", "Übung", 2, "17:30", "19:00", "weekly", "2026-10-13", "2027-01-26", "HG/0.18", "Hauptgebäude - HG 0.18 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148689-485e5", "EvS", "148689", "120613", "Prüfung", 5, "11:00", "13:00", "single", "2027-03-12", "2027-03-12", "ZHG/AM.1", "Zentrales Hörsaalgebäude - Audimax 1 - Zentralcampus", "zentralcampus", "Lambers", "für die Studierenden am Zentralcampus in Cottbus ZRV ls - zusammen mit: 13877/120623 11892/120622 12209/120642", ""],
+  ["148701-a2633", "EvS", "148701", "120610", "Vorlesung", 2, "11:30", "13:00", "weekly", "2026-10-13", "2027-01-26", "ZHG/HS.C", "Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148701-b7025", "EvS", "148701", "120610", "Vorlesung", 5, "09:15", "10:45", "weekly", "2026-10-09", "2027-01-29", "ZHG/HS.C", "Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148303-bcd64", "MIT1", "148303", "130430", "Vorlesung", 1, "13:45", "15:15", "weekly", "2026-10-05", "2027-01-25", "ZHG/HS.A", "Zentrales Hörsaalgebäude - Hörsaal A - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148303-782db", "MIT1", "148303", "130430", "Vorlesung", 2, "13:45", "15:15", "weekly", "2026-10-06", "2027-01-26", "LG1A/HS.2", "Lehrgebäude 1A - Hörsaal 2 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148304-e4bf3", "MIT1", "148304", "130431", "Übung", 3, "09:15", "10:45", "weekly", "2026-10-07", "2027-01-27", "HG/0.17", "Hauptgebäude - HG 0.17 - Zentralcampus", "zentralcampus", "Pilling", null, "04.11.2026: findet in LG1A/304 statt"],
+  ["148304-1a8c3", "MIT1", "148304", "130431", "Übung", 3, "13:45", "15:15", "weekly", "2026-10-07", "2027-01-27", "LG1A/304", "Lehrgebäude 1A - 304 - Zentralcampus", "zentralcampus", "Pilling", null, ""],
+  ["148304-9dd5c", "MIT1", "148304", "130431", "Übung", 3, "09:15", "10:45", "single", "2026-11-04", "2026-11-04", "LG1A/304", "Lehrgebäude 1A - 304 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148304-5c532", "MIT1", "148304", "130431", "Übung", 4, "09:15", "10:45", "weekly", "2026-10-08", "2027-01-28", "HG/0.17", "Hauptgebäude - HG 0.17 - Zentralcampus", "zentralcampus", "Krowiorz", null, ""],
+  ["148664-84d53", "MIT1", "148664", "130433", "Prüfung", 3, "11:00", "13:00", "single", "2027-03-10", "2027-03-10", "GHS", "Großer Hörsaal - Großer Hörsaal - Zentralcampus", "zentralcampus", null, null, ""],
+  ["150132-6bb8d", "MIT1", "150132", "130432", "Tutorium", 2, "15:30", "17:00", "weekly", "2026-10-06", "2027-01-26", "HG/2.45", "Hauptgebäude - HG 2.45 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148008-8e4ea", "PP", "148008", "120730", "Vorlesung", 5, "11:30", "13:00", "week_a", "2026-10-09", "2027-01-29", "ZHG/HS.C", "Zentrales Hörsaalgebäude - Hörsaal C - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148370-eb017", "PP", "148370", "120731", "Praktikum", 1, "11:30", "13:00", "weekly", "2026-10-05", "2027-01-25", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148370-ef2fb", "PP", "148370", "120731", "Praktikum", 3, "11:30", "13:00", "weekly", "2026-10-07", "2027-01-27", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148370-d70e0", "PP", "148370", "120731", "Praktikum", 4, "11:30", "13:00", "weekly", "2026-10-08", "2027-01-28", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148370-89ed1", "PP", "148370", "120731", "Praktikum", 5, "13:45", "15:15", "weekly", "2026-10-09", "2027-01-29", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
+];
+// The group the student took where an event offers several (the Stundenplan's choice).
+const CHOSEN = { "148304": "148304-e4bf3", "148369": "148369-aaf38", "148370": "148370-ef2fb" };
+const EXAMPLES = {
+  raum: "148304-e4bf3@2026-11-04",
+  vl: "148701-b7025@2026-11-06",
+  ab: "148135-462ed@2026-11-10",
+  exam: "148664-84d53@2027-03-10",
+};
+// The semester as the data says it (folia-timetable's SemesterFacts): the break and Brandenburg's holidays.
+const BREAK = ["2026-12-21", "2027-01-03"];
+const HOLIDAYS = { "2026-10-31": "Reformationstag", "2026-12-25": "1. Weihnachtstag", "2026-12-26": "2. Weihnachtstag", "2027-01-01": "Neujahr" };
+const A_WEEK = "2026-10-05";
+const LECTURE_WEEKS = 15;
+
+// ---------- days ----------
+const DAY_MS = 864e5;
+const dn = (iso) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / DAY_MS;
+const isoOf = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);
+const wdOf = (n) => ((new Date(n * DAY_MS).getUTCDay() + 6) % 7) + 1;
+const mins = (t) => +t.slice(0, 2) * 60 + +t.slice(3, 5);
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const TODAY = dn(NOW_ISO);
+const WD = ["", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
+const WD2 = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const MON = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+const MON3 = ["Jan", "Feb", "März", "Apr", "Mai", "Juni", "Juli", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const ddmm = (n) => { const s = isoOf(n); return `${s.slice(8, 10)}.${s.slice(5, 7)}.`; };
+const ddmmyyyy = (n) => `${ddmm(n)}${isoOf(n).slice(0, 4)}`;
+const monthOf = (n) => +isoOf(n).slice(5, 7) - 1;
+function isoWeek(n) {
+  const d = new Date(n * DAY_MS);
+  const thu = new Date(d); thu.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) + 3);
+  const jan4 = new Date(Date.UTC(thu.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((thu - jan4) / DAY_MS - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
+}
+const abWeek = (n) => (Math.floor((n - dn(A_WEEK)) / 7) % 2 === 0 ? "A" : "B");
+const inBreak = (n) => n >= dn(BREAK[0]) && n <= dn(BREAK[1]);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// ---------- Termine and their dates ----------
+const ROW = {};
+const ROWS = RAW.map(([k, mod, ev, num, kind, wd, s, e, rh, from, to, room, roomLong, campus, instr, comment, cancelled]) =>
+  (ROW[k] = { k, mod, ev, num, kind, wd, s, e, rh, from, to, room, roomLong, campus, instr, comment, notes: notesOf(cancelled), exam: kind === "Prüfung" }));
+function notesOf(text) {
+  const out = {};
+  const marks = [...text.matchAll(/(\d{2})\.(\d{2})\.(\d{4}):/g)];
+  marks.forEach((m, i) => {
+    const end = i + 1 < marks.length ? marks[i + 1].index : text.length;
+    out[`${m[3]}-${m[2]}-${m[1]}`] = text.slice(m.index + m[0].length, end).trim();
+  });
+  return out;
+}
+// A single date of an event at the time of another of its rows that QIS cancels that day is that row moving:
+// the proposal of question 2. The single row is then shown as the other row's date.
+for (const s of ROWS) {
+  if (s.rh !== "single" || s.exam) continue;
+  const r = ROWS.find((x) => x.ev === s.ev && x.k !== s.k && x.rh !== "single" && x.s === s.s && x.notes[s.from] !== undefined);
+  if (r) { s.into = r.k; (r.moves ||= {})[s.from] = s; }
+}
+const choiceOf = (r) => (CHOSEN[r.ev] ? ROWS.filter((x) => x.ev === r.ev && x.rh !== "single") : null);
+const inPlan = (r) => !r.into && (!CHOSEN[r.ev] || CHOSEN[r.ev] === r.k);
+function datesOf(r) {
+  if (r._dates) return r._dates;
+  const out = [];
+  const first = dn(r.from), last = dn(r.to);
+  const step = r.rh === "weekly" ? 7 : 14;
+  for (let n = first; n <= last; n += r.rh === "single" ? Infinity : step) {
+    const iso = isoOf(n);
+    const o = { n, iso, st: "held" };
+    if (r.rh !== "single" && inBreak(n)) { o.st = "brk"; o.why = "vorlesungsfrei"; }
+    else if (r.rh !== "single" && HOLIDAYS[iso]) { o.st = "brk"; o.why = HOLIDAYS[iso]; }
+    else if (r.notes[iso] !== undefined) {
+      const moved = r.moves && r.moves[iso];
+      if (moved) { o.st = "room"; o.room = moved.room; o.roomLong = moved.roomLong; o.note = r.notes[iso]; }
+      else if (/ersatzweise|raumwechsel|raumänderung/i.test(r.notes[iso])) { o.st = "room"; o.note = r.notes[iso]; }
+      else { o.st = "cancel"; o.note = r.notes[iso]; }
+    }
+    out.push(o);
+  }
+  return (r._dates = out);
+}
+const held = (o) => o.st === "held" || o.st === "room";
+// A date the student can step to: every date QIS names, the break left out.
+const steppable = (o) => o.st !== "brk";
+function parseK(k) {
+  let [rk, iso] = k.split("@");
+  if (ROW[rk] && ROW[rk].into) rk = ROW[rk].into;
+  return { r: ROW[rk], iso, n: dn(iso) };
+}
+const keyOf = (r, n) => `${r.k}@${isoOf(n)}`;
+function nextDate(r) {
+  const ds = datesOf(r).filter(steppable);
+  return (ds.find((o) => o.n > TODAY || (o.n === TODAY && mins(r.e) > NOW_MIN)) || ds[ds.length - 1]).n;
+}
+function info(k) {
+  const { r, iso, n } = parseK(k);
+  const all = datesOf(r);
+  const o = all.find((x) => x.n === n) || { n, iso, st: "none" };
+  const hs = all.filter(held);
+  const isPast = (x) => x.n < TODAY || (x.n === TODAY && mins(r.e) <= NOW_MIN);
+  return {
+    k: keyOf(r, n), r, n, o, all, m: MODS[r.mod],
+    count: hs.length, nth: hs.findIndex((x) => x.n === n) + 1, past: hs.filter(isPast).length,
+    breaks: all.filter((x) => x.st === "brk").length, cancels: all.filter((x) => x.st === "cancel").length,
+    room: o.room || r.room, roomLong: o.roomLong || r.roomLong,
+  };
+}
+function stepKey(k, dir) {
+  const { r, n } = parseK(k);
+  const ds = datesOf(r).filter(steppable);
+  const i = ds.findIndex((o) => o.n === n);
+  const j = i + dir;
+  return j >= 0 && j < ds.length ? keyOf(r, ds[j].n) : null;
+}
+// Everything of the plan on a day, in time order: held, moved and cancelled dates, and exams.
+function dayItems(n) {
+  const out = [];
+  for (const r of ROWS) {
+    if (!inPlan(r)) continue;
+    const o = datesOf(r).find((x) => x.n === n);
+    if (!o || o.st === "brk") continue;
+    out.push({ k: keyOf(r, n), r, o, s: mins(r.s), e: mins(r.e), room: o.room || r.room });
+  }
+  return out.sort((a, b) => a.s - b.s || a.r.k.localeCompare(b.r.k));
+}
+const exams = () => ROWS.filter((r) => r.exam && inPlan(r)).sort((a, b) => dn(a.from) - dn(b.from));
+
+// ---------- words ----------
+const KSHORT = { Vorlesung: "VL", Übung: "Ü", Tutorium: "Tut", Praktikum: "Prak", Prüfung: "Prüfung" };
+const GROUPWORD = { Übung: "Übungsgruppen", Praktikum: "Praktikumsgruppen", Tutorium: "Tutoriumsgruppen" };
+const RHYTHM = { weekly: "wöchentlich", week_a: "14-täglich (A-Woche)", week_b: "14-täglich (B-Woche)", single: "Einzeltermin" };
+const CAMPUS = { zentralcampus: "Zentralcampus Cottbus", sachsendorf: "Cottbus-Sachsendorf", senftenberg: "Senftenberg" };
+const building = (room) => room.split("/")[0];
+function roomName(long, campus) {
+  const parts = long.split(" - ").filter((p, i, a) => p !== a[i - 1]);
+  parts[parts.length - 1] = CAMPUS[campus] || parts[parts.length - 1];
+  return parts.join(" · ");
+}
+function rel(n, s, e) {
+  const d = n - TODAY;
+  if (d === 0) {
+    const a = mins(s), b = mins(e);
+    if (NOW_MIN < a) { const m = a - NOW_MIN; return { t: m < 60 ? `heute, in ${m} Min.` : `heute, in ${Math.floor(m / 60)} Std. ${m % 60 ? `${m % 60} Min.` : ""}`.trim(), c: "soon" }; }
+    if (NOW_MIN < b) return { t: `läuft, noch ${b - NOW_MIN} Min.`, c: "live" };
+    return { t: "heute, vorbei", c: "" };
+  }
+  if (d === 1) return { t: "morgen", c: "soon" };
+  if (d === 2) return { t: "übermorgen", c: "" };
+  if (d === -1) return { t: "gestern", c: "" };
+  if (d > 0) return { t: `in ${d} Tagen`, c: "" };
+  return { t: d > -14 ? `vor ${-d} Tagen` : `vor ${Math.round(-d / 7)} Wochen`, c: "" };
+}
+const gapText = (m) => (m < 60 ? `${m} Min.` : `${Math.floor(m / 60)} Std.${m % 60 ? ` ${m % 60} Min.` : ""}`);
+function kindLine(i) {
+  const ch = choiceOf(i.r);
+  if (i.r.exam) return "Prüfung · Erstermin";
+  if (ch) return `${i.r.kind} · eine von ${ch.length} ${GROUPWORD[i.r.kind] || "Gruppen"}`;
+  if (i.r.rh === "week_a" || i.r.rh === "week_b") return `${i.r.kind} · nur ${i.r.rh === "week_a" ? "A" : "B"}-Wochen`;
+  return i.r.kind;
+}
+
+// ---------- icons (Lucide's shapes, as Betula draws them) ----------
+const ICON = {
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  up: '<path d="m18 15-6-6-6 6"/>',
+  back: '<path d="m12 19-7-7 7-7M19 12H5"/>',
+  expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  calplus: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>',
+  plan: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
+  ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  move: '<path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/>',
+  book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  mods: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 4h7M14 9h7M14 15h7M14 20h7"/>',
+  cap: '<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>',
+  mark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  keys: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  bolt: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+  leaf: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
+  coffee: '<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/>',
+  walk: '<circle cx="13" cy="4" r="2"/><path d="m7 21 3-7M14 21l-2-6-3-3 1-4 4 3 3 1"/>',
+  dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+};
+const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
+const mc = (mod) => `--mc: var(--m-${MODS[mod].c})`;
+
+// ---------- the Termin, one building block ----------
+// o.size: half | full | panel | page | embed | anat; o.tools: the buttons at the top right; o.mk: numbers for the anatomy.
+function tm(k, o) {
+  const i = info(k);
+  const mk = (n) => (o.mk ? `<span class="n anat-n" aria-hidden="true">${n}</span>` : "");
+  const head = o.size === "embed" ? "" : tmHead(i, o, mk);
+  const alert = o.mk ? tmAlert(i).replace(/^(<div class="tm-alert[^"]*">)/, `$1${mk(2)}`) : tmAlert(i);
+  const place = `<div class="tm-place">${mk(3)}<span class="room">${esc(i.room)}${i.o.st === "room" ? `<s>${esc(i.r.room)}</s>` : ""}</span><button type="button" class="mini" data-act="toast" data-msg="Raum kopiert: ${esc(i.room)}">${icon("copy")}Kopieren</button><p>${icon("pin")}${esc(roomName(i.roomLong, i.r.campus))}</p></div>`;
+  const facts = i.r.exam ? tmExamFacts(i, mk) : tmFacts(i, o, mk);
+  const acts = `<div class="tm-acts">${mk(5)}${tmActs(i, o)}</div>`;
+  const day = tmDay(i, mk);
+  const series = i.r.exam ? tmExams(i, mk) : tmSeries(i, mk);
+  const note = tmNote(i, mk);
+  const module = tmModule(i, mk);
+  if (o.size === "embed") return `<div class="tm">${alert}${place}${facts}${acts}</div>`;
+  if (o.size === "page") {
+    return `<article class="tm page" style="${mc(i.r.mod)}">${head}<div class="col">${alert}${place}${facts}${acts}${day}</div><div class="col">${series}${note}${module}</div></article>`;
+  }
+  const more = o.size === "half" ? `<button type="button" class="tm-more" data-act="grow">${icon("up")}Alles zeigen: ${i.r.exam ? "Prüfungen" : "alle Termine"}, der Tag, Modul</button>` : "";
+  return `<article class="tm ${o.size}" style="${mc(i.r.mod)}">${head}${alert}${place}${facts}${acts}${more}${day}${series}${note}${module}</article>`;
+}
+function tmHead(i, o, mk) {
+  const r = rel(i.n, i.r.s, i.r.e);
+  const wk = `KW ${isoWeek(i.n)}${i.r.exam ? "" : ` · ${abWeek(i.n)}-Woche`}`;
+  const nth = i.r.exam ? (i.n > TODAY ? "Prüfungszeit" : "") : i.nth ? `der ${i.nth}. von ${i.count}` : "";
+  const title = MODS[i.r.mod].title;
+  return `<header class="tm-head">${mk(1)}<div class="tm-top"><button type="button" class="tm-mod" data-act="toast" data-msg="Modul ansehen: ${esc(title)}"><i></i>${esc(i.r.mod)}</button><span class="tm-kind">${esc(kindLine(i))}</span><span class="tm-tools">${o.tools || ""}</span></div>
+    <h3 class="tm-title">${esc(title)}</h3>
+    <p class="tm-when">${WD[wdOf(i.n)]}, ${ddmmyyyy(i.n)} · ${i.r.s}–${i.r.e}</p>
+    <p class="tm-rel"><span class="${r.c}">${r.t}</span> · ${wk}${nth ? ` · ${nth}` : ""}</p></header>`;
+}
+function tmAlert(i) {
+  const today = i.n === TODAY;
+  const day = today ? "Heute" : `Am ${ddmm(i.n)}`;
+  if (i.o.st === "room") {
+    const single = i.r.moves && i.r.moves[i.o.iso];
+    return `<div class="tm-alert">${icon("move")}<div><b>${day} in ${esc(i.o.room || "einem anderen Raum")}, nicht in ${esc(i.r.room)}</b><p>Laut QIS „${esc(i.o.note)}“.${single ? ` QIS streicht den Tag in ${esc(i.r.room)} und führt ihn einzeln in ${esc(i.o.room)}.` : ""}</p></div></div>`;
+  }
+  if (i.o.st === "cancel") return `<div class="tm-alert no">${icon("ban")}<div><b>Fällt aus</b><p>${i.o.note ? `Laut QIS „${esc(i.o.note)}“.` : "Laut QIS, ohne Grund."}</p></div></div>`;
+  if (i.o.st === "brk") return `<div class="tm-alert no">${icon("ban")}<div><b>Fällt aus: ${esc(i.o.why)}</b><p>${i.o.why === "vorlesungsfrei" ? `Weihnachtspause vom ${ddmm(dn(BREAK[0]))} bis ${ddmm(dn(BREAK[1]))}, abgeleitet aus den Daten.` : "Feiertag in Brandenburg."}</p></div></div>`;
+  if (i.o.st === "none") return `<div class="tm-alert info">${icon("info")}<div><b>An diesem Tag nicht</b><p>Der Termin findet am ${ddmm(i.n)} nicht statt. Das nächste Datum steht unter „Alle Termine“.</p></div></div>`;
+  if (i.r.rh === "week_a" || i.r.rh === "week_b") {
+    const other = ROWS.find((x) => x.ev !== i.r.ev && x.mod === i.r.mod && x.wd === i.r.wd && x.s === i.r.s && (x.rh === "week_a" || x.rh === "week_b") && x.rh !== i.r.rh);
+    return `<div class="tm-alert info">${icon("info")}<div><b>Nur in ${i.r.rh === "week_a" ? "A" : "B"}-Wochen</b><p>${other ? `In ${other.rh === "week_a" ? "A" : "B"}-Wochen ist um diese Zeit im selben Raum die ${esc(other.kind)}.` : "Alle zwei Wochen."}</p></div></div>`;
+  }
+  return "";
+}
+function tmFacts(i, o, mk) {
+  const ch = choiceOf(i.r);
+  const who = `<div><dt>Wer</dt><dd>${i.r.instr ? `${esc(i.r.instr)}<small>leitet diesen Termin, laut QIS</small>` : ""}${esc(MODS[i.r.mod].resp)}<small>verantwortlich für das Modul</small></dd></div>`;
+  const range = `${ddmm(dn(i.r.from))}${i.r.from.slice(0, 4)}–${ddmm(dn(i.r.to))}${i.r.to.slice(0, 4)}`;
+  const counts = [`${i.count} Termine`, i.past ? `${i.past} vorbei` : "", i.breaks ? `${i.breaks} vorlesungsfrei` : "", i.cancels ? `${i.cancels} fällt aus` : ""].filter(Boolean).join(" · ");
+  let group = "";
+  if (ch) {
+    const pick = ch.map((x, n) => {
+      const clash = clashOf(x);
+      return `<button type="button" class="opt" role="radio" aria-checked="${x.k === i.r.k}" data-act="pick" data-k="${x.k}"><span class="rd"></span><b>${WD2[x.wd]} ${x.s}–${x.e} · ${esc(x.room)}</b><small>${esc(x.instr || "Leitung offen")}${x.k === i.r.k ? " · deine" : ""}</small><span class="chip fitn ${clash ? "no" : "ok"}">${clash ? `überschneidet sich mit ${esc(clash)}` : "passt"}</span></button>`;
+    }).join("");
+    group = `<div><dt>Gruppe</dt><dd>eine von ${ch.length} ${GROUPWORD[i.r.kind] || "Gruppen"}${o.groups ? `<div class="opts" role="radiogroup" aria-label="Gruppe">${pick}</div>` : `<br><button type="button" class="mini" data-act="groups">${icon("move")}Andere Gruppe</button>`}</dd></div>`;
+  }
+  return `<dl class="tm-facts">${mk(4)}${who}<div><dt>Rhythmus</dt><dd>${RHYTHM[i.r.rh]} · ${WD2[i.r.wd]} ${i.r.s}–${i.r.e}<small>${range} · ${counts}</small></dd></div>${group}<div><dt>Nummer</dt><dd class="mono">${esc(i.r.num)} <small style="display:inline">in QIS</small></dd></div></dl>`;
+}
+function clashOf(x) {
+  for (const r of ROWS) {
+    if (r.ev === x.ev || !inPlan(r) || r.exam || r.wd !== x.wd) continue;
+    if (mins(r.s) < mins(x.e) && mins(x.s) < mins(r.e)) return `${KSHORT[r.kind]} ${r.mod}`;
+  }
+  return "";
+}
+function tmExamFacts(i, mk) {
+  const m = MODS[i.r.mod];
+  return `<dl class="tm-facts">${mk(4)}<div><dt>Form</dt><dd>${esc(m.exam)}<small>${esc(m.form)}</small></dd></div>${m.pre ? `<div><dt>Zulassung</dt><dd>${esc(m.pre)}<small>Voraussetzung für die Prüfung</small></dd></div>` : ""}<div><dt>Wer</dt><dd>${esc(m.resp)}<small>verantwortlich für das Modul</small></dd></div><div><dt>Anmeldung</dt><dd>über die Systeme der BTU<small>steht nicht in den Daten</small></dd></div><div><dt>Nummer</dt><dd class="mono">${esc(i.r.num)} <small style="display:inline">in QIS</small></dd></div></dl>`;
+}
+function tmActs(i, o) {
+  const plan = `<button type="button" class="btn" data-act="toast" data-msg="Stundenplan: ${i.r.exam ? "Prüfungen" : `KW ${isoWeek(i.n)}`}, der Termin markiert">${icon("plan")}Im Stundenplan</button>`;
+  const qis = `<button type="button" class="btn" data-act="toast" data-msg="QIS öffnet die Veranstaltung ${esc(i.r.num)} in einem neuen Tab">${icon("ext")}In QIS</button>`;
+  const cal = `<button type="button" class="btn" data-act="toast" data-msg="Kalender: dieses Datum oder die ganze Reihe">${icon("calplus")}In den Kalender</button>`;
+  const link = `<button type="button" class="btn" data-act="toast" data-msg="Link kopiert: betula.app/event/${esc(i.r.k)}/${isoOf(i.n)}">${icon("link")}Link kopieren</button>`;
+  return o.size === "half" ? plan + qis + link : plan + qis + cal + link;
+}
+function tmDay(i, mk) {
+  const items = dayItems(i.n);
+  if (!items.length) return "";
+  const rows = [];
+  let prev = null;
+  if (i.n === TODAY && items[0].s > NOW_MIN) rows.push(`<div class="now">${hhmm(NOW_MIN)} jetzt</div>`);
+  for (const it of items) {
+    if (prev && prev.o.st !== "cancel" && it.o.st !== "cancel") {
+      const gap = it.s - prev.e;
+      const moveTo = building(it.room) === building(prev.room) ? (it.room === prev.room ? "gleicher Raum" : "gleiches Gebäude") : `anderes Gebäude, ${esc(building(it.room))}`;
+      rows.push(`<div class="gap">${gap > 0 ? `${gapText(gap)} Pause` : "direkt danach"} · ${moveTo}</div>`);
+    }
+    const me = parseK(it.k).r.k === i.r.k;
+    const gone = it.o.st === "cancel";
+    const tag = me ? "div" : "button";
+    rows.push(`<${tag} ${me ? "" : `type="button" data-act="open" data-k="${it.k}"`} class="it${me ? " me" : ""}${gone ? " gone" : ""}" style="${mc(it.r.mod)}"><span class="t">${it.r.s}<small>${it.r.e}</small></span><span class="bar"></span><span class="w"><b>${esc(it.r.kind)} · ${esc(it.r.mod)}</b><small>${esc(it.room)}${gone ? " · fällt aus" : ""}${me ? " · dieser Termin" : ""}</small></span></${tag}>`);
+    if (!gone) prev = it;
+  }
+  return `<section class="tm-sec">${mk(6)}<h4>An diesem Tag <small>${WD2[wdOf(i.n)]} ${ddmm(i.n)} · ${items.length} ${items.length === 1 ? "Termin" : "Termine"}</small></h4><div class="dayl">${rows.join("")}</div></section>`;
+}
+function tmSeries(i, mk) {
+  const months = new Map();
+  for (const o of i.all) { const key = isoOf(o.n).slice(0, 7); if (!months.has(key)) months.set(key, []); months.get(key).push(o); }
+  const chip = (o) => {
+    const cls = ["dc", o.n < TODAY ? "past" : "", o.n === TODAY ? "today" : "", o.st === "room" ? "room" : "", o.st === "cancel" ? "cancel" : "", o.st === "brk" ? "brk" : "", o.n === i.n ? "sel" : ""].filter(Boolean).join(" ");
+    const what = o.st === "room" ? `in ${o.room}` : o.st === "cancel" ? "fällt aus" : o.st === "brk" ? o.why : o.n < TODAY ? "vorbei" : "";
+    return `<button type="button" class="${cls}" data-act="date" data-k="${keyOf(i.r, o.n)}" title="${WD2[wdOf(o.n)]} ${ddmm(o.n)}${what ? ` · ${esc(what)}` : ""}" aria-label="${WD2[wdOf(o.n)]} ${ddmm(o.n)}${what ? `, ${esc(what)}` : ""}">${isoOf(o.n).slice(8, 10)}</button>`;
+  };
+  const rows = [...months].map(([key, os]) => `<div class="mo"><span>${MON3[+key.slice(5, 7) - 1]}</span><div class="ds">${os.map(chip).join("")}</div></div>`).join("");
+  const sub = [i.past ? `${i.past} vorbei` : "", i.breaks ? `${i.breaks} vorlesungsfrei` : "", i.all.some((o) => o.st === "room") ? "1 anderer Raum" : ""].filter(Boolean).join(" · ");
+  return `<section class="tm-sec">${mk(7)}<h4>Alle ${i.count} Termine <small>${sub}</small></h4><div class="days">${rows}</div><div class="legend"><span><i class="today"></i>heute</span><span><i class="room"></i>anderer Raum</span><span><i class="brk"></i>fällt aus, vorlesungsfrei</span></div></section>`;
+}
+function tmExams(i, mk) {
+  const list = exams();
+  let prev = null;
+  const rows = list.map((r) => {
+    const n = dn(r.from);
+    const gap = prev ? `<div class="gap">${n - prev} Tage später</div>` : "";
+    prev = n;
+    const me = r.k === i.r.k;
+    return `${gap}<${me ? "div" : "button"} ${me ? "" : `type="button" data-act="open" data-k="${keyOf(r, n)}"`} class="it${me ? " me" : ""}" style="${mc(r.mod)}"><span class="t">${WD2[wdOf(n)]} ${ddmm(n)}</span><span class="bar"></span><span class="w"><b>Prüfung · ${esc(r.mod)}</b><small>${r.s}–${r.e} · ${esc(r.room)}${me ? " · diese" : ""}</small></span></${me ? "div" : "button"}>`;
+  }).join("");
+  return `<section class="tm-sec">${mk(7)}<h4>Deine Prüfungen <small>WiSe 2026/27</small></h4><div class="dayl ex">${rows}</div></section>`;
+}
+function tmNote(i, mk) {
+  if (!i.r.comment) return "";
+  return `<section class="tm-sec">${mk(8)}<h4>Hinweis aus QIS</h4><p class="qnote"><q>${esc(i.r.comment)}</q></p></section>`;
+}
+function tmModule(i, mk) {
+  const m = MODS[i.r.mod];
+  const ex = !i.r.exam && exams().find((x) => x.mod === i.r.mod);
+  const exl = ex ? (() => { const n = dn(ex.from); return `<button type="button" class="exl" data-act="open" data-k="${keyOf(ex, n)}"><span class="dt"><b>${isoOf(n).slice(8, 10)}</b><small>${MON3[monthOf(n)]}</small></span><span><b>Prüfung · ${WD2[wdOf(n)]} ${ex.s}–${ex.e} · ${esc(ex.room)}</b><small>in ${n - TODAY} Tagen · ${esc(m.exam)}</small></span></button>`; })() : "";
+  return `<section class="tm-sec">${mk(9)}<h4>Modul${ex ? " und Prüfung" : ""}</h4><div class="modc" style="${mc(i.r.mod)}"><div><b>${esc(m.title)}</b><small><span class="abbr">${esc(i.r.mod)}</span>${m.id} · ${m.lp} LP</small></div><button type="button" class="btn" data-act="toast" data-msg="Modul ansehen: ${esc(m.title)}">${icon("book")}Modul ansehen</button>${exl}</div></section>`;
+}
+
+// ---------- the pages under it ----------
+function statusBar(onPhoto) { return `<div class="p-status${onPhoto ? " on-photo" : ""}"><span>08:40</span><span class="bat"><i></i></span></div>`; }
+function phoneNav(on) {
+  const items = [["home", "Start", "home"], ["mods", "Module", "mods"], ["cap", "Studium", "cap"], ["mark", "Merkliste", "mark"], ["plan", "Stundenplan", "plan"]];
+  return `<nav class="p-nav" aria-hidden="true">${items.map(([ic, l, id]) => `<span class="${id === on ? "on" : ""}">${icon(ic)}${l}${id === "plan" ? '<b class="badge">4</b>' : ""}</span>`).join("")}</nav>`;
+}
+function clock() {
+  const now = Math.floor((TODAY - dn(A_WEEK)) / 7); // week index from 0
+  const pieces = [];
+  for (let w = 0; w < 17; w++) {
+    const n = dn(A_WEEK) + w * 7;
+    if (inBreak(n + 3)) { pieces.push('<i class="brk"></i>'); continue; }
+    pieces.push(`<i class="${w === now ? "now" : w < now ? "" : "fut"}"></i>`);
+  }
+  pieces.push('<i class="ex"></i>');
+  return `<div class="clock"><div class="weeks">${pieces.join("")}</div><div class="lbl"><span>Woche ${now + 1} von ${LECTURE_WEEKS} · ${abWeek(TODAY)}-Woche</span><span>Prüfungen 11.02.–12.03.</span></div></div>`;
+}
+function nextCard(cur) {
+  const items = dayItems(TODAY).filter((x) => x.o.st !== "cancel" && x.e > NOW_MIN);
+  const it = items[0];
+  const i = info(it.k);
+  const r = rel(i.n, i.r.s, i.r.e);
+  return `<button type="button" class="next${cur === it.k ? " cur" : ""}" data-act="open" data-k="${it.k}"><span class="k"><span class="soon">${r.t.replace("heute, ", "")}</span><span>${WD2[wdOf(i.n)]} ${ddmm(i.n)}</span></span><span class="big"><b>${i.r.s}</b><span>${esc(i.room)}</span></span><span class="what" style="display:block">${esc(i.r.kind)} · ${esc(MODS[i.r.mod].title)}</span><span class="ch">${i.o.st === "room" ? `<span class="chip warn">${icon("move")}anderer Raum, sonst ${esc(i.r.room)}</span>` : ""}<span class="chip">bis ${i.r.e}</span></span></button>`;
+}
+function dayRows(n, cur) {
+  const items = dayItems(n);
+  if (!items.length) return `<p class="empty">Keine Termine.</p>`;
+  return items.map((it) => {
+    const room = it.o.st === "room" ? `${esc(it.room)} <s>${esc(it.r.room)}</s>` : esc(it.room);
+    const chip = it.o.st === "room" ? '<span class="chip warn">Raumwechsel</span>' : it.o.st === "cancel" ? '<span class="chip no">fällt aus</span>' : n === TODAY && it.s > NOW_MIN && it.s - NOW_MIN <= 60 ? `<span class="chip ok">in ${it.s - NOW_MIN} Min.</span>` : "";
+    return `<button type="button" class="drow${parseK(cur || "x@2000-01-01").r && parseK(cur).r.k === it.r.k && parseK(cur).n === n ? " cur" : ""}" data-act="open" data-k="${it.k}" style="${mc(it.r.mod)}"><span class="tt">${it.r.s}<small>${it.r.e}</small></span><span class="bar"></span><span class="tx"><b>${esc(it.r.kind)} · ${esc(MODS[it.r.mod].title)}</b><small>${icon("pin")}${room}</small></span>${chip}</button>`;
+  }).join("");
+}
+function weekMini(cur) {
+  const mon = TODAY - (wdOf(TODAY) - 1);
+  const curK = cur ? parseK(cur) : null;
+  const cols = [0, 1, 2, 3, 4].map((d) => {
+    const n = mon + d;
+    const items = dayItems(n);
+    const bars = items.map((it) => `<button type="button" class="bb${it.o.st === "cancel" ? " cancel" : ""}${curK && curK.r.k === it.r.k && curK.n === n ? " cur" : ""}" data-act="open" data-k="${it.k}" style="${mc(it.r.mod)}" title="${WD2[wdOf(n)]} ${it.r.s} · ${esc(it.r.kind)} ${esc(it.r.mod)} · ${esc(it.room)}" aria-label="${WD2[wdOf(n)]} ${it.r.s}, ${esc(it.r.kind)} ${esc(it.r.mod)}"></button>`).join("");
+    return `<div><div class="dh">${WD2[d + 1]}<small>${items.length || ""}</small></div><div class="col${n < TODAY ? " past" : ""}${n === TODAY ? " today" : ""}">${bars}</div></div>`;
+  }).join("");
+  return `<div class="card-h"><b>Diese Woche</b><small>KW ${isoWeek(TODAY)} · ${abWeek(TODAY)}-Woche</small><span class="go">Woche${icon("right")}</span></div><div class="mweek">${cols}</div>`;
+}
+function examRows(cur) {
+  return exams().map((r) => {
+    const n = dn(r.from);
+    const k = keyOf(r, n);
+    return `<button type="button" class="exrow${cur === k ? " cur" : ""}" data-act="open" data-k="${k}"><span class="dt"><b>${isoOf(n).slice(8, 10)}</b><small>${MON3[monthOf(n)]}</small></span><span class="tx"><b>${esc(MODS[r.mod].title)}</b><small>${WD2[wdOf(n)]} ${r.s}–${r.e} · ${esc(r.room)}</small></span><span class="in">in ${n - TODAY} Tagen</span></button>`;
+  }).join("");
+}
+function phoneHome(st) {
+  const cur = st.mode !== "closed" ? st.k : null;
+  return `<div class="scr" data-keep="scr"><div class="photo" style="padding-bottom: 92px"><div class="p-top"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><span class="me">${icon("user")}</span></div>
+    <div style="padding: 26px 20px 0"><p class="h-kick">Mittwoch, 4. November · KW 45</p><h2 class="h-greet">Guten Morgen.</h2><p class="h-say">Heute zwei Termine, der erste um 09:15 in LG1A/304.</p>${clock()}</div></div>
+    <div style="margin: -78px 12px 0; position: relative">${nextCard(cur)}</div>
+    <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 100px">
+      <section class="card"><div class="card-h"><b>Heute</b><small>Mi 04.11. · ${dayItems(TODAY).length} Termine</small><span class="go">Stundenplan${icon("right")}</span></div>${dayRows(TODAY, cur)}</section>
+      <section class="card">${weekMini(cur)}</section>
+      <section class="card"><div class="card-h"><b>Prüfungen</b><small>3 im WiSe 2026/27</small><span class="go">Alle${icon("right")}</span></div>${examRows(cur)}</section>
+    </div></div>${phoneNav("home")}`;
+}
+// The week of the plan: every Termin of the plan on its weekday, A and B side by side.
+function planWeek(cur, hh) {
+  const top = 7 * 60, rows = 12;
+  const curR = cur ? parseK(cur).r : null;
+  const days = [1, 2, 3, 4, 5].map((wd) => {
+    const items = ROWS.filter((r) => !r.exam && r.wd === wd && (inPlan(r) || (r.into && inPlan(ROW[r.into])))).map((r) => ({ r, s: mins(r.s), e: mins(r.e) })).sort((a, b) => a.s - b.s);
+    // lanes per cluster of overlapping slots
+    const clusters = [];
+    for (const it of items) {
+      const c = clusters.find((cl) => cl.end > it.s);
+      if (c) { c.items.push(it); c.end = Math.max(c.end, it.e); } else clusters.push({ end: it.e, items: [it] });
+    }
+    const slots = clusters.flatMap((cl) => {
+      const lanes = [];
+      for (const it of cl.items) { let l = lanes.findIndex((end) => end <= it.s); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.e; it.lane = l; }
+      return cl.items.map((it) => ({ ...it, lanes: lanes.length }));
+    });
+    const html = slots.map((it) => {
+      const r = it.r;
+      const k = keyOf(r.into ? ROW[r.into] : r, r.into ? dn(r.from) : nextDate(r));
+      const isCur = curR && (curR.k === r.k || curR.k === r.into);
+      const ab = r.rh === "week_a" ? "A" : r.rh === "week_b" ? "B" : r.rh === "single" ? ddmm(dn(r.from)) : "";
+      return `<button type="button" class="slot${r.rh === "single" ? " once" : ""}${isCur ? " cur" : ""}" data-act="open" data-k="${k}" style="${mc(r.mod)}; --t: ${((it.s - top) / 60) * hh}; --d: ${((it.e - it.s) / 60) * hh - 2}; --lane: ${it.lane}; --lanes: ${it.lanes}"><b>${KSHORT[r.kind]} ${esc(r.mod)}</b><span>${r.s}–${r.e}</span><span>${esc(r.room)}</span>${ab ? `<span class="ab">${ab}</span>` : ""}</button>`;
+    }).join("");
+    return `<div class="col" style="height: ${rows * hh}px">${html}</div>`;
+  }).join("");
+  const hours = Array.from({ length: rows }, (_, h) => `<span style="top: ${h * hh}px">${7 + h}</span>`).join("");
+  return `<div class="wk" style="--hh: ${hh}px"><div></div>${WD2.slice(1, 6).map((d) => `<div class="dn">${d}</div>`).join("")}<div class="hrs" style="height: ${rows * hh}px">${hours}</div>${days}</div>`;
+}
+function phoneWeek(st) {
+  const cur = st.mode !== "closed" ? st.k : null;
+  return `<div class="scr p-week" data-keep="scr"><div class="p-top"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><span class="me">${icon("user")}</span></div>
+    <div class="card" style="margin: 10px 12px 0; padding: 14px 16px"><div class="sp-head"><h2>Stundenplan <span>WiSe 2026/27</span></h2></div><div style="margin-top: 10px" class="sp-seg"><span class="on">Plan</span><span>Alle Termine</span></div><p class="sp-sub">Informatik B.Sc. · 4 Module · 3 Wahlen getroffen</p></div>
+    ${planWeek(cur, 50)}<div style="height: 96px"></div></div>${phoneNav("plan")}`;
+}
+function rail(on) {
+  const items = [["home", "home"], ["mods", "mods"], ["cap", "cap"], ["mark", "mark"], ["plan", "plan"]];
+  return `<nav class="d-rail" aria-hidden="true"><span class="logo">${icon("leaf")}</span>${items.map(([ic, id]) => `<span class="ri${id === on ? " on" : ""}">${icon(ic)}${id === "plan" ? '<b class="badge">4</b>' : ""}</span>`).join("")}<span class="fill"></span><span class="ri">${icon("keys")}</span><span class="ri">${icon("user")}</span><span class="ri">${icon("moon")}</span></nav>`;
+}
+function deskTop(title) {
+  return `<div class="d-top"><div class="brand">${title}</div><div class="search">${icon("search")}Modul, Nummer oder Thema suchen<span class="cmd">${icon("bolt")}Befehle <kbd>Strg</kbd>+<kbd>K</kbd></span></div></div>`;
+}
+function deskHome(st) {
+  const cur = st.mode !== "closed" ? st.k : null;
+  return `<div class="photo" style="height: 300px; border-radius: 9px; padding: 64px 30px 0; display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 40px">
+      <div><p class="h-kick">Mittwoch, 4. November · KW 45</p><h2 class="h-greet" style="font-size: 52px">Guten Morgen.</h2><p class="h-say">Heute zwei Termine, der erste um 09:15 in LG1A/304.</p>${clock()}</div>
+      <div style="padding-top: 0">${nextCard(cur)}</div></div>
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 10px">
+      <div style="display: flex; flex-direction: column; gap: 10px"><section class="card"><div class="card-h"><b>Heute</b><small>Mi 04.11. · ${dayItems(TODAY).length} Termine</small><span class="go">Stundenplan${icon("right")}</span></div>${dayRows(TODAY, cur)}</section>
+      <section class="card"><div class="card-h"><b>Morgen</b><small>Do 05.11.</small><span class="go">Stundenplan${icon("right")}</span></div>${dayRows(TODAY + 1, cur)}</section></div>
+      <div style="display: flex; flex-direction: column; gap: 10px"><section class="card">${weekMini(cur)}</section><section class="card"><div class="card-h"><b>Prüfungen</b><small>3 im WiSe 2026/27</small><span class="go">Alle${icon("right")}</span></div>${examRows(cur)}</section></div>
+    </div>`;
+}
+function deskWeek(st) {
+  const cur = st.mode !== "closed" ? st.k : null;
+  const mods = Object.entries(MODS).map(([a, m]) => `<div class="m" style="${mc(a)}"><b>${esc(m.title)}</b><small><span class="abbr">${a}</span>${m.id}</small><span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
+  return `<div class="card" style="display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; padding: 18px 20px; min-height: 100%">
+    <div><div class="sp-head"><h2>Stundenplan <span>WiSe 2026/27</span></h2><span class="sp-seg"><span class="on">Plan</span><span>Alle Termine</span></span><span class="sp-seg"><span>A-Woche</span><span>B-Woche</span><span class="on">A/B</span></span></div><p class="sp-sub">Informatik B.Sc. · 4 Module · 3 Wahlen getroffen</p>${planWeek(cur, 50)}</div>
+    <div><p class="kicker" style="padding: 6px 10px 6px">Module <b style="float: right; color: var(--text); font-size: 15px">26 LP</b></p><div class="mods">${mods}</div></div></div>`;
+}
+
+// ---------- the concepts: what lies over the page ----------
+const CONCEPTS = {
+  a: { steps: [["Zu", "closed", "closed"], ["Halb · daneben", "half", "panel"], ["Ganz · Seite", "full", "page"]], open: ["half", "panel"] },
+  b: { steps: [["Zu", "closed", "closed"], ["Karte", "card", "pop"], ["Seite", "page", "page"]], open: ["card", "pop"] },
+  c: { steps: [["Zu", "closed", "closed"], ["Reihe", "series", "dlg"], ["Seite", "series", "page"]], open: ["series", "dlg"] },
+  d: { steps: [["Zu", "closed", "closed"], ["Tag", "day", "daypanel"], ["Seite", "page", "page"]], open: ["day", "daypanel"] },
+};
+const G = { ex: "raum", under: "home" };
+const ST = {};
+function reset(c) {
+  const k = EXAMPLES[G.ex];
+  ST[c] = { phone: { mode: CONCEPTS[c].open[0], k, groups: false }, desk: { mode: CONCEPTS[c].open[1], k, groups: false } };
+}
+const navTools = (k, extra) => {
+  const p = stepKey(k, -1), n = stepKey(k, 1);
+  return `<button type="button" class="ib" data-act="prev" aria-label="Voriges Datum"${p ? "" : " disabled"}>${icon("left")}</button><button type="button" class="ib" data-act="next" aria-label="Nächstes Datum"${n ? "" : " disabled"}>${icon("right")}</button>${extra || ""}`;
+};
+const closeBtn = (label) => `<button type="button" class="ib x" data-act="close" aria-label="${label || "Schließen"}">${icon("x")}</button>`;
+const closeTb = `<button type="button" class="tb" data-act="close">${icon("x")}Schließen <kbd>Esc</kbd></button>`;
+const pageTb = `<button type="button" class="tb" data-act="page">${icon("expand")}Ganze Seite <kbd>V</kbd></button>`;
+
+function overlayPhone(c, st) {
+  if (st.mode === "closed") return "";
+  const k = st.k;
+  if (c === "a") {
+    const size = st.mode === "half" ? "half" : "full";
+    return `${st.mode === "half" ? '<button type="button" class="shade" data-act="close" aria-label="Schließen"></button>' : ""}<section class="sheet ${st.mode}" aria-label="Termin"><button type="button" class="grab" data-act="${st.mode === "half" ? "grow" : "shrink"}" aria-label="${st.mode === "half" ? "Ganz hoch" : "Halb hoch"}"></button><div class="sheet-body" data-keep="body">${tm(k, { size, tools: navTools(k, closeBtn()), groups: st.groups })}</div></section>`;
+  }
+  if (c === "b") {
+    if (st.mode === "card") return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><section class="pcard" aria-label="Termin"><button type="button" class="grab" data-act="close" aria-label="Schließen"></button>${kcard(k, true)}</section>`;
+    return pagePhone(k, st, "Zurück");
+  }
+  if (c === "c") return seriesPhone(k, st);
+  if (c === "d") {
+    if (st.mode === "day") return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><section class="sheet day" aria-label="Tag"><button type="button" class="grab" data-act="close" aria-label="Schließen"></button>${dayHead(k, `<button type="button" class="ib" data-act="page" aria-label="Seite">${icon("expand")}</button>${closeBtn()}`)}<div class="sheet-body" data-keep="body">${dayList(k, st)}</div></section>`;
+    return pagePhone(k, st, "Tag");
+  }
+  return "";
+}
+function pagePhone(k, st, back) {
+  const i = info(k);
+  return `<section class="ppage" aria-label="Seite des Termins"><div class="ppage-bar"><button type="button" class="back" data-act="back">${icon("left")}${back}</button><span class="ttl"><b>${esc(i.r.kind)} · ${esc(i.r.mod)}</b><small>${WD2[wdOf(i.n)]} ${ddmm(i.n)} · ${i.r.s}</small></span><button type="button" class="ib" data-act="toast" data-msg="Link kopiert: betula.app/event/${esc(i.r.k)}/${isoOf(i.n)}" aria-label="Link kopieren">${icon("link")}</button></div><div class="ppage-body" data-keep="body">${tm(k, { size: "full", tools: navTools(k), groups: st.groups })}</div></section>`;
+}
+function kcard(k, phone) {
+  const i = info(k);
+  const r = rel(i.n, i.r.s, i.r.e);
+  const alert = tmAlert(i);
+  return `<div class="kcard" style="${mc(i.r.mod)}"><div class="tm-top"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(kindLine(i))}</span><span class="tm-tools">${phone ? "" : closeBtn()}</span></div>
+    <div><h3 class="tm-title">${esc(MODS[i.r.mod].title)}</h3><p class="tm-when">${WD2[wdOf(i.n)]} ${ddmm(i.n)} · ${i.r.s}–${i.r.e}</p><p class="tm-rel"><span class="${r.c}">${r.t}</span></p></div>
+    ${alert}<div class="kline"><span class="room">${esc(i.room)}</span><small>${esc(roomName(i.roomLong, i.r.campus))}</small></div>${i.r.instr ? `<div class="kline"><small>${icon("user")} ${esc(i.r.instr)}, leitet diesen Termin</small></div>` : ""}
+    <div class="kacts"><button type="button" class="btn primary" data-act="page">${icon("expand")}Details${phone ? "" : " <kbd>V</kbd>"}</button><button type="button" class="btn" data-act="toast" data-msg="QIS öffnet die Veranstaltung ${esc(i.r.num)} in einem neuen Tab">${icon("ext")}In QIS</button></div></div>`;
+}
+function seriesList(k, st) {
+  const i = info(k);
+  let lastMonth = -1, brkOpen = false;
+  const out = [];
+  for (const o of i.all) {
+    const mo = monthOf(o.n);
+    if (mo !== lastMonth) { out.push(`<li class="mh">${MON[mo]} ${isoOf(o.n).slice(0, 4)}</li>`); lastMonth = mo; }
+    if (o.st === "brk") {
+      if (!brkOpen) { out.push(`<li class="brkrow">${WD2[wdOf(o.n)]} ${ddmm(o.n)}${i.all.filter((x) => x.st === "brk").length > 1 ? ` und ${ddmm(i.all.filter((x) => x.st === "brk")[1].n)}` : ""} · ${esc(o.why)}</li>`); brkOpen = true; }
+      continue;
+    }
+    const sel = o.n === i.n;
+    const what = o.st === "room" ? `<span class="chip warn">in ${esc(o.room)}</span>` : o.st === "cancel" ? '<span class="chip no">fällt aus</span>' : o.n === TODAY ? '<span class="chip ok">heute</span>' : "";
+    const cls = ["r", o.n < TODAY ? "past" : "", o.st === "cancel" ? "cancel" : "", sel ? "sel" : ""].filter(Boolean).join(" ");
+    out.push(`<li${sel ? ' data-sel="1"' : ""}><button type="button" class="${cls}" data-act="date" data-k="${keyOf(i.r, o.n)}"><span class="d">${WD2[wdOf(o.n)]} ${ddmm(o.n)}</span><span class="w">${i.r.s}–${i.r.e} · ${esc(o.room || i.r.room)}${o.n < TODAY ? " · vorbei" : ""}</span>${what}</button>${sel ? `<div class="open">${tm(k, { size: "embed", groups: st.groups })}</div>` : ""}</li>`);
+  }
+  const ex = exams().find((x) => x.mod === i.r.mod);
+  if (ex) out.push(`<li class="mh">Am Ende</li><li><button type="button" class="r" data-act="open" data-k="${keyOf(ex, dn(ex.from))}"><span class="d">${WD2[wdOf(dn(ex.from))]} ${ddmm(dn(ex.from))}</span><span class="w">Prüfung · ${ex.s} · ${esc(ex.room)}</span><span class="chip">${dn(ex.from) - TODAY} Tage</span></button></li>`);
+  return `<ul class="ser">${out.join("")}</ul>`;
+}
+function seriesHead(k, tools) {
+  const i = info(k);
+  return `<div class="ser-head" style="${mc(i.r.mod)}"><div class="tm-top"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(kindLine(i))}</span><span class="tm-tools">${tools || ""}</span></div><h3>${esc(MODS[i.r.mod].title)}</h3><p>${RHYTHM[i.r.rh]} · ${WD2[i.r.wd]} ${i.r.s}–${i.r.e} · ${i.count} Termine, ${i.past} vorbei</p></div>`;
+}
+function seriesPhone(k, st) {
+  const i = info(k);
+  if (i.r.exam) return pagePhone(k, st, "Zurück");
+  return `<section class="ppage up" aria-label="Reihe des Termins"><div style="padding-top: 40px; border-bottom: 1px solid var(--line)">${seriesHead(k, `<button type="button" class="ib" data-act="toast" data-msg="Link kopiert: betula.app/event/${esc(i.r.k)}/${isoOf(i.n)}" aria-label="Link kopieren">${icon("link")}</button>${closeBtn()}`)}</div><div class="ppage-body" data-keep="ser" data-center="1">${seriesList(k, st)}</div><div class="ser-foot"><button type="button" class="btn" data-act="prev">${icon("left")}Früher</button><button type="button" class="btn" data-act="today">Heute</button><button type="button" class="btn" data-act="next">Später${icon("right")}</button></div></section>`;
+}
+// D: the day as a list, the Termin open in it.
+function dayHead(k, tools) {
+  const i = info(k);
+  const r = i.n === TODAY ? "heute" : i.n === TODAY + 1 ? "morgen" : rel(i.n, "00:00", "00:00").t;
+  return `<div class="dhead"><button type="button" class="ib" data-act="dayprev" aria-label="Tag davor">${icon("left")}</button><span class="tt"><b>${WD[wdOf(i.n)]}, ${ddmm(i.n)}</b><small>${r} · KW ${isoWeek(i.n)}${i.r.exam ? "" : ` · ${abWeek(i.n)}-Woche`}</small></span><button type="button" class="ib" data-act="daynext" aria-label="Tag danach">${icon("right")}</button>${tools || ""}</div>`;
+}
+function dayList(k, st, compact) {
+  const i = info(k);
+  const items = dayItems(i.n);
+  const out = [];
+  if (i.n === TODAY && items.length && items[0].s > NOW_MIN) out.push(`<li class="now">${hhmm(NOW_MIN)} jetzt</li>`);
+  let prev = null;
+  for (const it of items) {
+    if (prev && it.o.st !== "cancel") {
+      const gap = it.s - prev.e;
+      const where = building(it.room) === building(prev.room) ? (it.room === prev.room ? "gleicher Raum" : "gleiches Gebäude") : `weiter nach ${esc(building(it.room))}`;
+      out.push(`<li class="gap">${icon(gap >= 30 ? "coffee" : "walk")}${gap > 0 ? `${gapText(gap)} Pause` : "direkt danach"} · ${where}</li>`);
+    }
+    const open = parseK(it.k).r.k === i.r.k;
+    const gone = it.o.st === "cancel";
+    if (open && compact) out.push(`<li data-sel="1"><div class="row sel" style="${mc(it.r.mod)}"><span class="t">${it.r.s}<small>${it.r.e}</small></span><span><b>${esc(it.r.kind)} · ${esc(MODS[it.r.mod].title)}</b><small>${esc(it.room)} · rechts offen</small></span></div></li>`);
+    else if (open) out.push(`<li class="open" data-sel="1" style="${mc(it.r.mod)}"><div class="tm" style="padding-bottom: 4px"><div class="tm-head"><div class="tm-top"><span class="tm-mod"><i></i>${esc(it.r.mod)}</span><span class="tm-kind">${esc(kindLine(i))}</span></div><h3 class="tm-title" style="font-size: 18px">${esc(MODS[it.r.mod].title)}</h3><p class="tm-when" style="font-size: 15px">${it.r.s}–${it.r.e}</p></div></div>${tm(it.k, { size: "embed", groups: st.groups })}</li>`);
+    else out.push(`<li><button type="button" class="row${gone ? " gone" : ""}" data-act="open" data-k="${it.k}" style="${mc(it.r.mod)}"><span class="t">${it.r.s}<small>${it.r.e}</small></span><span><b>${esc(it.r.kind)} · ${esc(MODS[it.r.mod].title)}</b><small>${esc(it.room)}${gone ? " · fällt aus" : ""}</small></span></button></li>`);
+    if (!gone) prev = it;
+  }
+  if (prev) out.push(`<li class="end">ab ${prev.r.e} frei</li>`);
+  if (!items.length) out.push(`<li class="end" style="padding-left: 6px">Keine Termine an diesem Tag.</li>`);
+  return `<ul class="dlist">${out.join("")}</ul>`;
+}
+function dayStep(k, dir) {
+  const { n } = parseK(k);
+  for (let d = n + dir, tries = 0; tries < 60; d += dir, tries++) {
+    const items = dayItems(d);
+    if (items.length) return items[0].k;
+  }
+  return null;
+}
+
+function overlayDesk(c, st) {
+  if (st.mode === "closed") return "";
+  const k = st.k;
+  if (c === "a") {
+    if (st.mode === "panel") return `<aside class="dpanel" aria-label="Termin"><div class="sheet-body" data-keep="body">${tm(k, { size: "panel", tools: navTools(k, pageTb + closeTb), groups: st.groups })}</div></aside>`;
+    return pageDesk(k, st, G.under === "home" ? "Startseite" : "Stundenplan");
+  }
+  if (c === "b") {
+    if (st.mode === "pop") return `<button type="button" class="catch" data-act="close" aria-label="Schließen"></button><div class="pop" role="dialog" aria-label="Termin">${kcard(k, false)}</div>`;
+    return pageDesk(k, st, G.under === "home" ? "Startseite" : "Stundenplan");
+  }
+  if (c === "c") {
+    const i = info(k);
+    if (i.r.exam) return pageDesk(k, st, "Zurück");
+    const body = `<div class="ser-wrap" data-keep="ser" data-center="1">${seriesList(k, { groups: st.groups }).replace(/<div class="open">[\s\S]*?<\/div><\/li>/, "</li>")}</div><div class="sheet-body" data-keep="body">${tm(k, { size: "panel", tools: navTools(k), groups: st.groups }).replace(/<section class="tm-sec"><h4>Alle[\s\S]*?<\/section>/, "")}</div>`;
+    if (st.mode === "dlg") return `<button type="button" class="shade" data-act="close" aria-label="Schließen"></button><div class="dlg" role="dialog" aria-label="Reihe des Termins"><div class="dlg-head" style="${mc(i.r.mod)}"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tt"><b>${esc(i.r.kind)} · ${esc(MODS[i.r.mod].title)}</b><small>${RHYTHM[i.r.rh]} · ${WD2[i.r.wd]} ${i.r.s}–${i.r.e} · ${i.count} Termine</small></span>${pageTb}${closeTb}</div><div class="dlg-body">${body}</div></div>`;
+    return `<div class="dpage split">${body.replace('<div class="ser-wrap" data-keep="ser" data-center="1">', `<div class="ser-wrap" data-keep="ser" data-center="1"><div class="crumb" style="padding: 14px 16px 0"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : "Stundenplan"}</button><span>· Reihe</span></div>`)}</div>`;
+  }
+  if (c === "d") {
+    if (st.mode === "daypanel") return `<aside class="dpanel" aria-label="Tag"><div style="padding-top: 6px">${dayHead(k, `<button type="button" class="ib" data-act="page" aria-label="Ganze Seite">${icon("expand")}</button>${closeBtn()}`)}</div><div class="sheet-body" data-keep="body" style="padding-top: 0">${dayList(k, st)}</div></aside>`;
+    return `<div class="dpage split"><div class="day-wrap"><div class="crumb" style="padding: 14px 16px 0"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : "Stundenplan"}</button><span>· Tag</span></div><div style="padding-top: 8px">${dayHead(k)}</div>${dayList(k, st, true)}</div><div class="sheet-body" data-keep="body">${tm(k, { size: "panel", tools: navTools(k), groups: st.groups })}</div></div>`;
+  }
+  return "";
+}
+function pageDesk(k, st, back) {
+  return `<div class="dpage" data-keep="page"><div class="crumb"><button type="button" data-act="back">${icon("left")}${back}</button><span>· Termin</span></div>${tm(k, { size: "page", tools: navTools(k), groups: st.groups })}</div>`;
+}
+
+// ---------- painting ----------
+function addrOf(c, dev, st) {
+  const base = G.under === "home" ? "/" : "/studyplan";
+  if (st.mode === "closed") return base;
+  const { r, iso } = parseK(st.k);
+  const page = `/event/${r.k}/${iso}`;
+  const over = `${base}?termin=${r.k}&on=${iso}`;
+  if (c === "a") return st.mode === "page" ? page : over;
+  if (c === "b") return st.mode === "page" ? page : base;
+  if (c === "c") return dev === "phone" || st.mode === "page" ? page : over;
+  return st.mode === "page" ? page : over;
+}
+function paint(c, dev, fresh) {
+  const fig = document.querySelector(`.device[data-c="${c}"][data-dev="${dev}"]`);
+  const app = fig.querySelector(".app");
+  const st = ST[c][dev];
+  const keep = {};
+  if (!fresh) app.querySelectorAll("[data-keep]").forEach((el) => { keep[el.dataset.keep] = el.scrollTop; });
+  const under = G.under === "home" ? (dev === "phone" ? phoneHome(st) : deskHome(st)) : dev === "phone" ? phoneWeek(st) : deskWeek(st);
+  if (dev === "phone") {
+    const onPhoto = G.under === "home" && !(st.mode === "full" || st.mode === "page" || st.mode === "series");
+    app.innerHTML = `${statusBar(onPhoto)}${under}${overlayPhone(c, st)}`;
+  } else {
+    const title = st.mode === "page" ? "Termin" : G.under === "home" ? 'Betula<small>Modulkatalog · inoffiziell</small>' : "Stundenplan";
+    app.innerHTML = `${rail(G.under === "home" ? "home" : "plan")}${deskTop(title)}<div class="d-main" data-keep="main">${under}</div>${overlayDesk(c, st)}`;
+  }
+  app.querySelectorAll("[data-keep]").forEach((el) => {
+    if (keep[el.dataset.keep] != null && !(fresh === "body" && el.dataset.keep !== "scr" && el.dataset.keep !== "main")) el.scrollTop = keep[el.dataset.keep];
+  });
+  app.querySelectorAll("[data-center]").forEach((box) => {
+    const sel = box.querySelector("[data-sel]");
+    if (sel && (fresh || keep[box.dataset.keep] == null)) box.scrollTop = Math.max(0, sel.offsetTop - 64);
+  });
+  if (dev === "desk" && st.mode === "pop") placePop(app, st.k);
+  const a = addrOf(c, dev, st);
+  if (dev === "desk") fig.querySelector(".url").textContent = `betula.app${a}`;
+  else fig.querySelector(".addr").textContent = a;
+  document.querySelectorAll(`[data-steps="${c}"] button`).forEach((b) => {
+    const [, p, d] = CONCEPTS[c].steps[+b.dataset.i];
+    b.setAttribute("aria-pressed", String(ST[c].phone.mode === p && ST[c].desk.mode === d));
+  });
+}
+function placePop(app, k) {
+  const pop = app.querySelector(".pop");
+  const s = parseFloat(getComputedStyle(app.closest(".fit")).getPropertyValue("--s")) || 1;
+  const base = app.getBoundingClientRect();
+  const { r, n } = parseK(k);
+  const hits = [...app.querySelectorAll(".d-main [data-k]")].filter((el) => { const x = parseK(el.dataset.k); return x.r.k === r.k && (x.n === n || el.classList.contains("slot")); });
+  const t = hits.find((el) => !el.classList.contains("next")) || hits[0];
+  let x = 600, y = 160;
+  if (t) {
+    const b = t.getBoundingClientRect();
+    const left = (b.left - base.left) / s, top = (b.top - base.top) / s, w = b.width / s;
+    x = left + w + 10 + 360 > 1270 ? left - 370 : left + w + 10;
+    y = top - 20;
+  }
+  const h = pop.offsetHeight;
+  pop.style.left = `${Math.max(64, Math.min(x, 1280 - 370))}px`;
+  pop.style.top = `${Math.max(64, Math.min(y, 800 - h - 12))}px`;
+}
+function toast(app, msg) {
+  app.querySelectorAll(".toast").forEach((t) => t.remove());
+  const t = document.createElement("div");
+  t.className = "toast";
+  t.setAttribute("role", "status");
+  t.textContent = msg;
+  app.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+function paintAll(fresh) { for (const c of Object.keys(CONCEPTS)) { paint(c, "phone", fresh); paint(c, "desk", fresh); } paintAnat(); }
+
+// ---------- what each tap does ----------
+let LAST = null;
+function act(c, dev, a, el) {
+  const st = ST[c][dev];
+  const [phoneOpen, deskOpen] = CONCEPTS[c].open;
+  const openMode = dev === "phone" ? phoneOpen : deskOpen;
+  switch (a) {
+    case "open": st.prev = st.mode === "page" ? st.prevMode || "closed" : st.mode; st.k = el.dataset.k; st.groups = false; if (st.mode === "closed" || (c === "b" && st.mode !== "page") || (c === "a" && st.mode === "half")) st.mode = openMode; break;
+    case "date": st.k = el.dataset.k; break;
+    case "close": st.mode = "closed"; st.groups = false; break;
+    case "grow": st.mode = "full"; break;
+    case "shrink": st.mode = "half"; break;
+    case "page": st.prevMode = st.mode; st.mode = c === "a" && dev === "phone" ? "full" : "page"; break;
+    case "back": st.mode = st.prevMode && st.prevMode !== "page" ? st.prevMode : "closed"; if (c === "b") st.mode = "closed"; break;
+    case "prev": case "next": { const k = stepKey(st.k, a === "prev" ? -1 : 1); if (!k) return; st.k = k; break; }
+    case "today": { const { r } = parseK(st.k); st.k = keyOf(r, nextDate(r)); break; }
+    case "dayprev": case "daynext": { const k = dayStep(st.k, a === "dayprev" ? -1 : 1); if (!k) return; st.k = k; break; }
+    case "groups": st.groups = !st.groups; paint(c, dev); return;
+    case "pick": {
+      const r = ROW[el.dataset.k];
+      CHOSEN[r.ev] = r.k;
+      for (const x of ROWS) delete x._dates;
+      for (const cc of Object.keys(ST)) for (const d of ["phone", "desk"]) { const s = ST[cc][d]; if (s.k && parseK(s.k).r.ev === r.ev) { s.k = keyOf(r, nextDate(r)); } }
+      paintAll();
+      toast(document.querySelector(`.device[data-c="${c}"][data-dev="${dev}"] .app`), `Gruppe gewählt: ${WD2[r.wd]} ${r.s}, ${r.room}`);
+      return;
+    }
+    case "toast": toast(el.closest(".app"), el.dataset.msg); return;
+    default: return;
+  }
+  paint(c, dev, a === "close" ? false : "body");
+}
+document.addEventListener("click", (e) => {
+  const set = e.target.closest("[data-set]");
+  if (set) {
+    G[set.dataset.set] = set.dataset.v;
+    document.querySelectorAll(`[data-set="${set.dataset.set}"]`).forEach((b) => b.setAttribute("aria-pressed", String(b === set)));
+    if (set.dataset.set === "ex") for (const c of Object.keys(CONCEPTS)) reset(c);
+    paintAll(true);
+    return;
+  }
+  const rs = e.target.closest("[data-reset]");
+  if (rs) { reset(rs.dataset.reset); paint(rs.dataset.reset, "phone", true); paint(rs.dataset.reset, "desk", true); return; }
+  const step = e.target.closest("[data-steps] button");
+  if (step) {
+    const c = step.parentElement.dataset.steps;
+    const [, p, d] = CONCEPTS[c].steps[+step.dataset.i];
+    for (const [dev, mode] of [["phone", p], ["desk", d]]) { const st = ST[c][dev]; if (mode !== "closed" && !st.k) st.k = EXAMPLES[G.ex]; if (mode === "page") st.prevMode = CONCEPTS[c].open[dev === "phone" ? 0 : 1]; st.mode = mode; }
+    paint(c, "phone", true); paint(c, "desk", true);
+    return;
+  }
+  const dev = e.target.closest(".device[data-c]");
+  if (!dev) return;
+  LAST = { c: dev.dataset.c, dev: dev.dataset.dev };
+  const el = e.target.closest("[data-act]");
+  if (!el || el.disabled) return;
+  act(dev.dataset.c, dev.dataset.dev, el.dataset.act, el);
+});
+document.addEventListener("keydown", (e) => {
+  if (!LAST || e.altKey || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(e.target.tagName)) return;
+  const st = ST[LAST.c][LAST.dev];
+  if (st.mode === "closed") return;
+  const map = { Escape: st.mode === "page" ? "back" : "close", ArrowLeft: LAST.c === "d" ? "dayprev" : "prev", ArrowRight: LAST.c === "d" ? "daynext" : "next", v: "page", V: "page" };
+  const a = map[e.key];
+  if (!a) return;
+  if (a === "page" && (LAST.dev !== "desk" || st.mode === "page")) return;
+  e.preventDefault();
+  act(LAST.c, LAST.dev, a, null);
+});
+
+// ---------- the anatomy: the page of the chosen Termin at its size, numbered ----------
+const BLOCKS = [
+  ["Kopf", "Art und Gruppe, das Modul mit Kürzel und Farbe, Tag und Uhrzeit, wie lange noch, Kalenderwoche, A- oder B-Woche, das wievielte Datum. ‹ › blättern, × schließt.", ["event_type", "event_title", "v_module.abbrev"], ["Tag, KW, A/B, Zählung"]],
+  ["Was an diesem Tag gilt", "Anderer Raum, fällt aus, vorlesungsfrei, Feiertag, nur in A- oder B-Wochen. In Betulas Worten, darunter QIS' eigene mit „laut QIS“.", ["cancelled_dates"], ["Einzeltermin zur selben Zeit", "Pause und Feiertage"]],
+  ["Raum", "Die Kurzform groß, zum Abschreiben und Kopieren, darunter der Name aus QIS und der Standort; bei einem Raumwechsel der alte durchgestrichen.", ["room_short", "room", "campus"], []],
+  ["Wer und wie oft", "Die Leitung dieser Zeile, die Verantwortlichen des Moduls, Rhythmus und Zeitraum, wie viele Termine es sind und wie viele vorbei. Bei einer Wahl die Gruppen mit „passt“ oder der Überschneidung, und eine andere nehmen.", ["instructor", "v_module_lecturer", "rhythm", "first_date", "last_date", "event_number"], ["Wahl des Stundenplans"]],
+  ["Knöpfe", "Im Stundenplan (die Woche, der Termin markiert), In QIS, In den Kalender (dieses Datum oder die Reihe), Link kopieren. Das Modul öffnet das Kürzel im Kopf.", [], []],
+  ["An diesem Tag", "Was davor und danach ist, die Pause dazwischen, ob es im selben Raum, im selben Gebäude oder anderswo weitergeht. Jeder andere Termin ist ein Tipp entfernt.", [], ["dein Stundenplan"]],
+  ["Alle Termine", "Jedes Datum der Reihe als Streifen nach Monaten: vorbei, heute, anderer Raum, fällt aus, vorlesungsfrei. Ein Tipp wechselt das Datum. Bei einer Prüfung stehen hier alle Prüfungen mit ihren Abständen.", ["rhythm", "first_date", "last_date", "cancelled_dates"], ["Pause, Feiertage"]],
+  ["Hinweis aus QIS", "Die Bemerkung der Zeile, wie QIS sie schreibt; Links darin werden klickbar. Erscheint nur, wo es eine gibt, etwa an der Prüfung in EvS.", ["comment"], []],
+  ["Modul und Prüfung", "Titel, Kürzel, Nummer und LP des Moduls, „Modul ansehen“, und seine Prüfung mit Datum, Raum, Abstand und Form, ein Tipp entfernt.", ["v_module", "v_module_exam"], []],
+];
+function paintAnat() {
+  const k = EXAMPLES[G.ex];
+  document.getElementById("anat-app").innerHTML = tm(k, { size: "full", tools: navTools(k, closeBtn()), mk: true });
+  const i = info(k);
+  const present = new Set([...document.querySelectorAll("#anat-app .anat-n")].map((n) => +n.textContent));
+  document.getElementById("anat-list").innerHTML = BLOCKS.map(([h, p, cols, der], n) => `<li class="${present.has(n + 1) ? "" : "not"}"><span class="n">${n + 1}</span><div><h3>${h}</h3><p>${p}</p>${cols.length || der.length ? `<div class="src">${cols.map((x) => `<span>${x}</span>`).join("")}${der.map((x) => `<span class="derived">abgeleitet: ${x}</span>`).join("")}</div>` : ""}${present.has(n + 1) ? "" : `<p style="color: var(--text-3)">Bei ${esc(i.r.kind === "Prüfung" ? "dieser Prüfung" : "diesem Termin")} nicht da.</p>`}</div></li>`).join("");
+}
+
+// ---------- scaling the devices to their place ----------
+function fitAll() {
+  document.querySelectorAll(".fit").forEach((f) => {
+    const w = +getComputedStyle(f).getPropertyValue("--w");
+    f.style.setProperty("--s", String(Math.min(1, f.clientWidth / w)));
+  });
+}
+for (const c of Object.keys(CONCEPTS)) {
+  document.querySelector(`[data-steps="${c}"]`).innerHTML = CONCEPTS[c].steps.map(([l], i) => `<button type="button" data-i="${i}" aria-pressed="false">${l}</button>`).join("");
+  reset(c);
+}
+fitAll();
+paintAll(true);
+new ResizeObserver(() => { fitAll(); }).observe(document.querySelector(".page"));
+window.addEventListener("resize", fitAll);
+</script>
