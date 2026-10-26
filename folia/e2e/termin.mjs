@@ -15,6 +15,11 @@
 // - The start page: a Termin of its day opens over the page (`/?termin=…&on=…`), and closing it
 //   goes back to the page.
 // - A phone: the view is a sheet over the plan.
+// - The Termin's own page to look up (`/event/<key>`): from a line of the Praktikum's module page, in
+//   the plan, its groups measured against it, „Anpassen ›" into the Stundenplan of its semester;
+//   Back leaves it. Enterprise Ressource Planning's exercise (12612, outside the plan): „nicht im
+//   Plan", its second group red against the plan's lecture, the Termin hatched among the plan's
+//   day, „In den Kalender" a file of its own.
 // Needs the snapshot whose current semester is WiSe 2026/27. Fails on a page load after takeover, a
 // console error, or a step that does not show up.
 import { fileURLToPath } from "node:url";
@@ -168,6 +173,65 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
     return Boolean(sheet) && getComputedStyle(sheet).position === "fixed";
   });
   if (shots) await page.screenshot({ path: `${shots}/termin-phone.png` });
+  await context.close();
+}
+
+// ---------- the Termin's own page ----------
+// The page as it reads: the head, the groups' dots, the foot, the ways out.
+const lookUp = (page) => page.evaluate(() => {
+  const panel = onPage(".is-termin.tm-page");
+  const text = (selector) => panel?.querySelector(selector)?.textContent.replace(/\s+/g, " ").trim() ?? "";
+  return {
+    title: text(".tm-title"),
+    out: text(".np"),
+    dots: [...(panel?.querySelectorAll(".gs") ?? [])].map((tile) => tile.querySelector("i.st")?.className.replace("st ", "") ?? ""),
+    foot: text(".grp-f > span"),
+    adjust: panel?.querySelector(".grp-f a.go2")?.getAttribute("href") ?? "",
+    file: panel?.querySelector("a.tm-big")?.getAttribute("download") ?? "",
+    blob: (panel?.querySelector("a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"),
+    day: [...(panel?.querySelectorAll(".rb") ?? [])].map((bar) => bar.className),
+  };
+});
+// A line of a module's Termine (they stand folded) as the visitor follows it.
+const follow = async (page, prefix) => {
+  const href = await page.evaluate((prefix) => onPage(`a.ev[href^="${prefix}"]`)?.getAttribute("href") ?? "", prefix);
+  check(href.startsWith(prefix) && await page.evaluate((href) => onPage(`a.ev[href="${href}"]`)?.getAttribute("rel") === "nofollow", href), `a Termin of the module page leads to its page: „${href}"`);
+  await page.evaluate((href) => onPage(`a.ev[href="${href}"]`)?.click(), href);
+  return href;
+};
+{
+  const { page, context } = await open("/catalog/module/12102");
+  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/event/148370-']")));
+  const href = await follow(page, "/event/148370-");
+  await until(page, "the Termin's page", (href) => location.pathname === href && Boolean(onPage(".is-termin.tm-page .tk")), href);
+  let v = await lookUp(page);
+  check(v.title === "Programmierpraktikum" && !v.out && !v.file, `in the plan: ${JSON.stringify(v)}`);
+  check(v.dots.length === 4 && v.dots.includes("ok") && v.dots.every((dot) => dot === "ok" || dot === "no"), `the groups measured against the plan: ${JSON.stringify(v)}`);
+  check(v.foot === "Noch keine in deinem Stundenplan" && /^\/studyplan\?sem=2026W&termin=148370-[0-9a-f]{5}&on=\d{4}-\d\d-\d\d$/.test(v.adjust), `„Anpassen ›": ${JSON.stringify(v)}`);
+  check(v.day.length > 1, `the plan's day around it: ${JSON.stringify(v)}`);
+  check(await page.evaluate(() => /Programmierpraktikum/.test(document.title)), `the title: ${await page.title()}`);
+  if (shots) await page.screenshot({ path: `${shots}/termin-page.png` });
+  await page.click(".is-termin.tm-page .grp-f a.go2");
+  await until(page, "the Termin in the Stundenplan", () => location.pathname === "/studyplan" && Boolean(onPage("#preview.is-termin .tk")) && Boolean(onPage("#preview.is-termin .gs.pick")));
+  await page.goBack();
+  await until(page, "back on the Termin's page", () => Boolean(onPage(".is-termin.tm-page .tk")));
+  await page.goBack();
+  await until(page, "back on the module page", () => location.pathname === "/catalog/module/12102");
+  check(await page.evaluate(() => window.__marker === 1), "the module page was loaded again");
+  await context.close();
+}
+{
+  const { page, context } = await open("/catalog/module/12612");
+  await until(page, "the module's Termine", () => Boolean(onPage("a.ev[href^='/event/150294-']")));
+  await follow(page, "/event/150294-");
+  await until(page, "the Termin's page", () => location.pathname.startsWith("/event/150294-") && Boolean(onPage(".is-termin.tm-page .tk")));
+  await until(page, "the calendar file", () => (onPage(".is-termin.tm-page a.tm-big")?.getAttribute("href") ?? "").startsWith("blob:"));
+  const v = await lookUp(page);
+  check(v.out === "nicht im Plan" && !v.foot && !v.adjust, `outside the plan: ${JSON.stringify(v)}`);
+  check(v.dots.length === 3 && v.dots.filter((dot) => dot === "no").length === 1, `one group meets the plan: ${JSON.stringify(v)}`);
+  check(v.day.some((bar) => bar.includes(" me") && bar.includes(" out")) && v.day.length > 1, `hatched among the plan's day: ${JSON.stringify(v)}`);
+  check(v.file.endsWith(".ics") && v.blob, `„In den Kalender": ${JSON.stringify(v)}`);
+  if (shots) await page.screenshot({ path: `${shots}/termin-page-out.png` });
   await context.close();
 }
 

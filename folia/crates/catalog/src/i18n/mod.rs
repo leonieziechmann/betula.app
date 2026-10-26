@@ -16,6 +16,7 @@ folia_design::texts! {
     planner = folia_stores::i18n::planner,
     plans_data = folia_plans::i18n,
     seo = folia_shell::i18n::seo,
+    termin = folia_widgets::i18n::termin,
     timetable_data = folia_timetable::i18n,
     ui = folia_design::i18n::ui,
     week = folia_widgets::i18n::week,

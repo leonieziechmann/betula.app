@@ -41,6 +41,7 @@ use folia_stores::profiles::Profiles;
 use folia_stores::studyplan::{Planning, Studyplan};
 use folia_widgets::plannote::PlanNote;
 use folia_widgets::plansetup::PlanSetup;
+use folia_catalog::event::EventPage;
 use folia_catalog::module::ModulePage;
 
 pub use folia_design::{asset, BuildId};
@@ -131,6 +132,8 @@ fn pages() -> impl IntoView {
                 <Route path=path!("/studyplan") view=StudyplanPage ssr=SsrMode::Async/>
                 <Route path=path!("/study") view=StudyPage ssr=SsrMode::Async/>
                 <Route path=path!("/profile") view=ProfilePage ssr=SsrMode::Async/>
+                <Route path=path!("/event/:key") view=EventPage ssr=SsrMode::Async/>
+                <Route path=path!("/event/:key/:day") view=EventPage ssr=SsrMode::Async/>
                 <Route path=path!("/impressum") view=ImprintPage ssr=SsrMode::Async/>
                 <Route path=path!("/datenschutz") view=PrivacyPage ssr=SsrMode::Async/>
             </Routes>
@@ -153,6 +156,7 @@ fn page(page: Page) -> AnyView {
         Page::Studyplan => view! { <StudyplanPage/> }.into_any(),
         Page::Study => view! { <StudyPage/> }.into_any(),
         Page::Profile => view! { <ProfilePage/> }.into_any(),
+        Page::Event => view! { <EventPage/> }.into_any(),
         Page::Imprint => view! { <ImprintPage/> }.into_any(),
         Page::Privacy => view! { <PrivacyPage/> }.into_any(),
         Page::NotFound => view! { <Plain><ui::NotFound title=t.app.not_found_title hint=t.app.not_found_hint/></Plain> }.into_any(),

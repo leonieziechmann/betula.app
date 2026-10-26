@@ -219,6 +219,16 @@ fn frame(shape: Shape) -> AnyView {
                 <div class="panel sk-sweep sk-stage"></div>
             </div>
         }.into_any()),
+        // A Termin's own page: one panel, its head, the ticket and lines under it.
+        Shape::Event => solo("", view! {
+            <div class="page-inner">
+                <div class="panel sk-sweep sk-block sk-termin">
+                    {lines(&["sk-w2", "sk-w4 sk-big"])}
+                    <div class="sk-ticket"></div>
+                    {lines(&["sk-w4", "sk-w5", "sk-w3", "sk-w5", "sk-w4"])}
+                </div>
+            </div>
+        }.into_any()),
         Shape::Text => framed(Side::Toc(3), view! {
             <div class="panel sk-sweep sk-block">
                 {lines(&["sk-w4 sk-big", "sk-w6", "sk-w6", "sk-w5", "sk-w6", "sk-w3"])}

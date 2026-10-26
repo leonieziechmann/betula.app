@@ -101,6 +101,29 @@ pub fn home_termin(raw_query: &str) -> Option<(RowKey, Option<Day>)> {
     Some((key, first_value(&pairs, "on").and_then(|day| Day::parse(&day))))
 }
 
+/// The prefix of a Termin's own page (`/event/<key>[/<day>]`).
+pub const EVENT: &str = "/event";
+
+/// `/event/<key>/<day>`, a Termin's own page on a day of it (`None`: its next date); folia/design
+/// /termin, the view to look up. The key is a `RowKey`'s text, the day `YYYY-MM-DD`.
+pub fn event_path(key: RowKey, on: Option<Day>) -> String {
+    match on {
+        Some(day) => format!("{EVENT}/{}/{}", key.text(), day.iso()),
+        None => format!("{EVENT}/{}", key.text()),
+    }
+}
+
+/// The Termin and day of a Termin's own page by its path (`/event/148370-eb017/2026-11-02`), as
+/// `event_path` writes it, any case of the key; a day that is none is no day. `None` for another
+/// path.
+pub fn event_of(path: &str) -> Option<(RowKey, Option<Day>)> {
+    let rest = path.strip_prefix(EVENT)?.strip_prefix('/')?;
+    let mut parts = rest.trim_end_matches('/').split('/');
+    let key = RowKey::parse(&parts.next()?.to_ascii_lowercase())?;
+    let on = parts.next().and_then(Day::parse);
+    parts.next().is_none().then_some((key, on))
+}
+
 /// `/?termin=…&on=…`, the start page with the Termin over it; `/` without one.
 pub fn home_termin_path(termin: Option<(RowKey, Option<Day>)>) -> String {
     match termin {
@@ -196,7 +219,8 @@ pub fn listed(address: &str) -> bool {
         None => (address, None),
     };
     let program_tab = path.strip_prefix("/programs/").and_then(|rest| rest.split_once('/')).and_then(|(_, tab)| ProgramTab::from_segment(tab));
-    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || program_tab.is_some_and(|tab| !tab.indexed()) {
+    // A Termin's own page is no page search engines list: events times dates are many addresses.
+    if path == BOOKMARKS || path == STUDYPLAN || path == STUDY || path == PROFILE || path.starts_with("/event/") || program_tab.is_some_and(|tab| !tab.indexed()) {
         return false;
     }
     match query {
@@ -1870,6 +1894,21 @@ mod tests {
         assert_eq!(PlanView::ALL.iter().map(|view| view.label(Locale::De)).collect::<Vec<_>>(), ["Woche", "Termine", "Prüfungen", "Übersicht"]);
     }
 
+    /// A Termin's own page: its key and the day, both in the path.
+    #[test]
+    fn a_termin_has_a_page_of_its_own() {
+        let key = RowKey::parse("148370-eb017").unwrap();
+        let day = Day::parse("2026-11-02");
+        assert_eq!(event_path(key, day), "/event/148370-eb017/2026-11-02");
+        assert_eq!(event_path(key, None), "/event/148370-eb017");
+        assert_eq!(event_of("/event/148370-EB017/2026-11-02"), Some((key, day)));
+        assert_eq!(event_of("/event/148370-eb017/"), Some((key, None)));
+        assert_eq!(event_of("/event/148370-eb017/gestern"), Some((key, None)));
+        for nonsense in ["/event", "/event/", "/event/x", "/event/148370-eb017/2026-11-02/more", "/events/148370-eb017", "/catalog"] {
+            assert_eq!(event_of(nonsense), None, "{nonsense}");
+        }
+    }
+
     /// Over the start page a Termin stands by the same two names.
     #[test]
     fn a_termin_stands_over_the_start_page() {
@@ -2164,6 +2203,8 @@ mod tests {
             StudyUrl::parse("open=11101").path(),
             PROFILE.to_string(),
             format!("{}{}", module_path("11101"), ModuleHint::parse("plan=2026W").query()),
+            "/event/148370-eb017".to_string(),
+            "/event/148370-eb017/2026-11-02".to_string(),
         ];
         for view in &views {
             assert!(!listed(view), "{view}");
