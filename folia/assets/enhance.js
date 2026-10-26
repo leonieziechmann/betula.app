@@ -2248,6 +2248,30 @@
   const showTopSoon = () => { if (!topFrame) topFrame = requestAnimationFrame(showTop); };
   document.addEventListener("scroll", showTopSoon, { capture: true, passive: true });
   addEventListener("resize", showTopSoon);
+
+  // The frost under the bar on a phone (app.css `.frost`): once the window is scrolled, a blur
+  // without a colour of its own lies under the crown and the search over what runs beneath
+  // (`data-scrolled`). On the start page the crown's leaves wait while its photo lies under the
+  // search, and come once it has left the bar (`data-photo-gone`). On the server's page and in the
+  // app alike, a page in front of another as well (its stage gives the window its own scroll).
+  let frostFrame = 0;
+  const frost = () => {
+    frostFrame = 0;
+    const scrolled = phone() && scrollY > 4;
+    if (root.hasAttribute("data-scrolled") !== scrolled) root.toggleAttribute("data-scrolled", scrolled);
+    let gone = true;
+    if (phone()) {
+      const hero = [...(stage() || document).querySelectorAll(".day-hero")].find((el) => el.offsetParent !== null);
+      const bar = document.querySelector(".crown");
+      if (hero && bar) gone = hero.getBoundingClientRect().bottom <= bar.getBoundingClientRect().bottom + 1;
+    }
+    if (root.hasAttribute("data-photo-gone") !== gone) root.toggleAttribute("data-photo-gone", gone);
+  };
+  const frostSoon = () => { if (!frostFrame) frostFrame = requestAnimationFrame(frost); };
+  addEventListener("scroll", frostSoon, { passive: true });
+  addEventListener("resize", frostSoon);
+  addEventListener("betula:stage", frostSoon);
+  frost();
   // The app's pages replace each other, and the app takes the page over with a button of its own.
   // Another page or another button starts at the page's top, where the button is hidden; a page
   // that comes back further down is scrolled there, and that scroll shows it. Asked where it is

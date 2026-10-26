@@ -6,10 +6,9 @@
 //! The picture is 300 px high on a wide screen at every hour, in every phase and step (owner,
 //! 2026-10-20: „Beim PC darf sich das hero banner nicht verschieben"): the sentence about the day
 //! keeps to two lines and names modules by their few letters, the card beside it is as high as the
-//! picture. On a phone the photo reaches up under the search, and the content that runs under the
-//! search on the way down gets a dark veil there, in light and dark alike (owner, the same day: „das
-//! soll auf jeden fall nicht zu 100% opaque sein … im light und dark mode das ein wenig
-//! abzudunkeln"; app.css and `Veil` below).
+//! picture. On a phone the photo reaches up under the search; what runs under the search on the way
+//! down goes soft under the frost every page has there, and the crown's leaves come once the photo
+//! has left the bar (owner, 2026-10-26; app.css `.frost`, enhance.js `data-photo-gone`).
 //!
 //! Everything is the visitor's and the browser app's (R9, R20): the Stundenplan's timetable of the
 //! current semester (`StudyplanAsk`, the same as the Stundenplan's, so the two never disagree),
@@ -63,23 +62,62 @@ pub fn clock_now() -> Option<(Day, u16)> {
     None
 }
 
+/// The modules' names: in full and in few letters (`StudyplanData::titles`, `slot_names`).
+pub(super) type Names = (BTreeMap<String, String>, BTreeMap<String, String>);
+
 /// What the day's parts share.
 #[derive(Clone, Copy)]
-struct Ctx {
-    now: RwSignal<(Day, u16)>,
+pub(super) struct Ctx {
+    pub(super) now: RwSignal<(Day, u16)>,
     /// The current semester.
-    key: Memo<Option<SemesterKey>>,
+    pub(super) key: Memo<Option<SemesterKey>>,
     /// Its planned modules.
-    planned: Memo<Vec<String>>,
-    table: Memo<Option<Timetable>>,
+    pub(super) planned: Memo<Vec<String>>,
+    pub(super) table: Memo<Option<Timetable>>,
     /// The table's agenda, the days with what they hold.
-    agenda: Memo<Vec<AgendaWeek>>,
-    facts: Memo<Option<SemesterFacts>>,
-    today: Memo<Today>,
-    clock: Memo<Option<Clock>>,
-    phase: Memo<Phase>,
+    pub(super) agenda: Memo<Vec<AgendaWeek>>,
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    pub(super) names: Memo<Names>,
+    pub(super) facts: Memo<Option<SemesterFacts>>,
+    /// „Mein Studium"'s numbers.
+    pub(super) progress: Memo<Option<Progress>>,
+    pub(super) today: Memo<Today>,
+    pub(super) clock: Memo<Option<Clock>>,
+    pub(super) phase: Memo<Phase>,
     /// Without a study set up („Erst mal umschauen").
-    guest: bool,
+    pub(super) guest: bool,
+}
+
+impl Ctx {
+    /// The same inputs at the minute `now` holds: the day, the clock and the phase of it
+    /// (`ahead` works out the minutes to come this way).
+    #[cfg_attr(not(feature = "csr"), allow(dead_code))]
+    pub(super) fn at(self, now: RwSignal<(Day, u16)>) -> Ctx {
+        let (today, clock, phase) = minute_parts(now, self.table, self.agenda, self.names, self.facts);
+        Ctx { now, today, clock, phase, ..self }
+    }
+}
+
+/// The day, the clock and the phase at the minute `now` holds.
+fn minute_parts(now: RwSignal<(Day, u16)>, table: Memo<Option<Timetable>>, agenda: Memo<Vec<AgendaWeek>>, names: Memo<Names>, facts: Memo<Option<SemesterFacts>>) -> (Memo<Today>, Memo<Option<Clock>>, Memo<Phase>) {
+    let t = i18n::t();
+    let today = Memo::new(move |_| {
+        let (day, minute) = now.get();
+        let words = daymodel::Words { locale: t.locale, exam: t.today.exam };
+        table.with(|table| {
+            let Some(table) = table else { return Today::default() };
+            agenda.with(|agenda| names.with(|(titles, names)| daymodel::today(table, agenda, titles, names, day, minute, &words)))
+        })
+    });
+    let clock = Memo::new(move |_| {
+        let (day, minute) = now.get();
+        facts.with(|facts| facts.as_ref().and_then(|facts| today.with(|today| clock::clock(facts, day, minute, &today.exam_days))))
+    });
+    let phase = Memo::new(move |_| {
+        let (day, _) = now.get();
+        clock.with(|clock| clock.as_ref().map(|clock| clock.phase)).or_else(|| facts.with(|facts| facts.as_ref().map(|facts| clock::phase(facts, day)))).unwrap_or(Phase::Lectures)
+    });
+    (today, clock, phase)
 }
 
 /// The day. `guest`: no study is set up, and the page says what setting one up brings
@@ -131,45 +169,18 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
     });
     let facts = Memo::new(move |_| data.with(|data| data.as_ref().map(StudyplanData::facts)));
     let agenda = Memo::new(move |_| table.with(|table| table.as_ref().map(|table| table.agenda(t.locale)).unwrap_or_default()));
-    let names = Memo::new(move |_| data.with(|data| data.as_ref().map(|data| (data.titles(), data.slot_names())).unwrap_or_default()));
-    let today = Memo::new(move |_| {
-        let (day, minute) = now.get();
-        let words = daymodel::Words { locale: t.locale, exam: t.today.exam };
-        table.with(|table| {
-            let Some(table) = table else { return Today::default() };
-            agenda.with(|agenda| names.with(|(titles, names)| daymodel::today(table, agenda, titles, names, day, minute, &words)))
-        })
-    });
-    let clock = Memo::new(move |_| {
-        let (day, minute) = now.get();
-        facts.with(|facts| facts.as_ref().and_then(|facts| today.with(|today| clock::clock(facts, day, minute, &today.exam_days))))
-    });
-    let phase = Memo::new(move |_| {
-        let (day, _) = now.get();
-        clock.with(|clock| clock.as_ref().map(|clock| clock.phase)).or_else(|| facts.with(|facts| facts.as_ref().map(|facts| clock::phase(facts, day)))).unwrap_or(Phase::Lectures)
-    });
-    let ctx = Ctx { now, key, planned, table, agenda, facts, today, clock, phase, guest };
-
-    // The page's own: the photo of the season, fog while the exams run, its shade by the hour.
-    let fog = Memo::new(move |_| ctx.phase.get() == Phase::Exams);
-    let light = Memo::new(move |_| {
-        let (day, minute) = now.get();
-        photo::light(day, minute)
-    });
+    let names: Memo<Names> = Memo::new(move |_| data.with(|data| data.as_ref().map(|data| (data.titles(), data.slot_names())).unwrap_or_default()));
+    let progress = progress(key);
+    let (today, clock, phase) = minute_parts(now, table, agenda, names, facts);
+    let ctx = Ctx { now, key, planned, table, agenda, names, facts, progress, today, clock, phase, guest };
+    // What the photo shows over the next days, kept for the next start of the page (`ahead`).
+    #[cfg(feature = "csr")]
+    if !guest {
+        super::ahead::keep(ctx);
+    }
 
     view! {
-        // Its buttons are commands of „Befehle" (R25) under „Dein Tag", as the note of a study set up.
-        <section class=move || format!("day-hero {}{}", light.get().class(), if fog.get() { " fog" } else { "" }) aria-label=t.today.your_day data-commands=t.today.your_day>
-            <div class="day-photo" class:fog=move || fog.get() aria-hidden="true"></div>
-            <div class="day-shade" aria-hidden="true"></div>
-            <div class="day-greet">
-                <p class="day-eyebrow">{move || long_date(now.get().0, t)}</p>
-                <h1>{move || format!("{}.", greeting_text(now.get().1, t))}</h1>
-                <p class="day-line">{move || sentence(ctx, t)}</p>
-                <ClockView ctx/>
-            </div>
-            <NextCard ctx on_setup/>
-        </section>
+        <Hero ctx on_setup/>
         <Welcome welcome/>
         {move || {
             let phase = ctx.phase.get();
@@ -203,6 +214,36 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
             }.into_any()
         }}
         <Discover home/>
+    }
+}
+
+/// The photo with the day on it: the date, the greeting, the day in a sentence, the semester's
+/// clock, and the card of what comes next. A function of the minute `ctx.now` holds, so that
+/// `ahead` can write it for the minutes to come as the page shows it now. What goes by the minute
+/// is marked for it (`data-count`): the sentence, the card's minutes, the clock's running week.
+#[component]
+pub(super) fn Hero(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
+    let t = i18n::t();
+    let now = ctx.now;
+    // The photo of the season, fog while the exams run, its shade by the hour.
+    let fog = Memo::new(move |_| ctx.phase.get() == Phase::Exams);
+    let light = Memo::new(move |_| {
+        let (day, minute) = now.get();
+        photo::light(day, minute)
+    });
+    view! {
+        // Its buttons are commands of „Befehle" (R25) under „Dein Tag", as the note of a study set up.
+        <section class=move || format!("day-hero {}{}", light.get().class(), if fog.get() { " fog" } else { "" }) aria-label=t.today.your_day data-commands=t.today.your_day>
+            <div class="day-photo" class:fog=move || fog.get() aria-hidden="true"></div>
+            <div class="day-shade" aria-hidden="true"></div>
+            <div class="day-greet">
+                <p class="day-eyebrow">{move || long_date(now.get().0, t)}</p>
+                <h1>{move || format!("{}.", greeting_text(now.get().1, t))}</h1>
+                <p class="day-line" data-count="line">{move || sentence(ctx, t)}</p>
+                <ClockView ctx/>
+            </div>
+            <NextCard ctx on_setup/>
+        </section>
     }
 }
 
@@ -264,8 +305,32 @@ fn time(minute: Option<u16>) -> String {
     minute.map(day::clock).unwrap_or_default()
 }
 
+/// „Gerade läuft VL EvS in ZHG/HS.C, noch 20 Minuten.": `entry` runs, `left` minutes to go.
+pub(super) fn running_line(entry: &Entry, left: u16, t: &Texts) -> String {
+    (t.today.running)(&entry.kind_short, &entry.short, entry.room.as_deref(), left)
+}
+
+/// What the card says of the minutes of `entry` at `minute`: „noch 1 h 05 min" while it runs,
+/// „in 25 min" before it.
+pub(super) fn card_minutes(entry: &Entry, running: bool, minute: u16, t: &Texts) -> String {
+    match running {
+        true => (t.today.minutes_left)(entry.to.map_or(0, |to| to.saturating_sub(minute))),
+        false => entry.from.map(|from| (t.today.in_minutes)(from.saturating_sub(minute))).unwrap_or_default(),
+    }
+}
+
+/// What the card shows of the day itself, where it does: the Termin that runs, else the next one,
+/// and whether it runs. Not for a visitor without a study, nor with an empty plan, nor outside the
+/// lectures.
+pub(super) fn focus(ctx: Ctx) -> Option<(Entry, bool)> {
+    if ctx.guest || (ctx.key.get().is_some() && ctx.planned.with(Vec::is_empty)) || ctx.phase.get() != Phase::Lectures {
+        return None;
+    }
+    ctx.today.with(|today| today.running().or_else(|| today.next()).map(|entry| (entry.clone(), entry.state == State::Now)))
+}
+
 /// The sentence about the day under the greeting: two lines at most.
-fn sentence(ctx: Ctx, t: &Texts) -> String {
+pub(super) fn sentence(ctx: Ctx, t: &Texts) -> String {
     let tt = &t.today;
     if ctx.guest {
         return tt.guest.to_string();
@@ -293,7 +358,7 @@ fn sentence(ctx: Ctx, t: &Texts) -> String {
                     return then(tt.weekend);
                 }
                 if let Some(running) = today.running() {
-                    return (tt.running)(&running.kind_short, &running.short, running.room.as_deref(), running.to.map_or(0, |to| to.saturating_sub(minute)));
+                    return running_line(running, running.to.map_or(0, |to| to.saturating_sub(minute)), t);
                 }
                 if let Some(next) = today.next() {
                     let past = today.firm().any(|entry| entry.state == State::Past);
@@ -365,7 +430,9 @@ fn ClockView(ctx: Ctx) -> impl IntoView {
                 }
                 let class = format!("{kind}{}{}{}", if piece.done { " done" } else { "" }, if piece.fill.is_some() { " cur" } else { "" }, if piece.exam { " dot" } else { "" });
                 let style = piece.fill.map(|fill| format!("--fill:{:.1}%", fill * 100.0));
-                view! { <i class=class style=style title=title></i> }
+                // The running week fills by the minute (`ahead`).
+                let count = piece.fill.map(|_| "fill");
+                view! { <i class=class style=style title=title data-count=count></i> }
             })
             .collect_view();
         Some(view! {
@@ -455,33 +522,33 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
             .into_any();
         }
         let phase = ctx.phase.get();
+        let focus = focus(ctx);
         let module_link = |entry: &Entry| entry.module.clone().map(|id| t.path(&StudyplanUrl { open: Some(id), ..Default::default() }.path()));
         let card = ctx.today.with(|today| {
-            if phase == Phase::Lectures {
-                if let Some(entry) = today.running().or_else(|| today.next()) {
-                    let running = entry.state == State::Now;
-                    let after = if running { today.next() } else { today.coming().nth(1) };
-                    let (head, when, why) = match running {
-                        true => (tt.now, entry.room.clone().unwrap_or_else(|| time(entry.from)), (tt.minutes_left)(entry.to.map_or(0, |to| to.saturating_sub(minute)))),
-                        false => (tt.next, time(entry.from), entry.from.map(|from| (tt.in_minutes)(from.saturating_sub(minute))).unwrap_or_default()),
-                    };
-                    let place = if running { (tt.until)(&time(entry.to)) } else { entry.room.clone().unwrap_or_default() };
-                    let clash = today.at_once(entry).map(|other| (tt.at_once)(&short_of(other)));
-                    return Some(view! {
-                        <div class="day-next">
-                            <span class="k"><span>{head}</span><span>{format!("{}–{}", time(entry.from), time(entry.to))}</span></span>
-                            <span class="when"><b>{when}</b><span>{why}</span></span>
-                            <span class="what">{format!("{} · {}", entry.kind, entry.title)}</span>
-                            <span class="where"><Icon name="map-pin"/><span>{place}{clash.map(|clash| format!(" · {clash}"))}</span></span>
-                            {after.map(|after| view! { <span class="where dim">{(tt.after)(&time(after.from), &short_of(after), after.room.as_deref())}</span> })}
-                            <span class="acts">
-                                {module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> })}
-                                <a class="btn sm" href=t.path(url::STUDYPLAN) data-command="">{tt.timetable}</a>
-                            </span>
-                        </div>
-                    }
-                    .into_any());
+            if let Some((entry, running)) = &focus {
+                let running = *running;
+                let after = if running { today.next() } else { today.coming().nth(1) };
+                let why = card_minutes(entry, running, minute, t);
+                let (head, when) = match running {
+                    true => (tt.now, entry.room.clone().unwrap_or_else(|| time(entry.from))),
+                    false => (tt.next, time(entry.from)),
+                };
+                let place = if running { (tt.until)(&time(entry.to)) } else { entry.room.clone().unwrap_or_default() };
+                let clash = today.at_once(entry).map(|other| (tt.at_once)(&short_of(other)));
+                return Some(view! {
+                    <div class="day-next">
+                        <span class="k"><span>{head}</span><span>{format!("{}–{}", time(entry.from), time(entry.to))}</span></span>
+                        <span class="when"><b>{when}</b><span data-count="card">{why}</span></span>
+                        <span class="what">{format!("{} · {}", entry.kind, entry.title)}</span>
+                        <span class="where"><Icon name="map-pin"/><span>{place}{clash.map(|clash| format!(" · {clash}"))}</span></span>
+                        {after.map(|after| view! { <span class="where dim">{(tt.after)(&time(after.from), &short_of(after), after.room.as_deref())}</span> })}
+                        <span class="acts">
+                            {module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> })}
+                            <a class="btn sm" href=t.path(url::STUDYPLAN) data-command="">{tt.timetable}</a>
+                        </span>
+                    </div>
                 }
+                .into_any());
             }
             if matches!(phase, Phase::Lectures | Phase::Before) || (phase == Phase::Break && today.exams.first().is_none_or(|exam| today.next_day.as_ref().is_some_and(|(next, _)| *next < exam.day))) {
                 if let Some((next, entries)) = &today.next_day {
@@ -530,7 +597,7 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
 fn StudyCard(ctx: Ctx) -> impl IntoView {
     let t = i18n::t();
     let tt = &t.today;
-    let progress = progress(ctx);
+    let progress = ctx.progress;
     move || {
         let (passed, total, fs) = progress.with(|progress| progress.as_ref().map_or((0.0, 0.0, None), |p| (p.passed, p.total, p.fs)));
         view! {
@@ -546,7 +613,7 @@ fn StudyCard(ctx: Ctx) -> impl IntoView {
 
 /// The study's progress as „Mein Studium" works it out.
 #[derive(Clone, Debug, PartialEq)]
-struct Progress {
+pub(super) struct Progress {
     program: String,
     fs: Option<u8>,
     passed: f64,
@@ -555,8 +622,8 @@ struct Progress {
 }
 
 /// „Mein Studium"'s numbers: the program's plans, the plan, and the catalog's rows of what is
-/// planned and passed beyond the plan.
-fn progress(ctx: Ctx) -> Memo<Option<Progress>> {
+/// planned and passed beyond the plan, in the semester `key`.
+fn progress(key: Memo<Option<SemesterKey>>) -> Memo<Option<Progress>> {
     let t = i18n::t();
     let plan = Studyplan::expect();
     let mine = MyProgram::expect();
@@ -573,7 +640,7 @@ fn progress(ctx: Ctx) -> Memo<Option<Progress>> {
         (!ids.is_empty()).then_some(StudyModulesAsk { ids })
     });
     Memo::new(move |_| {
-        let now = ctx.key.get()?;
+        let now = key.get()?;
         let kept: MineDoc = mine.map(|mine| mine.get()).unwrap_or_default();
         let doc: PlanDoc = plan.map(|plan| plan.with(Clone::clone)).unwrap_or_default();
         source.with(|source| {
@@ -847,7 +914,7 @@ fn ExamsPanel(ctx: Ctx, big: bool) -> impl IntoView {
 fn StudyPanel(ctx: Ctx) -> impl IntoView {
     let t = i18n::t();
     let tt = &t.today;
-    let progress = progress(ctx);
+    let progress = ctx.progress;
     move || {
         progress.get().map(|p| {
             let total = if p.total > 0.0 { p.total } else { (p.passed + p.planned).max(1.0) };

@@ -18,6 +18,7 @@
 //! the ground at its end, which names who took the photo.
 
 pub mod about;
+mod ahead;
 mod clock;
 mod day;
 mod detail;
@@ -120,7 +121,6 @@ pub fn HomePage() -> impl IntoView {
     });
     let on_look = Callback::new(move |()| looking.set(true));
     let on_setup = Callback::new(move |()| looking.set(false));
-    veil();
     // The head script's `html.mine` (a program kept) follows a study set up or undone here, so that
     // the start page's skeleton is the one the page then is (folia-shell, `skeleton`).
     #[cfg(feature = "csr")]
@@ -200,7 +200,9 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
 }
 
 /// The day's skeleton, as the server writes it for a visitor with a program kept (`html.mine`):
-/// the picture as high as the day's, the panels as they come.
+/// the picture as high as the day's, the panels as they come. Right after the picture the script
+/// that puts the day in its place where the browser app kept it (`ahead`), before anything is
+/// painted.
 #[component]
 fn TodaySkeleton() -> impl IntoView {
     view! {
@@ -214,6 +216,7 @@ fn TodaySkeleton() -> impl IntoView {
             </div>
             <div class="day-next day-next-sk"></div>
         </section>
+        <script inner_html=ahead::SCRIPT></script>
         <div class="day-cols">
             <div class="day-col day-main"><div class="panel sk-sweep day-panel-sk tall"></div></div>
             <div class="day-col"><div class="panel sk-sweep day-panel-sk"></div><div class="panel sk-sweep day-panel-sk"></div></div>
@@ -236,33 +239,6 @@ pub fn Credits() -> impl IntoView {
             }
         })
         .collect_view()
-}
-
-/// On a phone the photo reaches up under the search; once the page is scrolled, a dark veil lies
-/// under the search over what runs beneath it (app.css, `:root[data-veil]`). The browser app's alone;
-/// only while the start page is in front.
-fn veil() {
-    #[cfg(feature = "csr")]
-    {
-        let in_front = folia_design::stage::front();
-        let set = move |on: bool| {
-            if let Some(root) = document().document_element() {
-                let _ = if on { root.set_attribute("data-veil", "") } else { root.remove_attribute("data-veil") };
-            }
-        };
-        Effect::new(move |_| {
-            let front = in_front.get();
-            set(front && window().scroll_y().unwrap_or(0.0) > 6.0);
-            if !front {
-                return;
-            }
-            let handle = window_event_listener(leptos::ev::scroll, move |_| set(in_front.get_untracked() && window().scroll_y().unwrap_or(0.0) > 6.0));
-            on_cleanup(move || {
-                handle.remove();
-            });
-        });
-        on_cleanup(move || set(false));
-    }
 }
 
 #[cfg(test)]
