@@ -488,13 +488,27 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 .ground-foot p { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
 .ground-foot a { display: inline-flex; align-items: center; gap: 3px; color: var(--ground-muted); }
 .ground-foot .icon { width: 13px; height: 13px; }
+.frost { display: none; }
 @media (max-width: 900px) {
-  /* On a phone the crown is the ground of the bar at the top: it carries the bar's frosted
-     background, over the page and under the search. The ground follows the page, full width, the
-     bottom bar floating over its lower part; under a page shorter than the window it lies just
-     past the window's lower edge all the same (the body's column, „phone and tablet"). Not under
-     the row of pages of „Mein Studium" (`.st-pager`, below). */
-  .crown { z-index: 20; height: var(--bar); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(14px); }
+  /* On a phone the crown hangs over the page and under the search, and under both lies the frost
+     (`ground::Crown`): once the window is scrolled (`data-scrolled`, enhance.js), a blur over what
+     runs beneath, in the page's own colour at three quarters, reaching 34 px below the bar and
+     fading out there, so that what leaves the screen goes soft and quiet instead of being cut off
+     at an edge (owner, 2026-10-26: „einfach nur ein frost/blur effekt sein, ohne farbe und das auf
+     allen seiten … hinter dem blätterdach"; then, on the blur alone: „unsauber … ein wenig mit so
+     transparenz von den farben rumspielen, so dass die elemente sich noch richtig anfühlen. Aber es
+     trotzdem nicht unaufgeräumt ist"; until then the bar was the page's colour at 88 % with a hard
+     edge, and the start page had a dark veil). Over the start page's photo the blur alone, so
+     that the photo does not go milky. At the top of a page nothing runs beneath, and the bar is
+     the page's ground.
+     The ground follows the page, full width, the bottom bar floating over its lower part; under a
+     page shorter than the window it lies just past the window's lower edge all the same (the
+     body's column, „phone and tablet"). Not under the row of pages of „Mein Studium" (`.st-pager`,
+     below). */
+  .crown { z-index: 20; height: var(--bar); }
+  .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 34px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 46px), transparent); mask: linear-gradient(#000 calc(100% - 46px), transparent); opacity: 0; transition: opacity .2s, background-color .3s; }
+  :root[data-scrolled] .frost { opacity: 1; }
+  :root[data-photo-gone] .frost { background-color: color-mix(in srgb, var(--bg) 76%, transparent); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
      no size, which draws nothing, as `none` would). */
   .crown::before, .crown::after { padding-left: 0; -webkit-mask-size: 0 0, auto; mask-size: 0 0, auto; }
@@ -5666,11 +5680,8 @@ a.st-rsp-name:hover { text-decoration: underline; }
    with the setup on a first visit, at every hour and in every step (owner, 2026-10-20: „Beim PC darf
    sich das hero banner nicht verschieben"). The stylesheet picks the season's photo by the head
    script's `data-season`, so only one is fetched and the server's page is the same for everybody.
-   On a phone the photo reaches up under the search, and once the page is scrolled a dark veil lies
-   under the search (`data-veil`). */
-:root { --veil: rgba(12, 16, 26, .34); --veil-top: rgba(12, 16, 26, .8); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --veil: rgba(0, 0, 0, .5); --veil-top: rgba(0, 0, 0, .8); } }
-:root[data-theme="dark"] { --veil: rgba(0, 0, 0, .5); --veil-top: rgba(0, 0, 0, .8); }
+   On a phone the photo reaches up under the search, and the crown's leaves come once it has left
+   the bar (`data-photo-gone`). */
 .day { container: day / inline-size; width: 100%; max-width: 1600px; margin: 0 auto; display: grid; gap: var(--gap); align-content: start; }
 @media (min-width: 901px) { .day-page .page { overflow-x: hidden; } }
 /* The server writes the setup and the day's skeleton; the head script's `mine` says which shows. */
@@ -5968,15 +5979,12 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
   .day-ways { grid-template-columns: minmax(0, 1fr); }
   .day-discover { padding: 0 10px 10px; }
   .day-hero-sk { min-height: 520px; }
-  /* Over the photo the bar at the top is clear: no frosted ground, no leaves. Once the page is
-     scrolled (`data-veil`), a dark veil lies under the search over what runs beneath it, see-through
-     and a little blurred, darkest under the time (owner, 2026-10-20: „nicht zu 100% opaque … im
-     light und dark mode das ein wenig abzudunkeln … dass sich die Elemente von einander abheben"). */
-  :root:has(#content > .page-stage.front .day-hero) .crown { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  :root:has(#content > .page-stage.front .day-hero) .crown::after { opacity: 0; }
-  /* The veil is the crown's first layer in place of the leaves, reaching 34 px below the bar: the
-     bar keeps its box whether the veil lies or not, so nothing moves where the app takes over a
-     page scrolled already. */
-  :root:has(#content > .page-stage.front .day-hero) .crown::before { height: calc(100% + 34px); padding: 0; background: linear-gradient(180deg, var(--veil-top) 0, var(--veil) 30px, color-mix(in srgb, var(--veil) 72%, transparent) 70%, transparent); -webkit-mask: linear-gradient(#000 calc(100% - 46px), transparent); mask: linear-gradient(#000 calc(100% - 46px), transparent); -webkit-backdrop-filter: blur(18px) saturate(1.2); backdrop-filter: blur(18px) saturate(1.2); opacity: 0; transition: opacity .2s; }
-  :root[data-veil]:has(#content > .page-stage.front .day-hero) .crown::before { opacity: 1; }
+  /* Over the photo the bar is the photo's: no leaves while it lies under the search. Once it has
+     left the bar (`data-photo-gone`, enhance.js), the leaves of every other page come down into
+     the crown (owner, 2026-10-26: „wenn die main box of screen geht dann so die blätter von den
+     anderen seiten eingeblendet werden mit einer animation"); the frost lies under them as on
+     every page. */
+  .crown::before, .crown::after { transition: opacity .45s var(--ease), translate .45s var(--ease); }
+  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) .crown::before,
+  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) .crown::after { opacity: 0; translate: 0 -12px; }
 }

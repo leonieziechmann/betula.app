@@ -58,11 +58,11 @@ mod planning;
 pub use planning::{planning_semester, MenuAsk, Note, NoteKind, PlanAsk, Planning, Pressed, SetupAsk};
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
-pub(crate) const STORAGE_KEY: &str = "betula.studyplan.v1";
+pub const STORAGE_KEY: &str = "betula.studyplan.v1";
 
 /// The first profile's key of the Stundenplan's program in this tab's session (`sessionStorage`,
 /// its id); another profile's has its number in it (`profiles::SESSION_KEYS`).
-pub(crate) const PROGRAM_KEY: &str = "betula.studyplan.program";
+pub const PROGRAM_KEY: &str = "betula.studyplan.program";
 
 /// The browser app (`csr`): only there is a plan, and only there does a hint aim the button.
 const APP: bool = cfg!(feature = "csr");
