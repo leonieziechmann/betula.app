@@ -2185,6 +2185,9 @@
     if (phone()) return;
     takeBarWheel();
     const area = flowing();
+    // A page that comes anew in the same place (the start page as the day comes) stands at its top
+    // without a scroll: the frost asks for the page again.
+    if (area !== frostArea) frostSoon();
     const head = area?.querySelector(LIST_HEADS) ?? null;
     if (head !== headSeen) { headWatch.disconnect(); if (head) headWatch.observe(head); headSeen = head; }
     if (area) {
@@ -2314,9 +2317,11 @@
     try { return area.matches(":not(:has(> .list, > .page > .page-inner.study > .st-sems))"); } catch { return false; }
   };
   let frostFrame = 0;
+  let frostArea = null; // the page the frost was last worked out for (a wide screen's)
   const frost = () => {
     frostFrame = 0;
     const area = phone() ? null : flowing();
+    frostArea = area;
     const scrolled = phone() ? scrollY > 4 : Boolean(area) && area.scrollTop > 4 && runsUnderBar(area);
     if (root.hasAttribute("data-scrolled") !== scrolled) root.toggleAttribute("data-scrolled", scrolled);
     frostBar = (area ? area.offsetWidth - area.clientWidth : 0) + "px";

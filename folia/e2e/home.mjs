@@ -158,6 +158,9 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   // at its top the frost is away and the page stands where it stood.
   const under = async (y) => {
     await page.evaluate((y) => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, y), y);
+    // The frost follows in the next frame and fades in a fifth of a second: a frame can be slow
+    // on a busy machine.
+    await page.waitForFunction((down) => document.documentElement.hasAttribute("data-scrolled") === down, y > 4, { timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(400);
     return page.evaluate(() => ({ frost: getComputedStyle(document.querySelector("body > .frost")).opacity, hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top) }));
   };
