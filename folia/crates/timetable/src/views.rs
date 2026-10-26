@@ -620,7 +620,8 @@ fn shown(events: &[Event]) -> impl Iterator<Item = (usize, &Event, usize, &Row)>
     })
 }
 
-/// Every date of a row: held, cancelled and skipped.
+/// Every date of a row: held, cancelled, skipped and hidden by the visitor. A date hidden alone
+/// leaves the slot's range as it was: the Termin runs through the period all the same.
 fn dates(row: &Row) -> impl Iterator<Item = Day> + '_ {
     let occ = &row.occ;
     occ.days
@@ -628,6 +629,7 @@ fn dates(row: &Row) -> impl Iterator<Item = Day> + '_ {
         .copied()
         .chain(occ.cancelled.iter().map(|(day, ..)| *day))
         .chain(occ.skipped.iter().map(|(day, _)| *day))
+        .chain(occ.hidden.iter().copied())
 }
 
 /// The order of the rhythms among slots of one weekday, time, event and option: weekly, A, B,

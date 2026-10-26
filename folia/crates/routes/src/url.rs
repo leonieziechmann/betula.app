@@ -23,10 +23,11 @@
 //!                                      tabs, which of several study plans is shown, which module
 //!                                      stands beside it, and whether that module fills the page
 //!                                      (`ProgramUrl`)
-//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&import=…&variant=<n>[&share=<code>]`   the
-//!                                      visitor's Studienplan (`StudyplanUrl`): which semester and
-//!                                      view, the module and Termin beside it, the Regelstudienplan
-//!                                      being taken over. What is planned lives in the browser,
+//! `/studyplan?sem=…&view=…&open=<id>&row=<key>&termin=<key>&on=<day>&import=…&variant=<n>[&share=<code>]`
+//!                                      the visitor's Studienplan (`StudyplanUrl`): which semester
+//!                                      and view, the module and Termin beside it or a Termin in
+//!                                      its own view on a day, the Regelstudienplan being taken
+//!                                      over. What is planned lives in the browser,
 //!                                      never in a URL, but for a plan handed on by a link
 //!                                      (`share`, `timetable::share`), which the page offers to
 //!                                      take over and whose link preview names its modules
@@ -48,6 +49,7 @@
 //! repeated parameters and empty values, the app writes the canonical form, a hand-edited
 //! link may contain nonsense. Unknown names and values are ignored, never an error.
 
+use folia_calendar::day::Day;
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::semester::SemesterKey;
 use folia_calendar::share::{self, SharedPlan};
@@ -87,6 +89,25 @@ pub const PROFILE: &str = "/profile";
 /// The Stundenplan's address that hands the plan of `code` on (`share::SharedPlan`).
 pub fn share_path(code: &str) -> String {
     format!("{STUDYPLAN}?{}={code}", share::PARAM)
+}
+
+/// A Termin in its own view over the start page (`/?termin=<key>&on=<day>`, folia/design/termin;
+/// owner, 2026-10-26): the Termin and the day of it, as the Stundenplan's address names them
+/// (`StudyplanUrl::termin`). The app's alone: the server renders the start page the same for
+/// every query (R9). `None` for an address without a Termin, or with nonsense in its place.
+pub fn home_termin(raw_query: &str) -> Option<(RowKey, Option<Day>)> {
+    let pairs = parse_pairs(raw_query);
+    let key = first_value(&pairs, "termin").and_then(|key| RowKey::parse(&key.to_ascii_lowercase()))?;
+    Some((key, first_value(&pairs, "on").and_then(|day| Day::parse(&day))))
+}
+
+/// `/?termin=…&on=…`, the start page with the Termin over it; `/` without one.
+pub fn home_termin_path(termin: Option<(RowKey, Option<Day>)>) -> String {
+    match termin {
+        Some((key, Some(on))) => format!("{HOME}?termin={}&on={}", key.text(), on.iso()),
+        Some((key, None)) => format!("{HOME}?termin={}", key.text()),
+        None => HOME.to_string(),
+    }
 }
 
 pub fn module_path(id: &str) -> String {
@@ -969,6 +990,12 @@ pub struct StudyplanUrl {
     /// The Termin of that module the aside points at (`row=<event>-<fp>`, `RowKey::text`).
     /// Nothing without `open`.
     pub row: Option<String>,
+    /// The Termin shown beside the plan in its own view, in the module's place
+    /// (`termin=<event>-<fp>`, `RowKey::text`; folia/design/termin), and the day of it shown
+    /// (`on=<YYYY-MM-DD>`, nothing without `termin`; without it the view picks the next date).
+    /// With a Termin no module is open.
+    pub termin: Option<String>,
+    pub on: Option<String>,
     /// The Regelstudienplan being taken over: `mine` (Mein Studiengang) or a program's slug.
     pub import: Option<String>,
     /// Which of that program's study plans, 1-based as on the program's page; the first is not
@@ -981,7 +1008,7 @@ pub struct StudyplanUrl {
 
 impl Default for StudyplanUrl {
     fn default() -> Self {
-        Self { sem: None, view: PlanView::Week, open: None, row: None, import: None, variant: 1, share: None }
+        Self { sem: None, view: PlanView::Week, open: None, row: None, termin: None, on: None, import: None, variant: 1, share: None }
     }
 }
 
@@ -989,7 +1016,9 @@ impl StudyplanUrl {
     pub fn parse(raw_query: &str) -> Self {
         let pairs = parse_pairs(raw_query);
         let first = |name: &str| first_value(&pairs, name);
-        let open = first("open").filter(|id| is_module_id(id));
+        let termin = first("termin").and_then(|key| RowKey::parse(&key.to_ascii_lowercase())).map(RowKey::text);
+        let on = termin.as_ref().and(first("on")).and_then(|day| Day::parse(&day)).map(Day::iso);
+        let open = first("open").filter(|id| is_module_id(id) && termin.is_none());
         let import = first("import").map(|value| value.to_ascii_lowercase()).filter(|value| is_import(value));
         // A week (`week=2026-10-14`) is no part of the address: the dated weeks are the view
         // „Termine", which finds the current one by itself. Like every unknown name it is ignored.
@@ -1002,6 +1031,8 @@ impl StudyplanUrl {
                 None => 1,
             },
             open,
+            termin,
+            on,
             import,
             share: first(share::PARAM).filter(|code| SharedPlan::from_code(code).is_some()),
         }
@@ -1012,8 +1043,8 @@ impl StudyplanUrl {
         self.sem.as_deref().and_then(SemesterKey::parse)
     }
 
-    /// `/studyplan` with the canonical query string: `sem`, `view`, `open`, `row`, `import`,
-    /// `variant`, `share`, each only when it says something.
+    /// `/studyplan` with the canonical query string: `sem`, `view`, `open`, `row`, `termin`, `on`,
+    /// `import`, `variant`, `share`, each only when it says something.
     pub fn path(&self) -> String {
         let mut out: Vec<(&str, String)> = Vec::new();
         if let Some(sem) = &self.sem {
@@ -1026,6 +1057,12 @@ impl StudyplanUrl {
             out.push(("open", id.clone()));
             if let Some(row) = &self.row {
                 out.push(("row", row.clone()));
+            }
+        }
+        if let Some(termin) = &self.termin {
+            out.push(("termin", termin.clone()));
+            if let Some(on) = &self.on {
+                out.push(("on", on.clone()));
             }
         }
         if let Some(import) = &self.import {
@@ -1046,17 +1083,34 @@ impl StudyplanUrl {
     /// Another semester (`None`: the default one). The module beside the plan was one of the old
     /// semester's, so it closes.
     pub fn with_semester(&self, sem: Option<SemesterKey>) -> Self {
-        Self { sem: sem.map(SemesterKey::key), open: None, row: None, ..self.clone() }
+        Self { sem: sem.map(SemesterKey::key), open: None, row: None, termin: None, on: None, ..self.clone() }
     }
 
     pub fn with_view(&self, view: PlanView) -> Self {
         Self { view, ..self.clone() }
     }
 
-    /// This module beside the plan, pointing at this Termin of it, or (`None`) nothing beside it.
+    /// This module beside the plan, pointing at this Termin of it, or (`None`) nothing beside it;
+    /// either way no Termin.
     pub fn with_open(&self, id: Option<&str>, row: Option<RowKey>) -> Self {
         let open = id.map(str::to_string);
-        Self { row: open.as_ref().and(row).map(RowKey::text), open, ..self.clone() }
+        Self { row: open.as_ref().and(row).map(RowKey::text), open, termin: None, on: None, ..self.clone() }
+    }
+
+    /// This Termin beside the plan in its own view, on this day of it (`None`: its next one), or
+    /// (`None`) nothing beside it; either way no module.
+    pub fn with_termin(&self, termin: Option<(RowKey, Option<Day>)>) -> Self {
+        let (termin, on) = match termin {
+            Some((key, on)) => (Some(key.text()), on.map(Day::iso)),
+            None => (None, None),
+        };
+        Self { termin, on, open: None, row: None, ..self.clone() }
+    }
+
+    /// The Termin beside the plan and its day, as the address names them.
+    pub fn termin_on(&self) -> Option<(RowKey, Option<Day>)> {
+        let key = RowKey::parse(self.termin.as_deref()?)?;
+        Some((key, self.on.as_deref().and_then(Day::parse)))
     }
 
     /// The same page once the Regelstudienplan is taken over (or the panel closed).
@@ -1796,6 +1850,8 @@ mod tests {
                 view: PlanView::Dates,
                 open: Some("12104".into()),
                 row: Some("148369-aaf38".into()),
+                termin: None,
+                on: None,
                 import: Some("mine".into()),
                 variant: 1,
                 share: None,
@@ -1812,6 +1868,39 @@ mod tests {
             assert_eq!(back(&StudyplanUrl::default().with_view(*view)).view, *view);
         }
         assert_eq!(PlanView::ALL.iter().map(|view| view.label(Locale::De)).collect::<Vec<_>>(), ["Woche", "Termine", "Prüfungen", "Übersicht"]);
+    }
+
+    /// Over the start page a Termin stands by the same two names.
+    #[test]
+    fn a_termin_stands_over_the_start_page() {
+        let key = RowKey::parse("148369-aaf38").unwrap();
+        assert_eq!(home_termin("termin=148369-AAF38&on=2026-11-04"), Some((key, Day::parse("2026-11-04"))));
+        assert_eq!(home_termin("termin=148369-aaf38&on=gestern"), Some((key, None)));
+        assert_eq!(home_termin("on=2026-11-04"), None);
+        assert_eq!(home_termin_path(Some((key, Day::parse("2026-11-04")))), "/?termin=148369-aaf38&on=2026-11-04");
+        assert_eq!(home_termin_path(Some((key, None))), "/?termin=148369-aaf38");
+        assert_eq!(home_termin_path(None), "/");
+    }
+
+    /// A Termin in its own view (folia/design/termin): its key and day, in the module's place.
+    #[test]
+    fn a_termin_stands_beside_the_plan_on_a_day() {
+        let url = StudyplanUrl::parse("on=2026-11-04&termin=148369-AAF38&open=12104&row=148369-aaf38");
+        assert_eq!(url.path(), "/studyplan?termin=148369-aaf38&on=2026-11-04");
+        assert_eq!((url.open.as_deref(), url.row.as_deref()), (None, None));
+        let key = RowKey::parse("148369-aaf38").unwrap();
+        assert_eq!(url.termin_on(), Some((key, Day::parse("2026-11-04"))));
+        // Without a day the view picks one; a day without a Termin is none; nonsense is ignored.
+        assert_eq!(StudyplanUrl::parse("termin=148369-aaf38").path(), "/studyplan?termin=148369-aaf38");
+        assert_eq!(StudyplanUrl::parse("on=2026-11-04").path(), "/studyplan");
+        assert_eq!(StudyplanUrl::parse("termin=148369-aaf38&on=2026-13-01").on, None);
+        assert_eq!(StudyplanUrl::parse("termin=x&open=12104").path(), "/studyplan?open=12104");
+        // The module and the Termin take each other's place; another semester closes both.
+        let open = url.with_open(Some("12104"), Some(key));
+        assert_eq!(open.path(), "/studyplan?open=12104&row=148369-aaf38");
+        assert_eq!(open.with_termin(Some((key, None))).path(), "/studyplan?termin=148369-aaf38");
+        assert_eq!(url.with_termin(None).path(), "/studyplan");
+        assert_eq!(url.with_semester(SemesterKey::new(2027, false)).path(), "/studyplan?sem=2027S");
     }
 
     #[test]

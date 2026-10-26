@@ -27,4 +27,5 @@ pub mod i18n;
 pub mod ics;
 pub mod model;
 pub mod occur;
+pub mod termin;
 pub mod views;

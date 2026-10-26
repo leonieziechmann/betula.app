@@ -53,7 +53,7 @@ use folia_calendar::kind::{EventKind, KindSet};
 use folia_calendar::rowkey::{fingerprint, RowKey};
 use folia_calendar::select::{Selection, TownChoice};
 use folia_calendar::semester::SemesterKey;
-use folia_calendar::subscription::Subscription;
+use folia_calendar::subscription::{date_of, date_value, Subscription};
 use folia_locale::Locale;
 use folia_model::ids::is_program_id;
 use folia_model::labels::{Code, Rhythm};
@@ -187,6 +187,12 @@ pub fn subscription_of(
         hidden_rows: rows(&selection.hidden_rows),
         chosen_rows: rows(&selection.chosen_rows),
         town: town_of(selection, table).code(),
+        hidden_dates: selection
+            .hidden_dates
+            .iter()
+            .filter(|(row, _)| known.as_ref().is_none_or(|known| known.rows.contains(row)))
+            .filter_map(|(row, day)| date_value(key, *row, *day))
+            .collect(),
     };
     (subscription, other)
 }
@@ -217,6 +223,10 @@ pub fn same_subscription(stored: &str, current: &Subscription, table: &Timetable
         let rows = |packed: &[u64]| -> BTreeSet<RowKey> {
             packed.iter().filter_map(|value| RowKey::unpack(*value)).filter(|key| known.rows.contains(key)).collect()
         };
+        let dates: BTreeSet<(RowKey, Day)> = s
+            .key()
+            .map(|key| s.hidden_dates.iter().filter_map(|value| date_of(key, *value)).filter(|(row, _)| known.rows.contains(row)).collect())
+            .unwrap_or_default();
         (
             s.semester,
             s.module_ids(),
@@ -226,6 +236,7 @@ pub fn same_subscription(stored: &str, current: &Subscription, table: &Timetable
             rows(&s.hidden_rows),
             rows(&s.chosen_rows),
             TownChoice::from_code(s.town),
+            dates,
         )
     };
     seen(&stored) == seen(current)
@@ -1229,6 +1240,23 @@ mod tests {
     }
 
     #[test]
+    fn a_hidden_date_is_left_out_of_its_series() {
+        let rows = rows();
+        // The Tuesday lecture of 13.10. hidden („Nur am 13.10. ausblenden"): the series leaves the day
+        // out as it leaves out the break, and says nothing of it, since QIS cancels nothing.
+        let mut hidden = selection();
+        hidden.hidden_dates = [(rows[0].key(), d("2026-10-13"))].into();
+        let c = calendar(&build(&rows, &exams(), &[A, B], &two_sws(), &hidden));
+        let lecture = series(&c, &rows[0]);
+        assert_eq!(lecture.repeat, Some(Repeat { rule: Rule::Weeks(1), until: d("2027-01-26"), except: vec![d("2026-10-13"), d("2026-12-22"), d("2026-12-29")] }));
+        assert_eq!(lecture.description, series(&calendar(&semester()), &rows[0]).description);
+        // Its first date hidden, the series begins a week later under the same UID.
+        hidden.hidden_dates = [(rows[0].key(), d("2026-10-06"))].into();
+        let c = calendar(&build(&rows, &exams(), &[A, B], &two_sws(), &hidden));
+        assert_eq!(series(&c, &rows[0]).when.day(), d("2026-10-13"));
+    }
+
+    #[test]
     fn rows_of_one_key_are_one_series() {
         let rows = rows();
         let c = calendar(&semester());
@@ -1644,6 +1672,7 @@ mod tests {
             hidden_events: [50, 999_999].into(),
             hidden_rows: [rows[9].key(), RowKey { event: 999, fp: 1 }, hidden_exam()].into(),
             chosen_rows: [rows[5].key(), RowKey { event: 20, fp: 0x12345 }].into(),
+            hidden_dates: [(rows[5].key(), d("2026-11-04")), (RowKey { event: 999, fp: 1 }, d("2026-11-04"))].into(),
             town: TownChoice::Only(Town::Senftenberg),
             town_from: None,
         };
@@ -1662,6 +1691,7 @@ mod tests {
                 hidden_rows: hidden,
                 chosen_rows: vec![rows[5].key().packed()],
                 town: 2,
+                hidden_dates: vec![date_value(t.key, rows[5].key(), d("2026-11-04")).unwrap()],
             }
         );
         assert_eq!(other, ["FÜS", "0123"]);
@@ -1669,7 +1699,7 @@ mod tests {
         // Without a timetable, everything the selection holds.
         let (all, _) = subscription_of(t.key, &modules, None, &selection, None);
         assert_eq!(all.hidden_events, [50, 999_999]);
-        assert_eq!((all.hidden_rows.len(), all.chosen_rows.len()), (3, 2));
+        assert_eq!((all.hidden_rows.len(), all.chosen_rows.len(), all.hidden_dates.len()), (3, 2, 2));
         // A program id of another shape is left out, as a reader leaves it out.
         let (odd, _) = subscription_of(t.key, &modules, Some("079_82_2008"), &selection, Some(&t));
         assert_eq!(odd.program, None);

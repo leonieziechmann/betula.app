@@ -64,8 +64,11 @@ pub struct Texts {
     pub choose_of: fn(usize, usize) -> String,
     /// … the button and tooltip that open it again once it is made („Wahl aufheben") …
     pub clear_choice: &'static str,
-    /// … and the tooltip of an option's line („Diesen wählen").
+    /// … and the tooltips of an option's line: none ticked („Diesen wählen"), another ticked
+    /// („Auch diesen wählen"), itself ticked („Nicht mehr wählen").
     pub choose_this: &'static str,
+    pub choose_too: &'static str,
+    pub unchoose_this: &'static str,
     /// A choice among the module's events that the plan's program took: „Laut Studiengang; die
     /// anderen sind für andere Studiengänge." …
     pub by_program: &'static str,
@@ -167,6 +170,8 @@ pub const DE: Texts = Texts {
     choose_of: |take, n| format!("{take} von {n} wählen"),
     clear_choice: "Wahl aufheben",
     choose_this: "Diesen wählen",
+    choose_too: "Auch diesen wählen",
+    unchoose_this: "Nicht mehr wählen",
     by_program: "Laut Studiengang; die anderen sind für andere Studiengänge.",
     fits: "passt",
     meets: "überschneidet sich",
@@ -249,6 +254,8 @@ pub const EN: Texts = Texts {
     choose_of: |take, n| format!("Choose {take} of {n}"),
     clear_choice: "Clear choice",
     choose_this: "Choose this one",
+    choose_too: "Choose this one too",
+    unchoose_this: "Deselect",
     by_program: "By your programme; the others are for other programmes.",
     fits: "fits",
     meets: "clashes",
