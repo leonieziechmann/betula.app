@@ -41,6 +41,7 @@ use folia_stores::myprogram::MineResolved;
 use folia_design::nav;
 use folia_widgets::finder::finder_on;
 use folia_design::ui::Icon;
+use super::calendars::TogetherSwitch;
 use super::week::{has_ab, AllSwitch, WeekSwitch};
 use super::{key_of, PlanCtx, SheetToggle};
 
@@ -193,6 +194,9 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
             <h1>{t.studyplan.title}" "<span>{move || key.get().label(t.locale)}</span></h1>
             {move || (weekly.get() && ab.get() && phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks short=true/> })}
             <SheetToggle/>
+            // „Gemeinsam frei" once another calendar stands in the week (`calendars.rs`; on a phone
+            // in the line of the calendars).
+            {move || (weekly.get() && !phone.get()).then(|| view! { <TogetherSwitch ctx/> })}
             {move || (weekly.get() && planned.get() && !phone.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
             {move || (weekly.get() && ab.get() && !phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
         </div>

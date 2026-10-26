@@ -10,8 +10,10 @@
 //! its card (`/cards/studyplan/<code>.png`) and keeps nothing.
 //!
 //! A code carries as little as that takes: the semester, the planned modules in the order they
-//! were planned (their tones, on the page as on the card) and the program whose abbreviations name
-//! them (the plan's, else „Mein Studiengang"). Nothing of what is hidden or chosen, no
+//! were planned (their tones, on the page as on the card), the program whose abbreviations name
+//! them (the plan's, else „Mein Studiengang") and, since 2026-10-26, the groups ticked, so that a
+//! plan handed on can stand as a calendar of one's own with its owner's groups (owner, 2026-10-26:
+//! Lena's calendar „aus Lenas Link · mit ihren Gruppen"). Nothing of what is hidden, no
 //! placeholders, no Standort. Folia's own log writes the page's path without its query, and the
 //! card's path as one fixed text (`redacted_path`); the edge's access log keeps the address like
 //! every address. The privacy notice says so („Stundenplan teilen" in folia/crates/home/src/legal.rs): a
@@ -24,6 +26,7 @@
 use folia_model::ids::is_program_id;
 use serde::{Deserialize, Serialize};
 
+use crate::rowkey::RowKey;
 use crate::select::MAX_MODULES;
 use crate::semester::SemesterKey;
 
@@ -37,6 +40,10 @@ pub const VERSION: u8 = 1;
 /// The most characters of a code: `MAX_MODULES` modules in any order and a program id take about
 /// 150. The reader checks it before decoding, and the writer refuses a longer code.
 pub const MAX_CODE: usize = 256;
+
+/// The most groups a code carries; fewer where the code would be longer than `MAX_CODE`
+/// (`SharedPlan::with_chosen`).
+pub const MAX_CHOSEN: usize = 60;
 
 /// The Stundenplan's parameter that carries a code.
 pub const PARAM: &str = "share";
@@ -63,6 +70,10 @@ pub struct SharedPlan {
     /// The program whose abbreviations name the modules (`program.id`, `079-82-2008`). `None`, and
     /// an id of another shape (`url::is_program_id`), name each module by its own.
     pub program: Option<String>,
+    /// The groups ticked in the semester (`RowKey::packed`), at most `MAX_CHOSEN`. Empty in a code
+    /// written before 2026-10-26.
+    #[serde(with = "folia_pack::set")]
+    pub chosen: Vec<u64>,
 }
 
 impl SharedPlan {
@@ -77,7 +88,30 @@ impl SharedPlan {
                 modules.push(number);
             }
         }
-        (!modules.is_empty()).then(|| SharedPlan { semester: key.index(), modules, program: program.filter(|id| is_program_id(id)).map(str::to_string) })
+        (!modules.is_empty()).then(|| SharedPlan { semester: key.index(), modules, program: program.filter(|id| is_program_id(id)).map(str::to_string), chosen: Vec::new() })
+    }
+
+    /// The plan with the groups `rows` ticked, as many of them as a code carries: the first
+    /// `MAX_CHOSEN` by their keys, and of those fewer where the code would grow longer than
+    /// `MAX_CODE` — a plan of many modules hands on fewer of its ticks rather than nothing.
+    pub fn with_chosen(self, rows: impl IntoIterator<Item = RowKey>) -> SharedPlan {
+        let mut chosen: Vec<u64> = rows.into_iter().filter(|row| row.event > 0).map(RowKey::packed).collect();
+        chosen.sort_unstable();
+        chosen.dedup();
+        chosen.truncate(MAX_CHOSEN);
+        while !chosen.is_empty() {
+            let plan = SharedPlan { chosen: chosen.clone(), ..self.clone() };
+            if plan.code().is_ok() {
+                return plan;
+            }
+            chosen.pop();
+        }
+        SharedPlan { chosen, ..self }
+    }
+
+    /// The groups ticked, by their keys.
+    pub fn chosen_rows(&self) -> Vec<RowKey> {
+        self.chosen.iter().filter_map(|value| RowKey::unpack(*value)).collect()
     }
 
     /// The code of the plan, at most `MAX_CODE` characters of `folia_pack::ALPHABET`; `Err` for a plan
@@ -96,8 +130,8 @@ impl SharedPlan {
 
     /// The plan of a code, or `None` for anything that is not one: the wrong length or
     /// characters, failed check characters, another kind or layout, a field this build does not
-    /// know, a semester outside 2000–2099, no module, more than `MAX_MODULES`, one twice. A program
-    /// that is no program id reads as none.
+    /// know, a semester outside 2000–2099, no module, more than `MAX_MODULES`, one twice, more than
+    /// `MAX_CHOSEN` groups or one that is no key. A program that is no program id reads as none.
     pub fn from_code(code: &str) -> Option<SharedPlan> {
         // The cheap checks first: every page address with the parameter comes through here.
         let shaped = (1..=MAX_CODE).contains(&code.len()) && code.bytes().all(|byte| folia_pack::ALPHABET.as_bytes().contains(&byte));
@@ -110,6 +144,9 @@ impl SharedPlan {
         seen.sort_unstable();
         seen.dedup();
         if !(1..=MAX_MODULES).contains(&plan.modules.len()) || seen.len() != plan.modules.len() {
+            return None;
+        }
+        if plan.chosen.len() > MAX_CHOSEN || plan.chosen.iter().any(|value| RowKey::unpack(*value).is_none()) {
             return None;
         }
         plan.program = plan.program.filter(|id| is_program_id(id));
@@ -178,6 +215,33 @@ mod tests {
     }
 
     #[test]
+    fn the_groups_ticked_travel_with_it() {
+        let rows = [RowKey { event: 148_370, fp: 0xeb017 }, RowKey { event: 148_304, fp: 0x467cf }, RowKey { event: 148_370, fp: 0xeb017 }];
+        let plan = SharedPlan::of(winter(), &ids(&["12104", "12102", "11112"]), Some("079-82-2008")).unwrap().with_chosen(rows);
+        let code = plan.code().unwrap();
+        let back = SharedPlan::from_code(&code).unwrap();
+        assert_eq!(back.chosen_rows(), [RowKey { event: 148_304, fp: 0x467cf }, RowKey { event: 148_370, fp: 0xeb017 }], "each once, by key");
+        assert!(code.len() < 60, "{code}");
+        // A code written before the groups came reads with none; one with them the same plan.
+        let before = SharedPlan::of(winter(), &ids(&["12104", "12102", "11112"]), Some("079-82-2008")).unwrap();
+        let old = before.code().unwrap();
+        assert_eq!(SharedPlan::from_code(&old).map(|plan| plan.chosen_rows()), Some(vec![]));
+        assert_eq!(SharedPlan { chosen: vec![], ..back }, before);
+        // A plan of every module there may be keeps as many of its groups as the code holds.
+        let many: Vec<String> = (10_000..10_000 + MAX_MODULES as u32).map(|id| id.to_string()).collect();
+        let rows: Vec<RowKey> = (0..80).map(|n| RowKey { event: 140_000 + n * 997, fp: (n * 7919) & 0xfffff }).collect();
+        let full = SharedPlan::of(winter(), &many, Some("079-82-2008")).unwrap().with_chosen(rows.clone());
+        assert!(full.code().is_ok_and(|code| code.len() <= MAX_CODE));
+        assert!(full.chosen.len() < MAX_CHOSEN, "{} groups", full.chosen.len());
+        let small = SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap().with_chosen(rows);
+        assert!(small.chosen.len() > full.chosen.len() && small.code().is_ok_and(|code| code.len() <= MAX_CODE), "{} groups", small.chosen.len());
+        // A real plan's groups lie close together: a semester's events are numbered in a row.
+        let near: Vec<RowKey> = (0..MAX_CHOSEN as u32).map(|n| RowKey { event: 148_300 + n * 3, fp: (n * 7919) & 0xfffff }).collect();
+        let fs1 = SharedPlan::of(winter(), &ids(&["12104", "12107", "12102", "11112"]), Some("079-82-2008")).unwrap().with_chosen(near);
+        assert!(fs1.chosen.len() >= 20 && fs1.code().is_ok(), "{} groups", fs1.chosen.len());
+    }
+
+    #[test]
     fn what_a_code_cannot_carry_is_left_out() {
         // Ids that are no numbers, twice or past the cap: left out; nothing left, no plan.
         let plan = SharedPlan::of(winter(), &ids(&["12104", "12104", "x-1", "0012104", "11101"]), Some("not a program")).unwrap();
@@ -198,10 +262,11 @@ mod tests {
         // Another kind with the same fields, another layout, a module twice, no module.
         let calendar = folia_pack::to_versioned_code("calendar", VERSION, &SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap()).unwrap();
         let later = folia_pack::to_versioned_code(KIND, VERSION + 1, &SharedPlan::of(winter(), &ids(&["12104"]), None).unwrap()).unwrap();
-        let twice = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104, 12104], program: None }).unwrap();
-        let none = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![], program: None }).unwrap();
-        let no_semester = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: 0, modules: vec![12104], program: None }).unwrap();
-        for code in [calendar, later, twice, none, no_semester] {
+        let twice = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104, 12104], program: None, chosen: vec![] }).unwrap();
+        let none = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![], program: None, chosen: vec![] }).unwrap();
+        let no_semester = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: 0, modules: vec![12104], program: None, chosen: vec![] }).unwrap();
+        let no_key = folia_pack::to_versioned_code(KIND, VERSION, &SharedPlan { semester: winter().index(), modules: vec![12104], program: None, chosen: vec![0xfffff] }).unwrap();
+        for code in [calendar, later, twice, none, no_semester, no_key] {
             assert!(SharedPlan::from_code(&code).is_none(), "{code}");
         }
     }

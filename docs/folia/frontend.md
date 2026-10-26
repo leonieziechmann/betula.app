@@ -2135,8 +2135,39 @@ paths inside the app never carry the prefix (`folia_locale::Locale::path`/`split
     (`choice::around`): „allein am Mittwoch", „45 min nach VL MIT1, danach frei", „anderer Campus",
     „trifft VL MIT1". Beside the week it stands in the place of „Offen", where the page has no
     column beside the week under the bar of the focus, on a phone the sheet goes all up.
-  - **Not yet:** calendars of one's own beside „Mein Studiengang" (step 2), „+ Modul" and modules
-    only visited in a calendar (step 3), a topic choice's groups as rows with their titles.
+  - **Not yet:** „+ Modul" and modules only visited in a calendar (step 3), a topic choice's groups
+    as rows with their titles.
+- **Calendars of one's own** (owner, 2026-10-26: „Das sind Kallender, die die nutzer selbst
+  erstellen können, um zum beispiel für ihre freunde einen speraten kallender zu haben", „A mit
+  Fokus und Spur aus C"; the planner's `studyplan/calendars.rs`, `PlanDoc::calendars`, the widgets'
+  `week.rs`). The second step of the new calendar: beside „Mein Studiengang", which is always there
+  and always in full, up to eight calendars of one's own, each somebody's plan handed on by its
+  link. They live in the plan's text and nowhere else (`l`, `n` and `o` lines after the
+  semesters', which an older build keeps as lines it does not know) and count for nothing of the
+  study („module, die nicht in Mein studium eingetragen werden zählen nicht zum studium").
+  - **The link** carries the groups ticked besides the modules (`SharedPlan::chosen`, appended to
+    the code; as many as the code holds), so that a calendar has the friend's week, not every
+    group of it.
+  - **In the week** a calendar stands in full (its Termine among the plan's, in their lanes,
+    outlined in its colour `k-1` … `k-6` with its initial in the corner), as a strip (a thin bar at
+    each day's right edge, which the day's lanes leave free, only what stands firm: no group of a
+    choice still open, no extra), or not at all — „Voll · Spur · Aus" at its row. A new one stands
+    in full while it holds at most eight Termine a week and as a strip beyond, until its switch
+    says otherwise. Its slots open nothing and name the calendar in their tooltip; behind a choice
+    in focus they step back with the plan. Once another calendar stands in the week, „Gemeinsam
+    frei" in the week's head (on a phone in the line of the calendars) draws the stretches between
+    8 and 18 o'clock that no firm Termin of the plan or of any calendar in the week touches, from
+    90 minutes on, „beide frei" or „alle frei" in them.
+  - **The list** stands at the top of „Anpassen" (`CalendarsGroup`; on a phone in the sheet too,
+    its switch with its words as tall as a finger): „Mein Studiengang" with its lock, each calendar
+    with its modules, its switch and „…" („Umbenennen", „Löschen" with „Rückgängig"), and „Neuer
+    Kalender": the link pasted (any shape: the page's address, `betula.app/…?share=`, the code
+    alone), what it holds said before „Anlegen", a name. On a phone, where there are calendars of
+    one's own, one line over the week opens into the same rows and „Gemeinsam frei". The offer of a
+    shared plan has „Als Kalender" besides „Übernehmen", with „Rückgängig". The module list has a
+    part per calendar with modules in the semester: its name in its colour, its modules by their
+    abbreviations, „aus einem Link · mit den Gruppen". The group of the calendar file and the
+    subscription is „In deinen Kalender" now.
 - **Tokens:** `folia/assets/app.css` starts with the token block (colors, radii, shadows); everything
   below uses tokens only. One look, light and dark: dark follows the system, the switch in the rail
   overrides it (`data-theme` on `<html>`, remembered in `localStorage`). Accent color only for
@@ -4217,11 +4248,13 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   the server drops it) — never a list of what is planned. And a Stundenplan handed on by a link
   (owner, 2026-09-26: the link preview of a shared Stundenplan shows its modules, „MIT-1, AuP,
   EEG"; a preview runs no JavaScript and has no storage, so only the address can carry them):
-  `/studyplan?share=<code>` carries the semester, the planned modules in their order and the
-  program whose abbreviations name them, as a `pack` code of kind `studyplan`
-  (`folia_calendar::share`), nothing hidden or chosen. The visitor makes it („Link zum Teilen
-  kopieren" in the sidebar's group „Plan"), whoever opens it is offered the modules to take over
-  (`folia/crates/planner/src/studyplan/share.rs`), and the server's page names them in its tags and its
+  `/studyplan?share=<code>` carries the semester, the planned modules in their order, the
+  program whose abbreviations name them and the groups ticked (since 2026-10-26, for a calendar of
+  one's own, „Calendars of one's own"), as a `pack` code of kind `studyplan`
+  (`folia_calendar::share`), nothing hidden. The visitor makes it („Link zum Teilen kopieren" in
+  the sidebar's group „Plan"), whoever opens it is offered the modules to take over, or the plan
+  as a calendar beside their own (`folia/crates/planner/src/studyplan/share.rs`), and the server's
+  page names them in its tags and its
   picture (`/cards/studyplan/<code>.png`), resolving the code anew on every request and keeping
   nothing; Folia's own log writes the page's path without its query and the picture's as
   `/cards/studyplan/….png`; the edge's access log keeps the address like every address. The
@@ -5195,6 +5228,18 @@ the line under the head says nothing of what is hidden, a finger moving the shee
 tiles on their way to „Vergleichen" (`.morph`, a card per group), let go all up the address says
 `vergleich=1`, down from its head it is back at the tiles, „Vergleichen ›" and ‹ take the same
 way, and a quick move down closes the choice, its tick kept.
+
+```bash
+cd e2e && node calendars.mjs
+```
+
+drives the calendars of one's own on the same data: Lena's BWL B.Sc. with a group of hers ticked,
+handed on by her link, is taken „Als Kalender" from the offer (its `l`, `n` and `o` lines in the
+plan's text, nothing of it planned), stands as a strip at first, in full with its initial after
+its switch, off after it again; „Gemeinsam frei" draws where both are free; the module list has its
+part; „Neuer Kalender" makes another from the link pasted, with a name, which its menu renames and
+deletes, and „Rückgängig" brings it back where it stood; a phone has one line over the week that
+opens into the rows, their switches with their words.
 
 ```bash
 cd e2e && node tabbar.mjs

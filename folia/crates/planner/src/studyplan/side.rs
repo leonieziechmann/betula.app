@@ -1,4 +1,5 @@
 //! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
+//! „Kalender" (`calendars.rs`: „Mein Studiengang" and the calendars of one's own),
 //! „Studiengang" (the timetable's program, picked for this session, „Mein Studiengang" by default,
 //! and the way to „Mein Studium"),
 //! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view (on a phone
@@ -38,6 +39,7 @@ use folia_design::nav;
 use folia_shell::pending::Pending;
 use folia_stores::studyplan::Saved;
 use folia_design::ui::Icon;
+use super::calendars::CalendarsGroup;
 use super::export::CalendarGroup;
 use super::import::ImportGroup;
 use super::share::ShareAction;
@@ -60,6 +62,9 @@ pub(super) fn PlanSidebar(ctx: PlanCtx) -> impl IntoView {
     // The Fachsemester last taken over in this visit, for the name „Plan speichern" suggests.
     let imported = RwSignal::new(None::<u8>);
     view! {
+        // The calendars beside the week first (`calendars.rs`): „Mein Studiengang" and those of one's
+        // own, and „Neuer Kalender"; on a phone in „Anpassen" too.
+        <CalendarsGroup ctx/>
         <ProgramGroup ctx programs/>
         <ImportGroup ctx program=programs.shown imported/>
         <ViewGroup ctx/>
