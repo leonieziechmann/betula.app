@@ -4150,9 +4150,10 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   the old arrows of every `.rows` list away with the regions, and its rows were no stop yet.
 - **R25. A command has a name** („Befehle", `folia_shell::commands`; folia/design/tastatur/
   konzept.html, „Befehle"; owner, 2026-10-20: „mach mal als erstes die command palette, ich glaube
-  das ist am relvantesten"; Folia 1.43.0). The button „Befehle" beside the search field (a box of
-  its own since 1.45.3, as tall as the search, which is as long as before it came; owner,
-  2026-10-26: in the search it made the bar „zu lang und unbalanced") and Ctrl + K (⌘K) open a dialog whose field finds what the page offers, every filter, the pages, the
+  das ist am relvantesten"; Folia 1.43.0). The button „Befehle" at the end of the search field,
+  behind a line, sharing the search's 760 px (1.45.3 had it beside the search as a box of its own,
+  which made the whole too long: owner, 2026-10-26, „dass die totale breite kürzer ist, wie es
+  zuvor war und die befehle sich dann trotzdem damit den platz teilen"), and Ctrl + K (⌘K) open a dialog whose field finds what the page offers, every filter, the pages, the
   settings and every module; Enter does it, Shift + Enter the other thing (a filter „ohne", a
   module's page), every row shows its keys, and one run by its name says afterwards „Geht auch mit
   M". A page names its commands in attributes, and the palette reads them from what is shown when
@@ -5375,9 +5376,8 @@ synthetic catalog as on the real one.
 cd e2e && node befehle.mjs
 ```
 
-drives „Befehle" (R25, `folia_shell::commands`) on a wide screen: the button beside the search
-field, as tall as it, reads „Befehle Strg + K", the search (760 px, as long as before the button
-came) „/"; a click opens the palette with the
+drives „Befehle" (R25, `folia_shell::commands`) on a wide screen: the button at the end of the
+search field reads „Befehle Strg + K", the two sharing the search's 760 px, and the field „/"; a click opens the palette with the
 keyboard in its field, and with no module open it offers „Gehe zu" (Start 1, Module 2, Merkliste 4,
 Suchfeld /, Filter F) and „Hilfe" („Alle Tasten zeigen" ?), says what typing finds, and Esc gives
 the keyboard back to the button; with a module open beside the list the first group is „Für „…“"
