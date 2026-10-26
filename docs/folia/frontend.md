@@ -2966,7 +2966,7 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   frost until the page is scrolled; then the frost every page has there lies under the search
   („The birch" below), over the photo without its tint, so that the photo stays itself. Until
   2026-10-26 a dark veil lay there, the start page's alone, which did not go with the rest of the
-  app, least in the light mode (owner: „Gerade wenn man im light modus ist, fühlt es sich besonders
+  app, above all in the light mode (owner: „Gerade wenn man im light modus ist, fühlt es sich besonders
   off an … Aber vielleicht sollte das einach nur ein frost/blur effekt sein"). Once the photo has
   left the bar the crown's leaves of every other page come back, fading in as they sink the last
   12 px into place (owner, the same day: „wenn die main box of screen geht dann so die blätter von
@@ -3004,6 +3004,8 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   their pages do; „Erst mal umschauen" lasts the visit. The days ahead (`betula.today.v1`,
   `profiles::AHEAD_KEY`) are worked out of the active profile's Stundenplan, kept in this browser
   alone, and go when a profile is emptied or deleted; the privacy notice names them (2026-10-26).
+  The skeleton's photo and panels are hidden from screen readers each, so that the day put in
+  place of the photo is read.
 - **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
   a semester by its name, „Anderes Fachsemester", the switch with „an", „Studium anlegen", „Ohne
   Module weiter", „Erst mal umschauen", „Profil übernehmen", „Was ist Betula?"), the buttons of the
