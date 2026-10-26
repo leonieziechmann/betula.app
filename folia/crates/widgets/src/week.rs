@@ -92,6 +92,14 @@ pub struct GridSlot {
     /// The slots of one `joint` on a day stand together: where they clash, one red frame is drawn
     /// around them (`frames_of`).
     pub joint: Option<u32>,
+    /// A group of the Stundenplan's choice in focus (folia/design/kalender): ticked (`Some(true)`)
+    /// or not, drawn outlined over the rest. Its `tick` is the key a click on it acts by.
+    pub pick: Option<bool>,
+    /// The key of what a click on the slot does (`data-act`, as a button's): the slot itself is
+    /// the box that ticks its group, a button, not a link.
+    pub tick: Option<String>,
+    /// What a choice in focus leaves behind it: the rest of the plan, which steps back.
+    pub dim: bool,
 }
 
 /// A button the page puts on a slot: its icon („check", „x"), what it does in words (its name and
@@ -147,6 +155,9 @@ impl GridSlot {
             if self.clash { "clash" } else { "" },
             if self.extra { "extra" } else { "" },
             if brief { "brief" } else { "" },
+            if self.pick.is_some() { "pick" } else { "" },
+            if self.pick == Some(true) { "on" } else { "" },
+            if self.dim { "dim" } else { "" },
         ];
         for part in parts.into_iter().filter(|part| !part.is_empty()) {
             classes.push(' ');
@@ -430,6 +441,17 @@ fn slot_view(slot: &GridSlot, style: String, framed: bool) -> AnyView {
     // Beside the link, not inside it, in a box of the slot's size (its style), which lets every
     // click but those on its buttons through to the link.
     let act = (!slot.acts.is_empty()).then(|| view! { <div class="slot-acts" class:asks=slot.asks style=style.clone()>{slot_buttons(&slot.acts)}</div> });
+    // A group of the choice in focus: the whole slot is the box that ticks it.
+    if let Some(key) = slot.tick.clone() {
+        let on = slot.pick == Some(true);
+        return view! {
+            <button class=class type="button" role="checkbox" aria-checked=if on { "true" } else { "false" } data-act=key style=style title=title.clone() aria-label=title>
+                {label}{small}{place}
+                <i class="pick-box" aria-hidden="true">{on.then(|| view! { <Icon name="check"/> })}</i>
+            </button>
+        }
+        .into_any();
+    }
     let drawn = match (slot.lines.first(), slot.href.clone()) {
         // A link to its lines in the list under the grid, which a click shows there (enhance.js);
         // without JavaScript the address's fragment leads to the first.

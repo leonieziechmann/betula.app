@@ -3502,7 +3502,8 @@
         const row = find('.rows a.row[aria-current="true"]');
         if (row) row.focus({ preventScroll: true });
       }
-      (close || find('[data-action="back"]'))?.click();
+      // Then the choice in focus over the plan's week („Fertig"), then a page's „Zurück".
+      (close || find('[data-action="close-focus"]') || find('[data-action="back"]'))?.click();
       return;
     }
     // Enter on the row whose module is open: the module in full (Enter opened it beside the list).

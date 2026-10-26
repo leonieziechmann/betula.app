@@ -9,6 +9,7 @@ pub mod studyplan_export;
 pub mod studyplan_head;
 pub mod studyplan_import;
 pub mod studyplan_modules;
+pub mod studyplan_open;
 pub mod studyplan_share;
 pub mod studyplan_side;
 pub mod studyplan_week;
@@ -37,6 +38,7 @@ folia_design::texts! {
     studyplan_head = crate::i18n::studyplan_head,
     studyplan_import = crate::i18n::studyplan_import,
     studyplan_modules = crate::i18n::studyplan_modules,
+    studyplan_open = crate::i18n::studyplan_open,
     studyplan_share = crate::i18n::studyplan_share,
     studyplan_side = crate::i18n::studyplan_side,
     studyplan_week = crate::i18n::studyplan_week,
