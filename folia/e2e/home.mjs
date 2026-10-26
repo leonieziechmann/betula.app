@@ -156,8 +156,10 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   // On a wide screen the start page runs under the bar as on a phone, and the frost lies behind the
   // bar once it is scrolled (owner, 2026-10-26: „Mach das mal so wie bei der mobile version");
   // at its top the frost is away and the page stands where it stood. Its photo as on a phone
-  // (owner, the same day: „Mach das mal ordentlich … die animation für die Blätter"): under the bar
-  // the blur alone, no leaves and the bar's words light; past it the leaves and the frost's colour.
+  // (owner, the same day: „Mach das mal ordentlich … die animation für die Blätter", „den hero
+  // banner beim Pc einfach auch bis ganz nach oben"): up to the window's edge behind the bar, its
+  // greeting where it stood, the bar's words light and no leaves over it; scrolled, the blur
+  // alone; past it the leaves and the frost's colour.
   const under = async (y) => {
     await page.evaluate((y) => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, y), y);
     // The frost follows in the next frame and fades in a fifth of a second: a frame can be slow
@@ -172,13 +174,14 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
         leaves: getComputedStyle(document.querySelector("body > .crown")).getPropertyValue("--leaves").trim(),
         word: getComputedStyle(document.querySelector(".topbar .crumb.brand .wordmark")).color,
         hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top),
+        greet: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first) .day-greet").getBoundingClientRect().top),
       };
     });
   };
   const bars = [await under(120), await under(560), await under(0)];
   const [onPhoto, past, top] = bars;
-  check(onPhoto.frost === "1" && onPhoto.hero < 0 && top.frost === "0" && top.hero >= 56, `wide screen: the start page does not run under the bar with the frost behind it, or stands elsewhere at its top: ${JSON.stringify(bars)}`);
-  check(onPhoto.tint === "0" && onPhoto.leaves === "0" && onPhoto.word === "rgb(255, 255, 255)" && top.leaves === "0", `wide screen: over the photo the bar is not the photo's (the blur alone, no leaves, its words light), or leaves at the top: ${JSON.stringify(bars)}`);
+  check(onPhoto.frost === "1" && onPhoto.hero < 0 && top.frost === "0" && top.hero === 0 && top.greet >= 56 + 24, `wide screen: the start page does not run under the bar with the frost behind it, or its photo does not reach up to the window's edge with its greeting below the bar: ${JSON.stringify(bars)}`);
+  check(onPhoto.tint === "0" && onPhoto.leaves === "0" && onPhoto.word === "rgb(255, 255, 255)" && top.leaves === "0" && top.word === "rgb(255, 255, 255)", `wide screen: over the photo the bar is not the photo's (the blur alone, no leaves, its words light): ${JSON.stringify(bars)}`);
   check(past.frost === "1" && past.tint === "1" && past.leaves === "1" && past.word !== "rgb(255, 255, 255)", `wide screen: past the photo the leaves and the frost's colour did not come, or the bar's words stayed light: ${JSON.stringify(bars)}`);
   // „Rückgängig": the setup again, and what this browser kept before.
   await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");

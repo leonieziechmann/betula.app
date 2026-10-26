@@ -590,10 +590,11 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px));
     --frost-r: var(--preview);
   }
-  /* The bar's words over the start page's photo (`data-photo-under`, enhance.js: while the photo
-     lies under the bar's middle): light, as the photo's own. */
+  /* The bar's words over the start page's photo, which reaches up behind the bar (below), until it
+     has left the bar (`data-photo-gone`, enhance.js; so on the server's page as well): light, as
+     the photo's own. */
   .crumb.brand .wordmark, .crumb.brand small { transition: color .2s, text-shadow .2s; }
-  :root[data-photo-under] .crumb.brand { --text: #fff; --text-3: rgb(255 255 255 / .82); text-shadow: 0 1px 10px rgb(0 0 0 / .35); }
+  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) .crumb.brand { --text: #fff; --text-3: rgb(255 255 255 / .82); text-shadow: 0 1px 10px rgb(0 0 0 / .35); }
   /* Asked of each body's own page: the takeover's picture is a second body (boot.js), and the
      app's first frame under it may not have its page yet. */
   body:has(> .main > .content > .page-stage.front > .work.flowing) > .ground { display: none; }
@@ -6024,6 +6025,15 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-brand-say b { font-size: 19px; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
 .day-brand-say > span { font-size: 13.5px; opacity: .86; }
 @container day (max-width: 1100px) { .day-first { grid-template-columns: minmax(0, 560px); justify-content: start; } .day-brand { display: none; } }
+@media (min-width: 901px) {
+  /* The photo reaches up behind the bar to the window's edge, as on a phone (owner, 2026-10-26:
+     „Jo mach mal den hero banner beim Pc einfach auch bis ganz nach oben. Also zummidest das
+     bild"): the box higher by where the page starts (the area's 1 px and the head), its content
+     where it stood, its upper corners square at the edge. Over it the bar is the photo's, no
+     leaves and no frost until the page is scrolled, its words light (one scroll area). */
+  .day-hero { --up: calc(1px + var(--head)); margin-top: calc(-1 * var(--up)); height: calc(300px + var(--up)); padding-top: calc(24px + var(--up)); border-top-left-radius: 0; border-top-right-radius: 0; }
+  .day-first { height: calc(640px + var(--up)); }
+}
 
 /* The setup's card (setup.rs): as high in every step; what is long scrolls inside it. */
 .ob { --ob-h: 592px; height: var(--ob-h); width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; padding: 22px 22px 18px; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); }

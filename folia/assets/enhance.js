@@ -2328,24 +2328,16 @@
     frostBar = (area ? area.offsetWidth - area.clientWidth : 0) + "px";
     let gone = true;
     let leaves = 1;
-    let under = false;
     // The start page's photo and the bar's lower edge: a phone's crown, a wide screen's head (where
-    // the page shows, its `scroll-padding`), whose words go light while the photo lies under
-    // their middle (app.css `data-photo-under`).
+    // the page shows, its `scroll-padding`).
     const hero = [...(stage() || document).querySelectorAll(".day-hero")].find((el) => el.offsetParent !== null);
-    if (hero && (phone() || area)) {
-      const photo = hero.getBoundingClientRect();
-      const edge = phone() ? document.querySelector(".crown")?.getBoundingClientRect().bottom : area.getBoundingClientRect().top + (parseFloat(getComputedStyle(area).scrollPaddingTop) || 0);
-      if (edge !== undefined) {
-        const past = edge - photo.bottom;
-        gone = past >= -1;
-        leaves = Math.min(Math.max(past / LEAVES_WAY, 0), 1);
-      }
-      const bar = phone() ? null : document.querySelector("body > .main > .topbar")?.getBoundingClientRect();
-      if (bar) under = photo.top < (bar.top + bar.bottom) / 2 && photo.bottom > (bar.top + bar.bottom) / 2;
+    const edge = !hero ? undefined : phone() ? document.querySelector(".crown")?.getBoundingClientRect().bottom : area ? area.getBoundingClientRect().top + (parseFloat(getComputedStyle(area).scrollPaddingTop) || 0) : undefined;
+    if (edge !== undefined) {
+      const past = edge - hero.getBoundingClientRect().bottom;
+      gone = past >= -1;
+      leaves = Math.min(Math.max(past / LEAVES_WAY, 0), 1);
     }
     if (root.hasAttribute("data-photo-gone") !== gone) root.toggleAttribute("data-photo-gone", gone);
-    if (root.hasAttribute("data-photo-under") !== under) root.toggleAttribute("data-photo-under", under);
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     leavesTo(still ? (gone ? 1 : 0) : leaves, still);
   };
