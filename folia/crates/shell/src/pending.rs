@@ -77,6 +77,8 @@ pub enum Shape {
     Study,
     /// „Profil": the profiles of this browser, what the active one keeps, the settings.
     Profile,
+    /// A Termin's own page (`/event/<key>/<day>`).
+    Event,
     /// Text: the legal pages, a page that does not exist.
     Text,
 }
@@ -103,6 +105,8 @@ impl Shape {
             Shape::Study
         } else if path == url::PROFILE {
             Shape::Profile
+        } else if url::event_of(path).is_some() {
+            Shape::Event
         } else {
             Shape::Text
         }
@@ -710,6 +714,11 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
         Some((slug.to_string(), tab))
     };
     if from_path != to_path {
+        // Another date or Termin of the same event is the same page with the same data (its
+        // timetable is the event's, `EventAsk`): the page's own business.
+        if let (Some((from, _)), Some((to, _))) = (url::event_of(from_path), url::event_of(to_path)) {
+            return (from.event != to.event).then_some(Change::Page(Shape::Event));
+        }
         // Another view of the same program is the same page with another column.
         if let (Some((from_slug, from_tab)), Some((to_slug, to_tab))) = (program(from_path), program(to_path)) {
             if from_slug == to_slug {
@@ -760,7 +769,7 @@ pub fn change(from_path: &str, from_search: &str, to_path: &str, to_search: &str
             let (slug, tab) = program(to_path)?;
             program_change(&ProgramUrl::parse(&slug, tab, from_search), &ProgramUrl::parse(&slug, tab, to_search), phone)
         }
-        Shape::Home | Shape::About | Shape::Module | Shape::Profile | Shape::Text => None,
+        Shape::Home | Shape::About | Shape::Module | Shape::Profile | Shape::Event | Shape::Text => None,
     }
 }
 
@@ -792,7 +801,8 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 }
 
 /// Within the Studienplan: another semester, view or Regelstudienplan being taken over is its
-/// column; the module beside it is the aside (on a phone a sheet over the plan). „Vollbild" fills
+/// column; the module beside it and a Termin in its own view (`termin`, `on`) are the aside (on a
+/// phone a sheet over the plan). „Vollbild" fills
 /// the page with the module's whole page (`PlanAddress`). The Übersicht shows every semester: there
 /// `sem` only says which of its semesters a module planned twice is shown in beside it, so it is
 /// the aside's.
@@ -804,8 +814,8 @@ fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
     fn column_sem(url: &StudyplanUrl) -> Option<&str> {
         if url.view == PlanView::Overview { None } else { url.sem.as_deref() }
     }
-    fn beside(url: &StudyplanUrl) -> (Option<&str>, Option<&str>, Option<&str>) {
-        (url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()))
+    fn beside(url: &StudyplanUrl) -> [Option<&str>; 5] {
+        [url.open.as_deref(), url.row.as_deref(), url.open.as_ref().and(url.sem.as_deref()), url.termin.as_deref(), url.on.as_deref()]
     }
     if (column_sem(from), from.view, &from.import, from.variant) != (column_sem(to), to.view, &to.import, to.variant) {
         Some(Change::Column(Shape::Studyplan))
@@ -1137,6 +1147,11 @@ mod tests {
         assert_eq!(change("/catalog/module/11103", "", "/impressum", "", false), Some(Change::Page(Shape::Text)));
         // The profile page has a frame of its own to stand in for it.
         assert_eq!(change("/bookmarks", "", "/profile", "", false), Some(Change::Page(Shape::Profile)));
+        // A Termin's own page: another date or group of the same event is the page's own business.
+        assert_eq!(change("/catalog/module/12102", "", "/event/148370-eb017", "", false), Some(Change::Page(Shape::Event)));
+        assert_eq!(change("/event/148370-eb017", "", "/event/148370-eb017/2026-11-09", "", false), None);
+        assert_eq!(change("/event/148370-eb017/2026-11-09", "", "/event/148370-ef2fb/2026-11-11", "", false), None);
+        assert_eq!(change("/event/148370-eb017", "", "/event/148303-782db", "", false), Some(Change::Page(Shape::Event)));
     }
 
     #[test]
@@ -1171,6 +1186,10 @@ mod tests {
         assert_eq!(change("/studyplan", "", "/studyplan", "open=12104", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "open=12104", "/studyplan", "open=12104&row=148369-aaf38", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "open=12104", "/studyplan", "", false), Some(Change::Aside));
+        // A Termin in its own view takes the module's place, and so does another date of it.
+        assert_eq!(change("/studyplan", "", "/studyplan", "termin=148369-aaf38", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "termin=148369-aaf38", "/studyplan", "termin=148369-aaf38&on=2026-11-04", false), Some(Change::Aside));
+        assert_eq!(change("/studyplan", "termin=148369-aaf38", "/studyplan", "open=12104&row=148369-aaf38", false), Some(Change::Aside));
         // On the Übersicht `sem` names the semester of the module beside it, not the column's.
         assert_eq!(change("/studyplan", "view=all", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "sem=2027S&view=all&open=12204", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));

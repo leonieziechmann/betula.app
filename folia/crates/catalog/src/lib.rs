@@ -7,4 +7,5 @@
 
 pub mod i18n;
 pub mod catalog;
+pub mod event;
 pub mod module;

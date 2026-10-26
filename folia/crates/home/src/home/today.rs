@@ -31,7 +31,7 @@ use folia_timetable::clash::Weeks;
 use folia_timetable::facts::SemesterFacts;
 use folia_timetable::model::Timetable;
 use folia_timetable::views::AgendaWeek;
-use folia_widgets::termin::{module_facts, ticking_clock, TerminCtx, TerminLinks, TerminMode, TerminView};
+use folia_widgets::termin::{module_facts, Against, TerminCtx, TerminLinks, TerminMode, TerminView};
 use leptos::prelude::*;
 
 use folia_data::use_ask;
@@ -188,7 +188,7 @@ pub fn TodayView(guest: bool, welcome: RwSignal<Option<Done>>, on_setup: Callbac
     view! {
         <Hero ctx on_setup/>
         <Welcome welcome/>
-        {(!guest).then(|| view! { <TerminOver table data plan/> })}
+        {(!guest).then(|| view! { <TerminOver table data plan now/> })}
         {move || {
             let phase = ctx.phase.get();
             let evening = now.get().1 >= 17 * 60;
@@ -290,7 +290,7 @@ fn termin_href(entry: &Entry, t: &Texts) -> Option<String> {
 /// module beside the Stundenplan; closing goes back a step where the start page without it is the
 /// step before.
 #[component]
-fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>, plan: Option<Studyplan>) -> impl IntoView {
+fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>, plan: Option<Studyplan>, now: RwSignal<(Day, u16)>) -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let asked = Memo::new(move |_| location.search.with(|search| url::home_termin(search)));
@@ -304,8 +304,10 @@ fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>,
     });
     let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_path(Some((key, on)))));
     let module = Callback::new(move |(id, key): (String, Option<RowKey>)| t.path(&StudyplanUrl::default().with_open(Some(&id), key).path()));
-    let links = TerminLinks { termin, module, close, back };
-    let ctx = TerminCtx { table, asked, modules, mode: TerminMode::Adjust, plan, now: ticking_clock(), links };
+    let links = TerminLinks { termin, module, close, back, adjust: None };
+    // The page's own clock, read every half minute (`TodayView`).
+    let now = Signal::derive(move || Some(now.get()));
+    let ctx = TerminCtx { table, asked, modules, mode: TerminMode::Adjust, plan, now, planned: Signal::stored(Some(true)), against: Signal::stored(Against::Itself), links, page: false };
     move || shown.get().then(|| view! { <div class="day-termin"><TerminView ctx/></div> })
 }
 

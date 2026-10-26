@@ -247,6 +247,15 @@ fn every_query_runs_against_the_snapshot() {
         assert_eq!(own, Some(*key), "{id}");
     }
     assert!(queries::teaching_semesters(&db, &["1 OR 1=1".to_string()]).unwrap().is_empty());
+    // The modules of an event: each holds it in its schedule of that semester.
+    let first_taught = taught.first().expect("a module with teaching");
+    let date = queries::module_schedule(&db, first_taught).unwrap().into_iter().next().expect("a date of a taught module");
+    let linking = queries::event_modules(&db, &date.event_id).unwrap();
+    assert!(linking.iter().any(|row| row.module_id == *first_taught && row.semester_key == date.semester_key), "{linking:?}");
+    for row in &linking {
+        assert!(queries::module_schedule(&db, &row.module_id).unwrap().iter().any(|other| other.event_id == date.event_id && other.semester_key == row.semester_key));
+    }
+    assert!(queries::event_modules(&db, "1 OR 1=1").unwrap().is_empty());
 
     // Every `pub fn` of folia-query must have run above, and the search's statements and `meta`.
     let functions = |source: &'static str| -> Vec<&'static str> {

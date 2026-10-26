@@ -108,6 +108,16 @@ impl Occasion {
         Some(Occasion { event, rows, key, day, state, dates, from: row.from, to: row.to, weeks, hidden })
     }
 
+    /// The date of the Termin `key` a view shows at `now` (`None`: the server's, which reads no
+    /// clock): `on`, else the next to come, the day after once today's is over.
+    pub fn at(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u16)>) -> Option<Occasion> {
+        let o = Occasion::find(table, key, on, now.map(|(day, _)| day))?;
+        Some(match (on, now) {
+            (None, Some((day, minute))) if o.day == day && o.to.is_some_and(|to| to <= minute) => Occasion::find(table, key, None, Some(day.plus(1))).filter(|next| next.day > day).unwrap_or(o),
+            _ => o,
+        })
+    }
+
     /// The date before (`back`) or after this one, of those one steps to.
     pub fn step(&self, back: bool) -> Option<Day> {
         let steppable = self.dates.iter().filter(|dated| dated.state.steppable());
@@ -243,13 +253,15 @@ pub struct Tile {
     pub keys: Vec<RowKey>,
     /// The visitor ticked it.
     pub ticked: bool,
-    /// The first event of the plan a Termin of it meets (`meets`); `None` where it fits.
+    /// The first event of the plan a Termin of it meets (`meets`); `None` where it fits. An event
+    /// of the plan beside, where the tiles were measured against one.
     pub meets: Option<usize>,
 }
 
 /// The options of the choice of the event `event` (`Attendance::OneOf`), in their order; empty
-/// for an event whose rows are all required.
-pub fn tiles(table: &Timetable, event: usize) -> Vec<Tile> {
+/// for an event whose rows are all required. `beside`: the visitor's plan where it does not hold
+/// the event (a module looked up outside the plan), what a tile then says it meets.
+pub fn tiles(table: &Timetable, event: usize, beside: Option<&Timetable>) -> Vec<Tile> {
     let Some(of) = table.events.get(event) else { return Vec::new() };
     let Attendance::OneOf { options, .. } = &of.attendance else { return Vec::new() };
     let sessions = sessions(of);
@@ -261,7 +273,10 @@ pub fn tiles(table: &Timetable, event: usize) -> Vec<Tile> {
                 let row = *rows.first()?;
                 Some(Session { key: of.rows.get(row)?.key?, row, rooms: 0 })
             })?;
-            let meets = rows.iter().find_map(|row| meets(table, event, *row));
+            let meets = match beside {
+                Some(plan) => rows.iter().find_map(|row| met(plan, of.rows.get(*row)?, None)),
+                None => rows.iter().find_map(|row| meets(table, event, *row)),
+            };
             Some(Tile { option, session, keys: of.option_keys(option), ticked: of.chosen.contains(&option), meets })
         })
         .collect()
@@ -273,9 +288,15 @@ pub fn tiles(table: &Timetable, event: usize) -> Vec<Tile> {
 /// not, so that a tile says what ticking it would cost.
 pub fn meets(table: &Timetable, event: usize, row: usize) -> Option<usize> {
     let mine = table.events.get(event)?.rows.get(row)?;
+    met(table, mine, Some(event))
+}
+
+/// The first event of `plan` but `own` the row `mine` meets (`meets`); `mine` may be a row of
+/// another timetable of the semester.
+fn met(plan: &Timetable, mine: &Row, own: Option<usize>) -> Option<usize> {
     let (from, to) = (mine.from?, mine.to?);
-    table.events.iter().enumerate().find_map(|(index, other)| {
-        if index == event || !holds(other) {
+    plan.events.iter().enumerate().find_map(|(index, other)| {
+        if Some(index) == own || !holds(other) {
             return None;
         }
         let hit = other.rows.iter().any(|theirs| {
@@ -338,27 +359,58 @@ pub fn day_of(table: &Timetable, day: Day) -> Vec<Beside> {
 }
 
 /// What the date of `occasion` meets that day: the first Termin of another event the plan holds
-/// firmly, held at a time that overlaps.
-pub fn clash_on(table: &Timetable, occasion: &Occasion) -> Option<Beside> {
+/// firmly, held at a time that overlaps. `beside`: the visitor's plan where `table` is not (a
+/// module looked up outside the plan); the Termin named is then one of `beside`.
+pub fn clash_on(table: &Timetable, occasion: &Occasion, beside: Option<&Timetable>) -> Option<Beside> {
     let (from, to) = (occasion.from?, occasion.to?);
     if !occasion.state.held() || occasion.state == DateState::Hidden {
         return None;
     }
-    day_of(table, occasion.day).into_iter().find(|beside| {
-        let firm = table.events.get(beside.event).is_some_and(holds);
-        beside.event != occasion.event && firm && !beside.open && !beside.cancelled && beside.from < to && from < beside.to
+    let (plan, own) = measured(table, occasion, beside);
+    day_of(plan, occasion.day).into_iter().find(|other| {
+        let firm = plan.events.get(other.event).is_some_and(holds);
+        Some(other.event) != own && firm && !other.open && !other.cancelled && other.from < to && from < other.to
     })
 }
 
-/// What comes after the date of `occasion` that day: the next Termin held, of another Termin.
-pub fn after(table: &Timetable, occasion: &Occasion) -> Option<Beside> {
+/// What comes after the date of `occasion` that day: the next Termin held, of another Termin; one
+/// of `beside` where given (`clash_on`).
+pub fn after(table: &Timetable, occasion: &Occasion, beside: Option<&Timetable>) -> Option<Beside> {
     let to = occasion.to?;
-    day_of(table, occasion.day).into_iter().find(|beside| beside.from >= to && !beside.cancelled && !(beside.event == occasion.event && beside.key == Some(occasion.key)))
+    let (plan, own) = measured(table, occasion, beside);
+    day_of(plan, occasion.day).into_iter().find(|other| other.from >= to && !other.cancelled && !(Some(other.event) == own && other.key == Some(occasion.key)))
+}
+
+/// The plan a date is measured against, and the occasion's event in it: its own timetable, or the
+/// plan beside, which does not hold it.
+fn measured<'a>(table: &'a Timetable, occasion: &Occasion, beside: Option<&'a Timetable>) -> (&'a Timetable, Option<usize>) {
+    match beside {
+        Some(plan) => (plan, None),
+        None => (table, Some(occasion.event)),
+    }
 }
 
 /// The row of `event` a click on one of its Termine opens: its first with a key.
 pub fn first_keyed(event: &Event) -> Option<&Row> {
     event.rows.iter().find(|row| row.key.is_some())
+}
+
+/// The timetable with the Termin of `occasion` alone in it: every other event, Termin and exam
+/// hidden, so that a calendar of it (`export::calendar_of`) holds the dates of that Termin alone
+/// („In den Kalender" of a Termin outside the plan).
+pub fn alone(table: &Timetable, occasion: &Occasion) -> Timetable {
+    let mut alone = table.clone();
+    for (index, event) in alone.events.iter_mut().enumerate() {
+        let own = index == occasion.event;
+        event.hidden = (!own).then_some(HiddenBy::Event);
+        for (r, row) in event.rows.iter_mut().enumerate() {
+            row.hidden = (!own || !occasion.rows.contains(&r)).then_some(HiddenBy::Row);
+        }
+    }
+    for exam in &mut alone.exams {
+        exam.hidden = Some(HiddenBy::Event);
+    }
+    alone
 }
 
 #[cfg(test)]
@@ -405,6 +457,10 @@ mod tests {
         assert_eq!(Occasion::find(&t, key, None, Some(d("2027-06-01"))).unwrap().day, last);
         // An unknown key: none.
         assert!(Occasion::find(&t, RowKey { event: 999, fp: 1 }, None, None).is_none());
+        // At a time of a day: today's date until it is over, then the next.
+        assert_eq!(Occasion::at(&t, key, None, Some((d("2026-11-10"), 600))).unwrap().day, d("2026-11-10"));
+        assert_eq!(Occasion::at(&t, key, None, Some((d("2026-11-10"), 645))).unwrap().day, d("2026-11-17"));
+        assert_eq!(Occasion::at(&t, key, Some(d("2026-11-10")), Some((d("2026-11-10"), 700))).unwrap().day, d("2026-11-10"));
     }
 
     #[test]
@@ -432,7 +488,7 @@ mod tests {
         let (one, three) = (rows[1].key(), rows[3].key());
         let open = table(&rows, &["12104"], &[], &Selection::default());
         let event = open.events.iter().position(|event| event.id == "200").unwrap();
-        let tiles = tiles(&open, event);
+        let tiles = tiles(&open, event, None);
         assert_eq!(tiles.len(), 3);
         // Group 3 meets the lecture; the others fit.
         let lecture = open.events.iter().position(|event| event.id == "100").unwrap();
@@ -441,16 +497,53 @@ mod tests {
         // Two ticked, all alike; the third still says what it would meet.
         let ticked = Selection { chosen_rows: [one, three].into_iter().collect(), ..Selection::default() };
         let t = table(&rows, &["12104"], &[], &ticked);
-        let tiles = super::tiles(&t, event);
+        let tiles = super::tiles(&t, event, None);
         assert_eq!(tiles.iter().map(|tile| (tile.ticked, tile.meets.is_some())).collect::<Vec<_>>(), [(true, false), (false, false), (true, true)]);
         // The date of group 3 meets the lecture that day; the lecture's meets group 3 once ticked.
         let o = Occasion::find(&t, three, Some(d("2026-11-10")), None).unwrap();
-        assert_eq!(clash_on(&t, &o).map(|beside| beside.event), Some(lecture));
+        assert_eq!(clash_on(&t, &o, None).map(|beside| beside.event), Some(lecture));
         let l = Occasion::find(&t, rows[0].key(), Some(d("2026-11-10")), None).unwrap();
-        assert_eq!(clash_on(&t, &l).map(|beside| beside.event), Some(event));
+        assert_eq!(clash_on(&t, &l, None).map(|beside| beside.event), Some(event));
         // Not while group 3 is one option of an open choice: dashed, it is none of the plan's yet.
         let l = Occasion::find(&open, rows[0].key(), Some(d("2026-11-10")), None).unwrap();
-        assert_eq!(clash_on(&open, &l), None);
+        assert_eq!(clash_on(&open, &l, None), None);
+    }
+
+    #[test]
+    fn a_termin_outside_the_plan_is_measured_against_it() {
+        let rows = module();
+        let (one, three) = (rows[1].key(), rows[3].key());
+        // The module looked up, alone; the visitor's plan holds 12107's lecture on Tuesdays at
+        // 09:30 and its exercise on Mondays at 13:45.
+        let looked = table(&rows, &["12104"], &[], &Selection::default());
+        let theirs = [teaching("12107", "300", 1, "Vorlesung", 2, "09:30", "11:00"), teaching("12107", "400", 1, "Übung", 1, "13:45", "15:15")];
+        let plan = table(&theirs, &["12107"], &[], &Selection::default());
+        let event = looked.events.iter().position(|event| event.id == "200").unwrap();
+        let lecture = plan.events.iter().position(|event| event.id == "300").unwrap();
+        // Group 3 meets the plan's lecture, not its own module's; groups 1 and 2 fit the plan.
+        let tiles = tiles(&looked, event, Some(&plan));
+        assert_eq!(tiles.iter().map(|tile| tile.meets).collect::<Vec<_>>(), [None, None, Some(lecture)]);
+        let o = Occasion::find(&looked, three, Some(d("2026-11-10")), None).unwrap();
+        assert_eq!(clash_on(&looked, &o, Some(&plan)).map(|beside| plan.events[beside.event].id.as_str()), Some("300"));
+        // On Monday after group 1 comes the plan's exercise.
+        let monday = Occasion::find(&looked, one, Some(d("2026-11-09")), None).unwrap();
+        assert_eq!(after(&looked, &monday, Some(&plan)).map(|beside| plan.events[beside.event].id.as_str()), Some("400"));
+        assert_eq!(after(&looked, &monday, None), None);
+    }
+
+    #[test]
+    fn a_termin_alone_is_a_calendar_of_its_own() {
+        let rows = module();
+        let t = table(&rows, &["12104"], &[], &Selection::default());
+        let o = Occasion::find(&t, rows[1].key(), None, None).unwrap();
+        let alone = alone(&t, &o);
+        let names = std::collections::BTreeMap::new();
+        let calendar = crate::export::calendar_of(&alone, &names, &names, "", "", folia_locale::Locale::De);
+        // Group 1 on Mondays and nothing else: one series, its Mondays.
+        assert_eq!(calendar.entries.len(), 1, "{:?}", calendar.entries.iter().map(|entry| &entry.summary).collect::<Vec<_>>());
+        assert!(calendar.entries.iter().all(|entry| entry.uid.contains(&rows[1].key().text())), "{:?}", calendar.entries.iter().map(|entry| &entry.uid).collect::<Vec<_>>());
+        let full = crate::export::calendar_of(&t, &names, &names, "", "", folia_locale::Locale::De);
+        assert!(full.entries.len() > 1);
     }
 
     #[test]
@@ -463,7 +556,7 @@ mod tests {
         assert_eq!(tuesday.iter().map(|beside| t.events[beside.event].id.as_str()).collect::<Vec<_>>(), ["100"]);
         assert_eq!(day_of(&t, d("2026-11-09")).len(), 1);
         let monday = Occasion::find(&t, one, Some(d("2026-11-09")), None).unwrap();
-        assert_eq!(after(&t, &monday), None);
+        assert_eq!(after(&t, &monday, None), None);
         // The sessions of the exercise, by weekday: Mon, Tue, Wed.
         let event = t.events.iter().find(|event| event.id == "200").unwrap();
         let days: Vec<u8> = sessions(event).iter().map(|session| event.rows[session.row].slot_day().unwrap()).collect();
