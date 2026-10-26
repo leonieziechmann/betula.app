@@ -3084,19 +3084,20 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   („The birch" below), over the photo without its tint, so that the photo stays itself. Until
   2026-10-26 a dark veil lay there, the start page's alone, which did not go with the rest of the
   app, above all in the light mode (owner: „Gerade wenn man im light modus ist, fühlt es sich besonders
-  off an … Aber vielleicht sollte das einach nur ein frost/blur effekt sein"). As the photo leaves
-  the bar, the crown's leaves of every other page slide down into it from above the window, as
-  far as the page has gone on past the photo: their whole height (64 px) over as much of the
-  scroll, back up as it comes back, and the frost's colour comes with them (owner, the same day:
-  „wenn die main box of screen geht dann so die blätter von den anderen seiten engeblendet werden
-  mit einer animation", and of that fade: „dass sich die blätter von oben rein schieben beim
-  handy. Als scroll animation aber mit einem max speed, wenn jemand schnell scrolled"). Never
-  faster than the whole way in 150 ms: a quick swipe or Bild ↓ shows them come and catch up with
-  the page instead of just being there (a quarter of a second until the owner, the same day: „Ich
-  will schon dass sich das snappy anfühlt. Aber dass wenn man mal bild runter drückt das nicht
-  sofort da ist, vielleicht so 100-200ms"). `--leaves` on the crown and the frost, from 0 to 1
-  (enhance.js, frame by frame; the stylesheet has 0 while the photo lies under the bar,
-  `data-photo-gone`, for the server's page and the app's first frame). Whatever the system's
+  off an … Aber vielleicht sollte das einach nur ein frost/blur effekt sein"). Once the photo has
+  left the bar, the crown's leaves of every other page slide down into it from above the window,
+  their whole height at once, and back up as soon as it comes back under the bar; the frost's
+  colour comes and goes with them (owner, the same day: „wenn die main box of screen geht dann so
+  die blätter von den anderen seiten engeblendet werden mit einer animation", „dass sich die
+  blätter von oben rein schieben beim handy"; and then: „dass die Animation nicht mit dem
+  scrollen mitläuft, sondern dass es einen breaking point gibt, wo die dann umschaltet": until
+  then they came as far as the page had gone on past the photo, over their own height of the
+  scroll). The whole way in 150 ms: a quick swipe or Bild ↓ shows them come instead of just
+  being there (a quarter of a second until the owner, the same day: „Ich will schon dass sich das
+  snappy anfühlt. Aber dass wenn man mal bild runter drückt das nicht sofort da ist, vielleicht so
+  100-200ms"). `--leaves` on the crown and the frost, from 0 to 1 (enhance.js, frame by frame;
+  the stylesheet has 0 while the photo lies under the bar, `data-photo-gone`, for the server's
+  page and the app's first frame). Whatever the system's
   setting on motion: where less of it was wanted they were there or not, at once, and the owner,
   who has it so, took that for no animation at all („das mit weniger bewegung war richtig. Aber
   ich finde das sollte nicht dazu gehören"). The panels in one column; the actions of a step
@@ -3109,8 +3110,8 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   page's colour over it: „links ist das abgeschnitten es sieht übelst dreckig aus etc. Mach das
   mal ordentlich … die animation für die Blätter gibt es auch immer noch nicht"): its words, the
   wordmark and its line, light as the photo's own, no leaves and no frost at its top, the blur
-  alone once it is scrolled, and the leaves sliding down as it leaves the bar, as fast at most,
-  the frost's colour with them; the bar's lower edge is where the page shows, 56 px down. The
+  alone once it is scrolled, and the leaves sliding down once it has left the bar, the frost's
+  colour with them; the bar's lower edge is where the page shows, 56 px down. The
   words are light until the photo has left the bar (`data-photo-gone`), so on the server's page
   as well.
 - **The day at once** (`home/ahead.rs`; owner, 2026-10-26: „Damit leute das gerne benutzen muss
@@ -3161,9 +3162,8 @@ language), on a wide screen the page under the bar with the frost behind it once
 top the page where it stood, the frost gone), the photo up to the window's edge with the bar's
 words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, a
 jump past it sliding them in where less motion is wanted as well, and on a phone the photo under the search, the frost once scrolled, the
-leaves halfway down with half their height of the scroll past the photo and all the way past it,
-no faster than their most on a quick swipe, and the catalog's bar with its leaves and the frost
-under them.
+leaves switching where the photo leaves the bar (none 8 px short of it, all the way 4 px past
+it), in 150 ms on a quick swipe, and the catalog's bar with its leaves and the frost under them.
 
 ### „Über Betula" and the map of the programs (2026-09-20; the start page until 2026-10-20)
 
