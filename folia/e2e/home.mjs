@@ -6,8 +6,9 @@
 // ways into the catalog. „Studium anlegen" plans the semester's modules and marks those of the
 // semesters before as passed, and „Rückgängig" puts back what was; „Erst mal umschauen" shows the
 // day without a study. The ground names who took the photo shown. On a phone the photo reaches up
-// under the search, and once the page is scrolled a veil lies under the search. Nothing loads a
-// page. („Über Betula", what the start page said until then, is `e2e/about.mjs`.)
+// under the search without the crown's leaves, which come once the photo has left the bar; once a
+// page is scrolled the frost lies under the search, on the start page as on the catalog's. Nothing
+// loads a page. („Über Betula", what the start page said until then, is `e2e/about.mjs`.)
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { fileURLToPath } from "node:url";
@@ -150,18 +151,32 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   const { context, page } = await open({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, seed);
   const top = await page.evaluate(() => {
     const hero = onPage(".day-hero").getBoundingClientRect(), bar = onPage(".topbar .search").getBoundingClientRect();
-    return { under: hero.top <= 0 && hero.bottom > bar.bottom, wide: Math.round(hero.width) === innerWidth, veil: document.documentElement.hasAttribute("data-veil") };
+    return { under: hero.top <= 0 && hero.bottom > bar.bottom, wide: Math.round(hero.width) === innerWidth };
   });
-  check(top.under && top.wide && !top.veil, `phone: the photo does not reach up under the search: ${JSON.stringify(top)}`);
-  const crown = () => page.evaluate(() => ({ veil: document.documentElement.hasAttribute("data-veil"), opacity: getComputedStyle(document.querySelector(".crown"), "::before").opacity, height: Math.round(document.querySelector(".crown").getBoundingClientRect().height) }));
-  const still = await crown();
-  await page.evaluate(() => window.scrollTo(0, 400));
-  await page.waitForTimeout(500);
-  const scrolled = await crown();
-  check(scrolled.veil && scrolled.opacity === "1" && scrolled.height === still.height, `phone: no veil under the search once scrolled, or the bar changed its box: ${JSON.stringify([still, scrolled])}`);
+  check(top.under && top.wide, `phone: the photo does not reach up under the search: ${JSON.stringify(top)}`);
+  // The bar: the leaves and the frost under them, and the crown's box whatever they do.
+  const bar = () => page.evaluate(() => ({
+    frost: getComputedStyle(document.querySelector(".frost")).opacity,
+    leaves: getComputedStyle(document.querySelector(".crown"), "::before").opacity,
+    height: Math.round(document.querySelector(".crown").getBoundingClientRect().height),
+  }));
+  const settle = () => page.waitForTimeout(800);
+  const still = await bar();
+  check(still.frost === "0" && still.leaves === "0", `phone: the photo has leaves or a frost over it at the top: ${JSON.stringify(still)}`);
+  // A little down, the photo still under the search: the frost, no leaves yet.
+  await page.evaluate(() => window.scrollTo(0, 200));
+  await settle();
+  const down = await bar();
+  check(down.frost === "1" && down.leaves === "0" && down.height === still.height, `phone: no frost over the photo once scrolled, or leaves over it: ${JSON.stringify(down)}`);
+  // Past the photo: the leaves of every page come.
+  await page.evaluate(() => window.scrollTo(0, document.querySelector("#content > .page-stage.front .day-hero").getBoundingClientRect().bottom + scrollY + 40));
+  await settle();
+  const past = await bar();
+  check(past.frost === "1" && past.leaves === "1" && past.height === still.height, `phone: the leaves do not come once the photo has left the bar: ${JSON.stringify(past)}`);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(500);
-  check(!(await crown()).veil, "phone: the veil stays at the top");
+  await settle();
+  const back = await bar();
+  check(back.frost === "0" && back.leaves === "0", `phone: the frost or the leaves stay at the top: ${JSON.stringify(back)}`);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "phone: the start page scrolls sideways");
   // The ground a phone shows (the app's, under every page) names who took the photo shown.
   const credit = await page.evaluate(() => [...document.querySelectorAll("body > .ground .photo-credit")].filter((line) => line.checkVisibility()).map((line) => line.dataset.photo));
@@ -171,6 +186,12 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await page.waitForFunction(() => location.pathname === "/catalog", null, { timeout: 10000 }).catch(() => {});
   await page.waitForTimeout(500);
   check(await page.evaluate(() => [...document.querySelectorAll(".photo-credit")].every((line) => !line.checkVisibility())), "phone: the photo's credit stays under another page");
+  // Another page: the leaves at its top, the frost once it is scrolled.
+  const catalog = await bar();
+  await page.evaluate(() => window.scrollTo(0, 600));
+  await settle();
+  const list = await bar();
+  check(catalog.leaves === "1" && catalog.frost === "0" && list.frost === "1" && list.leaves === "1", `phone: the catalog's bar is not the leaves with the frost under them: ${JSON.stringify([catalog, list])}`);
   await context.close();
 }
 

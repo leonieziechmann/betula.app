@@ -6,10 +6,9 @@
 //! The picture is 300 px high on a wide screen at every hour, in every phase and step (owner,
 //! 2026-10-20: „Beim PC darf sich das hero banner nicht verschieben"): the sentence about the day
 //! keeps to two lines and names modules by their few letters, the card beside it is as high as the
-//! picture. On a phone the photo reaches up under the search, and the content that runs under the
-//! search on the way down gets a dark veil there, in light and dark alike (owner, the same day: „das
-//! soll auf jeden fall nicht zu 100% opaque sein … im light und dark mode das ein wenig
-//! abzudunkeln"; app.css and `Veil` below).
+//! picture. On a phone the photo reaches up under the search; what runs under the search on the way
+//! down goes soft under the frost every page has there, and the crown's leaves come once the photo
+//! has left the bar (owner, 2026-10-26; app.css `.frost`, enhance.js `data-photo-gone`).
 //!
 //! Everything is the visitor's and the browser app's (R9, R20): the Stundenplan's timetable of the
 //! current semester (`StudyplanAsk`, the same as the Stundenplan's, so the two never disagree),
