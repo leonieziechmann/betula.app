@@ -506,9 +506,13 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
      body's column, „phone and tablet"). Not under the row of pages of „Mein Studium" (`.st-pager`,
      below). */
   .crown { z-index: 20; height: var(--bar); }
-  .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 34px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 46px), transparent); mask: linear-gradient(#000 calc(100% - 46px), transparent); opacity: 0; transition: opacity .2s, background-color .3s; }
+  .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 34px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 46px), transparent); mask: linear-gradient(#000 calc(100% - 46px), transparent); opacity: 0; transition: opacity .2s; }
   :root[data-scrolled] .frost { opacity: 1; }
-  :root[data-photo-gone] .frost { background-color: color-mix(in srgb, var(--bg) 76%, transparent); }
+  /* The leaves and the frost's colour come as far as `--leaves` says, from 0 to 1 (set on the
+     crown and the frost, enhance.js): 1 on every page, on the start page as far as it has gone on
+     past its photo (below). The leaves slide down from above the window, their whole height. */
+  .frost::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 76%, transparent); opacity: var(--leaves, 1); }
+  .crown::before, .crown::after { translate: 0 calc((var(--leaves, 1) - 1) * 100%); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
      no size, which draws nothing, as `none` would). */
   .crown::before, .crown::after { padding-left: 0; -webkit-mask-size: 0 0, auto; mask-size: 0 0, auto; }
@@ -516,6 +520,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .ground-top { flex-direction: column; gap: 14px; padding: 22px 18px 0; }
   .ground-foot { position: relative; left: auto; right: auto; bottom: auto; flex-direction: column; gap: 6px; padding: 18px 18px 0; }
 }
+
+/* How far the top of a page of panels fades out on a wide screen (below): the area's own, so that
+   setting it in a frame of the scroll restyles the area alone, not what it holds. */
+@property --edge { syntax: "<length>"; inherits: false; initial-value: 0px; }
 
 /* ---------- one scroll area ----------
    Owner, 2026-09-29: the two steps — first the page scrolled, then the window for the ground — felt
@@ -568,6 +576,27 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     mask-position: 0 0, calc(var(--filters) + 2 * var(--gap) - 1px) 0, right -1px top -1px;
     mask-composite: subtract, add, add;
   }
+  /* A page of panels lets what its scroll takes up out of the area fade out over the last 40 px
+     below the bar instead of cutting it off there (owner, 2026-10-26, of the start page: „Am Pc gibt
+     es auch das problem, dass zeug abgeschnitten wird. Das sollte also auch mal gefixed werden"):
+     the area's own mask, so that what stands behind it, the wood and the ends of the crown, shows
+     through as it goes, and no band of a colour of its own lies over the page (one in the page's
+     colour, with or without a blur, drew an edge of its own across the wood; tried side by side in
+     both modes). The fade grows with the first 40 px of the scroll (`--edge`, enhance.js), so that
+     a page at its top stands as it is; there it has no mask at all (`data-edge` while the area is
+     scrolled), which costs a frame some time to draw. Not what is pinned beside the page, the sidebar and the
+     module on the right, nor the scrollbar: a layer each keeps them whole. Not a list's page nor
+     „Mein Studium"'s semesters, whose heads stay at the top (below) and take what scrolls under
+     them. */
+  .work.flowing[data-edge]:not(:has(> .list, > .page > .page-inner.study > .st-sems)) {
+    mask-image: linear-gradient(transparent, #000 var(--edge)), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+    mask-size: 100% 100%, calc(var(--gap) + var(--filters) + var(--gap) / 2) 100%, calc(var(--pad-r) + var(--bar, 0px)) 100%;
+    mask-position: 0 0, 0 0, 100% 0; mask-repeat: no-repeat;
+  }
+  .work.flowing.solo[data-edge]:not(:has(> .list, > .page > .page-inner.study > .st-sems)) { mask-size: 100% 100%, 0 0, calc(var(--pad-r) + var(--bar, 0px)) 100%; }
+  .work.flowing.aside-picked[data-edge]:not(:has(> .list, > .page > .page-inner.study > .st-sems)) { mask-size: 100% 100%, calc(var(--gap) + var(--filters) + var(--gap) / 2) 100%, calc(var(--preview) + var(--gap) / 2 + var(--pad-r) + var(--bar, 0px)) 100%; }
+  /* A picker's or a collection's popup lies in the area: nothing of it fades while it is open. */
+  .work.flowing:has(.combo[data-open], .collect-pop) { --edge: 0px !important; }
   .work.flowing:focus { outline: none; }
   /* The first row is never shorter than the area shows, whatever flows in it (a pinned short list
      stands in it and the ground's row at once). */
@@ -5993,12 +6022,13 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
   .day-ways { grid-template-columns: minmax(0, 1fr); }
   .day-discover { padding: 0 10px 10px; }
   .day-hero-sk { min-height: 520px; }
-  /* Over the photo the bar is the photo's: no leaves while it lies under the search. Once it has
-     left the bar (`data-photo-gone`, enhance.js), the leaves of every other page come down into
-     the crown (owner, 2026-10-26: „wenn die main box of screen geht dann so die blätter von den
-     anderen seiten eingeblendet werden mit einer animation"); the frost lies under them as on
-     every page. */
-  .crown::before, .crown::after { transition: opacity .45s var(--ease), translate .45s var(--ease); }
-  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) .crown::before,
-  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) .crown::after { opacity: 0; translate: 0 -12px; }
+  /* Over the photo the bar is the photo's: no leaves while it lies under the search, and the frost
+     without its colour. As the photo leaves the bar, the leaves of every other page slide down
+     into the crown from above, as far as the page has gone on past the photo (owner, 2026-10-26:
+     „wenn die main box of screen geht dann so die blätter von den anderen seiten engeblendet werden
+     mit einer animation", and then: „dass sich die blätter von oben rein schieben beim handy. Als
+     scroll animation aber mit einem max speed, wenn jemand schnell scrolled"; `--leaves`,
+     enhance.js). Until the script has said how far, none while the photo lies under the bar
+     (`data-photo-gone`): the server's page, the app's first frame. */
+  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) :is(.crown, .frost) { --leaves: 0; }
 }

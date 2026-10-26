@@ -315,6 +315,9 @@ const LINE = ".fx-desk a.prog-line";
   // All modules of the program are the catalog's (owner, 2026-09-25): the sidebar's way into the
   // catalog, with nothing picked, lists as many modules as the head counts.
   await step("closing the area", () => page.click('#preview [data-action="close-detail"]'), () => !location.search.includes("area=") && !document.querySelector("#preview"));
+  // The sidebar follows once the page has been drawn (R21, `nav::after_paint`): asked in the frame
+  // the address changed, it may still name the area.
+  await page.waitForFunction(() => !document.querySelector('#sidebar a[data-walk="catalog"]')?.getAttribute("href")?.includes("area="), null, { timeout: 2000 }).catch(() => {});
   const all = await page.evaluate(() => document.querySelector('#sidebar a[data-walk="catalog"]')?.getAttribute("href"));
   check(all === "/catalog?program=bachelor-elektrotechnik-2022", `the program's modules are at ${all}`);
   await step("all modules in the catalog", () => page.click('#sidebar a[data-walk="catalog"]'), () => location.pathname === "/catalog" && new URLSearchParams(location.search).get("program") === "bachelor-elektrotechnik-2022" && document.querySelector(".rows a.row"));

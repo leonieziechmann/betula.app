@@ -6,10 +6,12 @@
 // ways into the catalog. „Studium anlegen" plans the semester's modules and marks those of the
 // semesters before as passed, and „Rückgängig" puts back what was; „Erst mal umschauen" shows the
 // day without a study. The app keeps the photo of the days ahead, which the server's page then
-// shows before the app has started. The ground names who took the photo shown. On a phone the photo reaches up
-// under the search without the crown's leaves, which come once the photo has left the bar; once a
-// page is scrolled the frost lies under the search, on the start page as on the catalog's. Nothing
-// loads a page. („Über Betula", what the start page said until then, is `e2e/about.mjs`.)
+// shows before the app has started. On a wide screen the top of the page fades out as it is
+// scrolled. The ground names who took the photo shown. On a phone the photo reaches up under the
+// search without the crown's leaves, which slide down with the scroll as the photo leaves the bar,
+// no faster than their most on a quick swipe; once a page is scrolled the frost lies under the
+// search, on the start page as on the catalog's. Nothing loads a page. („Über Betula", what the
+// start page said until then, is `e2e/about.mjs`.)
 // Needs radix serve-snapshot + folia running and a fresh `bash scripts/build-client.sh`.
 //   node e2e/home.mjs [base-url]
 import { fileURLToPath } from "node:url";
@@ -151,6 +153,19 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     else check(server.skeleton && !server.hero, `the day in another language than it was made in: ${JSON.stringify(server)}`);
   }
   await alone.close();
+  // A page of panels fades out at its top as its scroll takes it up out of the area, more as the
+  // scroll goes on, up to 40 px (`--edge`, the area's mask; owner, 2026-10-26: „Am Pc gibt es auch
+  // das problem, dass zeug abgeschnitten wird"); at its top not at all.
+  const edge = async (y) => {
+    await page.evaluate((y) => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, y), y);
+    await page.waitForTimeout(300);
+    return page.evaluate(() => {
+      const style = getComputedStyle(document.querySelector("#content > .page-stage.front > .work.flowing"));
+      return { edge: style.getPropertyValue("--edge").trim(), fades: style.maskImage.startsWith("linear-gradient(rgba(0, 0, 0, 0)") };
+    });
+  };
+  const edges = [await edge(20), await edge(400), await edge(0)];
+  check(edges.map((at) => at.edge).join() === "20px,40px,0px" && edges[0].fades && edges[1].fades && !edges[2].fades, `wide screen: the top of the start page does not fade out as it is scrolled, or has a mask at its top: ${JSON.stringify(edges)}`);
   // „Rückgängig": the setup again, and what this browser kept before.
   await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");
   await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));
@@ -177,29 +192,63 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     return { under: hero.top <= 0 && hero.bottom > bar.bottom, wide: Math.round(hero.width) === innerWidth };
   });
   check(top.under && top.wide, `phone: the photo does not reach up under the search: ${JSON.stringify(top)}`);
-  // The bar: the leaves and the frost under them, and the crown's box whatever they do.
-  const bar = () => page.evaluate(() => ({
-    frost: getComputedStyle(document.querySelector(".frost")).opacity,
-    leaves: getComputedStyle(document.querySelector(".crown"), "::before").opacity,
-    height: Math.round(document.querySelector(".crown").getBoundingClientRect().height),
-  }));
+  // The bar: how far the leaves have come down (`--leaves`, 0 to 1) and where they stand, the frost
+  // under them and its colour, and the crown's box whatever they do.
+  const bar = () => page.evaluate(() => {
+    const crown = document.querySelector("body > .crown"), frost = document.querySelector("body > .frost");
+    return {
+      frost: getComputedStyle(frost).opacity,
+      tint: getComputedStyle(frost, "::after").opacity,
+      leaves: getComputedStyle(crown).getPropertyValue("--leaves").trim(),
+      at: getComputedStyle(crown, "::before").translate,
+      height: Math.round(crown.getBoundingClientRect().height),
+    };
+  });
   const settle = () => page.waitForTimeout(800);
+  // The window as far down as the photo's end lies `past` px above the bar's.
+  const pastPhoto = (past) => page.evaluate((past) => {
+    const hero = document.querySelector("#content > .page-stage.front .day-hero"), crown = document.querySelector("body > .crown");
+    window.scrollTo(0, hero.getBoundingClientRect().bottom + scrollY - crown.getBoundingClientRect().bottom + past);
+  }, past);
   const still = await bar();
-  check(still.frost === "0" && still.leaves === "0", `phone: the photo has leaves or a frost over it at the top: ${JSON.stringify(still)}`);
-  // A little down, the photo still under the search: the frost, no leaves yet.
+  check(still.frost === "0" && still.leaves === "0" && still.tint === "0" && still.at === "0px -100%", `phone: the photo has leaves or a frost over it at the top: ${JSON.stringify(still)}`);
+  // A little down, the photo still under the search: the frost without its colour, no leaves yet.
   await page.evaluate(() => window.scrollTo(0, 200));
   await settle();
   const down = await bar();
-  check(down.frost === "1" && down.leaves === "0" && down.height === still.height, `phone: no frost over the photo once scrolled, or leaves over it: ${JSON.stringify(down)}`);
-  // Past the photo: the leaves of every page come.
-  await page.evaluate(() => window.scrollTo(0, document.querySelector("#content > .page-stage.front .day-hero").getBoundingClientRect().bottom + scrollY + 40));
+  check(down.frost === "1" && down.leaves === "0" && down.tint === "0" && down.height === still.height, `phone: no frost over the photo once scrolled, or leaves over it: ${JSON.stringify(down)}`);
+  // The photo's end half the leaves' height above the bar's: the leaves half down, the frost's
+  // colour half come (a scroll animation, owner 2026-10-26).
+  await pastPhoto(32);
+  await settle();
+  const half = await bar();
+  check(Math.abs(Number(half.leaves) - 0.5) < 0.06 && half.tint === half.leaves && half.height === still.height, `phone: the leaves do not come down with the scroll past the photo: ${JSON.stringify(half)}`);
+  // Past the photo: the leaves of every page, the frost in its colour.
+  await pastPhoto(120);
   await settle();
   const past = await bar();
-  check(past.frost === "1" && past.leaves === "1" && past.height === still.height, `phone: the leaves do not come once the photo has left the bar: ${JSON.stringify(past)}`);
+  check(past.frost === "1" && past.leaves === "1" && past.tint === "1" && past.at === "0px 0%" && past.height === still.height, `phone: the leaves do not come once the photo has left the bar: ${JSON.stringify(past)}`);
   await page.evaluate(() => window.scrollTo(0, 0));
   await settle();
   const back = await bar();
   check(back.frost === "0" && back.leaves === "0", `phone: the frost or the leaves stay at the top: ${JSON.stringify(back)}`);
+  // A quick swipe from the top far past the photo: the leaves come no faster than their most (the
+  // whole way in a quarter of a second), on their way after 80 ms, there after 600.
+  const swipe = await page.evaluate(async () => {
+    const crown = document.querySelector("body > .crown");
+    const leaves = () => Number(getComputedStyle(crown).getPropertyValue("--leaves"));
+    const t0 = performance.now();
+    window.scrollTo(0, 2400);
+    const seen = [];
+    for (const ms of [80, 600]) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, ms - (performance.now() - t0))));
+      seen.push(leaves());
+    }
+    return seen;
+  });
+  check(swipe[0] > 0 && swipe[0] < 0.75 && swipe[1] === 1, `phone: the leaves pop in on a quick swipe, or do not come: ${JSON.stringify(swipe)}`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settle();
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "phone: the start page scrolls sideways");
   // The ground a phone shows (the app's, under every page) names who took the photo shown.
   const credit = await page.evaluate(() => [...document.querySelectorAll("body > .ground .photo-credit")].filter((line) => line.checkVisibility()).map((line) => line.dataset.photo));
@@ -209,12 +258,13 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   await page.waitForFunction(() => location.pathname === "/catalog", null, { timeout: 10000 }).catch(() => {});
   await page.waitForTimeout(500);
   check(await page.evaluate(() => [...document.querySelectorAll(".photo-credit")].every((line) => !line.checkVisibility())), "phone: the photo's credit stays under another page");
-  // Another page: the leaves at its top, the frost once it is scrolled.
+  // Another page: the leaves at its top, the frost in its colour once it is scrolled.
+  await settle();
   const catalog = await bar();
   await page.evaluate(() => window.scrollTo(0, 600));
   await settle();
   const list = await bar();
-  check(catalog.leaves === "1" && catalog.frost === "0" && list.frost === "1" && list.leaves === "1", `phone: the catalog's bar is not the leaves with the frost under them: ${JSON.stringify([catalog, list])}`);
+  check(catalog.leaves === "1" && catalog.at === "0px 0%" && catalog.frost === "0" && list.frost === "1" && list.leaves === "1" && list.tint === "1", `phone: the catalog's bar is not the leaves with the frost under them: ${JSON.stringify([catalog, list])}`);
   await context.close();
 }
 

@@ -2250,28 +2250,101 @@
   addEventListener("resize", showTopSoon);
 
   // The frost under the bar on a phone (app.css `.frost`): once the window is scrolled, a blur
-  // without a colour of its own lies under the crown and the search over what runs beneath
-  // (`data-scrolled`). On the start page the crown's leaves wait while its photo lies under the
-  // search, and come once it has left the bar (`data-photo-gone`). On the server's page and in the
-  // app alike, a page in front of another as well (its stage gives the window its own scroll).
+  // lies under the crown and the search over what runs beneath (`data-scrolled`). On the start
+  // page the crown's leaves wait while its photo lies under the search, and slide down from above
+  // as it leaves the bar, as far as the page has gone on past it, so that the page brings them
+  // (owner, 2026-10-26: „dass sich die blätter von oben rein schieben beim handy. Als scroll
+  // animation aber mit einem max speed, wenn jemand schnell scrolled"): `--leaves` on the crown and
+  // the frost, from 0 to 1 over the leaves' height of the scroll (LEAVES_WAY), the frost's colour
+  // coming with them; but never faster than the whole way in a quarter of a second
+  // (LEAVES_FAST), so that a quick swipe shows them come instead of just being there, and they
+  // catch up with the page. On every other page they are there (1), and a page that comes in front
+  // brings them as fast. Where less motion is wanted they are there or not, at once. On the
+  // server's page and in the app alike, a page in front of another as well (its stage gives the
+  // window its own scroll); the app's crown, new at the takeover, is told where they are as it
+  // comes (the body's children).
+  const LEAVES_WAY = 64; // px: the leaves' height (app.css `.crown::before`)
+  const LEAVES_FAST = 4; // the whole way per second at most
+  let leavesShown = null;
+  let leavesTarget = 1;
+  let leavesFrame = 0;
+  let leavesAt = 0;
+  const leavesPut = () => {
+    const value = String(Math.round(leavesShown * 1000) / 1000);
+    for (const el of document.querySelectorAll("body > .crown, body > .frost")) {
+      if (el.style.getPropertyValue("--leaves") !== value) el.style.setProperty("--leaves", value);
+    }
+  };
+  const leavesStep = (now) => {
+    leavesFrame = 0;
+    const seconds = leavesAt ? Math.min(now - leavesAt, 50) / 1000 : 1 / 60;
+    leavesAt = now;
+    const most = LEAVES_FAST * seconds;
+    const gap = leavesTarget - leavesShown;
+    leavesShown = Math.abs(gap) <= most ? leavesTarget : leavesShown + Math.sign(gap) * most;
+    leavesPut();
+    if (leavesShown !== leavesTarget) leavesFrame = requestAnimationFrame(leavesStep);
+    else leavesAt = 0;
+  };
+  const leavesTo = (target, still) => {
+    leavesTarget = target;
+    if (leavesShown === null || still) {
+      leavesShown = target;
+      cancelAnimationFrame(leavesFrame);
+      leavesFrame = 0;
+      leavesAt = 0;
+    }
+    leavesPut();
+    if (leavesShown !== leavesTarget && !leavesFrame) leavesFrame = requestAnimationFrame(leavesStep);
+  };
   let frostFrame = 0;
   const frost = () => {
     frostFrame = 0;
     const scrolled = phone() && scrollY > 4;
     if (root.hasAttribute("data-scrolled") !== scrolled) root.toggleAttribute("data-scrolled", scrolled);
     let gone = true;
+    let leaves = 1;
     if (phone()) {
       const hero = [...(stage() || document).querySelectorAll(".day-hero")].find((el) => el.offsetParent !== null);
       const bar = document.querySelector(".crown");
-      if (hero && bar) gone = hero.getBoundingClientRect().bottom <= bar.getBoundingClientRect().bottom + 1;
+      if (hero && bar) {
+        const past = bar.getBoundingClientRect().bottom - hero.getBoundingClientRect().bottom;
+        gone = past >= -1;
+        leaves = Math.min(Math.max(past / LEAVES_WAY, 0), 1);
+      }
     }
     if (root.hasAttribute("data-photo-gone") !== gone) root.toggleAttribute("data-photo-gone", gone);
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    leavesTo(still ? (gone ? 1 : 0) : leaves, still);
   };
   const frostSoon = () => { if (!frostFrame) frostFrame = requestAnimationFrame(frost); };
   addEventListener("scroll", frostSoon, { passive: true });
   addEventListener("resize", frostSoon);
   addEventListener("betula:stage", frostSoon);
+  new MutationObserver(frostSoon).observe(document.body, { childList: true });
   frost();
+
+  // The top of a page of panels on a wide screen (app.css: the area's mask): what the page's scroll
+  // takes up out of its area fades out over the last 40 px below the bar instead of being cut off
+  // there, a fade that grows with the first 40 px of the scroll (`--edge` on the area), so that a
+  // page at its top stands as it is. Each tab's page keeps its own; the one that comes in front is
+  // asked where it is.
+  const EDGE = 40;
+  let edgeFrame = 0;
+  const edge = () => {
+    edgeFrame = 0;
+    const area = flowing();
+    if (!area || phone()) return;
+    const down = Math.min(Math.max(Math.round(area.scrollTop), 0), EDGE);
+    if (area.style.getPropertyValue("--edge") !== down + "px") area.style.setProperty("--edge", down + "px");
+    // The mask itself only while the page is away from its top (it costs a frame time to draw).
+    if (area.hasAttribute("data-edge") !== down > 0) area.toggleAttribute("data-edge", down > 0);
+  };
+  const edgeSoon = () => { if (!edgeFrame) edgeFrame = requestAnimationFrame(edge); };
+  document.addEventListener("scroll", (e) => { if (e.target === flowing()) edgeSoon(); }, { capture: true, passive: true });
+  addEventListener("resize", edgeSoon);
+  addEventListener("betula:stage", edgeSoon);
+  edgeSoon();
   // The app's pages replace each other, and the app takes the page over with a button of its own.
   // Another page or another button starts at the page's top, where the button is hidden; a page
   // that comes back further down is scrolled there, and that scroll shows it. Asked where it is

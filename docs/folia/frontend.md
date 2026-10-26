@@ -2967,12 +2967,19 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   („The birch" below), over the photo without its tint, so that the photo stays itself. Until
   2026-10-26 a dark veil lay there, the start page's alone, which did not go with the rest of the
   app, above all in the light mode (owner: „Gerade wenn man im light modus ist, fühlt es sich besonders
-  off an … Aber vielleicht sollte das einach nur ein frost/blur effekt sein"). Once the photo has
-  left the bar the crown's leaves of every other page come back, fading in as they sink the last
-  12 px into place (owner, the same day: „wenn die main box of screen geht dann so die blätter von
-  den anderen seiten engeblendet werden mit einer animation"; `data-photo-gone` on the root,
-  enhance.js), and the frost takes its tint. The panels in one column; the actions of a step
-  across the width, „Studium anlegen" first.
+  off an … Aber vielleicht sollte das einach nur ein frost/blur effekt sein"). As the photo leaves
+  the bar, the crown's leaves of every other page slide down into it from above the window, as
+  far as the page has gone on past the photo: their whole height (64 px) over as much of the
+  scroll, back up as it comes back, and the frost's colour comes with them (owner, the same day:
+  „wenn die main box of screen geht dann so die blätter von den anderen seiten engeblendet werden
+  mit einer animation", and of that fade: „dass sich die blätter von oben rein schieben beim
+  handy. Als scroll animation aber mit einem max speed, wenn jemand schnell scrolled"). Never
+  faster than the whole way in a quarter of a second: a quick swipe shows them come and catch up
+  with the page instead of just being there. `--leaves` on the crown and the frost, from 0 to 1
+  (enhance.js; the stylesheet has 0 while the photo lies under the bar, `data-photo-gone`, for
+  the server's page and the app's first frame); where less motion is wanted they are there or
+  not, at once. The panels in one column; the actions of a step across the width, „Studium
+  anlegen" first.
 - **The day at once** (`home/ahead.rs`; owner, 2026-10-26: „Damit leute das gerne benutzen muss
   das einfach ready sein. Bitte cache einfach alle werte, die du dafür brauchst und sorge dafür,
   dass das als erstes konstruiert wird, so dass eine person die nur wissen will was als nächstes
@@ -3017,8 +3024,11 @@ semesters, a Fachsemester out of range said, a row unticked), „Studium anlegen
 passed semesters kept, the day shown, no page load), „Rückgängig", „Erst mal umschauen" and back,
 the season's photo with its name in the ground, the day at once (the days ahead kept, and the
 server's page with the app's photo in it before the app has started, but not in another
-language), and on a phone the photo under the search, the frost once scrolled, the leaves once the
-photo has left the bar, and the catalog's bar with its leaves and the frost under them.
+language), on a wide screen the top fading out as the page is scrolled (20 px, then 40 px at
+most, none at its top), and on a phone the photo under the search, the frost once scrolled, the
+leaves halfway down with half their height of the scroll past the photo and all the way past it,
+no faster than their most on a quick swipe, and the catalog's bar with its leaves and the frost
+under them.
 
 ### „Über Betula" and the map of the programs (2026-09-20; the start page until 2026-10-20)
 
@@ -3321,9 +3331,26 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   fading out over its last 46 px, so that what scrolls under the bar leaves the screen softly
   instead of being cut off at an edge. It comes once the page is scrolled (`data-scrolled` on the
   root, enhance.js) and blurs what is under it (14 px), tinted with the page's ground at 76 %
-  (0, 50, 68 % and a gradient were compared side by side in both modes); over the start page's
-  photo without the tint. Until then the crown itself carried the bar's frosted ground at every
-  scroll. The crown keeps its box, which the takeover check compares.
+  (0, 50, 68 % and a gradient were compared side by side in both modes; `.frost::after`, as far
+  as the leaves have come, `--leaves`); over the start page's photo without the tint. Until then
+  the crown itself carried the bar's frosted ground at every scroll. The crown keeps its box,
+  which the takeover check compares; the leaves move in their own layers (`::before`, `::after`).
+- **The top of a page on a wide screen** (owner, 2026-10-26, with a screenshot of the start page,
+  the greeting cut in half under the bar: „Am Pc gibt es auch das problem, dass zeug abgeschnitten
+  wird. Das sollte also auch mal gefixed werden"). There the page scrolls in its own area under
+  the bar (below), and what its scroll takes up out of the area was cut off at the area's edge. A
+  page of panels now fades out over the last 40 px below the bar: the area's own mask, so that
+  what stands behind it, the wood and the ends of the crown, shows through as it goes. A band over
+  the page, in the page's colour with or without a blur as on a phone, drew an edge of its own
+  across the wood; the variants were compared side by side in both modes. The fade grows with the
+  first 40 px of the scroll (`--edge` on the area, enhance.js; a registered property that is not
+  handed down, so that setting it restyles the area alone), so that a page at its top stands as
+  it is, with no mask at all there (`data-edge` while the area is away from its top: drawing a
+  frame of a masked area takes longer, in the headless checks up to twice as long as the frame
+  that closes the module beside a program). A layer each keeps whole what is pinned beside the page (a frame's sidebar, the module on
+  the right) and the scrollbar; while a picker's or a collection's popup is open in the area,
+  nothing fades. Not a list's page (the catalog, the Merkliste) nor „Mein Studium"'s semesters:
+  their heads stay at the top and take what scrolls under them.
 - **One scroll area** (owner, 2026-09-29: the two steps — first the page, then the window for the
   ground — felt „unfassbar janky"; decided on a prototype, variant b, „vom Aussehen alles so wie
   heute, bloß dass es sich besser anfühlt"). Every page flows (`.work.flowing`: the catalog, the
