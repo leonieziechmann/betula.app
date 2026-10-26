@@ -1,5 +1,5 @@
 // Checks „Befehle“ (folia/crates/shell/src/commands.rs; folia/design/tastatur/konzept.html,
-// „Befehle“; docs/folia/frontend.md R25): the button beside the search field with its keys opens the
+// „Befehle“; docs/folia/frontend.md R25): the button at the end of the search field with its keys opens the
 // palette, as Strg + K does, and its field has the keyboard; without a module open it offers „Gehe
 // zu" (the tabs with their keys, the search field with /, the filters with F) and „Hilfe“, and says
 // what typing finds besides; with a module open first what can be done with it („Für „…“":
@@ -73,19 +73,20 @@ const where = (page) => page.evaluate(() => ({ id: document.activeElement?.id ||
 {
   const { context, page } = await open("/catalog");
 
-  // The button in the search field, with its name and its keys.
+  // The button at the end of the search field, with its name and its keys: the two share the
+  // search's length, as long as the search was before it came (owner, 2026-10-26: „dass die totale
+  // breite kürzer ist, wie es zuvor war und die befehle sich dann trotzdem damit den platz teilen").
   const button = await page.evaluate(() => {
-    const b = document.querySelector(".topbar > .cmd-btn");
+    const b = document.querySelector(".topbar > .search > .cmd-btn");
     const field = document.querySelector(".topbar > .search")?.getBoundingClientRect();
     const box = b?.getBoundingClientRect();
-    return b && { shown: b.getClientRects().length > 0, text: b.innerText.replace(/\s+/g, ""), beside: !!field && box.left >= field.right && Math.abs(box.height - field.height) < 1, field: field && Math.round(field.width) };
+    return b && { shown: b.getClientRects().length > 0, text: b.innerText.replace(/\s+/g, ""), inside: !!field && box.left >= field.left && box.right <= field.right, field: field && Math.round(field.width) };
   });
-  // Beside the search, as tall as it, the search as long as it was before (owner, 2026-10-26).
-  check(button?.shown && /^BefehleStrg\+K$/.test(button.text) && button.beside && button.field === 760, `the button beside the search field: ${JSON.stringify(button)}`);
+  check(button?.shown && /^BefehleStrg\+K$/.test(button.text) && button.inside && button.field === 760, `the button at the end of the search field: ${JSON.stringify(button)}`);
   check(await page.evaluate(() => [...document.querySelectorAll(".search kbd")].some((k) => !k.closest(".cmd-btn") && k.textContent === "/" && k.getClientRects().length)), "the search field does not name /");
 
   // A click opens it, the field has the keyboard; nothing open: „Gehe zu“ and „Hilfe“.
-  await page.click(".topbar > .cmd-btn");
+  await page.click(".search .cmd-btn");
   await page.waitForTimeout(250);
   let p = await palette(page);
   check(p?.focus, `the button opened no palette, or its field has no keyboard (${JSON.stringify(p)})`);

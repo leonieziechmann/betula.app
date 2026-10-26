@@ -1,6 +1,6 @@
 //! „Befehle" (folia/design/tastatur/konzept.html, „Befehle: Betula sagen, was zu tun ist"; owner,
 //! 2026-10-20: „mach mal als erstes die command palette, ich glaube das ist am relvantesten"): the
-//! button beside the search, or Strg + K (⌘K), opens a field in which one writes what Betula is
+//! button at the end of the search field, or Strg + K (⌘K), opens a field in which one writes what Betula is
 //! to do. It finds what the page offers (the module the keyboard is at: „Merken", „Einplanen",
 //! „Vollbild"), every filter, the pages, the settings, and every module by its title or number; Enter
 //! does it, Shift + Enter does the other thing a command has (a filter „ohne", a module in full).
@@ -200,9 +200,9 @@ fn module_item(t: &'static Texts, id: &str, title: &str) -> Item {
     Item { sub: Some(id.to_string()), icon: Some(icon_href("layout-list")), ..Item::new(Place::Modules, t.commands.modules, title.to_string(), Run::Module(id.to_string())) }.found_by(&format!("{id} {}", t.commands.module_words))
 }
 
-/// The button beside the search that opens the palette: its icon, „Befehle" and its keys; part of
-/// the search's region for the keyboard (Ctrl + F6, Esc into the list). The browser app's alone
-/// (R15); not on a phone, where there are no keys and every command is a tap away (app.css).
+/// The button at the end of the search field that opens the palette: its icon, „Befehle" and its
+/// keys. The browser app's alone (R15); not on a phone, where there are no keys and every command
+/// is a tap away (app.css).
 #[component]
 pub fn CommandsButton() -> impl IntoView {
     let t = i18n::t();
@@ -213,7 +213,6 @@ pub fn CommandsButton() -> impl IntoView {
             class="cmd-btn js-only"
             type="button"
             data-action="commands"
-            data-region="search"
             aria-haspopup="dialog"
             aria-keyshortcuts="Control+K Meta+K"
             title=title
