@@ -162,9 +162,10 @@ requests share the first one's `User-Agent` and `source`.
 
 **Upstream's answer.** A storable status (§3) is stored and served; a `304` to Cortex's
 conditional request confirms the current version (a `check`) and serves it. Anything else (a
-network error, a timeout, a 5xx or another status, too large, the wrong type, a hash mismatch, the
-host paused or its queue full, the host or address not allowed) is served as the stored version
-when `stale=if-error` and one is stored (`Cache-Status: Cortex; hit; detail=stale-if-error`,
+network error, a timeout, a 5xx or another status, too large, the wrong type, a page the host's
+`reject` gives away as standing in for the one asked for, a hash mismatch, the host paused or its
+queue full, the host or address not allowed) is served as the stored version when
+`stale=if-error` and one is stored (`Cache-Status: Cortex; hit; detail=stale-if-error`,
 `Cortex-Upstream-Error: <code>`), else answered with Cortex's error (§4.8). A failure of Cortex's
 own store while it saves a download is `500 internal`, not upstream's.
 
@@ -289,6 +290,7 @@ method-not-allowed` with `Allow`.
 | `internal` | 500 | Cortex itself failed (its store, the disk) |
 | `upstream-failed` | 502 | upstream failed (network, timeout, 5xx, a status Cortex does not store); the message names it |
 | `wrong-type` | 502 | a 2xx that is not the host's `expect_type` (a bot-protection page instead of a PDF) |
+| `rejected` | 502 | an answer whose content holds a text of the host's `reject` near its start: a block or maintenance page in place of the page asked for, whatever its status (§5); the message names the text |
 | `too-large` | 502 | more than the host's `max_body` |
 | `forward-failed` | 502 | a write forwarded to the leader, which failed after it got the request: it may have applied it, so it is not sent again elsewhere |
 | `host-busy` | 429 | the host's queue: not started within `queue_wait`; `Retry-After` |
@@ -309,8 +311,8 @@ method-not-allowed` with `Allow`.
 read-only as `/etc/cortex/hosts.json`). Checked every 30 s and read again when its modification
 time or size changed: `deploy/sync.sh` is all a change needs. A file that is broken at start stops
 Cortex (exit 2); later, a broken one keeps the last good policy (WARN `policy.invalid`). Without a
-file: every public host with the defaults, `qis.b-tu.de` and `www.b-tu.de` 500 ms apart,
-`opus4.kobv.de` 2 s apart, a month fresh, PDFs only.
+file: every public host with the defaults, `qis.b-tu.de` and `www.b-tu.de` 500 ms apart and their
+block page rejected, `opus4.kobv.de` 2 s apart, a month fresh, PDFs only.
 
 ```json
 {
@@ -319,8 +321,8 @@ file: every public host with the defaults, `qis.b-tu.de` and `www.b-tu.de` 500 m
   "default": {"concurrency": 1, "pause": "0s", "max_age": "24h", "queue_wait": "60s",
               "breaker_failures": 10, "breaker_pause": "15m", "timeout": "10m", "max_body": 8589934592},
   "hosts": {
-    "qis.b-tu.de":   {"pause": "500ms"},
-    "www.b-tu.de":   {"pause": "500ms"},
+    "qis.b-tu.de":   {"pause": "500ms", "reject": ["Zugriff auf die Webseite eingeschränkt"]},
+    "www.b-tu.de":   {"pause": "500ms", "reject": ["Zugriff auf die Webseite eingeschränkt"]},
     "opus4.kobv.de": {"pause": "2s", "max_age": "720h", "expect_type": "application/pdf"},
     "huggingface.co": {"concurrency": 2},
     "cdn-lfs.huggingface.co": {"concurrency": 2}
@@ -340,6 +342,20 @@ file: every public host with the defaults, `qis.b-tu.de` and `www.b-tu.de` 500 m
 | `timeout` | `10m` | the whole request, from sending it to the end of the body; up to `24h` |
 | `max_body` | `8589934592` (8 GiB) | bytes of a body at most, both decoded and as they came over the wire; 1 to 1 PiB |
 | `expect_type` | none | the media type a 2xx must have (`502 wrong-type` otherwise, not stored) |
+| `reject` | none | texts that give away a page standing in for the one asked for: an answer whose content holds one of them, byte for byte, in its first 64 KiB is `502 rejected`, whatever its status; at most 100 texts of 1 to 1024 bytes. A host's list replaces the default's, `[]` rejects nothing |
+
+**Pages that stand in for others** (owner, 2026-10-26: „kümmer dich darum, dass sowas erkannt wird
+und die daten dann verworfen werden"). In the night to 2026-10-22 the university answered every
+page of `www.b-tu.de` with a block page („Zugriff auf die Webseite eingeschränkt … Bitte verbinden
+Sie sich mit dem BTU-VPN“) and status 200. Taken for the pages, it replaced 77 pages of QIS's
+module tree and 200 event pages in the public site's archive: 16 programs fell out of the catalog,
+and the validation kept every snapshot back for days. A text of `reject` makes such an answer a
+failure of the host: the start of the content is read before anything is stored (the decoded
+content, so gzip does not hide it), and a match is neither stored nor served; with `stale=if-error`
+the client gets the stored version, else `502 rejected` naming the text. It counts against the
+breaker like a 5xx, so ten block pages in a row pause the host for 15 minutes for every client.
+A text belongs to one kind of page; a new kind of block page needs its text added here (a sync,
+no restart), the validation of Radix's catalog stays the net for the first one.
 
 An entry of `hosts` (an exact name or `*.suffix`) overrides the fields of `default` it names; a
 host matches its exact entry, then the longest `*.suffix`, then `default`. The entries name the
@@ -366,7 +382,8 @@ setting does not go unnoticed.
   Docker socket proxy or another instance's Radix.
 - **Redirects:** up to 10, `http` and `https`, to allowed hosts only, each one a request of its own
   host under its floor. The answer at the end of a chain must have the `expect_type` of the host
-  asked first as well as its own, and is held to the smaller `max_body` of the two.
+  asked first as well as its own and hold no text of either's `reject`, and is held to the smaller
+  `max_body` of the two.
 - **Conditional requests, first hop only:** where the stored version has upstream's `ETag` or
   `Last-Modified`, Cortex asks with `If-None-Match` / `If-Modified-Since`, but only when the version
   was answered by the URL asked itself, not through a redirect; only a `304` to a request that
@@ -376,9 +393,10 @@ setting does not go unnoticed.
   each; the others wait in a queue in order of arrival, and one not started within `queue_wait`
   gets `429 host-busy` with an estimated `Retry-After`. Clients keep their own pace on top; Cortex
   guarantees that two clients do not add up.
-- **A breaker per host:** `breaker_failures` failures in a row pause the host for `breaker_pause`
-  (WARN `host.paused`, then INFO `host.resumed`); a `429` or `503` with `Retry-After` pauses it that
-  long, at most an hour; a success resets the count. A paused host answers `503 host-paused` at
+- **A breaker per host:** `breaker_failures` failures in a row (a network error, a timeout, a 5xx,
+  a page `reject` gives away) pause the host for `breaker_pause` (WARN `host.paused`, then INFO
+  `host.resumed`); a `429` or `503` with `Retry-After` pauses it that long, at most an hour; a
+  success resets the count. A paused host answers `503 host-paused` at
   once, and `cache` serves what is stored (if `stale` allows).
 - **Timeouts:** connect 10 s, TLS 10 s, response headers 60 s, the whole request `timeout`.
 - **Host states** (`/status` `hosts`, the `cortex_host_*` gauges): every host the policy names
@@ -596,8 +614,10 @@ it Radix fetches directly, as before. Gemini is asked directly either way.
   period (`crawl.Due`) stays right. The archive's `fetched_at` never goes backwards: an answer older
   than the archived page (from the store, after a direct fetch since) is not stored.
 - **Cortex's own errors are failures:** an answer with `Cortex-Error` (a `502 upstream-failed`, a
-  `429 host-busy`, a `404 not-found` of a misconfigured URL) is a failed attempt, never a page and
-  never archived as a 404: retried, given up and counted towards the abort like any other.
+  `502 rejected` for the university's block page, a `429 host-busy`, a `404 not-found` of a
+  misconfigured URL) is a failed attempt, never a page and never archived as a 404: retried, given
+  up and counted towards the abort like any other. So a block page leaves the archive as it was,
+  and a crawl that meets it ten times in a row ends as `crawl.aborted` (ERROR: a human looks).
 - **Statutes:** source `statute`, `download-statutes --force` uses `refresh` (OPUS is asked again,
   not Cortex's store). A `502 wrong-type` (OPUS's entry takes only PDFs) is the bot-protection page
   it is (`statutes.blocked`); another Cortex error reads `unexpected status N (Cortex: <code>)`.

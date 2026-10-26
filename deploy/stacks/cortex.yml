@@ -42,10 +42,15 @@
 #                queue before 429, "breaker_failures" failures in a row pause the host for
 #                "breaker_pause", "timeout" for a whole request, "max_body" bytes (8 GiB), and
 #                "max_age" (how old a stored answer may be in mode cache). Durations as in Go.
+#                "reject": texts that give away a page standing in for the one asked for (a block
+#                or maintenance page, often with 200): such an answer is not stored, counts against
+#                the breaker and answers 502 rejected (docs/cortex/cortex.md section 5).
 #   hosts        an entry overrides the fields of "default" it names. Matched exactly, then by the
 #                longest "*.suffix". The entries also name the metrics (host label); every other
 #                host is "other".
-#     qis.b-tu.de, www.b-tu.de   the university: half a second between two requests, as Radix's crawl.
+#     qis.b-tu.de, www.b-tu.de   the university: half a second between two requests, as Radix's crawl,
+#                                and its block page rejected („Zugriff auf die Webseite eingeschränkt",
+#                                served with 200 for every page in the night to 2026-10-22).
 #     opus4.kobv.de              the statutes: 2 s apart, a month fresh, and only PDFs are stored
 #                                (a bot protection page answers 502 wrong-type instead).
 #     huggingface.co, cdn-lfs.huggingface.co   models (README.md section 13): two downloads at a time.

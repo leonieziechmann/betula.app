@@ -274,7 +274,12 @@ pub fn popup_place(trigger_id: &str, min_width: f64) -> Option<PopupPlace> {
         let viewport_height = window.inner_height().ok()?.as_f64()?;
         let width = rect.width().max(min_width).min(viewport_width - 16.0);
         let left = rect.left().min(viewport_width - width - 8.0).max(8.0);
-        let (below, above) = (viewport_height - rect.bottom() - 12.0, rect.top() - 12.0);
+        // The room up and down is the window's, or that of an area around the picker with a mask:
+        // a mask cuts off whatever is drawn in it, a fixed popup as well (the catalog's scroll area
+        // keeps its list's corners round with one; owner, 2026-10-26: the lecturers' list opened
+        // upwards lost its search field at the top of the area, under the filters' ring).
+        let (room_top, room_bottom) = masked_room(&window, &trigger, viewport_height).unwrap_or((0.0, viewport_height));
+        let (below, above) = (room_bottom - rect.bottom() - 12.0, rect.top() - room_top - 12.0);
         // The popup's box (`.combo`, around the button) in what it stands in: a dialog (a sheet on
         // a phone), else its panel (the filters' sheet is one).
         let combo = trigger.closest(".combo").ok().flatten();
@@ -304,6 +309,22 @@ pub fn popup_place(trigger_id: &str, min_width: f64) -> Option<PopupPlace> {
         })
     }
     #[cfg(not(feature = "csr"))]
+    None
+}
+
+/// The top and the bottom of the nearest area around `element` that has a mask (`mask-image`), as
+/// far as the window shows it; `None` where none has.
+#[cfg(feature = "csr")]
+fn masked_room(window: &web_sys::Window, element: &web_sys::Element, viewport_height: f64) -> Option<(f64, f64)> {
+    let mut at = element.parent_element();
+    while let Some(area) = at {
+        let mask = window.get_computed_style(&area).ok().flatten().and_then(|style| style.get_property_value("mask-image").ok()).unwrap_or_default();
+        if !mask.is_empty() && mask != "none" {
+            let rect = area.get_bounding_client_rect();
+            return Some((rect.top().max(0.0), rect.bottom().min(viewport_height)));
+        }
+        at = area.parent_element();
+    }
     None
 }
 

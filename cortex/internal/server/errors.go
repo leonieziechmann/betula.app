@@ -24,6 +24,7 @@ const (
 	codeOfflineMiss        = "offline-miss"        // 504: offline and nothing stored
 	codeUpstreamFailed     = "upstream-failed"     // 502
 	codeWrongType          = "wrong-type"          // 502: not the host's expect_type
+	codeRejected           = "rejected"            // 502: a page the host's reject gives away as standing in for the one asked for
 	codeTooLarge           = "too-large"           // 502: more than the host's max_body
 	codeHostBusy           = "host-busy"           // 429 with Retry-After
 	codeHostPaused         = "host-paused"         // 503 with Retry-After
@@ -104,6 +105,8 @@ func upstreamFailure(err error, now time.Time) failure {
 		return failure{http.StatusBadGateway, codeTooLarge, 0}
 	case errors.Is(err, upstream.ErrWrongType):
 		return failure{http.StatusBadGateway, codeWrongType, 0}
+	case errors.Is(err, upstream.ErrRejected):
+		return failure{http.StatusBadGateway, codeRejected, 0}
 	case errors.Is(err, store.ErrHashMismatch):
 		return failure{http.StatusBadGateway, codeHashMismatch, 0}
 	case errors.As(err, &busy):

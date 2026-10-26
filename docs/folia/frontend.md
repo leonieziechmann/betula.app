@@ -4171,7 +4171,17 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
     what no button carries, only at the control the keyboard is at (`.key-bar`: a chip + − Entf, an
     option group ← →, a knob + − and the digits, the bubble ↑ ↓ Enter Shift + Enter). Esc or a click
     leads out, into the content's list. A picker in a mode opens with Alt + ↓ or Enter
-    (`combobox.rs`); a field that stands for a control where the arrows go carries `data-kb-as`.
+    (`combobox.rs`); its list keeps to the room of the area around it that has a mask
+    (`nav::popup_place`: the catalog's scroll area keeps its list's corners round with one, which
+    cut a list opened upwards off at its search field), and the tag is gone while it is open (Esc
+    closes the picker then, not the mode). The ring lies wholly inside the panel's edge
+    (`outline-offset: -2px`): the area ends a pixel past the panel, which a screen at 125 % cut.
+    A field that stands for a control where the arrows go carries `data-kb-as`.
+    **A chosen lecturer is one stop** (owner, 2026-10-26: „dass man nicht mit in den Buttons
+    navigiert, sondern mit up and down durch die Personen"): its chosen switch, the other one and
+    the bin the mouse's (`tabindex="-1"`); ↑ ↓ go from person to person, ← → and + − choose, Enter
+    and the space bar turn it, Entf takes the person out and the keyboard goes on to the next one
+    (else the one before, else the picker), the whole row lit and the bar naming ← → and Entf.
   - **Stops** (`data-stop` with its axis, `x`, `y` or `xy`): a group that is one stop of the Tab
     key (the rail, the list's rows, the heads of the columns, a module's buttons), entered where
     the keyboard was last in it (a row known again by its `data-id`), else at the current one
@@ -4195,8 +4205,10 @@ inline styles; keyboard and phone usable. Added in phase 0/1:
   the old arrows of every `.rows` list away with the regions, and its rows were no stop yet.
 - **R25. A command has a name** („Befehle", `folia_shell::commands`; folia/design/tastatur/
   konzept.html, „Befehle"; owner, 2026-10-20: „mach mal als erstes die command palette, ich glaube
-  das ist am relvantesten"; Folia 1.43.0). The button „Befehle" at the end of the search field and
-  Ctrl + K (⌘K) open a dialog whose field finds what the page offers, every filter, the pages, the
+  das ist am relvantesten"; Folia 1.43.0). The button „Befehle" at the end of the search field,
+  behind a line, sharing the search's 760 px (1.45.3 had it beside the search as a box of its own,
+  which made the whole too long: owner, 2026-10-26, „dass die totale breite kürzer ist, wie es
+  zuvor war und die befehle sich dann trotzdem damit den platz teilen"), and Ctrl + K (⌘K) open a dialog whose field finds what the page offers, every filter, the pages, the
   settings and every module; Enter does it, Shift + Enter the other thing (a filter „ohne", a
   module's page), every row shows its keys, and one run by its name says afterwards „Geht auch mit
   M". A page names its commands in attributes, and the palette reads them from what is shown when
@@ -5407,14 +5419,20 @@ off, and then F does nothing and „F" is gone from the head of the filters. On 
 field's „Befehle" names „Strg + K", on a Mac „⌘K". On the Merkliste (four modules marked with M)
 ↓ goes from row to row, F into its sidebar with the ring and „Esc zum Verlassen", Esc back to the
 row, Entf takes the row off with „Rückgängig" and leaves it in its place, and ? marks „In der
-Merkliste". On the synthetic catalog as on the real one.
+Merkliste". Two lecturers chosen: Tab comes to the picker, ↓ to the first person and on to the next
+(never into its other switch or its bin), the person lit as a whole and the bar naming Entf; →
+makes it „ohne" and Enter „mit" again with the keyboard staying on it, ↑ goes back, Entf takes the
+second out with the keyboard going to the first, and Entf there back to the picker; Enter opens
+the picker's list whole inside the scroll area, with its search field, and the tag „Esc zum
+Verlassen" gone; the filters' ring lies inside the panel (`outline-offset: -2px`). On the
+synthetic catalog as on the real one.
 
 ```bash
 cd e2e && node befehle.mjs
 ```
 
 drives „Befehle" (R25, `folia_shell::commands`) on a wide screen: the button at the end of the
-search field reads „Befehle Strg + K" and the field „/"; a click opens the palette with the
+search field reads „Befehle Strg + K", the two sharing the search's 760 px, and the field „/"; a click opens the palette with the
 keyboard in its field, and with no module open it offers „Gehe zu" (Start 1, Module 2, Merkliste 4,
 Suchfeld /, Filter F) and „Hilfe" („Alle Tasten zeigen" ?), says what typing finds, and Esc gives
 the keyboard back to the button; with a module open beside the list the first group is „Für „…“"

@@ -2576,6 +2576,7 @@
         chip3: [["+", "mit"], ["−", "ohne"], ["Del", "aus"]],
         chip2: [["+", "an"], ["Del", "aus"]],
         radio: [["← →", "wählen"]],
+        person: [["← →", "mit, ohne"], ["Del", "entfernen"]],
         slider: [["+", "mehr"], ["−", "weniger"], ["0–9", "Zahl"]],
         find: [["↑ ↓", "Treffer"], ["Enter", "mit"], ["Shift+Enter", "ohne"]],
       },
@@ -2598,6 +2599,7 @@
         chip3: [["+", "with"], ["−", "without"], ["Del", "off"]],
         chip2: [["+", "on"], ["Del", "off"]],
         radio: [["← →", "choose"]],
+        person: [["← →", "with, without"], ["Del", "remove"]],
         slider: [["+", "more"], ["−", "less"], ["0–9", "number"]],
         find: [["↑ ↓", "matches"], ["Enter", "with"], ["Shift+Enter", "without"]],
       },
@@ -3218,6 +3220,8 @@
     if (el === FIND.input && FIND.el) return "find";
     const control = asEl(el);
     if (control.getAttribute("role") === "checkbox" && control.classList.contains("chip")) return control.hasAttribute("data-tri") ? "chip3" : "chip2";
+    // A chosen lecturer: its switch is the person's stop, Entf takes the person out (catalog.rs).
+    if (control.getAttribute("role") === "radio" && control.closest(".person")) return "person";
     if (control.getAttribute("role") === "radio") return "radio";
     if (control.type === "range") return "slider";
     return null;
@@ -3395,7 +3399,7 @@
     if (e.target.closest?.(".combo[data-open]")) return;
     if (FIND.el && e.target === FIND.input) return findKey(e);
     // The filter toggles are links that act as switches: the space bar flips them, too.
-    if (e.key === " " && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
+    if (e.key === " " && !e.defaultPrevented && e.target.matches?.('a[role="checkbox"], a[role="radio"]')) { e.preventDefault(); e.target.click(); return; }
     const plain = !e.ctrlKey && !e.metaKey && !e.altKey;
     const over = !!e.target.closest?.(OVER) || modalOpen();
     // Ctrl + F6: the next region (Shift: the one before). F6 alone stays the browser's.
