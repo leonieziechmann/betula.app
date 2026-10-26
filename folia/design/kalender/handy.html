@@ -17,7 +17,8 @@
      Lena's BWL B.Sc. 1. FS; for seven groups Praxis und methodische Begleitung (Soziale Arbeit,
      event 149820, seven Übungsgruppen in Sachsendorf), as if planned, as the Termin's concepts
      show it. Tokens are Betula's (folia/assets/app.css); Inter comes from Google Fonts here, the app
-     self-hosts it. -->
+     self-hosts it. Decided on 2026-10-26 (owner: „Deine Vorschläge passen, nimm H1 mit
+     Vergleichen“): H1 with „Vergleichen“ opening H2, and the five proposals. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
@@ -432,6 +433,17 @@ table.chips td:first-child { white-space: nowrap; }
 .qs .rec { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
 .qs .rec b { color: var(--accent-ink); font-weight: 650; }
 .foot { color: var(--text-3); font-size: 13px; text-align: center; text-wrap: balance; }
+.verdicts { padding: 18px 20px; border-radius: 14px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); display: flex; flex-direction: column; gap: 10px; }
+.verdicts .kicker { color: var(--accent-ink); }
+.verdicts ol { margin: 0; padding: 0; list-style: none; counter-reset: v; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.verdicts li { counter-increment: v; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.verdicts li::before { content: counter(v); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; }
+.verdicts li b { color: var(--text); font-weight: 620; }
+.verdicts li span { min-width: 0; }
+.qs li.done .ask { color: var(--text-2); }
+.qs .rec b.done { color: var(--accent-ink); }
+.cpt-h h3 .pk { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 6px; background: var(--panel-3); color: var(--text-2); font-size: 11.5px; font-weight: 650; letter-spacing: 0; vertical-align: 2px; }
+.cpt-h h3 .pk.on { background: var(--accent); color: var(--on-accent); }
 
 @media (max-width: 1100px) {
   .trio { grid-template-columns: minmax(0, 1fr); max-width: 640px; margin-inline: auto; width: 100%; }
@@ -445,6 +457,7 @@ table.chips td:first-child { white-space: nowrap; }
 }
 @media (max-width: 860px) {
   .intro, .why { grid-template-columns: minmax(0, 1fr); }
+  .verdicts ol { grid-template-columns: minmax(0, 1fr); }
   .shot { margin-inline: auto; }
   .qs li { grid-template-columns: 30px minmax(0, 1fr); }
   .qs .rec { grid-column: 2; }
@@ -468,7 +481,7 @@ table.chips td:first-child { white-space: nowrap; }
 
 <section class="intro">
   <div>
-    <div class="kicker">Betula · Kalender · am Handy · erste Runde · 26.10.2026</div>
+    <div class="kicker">Betula · Kalender · am Handy · erste Runde · 26.10.2026 · entschieden</div>
     <h1>Eine Gruppe wählen, am Handy</h1>
     <p class="lead">Die zweite Runde ließ am Handy in der Woche anhaken: Haken von 18 px auf Terminen von 67 px, dazu Chips für die Kalender, die offene Wahl und „Fertig“. Hier drei Wege ohne beides. Alle haken mit den Kacheln an, mit denen der Termin schon anhakt, und eine Empfehlung ist von der Woche bis „Fertig“ durchgespielt.</p>
     <p class="quote">„Also <b>chips sind wirklich in 90% der Zeit ein schlechtes UI tool</b>. Bei der handy version muss nochmal dringend daran gearbeitet werden, <b>wie man das richtig macht mit dem übung auswählen</b>. Da braucht es noch ein besseres konzept.“</p>
@@ -486,9 +499,21 @@ table.chips td:first-child { white-space: nowrap; }
   </aside>
 </section>
 
+<section class="verdicts" id="entschieden" aria-label="Entschieden am 26.10.">
+  <div class="kicker">Entschieden am 26.10. · „Deine Vorschläge passen, nimm H1 mit Vergleichen“</div>
+  <ol>
+    <li><span><b>H1, und „Vergleichen“ öffnet H2:</b> die Woche oben, die Kacheln des Termins darunter; dasselbe Sheet ganz hoch zeigt jede Gruppe mit ihrem Tag.</span></li>
+    <li><span><b>Ein Tipp auf eine gestrichelte Gruppe öffnet ihre Wahl,</b> ein Tipp auf einen festen Termin den Termin.</span></li>
+    <li><span><b>Eine Themenwahl hat Zeilen mit dem Titel</b> des Themas, wie in „Vergleichen“; Kacheln tragen Tag, Zeit und Raum.</span></li>
+    <li><span><b>Wer eine Gruppe leitet, steht in „Vergleichen“</b> und im Termin, nicht auf der Kachel.</span></li>
+    <li><span><b>Beim Wählen tritt der Rest der Woche auf 42 % zurück,</b> die Gruppen der Wahl liegen umrandet darüber.</span></li>
+    <li><span><b>Am Rechner kommt „Vergleichen“ in den Fokus,</b> neben „Fertig“; es zeigt die Tage rechts an der Stelle von „Offen“.</span></li>
+  </ol>
+</section>
+
 <nav class="setbar" aria-label="Zustand und Abschnitte">
   <div class="group"><span class="kicker">Die drei Wege</span><div class="seg" role="group" aria-label="Zustand der drei Handys" id="trioseg"></div></div>
-  <div class="jump"><a href="#warum">Warum</a><a href="#wege">Drei Wege</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Empfehlung</a><a href="#chips">Ohne Chips</a><a href="#fragen">Fragen</a></div>
+  <div class="jump"><a href="#warum">Warum</a><a href="#wege">Drei Wege</a><a href="#vergleich">Vergleich</a><a href="#empfehlung">Entschieden</a><a href="#chips">Ohne Chips</a><a href="#fragen">Fragen</a></div>
 </nav>
 
 <!-- ============================================================ Warum -->
@@ -536,17 +561,17 @@ table.chips td:first-child { white-space: nowrap; }
   </header>
   <div class="trio">
     <div class="cpt">
-      <div class="cpt-h"><span class="tagc">H1</span><h3>Unter der Woche</h3><p>Die Woche bleibt oben, darunter liegt die Wahl als Sheet: die Gruppen als Kacheln des Termins. Ein Tipp hakt an, die Woche zeigt sofort, was der Haken tut.</p></div>
+      <div class="cpt-h"><span class="tagc">H1</span><h3>Unter der Woche <span class="pk on">gewählt</span></h3><p>Die Woche bleibt oben, darunter liegt die Wahl als Sheet: die Gruppen als Kacheln des Termins. Ein Tipp hakt an, die Woche zeigt sofort, was der Haken tut.</p></div>
       <div class="stage"><figure class="device phone" data-c="h1"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">Tippe eine Kachel an, oder eine umrandete Gruppe in der Woche.</p></div>
       <div class="gb"><div class="good"><b>Gut</b>Woche und Wahl zugleich. Dieselben Kacheln wie im Termin. Ein Tipp je Gruppe.</div><div class="weak"><b>Schwach</b>Was eine Gruppe mit ihrem Tag macht, liest man aus der Woche, nicht von der Kachel. Bei sieben Gruppen wird die Woche voll.</div></div>
     </div>
     <div class="cpt">
-      <div class="cpt-h"><span class="tagc">H2</span><h3>Tage im Vergleich</h3><p>Jede Gruppe eine Zeile mit ihrem Tag als Band, wie „Der Tag“ im Termin: deine Termine, die Gruppe schraffiert dazwischen, darunter, was sie bedeutet.</p></div>
+      <div class="cpt-h"><span class="tagc">H2</span><h3>Tage im Vergleich <span class="pk">als „Vergleichen“</span></h3><p>Jede Gruppe eine Zeile mit ihrem Tag als Band, wie „Der Tag“ im Termin: deine Termine, die Gruppe schraffiert dazwischen, darunter, was sie bedeutet.</p></div>
       <div class="stage"><figure class="device phone" data-c="h2"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">Tippe eine Zeile an.</p></div>
       <div class="gb"><div class="good"><b>Gut</b>Lücken, allein am Campus, anderer Campus stehen da, ohne zu suchen. Sieben Gruppen sind sieben Zeilen.</div><div class="weak"><b>Schwach</b>Die Woche ist nur klein oben. Eine Zeile ist über 100 px hoch, vier füllen den Schirm.</div></div>
     </div>
     <div class="cpt">
-      <div class="cpt-h"><span class="tagc">H3</span><h3>Eine nach der anderen</h3><p>Die Woche oben wie in H1, darunter eine Leiste: ‹ und › gehen durch die Gruppen. Die Gruppe, die dran ist, ist in der Woche hervorgehoben, ein großer Knopf hakt sie an.</p></div>
+      <div class="cpt-h"><span class="tagc">H3</span><h3>Eine nach der anderen <span class="pk">nicht gewählt</span></h3><p>Die Woche oben wie in H1, darunter eine Leiste: ‹ und › gehen durch die Gruppen. Die Gruppe, die dran ist, ist in der Woche hervorgehoben, ein großer Knopf hakt sie an.</p></div>
       <div class="stage"><figure class="device phone" data-c="h3"><div class="frame"><div class="fit"><div class="screen"><div class="pho"></div></div></div></div></figure><p class="try">‹ und › gehen durch die Gruppen, „Anhaken“ nimmt sie.</p></div>
       <div class="gb"><div class="good"><b>Gut</b>Die Woche bleibt, und zu der Gruppe, die dran ist, steht alles: Zeit, Raum, wer leitet, was sie mit dem Tag macht.</div><div class="weak"><b>Schwach</b>Vergleichen heißt hin und her gehen, sieben Gruppen sind sieben Schritte. Anhaken braucht zwei Tipps.</div></div>
     </div>
@@ -577,7 +602,7 @@ table.chips td:first-child { white-space: nowrap; }
 <!-- ============================================================ Empfehlung -->
 <section class="sec" id="empfehlung">
   <header>
-    <h2>Empfehlung: H1, und „Vergleichen“ öffnet H2</h2>
+    <h2>Entschieden: H1, und „Vergleichen“ öffnet H2</h2>
     <p class="sub">H1 für den Alltag: zwei bis vier Gruppen, ein Tipp, die Woche darüber. Wer abwägen will, tippt „Vergleichen“: dasselbe Sheet wird ganz hoch und zeigt jede Gruppe mit ihrem Tag. Das ist ein Weg mit zwei Höhen, so wie das Sheet des Termins halb und ganz hoch ist. Hier durchgespielt, von der Woche bis „Fertig“, mit „Offen“ und den Kalendern ohne Chips.</p>
   </header>
   <div class="flow">
@@ -612,14 +637,14 @@ table.chips td:first-child { white-space: nowrap; }
 <!-- ============================================================ Fragen -->
 <section class="sec" id="fragen">
   <header>
-    <h2>Fragen, mit Vorschlag</h2>
+    <h2>Fragen, entschieden</h2>
   </header>
   <ol class="qs">
-    <li><p class="ask">Ein Tipp auf eine gestrichelte Gruppe in der Woche: die Wahl oder der Termin?<small>Der Termin hakt auch an, zeigt aber zuerst Datum, Raum und Person.</small></p><p class="rec"><b>Vorschlag:</b> die Wahl, als H1. Ein Tipp auf einen festen Termin öffnet weiter den Termin.</p></li>
-    <li><p class="ask">Eine Themenwahl mit bis zu 13 Themen: Kacheln oder Zeilen?</p><p class="rec"><b>Vorschlag:</b> Zeilen mit dem Titel des Themas, wie in „Vergleichen“. Kacheln tragen nur Tag, Zeit und Raum.</p></li>
-    <li><p class="ask">Steht auf der Kachel, wer die Gruppe leitet?</p><p class="rec"><b>Vorschlag:</b> nein. Das steht in „Vergleichen“ und im Termin; die Kachel bleibt bei Tag, Zeit und Raum.</p></li>
-    <li><p class="ask">Wie weit tritt der Rest der Woche zurück, während man wählt?</p><p class="rec"><b>Vorschlag:</b> auf 42 % statt 26 %, damit die eigenen Termine lesbar bleiben; die Gruppen der Wahl liegen darüber, umrandet.</p></li>
-    <li><p class="ask">Am Rechner auch „Vergleichen“?</p><p class="rec"><b>Vorschlag:</b> ja, im Fokus neben „Fertig“. Es zeigt die Tage rechts an der Stelle von „Offen“.</p></li>
+    <li class="done"><p class="ask">Ein Tipp auf eine gestrichelte Gruppe in der Woche: die Wahl oder der Termin?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, die Wahl, als H1. Ein Tipp auf einen festen Termin öffnet weiter den Termin.</p></li>
+    <li class="done"><p class="ask">Eine Themenwahl mit bis zu 13 Themen: Kacheln oder Zeilen?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, Zeilen mit dem Titel des Themas, wie in „Vergleichen“. Kacheln tragen nur Tag, Zeit und Raum.</p></li>
+    <li class="done"><p class="ask">Steht auf der Kachel, wer die Gruppe leitet?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, nein. Das steht in „Vergleichen“ und im Termin.</p></li>
+    <li class="done"><p class="ask">Wie weit tritt der Rest der Woche zurück, während man wählt?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, auf 42 % statt 26 %; die Gruppen der Wahl liegen darüber, umrandet.</p></li>
+    <li class="done"><p class="ask">Am Rechner auch „Vergleichen“?</p><p class="rec"><b class="done">Entschieden:</b> wie vorgeschlagen, ja, im Fokus neben „Fertig“. Es zeigt die Tage rechts an der Stelle von „Offen“.</p></li>
   </ol>
 </section>
 
