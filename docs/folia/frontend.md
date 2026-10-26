@@ -42,7 +42,7 @@ Radix ──HTTP──▶ Folia ──HTML (cached per snapshot)──▶ browse
 
 | URL | Page |
 |---|---|
-| `/` | The start page (concept A, 2026-10-20; „The start page" below): on a first visit the setup — the program, the semester the study began in, the modules of the Fachsemester that follows — over the photo of the season; once a study is set up the visitor's day (the next thing, the day, the week, the exams, the study, the Merkliste, the ways into the catalog). The server writes the setup's first step and the day's skeleton for everybody (R9); the stylesheet shows the skeleton where the head script finds a program kept (`html.mine`) |
+| `/` | The start page (concept A, 2026-10-20; „The start page" below): on a first visit the setup — the program, the semester the study began in, the modules of the Fachsemester that follows — over the photo of the season; once a study is set up the visitor's day (the next thing, the day, the week, the exams, the study, the Merkliste, the ways into the catalog). The server writes the setup's first step and the day's skeleton for everybody (R9); the stylesheet shows the skeleton where the head script finds a program kept (`html.mine`), and a script puts the day the app kept into it before the first paint (`home/ahead.rs`) |
 | `/about` | „Über Betula" (`folia/crates/home/src/home/about.rs`): what the start page said of Betula until concept A, whole — the first panel with the figures on a birch, the carousel with the map, what the app can do, the questions, „Betula im Detail" (see „„Über Betula" and the map of the programs" below). Linked from the setup („Was ist Betula?") and from the ground of every page; in the sitemap; the stage of no tab (`stage::Key::Other`), as the legal pages |
 | `/catalog?…` | Module catalog. The query string is the whole filter state (`CatalogUrl`): `q`, `program`, `list=fues`, `semester`, `area`, `kind`, `lecturer`, `department`, `turnus`, `years`, `form`, `duration`, `limited`, `fues`, `exam`, `graded`, `events`, `status`, `ects_min`, `ects_max`, `campus`, `lang`, `marked`, `prereqs`, `sort`, `desc`, `page`. What can be wanted can also be excluded: `not-kind`, `not-lecturer`, `not-turnus`, `not-form`, `not-exam`, `not-campus`, `not-lang` (`exam=written&not-exam=presentation`: a written exam and no presentation). `area=<id>[,<id>…]` are areas of the selected program's module tree („Wahlpflichtmodule Praktische Informatik"): the modules the tree places in any of them or below one (several come from a row of the plan that means several areas, opened from the program's page; the picker then says „5 Bereiche", one tag per area above the list) |
 | `/catalog?…&open=<id>` | In the app: the same list with this module previewed next to it; the preview has a „Vollbild" link to the module's page. On a phone the preview is a sheet from below over the list, without „Vollbild" (2026-10-06, 2026-10-16, „A module on a phone" below; until then a tap on a row opened the module's page, and the app turned a shared `open` link into it). The server's page (crawlers, no JavaScript) ignores `open`: it renders the plain list, every row leading to the module's page (owner decision 2026-09-21: the server's HTML is for crawlers, the app for people, and no query parameter changes the server's layout) |
@@ -2962,20 +2962,48 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   Unsplash"; `Ground`'s `credit`, a line per photo, the stylesheet shows one while the start page
   is in front), in the page's own ground and in the app's, which a phone shows under every page. The Cottbus set of
   the concepts (`design/startseite/bilder/cottbus-*.webp`) is an option not taken yet.
-- **A phone**: the photo reaches up under the search, the bar over it clear (no frosted ground, no
-  leaves); once the page is scrolled a dark veil lies under the search, see-through and a little
-  blurred (owner: „nicht zu 100% opaque … im light und dark mode das ein wenig abzudunkeln";
-  `data-veil` on the root while the window is scrolled, the crown's first layer reaching 34 px
-  below the bar, so that the bar keeps its box). The panels in one column; the actions of a step
+- **A phone**: the photo reaches up under the search, the bar over it clear: no leaves, and no
+  frost until the page is scrolled; then the frost every page has there lies under the search
+  („The birch" below), over the photo without its tint, so that the photo stays itself. Until
+  2026-10-26 a dark veil lay there, the start page's alone, which did not go with the rest of the
+  app, least in the light mode (owner: „Gerade wenn man im light modus ist, fühlt es sich besonders
+  off an … Aber vielleicht sollte das einach nur ein frost/blur effekt sein"). Once the photo has
+  left the bar the crown's leaves of every other page come back, fading in as they sink the last
+  12 px into place (owner, the same day: „wenn die main box of screen geht dann so die blätter von
+  den anderen seiten engeblendet werden mit einer animation"; `data-photo-gone` on the root,
+  enhance.js), and the frost takes its tint. The panels in one column; the actions of a step
   across the width, „Studium anlegen" first.
+- **The day at once** (`home/ahead.rs`; owner, 2026-10-26: „Damit leute das gerne benutzen muss
+  das einfach ready sein. Bitte cache einfach alle werte, die du dafür brauchst und sorge dafür,
+  dass das als erstes konstruiert wird, so dass eine person die nur wissen will was als nächstes
+  ansteht das sofort sieht"). Measured on canary before, a phone (its processor four times slower
+  than a notebook's, the files at hand) had the server's page after 0.2 s and the day on it after
+  1.5 to 3.9 s: the time the app's bundle, the catalog and the page's questions take. Now the app,
+  once the day stands, keeps the photo of the days ahead (`betula.today.v1`): from now to the end
+  of the next day with Termine (four days at most), the photo's HTML for each stretch in which
+  nothing on it changes but what goes by the minute (a Termin begins or ends, a new day, another
+  greeting, another light), built by the page's own `Hero` at the stretch's start into an element
+  of no page; and for what goes by the minute (`data-count`): the minutes the sentence counts down
+  (written with a stand-in for the number), what the card says minute by minute, how far the
+  clock's running week is filled. Right after the skeleton's photo the server's page has a script
+  that puts in the stretch of now, gone on to the minute, before anything is painted, where all of
+  it still holds: the same build (the stylesheet's `?v=`), language and profile, and the same hash
+  of „Mein Studiengang", the Stundenplan and the Stundenplan's program of the tab where it is
+  another (`made_of`); else the skeleton stays. The app's page then takes over a page that already
+  shows what it shows. On the same phone the day now stands at the first paint (0.15 s on the
+  local server). The app writes the days again only where they no longer hold from now on (another
+  plan, build or catalog, or the days kept run out), four stretches at a time with the page's
+  thread free between them (on the debug build at CPU ×4 the whole was one task of 190 ms).
 - **Nothing moves at the takeover** (`e2e/takeover.mjs`): the server writes the setup's first step
   and the day's skeleton (the photo, the card, the panels at their heights), and the stylesheet
   shows the skeleton where the head script found a program kept (`html.mine`), which the app keeps
   in step when a study is set up or undone; the skeleton of a navigation to `/`
   (`skeleton::Shape::Home`) is both as well. The card keeps one height through its steps
   (`--ob-h`).
-- **What stays in the browser** (R20): nothing new. The setup writes „Mein Studiengang" and the
-  Stundenplan as their pages do; „Erst mal umschauen" lasts the visit.
+- **What stays in the browser** (R20): the setup writes „Mein Studiengang" and the Stundenplan as
+  their pages do; „Erst mal umschauen" lasts the visit. The days ahead (`betula.today.v1`,
+  `profiles::AHEAD_KEY`) are worked out of the active profile's Stundenplan, kept in this browser
+  alone, and go when a profile is emptied or deleted; the privacy notice names them (2026-10-26).
 - **Its commands** („Befehle", R25): the setup's under „Studium einrichten" (the program's picker,
   a semester by its name, „Anderes Fachsemester", the switch with „an", „Studium anlegen", „Ohne
   Module weiter", „Erst mal umschauen", „Profil übernehmen", „Was ist Betula?"), the buttons of the
@@ -2985,8 +3013,10 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
 `node folia/e2e/home.mjs` drives it: the server's page, the three steps (the picker, the six
 semesters, a Fachsemester out of range said, a row unticked), „Studium anlegen" (the plan and the
 passed semesters kept, the day shown, no page load), „Rückgängig", „Erst mal umschauen" and back,
-the season's photo with its name in the ground, and on a phone the photo under the search and the
-veil once scrolled.
+the season's photo with its name in the ground, the day at once (the days ahead kept, and the
+server's page with the app's photo in it before the app has started, but not in another
+language), and on a phone the photo under the search, the frost once scrolled, the leaves once the
+photo has left the bar, and the catalog's bar with its leaves and the frost under them.
 
 ### „Über Betula" and the map of the programs (2026-09-20; the start page until 2026-10-20)
 
@@ -3272,13 +3302,26 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   that the owner found „unfassbar janky", so they are gone. Every panel ends 8 px above the ground,
   as above the window's edge. On a phone the ground follows the page (the app's own ground after
   the view, in the body's second row; none under the row of pages of „Mein Studium", 2026-10-19), full width, the bottom bar floating over its lower part, and
-  the crown carries the frosted background of the bar at the top. A page shorter than the window
+  under the crown lies the frost once the page is scrolled (below). A page shorter than the window
   does not leave the ground floating halfway up the screen (owner, 2026-09-26: „mindestens unten
   bündig"), and the ground does not show before it is scrolled to (owner, 2026-10-05: „der footer
   ist gerade häufig zu sehen mach das so, dass der mindestens genau außerhalb vom bild ist, so dass
   man rein scrollen muss"): the view is at least as high as the window at its largest (`100lvh`, the
   browser's bars hidden), so the ground lies just past the window's lower edge, the end of the page
   that is scrolled to.
+- **The frost under the crown** (owner, 2026-10-26: „An für sich mag ich den blur hinter der
+  suche, weil dadurch elementen nicht komisch abgeschnitten werden, sondern den screen schön
+  verlassen. Aber vielleicht sollte das einach nur ein frost/blur effekt sein … und das auf allen
+  seiten. So dass bei der handy version hinter dem blätterdach dann so der blur layer ist", and of
+  the first screenshots: „Komplett ohne farbe sehen auch irgendwie unsauber aus … so dass die
+  elemente sich noch richtig anfühlen. Aber es trotzdem nicht unaufgeräumt ist"). On a phone a
+  layer of its own lies under the crown (`.frost`, `ground::Crown`), 34 px deeper than the bar and
+  fading out over its last 46 px, so that what scrolls under the bar leaves the screen softly
+  instead of being cut off at an edge. It comes once the page is scrolled (`data-scrolled` on the
+  root, enhance.js) and blurs what is under it (14 px), tinted with the page's ground at 76 %
+  (0, 50, 68 % and a gradient were compared side by side in both modes); over the start page's
+  photo without the tint. Until then the crown itself carried the bar's frosted ground at every
+  scroll. The crown keeps its box, which the takeover check compares.
 - **One scroll area** (owner, 2026-09-29: the two steps — first the page, then the window for the
   ground — felt „unfassbar janky"; decided on a prototype, variant b, „vom Aussehen alles so wie
   heute, bloß dass es sich besser anfühlt"). Every page flows (`.work.flowing`: the catalog, the
@@ -3709,7 +3752,9 @@ There is no account (R20): the profiles live in the browser like the Merkliste.
   the browser's (R13): the language, light or dark, the widths of the panels, what the finder
   compares, the tabs' memory of the session. The Stundenplan's program of the session is a
   profile's own (`profiles::SESSION_KEYS`, in `sessionStorage` under the profile's key), no part
-  of its file, and goes when the profile is emptied or deleted.
+  of its file, and goes when the profile is emptied or deleted. So do the start page's days ahead
+  (`profiles::AHEAD_KEY`, the active profile's alone, under one key, the profile's number in what
+  it keeps; „The start page"), when any profile is emptied or deleted.
 - **Keys.** The first profile keeps the plain keys (`betula.bookmarks.v1` …), the ones a browser
   had before there were profiles: nothing moves when profiles come, and a build without them (a
   rollback, an old tab of the installed app) shows the first profile as it is. Another profile

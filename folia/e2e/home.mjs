@@ -5,7 +5,8 @@
 // next thing on the photo, under it the day, the week, the exams, the study, the Merkliste and the
 // ways into the catalog. „Studium anlegen" plans the semester's modules and marks those of the
 // semesters before as passed, and „Rückgängig" puts back what was; „Erst mal umschauen" shows the
-// day without a study. The ground names who took the photo shown. On a phone the photo reaches up
+// day without a study. The app keeps the photo of the days ahead, which the server's page then
+// shows before the app has started. The ground names who took the photo shown. On a phone the photo reaches up
 // under the search without the crown's leaves, which come once the photo has left the bar; once a
 // page is scrolled the frost lies under the search, on the start page as on the catalog's. Nothing
 // loads a page. („Über Betula", what the start page said until then, is `e2e/about.mjs`.)
@@ -128,6 +129,28 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
     marker: window.__marker === 1 && location.pathname === "/",
   }));
   check(day.hero && day.clock > 5 && day.panels.length >= 4 && day.mine && day.marker, `the day does not follow the setup: ${JSON.stringify(day)}`);
+  // The day at once (owner, 2026-10-26: „so dass eine person die nur wissen will was als nächstes
+  // ansteht das sofort sieht"): the app keeps the photo of the days ahead, and the server's page
+  // puts it in before the app has started, as the app's page shows it but for what goes by the
+  // minute; in another language, where it was not made, the skeleton stays.
+  await page.waitForFunction(() => Boolean(localStorage.getItem("betula.today.v1")), null, { timeout: 15000 }).catch(() => failures.push("the start page does not keep the days ahead"));
+  // The photo as it reads but for what goes by the minute (`data-count`), and for Leptos's marks.
+  const bare = (hero) => {
+    if (!hero) return null;
+    const copy = hero.cloneNode(true);
+    copy.querySelectorAll("[data-count]").forEach((part) => (part.dataset.count === "fill" ? part.removeAttribute("style") : (part.textContent = "")));
+    return copy.outerHTML.replace(/<!---->/g, "");
+  };
+  const app = await page.evaluate(`(${bare})(onPage(".day-hero:not(.day-first)"))`);
+  const alone = await context.newPage();
+  await alone.route("**/assets/boot.js*", (route) => route.abort());
+  for (const [path, lang] of [["/", "de"], ["/en", "en"]]) {
+    await alone.goto(base + path, { waitUntil: "load" });
+    const server = await alone.evaluate(`({ hero: (${bare})(document.querySelector(".day-sk-wrap .day-hero:not(.day-hero-sk)")), shown: Boolean(document.querySelector(".day-sk-wrap .day-hero")?.checkVisibility()), skeleton: Boolean(document.querySelector(".day-hero-sk")), line: document.querySelector(".day-sk-wrap [data-count=line]")?.textContent ?? null })`);
+    if (lang === "de") check(server.hero === app && server.shown && !server.skeleton && server.line !== "", `the server's page does not put in the app's day at once: ${JSON.stringify({ server, app })}`);
+    else check(server.skeleton && !server.hero, `the day in another language than it was made in: ${JSON.stringify(server)}`);
+  }
+  await alone.close();
   // „Rückgängig": the setup again, and what this browser kept before.
   await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");
   await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));

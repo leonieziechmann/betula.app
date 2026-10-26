@@ -31,7 +31,7 @@ use folia_data::{use_data, DataClient};
 use crate::profiles::Kept;
 
 /// The first profile's key; another profile's has its number in it (`profiles::key_of`).
-pub(crate) const STORAGE_KEY: &str = "betula.myprogram.v1";
+pub const STORAGE_KEY: &str = "betula.myprogram.v1";
 
 /// The browser app (`csr`): only there is anything stored.
 const APP: bool = cfg!(feature = "csr");

@@ -74,12 +74,20 @@ pub const STORES: usize = 5;
 /// profile's file, and it goes when its profile is emptied or deleted (`forget_session`).
 pub const SESSION_KEYS: [&str; 1] = [crate::studyplan::PROGRAM_KEY];
 
+/// What the start page keeps of the active profile's next days, for its photo to stand at once
+/// (folia-home, `ahead`): worked out of the Stundenplan, one key for the active profile alone (the
+/// profile's number is in what it keeps), no part of a profile's file. It goes whenever a profile
+/// is emptied or deleted, and the start page writes it again.
+pub const AHEAD_KEY: &str = "betula.today.v1";
+
 /// Takes out what this tab keeps for the session in profile `id` (`SESSION_KEYS`): emptied,
-/// deleted, or made anew under a number a deleted profile had.
+/// deleted, or made anew under a number a deleted profile had. And the start page's days ahead
+/// (`AHEAD_KEY`).
 fn forget_session(id: u16) {
     for key in SESSION_KEYS {
         nav::session_set(&key_of(key, id), "");
     }
+    nav::local_set(AHEAD_KEY, "");
 }
 
 /// The key under which profile `id` keeps what the first profile keeps under `key`:
@@ -760,7 +768,7 @@ mod tests {
             }
         }
         // And none of them is a key of the browser's settings or of the list.
-        for setting in ["betula.profiles.v1", "betula.theme", "betula.language", "betula.finder", "betula.tabs", "betula.plan.shape", "betula.study.view"] {
+        for setting in ["betula.profiles.v1", "betula.theme", "betula.language", "betula.finder", "betula.tabs", "betula.plan.shape", "betula.study.view", AHEAD_KEY] {
             assert!(!all.contains(setting), "{setting}");
         }
     }

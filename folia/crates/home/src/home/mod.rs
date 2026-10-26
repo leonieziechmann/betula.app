@@ -18,6 +18,7 @@
 //! the ground at its end, which names who took the photo.
 
 pub mod about;
+mod ahead;
 mod clock;
 mod day;
 mod detail;
@@ -199,7 +200,9 @@ fn FirstVisit(now: Signal<Option<SemesterKey>>, on_done: Callback<Done>, on_look
 }
 
 /// The day's skeleton, as the server writes it for a visitor with a program kept (`html.mine`):
-/// the picture as high as the day's, the panels as they come.
+/// the picture as high as the day's, the panels as they come. Right after the picture the script
+/// that puts the day in its place where the browser app kept it (`ahead`), before anything is
+/// painted.
 #[component]
 fn TodaySkeleton() -> impl IntoView {
     view! {
@@ -213,6 +216,7 @@ fn TodaySkeleton() -> impl IntoView {
             </div>
             <div class="day-next day-next-sk"></div>
         </section>
+        <script inner_html=ahead::SCRIPT></script>
         <div class="day-cols">
             <div class="day-col day-main"><div class="panel sk-sweep day-panel-sk tall"></div></div>
             <div class="day-col"><div class="panel sk-sweep day-panel-sk"></div><div class="panel sk-sweep day-panel-sk"></div></div>
