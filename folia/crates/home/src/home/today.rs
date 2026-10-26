@@ -31,14 +31,14 @@ use folia_timetable::clash::Weeks;
 use folia_timetable::facts::SemesterFacts;
 use folia_timetable::model::Timetable;
 use folia_timetable::views::AgendaWeek;
-use folia_widgets::termin::{module_facts, Against, TerminCtx, TerminLinks, TerminMode, TerminView};
+use folia_widgets::termin::{module_facts, page_head, Against, TerminCtx, TerminLinks, TerminMode, TerminPlace, TerminView};
 use leptos::prelude::*;
 
 use folia_data::use_ask;
 use folia_design::format;
 use folia_design::ui::Icon;
 use folia_shell::pending::same_page;
-use folia_shell::tabs::Tabs;
+use folia_shell::tabs::{Area, Tabs};
 use folia_stores::bookmarks::Bookmarks;
 use folia_stores::myprogram::MyProgram;
 use folia_stores::studyplan::Studyplan;
@@ -288,27 +288,78 @@ fn termin_href(entry: &Entry, t: &Texts) -> Option<String> {
 /// 2026-10-26, folia/design/termin): the view that adjusts the plan, as from the Stundenplan,
 /// beside the page where it is wide and a sheet over it on a phone. „Zum Modul" leads to the
 /// module beside the Stundenplan; closing goes back a step where the start page without it is the
-/// step before.
+/// step before. „Ganze Seite" (`&full=1`) lets it fill the start page, in two columns, with
+/// „Zurück" to it beside the page (app.css hides the rest of the page meanwhile).
 #[component]
 fn TerminOver(table: Memo<Option<Timetable>>, data: Memo<Option<StudyplanData>>, plan: Option<Studyplan>, now: RwSignal<(Day, u16)>) -> impl IntoView {
     let t = i18n::t();
     let location = i18n::use_location();
     let asked = Memo::new(move |_| location.search.with(|search| url::home_termin(search)));
+    let filling = Memo::new(move |_| location.search.with(|search| url::home_termin_full(search)));
     let shown = Memo::new(move |_| asked.with(Option::is_some));
     let modules = Memo::new(move |_| data.with(|data| data.as_ref().map(module_facts).unwrap_or_default()));
     let tabs = Tabs::expect();
-    let close = Signal::derive(move || t.path(url::HOME));
-    let back = Signal::derive(move || {
-        let now = asked.with(|asked| url::home_termin_path(*asked));
-        tabs.is_some_and(|tabs| same_page(&tabs.before(&now), url::HOME)).then_some("history")
-    });
-    let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_path(Some((key, on)))));
     let module = Callback::new(move |(id, key): (String, Option<RowKey>)| t.path(&StudyplanUrl::default().with_open(Some(&id), key).path()));
-    let links = TerminLinks { termin, module, close, back, adjust: None };
     // The page's own clock, read every half minute (`TodayView`).
     let now = Signal::derive(move || Some(now.get()));
-    let ctx = TerminCtx { table, asked, modules, mode: TerminMode::Adjust, plan, now, planned: Signal::stored(Some(true)), against: Signal::stored(Against::Itself), links, page: false };
-    move || shown.get().then(|| view! { <div class="day-termin"><TerminView ctx/></div> })
+    let ctx = move |links: TerminLinks, place: TerminPlace| TerminCtx {
+        table,
+        asked,
+        modules,
+        mode: TerminMode::Adjust,
+        plan,
+        now,
+        planned: Signal::stored(Some(true)),
+        against: Signal::stored(Against::Itself),
+        links,
+        place,
+    };
+    let beside = move || {
+        let close = Signal::derive(move || t.path(url::HOME));
+        let back = Signal::derive(move || {
+            let now = asked.with(|asked| url::home_termin_path(*asked));
+            tabs.is_some_and(|tabs| same_page(&tabs.before(&now), url::HOME)).then_some("history")
+        });
+        let termin = Callback::new(move |at: (RowKey, Option<Day>)| t.path(&url::home_termin_path(Some(at))));
+        let full = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_full_path(key, on)));
+        let links = TerminLinks { termin, module, close, back, adjust: None, full: Some(full) };
+        let ctx = ctx(links, TerminPlace::Beside);
+        view! { <div class="day-termin"><TerminView ctx/></div> }
+    };
+    let full = move || {
+        // „Zurück": the Termin beside the page again, on the day shown.
+        let close = Signal::derive(move || t.path(&asked.with(|asked| url::home_termin_path(*asked))));
+        let termin = Callback::new(move |(key, on): (RowKey, Option<Day>)| t.path(&url::home_termin_full_path(key, on)));
+        let links = TerminLinks { termin, module, close, back: Signal::stored(None), adjust: None, full: None };
+        let ctx = ctx(links, TerminPlace::Full(Area::Home));
+        let title = Memo::new(move |_| {
+            let now = now.get();
+            table.with(|table| asked.with(|asked| page_head(table.as_ref()?, (*asked)?, now, t.locale, &t.termin))).map(|head| head.title)
+        });
+        view! {
+            {move || title.get().map(|text| view! { <folia_design::stage::Title text/> })}
+            <div class="day-termin filling"><TerminView ctx/></div>
+        }
+    };
+    // The bar over the start page's photo follows the photo going and coming back with the Termin
+    // (enhance.js, `betula:frost`): the page does not scroll for it.
+    #[cfg(feature = "csr")]
+    Effect::new(move |before: Option<bool>| {
+        let now = shown.get() && filling.get();
+        if before.is_some_and(|before| before != now) {
+            request_animation_frame(|| {
+                if let (Some(window), Ok(event)) = (web_sys::window(), web_sys::Event::new("betula:frost")) {
+                    let _ = window.dispatch_event(&event);
+                }
+            });
+        }
+        now
+    });
+    move || match (shown.get(), filling.get()) {
+        (false, _) => ().into_any(),
+        (true, false) => beside().into_any(),
+        (true, true) => full().into_any(),
+    }
 }
 
 /// „Mo 21.12.".

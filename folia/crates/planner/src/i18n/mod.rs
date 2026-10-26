@@ -42,6 +42,7 @@ folia_design::texts! {
     studyplan_share = crate::i18n::studyplan_share,
     studyplan_side = crate::i18n::studyplan_side,
     studyplan_week = crate::i18n::studyplan_week,
+    termin = folia_widgets::i18n::termin,
     timetable_data = folia_timetable::i18n,
     ui = folia_design::i18n::ui,
     week = folia_widgets::i18n::week,

@@ -35,9 +35,7 @@ use folia_shell::seo::Seo;
 use folia_stores::myprogram::MyProgram;
 use folia_stores::studyplan::Studyplan;
 use folia_timetable::model::Timetable;
-use folia_timetable::termin::Occasion;
-use folia_timetable::views::type_text;
-use folia_widgets::termin::{module_facts, ticking_clock, Against, TerminCtx, TerminLinks, TerminMode, TerminView};
+use folia_widgets::termin::{module_facts, page_head, ticking_clock, Against, TerminCtx, TerminLinks, TerminMode, TerminPlace, TerminView};
 use leptos::prelude::*;
 
 use crate::i18n;
@@ -166,7 +164,7 @@ pub fn EventPage() -> impl IntoView {
         let at = StudyplanUrl { sem: semester.get_untracked().map(|semester| semester.key()), ..StudyplanUrl::default() };
         t.path(&at.with_termin(Some((key, on))).path())
     });
-    let links = TerminLinks { termin, module, close: Signal::stored(String::new()), back: Signal::stored(None), adjust: Some(adjust) };
+    let links = TerminLinks { termin, module, close: Signal::stored(String::new()), back: Signal::stored(None), adjust: Some(adjust), full: None };
     let now = ticking_clock();
     let ctx = TerminCtx {
         table,
@@ -178,7 +176,7 @@ pub fn EventPage() -> impl IntoView {
         planned: planned.into(),
         against: against.into(),
         links,
-        page: true,
+        place: TerminPlace::Page,
     };
     // The page's title and what it says of itself, on the day shown.
     let head = Memo::new(move |_| {
@@ -220,21 +218,7 @@ struct Head {
     path: String,
 }
 
-fn head_of(table: &Timetable, (key, day): (RowKey, Option<Day>), now: Option<(Day, u16)>, t: &'static i18n::Texts) -> Option<Head> {
-    let o = Occasion::at(table, key, day, now)?;
-    let event = table.events.get(o.event)?;
-    let kind = type_text(event, t.locale);
-    let title = match event.title.trim() {
-        "" => event.modules.first().cloned().unwrap_or_default(),
-        title => title.to_string(),
-    };
-    let weekday = t.locale.texts().weekday_short(i64::from(o.day.weekday())).unwrap_or_default();
-    let when = format!("{weekday} {}", o.day.date(t.locale));
-    let time = o.from.map(|from| format!(" {}", folia_calendar::day::clock(from))).unwrap_or_default();
-    let what = folia_timetable::views::kind_and_title(&kind, &title);
-    Some(Head {
-        title: (t.termin.page_title)(&kind, &title, &when),
-        description: (t.termin.page_description)(&what, &format!("{when}{time}")),
-        path: url::event_path(key, Some(o.day)),
-    })
+fn head_of(table: &Timetable, asked: (RowKey, Option<Day>), now: Option<(Day, u16)>, t: &'static i18n::Texts) -> Option<Head> {
+    let head = page_head(table, asked, now, t.locale, &t.termin)?;
+    Some(Head { title: head.title, description: head.description, path: url::event_path(asked.0, Some(head.day)) })
 }
