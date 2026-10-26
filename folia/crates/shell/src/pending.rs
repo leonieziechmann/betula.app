@@ -807,6 +807,14 @@ fn program_change(from: &ProgramUrl, to: &ProgramUrl, phone: bool) -> Option<Cha
 /// there `sem` only says which of its semesters a module planned twice is shown in beside it, so it
 /// is the aside's.
 fn studyplan_change(from: &PlanAddress, to: &PlanAddress) -> Option<Change> {
+    // A Termin filling the page („Ganze Seite") is a page of its own, the Termin's; coming back
+    // from it the plan's column. Another day or Termin while it fills the page is its own business.
+    match (from.termin_full(), to.termin_full()) {
+        (false, true) => return Some(Change::Page(Shape::Event)),
+        (true, false) => return Some(Change::Column(Shape::Studyplan)),
+        (true, true) => return None,
+        (false, false) => {}
+    }
     if let Some(change) = local_change(from, to, Change::Column(Shape::Studyplan)) {
         return Some(change);
     }
@@ -1197,6 +1205,10 @@ mod tests {
         assert_eq!(change("/studyplan", "", "/studyplan", "termin=148369-aaf38", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "termin=148369-aaf38", "/studyplan", "termin=148369-aaf38&on=2026-11-04", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "termin=148369-aaf38", "/studyplan", "open=12104&row=148369-aaf38", false), Some(Change::Aside));
+        // „Ganze Seite": the Termin's page, and back the plan's column; its days its own business.
+        assert_eq!(change("/studyplan", "termin=148369-aaf38&on=2026-11-04", "/studyplan", "termin=148369-aaf38&on=2026-11-04&full=1", false), Some(Change::Page(Shape::Event)));
+        assert_eq!(change("/studyplan", "termin=148369-aaf38&on=2026-11-04&full=1", "/studyplan", "termin=148369-aaf38&on=2026-11-11&full=1", false), None);
+        assert_eq!(change("/studyplan", "termin=148369-aaf38&on=2026-11-11&full=1", "/studyplan", "termin=148369-aaf38&on=2026-11-11", false), Some(Change::Column(Shape::Studyplan)));
         // On the Übersicht `sem` names the semester of the module beside it, not the column's.
         assert_eq!(change("/studyplan", "view=all", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));
         assert_eq!(change("/studyplan", "sem=2027S&view=all&open=12204", "/studyplan", "sem=2027W&view=all&open=12204", false), Some(Change::Aside));

@@ -19,6 +19,14 @@
 //! so Back steps back through them, `nofollow` (a Termin's own page is no page search engines
 //! list); the actions change the plan in the click (it asks the catalog nothing: the store, the
 //! selection, the timetable).
+//!
+//! Where it stands (`TerminPlace`; the concept: „Sheet, das zur Seite wird"): beside a page, on a
+//! phone a sheet over it, with „Teilen", „Ganze Seite" (V) and „Schließen" (Esc) at its head (the
+//! owner, 2026-10-26: „bau als Nächstes Teilen und Ganze Seite"); after „Ganze Seite" filling the
+//! page it stood beside, the same view in two columns — on the left the day (the ticket, who, „Im
+//! Stundenplan" or the groups, the day, the series, the period), on the right what one looks up —
+//! with „Zurück" (Esc) to the view beside the page; and as a page of its own
+//! (`/event/<key>/<day>`) in the same two columns. „Teilen" hands on that page's address.
 
 use std::collections::BTreeMap;
 
@@ -27,6 +35,7 @@ use folia_calendar::kind::EventKind;
 use folia_calendar::rowkey::RowKey;
 use folia_calendar::select::HiddenBy;
 use folia_pages::StudyplanData;
+use folia_routes::url;
 use folia_stores::studyplan::Studyplan;
 use folia_timetable::clash::Weeks;
 use folia_timetable::export;
@@ -39,6 +48,8 @@ use leptos::prelude::*;
 
 use folia_design::format;
 use folia_design::ui::{Icon, Shortcut};
+use folia_shell::frame::BackLink;
+use folia_shell::tabs::Area;
 use crate::i18n::{self, Locale, Texts};
 
 /// Which of the two views (owner, 2026-10-26: „Wir sollten das wahrscheinlich Trennen zwischen der
@@ -89,6 +100,23 @@ pub struct TerminLinks {
     /// To look up, the Termin's view in the Stundenplan, where it is adjusted („Anpassen ›"):
     /// `None` where its module is not planned, and from the Stundenplan itself.
     pub adjust: Option<Callback<(RowKey, Option<Day>), String>>,
+    /// „Ganze Seite": the Termin on a day filling the page it stands beside (`full=1`); `None`
+    /// where the page has no such place.
+    pub full: Option<Callback<(RowKey, Option<Day>), String>>,
+}
+
+/// Where the view stands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TerminPlace {
+    /// Beside a page (`#preview`), as the module's panel stands, on a phone a sheet over it: at
+    /// its head „Teilen", „Ganze Seite" where the page has a place for it, and „Schließen"
+    /// (`TerminLinks::close`, the page without the view).
+    Beside,
+    /// Filling the page of `Area` it stood beside („Ganze Seite"): two columns where the page is
+    /// wide, „Zurück" to the view beside the page (`TerminLinks::close`) and „Teilen".
+    Full(Area),
+    /// A page of its own (`/event/<key>/<day>`): the same two columns, and „Teilen".
+    Page,
 }
 
 /// What a page gives the view.
@@ -113,9 +141,7 @@ pub struct TerminCtx {
     /// What a group's dot, a clash and „Der Tag" measure the Termin against.
     pub against: Signal<Against>,
     pub links: TerminLinks,
-    /// The view is a page of its own (`/event/<key>/<day>`), not a panel beside one: a panel of
-    /// the page, without „Schließen" (Back leaves it).
-    pub page: bool,
+    pub place: TerminPlace,
 }
 
 /// What the view measures a Termin against: whether a group fits, what the date meets, the day
@@ -382,23 +408,56 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
     let head = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| s.head.clone())));
     let close = ctx.links.close;
     let back = ctx.links.back;
+    // The Termin and the day shown, which „Teilen" and „Ganze Seite" name, and what a share sheet
+    // calls it.
+    let at = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| (s.key, s.day))));
+    let called = Memo::new(move |_| shown.with(|s| s.as_ref().map(|s| format!("{} · {} · {}", s.head.kind, s.head.title, s.ticket.date)).unwrap_or_default()));
 
     let top = move || {
         let head = head.get();
         let chip = head.as_ref().map(|head| view! { <span class=format!("tm-mod {}", hue(head.tone)) class:out=head.out><i></i>{head.chip.clone()}</span> });
         let kind = head.as_ref().map(|head| view! { <span class="tm-kind">{head.kind.clone()}</span> });
         let out = head.as_ref().is_some_and(|head| head.out).then(|| view! { <span class="np">{t.termin.not_in_plan}</span> });
+        // Filling a page: „Zurück" to the view beside it, first (on a phone the arrow at the
+        // head says it, app.css). Its address follows the day shown.
+        let up = match ctx.place {
+            TerminPlace::Full(area) => Some(move || {
+                let to = close.with(|close| i18n::app_path(close).unwrap_or(close).to_string());
+                view! { <BackLink area to=Some(to)/> }
+            }),
+            _ => None,
+        };
+        let tools = match ctx.place {
+            // Beside a page: „Teilen" and „Ganze Seite" as their signs (the room is the kind's),
+            // „Schließen" in words as on the module's panel. „Ganze Seite" not on a phone's sheet,
+            // which goes all up itself (app.css, `.full-view`).
+            TerminPlace::Beside => view! {
+                <ShareButton at called labeled=false/>
+                {ctx.links.full.map(|full| view! {
+                    <a class="ghost full-view tm-full" href=move || at.get().map(|(key, day)| full.run((key, Some(day)))).unwrap_or_default() rel="nofollow" data-action="fullscreen" title=t.termin.full_title aria-label=t.termin.full>
+                        <Icon name="maximize-2"/><Shortcut keys="V"/>
+                    </a>
+                })}
+                <a class="ghost tm-close" href=move || close.get() rel="nofollow" data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
+            }
+            .into_any(),
+            TerminPlace::Full(_) | TerminPlace::Page => view! { <ShareButton at called labeled=true/> }.into_any(),
+        };
         view! {
             <div class="hero-top tm-bar">
+                {up}
                 {chip}
                 {kind}
                 {out}
-                {(!ctx.page).then(|| view! {
-                    <a class="ghost tm-close" href=move || close.get() rel="nofollow" data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
-                })}
+                {tools}
             </div>
             {head.map(|head| view! { <h2 class="tm-title">{head.title}</h2> })}
         }
+    };
+    // What one adjusts (from the Stundenplan and the start page) or the groups to look at.
+    let middle = move || match ctx.mode {
+        TerminMode::Adjust => view! { <PlanView ctx shown/> }.into_any(),
+        TerminMode::LookUp => view! { <GroupsView ctx shown adjust=false/><CalendarFile ctx shown/> }.into_any(),
     };
     let body = move || {
         if !found.get() {
@@ -407,28 +466,49 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
                 false => view! { <p class="hint">{t.termin.gone}</p> }.into_any(),
             };
         }
-        view! {
-            <TicketView ctx shown/>
-            <WhoView shown/>
-            {(ctx.mode == TerminMode::Adjust).then(|| view! { <PlanView ctx shown/> })}
-            {(ctx.mode == TerminMode::LookUp).then(|| view! { <GroupsView ctx shown adjust=false/><CalendarFile ctx shown/> })}
-            <DayView ctx shown/>
-            <SeriesView ctx shown/>
-            <ModuleView ctx shown/>
-            <div class="tm-more">
-                <EventsView ctx shown/>
-                <StaffView shown/>
-                <RangeView shown/>
-            </div>
-            <SourceView shown/>
+        match ctx.place {
+            TerminPlace::Beside => view! {
+                <TicketView ctx shown/>
+                <WhoView shown/>
+                {middle()}
+                <DayView ctx shown/>
+                <SeriesView ctx shown/>
+                <ModuleView ctx shown/>
+                <div class="tm-more">
+                    <EventsView ctx shown/>
+                    <StaffView shown/>
+                    <RangeView shown/>
+                </div>
+                <SourceView shown/>
+            }
+            .into_any(),
+            // As a page (folia/design/termin, „Die Seite"): the day on the left, what one looks up
+            // on the right; one column where the page is narrow.
+            TerminPlace::Full(_) | TerminPlace::Page => view! {
+                <div class="tm-col">
+                    <TicketView ctx shown/>
+                    <WhoView shown/>
+                    {middle()}
+                    <DayView ctx shown/>
+                    <SeriesView ctx shown/>
+                    <RangeView shown/>
+                </div>
+                <div class="tm-col tm-look">
+                    <ModuleView ctx shown/>
+                    <EventsView ctx shown/>
+                    <StaffView shown/>
+                    <SourceView shown/>
+                </div>
+            }
+            .into_any(),
         }
-        .into_any()
     };
     // Beside a page `is-module`: on a phone a sheet over it, as a module's panel (app.css,
-    // enhance.js). As a page a panel of its own.
-    let (class, id) = match ctx.page {
-        true => ("panel is-termin tm-page", None),
-        false => ("panel detail aside is-module is-termin", Some("preview")),
+    // enhance.js). As a page a panel of its own, the page's whole width.
+    let (class, id) = match ctx.place {
+        TerminPlace::Beside => ("panel detail aside is-module is-termin", Some("preview")),
+        TerminPlace::Full(_) => ("panel is-termin tm-page tm-filling", None),
+        TerminPlace::Page => ("panel is-termin tm-page", None),
     };
     view! {
         <section class=class id=id aria-label=t.termin.panel>
@@ -655,6 +735,22 @@ fn adjust_link(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> Option<String> {
     }
     let (key, day) = shown.with(|s| s.as_ref().map(|s| (s.key, s.day)))?;
     ctx.links.adjust.map(|adjust| adjust.run((key, Some(day))))
+}
+
+/// „Teilen": the address of the Termin's own page on the day shown (`/event/<key>/<day>`, in the
+/// page's language), to the device's share sheet on a touch screen (`called` its title there),
+/// else into the clipboard with „Link kopiert" in its place for a moment (enhance.js,
+/// `share-link`). Beside a page its sign alone (`labeled`: with its word). It needs JavaScript
+/// (R15).
+#[component]
+fn ShareButton(at: Memo<Option<(RowKey, Day)>>, called: Memo<String>, labeled: bool) -> impl IntoView {
+    let t = i18n::t();
+    let href = move || at.get().map(|(key, day)| t.path(&url::event_path(key, Some(day)))).unwrap_or_default();
+    view! {
+        <button type="button" class="ghost tm-share js-only" class:icon-only=!labeled data-action="share-link" data-text=href data-absolute="" data-title=move || called.get() title=t.termin.share_title aria-label=t.termin.share>
+            <Icon name="share-2"/><span data-label="">{labeled.then_some(t.termin.share)}</span>
+        </button>
+    }
 }
 
 /// „In den Kalender": the dates of a Termin outside the plan as a calendar file, made ahead as a
@@ -1175,6 +1271,32 @@ fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, 
         (ics::write(&calendar), (t.termin.calendar_file)(name.trim()))
     });
     Some(Shown { key, day: o.day, head, ticket, people, hints, plan, groups, the_day, series, range, events, module: module_part, staff, source, file })
+}
+
+/// What a page of the Termin says of itself, on the date the view shows at `now`: the browser
+/// tab's title („Praktikum · Programmierpraktikum · Mo 02.11.2026"), the description of a link
+/// preview, and the day.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PageHead {
+    pub title: String,
+    pub description: String,
+    pub day: Day,
+}
+
+/// The `PageHead` of the Termin `key` on `on` (its next date at `now` without).
+pub fn page_head(table: &Timetable, (key, on): (RowKey, Option<Day>), now: Option<(Day, u16)>, locale: Locale, words: &'static i18n::termin::Texts) -> Option<PageHead> {
+    let o = Occasion::at(table, key, on, now)?;
+    let event = table.events.get(o.event)?;
+    let kind = type_text(event, locale);
+    let title = match event.title.trim() {
+        "" => event.modules.first().cloned().unwrap_or_default(),
+        title => title.to_string(),
+    };
+    let weekday = locale.texts().weekday_short(i64::from(o.day.weekday())).unwrap_or_default();
+    let when = format!("{weekday} {}", o.day.date(locale));
+    let time = o.from.map(|from| format!(" {}", clock(from))).unwrap_or_default();
+    let what = folia_timetable::views::kind_and_title(&kind, &title);
+    Some(PageHead { title: (words.page_title)(&kind, &title, &when), description: (words.page_description)(&what, &format!("{when}{time}")), day: o.day })
 }
 
 fn id_or_empty(id: Option<&String>) -> &str {

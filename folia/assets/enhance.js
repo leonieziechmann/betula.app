@@ -1966,20 +1966,30 @@
       case "to-top":
         toTop(target);
         break;
+      case "share-link":
       case "copy-link":
       case "copy-text": {
         // The address of the page, or what the control carries (`data-text`: the marked modules
         // as text, or with `data-absolute` a path of this site that becomes a whole address).
+        // „Teilen" (`share-link`, a Termin's: folia/crates/widgets/src/termin.rs) hands the address
+        // to the device's own share sheet where a touch screen has one, else copies it as
+        // „Link kopiert" does.
         e.preventDefault();
         const label = target.querySelector("[data-label]") || target.querySelector("span");
-        const link = target.dataset.action === "copy-link";
+        const action = target.dataset.action;
+        const link = action !== "copy-text";
         const carried = target.dataset.text || "";
-        const text = link ? location.href : "absolute" in target.dataset ? new URL(carried, location.origin).href : carried;
+        const text = action === "copy-link" ? location.href : "absolute" in target.dataset ? new URL(carried, location.origin).href : carried;
+        if (action === "share-link" && navigator.share && matchMedia("(pointer: coarse)").matches) {
+          navigator.share({ title: target.dataset.title || document.title, url: text }).catch(() => {});
+          break;
+        }
         navigator.clipboard?.writeText(text).then(() => {
-          if (!label || label.dataset.was) return;
+          if (!label || "was" in label.dataset) return;
           label.dataset.was = label.textContent;
           label.textContent = link ? language().linkCopied : language().copied;
-          setTimeout(() => { label.textContent = label.dataset.was; delete label.dataset.was; }, 1600);
+          target.classList.add("said");
+          setTimeout(() => { label.textContent = label.dataset.was; delete label.dataset.was; target.classList.remove("said"); }, 1600);
         }).catch(() => {});
         break;
       }
@@ -2349,6 +2359,8 @@
   document.addEventListener("scroll", (e) => { if (!phone() && e.target === flowing()) frostSoon(); }, { capture: true, passive: true });
   addEventListener("resize", frostSoon);
   addEventListener("betula:stage", frostSoon);
+  // The start page filled with a Termin and back (home/today.rs): its photo comes and goes.
+  addEventListener("betula:frost", frostSoon);
   new MutationObserver(frostSoon).observe(document.body, { childList: true });
   frost();
 
