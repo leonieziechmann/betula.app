@@ -564,8 +564,8 @@ fn NextCard(ctx: Ctx, on_setup: Callback<()>) -> impl IntoView {
         let module_link = |entry: &Entry| entry.module.clone().map(|id| t.path(&StudyplanUrl { open: Some(id), ..Default::default() }.path()));
         // The Termin in its own view over the page, else (an exam) its module beside the plan.
         let link = |entry: &Entry| match termin_href(entry, t) {
-            Some(href) => Some(view! { <a class="btn sm" href=href data-noscroll="" data-command="">{tt.termin}</a> }),
-            None => module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> }),
+            Some(href) => Some(view! { <a class="btn sm" href=href data-noscroll="" data-command="">{tt.termin}</a> }.into_any()),
+            None => module_link(entry).map(|href| view! { <a class="btn sm" href=href data-command="">{tt.module}</a> }.into_any()),
         };
         let card = ctx.today.with(|today| {
             if let Some((entry, running)) = &focus {

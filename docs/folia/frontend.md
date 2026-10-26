@@ -4339,10 +4339,14 @@ on 6 500 pages (every address of the sitemap and 1 100 lists and filters found o
 - Every reactive closure costs an `Arc<Mutex<_>>` and a call through a vtable. A page not yet
   in the cache renders in 8.8 ms instead of 8.0 ms (median of 250, debug builds).
 - What compiles with the flag need not compile without it: the types it erases are deeper there,
-  and so closer to `recursion_limit`. Nix builds without it, and `deploy/ship.sh` builds with Nix
-  before it ships anything, so such a failure stops a release instead of slipping into one. To
-  see it earlier: `CARGO_ENCODED_RUSTFLAGS= cargo build` (every dependency once more, in the
-  same `target/`).
+  and so closer to `recursion_limit`; and two views in the arms of one `match` (or of an `if`) are
+  one type with it, two without it, so each arm needs its `.into_any()` (the start page's card in
+  Folia 1.46.0, whose release build failed on canary, 2026-10-26). Nix builds without it, and
+  `deploy/ship.sh` builds with Nix before it ships anything, so such a failure stops a release
+  instead of slipping into one. To see it earlier: `CARGO_ENCODED_RUSTFLAGS= cargo check --release
+  -p folia-server` and `CARGO_ENCODED_RUSTFLAGS= cargo check --profile wasm-release --target
+  wasm32-unknown-unknown -p folia-client -p folia-worker` (every dependency once more, in the same
+  `target/`); `cargo check --release` alone still reads `.cargo/config.toml` and erases.
 
 A change of the flags is a change of every unit's fingerprint: after one, everything is built
 again.
