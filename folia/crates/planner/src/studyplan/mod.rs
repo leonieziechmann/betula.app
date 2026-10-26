@@ -34,6 +34,7 @@ mod export;
 mod head;
 mod import;
 mod modules;
+mod open;
 mod share;
 mod side;
 mod termin;
@@ -70,6 +71,7 @@ use self::exams::ExamsView;
 use self::export::CalendarGroup;
 use self::head::{marked_offered, DerivedLine, ExamAlerts, FromBookmarks, NothingPlanned, Overlaps, SemesterHead};
 use self::modules::ModuleList;
+use self::open::{FocusBar, OpenLine, OpenPanel, PickSheet};
 use self::side::PlanSidebar;
 use self::termin::PlanTerminPanel;
 use self::week::{DatesView, WeekLoose, WeekView};
@@ -350,7 +352,13 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
                 None => view! {
                     <ExamAlerts ctx/>
                     <Overlaps ctx/>
+                    // What is left to choose, over the week where the page is narrow (`open.rs`),
+                    // and the choice in focus: over the week of a wide screen, on a phone a sheet
+                    // under it (H1 of folia/design/kalender/handy.html).
+                    <OpenLine ctx/>
+                    {move || (!ctx.phone.get()).then(|| view! { <FocusBar ctx/> })}
                     <div class="sp-view">{view}</div>
+                    {move || ctx.phone.get().then(|| view! { <PickSheet ctx/> })}
                     // On a phone the calendar stands under the Termine, in every view (owner,
                     // 2026-09-27: in „Anpassen", among what is shown, nobody finds it); with
                     // nothing planned there is nothing to export.
@@ -363,6 +371,7 @@ fn SemesterView(ctx: PlanCtx) -> impl IntoView {
             fine.get().then(|| {
                 view! {
                     <div class="sp-side">
+                        <OpenPanel ctx/>
                         <ModuleList ctx/>
                         <FromBookmarks ctx list=marked/>
                     </div>

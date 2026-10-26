@@ -55,10 +55,11 @@ use folia_model::labels::Rhythm;
 use folia_model::rows_detail::EventDate;
 use folia_plans::studyplan::PlanDoc;
 use folia_routes::url::{self, StudyplanUrl};
+use folia_timetable::choice;
 use folia_timetable::clash::Weeks;
 use folia_timetable::exams::{ExamShape, Termin};
 use folia_timetable::facts::SemesterFacts;
-use folia_timetable::model::{Across, Alt, Event, Row, TakenBy, Timetable};
+use folia_timetable::model::{Across, Alt, Attendance, Event, Row, TakenBy, Timetable};
 use folia_timetable::occur::Every;
 use folia_timetable::views::{
     kind_and_title, kind_short, short_title, type_text, AgendaItem, AgendaWeek, Reach, WeekItem, WeekLabel,
@@ -103,12 +104,25 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
     // What the slots name the modules by, their abbreviations („EvS"; owner, 2026-09-25: only where
     // no title fits): a sibling of the timetable, both derived from the semester's data (R16).
     let titles = Memo::new(move |_| ctx.data.with(|data| data.as_ref().map(|data| data.slot_names()).unwrap_or_default()));
+    // The choice in focus (`wahl=`, folia/design/kalender), by its address: a sibling of `base`,
+    // both of the address (R16); the timetable says which event it is.
+    let wahl = Memo::new(move |_| ctx.url.with(|url| url.wahl.clone()));
     // The slots of each week (`WEEKS`): a phone's carousel shows all three at once. A memo is
     // worked out only where it is read, so a wide screen works out the week it shows alone.
     let weeks = WEEKS.map(|week| {
         let slots = Memo::new(move |_| {
-            let (base, all) = (base.get(), ctx.all.get());
-            titles.with(|titles| ctx.table.with(|table| table.as_ref().map(|table| week_slots(table, &base, titles, week, all, t)).unwrap_or_default()))
+            let (base, all, wahl) = (base.get(), ctx.all.get(), wahl.get());
+            titles.with(|titles| {
+                ctx.table.with(|table| {
+                    table
+                        .as_ref()
+                        .map(|table| {
+                            let focus = wahl.as_deref().and_then(|code| choice::find(table, code));
+                            week_slots(table, &base, titles, week, all, focus, t)
+                        })
+                        .unwrap_or_default()
+                })
+            })
         });
         (week, slots)
     });
@@ -440,12 +454,13 @@ pub(super) fn AllSwitch(all: RwSignal<bool>) -> impl IntoView {
     }
 }
 
-/// The key of the slot button a click hit (`button.slot-act[data-act]`); `None` for a click
+/// The key of the slot button a click hit (`button.slot-act[data-act]`), or of a group of the
+/// choice in focus, which is a button itself (`button.slot[data-act]`); `None` for a click
 /// anywhere else.
 fn act_under(target: Option<leptos::web_sys::EventTarget>) -> Option<String> {
     use leptos::wasm_bindgen::JsCast;
     let element = target?.dyn_into::<leptos::web_sys::Element>().ok()?;
-    element.closest(".slot-act").ok()??.get_attribute("data-act")
+    element.closest(".slot-act, .slot[data-act]").ok()??.get_attribute("data-act")
 }
 
 /// What the button `key` does: `<its slot's key>/<its place among the slot's buttons>` (`keyed`).
@@ -739,14 +754,62 @@ impl DayRow {
 
 /// The slots of the Regelwoche held in the week `shown`, in its order (weekday, time, event);
 /// `titles` are the planned modules' titles by id. With `all` („Alle Termine"), what the plan
-/// leaves out besides (`ghost_slots`), in the order of the week. In the words of `t`.
-fn week_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>, shown: Weeks, all: bool, t: &i18n::Texts) -> Vec<PlanSlot> {
+/// leaves out besides (`ghost_slots`), in the order of the week. With a choice in focus (`focus`,
+/// its event), its groups and the rest behind them (`focus_slots`). In the words of `t`.
+fn week_slots(table: &Timetable, base: &StudyplanUrl, titles: &BTreeMap<String, String>, shown: Weeks, all: bool, focus: Option<usize>, t: &i18n::Texts) -> Vec<PlanSlot> {
+    if let Some(event) = focus {
+        return focus_slots(table, event, base, titles, shown, t);
+    }
     let items = table.regular_week();
     let mut slots: Vec<PlanSlot> = items.iter().filter(|item| item.in_week(shown)).filter_map(|item| plan_slot(table, base, item, titles, shown, &items, t)).collect();
     if all {
         slots.extend(ghost_slots(table, base, titles, shown, &items, t));
         slots.sort_by_key(|slot| (slot.slot.day, slot.slot.from, slot.slot.to));
     }
+    join_ab(slots)
+}
+
+/// The week with a choice in focus (folia/design/kalender; owner, 2026-10-26: „A mit Fokus"): its
+/// groups all there, ticked or not, each the box that ticks it (`GridSlot::tick`), outlined and
+/// red-marked where it meets the plan; the rest of the plan behind them, without links or buttons
+/// (`GridSlot::dim`). A tick acts as a group's „✓" does (`Act::Tick`, `Act::Untick`).
+fn focus_slots(table: &Timetable, event: usize, base: &StudyplanUrl, titles: &BTreeMap<String, String>, shown: Weeks, t: &i18n::Texts) -> Vec<PlanSlot> {
+    let words = &t.studyplan_week;
+    let drawn = choice::focus_table(table, event);
+    let Some(real) = table.events.get(event) else { return Vec::new() };
+    let Ok(id) = real.id.parse::<u32>() else { return Vec::new() };
+    let slots = drawn
+        .regular_week()
+        .iter()
+        .filter(|item| item.in_week(shown))
+        .filter_map(|item| {
+            let mut slot = drawn_slot(&drawn, base, item, titles, &item.against_in(shown), t)?;
+            slot.slot.href = None;
+            slot.slot.asks = false;
+            if item.event != event {
+                slot.acts = Vec::new();
+                slot.slot.dim = true;
+                return Some(keyed(slot, 'p', item));
+            }
+            let option = drawn.events.get(event)?.rows.get(item.row)?.option?;
+            let ticked = real.chosen.contains(&option);
+            let keys = real.option_keys(option);
+            let row = *keys.first()?;
+            let meets = drawn.events.get(event)?.rows.iter().enumerate().filter(|(_, r)| r.option == Some(option)).find_map(|(r, _)| folia_timetable::termin::meets(table, event, r));
+            slot.acts = vec![match ticked {
+                true => SlotAct::taken(words.drop_group, Act::Untick(keys.clone())),
+                false => SlotAct::take(words.take_group, Act::Tick { event: id, row, rows: keys }),
+            }];
+            slot.slot.alt = false;
+            slot.slot.clash = meets.is_some();
+            slot.slot.pick = Some(ticked);
+            slot.slot.title = format!("{} · {}", slot.slot.title, if ticked { words.ticked_group } else { words.tick_group });
+            let mut slot = keyed(slot, 'f', item);
+            slot.slot.tick = Some(format!("{}/0", slot.key));
+            slot.slot.acts = Vec::new();
+            Some(slot)
+        })
+        .collect();
     join_ab(slots)
 }
 
@@ -829,8 +892,12 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
     let notes = qualifiers(&item.label, every, item.alt.map(|(options, _)| (take, options)), &table.facts, t);
     let hue = hue(event.tone);
     // A click opens the Termin in its own view, on its next date (owner, 2026-10-26: first what
-    // one wants to know, then what one adjusts); one without a key opens its module.
+    // one wants to know, then what one adjusts); one without a key opens its module. A group of a
+    // choice still open opens the choice in focus (owner, 2026-10-26: „Ein Tipp auf eine
+    // gestrichelte Gruppe öffnet ihre Wahl").
+    let groups = item.alt.is_some() && event.across.is_none() && matches!(event.attendance, Attendance::OneOf { .. });
     let href = match shown.key {
+        Some(_) if groups => base.with_wahl(Some(&choice::code(event))).path(),
         Some(key) => base.with_termin(Some((key, None))).path(),
         None => base.with_open(Some(module.as_str()), None).path(),
     };
@@ -885,6 +952,9 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         acts: Vec::new(),
         asks: false,
         joint: None,
+        pick: None,
+        tick: None,
+        dim: false,
     };
     let row = DayRow {
         day: item.day,
@@ -1874,7 +1944,7 @@ fn day_short(day: u8, t: &i18n::Texts) -> &'static str {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use folia_calendar::day::holidays;
     use folia_calendar::select::{Selection, TownChoice};
     use folia_calendar::semester::SemesterKey;
@@ -1889,13 +1959,13 @@ mod tests {
         Day::parse(iso).unwrap()
     }
 
-    fn key() -> SemesterKey {
+    pub(crate) fn key() -> SemesterKey {
         SemesterKey::parse("2026W").unwrap()
     }
 
     /// 2026W as the snapshot derives it: lectures 05.10.2026–31.01.2027, a break over the turn
     /// of the year, A weeks from the first.
-    fn winter() -> SemesterFacts {
+    pub(crate) fn winter() -> SemesterFacts {
         let bounds = key().bounds();
         let holidays = [2026, 2027].into_iter().flat_map(holidays).filter(|(day, _)| (bounds.0..=bounds.1).contains(day)).collect();
         SemesterFacts {
@@ -1909,7 +1979,7 @@ mod tests {
     }
 
     /// A dated row of module 12104 in 2026W: event, ord, QIS's type, rhythm, weekday, times, dates.
-    fn row(event: &str, ord: i64, kind: &str, rhythm: &str, weekday: i64, time: (&str, &str), dates: (&str, &str)) -> DateRow {
+    pub(crate) fn row(event: &str, ord: i64, kind: &str, rhythm: &str, weekday: i64, time: (&str, &str), dates: (&str, &str)) -> DateRow {
         DateRow {
             module_id: "12104".into(),
             ord: Some(ord),
@@ -1990,7 +2060,7 @@ mod tests {
             .collect()
     }
 
-    fn plain() -> StudyplanUrl {
+    pub(crate) fn plain() -> StudyplanUrl {
         StudyplanUrl::parse("sem=2026W")
     }
 
@@ -2043,7 +2113,7 @@ mod tests {
             single("150002", 2, 5, ("08:00", "09:30"), "2026-11-06", 3),
             single("150002", 3, 5, ("08:00", "09:30"), "2026-11-27", 3),
         ];
-        let slots = week_slots(&table(&schedule), &plain(), &titles(), Weeks::All, false, &i18n::DE);
+        let slots = week_slots(&table(&schedule), &plain(), &titles(), Weeks::All, false, None, &i18n::DE);
         let shown: Vec<(&str, &str)> = slots.iter().map(|slot| (slot.slot.small.as_str(), slot.slot.class)).collect();
         assert_eq!(shown, [("13:45–15:15", "tinted"), ("08:00–09:30 · 3-wöch.", "tinted")]);
         let titles: Vec<&str> = slots.iter().map(|slot| slot.slot.title.as_str()).collect();
@@ -2059,7 +2129,7 @@ mod tests {
             row("148019", 1, "Übung", "single", 2, ("11:45", "13:15"), ("2027-02-23", "2027-02-23")),
         ];
         let table = table(&schedule);
-        let slots = week_slots(&table, &plain(), &titles(), Weeks::All, false, &i18n::DE);
+        let slots = week_slots(&table, &plain(), &titles(), Weeks::All, false, None, &i18n::DE);
         let shown: Vec<(&str, &str, &str, &str, &str)> = slots
             .iter()
             .map(|slot| (slot.slot.label.as_str(), slot.slot.small.as_str(), slot.slot.place.as_str(), slot.slot.class, slot.row.note.as_str()))
@@ -2076,14 +2146,14 @@ mod tests {
         );
         // The abbreviation stands for the module where the plan's data has one.
         let short = BTreeMap::from([("12104".to_string(), "EvS".to_string())]);
-        assert_eq!(week_slots(&table, &plain(), &short, Weeks::All, false, &i18n::DE).get(1).map(|slot| slot.slot.label.clone()).as_deref(), Some("VL EvS"));
+        assert_eq!(week_slots(&table, &plain(), &short, Weeks::All, false, None, &i18n::DE).get(1).map(|slot| slot.slot.label.clone()).as_deref(), Some("VL EvS"));
         // The label names the module in its short name, whatever the event is called.
         let long = BTreeMap::from([("12104".to_string(), "Elektrische und elektronische Grundlagen der Informatik".to_string())]);
-        let slots = week_slots(&table, &plain(), &long, Weeks::All, false, &i18n::DE);
+        let slots = week_slots(&table, &plain(), &long, Weeks::All, false, None, &i18n::DE);
         assert_eq!(slots.get(1).map(|slot| slot.slot.label.as_str()), Some("VL Elektrische und elektronische …"));
         assert_eq!(slots.get(1).map(|slot| slot.row.text.as_str()), Some("Vorlesung · Entwicklung von Softwaresystemen"));
         // Without the module's title, the event's stands in.
-        let slots = week_slots(&table, &plain(), &BTreeMap::new(), Weeks::All, false, &i18n::DE);
+        let slots = week_slots(&table, &plain(), &BTreeMap::new(), Weeks::All, false, None, &i18n::DE);
         assert_eq!(slots.get(1).map(|slot| slot.slot.label.as_str()), Some("VL Entwicklung von Softwaresystemen"));
         let lecture = slots.get(1).unwrap();
         let key = table.events.iter().find(|event| event.id == "148701").and_then(|event| event.rows.first()).and_then(|row| row.key).unwrap();
@@ -2110,7 +2180,7 @@ mod tests {
             row("148019", 1, "Übung", "single", 2, ("11:45", "13:15"), ("2027-02-23", "2027-02-23")),
         ];
         let table = table(&schedule);
-        let slots = week_slots(&table, &plain(), &titles(), Weeks::All, false, en);
+        let slots = week_slots(&table, &plain(), &titles(), Weeks::All, false, None, en);
         let shown: Vec<(&str, &str, &str)> = slots.iter().map(|slot| (slot.slot.label.as_str(), slot.slot.small.as_str(), slot.row.note.as_str())).collect();
         // The kinds' few letters, the weeks and the dates in English; rooms and titles as QIS has them.
         assert_eq!(
@@ -2186,7 +2256,7 @@ mod tests {
         let joints = |slots: &[PlanSlot]| -> Vec<(String, Option<u32>, bool)> {
             slots.iter().map(|slot| (format!("{} {}", slot.row.modules.first().cloned().unwrap_or_default(), slot.slot.label), slot.slot.joint, slot.slot.clash)).collect()
         };
-        let slots = week_slots(&table, &plain(), &titles(), Weeks::All, false, &i18n::DE);
+        let slots = week_slots(&table, &plain(), &titles(), Weeks::All, false, None, &i18n::DE);
         // The A and the B slot of 12104 stand together, next to each other; the other lecture alone.
         let together: Vec<usize> = slots.iter().enumerate().filter(|(_, slot)| slot.slot.joint == Some(0)).map(|(at, _)| at).collect();
         assert_eq!(together.len(), 2, "{:?}", joints(&slots));
@@ -2195,13 +2265,13 @@ mod tests {
         assert!(slots.iter().filter(|slot| slot.slot.joint.is_some()).all(|slot| slot.row.modules.first().map(String::as_str) == Some("12104")));
         assert_eq!(slots.iter().filter(|slot| slot.slot.joint.is_none()).count(), 1);
         // The A weeks alone: nothing to stand with, a frame of its own.
-        let a_weeks = week_slots(&table, &plain(), &titles(), Weeks::A, false, &i18n::DE);
+        let a_weeks = week_slots(&table, &plain(), &titles(), Weeks::A, false, None, &i18n::DE);
         assert!(a_weeks.iter().all(|slot| slot.slot.joint.is_none() && slot.slot.clash) && a_weeks.len() == 2);
         // Of two modules, an A-week and a B-week slot stand apart.
         let mut exercise = row("148136", 1, "Übung", "week_b", 2, ("07:30", "09:00"), ("2026-10-13", "2027-01-19"));
         exercise.module_id = "12107".into();
         let schedule = [schedule[0].clone(), schedule[1].clone(), exercise];
-        let apart = week_slots(&planned(&["12104", "12107"], &schedule, &[]), &plain(), &titles(), Weeks::All, false, &i18n::DE);
+        let apart = week_slots(&planned(&["12104", "12107"], &schedule, &[]), &plain(), &titles(), Weeks::All, false, None, &i18n::DE);
         assert!(apart.iter().all(|slot| slot.slot.joint.is_none()));
     }
 
@@ -2230,7 +2300,7 @@ mod tests {
         assert!(doc.plan(key(), "12104", 1, None));
         let plan_week = |doc: &PlanDoc, all: bool| {
             let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices: &[], listed: &[] };
-            week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
+            week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, None, &i18n::DE)
         };
         // Each slot as „Mo 11:30" with its buttons, „✓ …", „+ …" or „× …".
         let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", sign(act.icon), act.label)).collect() };
@@ -2528,7 +2598,7 @@ mod tests {
         let modules = vec!["12104".to_string()];
         let plan_week = |doc: &PlanDoc, choices: &[ChoiceOption], all: bool| {
             let input = Input { key: key(), semester: None, facts: &facts, modules: &modules, schedule: &schedule, exams: &[], sws: &[], taken: &[], choices, listed: &[] };
-            week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, &i18n::DE)
+            week_slots(&Timetable::build(&input, &doc.selection(key(), TownChoice::Derive)), &plain(), &titles(), Weeks::All, all, None, &i18n::DE)
         };
         let said = |slot: &PlanSlot| -> Vec<String> { slot.acts.iter().map(|act| format!("{} {}", sign(act.icon), act.label)).collect() };
         let at = |slots: &[PlanSlot], day: u8| slots.iter().find(|slot| slot.slot.day == day).cloned().unwrap();

@@ -3429,9 +3429,9 @@ i.sp-key { width: 14px; padding: 0; }
 .sp-alert .icon { flex: none; width: 18px; height: 18px; margin-top: 1px; }
 .sp-alert b { display: block; font-size: 14.5px; font-weight: 680; line-height: 1.35; }
 .sp-alert small { display: block; margin-top: 2px; color: var(--text-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-/* Overlaps and open choices: one quiet line, closed until asked (details.sp-overlaps > summary
-   > span, span.no an overlap in red); opened, a compact line each (ul > li > a, a.warn with a red
-   mark), each a link to its module beside the plan. */
+/* Overlaps: one quiet line, closed until asked (details.sp-overlaps > summary > span, span.no an
+   overlap in red); opened, a compact line each (ul > li > a, a.warn with a red mark), each a link
+   to its module beside the plan. What is left to choose is „Offen"'s (below). */
 .sp-overlaps > summary { cursor: pointer; min-height: 28px; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 5px; color: var(--text-2); font-weight: 580; font-size: 13px; font-variant-numeric: tabular-nums; }
 .sp-overlaps > summary .no { color: var(--no); font-weight: 650; }
 .sp-overlaps > summary::after { content: "+"; color: var(--text-3); font-weight: 500; }
@@ -3444,6 +3444,151 @@ i.sp-key { width: 14px; padding: 0; }
 /* What is hidden (li.hidden > span + button.mini): the line, its „Einblenden" at its end. */
 .sp-overlaps li.hidden { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 2px 4px 2px 20px; color: var(--text-2); font-size: 13px; }
 .sp-overlaps li.hidden > span { flex: 1; min-width: 0; }
+/* „Offen" and the choice in focus (open.rs; folia/design/kalender/konzepte.html and handy.html,
+   owner 2026-10-26: „A mit Fokus", „nimm H1 mit Vergleichen"). Beside the week where the page has
+   the column for it, „Offen" (section.sp-open, the head of the planned modules over its rows);
+   where it has not, one line over the week that opens into them (details.sp-open-line). A row
+   (a.sp-open-row.t-…): the module's dot, the choice and what to do, „Wählen ›" at its right; the
+   choice in focus dark, one none of whose groups is free yellow. */
+.sp-open { display: none; grid-template-columns: minmax(0, 1fr); gap: 4px; align-content: start; }
+.sp-open > .sp-list-head { padding-right: 12px; }
+.sp-open-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.sp-open-row { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 50px; padding: 7px 10px 7px 12px; border-radius: var(--r-row); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-decoration: none; transition: background .1s; }
+.sp-open-row:hover { background: var(--panel-3); text-decoration: none; }
+.sp-open-row > .od { width: 9px; height: 9px; border-radius: 50%; background: var(--tint, var(--text-3)); }
+.sp-open-row > .t { min-width: 0; }
+.sp-open-row b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
+.sp-open-row small { display: block; color: var(--text-3); font-size: 12px; line-height: 1.3; }
+.sp-open-row > .go { display: inline-flex; align-items: center; gap: 1px; color: var(--accent-ink); font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.sp-open-row > .go .icon { width: 15px; height: 15px; }
+.sp-open-row.warn { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.sp-open-row.warn small { color: var(--warn); }
+.sp-open-row.current { background: var(--invert); box-shadow: none; color: var(--on-invert); }
+.sp-open-row.current small, .sp-open-row.current > .go { color: color-mix(in srgb, var(--on-invert) 72%, transparent); }
+.sp-open-line { border-radius: var(--r-row); background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 26%, transparent); }
+.sp-open-line > summary { display: grid; grid-template-columns: 32px minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 50px; padding: 6px 12px 6px 8px; cursor: pointer; list-style: none; }
+.sp-open-line > summary::-webkit-details-marker { display: none; }
+.sp-open-line .ic { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: var(--panel); color: var(--warn); }
+.sp-open-line .ic .icon { width: 17px; height: 17px; }
+.sp-open-line > summary .t { min-width: 0; }
+.sp-open-line > summary b { display: block; font-size: 14px; font-weight: 650; line-height: 1.25; }
+.sp-open-line > summary small { display: block; color: var(--text-2); font-size: 12px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-open-line .chev { width: 16px; height: 16px; color: var(--text-3); transition: transform .2s var(--ease); }
+.sp-open-line[open] .chev { transform: rotate(180deg); }
+.sp-open-line > .sp-open-rows { padding: 0 6px 6px; }
+.sp-open-line .sp-open-row { background: var(--panel); }
+@container page (min-width: 900px) {
+  .sp-side > .sp-open { display: grid; }
+  .sp-open-line { display: none; }
+}
+/* „Vergleichen" beside the week stands in the place of „Offen"; where the page has no column
+   beside the week, under the bar of the focus over it (div.sp-cmp-fold), the groups side by side. */
+.sp-cmp-fold .sp-cmp { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); }
+@container page (min-width: 900px) {
+  .sp-side > .sp-open.sp-compare { display: grid; }
+  .sp-cmp-fold { display: none; }
+}
+.sp-compare > .sp-list-head { justify-content: flex-start; gap: 8px; padding-right: 0; }
+.sp-compare > .sp-list-head .nm { min-width: 0; color: var(--text-2); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-compare > .sp-list-head .icon-btn { flex: none; margin-left: auto; width: 32px; height: 32px; }
+.sp-compare > .sp-list-head .icon-btn .icon { width: 16px; height: 16px; }
+/* Over the week while a choice is in focus (div.sp-focusbar.t-…, a screen wider than a phone):
+   dark, in two lines the choice with its dot and how many are ticked, and whether its groups fit
+   and what to do (span.fb-text); „Weiter: …", „Vergleichen" (pressed while compared) and „Fertig"
+   with Esc at its right. */
+.sp-focusbar { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 5px 6px 5px 12px; border-radius: 10px; background: var(--invert); color: var(--on-invert); }
+.sp-focusbar .fb-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.sp-focusbar .what { display: flex; align-items: center; gap: 7px; min-width: 0; white-space: nowrap; }
+.sp-focusbar .what i { width: 9px; height: 9px; border-radius: 50%; background: var(--tint); }
+.sp-focusbar .what b { font-size: 13.5px; font-weight: 700; }
+.sp-focusbar .what small { color: color-mix(in srgb, var(--on-invert) 70%, transparent); font-size: 12.5px; font-weight: 560; font-variant-numeric: tabular-nums; }
+.sp-focusbar .say { min-width: 0; color: color-mix(in srgb, var(--on-invert) 78%, transparent); font-size: 12px; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-focusbar .btn { flex: none; min-height: 32px; padding: 0 11px; border-radius: 7px; gap: 6px; background: color-mix(in srgb, var(--on-invert) 14%, transparent); color: var(--on-invert); font-size: 12.5px; font-weight: 650; }
+.sp-focusbar .btn:hover { background: color-mix(in srgb, var(--on-invert) 24%, transparent); }
+.sp-focusbar .btn.on { background: var(--on-invert); color: var(--invert); }
+.sp-focusbar kbd { padding: 1px 5px; background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-invert) 32%, transparent); color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
+/* The week while a choice is in focus (week.rs `focus_slots`): its groups, each the box that ticks
+   it (button.slot.pick, ticked .on, its box i.pick-box at its bottom right), over the rest of the
+   plan, which steps back (.dim, 42 %; owner, 2026-10-26). A group dashed in its tone while not
+   ticked, filled once ticked, red where it meets the plan. */
+.sp-body .slot.dim { opacity: .42; }
+.sp-body button.slot { text-align: left; }
+.sp-body .slot.pick { z-index: 1; background: color-mix(in oklch, var(--tint) 7%, var(--panel)); color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .1); outline: 1.5px dashed var(--tint); outline-offset: -1.5px; transition: background .12s; }
+.sp-body .slot.pick:hover { background: color-mix(in oklch, var(--tint) 14%, var(--panel)); }
+.sp-body .slot.pick.on { background: color-mix(in oklch, var(--tint) 22%, var(--panel)); outline: 2px solid var(--tint); outline-offset: -2px; box-shadow: 0 3px 10px -4px rgba(15, 23, 42, .3); }
+.sp-body .slot.pick.clash { outline-color: var(--no); }
+.slot > .pick-box { position: absolute; right: 4px; bottom: 4px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--tint); color: var(--panel); }
+.slot.on > .pick-box { background: var(--tint); box-shadow: none; }
+.slot > .pick-box .icon { width: 11px; height: 11px; stroke-width: 3; }
+/* On a phone the slots are too narrow for a box over their room, and the sheet under the week
+   has the boxes: a group is dashed or filled, the red outline says a clash. */
+.sp-carousel .sp-slide .slot > .pick-box, .sp-carousel .sp-slide .slot.pick.clash::after { display: none; }
+/* „Vergleichen" (div.sp-cmp > button.sp-cmp-row): each group a row with its box, its time, a dot
+   (green where it fits, red where it meets the plan) and its room, QIS's name of the group and who
+   leads it, its day as a band from 7 to 19 among the plan's Termine (span.rib > span.rb: the group
+   striped while not ticked, filled once ticked, what it meets red), the hours under it, and what it
+   does to the day (span.cn). Beside the week of a wide page, on a phone in the sheet all up. */
+.sp-cmp { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.sp-cmp-row { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; width: 100%; padding: 10px 12px 10px 10px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; transition: background .1s; }
+.sp-cmp-row:hover { background: var(--panel-3); }
+.sp-cmp-row.on { background: color-mix(in oklch, var(--tint, var(--accent)) 9%, var(--panel)); box-shadow: inset 0 0 0 1.5px color-mix(in oklch, var(--tint, var(--accent)) 60%, transparent); }
+.sp-cmp-row > .cbx { width: 24px; height: 24px; margin-top: 1px; display: grid; place-items: center; border-radius: 7px; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong); color: var(--panel); }
+.sp-cmp-row.on > .cbx { background: var(--tint, var(--accent)); box-shadow: none; }
+.sp-cmp-row > .cbx .icon { width: 15px; height: 15px; stroke-width: 3; }
+.sp-cmp-row .cm { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.sp-cmp-row .ct { display: flex; align-items: center; min-width: 0; }
+.sp-cmp-row .ct b { font-size: 14.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sp-cmp-row .st { flex: none; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; }
+.sp-cmp-row .st.no { background: var(--no); }
+.sp-cmp-row .st.ok { background: var(--ok); }
+.sp-cmp-row .cr { min-width: 0; margin-left: auto; padding-left: 8px; color: var(--text-2); font: 500 11.5px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-cmp-row .cs { color: var(--text-2); font-size: 12px; line-height: 1.35; }
+.sp-cmp-row .rib { position: relative; display: block; height: 30px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.sp-cmp-row .rb { position: absolute; top: calc(3px + 24px * var(--lane, 0) / var(--lanes, 1)); height: calc(24px / var(--lanes, 1) - 1px); display: flex; align-items: center; padding: 0 4px; border-radius: 5px; background: color-mix(in oklch, var(--tint) 24%, var(--panel)); box-shadow: inset 2px 0 0 var(--tint); color: var(--text); font: 650 9.5px/1 var(--mono); white-space: nowrap; overflow: hidden; }
+.sp-cmp-row .rb.cand { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint) 30%, var(--panel)) 0 4px, var(--panel) 4px 8px); box-shadow: inset 0 0 0 1.5px var(--tint); }
+.sp-cmp-row .rb.me { background: var(--tint); color: var(--panel); box-shadow: none; }
+.sp-cmp-row .rb.hit { box-shadow: inset 0 0 0 1.5px var(--no); }
+.sp-cmp-row .rt { position: relative; display: block; height: 12px; margin-top: -3px; }
+.sp-cmp-row .rt span { position: absolute; translate: -50% 0; color: var(--text-3); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.sp-cmp-row .cn { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 12.5px; font-weight: 560; }
+.sp-cmp-row .cn .icon { flex: none; width: 14px; height: 14px; color: var(--text-3); }
+.sp-cmp-row .cn.warn, .sp-cmp-row .cn.warn .icon { color: var(--no); }
+/* The sheet of a phone while a choice is in focus (section.sp-pick.t-…, open.rs PickSheet; H1 of
+   folia/design/kalender/handy.html): fixed at the bottom, over the tabs; its handle, the chip of
+   the module, the kind and × at its right; the groups as the Termin's tiles with „Vergleichen ›",
+   a line of what is to know, and one large action. The week above it is as tall as the sheet
+   leaves of the screen (`--pick-h`, which open.rs measures), and the page as long as to scroll its
+   end out over the sheet. Compared (.full), the sheet is all up and its list scrolls inside it. */
+.sp-pick { position: fixed; z-index: 32; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 10px; max-height: calc(100dvh - 64px); padding: 0 14px calc(12px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: var(--panel); box-shadow: var(--shadow-pop); animation: pick-up .24s var(--ease); }
+.sp-pick.full { top: calc(env(safe-area-inset-top, 0px) + 10px); max-height: none; }
+@keyframes pick-up { from { transform: translateY(32px); opacity: 0; } }
+.sp-pick > .grab { flex: none; position: relative; display: block; height: 16px; }
+.sp-pick > .grab::before { content: ""; position: absolute; left: 50%; top: 7px; width: 40px; height: 5px; margin-left: -20px; border-radius: 3px; background: var(--line-strong); }
+.sp-pick-head { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.sp-pick-head .mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 7px; background: color-mix(in oklch, var(--tint) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); font: 600 12px var(--mono); }
+.sp-pick-head .mod i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); }
+.sp-pick-head .kd { min-width: 0; color: var(--text-2); font-size: 14px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-pick .ib { position: relative; flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--panel-3); color: var(--text); text-decoration: none; }
+.sp-pick .ib::after { content: ""; position: absolute; inset: -4px; }
+.sp-pick .ib .icon { width: 17px; height: 17px; }
+.sp-pick .ib.end { margin-left: auto; }
+.sp-pick .grp-h .go2 { display: inline-flex; align-items: center; min-height: 32px; padding-left: 6px; color: var(--accent-ink); font-size: 13px; font-weight: 650; white-space: nowrap; text-decoration: none; }
+.sp-pick .grp-h .go2 .icon { width: 15px; height: 15px; }
+.sp-pick .grp-h .r + .go2 { margin-left: 0; }
+.sp-pick .grp .gs { min-height: 54px; justify-content: center; }
+.sp-pick .grp .gs > b { font-size: 14px; }
+/* A tile ticked in the module's tone, as its group in the week and its line in „Vergleichen". */
+.sp-pick .grp .gs.on { box-shadow: inset 0 0 0 1.5px var(--tint); }
+.sp-pick .grp .gs > .ck { background: var(--tint); color: var(--panel); }
+.sp-pick .grp .gs.pick:hover > .cb { box-shadow: inset 0 0 0 1.5px var(--tint), 0 0 0 2px var(--panel-3); }
+.sp-pick .big { flex: none; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 50px; padding: 0 20px; border-radius: 13px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 680; text-decoration: none; }
+.sp-pick .big:hover { filter: brightness(1.06); text-decoration: none; }
+.sp-pick .big .icon { width: 17px; height: 17px; }
+.sp-pick-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 2px 4px 4px; }
+@media (max-width: 900px) {
+  .sp:has(.sp-pick:not(.full)) .sp-carousel { height: clamp(220px, calc(100svh - var(--bar) - var(--pick-h, 320px) - 12px), 560px); }
+  .sp:has(.sp-pick) { padding-bottom: var(--pick-h, 320px); }
+}
 /* „Plan · Alle Termine" and „A-Woche · B-Woche · A/B" above the week: as wide as their words. */
 .seg.sp-weeks, .seg.sp-all { justify-self: start; margin-top: 0; }
 .seg.sp-weeks button, .seg.sp-all button { padding: 0 12px; }
@@ -3690,32 +3835,33 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-sec.cal { gap: 12px; padding: 14px; border-radius: 14px; background: color-mix(in oklch, var(--accent) 5%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, var(--line)); }
 .is-termin .tm-more { position: relative; display: flex; flex-direction: column; gap: 22px; padding-top: 18px; border-top: 1px dashed var(--line-strong); }
 /* The groups: a fixed grid of at most three columns (owner, 2026-10-26: „ein festes raster z.B. 3
-   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes. */
-.is-termin .grp { display: flex; flex-direction: column; gap: 6px; }
-.is-termin .grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
-.is-termin .grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
-.is-termin .grp-seg { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px 4px; margin-top: 2px; padding: 4px; border-radius: 11px; background: var(--panel-3); }
-.is-termin .gs { position: relative; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 7px 9px; border-radius: 8px; background: transparent; color: var(--text); text-align: left; text-decoration: none; }
-.is-termin .gs:hover { background: color-mix(in oklch, var(--panel) 60%, transparent); text-decoration: none; }
-.is-termin .gs > b { font-size: 13px; font-weight: 680; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.is-termin .gs > small { max-width: 100%; color: var(--text-3); font: 500 11px/1.4 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.is-termin .gs > small.nm { font: 600 11px/1.4 var(--font); }
-.is-termin .gs.this { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .1), inset 0 0 0 1px var(--line); }
-.is-termin .gs.on { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.is-termin .gs.pick:not(.on) > b { color: var(--text-2); }
-.is-termin .gs .st { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; vertical-align: 2px; }
-.is-termin .gs .st.no { background: var(--no); }
-.is-termin .gs .st.ok { background: var(--ok); }
-.is-termin .gs > .ck, .is-termin .esl > .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel-3); }
+   Termine pro row"); in the Stundenplan each a box to tick, as many as one likes. The phone's sheet
+   of a choice in focus has the same tiles (section.sp-pick, below). */
+:is(.is-termin, .sp-pick) .grp { display: flex; flex-direction: column; gap: 6px; }
+:is(.is-termin, .sp-pick) .grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
+:is(.is-termin, .sp-pick) .grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+:is(.is-termin, .sp-pick) .grp-seg { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 8px 4px; margin-top: 2px; padding: 4px; border-radius: 11px; background: var(--panel-3); }
+:is(.is-termin, .sp-pick) .gs { position: relative; display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 7px 9px; border-radius: 8px; background: transparent; color: var(--text); text-align: left; text-decoration: none; }
+:is(.is-termin, .sp-pick) .gs:hover { background: color-mix(in oklch, var(--panel) 60%, transparent); text-decoration: none; }
+:is(.is-termin, .sp-pick) .gs > b { font-size: 13px; font-weight: 680; font-variant-numeric: tabular-nums; white-space: nowrap; }
+:is(.is-termin, .sp-pick) .gs > small { max-width: 100%; color: var(--text-3); font: 500 11px/1.4 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+:is(.is-termin, .sp-pick) .gs > small.nm { font: 600 11px/1.4 var(--font); }
+:is(.is-termin, .sp-pick) .gs.this { background: var(--panel); box-shadow: 0 1px 2px rgba(15, 23, 42, .1), inset 0 0 0 1px var(--line); }
+:is(.is-termin, .sp-pick) .gs.on { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--accent); }
+:is(.is-termin, .sp-pick) .gs.pick:not(.on) > b { color: var(--text-2); }
+:is(.is-termin, .sp-pick) .gs .st { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; vertical-align: 2px; }
+:is(.is-termin, .sp-pick) .gs .st.no { background: var(--no); }
+:is(.is-termin, .sp-pick) .gs .st.ok { background: var(--ok); }
+:is(.is-termin, .sp-pick) .gs > .ck, .is-termin .esl > .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 0 0 2px var(--panel-3); }
 .is-termin .esl > .ck { background: var(--tint); color: var(--panel); box-shadow: 0 0 0 2px var(--panel); }
-.is-termin .gs > .ck .icon, .is-termin .esl > .ck .icon { width: 11px; height: 11px; stroke-width: 3; }
-.is-termin .gs > .cb { position: absolute; top: -6px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 2px var(--panel-3); }
-.is-termin .gs.pick:hover > .cb { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--panel-3); }
-.is-termin .gs.more { align-items: center; justify-content: center; text-align: center; }
-.is-termin .gs.more > b { display: grid; place-items: center; font-size: 14px; }
-.is-termin .gs.more .icon.up { width: 16px; height: 16px; transform: rotate(180deg); }
-.is-termin .gs.more > small { font: 600 11px var(--font); }
-.is-termin .grp-n { margin: 0; color: var(--text-3); font-size: 12px; line-height: 1.4; }
+:is(.is-termin, .sp-pick) .gs > .ck .icon, .is-termin .esl > .ck .icon { width: 11px; height: 11px; stroke-width: 3; }
+:is(.is-termin, .sp-pick) .gs > .cb { position: absolute; top: -6px; right: -5px; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--line-strong), 0 0 0 2px var(--panel-3); }
+:is(.is-termin, .sp-pick) .gs.pick:hover > .cb { box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 2px var(--panel-3); }
+:is(.is-termin, .sp-pick) .gs.more { align-items: center; justify-content: center; text-align: center; }
+:is(.is-termin, .sp-pick) .gs.more > b { display: grid; place-items: center; font-size: 14px; }
+:is(.is-termin, .sp-pick) .gs.more .icon.up { width: 16px; height: 16px; transform: rotate(180deg); }
+:is(.is-termin, .sp-pick) .gs.more > small { font: 600 11px var(--font); }
+:is(.is-termin, .sp-pick) .grp-n { margin: 0; color: var(--text-3); font-size: 12px; line-height: 1.4; }
 .is-termin .crow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .is-termin .crow .ci { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
 .is-termin .crow .ci .icon { width: 16px; height: 16px; }

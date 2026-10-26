@@ -972,6 +972,11 @@ impl PlanView {
         Self::ALL.iter().copied().find(|view| view.code() == code)
     }
 
+    /// „Woche" and „Übersicht", whose page is the week.
+    pub fn is_weekly(self) -> bool {
+        matches!(self, PlanView::Week | PlanView::Overview)
+    }
+
     pub fn label(self, locale: Locale) -> &'static str {
         match (locale, self) {
             (Locale::De, PlanView::Week) => "Woche",
@@ -992,6 +997,12 @@ const MAX_SLUG: usize = 120;
 /// `mine` or a program's slug: lowercase ASCII letters, digits and `-`.
 fn is_import(value: &str) -> bool {
     (1..=MAX_SLUG).contains(&value.len()) && value.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+/// A choice of the plan in `wahl=`: `e` and the number of the event whose groups one ticks
+/// (`folia_timetable::choice::code`).
+fn is_choice_code(value: &str) -> bool {
+    value.strip_prefix('e').is_some_and(|number| (1..=12).contains(&number.len()) && number.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// What the Studienplan's address says: `/studyplan?sem=2026W&view=dates&open=12104&row=148369-aaf38`.
@@ -1020,6 +1031,11 @@ pub struct StudyplanUrl {
     /// With a Termin no module is open.
     pub termin: Option<String>,
     pub on: Option<String>,
+    /// The choice in focus (`wahl=e<event>`, folia/design/kalender: „Offen" and the groups to
+    /// tick), and whether its groups are compared day by day (`vergleich=1`, nothing without
+    /// `wahl`). With a choice in focus nothing stands beside the plan.
+    pub wahl: Option<String>,
+    pub vergleich: bool,
     /// The Regelstudienplan being taken over: `mine` (Mein Studiengang) or a program's slug.
     pub import: Option<String>,
     /// Which of that program's study plans, 1-based as on the program's page; the first is not
@@ -1032,7 +1048,7 @@ pub struct StudyplanUrl {
 
 impl Default for StudyplanUrl {
     fn default() -> Self {
-        Self { sem: None, view: PlanView::Week, open: None, row: None, termin: None, on: None, import: None, variant: 1, share: None }
+        Self { sem: None, view: PlanView::Week, open: None, row: None, termin: None, on: None, wahl: None, vergleich: false, import: None, variant: 1, share: None }
     }
 }
 
@@ -1040,9 +1056,11 @@ impl StudyplanUrl {
     pub fn parse(raw_query: &str) -> Self {
         let pairs = parse_pairs(raw_query);
         let first = |name: &str| first_value(&pairs, name);
-        let termin = first("termin").and_then(|key| RowKey::parse(&key.to_ascii_lowercase())).map(RowKey::text);
+        // A choice in focus takes the place of what stands beside the plan.
+        let wahl = first("wahl").map(|code| code.to_ascii_lowercase()).filter(|code| is_choice_code(code));
+        let termin = first("termin").filter(|_| wahl.is_none()).and_then(|key| RowKey::parse(&key.to_ascii_lowercase())).map(RowKey::text);
         let on = termin.as_ref().and(first("on")).and_then(|day| Day::parse(&day)).map(Day::iso);
-        let open = first("open").filter(|id| is_module_id(id) && termin.is_none());
+        let open = first("open").filter(|id| is_module_id(id) && termin.is_none() && wahl.is_none());
         let import = first("import").map(|value| value.to_ascii_lowercase()).filter(|value| is_import(value));
         // A week (`week=2026-10-14`) is no part of the address: the dated weeks are the view
         // „Termine", which finds the current one by itself. Like every unknown name it is ignored.
@@ -1057,6 +1075,8 @@ impl StudyplanUrl {
             open,
             termin,
             on,
+            vergleich: wahl.is_some() && first("vergleich").as_deref() == Some("1"),
+            wahl,
             import,
             share: first(share::PARAM).filter(|code| SharedPlan::from_code(code).is_some()),
         }
@@ -1068,7 +1088,7 @@ impl StudyplanUrl {
     }
 
     /// `/studyplan` with the canonical query string: `sem`, `view`, `open`, `row`, `termin`, `on`,
-    /// `import`, `variant`, `share`, each only when it says something.
+    /// `wahl`, `vergleich`, `import`, `variant`, `share`, each only when it says something.
     pub fn path(&self) -> String {
         let mut out: Vec<(&str, String)> = Vec::new();
         if let Some(sem) = &self.sem {
@@ -1089,6 +1109,12 @@ impl StudyplanUrl {
                 out.push(("on", on.clone()));
             }
         }
+        if let Some(wahl) = &self.wahl {
+            out.push(("wahl", wahl.clone()));
+            if self.vergleich {
+                out.push(("vergleich", "1".to_string()));
+            }
+        }
         if let Some(import) = &self.import {
             out.push(("import", import.clone()));
             if self.variant > 1 {
@@ -1107,18 +1133,20 @@ impl StudyplanUrl {
     /// Another semester (`None`: the default one). The module beside the plan was one of the old
     /// semester's, so it closes.
     pub fn with_semester(&self, sem: Option<SemesterKey>) -> Self {
-        Self { sem: sem.map(SemesterKey::key), open: None, row: None, termin: None, on: None, ..self.clone() }
+        Self { sem: sem.map(SemesterKey::key), open: None, row: None, termin: None, on: None, wahl: None, vergleich: false, ..self.clone() }
     }
 
+    /// Another view; the choice in focus stays in the weekly ones, whose week shows it.
     pub fn with_view(&self, view: PlanView) -> Self {
-        Self { view, ..self.clone() }
+        let weekly = view.is_weekly();
+        Self { view, wahl: self.wahl.clone().filter(|_| weekly), vergleich: self.vergleich && weekly, ..self.clone() }
     }
 
     /// This module beside the plan, pointing at this Termin of it, or (`None`) nothing beside it;
     /// either way no Termin.
     pub fn with_open(&self, id: Option<&str>, row: Option<RowKey>) -> Self {
         let open = id.map(str::to_string);
-        Self { row: open.as_ref().and(row).map(RowKey::text), open, termin: None, on: None, ..self.clone() }
+        Self { row: open.as_ref().and(row).map(RowKey::text), open, termin: None, on: None, wahl: None, vergleich: false, ..self.clone() }
     }
 
     /// This Termin beside the plan in its own view, on this day of it (`None`: its next one), or
@@ -1128,7 +1156,18 @@ impl StudyplanUrl {
             Some((key, on)) => (Some(key.text()), on.map(Day::iso)),
             None => (None, None),
         };
-        Self { termin, on, open: None, row: None, ..self.clone() }
+        Self { termin, on, open: None, row: None, wahl: None, vergleich: false, ..self.clone() }
+    }
+
+    /// This choice in focus (its code, `folia_timetable::choice::code`), its groups as tiles and
+    /// not compared, or (`None`) no choice in focus; either way nothing beside the plan.
+    pub fn with_wahl(&self, code: Option<&str>) -> Self {
+        Self { wahl: code.map(str::to_string), vergleich: false, open: None, row: None, termin: None, on: None, ..self.clone() }
+    }
+
+    /// The choice in focus with its groups compared day by day, or as tiles again.
+    pub fn with_vergleich(&self, on: bool) -> Self {
+        Self { vergleich: on && self.wahl.is_some(), ..self.clone() }
     }
 
     /// The Termin beside the plan and its day, as the address names them.
@@ -1876,6 +1915,8 @@ mod tests {
                 row: Some("148369-aaf38".into()),
                 termin: None,
                 on: None,
+                wahl: None,
+                vergleich: false,
                 import: Some("mine".into()),
                 variant: 1,
                 share: None,
@@ -1887,6 +1928,22 @@ mod tests {
         assert_eq!(program.path(), "/studyplan?sem=2027S&view=all&import=bachelor-informatik-2008&variant=2");
         assert_eq!(back(&program), program);
         assert_eq!(StudyplanUrl::parse("row=148369-AAF38&open=12104").row.as_deref(), Some("148369-aaf38"));
+        // A choice in focus: its code, compared or not, and nothing beside the plan with it.
+        let focus = StudyplanUrl::parse("wahl=E148304&vergleich=1&open=12104&termin=148304-aaf38");
+        assert_eq!((focus.wahl.as_deref(), focus.vergleich, focus.open.as_deref(), focus.termin.as_deref()), (Some("e148304"), true, None, None));
+        assert_eq!(focus.path(), "/studyplan?wahl=e148304&vergleich=1");
+        assert_eq!(back(&focus), focus);
+        assert!(!StudyplanUrl::parse("vergleich=1").vergleich);
+        assert_eq!(StudyplanUrl::parse("wahl=x148304").wahl, None);
+        assert_eq!(StudyplanUrl::parse("wahl=e").wahl, None);
+        assert_eq!(focus.with_vergleich(false).path(), "/studyplan?wahl=e148304");
+        assert_eq!(StudyplanUrl::default().with_wahl(Some("e148370")).with_vergleich(true).path(), "/studyplan?wahl=e148370&vergleich=1");
+        assert_eq!(focus.with_wahl(None).path(), "/studyplan");
+        assert_eq!(focus.with_termin(Some((RowKey::parse("148304-aaf38").unwrap(), None))).wahl, None);
+        assert_eq!(focus.with_open(Some("12104"), None).wahl, None);
+        // The weekly views keep it, the others close it.
+        assert_eq!(focus.with_view(PlanView::Overview).path(), "/studyplan?view=all&wahl=e148304&vergleich=1");
+        assert_eq!(focus.with_view(PlanView::Dates).path(), "/studyplan?view=dates");
         for view in PlanView::ALL {
             assert_eq!(PlanView::from_code(view.code()), Some(*view));
             assert_eq!(back(&StudyplanUrl::default().with_view(*view)).view, *view);

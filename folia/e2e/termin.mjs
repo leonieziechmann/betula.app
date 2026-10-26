@@ -3,9 +3,10 @@
 // B.Sc.'s first semester planned (Programmierpraktikum 148370 in four groups, Mo, Mi, Do 11:30 and
 // Fr 13:45).
 //   SMOKE_BASE_URL=http://127.0.0.1:8080 node termin.mjs      (SMOKE_BROWSER_CHANNEL=msedge by default)
-// - The Stundenplan: a slot of the week opens its Termin beside the plan (`termin=`), its slot marked;
-//   the view names the module, the kind and the title, the date with its arrows, the time and the
-//   room; „Im Stundenplan" has the four groups as boxes, none ticked.
+// - The Stundenplan: a dashed group of the week takes its choice into focus (`wahl=`), a line of
+//   „Termine" and its address open the Termin beside the plan (`termin=`), its slot marked; the view
+//   names the module, the kind and the title, the date with its arrows, the time and the room; „Im
+//   Stundenplan" has the four groups as boxes, none ticked.
 // - Two groups ticked, as many as one likes: both stand solid in the week, the others leave it, the
 //   store keeps two ticks; the tick of one taken back leaves the other.
 // - The arrow to the next date names it in the address; „Ausblenden" hides this date alone (the
@@ -82,11 +83,19 @@ const practicals = (page) => page.evaluate(() => [...document.querySelectorAll("
 
 // ---------- the Stundenplan ----------
 {
-  const { page, context } = await open("/studyplan");
-  await until(page, "the week", () => document.querySelectorAll(".sp-body .week .slot").length > 0);
-  const href = await page.evaluate(() => [...document.querySelectorAll(".sp-body .week [href*='termin=148370-']")].map((a) => a.getAttribute("href"))[0] ?? "");
-  check(href.startsWith("/studyplan?termin=148370-"), `a slot of the Praktikum leads to its Termin: „${href}"`);
-  await page.click(`.sp-body .week [href="${href}"]`);
+  // A dashed group of the week takes its choice into focus (docs/folia/frontend.md, „Offen and the
+  // choice in focus"); a line of „Termine" opens the Termin, and so does its address.
+  const { page: first, context: weekly } = await open("/studyplan");
+  await until(first, "the week", () => document.querySelectorAll(".sp-body .week .slot").length > 0);
+  const groups = await first.evaluate(() => [...document.querySelectorAll(".sp-body .week a.slot.alt")].filter((slot) => slot.textContent.includes("Prak PP")).map((a) => a.getAttribute("href")));
+  check(groups.length === 4 && groups.every((href) => href === "/studyplan?wahl=e148370"), `a dashed group of the Praktikum takes its choice into focus: ${JSON.stringify(groups)}`);
+  await first.click('a[href="/studyplan?view=dates"]');
+  await until(first, "„Termine\"", () => document.querySelector(".sp-body [href*='termin=148370-']"));
+  const href = await first.evaluate(() => document.querySelector(".sp-body [href*='termin=148370-']")?.getAttribute("href") ?? "");
+  const key = new URLSearchParams(href.split("?")[1] ?? "").get("termin") ?? "";
+  check(key.startsWith("148370-"), `a line of the Praktikum leads to its Termin: „${href}"`);
+  await weekly.close();
+  const { page, context } = await open(`/studyplan?termin=${key}`);
   await until(page, "the Termin beside the plan", () => Boolean(onPage("#preview.is-termin .tk")));
   let v = await view(page);
   check(v.chip === "PP" && v.kind === "Praktikum" && v.title === "Programmierpraktikum", `the head: ${JSON.stringify(v)}`);

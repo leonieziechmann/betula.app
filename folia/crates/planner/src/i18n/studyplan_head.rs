@@ -64,8 +64,6 @@ pub struct Texts {
     pub clashes_on_days: fn(usize) -> String,
     /// … and after those per week only „1 an einzelnen Tagen" …
     pub more_on_days: fn(usize) -> String,
-    /// … „3 Wahlen offen" …
-    pub choices_open: fn(usize) -> String,
     /// … „Standort offen" …
     pub town_open: &'static str,
     /// … „2 ausgeblendet".
@@ -77,12 +75,6 @@ pub struct Texts {
     /// (how many options there are, the event's type as QIS writes it, the title); the neutral
     /// „Terminen", never glued to the type.
     pub blocked: fn(usize, &str, &str) -> String,
-    /// „Zu wenige Termine frei für 2 von 5: Seminar · …": a choice among a module's events that
-    /// asks for more than one option, and too few of them are free.
-    pub blocked_of: fn(usize, usize, &str, &str) -> String,
-    /// „1 von 3 wählen: Übung · Mathematik IT-1": a choice still open, how many to take of how
-    /// many.
-    pub choose: fn(usize, usize, &str, &str) -> String,
     /// „Standort wählen: Entwicklung von Softwaresystemen · Cottbus oder Senftenberg": the modules
     /// taught in both towns, their titles joined with „, ".
     pub choose_town: fn(&str) -> String,
@@ -161,17 +153,11 @@ pub const DE: Texts = Texts {
         n => format!("{n} Überschneidungen an einzelnen Tagen"),
     },
     more_on_days: |n| format!("{n} an einzelnen Tagen"),
-    choices_open: |n| match n {
-        1 => "1 Wahl offen".to_string(),
-        n => format!("{n} Wahlen offen"),
-    },
     town_open: "Standort offen",
     hidden: |n| format!("{n} ausgeblendet"),
     week_a: "A-Woche",
     week_b: "B-Woche",
     blocked: |options, kind, title| format!("0 von {options} Terminen frei: {kind} · {title}"),
-    blocked_of: |take, options, kind, title| format!("Zu wenige Termine frei für {take} von {options}: {kind} · {title}"),
-    choose: |take, options, kind, title| format!("{take} von {options} wählen: {kind} · {title}"),
     choose_town: |modules| format!("Standort wählen: {modules} · Cottbus oder Senftenberg"),
 
     exam_of: |title| format!("Prüfung {title}"),
@@ -234,17 +220,11 @@ pub const EN: Texts = Texts {
         n => format!("{n} clashes on single days"),
     },
     more_on_days: |n| format!("{n} on single days"),
-    choices_open: |n| match n {
-        1 => "1 choice open".to_string(),
-        n => format!("{n} choices open"),
-    },
     town_open: "Location open",
     hidden: |n| format!("{n} hidden"),
     week_a: "week A",
     week_b: "week B",
     blocked: |options, kind, title| format!("0 of {options} sessions free: {kind} · {title}"),
-    blocked_of: |take, options, kind, title| format!("Too few sessions free for {take} of {options}: {kind} · {title}"),
-    choose: |take, options, kind, title| format!("Choose {take} of {options}: {kind} · {title}"),
     choose_town: |modules| format!("Choose a location: {modules} · Cottbus or Senftenberg"),
 
     exam_of: |title| format!("Exam {title}"),
