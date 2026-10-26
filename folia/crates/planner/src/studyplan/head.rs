@@ -150,10 +150,11 @@ fn head_line(data: &StudyplanData) -> Option<HeadLine> {
 }
 
 /// The head: „Stundenplan WiSe 2026/27" (the one semester the page shows, owner's redesign of
-/// 2026-09-25), on a phone „Anpassen" at its right end, in „Woche" with modules planned „Plan ·
-/// Alle Termine" and the switch of A and B weeks where it applies (on a phone the tabs of the
-/// week's carousel), and the program and the numbers under it. Then, where it applies, the line
-/// of a past semester, or of one whose dates are not out yet.
+/// 2026-09-25), in „Woche" with modules planned „Plan · Alle Termine" and the switch of A and B
+/// weeks where it applies; on a phone a row under the title with the switch of the weeks, short
+/// („Woche: A, B, A/B"), and „Anpassen" at its right end, „Plan · Alle Termine" in „Anpassen"
+/// (owner, 2026-10-26). The program and the numbers under it. Then, where it applies, the line of
+/// a past semester, or of one whose dates are not out yet.
 #[component]
 pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -178,18 +179,22 @@ pub(super) fn SemesterHead(ctx: PlanCtx) -> impl IntoView {
     let line = Memo::new(move |_| ctx.data.with(|data| data.as_ref().ok().and_then(head_line)));
     // „A-Woche · B-Woche · A/B" at the head's right end, beside the week it switches, where the
     // plan has Termine of one kind of week (the room above the week is the week's, owner
-    // 2026-09-25: the whole week in view). On a phone the week is a carousel of the three with
-    // their tabs under it (`WeekCarousel`).
+    // 2026-09-25: the whole week in view). On a phone the week is a carousel of the three, and the
+    // switch stands under the title beside „Anpassen", „Woche: A, B, A/B" (owner, 2026-10-26: „Dann
+    // kann oben in die gleiche Reihe mit dem Anpassen Knopf die Handles"); „Plan · Alle Termine" is
+    // in „Anpassen" there (`side.rs`; „Das ist keine Aktion, die man häufig macht").
     let weekly = Memo::new(move |_| ctx.url.with(|url| matches!(url.view, PlanView::Week | PlanView::Overview)));
     let ab = Memo::new(move |_| ctx.table.with(|table| table.as_ref().is_some_and(has_ab)));
     let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
+    let phone = ctx.phone;
 
     view! {
         <div class="sp-head">
             <h1>{t.studyplan.title}" "<span>{move || key.get().label(t.locale)}</span></h1>
+            {move || (weekly.get() && ab.get() && phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks short=true/> })}
             <SheetToggle/>
-            {move || (weekly.get() && planned.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
-            {move || (weekly.get() && ab.get() && !ctx.phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
+            {move || (weekly.get() && planned.get() && !phone.get()).then(|| view! { <AllSwitch all=ctx.all/> })}
+            {move || (weekly.get() && ab.get() && !phone.get()).then(|| view! { <WeekSwitch weeks=ctx.weeks/> })}
         </div>
         {move || {
             let text = sum.get();
@@ -825,7 +830,9 @@ pub(super) fn summary(table: &Timetable, about: &About, overlaps: &[Overlap], sh
 /// ausgeblendet"; opened, a compact line each, which opens its module beside the
 /// plan, and what is hidden with its „Einblenden" (owner, 2026-09-25: not in the sidebar, whose
 /// groups keep their places). In „Woche" it counts the week the A/B switch shows; elsewhere „A/B".
-/// No line with nothing to say.
+/// No line with nothing to say. On a phone it says nothing of what is hidden (owner, 2026-10-26:
+/// „Der Ausgeblendet Knopf kann weg"): a group ticked counted as „1 ausgeblendet" there, and what
+/// is hidden comes back with „Alle Termine" in „Anpassen" and in its module.
 #[component]
 pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
@@ -852,6 +859,9 @@ pub(super) fn Overlaps(ctx: PlanCtx) -> impl IntoView {
     // both derived from the selection (R16).
     let hides = Memo::new(move |_| ctx.selection.with(|(_, selection)| (selection.hidden_events.clone(), selection.hidden_rows.clone(), selection.hidden_dates.clone())));
     let hidden = Memo::new(move |_| {
+        if ctx.phone.get() {
+            return Vec::new();
+        }
         hides.with(|(events, rows, dates)| {
             about.with(|about| ctx.table.with(|table| table.as_ref().map(|table| hidden_lines(table, (events, rows, dates), &about.titles, t)).unwrap_or_default()))
         })

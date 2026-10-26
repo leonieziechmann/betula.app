@@ -1,8 +1,9 @@
 //! The sidebar of the Stundenplan, „Anpassen" (owner's redesign of 2026-09-25), top to bottom:
 //! „Studiengang" (the timetable's program, picked for this session, „Mein Studiengang" by default,
 //! and the way to „Mein Studium"),
-//! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view, what is
-//! shown, the Standort and its calendar, and last „Plan": save the timetable under a name, load or
+//! „Importieren" (`import.rs`: a Fachsemester of its Regelstudienplan), then its view (on a phone
+//! with „Plan · Alle Termine", which a wide page has over the week), what is shown, the Standort
+//! and its calendar, and last „Plan": save the timetable under a name, load or
 //! delete a saved one, hand it on by a link (`share.rs`), empty it. The storage hint under it is
 //! `mod.rs`'s, the same on the server. On a phone the sidebar is a sheet, „Anpassen", and the
 //! calendar is not in it: it stands under the Termine (`mod.rs`, owner 2026-09-27: among what is
@@ -40,6 +41,7 @@ use folia_design::ui::Icon;
 use super::export::CalendarGroup;
 use super::import::ImportGroup;
 use super::share::ShareAction;
+use super::week::AllSwitch;
 use super::{key_of, PlanCtx};
 
 /// The id of „Plan leeren", where the focus returns from „Abbrechen" and „Rückgängig".
@@ -173,11 +175,18 @@ fn ProgramGroup(ctx: PlanCtx, programs: Programs) -> impl IntoView {
 
 // ---------- 2. Ansicht ----------
 
-/// „Ansicht": Woche · Termine · Prüfungen, the module beside the plan staying.
+/// „Ansicht": Woche · Termine · Prüfungen, the module beside the plan staying. On a phone „Plan ·
+/// Alle Termine" under it, which a wide page has in the head over the week (owner, 2026-10-26: „Die
+/// können in das Anpassen Feld verschoben werden. Das ist keine Aktion, die man häufig macht"):
+/// greyed out where it would show nothing, in another view or with nothing planned.
 #[component]
 fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
     let t = i18n::t();
     let shown = shown_url(ctx);
+    let weekly = Memo::new(move |_| shown.with(|shown| shown.view.is_weekly()));
+    let planned = Memo::new(move |_| ctx.wanted.with(|wanted| !wanted.1.is_empty()));
+    let off = Signal::derive(move || !(weekly.get() && planned.get()));
+    let all = move || ctx.phone.get().then(|| view! { <AllSwitch all=ctx.all wide=true off/> });
     let link = move |view: PlanView| {
         let checked = Memo::new(move |_| shown.with(|shown| shown.view == view));
         view! {
@@ -197,6 +206,7 @@ fn ViewGroup(ctx: PlanCtx) -> impl IntoView {
             <div class="seg" role="radiogroup" aria-label=t.studyplan_side.view>
                 {[PlanView::Week, PlanView::Dates, PlanView::Exams].into_iter().map(link).collect_view()}
             </div>
+            {all}
         </div>
     }
 }

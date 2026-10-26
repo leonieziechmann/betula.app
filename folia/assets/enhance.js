@@ -1330,15 +1330,17 @@
     if (shade >= 1) root.style.removeProperty("--sheet-shade");
     else root.style.setProperty("--sheet-shade", shade.toFixed(3));
   };
-  // Where a sheet let go at `y` going `v` (px per ms, downwards positive) comes to rest.
-  const sheetGoal = (sheet, y, v) => {
-    const half = sheetHalf(sheet), away = sheetAway(sheet), end = y + (v * Math.abs(v)) / (2 * SHEET_FRICTION);
+  // Where a sheet let go at `y` going `v` (px per ms, downwards positive) comes to rest, its stops
+  // all up (0), half up (`half`) and away (`away`); the module's sheet and the sheet of a choice.
+  const goalOf = (y, v, half, away) => {
+    const end = y + (v * Math.abs(v)) / (2 * SHEET_FRICTION);
     let to = end < half / 2 ? "full" : end < half + (away - half) / 3 ? "half" : "gone";
     const at = { full: 0, half, gone: away };
     if (v > SHEET_FLICK && at[to] <= y) to = y < half ? "half" : "gone";
     else if (v < -SHEET_FLICK && at[to] >= y) to = y > half ? "half" : "full";
     return to;
   };
+  const sheetGoal = (sheet, y, v) => goalOf(y, v, sheetHalf(sheet), sheetAway(sheet));
   let sheetGlide = null; // the sheet on its way: { sheet, to, half, away, ys, frames, timing, anim, begun, frame, then, coming }
   // Where the glide has the sheet now.
   const glideY = (g) => {
@@ -1615,6 +1617,274 @@
     root.style.removeProperty("--sheet-shade");
     for (const el of modules) el.style.removeProperty("transform");
     shownSheet = moduleSheet();
+  });
+
+  // ---- the sheet of a choice in focus on a phone (the Stundenplan's groups) ----
+  // (owner, 2026-10-26: „Der Modale Dialog muss auf jeden Fall mit der swipe Geste nach unten
+  // geschlossen werden können und mit der swipe Geste nach oben maximiert werden können. Wenn man
+  // den Modal maximiert, sollen während dessen die Termine aus der 3 spalten Ansicht in die
+  // Vergleichsliste Morphen. Passend zum Progress.") The sheet under the week (section.sp-pick,
+  // open.rs PickSheet) stands half up with the groups as tiles, or all up comparing them (`.full`,
+  // the address's `vergleich=1`). A finger moves it as it moves the module's sheet: half up, any
+  // move up or down; all up, a move down on its head, or on its list where that is at its top, else
+  // the list scrolls. Between half up and all up the sheet's top is where the finger has it, and
+  // each tile becomes its group's line of „Vergleichen" as far as the sheet has come (`--p`, app.css
+  // `.sp-pick.morph`: a copy of the groups over the sheet's body, measured from both its ways as the
+  // finger takes it); below half up the sheet goes down with the finger. Let go, it glides on the
+  // spring of the module's sheet to where it would come to rest (`goalOf`), the copy with it frame
+  // by frame (its cards are laid out anew in each, which the compositor cannot do): all up, the page
+  // follows to „Vergleichen" (its link „Vergleichen ›"), half up back to the tiles (‹), away its ×
+  // is followed, as „Fertig" is. „Vergleichen ›", ‹ and a tap on its grabber take the same way.
+  const picks = document.getElementsByClassName("sp-pick");
+  const livePick = () => {
+    for (const el of picks) if (el.tagName === "SECTION" && !el.closest(".pending-page") && !el.closest("#content > .page-stage:not(.front)")) return el;
+    return null;
+  };
+  const pickSheet = () => (phone() && appRuns() ? livePick() : null);
+  // Where its top is all up: under the safe area and 10 px more (app.css `.sp-pick.full`).
+  const pickTop = () => {
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:0;top:calc(env(safe-area-inset-top, 0px) + 10px);width:1px;height:1px;visibility:hidden;pointer-events:none";
+    document.body.append(probe);
+    const top = probe.getBoundingClientRect().top;
+    probe.remove();
+    return top;
+  };
+  let pickMorph = null; // the sheet off its stops: { sheet, layer, top, half, away, y }
+  let pickGlide = null; // on its way: { m, to, ys, at, frame }
+  let pickTouch = null; // the finger on it
+  // The sheet held where it stands, the two ways of its body laid out unseen under a copy of its
+  // groups (app.css `.sp-pick.morph`): each group a card from its tile (from „+N" where the tiles
+  // are folded) to its line, and what the tiles alone have, to fade; measured from the copy's
+  // corner. Half up it stands as tall as with its tiles: all up, less its list and with the tiles
+  // in their place.
+  const morphPick = (sheet) => {
+    const body = sheet.querySelector(":scope > .sp-pick-body");
+    const grp = body?.querySelector(":scope > .grp"), list = body?.querySelector(":scope > .sp-pick-list");
+    if (!grp || !list) return null;
+    const full = sheet.classList.contains("full");
+    const box = sheet.getBoundingClientRect();
+    const top = pickTop();
+    sheet.style.top = box.top + "px";
+    sheet.style.maxHeight = "none";
+    sheet.style.setProperty("--p", full ? "1" : "0");
+    sheet.classList.add("morph");
+    const layer = document.createElement("div");
+    layer.className = "sp-morph grp";
+    layer.setAttribute("aria-hidden", "true");
+    layer.inert = true;
+    body.append(layer);
+    const o = layer.getBoundingClientRect();
+    const rect = (el) => { const r = el.getBoundingClientRect(); return [r.left - o.left, r.top - o.top, r.width, r.height]; };
+    const place = (el, k, [x, y, w, h]) => {
+      el.style.setProperty(`--x${k}`, x.toFixed(2) + "px");
+      el.style.setProperty(`--y${k}`, y.toFixed(2) + "px");
+      el.style.setProperty(`--w${k}`, w.toFixed(2) + "px");
+      el.style.setProperty(`--h${k}`, h.toFixed(2) + "px");
+    };
+    const fade = (el, track) => {
+      if (!el) return;
+      const f = document.createElement("div");
+      f.className = track ? "mf track" : "mf";
+      place(f, 0, rect(el));
+      if (!track) f.append(el.cloneNode(true));
+      layer.append(f);
+    };
+    fade(grp.querySelector(".grp-seg"), true);
+    fade(grp.querySelector(":scope > .grp-h"));
+    fade(grp.querySelector(":scope > .grp-n"));
+    const more = grp.querySelector(".gs.more");
+    fade(more);
+    const tiles = new Map([...grp.querySelectorAll(".gs.pick[data-g]")].map((tile) => [tile.dataset.g, tile]));
+    const lines = [...list.querySelectorAll(".sp-cmp-row[data-g]")];
+    // The cards' ways overlap on the sheet's: the last one starts first, the first one last (app.css).
+    const spread = lines.length > 1 ? 0.3 : 0;
+    lines.forEach((line, i) => {
+      const tile = tiles.get(line.dataset.g);
+      const card = document.createElement("div");
+      card.className = line.classList.contains("on") ? "mc on" : "mc";
+      card.style.setProperty("--s", (spread * (lines.length - 1 - i) / Math.max(1, lines.length - 1)).toFixed(3));
+      card.style.setProperty("--span", (1 - spread).toFixed(3));
+      place(card, 0, rect(tile || more || line));
+      place(card, 1, rect(line));
+      const clip = document.createElement("div");
+      clip.className = "mc-clip";
+      clip.append(line.cloneNode(true));
+      card.append(clip);
+      if (tile) card.append(tile.cloneNode(true));
+      layer.append(card);
+    });
+    const bodyH = body.getBoundingClientRect().height, tilesH = grp.getBoundingClientRect().height;
+    const halfTop = full ? Math.max(top + 40, innerHeight - (box.height - bodyH + tilesH)) : box.top;
+    // The week behind is as tall as the sheet half up leaves it (app.css `--pick-h`, which open.rs
+    // sets half up): the sheet opened all up has not set it yet.
+    if (full) root.style.setProperty("--pick-h", Math.round(innerHeight - halfTop) + "px");
+    return { sheet, layer, top, half: Math.max(1, halfTop - top), away: Math.max(1, innerHeight - top), y: box.top - top };
+  };
+  // The sheet `y` px down from all up: its top there down to half up, the copy as far on its way
+  // (`--p`); further down it goes down as it stands, and above all up only a little.
+  const putPick = (m, y) => {
+    m.y = y;
+    const top = y < 0 ? -band(-y, 12) : Math.min(y, m.half);
+    m.sheet.style.top = dots(m.top + top) + "px";
+    m.sheet.style.transform = y > m.half ? `translateY(${dots(y - m.half)}px)` : "";
+    m.sheet.style.setProperty("--p", unit(1 - top / m.half).toFixed(4));
+  };
+  // At a stop: the copy goes and the sheet's classes hold it (app.css).
+  const restPick = (m) => {
+    if (pickMorph === m) pickMorph = null;
+    m.layer.remove();
+    m.sheet.classList.remove("morph");
+    for (const prop of ["top", "max-height", "transform", "--p"]) m.sheet.style.removeProperty(prop);
+  };
+  const stopPick = () => {
+    const g = pickGlide;
+    if (!g) return;
+    pickGlide = null;
+    cancelAnimationFrame(g.frame);
+  };
+  // A finger takes the sheet where it is, on its way too.
+  const holdPick = (sheet) => {
+    stopPick();
+    if (pickMorph && pickMorph.sheet !== sheet) restPick(pickMorph);
+    if (!pickMorph) pickMorph = morphPick(sheet);
+    return pickMorph;
+  };
+  // There: all up and half up the page follows where it is not there yet (the sheet's link), and
+  // the copy goes once the sheet's classes say the same, so that what the copy showed is what the
+  // page shows then. Away, its × is followed, and the sheet goes with the choice; should it stay,
+  // it comes back half up.
+  const arrivePick = (m, to) => {
+    const sheet = m.sheet;
+    if (!sheet.isConnected) { if (pickMorph === m) pickMorph = null; return; }
+    if (to === "gone") {
+      sheet.querySelector(':scope > .sp-pick-head [data-action="close-focus"]')?.click();
+      setTimeout(() => { if (sheet.isConnected && pickMorph === m && !pickGlide && !pickTouch) glidePick(m, "half", 0); }, 1500);
+      return;
+    }
+    const full = to === "full";
+    if (sheet.classList.contains("full") === full) { restPick(m); return; }
+    const done = () => {
+      watch.disconnect();
+      clearTimeout(late);
+      if (pickMorph === m && !pickGlide && !pickTouch) restPick(m);
+    };
+    const watch = new MutationObserver(() => { if (!sheet.isConnected || sheet.classList.contains("full") === full) done(); });
+    watch.observe(sheet, { attributes: true, attributeFilter: ["class"] });
+    const late = setTimeout(done, 1500);
+    (full ? sheet.querySelector(":scope > .sp-pick-body > .grp .go2") : sheet.querySelector(":scope > .sp-pick-head > .ib:not(.end)"))?.click();
+  };
+  // From where it is to `to` ("full", "half" or "gone"), let go going `v` px per ms, on the
+  // module's sheet's spring.
+  const glidePick = (m, to, v) => {
+    stopPick();
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const goal = to === "full" ? 0 : to === "half" ? m.half : m.away + SHEET_PAST;
+    let ys = springTo(m.y, calm ? 0 : v * 1000, goal, calm ? SHEET_CALM : to === "gone" ? SHEET_AWAY : SHEET_SPRING);
+    if (to === "full") ys = ys.map((y) => Math.max(0, y));
+    const out = to === "gone" ? ys.findIndex((y) => y >= m.away) : -1;
+    if (out > 0) ys = ys.slice(0, out + 1);
+    const g = (pickGlide = { m, to, ys, at: null, frame: 0 });
+    const step = (now) => {
+      if (pickGlide !== g) return;
+      if (!m.sheet.isConnected) { pickGlide = null; if (pickMorph === m) pickMorph = null; return; }
+      if (g.at == null) g.at = now;
+      const k = (now - g.at) / 1000 / TAB_DT;
+      putPick(m, sampleAt(ys, k));
+      if (k < ys.length - 1) { g.frame = requestAnimationFrame(step); return; }
+      pickGlide = null;
+      arrivePick(m, to);
+    };
+    g.frame = requestAnimationFrame(step);
+  };
+  document.addEventListener("touchstart", (e) => {
+    pickTouch = null;
+    // A sheet that went with its choice leaves nothing to hold.
+    if (pickMorph && !pickMorph.sheet.isConnected) { stopPick(); pickMorph = null; }
+    const sheet = pickSheet();
+    if (!sheet || e.touches.length !== 1 || !sheet.contains(e.target) || moduleSheet()) return;
+    const t = e.touches[0];
+    const list = sheet.querySelector(":scope > .sp-pick-body > .sp-pick-list");
+    pickTouch = {
+      sheet, x: t.clientX, y: t.clientY, at: e.timeStamp, mode: null, from: 0, trail: [],
+      // All up and at rest there: its list scrolls.
+      full: sheet.classList.contains("full") && !pickMorph, inList: Boolean(list?.contains(e.target)), scrolled: list?.scrollTop || 0,
+      grabber: t.clientY - sheet.getBoundingClientRect().top < 26,
+    };
+  }, { passive: true });
+  const movePick = (e) => {
+    const s = pickTouch;
+    if (!s) return;
+    if (e.touches.length !== 1 || !s.sheet.isConnected) { pickTouch = null; return; }
+    const t = e.touches[0];
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (!s.mode) {
+      if (s.full && s.inList) {
+        // On its list all up: the list's, but where it is at its top a move down takes the sheet.
+        if (Math.abs(dx) > Math.abs(dy) || !e.cancelable || dy <= 0 || s.scrolled > 0) s.mode = "own";
+      } else if (Math.abs(dx) < TAB_SLOP / 2 && Math.abs(dy) < TAB_SLOP / 2) {
+        // Not yet a move: a tap on a tile may still be one, and nothing under the sheet scrolls.
+        if (e.cancelable) e.preventDefault();
+        return;
+      } else if (!e.cancelable) s.mode = "own"; // the browser scrolls already
+      else if (Math.abs(dx) > Math.abs(dy)) s.mode = "hold"; // sideways: nothing moves
+      if (!s.mode) {
+        // The finger takes the sheet: under the point it touched, on its way where it is.
+        const m = holdPick(s.sheet);
+        s.mode = m ? "drag" : "hold";
+        s.from = m?.y ?? 0;
+      }
+    }
+    if (s.mode === "own") return;
+    if (e.cancelable) e.preventDefault();
+    if (s.mode !== "drag" || !pickMorph) return;
+    const y = s.from + dy;
+    putPick(pickMorph, y);
+    s.trail.push([e.timeStamp, y]);
+    while (s.trail.length > 2 && e.timeStamp - s.trail[0][0] > 100) s.trail.shift();
+  };
+  document.addEventListener("touchmove", movePick, { passive: false });
+  document.addEventListener("touchend", (e) => {
+    if (e.touches.length) return;
+    const s = pickTouch;
+    pickTouch = null;
+    if (!s || !s.sheet.isConnected) return;
+    if (!s.mode && s.grabber && e.timeStamp - s.at < 400) {
+      // A tap on its grabber: all up, or back half up.
+      const going = pickGlide?.to ?? (s.sheet.classList.contains("full") ? "full" : "half");
+      const m = holdPick(s.sheet);
+      if (m) glidePick(m, going === "full" ? "half" : "full", 0);
+      return;
+    }
+    if (s.mode !== "drag" || !pickMorph) return;
+    const m = pickMorph, y = s.trail.length ? s.trail[s.trail.length - 1][1] : s.from;
+    const v = fingerSpeed(s.trail, e.timeStamp);
+    glidePick(m, goalOf(Math.max(0, y), v, m.half, m.away), v);
+  });
+  document.addEventListener("touchcancel", () => {
+    const s = pickTouch;
+    pickTouch = null;
+    if (s?.mode !== "drag" || !pickMorph) return;
+    // Taken from the finger: to the stop it is nearest, but not away.
+    const m = pickMorph, to = goalOf(Math.max(0, m.y), 0, m.half, m.away);
+    glidePick(m, to === "gone" ? "half" : to, 0);
+  });
+  // „Vergleichen ›" and ‹ take the same way, the tiles turning into the lines and back.
+  document.addEventListener("click", (e) => {
+    if (!e.isTrusted || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const sheet = pickSheet();
+    const link = sheet ? e.target.closest?.(".sp-pick-body > .grp .go2, .sp-pick-head > .ib:not(.end)") : null;
+    if (!link || !sheet.contains(link)) return;
+    const m = holdPick(sheet);
+    if (!m) return;
+    e.preventDefault();
+    e.stopPropagation();
+    glidePick(m, link.classList.contains("go2") ? "full" : "half", 0);
+  }, true);
+  // A window that grows past a phone's width: the sheet goes as the page has it.
+  narrow.addEventListener("change", () => {
+    stopPick();
+    if (pickMorph) restPick(pickMorph);
   });
 
   // ---- a module's Termine: the list under its week ----

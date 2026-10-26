@@ -13,7 +13,8 @@
 //! for a finger and its buttons. What has no fixed time stands under „Ohne feste Zeit", once for
 //! the semester, under the fold (`WeekLoose`). Where the plan has Termine of A or B weeks only,
 //! „A-Woche · B-Woche · A/B" in the head shows one kind of week or both (`PlanCtx::weeks`), on a
-//! phone the tabs of a carousel of the three (`WeekCarousel`); a slot that overlaps another in the
+//! phone a carousel of the three (`WeekCarousel`), switched in the head beside „Anpassen"
+//! („Woche: A, B, A/B"); a slot that overlaps another in the
 //! week shown is red and names the other in its tooltip (owner's redesign of 2026-09-25).
 //!
 //! What to do with a Termin is decided right on it (owner, 2026-09-25: „ja der fliegt raus, die
@@ -22,7 +23,10 @@
 //! (owner: „schnell abwählen"); „×" leaves a Termin or an option out (`SlotAct`, written after the
 //! next frame, R21). The buttons of a slot with a „✓" stand in view, the „×" of any other slot
 //! comes when it is pointed at. A module's A-week and B-week slots at one time that clash stand
-//! together in one red frame (`join_ab`): together they compete with the other. „Plan · Alle Termine" in the head (`AllSwitch`, `PlanCtx::all`) shows
+//! together in one red frame (`join_ab`): together they compete with the other. A dashed group of
+//! a choice still open is a link that takes the choice into focus with the group ticked (its „✓",
+//! `GridSlot::pre`; owner, 2026-10-26). „Plan · Alle Termine" in the head (`AllSwitch`,
+//! `PlanCtx::all`; on a phone in „Anpassen") shows
 //! besides what the plan leaves out, faint (`ghost_slots`): a hidden event, kind or Termin, an
 //! option another was chosen over — red-edged where it would meet a Termin of the plan, and its
 //! „✓" takes it back.
@@ -94,8 +98,8 @@ type Picked = (Option<String>, Option<RowKey>);
 /// Without a planned module, the empty week and in its middle what is to do (`NothingPlanned`,
 /// with the marked modules the semester could take, `marked`), on a phone what is to do alone.
 /// What has no fixed time stands under the page's fold (`WeekLoose`), the switches of the Termine
-/// shown and of A and B weeks in the head (`AllSwitch`, `WeekSwitch`; on a phone the weeks are the
-/// carousel's tabs).
+/// shown and of A and B weeks in the head (`AllSwitch`, `WeekSwitch`; on a phone the switch of the
+/// weeks beside „Anpassen" and „Plan · Alle Termine" in „Anpassen").
 #[component]
 pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl IntoView {
     let t = i18n::t();
@@ -134,8 +138,12 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
     let empty = Memo::new(move |_| ctx.wanted.with(|wanted| wanted.1.is_empty()));
     let nothing = move || empty.get().then(|| view! { <NothingPlanned ctx marked/> });
     // The buttons of the slots, one listener for all of them: a click changes the plan after the
-    // next frame (R21), and the week follows.
+    // next frame (R21), and the week follows. A dashed group's link ticks its group as it is
+    // followed (`preselect`).
     let act = move |ev: leptos::ev::MouseEvent| {
+        if preselect(ctx, slots, &ev) {
+            return;
+        }
         let Some(key) = act_under(ev.target()) else { return };
         ev.stop_propagation();
         let (Some(plan), Some(act)) = (ctx.plan, slots.with_untracked(|slots| act_of(slots, &key))) else { return };
@@ -211,11 +219,12 @@ pub(super) fn WeekView(ctx: PlanCtx, marked: Memo<Vec<MarkedModule>>) -> impl In
 /// beim Kalender auf dem Smartphone"): the grid of a wide screen, as wide as the screen and as tall
 /// as it leaves it, over the list of its days (closed until asked for). Where the plan has Termine
 /// of A or B weeks only (`has_ab`), a carousel of the three weeks „A-Woche", „B-Woche" and „A/B",
-/// as the pictures of the start page are one (`home.rs`), with the tabs under it: the week shown
-/// fills the screen's width, another one comes with a swipe, the finger carrying the weeks, or with
-/// its tab. They stand in the order of the head's switch and do not go round: the three are no
-/// cycle. The week shown is the page's (`PlanCtx::weeks`), which the list under the carousel
-/// follows. Without A or B weeks the three would be one and the same: the grid alone. Its slots are
+/// as the pictures of the start page are one (`home.rs`): the week shown fills the screen's width,
+/// another one comes with a swipe, the finger carrying the weeks, or with the switch in the head
+/// beside „Anpassen" (`WeekSwitch`'s `short`; owner, 2026-10-26: „Woche: A, B, A/B" in the row of
+/// „Anpassen", no longer tabs under the week). They stand in the order of that switch and do not go
+/// round: the three are no cycle. The week shown is the page's (`PlanCtx::weeks`), which the switch
+/// and the list under the carousel follow. Without A or B weeks the three would be one and the same: the grid alone. Its slots are
 /// links to their module (on a phone the module is the page); their buttons are the list's, as
 /// large as a finger (in a day's narrow column they would cover the slot). With nothing planned
 /// there is no week (`WeekView`).
@@ -286,6 +295,7 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
             ev.prevent_default();
             return;
         }
+        preselect(ctx, shown, &ev);
         remember(Within::Grid, &ev);
     };
     // A week of the carousel, named by `label`; the grid alone has no name but the page's.
@@ -312,7 +322,13 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
         if !ab.get() {
             // One week: the grid alone.
             return view! {
-                <div class="sp-carousel" on:click=move |ev| remember(Within::Grid, &ev)>
+                <div
+                    class="sp-carousel"
+                    on:click=move |ev| {
+                        preselect(ctx, shown, &ev);
+                        remember(Within::Grid, &ev);
+                    }
+                >
                     {slide(Signal::stored(0), None, shown)}
                 </div>
             }
@@ -346,21 +362,6 @@ fn WeekCarousel(ctx: PlanCtx, weeks: [(Weeks, Memo<Vec<PlanSlot>>); 3], shown: M
                 on:dragstart=|ev| ev.prevent_default()
             >
                 {slides}
-            </div>
-            // The tabs name the weeks; the mark of the one shown slides to it (`--i`).
-            <div class="seg sp-weektabs" role="radiogroup" aria-label=t.studyplan_week.week style=move || format!("--i:{}", current.get())>
-                <i class="sp-weekmark" aria-hidden="true"></i>
-                {WEEKS
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, week)| {
-                        view! {
-                            <button type="button" role="radio" aria-checked=move || if current.get() == i { "true" } else { "false" } on:click=move |_| ctx.weeks.set(week)>
-                                <span class="seg-label">{week_label(week, t)}</span>
-                            </button>
-                        }
-                    })
-                    .collect_view()}
             </div>
         }
         .into_any()
@@ -416,42 +417,87 @@ pub(super) fn WeekLoose(ctx: PlanCtx) -> impl IntoView {
 }
 
 /// „A-Woche · B-Woche · A/B": which kind of week the Regelwoche shows. The click answers at once
-/// (R21): a signal of the page, the week is worked out again in Rust.
+/// (R21): a signal of the page, the week is worked out again in Rust. `short`: on a phone, beside
+/// „Anpassen" in the head, „Woche" and „A", „B", „A/B" (owner, 2026-10-26: „Dann kann oben in die
+/// gleiche Reihe mit dem Anpassen Knopf die Handles. Woche: A, B, A/B"); the carousel under it
+/// follows the switch, and a swipe of the carousel moves it (`PlanCtx::weeks`).
 #[component]
-pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>) -> impl IntoView {
+pub(super) fn WeekSwitch(weeks: RwSignal<Weeks>, #[prop(optional)] short: bool) -> impl IntoView {
     let t = i18n::t();
+    let w = &t.studyplan_week;
     let choice = move |week: Weeks| {
+        let (label, name) = match (short, week) {
+            (false, _) => (week_label(week, t), None),
+            (true, Weeks::A) => (w.short_a, Some(w.tab_a)),
+            (true, Weeks::B) => (w.short_b, Some(w.tab_b)),
+            (true, Weeks::All) => (w.tab_ab, Some(w.both_weeks)),
+        };
         view! {
-            <button type="button" role="radio" aria-checked=move || if weeks.get() == week { "true" } else { "false" } on:click=move |_| weeks.set(week)>
-                <span class="seg-label">{week_label(week, t)}</span>
+            <button type="button" role="radio" aria-checked=move || if weeks.get() == week { "true" } else { "false" } aria-label=name on:click=move |_| weeks.set(week)>
+                <span class="seg-label">{label}</span>
             </button>
         }
     };
-    view! {
-        <div class="seg hug sp-weeks" role="radiogroup" aria-label=t.studyplan_week.week>
+    let switch = view! {
+        <div class="seg hug sp-weeks" role="radiogroup" aria-label=w.week>
             {WEEKS.into_iter().map(choice).collect_view()}
         </div>
+    };
+    match short {
+        true => view! { <div class="sp-weekpick"><span class="l" aria-hidden="true">{w.week}</span>{switch}</div> }.into_any(),
+        false => switch.into_any(),
     }
 }
 
 /// „Plan · Alle Termine": the Regelwoche of the plan, or every Termin of its modules, what the plan
 /// leaves out faint (owner, 2026-09-25: „zwischen der tatsächlichen Ansicht und allen zu den
 /// Modulen gehörenden Terminen wechseln"). A signal of the page, as the switch of the weeks (R21).
+/// In the head of a wide page; on a phone in „Anpassen" (`wide`: as wide as the sidebar), greyed out
+/// where it would show nothing (`off`: another view than „Woche", nothing planned), as the
+/// sidebar's controls are (owner, 2026-10-26: „Das ist keine Aktion, die man häufig macht").
 #[component]
-pub(super) fn AllSwitch(all: RwSignal<bool>) -> impl IntoView {
+pub(super) fn AllSwitch(all: RwSignal<bool>, #[prop(optional)] wide: bool, #[prop(optional, into)] off: Option<Signal<bool>>) -> impl IntoView {
     let t = i18n::t();
+    let off = move || off.is_some_and(|off| off.get());
     let choice = move |(value, label): (bool, &'static str)| {
         view! {
-            <button type="button" role="radio" aria-checked=move || if all.get() == value { "true" } else { "false" } on:click=move |_| all.set(value)>
+            <button
+                type="button"
+                role="radio"
+                aria-checked=move || if all.get() == value { "true" } else { "false" }
+                aria-disabled=move || off().then_some("true")
+                on:click=move |_| {
+                    if !off() {
+                        all.set(value);
+                    }
+                }
+            >
                 <span class="seg-label">{label}</span>
             </button>
         }
     };
     view! {
-        <div class="seg hug sp-all" role="radiogroup" aria-label=t.studyplan_week.sessions_switch>
+        <div class="seg sp-all" class:hug=!wide role="radiogroup" aria-label=t.studyplan_week.sessions_switch>
             {[(false, t.studyplan_week.plan), (true, t.studyplan_week.all_sessions)].into_iter().map(choice).collect_view()}
         </div>
     }
+}
+
+/// A click on a dashed group's link (`a[data-pre]`, `GridSlot::pre`): its „✓" acts too, after the
+/// next frame (R21), while the link takes the choice into focus, which then shows the group ticked.
+/// A click with a key held (a new tab, a new window) only follows the link. `slots` are the week
+/// the link is in; whether it acted.
+fn preselect(ctx: PlanCtx, slots: Memo<Vec<PlanSlot>>, ev: &leptos::ev::MouseEvent) -> bool {
+    use leptos::wasm_bindgen::JsCast;
+    if ev.default_prevented() || ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() || ev.alt_key() {
+        return false;
+    }
+    let link = ev.target().and_then(|target| target.dyn_into::<leptos::web_sys::Element>().ok()).and_then(|element| element.closest("a[data-pre]").ok().flatten());
+    let Some(key) = link.and_then(|link| link.get_attribute("data-pre")) else { return false };
+    let (Some(plan), Some(act)) = (ctx.plan, slots.with_untracked(|slots| act_of(slots, &key))) else { return false };
+    let semester = ctx.key.get_untracked();
+    plan.update_after_paint(move |doc| act.apply(doc, semester));
+    true
 }
 
 /// The key of the slot button a click hit (`button.slot-act[data-act]`), or of a group of the
@@ -717,6 +763,8 @@ struct PlanSlot {
     acts: Vec<SlotAct>,
     /// The weeks of the A/B rhythm it is held in; `None` for dates that do not recur.
     weeks: Option<Weeks>,
+    /// A group of a choice still open: its link takes the choice into focus.
+    opens: bool,
 }
 
 /// A slot as a row of the list of days: the time, then what it is and what else to know.
@@ -733,6 +781,8 @@ struct DayRow {
     note: String,
     /// The app's path of its link; the page writes it in its language.
     href: String,
+    /// What a click on the link does besides, as the grid's slot (`GridSlot::pre`).
+    pre: Option<String>,
     /// The planned modules of its event and its Termine: what the address's `open` and `row` name.
     modules: Vec<String>,
     keys: Vec<RowKey>,
@@ -863,7 +913,16 @@ fn plan_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &B
     // A slot with a „✓" stands with its buttons in view: an open choice asks for a decision, and
     // the option it took can be taken back at once.
     slot.slot.asks = slot.acts.iter().any(|act| act.icon == "check");
-    Some(keyed(slot, 'p', item))
+    let mut slot = keyed(slot, 'p', item);
+    // A group of a choice still open: its link takes the choice into focus with the group ticked,
+    // by its „✓" (owner, 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die Preselected
+    // sein, so dass man einfach direkt auf Fertig klicken kann").
+    if slot.opens && slot.acts.first().is_some_and(|act| act.icon == "check" && !act.pressed) {
+        let pre = Some(format!("{}/0", slot.key));
+        slot.slot.pre.clone_from(&pre);
+        slot.row.pre = pre;
+    }
+    Some(slot)
 }
 
 /// A slot with its key, `p…` of the plan or `g…` of what it leaves out (its event, row, day and
@@ -955,6 +1014,7 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         pick: None,
         tick: None,
         dim: false,
+        pre: None,
     };
     let row = DayRow {
         day: item.day,
@@ -963,11 +1023,12 @@ fn drawn_slot(table: &Timetable, base: &StudyplanUrl, item: &WeekItem, titles: &
         text: event_text(event, t.locale),
         note: place.into_iter().chain(notes).collect::<Vec<_>>().join(" · "),
         href,
+        pre: None,
         modules: event.modules.clone(),
         keys: rows.iter().filter_map(|row| row.key).collect(),
         acts: Vec::new(),
     };
-    Some(PlanSlot { slot, row, key: String::new(), acts: Vec::new(), weeks: item.weeks })
+    Some(PlanSlot { slot, row, key: String::new(), acts: Vec::new(), weeks: item.weeks, opens: groups && shown.key.is_some() })
 }
 
 /// „Alle Termine": the slots of what the plan leaves out, held in the week `shown` — a hidden
@@ -1363,7 +1424,7 @@ fn DayList(slots: Memo<Vec<PlanSlot>>, picked: Memo<Picked>) -> impl IntoView {
                 let act = (count > 0).then(|| view! { <div class="slot-acts">{slot_buttons(&row.acts)}</div> });
                 view! {
                     <div class="sp-dayrow" style=format!("--acts:{count}")>
-                        <a class=row.class href=t.path(&row.href) data-noscroll="" aria-current=current>
+                        <a class=row.class href=t.path(&row.href) data-noscroll="" data-pre=row.pre aria-current=current>
                             <span class="t">{row.time}</span>
                             <span>{row.text}{note}</span>
                         </a>
@@ -2228,6 +2289,7 @@ pub(super) mod tests {
             text: text.into(),
             note: String::new(),
             href: String::new(),
+            pre: None,
             modules: Vec::new(),
             keys: Vec::new(),
             acts: Vec::new(),
@@ -2328,12 +2390,22 @@ pub(super) mod tests {
         let monday = at(&open, 1, "11:30");
         assert_eq!(act_of(&open, &format!("{}/1", monday.key)), Some(monday.acts[1].act.clone()));
         assert_eq!((act_of(&open, &format!("{}/2", monday.key)), act_of(&open, "p9-9-9-999/0")), (None, None));
+        // A dashed group's link takes its choice into focus with the group ticked (owner,
+        // 2026-10-26: „Wenn man auf eine Übung klickt, dann soll die Preselected sein"): its „✓",
+        // by its key, in the grid and on a phone; no other slot has one.
+        assert!(open.iter().all(|slot| slot.row.pre == slot.slot.pre));
+        let preselecting: Vec<String> = open.iter().filter(|slot| slot.slot.pre.is_some()).map(|slot| format!("{} {}", day_short(slot.slot.day, &i18n::DE), clock(slot.slot.from))).collect();
+        assert_eq!(preselecting, ["Mo 11:30", "Mi 11:30", "Do 11:30", "Fr 13:45"]);
+        assert_eq!(monday.slot.pre.as_deref().and_then(|key| act_of(&open, key)), Some(monday.acts[0].act.clone()));
+        assert!(monday.slot.href.as_deref().is_some_and(|href| href.ends_with("wahl=e148370")), "{:?}", monday.slot.href);
 
         // „✓" on Wednesday: the other groups leave the plan. Its „✓" stays, on and in view, and
         // takes the choice back at once; its „×" leaves the group out.
         at(&open, 3, "11:30").acts[0].act.apply(&mut doc, key());
         let chosen = plan_week(&doc, false);
         assert_eq!(practicals(&chosen), [3]);
+        // The choice made, its group's link opens the Termin, and ticks nothing.
+        assert!(chosen.iter().all(|slot| slot.slot.pre.is_none()));
         let wednesday = at(&chosen, 3, "11:30");
         assert_eq!(said(&wednesday), ["✓ Gruppe abwählen", "× Nicht diese Gruppe"]);
         let pressed: Vec<bool> = wednesday.slot.acts.iter().map(|button| button.pressed).collect();
