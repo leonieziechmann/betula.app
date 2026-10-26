@@ -1082,8 +1082,12 @@ pub fn TopBar() -> impl IntoView {
                         <label class="visually-hidden" for="topsearch">{label}</label>
                         <input id="topsearch" type="search" name="q" value=initial placeholder=placeholder autocomplete="off" on:input=on_input data-command=t.commands.search_field data-command-group="go" data-command-keys=folia_design::keys::SEARCH/>
                         <ui::Shortcut keys=folia_design::keys::SEARCH/>
-                        <crate::commands::CommandsButton/>
                     </form>
+                    // „Befehle" beside the search, a box of its own as tall as the search's (owner,
+                    // 2026-10-26: „Mach die searchbar auf die länge, die sie vor der Befehlspalette
+                    // hatte, lasse diese aber gleich groß"): in the search it made the bar look long
+                    // and lopsided.
+                    <crate::commands::CommandsButton/>
                 }
             }}
             <ProfileButton top=true away/>
