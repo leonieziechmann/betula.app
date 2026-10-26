@@ -1,0 +1,1141 @@
+<title>Kalender-Analyse</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- The calendar's analysis before its redesign (owner, 2026-10-26: „Hey claude, ich möchte mit dir
+     den Terminkallender neu machen. Denn der kommt noch aus einer phase, wo es das Studium Planen tool
+     noch nicht gab … der Hauptworkflow für den Kallender so Aussehen soll: 1. Module suchen und
+     Filtern im Modulkatalog -> 2. Module in das Studium einplanen -> 3. Im Kalender dann die Termine
+     der module für das aktuelle semester organiseren. Es soll dazu aber auch möglich sein noch extra
+     module in den Kallender mit aufzunehmen, wenn man zum Beispiel nur zum spaß besuchen möchte. Und
+     man soll auch die Option für mehrere Kalender haben. Aber der mein studiengang kallender bleibt
+     pflicht und die anderen darum sind optional. … Bitte starte mit der Analyse von den User
+     stories/Usecases um zu bestimmen, welche informationen und interaktionen häufig sind … dass eine
+     dartsellung in Kontext sehr wichtig ist und möglichst viele informationen intuitiv vermittelt
+     werden sollen. Deswegen existiert zum beispiel aktuell die wochenansicht."). No concept yet:
+     where the calendar lives today (screenshots of canary, 26.10.2026, Informatik B.Sc. 1. FS), what
+     383 semesters of the current Regelstudienpläne hold in WiSe 2026/27 (folia/crates/pages/examples/
+     timetable_survey.rs runs Betula's own timetable on canary's snapshot of 26.10.2026), who uses
+     the calendar, when in the semester, 18 use cases with how often, what each needs and does, the
+     ranking of what is shown and done, what a view in context has to carry, the owner's three new
+     ideas checked against the use cases, what follows, the questions; the Termin's fourth round
+     (owner, 2026-10-26: „… auch mehr als eine Übung sich anzeigen zu lassen … im Kallender anzeigen
+     lassen können ist ein must“) taken in. Tokens are Betula's
+     (folia/assets/app.css), as in folia/design/termin/konzepte.html; Inter comes from Google Fonts
+     here, the app self-hosts it. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: an analysis on Betula's desk. The brief and what it shows first, then today, the new
+   flow, the numbers, who and when, the use cases, the ranking, what a view in context carries, the
+   three new ideas, what follows and the questions; the method last. Tokens: Betula's own (light,
+   then dark), the modules' tones of the Stundenplan, a grey for context series. */
+:root {
+  color-scheme: light;
+  --font: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --bg: #f1f2f4;
+  --panel: #ffffff;
+  --panel-2: #f6f7f8;
+  --panel-3: #eceef1;
+  --line: rgba(15, 23, 42, .08);
+  --line-strong: rgba(15, 23, 42, .15);
+  --text: #10151f;
+  --text-2: #4b5565;
+  --text-3: #8790a0;
+  --invert: #161b26;
+  --on-invert: #ffffff;
+  --accent: oklch(.53 .07 149);
+  --accent-ink: oklch(.46 .07 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 38%, transparent);
+  --bar: color-mix(in srgb, var(--accent) 62%, var(--panel));
+  --bar-track: var(--panel-3);
+  --context: oklch(.7 .015 255);
+  --warn: #8f5a0a;
+  --warn-soft: color-mix(in srgb, #c98a1a 13%, var(--panel));
+  --no: #b3261e;
+  --no-soft: color-mix(in srgb, #b3261e 8%, var(--panel));
+  --m-eeg: oklch(.64 .12 70);
+  --m-evs: oklch(.55 .07 245);
+  --m-mit: oklch(.56 .08 185);
+  --m-pp: oklch(.53 .1 300);
+  --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --seg-shadow: 0 1px 2px rgba(15, 23, 42, .14), 0 0 0 1px var(--line);
+  --r-panel: 9px; --r-s: 5px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+    --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+    --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+    --invert: #e9edf5; --on-invert: #0d1017;
+    --accent-ink: oklch(.8 .06 149);
+    --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+    --bar: color-mix(in srgb, oklch(.72 .08 149) 70%, var(--panel));
+    --bar-track: var(--panel-3);
+    --context: oklch(.5 .015 255);
+    --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+    --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300);
+    --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+    --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+    --seg-shadow: 0 0 0 1px var(--line);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0c11; --panel: #12151c; --panel-2: #171b24; --panel-3: #1e2330;
+  --line: rgba(255, 255, 255, .07); --line-strong: rgba(255, 255, 255, .15);
+  --text: #eceff5; --text-2: #a4adc0; --text-3: #6a748a;
+  --invert: #e9edf5; --on-invert: #0d1017;
+  --accent-ink: oklch(.8 .06 149);
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
+  --bar: color-mix(in srgb, oklch(.72 .08 149) 70%, var(--panel));
+  --bar-track: var(--panel-3);
+  --context: oklch(.5 .015 255);
+  --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel));
+  --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel));
+  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300);
+  --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
+  --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
+  --seg-shadow: 0 0 0 1px var(--line);
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); font-feature-settings: "cv11", "ss01"; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3, h4 { margin: 0; text-wrap: balance; }
+p { margin: 0; }
+a { color: var(--accent-ink); }
+code { font: 500 .86em var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--panel-3); overflow-wrap: anywhere; }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 40px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 28px; }
+.kicker { font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* The brief. */
+.intro { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 28px 40px; align-items: start; }
+.intro h1 { margin-top: 8px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; letter-spacing: -.026em; font-weight: 770; }
+.intro .lead { margin-top: 14px; max-width: 62ch; color: var(--text-2); font-size: 16px; text-wrap: pretty; }
+.quote { margin: 18px 0 0; padding: 12px 16px; border-radius: var(--r-panel); background: var(--panel); box-shadow: var(--shadow-panel); color: var(--text-2); font-size: 14px; text-wrap: pretty; }
+.quote b { color: var(--text); font-weight: 600; }
+.rules { padding: 18px 20px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-panel); }
+.rules ol { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: rule; display: flex; flex-direction: column; gap: 11px; }
+.rules li { counter-increment: rule; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.rules li::before { content: counter(rule); display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.rules li b { color: var(--text); font-weight: 620; }
+.rules li span { min-width: 0; }
+
+/* The bar of the sections, under the phone's status bar. */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+.jumpbar { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 6px; border-radius: 12px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); box-shadow: var(--shadow-panel); }
+.jumpbar a { padding: 6px 9px; border-radius: 7px; color: var(--text-2); font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.jumpbar a:hover { background: var(--panel-3); color: var(--text); }
+
+/* A section. */
+.sec { padding: 24px 24px 26px; border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); scroll-margin-top: 80px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.sec > header { display: flex; flex-direction: column; gap: 8px; }
+.sec h2 { font-size: 23px; line-height: 1.2; letter-spacing: -.02em; font-weight: 730; }
+.sec .sub { max-width: 74ch; color: var(--text-2); text-wrap: pretty; }
+.sec h3 { font-size: 15px; font-weight: 700; letter-spacing: -.005em; }
+.prose { max-width: 74ch; color: var(--text-2); display: flex; flex-direction: column; gap: 10px; text-wrap: pretty; }
+.prose b { color: var(--text); font-weight: 620; }
+.scroll { overflow-x: auto; min-width: 0; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-top: 1px solid var(--line); }
+thead th { border-top: 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+tbody th { font-weight: 620; color: var(--text); }
+td { color: var(--text-2); }
+td b { color: var(--text); font-weight: 620; }
+
+/* Screenshots. */
+.shots { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.shots .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+figure { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+figure img { display: block; width: 100%; height: auto; max-width: 100%; border-radius: 12px; box-shadow: var(--shadow-panel); background: #fff; }
+figcaption { font-size: 13px; color: var(--text-2); text-wrap: pretty; }
+figcaption b { color: var(--text); font-weight: 620; }
+.phone-shot { max-width: 300px; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+
+/* Lists of what exists and what hakt. */
+.cols4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.box { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.box h3 { font-size: 13px; }
+.box ul { margin: 0; padding-left: 18px; color: var(--text-2); font-size: 13.5px; display: flex; flex-direction: column; gap: 4px; }
+.issues { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
+.issues li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; font-size: 14px; color: var(--text-2); }
+.issues li::before { content: ""; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: var(--warn); justify-self: center; }
+.issues li b { color: var(--text); font-weight: 620; }
+
+/* The flow. */
+.flow { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1.15fr); gap: 0; align-items: stretch; }
+.step { padding: 16px 16px 18px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.step.cal { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.step .n { font: 700 11px/1 var(--font); letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.step h3 { font-size: 17px; letter-spacing: -.01em; }
+.step .q { font-size: 14px; color: var(--text); font-weight: 560; }
+.step ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--text-2); display: flex; flex-direction: column; gap: 3px; }
+.step .freq { margin-top: auto; padding-top: 6px; font-size: 12.5px; color: var(--text-3); }
+.arrow { display: grid; place-items: center; color: var(--text-3); }
+.arrow svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.side { padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line-strong); display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--text-2); min-width: 0; }
+.side b { color: var(--text); font-weight: 650; font-size: 14px; }
+
+/* The numbers. */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.tile { padding: 14px 16px 15px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tile .label { font-size: 13px; color: var(--text-2); }
+.tile .value { font-size: 30px; line-height: 1.1; font-weight: 720; letter-spacing: -.02em; color: var(--text); }
+.tile .value small { font-size: 15px; font-weight: 600; letter-spacing: 0; color: var(--text-2); }
+.tile .note { font-size: 12.5px; color: var(--text-3); text-wrap: pretty; }
+.cmp td.v { min-width: 112px; }
+.cmp .cell { display: flex; flex-direction: column; gap: 4px; }
+.cmp .cell span { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 600; font-size: 13.5px; }
+.bar { position: relative; display: block; height: 6px; border-radius: 3px; background: var(--bar-track); overflow: hidden; }
+.bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--v) * 1%); border-radius: 3px; background: var(--bar); }
+.cmp thead th small { display: block; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+.cmp tbody th { font-weight: 560; font-size: 13.5px; color: var(--text-2); min-width: 220px; }
+.cmp tr.head th { padding-top: 18px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); border-top: 0; }
+.chart { position: relative; padding: 16px 16px 12px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.chart h3 { font-size: 15px; }
+.chart .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-2); }
+.chart .legend span { display: inline-flex; align-items: center; gap: 8px; }
+.chart .legend i { width: 18px; height: 2px; border-radius: 1px; display: inline-block; }
+.chart .plot { overflow-x: auto; min-width: 0; }
+.chart svg { display: block; width: 100%; min-width: 560px; height: auto; overflow: visible; }
+.chart .notes { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--text-2); }
+.chart .notes b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.fn { font-size: 13px; color: var(--text-3); max-width: 74ch; text-wrap: pretty; }
+.cols2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+#du td:nth-child(1), #du td:nth-child(3) { white-space: nowrap; }
+.chart svg text { font: 500 11px var(--font); fill: var(--text-3); }
+.chart svg .lbl { font-weight: 650; fill: var(--text); font-size: 12px; }
+.chart svg .grid { stroke: var(--line-strong); stroke-width: 1; }
+.chart svg .s-all { stroke: var(--context); }
+.chart svg .s-one { stroke: var(--accent); }
+.chart svg .d-all { fill: var(--context); stroke: var(--panel-2); stroke-width: 2; }
+.chart svg .d-one { fill: var(--accent); stroke: var(--panel-2); stroke-width: 2; }
+.chart svg .pause { fill: var(--panel-3); }
+.chart svg .hair { stroke: var(--text-3); stroke-width: 1; }
+.chart svg .hit { fill: transparent; cursor: default; }
+.tip { position: absolute; z-index: 5; pointer-events: none; padding: 8px 10px; border-radius: 8px; background: var(--invert); color: var(--on-invert); font-size: 12.5px; line-height: 1.45; box-shadow: 0 8px 24px -8px rgba(0, 0, 0, .35); white-space: nowrap; }
+.tip b { font-weight: 650; }
+details.table { font-size: 13.5px; color: var(--text-2); }
+details.table summary { cursor: pointer; color: var(--accent-ink); font-weight: 600; width: max-content; max-width: 100%; }
+details.table table { margin-top: 8px; font-size: 13px; }
+.why { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.why div { padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; color: var(--text-2); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.why b { font-size: 20px; font-weight: 720; color: var(--text); letter-spacing: -.01em; }
+
+/* Who. */
+.who { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.card { padding: 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card h3 { font-size: 16px; letter-spacing: -.01em; }
+.card .is { font-size: 14px; color: var(--text); text-wrap: pretty; }
+.card .facts { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.card .facts li { padding: 3px 8px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.card .needs { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.card .needs b { color: var(--text); font-weight: 620; }
+
+/* When: the semester. */
+.season { display: flex; flex-direction: column; gap: 6px; min-width: 640px; }
+.season .months, .season .lane { position: relative; height: 22px; }
+.season .months span { position: absolute; top: 0; font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); padding-left: 4px; border-left: 1px solid var(--line-strong); height: 100%; }
+.season .lane { height: 30px; }
+.season .lane span { position: absolute; top: 0; height: 30px; border-radius: 7px; display: flex; align-items: center; padding: 0 8px; font-size: 12px; font-weight: 650; color: var(--text); white-space: nowrap; overflow: hidden; }
+.ph-prep { background: var(--panel-3); }
+.ph-orient { background: color-mix(in srgb, var(--accent) 34%, var(--panel)); }
+.ph-daily { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.ph-pause { background: repeating-linear-gradient(135deg, var(--panel-3) 0 6px, transparent 6px 11px); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-3) !important; }
+.ph-exam { background: var(--warn-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent); }
+.season .marks { position: relative; height: 34px; }
+.season .marks span { position: absolute; top: 0; font-size: 11.5px; color: var(--text-2); border-left: 2px solid var(--text-3); padding-left: 5px; line-height: 1.3; height: 100%; }
+.season .marks span.now { border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.phase { padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.phase h3 { display: flex; align-items: center; gap: 8px; font-size: 14.5px; }
+.phase h3 i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.phase .d { font-size: 12.5px; color: var(--text-3); }
+.phase p { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.phase p b { color: var(--text); font-weight: 620; }
+
+/* Use cases. */
+.group-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.group-title h3 { font-size: 17px; }
+.group-title span { font-size: 13.5px; color: var(--text-3); }
+.ucs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.uc { padding: 14px 16px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.uc header { display: flex; align-items: center; gap: 8px; }
+.uc .id { font: 600 11.5px/1 var(--mono); padding: 4px 6px; border-radius: 5px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.uc h4 { font-size: 15px; letter-spacing: -.005em; }
+.uc .story { font-size: 14px; color: var(--text); text-wrap: pretty; }
+.uc .meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.uc .meta span { padding: 2px 7px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-size: 12px; color: var(--text-2); }
+.freq { display: inline-flex; align-items: center; gap: 6px; }
+.dots { display: inline-flex; gap: 2px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--panel-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.dots[data-n="1"] i:nth-child(-n+1), .dots[data-n="2"] i:nth-child(-n+2), .dots[data-n="3"] i:nth-child(-n+3), .dots[data-n="4"] i:nth-child(-n+4), .dots[data-n="5"] i:nth-child(-n+5) { background: var(--accent); box-shadow: none; }
+.uc dl { margin: 0; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 10px; font-size: 13px; }
+.uc dt { color: var(--text-3); font-weight: 600; }
+.uc dd { margin: 0; color: var(--text-2); text-wrap: pretty; }
+.uc dd b { color: var(--text); font-weight: 620; }
+
+/* Ranking. */
+.matrix { display: grid; grid-template-columns: 150px repeat(5, minmax(0, 1fr)); gap: 6px; min-width: 760px; }
+.matrix .h { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); padding: 4px 2px; display: flex; align-items: flex-end; gap: 6px; }
+.matrix .r { font-size: 12.5px; font-weight: 600; color: var(--text); padding: 8px 4px 8px 0; text-wrap: pretty; }
+.matrix .r small { display: block; font-weight: 500; color: var(--text-3); }
+.matrix .c { padding: 8px; border-radius: 9px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-wrap: wrap; align-content: flex-start; gap: 5px; min-height: 64px; }
+.matrix .c.hot { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.chip { padding: 3px 8px; border-radius: 6px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; color: var(--text); line-height: 1.35; }
+.acts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.acts li { display: grid; grid-template-columns: 26px minmax(0, 1fr) 170px; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-2); }
+.acts li:first-child { border-top: 0; }
+.acts .rk { font: 600 12px var(--mono); color: var(--text-3); }
+.acts b { color: var(--text); font-weight: 620; }
+.acts .f { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 12.5px; color: var(--text-3); white-space: nowrap; }
+.rule { padding: 14px 16px; border-radius: 12px; background: var(--invert); color: var(--on-invert); font-size: 15px; font-weight: 560; text-wrap: pretty; }
+
+/* Context. */
+.anat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: start; }
+.pinned { position: relative; }
+.pin { position: absolute; transform: translate(-50%, -50%); width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--invert); color: var(--on-invert); font: 700 11.5px/1 var(--font); box-shadow: 0 0 0 2px var(--panel), 0 4px 12px -4px rgba(0, 0, 0, .4); }
+.channels td:first-child { white-space: nowrap; }
+.pinno { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: 6px; border-radius: 50%; background: var(--invert); color: var(--on-invert); font: 700 11px/1 var(--font); vertical-align: -4px; }
+.yes { color: var(--accent-ink); font-weight: 620; }
+.no { color: var(--warn); font-weight: 620; }
+.principles { margin: 0; padding: 0; list-style: none; counter-reset: p; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.principles li { counter-increment: p; padding: 14px 16px; border-radius: 12px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; color: var(--text-2); text-wrap: pretty; min-width: 0; }
+.principles li h3 { font-size: 14.5px; color: var(--text); }
+.principles li h3::before { content: counter(p) " · "; color: var(--text-3); font-weight: 650; }
+.principles li .ev { font-size: 12.5px; color: var(--text-3); }
+.zoom { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.zoom div { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line-strong); display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-2); min-width: 0; }
+.zoom b { font-size: 14.5px; color: var(--text); }
+.zoom .q { color: var(--text); font-weight: 560; }
+
+/* The three ideas. */
+.ideas { display: flex; flex-direction: column; gap: 22px; }
+.idea { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 16px 28px; align-items: start; padding-top: 18px; border-top: 1px solid var(--line); }
+.idea:first-child { padding-top: 0; border-top: 0; }
+.idea h3 { font-size: 17px; letter-spacing: -.01em; }
+.idea .verdict { display: inline-block; margin-top: 8px; padding: 3px 9px; border-radius: 6px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-line); color: var(--accent-ink); font-size: 12.5px; font-weight: 650; }
+.idea .left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.idea .left p { font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.idea .left p b { color: var(--text); font-weight: 620; }
+.decided { padding: 10px 12px; border-radius: 10px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--text-2); }
+.decided b { color: var(--text); font-weight: 620; }
+.idea ul.pts { margin: 0; padding-left: 18px; font-size: 14px; color: var(--text-2); display: flex; flex-direction: column; gap: 6px; text-wrap: pretty; }
+.idea ul.pts b { color: var(--text); font-weight: 620; }
+.cost { font-size: 12px; font-weight: 650; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.cost.s { background: var(--accent-soft); color: var(--accent-ink); }
+.cost.m { background: var(--warn-soft); color: var(--warn); }
+.cost.l { background: var(--no-soft); color: var(--no); }
+
+/* What follows, the questions. */
+.reqs { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 28px; }
+.reqs li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; font-size: 14px; color: var(--text-2); text-wrap: pretty; }
+.reqs li .k { font: 600 12px/22px var(--mono); color: var(--text-3); }
+.reqs li b { color: var(--text); font-weight: 620; }
+.qs { margin: 0; padding: 0; list-style: none; counter-reset: q; display: flex; flex-direction: column; }
+.qs li { counter-increment: q; display: grid; grid-template-columns: 30px minmax(0, 1fr) minmax(0, 1fr); gap: 8px 20px; padding: 14px 0; border-top: 1px solid var(--line); }
+.qs li:first-child { border-top: 0; padding-top: 4px; }
+.qs li::before { content: counter(q); display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--panel-3); color: var(--text); font-size: 12px; font-weight: 700; }
+.qs .ask { font-size: 14.5px; color: var(--text); font-weight: 600; text-wrap: pretty; }
+.qs .ask small { display: block; margin-top: 4px; font-weight: 400; font-size: 13.5px; color: var(--text-2); }
+.qs .rec { font-size: 13.5px; color: var(--text-2); text-wrap: pretty; }
+.qs .rec b { color: var(--accent-ink); font-weight: 650; }
+.method { font-size: 13.5px; color: var(--text-2); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 28px; }
+.method div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.method h3 { font-size: 13.5px; }
+.method p { text-wrap: pretty; }
+.foot { color: var(--text-3); font-size: 13px; text-align: center; }
+
+@media (max-width: 1020px) {
+  .cols4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ucs, .who, .phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .zoom, .why { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .intro, .shots, .anat, .idea { grid-template-columns: minmax(0, 1fr); }
+  .flow { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .flow .arrow { height: 26px; transform: rotate(90deg); }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .issues, .reqs, .principles, .method, .sides { grid-template-columns: minmax(0, 1fr); }
+  .qs li { grid-template-columns: 30px minmax(0, 1fr); }
+  .qs .rec { grid-column: 2; }
+  .acts li { grid-template-columns: 26px minmax(0, 1fr); }
+  .acts .f { grid-column: 2; justify-content: flex-start; }
+}
+@media (max-width: 560px) {
+  .sec { padding: 18px 16px 20px; }
+  .ucs, .who, .phases, .cols4, .cols2, .pair, .zoom, .why { grid-template-columns: minmax(0, 1fr); }
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  .jumpbar { flex-wrap: nowrap; overflow-x: auto; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+
+<div class="page">
+
+<section class="intro">
+  <div>
+    <div class="kicker">Betula · Kalender · Analyse · 26.10.2026</div>
+    <h1>Wer den Kalender wann braucht, und was er dann zeigen muss</h1>
+    <p class="lead">Bevor der Kalender neu wird: wer ihn benutzt, in welchem Moment des Semesters, wofür und wie oft, und welche Angaben dann zählen. Grundlage sind 383 Semester-Stundenpläne aus allen aktuellen Regelstudienplänen für das WiSe 2026/27, gerechnet mit Betulas eigenem Stundenplan-Modell, dazu der Stundenplan, wie er heute ist, und was du bisher entschieden hast. Noch kein Konzept.</p>
+    <p class="quote">„… der Hauptworkflow für den Kallender so Aussehen soll: <b>1. Module suchen und Filtern im Modulkatalog -&gt; 2. Module in das Studium einplanen -&gt; 3. Im Kalender dann die Termine der module für das aktuelle semester organiseren.</b> Es soll dazu aber auch möglich sein <b>noch extra module in den Kallender mit aufzunehmen</b>, wenn man zum Beispiel nur zum spaß besuchen möchte. Und man soll auch die Option für <b>mehrere Kalender</b> haben. Aber der <b>mein studiengang kallender bleibt pflicht</b> … eine dartsellung in Kontext sehr wichtig … Weil man da echt viel gleichzeitig dran ablesen kann, <b>ohne sich selbst zu überfordern</b>.“</p>
+  </div>
+  <aside class="rules" aria-label="Was die Analyse zeigt">
+    <div class="kicker">Was die Analyse zeigt</div>
+    <ol>
+      <li><span><b>Zwei Aufgaben, sehr verschieden oft.</b> Einmal im Semester einrichten (Gruppen wählen, Überschneidungen klären), sonst fast täglich ablesen: was, wann, wo. Der Stundenplan ist heute vor allem das Erste; das Zweite steht auf der Startseite.</span></li>
+      <li><span><b>Hinsehen ist die häufigste Interaktion.</b> An vier Tagen der Woche mehrmals: Was kommt als Nächstes, und wo? Das muss ohne Tippen lesbar sein, auch auf dem Handy, wo die Woche heute den Raum abschneidet.</span></li>
+      <li><span><b>Die Woche braucht ein Datum.</b> In 83 % der Erstsemester-Pläne ist mindestens eine Woche anders als die Regelwoche, in der ersten Woche bei 71 %. Die Woche des Stundenplans hat heute keins.</span></li>
+      <li><span><b>Voll ist die Woche beim Einrichten, nicht im Alltag.</b> Solange Gruppen offen sind, stehen 16 statt 12 Termine in der Woche, am vollsten Tag 6 statt 3; im Lehramt 19 statt 9. Dort droht die Überforderung.</span></li>
+      <li><span><b>Mehrere Kalender sind Ebenen einer Woche.</b> Mein Studiengang immer, zusätzliche Module und weitere Kalender zuschaltbar, jede Ebene in der Form unterscheidbar, nicht nur in der Farbe.</span></li>
+    </ol>
+  </aside>
+</section>
+
+<nav class="jumpbar" aria-label="Abschnitte">
+  <a href="#heute">Heute</a>
+  <a href="#ablauf">Ablauf</a>
+  <a href="#zahlen">Zahlen</a>
+  <a href="#wer">Wer</a>
+  <a href="#wann">Wann</a>
+  <a href="#usecases">Use Cases</a>
+  <a href="#du">Deine Worte</a>
+  <a href="#rangfolge">Rangfolge</a>
+  <a href="#kontext">Darstellung</a>
+  <a href="#ideen">Die drei Ideen</a>
+  <a href="#folgen">Was folgt</a>
+  <a href="#fragen">Fragen</a>
+  <a href="#methode">Methode</a>
+</nav>
+
+<!-- ============================================================ Heute -->
+<section class="sec" id="heute">
+  <header>
+    <h2>Wo der Kalender heute steckt</h2>
+    <p class="sub">Termine stehen heute an vier Stellen. Der Stundenplan stammt aus der Zeit vor „Mein Studium“: Er verwaltet Module, baut die Woche des Semesters und gibt sie weiter. Den Tag zeigt die Startseite. Die Bilder sind von canary, heute, mit Informatik B.Sc. im 1. Fachsemester.</p>
+  </header>
+  <div class="shots">
+    <figure>
+      <img src="bilder/heute-woche.webp" alt="Der Stundenplan am Desktop: links die Seitenleiste Anpassen, in der Mitte die Regelwoche Montag bis Freitag mit Terminen, gestrichelte Übungs- und Praktikumsgruppen mit Haken und Kreuz, rechts die Module mit Leistungspunkten." width="1440" height="900">
+      <figcaption><b>Stundenplan, Woche.</b> Die Regelwoche, ohne Datum. Links „Anpassen“ mit sieben Gruppen von „Studiengang“ bis „Plan“, rechts die Module mit LP. Gestrichelt: Gruppen, von denen man eine nimmt.</figcaption>
+    </figure>
+    <div class="col">
+      <figure>
+        <img src="bilder/heute-start.webp" alt="Die Startseite: groß der Raum des laufenden Termins mit noch 40 Minuten, darunter Heute mit zwei Terminen, Diese Woche als kleine Balken und die Prüfungen mit Tagen bis dahin." width="1440" height="900">
+        <figcaption><b>Startseite.</b> Jetzt, Heute, Diese Woche, Prüfungen, die Semesteruhr. Hier lebt der Alltag.</figcaption>
+      </figure>
+      <figure>
+        <img src="bilder/heute-termine.webp" alt="Die Ansicht Termine des Stundenplans: Kalenderwochen untereinander, jeder Tag mit seinen Terminen als Zeilen, offene Gruppen als 1 von 4, der Reformationstag am Samstag." width="1440" height="900">
+        <figcaption><b>Stundenplan, Termine.</b> Jede Woche mit Datum, als Liste. Eine offene Gruppe ist „1 von 4 (Mo, Mi, Do, Fr)“.</figcaption>
+      </figure>
+    </div>
+  </div>
+  <div class="pair">
+    <figure class="phone-shot">
+      <img src="bilder/heute-handy.webp" alt="Der Stundenplan auf dem Handy: die Woche über die volle Breite, die Raumangaben in den Terminen abgeschnitten." width="585" height="1266">
+      <figcaption><b>Handy.</b> Die Woche passt, der Raum nicht: „ZHG/H…“, „VG1C/0…“. Haken und Kreuz gibt es nur in der Liste darunter, die eingeklappt ist.</figcaption>
+    </figure>
+    <div class="prose">
+      <h3>Was der Stundenplan heute alles tut</h3>
+      <div class="cols2">
+        <div class="box"><h3>Module verwalten</h3><ul><li>Importieren: Regelstudienplan oder Wiederholer aus „Mein Studium“</li><li>„Modul hinzufügen“, „Aus der Merkliste“</li><li>Platzhalter: „Modul finden“</li><li>× und „Plan leeren“</li><li>ein eigener Studiengang für die Sitzung</li></ul></div>
+        <div class="box"><h3>Termine ordnen</h3><ul><li>✓ und × an Gruppen</li><li>„Zeigen“ nach Art, mit „Zusatz“</li><li>Standort Cottbus, Senftenberg, Beide</li><li>„Alle Termine“, A- und B-Woche</li><li>Augen im Panel des Moduls</li></ul></div>
+        <div class="box"><h3>Ansehen</h3><ul><li>Woche (Regelwoche)</li><li>Termine (Liste mit Datum)</li><li>Prüfungen</li><li>das Modul daneben</li></ul></div>
+        <div class="box"><h3>Weitergeben</h3><ul><li>.ics herunterladen, Abonnieren</li><li>Link zum Teilen</li><li>Plan speichern: bis zu 30, je ein Semester</li></ul></div>
+      </div>
+    </div>
+  </div>
+  <div class="prose" style="max-width: none;">
+    <h3>Was dabei hakt</h3>
+    <ul class="issues">
+      <li><span><b>Die Woche hat kein Datum.</b> Ein Raumwechsel am 04.11. steht deshalb als zweite Übung neben der Übung („Ü MIT1 09:15 · 04…“), jede Woche.</span></li>
+      <li><span><b>Nur das laufende Semester.</b> <code>sem=</code> wird nicht gelesen: „Im Stundenplan öffnen“ landet für jedes Semester im jetzigen. „Einplanen“ zielt ab dem 15.11. schon aufs Sommersemester, das der Kalender nicht zeigen kann.</span></li>
+      <li><span><b>Module kommen auf drei Wegen ins Semester:</b> „Einplanen“ im Katalog, „Mein Studium“ und der Stundenplan selbst, der dazu noch einen eigenen Studiengang je Sitzung hat.</span></li>
+      <li><span><b>Ein Abo veraltet mit der ersten Gruppenwahl.</b> Die Adresse trägt die Auswahl; nach jedem ✓ heißt es „Abo veraltet: Plan seitdem geändert“.</span></li>
+      <li><span><b>Wer einen Termin hält, steht nirgends</b> auf der Seite, nur in der Beschreibung der .ics-Einträge.</span></li>
+      <li><span><b>„Zusatz“ ist schon vergeben:</b> für freiwillige Teile eines Moduls (Tutorium, Aufbaukurs). Für zusätzliche Module braucht es ein anderes Wort.</span></li>
+      <li><span><b>Rückgängig gibt es nur für manches:</b> einen Platz für Import, „Plan leeren“ und das × der Modulliste; nichts für ✓ und × an Terminen, für „Entfernen“ im Panel und für gelöschte gespeicherte Pläne.</span></li>
+      <li><span><b>Nicht jeder Termin ist meiner.</b> Informatik 1. FS sieht heute die Übung von EvS in Senftenberg (SFB/6.210), weil QIS für den Kurs in Cottbus keine Übung nennt; zwei Prüfungen von EvS stehen auf der Startseite.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================================ Ablauf -->
+<section class="sec" id="ablauf">
+  <header>
+    <h2>Der neue Ablauf: Katalog, Studium, Kalender</h2>
+    <p class="sub">Dein Ablauf trennt, was heute im Stundenplan zusammenliegt: welche Module ich belege (Studium) und wann ich wo bin (Kalender). Im Datenmodell ist das schon so. Ein Semester in „Mein Studium“ ist der Stundenplan dieses Semesters, ein Text für beide Seiten (<code>PlanDoc</code>), ohne Übergabe dazwischen. Neu wird die Oberfläche.</p>
+  </header>
+  <div class="flow">
+    <div class="step">
+      <span class="n">1 · Katalog</span>
+      <h3>Suchen und filtern</h3>
+      <p class="q">Welche Module gibt es, welche passen?</p>
+      <ul><li>Suche, Filter, Merkliste</li><li>„Passt in meinen Stundenplan“</li><li>die Termine des Moduls neben meiner Woche</li></ul>
+      <p class="freq">mehrmals im Semester, vor allem vor Semesterbeginn</p>
+    </div>
+    <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="step">
+      <span class="n">2 · Studium</span>
+      <h3>Einplanen</h3>
+      <p class="q">Was belege ich in welchem Semester?</p>
+      <ul><li>Module und Platzhalter je Semester</li><li>verschieben, bestanden markieren</li><li>LP und Bereiche</li></ul>
+      <p class="freq">pro Semester, Wahlpflicht laufend</p>
+    </div>
+    <div class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="step cal">
+      <span class="n">3 · Kalender</span>
+      <h3>Termine organisieren, dann ablesen</h3>
+      <p class="q">Wann bin ich wo, und was ist diese Woche anders?</p>
+      <ul><li>einmal: Gruppen wählen, Überschneidungen klären, ausblenden, was ich nicht besuche</li><li>dann täglich: als Nächstes, heute, diese Woche, Änderungen, Prüfungen</li></ul>
+      <p class="freq">einrichten einmal im Semester, ablesen mehrmals täglich</p>
+    </div>
+  </div>
+  <div class="sides">
+    <div class="side"><b>Zusätzlich besuchen</b>Ein Modul oder eine Vorlesung, die nicht zum Studium zählt, geht von der Modulseite, vom Termin oder aus der Merkliste direkt in den Kalender, an „Mein Studium“ vorbei.</div>
+    <div class="side"><b>Weitere Kalender</b>„Mein Studiengang“ ist immer da. Weitere Kalender liegen als Ebenen in derselben Woche und lassen sich zu- und abschalten.</div>
+  </div>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Heute im Stundenplan</th><th>Im neuen Ablauf</th><th>Warum</th></tr></thead>
+      <tbody>
+        <tr><th>Importieren · Regelstudienplan</th><td>Studium</td><td>Die Einrichtung von „Mein Studium“ und der Startseite tut das schon; ein zweiter Import im Kalender legt Module neben dem Studium an.</td></tr>
+        <tr><th>„Modul hinzufügen“, „Aus der Merkliste“</th><td>Studium und Katalog; im Kalender ein Weg dorthin</td><td>Welche Module, entscheidet das Studium. Der Kalender sagt, was fehlt, und führt hin.</td></tr>
+        <tr><th>Platzhalter · „Modul finden“</th><td>bleibt als Weg in den Katalog</td><td>Nur der Kalender weiß, was in die Woche passt; der Katalog filtert damit.</td></tr>
+        <tr><th>Eigener Studiengang der Sitzung</th><td>fällt weg</td><td>„Mein Studiengang“ ist der Pflicht-Kalender; ein anderer Studiengang ist ein Profil oder ein weiterer Kalender.</td></tr>
+        <tr><th>✓ ×, „Zeigen“, Standort, „Alle Termine“</th><td>bleibt</td><td>Das ist der Kern: Termine organisieren. Gruppen werden angehakt, so viele man will (Termin-Konzept, Runde 4: „So gibt es einen Ort zum Anpassen, nicht zwei“).</td></tr>
+        <tr><th>Woche, Termine, Prüfungen</th><td>bleibt, neu geordnet</td><td>Tag, Woche mit Datum, Semester, Prüfungen (<a href="#kontext">Darstellung</a>).</td></tr>
+        <tr><th>.ics, Abonnieren, Teilen</th><td>bleibt, je Kalender</td><td>Eine Kalender-App zeigt jedes Abo als eigenen Kalender mit eigener Farbe.</td></tr>
+        <tr><th>Plan speichern</th><td>offen</td><td>Varianten zum Vergleichen beim Einrichten, oder ein weiterer Kalender (<a href="#fragen">Frage 6</a>).</td></tr>
+        <tr><th>Module mit LP rechts</th><td>LP ins Studium</td><td>Im Kalender zählt, welche Module mit welchem Ton dabei sind und was offen ist, nicht ihre LP.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ Zahlen -->
+<section class="sec" id="zahlen">
+  <header>
+    <h2>Was Stundenpläne an der BTU enthalten</h2>
+    <p class="sub">Für jeden aktuellen Studiengang mit geprüftem Regelstudienplan (104 Studiengänge, 149 Pläne) und jedes Fachsemester, das ins WiSe 2026/27 fällt: der Stundenplan, den „Importieren · Regelstudienplan“ heute ergibt, bevor jemand etwas wählt. 383 Semester, 301 davon mit Terminen. Gerechnet mit Betulas eigenem Modell auf den Daten vom 26.10.2026 (<a href="#methode">Methode</a>). Oben die Erstsemester im Bachelor, 72 Pläne.</p>
+  </header>
+  <div class="tiles">
+    <div class="tile"><span class="label">Termine pro Woche</span><span class="value">10</span><span class="note">an 4 Tagen, am vollsten Tag 3; 110 Termine im Semester</span></div>
+    <div class="tile"><span class="label">wählen Gruppen</span><span class="value">72 %</span><span class="note">meist 2 Wahlen mit je 2,7 Optionen</span></div>
+    <div class="tile"><span class="label">haben eine Überschneidung</span><span class="value">39 %</span><span class="note">schon im Regelstudienplan, ohne eigene Wahl</span></div>
+    <div class="tile"><span class="label">haben Wochen, die anders sind</span><span class="value">83 %</span><span class="note">in der ersten Woche 71 %, im Mittel 2 von 15 Wochen</span></div>
+    <div class="tile"><span class="label">haben ein Modul an zwei Standorten</span><span class="value">44 %</span><span class="note">17 % einen Tag mit Terminen an zwei Standorten</span></div>
+    <div class="tile"><span class="label">Prüfungen</span><span class="value">4</span><span class="note">92 % stehen am 26.10. schon mit Datum fest</span></div>
+  </div>
+
+  <div class="scroll">
+    <table class="cmp">
+      <thead><tr><th>Anteil der Pläne mit Terminen</th><th>Bachelor, 1. FS<small>72 Pläne</small></th><th>Bachelor, ab 3. FS<small>121 Pläne</small></th><th>Lehramt<small>40 Pläne</small></th><th>Master<small>62 Pläne</small></th></tr></thead>
+      <tbody>
+        <tr class="head"><th colspan="5">Einrichten</th></tr>
+        <tr><th>Mindestens eine offene Gruppenwahl</th><td class="v"><div class="cell"><span>72 %</span><i class="bar" style="--v:72"></i></div></td><td class="v"><div class="cell"><span>55 %</span><i class="bar" style="--v:55"></i></div></td><td class="v"><div class="cell"><span>98 %</span><i class="bar" style="--v:98"></i></div></td><td class="v"><div class="cell"><span>23 %</span><i class="bar" style="--v:23"></i></div></td></tr>
+        <tr><th>Überschneidung schon laut Regelstudienplan</th><td class="v"><div class="cell"><span>39 %</span><i class="bar" style="--v:39"></i></div></td><td class="v"><div class="cell"><span>39 %</span><i class="bar" style="--v:39"></i></div></td><td class="v"><div class="cell"><span>2 %</span><i class="bar" style="--v:2"></i></div></td><td class="v"><div class="cell"><span>6 %</span><i class="bar" style="--v:6"></i></div></td></tr>
+        <tr><th>Freiwillige Teile (Tutorium, Aufbaukurs)</th><td class="v"><div class="cell"><span>43 %</span><i class="bar" style="--v:43"></i></div></td><td class="v"><div class="cell"><span>17 %</span><i class="bar" style="--v:17"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td></tr>
+        <tr><th>Ein Modul an zwei Standorten</th><td class="v"><div class="cell"><span>44 %</span><i class="bar" style="--v:44"></i></div></td><td class="v"><div class="cell"><span>17 %</span><i class="bar" style="--v:17"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td></tr>
+        <tr class="head"><th colspan="5">Alltag</th></tr>
+        <tr><th>Mindestens eine Woche anders als die Regelwoche</th><td class="v"><div class="cell"><span>83 %</span><i class="bar" style="--v:83"></i></div></td><td class="v"><div class="cell"><span>69 %</span><i class="bar" style="--v:69"></i></div></td><td class="v"><div class="cell"><span>100 %</span><i class="bar" style="--v:100"></i></div></td><td class="v"><div class="cell"><span>65 %</span><i class="bar" style="--v:65"></i></div></td></tr>
+        <tr><th>Einzeltermine oder Blöcke</th><td class="v"><div class="cell"><span>71 %</span><i class="bar" style="--v:71"></i></div></td><td class="v"><div class="cell"><span>49 %</span><i class="bar" style="--v:49"></i></div></td><td class="v"><div class="cell"><span>38 %</span><i class="bar" style="--v:38"></i></div></td><td class="v"><div class="cell"><span>55 %</span><i class="bar" style="--v:55"></i></div></td></tr>
+        <tr><th>A- und B-Wochen</th><td class="v"><div class="cell"><span>32 %</span><i class="bar" style="--v:32"></i></div></td><td class="v"><div class="cell"><span>27 %</span><i class="bar" style="--v:27"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td><td class="v"><div class="cell"><span>11 %</span><i class="bar" style="--v:11"></i></div></td></tr>
+        <tr><th>Freistunde (mindestens 90 Minuten)</th><td class="v"><div class="cell"><span>51 %</span><i class="bar" style="--v:51"></i></div></td><td class="v"><div class="cell"><span>36 %</span><i class="bar" style="--v:36"></i></div></td><td class="v"><div class="cell"><span>60 %</span><i class="bar" style="--v:60"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td></tr>
+        <tr><th>Ein Tag an zwei Standorten</th><td class="v"><div class="cell"><span>17 %</span><i class="bar" style="--v:17"></i></div></td><td class="v"><div class="cell"><span>6 %</span><i class="bar" style="--v:6"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td><td class="v"><div class="cell"><span>0 %</span><i class="bar" style="--v:0"></i></div></td></tr>
+        <tr><th>Ausfall oder Verlegung schon bekannt (26.10.)</th><td class="v"><div class="cell"><span>14 %</span><i class="bar" style="--v:14"></i></div></td><td class="v"><div class="cell"><span>13 %</span><i class="bar" style="--v:13"></i></div></td><td class="v"><div class="cell"><span>35 %</span><i class="bar" style="--v:35"></i></div></td><td class="v"><div class="cell"><span>5 %</span><i class="bar" style="--v:5"></i></div></td></tr>
+        <tr class="head"><th colspan="5">Was fehlt</th></tr>
+        <tr><th>Ein Modul ohne Termine in diesem Semester<sup>*</sup></th><td class="v"><div class="cell"><span>41 %</span><i class="bar" style="--v:41"></i></div></td><td class="v"><div class="cell"><span>61 %</span><i class="bar" style="--v:61"></i></div></td><td class="v"><div class="cell"><span>56 %</span><i class="bar" style="--v:56"></i></div></td><td class="v"><div class="cell"><span>60 %</span><i class="bar" style="--v:60"></i></div></td></tr>
+        <tr><th>Ein Platzhalter, Wahlpflicht noch offen<sup>*</sup></th><td class="v"><div class="cell"><span>27 %</span><i class="bar" style="--v:27"></i></div></td><td class="v"><div class="cell"><span>46 %</span><i class="bar" style="--v:46"></i></div></td><td class="v"><div class="cell"><span>49 %</span><i class="bar" style="--v:49"></i></div></td><td class="v"><div class="cell"><span>76 %</span><i class="bar" style="--v:76"></i></div></td></tr>
+        <tr><th>Termine ohne Raum (Anteil der Termine)</th><td class="v"><div class="cell"><span>10 %</span><i class="bar" style="--v:10"></i></div></td><td class="v"><div class="cell"><span>21 %</span><i class="bar" style="--v:21"></i></div></td><td class="v"><div class="cell"><span>2 %</span><i class="bar" style="--v:2"></i></div></td><td class="v"><div class="cell"><span>49 %</span><i class="bar" style="--v:49"></i></div></td></tr>
+        <tr class="head"><th colspan="5">Im Mittel (Median)</th></tr>
+        <tr><th>Module · Termine pro Woche · Tage</th><td class="num">5 · 10 · 4</td><td class="num">4 · 7 · 3</td><td class="num">5 · 9 · 3</td><td class="num">2 · 2 · 2</td></tr>
+        <tr><th>Optionen je Wahl · Termine in der Woche, solange gewählt wird</th><td class="num">2,7 · 16 statt 12</td><td class="num">2,8 · 12 statt 10</td><td class="num">4,2 · 19 statt 9</td><td class="num">4,2 · 3 statt 1</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="fn"><sup>*</sup> Anteil aller Pläne, auch der ohne Termine (74, 170, 41 und 92). Ein Modul ohne Termine: eine Abschlussarbeit, ein Praktikum, ein Projekt, oder ein Modul, das QIS in diesem Semester ohne Termine führt.</p>
+
+  <div class="chart" id="wochen">
+    <h3>Woche für Woche: Wie viele Pläne weichen von der Regelwoche ab?</h3>
+    <div class="legend"><span><i style="background: var(--accent)"></i>Bachelor, 1. FS (72 Pläne)</span><span><i style="background: var(--context)"></i>Alle Pläne mit Terminen (301)</span></div>
+    <p class="notes"><span>Woche 1: <b>71 %</b> und <b>63 %</b></span><span>Mitte: <b>14–26 %</b> und <b>22–31 %</b></span><span>Woche 15: <b>40 %</b> und <b>45 %</b></span></p>
+    <div class="plot"><svg viewBox="0 0 720 270" role="img" aria-label="Anteil der Pläne, deren Woche von der Regelwoche abweicht, für die 15 Vorlesungswochen des WiSe 2026/27. Bachelor 1. Fachsemester: 71 Prozent in der ersten Woche, 14 bis 26 Prozent in der Mitte, 40 Prozent in der letzten Woche. Alle Pläne: 63, 22 bis 31 und 45 Prozent." id="wochen-svg"></svg></div>
+    <details class="table"><summary>Als Tabelle</summary><div class="scroll"><table id="wochen-table"><thead><tr><th>Woche</th><th>ab</th><th>Bachelor, 1. FS</th><th>Alle</th></tr></thead><tbody></tbody></table></div></details>
+  </div>
+  <div class="prose" style="max-width: none;">
+    <p><b>Warum eine Woche anders ist</b>, über alle 1.411 abweichenden Wochen (eine Woche kann mehrere Gründe haben):</p>
+  </div>
+  <div class="why">
+    <div><b>88 %</b>Eine Reihe hat noch nicht begonnen oder ist schon vorbei: Übungen ab der zweiten Woche, Vorlesungen bis Dezember.</div>
+    <div><b>33 %</b>Ein Einzeltermin oder ein Block liegt in der Woche: Einführung, Exkursion, Blockseminar.</div>
+    <div><b>2 %</b>QIS verlegt einen Termin oder nennt einen anderen Raum (Stand 26.10.).</div>
+    <div><b>2 %</b>Ein Termin fällt aus (Stand 26.10.). Ausfälle kommen im Lauf des Semesters dazu.</div>
+  </div>
+
+  <div class="pair">
+    <figure>
+      <img src="bilder/woche-vor-der-wahl.webp" alt="Die Woche von Informatik 1. Fachsemester, solange die Gruppen offen sind: 16 Termine, am Mittwoch fünf nebeneinander und gestrichelt." width="728" height="796">
+      <figcaption><b>Solange gewählt wird.</b> Informatik 1. FS: 17 Termine, sieben davon gestrichelte Optionen, einer das freiwillige Tutorium; am Mittwoch um 9:15 drei nebeneinander.</figcaption>
+    </figure>
+    <figure>
+      <img src="bilder/woche-nach-der-wahl.webp" alt="Dieselbe Woche, nachdem je eine Übungs- und eine Praktikumsgruppe gewählt ist: elf Termine, ruhig verteilt." width="728" height="796">
+      <figcaption><b>Nach der Wahl.</b> Zwölf Termine. Neben der gewählten Übung steht noch „Ü MIT1 · 04…“: der Raumwechsel eines einzigen Mittwochs, jede Woche gezeigt.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============================================================ Wer -->
+<section class="sec" id="wer">
+  <header>
+    <h2>Für wen der Kalender ist</h2>
+    <p class="sub">Sechs Lagen, in denen jemand den Kalender aufmacht. Die Zahlen sind die der Pläne oben; was jemand braucht, folgt aus ihnen und aus den Konzepten, die du schon entschieden hast.</p>
+  </header>
+  <div class="who">
+    <article class="card">
+      <h3>Erstsemester</h3>
+      <p class="is">Kennt weder Räume noch Gebäude und wählt zum ersten Mal Gruppen.</p>
+      <ul class="facts"><li>5 Module</li><li>10 Termine pro Woche</li><li>72 % wählen</li><li>44 % zwei Standorte</li><li>57 % beginnen spätestens um 8 Uhr</li></ul>
+      <p class="needs"><b>Braucht:</b> den Raum groß und ganz, den Weg, wenn der Standort wechselt, die Gruppenwahl mit „passt“, und die ersten beiden Wochen genau. Elektrotechnik dual hat im 1. FS sechs Überschneidungen und drei Tage an zwei Standorten.</p>
+    </article>
+    <article class="card">
+      <h3>Höhere Semester</h3>
+      <p class="is">Plant selbst: Wahlpflicht, Wiederholer, Module aus zwei Fachsemestern.</p>
+      <ul class="facts"><li>46 % Platzhalter</li><li>61 % ein Modul ohne Termine</li><li>39 % Überschneidung</li></ul>
+      <p class="needs"><b>Braucht:</b> Überschneidungen früh sehen, einen Platzhalter mit einem Modul füllen, das passt. Eigene Kombinationen erzeugen mehr Überschneidungen, als der Regelstudienplan zeigt.</p>
+    </article>
+    <article class="card">
+      <h3>Lehramt</h3>
+      <p class="is">Zwei Fächer und Bildungswissenschaften, viele Seminare in Gruppen, oft bis 20 Uhr.</p>
+      <ul class="facts"><li>98 % wählen</li><li>3 Wahlen, je 4,2 Optionen</li><li>19 Termine, solange gewählt wird</li><li>92 % enden nach 18 Uhr</li></ul>
+      <p class="needs"><b>Braucht:</b> eine Gruppenwahl, die bei 19 Terminen in der Woche lesbar bleibt; der vollste Tag hat dann 7 Termine, danach 2.</p>
+    </article>
+    <article class="card">
+      <h3>Master</h3>
+      <p class="is">Wenige feste Module, der Rest selbst gewählt.</p>
+      <ul class="facts"><li>2 Module fest</li><li>76 % Platzhalter</li><li>49 % der Termine ohne Raum</li><li>55 % Einzeltermine, Blöcke</li></ul>
+      <p class="needs"><b>Braucht:</b> einen Kalender aus eigenen Wahlen, Blöcke und Einzeltermine gut lesbar, und ein ehrliches „Raum offen“.</p>
+    </article>
+    <article class="card">
+      <h3>Zum Reinschnuppern</h3>
+      <p class="is">Besucht etwas, das nicht zählt, aus Interesse oder zum Gasthören.</p>
+      <ul class="facts"><li>Praktische Philosophie 12177: „einmal hingehen und sehen, ob es etwas ist“</li></ul>
+      <p class="needs"><b>Braucht:</b> ein Modul in den Kalender, ohne LP in „Mein Studium“; bei einer Überschneidung gibt es nach. Im Merkliste-Konzept vom 19.10. steht diese Lage schon („Mal in die Vorlesung“).</p>
+    </article>
+    <article class="card">
+      <h3>Lerngruppe</h3>
+      <p class="is">Will dieselbe Übung wie die anderen und eine gemeinsame freie Stunde.</p>
+      <ul class="facts"><li>2,7 Optionen je Wahl</li><li>51 % haben eine Freistunde</li></ul>
+      <p class="needs"><b>Braucht:</b> den Plan der anderen neben dem eigenen, mit ihren Gruppen. Der Link zum Teilen trägt heute nur die Module.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ============================================================ Wann -->
+<section class="sec" id="wann">
+  <header>
+    <h2>Das Semester entlang</h2>
+    <p class="sub">Welche Fragen zählen, hängt vom Moment im Semester ab. Die Daten sind die des WiSe 2026/27: Vorlesungszeit 05.10.2026 bis 31.01.2027, vorlesungsfrei 21.12. bis 03.01., Prüfungen 11.02. bis 12.03.</p>
+  </header>
+  <div class="scroll">
+    <div class="season" aria-hidden="true">
+      <div class="months">
+        <span style="left: 0%">Sep</span><span style="left: 12.4%">Okt</span><span style="left: 25.2%">Nov</span><span style="left: 37.6%">Dez</span><span style="left: 50.4%">Jan</span><span style="left: 63.2%">Feb</span><span style="left: 74.8%">Mär</span><span style="left: 87.6%">Apr</span>
+      </div>
+      <div class="lane">
+        <span class="ph-prep" style="left: 0%; width: 13.8%">Vorbereiten</span>
+        <span class="ph-orient" style="left: 14%; width: 5.6%">W1–2</span>
+        <span class="ph-daily" style="left: 19.8%; width: 25.8%">Alltag</span>
+        <span class="ph-pause" style="left: 45.9%; width: 5.6%">frei</span>
+        <span class="ph-daily" style="left: 51.7%; width: 11.4%">Endspurt</span>
+        <span class="ph-exam" style="left: 67.4%; width: 12.4%">Prüfungen</span>
+        <span class="ph-prep" style="left: 80%; width: 12.3%">SoSe planen</span>
+      </div>
+      <div class="marks">
+        <span class="now" style="left: 22.7%">heute<br>26.10.</span>
+        <span style="left: 31%">15.11.: „Einplanen“<br>zielt aufs SoSe</span>
+      </div>
+    </div>
+  </div>
+  <div class="phases">
+    <div class="phase"><h3><i class="ph-prep"></i>Vorbereiten</h3><span class="d">September, März · Desktop · eine lange Sitzung</span><p>QIS stellt die Termine ein; Betula zeigt das Semester, sobald 100 Module Termine haben. <b>Semester übernehmen, Gruppen wählen, Überschneidungen klären, abonnieren</b> (K8–K13). Die Woche ist hier am vollsten.</p></div>
+    <div class="phase"><h3><i class="ph-orient"></i>Woche 1 und 2</h3><span class="d">05.–18.10. · Handy · mehrmals täglich</span><p>Räume finden, Gruppen festmachen, Wechsel in der ersten Woche. <b>In Woche 1 weichen 71 % der Erstsemester-Pläne von der Regelwoche ab</b>, in Woche 2 noch 39 %. Als Nächstes und Mein Tag (K1, K2) zählen am meisten.</p></div>
+    <div class="phase"><h3><i class="ph-daily"></i>Alltag</h3><span class="d">19.10.–20.12. · Handy · täglich</span><p>Den Plan kennt man auswendig; gefragt ist, <b>was anders ist</b>: Ausfall, Raum, Einzeltermin, A- oder B-Woche (K3, K4). In der Mitte weichen noch 14 bis 26 % der Erstsemester-Pläne ab. Ab dem 15.11. plant man schon fürs Sommersemester.</p></div>
+    <div class="phase"><h3><i class="ph-daily"></i>Endspurt</h3><span class="d">04.–31.01. · Handy · täglich</span><p>Reihen enden, Vorlesungen werden zu Wiederholungen: <b>in der letzten Woche weichen 40 % ab</b> (alle: 45 %). Die Prüfungen rücken nach vorn (K6).</p></div>
+    <div class="phase"><h3><i class="ph-exam"></i>Prüfungszeit</h3><span class="d">11.02.–12.03. · beide · täglich</span><p>Kein Stundenplan mehr, nur Prüfungen: <b>wann, wo, wie viel Zeit bis dahin, 2. Termin</b> (K6). Kollidieren zwei, muss man es früh wissen.</p></div>
+    <div class="phase"><h3><i class="ph-prep"></i>Sommersemester planen</h3><span class="d">März, April · Desktop</span><p>Das nächste Semester gibt es erst, wenn QIS es hat; bis dahin <b>„Noch keine Termine im SoSe 2027“</b> statt einer leeren Woche (K17). Wer mitten im Semester einplant, plant meist fürs nächste.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ Use Cases -->
+<section class="sec" id="usecases">
+  <header>
+    <h2>18 Use Cases</h2>
+    <p class="sub">Jeder als Wunsch der Person, die den Kalender aufmacht, mit wie oft, wann und wo, was sie braucht und was es heute gibt. Wie oft ist eine Schätzung aus dem Aufbau des Semesters (oben) und deinen Aussagen; Betula zählt nichts über die, die es benutzen.</p>
+  </header>
+
+  <div class="group-title"><h3>Im Alltag</h3><span>K1–K7 · während der Vorlesungszeit, meist auf dem Handy</span></div>
+  <div class="ucs">
+    <article class="uc"><header><span class="id">K1</span><h4>Als Nächstes</h4></header>
+      <p class="story">„Ich will auf einen Blick sehen, was als Nächstes kommt und wo, damit ich rechtzeitig im richtigen Raum bin.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="5"><i></i><i></i><i></i><i></i><i></i></span>mehrmals täglich</span><span>vor jedem Termin</span><span>Handy</span></div>
+      <dl><dt>Braucht</dt><dd><b>Raum</b>, Beginn und wie bald, Art und Modul, was heute anders ist, was danach kommt</dd><dt>Heute</dt><dd>Startseite „Jetzt“ und „Als Nächstes“; im Stundenplan nicht</dd><dt>Zahl</dt><dd>4 Tage mit Terminen, bis zu 3 am Tag</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K2</span><h4>Mein Tag</h4></header>
+      <p class="story">„Ich will sehen, wie mein Tag aussieht: wann ich anfange, wo Lücken sind, wann ich fertig bin.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="4"><i></i><i></i><i></i><i></i><i></i></span>täglich</span><span>morgens, am Abend davor</span><span>Handy</span></div>
+      <dl><dt>Braucht</dt><dd>die Folge der Termine, <b>Lücken</b>, Wege zwischen Standorten, das Ende des Tages</dd><dt>Heute</dt><dd>Startseite „Heute“</dd><dt>Zahl</dt><dd>51 % mit Freistunde, 17 % mit einem Tag an zwei Standorten</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K3</span><h4>Diese Woche</h4></header>
+      <p class="story">„Ich will sehen, wie diese und die nächste Woche wirklich aussehen: mit Datum, A- oder B-Woche, Feiertagen, Einzelterminen und Prüfungen.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</span><span>Sonntag, Montag, beim Planen</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd><b>Datum und KW</b>, A oder B, volle und freie Tage, was in dieser Woche anders ist</dd><dt>Heute</dt><dd>Startseite „Diese Woche“ (Balken ohne Text), Stundenplan „Termine“ (Liste); die Woche des Stundenplans hat kein Datum</dd><dt>Zahl</dt><dd>83 % haben abweichende Wochen</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K4</span><h4>Was ist anders?</h4></header>
+      <p class="story">„Ich will merken, wenn ein Termin ausfällt, verlegt wird oder woanders stattfindet, damit ich nicht vor einem leeren Hörsaal stehe.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</span><span>vor dem Weg zur Uni</span><span>Handy</span></div>
+      <dl><dt>Braucht</dt><dd>die Änderung <b>am Termin selbst</b>, im Tag und in der Woche</dd><dt>Heute</dt><dd>„fällt aus · Grund“ in der Liste; in der Woche nicht; ein Raumwechsel erscheint als zweiter Termin</dd><dt>Zahl</dt><dd>am 26.10. bei 14 % schon eine Änderung</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K5</span><h4>Termin nachschlagen</h4></header>
+      <p class="story">„Ich will zu einem Termin mehr wissen: wer ihn hält, welche Gruppe, wie oft noch, was QIS dazu schreibt.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</span><span>bei Bedarf</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>das Ticket des Termin-Konzepts: wann und wo, <b>wer und welche Gruppe</b>, die Reihe</dd><dt>Heute</dt><dd>ein Tipp öffnet das Modul; Lehrende stehen nirgends</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K6</span><h4>Prüfungen</h4></header>
+      <p class="story">„Ich will wissen, wann und wo meine Prüfungen sind, wie viel Zeit bleibt und ob zwei kollidieren.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester, dann täglich</span><span>ab Dezember</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>Datum, Zeit, Raum, <b>Tage bis dahin</b>, 2. Termin, Kollision</dd><dt>Heute</dt><dd>Stundenplan „Prüfungen“, Startseite</dd><dt>Zahl</dt><dd>4 Prüfungen im 1. FS</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K7</span><h4>Freie Zeit</h4></header>
+      <p class="story">„Ich will sehen, wann ich frei habe: für den Job, den Sport, die Lerngruppe.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</span><span>beim Planen der Woche</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>freie Tage und Lücken <b>in der echten Woche</b></dd><dt>Heute</dt><dd>die Regelwoche zeigt sie, aber nicht für eine bestimmte Woche</dd><dt>Zahl</dt><dd>im Mittel ein freier Wochentag</dd></dl>
+    </article>
+  </div>
+
+  <div class="group-title"><h3>Beim Einrichten</h3><span>K8–K12 · vor und zu Beginn des Semesters, meist am Desktop</span></div>
+  <div class="ucs">
+    <article class="uc"><header><span class="id">K8</span><h4>Semester übernehmen</h4></header>
+      <p class="story">„Ich will, dass die Module, die ich in „Mein Studium“ für dieses Semester geplant habe, mit ihren Terminen im Kalender stehen.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>vor Semesterbeginn</span><span>Desktop</span></div>
+      <dl><dt>Braucht</dt><dd>die Module, was noch zu wählen ist, <b>was fehlt</b>: Platzhalter, Module ohne Termine</dd><dt>Heute</dt><dd>geschieht von selbst; daneben ein eigener Import im Stundenplan</dd><dt>Zahl</dt><dd>41 % mit einem Modul ohne Termine</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K9</span><h4>Gruppen wählen</h4></header>
+      <p class="story">„Ich will für jede Übung, jedes Praktikum und jedes Seminar die Gruppe wählen, die in meine Woche passt, oder mehr als eine im Kalender behalten.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>2–3 Mal im Semester</span><span>Woche 0 bis 2</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>die Optionen in der Woche, <b>passt oder überschneidet sich</b>, was QIS für meinen Studiengang vorsieht, und <b>so viele anhaken, wie ich will</b></dd><dt>Heute</dt><dd>gestrichelt mit ✓ und ×, eine je Wahl; über vier Optionen nur im Panel. Termin-Konzept, Runde 4: Kacheln zum Anhaken</dd><dt>Zahl</dt><dd>72 % (1. FS), 98 % (Lehramt)</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K10</span><h4>Überschneidungen klären</h4></header>
+      <p class="story">„Ich will sehen, wo sich Termine überschneiden, und entscheiden, was ich besuche.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>beim Einrichten</span><span>Desktop</span></div>
+      <dl><dt>Braucht</dt><dd>welche zwei, <b>wie oft</b> (jede Woche, nur A-Woche, einzelne Tage), was es löst: andere Gruppe, ausblenden, hinnehmen</dd><dt>Heute</dt><dd>rote Marke, „n Überschneidungen pro Woche“</dd><dt>Zahl</dt><dd>39 % schon laut Regelstudienplan</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K11</span><h4>Nicht meine Termine</h4></header>
+      <p class="story">„Ich will ausblenden, was ich nicht besuche: das Tutorium, den anderen Standort, die Vorlesung, die ich als Aufzeichnung schaue.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>beim Einrichten</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>ausblenden je Termin, je Art, je Standort, und <b>wieder einblenden</b></dd><dt>Heute</dt><dd>„Zeigen“, Standort, ×, Augen</dd><dt>Zahl</dt><dd>43 % mit freiwilligen Teilen</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K12</span><h4>Platzhalter füllen</h4></header>
+      <p class="story">„Ich will für einen Wahlpflicht-Platz ein Modul finden, das in meine Woche passt.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>vor und zu Beginn</span><span>Desktop</span></div>
+      <dl><dt>Braucht</dt><dd>den Weg in den Katalog <b>mit „Passt in meinen Stundenplan“</b>, zurück ins Studium</dd><dt>Heute</dt><dd>„Platzhalter · Modul finden“</dd><dt>Zahl</dt><dd>27 % (1. FS), 76 % (Master)</dd></dl>
+    </article>
+  </div>
+
+  <div class="group-title"><h3>Rundherum</h3><span>K13–K18 · selten, aber mit Folgen für den Alltag</span></div>
+  <div class="ucs">
+    <article class="uc"><header><span class="id">K13</span><h4>In meine Kalender-App</h4></header>
+      <p class="story">„Ich will meine Termine in Google, Apple oder Outlook haben, und Änderungen sollen von selbst kommen.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>nach dem Einrichten</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>ein Abo, das <b>nach dem Einrichten stimmt</b></dd><dt>Heute</dt><dd>„Abonnieren“; nach jeder Gruppenwahl eine neue Adresse</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K14</span><h4>Abstimmen</h4></header>
+      <p class="story">„Ich will mit meiner Lerngruppe dieselbe Übung nehmen und sehen, wann wir alle frei haben.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>beim Einrichten</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>Pläne nebeneinander, <b>mit den Gruppen</b> der anderen</dd><dt>Heute</dt><dd>„Link zum Teilen“ mit den Modulen, ohne Gruppen</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K15</span><h4>Nur besuchen</h4></header>
+      <p class="story">„Ich will eine Vorlesung besuchen, die nicht zu meinem Studium zählt, und sie im Kalender haben, ohne dass sie in „Mein Studium“ zählt.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten</span><span>jederzeit</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>aufnehmen von Modulseite, Termin, Merkliste; <b>eine eigene Form</b>; nachgeben bei Überschneidungen</dd><dt>Heute</dt><dd>nicht möglich; ein Modul außerhalb zählt als „ohne Bereich“</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K16</span><h4>Mehrere Kalender</h4></header>
+      <p class="story">„Ich will neben meinem Studium weitere Kalender ein- und ausblenden.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten einrichten</span><span>täglich sichtbar</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>Ebenen in einer Woche, <b>jede erkennbar</b>, Mein Studiengang immer</dd><dt>Heute</dt><dd>Profile (getrennte Welten), gespeicherte Pläne (je ein Semester)</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K17</span><h4>Nächstes Semester</h4></header>
+      <p class="story">„Ich will das nächste Semester sehen, sobald QIS Termine hat, um zu planen.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span><span>ab Mitte November, Mitte Mai</span><span>Desktop</span></div>
+      <dl><dt>Braucht</dt><dd>ein <b>Semester wählen</b> können; „noch keine Termine“, solange QIS nichts hat</dd><dt>Heute</dt><dd>nur das laufende Semester</dd></dl>
+    </article>
+    <article class="uc"><header><span class="id">K18</span><h4>Zurückschauen</h4></header>
+      <p class="story">„Ich will nachsehen, wann etwas war, zum Nacharbeiten oder für eine Bescheinigung.“</p>
+      <div class="meta"><span class="freq"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten</span><span>jederzeit</span><span>beide</span></div>
+      <dl><dt>Braucht</dt><dd>vergangene Wochen und Tage <b>mit Datum</b></dd><dt>Heute</dt><dd>die Liste „Termine“ des laufenden Semesters</dd></dl>
+    </article>
+  </div>
+</section>
+
+<!-- ============================================================ Deine Worte -->
+<section class="sec" id="du">
+  <header>
+    <h2>Was du dazu schon gesagt hast</h2>
+    <p class="sub">Deine Aussagen zum Stundenplan, zur Startseite und zu Terminen seit September, je mit dem Use Case, den sie stützen. Sie sind die einzige Stimme von Nutzenden, die es gibt; die Zahlen oben sagen, wie oft eine Lage vorkommt.</p>
+  </header>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Wann</th><th>Du</th><th>Für</th><th>Heißt für den Kalender</th></tr></thead>
+      <tbody>
+        <tr><td class="num">25.09.</td><td>„komplett überladen … übelst undurchsichtig“ (der erste Stundenplan)</td><td>alle</td><td>Was selten gebraucht wird, steht nicht ständig da.</td></tr>
+        <tr><td class="num">25.09.</td><td>„ja der fliegt raus, die Übung möchte ich“</td><td>K9, K11</td><td>Entschieden wird am Termin selbst, ohne Umweg.</td></tr>
+        <tr><td class="num">25.09.</td><td>„einfach gesquished“</td><td>K3</td><td>Die ganze Woche passt ins Fenster.</td></tr>
+        <tr><td class="num">27.09.</td><td>„Es gibt keine Wochenansicht beim Kalender auf dem Smartphone“, „zeige auch die Location an“</td><td>K1–K3</td><td>Auch auf dem Handy eine Woche, und der Ort gehört hinein.</td></tr>
+        <tr><td class="num">27.09.</td><td>„Kalender-Export im Anpassen-Knopf … keiner wird ihn finden“</td><td>K13</td><td>Abonnieren steht sichtbar, nicht in den Einstellungen.</td></tr>
+        <tr><td class="num">04.10.</td><td>„der Regelstudienplan ist ja eine Illusion“</td><td>K8, K10</td><td>Echte Pläne mischen; die Zahlen hier sind eher die Untergrenze.</td></tr>
+        <tr><td class="num">13.10.</td><td>„die reoccuring termine … gebündelt zeigen. Weil das ist gerade sehr unübersichtlich, wenn da einzeltermine sind.“</td><td>K3, K5</td><td>Eine Reihe ist ein Termin; ihre einzelnen Daten zeigt die Woche, in der sie liegen.</td></tr>
+        <tr><td class="num">17.10.</td><td>„Weil man idr. ja nicht alles vorausplant und das auch oft von terminen abhängig ist … wenn man mitten im Semester plant, dann ist das wahrscheinlich für das nächste.“</td><td>K12, K17</td><td>Geplant wird nach Terminen: Der Kalender ist beim Planen dabei, auch fürs nächste Semester.</td></tr>
+        <tr><td class="num">19.10.</td><td>„hier würde ich erstmal nur die termine anzeigen, die den eingerichteten Studiengang entsprechend“, „die anderen etwas leichter anzeigen“</td><td>K11</td><td>Was nicht für mich ist, tritt zurück, statt zu verschwinden.</td></tr>
+        <tr><td class="num">19.10.</td><td>„… Also zum Beispiel vom Plan für das Studium oder ein extra termin im Stundenplan.“</td><td>K15</td><td>Zusätzliche Module kommen auch aus der Merkliste.</td></tr>
+        <tr><td class="num">20.10.</td><td>„zum beispiel den stundenplan für den Tag“ (die Startseite)</td><td>K1, K2</td><td>Der Tag ist ein eigener Abstand des Kalenders.</td></tr>
+        <tr><td class="num">20.10.</td><td>„Die Ansicht mit der Week progression ist wirklich sehr cool.“</td><td>K3, K6</td><td>Der Rahmen des Semesters bleibt sichtbar.</td></tr>
+        <tr><td class="num">24.10.</td><td>„eigentlich möchte man noch relativ häufig eine detailansicht vom Termin haben“</td><td>K5</td><td>Ein Tipp öffnet den Termin, nicht das Modul.</td></tr>
+        <tr><td class="num">26.10.</td><td>„so dass eine person die nur wissen will was als nächstes ansteht das sofort sieht“</td><td>K1</td><td>Als Nächstes ohne Warten und ohne Tippen.</td></tr>
+        <tr><td class="num">26.10.</td><td>„Zum einen muss es möglich sein auch mehr als eine Übung sich anzeigen zu lassen. Man muss sie nicht unbedingt wählen können. Aber im Kallender anzeigen lassen können ist ein must.“</td><td>K9</td><td>Gruppen werden angehakt, so viele man will; keine Pflicht zu wählen.</td></tr>
+        <tr><td class="num">26.10.</td><td>„Wir sollten das wahrscheinlich Trennen zwischen der Informativen ansicht für die Modulpage und mein studiengang und dann der ansicht bei der Kalender page.“</td><td>K5, K9</td><td>Nachschlagen und Anpassen sind zwei Ansichten; angepasst wird an einem Ort, im Kalender.</td></tr>
+        <tr><td class="num">26.10.</td><td>„wie man die informationen möglichst ohne text anzeigt und mehr mit symboliken ohne cheap oder kindisch auszusehen“</td><td>alle</td><td>Status durch Form und Zeichen, Text für was, wann, wo.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ Rangfolge -->
+<section class="sec" id="rangfolge">
+  <header>
+    <h2>Was am häufigsten gebraucht wird</h2>
+    <p class="sub">Aus den Use Cases: jede Angabe nach dem, wie oft sie gebraucht wird, und was passiert, wenn sie fehlt oder falsch ist. Oben links steht, was ohne einen einzigen Tipp lesbar sein muss.</p>
+  </header>
+  <div class="scroll">
+    <div class="matrix" role="table" aria-label="Angaben nach Häufigkeit und Folgen">
+      <div class="h" role="columnheader"></div>
+      <div class="h" role="columnheader"><span class="dots" data-n="5"><i></i><i></i><i></i><i></i><i></i></span>mehrmals täglich</div>
+      <div class="h" role="columnheader"><span class="dots" data-n="4"><i></i><i></i><i></i><i></i><i></i></span>täglich</div>
+      <div class="h" role="columnheader"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</div>
+      <div class="h" role="columnheader"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</div>
+      <div class="h" role="columnheader"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten</div>
+
+      <div class="r" role="rowheader">Fehlt sie, stehe ich falsch<small>leerer Hörsaal, verpasste Prüfung</small></div>
+      <div class="c hot"><span class="chip">Raum</span><span class="chip">Beginn</span><span class="chip">Änderung heute</span></div>
+      <div class="c hot"><span class="chip">Weg zwischen Standorten</span></div>
+      <div class="c"><span class="chip">A- oder B-Woche</span><span class="chip">Einzeltermin, Block</span><span class="chip">Prüfung bald</span></div>
+      <div class="c"><span class="chip">offene Gruppe</span><span class="chip">Überschneidung</span><span class="chip">Prüfungen kollidieren</span></div>
+      <div class="c"></div>
+
+      <div class="r" role="rowheader">Fehlt sie, ärgere ich mich<small>Umweg, Nachfragen</small></div>
+      <div class="c hot"><span class="chip">Modul und Art</span><span class="chip">wie bald</span></div>
+      <div class="c"><span class="chip">Lücken</span><span class="chip">Ende des Tages</span></div>
+      <div class="c"><span class="chip">Datum und KW</span><span class="chip">Feiertag, vorlesungsfrei</span><span class="chip">freie Tage</span></div>
+      <div class="c"><span class="chip">Pflicht oder freiwillig</span><span class="chip">Standort</span><span class="chip">Platzhalter offen</span><span class="chip">Abo aktuell</span></div>
+      <div class="c"><span class="chip">anderes Semester</span></div>
+
+      <div class="r" role="rowheader">Fehlt sie, merke ich es kaum<small>Nachschlagen</small></div>
+      <div class="c"></div>
+      <div class="c"><span class="chip">Woche n von 15</span></div>
+      <div class="c"><span class="chip">Lehrperson</span><span class="chip">Name der Gruppe</span><span class="chip">wie oft noch</span></div>
+      <div class="c"><span class="chip">LP (gehören ins Studium)</span></div>
+      <div class="c"><span class="chip">Quelle und Stand</span><span class="chip">Hinweis aus QIS</span></div>
+    </div>
+  </div>
+
+  <h3>Interaktionen, nach Häufigkeit</h3>
+  <ol class="acts">
+    <li><span class="rk">1</span><span><b>Hinsehen, ohne zu tippen:</b> als Nächstes, heute, diese Woche</span><span class="f"><span class="dots" data-n="5"><i></i><i></i><i></i><i></i><i></i></span>mehrmals täglich</span></li>
+    <li><span class="rk">2</span><span><b>Blättern:</b> nächster Tag, nächste Woche, zurück zu heute</span><span class="f"><span class="dots" data-n="4"><i></i><i></i><i></i><i></i><i></i></span>täglich</span></li>
+    <li><span class="rk">3</span><span><b>Einen Termin öffnen:</b> Raum, wer, Gruppe, Reihe</span><span class="f"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</span></li>
+    <li><span class="rk">4</span><span><b>Die Ansicht wechseln:</b> Tag, Woche, Prüfungen</span><span class="f"><span class="dots" data-n="3"><i></i><i></i><i></i><i></i><i></i></span>wöchentlich</span></li>
+    <li><span class="rk">5</span><span><b>Gruppen anhaken</b> oder umwählen</span><span class="f"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>2–3 Mal im Semester</span></li>
+    <li><span class="rk">6</span><span><b>Über eine Überschneidung entscheiden</b></span><span class="f"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>1–2 Mal im Semester</span></li>
+    <li><span class="rk">7</span><span><b>Ausblenden</b>, was ich nicht besuche, und wieder einblenden</span><span class="f"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>einige Male im Semester</span></li>
+    <li><span class="rk">8</span><span><b>Module ändern:</b> der Weg ins Studium und in den Katalog</span><span class="f"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>pro Semester</span></li>
+    <li><span class="rk">9</span><span><b>Abonnieren</b> oder die .ics-Datei holen</span><span class="f"><span class="dots" data-n="2"><i></i><i></i><i></i><i></i><i></i></span>einmal im Semester</span></li>
+    <li><span class="rk">10</span><span><b>Ein Modul zusätzlich aufnehmen</b> oder wieder herausnehmen</span><span class="f"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten</span></li>
+    <li><span class="rk">11</span><span><b>Einen Kalender zu- oder abschalten</b>, einen hinzufügen</span><span class="f"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten</span></li>
+    <li><span class="rk">12</span><span><b>Teilen</b></span><span class="f"><span class="dots" data-n="1"><i></i><i></i><i></i><i></i><i></i></span>selten</span></li>
+  </ol>
+  <p class="rule">Was mehrmals täglich gebraucht wird, steht ohne Tippen da. Was einmal im Semester zu tun ist, steht da, solange es offen ist, und geht dann. Alles andere ist einen Knopf entfernt, nie nur eine Taste.</p>
+</section>
+
+<!-- ============================================================ Kontext -->
+<section class="sec" id="kontext">
+  <header>
+    <h2>Darstellung im Kontext</h2>
+    <p class="sub">Die Woche ist das Vorbild: Eine Fläche zeigt sieben Dinge auf einmal, ohne einen Satz. Was ihr fehlt, ist alles, was eine bestimmte Woche von der Regelwoche unterscheidet.</p>
+  </header>
+  <div class="anat">
+    <figure class="pinned">
+      <img src="bilder/woche-nach-der-wahl.webp" alt="Die Woche von Informatik 1. Fachsemester nach der Wahl, mit nummerierten Markierungen." width="728" height="796">
+      <span class="pin" style="left: 36%; top: 16.4%">1</span>
+      <span class="pin" style="left: 3.6%; top: 30%">2</span>
+      <span class="pin" style="left: 38.2%; top: 24.8%">3</span>
+      <span class="pin" style="left: 37.6%; top: 70.6%">4</span>
+      <span class="pin" style="left: 60.4%; top: 43.7%">5</span>
+      <span class="pin" style="left: 38.2%; top: 83%">6</span>
+      <span class="pin" style="left: 75.3%; top: 60%">7</span>
+      <span class="pin" style="left: 53%; top: 43.4%">!</span>
+    </figure>
+    <div class="scroll">
+      <table class="channels">
+        <thead><tr><th>Mittel</th><th>trägt</th><th>Was ihm fehlt</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pinno">1</span>Spalte</td><td>den Wochentag</td><td class="no">das Datum, heute, A oder B dieser Woche</td></tr>
+          <tr><td><span class="pinno">2</span>Lage und Höhe</td><td>Beginn und Dauer</td><td class="no">eine Linie für jetzt</td></tr>
+          <tr><td><span class="pinno">3</span>Ton</td><td>das Modul, in Betulas acht Tönen</td><td class="yes">nichts; der Ton gehört dem Modul</td></tr>
+          <tr><td><span class="pinno">4</span>Text</td><td>Art und Kürzel, Zeit, Raum</td><td class="no">auf dem Handy der ganze Raum</td></tr>
+          <tr><td><span class="pinno">5</span>Rand und Zeichen</td><td>fest, Wahl offen (gestrichelt), gewählt (✓), Überschneidung (rot), nur A-Woche („A“)</td><td class="no">fällt aus, verlegt, nur besucht, ein anderer Kalender</td></tr>
+          <tr><td><span class="pinno">6</span>Muster</td><td>freiwillig (gepunktet, heller)</td><td class="yes">nichts</td></tr>
+          <tr><td><span class="pinno">7</span>Leere</td><td>Lücken, freie Tage, das Ende des Tages</td><td class="yes">nichts</td></tr>
+          <tr><td><span class="pinno">!</span>Was nicht passt</td><td>ein einzelner Mittwoch (Raumwechsel am 04.11.) steht als Termin in jeder Woche</td><td class="no">die Änderung an ihrem Tag</td></tr>
+          <tr><td>Kopf der Woche</td><td>A/B als Schalter</td><td class="no">KW, vorlesungsfrei, Prüfungen, „2 Änderungen“, Woche n von 15</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Regeln für die Darstellung</h3>
+  <ol class="principles">
+    <li><h3>Kontext vor Liste</h3>Ein Termin steht dort, wo er stattfindet: in seinem Tag, in seiner Woche. Eine Liste ist die zweite Lesart, für das Handy und für Screenreader, nie die einzige.<span class="ev">Der Ausfall steht heute nur in der Liste „Termine“.</span></li>
+    <li><h3>Die Woche hat ein Datum</h3>Im Semester ist die Woche diese Woche, mit KW, A oder B und heute. Die Regelwoche ist die Ansicht zum Einrichten.<span class="ev">83 % der Erstsemester-Pläne haben abweichende Wochen, Woche 1: 71 %.</span></li>
+    <li><h3>Was anders ist, steht am Termin</h3>Ausfall durchgestrichen, Raumwechsel gelb, ein Einzeltermin in seiner Woche; im Kopf der Woche nur, wie viel anders ist. Die Zeichen sind die des Termin-Konzepts: Farbe trägt nur Bedeutung.<span class="ev">Termin-Konzept, Runde 4: Grün für bald und passt, Gelb für anders, Rot für fällt aus und überschneidet sich.</span></li>
+    <li><h3>Form vor Text</h3>Status zeigen Rand, Muster und Zeichen; Text sagt nur was, wann, wo.<span class="ev">„möglichst ohne text … mit symboliken ohne cheap oder kindisch auszusehen“ (26.10.)</span></li>
+    <li><h3>Entscheidungen im Kontext, solange sie offen sind</h3>Optionen stehen gestrichelt in der Woche, mit passt oder überschneidet sich; angehakt wird, so viel man will. Ist die Woche voll, steht eine Wahl im Vordergrund und die anderen treten zurück.<span class="ev">16 statt 12 Termine, im Lehramt 19 statt 9, solange gewählt wird. Runde 4: bis vier gestrichelt in der Woche, mehr nur im Termin.</span></li>
+    <li><h3>Ebenen statt Seiten</h3>Weitere Kalender liegen in derselben Woche. Mein Studiengang ist voll, eine andere Ebene hat ihre eigene Form, etwa schraffiert wie „nicht im Plan“; zu- und abschaltbar.<span class="ev">Die acht Töne gehören den Modulen; eine Ebene braucht ein anderes Mittel.</span></li>
+    <li><h3>Der Rahmen des Semesters ist immer da</h3>Woche n von 15, vorlesungsfrei, Prüfungszeit, wie die Semesteruhr der Startseite.<span class="ev">Die Uhr der Startseite fand Zustimmung: „wirklich sehr cool“.</span></li>
+    <li><h3>Gekürzt wird zuletzt, was man sucht</h3>Wird es eng, kürzt Betula den Titel, dann die Zeit, nie den Raum.<span class="ev">Auf dem Handy steht heute „ZHG/H…“.</span></li>
+  </ol>
+
+  <h3>Vier Abstände, vier Fragen</h3>
+  <div class="zoom">
+    <div><b>Tag</b><span class="q">Was jetzt, was als Nächstes, wann bin ich fertig?</span>Handy, Alltag. K1, K2, K4.</div>
+    <div><b>Woche</b><span class="q">Wie sieht diese Woche aus, was ist anders, wo ist frei?</span>Die Hauptansicht, mit Datum; als Regelwoche zum Einrichten. K3, K7, K9–K11.</div>
+    <div><b>Semester</b><span class="q">Wo stehe ich, was kommt noch, wann sind Prüfungen?</span>Wochen, Pausen, Prüfungen, abweichende Wochen. K6, K17, K18.</div>
+    <div><b>Termin</b><span class="q">Was gilt an diesem Tag, wer hält ihn, welche Gruppe?</span>Das Termin-Konzept, Runde 4: von der Modulseite zum Nachschlagen, aus Kalender und Startseite zum Anpassen. K5, K9.</div>
+  </div>
+</section>
+
+<!-- ============================================================ Ideen -->
+<section class="sec" id="ideen">
+  <header>
+    <h2>Die drei neuen Ideen, an den Use Cases geprüft</h2>
+  </header>
+  <div class="ideas">
+    <div class="idea">
+      <div class="left">
+        <h3>Katalog, Studium, Kalender</h3>
+        <span class="verdict">trägt die Use Cases</span>
+        <p>Das Einrichten (K8–K12) bleibt im Kalender, nur die Auswahl der Module wandert ins Studium. Das Datenmodell trägt es schon; es fallen Wege weg, keine Fähigkeiten.</p>
+      </div>
+      <ul class="pts">
+        <li><b>Rückwege braucht es drei:</b> vom Kalender ins Studium („Module ändern“), vom Platzhalter in den Katalog mit „Passt in meinen Stundenplan“, von der Modulseite in den Kalender („Termine ansehen“).</li>
+        <li><b>Welches Semester?</b> Heute nur das laufende; „Einplanen“ zielt ab dem 15.11. aufs nächste. Der Kalender muss das nächste zeigen können, sobald QIS es hat, sonst „Noch keine Termine im SoSe 2027“ (K17).</li>
+        <li><b>Der eigene Studiengang der Sitzung</b> fällt weg: Er beantwortet heute „ich plane für einen anderen Studiengang“, und das ist mit dem neuen Ablauf ein Profil oder ein weiterer Kalender.</li>
+        <li><b>Was fehlt, sagt der Kalender:</b> ein Modul ohne Termine (41 % im 1. FS), ein offener Platzhalter (27 % bis 76 %), offene Gruppen. Er zeigt es, er löst es nicht selbst.</li>
+      </ul>
+    </div>
+    <div class="idea">
+      <div class="left">
+        <h3>Zusätzliche Module, nur zum Besuchen</h3>
+        <span class="verdict">schon entschieden, nie gebaut</span>
+        <p class="decided"><b>Merkliste-Konzept, Frage 3, entschieden am 19.10.:</b> „Ein geplantes Modul lässt sich auf „nur besuchen“ stellen: in der Woche ja, in den LP nicht. Gebaut mit dem Stundenplan, nicht mit der Merkliste.“</p>
+      </div>
+      <ul class="pts">
+        <li><b>Wo es hineingeht:</b> „In den Kalender“ auf der Modulseite, am Termin (Termin-Konzept, Runden 3 und 4, für einen Termin außerhalb des Plans) und in der Merkliste.</li>
+        <li><b>Wie es aussieht:</b> in der eigenen Form, etwa schraffiert wie „nicht im Plan“; im Ton seines Moduls.</li>
+        <li><b>Wie es sich verhält:</b> Gruppen wählt man wie sonst; bei einer Überschneidung mit dem Studium gibt es nach (ein Hinweis, keine rote Warnung); es zählt keine LP und steht nicht in „Mein Studium“. Betula sagt nicht nein: auch eins, das sich überschneidet, geht hinein.</li>
+        <li><b>Wie es heißt:</b> nicht „Zusatz“, das Wort ist vergeben. Etwa „Nur besuchen“ am Modul, „Zusätzlich“ als Ebene.</li>
+        <li><b>Offen:</b> ein ganzes Modul oder auch ein einzelner Termin, etwa eine Ringvorlesung an einem Abend (<a href="#fragen">Frage 5</a>).</li>
+      </ul>
+    </div>
+    <div class="idea">
+      <div class="left">
+        <h3>Mehrere Kalender, Mein Studiengang Pflicht</h3>
+        <span class="verdict">braucht eine Entscheidung, was ein Kalender ist</span>
+        <p>Keins der bisherigen Konzepte spricht davon. Je nach Lesart ist es eine kleine oder eine große Sache. Gemeinsam ist allen: eine Woche, mehrere Ebenen, jede an und aus, „Mein Studiengang“ immer an.</p>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Lesart</th><th>Use Case</th><th>Aufwand</th></tr></thead>
+          <tbody>
+            <tr><th>„Zusätzlich“: die nur besuchten Module</th><td>K15; aufgenommen selten, sichtbar täglich</td><td><span class="cost s">klein</span></td></tr>
+            <tr><th>„Prüfungen“ als eigene Ebene und eigenes Abo</th><td>K6, K13; in der Kalender-App ein eigener Kalender</td><td><span class="cost s">klein</span></td></tr>
+            <tr><th>Ein geteilter Plan: Freundin, Lerngruppe</th><td>K14; braucht die Gruppen im Link, der heute nur Module trägt</td><td><span class="cost m">mittel</span></td></tr>
+            <tr><th>Varianten zum Ausprobieren (heute „Plan speichern“)</th><td>K9, K10; zwei Wochen nebeneinander vergleichen</td><td><span class="cost m">mittel</span></td></tr>
+            <tr><th>Ein zweites Studium, ein zweites Fach</th><td>wenige; heute ein Profil mit eigenem „Mein Studium“</td><td><span class="cost m">mittel</span></td></tr>
+            <tr><th>Eigene Termine: Job, Sport</th><td>K7; das kann die Kalender-App, Betula hat keine eigenen Termine</td><td><span class="cost l">groß</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ Folgen -->
+<section class="sec" id="folgen">
+  <header>
+    <h2>Was daraus folgt</h2>
+    <p class="sub">Anforderungen für die Konzepte der nächsten Runde. Wie sie aussehen, entscheidet die Runde; dass sie erfüllt sein müssen, folgt aus den Use Cases.</p>
+  </header>
+  <ul class="reqs">
+    <li><span class="k">A1</span><span><b>Drei Fragen ohne Tippen:</b> Was als Nächstes, und wo? Wie sieht heute aus? Wie sieht diese Woche aus? (K1–K3)</span></li>
+    <li><span class="k">A2</span><span><b>Im Semester eine Woche mit Datum</b>, mit heute, KW, A oder B; die Regelwoche zum Einrichten. (K3, K7, K9)</span></li>
+    <li><span class="k">A3</span><span><b>Änderungen am Termin</b>, im Tag und in der Woche, mit den Zeichen des Termin-Konzepts; im Kopf der Woche, wie viel anders ist. (K4)</span></li>
+    <li><span class="k">A4</span><span><b>Offene Aufgaben sichtbar, solange sie offen sind:</b> Gruppen, Überschneidungen, Platzhalter, Module ohne Termine; danach weg. (K8–K12)</span></li>
+    <li><span class="k">A5</span><span><b>Module kommen aus „Mein Studium“.</b> Der Kalender verweist dorthin und in den Katalog, verwaltet sie nicht selbst. (K8, K12)</span></li>
+    <li><span class="k">A6</span><span><b>Ebenen in einer Woche:</b> Mein Studiengang immer, zusätzlich besuchte Module und weitere Kalender zuschaltbar, jede in eigener Form. (K15, K16)</span></li>
+    <li><span class="k">A7</span><span><b>Das nächste Semester</b>, sobald es Termine hat; bis zur Prüfungszeit das laufende als Standard. (K17)</span></li>
+    <li><span class="k">A8</span><span><b>Auf dem Handy der Tag zuerst</b>, die Woche einen Wisch entfernt; gekürzt wird der Titel, nie der Raum. (K1, K2)</span></li>
+    <li><span class="k">A9</span><span><b>Die Wahl bleibt lesbar, wenn die Woche voll ist</b>, auch bei 19 Terminen und 7 an einem Tag, und mehr als eine Gruppe darf bleiben (26.10.). (K9)</span></li>
+    <li><span class="k">A10</span><span><b>Jede Aktion als Knopf,</b> Tasten nur als Abkürzung, Betulas eigene Tasten beim Knopf genannt (20.10.).</span></li>
+    <li><span class="k">A11</span><span><b>Betula sagt nicht nein:</b> eine Überschneidung, ein Modul außerhalb, ein Semester ohne Termine geht, mit einem Hinweis. (18.10.)</span></li>
+    <li><span class="k">A12</span><span><b>Rückgängig für alles, was die Woche ändert</b>: Wahl, Ausblenden, Aufnehmen, Entfernen.</span></li>
+  </ul>
+</section>
+
+<!-- ============================================================ Fragen -->
+<section class="sec" id="fragen">
+  <header>
+    <h2>Fragen an dich</h2>
+    <p class="sub">Jede mit meinem Vorschlag. Die ersten drei entscheiden, wie die Konzepte der nächsten Runde aussehen.</p>
+  </header>
+  <ol class="qs">
+    <li><p class="ask">Was sind die „anderen Kalender“ für dich?<small>Zusätzlich besuchte Module, Prüfungen, geteilte Pläne, Varianten, ein zweites Studium, eigene Termine (Tabelle bei den drei Ideen).</small></p><p class="rec"><b>Vorschlag:</b> zuerst „Zusätzlich“ und „Prüfungen“, beide klein und täglich nützlich; geteilte Pläne danach; eigene Termine nicht, das kann die Kalender-App.</p></li>
+    <li><p class="ask">Womit öffnet der Kalender im Semester?<small>Tag, Woche mit Datum oder Regelwoche.</small></p><p class="rec"><b>Vorschlag:</b> auf dem Handy der Tag, die Woche einen Wisch entfernt; am Desktop die Woche mit Datum. Die Regelwoche, solange Gruppen offen sind, und danach als Schalter.</p></li>
+    <li><p class="ask">Darf man im Kalender noch Module hinzufügen?<small>Heute geht es an drei Stellen.</small></p><p class="rec"><b>Vorschlag:</b> Module des Studiums nicht; der Kalender führt mit „Module ändern“ ins Studium. Zusätzlich besuchte Module ja, mit „In den Kalender“ auf der Modulseite und am Termin.</p></li>
+    <li><p class="ask">Gehören Startseite und Kalender zusammen?<small>Der Tag der Startseite ist heute der Kalender des Alltags.</small></p><p class="rec"><b>Vorschlag:</b> dieselben Bausteine. Der Kalender hat Tag und Woche zum Blättern, die Startseite zeigt den Ausschnitt von jetzt und führt hin.</p></li>
+    <li><p class="ask">Ein ganzes Modul oder auch ein einzelner Termin „nur besuchen“?</p><p class="rec"><b>Vorschlag:</b> das ganze Modul, mit Ausblenden für Teile, wie bei Studium-Modulen. Ein einzelner Termin später, wenn er fehlt.</p></li>
+    <li><p class="ask">Was wird aus „Plan speichern“?<small>Bis zu 30 gespeicherte Stundenpläne, je ein Semester.</small></p><p class="rec"><b>Vorschlag:</b> als Variante beim Einrichten behalten, zwei Wochen nebeneinander; nicht als Kalender im Alltag.</p></li>
+    <li><p class="ask">Soll das Abo die gewählten Gruppen kennen?<small>Dann braucht es nach jeder Wahl eine neue Adresse, wie heute. Sonst stehen offene Gruppen als „vorläufig“ in der Kalender-App.</small></p><p class="rec"><b>Vorschlag:</b> die Gruppen kennen, aber erst anbieten, wenn die Wahlen gemacht sind, und eine veraltete Adresse im Kalender deutlich sagen. Danach ändert sich selten etwas.</p></li>
+    <li><p class="ask">Wie heißt der Kalender?<small>Tab „Stundenplan“, Seite „Stundenplan“, du schreibst „Kalender“.</small></p><p class="rec"><b>Vorschlag:</b> „Kalender“, wenn er Tage und Wochen mit Datum zeigt; „Stundenplan“ sagt Regelwoche.</p></li>
+  </ol>
+</section>
+
+<!-- ============================================================ Methode -->
+<section class="sec" id="methode">
+  <header>
+    <h2>Methode und Grenzen</h2>
+  </header>
+  <div class="method">
+    <div>
+      <h3>Daten</h3>
+      <p>Der Snapshot von canary vom 26.10.2026 (Radix 0.10.0, gebaut 12:55 UTC). WiSe 2026/27, Vorlesungszeit und Pause aus den Daten abgeleitet, wie Betula es tut. Alle aktuellen Prüfungsordnungen mit geprüftem Regelstudienplan: 104 Studiengänge, 149 Pläne, 383 Fachsemester, die bei Studienbeginn im Winter (oder wie der Plan es sagt) ins WiSe fallen.</p>
+    </div>
+    <div>
+      <h3>Rechnung</h3>
+      <p>Für jeden Plan und jedes Fachsemester das, was „Importieren · Regelstudienplan“ ergibt, ohne Wahl und ohne Ausblenden, durch Betulas eigene Funktionen: <code>studyplan::import_fs</code>, <code>pages::studyplan_in</code>, <code>Timetable::build</code>, <code>regular_week</code>. Nachrechnen: <code>cargo run -p folia-pages --example timetable_survey -- &lt;catalog.db&gt; 2026W --weeks weeks.tsv &gt; survey.tsv</code>.</p>
+    </div>
+    <div>
+      <h3>Begriffe</h3>
+      <p><b>Termine pro Woche:</b> die festen Termine der A- und der B-Woche gemittelt, dazu einer je offener Wahl. <b>Überschneidung:</b> eine harte, wie der Stundenplan sie rot zeigt. <b>Woche anders:</b> in ihr fällt etwas aus, ist verlegt, liegt ein Einzeltermin, Block oder Feiertag, oder eine Reihe hat noch nicht begonnen oder ist schon vorbei. <b>Freistunde:</b> mindestens 90 Minuten zwischen zwei Terminen eines Tages. <b>Tag an zwei Standorten:</b> in der A-Woche Termine an zwei von Zentralcampus, Sachsendorf, Senftenberg.</p>
+    </div>
+    <div>
+      <h3>Grenzen</h3>
+      <p>Es sind Regelstudienpläne, keine echten: Wer Semester mischt, hat mehr Überschneidungen. Ausfälle und Verlegungen sind der Stand vom 26.10. und werden im Semester mehr. Lehramt und Master zeigen weniger Gruppen, weil ihre Pläne mehr Platzhalter haben. Wie oft jemand den Kalender öffnet, ist geschätzt: Betula zählt nichts über die, die es benutzen. Wer einen Termin hält und wie viele teilnehmen, steht in keiner Sicht von Radix.</p>
+    </div>
+  </div>
+</section>
+
+<p class="foot">Analyse, nichts davon ist gebaut · Daten von canary, 26.10.2026 · Folia 1.45.1</p>
+</div>
+
+<script>
+// The chart of the weeks: one line for the first semester of a Bachelor, one grey for every plan,
+// a gap for the break, a crosshair and a tip on hover or focus, the same numbers as a table.
+(() => {
+  const weeks = [
+    ["KW 41", "05.10.", 71, 63], ["KW 42", "12.10.", 39, 40], ["KW 43", "19.10.", 24, 29], ["KW 44", "26.10.", 19, 23],
+    ["KW 45", "02.11.", 22, 26], ["KW 46", "09.11.", 22, 26], ["KW 47", "16.11.", 26, 23], ["KW 48", "23.11.", 14, 22],
+    ["KW 49", "30.11.", 18, 24], ["KW 50", "07.12.", 19, 31], ["KW 51", "14.12.", 15, 24], null,
+    ["KW 1", "04.01.", 18, 26], ["KW 2", "11.01.", 24, 30], ["KW 3", "18.01.", 33, 37], ["KW 4", "25.01.", 40, 45],
+  ];
+  const svg = document.getElementById("wochen-svg");
+  const table = document.querySelector("#wochen-table tbody");
+  if (!svg || !table) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 720, H = 270, L = 40, R = 712, T = 18, B = 228, MAX = 80;
+  const slot = (R - L) / weeks.length;
+  const x = (i) => L + slot * (i + 0.5);
+  const y = (v) => B - (v / MAX) * (B - T);
+  const el = (name, attrs, text) => {
+    const node = document.createElementNS(NS, name);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    if (text != null) node.textContent = text;
+    svg.appendChild(node);
+    return node;
+  };
+  const gap = weeks.indexOf(null);
+  el("rect", { class: "pause", x: L + slot * gap + 3, y: T, width: slot - 6, height: B - T, rx: 4 });
+  el("text", { x: x(gap), y: T + 14, "text-anchor": "middle" }, "frei");
+  for (const v of [0, 20, 40, 60, 80]) {
+    el("line", { class: "grid", x1: L, x2: R, y1: y(v), y2: y(v) });
+    el("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, v + " %");
+  }
+  weeks.forEach((w, i) => {
+    if (!w) return;
+    const show = i === 0 || i === weeks.length - 1 || i % 2 === 0;
+    if (show) el("text", { x: x(i), y: B + 18, "text-anchor": "middle" }, w[0]);
+  });
+  el("text", { x: x(0), y: B + 34, "text-anchor": "middle" }, "Woche 1");
+  el("text", { x: x(weeks.length - 1), y: B + 34, "text-anchor": "middle" }, "Woche 15");
+  const runs = [weeks.slice(0, gap).map((w, i) => [i, w]), weeks.slice(gap + 1).map((w, i) => [gap + 1 + i, w])];
+  for (const [col, cls] of [[3, "s-all"], [2, "s-one"]]) {
+    for (const run of runs) {
+      el("polyline", { class: cls, fill: "none", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", points: run.map(([i, w]) => `${x(i)},${y(w[col])}`).join(" ") });
+    }
+  }
+  for (const [col, cls] of [[3, "d-all"], [2, "d-one"]]) {
+    weeks.forEach((w, i) => { if (w) el("circle", { class: cls, cx: x(i), cy: y(w[col]), r: 4 }); });
+  }
+  // One direct label, the quietest week of the first semester; the ends stand in the notes above.
+  el("text", { class: "lbl", x: x(7), y: y(14) + 18, "text-anchor": "middle" }, "14 %");
+  // Crosshair and tip.
+  const hair = el("line", { class: "hair", x1: 0, x2: 0, y1: T, y2: B, visibility: "hidden" });
+  const box = svg.closest(".chart");
+  const tip = document.createElement("div");
+  tip.className = "tip";
+  tip.hidden = true;
+  box.appendChild(tip);
+  const show = (i) => {
+    const w = weeks[i];
+    if (!w) { hide(); return; }
+    hair.setAttribute("x1", x(i)); hair.setAttribute("x2", x(i)); hair.setAttribute("visibility", "visible");
+    tip.innerHTML = `<b>${w[0]}</b> · ab ${w[1]}<br>Bachelor, 1. FS: <b>${w[2]} %</b><br>Alle: <b>${w[3]} %</b>`;
+    tip.hidden = false;
+    const r = svg.getBoundingClientRect(), b = box.getBoundingClientRect();
+    const px = r.left - b.left + (x(i) / W) * r.width;
+    const left = Math.min(Math.max(px + 12, 8), b.width - tip.offsetWidth - 8);
+    tip.style.left = (px + 12 + tip.offsetWidth > b.width - 8 ? px - tip.offsetWidth - 12 : left) + "px";
+    tip.style.top = (r.top - b.top + 24) + "px";
+  };
+  const hide = () => { hair.setAttribute("visibility", "hidden"); tip.hidden = true; };
+  weeks.forEach((w, i) => {
+    if (!w) return;
+    const hit = el("rect", { class: "hit", x: L + slot * i, y: T, width: slot, height: B - T + 20, tabindex: 0, "aria-label": `${w[0]}, ab ${w[1]}: Bachelor 1. FS ${w[2]} Prozent, alle ${w[3]} Prozent` });
+    hit.addEventListener("mouseenter", () => show(i));
+    hit.addEventListener("focus", () => show(i));
+    hit.addEventListener("mouseleave", hide);
+    hit.addEventListener("blur", hide);
+    const row = document.createElement("tr");
+    row.innerHTML = `<td>${w[0]}</td><td>${w[1]}</td><td class="num">${w[2]} %</td><td class="num">${w[3]} %</td>`;
+    table.appendChild(row);
+  });
+})();
+</script>
