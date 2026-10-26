@@ -19,7 +19,15 @@
      Informatik B.Sc., 1. FS, WiSe 2026/27 at the Zentralcampus as betula.app's snapshot had it on
      2026-10-21, and one seminar of another program (Forschungsseminar Stochastik) for a Termin
      outside the plan; the Termine keyed as folia-calendar's RowKey keys them; the clock stands at
-     Wednesday 04.11.2026, 08:40 (KW 45, an A week). Tokens are Betula's (folia/assets/app.css);
+     Wednesday 04.11.2026, 08:40 (KW 45, an A week). Third round (owner, 2026-10-26: „Es ist schwer
+     verstädnlich, was Lehrperson und Gruppe bedeutet … Wenn es gruppen gibt würde ich das als wichtig
+     genug einstufen, um dem die volle breite zu geben. Und die lehrperson/Dozent:in muss irgendwie
+     eindeutiger benannt werden. … es braucht auch noch ein konzept für module, wo man nicht
+     eingeschrieben ist … Die ganze Seite für den Termin fühlt sich irgendwie noch leer an"): the
+     person with what they do, the groups across the width, a Termin of a module outside the plan
+     opened from its module page (Mathematik IT-3, a module of the third semester), and on the page
+     what is handy to look up: the week, all events of the module, who teaches, the period and its
+     exceptions. Tokens are Betula's (folia/assets/app.css);
      Inter comes from Google Fonts here, the app self-hosts it; the start page's photo is drawn. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,6 +70,7 @@
   --m-mit: oklch(.56 .08 185);
   --m-pp: oklch(.53 .1 300);
   --m-mse: oklch(.55 .08 115);
+  --m-mit3: oklch(.56 .11 355);
   --backdrop: rgba(10, 12, 17, .42);
   --shadow-lift: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 28px -16px rgba(15, 23, 42, .16);
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
@@ -93,7 +102,7 @@
     --ok: #4fd1a1;
     --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel)); --warn-line: color-mix(in srgb, #f0b861 38%, transparent);
     --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel)); --no-line: color-mix(in srgb, #ff8f85 32%, transparent);
-    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-mse: oklch(.8 .08 115);
+    --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-mse: oklch(.8 .08 115); --m-mit3: oklch(.79 .09 355);
     --backdrop: rgba(0, 0, 0, .55);
     --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
     --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
@@ -117,7 +126,7 @@
   --ok: #4fd1a1;
   --warn: #f0b861; --warn-soft: color-mix(in srgb, #f0b861 13%, var(--panel)); --warn-line: color-mix(in srgb, #f0b861 38%, transparent);
   --no: #ff8f85; --no-soft: color-mix(in srgb, #ff8f85 11%, var(--panel)); --no-line: color-mix(in srgb, #ff8f85 32%, transparent);
-  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-mse: oklch(.8 .08 115);
+  --m-eeg: oklch(.8 .11 75); --m-evs: oklch(.78 .07 245); --m-mit: oklch(.8 .08 185); --m-pp: oklch(.78 .09 300); --m-mse: oklch(.8 .08 115); --m-mit3: oklch(.79 .09 355);
   --backdrop: rgba(0, 0, 0, .55);
   --shadow-lift: 0 20px 40px -22px rgba(0, 0, 0, .7);
   --shadow-panel: 0 0 0 1px var(--line), var(--shadow-lift);
@@ -234,6 +243,7 @@ td b { color: var(--text); font-weight: 620; }
 .mini-dots .sd.sel { box-shadow: 0 0 0 1.5px var(--panel), 0 0 0 3px var(--text); }
 .mini-dots .sd.today::before { top: -6px; }
 .mini-dots .smon { display: none; }
+.sign .rb { padding: 0 2px; font-size: 9.5px; letter-spacing: -.03em; }
 .sign p { margin-top: -6px; color: var(--text-2); font-size: 13px; text-wrap: pretty; }
 
 /* The states, side by side; on a phone a row to swipe. */
@@ -243,6 +253,7 @@ td b { color: var(--text); font-weight: 620; }
 .state figcaption span { color: var(--text-2); font-size: 13px; }
 .state-card { position: relative; border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-pop); overflow: hidden; }
 .state-card .tm { padding: 12px 16px 16px; }
+.state-card > .tm.card { border-radius: 0; box-shadow: none; }
 
 /* A concept. */
 .concept { border-radius: 16px; background: var(--panel); box-shadow: var(--shadow-panel); overflow: hidden; scroll-margin-top: 110px; }
@@ -548,6 +559,7 @@ td b { color: var(--text); font-weight: 620; }
 .mrow .dt b { font-size: 16px; }
 .mrow b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; }
 .mrow small { display: block; color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow .dt small { font-size: 9.5px; overflow: visible; }
 .mrow .v { color: var(--text-2); font-size: 13px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mrow > svg.i { width: 14px; height: 14px; color: var(--text-3); }
 .exs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
@@ -558,6 +570,119 @@ td b { color: var(--text); font-weight: 620; }
 .exc.me small { color: color-mix(in srgb, var(--on-invert) 70%, transparent); }
 .exg { color: var(--text-3); font-size: 12px; white-space: nowrap; }
 .exg::before { content: ""; display: inline-block; width: 14px; height: 1px; margin-right: 5px; vertical-align: middle; background: var(--line-strong); }
+/* Level 2, third round: the person with what they do; the groups across the width. */
+.who { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; }
+.who .av { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); }
+.who b { display: block; font-size: 14.5px; font-weight: 650; line-height: 1.25; }
+.who b .tt { color: var(--text-3); font-size: 12px; font-weight: 600; }
+.who small { display: block; color: var(--text-2); font-size: 12.5px; line-height: 1.3; }
+.who.sm { grid-template-columns: 28px minmax(0, 1fr); }
+.who.sm .av { width: 28px; height: 28px; }
+.who.sm .av svg.i { width: 14px; height: 14px; }
+.who.sm b { font-size: 13.5px; }
+.grp { display: flex; flex-direction: column; gap: 6px; }
+.grp-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 650; }
+.grp-h small { color: var(--text-3); font-weight: 600; }
+.grp-h .r { margin-left: auto; color: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.grp-seg { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 11px; background: var(--panel-3); margin-top: 2px; }
+.gs { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0; min-width: 0; padding: 7px 9px 7px; border: 0; border-radius: 8px; background: transparent; color: var(--text); text-align: left; }
+.gs:hover { background: color-mix(in oklab, var(--panel) 60%, transparent); }
+.gs b { font-size: 13px; font-weight: 680; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gs small { max-width: 100%; color: var(--text-3); font: 500 11px var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs.this { background: var(--panel); box-shadow: var(--seg-shadow); }
+.gs .ck { position: absolute; top: -6px; right: -5px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--mc); color: var(--panel); box-shadow: 0 0 0 2px var(--panel-3); }
+.gs .ck svg.i { width: 11px; height: 11px; stroke-width: 3; }
+.gs .dot { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--panel-3); }
+.gs .dot.no { background: var(--no); }
+.gs .dot.ok { background: var(--ok); }
+.tm-mod.out { background: transparent; box-shadow: none; border: 1.5px dashed var(--mc); }
+.np { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-2); font-size: 11.5px; font-weight: 650; white-space: nowrap; }
+.tm-t3.more { padding-top: 18px; border-top: 1px dashed var(--line-strong); }
+.tm-t3.more::before { content: "Zum Nachschlagen"; position: absolute; top: -9px; left: 0; padding-right: 8px; background: var(--panel); color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.tm-t3.more > .tier { top: -12px; }
+.paper .tm-t3.more::before { left: 0; }
+/* Level 4 on the page: the week, the module's events, who teaches, the period. */
+.mwk { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.mwc { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mwd { color: var(--text-3); font-size: 11px; font-weight: 650; text-align: center; }
+.mwd.on { color: var(--text); }
+.mwb { position: relative; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.mw { position: absolute; padding: 0; border: 0; border-radius: 3px; background: color-mix(in oklab, var(--mc) 38%, var(--panel)); box-shadow: inset 2px 0 0 var(--mc); }
+.mw.cand { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--mc) 45%, var(--panel)) 0 3px, var(--panel) 3px 6px); box-shadow: inset 0 0 0 1px var(--mc); }
+.mw.clash { box-shadow: inset 0 0 0 1.5px var(--no); }
+.mw.me { z-index: 1; background: var(--mc); box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px var(--text); }
+.mw.gone { opacity: .4; }
+.evs { display: flex; flex-direction: column; gap: 10px; }
+.evr { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: start; }
+.evh b { display: block; font-size: 13px; font-weight: 650; line-height: 1.3; }
+.evh small { display: block; color: var(--text-3); font-size: 11.5px; }
+.esls { display: flex; flex-wrap: wrap; gap: 6px; }
+.esl { position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; padding: 5px 10px; border: 0; border-radius: 8px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text); text-align: left; }
+.esl:hover { background: var(--row-hover); }
+.esl.ck { padding-right: 26px; }
+.esl b { font-size: 12.5px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.esl small { color: var(--text-3); font: 500 11px var(--mono); }
+.esl.me { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.esl.me small { color: color-mix(in srgb, var(--on-invert) 70%, transparent); }
+.esl > svg.i { position: absolute; top: 6px; right: 7px; width: 13px; height: 13px; color: var(--mc); stroke-width: 3; }
+.ppl { display: flex; flex-direction: column; gap: 8px; }
+.rng { color: var(--text-2); font-size: 13px; }
+.exl2 { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.exl2 li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; color: var(--text-2); font-size: 13px; }
+.exl2 b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+.exl2 li.room b { color: var(--warn); }
+.exl2 li.cancel b { color: var(--no); }
+.planrow { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border: 1.5px dashed var(--line-strong); border-radius: 11px; }
+.planrow b { font-size: 13.5px; font-weight: 650; }
+.planrow .sw { margin-left: auto; }
+.sw { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: 13px; font-weight: 620; white-space: nowrap; }
+.sw:hover { background: var(--row-hover); }
+.sw small { color: var(--text-2); font-size: 12px; font-weight: 520; }
+.sw.on { background: var(--invert); color: var(--on-invert); box-shadow: none; }
+.sw.on small { color: color-mix(in srgb, var(--on-invert) 75%, transparent); }
+.sw svg.i { width: 15px; height: 15px; }
+/* The module's page under it: a module outside the plan, its Termine over the plan. */
+.mp { padding: 18px 20px 22px; }
+.mp-top { display: flex; align-items: center; gap: 8px; }
+.mono-chip { padding: 2px 7px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font: 500 11.5px var(--mono); }
+.mp-title { margin-top: 8px; font-size: 22px; line-height: 1.2; font-weight: 740; letter-spacing: -.02em; }
+.mp-badges { margin-top: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mp-badges .fill { flex: 1; }
+.bdg { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 6px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 12px; font-weight: 560; }
+.bdg.strong { background: var(--invert); color: var(--on-invert); box-shadow: none; font-weight: 700; }
+.mp-h { margin-top: 18px; display: flex; align-items: baseline; gap: 8px; font-size: 15px; font-weight: 700; }
+.mp-h small { color: var(--text-3); font-size: 12.5px; font-weight: 500; }
+.mp-fit { margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.mp-fit svg.i { width: 15px; height: 15px; color: var(--warn); }
+.mevs { margin-top: 12px; display: flex; flex-direction: column; gap: 12px; }
+.mev h5 { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3); }
+.mev h5 small { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.mline { display: grid; grid-template-columns: minmax(0, 1fr) auto 14px; gap: 10px; align-items: center; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: none; color: var(--text); text-align: left; }
+.mline:hover { background: var(--row-hover); }
+.mline.cur { background: var(--row-hover); box-shadow: inset 0 0 0 1.5px var(--text); }
+.mline b { display: block; font-size: 13.5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mline small { display: block; color: var(--text-2); font-size: 12px; }
+.mline > svg.i { width: 14px; height: 14px; color: var(--text-3); }
+.mp.desk { max-width: 760px; }
+.slot.mute { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.slot.mute b, .slot.mute span { color: var(--text-3); }
+.slot.cand { background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--mc) 26%, var(--panel)) 0 5px, var(--panel) 5px 10px); box-shadow: inset 0 0 0 1.5px var(--mc); }
+.slot.opt { background: color-mix(in oklab, var(--mc) 9%, var(--panel)); box-shadow: none; outline: 1.5px dashed var(--mc); outline-offset: -1.5px; }
+.slot.clash { box-shadow: inset 0 0 0 2px var(--no); }
+.slot.cand.cur, .slot.opt.cur { box-shadow: 0 0 0 2px var(--text); }
+/* The third round's sections. */
+.wer { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 18px; align-items: start; }
+.wer figure { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.wer figcaption b { display: block; font-size: 14px; font-weight: 680; }
+.wer figcaption span { color: var(--text-2); font-size: 13px; }
+.wer .ui { padding: 14px; border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 12px; }
+.pts { margin: 16px 0 0; padding: 0 0 0 20px; display: flex; flex-direction: column; gap: 8px; max-width: 78ch; color: var(--text-2); }
+.pts b { color: var(--text); font-weight: 640; }
+.go-proto { margin-top: 16px; display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--invert); color: var(--on-invert); font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.go-proto svg.i { width: 15px; height: 15px; }
+@media (max-width: 1080px) { .wer { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .wer { grid-template-columns: minmax(0, 1fr); } }
+
 /* The foot: where it comes from, grey. */
 .tm-src { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding-top: 12px; border-top: 1px solid var(--line); color: var(--text-3); font-size: 12px; line-height: 1.5; }
 .tm-src q { quotes: "„" "“"; }
@@ -673,19 +798,19 @@ details.r1 .in { padding: 0 24px 24px; }
 <div class="page">
   <header class="intro">
     <div>
-      <p class="kicker">Betula · Konzepte · zweite Runde · 26.10.2026</p>
-      <h1>Erst wann und wo, dann alles andere</h1>
-      <p class="lead">A bleibt und ist neu geordnet: drei Ebenen statt einer Liste, Zeichen statt Sätzen, und jeder Knopf dort, wo seine Art hingehört. Alles funktioniert wieder mit echten Daten; die Uhr steht auf Mittwoch, 04.11.2026, 08:40.</p>
-      <p class="quote">„Also TLDR ist: <b>zu unaufgeräumt und informationen sind schlecht erkennbar</b>. Es braucht eine <b>ordentliche visuelle hirarchie</b> und erklärtext darf nicht zu lange sein. … wie man die informationen <b>möglichst ohne text</b> anzeigt und mehr mit symboliken <b>ohne cheap oder kindisch</b> auszusehen.“</p>
+      <p class="kicker">Betula · Konzepte · dritte Runde · 26.10.2026</p>
+      <h1>Benannt, gruppiert, und genug zum Nachschlagen</h1>
+      <p class="lead">A bleibt in seiner Ordnung. Neu sind drei Dinge: wer etwas mit dem Termin zu tun hat, steht mit seiner Rolle da; Gruppen bekommen eine eigene Leiste über die volle Breite; und ein Termin aus einem Modul außerhalb des Plans zeigt, ob er passt. Die ganze Seite hat dazu, was man selten braucht, aber gern findet.</p>
+      <p class="quote">„Es ist <b>schwer verständlich, was Lehrperson und Gruppe bedeutet</b> … Wenn es gruppen gibt würde ich das als wichtig genug einstufen, um dem <b>die volle breite</b> zu geben. … es braucht auch noch ein konzept für module, <b>wo man nicht eingeschrieben ist</b> … Die ganze Seite für den Termin <b>fühlt sich irgendwie noch leer an</b>.“</p>
     </div>
     <aside class="rules" aria-labelledby="rules-title">
-      <p class="kicker" id="rules-title">Die Regeln der zweiten Runde</p>
+      <p class="kicker" id="rules-title">Die Regeln, mit der dritten Runde</p>
       <ol>
-        <li><span><b>Wann und wo zuerst, am größten.</b> Tag, Uhrzeit und Raum stehen als Ticket oben; alles andere ist kleiner.</span></li>
-        <li><span><b>Was anders ist, steht im Ticket selbst:</b> Farbe, durchgestrichen, der alte Raum. Kein Absatz dafür.</span></li>
-        <li><span><b>Zeichen statt Sätze.</b> Punkte für Gruppe und Reihe, ein Band für den Tag, A und B als Kästchen.</span></li>
-        <li><span><b>Jede Art Knopf an ihren Ort.</b> Werkzeuge oben rechts, eine Aktion groß unten, Wege an ihrem Abschnitt, die Quelle grau ganz unten.</span></li>
-        <li><span><b>Kein Satz im Termin.</b> QIS' Wortlaut steht im Fuß; ein Hinweis aus QIS höchstens zwei Zeilen.</span></li>
+        <li><span><b>Wann und wo zuerst, am größten,</b> als Ticket; was anders ist, verändert das Ticket.</span></li>
+        <li><span><b>Eine Person, mit dem, was sie tut:</b> „leitet die Übung“, „verantwortet das Modul“. Nie ein Name allein.</span></li>
+        <li><span><b>Gruppen über die volle Breite,</b> jede mit Tag, Zeit und Raum; deine mit Haken, Überschneidungen rot.</span></li>
+        <li><span><b>Außerhalb des Plans</b> ist das Kürzel gestrichelt; der Tag, die Woche und die Gruppen zeigen, was passt.</span></li>
+        <li><span><b>Alltag oben, Nachschlagen unten:</b> Woche, alle Veranstaltungen, Lehrende, Zeitraum und Ausnahmen erst auf der ganzen Seite.</span></li>
       </ol>
     </aside>
   </header>
@@ -697,35 +822,87 @@ details.r1 .in { padding: 0 24px 24px; }
         <button type="button" data-set="ex" data-v="vl" aria-pressed="false">Vorlesung <small>EvS</small></button>
         <button type="button" data-set="ex" data-v="ab" aria-pressed="false">B-Woche <small>EEG</small></button>
         <button type="button" data-set="ex" data-v="exam" aria-pressed="false">Prüfung <small>MIT1</small></button>
+        <button type="button" data-set="ex" data-v="np" aria-pressed="false">Nicht im Plan <small>MIT3</small></button>
       </div>
     </div>
     <div class="group"><span class="kicker">Darunter</span>
       <div class="seg" role="group" aria-label="Seite darunter">
         <button type="button" data-set="under" data-v="home" aria-pressed="true">Startseite</button>
         <button type="button" data-set="under" data-v="week" aria-pressed="false">Stundenplan</button>
+        <button type="button" data-set="under" data-v="module" aria-pressed="false">Modulseite</button>
       </div>
     </div>
-    <div class="jump"><a href="#entschieden">Entschieden</a><a href="#rang">Rangfolge</a><a href="#knoepfe">Knöpfe</a><a href="#zeichen">Zeichen</a><a href="#a">A</a><a href="#zustaende">Zustände</a><a href="#adresse">Adresse</a><a href="#fragen">Fragen</a></div>
+    <div class="jump"><a href="#runde3">Neu</a><a href="#a">A</a><a href="#wer">Wer, Gruppe</a><a href="#nicht">Nicht im Plan</a><a href="#seite">Seite</a><a href="#zustaende">Zustände</a><a href="#rang">Rangfolge</a><a href="#fragen">Fragen</a></div>
   </nav>
 
-  <section class="sec" id="entschieden" aria-labelledby="ent-title">
-    <h2 id="ent-title">Entschieden: A</h2>
-    <p class="sub">B, C und D fallen weg. Aus C bleibt die Reihe, jetzt als Punkte; aus D der Tag, jetzt als Band. Was sich aus deiner Rückmeldung ändert:</p>
+  <section class="sec" id="runde3" aria-labelledby="r3-title">
+    <h2 id="r3-title">Was die dritte Runde ändert</h2>
+    <p class="sub">A ist entschieden, die Ordnung der zweiten Runde bleibt. Dein Bild der zweiten Runde und dieselbe Stelle jetzt:</p>
     <div class="dec">
       <div class="ba">
-        <figure><figcaption>Erste Runde</figcaption><img src="bilder/runde1.webp" width="406" height="369" alt="Der Termin der ersten Runde: Kopf, gelber Kasten mit zwei Sätzen, Raum mit Kopieren-Knopf, Beschriftungen in Großbuchstaben." loading="lazy"></figure>
-        <figure><figcaption>Zweite Runde</figcaption><div class="ui" id="after"></div></figure>
+        <figure><figcaption>Zweite Runde</figcaption><img src="bilder/runde2.webp" width="397" height="261" alt="Ausschnitt der zweiten Runde: das Ticket, darunter „Pilling“ mit Personenzeichen und „Gruppe“ mit drei Punkten in einer Zeile." loading="lazy"></figure>
+        <figure><figcaption>Dritte Runde</figcaption><div class="ui" id="after"></div></figure>
       </div>
       <ul class="fb">
-        <li><q>zu unaufgeräumt</q><span>Drei Ebenen, getrennt durch Abstand statt Linien. Keine Tabelle aus Beschriftung und Wert mehr.</span></li>
-        <li><q>solche buttons sind einfach ein nono</q><span>Keine Reihe gleich lauter Knöpfe. Jede Art hat ihren Ort, siehe Knöpfe.</span></li>
-        <li><q>Quellen, wie in qis gehören nach ganz unten</q><span>QIS, die Nummer und QIS' Wortlaut stehen grau im Fuß.</span></li>
-        <li><q>Link kopieren ist eher ein share ding oben rechts</q><span>Teilen steht neben Schließen.</span></li>
-        <li><q>In den kallender … ein großer button … oder nicht existieren</q><span>Groß, wenn der Termin nicht in deinem Plan ist. Im Plan gibt es ihn nicht, das Abo trägt den Termin schon.</span></li>
-        <li><q>im stundenplan … nicht gleichzeitig mit in den kallender</q><span>„Stundenplan“ ist ein Weg und steht am Abschnitt „Der Tag“.</span></li>
-        <li><q>erklärtext darf nicht zu lange sein</q><span>Im Termin steht kein Satz mehr. Der Raumwechsel ist ein Zeichen: gelb, „statt HG/0.17“.</span></li>
+        <li><q>schwer verständlich, was Lehrperson und Gruppe bedeutet</q><span>Die Person steht mit ihrer Rolle da: „leitet die Übung“. Kennt QIS für die Zeile niemanden, steht da, wer das Modul verantwortet, und genau so.</span></li>
+        <li><q>dem die volle breite zu geben</q><span>Die Gruppen sind eine Leiste über die volle Breite: jede mit Tag, Zeit und Raum, deine mit Haken, Überschneidungen mit rotem Punkt.</span></li>
+        <li><q>module, wo man nicht eingeschrieben ist</q><span>Von der Modulseite aus: das Kürzel gestrichelt, „nicht im Plan“, Grün und Rot an den Gruppen, das Modul in deiner Woche. „Einplanen“ steht beim Modul.</span></li>
+        <li><q>fühlt sich irgendwie noch leer an</q><span>Unter einer Linie „Zum Nachschlagen“: die Woche, alle Veranstaltungen des Moduls, die Lehrenden, Zeitraum und Ausnahmen.</span></li>
       </ul>
     </div>
+  </section>
+
+  <section class="concept" id="a" aria-labelledby="a-title" data-concept="a">
+    <header class="c-head">
+      <span class="c-tag">A</span>
+      <div><h2 id="a-title">Sheet, das zur Seite wird <small>dritte Runde</small></h2><p>Am Handy halb hoch: Ticket, Person und Gruppen. Hochgezogen ist es die Seite, mit allem zum Nachschlagen. Am Rechner daneben; „Ganze Seite“ zeigt es in zwei Spalten. Unter „Darunter“ auch die Modulseite.</p></div>
+    </header>
+    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand" data-steps="a"></div><button type="button" class="c-reset" data-reset="a">Zurücksetzen</button></div>
+    <div class="stage">
+      <figure class="device desk" data-c="a" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
+      <figure class="device phone" data-c="a" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
+    </div>
+    <div class="c-notes">
+      <div><h3>Zum Ausprobieren</h3><ul><li>‹ › im Ticket oder ← →: das Datum davor und danach.</li><li>Eine andere Gruppe in der Leiste: ihr Termin, mit „Diese Gruppe nehmen“.</li><li>„Nicht im Plan“ oben: die Übung von MIT3 über ihrer Modulseite.</li></ul></div>
+      <div><h3>Halb hoch</h3><ul><li><b>Ticket, Person und Gruppen ganz:</b> genug für „wo muss ich hin?“.</li><li>Kein Knopf am Fuß, solange der Termin im Plan ist.</li></ul></div>
+      <div><h3>Die Seite</h3><ul><li>Links der Alltag: Ticket, Person, Gruppen, Tag, Reihe, Ausnahmen.</li><li>Rechts zum Nachschlagen: Woche, Modul, Veranstaltungen, Lehrende, Quelle. „Ganze Seite“ <b>V</b>, Schließen <b>Esc</b>.</li></ul></div>
+    </div>
+  </section>
+
+  <section class="sec" id="wer" aria-labelledby="wer-title">
+    <h2 id="wer-title">Wer und welche Gruppe</h2>
+    <p class="sub">Die Ebene unter dem Ticket, in vier Fällen. Eine Person ist nie nur ein Name, sie hat eine Rolle. Gruppen sind keine Punkte mehr, sondern die Gruppen selbst.</p>
+    <div class="wer" id="wer-cards"></div>
+  </section>
+
+  <section class="sec" id="nicht" aria-labelledby="nicht-title">
+    <h2 id="nicht-title">Ein Modul, das nicht in deinem Plan ist</h2>
+    <p class="sub">Auf der Modulseite tippst du einen Termin an, etwa die Übung von Mathematik IT-3, einem Modul des dritten Semesters. Derselbe Termin, mit vier Unterschieden:</p>
+    <ul class="pts">
+      <li><b>Das Kürzel gestrichelt</b> und „nicht im Plan“ daneben: ohne Text darüber erkennbar, dass es nicht deiner ist.</li>
+      <li><b>Passt es?</b> Im Band des Tages und in der Woche steht der Termin schraffiert zwischen deinen; an den Gruppen ein grüner Punkt, wo es passt, ein roter, wo nicht.</li>
+      <li><b>Der große Knopf</b> ist „In den Kalender“, für den Termin selbst, etwa um einmal hinzugehen.</li>
+      <li><b>Einplanen</b> gehört dem Modul und steht beim Modul, als Betulas Knopf mit dem Semester.</li>
+    </ul>
+    <button type="button" class="go-proto" data-show="np">Im Prototyp zeigen<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+  </section>
+
+  <section class="sec" id="seite" aria-labelledby="seite-title">
+    <h2 id="seite-title">Die ganze Seite</h2>
+    <p class="sub">Unter der Linie „Zum Nachschlagen“ steht, was man selten braucht, aber dann schnell finden will. Am Handy unter dem Alltag, am Rechner füllt es die rechte Spalte.</p>
+    <ul class="pts">
+      <li><b>Die Woche:</b> Montag bis Freitag mit deinen Terminen, dieser hervorgehoben; außerhalb des Plans das ganze Modul schraffiert darin.</li>
+      <li><b>Alle Veranstaltungen des Moduls:</b> Vorlesung, Übung mit ihren Gruppen, Tutorium, Prüfung, jede mit ihren Zeiten; ein Tipp öffnet sie.</li>
+      <li><b>Lehrende:</b> wer das Modul verantwortet, mit Titel, und wer welchen Termin leitet.</li>
+      <li><b>Zeitraum und Ausnahmen:</b> der Rhythmus vom ersten bis zum letzten Datum, und jedes Datum, das anders ist.</li>
+    </ul>
+    <button type="button" class="go-proto" data-show="page">Im Prototyp zeigen<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+  </section>
+
+  <section class="sec" id="zustaende" aria-labelledby="zu-title">
+    <h2 id="zu-title">Neun Zustände, dieselbe Ordnung</h2>
+    <p class="sub">Ebene 1 und 2, wie das Sheet halb hoch sie zeigt. Was sich ändert, ändert das Ticket; ein Knopf kommt nur dazu, wo es etwas zu tun gibt.</p>
+    <div class="states" id="states"></div>
   </section>
 
   <section class="sec" id="rang" aria-labelledby="rang-title">
@@ -734,16 +911,21 @@ details.r1 .in { padding: 0 24px 24px; }
     <div class="anat">
       <div class="paper"><div class="ui" id="anat-app"></div></div>
       <ol class="levels">
-        <li><span class="n">1</span><div><h3>Was <small>Kopf, klein</small></h3><p>Modul als farbiges Kürzel, Art, Titel. Nur zur Orientierung: wer tippt, weiß meist schon, was er antippt.</p></div></li>
-        <li><span class="n">2</span><div><h3>Wann und wo <small>das Ticket, am größten</small></h3><p>Tag mit ‹ › zum Blättern, wie bald, Uhrzeit, Raum mit Gebäude und Standort. Was an diesem Tag anders ist, verändert das Ticket selbst.</p></div></li>
-        <li><span class="n">3</span><div><h3>Wer und welche Gruppe <small>eine Zeile Zeichen</small></h3><p>Eine Person: wer diesen Termin leitet, sonst wer das Modul verantwortet. Die Gruppe als Punkte, eine Überschneidung als rotes Zeichen, ein Hinweis aus QIS in höchstens zwei Zeilen.</p></div></li>
-        <li><span class="n">4</span><div><h3>Drumherum <small>Abschnitte, klein überschrieben</small></h3><p>Der Tag als Band mit „danach“, die Reihe als Punkte, Modul und Prüfung als Zeilen. Jeder Abschnitt hat seinen Weg: „Stundenplan“, „Zum Modul“.</p></div></li>
-        <li><span class="n">5</span><div><h3>Quelle <small>grau, ganz unten</small></h3><p>QIS mit Art und Nummer, QIS' Wortlaut, der Stand der Daten, „In QIS öffnen“.</p></div></li>
-        <li><span class="n act">+</span><div><h3>Die eine Aktion <small>groß, nur wenn es etwas zu tun gibt</small></h3><p>„Diese Gruppe nehmen“ bei einer anderen Gruppe, „In den Kalender“ bei einem Termin außerhalb des Plans. Bei einem Termin des Plans, einem Ausfall oder etwas Vergangenem: keine.</p></div></li>
+        <li><span class="n">1</span><div><h3>Was <small>Kopf, klein</small></h3><p>Modul als farbiges Kürzel, gestrichelt außerhalb des Plans; Art, Titel.</p></div></li>
+        <li><span class="n">2</span><div><h3>Wann und wo <small>das Ticket, am größten</small></h3><p>Tag mit ‹ ›, wie bald, Uhrzeit, Raum mit Gebäude und Standort. Was an diesem Tag anders ist, verändert das Ticket selbst.</p></div></li>
+        <li><span class="n">3</span><div><h3>Wer und welche Gruppe <small>volle Breite</small></h3><p>Die Person mit ihrer Rolle, darunter die Gruppen als Leiste. Eine Überschneidung und ein Hinweis aus QIS als eigene Zeile.</p></div></li>
+        <li><span class="n">4</span><div><h3>Drumherum <small>für den Alltag</small></h3><p>Der Tag als Band mit „danach“, die Reihe als Punkte, Modul und Prüfung als Zeilen.</p></div></li>
+        <li><span class="n">5</span><div><h3>Zum Nachschlagen <small>unter der Linie</small></h3><p>Die Woche, alle Veranstaltungen des Moduls, die Lehrenden, Zeitraum und Ausnahmen. Selten gebraucht, darum unten; auf der Seite füllen sie die rechte Spalte.</p></div></li>
+        <li><span class="n">6</span><div><h3>Quelle <small>grau, ganz unten</small></h3><p>QIS mit Art und Nummer, QIS' Wortlaut, der Stand der Daten, „In QIS öffnen“.</p></div></li>
+        <li><span class="n act">+</span><div><h3>Die eine Aktion <small>groß, nur wenn es etwas zu tun gibt</small></h3><p>„Diese Gruppe nehmen“ bei einer anderen Gruppe, „In den Kalender“ bei einem Termin außerhalb des Plans. Einplanen gehört dem Modul und steht dort.</p></div></li>
       </ol>
     </div>
   </section>
-
+  <section class="sec" id="zeichen" aria-labelledby="zeichen-title">
+    <h2 id="zeichen-title">Zeichen statt Text</h2>
+    <p class="sub">Wenige Zeichen, immer gleich verwendet, in Betulas Strichstärke und Farben. Farbe trägt nur Bedeutung: das Modul, Grün für bald, Gelb für anders, Rot für fällt aus.</p>
+    <div class="signs ui" id="signs"></div>
+  </section>
   <section class="sec" id="knoepfe" aria-labelledby="kn-title">
     <h2 id="kn-title">Vier Arten Knopf, vier Orte</h2>
     <p class="sub">Ein Knopf tut etwas, führt woandershin, bedient die Ansicht oder sagt, woher etwas kommt. Gemischt in einer Reihe sehen alle gleich wichtig aus. Getrennt sagt der Ort, was der Knopf tut.</p>
@@ -754,36 +936,6 @@ details.r1 .in { padding: 0 24px 24px; }
       <div class="kind"><div class="demo left"><p class="tm-src" style="border: 0; padding: 0"><span>Quelle: QIS · Übung 130431</span><span style="text-decoration: underline; text-decoration-color: var(--line-strong); color: var(--text-2); font-weight: 600">In QIS öffnen ↗</span></p></div><h3>Quelle <small>grau, ganz unten</small></h3><p>Woher es kommt, für wen es nachsehen will: QIS, Nummer, Wortlaut, Stand.</p><p class="was">Erste Runde: <s>In QIS</s> als Knopf, <s>Kopieren</s> am Raum</p></div>
     </div>
   </section>
-
-  <section class="sec" id="zeichen" aria-labelledby="zeichen-title">
-    <h2 id="zeichen-title">Zeichen statt Text</h2>
-    <p class="sub">Wenige Zeichen, immer gleich verwendet, in Betulas Strichstärke und Farben. Farbe trägt nur Bedeutung: das Modul, Grün für bald, Gelb für anders, Rot für fällt aus.</p>
-    <div class="signs ui" id="signs"></div>
-  </section>
-
-  <section class="concept" id="a" aria-labelledby="a-title" data-concept="a">
-    <header class="c-head">
-      <span class="c-tag">A</span>
-      <div><h2 id="a-title">Sheet, das zur Seite wird <small>zweite Runde</small></h2><p>Am Handy halb hoch: Ebene 1 und 2, darunter beginnt der Tag. Hochgezogen ist es die Seite. Am Rechner daneben, „Ganze Seite“ zeigt es groß in zwei Spalten.</p></div>
-    </header>
-    <div class="c-ctl"><span class="kicker">Zeigen</span><div class="seg" role="group" aria-label="Zustand" data-steps="a"></div><button type="button" class="c-reset" data-reset="a">Zurücksetzen</button></div>
-    <div class="stage">
-      <figure class="device desk" data-c="a" data-dev="desk"><div class="frame"><div class="chrome"><i></i><i></i><i></i><span class="url"></span></div><div class="fit"><div class="screen"><div class="app desk-app"></div></div></div></div><figcaption>Am Rechner</figcaption></figure>
-      <figure class="device phone" data-c="a" data-dev="phone"><div class="frame"><div class="fit"><div class="screen"><div class="app phone-app"></div></div></div></div><figcaption>Am Handy <span class="addr"></span></figcaption></figure>
-    </div>
-    <div class="c-notes">
-      <div><h3>Zum Ausprobieren</h3><ul><li>‹ › im Ticket oder ← →: das Datum davor und danach.</li><li>Ein Punkt der Reihe, ein Block im Band: dorthin.</li><li>„Gruppe“: die anderen Gruppen; eine antippen zeigt sie, mit „Diese Gruppe nehmen“.</li></ul></div>
-      <div><h3>Halb hoch</h3><ul><li><b>Ebene 1 und 2 ganz,</b> vom Tag der Anfang: genug für „wo muss ich hin?“.</li><li>Kein Knopf am Fuß, solange der Termin im Plan ist.</li></ul></div>
-      <div><h3>Am Rechner</h3><ul><li>Daneben 430 px, wie das Modul heute; „Ganze Seite“ <b>V</b>, Schließen <b>Esc</b>.</li><li>Die Seite: links Ebene 1 bis 3 mit dem Tag, rechts Reihe, Modul, Quelle.</li></ul></div>
-    </div>
-  </section>
-
-  <section class="sec" id="zustaende" aria-labelledby="zu-title">
-    <h2 id="zu-title">Neun Zustände, dieselbe Ordnung</h2>
-    <p class="sub">Ebene 1 und 2, wie das Sheet halb hoch sie zeigt. Was sich ändert, ändert das Ticket; ein Knopf kommt nur dazu, wo es etwas zu tun gibt.</p>
-    <div class="states" id="states"></div>
-  </section>
-
   <section class="sec" id="adresse" aria-labelledby="adresse-title">
     <h2 id="adresse-title">Die Adresse</h2>
     <p class="sub">Unverändert aus der ersten Runde. Der Schlüssel ist der, den Betula für Abo und Kalender schon hat: Veranstaltung und fünf Zeichen für die Zeile.</p>
@@ -798,12 +950,12 @@ details.r1 .in { padding: 0 24px 24px; }
   <section class="sec" id="fragen" aria-labelledby="fragen-title">
     <h2 id="fragen-title">Fragen, mit Vorschlag</h2>
     <ol class="qs">
-      <li><b>Der große Knopf nur, wo es etwas zu tun gibt?</b><p>Eine andere Gruppe: „Diese Gruppe nehmen“. Ein Termin außerhalb des Plans: „In den Kalender“. <em>Vorschlag:</em> im Plan keiner, das Abo trägt ihn.</p></li>
-      <li><b>Nur eine Person?</b><p>QIS nennt je Zeile oft nur einen Nachnamen („Pilling“). <em>Vorschlag:</em> die Leitung dieser Zeile, sonst wer das Modul verantwortet; die anderen stehen auf der Modulseite.</p></li>
+      <li><b>Wer hält die Vorlesung?</b><p>QIS nennt je Veranstaltung die Lehrenden (bei MIT3: Oevermann hält die Vorlesung, Bernhardt die Übung). Radix speichert sie, legt sie aber in keine Sicht; darum steht hier, wer das Modul verantwortet. <em>Vorschlag:</em> eine Sicht <code>v_event_person</code> in Radix; dann sagt der Termin „hält die Vorlesung“ mit dem richtigen Namen.</p></li>
+      <li><b>Grün an den Gruppen nur außerhalb des Plans?</b><p>Im Plan wäre fast jede Gruppe grün und das Grün sagte nichts. <em>Vorschlag:</em> im Plan nur Rot und dein Haken, außerhalb Grün und Rot.</p></li>
+      <li><b>Der große Knopf außerhalb des Plans: Kalender, nicht Einplanen?</b><p><em>Vorschlag:</em> ja. Der Kalender gehört dem Termin, Einplanen dem Modul und steht dort.</p></li>
       <li><b>Tipp im Stundenplan: Termin statt Modul?</b><p><em>Vorschlag:</em> der Termin; das Modul liegt einen Tipp entfernt unter „Zum Modul“.</p></li>
       <li><b>Ausfall plus Einzeltermin zur selben Zeit: ein Raumwechsel?</b><p>So zeigt es das Ticket am 04.11. <em>Vorschlag:</em> ja, Betula fasst beides zusammen.</p></li>
       <li><b>Kalender-Abo auf Betula statt QIS?</b><p><em>Vorschlag:</em> ja; QIS ist dort im Fuß.</p></li>
-      <li><b>„Für wen“ laut QIS zeigen?</b><p>Radix hat <code>v_event_program</code>, Folia fragt es nicht ab. <em>Vorschlag:</em> später, als Zeichen in Ebene 3, wenn es gebraucht wird.</p></li>
     </ol>
   </section>
 
@@ -844,6 +996,7 @@ const MODS = {
   MIT1: { id: "11112", title: "Mathematik IT-1 (Diskrete Mathematik)", lp: 8, c: "mit", resp: "Prof. Dr. rer. nat. habil. Köhler, Ekkehard", who: "Köhler, Ekkehard", exam: "Klausur, 90 min", pre: "Hausaufgaben" },
   PP: { id: "12102", title: "Programmierpraktikum", lp: 4, c: "pp", resp: "Prof. Dr. rer. nat. habil. Hofstedt, Petra", who: "Hofstedt, Petra", exam: "drei Programmiertests", pre: null },
   MSe: { id: "11503", title: "Master-Seminar", lp: 4, c: "mse", resp: "Prof. Dr. rer. nat. habil. Wunderlich, Ralf", who: "Wunderlich, Ralf", exam: "Seminarvortrag", pre: null },
+  MIT3: { id: "11213", title: "Mathematik IT-3 (Analysis)", lp: 8, c: "mit3", resp: "Prof. Dr. rer. nat. Averkov, Gennadiy", who: "Averkov, Gennadiy", exam: "Klausur, 90 min", pre: "Hausaufgaben, 50 % der Punkte" },
 };
 // The modules of the plan; the seminar of MSe is a Termin from outside it (a Master's program).
 const PLAN = new Set(["EEG", "EvS", "MIT1", "PP"]);
@@ -877,10 +1030,17 @@ const RAW = [
   ["148370-d70e0", "PP", "148370", "120731", "Praktikum", 4, "11:30", "13:00", "weekly", "2026-10-08", "2027-01-28", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
   ["148370-89ed1", "PP", "148370", "120731", "Praktikum", 5, "13:45", "15:15", "weekly", "2026-10-09", "2027-01-29", "VG1C/0.03", "Verfügungsgebäude 1C - 0.03 - Zentralcampus", "zentralcampus", null, null, ""],
   ["148960-ef2fb", "MSe", "148960", "130850", "Seminar", 3, "11:30", "13:00", "weekly", "2026-10-07", "2027-01-27", "HG/3.45", "Hauptgebäude - HG 3.45 - Zentralcampus", "zentralcampus", null, null, "04.11.2026: fällt aus"],
+  ["148206-bcd64", "MIT3", "148206", "131120", "Vorlesung", 1, "13:45", "15:15", "weekly", "2026-10-05", "2027-01-25", "LG1A/HS.1", "Lehrgebäude 1A - Hörsaal 1 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148206-6bb8d", "MIT3", "148206", "131120", "Vorlesung", 2, "15:30", "17:00", "weekly", "2026-10-06", "2027-01-26", "LG1A/304", "Lehrgebäude 1A - 304 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148230-c79f9", "MIT3", "148230", "131121", "Übung", 2, "11:30", "13:00", "weekly", "2026-10-06", "2027-01-26", "HG/0.17", "Hauptgebäude - HG 0.17 - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148230-6c54e", "MIT3", "148230", "131121", "Übung", 4, "13:45", "15:15", "weekly", "2026-10-08", "2027-01-28", "ZHG/HS.B", "Zentrales Hörsaalgebäude - Hörsaal B - Zentralcampus", "zentralcampus", null, null, ""],
+  ["148673-39dc6", "MIT3", "148673", "131122", "Prüfung", 1, "11:00", "13:00", "single", "2027-02-08", "2027-02-08", "LG1A/HS.2", "Lehrgebäude 1A - Hörsaal 2 - Zentralcampus", "zentralcampus", null, "Klausur", ""],
 ];
 
 const CHOSEN = { "148304": "148304-e4bf3", "148369": "148369-aaf38", "148370": "148370-ef2fb" };
-const EXAMPLES = { raum: "148304-e4bf3@2026-11-04", vl: "148701-b7025@2026-11-06", ab: "148135-462ed@2026-11-10", exam: "148664-84d53@2027-03-10" };
+const EXAMPLES = { raum: "148304-e4bf3@2026-11-04", vl: "148701-b7025@2026-11-06", ab: "148135-462ed@2026-11-10", exam: "148664-84d53@2027-03-10", np: "148230-6c54e@2026-11-05" };
+// Events one attends one row of (the Stundenplan's choices; Radix's v_module_choice says it from the SWS).
+const CHOICE = new Set(["148304", "148369", "148370", "148230"]);
 // The semester as the data says it (folia-timetable's SemesterFacts): the break and Brandenburg's holidays.
 const BREAK = ["2026-12-21", "2027-01-03"];
 const HOLIDAYS = { "2026-10-31": "Reformationstag", "2026-12-25": "1. Weihnachtstag", "2026-12-26": "2. Weihnachtstag", "2027-01-01": "Neujahr" };
@@ -933,8 +1093,8 @@ for (const s of ROWS) {
   if (r) { s.into = r.k; (r.moves ||= {})[s.from] = s; }
 }
 const titleOf = (r) => EVTITLE[r.ev] || MODS[r.mod].title;
-const choiceOf = (r) => (CHOSEN[r.ev] ? ROWS.filter((x) => x.ev === r.ev && x.rh !== "single") : null);
-const inPlan = (r) => PLAN.has(r.mod) && !r.into && (!CHOSEN[r.ev] || CHOSEN[r.ev] === r.k);
+const choiceOf = (r) => (CHOICE.has(r.ev) ? ROWS.filter((x) => x.ev === r.ev && x.rh !== "single") : null);
+const inPlan = (r) => PLAN.has(r.mod) && !r.into && (!CHOICE.has(r.ev) || CHOSEN[r.ev] === r.k);
 function datesOf(r) {
   if (r._dates) return r._dates;
   const out = [];
@@ -1110,7 +1270,7 @@ function clashOn(i) {
   if (i.r.exam || i.o.st === "cancel" || i.o.st === "brk") return null;
   const a = mins(i.r.s), b = mins(i.r.e);
   const it = dayItems(i.n).find((x) => x.r.ev !== i.r.ev && x.o.st !== "cancel" && x.s < b && a < x.e);
-  return it ? { short: `${KSHORT[it.r.kind] || it.r.kind} ${it.r.mod}`, title: `${it.r.kind} ${titleOf(it.r)}, ${it.r.s}–${it.r.e}` } : null;
+  return it ? { short: `${KSHORT[it.r.kind] || it.r.kind} ${it.r.mod}`, title: `${it.r.kind} ${it.r.mod}, ${it.r.s}–${it.r.e}` } : null;
 }
 // Whether an option of a choice meets the plan in its week: the Stundenplan's „passt" or the other Termin.
 function clashRow(x) {
@@ -1120,27 +1280,41 @@ function clashRow(x) {
   }
   return "";
 }
-function factsOf(i, o) {
+const VERB = { Vorlesung: "hält die Vorlesung", Übung: "leitet die Übung", Tutorium: "leitet das Tutorium", Praktikum: "betreut das Praktikum", Seminar: "leitet das Seminar", Prüfung: "prüft" };
+const GROUPWORD = { Übung: "Übungsgruppe", Praktikum: "Praktikumsgruppe", Tutorium: "Tutoriumsgruppe", Seminar: "Seminargruppe" };
+const RHYTHM = { weekly: "wöchentlich", week_a: "14-täglich, A-Woche", week_b: "14-täglich, B-Woche", single: "einmalig" };
+// „Köhler, Ekkehard" → „Ekkehard Köhler"; a surname alone, as QIS gives it per row, stays.
+const fullName = (n) => { const [last, first] = n.split(",").map((x) => x.trim()); return first ? `${first} ${last}` : last; };
+function personRow(i) {
   const m = MODS[i.r.mod];
-  const out = [`<span class="fact" title="${i.r.instr ? "leitet diesen Termin, laut QIS" : `verantwortlich: ${esc(m.resp)}`}">${icon("user")}${esc(i.r.instr || m.who)}</span>`];
-  if (i.r.exam) out.push(`<span class="fact">${icon("pen")}${esc(m.exam)}</span>`);
+  const name = i.r.instr || fullName(m.who);
+  const role = i.r.instr ? VERB[i.r.kind] || "leitet den Termin" : "verantwortet das Modul";
+  return `<div class="who"><span class="av">${icon("user")}</span><span><b>${esc(name)}</b><small>${role}</small></span></div>`;
+}
+function groupRow(i) {
   const ch = choiceOf(i.r);
-  if (ch) {
-    const dots = ch.map((x) => `<i class="${[CHOSEN[x.ev] === x.k ? "mine" : "", x.k === i.r.k ? "this" : ""].join(" ").trim()}"></i>`).join("");
-    out.push(`<button type="button" class="fact btnish" data-act="groups" aria-expanded="${!!o.groups}">${icon("users")}Gruppe<span class="gdots" aria-hidden="true">${dots}</span>${icon(o.groups ? "up" : "down")}</button>`);
-  }
+  if (!ch) return "";
+  const planned = PLAN.has(i.r.mod);
+  const segs = ch.map((x) => {
+    const mine = planned && CHOSEN[x.ev] === x.k;
+    const c = clashRow(x);
+    const mark = mine ? `<i class="ck">${icon("check")}</i>` : c ? '<i class="dot no"></i>' : planned ? "" : '<i class="dot ok"></i>';
+    const label = `${WD2[x.wd]} ${x.s}–${x.e}, ${x.room}${mine ? ", deine Gruppe" : ""}${c ? `, überschneidet sich mit ${c}` : planned ? "" : ", passt"}`;
+    return `<button type="button" class="gs${x.k === i.r.k ? " this" : ""}" data-act="open" data-k="${keyOf(x, nextDate(x))}" title="${esc(label)}" aria-label="${esc(label)}"${x.k === i.r.k ? ' aria-current="true"' : ""}><b>${WD2[x.wd]} ${x.s}</b><small>${esc(x.room)}</small>${mark}</button>`;
+  }).join("");
+  return `<div class="grp"><div class="grp-h"><span>${GROUPWORD[i.r.kind] || "Gruppe"}</span><span class="r">eine von ${ch.length}</span></div><div class="grp-seg" style="--n: ${ch.length}">${segs}</div></div>`;
+}
+function examRow(i) {
+  const m = MODS[i.r.mod];
+  return `<div class="who"><span class="av">${icon("pen")}</span><span><b>${esc(m.exam)}</b><small>${m.pre ? `Zulassung: ${esc(m.pre)}` : "Prüfungsform laut Modul"}</small></span></div>`;
+}
+function tier2(i, o) {
   const c = clashOn(i);
-  if (c) out.push(`<span class="fact warn" title="überschneidet sich mit ${esc(c.title)}">${icon("alert")}${esc(c.short)}</span>`);
+  const clash = c ? `<p class="hint no">${icon("alert")}<span>Überschneidet sich mit ${esc(c.title)}</span></p>` : "";
   let hint = "";
   if (i.o.st === "cancel" && i.o.note && !/^fällt aus\.?$/i.test(i.o.note)) hint = `<p class="hint no">${icon("ban")}<span>${esc(i.o.note)}</span></p>`;
-  else if (i.r.comment) hint = `<p class="hint">${icon("info")}<span>${esc(i.r.comment)}</span></p>`;
-  else if (i.r.exam && m.pre) hint = `<p class="hint">${icon("check")}<span>Zulassung: ${esc(m.pre)}</span></p>`;
-  const opts = o.groups && ch ? `<div class="opts">${ch.map((x) => {
-    const mine = CHOSEN[x.ev] === x.k;
-    const c2 = clashRow(x);
-    return `<button type="button" class="opt${x.k === i.r.k ? " this" : ""}" data-act="open" data-k="${keyOf(x, nextDate(x))}"><span class="dot${mine ? " mine" : ""}"></span><span><b>${WD2[x.wd]} ${x.s}–${x.e} · ${esc(x.room)}</b><small>${esc(x.instr || "")}${mine ? `${x.instr ? " · " : ""}deine` : ""}</small></span>${c2 ? `<span class="pill no">${icon("alert")}${esc(c2)}</span>` : '<span class="pill soon">passt</span>'}${icon("right")}</button>`;
-  }).join("")}</div>` : "";
-  return `<div class="tm-facts">${out.join("")}</div>${opts}${hint}`;
+  else if (i.r.comment && !(i.r.exam && i.r.comment === "Klausur")) hint = `<p class="hint">${icon("info")}<span>${esc(i.r.comment)}</span></p>`;
+  return `${personRow(i)}${i.r.exam ? examRow(i) : ""}${groupRow(i, o)}${clash}${hint}`;
 }
 function secDay(i, o) {
   if (i.r.exam) return secExams(i);
@@ -1199,10 +1373,83 @@ function secSeries(i) {
 }
 function secModule(i) {
   const m = MODS[i.r.mod];
-  const ex = !i.r.exam && exams().find((x) => x.mod === i.r.mod);
+  const ex = !i.r.exam && ROWS.find((x) => x.exam && x.mod === i.r.mod);
   const exRow = ex ? (() => { const n = dn(ex.from); return `<button type="button" class="mrow" data-act="open" data-k="${keyOf(ex, n)}"><span class="dt"><b>${isoOf(n).slice(8, 10)}</b><small>${MON3[monthOf(n)]}</small></span><span><b>Prüfung</b><small>${WD2[wdOf(n)]} ${ex.s}–${ex.e} · ${esc(ex.room)} · ${esc(m.exam)}</small></span><span class="v">${n - TODAY} Tage</span>${icon("right")}</button>`; })() : "";
   const sub = [titleOf(i.r) !== m.title ? m.title : "", m.id, `${m.lp} LP`].filter(Boolean).join(" · ");
-  return `<section class="tm-sec"><h4>Modul</h4><button type="button" class="mrow" data-act="toast" data-msg="Modul ansehen: ${esc(m.title)}"><span class="ico">${icon("book")}</span><span><b>Zum Modul</b><small>${esc(sub)}</small></span><span class="v"></span>${icon("right")}</button>${exRow}</section>`;
+  const plan = PLAN.has(i.r.mod) ? "" : `<div class="planrow"><b>Nicht in deinem Plan</b><button type="button" class="sw" data-act="toast" data-msg="Eingeplant: ${esc(m.title)}, WiSe 26/27">${icon("calplus")}Einplanen <small>WiSe 26/27</small></button></div>`;
+  return `<section class="tm-sec"><h4>Modul</h4><button type="button" class="mrow" data-act="toast" data-msg="Modul ansehen: ${esc(m.title)}"><span class="ico">${icon("book")}</span><span><b>Zum Modul</b><small>${esc(sub)}</small></span><span class="v"></span>${icon("right")}</button>${exRow}${plan}</section>`;
+}
+// The week of the date: the plan's Termine, this one marked; a module outside the plan hatched among them.
+function secWeek(i) {
+  if (i.r.exam) return "";
+  const np = !PLAN.has(i.r.mod);
+  const mon = i.n - (wdOf(i.n) - 1);
+  const T0 = 7 * 60, span = 12 * 60, H = 126;
+  const cols = [0, 1, 2, 3, 4].map((d) => {
+    const n = mon + d;
+    const items = dayItems(n).filter((x) => !x.r.exam).map((x) => ({ ...x, cand: false }));
+    if (np) for (const r of ROWS) {
+      if (r.mod !== i.r.mod || r.exam || r.into) continue;
+      const o = datesOf(r).find((x) => x.n === n);
+      if (o && o.st !== "brk") items.push({ k: keyOf(r, n), r, o, s: mins(r.s), e: mins(r.e), room: o.room || r.room, cand: true });
+    }
+    items.sort((a, b) => a.s - b.s);
+    const lanes = [];
+    for (const it of items) { let l = lanes.findIndex((end) => end <= it.s); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.e; it.lane = l; }
+    const nl = Math.max(1, lanes.length);
+    const blocks = items.map((it) => {
+      const me = parseK(it.k).r.k === i.r.k && n === i.n;
+      const clash = it.cand && items.some((x) => !x.cand && x.s < it.e && it.s < x.e);
+      const cls = ["mw", it.cand ? "cand" : "", clash ? "clash" : "", me ? "me" : "", it.o.st === "cancel" ? "gone" : ""].filter(Boolean).join(" ");
+      const label = `${WD2[wdOf(n)]} ${it.r.s}–${it.r.e} · ${it.r.kind} ${it.r.mod} · ${it.room}`;
+      return `<button type="button" class="${cls}" style="${mc(it.r.mod)}; top: ${((it.s - T0) / span) * H}px; height: ${Math.max(6, ((it.e - it.s) / span) * H - 1)}px; left: calc(${(it.lane / nl) * 100}% + 2px); width: calc(${100 / nl}% - 4px)" data-act="open" data-k="${it.k}" title="${esc(label)}" aria-label="${esc(label)}"></button>`;
+    }).join("");
+    return `<div class="mwc"><span class="mwd${n === i.n ? " on" : ""}">${WD2[d + 1]} ${ddmm(n).slice(0, 3)}</span><div class="mwb" style="height: ${H}px">${blocks}</div></div>`;
+  }).join("");
+  return `<section class="tm-sec"><h4>${np ? "Das Modul in deiner Woche" : "Deine Woche"}<span class="r">KW ${isoWeek(i.n)} · ${abWeek(i.n)}-Woche</span></h4><div class="mwk">${cols}</div></section>`;
+}
+// All events of the module, each with its Termine; a tap opens one.
+function secEvents(i) {
+  const byEv = new Map();
+  for (const r of ROWS) { if (r.mod !== i.r.mod || r.into) continue; if (!byEv.has(r.ev)) byEv.set(r.ev, []); byEv.get(r.ev).push(r); }
+  const rows = [...byEv.values()].map((rs) => {
+    const ch = choiceOf(rs[0]);
+    const slots = rs.map((x) => {
+      const n = x.exam ? dn(x.from) : nextDate(x);
+      const mine = ch && PLAN.has(x.mod) && CHOSEN[x.ev] === x.k;
+      const when = x.exam ? `${WD2[wdOf(n)]} ${ddmm(n)}` : `${WD2[x.wd]} ${x.s}${x.rh === "week_a" ? " · A" : x.rh === "week_b" ? " · B" : ""}`;
+      const label = `${x.kind} ${when}, ${x.room}${mine ? ", deine Gruppe" : ""}`;
+      return `<button type="button" class="esl${x.k === i.r.k ? " me" : ""}${mine ? " ck" : ""}" data-act="open" data-k="${keyOf(x, n)}" title="${esc(label)}" aria-label="${esc(label)}"><b>${when}</b><small>${esc(x.room)}</small>${mine ? icon("check") : ""}</button>`;
+    }).join("");
+    return `<div class="evr" style="${mc(i.r.mod)}"><div class="evh"><b>${esc(rs[0].kind)}</b>${ch ? `<small>eine von ${ch.length}</small>` : ""}</div><div class="esls">${slots}</div></div>`;
+  }).join("");
+  return `<section class="tm-sec"><h4>Alle Veranstaltungen<span class="r">${esc(i.r.mod)}</span></h4><div class="evs">${rows}</div></section>`;
+}
+// Who teaches: who is responsible for the module, and who leads which Termin, as QIS names them.
+function secStaff(i) {
+  const m = MODS[i.r.mod];
+  const out = [`<div class="who sm"><span class="av">${icon("user")}</span><span><b><span class="tt">${esc(m.resp.replace(m.who, "").trim())}</span> ${esc(fullName(m.who))}</b><small>verantwortet das Modul</small></span></div>`];
+  const led = new Map();
+  for (const r of ROWS) { if (r.mod !== i.r.mod || !r.instr || r.exam) continue; if (!led.has(r.instr)) led.set(r.instr, []); led.get(r.instr).push(`${WD2[r.wd]} ${r.s}`); }
+  for (const [name, when] of led) {
+    const kind = ROWS.find((r) => r.mod === i.r.mod && r.instr === name).kind;
+    out.push(`<div class="who sm"><span class="av">${icon("user")}</span><span><b>${esc(name)}</b><small>${esc(VERB[kind] || "leitet")} ${when.join(" und ")}</small></span></div>`);
+  }
+  return `<section class="tm-sec"><h4>Lehrende<span class="r">laut QIS</span></h4><div class="ppl">${out.join("")}</div></section>`;
+}
+// The rhythm from the first to the last date, and every date that differs.
+function secExceptions(i) {
+  if (i.r.rh === "single") return "";
+  const lines = [];
+  for (const o of i.all) {
+    if (o.st === "room") lines.push({ n: o.n, d: ddmm(o.n), t: `in ${o.room} statt ${i.r.room}`, c: "room" });
+    if (o.st === "cancel") lines.push({ n: o.n, d: ddmm(o.n), t: o.note && !/^fällt aus\.?$/i.test(o.note) ? `fällt aus: ${o.note}` : "fällt aus", c: "cancel" });
+  }
+  const brk = i.all.filter((o) => o.st === "brk");
+  if (brk.length) lines.push({ n: brk[0].n, d: brk.map((o) => ddmm(o.n)).join(" "), t: brk[0].why, c: "brk" });
+  lines.sort((a, b) => a.n - b.n);
+  const head = `${RHYTHM[i.r.rh]}, ${WD2[i.r.wd]} ${i.r.s}–${i.r.e}, ${ddmm(dn(i.r.from))}–${ddmm(dn(i.r.to))}${i.r.to.slice(0, 4)} · ${i.count}\u00a0Termine`;
+  return `<section class="tm-sec"><h4>Zeitraum und Ausnahmen</h4><p class="rng">${head}</p>${lines.length ? `<ul class="exl2">${lines.map((x) => `<li class="${x.c}"><b>${x.d}</b><span>${esc(x.t)}</span></li>`).join("")}</ul>` : '<p class="rng">keine Ausnahmen</p>'}</section>`;
 }
 function sourceOf(i) {
   const bits = ["Quelle: QIS", `${esc(i.r.kind)} ${esc(i.r.num)}`];
@@ -1213,25 +1460,27 @@ function sourceOf(i) {
 // The one action, or none.
 function actionOf(i, now) {
   if (i.o.st === "cancel" || i.o.st === "brk" || i.o.st === "none" || timing(i, now || NOW).past) return "";
-  if (choiceOf(i.r) && CHOSEN[i.r.ev] !== i.r.k) return `<button type="button" class="big" data-act="take" data-k="${i.r.k}">${icon("check")}Diese Gruppe nehmen</button>`;
+  if (PLAN.has(i.r.mod) && choiceOf(i.r) && CHOSEN[i.r.ev] !== i.r.k) return `<button type="button" class="big" data-act="take" data-k="${i.r.k}">${icon("check")}Diese Gruppe nehmen</button>`;
   if (!PLAN.has(i.r.mod)) return `<button type="button" class="big" data-act="toast" data-msg="Kalender: ${WD2[wdOf(i.n)]} ${ddmm(i.n)}, ${i.r.s}, als Termin">${icon("calplus")}In den Kalender</button>`;
   return "";
 }
 // o.size: half | full | panel | page | card; o.tools: the buttons top right; o.anat: the levels numbered.
 function tmBlock(k, o) {
   const i = info(k);
+  const np = !PLAN.has(i.r.mod);
   const tier = (n) => (o.anat ? `<span class="tier" aria-hidden="true">${n}</span>` : "");
-  const head = `<header class="tm-head">${tier(1)}<div class="tm-bar"><span class="tm-mod"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(i.r.kind)}</span><span class="tm-tools">${o.tools || ""}</span></div><h3 class="tm-title">${nbh(esc(titleOf(i.r)))}</h3></header>`;
+  const head = `<header class="tm-head">${tier(1)}<div class="tm-bar"><span class="tm-mod${np ? " out" : ""}"><i></i>${esc(i.r.mod)}</span><span class="tm-kind">${esc(i.r.kind)}</span>${np ? '<span class="np">nicht im Plan</span>' : ""}<span class="tm-tools">${o.tools || ""}</span></div><h3 class="tm-title">${nbh(esc(titleOf(i.r)))}</h3></header>`;
   const t1 = `<div class="tm-t1">${tier(2)}${ticket(i, o)}</div>`;
-  const t2 = `<div class="tm-t2">${tier(3)}${factsOf(i, o)}</div>`;
+  const t2 = `<div class="tm-t2">${tier(3)}${tier2(i, o)}</div>`;
   if (o.size === "card") return `<article class="tm card" style="${mc(i.r.mod)}">${head}${t1}${t2}</article>`;
   const day = secDay(i, o), ser = secSeries(i), mod = secModule(i);
-  if (o.size === "page") return `<article class="tm page" style="${mc(i.r.mod)}">${head}<div class="col">${t1}${t2}${o.action ? `<div class="page-act">${o.action}</div>` : ""}${day}</div><div class="col">${ser}${mod}${sourceOf(i)}</div></article>`;
-  return `<article class="tm ${o.size}" style="${mc(i.r.mod)}">${head}${t1}${t2}<div class="tm-t3">${tier(4)}${day}${ser}${mod}</div><div class="tm-t4">${tier(5)}${sourceOf(i)}</div></article>`;
+  const week = secWeek(i), evs = secEvents(i), staff = secStaff(i), exc = secExceptions(i);
+  if (o.size === "page") return `<article class="tm page" style="${mc(i.r.mod)}">${head}<div class="col">${t1}${t2}${o.action ? `<div class="page-act">${o.action}</div>` : ""}${day}${ser}${exc}</div><div class="col">${week}${mod}${evs}${staff}${sourceOf(i)}</div></article>`;
+  return `<article class="tm ${o.size}" style="${mc(i.r.mod)}">${head}${t1}${t2}<div class="tm-t3">${tier(4)}${day}${ser}${mod}</div><div class="tm-t3 more">${tier(5)}${week}${evs}${staff}${exc}</div><div class="tm-t4">${tier(6)}${sourceOf(i)}</div></article>`;
 }
 const shareBtn = (k, label) => { const { r, iso } = parseK(k); return `<button type="button" class="${label ? "tb" : "ib"}" data-act="toast" data-msg="Teilen: betula.app/event/${r.k}/${iso}" aria-label="Teilen" title="Teilen">${icon("share")}${label ? "Teilen" : ""}</button>`; };
 const closeIb = `<button type="button" class="ib" data-act="close" aria-label="Schließen" title="Schließen">${icon("x")}</button>`;
-const pageTb = `<button type="button" class="tb" data-act="page">${icon("expand")}Ganze Seite <kbd>V</kbd></button>`;
+const pageTb = `<button type="button" class="tb" data-act="page" title="Ganze Seite" aria-label="Ganze Seite">${icon("expand")}<kbd>V</kbd></button>`;
 
 // ---------- the pages under it ----------
 function statusBar(onPhoto) { return `<div class="p-status${onPhoto ? " on-photo" : ""}"><span>08:40</span><span class="bat"><i></i></span></div>`; }
@@ -1324,6 +1573,68 @@ function planWeek(cur, hh) {
   const hours = Array.from({ length: rows }, (_, h) => `<span style="top: ${h * hh}px">${7 + h}</span>`).join("");
   return `<div class="wk" style="--hh: ${hh}px"><div></div>${WD2.slice(1, 6).map((d) => `<div class="dn">${d}</div>`).join("")}<div class="hrs" style="height: ${rows * hh}px">${hours}</div>${days}</div>`;
 }
+// The plan's week with one module in front: the plan muted, the module's Termine in their colour, all groups,
+// hatched where the module is not in the plan, red where they meet the plan.
+function modWeek(cur, hh, mod) {
+  const top = 7 * 60, rows = 12;
+  const np = !PLAN.has(mod);
+  const curR = cur ? parseK(cur).r : null;
+  const days = [1, 2, 3, 4, 5].map((wd) => {
+    const plan = ROWS.filter((r) => !r.exam && r.wd === wd && r.mod !== mod && inPlan(r)).map((r) => ({ r, s: mins(r.s), e: mins(r.e), own: false }));
+    const own = ROWS.filter((r) => !r.exam && r.wd === wd && r.mod === mod && !r.into).map((r) => ({ r, s: mins(r.s), e: mins(r.e), own: true }));
+    const items = [...plan, ...own].sort((a, b) => a.s - b.s);
+    const clusters = [];
+    for (const it of items) { const c = clusters.find((cl) => cl.end > it.s); if (c) { c.items.push(it); c.end = Math.max(c.end, it.e); } else clusters.push({ end: it.e, items: [it] }); }
+    const slots = clusters.flatMap((cl) => { const lanes = []; for (const it of cl.items) { let l = lanes.findIndex((end) => end <= it.s); if (l < 0) { l = lanes.length; lanes.push(0); } lanes[l] = it.e; it.lane = l; } return cl.items.map((it) => ({ ...it, lanes: lanes.length })); });
+    const html = slots.map((it) => {
+      const r = it.r;
+      const style = `${mc(r.mod)}; --t: ${((it.s - top) / 60) * hh}; --d: ${((it.e - it.s) / 60) * hh - 2}; --lane: ${it.lane}; --lanes: ${it.lanes}`;
+      if (!it.own) return `<span class="slot mute" style="${style}"><b>${KSHORT[r.kind]} ${esc(r.mod)}</b><span>${r.s}</span></span>`;
+      const clash = plan.some((x) => x.s < it.e && it.s < x.e);
+      const opt = !np && choiceOf(r) && CHOSEN[r.ev] !== r.k;
+      const isCur = curR && curR.k === r.k;
+      const cls = `slot${np ? " cand" : opt ? " opt" : ""}${clash ? " clash" : ""}${isCur ? " cur" : ""}`;
+      return `<button type="button" class="${cls}" data-act="open" data-k="${keyOf(r, nextDate(r))}" style="${style}"><b>${KSHORT[r.kind]} ${esc(r.mod)}</b><span>${r.s}–${r.e}</span><span>${esc(r.room)}</span></button>`;
+    }).join("");
+    return `<div class="col" style="height: ${rows * hh}px">${html}</div>`;
+  }).join("");
+  const hours = Array.from({ length: rows }, (_, h) => `<span style="top: ${h * hh}px">${7 + h}</span>`).join("");
+  return `<div class="wk" style="--hh: ${hh}px"><div></div>${WD2.slice(1, 6).map((d) => `<div class="dn">${d}</div>`).join("")}<div class="hrs" style="height: ${rows * hh}px">${hours}</div>${days}</div>`;
+}
+function modulePage(st, phone) {
+  const mod = parseK(st.k).r.mod;
+  const m = MODS[mod], np = !PLAN.has(mod);
+  const cur = st.mode !== "closed" ? st.k : null;
+  const byEv = new Map();
+  for (const r of ROWS) { if (r.mod !== mod || r.into) continue; if (!byEv.has(r.ev)) byEv.set(r.ev, []); byEv.get(r.ev).push(r); }
+  let total = 0, fitting = 0;
+  const list = [...byEv.values()].map((rs) => {
+    const ch = choiceOf(rs[0]);
+    const lines = rs.map((x) => {
+      const n = x.exam ? dn(x.from) : nextDate(x);
+      const c = x.exam ? "" : clashRow(x);
+      if (!x.exam) { total++; if (!c) fitting++; }
+      const mine = ch && !np && CHOSEN[x.ev] === x.k;
+      const when = x.exam ? `${WD2[wdOf(n)]} ${ddmm(n)}${isoOf(n).slice(0, 4)}, ${x.s}–${x.e}` : `${WD2[x.wd]} ${x.s}–${x.e}`;
+      const sub = `${esc(x.room)}${x.exam ? "" : ` · ${datesOf(x).filter(held).length} Termine`}${mine ? " · deine Gruppe" : ""}`;
+      const fit = x.exam ? "" : c ? `<span class="chip no">${esc(c)}</span>` : np || (ch && !mine) ? '<span class="chip ok">passt</span>' : "";
+      const isCur = cur && parseK(cur).r.k === x.k;
+      return `<button type="button" class="mline${isCur ? " cur" : ""}" data-act="open" data-k="${keyOf(x, n)}"><span><b>${when}</b><small>${sub}</small></span>${fit}${icon("right")}</button>`;
+    }).join("");
+    return `<div class="mev"><h5>${esc(rs[0].kind)}${ch ? ` <small>· eine von ${ch.length}</small>` : ""}</h5>${lines}</div>`;
+  }).join("");
+  const sw = np ? `<button type="button" class="sw" data-act="toast" data-msg="Eingeplant: ${esc(m.title)}, WiSe 26/27">${icon("calplus")}Einplanen <small>WiSe 26/27</small></button>` : `<button type="button" class="sw on">${icon("check")}Eingeplant <small>1. FS</small></button>`;
+  const fitLine = np ? `<p class="mp-fit">${icon("alert")}${fitting} von ${total} Terminen passen in deinen Stundenplan</p>` : "";
+  return `<div class="mp-top"><span class="mono-chip">${m.id}</span><span class="tm-mod${np ? " out" : ""}" style="${mc(mod)}"><i></i>${esc(mod)}</span></div><h2 class="mp-title">${nbh(esc(m.title))}</h2>
+    <div class="mp-badges"><span class="bdg strong">${m.lp} LP</span><span class="bdg">Deutsch</span><span class="bdg">jedes Wintersemester</span><span class="fill"></span><button type="button" class="sw" data-act="toast" data-msg="Gemerkt: ${esc(m.title)}">${icon("mark")}Merken</button>${sw}</div>
+    <h4 class="mp-h">Termine <small>WiSe 2026/27</small></h4>${fitLine}${modWeek(cur, phone ? 42 : 30, mod)}<div class="mevs">${list}</div>`;
+}
+function phoneModule(st) {
+  return `<div class="scr" data-keep="scr"><div class="p-top"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><span class="me">${icon("user")}</span></div><div class="card mp" style="margin: 10px 12px 0">${modulePage(st, true)}</div><div style="height: 100px"></div></div>${phoneNav("mods")}`;
+}
+function deskModule(st) {
+  return `<div class="card mp desk">${modulePage(st, false)}</div>`;
+}
 function phoneWeek(st) {
   const cur = st.mode !== "closed" ? st.k : null;
   return `<div class="scr p-week" data-keep="scr"><div class="p-top"><div class="search">${icon("search")}Modul, Nummer oder Thema suchen</div><span class="me">${icon("user")}</span></div>
@@ -1350,7 +1661,7 @@ function deskHome(st) {
 }
 function deskWeek(st) {
   const cur = st.mode !== "closed" ? st.k : null;
-  const mods = Object.entries(MODS).map(([a, m]) => `<div class="m" style="${mc(a)}"><b>${esc(m.title)}</b><small><span class="abbr">${a}</span>${m.id}</small><span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
+  const mods = Object.entries(MODS).filter(([a]) => PLAN.has(a)).map(([a, m]) => `<div class="m" style="${mc(a)}"><b>${esc(m.title)}</b><small><span class="abbr">${a}</span>${m.id}</small><span class="lp">${m.lp}<small> LP</small></span></div>`).join("");
   return `<div class="card" style="display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; padding: 18px 20px; min-height: 100%">
     <div><div class="sp-head"><h2>Stundenplan <span>WiSe 2026/27</span></h2><span class="sp-seg"><span class="on">Plan</span><span>Alle Termine</span></span><span class="sp-seg"><span>A-Woche</span><span>B-Woche</span><span class="on">A/B</span></span></div><p class="sp-sub">Informatik B.Sc. · 4 Module · 3 Wahlen getroffen</p>${planWeek(cur, 50)}</div>
     <div><p class="kicker" style="padding: 6px 10px 6px">Module <b style="float: right; color: var(--text); font-size: 15px">26 LP</b></p><div class="mods">${mods}</div></div></div>`;
@@ -1374,10 +1685,10 @@ function overlayDesk(st) {
   if (st.mode === "closed") return "";
   const act = actionOf(info(st.k));
   if (st.mode === "panel") return `<aside class="dpanel" aria-label="Termin"><div class="sheet-body" data-keep="body">${tmBlock(st.k, { size: "panel", tools: shareBtn(st.k) + pageTb + closeIb, groups: st.groups })}</div>${act ? `<div class="tm-act right">${act}</div>` : ""}</aside>`;
-  return `<div class="dpage" data-keep="body"><div class="crumb"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : "Stundenplan"}</button><span>· Termin</span><span class="fill"></span>${shareBtn(st.k, true)}</div>${tmBlock(st.k, { size: "page", groups: st.groups, action: act })}</div>`;
+  return `<div class="dpage" data-keep="body"><div class="crumb"><button type="button" data-act="back">${icon("left")}${G.under === "home" ? "Startseite" : G.under === "week" ? "Stundenplan" : MODS[parseK(st.k).r.mod].title}</button><span>· Termin</span><span class="fill"></span>${shareBtn(st.k, true)}</div>${tmBlock(st.k, { size: "page", groups: st.groups, action: act })}</div>`;
 }
 function addrOf(dev, st) {
-  const base = G.under === "home" ? "/" : "/studyplan";
+  const base = G.under === "home" ? "/" : G.under === "week" ? "/studyplan" : `/catalog/module/${MODS[parseK(st.k).r.mod].id}`;
   if (st.mode === "closed") return base;
   const { r, iso } = parseK(st.k);
   return st.mode === "page" ? `/event/${r.k}/${iso}` : `${base}?termin=${r.k}&on=${iso}`;
@@ -1388,13 +1699,13 @@ function paint(dev, fresh) {
   const st = ST[dev];
   const keep = {};
   app.querySelectorAll("[data-keep]").forEach((el) => { keep[el.dataset.keep] = el.scrollTop; });
-  const under = G.under === "home" ? (dev === "phone" ? phoneHome(st) : deskHome(st)) : dev === "phone" ? phoneWeek(st) : deskWeek(st);
+  const under = G.under === "home" ? (dev === "phone" ? phoneHome(st) : deskHome(st)) : G.under === "week" ? (dev === "phone" ? phoneWeek(st) : deskWeek(st)) : dev === "phone" ? phoneModule(st) : deskModule(st);
   if (dev === "phone") {
     const onPhoto = G.under === "home" && st.mode !== "full";
     app.innerHTML = `${statusBar(onPhoto)}${under}${overlayPhone(st)}`;
   } else {
-    const title = st.mode === "page" ? "Termin" : G.under === "home" ? "Betula<small>Modulkatalog · inoffiziell</small>" : "Stundenplan";
-    app.innerHTML = `${rail(G.under === "home" ? "home" : "plan")}${deskTop(title)}<div class="d-main" data-keep="main">${under}</div>${overlayDesk(st)}`;
+    const title = st.mode === "page" ? "Termin" : G.under === "home" ? "Betula<small>Modulkatalog · inoffiziell</small>" : G.under === "week" ? "Stundenplan" : "Modulkatalog";
+    app.innerHTML = `${rail(G.under === "home" ? "home" : G.under === "week" ? "plan" : "mods")}${deskTop(title)}<div class="d-main" data-keep="main">${under}</div>${overlayDesk(st)}`;
   }
   app.querySelectorAll("[data-keep]").forEach((el) => {
     if (keep[el.dataset.keep] == null) return;
@@ -1425,11 +1736,11 @@ const STATES = [
   ["Raumwechsel", "148304-e4bf3@2026-11-04", null, "Der Raum in Gelb, der alte darunter."],
   ["Läuft", "148304-e4bf3@2026-11-04", { d: dn("2026-11-04"), m: 9 * 60 + 40 }, "Grün, die Zeit als Balken am Ticket."],
   ["B-Woche", "148135-462ed@2026-11-10", null, "A und B als Kästchen am Datum."],
+  ["Andere Gruppe", "148304-5c532@2026-11-05", null, "Deine Gruppe mit Haken, diese hell; der Knopf nimmt sie."],
   ["Fällt aus", "148960-ef2fb@2026-11-04", null, "Durchgestrichen und rot, laut QIS."],
-  ["Vorlesungsfrei", "148304-e4bf3@2026-12-23", null, "Wie ein Ausfall, aber grau: so geplant."],
-  ["Andere Gruppe", "148304-5c532@2026-11-05", null, "Deine Gruppe gefüllt, diese umrandet; der Knopf nimmt sie."],
-  ["Nicht im Plan", "148960-ef2fb@2026-11-11", null, "Der eine Knopf: in den Kalender. Die Überschneidung rot."],
-  ["Prüfung", "148664-84d53@2027-03-10", null, "Wie jeder Termin, dazu Form und Zulassung."],
+  ["Nicht im Plan, passt", "148230-6c54e@2026-11-05", null, "Gestricheltes Kürzel, die Gruppen grün und rot."],
+  ["Nicht im Plan, überschneidet sich", "148206-bcd64@2026-11-09", null, "Die Überschneidung als eigene rote Zeile."],
+  ["Prüfung", "148664-84d53@2027-03-10", null, "Wer verantwortet, die Form, die Zulassung."],
 ];
 function paintStates() {
   document.getElementById("states").innerHTML = STATES.map(([t, k, now, d]) => {
@@ -1448,20 +1759,27 @@ function paintSigns() {
     sign(`<div class="tk room" style="width: 100%; box-shadow: none; background: none"><div class="tk-room" style="display: flex; flex-direction: column; gap: 2px; box-shadow: none; padding: 8px 12px; border-radius: 9px"><b class="plate" style="font-size: 20px">${plate("LG1A/304")}</b><small class="chg">${icon("move")}statt <s>HG/0.17</s></small></div></div>`, "Raumwechsel", "Gelb heißt: anders als sonst."),
     sign(`<div class="tk cancel" style="width: 100%; background: none; box-shadow: none"><div class="tk-time" style="display: flex; align-items: center; gap: 12px"><b style="font-size: 26px">11:30</b><span class="pill no">${icon("ban")}Fällt aus</span></div></div>`, "Fällt aus", "Durchgestrichen und rot; vorlesungsfrei grau.", true),
     sign(`<span class="pill soon">in 35 min</span><span class="pill live">läuft · noch 20 min</span><span class="pill">in 6 Tagen</span>`, "Wie bald", "Grün für heute und morgen, sonst grau.", true),
+    sign(`<p class="hint no" style="width: 100%">${icon("alert")}<span>Überschneidet sich mit Vorlesung MIT1, 13:45–15:15</span></p>`, "Überschneidung", "Eine eigene rote Zeile, mit dem, was zur selben Zeit ist."),
     sign(`${abGlyph("A")}<span style="width: 10px"></span>${abGlyph("B")}`, "A- und B-Woche", "Nur bei Terminen, die alle zwei Wochen sind.", true),
-    sign(`<span class="fact" style="${mc("MIT1")}">${icon("users")}Gruppe<span class="gdots"><i class="mine this"></i><i></i><i></i></span></span>`, "Gruppe", "Ein Punkt je Gruppe, deine gefüllt.", true),
+    sign(`<div style="width: 100%; ${mc("MIT1")}">${groupRow(info("148304-e4bf3@2026-11-04"))}</div>`, "Gruppen", "Jede Gruppe ein Feld: deine mit Haken, rot wo es sich überschneidet."),
+    sign(`<div style="width: 100%">${personRow(info("148304-e4bf3@2026-11-04"))}</div>`, "Person mit Rolle", "Nie ein Name allein: was die Person mit dem Termin zu tun hat."),
+    sign(`<span class="tm-mod out" style="${mc("MIT3")}"><i></i>MIT3</span><span class="np">nicht im Plan</span>`, "Nicht im Plan", "Gestricheltes Kürzel; schraffiert im Band und in der Woche.", true),
     sign(`<div class="mini-dots" style="${mc("MIT1")}">${dots}</div>`, "Reihe", "Ein Punkt je Datum: vorbei, heute, anders, fällt aus, Pause."),
     sign(`<div style="width: 100%">${rib}</div>`, "Der Tag", "7 bis 19 Uhr; dieser Termin voll, der rote Strich ist jetzt."),
-    sign(`<p class="nx" style="width: 100%">${icon("right")}<span>danach <b>11:30</b> Prak PP</span><span class="w">${icon("walk")}45 min</span></p>`, "Weg", "Die Füße nur, wenn das Gebäude wechselt.", true),
-    sign(`<span class="fact warn">${icon("alert")}Prak PP</span>`, "Überschneidung", "Rot, mit dem, was zur selben Zeit ist.", true),
     sign(`<span class="dt" style="width: 44px; height: 44px"><b>10</b><small>März</small></span><span style="font-weight: 650">126 Tage</span>`, "Prüfung", "Die Kachel der Startseite, mit dem Abstand.", true),
-    sign(`<span class="ib">${icon("share")}</span><span class="ib">${icon("x")}</span>`, "Teilen, Schließen", "Oben rechts, rund, ohne Wort.", true),
   ].join("");
 }
 function paintAnat() {
   const k = EXAMPLES[G.ex];
   document.getElementById("anat-app").innerHTML = tmBlock(k, { size: "full", tools: shareBtn(k) + closeIb, anat: true });
-  document.getElementById("after").innerHTML = tmBlock("148304-e4bf3@2026-11-04", { size: "card", pager: true, tools: shareBtn("148304-e4bf3@2026-11-04") + closeIb });
+  document.getElementById("after").innerHTML = `<div class="tm" style="${mc("MIT1")}; padding: 0">${tier2(info("148304-e4bf3@2026-11-04"), {})}</div>`;
+  const WER = [
+    ["Deine Gruppe", "148304-e4bf3@2026-11-04", "Die Leitung mit Rolle; die Gruppen mit Tag, Zeit, Raum."],
+    ["Eine andere Gruppe", "148304-5c532@2026-11-05", "Diese hell, deine mit Haken; unten „Diese Gruppe nehmen“."],
+    ["Nicht im Plan", "148230-c79f9@2026-11-10", "Grün, wo es passt, rot, wo nicht; die Überschneidung als Zeile."],
+    ["Ohne Gruppen", "148701-b7025@2026-11-06", "QIS nennt niemanden für die Zeile: wer das Modul verantwortet."],
+  ];
+  document.getElementById("wer-cards").innerHTML = WER.map(([t, k, d]) => `<figure><figcaption><b>${t}</b><span>${d}</span></figcaption><div class="ui" style="${mc(info(k).r.mod)}">${tier2(info(k), {})}</div></figure>`).join("");
 }
 function paintAll(fresh) { paint("phone", fresh); paint("desk", fresh); paintAnat(); paintStates(); }
 
@@ -1496,8 +1814,22 @@ document.addEventListener("click", (e) => {
   if (set) {
     G[set.dataset.set] = set.dataset.v;
     document.querySelectorAll(`[data-set="${set.dataset.set}"]`).forEach((b) => b.setAttribute("aria-pressed", String(b === set)));
-    if (set.dataset.set === "ex") reset();
+    if (set.dataset.set === "ex") {
+      reset();
+      const np = !PLAN.has(parseK(EXAMPLES[G.ex]).r.mod);
+      if (np !== (G.under === "module")) {
+        G.under = np ? "module" : "home";
+        document.querySelectorAll('[data-set="under"]').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === G.under)));
+      }
+    }
     paintAll(true);
+    return;
+  }
+  const show = e.target.closest("[data-show]");
+  if (show) {
+    if (show.dataset.show === "np") document.querySelector('[data-set="ex"][data-v="np"]').click();
+    else { const b = document.querySelector('[data-steps="a"] button[data-i="2"]'); if (b) b.click(); }
+    document.getElementById("a").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
   if (e.target.closest("[data-reset]")) { reset(); paint("phone", true); paint("desk", true); return; }
@@ -1508,7 +1840,7 @@ document.addEventListener("click", (e) => {
     paint("phone", true); paint("desk", true);
     return;
   }
-  const card = e.target.closest(".state-card, #after, #anat-app, .signs");
+  const card = e.target.closest(".state-card, #after, #anat-app, .signs, #wer-cards");
   if (card) {
     const el = e.target.closest('[data-act="toast"]');
     if (el) toast(card.classList.contains("state-card") ? card : card.closest(".paper, .ba figure") || card, el.dataset.msg);
