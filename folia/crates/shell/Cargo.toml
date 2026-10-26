@@ -1,6 +1,6 @@
 [package]
 name = "folia-shell"
-version = "1.45.1"
+version = "1.45.2"
 edition = "2021"
 description = "The shell of Betula's app: the frame of a page, the areas, a step between pages, the ground, the document"
 

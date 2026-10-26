@@ -16,9 +16,10 @@ use folia_design::ui::{Icon, Wordmark};
 
 /// The crown: the edge of a birch's crown hangs in from above along the whole top, behind the
 /// mark, the title and the search, on every screen the same. Drawing only, and the same for
-/// everybody (R9): the season is chosen in the browser. Under it on a phone the frost, a blur
-/// without a colour of its own over what the page runs beneath the bar once it is scrolled
-/// (app.css `.frost`, enhance.js `data-scrolled`).
+/// everybody (R9): the season is chosen in the browser. Under it on a phone the frost, a blur in
+/// the page's colour over what the page runs beneath the bar once it is scrolled (app.css
+/// `.frost`, enhance.js `data-scrolled`); over the start page's photo the leaves and the frost's
+/// colour come with the scroll as the photo leaves the bar (`--leaves`).
 #[component]
 pub fn Crown() -> impl IntoView {
     view! {
