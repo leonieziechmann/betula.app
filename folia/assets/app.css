@@ -492,6 +492,10 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
 /* The frost's colour: the page's at three quarters, as far as the leaves have come (a phone's
    start page, below; else 1). */
 .frost::after { content: ""; position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 76%, transparent); opacity: var(--leaves, 1); }
+/* The leaves slide down from above the window, their whole height, as far as `--leaves` says, from
+   0 to 1 (set on the crown and the frost, enhance.js): 1 on every page, on the start page as far as
+   it has gone on past its photo (below). The frost's colour comes with them. */
+.crown::before, .crown::after { translate: 0 calc((var(--leaves, 1) - 1) * 100%); }
 @media (max-width: 900px) {
   /* On a phone the crown hangs over the page and under the search, and under both lies the frost
      (`ground::Crown`): once the window is scrolled (`data-scrolled`, enhance.js), a blur over what
@@ -512,10 +516,6 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   .crown { z-index: 20; height: var(--bar); }
   .frost { display: block; position: fixed; z-index: 19; top: 0; left: 0; right: 0; height: calc(var(--bar) + 14px); pointer-events: none; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask: linear-gradient(#000 calc(100% - 24px), transparent); mask: linear-gradient(#000 calc(100% - 24px), transparent); opacity: 0; transition: opacity .2s; }
   :root[data-scrolled] .frost { opacity: 1; }
-  /* The leaves slide down from above the window, their whole height, as far as `--leaves` says,
-     from 0 to 1 (set on the crown and the frost, enhance.js): 1 on every page, on the start page
-     as far as it has gone on past its photo (below). The frost's colour comes with them. */
-  .crown::before, .crown::after { translate: 0 calc((var(--leaves, 1) - 1) * 100%); }
   /* No title in the bar, so no clearing: the tile alone, from the left edge (the head's layer at
      no size, which draws nothing, as `none` would). */
   .crown::before, .crown::after { padding-left: 0; -webkit-mask-size: 0 0, auto; mask-size: 0 0, auto; }
@@ -557,20 +557,26 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
   /* A page of panels runs under the bar (below), and once it is scrolled the frost lies behind the
      bar as on a phone (`data-scrolled`, enhance.js): the same blur in the page's colour at three
      quarters, reaching 14 px below the bar and fading out over its last 24, so that what goes
-     under the bar goes soft and the wordmark and the search stay on a calm ground (over the start
-     page's photo as well, which a phone keeps clear: there the bar has no words of its own). Below
-     the bar only over the column that scrolls: what is pinned beside it, the sidebar and the
+     under the bar goes soft and the wordmark and the search stay on a calm ground. Below the bar
+     only over the column that scrolls: what is pinned beside it, the sidebar and the
      module on the right, ends at the bar and stays whole. In front the rail, the bar and the
-     crown, the crown's leaves over the frost; then the frost over the page. */
+     crown, the crown's leaves over the frost; then the frost over the page. Over the start page's
+     photo as on a phone (owner, 2026-10-26, of the photo under the bar's frost on a PC: „links
+     ist das abgeschnitten es sieht übelst dreckig aus etc. Mach das mal ordentlich", and: „die
+     animation für die Blätter gibt es auch immer noch nicht"): the blur alone while the photo lies
+     under the bar, no leaves, and the bar's words light over it; the leaves slide down as the
+     photo leaves the bar, and the frost's colour comes with them (`--leaves`, below). */
   .rail { z-index: 24; }
   .topbar { position: relative; z-index: 23; }
   /* The bar takes the wheel over it and the room around it, where the page shows as well, and
      turns the page under it (enhance.js), as „Nach oben" does; not over the scrollbar. */
   .topbar::before { content: ""; position: absolute; z-index: -1; inset: calc(-1 * var(--gap)) 0 calc(-1 * var(--gap)) calc(-1 * var(--gap)); }
   .crown { z-index: 22; }
-  /* Not over the page's scrollbar (`--scrollbar`, its width, enhance.js), which stays clear. */
+  /* Over the page's column, as wide as the bar: not over the room beside it, where the photo's blur
+     ran out past its edge and the rail cut it off, nor over the page's scrollbar (`--scrollbar`,
+     its width, enhance.js), which stays clear. */
   .frost {
-    display: block; position: fixed; z-index: 21; top: 0; left: var(--rail); right: var(--scrollbar, 0px); height: calc(var(--head) + 14px); pointer-events: none;
+    display: block; position: fixed; z-index: 21; top: 0; left: calc(var(--rail) + var(--gap)); right: max(var(--gap), var(--scrollbar, 0px)); height: calc(var(--head) + 14px); pointer-events: none;
     -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); opacity: 0; transition: opacity .2s;
     --frost-l: 0px; --frost-r: 0px;
     mask-image: linear-gradient(#000 0 0), linear-gradient(#000 calc(100% - 24px), transparent), linear-gradient(#000 0 0);
@@ -578,14 +584,17 @@ kbd { font: 500 11px var(--mono); color: var(--text-3); padding: 4px 7px; border
     mask-position: 0 0, var(--frost-l) 0, 100% 0; mask-repeat: no-repeat;
   }
   :root[data-scrolled] .frost { opacity: 1; }
-  :root:has(#content > .page-stage.front > .work.framed) .frost { --frost-l: calc(var(--gap) * 1.5 + var(--filters)); }
-  /* The panel on the right as wide as the page has it: the page's `100%` is the frost's less the
-     area's room on either side (`--pad-r`). */
+  :root:has(#content > .page-stage.front > .work.framed) .frost { --frost-l: calc(var(--filters) + var(--gap) / 2); }
+  /* The panel on the right as wide as the page has it (the frost is as wide as the page). */
   :root:has(#content > .page-stage.front > .work.aside-picked) .frost {
-    --pad-r: max(0px, calc(var(--gap) - var(--scrollbar, 0px)));
-    --preview: clamp(360px, var(--preview-w), calc(100% - var(--gap) - var(--pad-r) - var(--filters) - var(--gap) - 120px));
-    --frost-r: calc(var(--gap) * 1.5 + var(--pad-r) + var(--preview));
+    --preview: clamp(360px, var(--preview-w), calc(100% - var(--filters) - var(--gap) - 120px));
+    --frost-r: var(--preview);
   }
+  /* The bar's words over the start page's photo, which reaches up behind the bar (below), until it
+     has left the bar (`data-photo-gone`, enhance.js; so on the server's page as well): light, as
+     the photo's own. */
+  .crumb.brand .wordmark, .crumb.brand small { transition: color .2s, text-shadow .2s; }
+  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) .crumb.brand { --text: #fff; --text-3: rgb(255 255 255 / .82); text-shadow: 0 1px 10px rgb(0 0 0 / .35); }
   /* Asked of each body's own page: the takeover's picture is a second body (boot.js), and the
      app's first frame under it may not have its page yet. */
   body:has(> .main > .content > .page-stage.front > .work.flowing) > .ground { display: none; }
@@ -6016,6 +6025,15 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
 .day-brand-say b { font-size: 19px; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
 .day-brand-say > span { font-size: 13.5px; opacity: .86; }
 @container day (max-width: 1100px) { .day-first { grid-template-columns: minmax(0, 560px); justify-content: start; } .day-brand { display: none; } }
+@media (min-width: 901px) {
+  /* The photo reaches up behind the bar to the window's edge, as on a phone (owner, 2026-10-26:
+     „Jo mach mal den hero banner beim Pc einfach auch bis ganz nach oben. Also zummidest das
+     bild"): the box higher by where the page starts (the area's 1 px and the head), its content
+     where it stood, its upper corners square at the edge. Over it the bar is the photo's, no
+     leaves and no frost until the page is scrolled, its words light (one scroll area). */
+  .day-hero { --up: calc(1px + var(--head)); margin-top: calc(-1 * var(--up)); height: calc(300px + var(--up)); padding-top: calc(24px + var(--up)); border-top-left-radius: 0; border-top-right-radius: 0; }
+  .day-first { height: calc(640px + var(--up)); }
+}
 
 /* The setup's card (setup.rs): as high in every step; what is long scrolls inside it. */
 .ob { --ob-h: 592px; height: var(--ob-h); width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 12px; padding: 22px 22px 18px; border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: var(--shadow-pop); }
@@ -6250,6 +6268,7 @@ html.mine .day-first-wrap, html:not(.mine) .day-sk-wrap { display: none; }
      mit einer animation", and then: „dass sich die blätter von oben rein schieben beim handy. Als
      scroll animation aber mit einem max speed, wenn jemand schnell scrolled"; `--leaves`,
      enhance.js). Until the script has said how far, none while the photo lies under the bar
-     (`data-photo-gone`): the server's page, the app's first frame. */
-  :root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) :is(.crown, .frost) { --leaves: 0; }
+     (`data-photo-gone`): the server's page, the app's first frame. On a wide screen the same
+     (the rule after this block, for both). */
 }
+:root:not([data-photo-gone]):has(#content > .page-stage.front .day-hero) :is(.crown, .frost) { --leaves: 0; }

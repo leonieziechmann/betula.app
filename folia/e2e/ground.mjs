@@ -162,16 +162,21 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   // The page runs under the bar, the frost behind the bar once it is scrolled (owner, 2026-10-26:
   // „Mach das mal so wie bei der mobile version"); the sidebar stays pinned below the bar, and at
   // the top the page stands where it stood.
-  const bar = () => page.evaluate((PAGE) => ({
-    frost: getComputedStyle(document.querySelector("body > .frost")).opacity,
-    side: Math.round(onPage(".sidebar").getBoundingClientRect().top),
-    page: Math.round(onPage(PAGE).querySelector(":scope > .page").getBoundingClientRect().top),
-  }), PAGE);
+  const bar = () => page.evaluate((PAGE) => {
+    const frost = document.querySelector("body > .frost").getBoundingClientRect(), side = onPage(".sidebar").getBoundingClientRect(), inner = onPage(PAGE).querySelector(":scope > .page");
+    return {
+      frost: getComputedStyle(document.querySelector("body > .frost")).opacity,
+      side: Math.round(side.top),
+      page: Math.round(inner.getBoundingClientRect().top),
+      // The frost over the page's column, from the sidebar's left edge to the page's right one.
+      across: Math.round(frost.left) === Math.round(side.left) && Math.round(frost.right) === Math.round(inner.getBoundingClientRect().right),
+    };
+  }, PAGE);
   const still = await bar();
   await page.evaluate((PAGE) => { onPage(PAGE).scrollTop = 200; }, PAGE);
   await page.waitForTimeout(400);
   const under = await bar();
-  check(still.frost === "0" && still.side === 56 && still.page >= 55 && still.page <= 57 && under.frost === "1" && under.side === 56 && under.page < 0, `a framed page: it does not run under the bar with the frost behind it, or the sidebar moves: ${JSON.stringify([still, under])}`);
+  check(still.frost === "0" && still.side === 56 && still.page >= 55 && still.page <= 57 && under.frost === "1" && under.side === 56 && under.page < 0 && under.across, `a framed page: it does not run under the bar with the frost behind it over its column, or the sidebar moves: ${JSON.stringify([still, under])}`);
   await page.evaluate((PAGE) => { onPage(PAGE).scrollTop = 0; }, PAGE);
   await page.waitForTimeout(300);
   await watchWood(page);
