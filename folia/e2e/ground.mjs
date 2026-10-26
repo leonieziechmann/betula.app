@@ -7,7 +7,8 @@
 // ground, as the page's end does, and the panel ends there with round corners, which the ground
 // draws; the first scroll takes them away. The wood behind every page stands on the ground's edge
 // in every frame. A page of panels runs under the bar, the frost behind the bar once it is
-// scrolled, its sidebar pinned below the bar; a list's page does not. Tab into the ground brings
+// scrolled, its sidebar pinned below the bar, and another page of the same tab starts without the
+// frost; a list's page does not run under it. Tab into the ground brings
 // it into view. A phone scrolls the ground with the page, and
 // under a page shorter than the window the ground lies just past the window's lower edge.
 import { chromium } from "playwright-core";
@@ -183,6 +184,22 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
   const round = await corners(page);
   check(round.rest && !round.off.length, `a framed page: the sidebar does not end above the ground with round corners: ${JSON.stringify(round)}`);
   check(!(await nudge(page)), "a framed page: the sidebar's round corners stay while the area scrolls");
+  await context.close();
+}
+
+// ---------- another page of the same tab: it starts without the frost of the one before ----------
+// A page of the same tab comes in an area of its own, at its top, with no scroll to say so: the
+// frost goes with the page that was scrolled.
+{
+  const { context, page } = await open("/catalog/module/12104");
+  await page.evaluate((PAGE) => { onPage(PAGE).scrollTop = 300; }, PAGE);
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => getComputedStyle(document.querySelector("body > .frost")).opacity);
+  await page.evaluate(() => { history.pushState(null, "", "/catalog/module/12107"); dispatchEvent(new PopStateEvent("popstate", { state: null })); });
+  await page.waitForFunction(() => location.pathname.endsWith("/12107") && document.querySelector(".module-page"), null, { timeout: 8000 }).catch(() => problems.push("another module of the same tab did not come"));
+  await page.waitForTimeout(600);
+  const after = await page.evaluate((PAGE) => ({ frost: getComputedStyle(document.querySelector("body > .frost")).opacity, top: Math.round(onPage(PAGE).scrollTop) }), PAGE);
+  check(before === "1" && after.top === 0 && after.frost === "0", `another page of the same tab starts under the frost of the page before: ${JSON.stringify({ before, after })}`);
   await context.close();
 }
 
