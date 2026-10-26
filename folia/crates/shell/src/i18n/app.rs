@@ -29,6 +29,8 @@ pub struct Texts {
     /// the head of a phone's page, named by the active profile („Profil: Zweitstudium").
     pub profile: &'static str,
     pub profile_of: fn(&str) -> String,
+    /// A Termin's own page (`/event/<key>/<day>`): its title in the top bar, „Termin".
+    pub termin: &'static str,
     /// The menu of the profiles at the way to the profile page (`chrome::ProfileMenu`): its name,
     /// the head of its list, and its way to the profile page.
     pub switch_profile: &'static str,
@@ -78,6 +80,7 @@ pub const DE: Texts = Texts {
     logo_label: "Betula, zur Startseite",
     theme_toggle: "Hell oder dunkel",
     profile: "Profil",
+    termin: "Termin",
     profile_of: |name| format!("Profil: {name}"),
     switch_profile: "Profil wechseln",
     profiles: "Profile",
@@ -119,6 +122,7 @@ pub const EN: Texts = Texts {
     logo_label: "Betula, to the home page",
     theme_toggle: "Light or dark",
     profile: "Profile",
+    termin: "Session",
     profile_of: |name| format!("Profile: {name}"),
     switch_profile: "Switch profile",
     profiles: "Profiles",

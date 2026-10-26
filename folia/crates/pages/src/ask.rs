@@ -236,6 +236,12 @@ ask!(
     ModuleSemestersAsk { id: String } -> (Vec<Semester>, Vec<folia_model::rows_detail::EventDate>), Lane::Page, |q, db, kept| Ok((folia_query::semesters(db)?, folia_query::module_schedule(db, &q.id)?))
 );
 ask!(
+    /// A Termin's own page (`/event/<key>`): the data of the timetable of the modules that link its
+    /// event (QIS's `veranstid`), in the newest semester it is held in (`pages::event`); `None` for
+    /// an event no module links. One answer for every Termin and date of the event.
+    EventAsk { event: String, locale: Locale } -> Option<StudyplanData>, Lane::Page, |q, db, kept| crate::event(db, &q.event, q.locale)
+);
+ask!(
     /// The semester of the newest teaching events of each of many modules that has any, for
     /// „Einplanen" of the rows selected on the Merkliste (`pages::newest_semesters`).
     NewestSemestersAsk { ids: Vec<String> } -> Vec<(String, SemesterKey)>, Lane::Page, |q, db, kept| crate::newest_semesters(db, &q.ids)
@@ -285,6 +291,7 @@ pub fn answer_json(name: &str, question: &str, db: &dyn Database, kept: &mut Kep
         GroundAsk, HomeAsk, CatalogChoicesAsk, CatalogAsk, CatalogSummaryAsk, CatalogCountAsk, SimilarAsk, ProgramsOverviewAsk,
         ProgramsAsk, ModuleAsk, ProgramAsk, BookmarksAsk, BookmarkPlacesAsk, StudyplanAsk, StudyplanModulesAsk, StudyModulesAsk, PlanSourceAsk, MyProgramAsk, FitAsk, CounterpartAsk,
         OverlayAsk, FitLinesAsk, SharedPlanAsk, MetaAsk, ModuleSemestersAsk, NewestSemestersAsk, CatalogRowsAsk, CommandModulesAsk, CatalogPositionAsk, PlanRowsAsk,
+        EventAsk,
     )
 }
 
@@ -316,6 +323,8 @@ mod tests {
         same(BookmarksAsk { ids: vec!["11103".into(), "12104".into(), "12330".into()], sort: BookmarkSort::Offer, descending: true, query: CatalogQuery { text: "Analysis".into(), ..Default::default() }, also: vec!["12330".into()] });
         same(BookmarkPlacesAsk { ids: vec!["11103".into(), "12104".into(), "99999".into()], program: "bachelor-informatik-2008".into() });
         same(NewestSemestersAsk { ids: vec!["11103".into(), "12104".into(), "99999".into()] });
+        same(EventAsk { event: "148370".into(), locale: Locale::De });
+        same(EventAsk { event: "1 OR 1=1".into(), locale: Locale::En });
         let key = SemesterKey::parse("2026W").unwrap();
         same(StudyplanAsk { key, ids: vec!["12104".into(), "12107".into()], program: Some("079-82-2008".into()), locale: Locale::De });
         same(PlanRowsAsk { key, own: vec!["12104".into()], others: vec!["12107".into()] });

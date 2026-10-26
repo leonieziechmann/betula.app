@@ -3583,7 +3583,23 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .tm-mod { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--tint) 15%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--tint) 45%, transparent); color: var(--text); font: 600 11.5px/1 var(--mono); white-space: nowrap; }
 .is-termin .tm-mod > i { width: 8px; height: 8px; border-radius: 50%; background: var(--tint); }
 .is-termin .tm-kind { min-width: 0; margin-right: auto; color: var(--text-2); font-size: 13.5px; font-weight: 560; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.detail.aside.is-termin .hero h2.tm-title { margin: 6px 0 0; font-size: 20px; line-height: 1.22; letter-spacing: -.02em; }
+/* To look up a module outside the plan: its chip dashed, the tag „nicht im Plan" after the kind. */
+.is-termin .tm-mod.out { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tint); }
+.is-termin .tm-kind:has(+ .np) { margin-right: 0; }
+.is-termin .np { margin-right: auto; padding: 2px 7px; border-radius: 5px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); color: var(--text-2); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+/* Under the groups of a module in the plan: how many it holds, and „Anpassen ›". */
+.is-termin .grp-f { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; color: var(--text-2); font-size: 12.5px; }
+.is-termin .go2 { margin-left: auto; display: inline-flex; align-items: center; gap: 1px; color: var(--accent-ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.is-termin .go2 .icon { width: 15px; height: 15px; }
+/* „In den Kalender": the one action of a Termin outside the plan. */
+.is-termin .tm-big { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 16px; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-size: 15px; font-weight: 650; text-decoration: none; }
+.is-termin .tm-big:hover { filter: brightness(1.06); text-decoration: none; }
+.is-termin .tm-big[aria-disabled="true"] { opacity: .6; pointer-events: none; }
+.is-termin .tm-big .icon { width: 18px; height: 18px; }
+.is-termin .hero h2.tm-title { margin: 6px 0 0; font-size: 20px; line-height: 1.22; letter-spacing: -.02em; }
+/* A Termin's own page (`/event/<key>/<day>`): one panel as wide as a text reads well. */
+.is-termin.tm-page { width: 100%; max-width: 760px; margin: 0 auto; }
+.is-termin.tm-page .hero h2.tm-title { font-size: 24px; }
 .is-termin .dbody.tm { container-type: inline-size; display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
 .is-termin .tk { position: relative; container-type: inline-size; border-radius: 14px; background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
 .is-termin .tk-date { display: flex; align-items: center; gap: 2px; min-height: 40px; padding: 6px 10px 0 6px; }
@@ -3684,6 +3700,8 @@ a.agenda-item:hover > span:not(.t) { text-decoration: underline; text-underline-
 .is-termin .rb.open { background: transparent; box-shadow: none; outline: 1px dashed var(--tint); outline-offset: -1px; }
 .is-termin .rb.me { background: var(--tint); color: var(--panel); box-shadow: none; outline: 0; }
 .is-termin .rb.gone { opacity: .45; text-decoration: line-through; }
+/* The Termin of a module outside the plan, hatched among the plan's day (folia/design/termin, „Nicht im Plan"). */
+.is-termin .rb.me.out { background: repeating-linear-gradient(135deg, color-mix(in oklch, var(--tint) 32%, var(--panel)) 0 4px, var(--panel) 4px 8px); box-shadow: inset 0 0 0 1.5px var(--tint); color: var(--text); outline: 0; }
 .is-termin .rt { position: relative; height: 14px; margin-top: -4px; }
 .is-termin .rt > span { position: absolute; translate: -50% 0; color: var(--text-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .is-termin .nx { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin: 0; color: var(--text-2); font-size: 13px; }
@@ -4197,6 +4215,9 @@ html:not(.js) .sk-standin, html:not(.js) .sk-groups { display: none; }
 .sk-plan-main { display: grid; gap: 14px; align-content: start; min-width: 0; }
 @container page (min-width: 900px) { .sk-plan { grid-template-columns: minmax(0, 1fr) clamp(250px, 28%, 340px); column-gap: 24px; } }
 .sk-stage { min-height: 480px; }
+/* A Termin's own page: its one panel as wide as the page's, the ticket as a block. */
+.sk-termin { width: 100%; max-width: 760px; margin: 0 auto; }
+.sk-ticket { height: 112px; border-radius: 12px; background: var(--sk); }
 .sk-home { display: grid; grid-template-columns: minmax(0, 1fr) 290px; min-height: 285px; }
 .sk-figures { display: grid; border-left: 1px solid var(--line); }
 .sk-figures > div { display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }

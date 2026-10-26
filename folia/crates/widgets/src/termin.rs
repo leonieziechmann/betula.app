@@ -16,8 +16,9 @@
 //! the Termin's own among them), the module with its exam, who teaches, and the source.
 //!
 //! Every date, group and event leads to its own Termin by an address of the page (`TerminLinks`),
-//! so Back steps back through them; the actions change the plan in the click (it asks the catalog
-//! nothing: the store, the selection, the timetable).
+//! so Back steps back through them, `nofollow` (a Termin's own page is no page search engines
+//! list); the actions change the plan in the click (it asks the catalog nothing: the store, the
+//! selection, the timetable).
 
 use std::collections::BTreeMap;
 
@@ -28,6 +29,8 @@ use folia_calendar::select::HiddenBy;
 use folia_pages::StudyplanData;
 use folia_stores::studyplan::Studyplan;
 use folia_timetable::clash::Weeks;
+use folia_timetable::export;
+use folia_timetable::ics;
 use folia_timetable::model::{Attendance, Event, Timetable};
 use folia_timetable::occur::Every;
 use folia_timetable::termin::{self, DateState, Occasion};
@@ -83,6 +86,9 @@ pub struct TerminLinks {
     /// „history" where closing goes back a step of the history (enhance.js), as the module's
     /// panel does.
     pub back: Signal<Option<&'static str>>,
+    /// To look up, the Termin's view in the Stundenplan, where it is adjusted („Anpassen ›"):
+    /// `None` where its module is not planned, and from the Stundenplan itself.
+    pub adjust: Option<Callback<(RowKey, Option<Day>), String>>,
 }
 
 /// What a page gives the view.
@@ -99,7 +105,45 @@ pub struct TerminCtx {
     pub plan: Option<Studyplan>,
     /// The day and minute it is, as the page reads the clock; `None` on the server.
     pub now: Signal<Option<(Day, u16)>>,
+    /// The Termin's module is in the visitor's plan of the timetable's semester (from the
+    /// Stundenplan and the start page always); to look up, one that is not says so and offers
+    /// its dates for the visitor's calendar („In den Kalender").
+    /// `None` where that is not known: the server, which knows no plan (R9), says neither.
+    pub planned: Signal<Option<bool>>,
+    /// What a group's dot, a clash and „Der Tag" measure the Termin against.
+    pub against: Signal<Against>,
     pub links: TerminLinks,
+    /// The view is a page of its own (`/event/<key>/<day>`), not a panel beside one: a panel of
+    /// the page, without „Schließen" (Back leaves it).
+    pub page: bool,
+}
+
+/// What the view measures a Termin against: whether a group fits, what the date meets, the day
+/// around it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Against {
+    /// Its own timetable, which is the visitor's plan (the Stundenplan, the start page, the page
+    /// of a planned module).
+    #[default]
+    Itself,
+    /// The visitor's plan of the semester, which does not hold the Termin's module (folia/design/
+    /// termin, „Nicht im Plan": the groups green and red, a clash as a line of its own, the
+    /// Termin hatched among the plan's day).
+    Plan(Box<Timetable>),
+    /// Nothing: the server, which knows no plan (R9), and a visitor without a plan of the
+    /// semester. No group then says it fits, and there is no day to show.
+    Nothing,
+}
+
+impl Against {
+    /// The plan measured against, and the plan beside the Termin's timetable where that is it.
+    fn plans<'a>(&'a self, table: &'a Timetable) -> (Option<&'a Timetable>, Option<&'a Timetable>) {
+        match self {
+            Against::Itself => (Some(table), None),
+            Against::Plan(plan) => (Some(plan), Some(plan)),
+            Against::Nothing => (None, None),
+        }
+    }
 }
 
 /// The most tiles of a grid before it folds: six stand, of more five and „+N".
@@ -156,10 +200,15 @@ struct Shown {
     module: Option<ModulePart>,
     staff: Vec<Person>,
     source: SourcePart,
+    /// To look up a Termin outside the plan: its dates as a calendar file („In den Kalender") and
+    /// the file's name.
+    file: Option<(String, String)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 struct Head {
+    /// To look up, its module is not in the visitor's plan („nicht im Plan").
+    out: bool,
     tone: u8,
     chip: String,
     kind: String,
@@ -216,6 +265,9 @@ struct Groups {
     right: String,
     tiles: Vec<TileShown>,
     note: Option<String>,
+    /// To look up, of a module in the plan: how many groups it holds („Eine in deinem
+    /// Stundenplan"), beside „Anpassen ›".
+    foot: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -253,6 +305,8 @@ struct RibbonItem {
     me: bool,
     gone: bool,
     open: bool,
+    /// Of a module outside the plan: hatched among the plan's Termine.
+    out: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -316,9 +370,11 @@ struct SourcePart {
 pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
     let t = i18n::t();
     let shown = Memo::new(move |_| {
-        let now = ctx.now.get();
+        let (now, planned) = (ctx.now.get(), ctx.planned.get());
         ctx.asked.with(|asked| {
-            ctx.table.with(|table| ctx.modules.with(|modules| asked.and_then(|(key, on)| shown_of(table.as_ref()?, key, on, now, modules, ctx.mode, t))))
+            ctx.table.with(|table| {
+                ctx.against.with(|against| ctx.modules.with(|modules| asked.and_then(|(key, on)| shown_of(table.as_ref()?, against, key, on, now, modules, (ctx.mode, planned), t))))
+            })
         })
     });
     let found = Memo::new(move |_| shown.with(Option::is_some));
@@ -329,13 +385,17 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
 
     let top = move || {
         let head = head.get();
-        let chip = head.as_ref().map(|head| view! { <span class=format!("tm-mod {}", hue(head.tone))><i></i>{head.chip.clone()}</span> });
+        let chip = head.as_ref().map(|head| view! { <span class=format!("tm-mod {}", hue(head.tone)) class:out=head.out><i></i>{head.chip.clone()}</span> });
         let kind = head.as_ref().map(|head| view! { <span class="tm-kind">{head.kind.clone()}</span> });
+        let out = head.as_ref().is_some_and(|head| head.out).then(|| view! { <span class="np">{t.termin.not_in_plan}</span> });
         view! {
             <div class="hero-top tm-bar">
                 {chip}
                 {kind}
-                <a class="ghost tm-close" href=move || close.get() data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
+                {out}
+                {(!ctx.page).then(|| view! {
+                    <a class="ghost tm-close" href=move || close.get() rel="nofollow" data-action="close-detail" data-back=move || back.get() data-noscroll="" title=t.termin.close_title><Icon name="x"/>{t.common.close}<Shortcut keys="Esc"/></a>
+                })}
             </div>
             {head.map(|head| view! { <h2 class="tm-title">{head.title}</h2> })}
         }
@@ -351,7 +411,7 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
             <TicketView ctx shown/>
             <WhoView shown/>
             {(ctx.mode == TerminMode::Adjust).then(|| view! { <PlanView ctx shown/> })}
-            {(ctx.mode == TerminMode::LookUp).then(|| view! { <GroupsView ctx shown adjust=false/> })}
+            {(ctx.mode == TerminMode::LookUp).then(|| view! { <GroupsView ctx shown adjust=false/><CalendarFile ctx shown/> })}
             <DayView ctx shown/>
             <SeriesView ctx shown/>
             <ModuleView ctx shown/>
@@ -364,9 +424,14 @@ pub fn TerminView(ctx: TerminCtx) -> impl IntoView {
         }
         .into_any()
     };
+    // Beside a page `is-module`: on a phone a sheet over it, as a module's panel (app.css,
+    // enhance.js). As a page a panel of its own.
+    let (class, id) = match ctx.page {
+        true => ("panel is-termin tm-page", None),
+        false => ("panel detail aside is-module is-termin", Some("preview")),
+    };
     view! {
-        // `is-module`: on a phone a sheet over the page, as a module's panel (app.css, enhance.js).
-        <section class="panel detail aside is-module is-termin" id="preview" aria-label=t.termin.panel>
+        <section class=class id=id aria-label=t.termin.panel>
             <div class="scroll" id="termin-scroll">
                 <header class="hero tm-head">{top}</header>
                 <div class="dbody tm">{body}</div>
@@ -383,7 +448,7 @@ fn TicketView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     move || {
         ticket.get().map(|(key, ticket)| {
             let step = |day: Option<Day>, label: &'static str, icon: &'static str| match day {
-                Some(day) => view! { <a class="pg" href=ctx.links.termin.run((key, Some(day))) data-noscroll="" aria-label=label title=label><Icon name=icon/></a> }.into_any(),
+                Some(day) => view! { <a class="pg" href=ctx.links.termin.run((key, Some(day))) rel="nofollow" data-noscroll="" aria-label=label title=label><Icon name=icon/></a> }.into_any(),
                 None => view! { <span class="pg" aria-hidden="true"><Icon name=icon/></span> }.into_any(),
             };
             let ab = ticket.weeks.map(|weeks| {
@@ -536,7 +601,7 @@ fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>, adjust: bool) -> impl 
                             .into_any()
                         }
                         false => view! {
-                            <a class="gs" class:this=tile.current href=ctx.links.termin.run((tile.key, None)) data-noscroll="" title=tile.label.clone() aria-label=tile.label.clone() aria-current=tile.current.then_some("true")>
+                            <a class="gs" class:this=tile.current href=ctx.links.termin.run((tile.key, None)) rel="nofollow" data-noscroll="" title=tile.label.clone() aria-label=tile.label.clone() aria-current=tile.current.then_some("true")>
                                 {body}
                                 {tile.ticked.then(|| view! { <i class="ck"><Icon name="check"/></i> })}
                             </a>
@@ -554,6 +619,12 @@ fn GroupsView(ctx: TerminCtx, shown: Memo<Option<Shown>>, adjust: bool) -> impl 
                     <div class="grp-h"><span>{groups.word.clone()}</span><span class="r">{groups.right.clone()}</span></div>
                     <div class="grp-seg" style=format!("--n: {}", all.clamp(1, 3))>{views}{fold}</div>
                     {groups.note.clone().map(|note| view! { <p class="grp-n">{note}</p> })}
+                    {groups.foot.clone().map(|foot| view! {
+                        <p class="grp-f">
+                            <span>{foot}</span>
+                            {adjust_link(ctx, shown).map(|href| view! { <a class="go2" href=href rel="nofollow">{t.termin.adjust}<Icon name="chevron-right"/></a> })}
+                        </p>
+                    })}
                 </div>
             }
         })
@@ -574,6 +645,61 @@ fn folded<T: Clone>(tiles: &[T], own: impl Fn(&T) -> bool, late: impl Fn(&T) -> 
         }
     }
     sorted.into_iter().cloned().collect()
+}
+
+/// The Termin's view in the Stundenplan, on the date shown („Anpassen ›"), where the page gives
+/// one (`TerminLinks::adjust`) and the Termin is in the plan.
+fn adjust_link(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> Option<String> {
+    if ctx.planned.get() != Some(true) {
+        return None;
+    }
+    let (key, day) = shown.with(|s| s.as_ref().map(|s| (s.key, s.day)))?;
+    ctx.links.adjust.map(|adjust| adjust.run((key, Some(day))))
+}
+
+/// „In den Kalender": the dates of a Termin outside the plan as a calendar file, made ahead as a
+/// Blob URL, so the click has nothing left to do (R21), as the Stundenplan's „.ics herunterladen".
+#[component]
+fn CalendarFile(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
+    let t = i18n::t();
+    let file = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.file.clone())));
+    let url = RwSignal::new(None::<String>);
+    #[cfg(feature = "csr")]
+    {
+        Effect::new(move |before: Option<Option<String>>| {
+            if let Some(Some(old)) = before {
+                let _ = web_sys::Url::revoke_object_url(&old);
+            }
+            let made = file.with(|file| file.as_ref().and_then(|(text, _)| object_url(text)));
+            url.set(made.clone());
+            made
+        });
+        on_cleanup(move || {
+            if let Some(old) = url.get_untracked() {
+                let _ = web_sys::Url::revoke_object_url(&old);
+            }
+        });
+    }
+    let _ = ctx;
+    move || {
+        file.get().map(|(_, name)| {
+            view! {
+                <a class="tm-big" href=move || url.get().unwrap_or_default() download=name title=t.termin.into_calendar_title aria-disabled=move || url.with(Option::is_none).then_some("true")>
+                    <Icon name="calendar-plus"/>{t.termin.into_calendar}
+                </a>
+            }
+        })
+    }
+}
+
+/// The text as a Blob URL of an iCalendar file. Only in the browser.
+#[cfg(feature = "csr")]
+fn object_url(text: &str) -> Option<String> {
+    let parts = web_sys::js_sys::Array::of1(&wasm_bindgen::JsValue::from_str(text));
+    let options = web_sys::BlobPropertyBag::new();
+    options.set_type("text/calendar;charset=utf-8");
+    let blob = web_sys::Blob::new_with_str_sequence_and_options(&parts, &options).ok()?;
+    web_sys::Url::create_object_url_with_blob(&blob).ok()
 }
 
 /// „Der Tag": the plan's Termine of the day on a ribbon from 7 to 19, this one marked; then what
@@ -600,9 +726,16 @@ fn DayView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                         4.0 + item.lane as f64 * (height + 2.0),
                         height
                     );
-                    let class = format!("rb {}{}{}{}", hue(item.tone), if item.me { " me" } else { "" }, if item.gone { " gone" } else { "" }, if item.open { " open" } else { "" });
+                    let class = format!(
+                        "rb {}{}{}{}{}",
+                        hue(item.tone),
+                        if item.me { " me" } else { "" },
+                        if item.gone { " gone" } else { "" },
+                        if item.open { " open" } else { "" },
+                        if item.out { " out" } else { "" }
+                    );
                     match (item.me, item.key) {
-                        (false, Some(key)) => view! { <a class=class style=style href=ctx.links.termin.run((key, Some(day))) data-noscroll="" title=item.label.clone() aria-label=item.label>{item.short}</a> }.into_any(),
+                        (false, Some(key)) => view! { <a class=class style=style href=ctx.links.termin.run((key, Some(day))) rel="nofollow" data-noscroll="" title=item.label.clone() aria-label=item.label>{item.short}</a> }.into_any(),
                         _ => view! { <span class=class style=style title=item.label>{item.short}</span> }.into_any(),
                     }
                 })
@@ -635,7 +768,7 @@ fn SeriesView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                 .dots
                 .into_iter()
                 .map(|dot| match dot.link {
-                    true => view! { <a class=dot.class href=ctx.links.termin.run((key, Some(dot.day))) data-noscroll="" title=dot.label.clone() aria-label=dot.label></a> }.into_any(),
+                    true => view! { <a class=dot.class href=ctx.links.termin.run((key, Some(dot.day))) rel="nofollow" data-noscroll="" title=dot.label.clone() aria-label=dot.label></a> }.into_any(),
                     false => view! { <span class=dot.class title=dot.label></span> }.into_any(),
                 })
                 .collect_view();
@@ -654,6 +787,7 @@ fn SeriesView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
 fn ModuleView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
     let t = i18n::t();
     let part = Memo::new(move |_| shown.with(|s| s.as_ref().and_then(|s| s.module.clone().map(|part| (s.key, part)))));
+    let grouped = Memo::new(move |_| shown.with(|s| s.as_ref().is_some_and(|s| s.groups.is_some())));
     move || {
         part.get().map(|(key, part)| {
             let exams = part
@@ -665,10 +799,16 @@ fn ModuleView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                     }
                 })
                 .collect_view();
+            // To look up a Termin of the plan without groups: the way into the Stundenplan here (with
+            // groups it stands under them).
+            let adjust = (ctx.mode == TerminMode::LookUp && !grouped.get()).then(|| adjust_link(ctx, shown)).flatten().map(|href| {
+                view! { <a class="mrow" href=href rel="nofollow"><span class="ico"><Icon name="calendar-days"/></span><span><b>{t.termin.adjust_row}</b><small>{t.termin.adjust_sub}</small></span><span class="v"></span><Icon name="chevron-right"/></a> }
+            });
             view! {
                 <section class="tm-sec">
                     <h4>{t.termin.module}</h4>
                     <a class="mrow" href=ctx.links.module.run((part.id.clone(), Some(key))) data-noscroll=""><span class="ico"><Icon name="graduation-cap"/></span><span><b>{t.termin.to_module}</b><small>{part.line}</small></span><span class="v"></span><Icon name="chevron-right"/></a>
+                    {adjust}
                     {exams}
                 </section>
             }
@@ -701,7 +841,7 @@ fn EventsView(ctx: TerminCtx, shown: Memo<Option<Shown>>) -> impl IntoView {
                         .map(|session| {
                             let href = ctx.links.termin.run((session.key, None));
                             view! {
-                                <a class="esl" class:me=session.me href=href data-noscroll="" title=session.label.clone() aria-label=session.label aria-current=session.me.then_some("true")>
+                                <a class="esl" class:me=session.me href=href rel="nofollow" data-noscroll="" title=session.label.clone() aria-label=session.label aria-current=session.me.then_some("true")>
                                     <b>{session.when}</b><small>{session.room}</small>
                                     {session.ticked.then(|| view! { <i class="ck"><Icon name="check"/></i> })}
                                 </a>
@@ -838,16 +978,17 @@ fn full_name(name: &str) -> String {
     }
 }
 
-/// The view of the Termin `key` of `table` on `on` (its next date without), as it is at `now`.
-fn shown_of(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u16)>, modules: &BTreeMap<String, ModuleFacts>, mode: TerminMode, t: &'static Texts) -> Option<Shown> {
+/// The view of the Termin `key` of `table` on `on` (its next date without), as it is at `now`,
+/// measured `against` the plan. `seen`: the view's mode, and whether the Termin's module is in
+/// the visitor's plan (`None`: not known).
+#[allow(clippy::too_many_arguments)]
+fn shown_of(table: &Timetable, against: &Against, key: RowKey, on: Option<Day>, now: Option<(Day, u16)>, modules: &BTreeMap<String, ModuleFacts>, seen: (TerminMode, Option<bool>), t: &'static Texts) -> Option<Shown> {
+    let (mode, planned) = seen;
+    // The plan the Termin is measured against, and the plan beside `table` where that is it.
+    let (measure, beside) = against.plans(table);
     let locale = t.locale;
     let today = now.map(|(day, _)| day);
-    let o = Occasion::find(table, key, on, today)?;
-    // Without a day: the next date to come, the day after once today's is over.
-    let o = match (on, now) {
-        (None, Some((day, minute))) if o.day == day && o.to.is_some_and(|to| to <= minute) => Occasion::find(table, key, None, Some(day.plus(1))).filter(|next| next.day > day).unwrap_or(o),
-        _ => o,
-    };
+    let o = Occasion::at(table, key, on, now)?;
     let event = table.events.get(o.event)?;
     let first = event.rows.get(*o.rows.first()?)?;
     let module = event.modules.first();
@@ -857,7 +998,7 @@ fn shown_of(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u
         "" => module.and_then(|id| modules.get(id)).map(|facts| facts.title.clone()).unwrap_or_default(),
         title => title.to_string(),
     };
-    let head = Head { tone: event.tone, chip: chip_of(module, modules), kind: kind.clone(), title };
+    let head = Head { out: mode == TerminMode::LookUp && planned == Some(false), tone: event.tone, chip: chip_of(module, modules), kind: kind.clone(), title };
 
     // The ticket.
     let past = now.is_some_and(|(day, minute)| o.day < day || (o.day == day && o.to.is_some_and(|to| to <= minute)));
@@ -933,9 +1074,9 @@ fn shown_of(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u
 
     // What else is said of it.
     let mut hints = Vec::new();
-    if let Some(beside) = termin::clash_on(table, &o) {
-        let other = table.events.get(beside.event);
-        let what = other.map(|other| format!("{} {}, {}–{}", kind_short(other, locale), chip_of(other.modules.first(), modules), clock(beside.from), clock(beside.to))).unwrap_or_default();
+    if let Some((plan, met)) = measure.and_then(|plan| Some((plan, termin::clash_on(table, &o, beside)?))) {
+        let other = plan.events.get(met.event);
+        let what = other.map(|other| format!("{} {}, {}–{}", kind_short(other, locale), chip_of(other.modules.first(), modules), clock(met.from), clock(met.to))).unwrap_or_default();
         hints.push(Hint { warn: true, icon: "triangle-alert", text: (t.termin.meets)(&what) });
     }
     match &o.state {
@@ -966,7 +1107,7 @@ fn shown_of(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u
     }
 
     // The groups, and „Im Stundenplan".
-    let groups = groups_of(table, &o, event, (first_kind, modules), mode, t);
+    let groups = groups_of(table, (measure, beside), &o, event, (first_kind, modules), seen, t);
     let plan = match mode {
         TerminMode::LookUp => None,
         TerminMode::Adjust => event.id.parse::<u32>().ok().map(|id| {
@@ -982,8 +1123,8 @@ fn shown_of(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u
         }),
     };
 
-    // The day.
-    let the_day = (o.from.is_some()).then(|| day_part(table, &o, modules, t));
+    // The day, where there is a plan to show it of.
+    let the_day = (o.from.is_some() && measure.is_some()).then(|| day_part(table, beside, &o, (modules, head.out), t));
 
     // The series.
     let series = series_part(&o, today, t);
@@ -1024,7 +1165,16 @@ fn shown_of(table: &Timetable, key: RowKey, on: Option<Day>, now: Option<(Day, u
 
     let what = [Some(kind.clone()), event.number.clone()].into_iter().flatten().collect::<Vec<_>>().join(" ");
     let source = SourcePart { what, qis: event.source_url.clone().or_else(|| first.date.source_url.clone()) };
-    Some(Shown { key, day: o.day, head, ticket, people, hints, plan, groups, the_day, series, range, events, module: module_part, staff, source })
+    // Its dates for one's own calendar, to look up a Termin outside the plan: the feed's entries of
+    // a timetable that holds it alone.
+    let file = (mode == TerminMode::LookUp && planned == Some(false)).then(|| {
+        let titles: BTreeMap<String, String> = modules.iter().map(|(id, facts)| (id.clone(), facts.title.clone())).collect();
+        let names: BTreeMap<String, String> = modules.iter().filter_map(|(id, facts)| Some((id.clone(), facts.abbrev.clone()?))).collect();
+        let calendar = export::calendar_of(&termin::alone(table, &o), &titles, &names, "", "", locale);
+        let name = format!("{} {}", head.chip, kind);
+        (ics::write(&calendar), (t.termin.calendar_file)(name.trim()))
+    });
+    Some(Shown { key, day: o.day, head, ticket, people, hints, plan, groups, the_day, series, range, events, module: module_part, staff, source, file })
 }
 
 fn id_or_empty(id: Option<&String>) -> &str {
@@ -1032,10 +1182,12 @@ fn id_or_empty(id: Option<&String>) -> &str {
 }
 
 /// The groups of the event's choice, when it has one: „Übungsgruppen", how many ticked, the tiles.
-fn groups_of(table: &Timetable, o: &Occasion, event: &Event, named: (Option<EventKind>, &BTreeMap<String, ModuleFacts>), mode: TerminMode, t: &'static Texts) -> Option<Groups> {
+fn groups_of(table: &Timetable, plans: (Option<&Timetable>, Option<&Timetable>), o: &Occasion, event: &Event, named: (Option<EventKind>, &BTreeMap<String, ModuleFacts>), seen: (TerminMode, Option<bool>), t: &'static Texts) -> Option<Groups> {
     let locale = t.locale;
     let (kind, modules) = named;
-    let tiles = termin::tiles(table, o.event);
+    let (mode, planned) = seen;
+    let (plan, beside) = plans;
+    let tiles = termin::tiles(table, o.event, beside);
     if tiles.len() < 2 {
         return None;
     }
@@ -1053,9 +1205,11 @@ fn groups_of(table: &Timetable, o: &Occasion, event: &Event, named: (Option<Even
             };
             let room = format!("{}{}", row.date.room_shown().unwrap_or_default(), if tile.session.rooms > 0 { " +1" } else { "" });
             let name = row.date.group_name.as_deref().map(str::trim).filter(|name| !name.is_empty() && *name != folia_timetable::model::UNNAMED_GROUP).map(group_word);
-            let meets = tile.meets.and_then(|other| table.events.get(other)).map(|other| format!("{} {}", kind_short(other, locale), chip_of(other.modules.first(), modules)));
-            // Green only where it helps to choose: nothing ticked yet, or to look up.
+            let meets = plan.and_then(|plan| plan.events.get(tile.meets?)).map(|other| format!("{} {}", kind_short(other, locale), chip_of(other.modules.first(), modules)));
+            // Green only where it helps to choose: nothing ticked yet, or to look up; neither
+            // without a plan to fit.
             let dot = match (&meets, open || mode == TerminMode::LookUp) {
+                _ if plan.is_none() => None,
                 (Some(_), _) => Some(false),
                 (None, true) => Some(true),
                 (None, false) => None,
@@ -1065,7 +1219,8 @@ fn groups_of(table: &Timetable, o: &Occasion, event: &Event, named: (Option<Even
                 (None, Some(true)) => t.termin.fits_said.to_string(),
                 _ => String::new(),
             };
-            let label = format!("{}{when}, {room}{said}{}", name.as_ref().map(|name| format!("{name}, ")).unwrap_or_default(), if tile.ticked { t.termin.ticked_said } else { "" });
+            let at = if room.is_empty() { String::new() } else { format!(", {room}") };
+            let label = format!("{}{when}{at}{said}{}", name.as_ref().map(|name| format!("{name}, ")).unwrap_or_default(), if tile.ticked { t.termin.ticked_said } else { "" });
             Some(TileShown { option: tile.option, key: tile.session.key, keys: tile.keys.clone(), when, room, name, ticked: tile.ticked, current: Some(tile.option) == own_option, dot, label })
         })
         .collect();
@@ -1075,7 +1230,8 @@ fn groups_of(table: &Timetable, o: &Occasion, event: &Event, named: (Option<Even
         (TerminMode::Adjust, false) => (t.termin.ticked_of)(ticked, shown.len()),
     };
     let note = (mode == TerminMode::Adjust && open && event.hidden.is_none()).then(|| (t.termin.open_note)(shown.len()));
-    Some(Groups { word: (t.termin.groups)(kind).to_string(), right, tiles: shown, note })
+    let foot = (mode == TerminMode::LookUp && planned == Some(true)).then(|| (t.termin.in_your_plan)(ticked));
+    Some(Groups { word: (t.termin.groups)(kind).to_string(), right, tiles: shown, note, foot })
 }
 
 /// QIS's „2-Gruppe" as one reads it: „Gruppe 2".
@@ -1086,21 +1242,26 @@ fn group_word(name: &str) -> String {
     }
 }
 
-/// „Der Tag": the plan's Termine of the day in lanes, and what comes after this one.
-fn day_part(table: &Timetable, o: &Occasion, modules: &BTreeMap<String, ModuleFacts>, t: &'static Texts) -> DayPart {
+/// „Der Tag": the plan's Termine of the day in lanes, and what comes after this one. `beside`: the
+/// plan, where `table` is not it; the Termin then stands among the plan's, hatched where its
+/// module is `out` of the plan.
+fn day_part(table: &Timetable, beside: Option<&Timetable>, o: &Occasion, named: (&BTreeMap<String, ModuleFacts>, bool), t: &'static Texts) -> DayPart {
     let locale = t.locale;
-    let mut besides = termin::day_of(table, o.day);
-    let mine = |beside: &termin::Beside| beside.event == o.event && (beside.key == Some(o.key) || o.rows.contains(&beside.row));
-    if !besides.iter().any(mine) {
+    let (modules, out) = named;
+    let plan = beside.unwrap_or(table);
+    // Each Termin with whether it is this one, which stands in `table`; the others in `plan`.
+    let mine = |other: &termin::Beside| beside.is_none() && other.event == o.event && (other.key == Some(o.key) || o.rows.contains(&other.row));
+    let mut besides: Vec<(bool, termin::Beside)> = termin::day_of(plan, o.day).into_iter().map(|other| (mine(&other), other)).collect();
+    if !besides.iter().any(|(me, _)| *me) {
         if let (Some(from), Some(to), Some(row)) = (o.from, o.to, o.rows.first()) {
-            besides.push(termin::Beside { event: o.event, row: *row, key: Some(o.key), from, to, cancelled: matches!(o.state, DateState::Cancelled(..)), open: false });
-            besides.sort_by_key(|beside| (beside.from, beside.to, beside.event));
+            besides.push((true, termin::Beside { event: o.event, row: *row, key: Some(o.key), from, to, cancelled: matches!(o.state, DateState::Cancelled(..)), open: false }));
+            besides.sort_by_key(|(me, other)| (other.from, other.to, !*me, other.event));
         }
     }
     let mut lanes: Vec<u16> = Vec::new();
     let items = besides
         .iter()
-        .map(|beside| {
+        .map(|(me, beside)| {
             let lane = match lanes.iter().position(|end| *end <= beside.from) {
                 Some(lane) => lane,
                 None => {
@@ -1111,7 +1272,7 @@ fn day_part(table: &Timetable, o: &Occasion, modules: &BTreeMap<String, ModuleFa
             if let Some(end) = lanes.get_mut(lane) {
                 *end = beside.to;
             }
-            let event = table.events.get(beside.event);
+            let event = if *me { table } else { plan }.events.get(beside.event);
             let chip = chip_of(event.and_then(|event| event.modules.first()), modules);
             let room = event.and_then(|event| event.rows.get(beside.row)).and_then(|row| row.date.room_shown()).unwrap_or_default();
             let kind = event.map(|event| kind_short(event, locale)).unwrap_or_default();
@@ -1123,17 +1284,18 @@ fn day_part(table: &Timetable, o: &Occasion, modules: &BTreeMap<String, ModuleFa
                 short: chip.clone(),
                 label: format!("{}–{} · {kind} {chip} · {room}", clock(beside.from), clock(beside.to)),
                 tone: event.map_or(1, |event| event.tone),
-                me: mine(beside),
+                me: *me,
                 gone: beside.cancelled,
                 open: beside.open,
+                out: *me && out,
             }
         })
         .collect();
     let then = match o.state {
         DateState::Cancelled(..) | DateState::Skipped(_) => None,
-        _ => Some(match termin::after(table, o) {
+        _ => Some(match termin::after(table, o, beside) {
             Some(next) => {
-                let event = table.events.get(next.event);
+                let event = plan.events.get(next.event);
                 let row = event.and_then(|event| event.rows.get(next.row));
                 let room = row.and_then(|row| row.date.room_shown()).unwrap_or_default();
                 let what = format!("{} {} {} · {room}", clock(next.from), event.map(|event| kind_short(event, locale)).unwrap_or_default(), chip_of(event.and_then(|event| event.modules.first()), modules));
@@ -1329,7 +1491,7 @@ mod tests {
         let key = rows[0].key();
         let t = table(&rows, &["12104"], &[], &Selection { chosen_rows: [rows[2].key()].into_iter().collect(), ..Selection::default() });
         let texts = &i18n::DE;
-        let shown = shown_of(&t, key, Some(d("2026-11-10")), Some((d("2026-11-10"), 9 * 60 + 35)), &modules(), TerminMode::Adjust, texts).unwrap();
+        let shown = shown_of(&t, &Against::Itself, key, Some(d("2026-11-10")), Some((d("2026-11-10"), 9 * 60 + 35)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
         assert_eq!((shown.head.chip.as_str(), shown.head.kind.as_str()), ("EvS", "Vorlesung"));
         assert_eq!(shown.ticket.date, "Di 10.11.");
         assert_eq!(shown.ticket.time, Some(("09:15".to_string(), "bis 10:45".to_string())));
@@ -1339,7 +1501,7 @@ mod tests {
         // The ticked group 2 meets the lecture.
         assert!(shown.hints.first().is_some_and(|hint| hint.warn && hint.text.starts_with("Überschneidet sich mit Ü EvS, 09:15")), "{:?}", shown.hints);
         // A week on: QIS cancels it, with its reason; the series counts it as none held.
-        let cancelled = shown_of(&t, key, Some(d("2026-11-17")), Some((d("2026-11-10"), 600)), &modules(), TerminMode::Adjust, texts).unwrap();
+        let cancelled = shown_of(&t, &Against::Itself, key, Some(d("2026-11-17")), Some((d("2026-11-10"), 600)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
         assert_eq!(cancelled.ticket.pill, Some(("no", "Fällt aus".to_string())));
         assert!(cancelled.hints.iter().any(|hint| hint.text == "Krankheit"));
         assert!(cancelled.range.lines.iter().any(|(day, text, class)| day == "17.11." && text == "fällt aus: Krankheit" && *class == "cancel"));
@@ -1359,7 +1521,7 @@ mod tests {
         ];
         let open = table(&rows, &["12104"], &[], &Selection::default());
         let texts = &i18n::DE;
-        let shown = shown_of(&open, rows[1].key(), None, Some((d("2026-11-04"), 600)), &modules(), TerminMode::Adjust, texts).unwrap();
+        let shown = shown_of(&open, &Against::Itself, rows[1].key(), None, Some((d("2026-11-04"), 600)), &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap();
         let groups = shown.groups.unwrap();
         assert_eq!((groups.word.as_str(), groups.right.as_str()), ("Übungsgruppen", "noch keine"));
         assert_eq!(groups.note.as_deref(), Some("Bis du eine anhakst, stehen alle 3 gestrichelt im Stundenplan."));
@@ -1371,14 +1533,37 @@ mod tests {
         assert!(groups.tiles[1].label.contains("überschneidet sich mit VL EvS"), "{}", groups.tiles[1].label);
         // Two ticked: „2 von 3", no green where nothing is left to help choose.
         let ticked = table(&rows, &["12104"], &[], &Selection { chosen_rows: [rows[1].key(), rows[3].key()].into_iter().collect(), ..Selection::default() });
-        let groups = shown_of(&ticked, rows[1].key(), None, None, &modules(), TerminMode::Adjust, texts).unwrap().groups.unwrap();
+        let groups = shown_of(&ticked, &Against::Itself, rows[1].key(), None, None, &modules(), (TerminMode::Adjust, Some(true)), texts).unwrap().groups.unwrap();
         assert_eq!(groups.right, "2 von 3");
         assert_eq!(groups.tiles.iter().map(|tile| (tile.ticked, tile.dot)).collect::<Vec<_>>(), [(true, None), (false, Some(false)), (true, None)]);
         assert_eq!(groups.note, None);
-        // To look up: „eine von 3".
-        let look = shown_of(&ticked, rows[1].key(), None, None, &modules(), TerminMode::LookUp, texts).unwrap();
-        assert_eq!(look.groups.unwrap().right, "eine von 3");
-        assert!(look.plan.is_none());
+        // To look up a module in the plan: „eine von 3", how many the plan holds, no file.
+        let look = shown_of(&ticked, &Against::Itself, rows[1].key(), None, None, &modules(), (TerminMode::LookUp, Some(true)), texts).unwrap();
+        let groups = look.groups.unwrap();
+        assert_eq!((groups.right.as_str(), groups.foot.as_deref()), ("eine von 3", Some("2 in deinem Stundenplan")));
+        assert!(look.plan.is_none() && look.file.is_none() && !look.head.out);
+        // One outside the plan: its chip dashed, „nicht im Plan", its dates as a file of their own;
+        // without a plan to fit no group is green or red, and there is no day.
+        let outside = shown_of(&open, &Against::Nothing, rows[1].key(), None, None, &modules(), (TerminMode::LookUp, Some(false)), texts).unwrap();
+        assert!(outside.head.out && outside.groups.as_ref().is_some_and(|groups| groups.foot.is_none()));
+        assert!(outside.groups.as_ref().is_some_and(|groups| groups.tiles.iter().all(|tile| tile.dot.is_none())));
+        assert!(outside.the_day.is_none() && !outside.hints.iter().any(|hint| hint.warn));
+        let (text, name) = outside.file.unwrap();
+        assert_eq!(name, "Termin EvS Übung.ics");
+        assert!(text.starts_with("BEGIN:VCALENDAR") && text.matches("BEGIN:VEVENT").count() == 1, "{text}");
+        // Beside a plan that holds a lecture on Tuesdays at 09:15 and an exercise on Mondays at
+        // 13:45: group 2 meets the plan, the others fit; Monday's group stands hatched among the
+        // plan's day, the exercise after it.
+        let theirs = [teaching("12107", "300", 1, "Vorlesung", 2, "09:15", "10:45"), teaching("12107", "400", 1, "Übung", 1, "13:45", "15:15")];
+        let plan = Against::Plan(Box::new(table(&theirs, &["12107"], &[], &Selection::default())));
+        let beside = shown_of(&open, &plan, rows[1].key(), Some(d("2026-11-09")), None, &modules(), (TerminMode::LookUp, Some(false)), texts).unwrap();
+        assert_eq!(beside.groups.unwrap().tiles.iter().map(|tile| tile.dot).collect::<Vec<_>>(), [Some(true), Some(false), Some(true)]);
+        let day = beside.the_day.unwrap();
+        assert_eq!(day.items.iter().map(|item| (item.from, item.me, item.out)).collect::<Vec<_>>(), [(690, true, true), (825, false, false)]);
+        assert!(day.then.is_some_and(|(what, _)| what.starts_with("13:45 Ü")));
+        // Group 2's date meets the plan's lecture: a line of its own.
+        let two = shown_of(&open, &plan, rows[2].key(), Some(d("2026-11-10")), None, &modules(), (TerminMode::LookUp, Some(false)), texts).unwrap();
+        assert!(two.hints.first().is_some_and(|hint| hint.warn && hint.text.starts_with("Überschneidet sich mit VL")), "{:?}", two.hints);
     }
 
     #[test]
