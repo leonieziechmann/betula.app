@@ -14,8 +14,10 @@
 //     only (not to the targets of its redirects); its 304 is Result.NotModified.
 //   - The body streams into Request.Sink (the server's store), at most `max_body` bytes, both
 //     decoded and as they came over the wire (Cortex decodes gzip itself for that); a 2xx of a
-//     host with `expect_type` must be of that media type. Through redirects, the answer at the
-//     end must keep the rules of the host asked first as well as its own.
+//     host with `expect_type` must be of that media type, and no answer may hold a text of the
+//     host's `reject` in its first RejectScan bytes (a block page in place of the page). Through
+//     redirects, the answer at the end must keep the rules of the host asked first as well as
+//     its own.
 //   - Host names in ASCII only: an internationalised name must be given in punycode, so that
 //     no Unicode spelling of a host escapes its entry in the policy.
 //
@@ -24,6 +26,7 @@
 package upstream
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"errors"
@@ -44,13 +47,19 @@ import (
 )
 
 // Errors of Fetch. The server maps them to its own: 403 host-not-allowed, 403
-// address-not-allowed, 502 too-large, 502 wrong-type.
+// address-not-allowed, 502 too-large, 502 wrong-type, 502 rejected.
 var (
 	ErrHostNotAllowed    = errors.New("host not allowed")
 	ErrAddressNotAllowed = errors.New("address not allowed")
 	ErrTooLarge          = errors.New("body too large")
 	ErrWrongType         = errors.New("wrong content type")
+	ErrRejected          = errors.New("rejected")
 )
+
+// RejectScan is how much of the start of an answer's content is searched for the reject texts
+// of its host: a page that stands in for another one is small and says so near its top, and a
+// limit keeps a large download from being held in memory.
+const RejectScan = 64 << 10
 
 // StatusError is an answer upstream gave that Cortex does not store (anything but 200, 203,
 // 204, 404, 410 and a 304 to a conditional request); its body was discarded.
@@ -338,8 +347,8 @@ func (u *Upstream) checkPolicy() {
 // the smaller max_body of the two.
 //
 // Errors: ErrHostNotAllowed (also for a host that is not ASCII), ErrAddressNotAllowed,
-// *BusyError, *PausedError, ErrTooLarge, ErrWrongType, *StatusError, the Sink's error
-// (wrapped), ctx's error, or a network error.
+// *BusyError, *PausedError, ErrTooLarge, ErrWrongType, ErrRejected, *StatusError, the Sink's
+// error (wrapped), ctx's error, or a network error.
 func (u *Upstream) Fetch(ctx context.Context, r Request) (Result, error) {
 	if r.Sink == nil {
 		return Result{}, errors.New("upstream: Request.Sink is nil")
@@ -459,8 +468,8 @@ type exchange struct {
 	userAgent string     // the policy's
 
 	// The policy of the host the chain began with (hp itself on the first hop): its
-	// expect_type and max_body hold for the answer at the end too, so that a redirect to
-	// another host (a login or a challenge page) is not judged by that host's rules alone.
+	// expect_type, reject and max_body hold for the answer at the end too, so that a redirect
+	// to another host (a login or a challenge page) is not judged by that host's rules alone.
 	first     HostPolicy
 	firstHost string
 	// conditional says that this request carries the validators: only the first one does.
@@ -590,7 +599,28 @@ func (x *exchange) answer(resp *http.Response) (Result, *url.URL, error) {
 		b.wire = &wire{r: resp.Body, max: maxBody}
 		b.r = &gunzip{r: b.wire}
 	}
-	hash, size, err := x.r.Sink(b)
+	content := io.Reader(b)
+	if status != http.StatusNoContent && x.rejects() {
+		// The start of the content is read before anything goes to the Sink, so that a page
+		// standing in for the one asked for is never stored. A start that cannot be read is
+		// passed on as it is: the Sink then meets the same error, which is judged below.
+		head, err := readHead(b, RejectScan)
+		if err == nil {
+			if text, host := x.rejected(head); text != "" {
+				x.outcome = failure // the host did not serve the page: its breaker counts it
+				x.bytes = b.n
+				x.discard(resp.Body)
+				rule := ""
+				if host != x.host {
+					rule = ", which " + host + " (where the redirects began) rejects"
+				}
+				return Result{}, nil, fmt.Errorf("%w: %s answered %d with a page that contains %q%s: not the page asked for",
+					ErrRejected, from, status, text, rule)
+			}
+		}
+		content = io.MultiReader(bytes.NewReader(head), b)
+	}
+	hash, size, err := x.r.Sink(content)
 	if err == nil && !b.eof && b.err == nil && !b.tooLarge {
 		// The Sink stopped at the last byte without reading the end: make sure it is the end.
 		var one [1]byte
@@ -634,6 +664,39 @@ func (x *exchange) checkType(contentType, from string) error {
 		return fmt.Errorf("%w: %s answered %s, not %s", ErrWrongType, from, answered, rule.want)
 	}
 	return nil
+}
+
+// rejects says whether the answer is held to reject texts: of its host, or of the host the
+// chain began with.
+func (x *exchange) rejects() bool {
+	return len(x.hp.Reject) > 0 || len(x.first.Reject) > 0
+}
+
+// rejected returns the first reject text that head holds, byte for byte, and the host whose
+// policy names it: the answer's own host first, then the host the chain began with. "" when
+// head holds none.
+func (x *exchange) rejected(head []byte) (text, host string) {
+	for _, rule := range []struct {
+		texts []string
+		host  string
+	}{{x.hp.Reject, x.host}, {x.first.Reject, x.firstHost}} {
+		for _, t := range rule.texts {
+			if bytes.Contains(head, []byte(t)) {
+				return t, rule.host
+			}
+		}
+	}
+	return "", ""
+}
+
+// readHead reads the first n bytes of r, fewer when r ends before; the end is no error.
+func readHead(r io.Reader, n int) ([]byte, error) {
+	head := make([]byte, n)
+	got, err := io.ReadFull(r, head)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return head[:got], err
 }
 
 // failed judges an error for the breaker: the caller giving up says nothing about the host,
