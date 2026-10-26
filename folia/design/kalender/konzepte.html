@@ -21,7 +21,11 @@
      übung auswählen. … Ansosnten finde ich deine vorschläge gut.“): the proposals 1, 2, 4, 5 and 6
      taken, „Weiter“ beside „Fertig“; a module from the calendar stands in „Mein Studium“ on „nur
      besuchen“ (decided on 2026-10-19) and counts only once entered there; the phone without chips,
-     choosing a group rethought in folia/design/kalender/handy.html. -->
+     choosing a group rethought in folia/design/kalender/handy.html. Decided there the same day
+     (owner: „Deine Vorschläge passen, nimm H1 mit Vergleichen“): on a phone H1 with „Vergleichen“;
+     here a tap on a dashed group opens its choice, the rest of the week steps back to 42 %, and in the
+     focus „Vergleichen“ beside „Fertig“ shows the days on the right in place of „Offen“ (described,
+     not drawn). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -325,7 +329,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .slot.friend { background: var(--panel); box-shadow: inset 0 0 0 1.5px var(--mc); }
 .slot.friend b { color: var(--text-2); }
 .slot.friend span { color: var(--text-3); }
-.slot.dim { opacity: .26; }
+.slot.dim { opacity: .42; }
 .slot.focus { z-index: 2; background: var(--panel); box-shadow: 0 0 0 2px var(--text), 0 6px 16px -8px rgba(0, 0, 0, .4); outline: 0; }
 .slot.focus.chosen { background: color-mix(in oklab, var(--mc) 18%, var(--panel)); }
 .spur { position: absolute; right: 2px; width: 6px; top: calc(var(--t) * 1px); height: calc(var(--d) * 1px); border-radius: 3px; background: var(--mc); opacity: .85; }
@@ -476,6 +480,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     <li><span><b>Ein Modul darf in zwei Kalendern stehen,</b> jeder mit seiner Gruppenwahl.</span></li>
     <li><span><b>Nach einem Haken bleibt der Fokus;</b> „Weiter“ neben „Fertig“ geht zur nächsten offenen Wahl.</span></li>
     <li><span><b>Am Handy keine Chips,</b> und die Gruppenwahl neu: <a href="https://claude.ai/artifact/BGZT8HNd4VPvmQ6JVRJPKi">Kalender am Handy</a>.</span></li>
+    <li><span><b>Am Handy H1 mit „Vergleichen“.</b> Am Rechner öffnet ein Tipp auf eine gestrichelte Gruppe ihre Wahl, der Rest tritt auf 42 % zurück, und „Vergleichen“ neben „Fertig“ zeigt die Tage rechts an der Stelle von „Offen“.</span></li>
   </ol>
 </section>
 
@@ -729,7 +734,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     yield: { name: "Besuch gibt nach", say: "Biologie trifft VL MIT1, ohne Rot.", chosen: { mitue: ["mitg1"], pprak: ["ppg1"] }, focus: null, visits: ["DP", "Bio"], lena: "strip", free: false, panel: null },
   };
   const NOTES = {
-    setup: ["Was man sieht", "Die Regelwoche mit den Gruppen gestrichelt, „1 von 3“ und „1 von 4“. <b>Offen</b> rechts nennt die zwei Wahlen und den Platzhalter; der Platzhalter führt nach „Mein Studium“.", "Was man tut", "Ein Tipp auf <b>„Übung MIT1“</b> unter Offen holt sie in den Fokus."],
+    setup: ["Was man sieht", "Die Regelwoche mit den Gruppen gestrichelt, „1 von 3“ und „1 von 4“. <b>Offen</b> rechts nennt die zwei Wahlen und den Platzhalter; der Platzhalter führt nach „Mein Studium“.", "Was man tut", "Ein Tipp auf <b>„Übung MIT1“</b> unter Offen holt sie in den Fokus, ebenso ein Tipp auf eine ihrer gestrichelten Gruppen in der Woche."],
     focus: ["Was man sieht", "Die drei Gruppen der Übung umrandet, jede mit einem <b>Haken</b>; alles andere tritt zurück. Über der Woche steht, was zu tun ist.", "Was man tut", "Ein Haken nimmt eine Gruppe, ein zweiter eine weitere. <b>„Weiter“</b> geht zur nächsten offenen Wahl, <b>„Fertig“</b> oder <kbd>Esc</kbd> beendet den Fokus."],
     done: ["Was man sieht", "Die Woche ruhig: zwölf Termine. <b>Denkmalpflege</b> steht schraffiert am Donnerstag, in der Modulliste unter „Mein Studiengang“ als Besuch.", "Was man tut", "Unter Offen bleibt nur der Platzhalter. „Ändern“ öffnet die Wahl wieder im Fokus."],
     strip: ["Was man sieht", "<b>Lenas 13 Termine als Spur</b>: ein schmaler Streifen am rechten Rand jedes Tages, im Ton ihres Kalenders. Die eigene Woche behält ihre Breite.", "Was man tut", "Der Schalter am Kalender in der Leiste: voll, Spur, aus. Ein Zeigen auf die Spur nennt den Termin."],
@@ -815,7 +820,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     const body = o.phone
       ? `<b>${esc(s.mod)}</b>${it.lanes > 1 ? "" : `<span class="room">${wbr(s.room)}</span>`}`
       : `<b>${esc(`${s.k} ${s.mod}`)}</b><span>${esc(when)}</span><span>${esc(s.room)}</span>`;
-    return `<span class="${cls.join(" ")}" style="${style}" title="${esc(title)}">${body}${marks}</span>`;
+    return `<span class="${cls.join(" ")}" style="${style}" title="${esc(title)}"${open ? ` data-act="focus" data-v="${s.ch}"` : ""}>${body}${marks}</span>`;
   }
 
   // ---------- The frames ----------
