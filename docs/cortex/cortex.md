@@ -1,8 +1,8 @@
 # Cortex, the cache between Betula and the internet
 
 > **Status: built 2026-10-02/03; deployed 2026-10-04 (release 2026-10-04-298639a) and seeded with
-> the public site's raw pages (15,046 answers); the canary reads it offline, the public site does
-> not use it yet (`deploy/README.md` section 14).** One
+> the public site's raw pages (15,046 answers); the canary reads it offline, and the public site
+> fetches through it since 2026-10-26 (release 1.1.0, with `reject`; `deploy/README.md` section 14).** One
 > service that every outgoing data request of the project may go through: it fetches from public
 > hosts under one floor per host for all clients together, keeps every answer that differed with
 > its history, stores named files over REST, and replicates all of it to a second instance that
