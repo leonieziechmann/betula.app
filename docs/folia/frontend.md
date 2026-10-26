@@ -3091,16 +3091,21 @@ the visitor now; what it said of Betula moved to „Über Betula" (`/about`, bel
   „wenn die main box of screen geht dann so die blätter von den anderen seiten engeblendet werden
   mit einer animation", and of that fade: „dass sich die blätter von oben rein schieben beim
   handy. Als scroll animation aber mit einem max speed, wenn jemand schnell scrolled"). Never
-  faster than the whole way in a quarter of a second: a quick swipe shows them come and catch up
-  with the page instead of just being there. `--leaves` on the crown and the frost, from 0 to 1
-  (enhance.js; the stylesheet has 0 while the photo lies under the bar, `data-photo-gone`, for
-  the server's page and the app's first frame); where less motion is wanted they are there or
-  not, at once. The panels in one column; the actions of a step across the width, „Studium
-  anlegen" first.
-- **A wide screen**: the photo reaches up behind the bar to the window's edge as on a phone, its
-  upper corners square, its content where it stood (owner, 2026-10-26: „Jo mach mal den hero
-  banner beim Pc einfach auch bis ganz nach oben. Also zummidest das bild"; the setup's taller
-  photo as well), and the bar over it is the photo's (owner, the same day, of the frost in the
+  faster than the whole way in 150 ms: a quick swipe or Bild ↓ shows them come and catch up with
+  the page instead of just being there (a quarter of a second until the owner, the same day: „Ich
+  will schon dass sich das snappy anfühlt. Aber dass wenn man mal bild runter drückt das nicht
+  sofort da ist, vielleicht so 100-200ms"). `--leaves` on the crown and the frost, from 0 to 1
+  (enhance.js, frame by frame; the stylesheet has 0 while the photo lies under the bar,
+  `data-photo-gone`, for the server's page and the app's first frame). Whatever the system's
+  setting on motion: where less of it was wanted they were there or not, at once, and the owner,
+  who has it so, took that for no animation at all („das mit weniger bewegung war richtig. Aber
+  ich finde das sollte nicht dazu gehören"). The panels in one column; the actions of a step
+  across the width, „Studium anlegen" first.
+- **A wide screen**: the photo reaches up behind the bar to the window's edge as on a phone, and
+  across from the rail to the window's right edge, its lower corners round, its content where it
+  stood, in line with the panels below (owner, 2026-10-26: „Jo mach mal den hero banner beim Pc
+  einfach auch bis ganz nach oben. Also zummidest das bild"; across, so that the frost over it has
+  nothing beside it; the setup's taller photo as well), and the bar over it is the photo's (owner, the same day, of the frost in the
   page's colour over it: „links ist das abgeschnitten es sieht übelst dreckig aus etc. Mach das
   mal ordentlich … die animation für die Blätter gibt es auch immer noch nicht"): its words, the
   wordmark and its line, light as the photo's own, no leaves and no frost at its top, the blur
@@ -3154,8 +3159,8 @@ the season's photo with its name in the ground, the day at once (the days ahead 
 server's page with the app's photo in it before the app has started, but not in another
 language), on a wide screen the page under the bar with the frost behind it once scrolled (at its
 top the page where it stood, the frost gone), the photo up to the window's edge with the bar's
-words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, and
-on a phone the photo under the search, the frost once scrolled, the
+words light and no leaves, the blur alone over it, past it the leaves and the frost's colour, a
+jump past it sliding them in where less motion is wanted as well, and on a phone the photo under the search, the frost once scrolled, the
 leaves halfway down with half their height of the scroll past the photo and all the way past it,
 no faster than their most on a quick swipe, and the catalog's bar with its leaves and the frost
 under them.
@@ -3481,13 +3486,16 @@ at the end of every page the ground with the roots. Picked on a design canvas of
   what reads where the page shows asks for it (the module's sections, the popups, „Nach oben",
   whose screen is what shows below the bar). Once the page is scrolled the frost lies behind the
   bar (above): the same blur and tint as on a phone, 14 px below the bar, so that what goes under
-  the bar goes soft and the wordmark and the search stay on a calm ground. Below
-  the bar only over the column that scrolls: what is pinned beside it, a frame's sidebar and the
-  module on the right, ends at the bar and stays whole, and the page's scrollbar stays clear
-  (`--scrollbar` on the frost, enhance.js); not over the room beside the column either, as wide as
-  the bar: there the blur of the start page's photo ran out past the photo's edge and the rail cut
-  it off. In front the rail, the bar and the crown, the leaves over the frost, then the frost over
-  the page. Over the start page's photo the blur alone and no leaves, as on a phone (the start
+  the bar goes soft and the wordmark and the search stay on a calm ground. Over what scrolls and a
+  little room around it alone (owner, 2026-10-26: „wenn nur die rechte seite scrolled, wie zum
+  beispiel bei der Modulseite, dass dann auch nur der bereich + ein wenig margin geblurred wird.
+  Außerdem ist es weired, dass wenn es fill width blur gibt, dass dann an der seite trotzdem noch
+  was durchgucken kann"): a page without a frame from the rail to the window's edge, nothing
+  beside it; beside a frame's sidebar the column that scrolls and half the room before it, the
+  sidebar and the bar above it clear; the module on the right floats over the page, which scrolls
+  on under it, so over the module the frost stays in the bar and ends at its edge. The page's
+  scrollbar stays clear (`--scrollbar` on the frost, enhance.js). In front the rail, the bar and
+  the crown, the leaves over the frost, then the frost over the page. Over the start page's photo the blur alone and no leaves, as on a phone (the start
   page, „A wide screen"). The wheel over the bar and the room around it,
   where the page shows, turns the page as over „Nach oben" (enhance.js, a listener on the bar
   alone: the browser turned the page there once from its top and then no more). By its classes,
