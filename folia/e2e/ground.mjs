@@ -168,8 +168,9 @@ const open = async (url, viewport = { width: 1440, height: 900 }) => {
       frost: getComputedStyle(document.querySelector("body > .frost")).opacity,
       side: Math.round(side.top),
       page: Math.round(inner.getBoundingClientRect().top),
-      // The frost over the page's column, from the sidebar's left edge to the page's right one.
-      across: Math.round(frost.left) === Math.round(side.left) && Math.round(frost.right) === Math.round(inner.getBoundingClientRect().right),
+      // The frost over what scrolls alone: from half the room after the sidebar to the window's
+      // edge (the page's scrollbar left clear), not over the sidebar.
+      across: Math.round(frost.left) === Math.round(side.right) + 4 && Math.round(frost.right) === innerWidth - (onPage(PAGE).offsetWidth - onPage(PAGE).clientWidth),
     };
   }, PAGE);
   const still = await bar();

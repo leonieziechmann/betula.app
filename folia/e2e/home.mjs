@@ -174,6 +174,8 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
         leaves: getComputedStyle(document.querySelector("body > .crown")).getPropertyValue("--leaves").trim(),
         word: getComputedStyle(document.querySelector(".topbar .crumb.brand .wordmark")).color,
         hero: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)").getBoundingClientRect().top),
+        // The photo and the frost across the whole width, from the rail to the window's edge.
+        across: [document.querySelector("#content > .page-stage.front .day-hero:not(.day-first)"), frost].map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)].join(); }).every((x) => x === `${Math.round(document.querySelector(".rail").getBoundingClientRect().right)},${innerWidth}`),
         greet: Math.round(document.querySelector("#content > .page-stage.front .day-hero:not(.day-first) .day-greet").getBoundingClientRect().top),
       };
     });
@@ -181,8 +183,33 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   const bars = [await under(120), await under(560), await under(0)];
   const [onPhoto, past, top] = bars;
   check(onPhoto.frost === "1" && onPhoto.hero < 0 && top.frost === "0" && top.hero === 0 && top.greet >= 56 + 24, `wide screen: the start page does not run under the bar with the frost behind it, or its photo does not reach up to the window's edge with its greeting below the bar: ${JSON.stringify(bars)}`);
+  check(top.across && onPhoto.across, `wide screen: the photo or the frost does not reach from the rail to the window's edge: ${JSON.stringify(bars)}`);
   check(onPhoto.tint === "0" && onPhoto.leaves === "0" && onPhoto.word === "rgb(255, 255, 255)" && top.leaves === "0" && top.word === "rgb(255, 255, 255)", `wide screen: over the photo the bar is not the photo's (the blur alone, no leaves, its words light): ${JSON.stringify(bars)}`);
   check(past.frost === "1" && past.tint === "1" && past.leaves === "1" && past.word !== "rgb(255, 255, 255)", `wide screen: past the photo the leaves and the frost's colour did not come, or the bar's words stayed light: ${JSON.stringify(bars)}`);
+  // Whatever the system's setting on motion (owner, 2026-10-26: „das mit weniger bewegung … sollte
+  // nicht dazu gehören"), a jump far past the photo, as Bild ↓ makes it, brings the leaves in 150 ms
+  // at the quickest: on their way after 60 ms, there after 400 („nicht sofort da …
+  // vielleicht so 100-200ms").
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const jump = await page.evaluate(async () => {
+    const area = document.querySelector("#content > .page-stage.front > .work.flowing");
+    const crown = document.querySelector("body > .crown");
+    const leaves = () => Number(getComputedStyle(crown).getPropertyValue("--leaves"));
+    area.scrollTo(0, 0);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const t0 = performance.now();
+    area.scrollTo(0, 900);
+    const seen = [leaves()];
+    for (const ms of [60, 400]) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, ms - (performance.now() - t0))));
+      seen.push(leaves());
+    }
+    return seen;
+  });
+  await page.emulateMedia({ reducedMotion: null });
+  check(jump[0] === 0 && jump[1] > 0 && jump[1] < 1 && jump[2] === 1, `wide screen: the leaves do not slide in on a jump past the photo, where less motion is wanted as well: ${JSON.stringify(jump)}`);
+  await page.evaluate(() => document.querySelector("#content > .page-stage.front > .work.flowing").scrollTo(0, 0));
+  await page.waitForTimeout(400);
   // „Rückgängig": the setup again, and what this browser kept before.
   await page.click(".day-welcome button:has-text('Rückgängig') >> visible=true");
   await page.waitForSelector(".ob >> visible=true", { timeout: 5000 }).catch(() => failures.push("„Rückgängig\" does not bring the setup back"));
@@ -250,7 +277,7 @@ check(html.includes('href="/about"') && html.includes('href="/impressum"') && ht
   const back = await bar();
   check(back.frost === "0" && back.leaves === "0", `phone: the frost or the leaves stay at the top: ${JSON.stringify(back)}`);
   // A quick swipe from the top far past the photo: the leaves come no faster than their most (the
-  // whole way in a quarter of a second), on their way after 80 ms, there after 600.
+  // whole way in 150 ms), on their way after 80 ms, there after 600.
   const swipe = await page.evaluate(async () => {
     const crown = document.querySelector("body > .crown");
     const leaves = () => Number(getComputedStyle(crown).getPropertyValue("--leaves"));
